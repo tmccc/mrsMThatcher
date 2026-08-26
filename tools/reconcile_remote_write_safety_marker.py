@@ -2270,15 +2270,28 @@ def adopt_externally_confirmed_reply_offline(
         transport_state = transport_journal.inspect_transport_state(journal_path)
         if (
             transport_state.classification
-            not in {"attempting_pair", "confirmed_pair"}
+            not in {
+                "attempting_pair",
+                "confirmed_pair",
+                "lifecycle_transition_in_progress",
+            }
             or transport_state.errors
-            or transport_state.staging_names
             or transport_state.retirement_guard_names
             or transport_state.journal is None
             or transport_state.fence is None
+            or (
+                transport_state.classification
+                == "lifecycle_transition_in_progress"
+                and len(transport_state.staging_names) != 1
+            )
+            or (
+                transport_state.classification
+                != "lifecycle_transition_in_progress"
+                and transport_state.staging_names
+            )
         ):
             raise ExternalReplyAdoptionError(
-                "transport namespace is not one exact attempting or adopted pair"
+                "transport namespace is not one exact attempting, adopted, or resumable pair"
             )
         _require_transport_snapshot_matches_opened(
             transport_state.journal,
@@ -2290,7 +2303,7 @@ def adopt_externally_confirmed_reply_offline(
             current_fence_file,
             label="transport fence",
         )
-        if transport_state.classification == "attempting_pair":
+        if transport_state.journal.document.get("lifecycle_state") == "attempting":
             _require_expected_opened_identity(
                 current_journal_file,
                 expected_sha256=journal_hash,
@@ -2357,7 +2370,7 @@ def adopt_externally_confirmed_reply_offline(
             raise ExternalReplyAdoptionError(
                 "canonical transport payload differs from the reviewed reply"
             )
-        if transport_state.classification == "confirmed_pair" and (
+        if transport_state.journal.document.get("lifecycle_state") == "confirmed" and (
             journal_document.get("lifecycle_state") != "confirmed"
             or journal_document.get("remote_post_id") != post_id
             or journal_document.get("confirmation_epoch") != confirmed_epoch
@@ -2489,17 +2502,58 @@ def adopt_externally_confirmed_reply_offline(
             prepared_sha256 = existing_prepared.sha256
 
         external_binding = journal_document.get("external_confirmation")
-        if transport_state.classification == "confirmed_pair":
-            expected_old_journal_binding = {
-                key: value
-                for key, value in old_journal_record.items()
-                if key != "lifecycle_state"
+        expected_old_journal_binding = {
+            key: value
+            for key, value in old_journal_record.items()
+            if key != "lifecycle_state"
+        }
+        expected_old_fence_binding = {
+            key: value
+            for key, value in old_fence_record.items()
+            if key != "lifecycle_state"
+        }
+        expected_external_binding = (
+            {
+                "schema_version": (
+                    transport_journal.EXTERNAL_CONFIRMATION_BINDING_SCHEMA_VERSION
+                ),
+                "document_kind": (
+                    transport_journal.EXTERNAL_CONFIRMATION_BINDING_KIND
+                ),
+                "prepared_audit_basename": prepared_audit_name,
+                "prepared_audit_sha256": prepared_sha256,
+                "evidence_archive_basename": evidence_archive_name,
+                "evidence_sha256": evidence_hash,
+                "attempting_journal": expected_old_journal_binding,
+                "prepared_fence": expected_old_fence_binding,
             }
-            expected_old_fence_binding = {
-                key: value
-                for key, value in old_fence_record.items()
-                if key != "lifecycle_state"
-            }
+            if prepared_sha256 is not None
+            else None
+        )
+        torn_layout = None
+        if (
+            transport_state.classification
+            == "lifecycle_transition_in_progress"
+        ):
+            if (
+                existing_evidence is None
+                or existing_prepared is None
+                or expected_external_binding is None
+            ):
+                raise ExternalReplyAdoptionError(
+                    "a torn external confirmation transition requires its exact evidence archive and prepared audit"
+                )
+            torn_layout = (
+                transport_journal._inspect_exact_external_confirmation_transition(
+                    path=journal_path,
+                    attempting_journal_identity=expected_old_journal_binding,
+                    prepared_fence_identity=expected_old_fence_binding,
+                    confirmed_post_id=post_id,
+                    confirmation_epoch=confirmed_epoch,
+                    external_binding=expected_external_binding,
+                )
+            )
+        elif transport_state.classification == "confirmed_pair":
             if (
                 existing_prepared is None
                 or prepared_sha256 is None
@@ -2554,7 +2608,9 @@ def adopt_externally_confirmed_reply_offline(
             )
             completed_sha256 = existing_completed.sha256
 
-        if existing_completed is not None:
+        if torn_layout is not None:
+            adoption_state = torn_layout.phase
+        elif existing_completed is not None:
             adoption_state = "already_complete"
         elif transport_state.classification == "confirmed_pair":
             adoption_state = "resumable_after_confirmed_transition"
@@ -2619,7 +2675,11 @@ def adopt_externally_confirmed_reply_offline(
                 new_transport=(
                     planned_new_transport
                     if execution == "check_only"
-                    and final_state.classification == "attempting_pair"
+                    and final_state.classification
+                    in {
+                        "attempting_pair",
+                        "lifecycle_transition_in_progress",
+                    }
                     else (
                         {
                             "classification": final_state.classification,
@@ -2696,6 +2756,69 @@ def adopt_externally_confirmed_reply_offline(
                 maximum=transport_journal.JOURNAL_MAX_BYTES,
             )
             _revalidate_external_evidence(evidence)
+            if torn_layout is not None:
+                if (
+                    archive_fd is None
+                    or archive_stat is None
+                    or existing_evidence is None
+                    or existing_prepared is None
+                    or expected_external_binding is None
+                ):
+                    raise ExternalReplyAdoptionError(
+                        "torn external confirmation evidence disappeared during check-only validation"
+                    )
+                _require_archive_path_identity(
+                    locks.project_fd,
+                    archive_basename,
+                    archive_fd,
+                    archive_stat,
+                )
+                _revalidate_opened_stable_file(
+                    archive_fd,
+                    existing_evidence,
+                    label="external publication evidence archive",
+                    maximum=EXTERNAL_EVIDENCE_MAX_BYTES,
+                )
+                _revalidate_opened_stable_file(
+                    archive_fd,
+                    existing_prepared,
+                    label="external confirmation prepared audit",
+                    maximum=EXTERNAL_AUDIT_MAX_BYTES,
+                )
+                final_torn_layout = (
+                    transport_journal._inspect_exact_external_confirmation_transition(
+                        path=journal_path,
+                        attempting_journal_identity=expected_old_journal_binding,
+                        prepared_fence_identity=expected_old_fence_binding,
+                        confirmed_post_id=post_id,
+                        confirmation_epoch=confirmed_epoch,
+                        external_binding=expected_external_binding,
+                    )
+                )
+                if (
+                    final_torn_layout.phase != torn_layout.phase
+                    or final_torn_layout.staging_name
+                    != torn_layout.staging_name
+                    or final_torn_layout.attempting.data
+                    != torn_layout.attempting.data
+                    or final_torn_layout.attempting.device
+                    != torn_layout.attempting.device
+                    or final_torn_layout.attempting.inode
+                    != torn_layout.attempting.inode
+                    or final_torn_layout.attempting.ctime_ns
+                    != torn_layout.attempting.ctime_ns
+                    or final_torn_layout.confirmed.data
+                    != torn_layout.confirmed.data
+                    or final_torn_layout.confirmed.device
+                    != torn_layout.confirmed.device
+                    or final_torn_layout.confirmed.inode
+                    != torn_layout.confirmed.inode
+                    or final_torn_layout.confirmed.ctime_ns
+                    != torn_layout.confirmed.ctime_ns
+                ):
+                    raise ExternalReplyAdoptionError(
+                        "torn external confirmation layout changed during check-only validation"
+                    )
             return build_result(
                 execution="check_only",
                 state_name=adoption_state,
@@ -2852,6 +2975,19 @@ def adopt_externally_confirmed_reply_offline(
                     != evidence_archive_name
                     or transition_binding.get("evidence_sha256")
                     != evidence_hash
+                    or (
+                        torn_layout is not None
+                        and (
+                            transition_state.staging_names
+                            != (torn_layout.staging_name,)
+                            or transition_state.journal.data
+                            != torn_layout.confirmed.data
+                            or transition_state.journal.device
+                            != torn_layout.confirmed.device
+                            or transition_state.journal.inode
+                            != torn_layout.confirmed.inode
+                        )
+                    )
                 ):
                     raise ExternalReplyAdoptionError(
                         "transport transition changed before displaced cleanup"
@@ -3013,9 +3149,17 @@ def adopt_externally_confirmed_reply_offline(
         return build_result(
             execution="applied",
             state_name=(
-                "first_adoption"
-                if adoption_state == "first_adoption"
-                else "resumed"
+                adoption.disposition
+                if adoption.disposition
+                in {
+                    "resumable_before_transport_exchange",
+                    "resumable_after_transport_exchange",
+                }
+                else (
+                    "first_adoption"
+                    if adoption_state == "first_adoption"
+                    else "resumed"
+                )
             ),
             final_state=final_transport,
             marker_result=marker_result,
@@ -4477,6 +4621,15 @@ def main(argv: Sequence[str] | None = None) -> int:
         sys.stdout.buffer.write(_canonical_json_bytes(external_result.to_dict()))
         return 0
     if args.reconcile_unattached_media_upload:
+        if any(value is not None for value in external_values.values()) or (
+            args.confirm_external_publication_reviewed or args.check_only
+        ):
+            print(
+                "refusing external-reply options with "
+                "--reconcile-unattached-media-upload",
+                file=sys.stderr,
+            )
+            return 2
         missing = [name for name, value in media_values.items() if value is None]
         if missing:
             print(

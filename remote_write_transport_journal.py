@@ -66,6 +66,9 @@ _POST_ID_RE = re.compile(r"\d{1,30}")
 _MEDIA_ID_RE = re.compile(r"[A-Za-z0-9_.:-]{1,128}")
 _VALIDATOR_ID_RE = re.compile(r"[a-z][a-z0-9_.:-]{2,159}")
 _AUDIT_BASENAME_RE = re.compile(r"[A-Za-z0-9][A-Za-z0-9._-]{0,239}")
+_JOURNAL_STAGING_NAME_RE = re.compile(
+    re.escape(JOURNAL_STAGING_PREFIX) + r"[0-9a-f]{32}"
+)
 _TEST_MODE_AT_IMPORT = os.getenv("MRS_TEST_MODE") == "1"
 _consumed_authorities: set[tuple[str, str]] = set()
 _consumed_authority_objects: dict[tuple[str, str], "TransportAuthority"] = {}
@@ -357,6 +360,18 @@ class ExternallyConfirmedTransportAdoption:
     prepared_audit_sha256: str
     evidence_archive_basename: str
     evidence_sha256: str
+
+
+@dataclass(frozen=True)
+class _ExternalConfirmationTransitionLayout:
+    """One exact, restart-visible external-confirmation journal exchange."""
+
+    phase: str
+    staging_name: str
+    attempting: JournalSnapshot
+    confirmed: JournalSnapshot
+    fence: JournalSnapshot
+    replacement_data: bytes
 
 
 @dataclass(frozen=True)
@@ -771,6 +786,7 @@ def _unlink_exact_stable_file(
     *,
     maximum: int,
     label: str,
+    pre_unlink_verifier: Callable[[], None] | None = None,
 ) -> None:
     """Remove only the still-open exact inode and prove its link retired.
 
@@ -814,6 +830,8 @@ def _unlink_exact_stable_file(
             or data != expected.data
         ):
             raise TransportJournalError(f"{label} changed before exact removal")
+        if pre_unlink_verifier is not None:
+            pre_unlink_verifier()
         os.unlink(path.name, dir_fd=directory_fd)
         os.fsync(directory_fd)
         retired = os.fstat(descriptor)
@@ -965,6 +983,7 @@ def _replace_exact(
     expected_ctime_ns: int,
     pre_exchange_verifier: Callable[[], None] | None = None,
     pre_cleanup_verifier: Callable[[], None] | None = None,
+    pre_unlink_verifier: Callable[[], None] | None = None,
 ) -> None:
     """Atomically exchange a journal generation and prove the displaced bytes."""
 
@@ -1048,6 +1067,7 @@ def _replace_exact(
             displaced,
             maximum=JOURNAL_MAX_BYTES,
             label="displaced transport journal",
+            pre_unlink_verifier=pre_unlink_verifier,
         )
     finally:
         os.close(directory_fd)
@@ -2850,6 +2870,287 @@ def _snapshot_matches_adoption_identity(
     )
 
 
+def _snapshot_matches_displaced_adoption_identity(
+    snapshot: JournalSnapshot,
+    expected: Mapping[str, object],
+) -> bool:
+    """Match an exchanged old inode while deliberately ignoring its ctime."""
+
+    return bool(
+        snapshot.sha256 == expected.get("sha256")
+        and snapshot.device == expected.get("device")
+        and snapshot.inode == expected.get("inode")
+        and len(snapshot.data) == expected.get("size")
+    )
+
+
+def _inspect_exact_external_confirmation_transition(
+    *,
+    path: Path,
+    attempting_journal_identity: Mapping[str, object],
+    prepared_fence_identity: Mapping[str, object],
+    confirmed_post_id: str,
+    confirmation_epoch: int,
+    external_binding: Mapping[str, object],
+) -> _ExternalConfirmationTransitionLayout:
+    """Prove one exact torn external-confirmation journal exchange.
+
+    The staging basename alone carries no authority.  Both possible layouts
+    are accepted only when one side is the reviewed attempting generation and
+    the other side is the byte-exact externally confirmed replacement derived
+    from it.  The displaced old inode's ctime is ignored only after exchange;
+    its bytes, device, inode and size must still match the review.
+    """
+
+    path = Path(path)
+    state = inspect_transport_state(path)
+    if (
+        state.classification != "lifecycle_transition_in_progress"
+        or state.errors
+        or len(state.staging_names) != 1
+        or state.retirement_guard_names
+        or state.journal is None
+        or state.fence is None
+    ):
+        raise TransportJournalError(
+            "external confirmation has no exact resumable staging transition"
+        )
+    staging_name = state.staging_names[0]
+    if not _JOURNAL_STAGING_NAME_RE.fullmatch(staging_name):
+        raise TransportJournalError(
+            "external confirmation staging basename is invalid"
+        )
+    try:
+        staging = _snapshot(path.parent / staging_name)
+    except (FileNotFoundError, TransportJournalError) as exc:
+        raise TransportJournalError(
+            "external confirmation staging generation is unsafe"
+        ) from exc
+
+    live_lifecycle = state.journal.document.get("lifecycle_state")
+    staging_lifecycle = staging.document.get("lifecycle_state")
+    if (live_lifecycle, staging_lifecycle) == ("attempting", "confirmed"):
+        phase = "resumable_before_transport_exchange"
+        attempting = state.journal
+        confirmed = staging
+        attempting_identity_matches = _snapshot_matches_adoption_identity(
+            attempting,
+            attempting_journal_identity,
+        )
+    elif (live_lifecycle, staging_lifecycle) == ("confirmed", "attempting"):
+        phase = "resumable_after_transport_exchange"
+        attempting = staging
+        confirmed = state.journal
+        attempting_identity_matches = (
+            _snapshot_matches_displaced_adoption_identity(
+                attempting,
+                attempting_journal_identity,
+            )
+        )
+    else:
+        raise TransportJournalError(
+            "external confirmation staging generations are not one attempting/confirmed exchange"
+        )
+    if not attempting_identity_matches:
+        raise TransportJournalError(
+            "external confirmation staging transition lacks the reviewed attempting generation"
+        )
+    if (
+        state.fence.document.get("lifecycle_state") != "prepared"
+        or not _snapshot_matches_adoption_identity(
+            state.fence,
+            prepared_fence_identity,
+        )
+        or not _documents_share_transaction_identity(
+            attempting.document,
+            state.fence.document,
+        )
+    ):
+        raise TransportJournalError(
+            "external confirmation staging transition lacks the reviewed prepared fence"
+        )
+
+    replacement = {
+        **attempting.document,
+        "lifecycle_state": "confirmed",
+        "remote_post_id": str(confirmed_post_id),
+        "confirmation_epoch": confirmation_epoch,
+        "external_confirmation": dict(external_binding),
+    }
+    replacement_data = canonical_json_bytes(replacement)
+    if (
+        confirmed.data != replacement_data
+        or confirmed.document != replacement
+        or not _documents_share_transaction_identity(
+            confirmed.document,
+            state.fence.document,
+        )
+    ):
+        raise TransportJournalError(
+            "external confirmation staging replacement differs from the exact reviewed result"
+        )
+    return _ExternalConfirmationTransitionLayout(
+        phase=phase,
+        staging_name=staging_name,
+        attempting=attempting,
+        confirmed=confirmed,
+        fence=state.fence,
+        replacement_data=replacement_data,
+    )
+
+
+def _finish_externally_confirmed_journal_exchange(
+    *,
+    path: Path,
+    layout: _ExternalConfirmationTransitionLayout,
+    attempting_journal_identity: Mapping[str, object],
+    prepared_fence_identity: Mapping[str, object],
+    confirmed_post_id: str,
+    confirmation_epoch: int,
+    external_binding: Mapping[str, object],
+    mutation_authority: TransactionMutationAuthority | None,
+) -> TransportJournalState:
+    """Complete or clean up one already staged exact external confirmation."""
+
+    path = Path(path)
+
+    def inspect_phase(expected_phase: str) -> _ExternalConfirmationTransitionLayout:
+        current = _inspect_exact_external_confirmation_transition(
+            path=path,
+            attempting_journal_identity=attempting_journal_identity,
+            prepared_fence_identity=prepared_fence_identity,
+            confirmed_post_id=confirmed_post_id,
+            confirmation_epoch=confirmation_epoch,
+            external_binding=external_binding,
+        )
+        if (
+            current.phase != expected_phase
+            or current.staging_name != layout.staging_name
+            or current.attempting.data != layout.attempting.data
+            or current.confirmed.data != layout.confirmed.data
+            or current.attempting.device != layout.attempting.device
+            or current.attempting.inode != layout.attempting.inode
+            or current.attempting.ctime_ns != layout.attempting.ctime_ns
+            or current.confirmed.device != layout.confirmed.device
+            or current.confirmed.inode != layout.confirmed.inode
+            or current.confirmed.ctime_ns != layout.confirmed.ctime_ns
+        ):
+            raise TransportJournalError(
+                "external confirmation staging transition changed during recovery"
+            )
+        return current
+
+    directory_fd = _open_directory(path.parent)
+    try:
+        current = inspect_phase(layout.phase)
+        if layout.phase == "resumable_before_transport_exchange":
+            require_transaction_mutation_authority(
+                mutation_authority,
+                operation=(
+                    "external transport confirmation outstanding exchange"
+                ),
+            )
+            current = inspect_phase("resumable_before_transport_exchange")
+            require_transaction_mutation_authority(
+                mutation_authority,
+                operation=(
+                    "external transport confirmation resumed atomic exchange"
+                ),
+            )
+            _rename_exchange(directory_fd, path.name, layout.staging_name)
+            os.fsync(directory_fd)
+            require_transaction_mutation_authority(
+                mutation_authority,
+                operation=(
+                    "external transport confirmation post-exchange displaced cleanup"
+                ),
+            )
+            current = _inspect_exact_external_confirmation_transition(
+                path=path,
+                attempting_journal_identity=attempting_journal_identity,
+                prepared_fence_identity=prepared_fence_identity,
+                confirmed_post_id=confirmed_post_id,
+                confirmation_epoch=confirmation_epoch,
+                external_binding=external_binding,
+            )
+            if (
+                current.phase != "resumable_after_transport_exchange"
+                or current.staging_name != layout.staging_name
+                or current.confirmed.data != layout.confirmed.data
+                or current.confirmed.device != layout.confirmed.device
+                or current.confirmed.inode != layout.confirmed.inode
+                or current.attempting.data != layout.attempting.data
+                or current.attempting.device != layout.attempting.device
+                or current.attempting.inode != layout.attempting.inode
+            ):
+                raise TransportJournalError(
+                    "external confirmation exchange did not preserve the exact generations"
+                )
+        else:
+            os.fsync(directory_fd)
+            require_transaction_mutation_authority(
+                mutation_authority,
+                operation=(
+                    "external transport confirmation existing displaced cleanup"
+                ),
+            )
+            current = inspect_phase("resumable_after_transport_exchange")
+
+        confirmed_generation = current.confirmed
+        displaced_path = path.parent / current.staging_name
+        displaced = _read_stable_regular(
+            displaced_path,
+            maximum=JOURNAL_MAX_BYTES,
+            expected_mode=JOURNAL_MODE,
+        )
+        if (
+            displaced.data != current.attempting.data
+            or int(displaced.metadata.st_dev) != current.attempting.device
+            or int(displaced.metadata.st_ino) != current.attempting.inode
+            or int(displaced.metadata.st_ctime_ns) != current.attempting.ctime_ns
+        ):
+            raise TransportJournalError(
+                "external confirmation displaced generation changed before cleanup"
+            )
+        _unlink_exact_stable_file(
+            directory_fd,
+            displaced_path,
+            displaced,
+            maximum=JOURNAL_MAX_BYTES,
+            label="externally confirmed displaced transport journal",
+            pre_unlink_verifier=lambda: require_transaction_mutation_authority(
+                mutation_authority,
+                operation=(
+                    "external transport confirmation exact unlink displaced cleanup"
+                ),
+            ),
+        )
+    finally:
+        os.close(directory_fd)
+
+    final_state = inspect_transport_state(path)
+    if (
+        final_state.classification != "confirmed_pair"
+        or final_state.errors
+        or final_state.staging_names
+        or final_state.retirement_guard_names
+        or final_state.journal is None
+        or final_state.fence is None
+        or final_state.journal.data != layout.replacement_data
+        or final_state.journal.device != confirmed_generation.device
+        or final_state.journal.inode != confirmed_generation.inode
+        or final_state.journal.ctime_ns != confirmed_generation.ctime_ns
+        or final_state.fence.data != layout.fence.data
+        or final_state.fence.device != layout.fence.device
+        or final_state.fence.inode != layout.fence.inode
+        or final_state.fence.ctime_ns != layout.fence.ctime_ns
+    ):
+        raise TransportJournalError(
+            "external confirmation resumed exchange did not produce the exact confirmed pair"
+        )
+    return final_state
+
+
 def adopt_externally_confirmed_transport_transaction(
     *,
     path: Path,
@@ -3015,18 +3316,45 @@ def adopt_externally_confirmed_transport_transaction(
 
     state = inspect_transport_state(path)
     if (
-        state.classification not in {"attempting_pair", "confirmed_pair"}
+        state.classification
+        not in {
+            "attempting_pair",
+            "confirmed_pair",
+            "lifecycle_transition_in_progress",
+        }
         or state.errors
-        or state.staging_names
         or state.retirement_guard_names
         or state.journal is None
         or state.fence is None
+        or (
+            state.classification == "lifecycle_transition_in_progress"
+            and len(state.staging_names) != 1
+        )
+        or (
+            state.classification != "lifecycle_transition_in_progress"
+            and state.staging_names
+        )
     ):
         raise TransportJournalError(
-            "external confirmation requires one intact attempting or adopted pair"
+            "external confirmation requires one exact attempting, adopted, or resumable pair"
         )
-    journal_before = state.journal
+    torn_layout = (
+        _inspect_exact_external_confirmation_transition(
+            path=path,
+            attempting_journal_identity=attempting_journal_identity,
+            prepared_fence_identity=prepared_fence_identity,
+            confirmed_post_id=str(confirmed_post_id),
+            confirmation_epoch=confirmation_epoch,
+            external_binding=external_binding,
+        )
+        if state.classification == "lifecycle_transition_in_progress"
+        else None
+    )
+    journal_before = (
+        torn_layout.attempting if torn_layout is not None else state.journal
+    )
     fence_before = state.fence
+    live_journal_document = state.journal.document
     journal_document = journal_before.document
     fence_document = fence_before.document
     if (
@@ -3043,7 +3371,10 @@ def adopt_externally_confirmed_transport_transaction(
         raise TransportJournalError(
             "external confirmation prepared fence differs from the reviewed pair"
         )
-    for document in (journal_document, fence_document):
+    documents_to_validate = [journal_document, fence_document]
+    if torn_layout is not None:
+        documents_to_validate.append(torn_layout.confirmed.document)
+    for document in documents_to_validate:
         source = document.get("source_receipt")
         source_validation = document.get("source_validation")
         if (
@@ -3106,36 +3437,21 @@ def adopt_externally_confirmed_transport_transaction(
 
     if state.classification == "confirmed_pair":
         if (
-            journal_document.get("lifecycle_state") != "confirmed"
-            or journal_document.get("remote_post_id") != str(confirmed_post_id)
-            or journal_document.get("confirmation_epoch") != confirmation_epoch
-            or journal_document.get("external_confirmation") != external_binding
+            live_journal_document.get("lifecycle_state") != "confirmed"
+            or live_journal_document.get("remote_post_id")
+            != str(confirmed_post_id)
+            or live_journal_document.get("confirmation_epoch")
+            != confirmation_epoch
+            or live_journal_document.get("external_confirmation")
+            != external_binding
         ):
             raise TransportJournalError(
                 "confirmed pair does not match the external adoption identity"
             )
-        journal_after = journal_before
+        journal_after = state.journal
         fence_after = fence_before
         disposition = "already_adopted"
     else:
-        if (
-            journal_document.get("lifecycle_state") != "attempting"
-            or not _snapshot_matches_adoption_identity(
-                journal_before,
-                attempting_journal_identity,
-            )
-        ):
-            raise TransportJournalError(
-                "attempting journal differs from the reviewed generation"
-            )
-        replacement = {
-            **journal_document,
-            "lifecycle_state": "confirmed",
-            "remote_post_id": str(confirmed_post_id),
-            "confirmation_epoch": confirmation_epoch,
-            "external_confirmation": external_binding,
-        }
-        replacement_data = canonical_json_bytes(replacement)
         transaction_key = (str(path.absolute()), expected_transaction_id)
         with _authority_lock:
             if transaction_key in _transitioning_transactions:
@@ -3152,30 +3468,67 @@ def adopt_externally_confirmed_transport_transaction(
                 mutation_authority,
                 operation="external transport confirmation journal transition",
             )
-            _replace_exact(
-                path,
-                expected=journal_before.data,
-                replacement=replacement_data,
-                expected_device=journal_before.device,
-                expected_inode=journal_before.inode,
-                expected_ctime_ns=journal_before.ctime_ns,
-                pre_exchange_verifier=lambda: require_transaction_mutation_authority(
-                    mutation_authority,
-                    operation=(
-                        "external transport confirmation atomic exchange"
+            if torn_layout is not None:
+                adopted_state = _finish_externally_confirmed_journal_exchange(
+                    path=path,
+                    layout=torn_layout,
+                    attempting_journal_identity=attempting_journal_identity,
+                    prepared_fence_identity=prepared_fence_identity,
+                    confirmed_post_id=str(confirmed_post_id),
+                    confirmation_epoch=confirmation_epoch,
+                    external_binding=external_binding,
+                    mutation_authority=mutation_authority,
+                )
+                replacement_data = torn_layout.replacement_data
+            else:
+                if (
+                    journal_document.get("lifecycle_state") != "attempting"
+                    or not _snapshot_matches_adoption_identity(
+                        journal_before,
+                        attempting_journal_identity,
+                    )
+                ):
+                    raise TransportJournalError(
+                        "attempting journal differs from the reviewed generation"
+                    )
+                replacement = {
+                    **journal_document,
+                    "lifecycle_state": "confirmed",
+                    "remote_post_id": str(confirmed_post_id),
+                    "confirmation_epoch": confirmation_epoch,
+                    "external_confirmation": external_binding,
+                }
+                replacement_data = canonical_json_bytes(replacement)
+                _replace_exact(
+                    path,
+                    expected=journal_before.data,
+                    replacement=replacement_data,
+                    expected_device=journal_before.device,
+                    expected_inode=journal_before.inode,
+                    expected_ctime_ns=journal_before.ctime_ns,
+                    pre_exchange_verifier=lambda: require_transaction_mutation_authority(
+                        mutation_authority,
+                        operation=(
+                            "external transport confirmation atomic exchange"
+                        ),
                     ),
-                ),
-                pre_cleanup_verifier=lambda: require_transaction_mutation_authority(
-                    mutation_authority,
-                    operation=(
-                        "external transport confirmation displaced cleanup"
+                    pre_cleanup_verifier=lambda: require_transaction_mutation_authority(
+                        mutation_authority,
+                        operation=(
+                            "external transport confirmation displaced cleanup"
+                        ),
                     ),
-                ),
-            )
+                    pre_unlink_verifier=lambda: require_transaction_mutation_authority(
+                        mutation_authority,
+                        operation=(
+                            "external transport confirmation exact unlink displaced cleanup"
+                        ),
+                    ),
+                )
+                adopted_state = inspect_transport_state(path)
         finally:
             with _authority_lock:
                 _transitioning_transactions.discard(transaction_key)
-        adopted_state = inspect_transport_state(path)
         if (
             adopted_state.classification != "confirmed_pair"
             or adopted_state.errors
@@ -3201,7 +3554,11 @@ def adopt_externally_confirmed_transport_transaction(
             )
         journal_after = adopted_state.journal
         fence_after = adopted_state.fence
-        disposition = "first_adoption"
+        disposition = (
+            torn_layout.phase
+            if torn_layout is not None
+            else "first_adoption"
+        )
 
     confirmed = inspect_confirmed_transport_transaction(path)
     if (

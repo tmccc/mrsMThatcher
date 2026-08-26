@@ -568,11 +568,16 @@ publishes a prepared audit, transforms the exact attempting journal/fence into
 the ordinary externally-provenanced `confirmed_pair`, publishes a completion
 audit, and then invokes the existing marker archival transition with the
 restart barrier removed last. An identical rerun can resume after the prepared
-audit, confirmed transport or completion audit; conflicting post, evidence,
-payload or source identities refuse. A successful return leaves the marker
-names absent, the exact sending reply receipt present, and the confirmed
-transport pair bound to the reviewed post. It deliberately does not retire the
-receipt or transport.
+audit, confirmed transport or completion audit. It also recognises the sole
+exact staging generation left by process loss immediately before or after the
+journal `RENAME_EXCHANGE`: check-only reports the precise side of the exchange,
+and apply either completes the exchange or retires only the proved displaced
+attempting inode. Any extra or conflicting staging generation, post, evidence,
+payload or source identity refuses. External-reply flags, including
+`--check-only`, are invalid with the separate unattached-media mode. A
+successful return leaves the marker names absent, the exact sending reply
+receipt present, and the confirmed transport pair bound to the reviewed post.
+It deliberately does not retire the receipt or transport.
 
 Restart and read-only digest verification are a separate reviewed operational
 step. Normal startup binds the confirmed transport to the exact sending source,

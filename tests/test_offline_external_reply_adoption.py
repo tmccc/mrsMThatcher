@@ -10,6 +10,7 @@ import hashlib
 import json
 import os
 from pathlib import Path
+import shutil
 import stat
 
 import pytest
@@ -114,6 +115,30 @@ AUDITED_TRANSACTION_ID = (
 AUDITED_PAYLOAD_SHA256 = (
     "d8c819d999fcaaa7c7f1332274e8b3f724d8d7cce6b27a38ec7a14ab04312c87"
 )
+AUDITED_PENDING_MENTION = {
+    "author_id": "1491806039213154305",
+    "conversation_id": CONVERSATION_ID,
+    "created_at": "2026-08-25T13:58:44.000Z",
+    "edit_history_tweet_ids": [TARGET_ID],
+    "entities": {
+        "mentions": [
+            {
+                "end": 13,
+                "id": "961002152582885377",
+                "start": 0,
+                "username": "MrsMThatcher",
+            }
+        ]
+    },
+    "id": TARGET_ID,
+    "referenced_tweets": [
+        {"id": CONVERSATION_ID, "type": "replied_to"}
+    ],
+    "text": (
+        "@MrsMThatcher De aceea și nu a putut tradusă in ideile ei pentru "
+        "că a fost de fier !👏"
+    ),
+}
 
 
 def _authority():
@@ -443,6 +468,45 @@ def build_incident(
     )
 
 
+def _crash_external_adoption_during_journal_exchange(
+    incident: Incident,
+    *,
+    after_exchange: bool,
+) -> Path:
+    """Lose a child process at one real ``RENAME_EXCHANGE`` boundary."""
+
+    real_exchange = journal._rename_exchange
+    child = os.fork()
+    if child == 0:
+        def interrupted_exchange(
+            directory_fd: int,
+            first: str,
+            second: str,
+        ) -> None:
+            if after_exchange:
+                real_exchange(directory_fd, first, second)
+                os.fsync(directory_fd)
+            os._exit(73)
+
+        journal._rename_exchange = interrupted_exchange
+        try:
+            reconcile.adopt_externally_confirmed_reply_offline(
+                **incident.tool_kwargs(check_only=False)
+            )
+        except BaseException:
+            os._exit(74)
+        os._exit(75)
+    _pid, status = os.waitpid(child, 0)
+    assert os.waitstatus_to_exitcode(status) == 73
+    staging = sorted(
+        path
+        for path in incident.project.iterdir()
+        if path.name.startswith(journal.JOURNAL_STAGING_PREFIX)
+    )
+    assert len(staging) == 1
+    return staging[0]
+
+
 def test_low_level_exact_adoption_and_repeat_are_confirmed_and_idempotent(
     tmp_path: Path,
 ) -> None:
@@ -558,6 +622,7 @@ def test_low_level_revalidates_authority_at_each_destructive_boundary(
         "external transport confirmation journal transition",
         "external transport confirmation atomic exchange",
         "external transport confirmation displaced cleanup",
+        "external transport confirmation exact unlink displaced cleanup",
     ]
 
 
@@ -727,6 +792,82 @@ def test_cli_apply_refuses_missing_second_acknowledgement_without_mutation(
     assert _namespace_snapshot(observed_paths) == before
 
 
+@pytest.mark.parametrize(
+    "external_options",
+    (
+        ("--check-only",),
+        ("--confirm-external-publication-reviewed",),
+        ("--external-evidence-path", "/tmp/reviewed-evidence.json"),
+        ("--expected-journal-sha256", "a" * 64),
+    ),
+)
+def test_media_mode_rejects_every_external_reply_option_before_mutation(
+    tmp_path: Path,
+    capfd: pytest.CaptureFixture[str],
+    external_options: tuple[str, ...],
+) -> None:
+    from tests.test_remote_write_safety_marker_reconciliation import (
+        media_cli_command,
+        media_incident_installation,
+    )
+
+    project, marker_bytes, receipt, fence = media_incident_installation(tmp_path)
+    arguments = media_cli_command(project, marker_bytes, receipt, fence)[2:]
+    arguments.extend(
+        (
+            "--confirm-no-tweet-create-attempted",
+            "--confirm-unattached-media-abandoned",
+            *external_options,
+        )
+    )
+    observed_paths = [
+        project / reconcile.MARKER_BASENAME,
+        project / reconcile.RESTART_BARRIER_BASENAME,
+        project / reconcile.MEDIA_RECEIPT_BASENAME,
+        project / reconcile.MEDIA_FENCE_BASENAME,
+        project / reconcile.LOCK_BASENAME,
+    ]
+    before = _namespace_snapshot(observed_paths)
+
+    assert reconcile.main(arguments) == 2
+    captured = capfd.readouterr()
+
+    assert captured.out == ""
+    assert "external-reply options" in captured.err
+    assert "--reconcile-unattached-media-upload" in captured.err
+    assert _namespace_snapshot(observed_paths) == before
+    assert not (project / reconcile.DEFAULT_ARCHIVE_BASENAME).exists()
+
+
+def test_valid_media_mode_remains_supported_after_option_separation(
+    tmp_path: Path,
+    capfd: pytest.CaptureFixture[str],
+) -> None:
+    from tests.test_remote_write_safety_marker_reconciliation import (
+        media_cli_command,
+        media_incident_installation,
+    )
+
+    project, marker_bytes, receipt, fence = media_incident_installation(tmp_path)
+    arguments = media_cli_command(project, marker_bytes, receipt, fence)[2:]
+    arguments.extend(
+        (
+            "--confirm-no-tweet-create-attempted",
+            "--confirm-unattached-media-abandoned",
+        )
+    )
+
+    assert reconcile.main(arguments) == 0
+    captured = capfd.readouterr()
+    result = json.loads(captured.out)
+
+    assert captured.err == ""
+    assert result["operation"] == "offline_unattached_media_upload_archive"
+    assert not (project / reconcile.MEDIA_RECEIPT_BASENAME).exists()
+    assert not (project / reconcile.MEDIA_FENCE_BASENAME).exists()
+    assert (project / reconcile.MARKER_BASENAME).read_bytes() == marker_bytes
+
+
 def test_apply_orders_durable_audits_before_marker_retirement(tmp_path: Path) -> None:
     incident = build_incident(tmp_path)
     observed: list[tuple[str, str, bool, bool]] = []
@@ -806,6 +947,376 @@ def test_crash_boundaries_remain_blocking_and_resume(
     assert resumed.adoption_state == "resumed"
     assert resumed.final_transport_classification == "confirmed_pair"
     assert not incident.marker_path.exists()
+
+
+@pytest.mark.skipif(not hasattr(os, "fork"), reason="requires fork")
+@pytest.mark.parametrize("after_exchange", (False, True))
+def test_real_process_loss_inside_journal_exchange_is_exactly_resumable(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    after_exchange: bool,
+) -> None:
+    incident = build_incident(tmp_path)
+
+    def forbid_remote(*_args, **_kwargs):
+        pytest.fail("offline torn-transition recovery attempted a network call")
+
+    monkeypatch.setattr(journal.requests, "request", forbid_remote)
+    monkeypatch.setattr(journal.requests, "post", forbid_remote)
+    staging = _crash_external_adoption_during_journal_exchange(
+        incident,
+        after_exchange=after_exchange,
+    )
+    state = journal.inspect_transport_state(incident.journal_path)
+    assert state.classification == "lifecycle_transition_in_progress"
+    assert state.blocking is True
+    assert state.staging_names == (staging.name,)
+    assert state.retirement_guard_names == ()
+    assert state.journal is not None and state.fence is not None
+
+    staging_document = json.loads(staging.read_bytes())
+    expected_phase = (
+        "resumable_after_transport_exchange"
+        if after_exchange
+        else "resumable_before_transport_exchange"
+    )
+    if after_exchange:
+        assert state.journal.document["lifecycle_state"] == "confirmed"
+        assert state.journal.document["remote_post_id"] == POST_ID
+        assert staging.read_bytes() == incident.journal_snapshot.data
+        staging_stat = staging.stat()
+        assert (
+            int(staging_stat.st_dev),
+            int(staging_stat.st_ino),
+        ) == (
+            incident.journal_snapshot.device,
+            incident.journal_snapshot.inode,
+        )
+    else:
+        assert state.journal.data == incident.journal_snapshot.data
+        assert staging_document["lifecycle_state"] == "confirmed"
+        assert staging_document["remote_post_id"] == POST_ID
+    confirmed_generation_inode = (
+        state.journal.inode if after_exchange else int(staging.stat().st_ino)
+    )
+
+    archive = incident.project / reconcile.DEFAULT_ARCHIVE_BASENAME
+    observed_paths = [
+        incident.evidence,
+        incident.marker_path,
+        incident.project / reconcile.RESTART_BARRIER_BASENAME,
+        incident.source_path,
+        incident.journal_path,
+        incident.fence_path,
+        staging,
+        *sorted(archive.iterdir()),
+    ]
+    before_check = _namespace_snapshot(observed_paths)
+    checked = reconcile.adopt_externally_confirmed_reply_offline(
+        **incident.tool_kwargs(check_only=True)
+    )
+    assert checked.execution == "check_only"
+    assert checked.adoption_state == expected_phase
+    assert checked.final_transport_classification == (
+        "lifecycle_transition_in_progress"
+    )
+    assert checked.planned_transport_classification == "confirmed_pair"
+    assert checked.check_only_no_mutation is True
+    assert _namespace_snapshot(observed_paths) == before_check
+
+    resumed = reconcile.adopt_externally_confirmed_reply_offline(
+        **incident.tool_kwargs(check_only=False)
+    )
+    assert resumed.adoption_state == expected_phase
+    assert resumed.final_transport_classification == "confirmed_pair"
+    assert resumed.confirmed_post_id == POST_ID
+    assert not staging.exists()
+    assert not incident.marker_path.exists()
+    assert not (
+        incident.project / reconcile.RESTART_BARRIER_BASENAME
+    ).exists()
+    assert incident.source_path.read_bytes() == incident.source_bytes
+    assert json.loads(incident.source_path.read_bytes())["lifecycle_state"] == (
+        "sending"
+    )
+    final_state = journal.inspect_transport_state(incident.journal_path)
+    assert final_state.classification == "confirmed_pair"
+    assert final_state.journal is not None
+    assert final_state.journal.inode == confirmed_generation_inode
+    assert final_state.journal.document["remote_post_id"] == POST_ID
+    assert (incident.project / resumed.completed_audit_path).is_file()
+    assert (incident.project / str(resumed.marker_archive_path)).is_file()
+    assert (incident.project / str(resumed.marker_audit_path)).is_file()
+
+
+@pytest.mark.skipif(not hasattr(os, "fork"), reason="requires fork")
+@pytest.mark.parametrize("after_exchange", (False, True))
+def test_low_level_torn_resume_revalidates_each_destructive_boundary(
+    tmp_path: Path,
+    after_exchange: bool,
+) -> None:
+    incident = build_incident(tmp_path)
+    staging = _crash_external_adoption_during_journal_exchange(
+        incident,
+        after_exchange=after_exchange,
+    )
+    live_document = json.loads(incident.journal_path.read_bytes())
+    staged_document = json.loads(staging.read_bytes())
+    confirmed_document = (
+        live_document
+        if live_document["lifecycle_state"] == "confirmed"
+        else staged_document
+    )
+    external_binding = confirmed_document["external_confirmation"]
+    operations: list[str] = []
+    authority = issue_transaction_mutation_authority(
+        operations.append,
+        operation="torn external adoption boundary test",
+    )
+    values = incident.low_level_kwargs()
+    values.update(
+        {
+            "mutation_authority": authority,
+            "prepared_audit_basename": external_binding[
+                "prepared_audit_basename"
+            ],
+            "prepared_audit_sha256": external_binding[
+                "prepared_audit_sha256"
+            ],
+            "evidence_archive_basename": external_binding[
+                "evidence_archive_basename"
+            ],
+            "evidence_sha256": external_binding["evidence_sha256"],
+        }
+    )
+
+    result = journal.adopt_externally_confirmed_transport_transaction(**values)
+
+    common = [
+        "external transport confirmation adoption inspection",
+        "external transport confirmation journal transition",
+    ]
+    if after_exchange:
+        expected = [
+            *common,
+            "external transport confirmation existing displaced cleanup",
+            "external transport confirmation exact unlink displaced cleanup",
+        ]
+    else:
+        expected = [
+            *common,
+            "external transport confirmation outstanding exchange",
+            "external transport confirmation resumed atomic exchange",
+            "external transport confirmation post-exchange displaced cleanup",
+            "external transport confirmation exact unlink displaced cleanup",
+        ]
+    assert operations[1:] == expected
+    assert result.disposition == (
+        "resumable_after_transport_exchange"
+        if after_exchange
+        else "resumable_before_transport_exchange"
+    )
+    assert journal.inspect_transport_state(
+        incident.journal_path
+    ).classification == "confirmed_pair"
+
+
+@pytest.mark.skipif(not hasattr(os, "fork"), reason="requires fork")
+@pytest.mark.parametrize(
+    "conflict",
+    ("another_post", "extra_staging", "prepared_audit", "evidence_archive"),
+)
+def test_conflicting_torn_external_confirmation_refuses_without_cleanup(
+    tmp_path: Path,
+    conflict: str,
+) -> None:
+    incident = build_incident(tmp_path)
+    staging = _crash_external_adoption_during_journal_exchange(
+        incident,
+        after_exchange=False,
+    )
+    evidence_name, prepared_name, _completed_name = (
+        reconcile._external_adoption_archive_names(
+            incident.transaction_id,
+            POST_ID,
+        )
+    )
+    archive = incident.project / reconcile.DEFAULT_ARCHIVE_BASENAME
+    if conflict == "another_post":
+        replacement = json.loads(staging.read_bytes())
+        replacement["remote_post_id"] = str(int(POST_ID) + 1)
+        _write_private(staging, _canonical(replacement))
+    elif conflict == "extra_staging":
+        extra = incident.project / (
+            journal.JOURNAL_STAGING_PREFIX + "f" * 32
+        )
+        _write_private(extra, staging.read_bytes())
+    elif conflict == "prepared_audit":
+        prepared = archive / prepared_name
+        document = json.loads(prepared.read_bytes())
+        document["reconciliation_reference"] = "conflicting-review"
+        prepared.chmod(0o600)
+        prepared.write_bytes(_canonical(document))
+        prepared.chmod(0o400)
+    else:
+        evidence_archive = archive / evidence_name
+        evidence_archive.chmod(0o600)
+        evidence_archive.write_bytes(b'{"published":false}\n')
+        evidence_archive.chmod(0o400)
+
+    observed_paths = [
+        incident.marker_path,
+        incident.project / reconcile.RESTART_BARRIER_BASENAME,
+        incident.source_path,
+        incident.journal_path,
+        incident.fence_path,
+        *sorted(
+            path
+            for path in incident.project.iterdir()
+            if path.name.startswith(journal.JOURNAL_STAGING_PREFIX)
+        ),
+        *sorted(archive.iterdir()),
+    ]
+    before = _namespace_snapshot(observed_paths)
+    with pytest.raises(reconcile.ExternalReplyAdoptionError):
+        reconcile.adopt_externally_confirmed_reply_offline(
+            **incident.tool_kwargs(check_only=True)
+        )
+    assert _namespace_snapshot(observed_paths) == before
+    assert incident.marker_path.exists()
+    assert incident.source_path.read_bytes() == incident.source_bytes
+
+
+@pytest.mark.skipif(not hasattr(os, "fork"), reason="requires fork")
+@pytest.mark.parametrize("unsafe_metadata", ("symlink", "fifo", "mode", "links"))
+def test_unsafe_torn_staging_entry_refuses_without_cleanup(
+    tmp_path: Path,
+    unsafe_metadata: str,
+) -> None:
+    incident = build_incident(tmp_path)
+    staging = _crash_external_adoption_during_journal_exchange(
+        incident,
+        after_exchange=False,
+    )
+    staged_bytes = staging.read_bytes()
+    if unsafe_metadata == "symlink":
+        target = tmp_path / "staging-target.json"
+        _write_private(target, staged_bytes)
+        staging.unlink()
+        staging.symlink_to(target)
+    elif unsafe_metadata == "fifo":
+        staging.unlink()
+        os.mkfifo(staging, 0o600)
+    elif unsafe_metadata == "mode":
+        staging.chmod(0o640)
+    else:
+        os.link(staging, tmp_path / "second-staging-link.json")
+
+    observed_paths = [
+        incident.marker_path,
+        incident.project / reconcile.RESTART_BARRIER_BASENAME,
+        incident.source_path,
+        incident.journal_path,
+        incident.fence_path,
+        staging,
+    ]
+    before = _namespace_snapshot(observed_paths)
+    with pytest.raises(reconcile.ExternalReplyAdoptionError):
+        reconcile.adopt_externally_confirmed_reply_offline(
+            **incident.tool_kwargs(check_only=True)
+        )
+    assert _namespace_snapshot(observed_paths) == before
+    assert incident.marker_path.exists()
+    assert incident.source_path.read_bytes() == incident.source_bytes
+
+
+@pytest.mark.skipif(not hasattr(os, "fork"), reason="requires fork")
+def test_torn_staging_identity_change_during_check_only_refuses(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    incident = build_incident(tmp_path)
+    staging = _crash_external_adoption_during_journal_exchange(
+        incident,
+        after_exchange=False,
+    )
+    real_inspect = journal._inspect_exact_external_confirmation_transition
+    inspections = 0
+
+    def inspect_then_change(**kwargs):
+        nonlocal inspections
+        layout = real_inspect(**kwargs)
+        inspections += 1
+        if inspections == 1:
+            metadata = staging.stat()
+            os.utime(
+                staging,
+                ns=(metadata.st_atime_ns, metadata.st_mtime_ns + 1),
+            )
+        return layout
+
+    monkeypatch.setattr(
+        journal,
+        "_inspect_exact_external_confirmation_transition",
+        inspect_then_change,
+    )
+    with pytest.raises(
+        reconcile.ExternalReplyAdoptionError,
+        match="layout changed",
+    ):
+        reconcile.adopt_externally_confirmed_reply_offline(
+            **incident.tool_kwargs(check_only=True)
+        )
+    assert inspections == 2
+    assert journal.inspect_transport_state(
+        incident.journal_path
+    ).classification == "lifecycle_transition_in_progress"
+    assert incident.marker_path.exists()
+    assert incident.source_path.read_bytes() == incident.source_bytes
+
+
+@pytest.mark.skipif(not hasattr(os, "fork"), reason="requires fork")
+def test_resumed_transport_can_repeat_exactly_and_refuses_conflicting_result(
+    tmp_path: Path,
+) -> None:
+    incident = build_incident(tmp_path)
+    _crash_external_adoption_during_journal_exchange(
+        incident,
+        after_exchange=True,
+    )
+
+    def stop_after_transport(stage: str) -> None:
+        if stage == "transport_confirmed":
+            raise RuntimeError("retain markers after resumed transport")
+
+    values = incident.tool_kwargs(check_only=False)
+    values["_fault_injector"] = stop_after_transport
+    with pytest.raises(RuntimeError, match="retain markers"):
+        reconcile.adopt_externally_confirmed_reply_offline(**values)
+    assert journal.inspect_transport_state(
+        incident.journal_path
+    ).classification == "confirmed_pair"
+    assert incident.marker_path.exists()
+
+    check = reconcile.adopt_externally_confirmed_reply_offline(
+        **incident.tool_kwargs(check_only=True)
+    )
+    assert check.adoption_state == "resumable_after_confirmed_transition"
+    for field, replacement in (
+        ("confirmed_post_id", str(int(POST_ID) + 1)),
+        ("confirmation_epoch", CONFIRMATION_EPOCH + 1),
+        ("expected_external_evidence_sha256", "b" * 64),
+    ):
+        conflicting = incident.tool_kwargs(check_only=True)
+        conflicting[field] = replacement
+        with pytest.raises(reconcile.ExternalReplyAdoptionError):
+            reconcile.adopt_externally_confirmed_reply_offline(**conflicting)
+
+    repeated = reconcile.adopt_externally_confirmed_reply_offline(
+        **incident.tool_kwargs(check_only=False)
+    )
+    assert repeated.adoption_state == "resumed"
+    assert repeated.final_transport_classification == "confirmed_pair"
 
 
 def test_conflicting_resume_and_archive_collision_refuse(tmp_path: Path) -> None:
@@ -1134,6 +1645,161 @@ def test_offline_adoption_then_existing_startup_recovers_without_x_post(
         ledger = receipt_retirement.inspect_retirement_ledger(source)
         assert (ledger.valid, ledger.blocking) == (True, False)
 
+    safety = remote_write_safety_snapshot(incident.project)
+    assert safety["transport"]["classification"] == "clear"
+    assert safety["ready_for_remote_writes"] is True
+    assert len(safety["retirement_ledgers"]) == 4
+    assert all(
+        row["valid"] is True and row["blocking"] is False
+        for row in safety["retirement_ledgers"]
+    )
+
+
+def test_exact_audited_receipt_recovers_with_real_draft_and_candidate_validators(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Exercise the audited bytes through both unmodified startup validators."""
+
+    import mrsMThatcher2 as bot
+    from mrs_log_digest import remote_write_safety_snapshot
+
+    incident = build_incident(
+        tmp_path,
+        source_bytes=AUDITED_SOURCE_RECEIPT_BYTES,
+        activate_protocol=True,
+    )
+    offline = reconcile.adopt_externally_confirmed_reply_offline(
+        **incident.tool_kwargs(check_only=False)
+    )
+    assert offline.final_transport_classification == "confirmed_pair"
+
+    source_root = Path(__file__).resolve().parents[1]
+    factual_evidence = incident.project / "reply_factual_evidence.json"
+    shutil.copyfile(source_root / "reply_factual_evidence.json", factual_evidence)
+    tested_config = copy.deepcopy(bot.tested_reply_pipeline)
+    tested_config["enabled"] = True
+    tested_config["research_corpus_path"] = str(
+        source_root / "semantic_alignment_research" / "quote_research_full_001"
+    )
+
+    regular_receipt = incident.project / "regular_post_receipt.json"
+    meme_receipt = incident.project / "meme_post_receipt.json"
+    historical_receipt = (
+        incident.project / "historical_context_reply_receipt.json"
+    )
+    state_path = incident.project / "bot_state.json"
+    monkeypatch.setattr(bot, "BASE_DIR", incident.project)
+    monkeypatch.setattr(bot, "STATE_FILE", state_path)
+    monkeypatch.setattr(bot, "STATE_BACKUP_COUNT", 0)
+    monkeypatch.setattr(bot, "REGULAR_POST_RECEIPT_FILE", regular_receipt)
+    monkeypatch.setattr(bot, "MEME_POST_RECEIPT_FILE", meme_receipt)
+    monkeypatch.setattr(
+        bot,
+        "CONFIRMED_REPLY_RECEIPT_FILE",
+        incident.source_path,
+    )
+    monkeypatch.setattr(
+        bot,
+        "HISTORICAL_CONTEXT_REPLY_RECEIPT_FILE",
+        historical_receipt,
+    )
+    monkeypatch.setattr(
+        bot,
+        "AMBIGUOUS_POST_OUTCOME_FILE",
+        incident.project / reconcile.MARKER_BASENAME,
+    )
+    monkeypatch.setattr(
+        bot,
+        "AMBIGUOUS_POST_OUTCOME_SUCCESSOR_FILE",
+        incident.project / reconcile.RESTART_BARRIER_BASENAME,
+    )
+    monkeypatch.setattr(
+        bot,
+        "REMOTE_WRITE_SAFETY_PROTOCOL_ACTIVATION_FILE",
+        incident.project / safety_protocol.ACTIVATION_BASENAME,
+    )
+    monkeypatch.setattr(
+        bot,
+        "MEDIA_UPLOAD_RECEIPT_FILE",
+        incident.project / "remote_media_upload_receipt.json",
+    )
+    monkeypatch.setattr(bot, "tested_reply_pipeline", tested_config)
+    monkeypatch.setattr(bot, "_REPLY_EVIDENCE_REPOSITORY", None)
+    monkeypatch.setattr(bot, "_REPLY_EVIDENCE_LOAD_ERROR", None)
+    monkeypatch.setattr(bot, "MY_USER_ID", "961002152582885377")
+    monkeypatch.setattr(bot, "_AMBIGUOUS_REMOTE_POST_SEEN", False)
+    monkeypatch.setattr(bot, "_AMBIGUOUS_MARKER_DURABILITY_UNCERTAIN", False)
+    monkeypatch.setattr(bot, "_RETAINED_CONFIRMED_POST_SIGINT_GUARD", None)
+    monkeypatch.setattr(bot, "global_remote_writes_paused", lambda: False)
+    monkeypatch.setattr(
+        bot,
+        "transaction_mutation_authority",
+        lambda _operation: _authority(),
+    )
+
+    receipt = json.loads(AUDITED_SOURCE_RECEIPT_BYTES)
+    assert bot.reply_evidence_repository().completed_packet_count > 0
+    assert bot.ai_reply_receipt_draft_is_valid(
+        receipt,
+        receipt["reply_text"],
+    ) is True
+    state = bot.default_state()
+    state["last_seen_mention_id"] = TARGET_ID
+    state["mention_backlog"] = {}
+    state["mention_pagination"] = {}
+    state["mention_backlog_reset_guard"] = {}
+    state["mention_pending_candidates"] = {
+        TARGET_ID: copy.deepcopy(AUDITED_PENDING_MENTION)
+    }
+    state["replied_to_ids"] = []
+    assert bot.validate_pending_mention_candidate_authority(
+        state,
+        path=state_path,
+        recover_pending_identity=False,
+    ) == (True, False)
+
+    def forbid_remote(*_args, **_kwargs):
+        pytest.fail("audited-receipt startup recovery attempted an X request")
+
+    monkeypatch.setattr(bot, "x_request", forbid_remote)
+    monkeypatch.setattr(bot, "create_post", forbid_remote)
+    monkeypatch.setattr(bot, "perform_consumed_x_request", forbid_remote)
+    monkeypatch.setattr(bot.requests, "request", forbid_remote)
+    monkeypatch.setattr(bot.requests, "post", forbid_remote)
+    monkeypatch.setattr(journal.requests, "request", forbid_remote)
+    monkeypatch.setattr(journal.requests, "post", forbid_remote)
+
+    recovered = bot.reconcile_confirmed_transactions_before_global_barrier(
+        set(),
+        set(),
+        state,
+    )
+
+    assert recovered == {
+        "historical_context": False,
+        "conversational_reply": True,
+        "regular": False,
+        "meme": False,
+    }
+    assert state["replied_to_ids"] == [TARGET_ID]
+    assert state["own_auto_reply_ids"] == [POST_ID]
+    assert state["last_reply_epoch"] == CONFIRMATION_EPOCH
+    assert TARGET_ID not in state["mention_pending_candidates"]
+    assert state_path.exists()
+    assert not incident.source_path.exists()
+    assert journal.inspect_transport_state(
+        incident.journal_path
+    ).classification == "clear"
+
+    for source in (
+        regular_receipt,
+        meme_receipt,
+        incident.source_path,
+        historical_receipt,
+    ):
+        ledger = receipt_retirement.inspect_retirement_ledger(source)
+        assert (ledger.valid, ledger.blocking) == (True, False)
     safety = remote_write_safety_snapshot(incident.project)
     assert safety["transport"]["classification"] == "clear"
     assert safety["ready_for_remote_writes"] is True
