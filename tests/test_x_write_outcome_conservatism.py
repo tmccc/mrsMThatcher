@@ -1,10 +1,12 @@
 from __future__ import annotations
 
+import base64
 import hashlib
 import json
+import logging
 import signal
 from dataclasses import replace
-from datetime import datetime
+from datetime import datetime, timedelta
 from pathlib import Path
 from types import SimpleNamespace
 from urllib.parse import urlsplit
@@ -129,6 +131,36 @@ def _armed_x_create_transaction(
 
 def _armed_x_create_authority(payload: dict[str, object]) -> bot.TransportAuthority:
     return _armed_x_create_transaction(payload)[1]
+
+
+PRODUCTION_BLANK_CREATE_RESPONSE_BODY = (
+    b'{"data":{"edit_history_tweet_ids":[],"id":"","text":""}}'
+)
+
+
+def _x_create_anomaly_records(
+    caplog: pytest.LogCaptureFixture,
+) -> list[tuple[str, dict[str, object]]]:
+    prefix = f"{bot.X_CREATE_RESPONSE_ANOMALY_EVENT} "
+    records: list[tuple[str, dict[str, object]]] = []
+    for record in caplog.records:
+        message = record.getMessage()
+        if record.levelno == logging.ERROR and message.startswith(prefix):
+            records.append((message, json.loads(message[len(prefix) :])))
+    return records
+
+
+def _recompute_x_create_diagnostic_sha256(event: dict[str, object]) -> str:
+    without_hash = dict(event)
+    without_hash.pop("diagnostic_sha256")
+    canonical = json.dumps(
+        without_hash,
+        ensure_ascii=False,
+        sort_keys=True,
+        separators=(",", ":"),
+        allow_nan=False,
+    ).encode("utf-8")
+    return hashlib.sha256(canonical).hexdigest()
 
 
 @pytest.mark.parametrize("transport", ("tweet", "media"))
@@ -1288,6 +1320,563 @@ def isolate_remote_write_state(
         {**bot.historical_context_reply, "enabled": False},
     )
     monkeypatch.setattr(bot, "reply_evidence_repository", lambda: UNIT_REPLY_REPOSITORY)
+
+
+def test_blank_x_create_response_preserves_exact_evidence_and_fails_closed(
+    caplog: pytest.LogCaptureFixture,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """The production incident body is recoverable from one ordinary log event."""
+
+    caplog.set_level(logging.WARNING, logger=bot.log.name)
+    caplog.clear()
+    body = PRODUCTION_BLANK_CREATE_RESPONSE_BODY
+    response = _raw_x_response(201, body)
+    response.encoding = "utf-8"
+    response.elapsed = timedelta(milliseconds=123)
+    response.headers.update(
+        {
+            "Content-Type": "application/json; charset=utf-8",
+            "Content-Length": str(len(body)),
+            "Request-ID": "intermediary-request-1",
+            "Traceparent": "00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-01",
+            "X-Request-ID": "x-request-1",
+            "X-Transaction-ID": "x-transaction-1",
+            "X-Correlation-ID": "rejected\ncontrol",
+            "Set-Cookie": "session=must-not-appear",
+            "Authorization": "Bearer must-not-appear",
+            "Cookie": "must-not-appear",
+            "X-Arbitrary-Diagnostic": "must-not-appear",
+            "Server": "must-not-appear",
+        }
+    )
+    original_json = response.json
+    json_calls = 0
+    decoded_objects: list[object] = []
+
+    def decode_once() -> object:
+        nonlocal json_calls
+        json_calls += 1
+        decoded = original_json()
+        decoded_objects.append(decoded)
+        return decoded
+
+    response.json = decode_once
+    remote_calls = 0
+
+    def anomalous_create(
+        _method: str,
+        _url: str,
+        **_kwargs: object,
+    ) -> bot.requests.Response:
+        nonlocal remote_calls
+        remote_calls += 1
+        return response
+
+    observed_record_api_error_statuses: list[int | None] = []
+    real_record_api_error = bot.record_api_error
+
+    def capture_record_api_error(
+        state: dict,
+        error: Exception,
+        service: str,
+        *,
+        scope: str = "api",
+    ) -> None:
+        observed_record_api_error_statuses.append(
+            getattr(error, "status_code", None)
+        )
+        real_record_api_error(state, error, service, scope=scope)
+
+    monkeypatch.setattr(bot.requests, "request", anomalous_create)
+    monkeypatch.setattr(bot, "record_api_error", capture_record_api_error)
+    sending = unit_sending_v4_reply_receipt(
+        target_id="100",
+        text="Anomaly fixture reply.",
+    )
+    state = bot.default_state()
+
+    with pytest.raises(bot.AmbiguousRemotePostOutcome) as caught:
+        bot.post_conversational_reply_with_durable_identity(
+            state=state,
+            receipt_template=sending,
+            reply_text=str(sending["reply_text"]),
+            reply_to_id=str(sending["target_id"]),
+            made_with_ai=False,
+            lane="mention",
+        )
+
+    assert remote_calls == 1
+    assert json_calls == 1
+    expected_decoded = {
+        "data": {"edit_history_tweet_ids": [], "id": "", "text": ""}
+    }
+    assert decoded_objects == [expected_decoded]
+    anomaly_records = _x_create_anomaly_records(caplog)
+    assert len(anomaly_records) == 1
+    message, event = anomaly_records[0]
+    event_json = message.split(" ", 1)[1]
+    assert "\n" not in message
+    assert "\r" not in message
+    assert event_json == json.dumps(
+        event,
+        ensure_ascii=False,
+        sort_keys=True,
+        separators=(",", ":"),
+        allow_nan=False,
+    )
+    assert event["schema_version"] == 1
+    assert event["event"] == bot.X_CREATE_RESPONSE_ANOMALY_EVENT
+    assert type(event["recorded_at"]) is int
+    assert event["http_status"] == 201
+    assert event["reason"] == "data_id_blank"
+    assert event["response_elapsed_ms"] == 123
+    assert event["response_encoding"] == "utf-8"
+    assert event["content_type"] == "application/json; charset=utf-8"
+    assert event["content_length_header"] == str(len(body))
+    assert event["safe_correlation_headers"] == {
+        "request-id": "intermediary-request-1",
+        "traceparent": "00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-01",
+        "x-request-id": "x-request-1",
+        "x-transaction-id": "x-transaction-1",
+    }
+    assert event["raw_body_length"] == len(body)
+    assert event["raw_body_sha256"] == hashlib.sha256(body).hexdigest()
+    assert event["raw_body_complete"] is True
+    assert event["raw_body_encoding"] == "base64"
+    assert base64.b64decode(event["raw_body_base64"], validate=True) == body
+    assert event["json_decode_succeeded"] is True
+    assert event["json_error_type"] is None
+    assert event["json_error_position"] is None
+    assert event["decoded_top_level_type"] == "object"
+    assert event["decoded_top_level_keys"] == ["data"]
+    assert event["decoded_top_level_keys_complete"] is True
+    assert event["data_type"] == "object"
+    assert event["data_id_type"] == "string"
+    assert event["data_id_value"] == ""
+    assert event["data_id_value_complete"] is True
+    assert event["data_id_character_length"] == 0
+    assert event["data_text_type"] == "string"
+    assert event["data_text_character_length"] == 0
+    assert event["edit_history_tweet_ids_type"] == "array"
+    assert event["edit_history_tweet_ids_count"] == 0
+    assert event["target_id"] == "100"
+    assert event["transport_lane"] == "conversational_reply"
+    assert event["diagnostic_sha256"] == _recompute_x_create_diagnostic_sha256(
+        event
+    )
+
+    journal_path = bot.journal_path_for_receipt(bot.CONFIRMED_REPLY_RECEIPT_FILE)
+    transport_state = bot.inspect_transport_state(journal_path)
+    assert transport_state.journal is not None
+    assert transport_state.fence is not None
+    assert transport_state.journal.document["lifecycle_state"] == "attempting"
+    assert transport_state.fence.document["lifecycle_state"] == "prepared"
+    assert event["transaction_id"] == transport_state.journal.document["transaction_id"]
+    assert (
+        event["canonical_payload_sha256"]
+        == transport_state.journal.document["remote_payload_sha256"]
+    )
+    assert bot.load_confirmed_reply_receipt() == ("sending", sending)
+    assert bot.AMBIGUOUS_POST_OUTCOME_FILE.exists()
+    assert bot.ambiguous_remote_post_is_blocking() is True
+    assert observed_record_api_error_statuses == [201]
+    assert caught.value.status_code == 201
+    assert caught.value.response_body_length == len(body)
+    assert caught.value.response_body_sha256 == hashlib.sha256(body).hexdigest()
+    assert caught.value.diagnostic_sha256 == event["diagnostic_sha256"]
+    assert caught.value.diagnostic_event == bot.X_CREATE_RESPONSE_ANOMALY_EVENT
+    api_error_messages = [
+        record.getMessage()
+        for record in caplog.records
+        if "Recorded write/x API error." in record.getMessage()
+    ]
+    assert len(api_error_messages) == 1
+    assert "status_code=201" in api_error_messages[0]
+    assert f"diagnostic_sha256={event['diagnostic_sha256']}" in api_error_messages[0]
+    assert (
+        f"diagnostic_event={bot.X_CREATE_RESPONSE_ANOMALY_EVENT}"
+        in api_error_messages[0]
+    )
+    encoded_body = base64.b64encode(body).decode("ascii")
+    assert caplog.text.count(encoded_body) == 1
+    for forbidden in (
+        "Authorization",
+        "session=must-not-appear",
+        "Bearer must-not-appear",
+        "Cookie",
+        "X-Arbitrary-Diagnostic",
+        "Server",
+        "rejected\\ncontrol",
+        "Anomaly fixture reply.",
+    ):
+        assert forbidden not in message
+        assert forbidden not in caplog.text
+
+
+def test_valid_x_create_response_confirms_without_anomaly_or_mutation(
+    caplog: pytest.LogCaptureFixture,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A valid public result remains the exact once-decoded response object."""
+
+    caplog.set_level(logging.ERROR, logger=bot.log.name)
+    caplog.clear()
+    sending = unit_sending_v4_reply_receipt(
+        target_id="100",
+        text="Valid fixture reply.",
+    )
+    bot.write_sending_reply_receipt(sending)
+    decoded = {
+        "data": {
+            "edit_history_tweet_ids": ["123456789"],
+            "id": "123456789",
+            "text": "@example Valid fixture reply.",
+        }
+    }
+    response = _raw_x_response(
+        201,
+        json.dumps(decoded, separators=(",", ":")).encode("utf-8"),
+    )
+    json_calls = 0
+
+    def return_same_decoded_object() -> object:
+        nonlocal json_calls
+        json_calls += 1
+        return decoded
+
+    response.json = return_same_decoded_object
+    remote_calls = 0
+
+    def valid_create(
+        _method: str,
+        _url: str,
+        **_kwargs: object,
+    ) -> bot.requests.Response:
+        nonlocal remote_calls
+        remote_calls += 1
+        return response
+
+    monkeypatch.setattr(bot.requests, "request", valid_create)
+
+    result = bot.create_post(
+        str(sending["reply_text"]),
+        reply_to_id=str(sending["target_id"]),
+        made_with_ai=False,
+        prepared_conversational_reply_receipt=sending,
+    )
+
+    assert result is decoded
+    assert result == decoded
+    assert json_calls == 1
+    assert remote_calls == 1
+    assert _x_create_anomaly_records(caplog) == []
+    details = bot.inspect_confirmed_transport_transaction(
+        bot.journal_path_for_receipt(bot.CONFIRMED_REPLY_RECEIPT_FILE)
+    )
+    assert details.post_id == "123456789"
+    assert not bot.AMBIGUOUS_POST_OUTCOME_FILE.exists()
+
+
+@pytest.mark.parametrize(
+    ("body", "reason", "json_decode_succeeded", "expected_json_calls"),
+    [
+        (b"", "empty_response_body", False, 0),
+        (b"{}", "data_absent", True, 1),
+        (b'{"data":[]}', "data_not_object", True, 1),
+        (b'{"data":{}}', "data_id_absent", True, 1),
+        (b'{"data":{"id":"not-numeric"}}', "data_id_non_numeric", True, 1),
+    ],
+)
+def test_x_create_response_schema_anomalies_emit_bounded_evidence(
+    body: bytes,
+    reason: str,
+    json_decode_succeeded: bool,
+    expected_json_calls: int,
+    caplog: pytest.LogCaptureFixture,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    caplog.set_level(logging.ERROR, logger=bot.log.name)
+    caplog.clear()
+    response = _raw_x_response(200, body)
+    original_json = response.json
+    json_calls = 0
+
+    def count_json_decode() -> object:
+        nonlocal json_calls
+        json_calls += 1
+        return original_json()
+
+    response.json = count_json_decode
+    payload = {"text": "unit"}
+    authority = _armed_x_create_authority(payload)
+    monkeypatch.setattr(
+        bot.requests,
+        "request",
+        lambda *_args, **_kwargs: response,
+    )
+
+    with pytest.raises(bot.AmbiguousRemotePostOutcome) as caught:
+        bot.x_request(
+            "POST",
+            "/2/tweets",
+            json=payload,
+            ambiguous_write=True,
+            _remote_write_authorization=authority,
+        )
+
+    assert json_calls == expected_json_calls
+    assert caught.value.status_code == 200
+    anomaly_records = _x_create_anomaly_records(caplog)
+    assert len(anomaly_records) == 1
+    _, event = anomaly_records[0]
+    assert event["reason"] == reason
+    assert event["json_decode_succeeded"] is json_decode_succeeded
+    assert base64.b64decode(event["raw_body_base64"], validate=True) == body
+    assert event["raw_body_length"] == len(body)
+    assert event["raw_body_sha256"] == hashlib.sha256(body).hexdigest()
+    assert event["diagnostic_sha256"] == _recompute_x_create_diagnostic_sha256(
+        event
+    )
+    transport_state = bot.inspect_transport_state(Path(authority.journal_path))
+    assert transport_state.journal is not None
+    assert transport_state.fence is not None
+    assert transport_state.journal.document["lifecycle_state"] == "attempting"
+    assert transport_state.fence.document["lifecycle_state"] == "prepared"
+
+
+def test_invalid_json_x_create_logs_exact_body_and_decoder_failure(
+    caplog: pytest.LogCaptureFixture,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    caplog.set_level(logging.ERROR, logger=bot.log.name)
+    caplog.clear()
+    body = b'{"data":'
+    response = _raw_x_response(202, body)
+    original_json = response.json
+    json_calls = 0
+
+    def invalid_json_once() -> object:
+        nonlocal json_calls
+        json_calls += 1
+        return original_json()
+
+    response.json = invalid_json_once
+    payload = {"text": "unit"}
+    authority = _armed_x_create_authority(payload)
+    monkeypatch.setattr(
+        bot.requests,
+        "request",
+        lambda *_args, **_kwargs: response,
+    )
+
+    with pytest.raises(bot.AmbiguousRemotePostOutcome) as caught:
+        bot.x_request(
+            "POST",
+            "/2/tweets",
+            json=payload,
+            ambiguous_write=True,
+            _remote_write_authorization=authority,
+        )
+
+    assert json_calls == 1
+    assert caught.value.status_code == 202
+    anomaly_records = _x_create_anomaly_records(caplog)
+    assert len(anomaly_records) == 1
+    _, event = anomaly_records[0]
+    assert event["reason"] == "json_decode_error"
+    assert event["json_decode_succeeded"] is False
+    assert event["json_error_type"] == "JSONDecodeError"
+    assert event["json_error_position"] == 8
+    assert event["decoded_top_level_type"] is None
+    assert base64.b64decode(event["raw_body_base64"], validate=True) == body
+    assert event["raw_body_length"] == len(body)
+    assert event["raw_body_sha256"] == hashlib.sha256(body).hexdigest()
+    assert event["diagnostic_sha256"] == _recompute_x_create_diagnostic_sha256(
+        event
+    )
+    transport_state = bot.inspect_transport_state(Path(authority.journal_path))
+    assert transport_state.journal is not None
+    assert transport_state.journal.document["lifecycle_state"] == "attempting"
+
+
+@pytest.mark.parametrize(
+    ("body", "decoded_type"),
+    [
+        (b"[]", "array"),
+        (b'"scalar"', "string"),
+    ],
+)
+def test_non_object_json_x_create_logs_exact_decoded_type(
+    body: bytes,
+    decoded_type: str,
+    caplog: pytest.LogCaptureFixture,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    caplog.set_level(logging.ERROR, logger=bot.log.name)
+    caplog.clear()
+    response = _raw_x_response(200, body)
+    payload = {"text": "unit"}
+    authority = _armed_x_create_authority(payload)
+    monkeypatch.setattr(
+        bot.requests,
+        "request",
+        lambda *_args, **_kwargs: response,
+    )
+
+    with pytest.raises(bot.AmbiguousRemotePostOutcome):
+        bot.x_request(
+            "POST",
+            "/2/tweets",
+            json=payload,
+            ambiguous_write=True,
+            _remote_write_authorization=authority,
+        )
+
+    anomaly_records = _x_create_anomaly_records(caplog)
+    assert len(anomaly_records) == 1
+    _, event = anomaly_records[0]
+    assert event["reason"] == "decoded_top_level_not_object"
+    assert event["json_decode_succeeded"] is True
+    assert event["decoded_top_level_type"] == decoded_type
+    assert event["decoded_top_level_keys"] is None
+    assert base64.b64decode(event["raw_body_base64"], validate=True) == body
+    assert event["diagnostic_sha256"] == _recompute_x_create_diagnostic_sha256(
+        event
+    )
+    transport_state = bot.inspect_transport_state(Path(authority.journal_path))
+    assert transport_state.journal is not None
+    assert transport_state.journal.document["lifecycle_state"] == "attempting"
+
+
+def test_oversized_x_create_response_logs_only_full_length_and_hash(
+    caplog: pytest.LogCaptureFixture,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    caplog.set_level(logging.ERROR, logger=bot.log.name)
+    caplog.clear()
+    oversized_padding = "x" * (bot.X_CREATE_RESPONSE_ANOMALY_BODY_MAX_BYTES + 1)
+    body = json.dumps(
+        {"data": {"id": ""}, "padding": oversized_padding},
+        separators=(",", ":"),
+    ).encode("utf-8")
+    assert len(body) > bot.X_CREATE_RESPONSE_ANOMALY_BODY_MAX_BYTES
+    response = _raw_x_response(200, body)
+    payload = {"text": "unit"}
+    authority = _armed_x_create_authority(payload)
+    monkeypatch.setattr(
+        bot.requests,
+        "request",
+        lambda *_args, **_kwargs: response,
+    )
+
+    with pytest.raises(bot.AmbiguousRemotePostOutcome):
+        bot.x_request(
+            "POST",
+            "/2/tweets",
+            json=payload,
+            ambiguous_write=True,
+            _remote_write_authorization=authority,
+        )
+
+    anomaly_records = _x_create_anomaly_records(caplog)
+    assert len(anomaly_records) == 1
+    _, event = anomaly_records[0]
+    assert event["reason"] == "data_id_blank"
+    assert event["raw_body_length"] == len(body)
+    assert event["raw_body_sha256"] == hashlib.sha256(body).hexdigest()
+    assert event["raw_body_complete"] is False
+    assert event["raw_body_encoding"] is None
+    assert event["raw_body_base64"] is None
+    assert event["diagnostic_sha256"] == _recompute_x_create_diagnostic_sha256(
+        event
+    )
+    assert "x" * 100 not in caplog.text
+    transport_state = bot.inspect_transport_state(Path(authority.journal_path))
+    assert transport_state.journal is not None
+    assert transport_state.journal.document["lifecycle_state"] == "attempting"
+
+
+def test_x_create_response_anomaly_event_is_exactly_scoped(
+    caplog: pytest.LogCaptureFixture,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    caplog.set_level(logging.ERROR, logger=bot.log.name)
+    caplog.clear()
+    remote_calls = 0
+
+    def read_response(
+        _method: str,
+        _url: str,
+        **_kwargs: object,
+    ) -> bot.requests.Response:
+        nonlocal remote_calls
+        remote_calls += 1
+        return _x_response(200, {"data": {"id": ""}})
+
+    monkeypatch.setattr(bot.requests, "request", read_response)
+    assert bot.x_request("GET", "/2/tweets/100") == {"data": {"id": ""}}
+    with pytest.raises(
+        bot.AmbiguousRemotePostOutcome,
+        match="no durable transaction policy",
+    ):
+        bot.x_request("POST", "/2/not-tweets")
+
+    payload = {"text": "unit"}
+    authority = _armed_x_create_authority(payload)
+
+    def non_success_create(
+        _method: str,
+        _url: str,
+        **_kwargs: object,
+    ) -> bot.requests.Response:
+        nonlocal remote_calls
+        remote_calls += 1
+        return _x_response(500, {"detail": "server error"})
+
+    monkeypatch.setattr(bot.requests, "request", non_success_create)
+    with pytest.raises(bot.AmbiguousRemotePostOutcome):
+        bot.x_request(
+            "POST",
+            "/2/tweets",
+            json=payload,
+            ambiguous_write=True,
+            _remote_write_authorization=authority,
+        )
+
+    assert remote_calls == 2
+    assert _x_create_anomaly_records(caplog) == []
+
+
+def test_media_create_response_never_emits_tweet_create_anomaly_event(
+    tmp_path: Path,
+    caplog: pytest.LogCaptureFixture,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Even an analogous media response stays outside the tweet-create event."""
+
+    caplog.set_level(logging.ERROR, logger=bot.log.name)
+    caplog.clear()
+    image = tmp_path / "image.png"
+    image.write_bytes(b"image")
+    remote_calls = 0
+
+    def anomalous_media_create(
+        _method: str,
+        _url: str,
+        **_kwargs: object,
+    ) -> bot.requests.Response:
+        nonlocal remote_calls
+        remote_calls += 1
+        return _raw_x_response(201, PRODUCTION_BLANK_CREATE_RESPONSE_BODY)
+
+    monkeypatch.setattr(bot.requests, "request", anomalous_media_create)
+
+    with pytest.raises(bot.AmbiguousRemotePostOutcome, match="valid data.id"):
+        bot.upload_media(str(image), lane="quote_image")
+
+    assert remote_calls == 1
+    assert _x_create_anomaly_records(caplog) == []
 
 
 def _configure_approved_mention_candidate(
