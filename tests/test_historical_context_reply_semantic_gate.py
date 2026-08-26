@@ -574,7 +574,7 @@ def test_resolved_104653_and_other_allowed_quote_follow_public_post_path(
     quote_id: str,
 ):
     packet = {"quote_id": quote_id, "quote_text": "Allowed quote"}
-    _install_bot_context(
+    events = _install_bot_context(
         monkeypatch,
         tmp_path,
         packet=packet,
@@ -610,6 +610,33 @@ def test_resolved_104653_and_other_allowed_quote_follow_public_post_path(
     assert len(format_calls) == 1
     assert len(post_calls) == 1
     assert post_calls[0]["quote_id"] == quote_id
+    posted = [
+        event
+        for event in events
+        if event["event"] == "historical_context_reply_posted"
+    ]
+    assert posted == [
+        {
+            "event": "historical_context_reply_posted",
+            "event_version": 1,
+            "lane": "historical_context_reply",
+            "parent_post_id": "123",
+            "reply_post_id": "456",
+            "root_post_id": "123",
+            "conversation_id": "123",
+            "reply_text": "Context — Safe reviewed context.",
+            "quote_id": quote_id,
+            "reply_created_at": None,
+            "publication_authority": "confirmed_transport",
+        }
+    ]
+    assert not {
+        "author_id",
+        "account_id",
+        "api_key",
+        "token",
+        "secret",
+    } & set(posted[0])
 
 
 def test_completed_reply_emits_existing_semantic_review_telemetry(
@@ -650,13 +677,119 @@ def test_completed_reply_emits_existing_semantic_review_telemetry(
     )
 
     assert result["status"] == "completed"
-    completed = events[-1]
+    completed = next(
+        event
+        for event in events
+        if event["event"] == "historical_context_reply"
+        and event.get("status") == "completed"
+    )
     assert completed["status"] == "completed"
     assert completed["semantic_review_disposition"] == "supported_as_published"
     assert completed["semantic_review_ledger_sha256"] == EXPECTED_LEDGER_SHA256
     assert completed["semantic_review_projection_sha256"] == (
         EXPECTED_PROJECTION_SHA256
     )
+    assert sum(
+        event["event"] == "historical_context_reply_posted" for event in events
+    ) == 1
+
+
+def test_already_completed_context_emits_same_stable_publication_identity(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    quote_id = "c" * 64
+    packet = {"quote_id": quote_id, "quote_text": "Allowed quote"}
+    events = _install_bot_context(
+        monkeypatch,
+        tmp_path,
+        packet=packet,
+        gate=_gate(),
+    )
+    monkeypatch.setattr(HistoricalContextReplyStore, "reconcile_receipt", lambda self: False)
+    monkeypatch.setattr(
+        context_formatter,
+        "format_context_reply_public",
+        lambda *_args, **_kwargs: _formatted(quote_id),
+    )
+    calls: list[dict[str, object]] = []
+    monkeypatch.setattr(
+        HistoricalContextReplyStore,
+        "post",
+        lambda self, **kwargs: calls.append(kwargs)
+        or {
+            "status": "already_completed",
+            "reply_post_id": "456",
+            "reply_text": "Context — the already durable text.",
+            "reply_epoch": 1_800_000_000,
+        },
+    )
+
+    result = bot.maybe_post_historical_context_reply(
+        quote_hash=quote_id,
+        quote_text="Allowed quote",
+        parent_post_id="123",
+    )
+
+    assert result["status"] == "already_completed"
+    assert len(calls) == 1
+    posted = [
+        event for event in events if event["event"] == "historical_context_reply_posted"
+    ]
+    assert len(posted) == 1
+    assert posted[0]["parent_post_id"] == "123"
+    assert posted[0]["reply_post_id"] == "456"
+    assert posted[0]["root_post_id"] == "123"
+    assert posted[0]["reply_text"] == "Context — the already durable text."
+    assert posted[0]["reply_created_at"] is None
+
+
+@pytest.mark.parametrize(
+    ("dry_run", "store_result"),
+    [
+        (False, {"status": "failed"}),
+        (True, {"status": "dry_run"}),
+    ],
+)
+def test_failed_and_dry_context_outcomes_emit_no_posted_event(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+    dry_run: bool,
+    store_result: dict[str, object],
+) -> None:
+    quote_id = "d" * 64
+    packet = {"quote_id": quote_id, "quote_text": "Allowed quote"}
+    events = _install_bot_context(
+        monkeypatch,
+        tmp_path,
+        packet=packet,
+        gate=_gate(),
+    )
+    monkeypatch.setattr(HistoricalContextReplyStore, "reconcile_receipt", lambda self: False)
+    monkeypatch.setattr(
+        context_formatter,
+        "format_context_reply_public",
+        lambda *_args, **_kwargs: _formatted(quote_id),
+    )
+    monkeypatch.setattr(
+        HistoricalContextReplyStore,
+        "post",
+        lambda self, **_kwargs: dict(store_result),
+    )
+
+    result = bot.maybe_post_historical_context_reply(
+        quote_hash=quote_id,
+        quote_text="Allowed quote",
+        parent_post_id="123",
+        dry_run=dry_run,
+    )
+
+    assert result["status"] == store_result["status"]
+    assert not any(
+        event["event"] == "historical_context_reply_posted" for event in events
+    )
+    capsys.readouterr()
 
 
 def test_ambiguous_preexisting_context_receipt_is_not_hidden_by_gate(
@@ -664,7 +797,7 @@ def test_ambiguous_preexisting_context_receipt_is_not_hidden_by_gate(
     monkeypatch: pytest.MonkeyPatch,
 ):
     packet = {"quote_id": OPEN_FUTURE, "quote_text": "Canonical quote"}
-    _install_bot_context(
+    events = _install_bot_context(
         monkeypatch,
         tmp_path,
         packet=packet,
@@ -689,6 +822,9 @@ def test_ambiguous_preexisting_context_receipt_is_not_hidden_by_gate(
             quote_text="Canonical quote",
             parent_post_id="123",
         )
+    assert not any(
+        event["event"] == "historical_context_reply_posted" for event in events
+    )
 
 
 def test_ambiguous_preexisting_context_receipt_is_not_hidden_when_disabled(

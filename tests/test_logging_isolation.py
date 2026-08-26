@@ -40,6 +40,49 @@ def test_plain_import_does_not_open_production_log():
     assert managed_file_handlers() == []
 
 
+def test_descriptive_publication_observability_cannot_change_posting_outcome(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(
+        bot,
+        "log_event",
+        lambda *_args, **_kwargs: (_ for _ in ()).throw(
+            RuntimeError("injected event failure")
+        ),
+    )
+    monkeypatch.setattr(
+        bot.log,
+        "error",
+        lambda *_args, **_kwargs: (_ for _ in ()).throw(
+            RuntimeError("injected logger failure")
+        ),
+    )
+
+    bot.emit_account_root_posted(
+        lane="quote_image",
+        post_id="123",
+        public_text="Already confirmed text.",
+    )
+    bot.emit_historical_context_reply_posted(
+        parent_post_id="123",
+        reply_post_id="456",
+        reply_text="Already confirmed context.",
+        quote_id="a" * 64,
+    )
+
+
+def test_recovery_history_observability_failure_is_non_blocking(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    class BrokenHistoryStore:
+        @staticmethod
+        def history() -> dict[str, object]:
+            raise RuntimeError("injected history read failure")
+
+    monkeypatch.setattr(bot.log, "error", lambda *_args, **_kwargs: None)
+    bot.emit_historical_context_store_observation(BrokenHistoryStore(), "123")
+
+
 def test_temporary_production_handler_uses_expected_rotation_and_is_isolated(
     tmp_path,
 ):

@@ -2137,6 +2137,28 @@ def test_post_random_quote_retries_alternate_quote_when_first_has_no_image_match
     posted = next(fields for name, fields in events if name == "main_post_posted")
     assert posted["quote_hash"] == bot.quote_text_hash("Good visual quote.")
     assert posted["image_hash"] == hashlib.sha256(b"fake").hexdigest()
+    root_event = next(
+        fields for name, fields in events if name == "account_root_posted"
+    )
+    assert [name for name, _fields in events].index("main_post_posted") < [
+        name for name, _fields in events
+    ].index("account_root_posted")
+    assert root_event["event_version"] == 1
+    assert root_event["lane"] == "quote_image"
+    assert root_event["post_id"] == "950001"
+    assert root_event["root_post_id"] == "950001"
+    assert root_event["conversation_id"] == "950001"
+    assert root_event["public_text"] == "Good visual quote."
+    assert root_event["visible_text"] == "Good visual quote."
+    assert root_event["visible_text_source"] == "public_text"
+    assert root_event["publication_authority"] == "confirmed_transport"
+    assert not {
+        "author_id",
+        "account_id",
+        "api_key",
+        "token",
+        "secret",
+    } & set(root_event)
 
 
 def configure_generated_cycle_recovery_post(
@@ -5435,6 +5457,12 @@ def test_regular_no_receipt_emergency_representation_reloads_completely(
         lines_file,
     ) = configure_simple_quote_post(tmp_path, monkeypatch)
     pending_receipts: list[dict] = []
+    posted_events: list[dict[str, object]] = []
+    monkeypatch.setattr(
+        bot,
+        "emit_account_root_posted",
+        lambda **fields: posted_events.append(dict(fields)),
+    )
 
     def fail_receipt(attempt: dict, **kwargs: object) -> None:
         pending_receipts.append(
@@ -5451,6 +5479,7 @@ def test_regular_no_receipt_emergency_representation_reloads_completely(
     with pytest.raises(bot.ConfirmedPostLocalPersistenceError):
         bot.post_random_quote(lines_used, images_used, state)
 
+    assert posted_events == []
     assert not receipt_file.exists()
     reloaded_state = bot.load_runtime_state()
     reloaded_lines = bot.load_quote_used_hashes(
@@ -6185,10 +6214,26 @@ def test_valid_receipt_reconciles_idempotently(
         context_calls.append(kwargs)
         return {"status": "completed", "reply_post_id": "960001"}
     monkeypatch.setattr(bot, "maybe_post_historical_context_reply", context)
+    emissions: list[dict[str, object]] = []
+
+    def observe_recovered_root(**fields: object) -> None:
+        assert not receipt_file.exists()
+        emissions.append(dict(fields))
+
+    monkeypatch.setattr(bot, "emit_account_root_posted", observe_recovered_root)
+    monkeypatch.setattr(
+        bot,
+        "create_post",
+        lambda **_kwargs: pytest.fail("receipt recovery must not issue another X request"),
+    )
 
     assert bot.reconcile_regular_post_receipt(lines_used, images_used, state) is True
     assert bot.reconcile_regular_post_receipt(lines_used, images_used, state) is False
     assert len(context_calls) == 1
+    assert len(emissions) == 1
+    assert emissions[0]["lane"] == "quote_image"
+    assert emissions[0]["post_id"] == "950001"
+    assert emissions[0]["public_text"] == "Good quote."
     assert lines_used == {bot.quote_text_hash("Good quote.")}
     assert images_used == {"t01.jpg"}
 
@@ -7063,8 +7108,14 @@ def test_main_context_reply_path_uses_public_v5_and_persists_metadata(
     assert calls[0]["formatter_metadata"]["source_role_audit_version"] == formatted["source_role_audit_version"]
     assert calls[0]["formatter_metadata"]["rendering_mode"] == "public"
     assert calls[0]["formatter_metadata"]["template_variant"] == formatted["template_variant"]
-    assert events[-1]["formatter_version"] == context_module.HISTORICAL_CONTEXT_FORMATTER_V5
-    assert events[-1]["rendering_mode"] == "public"
+    context_event = next(
+        event
+        for event in events
+        if event["event"] == "historical_context_reply"
+    )
+    assert context_event["formatter_version"] == context_module.HISTORICAL_CONTEXT_FORMATTER_V5
+    assert context_event["rendering_mode"] == "public"
+    assert events[-1]["event"] == "historical_context_reply_posted"
 
 
 def test_already_completed_legacy_context_reply_is_not_relabelled_as_v4(

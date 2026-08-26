@@ -1383,6 +1383,131 @@ def log_event(event: str, **fields: object) -> None:
     log.info("EVENT %s", text)
 
 
+def _log_descriptive_observability_failure(message: str) -> None:
+    try:
+        log.error(message, exc_info=True)
+    except Exception:
+        pass
+
+
+def emit_account_root_posted(
+    *,
+    lane: str,
+    post_id: object,
+    public_text: object = None,
+    quote_id: object = None,
+    quote_text: object = None,
+    image_summary: object = None,
+    post_created_at: object = None,
+) -> None:
+    """Describe an already durable account root without affecting its outcome."""
+    try:
+        stable_post_id = str(post_id)
+        public = str(public_text).strip() if public_text is not None else ""
+        quote = str(quote_text).strip() if quote_text is not None else ""
+        summary = str(image_summary).strip() if image_summary is not None else ""
+        if public:
+            visible_text = public
+            visible_text_source = "public_text"
+        elif quote:
+            visible_text = quote
+            visible_text_source = "image_quote_text"
+        elif summary:
+            visible_text = summary
+            visible_text_source = "image_summary"
+        else:
+            visible_text = None
+            visible_text_source = "unavailable"
+        log_event(
+            "account_root_posted",
+            event_version=1,
+            lane=str(lane),
+            post_id=stable_post_id,
+            root_post_id=stable_post_id,
+            conversation_id=stable_post_id,
+            public_text=public or None,
+            visible_text=visible_text,
+            visible_text_source=visible_text_source,
+            quote_id=(str(quote_id) if quote_id is not None else None),
+            quote_text=quote or None,
+            image_summary=summary or None,
+            post_created_at=(
+                str(post_created_at) if post_created_at is not None else None
+            ),
+            publication_authority="confirmed_transport",
+        )
+    except Exception:
+        # Observability is deliberately downstream of publication authority and
+        # can never turn a confirmed post into a failed posting outcome.
+        _log_descriptive_observability_failure(
+            "Could not emit descriptive account_root_posted observability"
+        )
+
+
+def emit_historical_context_reply_posted(
+    *,
+    parent_post_id: object,
+    reply_post_id: object,
+    reply_text: object,
+    quote_id: object,
+    reply_created_at: object = None,
+) -> None:
+    """Describe an already durable historical-context reply without transport."""
+    try:
+        parent_id = str(parent_post_id)
+        log_event(
+            "historical_context_reply_posted",
+            event_version=1,
+            lane="historical_context_reply",
+            parent_post_id=parent_id,
+            reply_post_id=str(reply_post_id),
+            root_post_id=parent_id,
+            conversation_id=parent_id,
+            reply_text=(str(reply_text) if reply_text is not None else None),
+            quote_id=str(quote_id),
+            reply_created_at=(
+                str(reply_created_at) if reply_created_at is not None else None
+            ),
+            publication_authority="confirmed_transport",
+        )
+    except Exception:
+        _log_descriptive_observability_failure(
+            "Could not emit descriptive historical_context_reply_posted observability"
+        )
+
+
+def emit_historical_context_history_observation(item: object) -> None:
+    """Emit the v1 contract only for one validated completed history item."""
+    if not isinstance(item, dict) or item.get("status") != "completed":
+        return
+    required = ("parent_post_id", "reply_post_id", "reply_text", "quote_id")
+    if not all(item.get(field) is not None for field in required):
+        return
+    emit_historical_context_reply_posted(
+        parent_post_id=item["parent_post_id"],
+        reply_post_id=item["reply_post_id"],
+        reply_text=item["reply_text"],
+        quote_id=item["quote_id"],
+    )
+
+
+def emit_historical_context_store_observation(
+    store: object,
+    parent_post_id: object,
+) -> None:
+    """Read completed history for observability without affecting recovery."""
+    try:
+        history = store.history()
+        items = history.get("items") if isinstance(history, dict) else None
+        emit_historical_context_history_observation(
+            items.get(str(parent_post_id)) if isinstance(items, dict) else None
+        )
+    except Exception:
+        _log_descriptive_observability_failure(
+            "Could not emit recovered historical-context observability"
+        )
+
+
 LOCAL_CONFIG_ALLOWED_KEYS = {
     # Posting schedule
     "POST_SLEEP_MIN",
@@ -14079,6 +14204,12 @@ def reconcile_meme_post_receipt(state: dict) -> bool:
         post_id=str(receipt["post_id"]),
     )
     remove_meme_post_receipt(receipt)
+    emit_account_root_posted(
+        lane="daily_meme",
+        post_id=receipt["post_id"],
+        public_text=receipt.get("text") or MEME_POST_TEXT,
+        image_summary=receipt.get("image_summary"),
+    )
     return True
 
 
@@ -14589,6 +14720,16 @@ def maybe_post_historical_context_reply(
             reply_preview=event_text[:160],
             reason="post_failed" if result.get("status") == "failed" else "",
         )
+        if (
+            result.get("status") in {"completed", "already_completed"}
+            and re.fullmatch(r"\d{1,30}", str(result.get("reply_post_id") or ""))
+        ):
+            emit_historical_context_reply_posted(
+                parent_post_id=parent_post_id,
+                reply_post_id=result["reply_post_id"],
+                reply_text=event_text,
+                quote_id=packet["quote_id"],
+            )
         return {**result, "formatted": formatted}
     except Exception as exc:
         if type(exc).__name__ == "AmbiguousContextReplyOutcome":
@@ -15063,6 +15204,7 @@ def recover_interrupted_historical_context_attempt(
             reply_post_id=str(previous["reply_post_id"]),
             confirmed_epoch=recovered_epoch,
         )
+        emit_historical_context_history_observation(previous)
         return {
             "parent_post_id": parent_id,
             "status": "recovered_confirmed_history",
@@ -15189,6 +15331,8 @@ def recover_interrupted_historical_context_attempt(
                 raise RuntimeError(
                     "exact context failure receipt changed before retirement"
                 )
+    if status == "recovered_confirmed_history":
+        emit_historical_context_history_observation(previous)
     return {
         "parent_post_id": parent_id,
         "status": status,
@@ -15975,6 +16119,13 @@ def reconcile_regular_post_receipt(
         post_id=str(receipt["post_id"]),
     )
     remove_regular_post_receipt(receipt)
+    emit_account_root_posted(
+        lane="quote_image",
+        post_id=receipt["post_id"],
+        public_text=receipt.get("text"),
+        quote_id=receipt.get("quote_hash"),
+        quote_text=receipt.get("text"),
+    )
     log.info(
         "Confirmed main post reconciliation is complete; auxiliary context "
         "obligation is independent. post_id=%s",
@@ -16525,6 +16676,8 @@ def reconcile_confirmed_transactions_before_global_barrier(
             result["historical_context"] = (
                 store.reconcile_confirmed_receipt_if_present()
             )
+        if result["historical_context"]:
+            emit_historical_context_store_observation(store, parent_id)
         return result
 
     if owning_path == CONFIRMED_REPLY_RECEIPT_FILE:
@@ -19037,6 +19190,13 @@ def post_random_quote(lines_used: set, images_used: set, state: dict) -> None:
         image_score=image_choice.get("score"),
         quote_hash=quote_hash,
     )
+    emit_account_root_posted(
+        lane="quote_image",
+        post_id=posted_id,
+        public_text=tweet,
+        quote_id=quote_hash,
+        quote_text=tweet,
+    )
     safely_process_due_historical_context_obligations(
         parent_post_id=str(posted_id),
         runtime_state=state,
@@ -19849,6 +20009,12 @@ def post_next_meme(state: dict) -> None:
         raise ConfirmedPostLocalPersistenceError(f"Confirmed meme post {posted_id} but receipt removal failed") from exc
 
     log_event("main_post_posted", lane="daily_meme", post_id=posted_id, filename=meme_path.name)
+    emit_account_root_posted(
+        lane="daily_meme",
+        post_id=posted_id,
+        public_text=MEME_POST_TEXT,
+        image_summary=image_summary,
+    )
     log.info("Daily meme posted successfully. posted_id=%s file=%s", posted_id, meme_path.name)
 
 

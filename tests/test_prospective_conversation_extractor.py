@@ -63,6 +63,186 @@ def event_line(local_time: str, event: str, **fields: object) -> str:
     return log_line(local_time, f"EVENT {payload}")
 
 
+def account_root_posted(
+    post_id: str,
+    *,
+    created_at: str,
+    local_time: str = "2026-08-25 00:00:00",
+    public_text: str | None = "A confirmed account root.",
+    quote_text: str | None = None,
+    image_summary: str | None = None,
+    lane: str = "quote_image",
+) -> str:
+    if public_text:
+        visible_text = public_text
+        visible_source = "public_text"
+    elif quote_text:
+        visible_text = quote_text
+        visible_source = "image_quote_text"
+    elif image_summary:
+        visible_text = image_summary
+        visible_source = "image_summary"
+    else:
+        visible_text = None
+        visible_source = "unavailable"
+    return event_line(
+        local_time,
+        "account_root_posted",
+        event_version=1,
+        lane=lane,
+        post_id=post_id,
+        root_post_id=post_id,
+        conversation_id=post_id,
+        public_text=public_text,
+        visible_text=visible_text,
+        visible_text_source=visible_source,
+        quote_id="a" * 64,
+        quote_text=quote_text,
+        image_summary=image_summary,
+        post_created_at=created_at,
+        publication_authority="confirmed_transport",
+    )
+
+
+def historical_context_posted(
+    parent_id: str,
+    reply_id: str,
+    *,
+    created_at: str,
+    local_time: str = "2026-08-25 00:00:01",
+    reply_text: str | None = "Context — a confirmed historical note.",
+) -> str:
+    return event_line(
+        local_time,
+        "historical_context_reply_posted",
+        event_version=1,
+        lane="historical_context_reply",
+        parent_post_id=parent_id,
+        reply_post_id=reply_id,
+        root_post_id=parent_id,
+        conversation_id=parent_id,
+        reply_text=reply_text,
+        quote_id="a" * 64,
+        reply_created_at=created_at,
+        publication_authority="confirmed_transport",
+    )
+
+
+def legacy_account_pair(
+    root_id: str,
+    context_id: str,
+    *,
+    local_prefix: str = "2026-08-25 00:08",
+) -> str:
+    """Literal, identity-redacted form of the audited retained sequence."""
+    attempt_id = "b" * 64
+    root_transaction = "c" * 64
+    context_transaction = "d" * 64
+    quote_id = "e" * 64
+    root_text = "A source-faithful visible quotation."
+    context_text = "Context — verified historical context."
+    return "".join(
+        [
+            log_line(
+                f"{local_prefix}:00",
+                "Wrote main-post sending receipt lane=quote_image "
+                f"attempt_id={attempt_id} path=<private-path>",
+                level="WARNING",
+            ),
+            log_line(
+                f"{local_prefix}:01",
+                "Promoted main-post receipt to attempting lane=quote_image "
+                f"attempt_id={attempt_id} path=<private-path>",
+                level="WARNING",
+            ),
+            create_attempt(
+                root_id,
+                root_transaction,
+                lane="quote_image",
+                text=root_text,
+                local_time=f"{local_prefix}:02",
+            ),
+            generic_success(root_id, local_time=f"{local_prefix}:03"),
+            log_line(
+                f"{local_prefix}:04",
+                "Promoted main-post attempt to confirmed pending-schedule receipt "
+                f"lane=quote_image attempt_id={attempt_id} post_id={root_id} "
+                "path=<private-path>",
+                level="WARNING",
+            ),
+            log_line(
+                f"{local_prefix}:05",
+                "Finalised confirmed pending-schedule receipt "
+                f"lane=quote_image post_id={root_id} path=<private-path>",
+                level="WARNING",
+            ),
+            event_line(
+                f"{local_prefix}:06",
+                "main_post_posted",
+                lane="quote_image",
+                post_id=root_id,
+                quote_hash=quote_id,
+                image_basename="redacted-image.jpg",
+            ),
+            create_attempt(
+                root_id,
+                context_transaction,
+                lane="historical_context_reply",
+                text=context_text,
+                local_time=f"{local_prefix}:07",
+            ),
+            generic_success(context_id, local_time=f"{local_prefix}:08"),
+            event_line(
+                f"{local_prefix}:09",
+                "historical_context_reply",
+                status="completed",
+                parent_post_id=root_id,
+                quote_id=quote_id,
+                reply_preview=context_text,
+            ),
+            event_line(
+                f"{local_prefix}:10",
+                "historical_context_obligation",
+                status="completed",
+                context_reply_state="context_reply_confirmed",
+                parent_post_id=root_id,
+                attempt_number=1,
+            ),
+        ]
+    )
+
+
+def branch_turn(
+    post_id: str,
+    parent_post_id: str | None,
+    author_role: str,
+    author_key: str,
+    minute: int,
+    *,
+    text: str | None = "Substantive branch turn.",
+    correction_cues: list[str] | None = None,
+    lane: str = "mention",
+    clarification: bool = False,
+) -> dict[str, object]:
+    return {
+        "account_turn_asked_for_clarification": clarification,
+        "author_key": author_key,
+        "author_role": author_role,
+        "correction_cues": list(correction_cues or []),
+        "created_at": f"2026-08-25T00:{minute:02d}:00Z",
+        "lane": lane,
+        "parent_post_id": parent_post_id,
+        "pipeline_stage_summaries": [],
+        "post_id": post_id,
+        "reconstruction_confidence": "high",
+        "source_provenance": [],
+        "substantive": bool(text),
+        "text": text,
+        "text_source": "public_text" if text else "unavailable",
+        "warnings": [],
+    }
+
+
 def first_exchange(
     *,
     author_id: str = "raw-user-123",
@@ -150,7 +330,11 @@ def create_attempt(
     lane: str = "conversational_reply",
     local_time: str = "2026-08-24 16:12:00",
 ) -> str:
-    reply_to = target_id if lane == "conversational_reply" else "None"
+    reply_to = (
+        target_id
+        if lane in {"conversational_reply", "historical_context_reply"}
+        else "None"
+    )
     return log_line(
         local_time,
         "Creating X post with durable transport journal. "
@@ -275,6 +459,20 @@ def rows(output: Path, name: str) -> list[dict[str, object]]:
 
 def state_bytes(output: Path) -> bytes:
     return (output / "state" / "extractor-state.json").read_bytes()
+
+
+def mark_state_as_registered_v2(output: Path) -> None:
+    state_path = output / "state" / "extractor-state.json"
+    state = extractor._strict_read_json(state_path)
+    assert isinstance(state, dict)
+    state.update(
+        {
+            "schema_version": 2,
+            "extractor_version": "prospective-conversation-extractor-v2",
+            "parser_version": "prospective-conversation-log-parser-v2",
+        }
+    )
+    rewrite_private_json(state_path, state, mode=0o600)
 
 
 def current_target(output: Path) -> str:
@@ -2160,6 +2358,7 @@ def test_rebuild_to_new_root_preserves_key_pseudonyms_and_old_root(
         + first_exchange(author_id="stable-rebuild-user"),
     )
     run_scan(project, old_root)
+    mark_state_as_registered_v2(old_root)
     old_key = (old_root / "state" / "pseudonym-key").read_bytes()
     old_author = next(
         post["author_key"]
@@ -2204,6 +2403,7 @@ def test_rebuild_refuses_existing_destination_and_insufficient_boundary_coverage
     existing.mkdir()
     write_active(project, first_exchange())
     run_scan(project, old_root)
+    mark_state_as_registered_v2(old_root)
 
     with pytest.raises(extractor.ExtractorError, match="must not already exist"):
         extractor.rebuild_to_new_root(
@@ -2530,10 +2730,9 @@ def test_review_reasons_same_chain_third_turn_correction_and_multiple_replies(
     reasons = set(candidate["review_reason_codes"])
 
     assert {
-        "same_chain_user_continuation",
-        "multiple_substantive_user_turns",
-        "multiple_account_replies",
-        "third_or_later_substantive_turn",
+        "same_author_path_continuation",
+        "multiple_account_replies_on_path",
+        "third_or_later_substantive_path_turn",
         "explicit_correction_cue",
     } <= reasons
     assert "not what i said" in candidate["correction_cues"]
@@ -2570,10 +2769,16 @@ def test_post_clarification_and_sibling_branch_activity_are_descriptive() -> Non
         ],
     }
 
-    candidate = extractor.build_review_candidate(conversation)
-    assert candidate is not None
-    assert "post_clarification_continuation" in candidate["review_reason_codes"]
-    assert "sibling_branch_activity" in candidate["review_reason_codes"]
+    candidates = extractor.build_review_candidates(conversation)
+    clarification_candidate = next(
+        row for row in candidates if row["branch_tip_post_id"] == "u3"
+    )
+    assert "post_clarification_continuation" in clarification_candidate[
+        "review_reason_codes"
+    ]
+    assert "sibling_branch_context" in clarification_candidate[
+        "review_reason_codes"
+    ]
 
 
 def test_routine_exchange_is_not_over_selected(tmp_path: Path) -> None:
@@ -2679,7 +2884,7 @@ def test_status_is_read_only_and_valid_when_uninitialised(tmp_path: Path) -> Non
     status = extractor.get_status(output)
 
     assert status["initialised"] is False
-    assert status["schema_version"] == 2
+    assert status["schema_version"] == 3
     assert status["last_retention_error"] is None
     assert status["automatic_batch_budget_bytes"] == 10 * 1024 * 1024 * 1024
     assert status["minimum_free_bytes"] == 10 * 1024 * 1024 * 1024
@@ -3045,3 +3250,492 @@ def test_cli_until_is_deterministic_and_validate_status_freeze_work(tmp_path: Pa
     assert json.loads(status.stdout)["initialised"] is True
     assert json.loads(validation.stdout)["valid"] is True
     assert current_batch(output).name.startswith("20260827T180000Z-")
+
+
+def test_v3_account_root_context_and_user_descendants_share_one_graph() -> None:
+    root_id = "2092026402438627782"
+    context_id = "2092026406586753468"
+    user_root_reply = snowflake_id("2026-08-25T02:00:00Z")
+    user_context_reply = snowflake_id("2026-08-25T02:01:00Z")
+    text = "".join(
+        [
+            account_root_posted(
+                root_id,
+                created_at="2026-08-24T23:08:57Z",
+                public_text=None,
+                quote_text="Visible words embedded in the quote image.",
+            ),
+            historical_context_posted(
+                root_id,
+                context_id,
+                created_at="2026-08-24T23:08:58Z",
+            ),
+            log_line(
+                "2026-08-25 01:10:00",
+                f"Considering mention id={context_id} author_id=redacted-self "
+                "text='A later truncated mention observation'",
+            ),
+            log_line(
+                "2026-08-25 03:00:00",
+                f"Considering mention id={user_root_reply} author_id=user-a "
+                "text='A reply to the root.'",
+            ),
+            log_line(
+                "2026-08-25 03:00:01",
+                f"Built AI reply context for mention {user_root_reply}. "
+                f"chain_items=1 immediate_parent={root_id} quoted=False",
+            ),
+            log_line(
+                "2026-08-25 03:01:00",
+                f"Considering mention id={user_context_reply} author_id=user-b "
+                "text='A reply to the historical context.'",
+            ),
+            log_line(
+                "2026-08-25 03:01:01",
+                f"Built AI reply context for mention {user_context_reply}. "
+                f"chain_items=2 immediate_parent={context_id} quoted=False",
+            ),
+        ]
+    )
+    records, _warnings = extractor.parse_log_records(text.encode())
+    posts = extractor.normalise_canonical_posts(records, [], b"v" * 32)
+    by_id = {post["post_id"]: post for post in posts}
+
+    root = by_id[root_id]
+    context = by_id[context_id]
+    assert root["author_role"] == "account"
+    assert root["publication_status"] == "published"
+    assert root["parent_post_id"] is None
+    assert root["parent_observation_status"] == "confirmed_none"
+    assert root["root_post_id"] == root_id == root["conversation_id"]
+    assert root["text"] == "Visible words embedded in the quote image."
+    assert root["text_source"] == "image_quote_text"
+    assert root["public_text"] is None
+    assert root["visible_media_text"] == root["text"]
+    assert context["author_role"] == "account"
+    assert context["author_key"] == root["author_key"]
+    assert context["parent_post_id"] == root_id
+    assert context["root_post_id"] == root_id == context["conversation_id"]
+    assert context["text"] == "Context — a confirmed historical note."
+    assert context["text_source"] == "historical_context_reply"
+    assert context["self_observation_count"] == 1
+    assert "A later truncated mention" not in context["text"]
+
+    conversations, _candidates = extractor.build_conversations(
+        posts,
+        boundary=extractor.parse_aware_timestamp(BOUNDARY, option="test"),
+        cutoff=extractor.parse_aware_timestamp(DEFAULT_UNTIL, option="test"),
+        quiescence_hours=48,
+    )
+    assert len(conversations) == 1
+    assert conversations[0]["root_post_id"] == root_id
+    assert {turn["post_id"] for turn in conversations[0]["turns"]} == {
+        root_id,
+        context_id,
+        user_root_reply,
+        user_context_reply,
+    }
+
+
+def test_mention_before_authoritative_event_is_promoted_without_user_identity() -> None:
+    root_id = "2091994786873909414"
+    text = "".join(
+        [
+            log_line(
+                "2026-08-24 22:00:00",
+                f"Considering mention id={root_id} author_id=raw-self-id "
+                "text='Poll text must not win.'",
+            ),
+            account_root_posted(
+                root_id,
+                created_at="2026-08-24T21:03:20Z",
+                local_time="2026-08-24 22:00:01",
+                public_text="Authoritative public root text.",
+            ),
+        ]
+    )
+    records, _warnings = extractor.parse_log_records(text.encode())
+    posts = extractor.normalise_canonical_posts(records, [], b"w" * 32)
+
+    assert len(posts) == 1
+    assert posts[0]["author_role"] == "account"
+    assert str(posts[0]["author_key"]).startswith("account-")
+    assert posts[0]["text"] == "Authoritative public root text."
+    assert posts[0]["self_observation_count"] == 1
+
+
+def test_prefix_timing_and_generic_success_do_not_establish_account_posts() -> None:
+    first_id = "2092161227854090348"
+    adjacent_id = str(int(first_id) + (1 << 22))
+    unbound_success_id = str(int(adjacent_id) + (1 << 22))
+    text = "".join(
+        [
+            log_line(
+                "2026-08-25 10:00:00",
+                f"Considering mention id={first_id} author_id=user-a "
+                "text='Context — prefix alone proves nothing'",
+            ),
+            log_line(
+                "2026-08-25 10:00:00",
+                f"Built AI reply context for mention {first_id}. "
+                "chain_items=0 immediate_parent=None quoted=False",
+            ),
+            log_line(
+                "2026-08-25 10:00:01",
+                f"Considering mention id={adjacent_id} author_id=user-b "
+                "text='Adjacent in time, unrelated in graph.'",
+            ),
+            log_line(
+                "2026-08-25 10:00:01",
+                f"Built AI reply context for mention {adjacent_id}. "
+                "chain_items=0 immediate_parent=None quoted=False",
+            ),
+            generic_success(unbound_success_id, local_time="2026-08-25 10:00:02"),
+        ]
+    )
+    records, _warnings = extractor.parse_log_records(text.encode())
+    posts = extractor.normalise_canonical_posts(records, [], b"x" * 32)
+    by_id = {post["post_id"]: post for post in posts}
+
+    assert set(by_id) == {first_id, adjacent_id}
+    assert all(post["author_role"] == "user" for post in posts)
+    assert all(post["parent_post_id"] is None for post in posts)
+    assert unbound_success_id not in by_id
+
+
+def test_duplicate_account_events_deduplicate_and_unavailable_text_is_partial() -> None:
+    root_id = "2092161223542378794"
+    event_a = account_root_posted(
+        root_id,
+        created_at="2026-08-25T08:04:41Z",
+        local_time="2026-08-25 09:04:41",
+        public_text=None,
+    )
+    event_b = account_root_posted(
+        root_id,
+        created_at="2026-08-25T08:04:41Z",
+        local_time="2026-08-25 09:05:41",
+        public_text=None,
+    )
+    records, _warnings = extractor.parse_log_records((event_a + event_b).encode())
+    posts = extractor.normalise_canonical_posts(records, [], b"y" * 32)
+
+    assert len(posts) == 1
+    assert posts[0]["text"] is None
+    assert posts[0]["text_source"] == "unavailable"
+    assert posts[0]["reconstruction_confidence"] == "medium"
+    assert posts[0]["publication_status"] == "published"
+    assert len(posts[0]["publication_evidence"]) == 2
+    assert "confirmed_account_root_text_unavailable" in posts[0]["warnings"]
+
+
+def test_context_confirmation_without_root_authority_retains_start_unknown() -> None:
+    root_id = "2092026402438627782"
+    context_id = "2092026406586753468"
+    records, _warnings = extractor.parse_log_records(
+        historical_context_posted(
+            root_id,
+            context_id,
+            created_at="2026-08-24T23:08:58Z",
+        ).encode()
+    )
+    posts = extractor.normalise_canonical_posts(records, [], b"2" * 32)
+    assert len(posts) == 1
+    assert posts[0]["author_role"] == "account"
+    assert posts[0]["parent_post_id"] == root_id
+    assert posts[0]["root_post_id"] == root_id
+    assert posts[0]["conversation_id"] == root_id
+    assert "authoritative_account_root_unavailable" in posts[0]["warnings"]
+
+    conversations, _candidates = extractor.build_conversations(
+        posts,
+        boundary=extractor.parse_aware_timestamp(BOUNDARY, option="test"),
+        cutoff=extractor.parse_aware_timestamp(DEFAULT_UNTIL, option="test"),
+        quiescence_hours=48,
+    )
+    assert conversations[0]["prospective_status"] == "start_unknown"
+
+
+def test_literal_audited_legacy_sequences_reconstruct_root_and_context() -> None:
+    root_id = "2092026402438627782"
+    context_id = "2092026406586753468"
+    records, _warnings = extractor.parse_log_records(
+        legacy_account_pair(root_id, context_id).encode()
+    )
+    posts = extractor.normalise_canonical_posts(records, [], b"z" * 32)
+    by_id = {post["post_id"]: post for post in posts}
+
+    assert set(by_id) == {root_id, context_id}
+    assert by_id[root_id]["publication_authority"] == "legacy_confirmed_sequence"
+    assert by_id[root_id]["parent_post_id"] is None
+    assert by_id[root_id]["text"] == "A source-faithful visible quotation."
+    assert by_id[context_id]["publication_authority"] == "legacy_confirmed_sequence"
+    assert by_id[context_id]["parent_post_id"] == root_id
+    assert by_id[context_id]["text"] == "Context — verified historical context."
+
+
+def test_incomplete_legacy_sequences_remain_unresolved() -> None:
+    root_id = "2092026402438627782"
+    context_id = "2092026406586753468"
+    incomplete = "".join(
+        [
+            create_attempt(
+                root_id,
+                "c" * 64,
+                lane="quote_image",
+                text="Unconfirmed root.",
+            ),
+            generic_success(root_id),
+            create_attempt(
+                root_id,
+                "d" * 64,
+                lane="historical_context_reply",
+                text="Context — unconfirmed reply.",
+            ),
+            generic_success(context_id),
+        ]
+    )
+    records, _warnings = extractor.parse_log_records(incomplete.encode())
+
+    assert extractor.normalise_canonical_posts(records, [], b"0" * 32) == []
+
+
+def test_five_named_roots_get_boundary_status_only_from_authority() -> None:
+    post_boundary = {
+        "2092026402438627782": "2026-08-24T23:08:57Z",
+        "2091994786873909414": "2026-08-24T21:03:20Z",
+        "2092161223542378794": "2026-08-25T08:04:41Z",
+    }
+    pre_boundary = {
+        "2090347591150063892": "2026-08-20T07:00:00Z",
+        "2091614032448872556": "2026-08-23T18:00:00Z",
+    }
+    lines = []
+    for index, (post_id, created_at) in enumerate(
+        [*pre_boundary.items(), *post_boundary.items()]
+    ):
+        lines.append(
+            account_root_posted(
+                post_id,
+                created_at=created_at,
+                local_time=f"2026-08-25 11:00:{index:02d}",
+            )
+        )
+    unresolved_id = snowflake_id("2026-08-25T12:00:00Z")
+    lines.extend(
+        [
+            log_line(
+                "2026-08-25 13:00:00",
+                f"Considering mention id={unresolved_id} author_id=user-z "
+                "text='A genuine external reply with an unavailable parent.'",
+            ),
+            log_line(
+                "2026-08-25 13:00:01",
+                f"Built AI reply context for mention {unresolved_id}. "
+                "chain_items=1 immediate_parent=999999999999999999 quoted=False",
+            ),
+        ]
+    )
+    records, _warnings = extractor.parse_log_records("".join(lines).encode())
+    posts = extractor.normalise_canonical_posts(records, [], b"1" * 32)
+    conversations, _candidates = extractor.build_conversations(
+        posts,
+        boundary=extractor.parse_aware_timestamp(BOUNDARY, option="test"),
+        cutoff=extractor.parse_aware_timestamp(DEFAULT_UNTIL, option="test"),
+        quiescence_hours=48,
+    )
+    status_by_turn = {
+        turn["post_id"]: conversation["prospective_status"]
+        for conversation in conversations
+        for turn in conversation["turns"]
+    }
+
+    assert {status_by_turn[post_id] for post_id in post_boundary} == {"eligible"}
+    assert {status_by_turn[post_id] for post_id in pre_boundary} == {"pre_boundary"}
+    assert status_by_turn[unresolved_id] == "start_unknown"
+
+
+def test_branch_candidates_are_exact_author_paths_and_ignore_siblings() -> None:
+    turns = [
+        branch_turn("root", None, "account", "account-a", 0),
+        branch_turn("a-u1", "root", "user", "user-a", 1),
+        branch_turn("a-a1", "a-u1", "account", "account-a", 2),
+        branch_turn(
+            "a-u2",
+            "a-a1",
+            "user",
+            "user-a",
+            3,
+            correction_cues=["not what i said"],
+        ),
+        branch_turn("b-u1", "root", "user", "user-b", 4),
+        branch_turn("b-a1", "b-u1", "account", "account-a", 5),
+        branch_turn("b-u2", "b-a1", "user", "user-b", 6),
+    ]
+    conversation = {
+        "activity_status": "quiescent",
+        "completeness": "complete",
+        "conversation_key": "conversation-branches",
+        "prospective_status": "eligible",
+        "reconstruction_confidence": "high",
+        "root_post_id": "root",
+        "start_time": "2026-08-25T00:00:00Z",
+        "turns": turns,
+        "warnings": [],
+    }
+
+    candidates = extractor.build_review_candidates(conversation)
+    assert candidates == extractor.build_review_candidates(conversation)
+    assert len(candidates) == 2
+    by_author = {candidate["principal_author_key"]: candidate for candidate in candidates}
+    assert set(by_author) == {"user-a", "user-b"}
+    for author, candidate in by_author.items():
+        assert candidate["same_author_user_turn_count"] == 2
+        assert candidate["same_author_continuation_depth"] == 1
+        assert candidate["account_turn_count_on_path"] == 2
+        assert candidate["substantive_turn_count_on_path"] == 4
+        assert candidate["path_turns"][0]["post_id"] == "root"
+        assert {
+            turn["author_key"]
+            for turn in candidate["path_turns"]
+            if turn["author_role"] == "user"
+        } == {author}
+        assert "same_author_path_continuation" in candidate["review_reason_codes"]
+        assert "sibling_branch_context" in candidate["review_reason_codes"]
+    assert by_author["user-a"]["correction_cues"] == ["not what i said"]
+    assert by_author["user-b"]["correction_cues"] == []
+
+
+def test_divergent_same_author_paths_are_maximal_and_context_stays_sibling() -> None:
+    turns = [
+        branch_turn("root", None, "account", "account-a", 0),
+        branch_turn(
+            "context",
+            "root",
+            "account",
+            "account-a",
+            1,
+            lane="historical_context_reply",
+        ),
+        branch_turn("u1", "root", "user", "user-a", 2),
+        branch_turn("a1", "u1", "account", "account-a", 3),
+        branch_turn(
+            "left",
+            "a1",
+            "user",
+            "user-a",
+            4,
+            correction_cues=["you misunderstood"],
+        ),
+        branch_turn("right", "a1", "user", "user-a", 5),
+    ]
+    conversation = {
+        "activity_status": "open",
+        "completeness": "complete",
+        "conversation_key": "conversation-divergent",
+        "prospective_status": "eligible",
+        "reconstruction_confidence": "high",
+        "root_post_id": "root",
+        "start_time": "2026-08-25T00:00:00Z",
+        "turns": turns,
+        "warnings": [],
+    }
+
+    candidates = extractor.build_review_candidates(conversation)
+    assert {row["branch_tip_post_id"] for row in candidates} == {"left", "right"}
+    assert len(candidates) == 2
+    for candidate in candidates:
+        assert [turn["post_id"] for turn in candidate["path_turns"]] == [
+            "root",
+            "u1",
+            "a1",
+            candidate["branch_tip_post_id"],
+        ]
+        assert "context" not in {turn["post_id"] for turn in candidate["path_turns"]}
+        assert "context" in {
+            row["post_id"] for row in candidate["sibling_context_refs"]
+        }
+        assert candidate["same_author_continuation_depth"] == 1
+    by_tip = {row["branch_tip_post_id"]: row for row in candidates}
+    assert by_tip["left"]["correction_cues"] == ["you misunderstood"]
+    assert by_tip["right"]["correction_cues"] == []
+
+
+def test_ignored_event_histogram_is_bounded_ordered_and_has_exact_remainder() -> None:
+    counts = {f"kind-{index:02d}": 100 - index for index in range(70)}
+    target_counts = {
+        kind: count // 2 for kind, count in counts.items() if int(kind[-2:]) % 2 == 0
+    }
+    statistics = {
+        "ignored_structured_event_kinds_by_kind": counts,
+        "ignored_target_like_event_kinds_by_kind": target_counts,
+    }
+
+    rows_a, other_a, target_other_a = extractor.ignored_structured_event_histogram(
+        statistics
+    )
+    rows_b, other_b, target_other_b = extractor.ignored_structured_event_histogram(
+        statistics
+    )
+    omitted = {f"kind-{index:02d}" for index in range(64, 70)}
+    assert (rows_a, other_a, target_other_a) == (rows_b, other_b, target_other_b)
+    assert len(rows_a) == 64
+    assert [(row["count"], row["event_kind"]) for row in rows_a] == sorted(
+        ((row["count"], row["event_kind"]) for row in rows_a),
+        key=lambda item: (-item[0], item[1]),
+    )
+    assert other_a == sum(counts[kind] for kind in omitted)
+    assert target_other_a == sum(target_counts.get(kind, 0) for kind in omitted)
+
+
+def test_source_lag_is_reported_warned_and_does_not_invalidate(tmp_path: Path) -> None:
+    project = tmp_path / "project"
+    output = tmp_path / "output"
+    write_active(
+        project,
+        log_line("2026-08-24 16:00:00", "Pre-boundary coverage")
+        + log_line("2026-08-24 17:00:00", "Latest retained source record"),
+    )
+
+    result = run_scan(project, output, until="2026-08-25T00:00:00Z")
+    status = extractor.get_status(output)
+    batch = current_batch(output)
+    batch_status = extractor._strict_read_json(batch / "status.json")
+    report = (batch / "extraction-report.md").read_text(encoding="utf-8")
+
+    assert result["source_lag_seconds"] == 8 * 60 * 60
+    assert status["source_lag_seconds"] == 8 * 60 * 60
+    assert batch_status["source_lag_seconds"] == 8 * 60 * 60
+    assert "retained_source_stale_relative_to_scan_cutoff" in status["warnings"]
+    assert "Retained source lag: `28800` seconds" in report
+    assert extractor.validate_output_root(output)["valid"] is True
+
+
+def test_normal_scan_rejects_v2_state_and_rebuild_rejects_unregistered_tuple(
+    tmp_path: Path,
+) -> None:
+    project = tmp_path / "project"
+    old_root = tmp_path / "old-root"
+    write_active(
+        project,
+        log_line("2026-08-24 16:00:00", "Boundary coverage") + first_exchange(),
+    )
+    run_scan(project, old_root)
+    mark_state_as_registered_v2(old_root)
+
+    with pytest.raises(extractor.ExtractorError, match="unsupported extractor state schema"):
+        run_scan(project, old_root)
+
+    state_path = old_root / "state" / "extractor-state.json"
+    state = extractor._strict_read_json(state_path)
+    assert isinstance(state, dict)
+    state["parser_version"] = "unregistered-v2-parser"
+    rewrite_private_json(state_path, state, mode=0o600)
+    with pytest.raises(extractor.ExtractorError, match="unsupported rebuild source"):
+        extractor.rebuild_to_new_root(
+            project_dir=project,
+            source_output_root=old_root,
+            new_output_root=tmp_path / "new-root",
+            until=DEFAULT_UNTIL,
+        )
+    assert not (tmp_path / "new-root").exists()

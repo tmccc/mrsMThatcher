@@ -11,9 +11,9 @@ frozen boundary:
 2026-08-24T15:08:39Z
 ```
 
-The activation format is deliberately versioned as schema `2`, extractor
-`prospective-conversation-extractor-v2`, and parser
-`prospective-conversation-log-parser-v2`. State, cache entries, manifests,
+The activation format is deliberately versioned as schema `3`, extractor
+`prospective-conversation-extractor-v3`, and parser
+`prospective-conversation-log-parser-v3`. State, cache entries, manifests,
 status files, and canonical posts must match those versions exactly.
 
 Collection is descriptive. A newly collected conversation is not thereby a
@@ -64,13 +64,13 @@ The extractor never reads or changes:
 The scheduled output root is fixed at:
 
 ```text
-/disks/disk1/research/mrsMThatcher-prospective-conversations
+/disks/disk1/research/mrsMThatcher-prospective-conversations-v3
 ```
 
 Its layout is:
 
 ```text
-mrsMThatcher-prospective-conversations/
+mrsMThatcher-prospective-conversations-v3/
 ├── state/
 │   ├── extractor-state.json
 │   ├── pseudonym-key
@@ -161,17 +161,60 @@ conversation. `pre_boundary` and `start_unknown` are excluded from default
 review packs. Warnings state when retained source coverage does not span the
 boundary.
 
+`source_lag_seconds` is `max(0, scan cutoff - latest retained source
+timestamp)` and is exposed in batch status, extractor state, `status`, and the
+extraction report. Lag above six hours adds
+`retained_source_stale_relative_to_scan_cutoff`. This is descriptive: it does
+not guess why sources are stale and does not invalidate a batch.
+
 Canonical log timestamps are interpreted as Europe/London production time and
 converted to UTC. Human-readable output uses a trailing `Z`.
 
 ## Publication evidence and structured-event registry
 
-A published account turn requires either a registered structured confirmation
-containing both target and reply IDs or the production log's confirmed
-conversational receipt-promotion record. Each account turn records
-`publication_authority` and inspectable, hashed-record publication evidence. A
-generic `Created X post successfully` line is diagnostic transport evidence
-only and can never create or publish an account turn.
+A published account turn requires authoritative publication evidence. Version
+3 recognises `account_root_posted` for confirmed `quote_image` and
+`daily_meme` roots, and `historical_context_reply_posted` for the exact
+confirmed historical-context reply ID and parent. Production emits these
+descriptive events only after the existing transport confirmation and required
+local persistence have completed. Confirmed recovery and already-completed
+paths emit the same stable post identities. Logging neither authorises nor
+repeats transport, changes a receipt, or changes a posting outcome.
+
+An account-root event establishes an account-authored published root with no
+parent and with its post ID as root and conversation ID. A historical-context
+event establishes an account-authored reply with its declared parent, root and
+conversation identity. `text` always means the best source-faithful visible
+text for private review. `text_source`, `public_text`, and
+`visible_media_text` distinguish public tweet text, quote text embedded in an
+image, an already-available image summary, historical-context reply text,
+mention observation, and unavailable text. An image summary is never labelled
+as verbatim tweet text.
+
+Authoritative account publication takes precedence over mention polling in
+either log order. A later or earlier `Considering mention` observation of the
+same proved post contributes bounded self-observation provenance but cannot
+replace the account role, account pseudonym, publication state, or
+authoritative text, and does not create a contributor pseudonym. Conversely,
+surface text, a `Context —` prefix, Snowflake proximity, and account-looking
+prose never promote a user post to the account role.
+
+Version 3 also recovers retained legacy publications only from complete,
+unambiguous chains. A main root requires one account-owned lane and attempt,
+its attempting transition, one root/no-parent transport transaction, one exact
+remote post ID, promotion to the confirmed pending-schedule receipt,
+finalisation, and the matching `main_post_posted` marker. Historical context
+requires one `historical_context_reply` transaction with exact parent and
+text, one exact remote reply ID, a completed publication marker, and the
+matching completed confirmed outbox obligation. A missing or conflicting link
+leaves the post unresolved. If a complete chain proves identity but lacks
+recoverable text, the graph edge is retained as a partial turn with a precise
+warning. A generic `Created X post successfully` line is corroboration within
+such a bound chain and is never sufficient by itself.
+
+Each account turn records `publication_authority` and inspectable,
+hashed-record publication evidence. Existing conversational reply confirmations
+remain supported without changing the public reply pipeline.
 
 Conversational transport attempts are keyed by their 64-character transaction
 ID and target, retained on the target post across scans and rotations, and
@@ -188,8 +231,12 @@ evidence, and add a precise binding warning.
 
 Structured events use a small event-kind registry defining permitted target,
 text, author, identity, parent, creation-time, and publication fields. A bare
-generic `id` is not a target. Unknown events are ignored and represented only
-by bounded aggregate counts in `source-manifest.json`.
+generic `id` is not a target. Unknown events are represented in
+`source-manifest.json` by at most 64 rows containing `event_kind`, `count`, and
+`target_like_count`, ordered by descending count and then name. Separate
+`ignored_structured_event_other_count` and
+`ignored_target_like_event_other_count` fields aggregate the remainder. The
+collector never emits one warning per ignored event.
 
 ## Open and quiescent conversations
 
@@ -208,17 +255,32 @@ one-word greeting or thanks. Questions, criticism, disagreement, corrections,
 distress, positive expressive messages, and short meaningful distinctions are
 retained as substantive.
 
-Prospective-eligible conversations receive high-recall descriptive signals
-from these reason codes:
+The complete root conversation remains in `conversations.jsonl`, but a review
+candidate is one principal external author on one maximal exact parent path.
+Its stable `branch_key` binds the conversation key, principal pseudonym and
+branch-tip post ID. Strict path prefixes for the same author are suppressed;
+two genuinely divergent branches remain separate. The root account post starts
+every complete eligible path. Historical context is a path turn only when it
+is an ancestor; otherwise it appears in bounded, deterministically ordered
+`sibling_context_refs` with no effect on path counts.
 
-- `same_chain_user_continuation`
-- `multiple_substantive_user_turns`
-- `multiple_account_replies`
-- `third_or_later_substantive_turn`
+`same_author_user_turn_count` counts only the principal author's user turns on
+that path. `account_turn_count_on_path` and
+`substantive_turn_count_on_path` likewise exclude siblings. The deterministic
+same-author continuation depth is the number of substantive principal-author
+turns after their first substantive contribution for which an account turn
+occurred after the preceding principal-author turn and before the current one.
+
+Prospective-eligible paths receive high-recall descriptive signals from these
+reason codes:
+
+- `same_author_path_continuation`
+- `multiple_account_replies_on_path`
+- `third_or_later_substantive_path_turn`
 - `explicit_correction_cue`
 - `post_clarification_continuation`
-- `sibling_branch_activity`
-- `partial_reconstruction`
+- `sibling_branch_context`
+- `partial_path_reconstruction`
 - `ambiguous_parentage`
 
 Correction phrases are surface cues only. A contributor's allegation of a
@@ -270,7 +332,7 @@ Run a scan manually with the production settings:
 ```bash
 python3 tools/extract_prospective_conversations.py scan \
   --project-dir /disks/disk1/etc/mrsMThatcher \
-  --output-root /disks/disk1/research/mrsMThatcher-prospective-conversations \
+  --output-root /disks/disk1/research/mrsMThatcher-prospective-conversations-v3 \
   --prospective-start 2026-08-24T15:08:39Z \
   --quiescence-hours 48
 ```
@@ -284,7 +346,7 @@ Inspect operational status without editing it:
 
 ```bash
 python3 tools/extract_prospective_conversations.py status \
-  --output-root /disks/disk1/research/mrsMThatcher-prospective-conversations
+  --output-root /disks/disk1/research/mrsMThatcher-prospective-conversations-v3
 ```
 
 The command is read-only and returns valid JSON even before initialisation,
@@ -297,7 +359,7 @@ the absence of raw-author fields:
 
 ```bash
 python3 tools/extract_prospective_conversations.py validate \
-  --output-root /disks/disk1/research/mrsMThatcher-prospective-conversations
+  --output-root /disks/disk1/research/mrsMThatcher-prospective-conversations-v3
 ```
 
 Validation exits non-zero on corruption and never repairs it implicitly.
@@ -306,7 +368,7 @@ Freeze a private review pack manually:
 
 ```bash
 python3 tools/extract_prospective_conversations.py freeze-review-pack \
-  --output-root /disks/disk1/research/mrsMThatcher-prospective-conversations \
+  --output-root /disks/disk1/research/mrsMThatcher-prospective-conversations-v3 \
   --pack-name prospective-review-2026-09-01 \
   --since 2026-08-24T15:08:39Z \
   --until 2026-09-01T00:00:00Z
@@ -323,26 +385,45 @@ The pack manifest records the actual UTC freeze time separately from
 `source_batch_creation_timestamp`, while retaining the source batch ID and
 snapshot hash.
 
-## Non-destructive parser-version rebuild
+## Registered version-2 to version-3 rebuild
 
 An extractor or parser version mismatch fails before prior canonical posts or
-cache entries are reused. It is never silently upgraded in place. If a future
-version needs to reconstruct retained logs while preserving contributor
-pseudonyms, use a separate nonexistent destination:
+cache entries are reused. In particular, normal version-3 `scan` rejects a
+version-2 state rather than silently upgrading it. The only registered rebuild
+source tuple is schema 2,
+`prospective-conversation-extractor-v2`, and
+`prospective-conversation-log-parser-v2`. Rebuild into a separate nonexistent
+destination:
 
 ```bash
 python3 tools/extract_prospective_conversations.py rebuild-to-new-root \
   --project-dir /disks/disk1/etc/mrsMThatcher \
-  --source-output-root /path/to/old-root \
-  --new-output-root /path/to/new-empty-root \
+  --source-output-root /disks/disk1/research/mrsMThatcher-prospective-conversations \
+  --new-output-root /disks/disk1/research/mrsMThatcher-prospective-conversations-v3 \
   --until 2026-09-01T00:00:00Z
 ```
 
-The command holds a shared lock on the old root, reads its boundary,
-quiescence policy, and 32-byte pseudonym key, requires retained logs to span the
-boundary, and reparses them from scratch with no canonical/cache reuse. It
-validates the complete new root and never changes, switches to, or deletes the
-old root. It does not alter the installed service output path.
+The command opens the old root read-only under its shared lock, verifies the
+registered tuple, reads its frozen boundary and quiescence policy, and copies
+the 32-byte pseudonym key without displaying it. The destination must not
+exist. Current retained production logs must span the boundary and are parsed
+from scratch by parser v3; no v2 canonical post or source cache is reused. The
+command validates the complete new root and never changes, switches to, or
+deletes the old root. It does not alter the installed service output path.
+
+A later controlled deployment must perform these steps in order:
+
+1. Disable and stop only `mrs-prospective-conversations.timer`.
+2. Update the production checkout to the reviewed version-3 commit.
+3. Install the updated user units without enabling them.
+4. Run the registered rebuild from the exact v2 root into the v3 root.
+5. Run `validate` against the v3 root.
+6. Run one manual `mrs-prospective-conversations.service` oneshot.
+7. Inspect the first v3 corpus and its warnings.
+8. Only then enable the hourly prospective extractor timer.
+
+Do not point version-3 code at the version-2 root, reuse v2 batches, or switch
+the timer before validation and inspection.
 
 ## Atomicity, locking, and recovery
 
@@ -391,13 +472,16 @@ deploy/systemd-user/install.sh --check
 deploy/systemd-user/install.sh --install
 ```
 
-Installation verifies and copies the units, prepares the private output
-directories, and reloads the user manager. It does not enable, disable, start,
-stop, or restart any unit. Activate this collector explicitly after review:
+Installation verifies and copies the units, prepares unrelated scheduled-task
+state, and reloads the user manager. For a first version-3 deployment it
+deliberately leaves the v3 root nonexistent so the registered rebuild can
+create it. On later upgrades it verifies and prepares an existing real v3
+directory. It does not enable, disable, start, stop, or restart any unit.
+Activate this collector only after completing the controlled rebuild,
+validation, manual oneshot, and corpus inspection described above:
 
 ```bash
 systemctl --user enable --now mrs-prospective-conversations.timer
-systemctl --user start mrs-prospective-conversations.service
 ```
 
 Inspect it with:

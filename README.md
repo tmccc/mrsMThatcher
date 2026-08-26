@@ -683,14 +683,18 @@ installation for drift with:
 deploy/systemd-user/install.sh --check
 ```
 
-The optional network-free prospective conversation collector reconstructs a
-private post-boundary research corpus from the retained production log rotation
-without touching the bot or its state. Its operation, privacy model, validation,
-manual review packs, and explicit timer activation are documented in the
+The optional network-free version-3 prospective conversation collector
+reconstructs account roots, historical-context replies, and exact same-author
+parent paths from the retained production log rotation without touching the
+bot or its state. Its scheduled private root is
+`/disks/disk1/research/mrsMThatcher-prospective-conversations-v3`; the existing
+version-2 root remains a read-only migration source. Its operation, privacy
+model, registered v2-to-v3 rebuild, validation, manual review packs, and
+controlled timer activation are documented in the
 [prospective conversation extractor runbook](docs/prospective_conversation_extractor.md).
 
-Install updated units as regular files, prepare private scheduled-task state,
-and reload the user manager with:
+Install updated units as regular files, prepare non-migration scheduled-task
+state, and reload the user manager with:
 
 ```bash
 deploy/systemd-user/install.sh --install
@@ -703,7 +707,10 @@ executes the same checked bot script by default.
 
 The installer uses atomic per-file replacement and runs `daemon-reload`, but it
 does not enable, disable, start, stop, or restart any unit. Its non-mutating
-analytics `status` check always targets the runtime checkout at
+first-v3 installation also leaves the prospective v3 root absent for the
+registered rebuild; prospective timer activation is intentionally omitted from
+its suggested commands. The non-mutating analytics `status` check always
+targets the runtime checkout at
 `/disks/disk1/etc/mrsMThatcher`, even when the installer itself is run from a
 different source worktree. It reports an initialised database, a valid but
 uninitialised database, or a status-command/malformed-output failure distinctly.
