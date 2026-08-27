@@ -14,6 +14,7 @@ import pytest
 
 PROJECT_DIR = Path(__file__).resolve().parents[1]
 SYSTEMD_DIR = PROJECT_DIR / "deploy" / "systemd-user"
+HOME_ASSISTANT_DIR = PROJECT_DIR / "deploy" / "home-assistant"
 
 
 def test_launcher_and_service_use_the_same_canonical_bot_script() -> None:
@@ -46,6 +47,43 @@ def test_launcher_and_service_use_the_same_canonical_bot_script() -> None:
     exec_stop = next(line for line in main.splitlines() if line.startswith("ExecStop="))
     assert '"^python3 /disks/disk1/etc/mrsMThatcher/mrsMThatcher2.py$"' in exec_stop
     assert "/usr/local/bin/mrsMThatcher2.py" not in main
+
+
+def test_bot_health_deployment_assets_are_read_only_and_bounded() -> None:
+    service = (SYSTEMD_DIR / "mrs-bot-health-monitor.service").read_text(
+        encoding="utf-8"
+    )
+    timer = (SYSTEMD_DIR / "mrs-bot-health-monitor.timer").read_text(
+        encoding="utf-8"
+    )
+    installer = (SYSTEMD_DIR / "install.sh").read_text(encoding="utf-8")
+    home_assistant = (
+        HOME_ASSISTANT_DIR / "mrs_m_thatcher_health.yaml"
+    ).read_text(encoding="utf-8")
+
+    assert "Type=oneshot" in service
+    assert "TimeoutStartSec=20s" in service
+    assert "mrs_bot_health_monitor.py" in service
+    assert "bot-health-monitor.env" in service
+    assert "mrsMThatcher.env" not in service
+    assert "RestrictAddressFamilies=AF_UNIX" in service
+    assert "Restart=" not in service
+    assert "docker" not in service.lower()
+    assert "OnCalendar=*-*-* *:*:00" in timer
+    assert "Unit=mrs-bot-health-monitor.service" in timer
+    assert "mrs-bot-health-monitor.service" in installer
+    assert "mrs-bot-health-monitor.timer" in installer
+    assert installer.count("systemctl --user daemon-reload") == 1
+
+    assert "command_line:" in home_assistant
+    assert "/config/.runtime/mrs_m_thatcher_bot_health.json" in home_assistant
+    assert "unique_id: mrs_m_thatcher_bot_health" in home_assistant
+    assert "unique_id: mrs_m_thatcher_bot_problem" in home_assistant
+    assert "unique_id: mrs_m_thatcher_bot_critical" in home_assistant
+    assert home_assistant.count("notify.millie_powerwall_alert_devices") == 3
+    assert home_assistant.count("tag: mrs_m_thatcher_bot_health") == 3
+    assert "custom_components" not in home_assistant
+    assert "critical: 1" not in home_assistant
 
 
 def test_canonical_user_units_cover_live_services_without_secrets() -> None:

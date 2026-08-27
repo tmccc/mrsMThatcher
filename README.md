@@ -172,8 +172,12 @@ deployed as a coherent set:
 - `tools/extract_prospective_conversations.py`
 - `openai_cost_cache.py`
 - `runMrsMThatcher2`
+- `mrs_bot_health.py`
+- `mrs_bot_health_monitor.py`
 - `deploy/systemd-user/install.sh`
 - `deploy/systemd-user/mrsMThatcher.service`
+- `deploy/systemd-user/mrs-bot-health-monitor.service`
+- `deploy/systemd-user/mrs-bot-health-monitor.timer`
 - `deploy/systemd-user/mrs-engagement-analytics.service`
 - `deploy/systemd-user/mrs-engagement-analytics.timer`
 - `deploy/systemd-user/mrs-openai-cost-cache.service`
@@ -770,11 +774,17 @@ For an uninitialised database it prints the initialisation command:
   --project-dir /disks/disk1/etc/mrsMThatcher
 ```
 
+The small same-host Home Assistant health facility, including progress and
+monitor paths, status meanings, thresholds, timer operations, and its explicit
+read-only limits, is documented in the
+[bot health runbook](docs/bot_health_home_assistant.md).
+
 After installation, enable each desired unit explicitly and separately (enable
 the analytics timer only after its database is ready):
 
 ```bash
 systemctl --user enable mrsMThatcher.service
+systemctl --user enable --now mrs-bot-health-monitor.timer
 systemctl --user enable mrs-semantic-veto-shadow-health.timer
 systemctl --user enable mrs-engagement-analytics.timer
 systemctl --user enable --now mrs-openai-cost-cache.timer

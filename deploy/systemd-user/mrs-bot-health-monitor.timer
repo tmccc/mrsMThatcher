@@ -1,0 +1,12 @@
+[Unit]
+Description=Evaluate MrsMThatcher bot health every minute
+
+[Timer]
+OnCalendar=*-*-* *:*:00
+AccuracySec=5s
+RandomizedDelaySec=5s
+Persistent=true
+Unit=mrs-bot-health-monitor.service
+
+[Install]
+WantedBy=timers.target

@@ -20,6 +20,8 @@ readonly PROSPECTIVE_CONVERSATION_DIR="${MRS_PROSPECTIVE_CONVERSATION_DIR:-/disk
 readonly ANALYTICS_PROGRAM="${RUNTIME_PROJECT_DIR}/mrs_engagement_analytics.py"
 readonly UNITS=(
   mrsMThatcher.service
+  mrs-bot-health-monitor.service
+  mrs-bot-health-monitor.timer
   mrs-engagement-analytics.service
   mrs-engagement-analytics.timer
   mrs-openai-cost-cache.service
@@ -100,6 +102,7 @@ print_enable_commands() {
   printf '%s\n' \
     'enable each desired unit separately:' \
     '  systemctl --user enable mrsMThatcher.service' \
+    '  systemctl --user enable --now mrs-bot-health-monitor.timer' \
     '  systemctl --user enable mrs-semantic-veto-shadow-health.timer' \
     '  systemctl --user enable mrs-engagement-analytics.timer' \
     '  systemctl --user enable --now mrs-openai-cost-cache.timer' \

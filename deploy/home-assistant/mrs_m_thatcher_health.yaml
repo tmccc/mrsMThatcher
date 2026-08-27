@@ -1,0 +1,197 @@
+# Canonical Home Assistant package.  On the production host the command_line
+# and template sections are merged into configuration.yaml and the automation
+# entries are merged into its existing automations.yaml include.
+
+command_line:
+  - sensor:
+      name: "Mrs M Thatcher Bot Health"
+      unique_id: mrs_m_thatcher_bot_health
+      command: "cat /config/.runtime/mrs_m_thatcher_bot_health.json"
+      command_timeout: 5
+      scan_interval: 60
+      value_template: >-
+        {% if value_json is mapping
+              and value_json.status in
+                ['starting', 'healthy', 'paused', 'degraded', 'stalled', 'failed'] %}
+          {{ value_json.status }}
+        {% else %}
+          unavailable
+        {% endif %}
+      json_attributes:
+        - checked_epoch
+        - reason
+        - summary
+        - service_active
+        - service_substate
+        - service_result
+        - wrapper_pid
+        - service_nrestarts
+        - bot_pid
+        - bot_instance_id
+        - bot_commit
+        - progress_age_seconds
+        - phase
+        - phase_age_seconds
+        - last_loop_completed_epoch
+        - recent_error_count
+        - last_error_epoch
+        - last_error_level
+        - last_error_summary
+        - instance_restarts_15m
+
+template:
+  - binary_sensor:
+      - name: "Mrs M Thatcher Bot Problem"
+        unique_id: mrs_m_thatcher_bot_problem
+        device_class: problem
+        state: >-
+          {% set entity = 'sensor.mrs_m_thatcher_bot_health' %}
+          {% set status = states(entity) %}
+          {% set checked = state_attr(entity, 'checked_epoch') %}
+          {% set valid_status = status in
+            ['starting', 'healthy', 'paused', 'degraded', 'stalled', 'failed'] %}
+          {% set stale = not valid_status
+            or checked is not number
+            or checked <= 0
+            or (as_timestamp(now()) - checked) > 180 %}
+          {{ stale or status in ['degraded', 'stalled', 'failed'] }}
+        attributes:
+          monitor_stale: >-
+            {% set entity = 'sensor.mrs_m_thatcher_bot_health' %}
+            {% set status = states(entity) %}
+            {% set checked = state_attr(entity, 'checked_epoch') %}
+            {{ status not in
+                 ['starting', 'healthy', 'paused', 'degraded', 'stalled', 'failed']
+               or checked is not number
+               or checked <= 0
+               or (as_timestamp(now()) - checked) > 180 }}
+
+      - name: "Mrs M Thatcher Bot Critical"
+        unique_id: mrs_m_thatcher_bot_critical
+        device_class: problem
+        state: >-
+          {% set entity = 'sensor.mrs_m_thatcher_bot_health' %}
+          {% set status = states(entity) %}
+          {% set checked = state_attr(entity, 'checked_epoch') %}
+          {% set valid_status = status in
+            ['starting', 'healthy', 'paused', 'degraded', 'stalled', 'failed'] %}
+          {% set stale = not valid_status
+            or checked is not number
+            or checked <= 0
+            or (as_timestamp(now()) - checked) > 180 %}
+          {{ stale or status in ['stalled', 'failed'] }}
+        attributes:
+          monitor_stale: >-
+            {% set entity = 'sensor.mrs_m_thatcher_bot_health' %}
+            {% set status = states(entity) %}
+            {% set checked = state_attr(entity, 'checked_epoch') %}
+            {{ status not in
+                 ['starting', 'healthy', 'paused', 'degraded', 'stalled', 'failed']
+               or checked is not number
+               or checked <= 0
+               or (as_timestamp(now()) - checked) > 180 }}
+
+automation:
+  - id: mrs_m_thatcher_bot_health_critical
+    alias: "Mrs M Thatcher bot critical health alert"
+    description: "Alert after a stalled, failed, or stale monitor remains critical."
+    triggers:
+      - trigger: state
+        entity_id: binary_sensor.mrs_m_thatcher_bot_critical
+        to: "on"
+        for:
+          minutes: 2
+    conditions: []
+    actions:
+      - action: notify.millie_powerwall_alert_devices
+        continue_on_error: true
+        data:
+          title: >-
+            URGENT: Mrs M Thatcher bot
+            {{ states('sensor.mrs_m_thatcher_bot_health') }}
+          message: >-
+            {% set entity = 'sensor.mrs_m_thatcher_bot_health' %}
+            {% set status = states(entity) %}
+            {% set summary = state_attr(entity, 'summary') %}
+            {% set age = state_attr(entity, 'progress_age_seconds') %}
+            {% set loop = state_attr(entity, 'last_loop_completed_epoch') %}
+            {% set errors = state_attr(entity, 'recent_error_count') %}
+            {% set commit = state_attr(entity, 'bot_commit') %}
+            {{ summary if summary else
+               'Home Assistant has no fresh MrsMThatcher monitor data.' }}
+
+            Phase: {{ state_attr(entity, 'phase') or 'unknown' }}
+            Progress age: {{ ((age / 60) | round(0) | int) ~ ' minutes'
+                              if age is number else 'unknown' }}
+            Last completed loop: {{ loop | timestamp_custom('%Y-%m-%d %H:%M:%S', true)
+                                    if loop is number else 'unknown' }}
+            Recent errors: {{ errors if errors is number else 'unknown' }}
+            Commit: {{ commit[:12] if commit is string else 'unknown' }}
+          data:
+            tag: mrs_m_thatcher_bot_health
+    mode: single
+    max_exceeded: silent
+
+  - id: mrs_m_thatcher_bot_health_degraded
+    alias: "Mrs M Thatcher bot degraded health warning"
+    description: "Warn once impaired operation has continued for ten minutes."
+    triggers:
+      - trigger: state
+        entity_id: sensor.mrs_m_thatcher_bot_health
+        to: "degraded"
+        for:
+          minutes: 10
+    conditions: []
+    actions:
+      - action: notify.millie_powerwall_alert_devices
+        continue_on_error: true
+        data:
+          title: "Mrs M Thatcher bot degraded"
+          message: >-
+            {% set entity = 'sensor.mrs_m_thatcher_bot_health' %}
+            {% set summary = state_attr(entity, 'summary') %}
+            {% set last_error = state_attr(entity, 'last_error_summary') %}
+            {% set commit = state_attr(entity, 'bot_commit') %}
+            {{ summary or 'The bot is progressing with an impaired condition.' }}
+
+            Reason: {{ state_attr(entity, 'reason') or 'unknown' }}
+            Last error: {{ last_error or 'none recorded' }}
+            Phase: {{ state_attr(entity, 'phase') or 'unknown' }}
+            Recent errors: {{ state_attr(entity, 'recent_error_count') | int(0) }}
+            Child restarts (15m): {{ state_attr(entity, 'instance_restarts_15m') | int(0) }}
+            Commit: {{ commit[:12] if commit is string else 'unknown' }}
+          data:
+            tag: mrs_m_thatcher_bot_health
+    mode: single
+    max_exceeded: silent
+
+  - id: mrs_m_thatcher_bot_health_recovery
+    alias: "Mrs M Thatcher bot health recovery"
+    description: "Send one recovery after the general problem genuinely clears."
+    triggers:
+      - trigger: state
+        entity_id: binary_sensor.mrs_m_thatcher_bot_problem
+        from: "on"
+        to: "off"
+    conditions: []
+    actions:
+      - action: notify.millie_powerwall_alert_devices
+        continue_on_error: true
+        data:
+          title: "Mrs M Thatcher bot health recovered"
+          message: >-
+            {% set entity = 'sensor.mrs_m_thatcher_bot_health' %}
+            {% set duration =
+              (as_timestamp(trigger.to_state.last_changed)
+               - as_timestamp(trigger.from_state.last_changed)) | int(0) %}
+            {% set commit = state_attr(entity, 'bot_commit') %}
+            Current status: {{ states(entity) }}.
+            The problem lasted approximately
+            {{ ((([0, duration] | max) / 60) | round(0) | int) }} minutes.
+            {{ state_attr(entity, 'summary') or '' }}
+            Phase: {{ state_attr(entity, 'phase') or 'unknown' }}.
+            Commit: {{ commit[:12] if commit is string else 'unknown' }}.
+          data:
+            tag: mrs_m_thatcher_bot_health
+    mode: single
+    max_exceeded: silent

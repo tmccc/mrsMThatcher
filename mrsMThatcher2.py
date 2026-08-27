@@ -217,6 +217,12 @@ import requests
 from requests_oauthlib import OAuth1
 from urllib3.util import Timeout
 
+from mrs_bot_health import (
+    BotHealthReporter,
+    HealthLoggingObserver,
+    health_file_path_from_environment,
+)
+
 from remote_write_safety_protocol import (
     ACTIVATION_AUDIT_BASENAME as REMOTE_WRITE_SAFETY_PROTOCOL_ACTIVATION_AUDIT_BASENAME,
     ACTIVATION_BASENAME as REMOTE_WRITE_SAFETY_PROTOCOL_ACTIVATION_BASENAME,
@@ -748,6 +754,65 @@ _STATE_DIR_LOCK_IDENTITY: tuple[int, int] | None = None
 _LOCK_SOCKET: socket.socket | None = None
 _LOCK_SOCKET_NAME: bytes | None = None
 _OFD_LOCK_FORMAT = "hhqqi"
+_BOT_HEALTH_REPORTER: BotHealthReporter | None = None
+_BOT_HEALTH_LOGGING_OBSERVER: HealthLoggingObserver | None = None
+
+
+def initialise_bot_health_reporting() -> None:
+    """Initialise fail-open telemetry after production logging is ready."""
+
+    global _BOT_HEALTH_LOGGING_OBSERVER, _BOT_HEALTH_REPORTER
+    if _BOT_HEALTH_REPORTER is not None:
+        return
+    if SELF_TEST_REQUESTED or INITIALISE_REQUESTED:
+        return
+    try:
+        health_path = health_file_path_from_environment(
+            test_mode=TEST_MODE,
+            test_base_dir=BASE_DIR if TEST_MODE else None,
+        )
+        if health_path is None:
+            return
+        reporter = BotHealthReporter(
+            health_path,
+            write_failure_callback=lambda message: log.warning("%s", message),
+        )
+        observer = HealthLoggingObserver(reporter)
+        _BOT_HEALTH_REPORTER = reporter
+        _BOT_HEALTH_LOGGING_OBSERVER = observer
+        log.addHandler(observer)
+    except Exception:
+        if TEST_MODE:
+            raise
+        log.warning(
+            "Bot health telemetry could not be initialised; bot operation continues",
+            exc_info=True,
+        )
+
+
+def report_bot_health_progress(
+    phase: str,
+    *,
+    paused: bool | None = None,
+    remote_write_blocked: bool | None = None,
+    loop_started: bool = False,
+    loop_completed: bool = False,
+) -> None:
+    """Advance observational telemetry without affecting bot operation."""
+
+    reporter = _BOT_HEALTH_REPORTER
+    if reporter is None:
+        return
+    try:
+        reporter.progress(
+            phase,
+            paused=paused,
+            remote_write_blocked=remote_write_blocked,
+            loop_started=loop_started,
+            loop_completed=loop_completed,
+        )
+    except Exception:
+        pass
 
 
 def instance_lock_abstract_socket_name(base_dir: Path | None = None) -> bytes:
@@ -2355,6 +2420,7 @@ def production_bootstrap(
     if _PRODUCTION_BOOTSTRAPPED:
         return
     log = setup_logging(log_path=log_path, configure_file_logging=configure_file_logging)
+    initialise_bot_health_reporting()
     apply_local_config()
     errors = validate_runtime_config_values(
         {name: globals()[name] for name in LOCAL_CONFIG_ALLOWED_KEYS if name in globals()}
@@ -7101,6 +7167,10 @@ def x_request(
 
     validated_error_response: ValidatedXErrorResponse | None = None
     rejection_proof: DeterministicReplyCreateRejectionProof | None = None
+    request_health_phase = (
+        "x_read" if method_upper in {"GET", "HEAD", "OPTIONS"} else "x_write"
+    )
+    report_bot_health_progress(request_health_phase)
     try:
         if is_post_create:
             if expected_receipt_path is None:
@@ -7168,6 +7238,8 @@ def x_request(
         ) from e
     except BaseException:
         raise
+    finally:
+        report_bot_health_progress(request_health_phase)
 
     def process_received_response() -> dict:
         nonlocal rejection_proof, validated_error_response
@@ -7426,6 +7498,7 @@ def x_bearer_request(method: str, path: str, **kwargs) -> dict:
     if "params" in kwargs:
         log_json_debug("X bearer request params", kwargs["params"])
 
+    report_bot_health_progress("x_read")
     try:
         response = requests.request(
             method,
@@ -7444,6 +7517,8 @@ def x_bearer_request(method: str, path: str, **kwargs) -> dict:
             request_method=method,
             request_path=path,
         ) from e
+    finally:
+        report_bot_health_progress("x_read")
 
     log.debug("X bearer response status: %s", response.status_code)
     log.debug(
@@ -20942,6 +21017,7 @@ def xai_structured_reply_call(
     if log_request_payload:
         log_json_debug("xAI structured reply request", redact_xai_payload_for_log(payload))
     require_remote_operation_unpaused(f"xAI reply stage {stage}")
+    report_bot_health_progress("ai_call")
     try:
         response = requests.post(
             f"{XAI_BASE}/chat/completions",
@@ -20955,6 +21031,8 @@ def xai_structured_reply_call(
     except requests.RequestException as exc:
         log.exception("xAI reply stage=%s failed before receiving a response", stage)
         raise ApiError(str(exc), service="xai") from exc
+    finally:
+        report_bot_health_progress("ai_call")
     if response.status_code >= 400:
         if media_context and media_context.get("status") == "supplied" and xai_error_is_multimodal_input_rejection(response):
             log.warning(
@@ -21207,6 +21285,7 @@ def tested_pipeline_structured_call(
     )
     require_remote_operation_unpaused(f"{provider} tested reply stage {stage}")
     for attempt in (1, 2):
+        report_bot_health_progress("ai_call")
         try:
             response = requests.post(
                 f"{base}/chat/completions",
@@ -21221,6 +21300,8 @@ def tested_pipeline_structured_call(
             raise ApiError(str(exc), service="xai") from exc
         except requests.RequestException as exc:
             raise ApiError(str(exc), service="xai") from exc
+        finally:
+            report_bot_health_progress("ai_call")
         if response.status_code == 429 or response.status_code >= 500:
             if attempt == 1:
                 log.warning(
@@ -25248,8 +25329,10 @@ def maintain_global_remote_write_barrier_tick(
 def main() -> None:
     """Run the command-line entry point."""
     require_production_bootstrap()
+    report_bot_health_progress("startup")
     random.seed()
     acquire_instance_lock()
+    report_bot_health_progress("recovery")
     # The durable namespace must be proved only while this process owns the
     # installation lock.  Checking it before the lock leaves a stale-success
     # interval in which a cooperating maintenance process can change the very
@@ -25416,10 +25499,12 @@ def main() -> None:
         ensure_meme_schedule_initialized(state)
 
     log.info("Bot started successfully")
+    report_bot_health_progress("main_loop")
 
     ambiguity_pause_logged = False
     maintenance_pause_logged = global_remote_writes_paused()
     while True:
+        report_bot_health_progress("main_loop", loop_started=True)
         maintenance_paused = global_remote_writes_paused()
         if not maintenance_paused:
             try:
@@ -25475,33 +25560,60 @@ def main() -> None:
                     "remain idle"
                 )
             maintenance_pause_logged = True
+            report_bot_health_progress(
+                "paused",
+                paused=True,
+                remote_write_blocked=ambiguity_blocked,
+                loop_completed=True,
+            )
             sleep(60)
             continue
         if maintenance_pause_logged:
             log.info("Global runtime control pause cleared; resuming scheduled lanes")
         maintenance_pause_logged = False
+        report_bot_health_progress("main_loop", paused=False)
 
         if ambiguity_blocked:
+            report_bot_health_progress(
+                "remote_write_blocked",
+                remote_write_blocked=True,
+                loop_completed=True,
+            )
             sleep(60)
             continue
+        report_bot_health_progress("main_loop", remote_write_blocked=False)
 
         current = now_epoch()
         log.debug("Main loop tick. epoch=%s", current)
 
+        report_bot_health_progress("historical_context")
         safely_process_due_historical_context_obligations(
             limit=1,
             runtime_state=state,
         )
+        report_bot_health_progress("main_loop")
         if ambiguous_remote_post_is_blocking():
+            report_bot_health_progress(
+                "remote_write_blocked",
+                remote_write_blocked=True,
+                loop_completed=True,
+            )
             continue
 
+        report_bot_health_progress("reply_checks")
         last_reply_check_epoch, last_quote_tweet_check_epoch = run_reply_lane_checks_for_tick(
             state,
             current,
             last_reply_check_epoch,
             last_quote_tweet_check_epoch,
         )
+        report_bot_health_progress("main_loop")
         if ambiguous_remote_post_is_blocking():
+            report_bot_health_progress(
+                "remote_write_blocked",
+                remote_write_blocked=True,
+                loop_completed=True,
+            )
             continue
 
         next_quote_epoch = int(state.get("next_quote_post_epoch", 0))
@@ -25517,6 +25629,7 @@ def main() -> None:
                 schedule_next_quote_post(state, current)
             else:
                 quote_posted = False
+                report_bot_health_progress("quote_post")
                 try:
                     post_random_quote(lines_used, images_used, state)
                     quote_posted = True
@@ -25540,6 +25653,7 @@ def main() -> None:
                     record_api_error(state, e, "x", scope="write")
                 except Exception:
                     log.exception("Quote/image posting failed unexpectedly")
+                report_bot_health_progress("main_loop")
 
                 if not quote_posted:
                     schedule_next_quote_post(state, current)
@@ -25550,6 +25664,11 @@ def main() -> None:
             )
 
         if ambiguous_remote_post_is_blocking():
+            report_bot_health_progress(
+                "remote_write_blocked",
+                remote_write_blocked=True,
+                loop_completed=True,
+            )
             continue
 
         if ENABLE_DAILY_MEME_POSTS:
@@ -25573,6 +25692,7 @@ def main() -> None:
                     log.warning("Skipping daily meme post due to X write API cooldown")
                     set_meme_delay_schedule(state, epoch=current + 3600, mode="delayed_write_api_cooldown")
                 else:
+                    report_bot_health_progress("meme_post")
                     try:
                         post_next_meme(state)
                     except UnrecoverableConfirmedPostPersistenceError:
@@ -25594,6 +25714,7 @@ def main() -> None:
                     except Exception:
                         log.exception("Daily meme posting failed unexpectedly")
                         set_meme_delay_schedule(state, epoch=current + 3600, mode="delayed_exception")
+                    report_bot_health_progress("main_loop")
             else:
                 log.debug(
                     "Not due to post daily meme. seconds_until_next=%s",
@@ -25601,6 +25722,7 @@ def main() -> None:
                 )
 
         log.debug("Sleeping for 60 seconds")
+        report_bot_health_progress("sleep", loop_completed=True)
         sleep(60)
 
 
@@ -25861,8 +25983,10 @@ def run_test_main_tick() -> int:
     if not require_test_mode("--test-main-tick"):
         return 2
     require_production_bootstrap()
+    report_bot_health_progress("startup")
 
     acquire_instance_lock()
+    report_bot_health_progress("recovery")
     require_established_installation_after_ledger_recovery()
     reconcile_runtime_historical_context_state()
     block_if_ambiguous_remote_post()
@@ -25883,12 +26007,15 @@ def run_test_main_tick() -> int:
     if reply_epoch_changed or quote_epoch_changed:
         save_state(state)
 
+    report_bot_health_progress("main_loop", loop_started=True)
+    report_bot_health_progress("reply_checks")
     run_reply_lane_checks_for_tick(
         state,
         current,
         last_reply_check_epoch=last_reply_check_epoch,
         last_quote_tweet_check_epoch=last_quote_tweet_check_epoch,
     )
+    report_bot_health_progress("main_loop")
     if ambiguous_remote_post_is_blocking():
         wait_for_durable_barrier_before_one_shot_exit(
             lane="production_reply_tick",
@@ -25897,6 +26024,7 @@ def run_test_main_tick() -> int:
 
     save_state(state)
     log.info("Test production reply-lane tick finished")
+    report_bot_health_progress("shutdown", loop_completed=True)
     return 0
 
 
@@ -26116,6 +26244,7 @@ if __name__ == "__main__":
         if cli_status is not None:
             sys.exit(cli_status)
     except KeyboardInterrupt:
+        report_bot_health_progress("shutdown")
         log.warning("Bot stopped by KeyboardInterrupt")
     except Exception:
         log.exception("Bot crashed with unhandled exception")

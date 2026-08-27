@@ -773,6 +773,47 @@ def test_production_tick_quote_priority_runs_quote_before_due_mentions(tmp_path:
         server.stop()
 
 
+def test_production_tick_advances_isolated_genuine_progress_health(
+    tmp_path: Path,
+) -> None:
+    server = FakeApiServer({}).start()
+    try:
+        base_dir = prepare_base_dir(
+            tmp_path,
+            state={
+                "last_reply_epoch": 0,
+                "last_reply_check_epoch": 2_000_000_000,
+                "last_quote_tweet_check_epoch": 2_000_000_000,
+            },
+            local_config={
+                "ENABLE_AUTO_REPLIES": False,
+                "ENABLE_QUOTE_TWEET_CHECKS": False,
+                "ENABLE_DAILY_MEME_POSTS": False,
+            },
+        )
+        health_path = base_dir / "test-bot-health.json"
+        result = run_bot_command(
+            base_dir,
+            server,
+            "--test-main-tick",
+            extra_env={
+                "MRS_FAKE_NOW_EPOCH": "2000000000",
+                "MRS_BOT_HEALTH_FILE": str(health_path),
+            },
+        )
+
+        assert result.returncode == 0, result.stderr + result.stdout
+        snapshot = read_json(health_path)
+        assert snapshot["schema_version"] == 1
+        assert snapshot["progress_sequence"] >= 6
+        assert snapshot["phase"] == "shutdown"
+        assert snapshot["last_loop_started_epoch"] is not None
+        assert snapshot["last_loop_completed_epoch"] is not None
+        assert server.requests == []
+    finally:
+        server.stop()
+
+
 def test_production_tick_spacing_skip_does_not_consume_normal_check_interval(tmp_path: Path) -> None:
     server = FakeApiServer(load_scenario(SCENARIOS / "normal_mention_reply.json")).start()
     try:
