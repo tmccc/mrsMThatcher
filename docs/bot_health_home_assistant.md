@@ -15,8 +15,9 @@ field, or provider call.
 `mrs-bot-health-monitor.service` evaluates that progress file, the explicit
 `systemctl --user show mrsMThatcher.service` properties, and the recorded
 Python child under `/proc`. `mrs-bot-health-monitor.timer` invokes the one-shot
-evaluator about once per minute. Its recent child-instance history is
-transient under `$XDG_RUNTIME_DIR/mrsMThatcher/` and disappears at reboot.
+evaluator about once per minute. Its finite child-unavailable grace, recent
+child-instance history, and observed `NRestarts` increases are transient under
+`$XDG_RUNTIME_DIR/mrsMThatcher/` and disappear at reboot.
 
 The host-specific Home Assistant destination is kept only in the private file
 `~/.config/mrsMThatcher/bot-health-monitor.env` (mode `0600`):
@@ -33,25 +34,30 @@ automations; it is not a custom integration.
 
 Statuses are:
 
-- `starting`: the active/activating service is within its three-minute startup
-  grace and has not yet produced a valid expected child snapshot.
+- `starting`: the active/activating service has been continuously without a
+  valid matching child for no more than three minutes. A fresh snapshot or a
+  replacement `instance_id` does not renew this grace.
 - `healthy`: the service and expected child are live and genuine progress is
   fresh.
 - `paused`: the live child reports the intentional global pause, or an
   intentionally paused service was stopped less than ten minutes after its
   last fresh progress update.
 - `degraded`: progress continues, but at least three errors occurred in the
-  rolling 30-minute window, three distinct child instances were observed in
-  15 minutes, or the remote-write safety barrier is active.
+  rolling 30-minute window, three distinct child instances or three observed
+  automatic wrapper restarts occurred in 15 minutes, or the remote-write
+  safety barrier is active.
 - `stalled`: the service and expected child remain live but genuine progress
   is more than ten minutes old.
-- `failed`: the service is inactive outside paused deployment grace, or the
-  valid snapshot/expected child did not appear before startup grace expired.
+- `failed`: the service is inactive outside paused deployment grace, the valid
+  snapshot/expected child did not appear before finite child grace expired, or
+  rapid child/wrapper restarts currently leave no matching child running.
 
 The genuine-progress stale threshold defaults to 600 seconds and may be
 overridden locally with `MRS_BOT_HEALTH_STALE_SECONDS`. Home Assistant
 independently treats the monitor as critical when `checked_epoch` is absent,
 invalid, or more than 180 seconds old. A single transient bot error is healthy.
+Recovery notifications wait for the primary status to become `healthy`, then
+require it to remain healthy with the problem sensor off for two minutes.
 
 Run and inspect the evaluator with:
 

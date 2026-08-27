@@ -208,8 +208,14 @@ class BotHealthReporter:
             self._document["progress_sequence"] += 1
             self._write_fail_open()
 
-    def record_error(self, *, level: str, summary: str) -> None:
-        """Observe one error record without changing any bot decision."""
+    def record_error(
+        self,
+        *,
+        level: str,
+        summary: str,
+        write: bool = True,
+    ) -> None:
+        """Observe one error, optionally deferring I/O to the next progress."""
 
         with self._lock:
             current = int(self._clock())
@@ -224,7 +230,8 @@ class BotHealthReporter:
             self._document["last_error_epoch"] = current
             self._document["last_error_level"] = str(level)[:16]
             self._document["last_error_summary"] = _safe_one_line(summary)
-            self._write_fail_open()
+            if write:
+                self._write_fail_open()
 
     def _write_fail_open(self) -> None:
         try:
@@ -287,6 +294,7 @@ class HealthLoggingObserver(logging.Handler):
             self.reporter.record_error(
                 level=record.levelname,
                 summary=summary,
+                write=False,
             )
         except Exception:
             pass

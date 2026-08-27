@@ -19,15 +19,17 @@ def service(
     *,
     sub_state: str = "running",
     main_pid: int = 12000,
+    n_restarts: int = 0,
+    generation: int = 1,
 ) -> monitor.ServiceStatus:
     return monitor.ServiceStatus(
         active_state=active_state,
         sub_state=sub_state,
         result="success",
         main_pid=main_pid,
-        n_restarts=0,
-        active_enter_monotonic_usec=1,
-        exec_main_start_monotonic_usec=1,
+        n_restarts=n_restarts,
+        active_enter_monotonic_usec=generation,
+        exec_main_start_monotonic_usec=generation,
     )
 
 
@@ -68,6 +70,24 @@ def progress(
     }
 
 
+def progress_at(
+    observed_epoch: int,
+    *,
+    age: int = 20,
+    instance_id: str = "instance-a",
+    paused: bool = False,
+) -> dict:
+    value = progress(instance_id=instance_id, paused=paused)
+    value.update(
+        started_epoch=observed_epoch - 3_600,
+        updated_epoch=observed_epoch - age,
+        phase_started_epoch=observed_epoch - age,
+        last_loop_started_epoch=observed_epoch - 80,
+        last_loop_completed_epoch=observed_epoch - 70,
+    )
+    return value
+
+
 MATCH = monitor.ProcessObservation(True, True, "expected_python_child")
 
 
@@ -79,6 +99,8 @@ def classify(
     snapshot_error: str | None = None,
     process_value: monitor.ProcessObservation | None = MATCH,
     instance_restarts: int = 0,
+    wrapper_restarts: int = 0,
+    child_unavailable_since_epoch: int | None = None,
 ) -> dict:
     return monitor.evaluate_health(
         now_epoch=NOW,
@@ -89,6 +111,8 @@ def classify(
         process=process_value,
         bot_commit="abcdef123456",
         instance_restarts=instance_restarts,
+        wrapper_restarts=wrapper_restarts,
+        child_unavailable_since_epoch=child_unavailable_since_epoch,
     )
 
 
@@ -135,6 +159,7 @@ def test_starting_grace_without_snapshot() -> None:
         process=None,
         bot_commit="abcdef123456",
         instance_restarts=0,
+        child_unavailable_since_epoch=NOW - 60,
     )
 
     assert result["status"] == "starting"
@@ -151,6 +176,7 @@ def test_invalid_snapshot_after_startup_grace_is_failed() -> None:
         process=None,
         bot_commit="abcdef123456",
         instance_restarts=0,
+        child_unavailable_since_epoch=NOW - 181,
     )
 
     assert result["status"] == "failed"
@@ -279,18 +305,241 @@ def test_missing_or_mismatched_python_child_respects_startup_grace() -> None:
     mismatch = monitor.ProcessObservation(True, False, "unexpected_command")
     starting = classify(
         service_age=600,
-        progress_value=progress(age=120),
+        progress_value=progress(age=20),
         process_value=mismatch,
+        child_unavailable_since_epoch=NOW - 120,
     )
     failed = classify(
         service_age=600,
-        progress_value=progress(age=181),
+        progress_value=progress(age=20, instance_id="replacement"),
         process_value=mismatch,
+        child_unavailable_since_epoch=NOW - 181,
     )
 
     assert starting["status"] == "starting"
     assert failed["status"] == "failed"
     assert failed["reason"] == "python_child_missing"
+
+
+def test_old_service_fresh_missing_child_does_not_renew_grace() -> None:
+    missing = monitor.ProcessObservation(False, False, "pid_absent")
+    state, *_ = monitor.update_monitor_state(
+        monitor.empty_monitor_state(),
+        service=service(),
+        progress=None,
+        process=None,
+        now_epoch=NOW - 181,
+    )
+    state, restarts, wrapper_restarts, unavailable_since = (
+        monitor.update_monitor_state(
+            state,
+            service=service(),
+            progress=progress(instance_id="fresh-crashed-child"),
+            process=missing,
+            now_epoch=NOW,
+        )
+    )
+
+    result = classify(
+        progress_value=progress(instance_id="fresh-crashed-child"),
+        process_value=missing,
+        instance_restarts=restarts,
+        wrapper_restarts=wrapper_restarts,
+        child_unavailable_since_epoch=unavailable_since,
+    )
+
+    assert unavailable_since == NOW - 181
+    assert result["status"] == "failed"
+    assert result["reason"] == "python_child_missing"
+
+
+def test_three_short_lived_children_are_failed_not_renewed_starting() -> None:
+    missing = monitor.ProcessObservation(False, False, "pid_absent")
+    state = monitor.empty_monitor_state()
+    result: dict | None = None
+    for offset, instance_id in (
+        (0, "instance-a"),
+        (60, "instance-b"),
+        (120, "instance-c"),
+    ):
+        observed = NOW + offset
+        snapshot = progress_at(observed, instance_id=instance_id)
+        state, restarts, wrapper_restarts, unavailable_since = (
+            monitor.update_monitor_state(
+                state,
+                service=service(),
+                progress=snapshot,
+                process=missing,
+                now_epoch=observed,
+            )
+        )
+        result = monitor.evaluate_health(
+            now_epoch=observed,
+            service=service(),
+            service_age=600 + offset,
+            progress=snapshot,
+            snapshot_error=None,
+            process=missing,
+            bot_commit="abcdef123456",
+            instance_restarts=restarts,
+            wrapper_restarts=wrapper_restarts,
+            child_unavailable_since_epoch=unavailable_since,
+        )
+
+    assert result is not None
+    assert [item["instance_id"] for item in state["instances"]] == [
+        "instance-a",
+        "instance-b",
+        "instance-c",
+    ]
+    assert result["status"] == "failed"
+    assert result["reason"] == "rapid_child_restarts"
+
+
+def test_matching_replacement_clears_child_unavailable_timer() -> None:
+    missing = monitor.ProcessObservation(False, False, "pid_absent")
+    state, *_ = monitor.update_monitor_state(
+        monitor.empty_monitor_state(),
+        service=service(),
+        progress=progress_at(NOW - 60, instance_id="instance-a"),
+        process=missing,
+        now_epoch=NOW - 60,
+    )
+    replacement = progress(instance_id="instance-b")
+    state, restarts, wrapper_restarts, unavailable_since = (
+        monitor.update_monitor_state(
+            state,
+            service=service(),
+            progress=replacement,
+            process=MATCH,
+            now_epoch=NOW,
+        )
+    )
+
+    result = classify(
+        progress_value=replacement,
+        instance_restarts=restarts,
+        wrapper_restarts=wrapper_restarts,
+        child_unavailable_since_epoch=unavailable_since,
+    )
+    assert state["child_unavailable_since_epoch"] is None
+    assert unavailable_since is None
+    assert restarts == 1
+    assert result["status"] == "healthy"
+
+
+def test_stale_old_snapshot_neither_counts_nor_renews_grace() -> None:
+    missing = monitor.ProcessObservation(False, False, "pid_absent")
+    state, *_ = monitor.update_monitor_state(
+        monitor.empty_monitor_state(),
+        service=service(),
+        progress=None,
+        process=None,
+        now_epoch=NOW - 181,
+    )
+    stale = progress(age=181, instance_id="old-instance")
+    state, restarts, wrapper_restarts, unavailable_since = (
+        monitor.update_monitor_state(
+            state,
+            service=service(),
+            progress=stale,
+            process=missing,
+            now_epoch=NOW,
+        )
+    )
+
+    result = classify(
+        progress_value=stale,
+        process_value=missing,
+        instance_restarts=restarts,
+        wrapper_restarts=wrapper_restarts,
+        child_unavailable_since_epoch=unavailable_since,
+    )
+    assert state["instances"] == []
+    assert unavailable_since == NOW - 181
+    assert result["status"] == "failed"
+
+
+def test_process_mismatch_does_not_renew_child_grace() -> None:
+    mismatch = monitor.ProcessObservation(True, False, "unexpected_parent")
+    state = monitor.empty_monitor_state()
+    state["child_unavailable_since_epoch"] = NOW - 181
+    state, restarts, wrapper_restarts, unavailable_since = (
+        monitor.update_monitor_state(
+            state,
+            service=service(),
+            progress=progress(instance_id="new-but-mismatched"),
+            process=mismatch,
+            now_epoch=NOW,
+        )
+    )
+    result = classify(
+        progress_value=progress(instance_id="new-but-mismatched"),
+        process_value=mismatch,
+        instance_restarts=restarts,
+        wrapper_restarts=wrapper_restarts,
+        child_unavailable_since_epoch=unavailable_since,
+    )
+
+    assert unavailable_since == NOW - 181
+    assert result["status"] == "failed"
+
+
+def test_nrestarts_increases_become_timed_events() -> None:
+    state, count = monitor.observe_service_restarts(
+        monitor.empty_monitor_state(),
+        service=service(n_restarts=7, generation=100),
+        now_epoch=NOW - 120,
+    )
+    assert count == 0
+    state, count = monitor.observe_service_restarts(
+        state,
+        service=service(n_restarts=8, generation=200),
+        now_epoch=NOW - 60,
+    )
+    assert count == 1
+    state, count = monitor.observe_service_restarts(
+        state,
+        service=service(n_restarts=10, generation=300),
+        now_epoch=NOW,
+    )
+
+    assert count == 3
+    assert state["wrapper_restart_events"] == [NOW - 60, NOW, NOW]
+    assert classify(wrapper_restarts=count)["status"] == "degraded"
+    missing = monitor.ProcessObservation(False, False, "pid_absent")
+    failed = classify(
+        process_value=missing,
+        wrapper_restarts=count,
+        child_unavailable_since_epoch=NOW - 60,
+    )
+    assert failed["status"] == "failed"
+    assert failed["reason"] == "rapid_wrapper_restarts"
+
+
+def test_raw_cumulative_nrestarts_is_only_a_baseline() -> None:
+    state, count = monitor.observe_service_restarts(
+        monitor.empty_monitor_state(),
+        service=service(n_restarts=73, generation=100),
+        now_epoch=NOW,
+    )
+
+    assert count == 0
+    assert state["last_n_restarts"] == 73
+    assert classify(wrapper_restarts=count)["status"] == "healthy"
+
+
+def test_manual_service_generation_changes_do_not_create_restart_events() -> None:
+    state = monitor.empty_monitor_state()
+    for generation in (100, 200, 300, 400):
+        state, count = monitor.observe_service_restarts(
+            state,
+            service=service(n_restarts=4, generation=generation),
+            now_epoch=NOW + generation,
+        )
+        assert count == 0
+
+    assert state["wrapper_restart_events"] == []
 
 
 def test_pid_reuse_and_process_identity_with_fake_proc(tmp_path: Path) -> None:

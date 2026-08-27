@@ -167,7 +167,7 @@ automation:
 
   - id: mrs_m_thatcher_bot_health_recovery
     alias: "Mrs M Thatcher bot health recovery"
-    description: "Send one recovery after the general problem genuinely clears."
+    description: "Send one recovery after health remains stable for two minutes."
     triggers:
       - trigger: state
         entity_id: binary_sensor.mrs_m_thatcher_bot_problem
@@ -175,23 +175,36 @@ automation:
         to: "off"
     conditions: []
     actions:
+      - variables:
+          incident_duration_seconds: >-
+            {{ (as_timestamp(trigger.to_state.last_changed)
+                - as_timestamp(trigger.from_state.last_changed)) | int(0) }}
+      - wait_template: >-
+          {{ is_state('sensor.mrs_m_thatcher_bot_health', 'healthy') }}
+        timeout: "00:04:00"
+        continue_on_timeout: false
+      - delay:
+          minutes: 2
+      - condition: state
+        entity_id: sensor.mrs_m_thatcher_bot_health
+        state: "healthy"
+      - condition: state
+        entity_id: binary_sensor.mrs_m_thatcher_bot_problem
+        state: "off"
       - action: notify.millie_powerwall_alert_devices
         continue_on_error: true
         data:
           title: "Mrs M Thatcher bot health recovered"
           message: >-
             {% set entity = 'sensor.mrs_m_thatcher_bot_health' %}
-            {% set duration =
-              (as_timestamp(trigger.to_state.last_changed)
-               - as_timestamp(trigger.from_state.last_changed)) | int(0) %}
             {% set commit = state_attr(entity, 'bot_commit') %}
             Current status: {{ states(entity) }}.
             The problem lasted approximately
-            {{ ((([0, duration] | max) / 60) | round(0) | int) }} minutes.
+            {{ ((([0, incident_duration_seconds] | max) / 60) | round(0) | int) }} minutes.
             {{ state_attr(entity, 'summary') or '' }}
             Phase: {{ state_attr(entity, 'phase') or 'unknown' }}.
             Commit: {{ commit[:12] if commit is string else 'unknown' }}.
           data:
             tag: mrs_m_thatcher_bot_health
-    mode: single
+    mode: restart
     max_exceeded: silent

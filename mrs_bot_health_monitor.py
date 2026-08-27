@@ -17,12 +17,14 @@ from mrs_bot_health import PHASES, atomic_write_json
 
 
 SCHEMA_VERSION = 1
+MONITOR_STATE_SCHEMA_VERSION = 2
 STARTUP_GRACE_SECONDS = 3 * 60
 PAUSED_STOP_GRACE_SECONDS = 10 * 60
 DEFAULT_STALE_PROGRESS_SECONDS = 10 * 60
 RECENT_ERROR_WINDOW_SECONDS = 30 * 60
 INSTANCE_RESTART_WINDOW_SECONDS = 15 * 60
 RAPID_INSTANCE_COUNT = 3
+MAX_RECORDED_RESTART_EVENTS = 64
 MAX_INPUT_BYTES = 64 * 1024
 EXPECTED_BOT_SCRIPT = Path(
     "/disks/disk1/etc/mrsMThatcher/mrsMThatcher2.py"
@@ -296,13 +298,20 @@ def inspect_bot_process(
 
 
 def empty_monitor_state() -> dict[str, Any]:
-    """Return an empty transient child-instance history."""
+    """Return empty bounded state for child and wrapper observations."""
 
-    return {"schema_version": SCHEMA_VERSION, "instances": []}
+    return {
+        "schema_version": MONITOR_STATE_SCHEMA_VERSION,
+        "instances": [],
+        "child_unavailable_since_epoch": None,
+        "service_generation": None,
+        "last_n_restarts": None,
+        "wrapper_restart_events": [],
+    }
 
 
 def read_monitor_state(path: Path) -> dict[str, Any]:
-    """Read transient instance history, resetting malformed data safely."""
+    """Read transient observation state, resetting old/malformed data safely."""
 
     if not path.exists():
         return empty_monitor_state()
@@ -310,7 +319,10 @@ def read_monitor_state(path: Path) -> dict[str, Any]:
         value = read_small_json(path)
     except MonitorInputError:
         return empty_monitor_state()
-    if not isinstance(value, dict) or value.get("schema_version") != SCHEMA_VERSION:
+    if (
+        not isinstance(value, dict)
+        or value.get("schema_version") != MONITOR_STATE_SCHEMA_VERSION
+    ):
         return empty_monitor_state()
     instances = value.get("instances")
     if not isinstance(instances, list):
@@ -328,7 +340,41 @@ def read_monitor_state(path: Path) -> dict[str, Any]:
                     "first_seen_epoch": item["first_seen_epoch"],
                 }
             )
-    return {"schema_version": SCHEMA_VERSION, "instances": clean}
+    unavailable_since = value.get("child_unavailable_since_epoch")
+    if unavailable_since is not None and (
+        type(unavailable_since) is not int or unavailable_since < 0
+    ):
+        unavailable_since = None
+    last_n_restarts = value.get("last_n_restarts")
+    if last_n_restarts is not None and (
+        type(last_n_restarts) is not int or last_n_restarts < 0
+    ):
+        last_n_restarts = None
+    generation = value.get("service_generation")
+    if not (
+        isinstance(generation, dict)
+        and type(generation.get("active_enter_monotonic_usec")) is int
+        and generation["active_enter_monotonic_usec"] >= 0
+        and type(generation.get("exec_main_start_monotonic_usec")) is int
+        and generation["exec_main_start_monotonic_usec"] >= 0
+    ):
+        generation = None
+    restart_events = value.get("wrapper_restart_events")
+    if not isinstance(restart_events, list):
+        restart_events = []
+    clean_restart_events = [
+        event
+        for event in restart_events
+        if type(event) is int and event >= 0
+    ][-MAX_RECORDED_RESTART_EVENTS:]
+    return {
+        "schema_version": MONITOR_STATE_SCHEMA_VERSION,
+        "instances": clean,
+        "child_unavailable_since_epoch": unavailable_since,
+        "service_generation": generation,
+        "last_n_restarts": last_n_restarts,
+        "wrapper_restart_events": clean_restart_events,
+    }
 
 
 def observe_instance(
@@ -337,7 +383,7 @@ def observe_instance(
     instance_id: str,
     now_epoch: int,
 ) -> tuple[dict[str, Any], int]:
-    """Record one live instance and return restarts in the rolling window."""
+    """Record one recent valid instance and return rolling child replacements."""
 
     cutoff = now_epoch - INSTANCE_RESTART_WINDOW_SECONDS
     instances = [
@@ -354,10 +400,117 @@ def observe_instance(
         )
     instances.sort(key=lambda item: item["first_seen_epoch"])
     distinct = len({item["instance_id"] for item in instances})
-    return (
-        {"schema_version": SCHEMA_VERSION, "instances": instances},
-        max(0, distinct - 1),
+    updated = dict(state)
+    updated["schema_version"] = MONITOR_STATE_SCHEMA_VERSION
+    updated["instances"] = instances
+    return updated, max(0, distinct - 1)
+
+
+def _service_generation(service: ServiceStatus) -> dict[str, int]:
+    return {
+        "active_enter_monotonic_usec": service.active_enter_monotonic_usec,
+        "exec_main_start_monotonic_usec": service.exec_main_start_monotonic_usec,
+    }
+
+
+def observe_service_restarts(
+    state: Mapping[str, Any],
+    *,
+    service: ServiceStatus,
+    now_epoch: int,
+) -> tuple[dict[str, Any], int]:
+    """Turn observed NRestarts increases into bounded, timed evidence."""
+
+    cutoff = now_epoch - INSTANCE_RESTART_WINDOW_SECONDS
+    events = [
+        event
+        for event in state.get("wrapper_restart_events", [])
+        if type(event) is int and cutoff <= event <= now_epoch + 60
+    ]
+    previous_count = state.get("last_n_restarts")
+    previous_generation = state.get("service_generation")
+    generation = _service_generation(service)
+    if type(previous_count) is int:
+        if service.n_restarts < previous_count:
+            events = []
+        elif service.n_restarts > previous_count:
+            increase = min(
+                service.n_restarts - previous_count,
+                MAX_RECORDED_RESTART_EVENTS,
+            )
+            events.extend([now_epoch] * increase)
+        elif previous_generation != generation:
+            # A stop/start with no NRestarts increase is a new manual generation,
+            # not evidence of an automatic wrapper restart.
+            events = []
+    events = events[-MAX_RECORDED_RESTART_EVENTS:]
+    updated = dict(state)
+    updated.update(
+        schema_version=MONITOR_STATE_SCHEMA_VERSION,
+        service_generation=generation,
+        last_n_restarts=service.n_restarts,
+        wrapper_restart_events=events,
     )
+    return updated, len(events)
+
+
+def update_monitor_state(
+    state: Mapping[str, Any],
+    *,
+    service: ServiceStatus,
+    progress: Mapping[str, Any] | None,
+    process: ProcessObservation | None,
+    now_epoch: int,
+) -> tuple[dict[str, Any], int, int, int | None]:
+    """Update finite child grace and bounded child/wrapper restart evidence."""
+
+    updated, wrapper_restarts = observe_service_restarts(
+        state,
+        service=service,
+        now_epoch=now_epoch,
+    )
+    cutoff = now_epoch - INSTANCE_RESTART_WINDOW_SECONDS
+    instances = [
+        dict(item)
+        for item in updated.get("instances", [])
+        if isinstance(item, dict)
+        and isinstance(item.get("instance_id"), str)
+        and type(item.get("first_seen_epoch")) is int
+        and cutoff <= item["first_seen_epoch"] <= now_epoch + 60
+    ]
+    updated["instances"] = instances
+    if progress is not None:
+        progress_age = now_epoch - int(progress["updated_epoch"])
+        if 0 <= progress_age <= STARTUP_GRACE_SECONDS:
+            updated, _ = observe_instance(
+                updated,
+                instance_id=str(progress["instance_id"]),
+                now_epoch=now_epoch,
+            )
+    distinct_instances = len(
+        {
+            item["instance_id"]
+            for item in updated.get("instances", [])
+            if isinstance(item, dict) and isinstance(item.get("instance_id"), str)
+        }
+    )
+    instance_restarts = max(0, distinct_instances - 1)
+
+    matching_child = (
+        progress is not None and process is not None and process.matches
+    )
+    service_is_running_or_starting = service.active_state in {
+        "active",
+        "activating",
+        "reloading",
+    }
+    unavailable_since = updated.get("child_unavailable_since_epoch")
+    if matching_child:
+        unavailable_since = None
+    elif service_is_running_or_starting and type(unavailable_since) is not int:
+        unavailable_since = now_epoch
+    updated["child_unavailable_since_epoch"] = unavailable_since
+    return updated, instance_restarts, wrapper_restarts, unavailable_since
 
 
 def _base_output(
@@ -434,6 +587,8 @@ def evaluate_health(
     process: ProcessObservation | None,
     bot_commit: str,
     instance_restarts: int,
+    wrapper_restarts: int = 0,
+    child_unavailable_since_epoch: int | None = None,
     stale_progress_seconds: int = DEFAULT_STALE_PROGRESS_SECONDS,
 ) -> dict[str, Any]:
     """Classify one already-observed local snapshot without side effects."""
@@ -488,8 +643,34 @@ def evaluate_health(
     within_startup_grace = (
         service_age is not None and service_age <= STARTUP_GRACE_SECONDS
     )
+    if isinstance(child_unavailable_since_epoch, int):
+        child_unavailable_age = max(
+            0,
+            now_epoch - child_unavailable_since_epoch,
+        )
+        within_child_grace = child_unavailable_age <= STARTUP_GRACE_SECONDS
+    else:
+        # Callers without persisted observation state can use only the fixed
+        # service-generation grace; run_once always supplies the finite anchor.
+        within_child_grace = within_startup_grace
     if progress is None:
-        if within_startup_grace:
+        if wrapper_restarts >= RAPID_INSTANCE_COUNT:
+            return _classified(
+                output,
+                "failed",
+                "rapid_wrapper_restarts",
+                "Bot wrapper restarted at least three times within 15 minutes "
+                "and no matching Python child is running",
+            )
+        if instance_restarts >= RAPID_INSTANCE_COUNT - 1:
+            return _classified(
+                output,
+                "failed",
+                "rapid_child_restarts",
+                "Three distinct Python child instances were observed within "
+                "15 minutes and no matching child is running",
+            )
+        if within_child_grace:
             return _classified(
                 output,
                 "starting",
@@ -505,11 +686,23 @@ def evaluate_health(
         )
 
     if process is None or not process.matches:
-        child_restart_grace = within_startup_grace or (
-            isinstance(progress_age, int)
-            and progress_age <= STARTUP_GRACE_SECONDS
-        )
-        if child_restart_grace:
+        if wrapper_restarts >= RAPID_INSTANCE_COUNT:
+            return _classified(
+                output,
+                "failed",
+                "rapid_wrapper_restarts",
+                "Bot wrapper restarted at least three times within 15 minutes "
+                "and no matching Python child is running",
+            )
+        if instance_restarts >= RAPID_INSTANCE_COUNT - 1:
+            return _classified(
+                output,
+                "failed",
+                "rapid_child_restarts",
+                "Three distinct Python child instances were observed within "
+                "15 minutes and no matching child is running",
+            )
+        if within_child_grace:
             return _classified(
                 output,
                 "starting",
@@ -572,6 +765,15 @@ def evaluate_health(
             "rapid_child_restarts",
             "Bot is progressing, but three distinct Python child instances "
             "were observed within 15 minutes",
+        )
+
+    if wrapper_restarts >= RAPID_INSTANCE_COUNT:
+        return _classified(
+            output,
+            "degraded",
+            "rapid_wrapper_restarts",
+            "Bot is progressing, but the systemd wrapper restarted at least "
+            "three times within 15 minutes",
         )
 
     last_error = progress.get("last_error_epoch")
@@ -718,13 +920,18 @@ def run_once() -> tuple[Path, dict[str, Any]]:
                 expected_script=expected_script,
             )
         monitor_state = read_monitor_state(state_path)
-        instance_restarts = 0
-        if progress is not None and process is not None and process.matches:
-            monitor_state, instance_restarts = observe_instance(
-                monitor_state,
-                instance_id=str(progress["instance_id"]),
-                now_epoch=now_epoch,
-            )
+        (
+            monitor_state,
+            instance_restarts,
+            wrapper_restarts,
+            child_unavailable_since_epoch,
+        ) = update_monitor_state(
+            monitor_state,
+            service=service,
+            progress=progress,
+            process=process,
+            now_epoch=now_epoch,
+        )
         result = evaluate_health(
             now_epoch=now_epoch,
             service=service,
@@ -734,6 +941,8 @@ def run_once() -> tuple[Path, dict[str, Any]]:
             process=process,
             bot_commit=commit,
             instance_restarts=instance_restarts,
+            wrapper_restarts=wrapper_restarts,
+            child_unavailable_since_epoch=child_unavailable_since_epoch,
             stale_progress_seconds=stale_seconds,
         )
         try:

@@ -7167,10 +7167,9 @@ def x_request(
 
     validated_error_response: ValidatedXErrorResponse | None = None
     rejection_proof: DeterministicReplyCreateRejectionProof | None = None
-    request_health_phase = (
-        "x_read" if method_upper in {"GET", "HEAD", "OPTIONS"} else "x_write"
-    )
-    report_bot_health_progress(request_health_phase)
+    read_only_request = method_upper in {"GET", "HEAD", "OPTIONS"}
+    if read_only_request:
+        report_bot_health_progress("x_read")
     try:
         if is_post_create:
             if expected_receipt_path is None:
@@ -7236,10 +7235,8 @@ def x_request(
             request_method=method,
             request_path=path,
         ) from e
-    except BaseException:
-        raise
-    finally:
-        report_bot_health_progress(request_health_phase)
+    if read_only_request:
+        report_bot_health_progress("x_read")
 
     def process_received_response() -> dict:
         nonlocal rejection_proof, validated_error_response

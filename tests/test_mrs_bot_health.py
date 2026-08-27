@@ -186,6 +186,40 @@ def test_logging_observer_records_safe_summary_without_message(tmp_path: Path) -
     assert "sensitive" not in snapshot["last_error_summary"]
 
 
+def test_logging_observer_defers_filesystem_write_until_genuine_progress(
+    tmp_path: Path,
+) -> None:
+    path = tmp_path / "health.json"
+    clock = MutableClock(8_000)
+    reporter = health.BotHealthReporter(path, clock=clock)
+    reporter.progress("reply_checks")
+    before = path.read_bytes()
+    observer = health.HealthLoggingObserver(reporter)
+    record = logging.LogRecord(
+        "mrsMThatcher.transport",
+        logging.ERROR,
+        __file__,
+        1,
+        "remote transaction detail",
+        (),
+        None,
+        "write_boundary",
+    )
+
+    clock.value = 8_010
+    observer.emit(record)
+
+    assert path.read_bytes() == before
+    assert reporter.snapshot()["recent_error_count"] == 1
+    clock.value = 8_020
+    reporter.progress("main_loop")
+    published = json.loads(path.read_text(encoding="utf-8"))
+    assert published["recent_error_count"] == 1
+    assert published["last_error_summary"] == (
+        "ERROR in mrsMThatcher.transport.write_boundary"
+    )
+
+
 def test_logging_observer_suppresses_recursive_observation() -> None:
     logger = logging.getLogger("mrs-health-recursion-test")
     logger.handlers.clear()

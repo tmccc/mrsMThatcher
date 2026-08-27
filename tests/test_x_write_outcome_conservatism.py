@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import base64
 import hashlib
+import inspect
 import json
 import logging
 import signal
@@ -813,6 +814,182 @@ def test_pause_after_media_authority_consumption_is_prospective_and_confirms_onc
     assert bot._RETAINED_CONFIRMED_POST_SIGINT_GUARD is None
     assert not bot.AMBIGUOUS_POST_OUTCOME_FILE.exists()
     assert not bot.AMBIGUOUS_POST_OUTCOME_SUCCESSOR_FILE.exists()
+
+
+def test_media_upload_has_no_health_io_inside_durable_transaction(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    image = tmp_path / "image.png"
+    image.write_bytes(b"image")
+    events: list[str] = []
+    real_begin = bot.begin_media_upload
+    real_consume = bot.consume_media_upload_authority
+    real_confirm = bot.confirm_media_upload
+
+    def recording_begin(*args: object, **kwargs: object) -> object:
+        authority = real_begin(*args, **kwargs)
+        events.append("receipt_established")
+        return authority
+
+    def recording_consume(*args: object, **kwargs: object) -> object:
+        result = real_consume(*args, **kwargs)
+        events.append("authority_consumed")
+        return result
+
+    def recording_transport(
+        _method: str,
+        _url: str,
+        **_kwargs: object,
+    ) -> bot.requests.Response:
+        events.append("network_transport")
+        return _x_response(201, {"data": {"id": "780002"}})
+
+    def recording_confirm(*args: object, **kwargs: object) -> object:
+        result = real_confirm(*args, **kwargs)
+        events.append("durable_confirmation")
+        return result
+
+    monkeypatch.setattr(
+        bot,
+        "report_bot_health_progress",
+        lambda *_args, **_kwargs: events.append("health_write"),
+    )
+    monkeypatch.setattr(bot, "begin_media_upload", recording_begin)
+    monkeypatch.setattr(bot, "consume_media_upload_authority", recording_consume)
+    monkeypatch.setattr(bot.requests, "request", recording_transport)
+    monkeypatch.setattr(bot, "confirm_media_upload", recording_confirm)
+
+    assert bot.upload_media(str(image), lane="quote_image") == "780002"
+    assert events == [
+        "receipt_established",
+        "authority_consumed",
+        "network_transport",
+        "durable_confirmation",
+    ]
+
+
+def test_public_post_has_no_health_io_inside_durable_transaction(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    receipt = unit_sending_v4_reply_receipt(text="transaction ordering")
+    bot.write_sending_reply_receipt(receipt)
+    events: list[str] = []
+    real_begin = bot.begin_transport_transaction
+    real_arm = bot.arm_transport_transaction
+    real_consume = journal_module.consume_transport_authority
+    real_confirm = bot.confirm_transport_transaction
+
+    def recording_begin(*args: object, **kwargs: object) -> object:
+        authority = real_begin(*args, **kwargs)
+        events.append("journal_established")
+        return authority
+
+    def recording_arm(*args: object, **kwargs: object) -> object:
+        authority = real_arm(*args, **kwargs)
+        events.append("authority_issued")
+        return authority
+
+    def recording_consume(*args: object, **kwargs: object) -> object:
+        result = real_consume(*args, **kwargs)
+        events.append("authority_consumed")
+        return result
+
+    def recording_transport(
+        _method: str,
+        _url: str,
+        **_kwargs: object,
+    ) -> bot.requests.Response:
+        events.append("network_transport")
+        return _x_response(201, {"data": {"id": "880002"}})
+
+    def recording_confirm(*args: object, **kwargs: object) -> object:
+        result = real_confirm(*args, **kwargs)
+        events.append("durable_confirmation")
+        return result
+
+    monkeypatch.setattr(
+        bot,
+        "report_bot_health_progress",
+        lambda *_args, **_kwargs: events.append("health_write"),
+    )
+    monkeypatch.setattr(bot, "begin_transport_transaction", recording_begin)
+    monkeypatch.setattr(bot, "arm_transport_transaction", recording_arm)
+    monkeypatch.setattr(
+        journal_module,
+        "consume_transport_authority",
+        recording_consume,
+    )
+    monkeypatch.setattr(bot.requests, "request", recording_transport)
+    monkeypatch.setattr(bot, "confirm_transport_transaction", recording_confirm)
+
+    result = bot.create_post(
+        str(receipt["reply_text"]),
+        reply_to_id=str(receipt["target_id"]),
+        made_with_ai=False,
+        prepared_conversational_reply_receipt=receipt,
+    )
+
+    assert result == {"data": {"id": "880002"}}
+    assert events == [
+        "journal_established",
+        "authority_issued",
+        "authority_consumed",
+        "network_transport",
+        "durable_confirmation",
+    ]
+
+
+def test_interrupted_outer_health_update_cannot_leave_a_write_transaction(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    main_source = inspect.getsource(bot.main)
+    health_boundary = main_source.index(
+        'report_bot_health_progress("quote_post")'
+    )
+    transaction_entry = main_source.index(
+        "post_random_quote(lines_used, images_used, state)",
+        health_boundary,
+    )
+    assert health_boundary < transaction_entry
+    assert "begin_media_upload" not in main_source[
+        health_boundary:transaction_entry
+    ]
+    assert "begin_transport_transaction" not in main_source[
+        health_boundary:transaction_entry
+    ]
+
+    def interrupted_health_update(*_args: object, **_kwargs: object) -> None:
+        raise KeyboardInterrupt("injected before quote transaction")
+
+    monkeypatch.setattr(bot, "report_bot_health_progress", interrupted_health_update)
+    monkeypatch.setattr(
+        bot,
+        "post_random_quote",
+        lambda *_args, **_kwargs: pytest.fail(
+            "posting must not begin after the outer progress update is interrupted"
+        ),
+    )
+
+    with pytest.raises(KeyboardInterrupt, match="before quote transaction"):
+        # This is the exact outer ordering used by the production quote lane.
+        bot.report_bot_health_progress("quote_post")
+        bot.post_random_quote([], set(), bot.default_state())
+
+    for receipt_path in (
+        bot.MEDIA_UPLOAD_RECEIPT_FILE,
+        bot.REGULAR_POST_RECEIPT_FILE,
+        bot.MEME_POST_RECEIPT_FILE,
+        bot.CONFIRMED_REPLY_RECEIPT_FILE,
+        bot.HISTORICAL_CONTEXT_REPLY_RECEIPT_FILE,
+    ):
+        journal_path = bot.journal_path_for_receipt(receipt_path)
+        assert not receipt_path.exists()
+        assert not journal_path.exists()
+        assert not bot.fence_path_for_journal(journal_path).exists()
+    assert not bot.media_fence_path_for_receipt(
+        bot.MEDIA_UPLOAD_RECEIPT_FILE
+    ).exists()
 
 
 def test_pause_after_media_authority_consumption_cannot_abort_and_records_marker(
@@ -3757,6 +3934,12 @@ def test_proved_rejection_cannot_retire_replaced_same_target_receipt(
             PRODUCTION_DELETED_REPLY_ERROR,
         ),
     )
+    health_updates: list[str] = []
+    monkeypatch.setattr(
+        bot,
+        "report_bot_health_progress",
+        lambda phase, **_kwargs: health_updates.append(phase),
+    )
 
     with pytest.raises(bot.ProvedRemotePostNonSuccess) as caught:
         bot.post_conversational_reply_with_durable_identity(
@@ -3802,6 +3985,7 @@ def test_proved_rejection_cannot_retire_replaced_same_target_receipt(
     assert not bot.fence_path_for_journal(journal_path).exists()
     assert bot.AMBIGUOUS_POST_OUTCOME_SUCCESSOR_FILE.exists()
     assert bot.ambiguous_remote_post_is_blocking() is True
+    assert health_updates == []
 
 
 def test_x_create_redirect_is_not_followed_and_is_ambiguous(
@@ -4047,6 +4231,12 @@ def test_conversational_generic_4xx_retains_sending_receipt_and_blocks_retry(
         return _x_response(404, {"errors": [{"detail": "generic not found"}]})
 
     monkeypatch.setattr(bot.requests, "request", generic_404)
+    health_updates: list[str] = []
+    monkeypatch.setattr(
+        bot,
+        "report_bot_health_progress",
+        lambda phase, **_kwargs: health_updates.append(phase),
+    )
 
     def invoke() -> tuple[dict, dict]:
         return bot.post_conversational_reply_with_durable_identity(
@@ -4070,6 +4260,7 @@ def test_conversational_generic_4xx_retains_sending_receipt_and_blocks_retry(
 
     assert remote_calls == 1
     assert bot.CONFIRMED_REPLY_RECEIPT_FILE.read_bytes() == receipt_bytes
+    assert health_updates == []
 
 
 def test_historical_context_generic_4xx_retains_sending_receipt_and_blocks_retry(
@@ -4365,6 +4556,12 @@ def test_conversational_success_retires_journal_only_after_state_commit(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     receipt = unit_sending_v4_reply_receipt()
+    health_updates: list[str] = []
+    monkeypatch.setattr(
+        bot,
+        "report_bot_health_progress",
+        lambda phase, **_kwargs: health_updates.append(phase),
+    )
     monkeypatch.setattr(
         bot.requests,
         "request",
@@ -4394,6 +4591,7 @@ def test_conversational_success_retires_journal_only_after_state_commit(
 
     assert not journal_path.exists()
     assert not bot.CONFIRMED_REPLY_RECEIPT_FILE.exists()
+    assert health_updates == []
 
 
 def test_prepared_receipt_authority_requires_the_exact_durable_file() -> None:

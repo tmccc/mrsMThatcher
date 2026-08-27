@@ -67,6 +67,16 @@ def test_bot_health_deployment_assets_are_read_only_and_bounded() -> None:
     assert "bot-health-monitor.env" in service
     assert "mrsMThatcher.env" not in service
     assert "RestrictAddressFamilies=AF_UNIX" in service
+    for unsupported_directive in (
+        "ProtectKernelTunables",
+        "ProtectKernelModules",
+        "ProtectKernelLogs",
+        "ProtectControlGroups",
+        "PrivateTmp",
+        "ProtectSystem",
+        "ProtectHome",
+    ):
+        assert f"{unsupported_directive}=" not in service
     assert "Restart=" not in service
     assert "docker" not in service.lower()
     assert "OnCalendar=*-*-* *:*:00" in timer
@@ -84,6 +94,29 @@ def test_bot_health_deployment_assets_are_read_only_and_bounded() -> None:
     assert home_assistant.count("tag: mrs_m_thatcher_bot_health") == 3
     assert "custom_components" not in home_assistant
     assert "critical: 1" not in home_assistant
+
+
+def test_bot_health_recovery_waits_for_stable_healthy_state() -> None:
+    home_assistant = (
+        HOME_ASSISTANT_DIR / "mrs_m_thatcher_health.yaml"
+    ).read_text(encoding="utf-8")
+    recovery = home_assistant.split(
+        "  - id: mrs_m_thatcher_bot_health_recovery", 1
+    )[1]
+
+    assert "from: \"on\"\n        to: \"off\"" in recovery
+    assert "wait_template:" in recovery
+    assert "is_state('sensor.mrs_m_thatcher_bot_health', 'healthy')" in recovery
+    assert 'timeout: "00:04:00"' in recovery
+    assert "continue_on_timeout: false" in recovery
+    assert "- delay:\n          minutes: 2" in recovery
+    assert recovery.index("wait_template:") < recovery.index("minutes: 2")
+    assert recovery.index("minutes: 2") < recovery.index(
+        "action: notify.millie_powerwall_alert_devices"
+    )
+    assert "entity_id: sensor.mrs_m_thatcher_bot_health\n        state: \"healthy\"" in recovery
+    assert "entity_id: binary_sensor.mrs_m_thatcher_bot_problem\n        state: \"off\"" in recovery
+    assert "mode: restart" in recovery
 
 
 def test_canonical_user_units_cover_live_services_without_secrets() -> None:
