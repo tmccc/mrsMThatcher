@@ -64,6 +64,17 @@ def context(text: str) -> dict:
     }
 
 
+def quote_tweet_context(text: str) -> dict:
+    value = context(text)
+    value["lane"] = "quote_tweet"
+    value["quoted_post"] = {
+        "post_id": "80",
+        "author_role": "account",
+        "text": "Freedom requires responsibility.",
+    }
+    return value
+
+
 class Transport:
     def __init__(self, *, gate: str = "reply", writer: str = "Thank you — that is kind of you.", review: str = "require_claim_free_reply"):
         self.gate = gate
@@ -94,6 +105,23 @@ def enabled_config() -> dict:
     value = pipeline.default_config()
     value["enabled"] = True
     return value
+
+
+def test_default_config_and_validator_freeze_three_sentence_maximum() -> None:
+    config = pipeline.default_config()
+
+    assert config["maximum_reply_sentences"] == 3
+    assert pipeline.validate_strategy_config(config) == []
+
+
+@pytest.mark.parametrize("maximum", [2, 4])
+def test_config_validator_rejects_other_sentence_maxima(maximum: int) -> None:
+    config = pipeline.default_config()
+    config["maximum_reply_sentences"] = maximum
+
+    assert pipeline.validate_strategy_config(config) == [
+        "tested_reply_pipeline.maximum_reply_sentences must remain 3"
+    ]
 
 
 def visual_description(image_count: int = 1) -> dict:
@@ -957,6 +985,81 @@ def run(text: str, transport: Transport, *, facts: bool = False, recent=None):
         recent_replies=recent or [],
         media_context=None,
     )
+
+
+@pytest.mark.parametrize(
+    "writer",
+    [
+        pytest.param("Thank you.", id="one_sentence"),
+        pytest.param("Thank you. That is kind.", id="two_sentences"),
+        pytest.param(
+            "Thank you. That is kind. Much appreciated.",
+            id="three_sentences",
+        ),
+    ],
+)
+def test_quote_tweet_writer_accepts_up_to_three_sentences_without_extra_calls(
+    writer: str,
+) -> None:
+    transport = Transport(
+        gate="no_reply",
+        review="require_claim_free_reply",
+        writer=writer,
+    )
+
+    result = pipeline.run_reply_pipeline(
+        context=quote_tweet_context("Thank you for sharing this distinction."),
+        config=enabled_config(),
+        repository=Repository(),
+        transport=transport,
+        maximum_reply_length=270,
+    )
+
+    assert result.status == "approved"
+    assert str(result.reply) == writer
+    assert [call["stage"] for call in transport.calls] == [
+        "candidate_backed_engagement",
+        "reply_necessity_1",
+        "reply_necessity_2",
+        "writer_v3_initial",
+    ]
+    assert [call["provider"] for call in transport.calls] == [
+        "xAI",
+        "OpenAI",
+        "OpenAI",
+        "OpenAI",
+    ]
+    assert result.model_call_count == 4
+    assert result.revision_count == 0
+
+
+def test_quote_tweet_writer_rejects_four_sentences() -> None:
+    transport = Transport(
+        gate="no_reply",
+        review="require_claim_free_reply",
+        writer="Thank you. That is kind. Much appreciated. Good wishes.",
+    )
+
+    result = pipeline.run_reply_pipeline(
+        context=quote_tweet_context("Thank you for sharing this distinction."),
+        config=enabled_config(),
+        repository=Repository(),
+        transport=transport,
+        maximum_reply_length=270,
+    )
+
+    assert result.status == "no_reply"
+    assert result.reason == (
+        "writer_local_rejection:reply_sentence_limit_exceeded"
+    )
+    assert [call["stage"] for call in transport.calls] == [
+        "candidate_backed_engagement",
+        "reply_necessity_1",
+        "reply_necessity_2",
+        "writer_v3_initial",
+    ]
+    assert result.model_call_count == 4
+    assert result.revision_count == 0
 
 
 def clarification_context(
@@ -2302,6 +2405,40 @@ def test_persisted_tested_draft_revalidates_and_rejects_new_exact_duplicate() ->
             repository=Repository(),
             maximum_reply_length=270,
             recent_replies=[str(result.reply)],
+        )
+
+
+def test_persisted_tested_draft_applies_three_sentence_ceiling() -> None:
+    three_sentences = "Thank you. That is kind. Much appreciated."
+    result = run("Thank you.", Transport(writer=three_sentences))
+
+    record = pipeline.validate_persisted_draft(
+        result.reply.draft_record,
+        context=context("Thank you."),
+        config=enabled_config(),
+        repository=Repository(),
+        maximum_reply_length=270,
+    )
+    assert record["proposed_reply"] == three_sentences
+
+    four_sentence_record = copy.deepcopy(record)
+    four_sentence_record["proposed_reply"] = (
+        "Thank you. That is kind. Much appreciated. Good wishes."
+    )
+    four_sentence_record.pop("approval_hash")
+    four_sentence_record["approval_hash"] = pipeline._hash_value(
+        four_sentence_record
+    )
+    with pytest.raises(
+        ValueError,
+        match="persisted tested-pipeline reply fails deterministic validation",
+    ):
+        pipeline.validate_persisted_draft(
+            four_sentence_record,
+            context=context("Thank you."),
+            config=enabled_config(),
+            repository=Repository(),
+            maximum_reply_length=270,
         )
 
 

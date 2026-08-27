@@ -887,7 +887,7 @@ def default_config() -> dict[str, Any]:
         "cleanup_max_output_tokens": 900,
         "diversity_max_output_tokens": 900,
         "maximum_model_calls": 20,
-        "maximum_reply_sentences": 2,
+        "maximum_reply_sentences": 3,
         "maximum_trusted_facts": 24,
         "research_corpus_path": "semantic_alignment_research/quote_research_full_001",
         "fail_closed": True,
@@ -923,7 +923,7 @@ def validate_strategy_config(config: object) -> list[str]:
         "claim_audit_max_output_tokens": 300,
         "cleanup_max_output_tokens": 900,
         "diversity_max_output_tokens": 900,
-        "maximum_reply_sentences": 2,
+        "maximum_reply_sentences": 3,
         "maximum_trusted_facts": 24,
         "fail_closed": True,
     }
