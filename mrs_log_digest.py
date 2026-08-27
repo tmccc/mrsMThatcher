@@ -47,6 +47,8 @@ from pathlib import Path
 from typing import Any, Dict, Iterable, List, Optional, Tuple
 from urllib.parse import urlsplit
 
+from tested_reply_pipeline import validate_visual_description
+
 LOG_RE = re.compile(
     r"^(?P<ts>\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2})\s+"
     r"(?P<level>[A-Z]+)\s+"
@@ -193,6 +195,7 @@ MAJORITY_REVIEW_SUMMARY_FIELDS = (
 )
 REPLY_VISUAL_DESCRIPTION_EVENT_FIELDS = frozenset(
     {
+        "analysis",
         "analysis_schema_version",
         "description_sha256",
         "event",
@@ -8159,7 +8162,7 @@ def _normalise_lane(value: Any) -> str:
 def parse_reply_visual_description_event(
     event: Dict[str, Any],
 ) -> Optional[Dict[str, Any]]:
-    """Validate and retain only the safe reply-visual event contract."""
+    """Validate safe metadata and any bounded retained visual analysis."""
     if set(event) - REPLY_VISUAL_DESCRIPTION_EVENT_FIELDS:
         return None
     if event.get("event") != "reply_visual_description":
@@ -8190,11 +8193,14 @@ def parse_reply_visual_description_event(
         or schema_version > REPLY_VISUAL_DESCRIPTION_MAX_SCHEMA_VERSION
     ):
         return None
+    has_analysis = "analysis" in event
     raw_hash = event.get("description_sha256")
     if raw_hash in (None, ""):
         description_sha256: Optional[str] = None
     elif isinstance(raw_hash, str) and SHA256_LOWER_RE.fullmatch(raw_hash):
         description_sha256 = raw_hash
+    elif status == "analysed" and has_analysis:
+        description_sha256 = None
     else:
         return None
 
@@ -8204,7 +8210,7 @@ def parse_reply_visual_description_event(
             <= supplied_image_count
             <= REPLY_VISUAL_DESCRIPTION_MAX_SUPPORTED_IMAGES
             or call_count != 1
-            or description_sha256 is None
+            or (not has_analysis and description_sha256 is None)
         ):
             return None
     elif description_sha256 is not None:
@@ -8228,7 +8234,7 @@ def parse_reply_visual_description_event(
     elif status == "invalid_supplied_media" and call_count != 0:
         return None
 
-    return {
+    parsed: Dict[str, Any] = {
         "analysis_schema_version": schema_version,
         "description_sha256": description_sha256,
         "lane": lane,
@@ -8237,6 +8243,50 @@ def parse_reply_visual_description_event(
         "target_id": target_id.strip(),
         "visual_analysis_call_count": call_count,
     }
+    if not has_analysis:
+        return parsed
+    if status != "analysed":
+        parsed["analysis_anomaly"] = "unexpected_analysis_for_non_success_status"
+        return parsed
+
+    raw_analysis = event.get("analysis")
+    if not isinstance(raw_analysis, dict):
+        parsed["analysis_anomaly"] = "malformed_analysis"
+        return parsed
+    try:
+        analysis = validate_visual_description(
+            raw_analysis,
+            supplied_image_count=supplied_image_count,
+        )
+    except (json.JSONDecodeError, TypeError, ValueError):
+        parsed["analysis_anomaly"] = "malformed_analysis"
+        return parsed
+
+    canonical_analysis = json.dumps(
+        analysis,
+        ensure_ascii=False,
+        sort_keys=True,
+        separators=(",", ":"),
+    )
+    calculated_sha256 = hashlib.sha256(
+        canonical_analysis.encode("utf-8")
+    ).hexdigest()
+    if description_sha256 is None:
+        integrity = "unavailable_hash"
+        parsed["analysis_anomaly"] = "description_hash_unavailable"
+    elif calculated_sha256 == description_sha256:
+        integrity = "verified"
+    else:
+        integrity = "mismatch"
+        parsed["analysis_anomaly"] = "description_hash_mismatch"
+    parsed.update(
+        {
+            "analysis": analysis,
+            "analysis_integrity": integrity,
+            "calculated_description_sha256": calculated_sha256,
+        }
+    )
+    return parsed
 
 
 def reply_visual_context_report(
@@ -8304,6 +8354,23 @@ def reply_visual_context_report(
                 if item.get("description_sha256")
             }
         )
+        visual_description_results: List[Dict[str, Any]] = []
+        for item in successful:
+            result = {
+                "analysis_schema_version": item.get("analysis_schema_version"),
+                "description_sha256": item.get("description_sha256"),
+                "status": "analysed",
+                "time": item.get("time"),
+            }
+            for field in (
+                "analysis",
+                "analysis_anomaly",
+                "analysis_integrity",
+                "calculated_description_sha256",
+            ):
+                if field in item:
+                    result[field] = item[field]
+            visual_description_results.append(result)
         supplied_observed = any(
             item.get("status") == "supplied" and item.get("photo_count", 0) > 0
             for item in collections
@@ -8392,14 +8459,34 @@ def reply_visual_context_report(
                 "visual_analysis_attempt_count": analysis_attempt_count,
                 "visual_analysis_call_count": analysis_attempt_count,
                 "visual_analysis_event_count": len(visual_events_for_target),
+                "visual_description_results": visual_description_results,
             }
         )
 
     status_counts = Counter(
         str(item.get("status") or "unavailable") for item in visual_events
     )
+    analysed_events = [
+        item for item in visual_events if item.get("status") == "analysed"
+    ]
+    integrity_counts = Counter(
+        str(item["analysis_integrity"])
+        for item in analysed_events
+        if item.get("analysis_integrity")
+    )
     summary = {
         "malformed_visual_description_event_count": malformed_event_count,
+        "visual_description_analysis_anomaly_count": sum(
+            bool(item.get("analysis_anomaly")) for item in visual_events
+        ),
+        "retained_visual_description_count": sum(
+            isinstance(item.get("analysis"), dict) for item in analysed_events
+        ),
+        "legacy_hash_only_visual_description_count": sum(
+            "analysis" not in item and not item.get("analysis_anomaly")
+            for item in analysed_events
+        ),
+        "visual_description_integrity_counts": dict(sorted(integrity_counts.items())),
         "target_count": len(rows),
         "targets_with_analysis_but_no_collection_observation_in_selected_window": sum(
             row["collection_observation_status"] == "not_observed_in_selected_window"
@@ -16682,6 +16769,16 @@ def render_markdown(report: Dict[str, Any]) -> str:
             f"**{reply_visual_summary.get('malformed_visual_description_event_count', 0)}**."
         )
         out.append(
+            "Retained bounded visual descriptions: "
+            f"**{reply_visual_summary.get('retained_visual_description_count', 0)}**; "
+            "legacy hash-only successes: "
+            f"**{reply_visual_summary.get('legacy_hash_only_visual_description_count', 0)}**; "
+            "integrity results: **"
+            f"{compact_counts(reply_visual_summary.get('visual_description_integrity_counts') or {})}"
+            "**; visual-description audit anomalies: "
+            f"**{reply_visual_summary.get('visual_description_analysis_anomaly_count', 0)}**."
+        )
+        out.append(
             "Structured visual-description events do not create provider-cost calls; "
             "the existing provider start/usage records remain authoritative. Preliminary "
             "visual analysis is also separate from tested-pipeline `model_call_count`."
@@ -16725,6 +16822,89 @@ def render_markdown(report: Dict[str, Any]) -> str:
                     item.get("distinct_successful_description_count", 0),
                     latest_hash[:12],
                 ]))
+            detailed_visual_results = [
+                (target, result)
+                for target in reply_visual_targets
+                for result in target.get("visual_description_results") or []
+            ]
+            if detailed_visual_results:
+                out.append("")
+                out.append("### Visual-description audit results")
+                out.append("")
+                for target, result in detailed_visual_results:
+                    metadata = {
+                        "analysis_schema_version": result.get(
+                            "analysis_schema_version"
+                        ),
+                        "lane": target.get("lane"),
+                        "status": result.get("status"),
+                        "target_id": target.get("target_id"),
+                        "time": result.get("time"),
+                    }
+                    if "analysis" in result or result.get("analysis_anomaly"):
+                        metadata["description_sha256"] = result.get(
+                            "description_sha256"
+                        )
+                    elif result.get("description_sha256"):
+                        metadata["description_sha256_prefix"] = str(
+                            result["description_sha256"]
+                        )[:12]
+                    if result.get("calculated_description_sha256"):
+                        metadata["calculated_description_sha256"] = result.get(
+                            "calculated_description_sha256"
+                        )
+                    out.append("Visual-description event metadata:")
+                    out.append("")
+                    out.extend(
+                        "    " + line
+                        for line in json.dumps(
+                            metadata,
+                            ensure_ascii=False,
+                            indent=2,
+                            sort_keys=True,
+                        ).splitlines()
+                    )
+                    out.append("")
+                    analysis = result.get("analysis")
+                    if isinstance(analysis, dict):
+                        integrity = str(
+                            result.get("analysis_integrity") or "unavailable_hash"
+                        )
+                        out.append(f"Integrity: **{integrity}**.")
+                        if integrity == "mismatch":
+                            out.append(
+                                "**ANOMALY: Visual-description integrity mismatch; "
+                                "the recorded hash was not replaced.**"
+                            )
+                        elif integrity == "unavailable_hash":
+                            out.append(
+                                "**ANOMALY: Visual-description integrity could not "
+                                "be verified because a valid recorded hash was unavailable.**"
+                            )
+                        out.append("")
+                        out.append("Retained validated analysis:")
+                        out.append("")
+                        out.extend(
+                            "    " + line
+                            for line in json.dumps(
+                                analysis,
+                                ensure_ascii=False,
+                                indent=2,
+                                sort_keys=True,
+                            ).splitlines()
+                        )
+                    elif result.get("analysis_anomaly") == "malformed_analysis":
+                        out.append(
+                            "**ANOMALY: The retained visual-description analysis is "
+                            "malformed. Integrity could not be verified, and the malformed "
+                            "content is not rendered as trusted analysis.**"
+                        )
+                    else:
+                        out.append(
+                            "Visual-description result was not retained in this legacy "
+                            "hash-only event."
+                        )
+                    out.append("")
         out.append("")
 
     asset_health = report.get("asset_health") or []

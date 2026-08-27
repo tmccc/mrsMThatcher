@@ -28,12 +28,12 @@ python3 -m pip install -r requirements-dev.txt
 PYTEST_DISABLE_PLUGIN_AUTOLOAD=1 python3 -m pytest -q
 ```
 
-On the four-core production host, the coverage-equivalent fast path uses three
+On the four-core production host, the coverage-equivalent fast path uses four
 isolated pytest workers:
 
 ```bash
 PYTEST_DISABLE_PLUGIN_AUTOLOAD=1 python3 -m pytest -q \
-  -p xdist.plugin -n 3 --dist=worksteal --max-worker-restart=0
+  -p xdist.plugin -n 4 --dist=worksteal --max-worker-restart=0
 ```
 
 Do not run serial and parallel suites concurrently in the same checkout.

@@ -5201,10 +5201,28 @@ def test_tested_pipeline_native_photo_is_analysed_once_before_downstream_stages(
         assert visual_events[0]["status"] == "analysed"
         assert visual_events[0]["supplied_image_count"] == 1
         assert visual_events[0]["visual_analysis_call_count"] == 1
-        assert len(visual_events[0]["description_sha256"]) == 64
+        assert visual_events[0]["analysis"] == analysis
+        canonical_analysis = json.dumps(
+            analysis,
+            ensure_ascii=False,
+            sort_keys=True,
+            separators=(",", ":"),
+        )
+        assert visual_events[0]["description_sha256"] == hashlib.sha256(
+            canonical_analysis.encode("utf-8")
+        ).hexdigest()
         visual_event_text = json.dumps(visual_events[0], sort_keys=True)
-        assert photo_url not in visual_event_text
-        assert analysis["images"][0]["literal_description"] not in visual_event_text
+        for forbidden in (
+            photo_url,
+            "pbs.twimg.com",
+            "3_100",
+            "media_key",
+            "image_url",
+            "request_payload",
+            "choices",
+            "usage",
+        ):
+            assert forbidden not in visual_event_text
         decision = next(
             event
             for event in events
@@ -5291,6 +5309,7 @@ def test_native_photo_visual_provider_error_keeps_candidate_retryable(
         assert len(visual_events) == 1
         assert visual_events[0]["status"] == "provider_error"
         assert visual_events[0]["visual_analysis_call_count"] == 1
+        assert "analysis" not in visual_events[0]
         assert not any(
             event.get("event") in {
                 "ai_reply_pipeline_stage_summary",

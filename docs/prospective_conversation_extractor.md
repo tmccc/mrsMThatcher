@@ -283,7 +283,10 @@ status, mode, native-photo counts, schema versions, call counts, and successful
 description SHA-256 values. Omitted older observation counts remain explicit.
 
 No image description, OCR text, image URL, media key, provider prompt, or
-hidden reasoning is retained. `analysis_observation_status: not_observed`
+hidden reasoning is retained in canonical prospective output or review packs.
+A successful source-service event may contain the bounded validated `analysis`
+object; the extractor accepts that optional field but deliberately discards it.
+`analysis_observation_status: not_observed`
 means supplied native photos were retained but no visual-description event was
 retained; it is not proof that analysis did not happen outside the available
 log evidence. `not_attempted` means retained lifecycle events report no

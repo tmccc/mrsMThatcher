@@ -240,10 +240,20 @@ def test_visual_description_uses_one_genuine_multimodal_xai_request(
         "analysis_schema_version": pipeline.VISUAL_DESCRIPTION_SCHEMA_VERSION,
         "description_sha256": hashlib.sha256(canonical.encode()).hexdigest(),
         "visual_analysis_call_count": 1,
+        "analysis": analysis,
     }
     logged = json.dumps(events, sort_keys=True)
     assert all(url not in logged for url in urls)
-    assert analysis["images"][0]["literal_description"] not in logged
+    for forbidden in (
+        "pbs.twimg.com",
+        "media_key",
+        "image_url",
+        "request_payload",
+        "choices",
+        "usage",
+        "test-key",
+    ):
+        assert forbidden not in logged
 
 
 def test_ordinary_xai_structured_reply_call_omits_optional_reasoning_effort(
@@ -532,6 +542,7 @@ def test_malformed_visual_description_stops_before_tested_pipeline_stages(
     assert events[-1][0] == "reply_visual_description"
     assert events[-1][1]["status"] == "invalid_response"
     assert events[-1][1]["visual_analysis_call_count"] == 1
+    assert "analysis" not in events[-1][1]
 
 
 def test_visual_provider_error_stops_before_tested_pipeline_stages(
@@ -571,6 +582,65 @@ def test_visual_provider_error_stops_before_tested_pipeline_stages(
     assert stage_calls == []
     assert events[-1][1]["status"] == "provider_error"
     assert events[-1][1]["visual_analysis_call_count"] == 1
+    assert "analysis" not in events[-1][1]
+
+
+def test_visual_description_paused_invalid_and_skipped_paths_do_not_log_analysis(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    import mrsMThatcher2 as bot
+
+    events: list[tuple[str, dict]] = []
+    provider_calls: list[str] = []
+
+    def paused_visual(**_kwargs):
+        provider_calls.append("paused")
+        raise bot.RemoteOperationsPaused("paused before visual provider call")
+
+    monkeypatch.setattr(bot, "xai_structured_reply_call", paused_visual)
+    monkeypatch.setattr(
+        bot,
+        "log_event",
+        lambda name, **fields: events.append((name, fields)),
+    )
+
+    with pytest.raises(bot.RemoteOperationsPaused, match="visual provider"):
+        bot.describe_reply_media_for_tested_pipeline(
+            context("Look at this photograph."),
+            supplied_media_context("https://pbs.twimg.com/media/paused.jpg"),
+            config=enabled_config(),
+        )
+
+    assert provider_calls == ["paused"]
+    assert events[-1][1]["status"] == "paused"
+    assert events[-1][1]["visual_analysis_call_count"] == 0
+    assert "analysis" not in events[-1][1]
+
+    provider_calls.clear()
+    invalid_media = supplied_media_context()
+    with pytest.raises(bot.ApiError, match="supplied reply media is invalid"):
+        bot.describe_reply_media_for_tested_pipeline(
+            context("No usable photograph."),
+            invalid_media,
+            config=enabled_config(),
+        )
+
+    assert provider_calls == []
+    assert events[-1][1]["status"] == "invalid_supplied_media"
+    assert events[-1][1]["visual_analysis_call_count"] == 0
+    assert "analysis" not in events[-1][1]
+
+    skipped_media = {**invalid_media, "status": "none"}
+    assert bot.describe_reply_media_for_tested_pipeline(
+        context("No photograph supplied."),
+        skipped_media,
+        config=enabled_config(),
+    ) == skipped_media
+    assert provider_calls == []
+    assert [fields["status"] for _name, fields in events] == [
+        "paused",
+        "invalid_supplied_media",
+    ]
 
 
 def test_raw_supplied_photo_metadata_fails_before_pipeline_transport() -> None:

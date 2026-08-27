@@ -1,3 +1,4 @@
+import hashlib
 import json
 import subprocess
 import sys
@@ -55,6 +56,37 @@ def reply_visual_payload(
         "visual_analysis_call_count": visual_analysis_call_count,
         **extra,
     }
+
+
+def retained_visual_analysis() -> dict:
+    return {
+        "images": [
+            {
+                "index": 1,
+                "literal_description": (
+                    "A café sign shows *emphasis*, `code`, a | separator, and ```ticks```."
+                ),
+                "visible_text": ["CAFÉ — déjà vu", "£5 & <tea>"],
+                "salient_elements": ["blue-and-white sign", "window reflection"],
+                "apparent_message": "The sign appears to invite a comparison 😊.",
+                "uncertainties": ["The smallest lettering is not legible."],
+            }
+        ],
+        "combined_context": "One photograph supplies visual context with Unicode.",
+        "relationship_to_contribution": (
+            "It appears to illustrate the contributor's wording without proving it."
+        ),
+    }
+
+
+def visual_analysis_sha256(analysis: dict) -> str:
+    canonical = json.dumps(
+        analysis,
+        ensure_ascii=False,
+        sort_keys=True,
+        separators=(",", ":"),
+    )
+    return hashlib.sha256(canonical.encode("utf-8")).hexdigest()
 
 
 MAJORITY_TELEMETRY_MISSING = object()
@@ -2956,6 +2988,139 @@ def test_current_corpus_snapshot_reports_counts_policies_and_hashes(tmp_path):
         "semantic_gate_audit",
         "semantic_review_ledger",
     }
+
+
+def test_reply_visual_retained_analysis_is_rendered_and_integrity_checked():
+    analysis = retained_visual_analysis()
+    matching_hash = visual_analysis_sha256(analysis)
+    malformed_secret = "MALFORMED PRIVATE VISUAL MATERIAL MUST NOT LEAK"
+    unexpected_secret = "NON-SUCCESS VISUAL MATERIAL MUST NOT LEAK"
+    records = [
+        reply_visual_record(
+            0,
+            reply_visual_payload(
+                "verified",
+                supplied_image_count=1,
+                description_sha256=matching_hash,
+                analysis=analysis,
+            ),
+        ),
+        reply_visual_record(
+            1,
+            reply_visual_payload(
+                "mismatch",
+                supplied_image_count=1,
+                description_sha256="0" * 64,
+                analysis=analysis,
+            ),
+        ),
+        reply_visual_record(
+            2,
+            reply_visual_payload(
+                "legacy",
+                supplied_image_count=1,
+                description_sha256="1" * 64,
+            ),
+        ),
+        reply_visual_record(
+            3,
+            reply_visual_payload(
+                "malformed",
+                supplied_image_count=1,
+                description_sha256="2" * 64,
+                analysis={"private": malformed_secret},
+            ),
+        ),
+        reply_visual_record(
+            4,
+            reply_visual_payload(
+                "unavailable",
+                supplied_image_count=1,
+                description_sha256="",
+                analysis=analysis,
+            ),
+        ),
+        reply_visual_record(
+            5,
+            reply_visual_payload(
+                "failed",
+                status="provider_error",
+                supplied_image_count=1,
+                analysis={"private": unexpected_secret},
+            ),
+        ),
+    ]
+
+    report = digest.analyse(records)
+    by_target = {
+        row["target_id"]: row for row in report["reply_visual_context_targets"]
+    }
+    verified = by_target["verified"]["visual_description_results"][0]
+    mismatch = by_target["mismatch"]["visual_description_results"][0]
+    legacy = by_target["legacy"]["visual_description_results"][0]
+    malformed = by_target["malformed"]["visual_description_results"][0]
+    unavailable = by_target["unavailable"]["visual_description_results"][0]
+    summary = report["reply_visual_context_summary"]
+
+    assert verified["analysis"] == analysis
+    assert verified["analysis_integrity"] == "verified"
+    assert verified["calculated_description_sha256"] == matching_hash
+    assert mismatch["analysis"] == analysis
+    assert mismatch["description_sha256"] == "0" * 64
+    assert mismatch["analysis_integrity"] == "mismatch"
+    assert mismatch["calculated_description_sha256"] == matching_hash
+    assert "analysis" not in legacy
+    assert "analysis_integrity" not in legacy
+    assert malformed["analysis_anomaly"] == "malformed_analysis"
+    assert "analysis" not in malformed
+    assert unavailable["analysis"] == analysis
+    assert unavailable["analysis_integrity"] == "unavailable_hash"
+    assert unavailable["description_sha256"] is None
+    assert by_target["failed"]["latest_visual_analysis_status"] == "provider_error"
+    assert by_target["failed"]["visual_description_results"] == []
+    assert summary["retained_visual_description_count"] == 3
+    assert summary["legacy_hash_only_visual_description_count"] == 1
+    assert summary["visual_description_analysis_anomaly_count"] == 4
+    assert summary["visual_description_integrity_counts"] == {
+        "mismatch": 1,
+        "unavailable_hash": 1,
+        "verified": 1,
+    }
+
+    rendered_json = json.dumps(report, ensure_ascii=False)
+    rendered_markdown = digest.render_markdown(report)
+    for field in (
+        "index",
+        "literal_description",
+        "visible_text",
+        "salient_elements",
+        "apparent_message",
+        "uncertainties",
+        "combined_context",
+        "relationship_to_contribution",
+    ):
+        assert f'"{field}"' in rendered_markdown
+    for text_value in (
+        "A café sign shows *emphasis*, `code`, a | separator, and ```ticks```.",
+        "CAFÉ — déjà vu",
+        "£5 & <tea>",
+        "The sign appears to invite a comparison 😊.",
+    ):
+        assert text_value in rendered_markdown
+    assert "Integrity: **verified**." in rendered_markdown
+    assert "Integrity: **mismatch**." in rendered_markdown
+    assert "**ANOMALY: Visual-description integrity mismatch" in rendered_markdown
+    assert "Integrity: **unavailable_hash**." in rendered_markdown
+    assert (
+        "Visual-description result was not retained in this legacy hash-only event."
+        in rendered_markdown
+    )
+    assert '"target_id": "malformed"' in rendered_markdown
+    assert "malformed. Integrity could not be verified" in rendered_markdown
+    assert "Retained validated analysis:\n\n    {" in rendered_markdown
+    for forbidden in (malformed_secret, unexpected_secret):
+        assert forbidden not in rendered_json
+        assert forbidden not in rendered_markdown
 
 
 def test_reply_visual_context_correlates_collection_and_window_gaps_safely():

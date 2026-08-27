@@ -59,6 +59,7 @@ MAX_REPLY_VISUAL_SUPPORTED_IMAGES = 2
 MAX_REPLY_VISUAL_SCHEMA_VERSION = 2_147_483_647
 REPLY_VISUAL_DESCRIPTION_EVENT_FIELDS = frozenset(
     {
+        "analysis",
         "analysis_schema_version",
         "description_sha256",
         "event",
@@ -954,6 +955,11 @@ def parse_reply_visual_description_attempt(
         event.get("event") != "reply_visual_description"
         or set(event) - REPLY_VISUAL_DESCRIPTION_EVENT_FIELDS
         or target_id is None
+    ):
+        return target_id, None
+    if "analysis" in event and (
+        event.get("status") != "analysed"
+        or not isinstance(event.get("analysis"), dict)
     ):
         return target_id, None
     metadata = _validated_reply_visual_description_metadata(

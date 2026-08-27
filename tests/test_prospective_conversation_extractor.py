@@ -1890,6 +1890,11 @@ def test_reply_visual_malformed_events_do_not_fabricate_metadata_or_leak() -> No
                 "905",
                 image_url=secret_url,
             )
+            + reply_visual_description_line(
+                "2026-08-24 16:10:04",
+                "905",
+                analysis=["not", "an", "object"],
+            )
         ).encode()
     )
     statistics: dict[str, object] = {}
@@ -1903,7 +1908,7 @@ def test_reply_visual_malformed_events_do_not_fabricate_metadata_or_leak() -> No
     assert post["reply_visual_context_summary"][
         "analysis_observation_status"
     ] == "not_observed"
-    assert statistics["ambiguous_registered_event_count"] == 3
+    assert statistics["ambiguous_registered_event_count"] == 4
     assert statistics["ignored_structured_event_count"] == 0
     assert statistics["ignored_target_like_event_count"] == 0
     assert "malformed_reply_visual_description_event" in post["warnings"]
@@ -2311,13 +2316,39 @@ def test_reply_visual_metadata_propagates_without_changing_candidate_selection(
     )
     secret_url = "https://private.invalid/source-photo.jpg"
     secret_description = "PRIVATE VISUAL DESCRIPTION"
+    retained_analysis = {
+        "images": [
+            {
+                "index": index,
+                "literal_description": (
+                    secret_description if index == 1 else "A second private description"
+                ),
+                "visible_text": [f"PRIVATE OCR {index}"],
+                "salient_elements": [f"private element {index}"],
+                "apparent_message": "A private apparent message",
+                "uncertainties": ["A private uncertainty"],
+            }
+            for index in (1, 2)
+        ],
+        "combined_context": "PRIVATE COMBINED VISUAL CONTEXT",
+        "relationship_to_contribution": "PRIVATE VISUAL RELATIONSHIP",
+    }
+    retained_analysis_hash = hashlib.sha256(
+        json.dumps(
+            retained_analysis,
+            ensure_ascii=False,
+            sort_keys=True,
+            separators=(",", ":"),
+        ).encode("utf-8")
+    ).hexdigest()
     with_metadata = (
         first_exchange(author_id=raw_author)
         + reply_media_context_line("2026-08-24 16:10:05", "100")
         + reply_visual_description_line(
             "2026-08-24 16:10:06",
             "100",
-            description_sha256="4" * 64,
+            description_sha256=retained_analysis_hash,
+            analysis=retained_analysis,
         )
         + reply_visual_description_line(
             "2026-08-24 16:10:07",
@@ -2376,7 +2407,7 @@ def test_reply_visual_metadata_propagates_without_changing_candidate_selection(
         if turn["post_id"] in {"100", "102", "104"}
     }
     assert summary_by_post["100"]["successful_description_sha256s"] == [
-        "4" * 64
+        retained_analysis_hash
     ]
 
     extractor.freeze_review_pack(
@@ -2399,7 +2430,8 @@ def test_reply_visual_metadata_propagates_without_changing_candidate_selection(
 
     assert (
         "Visual context: 2 native photos; collection supplied; analysis analysed; "
-        "1 analysis call; 1 successful description; 1 distinct hash; hash 444444444444."
+        "1 analysis call; 1 successful description; 1 distinct hash; hash "
+        f"{retained_analysis_hash[:12]}."
         in markdown
     )
     assert "no visual-analysis event observed" in markdown
@@ -2407,8 +2439,15 @@ def test_reply_visual_metadata_propagates_without_changing_candidate_selection(
         "analysis provider_error; 1 analysis call; no successful description"
         in markdown
     )
-    assert "4" * 64 not in markdown
-    for forbidden in (secret_url, secret_description, raw_author):
+    assert retained_analysis_hash not in markdown
+    for forbidden in (
+        secret_url,
+        secret_description,
+        "PRIVATE OCR",
+        "PRIVATE COMBINED VISUAL CONTEXT",
+        "PRIVATE VISUAL RELATIONSHIP",
+        raw_author,
+    ):
         assert forbidden not in markdown
         assert forbidden not in canonical_material
 

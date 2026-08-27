@@ -21022,16 +21022,27 @@ def describe_reply_media_for_tested_pipeline(
     photos = media_context.get("photos")
     supplied_image_count = len(photos) if isinstance(photos, list) else 0
 
-    def record(status: str, *, call_count: int, description_sha256: str = "") -> None:
+    def record(
+        status: str,
+        *,
+        call_count: int,
+        description_sha256: str = "",
+        analysis: dict[str, object] | None = None,
+    ) -> None:
+        fields: dict[str, object] = {
+            "lane": lane,
+            "target_id": target_id,
+            "supplied_image_count": supplied_image_count,
+            "status": status,
+            "analysis_schema_version": VISUAL_DESCRIPTION_SCHEMA_VERSION,
+            "description_sha256": description_sha256,
+            "visual_analysis_call_count": call_count,
+        }
+        if analysis is not None:
+            fields["analysis"] = analysis
         log_event(
             "reply_visual_description",
-            lane=lane,
-            target_id=target_id,
-            supplied_image_count=supplied_image_count,
-            status=status,
-            analysis_schema_version=VISUAL_DESCRIPTION_SCHEMA_VERSION,
-            description_sha256=description_sha256,
-            visual_analysis_call_count=call_count,
+            **fields,
         )
 
     if VISUAL_DESCRIPTION_MAX_IMAGES != MAX_REPLY_CONTEXT_PHOTOS:
@@ -21133,6 +21144,7 @@ def describe_reply_media_for_tested_pipeline(
         "analysed",
         call_count=1,
         description_sha256=description_sha256,
+        analysis=analysis,
     )
     return {
         "status": "analysed",
