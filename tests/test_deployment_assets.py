@@ -119,6 +119,101 @@ def test_bot_health_recovery_waits_for_stable_healthy_state() -> None:
     assert "mode: restart" in recovery
 
 
+def test_support_health_deployment_assets_are_separate_read_only_and_bounded() -> None:
+    service = (SYSTEMD_DIR / "mrs-support-health-monitor.service").read_text(
+        encoding="utf-8"
+    )
+    timer = (SYSTEMD_DIR / "mrs-support-health-monitor.timer").read_text(
+        encoding="utf-8"
+    )
+    installer = (SYSTEMD_DIR / "install.sh").read_text(encoding="utf-8")
+    home_assistant = (
+        HOME_ASSISTANT_DIR / "mrs_m_thatcher_support_health.yaml"
+    ).read_text(encoding="utf-8")
+
+    assert "Type=oneshot" in service
+    assert "mrs_support_health_monitor.py" in service
+    assert "support-health-monitor.env" in service
+    assert "TimeoutStartSec=30s" in service
+    assert "RestrictAddressFamilies=AF_UNIX" in service
+    assert "AF_INET" not in service
+    assert "Restart=" not in service
+    for unsupported_directive in (
+        "PrivateTmp",
+        "ProtectSystem",
+        "ProtectHome",
+        "ProtectKernelTunables",
+        "ProtectKernelModules",
+        "ProtectKernelLogs",
+        "ProtectControlGroups",
+    ):
+        assert f"{unsupported_directive}=" not in service
+
+    assert "OnCalendar=*:0/2" in timer
+    assert "AccuracySec=10s" in timer
+    assert "RandomizedDelaySec=10s" in timer
+    assert "Persistent=true" in timer
+    assert "Unit=mrs-support-health-monitor.service" in timer
+    assert "mrs-support-health-monitor.service" in installer
+    assert "mrs-support-health-monitor.timer" in installer
+    assert "systemctl --user enable --now mrs-support-health-monitor.timer" in installer
+
+    assert "unique_id: mrs_m_thatcher_support_health" in home_assistant
+    assert "unique_id: mrs_m_thatcher_support_problem" in home_assistant
+    assert "unique_id: mrs_m_thatcher_support_incident" in home_assistant
+    assert "/config/.runtime/mrs_m_thatcher_support_health.json" in home_assistant
+    assert "device_class: problem" in home_assistant
+    assert "as_timestamp(now()) - checked" in home_assistant
+    assert "> 360" in home_assistant
+    assert home_assistant.count("notify.millie_powerwall_alert_devices") == 2
+    assert home_assistant.count("tag: mrs_m_thatcher_support_health") == 2
+    assert "critical" not in home_assistant.lower()
+    assert "custom_components" not in home_assistant
+    for forbidden_action in (
+        "homeassistant.restart",
+        "docker",
+        "systemctl",
+        "button:",
+        "shell_command:",
+    ):
+        assert forbidden_action not in home_assistant
+
+
+def test_support_health_alert_and_recovery_have_required_stability() -> None:
+    home_assistant = (
+        HOME_ASSISTANT_DIR / "mrs_m_thatcher_support_health.yaml"
+    ).read_text(encoding="utf-8")
+    alert, recovery = home_assistant.split(
+        "  - id: mrs_m_thatcher_support_health_recovery", 1
+    )
+
+    assert "entity_id: sensor.mrs_m_thatcher_support_incident" in alert
+    assert "minutes: 3" in alert
+    assert "problem_signature" in home_assistant
+    assert "monitor_stale" in home_assistant
+    assert "mode: restart" in alert
+
+    assert 'from: "on"\n        to: "off"' in recovery
+    assert "wait_template:" in recovery
+    assert "is_state('sensor.mrs_m_thatcher_support_health', 'healthy')" in recovery
+    assert 'timeout: "00:06:00"' in recovery
+    assert "continue_on_timeout: false" in recovery
+    assert "- delay:\n          minutes: 2" in recovery
+    assert recovery.index("wait_template:") < recovery.index("minutes: 2")
+    assert recovery.index("minutes: 2") < recovery.index(
+        "action: notify.millie_powerwall_alert_devices"
+    )
+    assert (
+        'entity_id: sensor.mrs_m_thatcher_support_health\n        state: "healthy"'
+        in recovery
+    )
+    assert (
+        'entity_id: binary_sensor.mrs_m_thatcher_support_problem\n        state: "off"'
+        in recovery
+    )
+    assert "mode: restart" in recovery
+
+
 def test_canonical_user_units_cover_live_services_without_secrets() -> None:
     main = (SYSTEMD_DIR / "mrsMThatcher.service").read_text(encoding="utf-8")
     analytics = (SYSTEMD_DIR / "mrs-engagement-analytics.service").read_text(encoding="utf-8")

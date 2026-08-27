@@ -10,7 +10,10 @@ from typing import Any, Callable
 
 import pytest
 
+from tools.check_python_documentation import collect_violations
 
+
+REPOSITORY_ROOT = Path(__file__).resolve().parents[1]
 PRODUCTION_LOG = Path("/disks/disk1/etc/mrsMThatcher/mrsMThatcher.log")
 TEST_LOG_MARKERS = (
     b"/tmp/pytest-",
@@ -260,6 +263,21 @@ def uninstall_network_guard() -> None:
 
 
 install_network_guard()
+
+
+def pytest_sessionstart(session: pytest.Session) -> None:
+    """Require documented maintained Python APIs before test collection."""
+    del session
+    if os.environ.get("PYTEST_XDIST_WORKER"):
+        return
+    violations = collect_violations(REPOSITORY_ROOT)
+    if not violations:
+        return
+    details = "\n".join(f"  {violation.render()}" for violation in violations)
+    raise pytest.UsageError(
+        "Python documentation prerequisite failed before test collection:\n"
+        f"{details}"
+    )
 
 
 def pytest_configure(config: pytest.Config) -> None:

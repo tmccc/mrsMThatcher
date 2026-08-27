@@ -3,7 +3,14 @@ from __future__ import annotations
 import subprocess
 from pathlib import Path
 
-from tools.check_python_documentation import collect_violations, maintained_python_files
+import pytest
+
+from tests import conftest as test_conftest
+from tools.check_python_documentation import (
+    DocumentationViolation,
+    collect_violations,
+    maintained_python_files,
+)
 
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
@@ -11,6 +18,28 @@ PROJECT_ROOT = Path(__file__).resolve().parents[1]
 
 def test_maintained_python_public_api_has_docstrings() -> None:
     assert collect_violations(PROJECT_ROOT) == []
+
+
+def test_pytest_rejects_docstring_violations_before_collection(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    violation = DocumentationViolation(
+        path="bot_module.py",
+        line=4,
+        kind="function",
+        name="post_reply",
+    )
+    monkeypatch.delenv("PYTEST_XDIST_WORKER", raising=False)
+    monkeypatch.setattr(
+        test_conftest,
+        "collect_violations",
+        lambda _project_root: [violation],
+    )
+
+    with pytest.raises(pytest.UsageError, match="before test collection") as error:
+        test_conftest.pytest_sessionstart(None)
+
+    assert violation.render() in str(error.value)
 
 
 def test_discovery_excludes_only_untracked_operational_snapshots(

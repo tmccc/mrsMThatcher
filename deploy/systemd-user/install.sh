@@ -28,6 +28,8 @@ readonly UNITS=(
   mrs-openai-cost-cache.timer
   mrs-prospective-conversations.service
   mrs-prospective-conversations.timer
+  mrs-support-health-monitor.service
+  mrs-support-health-monitor.timer
   mrs-semantic-veto-shadow-health.service
   mrs-semantic-veto-shadow-health.timer
 )
@@ -106,6 +108,7 @@ print_enable_commands() {
     '  systemctl --user enable mrs-semantic-veto-shadow-health.timer' \
     '  systemctl --user enable mrs-engagement-analytics.timer' \
     '  systemctl --user enable --now mrs-openai-cost-cache.timer' \
+    '  systemctl --user enable --now mrs-support-health-monitor.timer' \
     'prospective-conversation activation is deliberately omitted; complete the documented v3-to-v4 rebuild, validation, manual oneshot, and corpus inspection first'
 }
 

@@ -1,0 +1,144 @@
+# Canonical Home Assistant package. On this host, merge command_line and
+# template into configuration.yaml and automation entries into automations.yaml.
+
+command_line:
+  - sensor:
+      name: "Mrs M Thatcher Support Health"
+      unique_id: mrs_m_thatcher_support_health
+      command: "cat /config/.runtime/mrs_m_thatcher_support_health.json"
+      command_timeout: 5
+      scan_interval: 60
+      value_template: >-
+        {% if value_json is mapping
+              and value_json.status in
+                ['starting', 'healthy', 'degraded', 'failed'] %}
+          {{ value_json.status }}
+        {% else %}
+          unavailable
+        {% endif %}
+      json_attributes:
+        - checked_epoch
+        - summary
+        - problem_signature
+        - problem_count
+        - problem_components
+        - problem_details
+        - components
+
+template:
+  - binary_sensor:
+      - name: "Mrs M Thatcher Support Problem"
+        unique_id: mrs_m_thatcher_support_problem
+        device_class: problem
+        state: >-
+          {% set entity = 'sensor.mrs_m_thatcher_support_health' %}
+          {% set status = states(entity) %}
+          {% set checked = state_attr(entity, 'checked_epoch') %}
+          {% set valid = status in ['starting', 'healthy', 'degraded', 'failed'] %}
+          {% set stale = not valid
+            or checked is not number
+            or checked <= 0
+            or (as_timestamp(now()) - checked) > 360 %}
+          {{ stale or status in ['degraded', 'failed'] }}
+        attributes:
+          monitor_stale: >-
+            {% set entity = 'sensor.mrs_m_thatcher_support_health' %}
+            {% set status = states(entity) %}
+            {% set checked = state_attr(entity, 'checked_epoch') %}
+            {{ status not in ['starting', 'healthy', 'degraded', 'failed']
+              or checked is not number
+              or checked <= 0
+              or (as_timestamp(now()) - checked) > 360 }}
+
+    sensor:
+      - name: "Mrs M Thatcher Support Incident"
+        unique_id: mrs_m_thatcher_support_incident
+        state: >-
+          {% set entity = 'sensor.mrs_m_thatcher_support_health' %}
+          {% set status = states(entity) %}
+          {% set checked = state_attr(entity, 'checked_epoch') %}
+          {% set stale = status not in ['starting', 'healthy', 'degraded', 'failed']
+            or checked is not number
+            or checked <= 0
+            or (as_timestamp(now()) - checked) > 360 %}
+          {% if stale %}
+            monitor_stale
+          {% elif status in ['degraded', 'failed'] %}
+            {{ state_attr(entity, 'problem_signature') or 'problem_without_signature' }}
+          {% else %}
+            none
+          {% endif %}
+
+automation:
+  - id: mrs_m_thatcher_support_health_problem
+    alias: "Mrs M Thatcher supporting service problem"
+    description: "Notify once a stable support incident signature persists."
+    triggers:
+      - trigger: state
+        entity_id: sensor.mrs_m_thatcher_support_incident
+        for:
+          minutes: 3
+    conditions:
+      - condition: template
+        value_template: >-
+          {{ trigger.to_state is not none
+             and trigger.to_state.state not in ['none', 'unknown', 'unavailable', ''] }}
+    actions:
+      - action: notify.millie_powerwall_alert_devices
+        continue_on_error: true
+        data:
+          title: "MrsMThatcher supporting service problem"
+          message: >-
+            {% set entity = 'sensor.mrs_m_thatcher_support_health' %}
+            {% set details = state_attr(entity, 'problem_details') %}
+            {{ state_attr(entity, 'summary') or
+               'Home Assistant has no fresh MrsMThatcher support-monitor data.' }}
+            {% if details is iterable and details is not string %}
+            {% for detail in details %}
+            - {{ detail }}
+            {% endfor %}
+            {% endif %}
+            Checked: {% set checked = state_attr(entity, 'checked_epoch') %}
+            {{ checked | timestamp_custom('%Y-%m-%d %H:%M:%S %Z', true)
+               if checked is number else 'unavailable' }}.
+          data:
+            tag: mrs_m_thatcher_support_health
+    mode: restart
+    max_exceeded: silent
+  - id: mrs_m_thatcher_support_health_recovery
+    alias: "Mrs M Thatcher supporting services recovered"
+    description: "Notify once support health is healthy and stable for two minutes."
+    triggers:
+      - trigger: state
+        entity_id: binary_sensor.mrs_m_thatcher_support_problem
+        from: "on"
+        to: "off"
+    conditions: []
+    actions:
+      - wait_template: >-
+          {{ is_state('sensor.mrs_m_thatcher_support_health', 'healthy') }}
+        timeout: "00:06:00"
+        continue_on_timeout: false
+      - delay:
+          minutes: 2
+      - condition: state
+        entity_id: sensor.mrs_m_thatcher_support_health
+        state: "healthy"
+      - condition: state
+        entity_id: binary_sensor.mrs_m_thatcher_support_problem
+        state: "off"
+      - action: notify.millie_powerwall_alert_devices
+        continue_on_error: true
+        data:
+          title: "MrsMThatcher supporting services recovered"
+          message: >-
+            {% set entity = 'sensor.mrs_m_thatcher_support_health' %}
+            {{ state_attr(entity, 'summary') or
+               'All expected MrsMThatcher supporting components are healthy.' }}
+            Checked: {% set checked = state_attr(entity, 'checked_epoch') %}
+            {{ checked | timestamp_custom('%Y-%m-%d %H:%M:%S %Z', true)
+               if checked is number else 'unavailable' }}.
+          data:
+            tag: mrs_m_thatcher_support_health
+    mode: restart
+    max_exceeded: silent

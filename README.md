@@ -2,10 +2,20 @@
 
 ## Local Integration Harness
 
+All bot-code test runs have a documentation prerequisite. The root pytest
+configuration checks maintained modules and public APIs for the required
+docstrings before collecting even a targeted test. Run the same fast gate
+directly when editing bot code:
+
+```bash
+python3 tools/check_python_documentation.py
+```
+
 Run the safe local integration tests with:
 
 ```bash
 python3 -m pip install -r requirements.txt
+python3 tools/check_python_documentation.py
 PYTEST_DISABLE_PLUGIN_AUTOLOAD=1 python3 -m pytest tests/test_integration_harness.py
 ```
 
@@ -25,6 +35,7 @@ The complete offline test and research-tool dependency set is recorded in
 
 ```bash
 python3 -m pip install -r requirements-dev.txt
+python3 tools/check_python_documentation.py
 PYTEST_DISABLE_PLUGIN_AUTOLOAD=1 python3 -m pytest -q
 ```
 
@@ -32,6 +43,7 @@ On the four-core production host, the coverage-equivalent fast path uses four
 isolated pytest workers:
 
 ```bash
+python3 tools/check_python_documentation.py
 PYTEST_DISABLE_PLUGIN_AUTOLOAD=1 python3 -m pytest -q \
   -p xdist.plugin -n 4 --dist=worksteal --max-worker-restart=0
 ```
@@ -375,7 +387,8 @@ already-completed, failed, skipped and dry-run events.
 The maintained module map, side-effect boundaries, active corpus accounting and
 PEP 257 documentation policy are recorded in
 [`docs/python_api.md`](docs/python_api.md). Check module and public-definition
-docstring coverage without additional dependencies:
+docstring coverage without additional dependencies. Pytest also runs this as
+a mandatory session prerequisite before collecting tests:
 
 ```bash
 python3 tools/check_python_documentation.py
@@ -778,6 +791,11 @@ The small same-host Home Assistant health facility, including progress and
 monitor paths, status meanings, thresholds, timer operations, and its explicit
 read-only limits, is documented in the
 [bot health runbook](docs/bot_health_home_assistant.md).
+
+The independent, read-only status of scheduled supporting jobs and the website
+downloader is documented separately in the
+[support health runbook](docs/support_health_home_assistant.md). Supporting-job
+problems never change the foreground bot-health sensor.
 
 After installation, enable each desired unit explicitly and separately (enable
 the analytics timer only after its database is ready):

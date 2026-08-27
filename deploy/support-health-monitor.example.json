@@ -1,0 +1,56 @@
+{
+  "schema_version": 1,
+  "systemd_components": [
+    {
+      "id": "engagement_analytics",
+      "timer": "mrs-engagement-analytics.timer",
+      "service": "mrs-engagement-analytics.service",
+      "expected": true,
+      "expected_interval_seconds": 900,
+      "overdue_grace_seconds": 300,
+      "maximum_runtime_seconds": 360
+    },
+    {
+      "id": "openai_cost_cache",
+      "timer": "mrs-openai-cost-cache.timer",
+      "service": "mrs-openai-cost-cache.service",
+      "expected": true,
+      "expected_interval_seconds": 1800,
+      "overdue_grace_seconds": 300,
+      "maximum_runtime_seconds": 150
+    },
+    {
+      "id": "semantic_veto_shadow_health",
+      "timer": "mrs-semantic-veto-shadow-health.timer",
+      "service": "mrs-semantic-veto-shadow-health.service",
+      "expected": true,
+      "expected_interval_seconds": 86400,
+      "overdue_grace_seconds": 1800,
+      "maximum_runtime_seconds": 180
+    },
+    {
+      "id": "prospective_conversations",
+      "timer": "mrs-prospective-conversations.timer",
+      "service": "mrs-prospective-conversations.service",
+      "expected": false,
+      "expected_interval_seconds": 3600,
+      "overdue_grace_seconds": 600,
+      "maximum_runtime_seconds": 960
+    }
+  ],
+  "downloader": {
+    "id": "mrsmthatcher_org_downloader",
+    "expected": true,
+    "selector": {
+      "compose_project": "DISCOVERED_VALUE",
+      "compose_service": "DISCOVERED_VALUE"
+    },
+    "cycle_status_file": "/absolute/private/host/path/downloader-health.json",
+    "maximum_cycle_seconds": 2592000,
+    "maximum_success_age_seconds": 604800,
+    "maximum_progress_age_seconds": 1800,
+    "docker_health_starting_grace_seconds": 300,
+    "rapid_restart_count": 3,
+    "rapid_restart_window_seconds": 900
+  }
+}
