@@ -40,12 +40,15 @@ Timer-triggered `Type=oneshot` services are normally `inactive/dead` between
 runs. That state alone is healthy. The monitor instead checks the timer's
 loaded, enabled and active state; its last and next elapse; the latest service
 result and exit status; current runtime; and the last observed success.
-Systemd's actual next-trigger epoch takes precedence over the configured
-nominal interval, preventing false stale results across 23-hour and 25-hour
-British clock-change days. The monitor requests Unix-epoch timestamps from
-`systemctl`; on the deployed systemd 249 host, which lacks that renderer, it
-reads only timestamp properties as raw microseconds from the local systemd
-D-Bus API instead of parsing ambiguous BST/GMT display strings.
+Systemd's actual next-trigger epoch controls overdue detection but does not
+suppress stale-success detection. A future trigger can extend the nominal
+success deadline only when the last success and next trigger straddle a real
+host-local UTC-offset change, and that extension is capped at one hour.
+Ordinary future triggers grant no extra freshness. The monitor requests
+Unix-epoch timestamps from `systemctl`; on the deployed systemd 249 host,
+which lacks that renderer, it reads only timestamp properties as raw
+microseconds from the local systemd D-Bus API instead of parsing ambiguous
+BST/GMT display strings.
 
 Configuration is strictly bounded. Unit names and component IDs must be
 plausible and unique, the downloader status path must be absolute, and its
@@ -102,7 +105,8 @@ and produces only a bounded local warning.
 
 Cycle evidence is accepted only when its latest relevant timestamp belongs to
 the current container generation, using Docker's container start time and a
-small 30-second clock/order tolerance. A prior generation's document is
+one-second integer-timestamp granularity tolerance. A prior generation's
+document is
 `awaiting_current_container_cycle` during startup grace and
 `cycle_status_from_previous_container` afterwards. For a running cycle,
 progress age starts at `last_progress_epoch` when present and otherwise at

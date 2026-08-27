@@ -24,7 +24,7 @@ from typing import Any, Callable, Mapping, Sequence
 
 SCHEMA_VERSION = 1
 STATE_SCHEMA_VERSION = 1
-CONTAINER_GENERATION_CLOCK_TOLERANCE_SECONDS = 30
+CONTAINER_GENERATION_CLOCK_TOLERANCE_SECONDS = 1
 MAX_CONFIG_BYTES = 64 * 1024
 MAX_STATE_BYTES = 64 * 1024
 MAX_CYCLE_STATUS_BYTES = 16 * 1024
@@ -638,6 +638,22 @@ def _completed_outcome(service: ServiceObservation) -> str | None:
     return None
 
 
+def _local_utc_offset_seconds(epoch: int) -> int | None:
+    try:
+        offset = datetime.fromtimestamp(epoch).astimezone().utcoffset()
+    except (OSError, OverflowError, TypeError, ValueError):
+        return None
+    return int(offset.total_seconds()) if offset is not None else None
+
+
+def _clock_change_extension_seconds(start_epoch: int, end_epoch: int) -> int:
+    start_offset = _local_utc_offset_seconds(start_epoch)
+    end_offset = _local_utc_offset_seconds(end_epoch)
+    if start_offset is None or end_offset is None:
+        return 0
+    return min(abs(end_offset - start_offset), 3_600)
+
+
 def _systemd_diagnostics(
     timer: TimerObservation | None,
     service: ServiceObservation | None,
@@ -743,12 +759,30 @@ def evaluate_systemd_component(
     if timer.next_trigger_epoch is not None:
         if now_epoch > timer.next_trigger_epoch + config.overdue_grace_seconds:
             return {"status": "degraded", "reason": "timer_overdue", **diagnostics}, next_history
-    elif (
-        last_success is not None
-        and now_epoch
-        > last_success + config.expected_interval_seconds + config.overdue_grace_seconds
-    ):
-        return {"status": "degraded", "reason": "successful_run_stale", **diagnostics}, next_history
+    if last_success is not None:
+        nominal_deadline = (
+            last_success
+            + config.expected_interval_seconds
+            + config.overdue_grace_seconds
+        )
+        effective_deadline = nominal_deadline
+        if timer.next_trigger_epoch is not None:
+            extension = _clock_change_extension_seconds(
+                last_success, timer.next_trigger_epoch
+            )
+            scheduled_deadline = (
+                timer.next_trigger_epoch + config.overdue_grace_seconds
+            )
+            effective_deadline = max(
+                nominal_deadline,
+                min(scheduled_deadline, nominal_deadline + extension),
+            )
+        if now_epoch > effective_deadline:
+            return {
+                "status": "degraded",
+                "reason": "successful_run_stale",
+                **diagnostics,
+            }, next_history
 
     if _service_is_running(service):
         if last_success is None:

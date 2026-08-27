@@ -175,7 +175,8 @@ def test_successful_latest_invocation_is_healthy() -> None:
 
 def test_nonzero_latest_invocation_is_degraded() -> None:
     result, _ = classify_systemd(
-        service_value=service(result="exit-code", status=7, invocation="failed-run")
+        timer_value=timer(next_epoch=NOW + 600),
+        service_value=service(result="exit-code", status=7, invocation="failed-run"),
     )
     assert (result["status"], result["reason"]) == ("degraded", "last_run_failed")
 
@@ -183,6 +184,7 @@ def test_nonzero_latest_invocation_is_degraded() -> None:
 @pytest.mark.parametrize("result", ["signal", "timeout", "core-dump"])
 def test_signal_timeout_and_core_dump_are_failed(result: str) -> None:
     classified, _ = classify_systemd(
+        timer_value=timer(next_epoch=NOW + 600),
         service_value=service(result=result, code=2, status=9, invocation=result)
     )
     assert (classified["status"], classified["reason"]) == (
@@ -222,14 +224,21 @@ def test_later_successful_invocation_clears_earlier_failure() -> None:
     assert history["last_completed_outcome"] == "success"
 
 
-def test_daily_calendar_timer_is_not_falsely_stale() -> None:
+def test_daily_calendar_timer_is_not_falsely_stale(monkeypatch) -> None:
+    last_success = NOW - 88_800
+    next_trigger = NOW + 1_200
+    monkeypatch.setattr(
+        monitor,
+        "_local_utc_offset_seconds",
+        lambda epoch: 3_600 if epoch == last_success else 0,
+    )
     cfg = systemd_config(interval=86_400)
     result, _ = classify_systemd(
         cfg=cfg,
-        timer_value=timer(last=NOW - 88_800, next_epoch=NOW + 1_200),
+        timer_value=timer(last=last_success, next_epoch=next_trigger),
         service_value=service(
-            start=NOW - 88_801,
-            exit_epoch=NOW - 88_800,
+            start=last_success - 1,
+            exit_epoch=last_success,
             invocation="daily",
         ),
     )
@@ -245,15 +254,69 @@ def test_actual_next_timer_trigger_beyond_grace_is_overdue() -> None:
     assert (result["status"], result["reason"]) == ("degraded", "timer_overdue")
 
 
-def test_actual_next_trigger_wins_during_repeated_autumn_hour() -> None:
+def test_actual_next_trigger_wins_during_repeated_autumn_hour(monkeypatch) -> None:
+    last_success = NOW - 4_200
+    next_trigger = NOW + 600
+    monkeypatch.setattr(
+        monitor,
+        "_local_utc_offset_seconds",
+        lambda epoch: 3_600 if epoch == last_success else 0,
+    )
     result, _ = classify_systemd(
         cfg=systemd_config(interval=3_600),
-        timer_value=timer(last=NOW - 4_200, next_epoch=NOW + 600),
-        service_value=service(exit_epoch=NOW - 4_200, invocation="autumn-hour"),
+        timer_value=timer(last=last_success, next_epoch=next_trigger),
+        service_value=service(exit_epoch=last_success, invocation="autumn-hour"),
     )
     assert (result["status"], result["reason"]) == (
         "healthy",
         "last_run_succeeded",
+    )
+
+
+def test_ordinary_future_trigger_does_not_hide_stale_success(monkeypatch) -> None:
+    monkeypatch.setattr(monitor, "_local_utc_offset_seconds", lambda _epoch: 0)
+    last_success = NOW - 3_600
+    result, _ = classify_systemd(
+        cfg=systemd_config(interval=900),
+        timer_value=timer(last=last_success, next_epoch=NOW + 600),
+        service_value=service(exit_epoch=last_success, invocation="ordinary-stale"),
+    )
+    assert (result["status"], result["reason"]) == (
+        "degraded",
+        "successful_run_stale",
+    )
+
+
+def test_ordinary_recent_success_with_future_trigger_is_healthy(monkeypatch) -> None:
+    monkeypatch.setattr(monitor, "_local_utc_offset_seconds", lambda _epoch: 0)
+    last_success = NOW - 600
+    result, _ = classify_systemd(
+        cfg=systemd_config(interval=900),
+        timer_value=timer(last=last_success, next_epoch=NOW + 300),
+        service_value=service(exit_epoch=last_success, invocation="ordinary-recent"),
+    )
+    assert (result["status"], result["reason"]) == (
+        "healthy",
+        "last_run_succeeded",
+    )
+
+
+def test_old_success_stays_stale_across_clock_change(monkeypatch) -> None:
+    last_success = NOW - 3 * 86_400
+    next_trigger = NOW + 600
+    monkeypatch.setattr(
+        monitor,
+        "_local_utc_offset_seconds",
+        lambda epoch: 3_600 if epoch == last_success else 0,
+    )
+    result, _ = classify_systemd(
+        cfg=systemd_config(interval=86_400),
+        timer_value=timer(last=last_success, next_epoch=next_trigger),
+        service_value=service(exit_epoch=last_success, invocation="old-dst"),
+    )
+    assert (result["status"], result["reason"]) == (
+        "degraded",
+        "successful_run_stale",
     )
 
 
@@ -267,6 +330,21 @@ def test_nominal_interval_is_fallback_when_next_trigger_is_unavailable() -> None
         "degraded",
         "successful_run_stale",
     )
+
+
+def test_missing_local_utc_offset_grants_no_extension(monkeypatch) -> None:
+    monkeypatch.setattr(
+        monitor, "_local_utc_offset_seconds", lambda _epoch: None
+    )
+    assert monitor._clock_change_extension_seconds(1, 2) == 0
+
+
+def test_clock_change_extension_is_capped_at_one_hour(monkeypatch) -> None:
+    offsets = {1: -7_200, 2: 7_200}
+    monkeypatch.setattr(
+        monitor, "_local_utc_offset_seconds", lambda epoch: offsets[epoch]
+    )
+    assert monitor._clock_change_extension_seconds(1, 2) == 3_600
 
 
 @pytest.mark.parametrize(
@@ -711,13 +789,13 @@ def test_malformed_and_expired_generation_history_is_discarded() -> None:
     ]
 
 
-def test_previous_container_success_within_startup_grace_is_starting() -> None:
+def test_success_twenty_seconds_before_start_within_grace_is_starting() -> None:
     old_success = cycle(
         state="success",
-        age=200,
-        last_success_age=200,
+        age=120,
+        last_success_age=120,
         progress_age=None,
-        started_age=230,
+        started_age=150,
     )
     result = classify_downloader(
         observation=docker_observation(started_age=100), cycle_value=old_success
@@ -727,15 +805,16 @@ def test_previous_container_success_within_startup_grace_is_starting() -> None:
         "awaiting_current_container_cycle",
     )
     assert result["cycle_status_current_container"] is False
+    assert result["container_started_epoch"] - result["cycle_evidence_epoch"] == 20
 
 
-def test_previous_container_success_after_startup_grace_is_failed() -> None:
+def test_success_twenty_seconds_before_start_after_grace_is_failed() -> None:
     old_success = cycle(
         state="success",
-        age=400,
-        last_success_age=400,
+        age=321,
+        last_success_age=321,
         progress_age=None,
-        started_age=430,
+        started_age=351,
     )
     result = classify_downloader(
         observation=docker_observation(started_age=301), cycle_value=old_success
@@ -744,6 +823,7 @@ def test_previous_container_success_after_startup_grace_is_failed() -> None:
         "failed",
         "cycle_status_from_previous_container",
     )
+    assert result["container_started_epoch"] - result["cycle_evidence_epoch"] == 20
 
 
 def test_previous_container_failure_is_not_current_cycle_failure() -> None:
@@ -790,19 +870,39 @@ def test_current_container_success_cycle_is_accepted() -> None:
     assert result["cycle_status_current_container"] is True
 
 
-def test_cycle_evidence_at_clock_tolerance_boundary_is_accepted() -> None:
+def test_cycle_evidence_one_second_before_container_start_is_accepted() -> None:
     result = classify_downloader(
         observation=docker_observation(started_age=100),
         cycle_value=cycle(
             state="success",
-            age=130,
-            last_success_age=130,
+            age=101,
+            last_success_age=101,
             progress_age=None,
-            started_age=160,
+            started_age=131,
         ),
     )
     assert result["status"] == "healthy"
     assert result["cycle_status_current_container"] is True
+    assert result["container_started_epoch"] - result["cycle_evidence_epoch"] == 1
+
+
+def test_cycle_evidence_two_seconds_before_container_start_is_rejected() -> None:
+    result = classify_downloader(
+        observation=docker_observation(started_age=100),
+        cycle_value=cycle(
+            state="success",
+            age=102,
+            last_success_age=102,
+            progress_age=None,
+            started_age=132,
+        ),
+    )
+    assert (result["status"], result["reason"]) == (
+        "starting",
+        "awaiting_current_container_cycle",
+    )
+    assert result["cycle_status_current_container"] is False
+    assert result["container_started_epoch"] - result["cycle_evidence_epoch"] == 2
 
 
 def test_missing_container_start_time_fails_closed() -> None:
@@ -817,10 +917,10 @@ def test_same_container_id_restart_invalidates_old_cycle_evidence() -> None:
     container_id = "d" * 64
     old_success = cycle(
         state="success",
-        age=500,
-        last_success_age=500,
+        age=321,
+        last_success_age=321,
         progress_age=None,
-        started_age=530,
+        started_age=351,
     )
     before = classify_downloader(
         observation=docker_observation(
@@ -829,14 +929,16 @@ def test_same_container_id_restart_invalidates_old_cycle_evidence() -> None:
         cycle_value=old_success,
     )
     after = classify_downloader(
-        observation=docker_observation(container_id=container_id, started_age=100),
+        observation=docker_observation(container_id=container_id, started_age=301),
         cycle_value=old_success,
     )
     assert before["status"] == "healthy"
     assert (after["status"], after["reason"]) == (
-        "starting",
-        "awaiting_current_container_cycle",
+        "failed",
+        "cycle_status_from_previous_container",
     )
+    assert after["cycle_status_current_container"] is False
+    assert after["container_started_epoch"] - after["cycle_evidence_epoch"] == 20
 
 
 def test_fresh_successful_cycle_is_healthy() -> None:
