@@ -24,7 +24,7 @@ from typing import Any, Callable, Mapping, Sequence
 
 SCHEMA_VERSION = 1
 STATE_SCHEMA_VERSION = 1
-CONTAINER_GENERATION_CLOCK_TOLERANCE_SECONDS = 1
+CONTAINER_GENERATION_CLOCK_TOLERANCE_SECONDS = 0
 MAX_CONFIG_BYTES = 64 * 1024
 MAX_STATE_BYTES = 64 * 1024
 MAX_CYCLE_STATUS_BYTES = 16 * 1024
@@ -759,6 +759,11 @@ def evaluate_systemd_component(
     if timer.next_trigger_epoch is not None:
         if now_epoch > timer.next_trigger_epoch + config.overdue_grace_seconds:
             return {"status": "degraded", "reason": "timer_overdue", **diagnostics}, next_history
+
+    if _service_is_running(service):
+        if last_success is None:
+            return {"status": "starting", "reason": "first_run_in_progress", **diagnostics}, next_history
+        return {"status": "healthy", "reason": "current_run_within_limit", **diagnostics}, next_history
     if last_success is not None:
         nominal_deadline = (
             last_success
@@ -784,10 +789,6 @@ def evaluate_systemd_component(
                 **diagnostics,
             }, next_history
 
-    if _service_is_running(service):
-        if last_success is None:
-            return {"status": "starting", "reason": "first_run_in_progress", **diagnostics}, next_history
-        return {"status": "healthy", "reason": "current_run_within_limit", **diagnostics}, next_history
     if last_success is not None:
         return {"status": "healthy", "reason": "last_run_succeeded", **diagnostics}, next_history
     if timer.last_trigger_epoch is None and (

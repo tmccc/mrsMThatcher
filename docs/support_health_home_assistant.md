@@ -40,6 +40,11 @@ Timer-triggered `Type=oneshot` services are normally `inactive/dead` between
 runs. That state alone is healthy. The monitor instead checks the timer's
 loaded, enabled and active state; its last and next elapse; the latest service
 result and exit status; current runtime; and the last observed success.
+After runtime overruns, prior failed outcomes, and timer-overdue conditions have
+been checked, a current invocation at or below its configured runtime limit is
+not degraded merely because the preceding success has become stale. Recorded
+hard and non-zero outcomes remain visible until a later invocation completes
+successfully.
 Systemd's actual next-trigger epoch controls overdue detection but does not
 suppress stale-success detection. A future trigger can extend the nominal
 success deadline only when the last success and next trigger straddle a real
@@ -103,10 +108,11 @@ or a traceback. A killed or hung process leaves `running`, so progress and
 runtime limits expose it. Status-write failure is fail-open for the downloader
 and produces only a bounded local warning.
 
-Cycle evidence is accepted only when its latest relevant timestamp belongs to
-the current container generation, using Docker's container start time and a
-one-second integer-timestamp granularity tolerance. A prior generation's
-document is
+Cycle evidence is accepted only when its latest relevant timestamp is at or
+after the current container's integer start epoch. Equality is accepted because
+the container can start and publish status during the same integer second; a
+timestamp from the preceding second, or any earlier timestamp, is rejected as
+previous-container evidence. A prior generation's document is
 `awaiting_current_container_cycle` during startup grace and
 `cycle_status_from_previous_container` afterwards. For a running cycle,
 progress age starts at `last_progress_epoch` when present and otherwise at

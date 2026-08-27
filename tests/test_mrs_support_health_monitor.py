@@ -193,34 +193,171 @@ def test_signal_timeout_and_core_dump_are_failed(result: str) -> None:
     )
 
 
-def test_running_oneshot_within_runtime_is_not_a_problem() -> None:
-    result, _ = classify_systemd(
+def test_running_oneshot_within_runtime_without_prior_success_is_starting() -> None:
+    result, history = classify_systemd(
         timer_value=timer(last=None),
         service_value=service(runtime=120, invocation="first-running"),
+        history={},
     )
-    assert result["status"] == "starting"
+    assert (result["status"], result["reason"]) == (
+        "starting",
+        "first_run_in_progress",
+    )
     assert result["current_runtime_seconds"] == 120
+    assert history["last_success_epoch"] is None
 
 
-def test_running_oneshot_beyond_runtime_is_degraded() -> None:
-    result, _ = classify_systemd(service_value=service(runtime=361))
+def test_stale_previous_success_does_not_override_running_oneshot() -> None:
+    previous = {
+        "last_success_epoch": NOW - 3_600,
+        "last_completed_invocation_id": "previous-success",
+        "last_completed_outcome": "success",
+    }
+    result, history = classify_systemd(
+        service_value=service(runtime=120, invocation="current-running"),
+        history=previous,
+    )
+    assert (result["status"], result["reason"]) == (
+        "healthy",
+        "current_run_within_limit",
+    )
+    assert history == previous
+
+
+def test_running_oneshot_at_exact_runtime_limit_is_healthy() -> None:
+    previous = {
+        "last_success_epoch": NOW - 3_600,
+        "last_completed_invocation_id": "previous-success",
+        "last_completed_outcome": "success",
+    }
+    result, history = classify_systemd(
+        service_value=service(runtime=360, invocation="current-at-limit"),
+        history=previous,
+    )
+    assert (result["status"], result["reason"]) == (
+        "healthy",
+        "current_run_within_limit",
+    )
+    assert result["current_runtime_seconds"] == 360
+    assert history == previous
+
+
+def test_running_oneshot_one_second_beyond_runtime_limit_is_degraded() -> None:
+    previous = {
+        "last_success_epoch": NOW - 3_600,
+        "last_completed_invocation_id": "previous-success",
+        "last_completed_outcome": "success",
+    }
+    result, history = classify_systemd(
+        service_value=service(runtime=361, invocation="current-over-limit"),
+        history=previous,
+    )
     assert (result["status"], result["reason"]) == (
         "degraded",
         "service_runtime_exceeded",
     )
+    assert result["current_runtime_seconds"] == 361
+    assert history == previous
+
+
+def test_previous_nonzero_outcome_remains_while_next_invocation_runs() -> None:
+    previous = {
+        "last_success_epoch": NOW - 3_600,
+        "last_completed_invocation_id": "previous-nonzero",
+        "last_completed_outcome": "nonzero",
+    }
+    result, history = classify_systemd(
+        service_value=service(runtime=120, invocation="current-running"),
+        history=previous,
+    )
+    assert (result["status"], result["reason"]) == (
+        "degraded",
+        "last_run_failed",
+    )
+    assert history == previous
+
+
+def test_previous_hard_failure_remains_while_next_invocation_runs() -> None:
+    previous = {
+        "last_success_epoch": NOW - 3_600,
+        "last_completed_invocation_id": "previous-hard-failure",
+        "last_completed_outcome": "hard_failure",
+    }
+    result, history = classify_systemd(
+        service_value=service(runtime=120, invocation="current-running"),
+        history=previous,
+    )
+    assert (result["status"], result["reason"]) == (
+        "failed",
+        "service_hard_failure",
+    )
+    assert history == previous
+
+
+def test_timer_overdue_precedes_running_within_runtime_classification() -> None:
+    previous = {
+        "last_success_epoch": NOW - 3_600,
+        "last_completed_invocation_id": "previous-success",
+        "last_completed_outcome": "success",
+    }
+    result, history = classify_systemd(
+        timer_value=timer(next_epoch=NOW - 301),
+        service_value=service(runtime=120, invocation="current-running"),
+        history=previous,
+    )
+    assert (result["status"], result["reason"]) == (
+        "degraded",
+        "timer_overdue",
+    )
+    assert history == previous
+
+
+def test_stale_previous_success_is_degraded_when_service_is_not_running() -> None:
+    previous = {
+        "last_success_epoch": NOW - 3_600,
+        "last_completed_invocation_id": "previous-success",
+        "last_completed_outcome": "success",
+    }
+    result, history = classify_systemd(
+        service_value=service(
+            start=NOW - 3_610,
+            exit_epoch=NOW - 3_600,
+            invocation="previous-success",
+        ),
+        history=previous,
+    )
+    assert (result["status"], result["reason"]) == (
+        "degraded",
+        "successful_run_stale",
+    )
+    assert history == previous
 
 
 def test_later_successful_invocation_clears_earlier_failure() -> None:
-    first, history = classify_systemd(
-        service_value=service(result="exit-code", status=2, invocation="bad")
+    previous = {
+        "last_success_epoch": NOW - 3_600,
+        "last_completed_invocation_id": "bad",
+        "last_completed_outcome": "nonzero",
+    }
+    running, history = classify_systemd(
+        service_value=service(runtime=120, invocation="good"),
+        history=previous,
     )
-    second, history = classify_systemd(
+    completed, history = classify_systemd(
         service_value=service(invocation="good", exit_epoch=NOW - 10),
         timer_value=timer(last=NOW - 10, next_epoch=NOW + 890),
         history=history,
     )
-    assert first["status"] == "degraded"
-    assert second["status"] == "healthy"
+    assert (running["status"], running["reason"]) == (
+        "degraded",
+        "last_run_failed",
+    )
+    assert (completed["status"], completed["reason"]) == (
+        "healthy",
+        "last_run_succeeded",
+    )
+    assert history["last_success_epoch"] == NOW - 10
+    assert history["last_completed_invocation_id"] == "good"
     assert history["last_completed_outcome"] == "success"
 
 
@@ -870,7 +1007,27 @@ def test_current_container_success_cycle_is_accepted() -> None:
     assert result["cycle_status_current_container"] is True
 
 
-def test_cycle_evidence_one_second_before_container_start_is_accepted() -> None:
+def test_cycle_evidence_equal_to_container_start_is_accepted() -> None:
+    result = classify_downloader(
+        observation=docker_observation(started_age=100),
+        cycle_value=cycle(
+            state="success",
+            age=100,
+            last_success_age=100,
+            progress_age=None,
+            started_age=130,
+        ),
+    )
+    assert (result["status"], result["reason"]) == (
+        "healthy",
+        "last_cycle_succeeded",
+    )
+    assert monitor.CONTAINER_GENERATION_CLOCK_TOLERANCE_SECONDS == 0
+    assert result["cycle_status_current_container"] is True
+    assert result["container_started_epoch"] == result["cycle_evidence_epoch"]
+
+
+def test_cycle_evidence_one_second_before_start_within_grace_is_rejected() -> None:
     result = classify_downloader(
         observation=docker_observation(started_age=100),
         cycle_value=cycle(
@@ -881,28 +1038,31 @@ def test_cycle_evidence_one_second_before_container_start_is_accepted() -> None:
             started_age=131,
         ),
     )
-    assert result["status"] == "healthy"
-    assert result["cycle_status_current_container"] is True
-    assert result["container_started_epoch"] - result["cycle_evidence_epoch"] == 1
-
-
-def test_cycle_evidence_two_seconds_before_container_start_is_rejected() -> None:
-    result = classify_downloader(
-        observation=docker_observation(started_age=100),
-        cycle_value=cycle(
-            state="success",
-            age=102,
-            last_success_age=102,
-            progress_age=None,
-            started_age=132,
-        ),
-    )
     assert (result["status"], result["reason"]) == (
         "starting",
         "awaiting_current_container_cycle",
     )
     assert result["cycle_status_current_container"] is False
-    assert result["container_started_epoch"] - result["cycle_evidence_epoch"] == 2
+    assert result["container_started_epoch"] - result["cycle_evidence_epoch"] == 1
+
+
+def test_cycle_evidence_one_second_before_start_after_grace_is_failed() -> None:
+    result = classify_downloader(
+        observation=docker_observation(started_age=301),
+        cycle_value=cycle(
+            state="success",
+            age=302,
+            last_success_age=302,
+            progress_age=None,
+            started_age=332,
+        ),
+    )
+    assert (result["status"], result["reason"]) == (
+        "failed",
+        "cycle_status_from_previous_container",
+    )
+    assert result["cycle_status_current_container"] is False
+    assert result["container_started_epoch"] - result["cycle_evidence_epoch"] == 1
 
 
 def test_missing_container_start_time_fails_closed() -> None:
