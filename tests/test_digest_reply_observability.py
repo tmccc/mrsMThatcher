@@ -4,6 +4,8 @@ import sys
 from contextlib import contextmanager
 from datetime import datetime, timedelta
 
+import pytest
+
 import historical_context_formatter as formatter
 import mrs_log_digest as digest
 
@@ -3036,6 +3038,59 @@ def test_reply_visual_context_correlates_collection_and_window_gaps_safely():
     assert full_hash[:12] in rendered
     assert full_hash not in rendered
     assert full_hash in json.dumps(report)
+
+
+@pytest.mark.parametrize(
+    ("status", "supplied_image_count"),
+    [("paused", 1), ("invalid_supplied_media", 0)],
+)
+def test_reply_visual_zero_call_without_collection_is_a_lifecycle_event_only(
+    status,
+    supplied_image_count,
+):
+    report = digest.analyse(
+        [
+            reply_visual_record(
+                0,
+                reply_visual_payload(
+                    "zero-call",
+                    status=status,
+                    supplied_image_count=supplied_image_count,
+                ),
+            ),
+            reply_visual_record(
+                1,
+                reply_visual_payload(
+                    "one-call",
+                    status="provider_error",
+                    supplied_image_count=1,
+                ),
+            ),
+        ]
+    )
+    by_target = {
+        row["target_id"]: row for row in report["reply_visual_context_targets"]
+    }
+    zero_call = by_target["zero-call"]
+    one_call = by_target["one-call"]
+    summary = report["reply_visual_context_summary"]
+
+    assert zero_call["analysis_observation_status"] == "not_attempted"
+    assert zero_call["visual_analysis_event_count"] == 1
+    assert zero_call["visual_analysis_attempt_count"] == 0
+    assert zero_call["correlation_status"] == (
+        "visual_event_observed_collection_not_observed_in_selected_window"
+    )
+    assert one_call["visual_analysis_attempt_count"] == 1
+    assert one_call["correlation_status"] == (
+        "analysis_observed_collection_not_observed_in_selected_window"
+    )
+    assert summary[
+        "targets_with_visual_events_but_no_collection_observation_in_selected_window"
+    ] == 2
+    assert summary[
+        "targets_with_analysis_but_no_collection_observation_in_selected_window"
+    ] == 1
 
 
 def test_reply_visual_failure_statuses_and_repeated_hashes_are_objective():

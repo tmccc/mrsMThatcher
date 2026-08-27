@@ -8340,8 +8340,10 @@ def reply_visual_context_report(
             if latest_collection
             else "not_observed_in_selected_window"
         )
-        if not collections and visual_events_for_target:
+        if not collections and analysis_attempt_count > 0:
             correlation_status = "analysis_observed_collection_not_observed_in_selected_window"
+        elif not collections and visual_events_for_target:
+            correlation_status = "visual_event_observed_collection_not_observed_in_selected_window"
         elif latest_collection_status == "unavailable":
             correlation_status = "collection_unavailable"
         elif supplied_observed and successful:
@@ -8401,7 +8403,7 @@ def reply_visual_context_report(
         "target_count": len(rows),
         "targets_with_analysis_but_no_collection_observation_in_selected_window": sum(
             row["collection_observation_status"] == "not_observed_in_selected_window"
-            and row["visual_analysis_event_count"] > 0
+            and row["visual_analysis_attempt_count"] > 0
             for row in rows
         ),
         "targets_with_visual_events_but_no_collection_observation_in_selected_window": sum(
