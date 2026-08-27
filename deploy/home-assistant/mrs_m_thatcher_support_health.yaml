@@ -87,20 +87,39 @@ automation:
       - action: notify.millie_powerwall_alert_devices
         continue_on_error: true
         data:
-          title: "MrsMThatcher supporting service problem"
+          title: >-
+            {% if trigger.to_state.state == 'monitor_stale' %}
+              MrsMThatcher support monitor stale
+            {% else %}
+              MrsMThatcher supporting service problem
+            {% endif %}
           message: >-
             {% set entity = 'sensor.mrs_m_thatcher_support_health' %}
-            {% set details = state_attr(entity, 'problem_details') %}
-            {{ state_attr(entity, 'summary') or
-               'Home Assistant has no fresh MrsMThatcher support-monitor data.' }}
-            {% if details is iterable and details is not string %}
-            {% for detail in details %}
-            - {{ detail }}
-            {% endfor %}
+            {% if trigger.to_state.state == 'monitor_stale' %}
+              {% set checked = state_attr(entity, 'checked_epoch') %}
+              {% if checked is number and checked > 0 %}
+                {% set age_minutes =
+                  (((as_timestamp(now()) - checked) / 60) | round(0)) | int %}
+                The MrsMThatcher support monitor has not published a fresh result
+                for approximately {{ age_minutes }} minutes. Last checked:
+                {{ checked | timestamp_custom('%Y-%m-%d %H:%M:%S %Z', true) }}.
+              {% else %}
+                The MrsMThatcher support monitor has not published a fresh result.
+                No valid last checked time is available.
+              {% endif %}
+            {% else %}
+              {% set details = state_attr(entity, 'problem_details') %}
+              {{ state_attr(entity, 'summary') or
+                 'A MrsMThatcher supporting component needs attention.' }}
+              {% if details is iterable and details is not string %}
+              {% for detail in details %}
+              - {{ detail }}
+              {% endfor %}
+              {% endif %}
+              Checked: {% set checked = state_attr(entity, 'checked_epoch') %}
+              {{ checked | timestamp_custom('%Y-%m-%d %H:%M:%S %Z', true)
+                 if checked is number else 'unavailable' }}.
             {% endif %}
-            Checked: {% set checked = state_attr(entity, 'checked_epoch') %}
-            {{ checked | timestamp_custom('%Y-%m-%d %H:%M:%S %Z', true)
-               if checked is number else 'unavailable' }}.
           data:
             tag: mrs_m_thatcher_support_health
     mode: restart

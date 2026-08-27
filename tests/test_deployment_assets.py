@@ -214,6 +214,32 @@ def test_support_health_alert_and_recovery_have_required_stability() -> None:
     assert "mode: restart" in recovery
 
 
+def test_support_health_stale_alert_does_not_repeat_old_health_summary() -> None:
+    home_assistant = (
+        HOME_ASSISTANT_DIR / "mrs_m_thatcher_support_health.yaml"
+    ).read_text(encoding="utf-8")
+    alert = home_assistant.split(
+        "  - id: mrs_m_thatcher_support_health_recovery", 1
+    )[0]
+    message = alert.split("          message: >-", 1)[1].split(
+        "          data:\n            tag: mrs_m_thatcher_support_health", 1
+    )[0]
+    normal_marker = "{% else %}\n              {% set details = state_attr(entity, 'problem_details') %}"
+    stale_branch, normal_branch = message.split(normal_marker, 1)
+
+    assert "trigger.to_state.state == 'monitor_stale'" in alert
+    assert "MrsMThatcher support monitor stale" in alert
+    assert "has not published a fresh result" in stale_branch
+    assert "age_minutes" in stale_branch
+    assert "Last checked:" in stale_branch
+    assert "state_attr(entity, 'summary')" not in stale_branch
+    assert "problem_details" in message
+    assert "state_attr(entity, 'summary')" in normal_branch
+    assert "notify.millie_powerwall_alert_devices" in alert
+    assert "tag: mrs_m_thatcher_support_health" in alert
+    assert "critical" not in alert.lower()
+
+
 def test_canonical_user_units_cover_live_services_without_secrets() -> None:
     main = (SYSTEMD_DIR / "mrsMThatcher.service").read_text(encoding="utf-8")
     analytics = (SYSTEMD_DIR / "mrs-engagement-analytics.service").read_text(encoding="utf-8")

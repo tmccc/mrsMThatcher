@@ -40,6 +40,12 @@ Timer-triggered `Type=oneshot` services are normally `inactive/dead` between
 runs. That state alone is healthy. The monitor instead checks the timer's
 loaded, enabled and active state; its last and next elapse; the latest service
 result and exit status; current runtime; and the last observed success.
+Systemd's actual next-trigger epoch takes precedence over the configured
+nominal interval, preventing false stale results across 23-hour and 25-hour
+British clock-change days. The monitor requests Unix-epoch timestamps from
+`systemctl`; on the deployed systemd 249 host, which lacks that renderer, it
+reads only timestamp properties as raw microseconds from the local systemd
+D-Bus API instead of parsing ambiguous BST/GMT display strings.
 
 Configuration is strictly bounded. Unit names and component IDs must be
 plausible and unique, the downloader status path must be absolute, and its
@@ -94,6 +100,21 @@ or a traceback. A killed or hung process leaves `running`, so progress and
 runtime limits expose it. Status-write failure is fail-open for the downloader
 and produces only a bounded local warning.
 
+Cycle evidence is accepted only when its latest relevant timestamp belongs to
+the current container generation, using Docker's container start time and a
+small 30-second clock/order tolerance. A prior generation's document is
+`awaiting_current_container_cycle` during startup grace and
+`cycle_status_from_previous_container` afterwards. For a running cycle,
+progress age starts at `last_progress_epoch` when present and otherwise at
+`cycle_started_epoch`, so a hang before the first validated item still reaches
+the configured progress deadline.
+
+Transient state counts same-container Docker restart deltas separately from
+distinct container IDs. One planned replacement is allowed; reaching the
+configured generation threshold within the restart window reports
+`rapid_container_replacements`. Old generations are pruned and repeated polls
+of one ID do not increase the count.
+
 The live downloader refreshes its source sitemap on a persisted three-day
 schedule. A normal sitemap refresh takes roughly 18 minutes before any new
 targets. The initial PDF catch-up is much longer, so the host can use a long
@@ -140,8 +161,10 @@ Home Assistant independently treats output older than six minutes as a
 problem using `now()`. `starting` is not a problem while the source timestamp
 is valid. Alerts use `notify.millie_powerwall_alert_devices`, wait three
 minutes, use the stable tag `mrs_m_thatcher_support_health`, and are ordinary
-notifications. Recovery waits for the primary sensor to be `healthy`, then
-requires two more stable minutes and rechecks both entities.
+notifications. A `monitor_stale` alert uses dedicated wording and the last
+valid checked time/age; it never repeats an old aggregate summary or claims
+that components remain healthy. Recovery waits for the primary sensor to be
+`healthy`, then requires two more stable minutes and rechecks both entities.
 
 ## Operation
 

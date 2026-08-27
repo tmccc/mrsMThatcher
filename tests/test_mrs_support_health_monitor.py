@@ -226,14 +226,133 @@ def test_daily_calendar_timer_is_not_falsely_stale() -> None:
     cfg = systemd_config(interval=86_400)
     result, _ = classify_systemd(
         cfg=cfg,
-        timer_value=timer(last=NOW - 82_800, next_epoch=NOW + 3_600),
+        timer_value=timer(last=NOW - 88_800, next_epoch=NOW + 1_200),
         service_value=service(
-            start=NOW - 82_801,
-            exit_epoch=NOW - 82_800,
+            start=NOW - 88_801,
+            exit_epoch=NOW - 88_800,
             invocation="daily",
         ),
     )
     assert result["status"] == "healthy"
+
+
+def test_actual_next_timer_trigger_beyond_grace_is_overdue() -> None:
+    result, _ = classify_systemd(
+        cfg=systemd_config(interval=86_400),
+        timer_value=timer(last=NOW - 86_000, next_epoch=NOW - 301),
+        service_value=service(exit_epoch=NOW - 86_000, invocation="daily-overdue"),
+    )
+    assert (result["status"], result["reason"]) == ("degraded", "timer_overdue")
+
+
+def test_actual_next_trigger_wins_during_repeated_autumn_hour() -> None:
+    result, _ = classify_systemd(
+        cfg=systemd_config(interval=3_600),
+        timer_value=timer(last=NOW - 4_200, next_epoch=NOW + 600),
+        service_value=service(exit_epoch=NOW - 4_200, invocation="autumn-hour"),
+    )
+    assert (result["status"], result["reason"]) == (
+        "healthy",
+        "last_run_succeeded",
+    )
+
+
+def test_nominal_interval_is_fallback_when_next_trigger_is_unavailable() -> None:
+    result, _ = classify_systemd(
+        cfg=systemd_config(interval=3_600),
+        timer_value=timer(last=NOW - 4_000, next_epoch=None),
+        service_value=service(exit_epoch=NOW - 4_000, invocation="fallback"),
+    )
+    assert (result["status"], result["reason"]) == (
+        "degraded",
+        "successful_run_stale",
+    )
+
+
+@pytest.mark.parametrize(
+    ("raw", "expected"),
+    [("@1787849000", 1_787_849_000), ("@1787849000.123456", 1_787_849_000)],
+)
+def test_unix_systemd_timestamp_parsing(raw: str, expected: int) -> None:
+    assert monitor._parse_systemd_epoch(raw) == expected
+
+
+def test_invalid_systemd_timestamp_fails_inspection() -> None:
+    def runner(
+        _arguments: list[str], **_kwargs: object
+    ) -> subprocess.CompletedProcess[str]:
+        return completed(timer_show_output(last="Thu 2026-08-27 20:00:00 BST"))
+
+    with pytest.raises(monitor.ObservationError, match="invalid Unix timestamp"):
+        monitor.inspect_timer("mrs-job.timer", runner=runner)
+
+
+def test_systemctl_show_requests_unix_timestamps() -> None:
+    calls: list[list[str]] = []
+
+    def runner(
+        arguments: list[str], **_kwargs: object
+    ) -> subprocess.CompletedProcess[str]:
+        calls.append(arguments)
+        return completed(timer_show_output())
+
+    inspected = monitor.inspect_timer("mrs-job.timer", runner=runner)
+    assert inspected.last_trigger_epoch == NOW - 600
+    assert "--timestamp=unix" in calls[0]
+
+
+def test_systemd_249_fallback_reads_raw_dbus_microseconds() -> None:
+    calls: list[list[str]] = []
+
+    def runner(
+        arguments: list[str], **_kwargs: object
+    ) -> subprocess.CompletedProcess[str]:
+        calls.append(arguments)
+        if "--timestamp=unix" in arguments:
+            return completed(returncode=1, stderr="Invalid value: unix.\n")
+        if arguments[0] == monitor.SYSTEMCTL:
+            return completed(
+                timer_show_output(
+                    last="Thu 2026-08-27 20:00:00 BST",
+                    next_value="Thu 2026-08-27 20:15:00 BST",
+                )
+            )
+        if "GetUnit" in arguments:
+            return completed('o "/org/freedesktop/systemd1/unit/mrs_2djob_2etimer"\n')
+        return completed(f"t {(NOW - 600) * 1_000_000}\nt {(NOW + 300) * 1_000_000}\n")
+
+    inspected = monitor.inspect_timer("mrs-job.timer", runner=runner)
+    assert inspected.last_trigger_epoch == NOW - 600
+    assert inspected.next_trigger_epoch == NOW + 300
+    assert any(call[0] == monitor.BUSCTL for call in calls)
+
+
+def test_systemd_249_fallback_preserves_missing_unit_classification() -> None:
+    calls: list[list[str]] = []
+
+    def runner(
+        arguments: list[str], **_kwargs: object
+    ) -> subprocess.CompletedProcess[str]:
+        calls.append(arguments)
+        if "--timestamp=unix" in arguments:
+            return completed(returncode=1, stderr="Invalid value: unix.\n")
+        return completed(
+            timer_show_output().replace("LoadState=loaded", "LoadState=not-found")
+        )
+
+    inspected = monitor.inspect_timer("mrs-missing.timer", runner=runner)
+    classified, _ = monitor.evaluate_systemd_component(
+        systemd_config(),
+        timer=inspected,
+        service=service(),
+        now_epoch=NOW,
+        monotonic_now=MONOTONIC_NOW,
+    )
+    assert (classified["status"], classified["reason"]) == (
+        "failed",
+        "timer_missing",
+    )
+    assert all(call[0] != monitor.BUSCTL for call in calls)
 
 
 def test_aggregate_precedence_and_ignored_exclusion() -> None:
@@ -253,15 +372,19 @@ def test_aggregate_precedence_and_ignored_exclusion() -> None:
     assert monitor.aggregate_report(now_epoch=NOW, components=components)["status"] == "healthy"
 
 
-def downloader_config() -> monitor.DownloaderConfig:
+def downloader_config(
+    *,
+    maximum_cycle_seconds: int = 7_200,
+    maximum_progress_age_seconds: int = 600,
+) -> monitor.DownloaderConfig:
     return monitor.DownloaderConfig(
         id="downloader",
         expected=True,
         selector=monitor.DockerSelector(compose_project="site", compose_service="mirror"),
         cycle_status_file=Path("/private/downloader-health.json"),
-        maximum_cycle_seconds=7_200,
+        maximum_cycle_seconds=maximum_cycle_seconds,
         maximum_success_age_seconds=604_800,
-        maximum_progress_age_seconds=600,
+        maximum_progress_age_seconds=maximum_progress_age_seconds,
         docker_health_starting_grace_seconds=300,
         rapid_restart_count=3,
         rapid_restart_window_seconds=900,
@@ -278,20 +401,20 @@ def docker_observation(
     dead: bool = False,
     health: str = "not_configured",
     restart_count: int = 0,
-    started_age: int = 1_000,
+    started_age: int | None = 10_000,
 ) -> monitor.DockerObservation:
     return monitor.DockerObservation(
         container_id=container_id,
         name="thatcher-mirror",
         image="thatcher-mirror:test",
-        created_epoch=NOW - 2_000,
+        created_epoch=NOW - 20_000,
         status=status,
         running=running,
         restarting=restarting,
         oom_killed=oom,
         dead=dead,
         exit_code=0,
-        started_epoch=NOW - started_age,
+        started_epoch=NOW - started_age if started_age is not None else None,
         finished_epoch=None,
         restart_count=restart_count,
         docker_health=health,
@@ -306,12 +429,15 @@ def cycle(
     age: int = 60,
     last_success_age: int | None = 60,
     progress_age: int | None = 10,
+    started_age: int | None = None,
 ) -> dict:
     completed = NOW - age if state != "running" else None
     success = NOW - last_success_age if last_success_age is not None else None
+    if started_age is None:
+        started_age = age + (30 if state != "running" else 0)
     return {
         "state": state,
-        "cycle_started_epoch": NOW - age - (30 if state != "running" else 0),
+        "cycle_started_epoch": NOW - started_age,
         "cycle_completed_epoch": completed,
         "last_success_epoch": success,
         "last_progress_epoch": NOW - progress_age if progress_age is not None else None,
@@ -323,23 +449,47 @@ def cycle(
 
 def classify_downloader(
     *,
+    cfg: monitor.DownloaderConfig | None = None,
     observation: monitor.DockerObservation | None = None,
     cycle_value: dict | None = None,
     restart_events: int = 0,
+    container_generations: int = 1,
     resolution_count: int = 1,
 ) -> dict:
     return monitor.evaluate_downloader(
-        downloader_config(),
+        cfg or downloader_config(),
         observation=docker_observation() if observation is None else observation,
         cycle=cycle() if cycle_value is None else cycle_value,
         now_epoch=NOW,
         restart_events=restart_events,
+        container_generations=container_generations,
         resolution_count=resolution_count,
     )
 
 
-def completed(stdout: str = "", *, returncode: int = 0) -> subprocess.CompletedProcess[str]:
-    return subprocess.CompletedProcess([], returncode, stdout, "")
+def completed(
+    stdout: str = "", *, returncode: int = 0, stderr: str = ""
+) -> subprocess.CompletedProcess[str]:
+    return subprocess.CompletedProcess([], returncode, stdout, stderr)
+
+
+def timer_show_output(
+    *,
+    last: str | None = None,
+    next_value: str | None = None,
+) -> str:
+    values = {
+        "LoadState": "loaded",
+        "ActiveState": "active",
+        "SubState": "waiting",
+        "UnitFileState": "enabled",
+        "LastTriggerUSec": last or f"@{NOW - 600}",
+        "LastTriggerUSecMonotonic": "1000000",
+        "NextElapseUSecRealtime": next_value or f"@{NOW + 300}.123456",
+        "NextElapseUSecMonotonic": "2000000",
+        "Triggers": "mrs-job.service",
+    }
+    return "\n".join(f"{name}={values[name]}" for name in monitor.TIMER_PROPERTIES) + "\n"
 
 
 def test_exact_compose_label_selector_resolves_one_container() -> None:
@@ -429,31 +579,263 @@ def test_stopped_dead_and_oom_containers_are_failed(
 
 
 def test_one_planned_container_replacement_is_not_a_crash_loop() -> None:
-    first, _ = monitor.observe_docker_restarts(
+    first, restart_count, generations = monitor.observe_docker_restarts(
         {}, docker_observation(container_id="a" * 64), now_epoch=NOW - 60, window_seconds=900
     )
-    second, count = monitor.observe_docker_restarts(
+    assert restart_count == 0
+    assert generations == 1
+    second, count, generations = monitor.observe_docker_restarts(
         first, docker_observation(container_id="b" * 64), now_epoch=NOW, window_seconds=900
     )
     assert count == 0
+    assert generations == 2
     assert len(second["recent_container_ids"]) == 2
+    assert classify_downloader(container_generations=generations)["status"] == "healthy"
 
 
 def test_three_actual_restart_events_within_window_are_degraded() -> None:
-    history, _ = monitor.observe_docker_restarts(
+    history, _, _ = monitor.observe_docker_restarts(
         {}, docker_observation(restart_count=0), now_epoch=NOW - 60, window_seconds=900
     )
-    history, count = monitor.observe_docker_restarts(
+    history, count, generations = monitor.observe_docker_restarts(
         history,
         docker_observation(restart_count=3),
         now_epoch=NOW,
         window_seconds=900,
     )
-    result = classify_downloader(restart_events=count)
+    result = classify_downloader(
+        restart_events=count, container_generations=generations
+    )
     assert count == 3
     assert (result["status"], result["reason"]) == (
         "degraded",
         "rapid_container_restarts",
+    )
+
+
+def test_three_rapid_container_generations_are_degraded() -> None:
+    history, _, _ = monitor.observe_docker_restarts(
+        {}, docker_observation(container_id="a" * 64), now_epoch=NOW - 120, window_seconds=900
+    )
+    history, _, _ = monitor.observe_docker_restarts(
+        history,
+        docker_observation(container_id="b" * 64),
+        now_epoch=NOW - 60,
+        window_seconds=900,
+    )
+    history, restarts, generations = monitor.observe_docker_restarts(
+        history,
+        docker_observation(container_id="c" * 64),
+        now_epoch=NOW,
+        window_seconds=900,
+    )
+    result = classify_downloader(
+        restart_events=restarts, container_generations=generations
+    )
+    assert generations == 3
+    assert result["container_generations_window"] == 3
+    assert (result["status"], result["reason"]) == (
+        "degraded",
+        "rapid_container_replacements",
+    )
+
+
+def test_old_container_generations_are_pruned_outside_window() -> None:
+    history, _, _ = monitor.observe_docker_restarts(
+        {}, docker_observation(container_id="a" * 64), now_epoch=NOW - 2_000, window_seconds=900
+    )
+    history, _, _ = monitor.observe_docker_restarts(
+        history,
+        docker_observation(container_id="b" * 64),
+        now_epoch=NOW - 1_000,
+        window_seconds=900,
+    )
+    _, restarts, generations = monitor.observe_docker_restarts(
+        history,
+        docker_observation(container_id="c" * 64),
+        now_epoch=NOW,
+        window_seconds=900,
+    )
+    assert restarts == 0
+    assert generations == 1
+    assert classify_downloader(container_generations=generations)["status"] == "healthy"
+
+
+def test_repeated_polls_of_same_container_keep_one_generation() -> None:
+    history: dict = {}
+    for observed_at in (NOW - 120, NOW - 60, NOW):
+        history, restarts, generations = monitor.observe_docker_restarts(
+            history,
+            docker_observation(container_id="a" * 64),
+            now_epoch=observed_at,
+            window_seconds=900,
+        )
+    assert restarts == 0
+    assert generations == 1
+    assert len(history["recent_container_ids"]) == 1
+
+
+def test_stopped_container_failure_precedes_replacement_warning() -> None:
+    result = classify_downloader(
+        observation=docker_observation(status="exited", running=False),
+        restart_events=3,
+        container_generations=3,
+    )
+    assert (result["status"], result["reason"]) == (
+        "failed",
+        "container_stopped",
+    )
+
+
+def test_malformed_and_expired_generation_history_is_discarded() -> None:
+    history = {
+        "container_id": "a" * 64,
+        "restart_count": 0,
+        "restart_events": ["bad", NOW - 901],
+        "recent_container_ids": [
+            "bad",
+            {"id": "a" * 64, "first_seen_epoch": "bad"},
+            {"id": "a" * 64, "first_seen_epoch": NOW - 901},
+        ],
+    }
+    next_history, restarts, generations = monitor.observe_docker_restarts(
+        history,
+        docker_observation(container_id="a" * 64),
+        now_epoch=NOW,
+        window_seconds=900,
+    )
+    assert restarts == 0
+    assert generations == 1
+    assert next_history["recent_container_ids"] == [
+        {"id": "a" * 64, "first_seen_epoch": NOW}
+    ]
+
+
+def test_previous_container_success_within_startup_grace_is_starting() -> None:
+    old_success = cycle(
+        state="success",
+        age=200,
+        last_success_age=200,
+        progress_age=None,
+        started_age=230,
+    )
+    result = classify_downloader(
+        observation=docker_observation(started_age=100), cycle_value=old_success
+    )
+    assert (result["status"], result["reason"]) == (
+        "starting",
+        "awaiting_current_container_cycle",
+    )
+    assert result["cycle_status_current_container"] is False
+
+
+def test_previous_container_success_after_startup_grace_is_failed() -> None:
+    old_success = cycle(
+        state="success",
+        age=400,
+        last_success_age=400,
+        progress_age=None,
+        started_age=430,
+    )
+    result = classify_downloader(
+        observation=docker_observation(started_age=301), cycle_value=old_success
+    )
+    assert (result["status"], result["reason"]) == (
+        "failed",
+        "cycle_status_from_previous_container",
+    )
+
+
+def test_previous_container_failure_is_not_current_cycle_failure() -> None:
+    old_failure = cycle(
+        state="failed",
+        age=400,
+        last_success_age=500,
+        progress_age=None,
+        started_age=430,
+    )
+    result = classify_downloader(
+        observation=docker_observation(started_age=301), cycle_value=old_failure
+    )
+    assert (result["status"], result["reason"]) == (
+        "failed",
+        "cycle_status_from_previous_container",
+    )
+    assert result["reason"] != "last_cycle_failed"
+
+
+def test_current_container_running_cycle_is_accepted() -> None:
+    current = cycle(
+        state="running", age=900, last_success_age=None, progress_age=10
+    )
+    result = classify_downloader(
+        observation=docker_observation(started_age=1_000), cycle_value=current
+    )
+    assert (result["status"], result["reason"]) == (
+        "starting",
+        "initial_cycle_running",
+    )
+    assert result["cycle_status_current_container"] is True
+
+
+def test_current_container_success_cycle_is_accepted() -> None:
+    result = classify_downloader(
+        observation=docker_observation(started_age=1_000),
+        cycle_value=cycle(state="success", age=60, progress_age=None),
+    )
+    assert (result["status"], result["reason"]) == (
+        "healthy",
+        "last_cycle_succeeded",
+    )
+    assert result["cycle_status_current_container"] is True
+
+
+def test_cycle_evidence_at_clock_tolerance_boundary_is_accepted() -> None:
+    result = classify_downloader(
+        observation=docker_observation(started_age=100),
+        cycle_value=cycle(
+            state="success",
+            age=130,
+            last_success_age=130,
+            progress_age=None,
+            started_age=160,
+        ),
+    )
+    assert result["status"] == "healthy"
+    assert result["cycle_status_current_container"] is True
+
+
+def test_missing_container_start_time_fails_closed() -> None:
+    result = classify_downloader(observation=docker_observation(started_age=None))
+    assert (result["status"], result["reason"]) == (
+        "failed",
+        "container_start_time_unavailable",
+    )
+
+
+def test_same_container_id_restart_invalidates_old_cycle_evidence() -> None:
+    container_id = "d" * 64
+    old_success = cycle(
+        state="success",
+        age=500,
+        last_success_age=500,
+        progress_age=None,
+        started_age=530,
+    )
+    before = classify_downloader(
+        observation=docker_observation(
+            container_id=container_id, started_age=1_000
+        ),
+        cycle_value=old_success,
+    )
+    after = classify_downloader(
+        observation=docker_observation(container_id=container_id, started_age=100),
+        cycle_value=old_success,
+    )
+    assert before["status"] == "healthy"
+    assert (after["status"], after["reason"]) == (
+        "starting",
+        "awaiting_current_container_cycle",
     )
 
 
@@ -498,6 +880,98 @@ def test_running_cycle_beyond_maximum_is_degraded() -> None:
 def test_stale_functional_progress_is_degraded() -> None:
     result = classify_downloader(
         cycle_value=cycle(state="running", age=1_000, progress_age=601)
+    )
+    assert (result["status"], result["reason"]) == (
+        "degraded",
+        "cycle_progress_stale",
+    )
+
+
+def test_initial_cycle_without_progress_before_deadline_is_starting() -> None:
+    cfg = downloader_config(
+        maximum_cycle_seconds=2_592_000, maximum_progress_age_seconds=1_800
+    )
+    result = classify_downloader(
+        cfg=cfg,
+        cycle_value=cycle(
+            state="running",
+            age=1_799,
+            last_success_age=None,
+            progress_age=None,
+        ),
+    )
+    assert (result["status"], result["reason"]) == (
+        "starting",
+        "initial_cycle_running",
+    )
+
+
+def test_initial_cycle_without_progress_after_deadline_is_degraded() -> None:
+    cfg = downloader_config(
+        maximum_cycle_seconds=2_592_000, maximum_progress_age_seconds=1_800
+    )
+    result = classify_downloader(
+        cfg=cfg,
+        cycle_value=cycle(
+            state="running",
+            age=1_801,
+            last_success_age=None,
+            progress_age=None,
+        ),
+    )
+    assert (result["status"], result["reason"]) == (
+        "degraded",
+        "cycle_progress_stale",
+    )
+
+
+def test_cycle_with_prior_success_without_new_progress_becomes_stale() -> None:
+    cfg = downloader_config(
+        maximum_cycle_seconds=2_592_000, maximum_progress_age_seconds=1_800
+    )
+    result = classify_downloader(
+        cfg=cfg,
+        cycle_value=cycle(
+            state="running",
+            age=1_801,
+            last_success_age=100,
+            progress_age=None,
+        ),
+    )
+    assert (result["status"], result["reason"]) == (
+        "degraded",
+        "cycle_progress_stale",
+    )
+
+
+def test_recent_progress_overrides_older_cycle_start() -> None:
+    cfg = downloader_config(
+        maximum_cycle_seconds=2_592_000, maximum_progress_age_seconds=1_800
+    )
+    result = classify_downloader(
+        cfg=cfg,
+        cycle_value=cycle(
+            state="running", age=5_000, last_success_age=100, progress_age=10
+        ),
+    )
+    assert (result["status"], result["reason"]) == (
+        "healthy",
+        "current_cycle_progressing",
+    )
+
+
+def test_progress_deadline_applies_during_thirty_day_runtime_allowance() -> None:
+    cfg = downloader_config(
+        maximum_cycle_seconds=2_592_000, maximum_progress_age_seconds=1_800
+    )
+    result = classify_downloader(
+        cfg=cfg,
+        cycle_value=cycle(
+            state="running",
+            age=20_000,
+            last_success_age=None,
+            progress_age=1_801,
+        ),
     )
     assert (result["status"], result["reason"]) == (
         "degraded",

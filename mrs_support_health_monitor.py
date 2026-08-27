@@ -24,12 +24,14 @@ from typing import Any, Callable, Mapping, Sequence
 
 SCHEMA_VERSION = 1
 STATE_SCHEMA_VERSION = 1
+CONTAINER_GENERATION_CLOCK_TOLERANCE_SECONDS = 30
 MAX_CONFIG_BYTES = 64 * 1024
 MAX_STATE_BYTES = 64 * 1024
 MAX_CYCLE_STATUS_BYTES = 16 * 1024
 MAX_COMPONENTS = 32
 COMMAND_TIMEOUT_SECONDS = 8
 SYSTEMCTL = "/usr/bin/systemctl"
+BUSCTL = "/usr/bin/busctl"
 DOCKER = "/usr/bin/docker"
 
 ID_RE = re.compile(r"^[a-z][a-z0-9_]{0,63}$")
@@ -408,17 +410,21 @@ def load_config(path: Path) -> MonitorConfig:
 
 
 def _parse_systemd_epoch(value: str) -> int | None:
-    if not value or value in {"n/a", "0"}:
+    if not value or value in {"n/a", "0", "@0"}:
         return None
-    match = re.search(r"([0-9]{4}-[0-9]{2}-[0-9]{2} [0-9]{2}:[0-9]{2}:[0-9]{2})", value)
+    match = re.fullmatch(r"@([0-9]+)(?:[.]([0-9]{1,9}))?", value)
     if not match:
-        return None
+        raise ObservationError("systemctl returned an invalid Unix timestamp")
     try:
-        # A naive datetime deliberately uses the host's local timezone, which
-        # is also what systemctl uses for these display properties.
-        return int(datetime.strptime(match.group(1), "%Y-%m-%d %H:%M:%S").timestamp())
-    except (ValueError, OverflowError):
+        epoch = int(match.group(1))
+    except (ValueError, OverflowError) as exc:
+        raise ObservationError("systemctl returned an invalid Unix timestamp") from exc
+    fraction = match.group(2) or ""
+    if epoch == 0 and not fraction.strip("0"):
         return None
+    if epoch <= 0 or epoch > 253_402_300_799:
+        raise ObservationError("systemctl returned an invalid Unix timestamp")
+    return epoch
 
 
 def _parse_iso_epoch(value: str) -> int | None:
@@ -449,19 +455,34 @@ def _run(
 
 
 def _systemd_properties(
-    unit: str, properties: Sequence[str], *, runner: Runner = subprocess.run
+    unit: str,
+    properties: Sequence[str],
+    *,
+    timestamp_interface: str,
+    timestamp_properties: Sequence[str],
+    runner: Runner = subprocess.run,
 ) -> dict[str, str]:
-    result = _run(
-        [
-            SYSTEMCTL,
-            "--user",
-            "show",
-            unit,
-            "--no-pager",
-            "--property=" + ",".join(properties),
-        ],
-        runner=runner,
-    )
+    arguments = [
+        SYSTEMCTL,
+        "--user",
+        "show",
+        unit,
+        "--no-pager",
+        "--timestamp=unix",
+        "--property=" + ",".join(properties),
+    ]
+    result = _run(arguments, runner=runner)
+    legacy_mode = False
+    if result.returncode != 0 and "Invalid value: unix" in (result.stderr or ""):
+        # systemd 249 does not implement systemctl's Unix timestamp renderer.
+        # Retain systemctl for the bounded unit-property inspection, then read
+        # just the timestamp properties as raw uint64 microseconds over the
+        # same local user-manager D-Bus connection.
+        result = _run(
+            [argument for argument in arguments if argument != "--timestamp=unix"],
+            runner=runner,
+        )
+        legacy_mode = True
     if result.returncode != 0:
         raise ObservationError(
             f"systemctl could not inspect {unit} (exit {result.returncode})"
@@ -474,13 +495,84 @@ def _systemd_properties(
     missing = [key for key in properties if key not in parsed]
     if missing:
         raise ObservationError(f"systemctl omitted required properties for {unit}")
+    if legacy_mode:
+        if parsed.get("LoadState") == "loaded":
+            parsed.update(
+                _legacy_systemd_timestamps(
+                    unit,
+                    interface=timestamp_interface,
+                    properties=timestamp_properties,
+                    runner=runner,
+                )
+            )
+        else:
+            parsed.update({name: "0" for name in timestamp_properties})
+    return parsed
+
+
+def _legacy_systemd_timestamps(
+    unit: str,
+    *,
+    interface: str,
+    properties: Sequence[str],
+    runner: Runner,
+) -> dict[str, str]:
+    path_result = _run(
+        [
+            BUSCTL,
+            "--user",
+            "call",
+            "org.freedesktop.systemd1",
+            "/org/freedesktop/systemd1",
+            "org.freedesktop.systemd1.Manager",
+            "GetUnit",
+            "s",
+            unit,
+        ],
+        runner=runner,
+    )
+    path_match = re.fullmatch(r'\s*o "([A-Za-z0-9_/]+)"\s*', path_result.stdout)
+    if path_result.returncode != 0 or path_match is None:
+        raise ObservationError("systemd D-Bus unit-path inspection failed")
+    property_result = _run(
+        [
+            BUSCTL,
+            "--user",
+            "get-property",
+            "org.freedesktop.systemd1",
+            path_match.group(1),
+            interface,
+            *properties,
+        ],
+        runner=runner,
+    )
+    lines = property_result.stdout.splitlines()
+    if property_result.returncode != 0 or len(lines) != len(properties):
+        raise ObservationError("systemd D-Bus timestamp inspection failed")
+    parsed: dict[str, str] = {}
+    for name, line in zip(properties, lines):
+        match = re.fullmatch(r"t ([0-9]+)", line.strip())
+        if match is None:
+            raise ObservationError("systemd D-Bus returned an invalid timestamp")
+        microseconds = int(match.group(1))
+        if microseconds == 0:
+            parsed[name] = "0"
+        else:
+            seconds, remainder = divmod(microseconds, 1_000_000)
+            parsed[name] = f"@{seconds}.{remainder:06d}"
     return parsed
 
 
 def inspect_timer(unit: str, *, runner: Runner = subprocess.run) -> TimerObservation:
     """Read the required properties of one configured user timer."""
 
-    raw = _systemd_properties(unit, TIMER_PROPERTIES, runner=runner)
+    raw = _systemd_properties(
+        unit,
+        TIMER_PROPERTIES,
+        timestamp_interface="org.freedesktop.systemd1.Timer",
+        timestamp_properties=("LastTriggerUSec", "NextElapseUSecRealtime"),
+        runner=runner,
+    )
     return TimerObservation(
         load_state=raw["LoadState"],
         active_state=raw["ActiveState"],
@@ -502,7 +594,13 @@ def _integer_property(raw: Mapping[str, str], key: str) -> int:
 def inspect_service(unit: str, *, runner: Runner = subprocess.run) -> ServiceObservation:
     """Read the required properties of one configured user service."""
 
-    raw = _systemd_properties(unit, SERVICE_PROPERTIES, runner=runner)
+    raw = _systemd_properties(
+        unit,
+        SERVICE_PROPERTIES,
+        timestamp_interface="org.freedesktop.systemd1.Service",
+        timestamp_properties=("ExecMainStartTimestamp", "ExecMainExitTimestamp"),
+        runner=runner,
+    )
     return ServiceObservation(
         load_state=raw["LoadState"],
         active_state=raw["ActiveState"],
@@ -642,12 +740,10 @@ def evaluate_systemd_component(
         return {"status": "failed", "reason": "service_hard_failure", **diagnostics}, next_history
     if last_completed_outcome == "nonzero":
         return {"status": "degraded", "reason": "last_run_failed", **diagnostics}, next_history
-    if (
-        timer.next_trigger_epoch is not None
-        and now_epoch > timer.next_trigger_epoch + config.overdue_grace_seconds
-    ):
-        return {"status": "degraded", "reason": "timer_overdue", **diagnostics}, next_history
-    if (
+    if timer.next_trigger_epoch is not None:
+        if now_epoch > timer.next_trigger_epoch + config.overdue_grace_seconds:
+            return {"status": "degraded", "reason": "timer_overdue", **diagnostics}, next_history
+    elif (
         last_success is not None
         and now_epoch
         > last_success + config.expected_interval_seconds + config.overdue_grace_seconds
@@ -877,14 +973,43 @@ def read_cycle_status(path: Path, *, now_epoch: int) -> dict[str, Any]:
     )
 
 
+def cycle_evidence_epoch(cycle: Mapping[str, Any]) -> int:
+    """Return the latest generation-relevant timestamp in a validated cycle."""
+
+    state = cycle.get("state")
+    fields_by_state = {
+        "running": ("last_progress_epoch", "cycle_started_epoch"),
+        "success": (
+            "cycle_completed_epoch",
+            "last_success_epoch",
+            "last_progress_epoch",
+            "cycle_started_epoch",
+        ),
+        "failed": (
+            "cycle_completed_epoch",
+            "last_progress_epoch",
+            "last_success_epoch",
+            "cycle_started_epoch",
+        ),
+    }
+    fields = fields_by_state.get(state)
+    if fields is None:
+        raise ObservationError("downloader cycle state is invalid")
+    evidence = [cycle.get(field) for field in fields]
+    timestamps = [item for item in evidence if type(item) is int and item > 0]
+    if not timestamps:
+        raise ObservationError("downloader cycle has no generation evidence")
+    return max(timestamps)
+
+
 def observe_docker_restarts(
     history: Mapping[str, Any] | None,
     observation: DockerObservation,
     *,
     now_epoch: int,
     window_seconds: int,
-) -> tuple[dict[str, Any], int]:
-    """Update transient restart deltas without counting replacement IDs."""
+) -> tuple[dict[str, Any], int, int]:
+    """Update bounded restart events and distinct container generations."""
 
     previous = dict(history or {})
     previous_id = previous.get("container_id")
@@ -902,18 +1027,28 @@ def observe_docker_restarts(
         if isinstance(item, dict)
         and isinstance(item.get("id"), str)
         and type(item.get("first_seen_epoch")) is int
+        and item["first_seen_epoch"] >= now_epoch - window_seconds
         and item["first_seen_epoch"] <= now_epoch + 300
-    ][-8:]
+    ][-100:]
+
+    distinct_identities: list[dict[str, Any]] = []
+    seen_ids: set[str] = set()
+    for item in identities:
+        identity = item["id"][:64]
+        if identity not in seen_ids:
+            distinct_identities.append(
+                {"id": identity, "first_seen_epoch": item["first_seen_epoch"]}
+            )
+            seen_ids.add(identity)
+    identities = distinct_identities
 
     if previous_id == observation.container_id and type(previous_count) is int:
         delta = max(0, observation.restart_count - previous_count)
         events.extend([now_epoch] * min(delta, 100 - len(events)))
-    elif previous_id != observation.container_id:
-        if not identities or identities[-1].get("id") != observation.container_id:
-            identities.append(
-                {"id": observation.container_id[:64], "first_seen_epoch": now_epoch}
-            )
-            identities = identities[-8:]
+    current_id = observation.container_id[:64]
+    if current_id not in seen_ids:
+        identities.append({"id": current_id, "first_seen_epoch": now_epoch})
+        identities = identities[-100:]
     events = [item for item in events if item >= now_epoch - window_seconds][-100:]
     next_history = {
         "container_id": observation.container_id[:64],
@@ -921,7 +1056,7 @@ def observe_docker_restarts(
         "restart_events": events,
         "recent_container_ids": identities,
     }
-    return next_history, len(events)
+    return next_history, len(events), len(identities)
 
 
 def _docker_diagnostics(
@@ -929,6 +1064,7 @@ def _docker_diagnostics(
     cycle: Mapping[str, Any] | None,
     *,
     restart_events: int,
+    container_generations: int,
     now_epoch: int,
 ) -> dict[str, Any]:
     last_success = cycle.get("last_success_epoch") if cycle is not None else None
@@ -939,6 +1075,21 @@ def _docker_diagnostics(
         cycle_age = max(0, now_epoch - last_success)
     else:
         cycle_age = None
+    evidence_epoch: int | None = None
+    if cycle is not None:
+        try:
+            evidence_epoch = cycle_evidence_epoch(cycle)
+        except ObservationError:
+            pass
+    container_started = observation.started_epoch if observation is not None else None
+    current_container: bool | None = None
+    if cycle is not None:
+        current_container = (
+            container_started is not None
+            and evidence_epoch is not None
+            and evidence_epoch
+            >= container_started - CONTAINER_GENERATION_CLOCK_TOLERANCE_SECONDS
+        )
     return {
         "container_present": observation is not None,
         "container_running": observation.running if observation is not None else False,
@@ -947,6 +1098,10 @@ def _docker_diagnostics(
         "container_image": observation.image if observation is not None else None,
         "docker_health": observation.docker_health if observation is not None else None,
         "restart_events_window": restart_events,
+        "container_generations_window": container_generations,
+        "container_started_epoch": container_started,
+        "cycle_evidence_epoch": evidence_epoch,
+        "cycle_status_current_container": current_container,
         "cycle_state": cycle_state,
         "cycle_started_epoch": cycle.get("cycle_started_epoch") if cycle is not None else None,
         "cycle_completed_epoch": cycle.get("cycle_completed_epoch") if cycle is not None else None,
@@ -965,6 +1120,7 @@ def evaluate_downloader(
     cycle: Mapping[str, Any] | None,
     now_epoch: int,
     restart_events: int,
+    container_generations: int = 1,
     resolution_count: int = 1,
     observation_error: str | None = None,
     cycle_error: str | None = None,
@@ -972,7 +1128,11 @@ def evaluate_downloader(
     """Classify Docker and functional-cycle state for the downloader."""
 
     diagnostics = _docker_diagnostics(
-        observation, cycle, restart_events=restart_events, now_epoch=now_epoch
+        observation,
+        cycle,
+        restart_events=restart_events,
+        container_generations=container_generations,
+        now_epoch=now_epoch,
     )
     if not config.expected:
         return {"status": "ignored", "reason": "not_expected_active", **diagnostics}
@@ -994,15 +1154,39 @@ def evaluate_downloader(
     if observation.docker_health == "unhealthy":
         return {"status": "failed", "reason": "docker_health_unhealthy", **diagnostics}
 
-    container_age = (
-        max(0, now_epoch - observation.started_epoch)
-        if observation.started_epoch is not None
-        else None
-    )
+    if observation.started_epoch is None:
+        return {
+            "status": "failed",
+            "reason": "container_start_time_unavailable",
+            **diagnostics,
+        }
+    container_age = max(0, now_epoch - observation.started_epoch)
     if cycle_error or cycle is None:
-        if container_age is not None and container_age <= config.docker_health_starting_grace_seconds:
+        if container_age <= config.docker_health_starting_grace_seconds:
             return {"status": "starting", "reason": "awaiting_cycle_status", **diagnostics}
         return {"status": "failed", "reason": "cycle_status_invalid", **diagnostics}
+
+    try:
+        evidence_epoch = cycle_evidence_epoch(cycle)
+    except ObservationError:
+        if container_age <= config.docker_health_starting_grace_seconds:
+            return {"status": "starting", "reason": "awaiting_cycle_status", **diagnostics}
+        return {"status": "failed", "reason": "cycle_status_invalid", **diagnostics}
+    if (
+        evidence_epoch
+        < observation.started_epoch - CONTAINER_GENERATION_CLOCK_TOLERANCE_SECONDS
+    ):
+        if container_age <= config.docker_health_starting_grace_seconds:
+            return {
+                "status": "starting",
+                "reason": "awaiting_current_container_cycle",
+                **diagnostics,
+            }
+        return {
+            "status": "failed",
+            "reason": "cycle_status_from_previous_container",
+            **diagnostics,
+        }
 
     state = cycle["state"]
     last_success = cycle.get("last_success_epoch")
@@ -1011,10 +1195,12 @@ def evaluate_downloader(
     if state == "running":
         cycle_age = max(0, now_epoch - int(cycle["cycle_started_epoch"]))
         progress = cycle.get("last_progress_epoch")
+        progress_anchor = (
+            progress if type(progress) is int else int(cycle["cycle_started_epoch"])
+        )
         if (
             config.maximum_progress_age_seconds is not None
-            and type(progress) is int
-            and now_epoch - progress > config.maximum_progress_age_seconds
+            and now_epoch - progress_anchor > config.maximum_progress_age_seconds
         ):
             return {"status": "degraded", "reason": "cycle_progress_stale", **diagnostics}
         if cycle_age > config.maximum_cycle_seconds:
@@ -1031,11 +1217,17 @@ def evaluate_downloader(
     ):
         return {"status": "degraded", "reason": "successful_cycle_stale", **diagnostics}
     if observation.docker_health == "starting":
-        if container_age is not None and container_age <= config.docker_health_starting_grace_seconds:
+        if container_age <= config.docker_health_starting_grace_seconds:
             return {"status": "starting", "reason": "docker_health_starting", **diagnostics}
         return {"status": "degraded", "reason": "docker_health_starting_stale", **diagnostics}
     if restart_events >= config.rapid_restart_count:
         return {"status": "degraded", "reason": "rapid_container_restarts", **diagnostics}
+    if container_generations >= config.rapid_restart_count:
+        return {
+            "status": "degraded",
+            "reason": "rapid_container_replacements",
+            **diagnostics,
+        }
     if state == "running" and last_success is None:
         return {"status": "starting", "reason": "initial_cycle_running", **diagnostics}
     if state == "running":
@@ -1211,13 +1403,14 @@ def evaluate_monitor(
     docker_error = None
     resolution_count = 0
     restart_events = 0
+    container_generations = 0
     next_docker = dict(docker_history)
     try:
         identities = resolve_container_ids(downloader.selector, runner=runner)
         resolution_count = len(identities)
         if resolution_count == 1:
             docker_observation = inspect_container(identities[0], runner=runner)
-            next_docker, restart_events = observe_docker_restarts(
+            next_docker, restart_events, container_generations = observe_docker_restarts(
                 docker_history,
                 docker_observation,
                 now_epoch=now_epoch,
@@ -1238,6 +1431,7 @@ def evaluate_monitor(
         cycle=cycle,
         now_epoch=now_epoch,
         restart_events=restart_events,
+        container_generations=container_generations,
         resolution_count=resolution_count,
         observation_error=docker_error,
         cycle_error=cycle_error,
