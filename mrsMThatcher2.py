@@ -433,6 +433,9 @@ AUTHOR_NO_REPLY_QUARANTINE_THRESHOLD = 3
 AUTHOR_NO_REPLY_QUARANTINE_WINDOW_SECONDS = 21600
 AUTHOR_NO_REPLY_QUARANTINE_SECONDS = 43200
 AUTHOR_EVALUATION_QUARANTINE_EVIDENCE_POLICY = (
+    "majority_resolvable_terminal_no_reply_v3"
+)
+AUTHOR_EVALUATION_QUARANTINE_SEEDED_EVIDENCE_POLICY = (
     "majority_spam_or_abuse_seeded_corroboration_v2"
 )
 AUTHOR_EVALUATION_QUARANTINE_LEGACY_EVIDENCE_POLICY = (
@@ -4469,7 +4472,7 @@ def prune_author_evaluation_quarantines(
     *,
     current_epoch: int | None = None,
 ) -> bool:
-    """Expire quarantines and discard author strike records outside the window."""
+    """Expire quarantines and discard author strikes outside the live window."""
     records = state.get("author_evaluation_quarantines")
     if not isinstance(records, dict):
         state["author_evaluation_quarantines"] = {}
@@ -4519,10 +4522,7 @@ def prune_author_evaluation_quarantines(
             explicit_epoch = 0
             updated = current
             changed = True
-        explicit_seed_is_live = cutoff < explicit_epoch <= current
-        if until <= current and not explicit_seed_is_live:
-            recent = []
-        if until > current or (recent and explicit_seed_is_live):
+        if until > current or recent:
             record = {
                 "recent_no_reply_epochs": recent,
                 "quarantine_until_epoch": until,
@@ -4567,7 +4567,7 @@ def record_qualifying_author_no_reply(
     current_epoch: int | None = None,
     explicit_spam_or_abuse: bool = True,
 ) -> bool:
-    """Add one explicit or explicitly seeded corroborating no-reply strike."""
+    """Add one final majority-resolvable no-reply strike for an author."""
     author_id = str(author_id)
     if not author_id or not author_id.isdigit():
         return False
@@ -4587,11 +4587,6 @@ def record_qualifying_author_no_reply(
         if type(epoch) is int and cutoff < epoch <= current
     ]
     explicit_epoch = existing.get("latest_explicit_spam_or_abuse_epoch", 0)
-    explicit_seed_is_live = (
-        type(explicit_epoch) is int and cutoff < explicit_epoch <= current
-    )
-    if explicit_spam_or_abuse is not True and not explicit_seed_is_live:
-        return False
     if explicit_spam_or_abuse is True:
         explicit_epoch = current
     recent.append(current)
@@ -5260,16 +5255,22 @@ def normalise_author_evaluation_quarantines(value: object, *, path: Path) -> dic
         ):
             return None
         evidence_policy = raw_record.get("evidence_policy")
-        is_previous_policy = (
+        is_legacy_policy = (
             record_fields == previous_policy_fields
             and evidence_policy
             == AUTHOR_EVALUATION_QUARANTINE_LEGACY_EVIDENCE_POLICY
         )
-        if not is_previous_policy and (
-            record_fields != current_fields
-            or evidence_policy
-            != AUTHOR_EVALUATION_QUARANTINE_EVIDENCE_POLICY
-        ):
+        is_seeded_policy = (
+            record_fields == current_fields
+            and evidence_policy
+            == AUTHOR_EVALUATION_QUARANTINE_SEEDED_EVIDENCE_POLICY
+        )
+        is_current_policy = (
+            record_fields == current_fields
+            and evidence_policy
+            == AUTHOR_EVALUATION_QUARANTINE_EVIDENCE_POLICY
+        )
+        if not (is_legacy_policy or is_seeded_policy or is_current_policy):
             return None
         timestamps = raw_record.get("recent_no_reply_epochs")
         until = raw_record.get("quarantine_until_epoch")
@@ -5295,7 +5296,7 @@ def normalise_author_evaluation_quarantines(value: object, *, path: Path) -> dic
             or updated > MAX_REASONABLE_STATE_EPOCH
         ):
             return None
-        if is_previous_policy:
+        if is_legacy_policy:
             if not timestamps:
                 if not until:
                     log.warning(
@@ -5306,8 +5307,8 @@ def normalise_author_evaluation_quarantines(value: object, *, path: Path) -> dic
                     )
                     continue
                 # A v1 quarantine can outlive its six-hour strike history.
-                # Preserve that active-until value, but do not manufacture a
-                # live explicit seed which could authorise corroboration.
+                # Preserve that active-until value without manufacturing an
+                # explicit-spam timestamp that the old record did not store.
                 explicit_epoch = 0
             else:
                 explicit_epoch = timestamps[-1]
@@ -5326,9 +5327,21 @@ def normalise_author_evaluation_quarantines(value: object, *, path: Path) -> dic
                 or explicit_epoch < 0
                 or explicit_epoch > MAX_REASONABLE_STATE_EPOCH
                 or explicit_epoch > updated
-                or (not until and explicit_epoch not in timestamps)
             ):
                 return None
+            if (
+                is_seeded_policy
+                and not until
+                and explicit_epoch not in timestamps
+            ):
+                return None
+            if is_seeded_policy:
+                log.info(
+                    "Migrating seeded-corroboration author-evaluation history "
+                    "for author_id=%s from %s",
+                    author_id,
+                    path,
+                )
         result[author_id] = {
             "recent_no_reply_epochs": list(timestamps),
             "quarantine_until_epoch": until,
@@ -21341,7 +21354,7 @@ def tested_pipeline_no_reply_qualifies_for_author_quarantine(
     telemetry: dict,
     allow_corroborating_no_reply: bool = False,
 ) -> bool:
-    """Accept explicit spam/abuse, or an authorised ordinary corroboration."""
+    """Classify final majority no-replies for author-strike accounting."""
     if status != "no_reply":
         return False
     if reason == "reply_necessity_review" and telemetry.get(
@@ -23583,9 +23596,8 @@ def maybe_reply_to_mentions(
                         is True
                     )
                 ):
-                    # The recorder is the state-aware gate: an ordinary
-                    # no-reply cannot create history without a live explicit
-                    # spam/abuse seed for this exact author.
+                    # Both final outcome classes count.  The explicit flag is
+                    # retained only as backwards-compatible diagnostic data.
                     record_qualifying_author_no_reply(
                         state,
                         author_id,

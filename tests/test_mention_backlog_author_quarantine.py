@@ -3,6 +3,7 @@ from __future__ import annotations
 import copy
 import json
 from datetime import datetime, timedelta
+from zoneinfo import ZoneInfo
 
 import pytest
 
@@ -10,6 +11,23 @@ import mrsMThatcher2 as bot
 import mrs_log_digest as digest
 import tested_reply_pipeline as pipeline
 from reply_strategy import AIReply
+
+
+LONDON = ZoneInfo("Europe/London")
+
+
+def london_epoch(day: int, hour: int, minute: int, second: int) -> int:
+    return int(
+        datetime(
+            2026,
+            8,
+            day,
+            hour,
+            minute,
+            second,
+            tzinfo=LONDON,
+        ).timestamp()
+    )
 
 
 def mention(tweet_id: int, author_id: int, text: str = "@MrsMThatcher A contribution.") -> dict:
@@ -152,7 +170,7 @@ def test_three_qualifying_no_replies_start_author_quarantine() -> None:
     assert record["quarantine_until_epoch"] == start + 2 + 43_200
 
 
-def test_only_resolved_spam_or_abuse_majorities_qualify() -> None:
+def test_resolved_final_no_reply_majorities_are_classified_for_accounting() -> None:
     base = {
         "reply_necessity_outcome": "confirm_no_reply_spam_or_abuse",
         "reply_necessity_majority_resolvable": True,
@@ -201,7 +219,7 @@ def test_only_resolved_spam_or_abuse_majorities_qualify() -> None:
     ) is True
 
 
-def test_three_ordinary_no_reply_majorities_do_not_seed_clean_author() -> None:
+def test_three_ordinary_no_reply_majorities_seed_clean_author() -> None:
     state = bot.default_state()
     start = 2_000_000_000
     ordinary = {
@@ -221,9 +239,345 @@ def test_three_ordinary_no_reply_majorities_do_not_seed_clean_author() -> None:
             "200",
             current_epoch=start + offset,
             explicit_spam_or_abuse=False,
-        ) is False
+        ) is (offset == 2)
 
-    assert state["author_evaluation_quarantines"] == {}
+    assert state["author_evaluation_quarantines"]["200"][
+        "recent_no_reply_epochs"
+    ] == [start, start + 1, start + 2]
+
+
+def test_digest_author_no_reply_chronology_survives_restarts_and_skips_quarantine(
+    tmp_path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    author_176 = "1762401049766436864"
+    author_476 = "476806362"
+    qualifying_targets = [
+        "2092924492615987668",
+        "2092954605537604084",
+        "2092955150528794820",
+        "2092969945369850169",
+        "2092970858088153133",
+        "2092973785041228042",
+    ]
+    skipped_176_targets = [
+        "2092955663647338737",
+        "2092958691884519759",
+        "2093075215056073018",
+        "2093084438821310514",
+        "2093087593885782348",
+        "2093088479995433111",
+    ]
+    synthetic_476_target = "2093100000000000000"
+    clock = {"epoch": london_epoch(27, 11, 52, 47)}
+    candidate_buffer: list[dict] = []
+    real_save_state = bot.save_state
+    configure_provider_free_mention_check(
+        monkeypatch,
+        candidate_buffer,
+        current_epoch=clock["epoch"],
+    )
+    monkeypatch.setattr(bot, "save_state", real_save_state)
+    monkeypatch.setattr(bot, "STATE_FILE", tmp_path / "bot_state.json")
+    monkeypatch.setattr(bot, "STATE_BACKUP_COUNT", 0)
+    monkeypatch.setattr(bot, "now_epoch", lambda: clock["epoch"])
+    monkeypatch.setattr(
+        bot,
+        "current_datetime",
+        lambda: datetime.fromtimestamp(clock["epoch"], tz=LONDON),
+    )
+    monkeypatch.setattr(
+        bot,
+        "clarification_reply_context",
+        lambda *_args, **_kwargs: None,
+    )
+
+    context_targets: list[str] = []
+
+    def build_context(candidate: dict, _state: dict) -> tuple[dict, bool]:
+        target_id = str(candidate["id"])
+        context_targets.append(target_id)
+        return (
+            {
+                "target_id": target_id,
+                "thread_id": str(candidate["conversation_id"]),
+                "lane": "mention",
+                "incoming_contribution": str(candidate["text"]),
+                "parent_thread": [],
+            },
+            True,
+        )
+
+    monkeypatch.setattr(bot, "build_context_for_reply_ai", build_context)
+    pipeline_targets: list[str] = []
+    trace: list[tuple[str, str]] = []
+
+    def run_pipeline(**kwargs: object) -> pipeline.PipelineResult:
+        context = kwargs["context"]
+        assert isinstance(context, dict)
+        target_id = str(context["target_id"])
+        assert target_id in qualifying_targets
+        pipeline_targets.append(target_id)
+        trace.append(("pipeline", target_id))
+        return majority_no_reply_pipeline_result("confirm_no_reply")
+
+    monkeypatch.setattr(pipeline, "run_reply_pipeline", run_pipeline)
+    monkeypatch.setattr(
+        bot,
+        "tested_pipeline_structured_call",
+        lambda **_kwargs: pytest.fail("the replay must make no provider call"),
+    )
+    events: list[tuple[str, dict]] = []
+
+    def capture_event(name: str, **values: object) -> None:
+        events.append((name, dict(values)))
+        trace.append(
+            (
+                name,
+                str(values.get("target_id") or values.get("author_id") or ""),
+            )
+        )
+
+    monkeypatch.setattr(bot, "log_event", capture_event)
+    state = bot.default_state()
+
+    def process_candidate(
+        *,
+        day: int,
+        hour: int,
+        minute: int,
+        second: int,
+        target_id: str,
+        author_id: str,
+    ) -> None:
+        clock["epoch"] = london_epoch(day, hour, minute, second)
+        candidate_buffer[:] = [mention(int(target_id), int(author_id))]
+        assert bot.maybe_reply_to_mentions(state) == bot.NORMAL_CHECK_STATUS_CHECKED
+        candidate_buffer.clear()
+
+    def restart(
+        *,
+        stop: tuple[int, int, int, int],
+        start: tuple[int, int, int, int],
+    ) -> None:
+        nonlocal state
+        clock["epoch"] = london_epoch(*stop)
+        bot.save_state(state, durable=True)
+        clock["epoch"] = london_epoch(*start)
+        state = bot.load_state()
+
+    process_candidate(
+        day=27,
+        hour=11,
+        minute=52,
+        second=47,
+        target_id=qualifying_targets[0],
+        author_id=author_176,
+    )
+    restart(stop=(27, 12, 29, 30), start=(27, 12, 31, 54))
+    assert state["author_evaluation_quarantines"][author_176][
+        "recent_no_reply_epochs"
+    ] == [london_epoch(27, 11, 52, 47)]
+
+    process_candidate(
+        day=27,
+        hour=13,
+        minute=49,
+        second=33,
+        target_id=qualifying_targets[1],
+        author_id=author_176,
+    )
+    process_candidate(
+        day=27,
+        hour=13,
+        minute=49,
+        second=43,
+        target_id=qualifying_targets[2],
+        author_id=author_176,
+    )
+    expected_176_until = london_epoch(28, 1, 49, 43)
+    expected_176_strikes = [
+        london_epoch(27, 11, 52, 47),
+        london_epoch(27, 13, 49, 33),
+        london_epoch(27, 13, 49, 43),
+    ]
+    assert state["author_evaluation_quarantines"][author_176][
+        "quarantine_until_epoch"
+    ] == expected_176_until
+    assert trace.index(("pipeline", qualifying_targets[2])) < next(
+        index
+        for index, item in enumerate(trace)
+        if item == ("author_evaluation_quarantine_started", author_176)
+    )
+
+    for target_id, timestamp in zip(
+        skipped_176_targets[:2],
+        [(27, 13, 49, 54), (27, 14, 5, 16)],
+        strict=True,
+    ):
+        process_candidate(
+            day=timestamp[0],
+            hour=timestamp[1],
+            minute=timestamp[2],
+            second=timestamp[3],
+            target_id=target_id,
+            author_id=author_176,
+        )
+        assert state["author_evaluation_quarantines"][author_176][
+            "quarantine_until_epoch"
+        ] == expected_176_until
+        assert state["author_evaluation_quarantines"][author_176][
+            "recent_no_reply_epochs"
+        ] == expected_176_strikes
+
+    process_candidate(
+        day=27,
+        hour=14,
+        minute=51,
+        second=37,
+        target_id=qualifying_targets[3],
+        author_id=author_476,
+    )
+    restart(stop=(27, 15, 3, 12), start=(27, 15, 5, 26))
+    assert state["author_evaluation_quarantines"][author_476][
+        "recent_no_reply_epochs"
+    ] == [london_epoch(27, 14, 51, 37)]
+    assert bot.active_author_evaluation_quarantine(
+        state,
+        author_176,
+        current_epoch=clock["epoch"],
+    ) is not None
+
+    process_candidate(
+        day=27,
+        hour=15,
+        minute=7,
+        second=40,
+        target_id=qualifying_targets[4],
+        author_id=author_476,
+    )
+    process_candidate(
+        day=27,
+        hour=15,
+        minute=22,
+        second=54,
+        target_id=qualifying_targets[5],
+        author_id=author_476,
+    )
+    expected_476_until = london_epoch(28, 3, 22, 54)
+    assert state["author_evaluation_quarantines"][author_476][
+        "quarantine_until_epoch"
+    ] == expected_476_until
+
+    restart(stop=(27, 16, 47, 3), start=(27, 16, 47, 42))
+    assert bot.active_author_evaluation_quarantine(
+        state,
+        author_176,
+        current_epoch=clock["epoch"],
+    ) is not None
+    assert bot.active_author_evaluation_quarantine(
+        state,
+        author_476,
+        current_epoch=clock["epoch"],
+    ) is not None
+
+    # Exercise another real round trip after both six-hour strike windows have
+    # elapsed: active quarantine expiry remains independently authoritative.
+    clock["epoch"] = london_epoch(27, 21, 44, 41)
+    bot.save_state(state, durable=True)
+    state = bot.load_state()
+    assert state["author_evaluation_quarantines"][author_176][
+        "recent_no_reply_epochs"
+    ] == []
+    assert state["author_evaluation_quarantines"][author_476][
+        "recent_no_reply_epochs"
+    ] == []
+
+    for target_id, timestamp in zip(
+        skipped_176_targets[2:],
+        [
+            (27, 21, 44, 42),
+            (27, 22, 15, 5),
+            (27, 22, 30, 21),
+            (27, 22, 30, 30),
+        ],
+        strict=True,
+    ):
+        process_candidate(
+            day=timestamp[0],
+            hour=timestamp[1],
+            minute=timestamp[2],
+            second=timestamp[3],
+            target_id=target_id,
+            author_id=author_176,
+        )
+        assert state["author_evaluation_quarantines"][author_176][
+            "quarantine_until_epoch"
+        ] == expected_176_until
+        assert state["author_evaluation_quarantines"][author_176][
+            "recent_no_reply_epochs"
+        ] == []
+
+    process_candidate(
+        day=28,
+        hour=2,
+        minute=31,
+        second=51,
+        target_id=synthetic_476_target,
+        author_id=author_476,
+    )
+    digest_end = london_epoch(28, 2, 31, 51)
+    assert bot.active_author_evaluation_quarantine(
+        state,
+        author_176,
+        current_epoch=digest_end,
+    ) is None
+    assert bot.active_author_evaluation_quarantine(
+        state,
+        author_476,
+        current_epoch=digest_end,
+    ) is not None
+    assert state["author_evaluation_quarantines"][author_476][
+        "recent_no_reply_epochs"
+    ] == []
+    assert state["author_evaluation_quarantines"][author_476][
+        "quarantine_until_epoch"
+    ] == expected_476_until
+    active_authors = {
+        author_id
+        for author_id, record in state["author_evaluation_quarantines"].items()
+        if int(record["quarantine_until_epoch"]) > digest_end
+    }
+    assert active_authors == {author_476}
+    assert datetime.fromtimestamp(expected_176_until, tz=LONDON) == datetime(
+        2026, 8, 28, 1, 49, 43, tzinfo=LONDON
+    )
+    assert datetime.fromtimestamp(expected_476_until, tz=LONDON) == datetime(
+        2026, 8, 28, 3, 22, 54, tzinfo=LONDON
+    )
+
+    assert pipeline_targets == qualifying_targets
+    assert context_targets == qualifying_targets
+    starts = [
+        values
+        for name, values in events
+        if name == "author_evaluation_quarantine_started"
+    ]
+    assert [values["author_id"] for values in starts] == [author_176, author_476]
+    skips_176 = [
+        values["target_id"]
+        for name, values in events
+        if name == "author_evaluation_quarantine_skip"
+        and values["author_id"] == author_176
+    ]
+    assert skips_176 == skipped_176_targets
+    skips_476 = [
+        values["target_id"]
+        for name, values in events
+        if name == "author_evaluation_quarantine_skip"
+        and values["author_id"] == author_476
+    ]
+    assert skips_476 == [synthetic_476_target]
 
 
 def test_explicit_spam_plus_two_ordinary_no_replies_starts_quarantine_and_skips_next(
@@ -320,7 +674,18 @@ def test_strikes_outside_window_do_not_start_quarantine() -> None:
     )
 
     assert started is False
-    assert state["author_evaluation_quarantines"] == {}
+    assert state["author_evaluation_quarantines"]["200"] == {
+        "recent_no_reply_epochs": [
+            start + bot.AUTHOR_NO_REPLY_QUARANTINE_WINDOW_SECONDS,
+            start + bot.AUTHOR_NO_REPLY_QUARANTINE_WINDOW_SECONDS + 1,
+        ],
+        "quarantine_until_epoch": 0,
+        "last_updated_epoch": (
+            start + bot.AUTHOR_NO_REPLY_QUARANTINE_WINDOW_SECONDS + 1
+        ),
+        "latest_explicit_spam_or_abuse_epoch": 0,
+        "evidence_policy": bot.AUTHOR_EVALUATION_QUARANTINE_EVIDENCE_POLICY,
+    }
 
 
 def test_approved_reply_production_branch_clears_author_strikes(
@@ -831,6 +1196,43 @@ def test_previous_explicit_only_policy_history_migrates_to_live_seed(tmp_path) -
     }
 
 
+def test_seeded_v2_history_migrates_without_losing_strikes_or_active_expiry(
+    tmp_path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    start = 2_000_000_000
+    quarantine_until = start + bot.AUTHOR_NO_REPLY_QUARANTINE_SECONDS
+    previous = {
+        "200": {
+            "recent_no_reply_epochs": [start, start + 1, start + 2],
+            "quarantine_until_epoch": quarantine_until,
+            "last_updated_epoch": start + 2,
+            "latest_explicit_spam_or_abuse_epoch": start,
+            "evidence_policy": (
+                bot.AUTHOR_EVALUATION_QUARANTINE_SEEDED_EVIDENCE_POLICY
+            ),
+        }
+    }
+
+    state_file = tmp_path / "bot_state.json"
+    monkeypatch.setattr(bot, "STATE_FILE", state_file)
+    monkeypatch.setattr(bot, "STATE_BACKUP_COUNT", 0)
+    monkeypatch.setattr(bot, "now_epoch", lambda: start + 3)
+    state = bot.default_state()
+    state["author_evaluation_quarantines"] = previous
+    bot.save_state(state, durable=True)
+
+    assert bot.load_state()["author_evaluation_quarantines"] == {
+        "200": {
+            "recent_no_reply_epochs": [start, start + 1, start + 2],
+            "quarantine_until_epoch": quarantine_until,
+            "last_updated_epoch": start + 2,
+            "latest_explicit_spam_or_abuse_epoch": start,
+            "evidence_policy": bot.AUTHOR_EVALUATION_QUARANTINE_EVIDENCE_POLICY,
+        }
+    }
+
+
 def test_previous_policy_active_quarantine_without_live_strikes_survives_restart(
     tmp_path,
     monkeypatch: pytest.MonkeyPatch,
@@ -879,13 +1281,6 @@ def test_previous_policy_active_quarantine_without_live_strikes_survives_restart
         "200",
         current_epoch=current,
     ) is not None
-    assert bot.record_qualifying_author_no_reply(
-        loaded,
-        "200",
-        current_epoch=current,
-        explicit_spam_or_abuse=False,
-    ) is False
-    assert loaded["author_evaluation_quarantines"]["200"] == record
     assert bot.active_author_evaluation_quarantine(
         loaded,
         "200",
