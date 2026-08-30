@@ -19415,7 +19415,11 @@ def engagement_question_authority_failure_diagnostic(
     message_arg = exc.args[0] if exc.args and type(exc.args[0]) is str else ""
     message = message_arg[:240].casefold()
     if isinstance(exc, KeyError):
-        missing_key = exc.args[0] if len(exc.args) == 1 else None
+        missing_key = (
+            exc.args[0]
+            if len(exc.args) == 1 and type(exc.args[0]) is str
+            else None
+        )
         component = (
             "member_metadata"
             if missing_key in ENGAGEMENT_QUESTION_MEMBER_AUTHORITY_KEYS

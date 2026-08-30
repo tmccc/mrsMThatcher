@@ -776,8 +776,9 @@ def test_prewrite_authority_rejects_quote_newly_entering_used_history(
     [
         (KeyError("topic"), "member_metadata"),
         (KeyError("entries"), "authority_revalidation"),
+        (KeyError(["topic"]), "authority_revalidation"),
     ],
-    ids=["known-member-key", "unrelated-key"],
+    ids=["known-member-key", "unrelated-key", "unhashable-key"],
 )
 def test_authority_failure_diagnostic_classifies_only_known_member_keys(
     exc: KeyError,
