@@ -217,6 +217,8 @@ import requests
 from requests_oauthlib import OAuth1
 from urllib3.util import Timeout
 
+import engagement_question_experiment as engagement_question_trial
+
 from mrs_bot_health import (
     BotHealthReporter,
     HealthLoggingObserver,
@@ -558,6 +560,11 @@ historical_context_reply = {
     "include_source": True,
     "include_verification": True,
 }
+engagement_question_experiment_enabled = False
+engagement_question_experiment_plan_path = (
+    "engagement_question_experiment/active_plan.json"
+)
+engagement_question_notification_output_path = ""
 ai_first_reply_strategy = {
     "enabled": False,
     "strategy_version": "ai-first-reply-v3",
@@ -644,8 +651,9 @@ LOCAL_CONFIG_MAX_BYTES = 64 * 1024
 CONTROL_FILE = BASE_DIR / "mrsMThatcher.control.json"
 LOCK_FILE = BASE_DIR / "mrsMThatcher.lock"
 STATE_BACKUP_COUNT = 5
-STATE_READER_VERSION = 2
+STATE_READER_VERSION = 3
 STATE_MINIMUM_READER_VERSION = 2
+ENGAGEMENT_QUESTION_EXPERIMENT_STATE_MINIMUM_READER_VERSION = 3
 STATE_READER_COMPATIBILITY_FENCE = {
     "__mrs_state_reader_compatibility_fence__": STATE_MINIMUM_READER_VERSION,
 }
@@ -1662,6 +1670,9 @@ LOCAL_CONFIG_ALLOWED_KEYS = {
     "ai_first_reply_strategy",
     "tested_reply_pipeline",
     "quote_image_semantic_veto",
+    "engagement_question_experiment_enabled",
+    "engagement_question_experiment_plan_path",
+    "engagement_question_notification_output_path",
 }
 
 LOCAL_CONFIG_NON_NEGATIVE_INT_KEYS = {
@@ -1858,7 +1869,10 @@ def _coerce_local_config_value(key: str, value: object, current_value: object) -
             raise ValueError(f"{key} must be a JSON string")
         if any(ord(char) < 32 and char not in {"\n", "\t"} for char in value):
             raise ValueError(f"{key} contains unsafe control characters")
-        if key != "MEME_POST_TEXT":
+        if key not in {
+            "MEME_POST_TEXT",
+            "engagement_question_notification_output_path",
+        }:
             if not value:
                 raise ValueError(f"{key} must not be empty")
             if value != value.strip():
@@ -1875,6 +1889,42 @@ def validate_runtime_config_values(values: dict[str, object]) -> list[str]:
     expected to pass, and invalid local override sets are rejected atomically.
     """
     errors: list[str] = []
+
+    experiment_enabled = values.get(
+        "engagement_question_experiment_enabled",
+        globals().get("engagement_question_experiment_enabled"),
+    )
+    experiment_plan_path = values.get(
+        "engagement_question_experiment_plan_path",
+        globals().get("engagement_question_experiment_plan_path"),
+    )
+    notification_path = values.get(
+        "engagement_question_notification_output_path",
+        globals().get("engagement_question_notification_output_path"),
+    )
+    if type(experiment_enabled) is not bool:
+        errors.append("engagement_question_experiment_enabled must be boolean")
+    if (
+        type(experiment_plan_path) is not str
+        or not experiment_plan_path
+        or experiment_plan_path != experiment_plan_path.strip()
+        or any(ord(character) < 32 for character in experiment_plan_path)
+    ):
+        errors.append(
+            "engagement_question_experiment_plan_path must be a non-empty clean path"
+        )
+    if (
+        type(notification_path) is not str
+        or notification_path != notification_path.strip()
+        or any(ord(character) < 32 for character in notification_path)
+    ):
+        errors.append(
+            "engagement_question_notification_output_path must be an empty or clean path"
+        )
+    elif experiment_enabled is True and not notification_path:
+        errors.append(
+            "engagement_question_notification_output_path is required when the experiment is enabled"
+        )
 
     context_config = values.get("historical_context_reply", globals().get("historical_context_reply"))
     context_keys = {"enabled", "maximum_length", "include_meaning", "include_source", "include_verification"}
@@ -5493,9 +5543,17 @@ def state_document_for_persistence(state: dict) -> dict:
             "overwrite them with the reader compatibility fence"
         )
     document = dict(state)
+    experiment_state = document.get("engagement_question_experiment")
+    if experiment_state is not None:
+        engagement_question_trial.validate_experiment_state(experiment_state)
     document["minimum_reader_version"] = max(
         minimum,
         STATE_MINIMUM_READER_VERSION,
+        (
+            ENGAGEMENT_QUESTION_EXPERIMENT_STATE_MINIMUM_READER_VERSION
+            if experiment_state is not None
+            else STATE_MINIMUM_READER_VERSION
+        ),
     )
     document["pending_reply_drafts"] = copy.deepcopy(
         STATE_READER_COMPATIBILITY_FENCE
@@ -5572,6 +5630,25 @@ def normalise_state_candidate(
         minimum_reader_version,
         STATE_MINIMUM_READER_VERSION,
     )
+
+    if "engagement_question_experiment" in state:
+        try:
+            normalised["engagement_question_experiment"] = (
+                engagement_question_trial.validate_experiment_state(
+                    state["engagement_question_experiment"]
+                )
+            )
+        except engagement_question_trial.ExperimentValidationError:
+            log.error(
+                "State candidate %s has invalid engagement-question experiment state; ignoring",
+                path,
+                exc_info=True,
+            )
+            return None
+        normalised["minimum_reader_version"] = max(
+            normalised["minimum_reader_version"],
+            ENGAGEMENT_QUESTION_EXPERIMENT_STATE_MINIMUM_READER_VERSION,
+        )
 
     for key in list_keys:
         if key in state:
@@ -13068,6 +13145,95 @@ def bound_meme_schedule_state_is_valid(
     return True
 
 
+ENGAGEMENT_EXPERIMENT_ATTEMPT_FIELDS = {
+    "binding",
+    "canonical_quote_text",
+    "approved_question_body",
+    "complete_treatment_sha256",
+    "complete_treatment_weighted_length",
+}
+
+
+def engagement_experiment_attempt_envelope_is_valid(
+    value: object,
+    *,
+    public_text: object,
+    quote_hash: object,
+    plan: dict | None = None,
+) -> bool:
+    """Validate the self-contained experiment authority bound before X."""
+
+    if (
+        not isinstance(value, dict)
+        or set(value) != ENGAGEMENT_EXPERIMENT_ATTEMPT_FIELDS
+        or type(public_text) is not str
+        or type(quote_hash) is not str
+    ):
+        return False
+    canonical_quote_text = value.get("canonical_quote_text")
+    question_body = value.get("approved_question_body")
+    treatment_sha256 = value.get("complete_treatment_sha256")
+    treatment_length = value.get("complete_treatment_weighted_length")
+    binding = value.get("binding")
+    if (
+        type(canonical_quote_text) is not str
+        or not canonical_quote_text
+        or type(question_body) is not str
+        or type(treatment_sha256) is not str
+        or re.fullmatch(r"[0-9a-f]{64}", treatment_sha256) is None
+        or type(treatment_length) is not int
+    ):
+        return False
+    try:
+        engagement_question_trial.validate_attempt_binding(
+            binding,
+            plan=plan,
+            exact_quote_text=canonical_quote_text,
+            public_text=public_text,
+        )
+        treatment_text = engagement_question_trial.complete_treatment_text(
+            canonical_quote_text,
+            question_body,
+        )
+        if (
+            engagement_question_trial.sha256_text(canonical_quote_text)
+            != quote_hash
+            or quote_text_hash(canonical_quote_text) != quote_hash
+            or engagement_question_trial.sha256_text(question_body)
+            != binding["approved_question_sha256"]
+            or engagement_question_trial.sha256_text(treatment_text)
+            != treatment_sha256
+            or engagement_question_trial.x_weighted_length(treatment_text)
+            != treatment_length
+            or treatment_length > engagement_question_trial.MAX_ROOT_WEIGHTED_LENGTH
+            or public_text
+            != (
+                treatment_text
+                if binding["arm"] == "treatment"
+                else canonical_quote_text
+            )
+        ):
+            return False
+    except (KeyError, TypeError, engagement_question_trial.ExperimentValidationError):
+        return False
+    return True
+
+
+def engagement_experiment_envelope_from_attempt(
+    attempt: object,
+) -> dict | None:
+    """Return one validated-looking envelope only for schema-v6 quote attempts."""
+
+    if (
+        isinstance(attempt, dict)
+        and attempt.get("lane") == "quote_image"
+        and attempt.get("schema_version") == 6
+        and isinstance(attempt.get("engagement_question_experiment"), dict)
+    ):
+        return attempt["engagement_question_experiment"]
+    return None
+
+
 def main_post_attempt_is_semantically_valid(data: object) -> bool:
     """Return whether a pre-send regular or meme attempt is self-consistent."""
     if not isinstance(data, dict):
@@ -13076,7 +13242,7 @@ def main_post_attempt_is_semantically_valid(data: object) -> bool:
     if type(lane) is not str:
         return False
     supported_schemas = {
-        "quote_image": {3, 4, 5},
+        "quote_image": {3, 4, 5, 6},
         "daily_meme": {2, 3, 4, 5},
     }.get(lane)
     schema_version = data.get("schema_version")
@@ -13128,6 +13294,9 @@ def main_post_attempt_is_semantically_valid(data: object) -> bool:
     if not isinstance(recovery_plan, dict):
         return False
     if lane == "quote_image":
+        experiment_envelope = data.get("engagement_question_experiment")
+        if (schema_version == 6) != (experiment_envelope is not None):
+            return False
         if set(selected) != {
             "quote_hash",
             "line_no",
@@ -13137,10 +13306,23 @@ def main_post_attempt_is_semantically_valid(data: object) -> bool:
         }:
             return False
         quote_hash = selected.get("quote_hash")
+        canonical_identity_text = (
+            experiment_envelope.get("canonical_quote_text")
+            if isinstance(experiment_envelope, dict)
+            else text
+        )
         if (
             type(quote_hash) is not str
             or re.fullmatch(r"[0-9a-f]{64}", quote_hash) is None
-            or quote_text_hash(text) != quote_hash
+            or quote_text_hash(canonical_identity_text) != quote_hash
+            or (
+                schema_version == 6
+                and not engagement_experiment_attempt_envelope_is_valid(
+                    experiment_envelope,
+                    public_text=text,
+                    quote_hash=quote_hash,
+                )
+            )
             or not valid_receipt_basename(selected.get("image_basename"))
             or type(selected.get("line_no")) is not int
             or int(selected["line_no"]) < 0
@@ -13156,14 +13338,14 @@ def main_post_attempt_is_semantically_valid(data: object) -> bool:
             "quote_history_after",
             "image_history_after",
         }
-        if schema_version in {4, 5}:
+        if schema_version in {4, 5, 6}:
             expected_recovery_keys |= {
                 "meme_scheduling_enabled",
                 "meme_trigger_after_hour",
                 "meme_schedule_version",
                 "meme_schedule_before",
             }
-        if schema_version == 5:
+        if schema_version in {5, 6}:
             expected_recovery_keys.add("schedule_timezone")
         if set(recovery_plan) != expected_recovery_keys:
             return False
@@ -13205,7 +13387,7 @@ def main_post_attempt_is_semantically_valid(data: object) -> bool:
             )
         ):
             return False
-        if schema_version in {4, 5} and (
+        if schema_version in {4, 5, 6} and (
             type(recovery_plan.get("meme_scheduling_enabled")) is not bool
             or type(recovery_plan.get("meme_trigger_after_hour")) is not int
             or not 0 <= int(recovery_plan["meme_trigger_after_hour"]) <= 23
@@ -13217,12 +13399,12 @@ def main_post_attempt_is_semantically_valid(data: object) -> bool:
                 recovery_plan.get("meme_schedule_before"),
                 schedule_timezone=(
                     recovery_plan.get("schedule_timezone")
-                    if schema_version == 5
+                    if schema_version in {5, 6}
                     else None
                 ),
             )
             or (
-                schema_version == 5
+                schema_version in {5, 6}
                 and (
                     type(recovery_plan.get("schedule_timezone")) is not str
                     or recovery_plan["schedule_timezone"]
@@ -13322,7 +13504,7 @@ def current_main_post_attempt_is_semantically_valid(data: object) -> bool:
     return bool(
         main_post_attempt_is_semantically_valid(data)
         and isinstance(data, dict)
-        and data.get("schema_version") == 5
+        and data.get("schema_version") in {5, 6}
     )
 
 
@@ -13335,6 +13517,7 @@ def build_main_post_attempt(
     selected_identity: dict,
     recovery_plan: dict,
     attempt_epoch: int | None = None,
+    engagement_experiment: dict | None = None,
 ) -> dict:
     """Build a durable pre-send identity for one main-post transaction."""
     if lane not in {"quote_image", "daily_meme"}:
@@ -13352,8 +13535,10 @@ def build_main_post_attempt(
         raise ValueError(
             "new main-post attempts must bind the production schedule timezone"
         )
+    if engagement_experiment is not None and lane != "quote_image":
+        raise ValueError("experiment metadata is valid only for quote/image posts")
     attempt = {
-        "schema_version": 5,
+        "schema_version": 6 if engagement_experiment is not None else 5,
         "lifecycle_state": "sending",
         "lane": lane,
         "attempt_id": hashlib.sha256(os.urandom(32)).hexdigest(),
@@ -13368,6 +13553,10 @@ def build_main_post_attempt(
         "selected_identity": copy.deepcopy(selected_identity),
         "recovery_plan": copy.deepcopy(recovery_plan),
     }
+    if engagement_experiment is not None:
+        attempt["engagement_question_experiment"] = copy.deepcopy(
+            engagement_experiment
+        )
     if not current_main_post_attempt_is_semantically_valid(attempt):
         raise RuntimeError("Internal error: generated main-post attempt is invalid")
     return attempt
@@ -13649,7 +13838,7 @@ def confirmed_pending_schedule_receipt_is_semantically_valid(
         # Older attempts remain readable as conservative restart barriers,
         # but their bytes did not bind a calendar zone.  They therefore cannot
         # authorise post-confirmation schedule materialisation.
-        or attempt.get("schema_version") != 5
+        or attempt.get("schema_version") not in {5, 6}
         or confirmation_epoch < int(attempt["attempt_epoch"])
     ):
         return False
@@ -13914,8 +14103,9 @@ def materialize_bound_regular_schedule_receipt(
             meme_schedule_version = int(plan["meme_schedule_version"])
             meme_schedule_changed_by_quote = True
 
+    experiment_envelope = engagement_experiment_envelope_from_attempt(attempt)
     receipt = {
-        "schema_version": 3,
+        "schema_version": 4 if experiment_envelope is not None else 3,
         "post_id": str(pending["post_id"]),
         "quote_hash": str(selected["quote_hash"]),
         "line_no": int(selected["line_no"]),
@@ -13944,6 +14134,13 @@ def materialize_bound_regular_schedule_receipt(
             canonical_atomic_json_bytes(attempt)
         ).hexdigest(),
     }
+    if experiment_envelope is not None:
+        receipt["quote_text"] = str(
+            experiment_envelope["canonical_quote_text"]
+        )
+        receipt["engagement_question_experiment"] = copy.deepcopy(
+            experiment_envelope
+        )
     if _validate_result and not regular_post_receipt_is_semantically_valid(receipt):
         raise InvalidRegularPostReceipt(
             "Bound regular schedule produced an invalid confirmed receipt"
@@ -14084,7 +14281,7 @@ def write_regular_post_receipt(receipt: dict) -> None:
         if (
             status == "sending"
             and isinstance(attempt, dict)
-            and attempt.get("schema_version") in {4, 5}
+            and attempt.get("schema_version") in {4, 5, 6}
         ):
             raise UnresolvedRegularPostReceipt(
                 "Current-schema regular attempts must be promoted through the "
@@ -14121,7 +14318,7 @@ def write_regular_post_receipt(receipt: dict) -> None:
 def regular_post_receipt_is_semantically_valid(data: dict) -> bool:
     """Return whether a regular-post receipt is internally consistent."""
     schema_version = data.get("schema_version")
-    if type(schema_version) is not int or schema_version not in {1, 2, 3}:
+    if type(schema_version) is not int or schema_version not in {1, 2, 3, 4}:
         return False
     post_id = data.get("post_id")
     quote_hash = data.get("quote_hash")
@@ -14133,7 +14330,7 @@ def regular_post_receipt_is_semantically_valid(data: dict) -> bool:
     bound_timezone = MAIN_POST_SCHEDULE_TIMEZONE
     if (
         isinstance(lineage_attempt, dict)
-        and lineage_attempt.get("schema_version") == 5
+        and lineage_attempt.get("schema_version") in {5, 6}
         and isinstance(lineage_attempt.get("recovery_plan"), dict)
     ):
         bound_timezone = lineage_attempt["recovery_plan"].get(
@@ -14157,9 +14354,31 @@ def regular_post_receipt_is_semantically_valid(data: dict) -> bool:
         return False
     if not isinstance(text, str) or not text.strip():
         return False
-    if quote_text_hash(text) != quote_hash:
+    experiment_envelope = data.get("engagement_question_experiment")
+    quote_text = data.get("quote_text") if schema_version == 4 else text
+    if (
+        (schema_version == 4)
+        != (
+            "engagement_question_experiment" in data
+            and "quote_text" in data
+        )
+        or type(quote_text) is not str
+        or quote_text_hash(quote_text) != quote_hash
+        or (
+            schema_version == 4
+            and not engagement_experiment_attempt_envelope_is_valid(
+                experiment_envelope,
+                public_text=text,
+                quote_hash=quote_hash,
+            )
+        )
+        or (
+            schema_version == 4
+            and quote_text != experiment_envelope.get("canonical_quote_text")
+        )
+    ):
         return False
-    if schema_version in {2, 3}:
+    if schema_version in {2, 3, 4}:
         quote_history = data.get("quote_history_after")
         image_history = data.get("image_history_after")
         if (
@@ -14187,7 +14406,7 @@ def regular_post_receipt_is_semantically_valid(data: dict) -> bool:
     if next_meme_epoch is None:
         return False
     schedule_version = data.get("meme_schedule_version")
-    if schema_version == 3 and (
+    if schema_version in {3, 4} and (
         type(schedule_version) is not int
         or schedule_version < 0
         or schedule_version > MEME_SCHEDULE_VERSION
@@ -14200,7 +14419,7 @@ def regular_post_receipt_is_semantically_valid(data: dict) -> bool:
     ):
         return False
     if next_meme_epoch:
-        if schema_version == 3 and schedule_version < 1:
+        if schema_version in {3, 4} and schedule_version < 1:
             return False
         if not valid_receipt_epoch(next_meme_epoch):
             return False
@@ -14250,12 +14469,13 @@ def regular_post_receipt_is_semantically_valid(data: dict) -> bool:
         source_sha256 = data.get("source_attempt_sha256")
         if (
             present_lineage_fields != lineage_fields
-            or schema_version != 3
+            or schema_version not in {3, 4}
             or type(data.get("line_no")) is not int
             or type(data.get("source_line_number")) is not int
             or type(data.get("image_no")) is not int
             or not isinstance(source_attempt, dict)
-            or source_attempt.get("schema_version") != 5
+            or source_attempt.get("schema_version")
+            != (6 if schema_version == 4 else 5)
             or source_attempt.get("lifecycle_state") != "attempting"
             or source_attempt.get("lane") != "quote_image"
             or not main_post_attempt_is_semantically_valid(source_attempt)
@@ -14315,7 +14535,7 @@ def load_regular_post_receipt() -> tuple[str, dict | None]:
     if (
         not isinstance(data, dict)
         or type(data.get("schema_version")) is not int
-        or data.get("schema_version") not in {1, 2, 3}
+        or data.get("schema_version") not in {1, 2, 3, 4}
     ):
         log.critical("Invalid regular-post receipt blocks main posting until repaired: %s", REGULAR_POST_RECEIPT_FILE)
         return "invalid", None
@@ -14700,6 +14920,106 @@ def reconcile_meme_post_receipt(state: dict) -> bool:
     return True
 
 
+def engagement_experiment_envelope_from_receipt(
+    receipt: object,
+) -> dict | None:
+    """Return the experiment envelope from one validated regular receipt."""
+
+    if not isinstance(receipt, dict) or receipt.get("schema_version") != 4:
+        return None
+    value = receipt.get("engagement_question_experiment")
+    return value if isinstance(value, dict) else None
+
+
+def engagement_experiment_event_fields(receipt: dict) -> dict[str, object]:
+    """Return the optional confirmed structured-event experiment fields."""
+
+    envelope = engagement_experiment_envelope_from_receipt(receipt)
+    if envelope is None:
+        return {}
+    binding = envelope["binding"]
+    return {
+        "engagement_experiment_id": binding["experiment_id"],
+        "engagement_experiment_plan_sha256": binding["plan_sha256"],
+        "engagement_experiment_pair_id": binding["pair_id"],
+        "engagement_experiment_arm": binding["arm"],
+        "engagement_experiment_member_position": binding["member_position"],
+        "engagement_experiment_publication_order": binding["publication_order"],
+        "engagement_experiment_sequence": binding["publication_sequence"],
+        "engagement_question_present": binding["question_present"],
+        "engagement_approved_question_sha256": binding[
+            "approved_question_sha256"
+        ],
+        "engagement_public_text_sha256": binding["public_text_sha256"],
+    }
+
+
+def apply_confirmed_engagement_experiment_receipt(
+    receipt: dict,
+    state: dict,
+) -> bool:
+    """Apply a receipt-bound experiment transition exactly once in memory."""
+
+    envelope = engagement_experiment_envelope_from_receipt(receipt)
+    if envelope is None:
+        return False
+    experiment_state = state.get("engagement_question_experiment")
+    if not isinstance(experiment_state, dict):
+        raise RuntimeError(
+            "confirmed experimental post has no protected experiment state"
+        )
+    plan = None
+    try:
+        plan, _catalogue, _quote_text_by_id = (
+            load_engagement_question_runtime_plan()
+        )
+        if plan["plan_sha256"] != envelope["binding"]["plan_sha256"]:
+            plan = None
+    except Exception:
+        # The immutable pre-write receipt remains sufficient authority for an
+        # already-confirmed X post.  Future publication is invalidated later by
+        # normal plan/state initialisation if the configured plan is absent or
+        # changed.
+        plan = None
+    changed = engagement_question_trial.apply_confirmed_publication(
+        experiment_state,
+        binding=envelope["binding"],
+        plan=plan,
+        post_id=str(receipt["post_id"]),
+        published_epoch=int(receipt["quote_post_epoch"]),
+        exact_quote_text=str(envelope["canonical_quote_text"]),
+        public_text=str(receipt["text"]),
+        approved_question_body=str(envelope["approved_question_body"]),
+    )
+    state["engagement_question_experiment"] = experiment_state
+    return changed
+
+
+def log_confirmed_engagement_experiment_receipt(receipt: dict) -> None:
+    """Emit bounded progress events after protected persistence is durable."""
+
+    envelope = engagement_experiment_envelope_from_receipt(receipt)
+    if envelope is None:
+        return
+    binding = envelope["binding"]
+    log_event(
+        "engagement_question_experimental_member_confirmed",
+        post_id=str(receipt["post_id"]),
+        pair_id=binding["pair_id"],
+        arm=binding["arm"],
+        member_position=binding["member_position"],
+        publication_sequence=binding["publication_sequence"],
+        plan_sha256=binding["plan_sha256"],
+    )
+    if binding["expected_transition"]["status_after"] == "completed":
+        log_event(
+            "engagement_question_experiment_completed",
+            experiment_id=binding["experiment_id"],
+            plan_sha256=binding["plan_sha256"],
+            completed_pairs=engagement_question_trial.TARGET_COMPLETED_PAIRS,
+        )
+
+
 def apply_regular_post_receipt(receipt: dict, lines_used: set, images_used: set, state: dict) -> None:
     """Apply regular post receipt."""
     post_id = str(receipt["post_id"])
@@ -14710,7 +15030,7 @@ def apply_regular_post_receipt(receipt: dict, lines_used: set, images_used: set,
     text = str(receipt.get("text") or "")
 
     last_quote_epoch = int(state.get("last_quote_post_epoch", 0) or 0)
-    if receipt.get("schema_version") in {2, 3} and quote_post_epoch > last_quote_epoch:
+    if receipt.get("schema_version") in {2, 3, 4} and quote_post_epoch > last_quote_epoch:
         # Only a strictly newer receipt may install its exact post-cycle
         # snapshot.  Replaying an older snapshot after newer local state would
         # erase duplicate-suppression identities and could permit reuse.
@@ -14718,7 +15038,7 @@ def apply_regular_post_receipt(receipt: dict, lines_used: set, images_used: set,
         lines_used.update(str(value) for value in receipt["quote_history_after"])
         images_used.clear()
         images_used.update(str(value) for value in receipt["image_history_after"])
-    elif receipt.get("schema_version") in {2, 3}:
+    elif receipt.get("schema_version") in {2, 3, 4}:
         # Equal or stale replay is monotonic.  Unioning the receipt's identities
         # can conservatively delay reuse, but can never discard newer evidence.
         lines_used.update(str(value) for value in receipt["quote_history_after"])
@@ -14772,7 +15092,7 @@ def apply_regular_post_receipt(receipt: dict, lines_used: set, images_used: set,
         if not spacing_already_reflected:
             update_regular_generated_image_spacing_state(state, image_basename)
     if receipt_is_newest_main:
-        if receipt.get("schema_version") in {2, 3}:
+        if receipt.get("schema_version") in {2, 3, 4}:
             # Current schema-v3 receipts carry the exact bound schedule and
             # its policy version. Schema v2 retains the earlier exact-time
             # interpretation with a backward-compatible version fallback.
@@ -14784,7 +15104,7 @@ def apply_regular_post_receipt(receipt: dict, lines_used: set, images_used: set,
             )
             state["meme_schedule_version"] = (
                 int(receipt["meme_schedule_version"])
-                if receipt.get("schema_version") == 3
+                if receipt.get("schema_version") in {3, 4}
                 else int(
                     receipt.get("meme_schedule_version")
                     or MEME_SCHEDULE_VERSION
@@ -14824,6 +15144,7 @@ def apply_regular_post_receipt(receipt: dict, lines_used: set, images_used: set,
         )
     if receipt_is_newest_main:
         record_recent_own_post(state, post_id)
+    apply_confirmed_engagement_experiment_receipt(receipt, state)
 
 
 def save_regular_post_protected_state(lines_used: set, images_used: set, state: dict, *, durable: bool) -> None:
@@ -14898,6 +15219,25 @@ def confirmed_regular_emergency_representation_is_complete(
     except Exception:
         return False
     expected_meme_epoch = int(expected.get("next_meme_post_epoch", 0) or 0)
+    experiment_envelope = engagement_experiment_envelope_from_attempt(
+        main_post_attempt
+    )
+    experiment_complete = True
+    if experiment_envelope is not None:
+        experiment_state = state.get("engagement_question_experiment")
+        experiment_complete = bool(
+            isinstance(experiment_state, dict)
+            and any(
+                row.get("post_id") == str(post_id)
+                and row.get("pair_id")
+                == experiment_envelope["binding"]["pair_id"]
+                and row.get("arm") == experiment_envelope["binding"]["arm"]
+                and row.get("public_text_sha256")
+                == experiment_envelope["binding"]["public_text_sha256"]
+                for row in experiment_state.get("confirmed_publications", [])
+                if isinstance(row, dict)
+            )
+        )
     return bool(
         valid_post_id(post_id)
         and post_epoch is not None
@@ -14907,6 +15247,7 @@ def confirmed_regular_emergency_representation_is_complete(
         and images_used == set(expected["image_history_after"])
         and quote_hash in lines_used
         and image_basename in images_used
+        and experiment_complete
         and state_post_epoch == post_epoch
         and receipt_int(state.get("next_quote_post_epoch"))
         == int(expected["next_quote_post_epoch"])
@@ -15368,7 +15709,7 @@ def enqueue_historical_context_obligation(receipt: dict) -> dict:
                 },
             }
     else:
-        quote_text = str(receipt.get("text") or "")
+        quote_text = str(receipt.get("quote_text", receipt.get("text") or ""))
         obligation = store.enqueue(
             parent_post_id,
             main_post_confirmed_epoch=confirmed_epoch,
@@ -16598,6 +16939,21 @@ def reconcile_regular_post_receipt(
             minimum_next_quote_epoch,
         )
     save_regular_post_protected_state(lines_used, images_used, state, durable=True)
+    log_confirmed_engagement_experiment_receipt(receipt)
+    if engagement_experiment_envelope_from_receipt(receipt) is not None:
+        # Emit while the confirmed receipt still exists.  A crash afterwards
+        # can safely replay the same structured evidence during reconciliation,
+        # whereas removing the receipt first could lose the analytics label.
+        log_event(
+            "main_post_posted",
+            lane="quote_image",
+            post_id=receipt["post_id"],
+            line_no=receipt.get("line_no"),
+            image_no=receipt.get("image_no"),
+            image_basename=receipt.get("image_basename"),
+            quote_hash=receipt.get("quote_hash"),
+            **engagement_experiment_event_fields(receipt),
+        )
     enqueue_historical_context_obligation(receipt)
     retire_lane_transport_journal_if_present(
         receipt_path=REGULAR_POST_RECEIPT_FILE,
@@ -16606,12 +16962,13 @@ def reconcile_regular_post_receipt(
         post_id=str(receipt["post_id"]),
     )
     remove_regular_post_receipt(receipt)
+    publish_pending_engagement_question_notification(state)
     emit_account_root_posted(
         lane="quote_image",
         post_id=receipt["post_id"],
         public_text=receipt.get("text"),
         quote_id=receipt.get("quote_hash"),
-        quote_text=receipt.get("text"),
+        quote_text=receipt.get("quote_text", receipt.get("text")),
     )
     log.info(
         "Confirmed main post reconciliation is complete; auxiliary context "
@@ -18365,6 +18722,463 @@ def concise_components(components: dict[str, float]) -> str:
     return ", ".join(f"{key}={value:.1f}" for key, value in sorted(components.items()))
 
 
+_ENGAGEMENT_QUESTION_LAST_LOADED_PLAN_SHA256: str | None = None
+_ENGAGEMENT_QUESTION_LAST_NOTIFICATION_FAILURE_POST_ID: str | None = None
+
+
+def configured_engagement_question_path(raw_path: str) -> Path:
+    """Resolve one deployment-local experiment path without writing it."""
+
+    path = Path(raw_path)
+    return path if path.is_absolute() else BASE_DIR / path
+
+
+def current_exact_quote_text_by_sha256() -> dict[str, str]:
+    """Load exact quotation bodies without production-text normalisation."""
+
+    source = LINES_FILE.read_bytes().decode("utf-8", errors="strict")
+    if "\r" in source:
+        raise RuntimeError(
+            "engagement experiment requires an LF-only canonical quotation source"
+        )
+    result: dict[str, str] = {}
+    for exact_text in source.split("\n"):
+        if not exact_text:
+            continue
+        quote_id = engagement_question_trial.sha256_text(exact_text)
+        if quote_id in result and result[quote_id] != exact_text:
+            raise RuntimeError("canonical quotation SHA-256 collision")
+        result[quote_id] = exact_text
+    return result
+
+
+def load_engagement_question_runtime_plan() -> tuple[dict, dict, dict[str, str]]:
+    """Load and fully validate the immutable mode-0600 live plan."""
+
+    global _ENGAGEMENT_QUESTION_LAST_LOADED_PLAN_SHA256
+    plan_path = configured_engagement_question_path(
+        engagement_question_experiment_plan_path
+    )
+    present, plan_document = load_receipt_json_no_follow(plan_path)
+    if not present or not isinstance(plan_document, dict):
+        raise RuntimeError(f"engagement experiment plan unavailable: {plan_path}")
+    quote_text_by_id = current_exact_quote_text_by_sha256()
+    catalogue_path = (
+        BASE_DIR
+        / "engagement_question_experiment"
+        / "approved_question_catalogue.json"
+    )
+    catalogue, catalogue_sha256 = engagement_question_trial.load_approved_catalogue(
+        catalogue_path,
+        quote_text_by_id,
+    )
+    plan = engagement_question_trial.validate_plan_document(
+        plan_document,
+        catalogue=catalogue,
+        catalogue_sha256=catalogue_sha256,
+        quote_text_by_id=quote_text_by_id,
+        require_plan_kind="live",
+    )
+    if _ENGAGEMENT_QUESTION_LAST_LOADED_PLAN_SHA256 != plan["plan_sha256"]:
+        log_event(
+            "engagement_question_experiment_plan_loaded",
+            experiment_id=plan["experiment_id"],
+            plan_sha256=plan["plan_sha256"],
+            pair_count=plan["pair_count"],
+        )
+        _ENGAGEMENT_QUESTION_LAST_LOADED_PLAN_SHA256 = plan["plan_sha256"]
+    return plan, catalogue, quote_text_by_id
+
+
+def invalidate_engagement_question_experiment(
+    state: dict,
+    *,
+    code: str,
+    recorded_epoch: int,
+) -> None:
+    """Durably invalidate a started trial while ordinary posting continues."""
+
+    experiment_state = state.get("engagement_question_experiment")
+    if not isinstance(experiment_state, dict):
+        log_event(
+            "engagement_question_experiment_invalid",
+            experiment_id=engagement_question_trial.EXPERIMENT_ID,
+            reason=code,
+            started=False,
+        )
+        return
+    if experiment_state.get("status") in {"invalid", "completed"}:
+        return
+    engagement_question_trial.mark_experiment_invalid(
+        experiment_state,
+        code=code,
+        recorded_epoch=recorded_epoch,
+    )
+    state["engagement_question_experiment"] = experiment_state
+    save_state(state, durable=True)
+    log_event(
+        "engagement_question_experiment_invalid",
+        experiment_id=engagement_question_trial.EXPERIMENT_ID,
+        plan_sha256=experiment_state["active_plan_sha256"],
+        reason=experiment_state["current_deferral_reason"]["code"],
+        started=True,
+    )
+
+
+def initialise_engagement_question_experiment(
+    state: dict,
+    *,
+    current_epoch: int,
+) -> tuple[dict | None, dict | None]:
+    """Load/bind a configured plan or pause an already-started experiment."""
+
+    raw_state = state.get("engagement_question_experiment")
+    if not engagement_question_experiment_enabled and raw_state is None:
+        # Source-default parity: no catalogue/plan read and no state creation.
+        return None, None
+    if isinstance(raw_state, dict) and raw_state.get("status") in {
+        "completed",
+        "invalid",
+    }:
+        return None, raw_state
+    try:
+        plan, _catalogue, _quote_text_by_id = load_engagement_question_runtime_plan()
+    except Exception as exc:
+        log.error(
+            "Engagement-question plan is unavailable or invalid: %s",
+            exc,
+            exc_info=True,
+        )
+        invalidate_engagement_question_experiment(
+            state,
+            code="configured_plan_unavailable_or_invalid",
+            recorded_epoch=current_epoch,
+        )
+        return None, state.get("engagement_question_experiment")
+
+    experiment_state = raw_state if isinstance(raw_state, dict) else None
+    if experiment_state is None:
+        # The state and reservation begin only when the first pair is actually
+        # started on a normal quote opportunity.
+        return plan, None
+    try:
+        engagement_question_trial.validate_experiment_state(
+            experiment_state,
+            plan=plan,
+        )
+    except engagement_question_trial.ExperimentValidationError:
+        invalidate_engagement_question_experiment(
+            state,
+            code="active_plan_binding_changed",
+            recorded_epoch=current_epoch,
+        )
+        return None, state.get("engagement_question_experiment")
+
+    if not engagement_question_experiment_enabled:
+        changed = engagement_question_trial.set_experiment_paused(
+            experiment_state,
+            paused=True,
+            plan=plan,
+        )
+        if changed:
+            state["engagement_question_experiment"] = experiment_state
+            save_state(state, durable=True)
+            log_event(
+                "engagement_question_experiment_paused",
+                experiment_id=experiment_state["experiment_id"],
+                plan_sha256=experiment_state["active_plan_sha256"],
+                completed_pairs=experiment_state["completed_pair_count"],
+            )
+        return plan, experiment_state
+    if experiment_state.get("status") == "paused":
+        engagement_question_trial.set_experiment_paused(
+            experiment_state,
+            paused=False,
+            plan=plan,
+        )
+        state["engagement_question_experiment"] = experiment_state
+        save_state(state, durable=True)
+    return plan, experiment_state
+
+
+def engagement_question_opportunity(
+    state: dict,
+    *,
+    current_epoch: int,
+) -> tuple[dict | None, dict | None, set[str]]:
+    """Return the exact planned member and reservations for this opportunity."""
+
+    plan, experiment_state = initialise_engagement_question_experiment(
+        state,
+        current_epoch=current_epoch,
+    )
+    if plan is None:
+        return None, None, set()
+    if not engagement_question_experiment_enabled:
+        reserved = engagement_question_trial.reserved_quote_ids(
+            plan,
+            experiment_state,
+        )
+        return plan, None, reserved
+    if experiment_state is None:
+        experiment_state = engagement_question_trial.new_experiment_state(plan)
+        engagement_question_trial.start_next_pair(experiment_state, plan)
+        state["engagement_question_experiment"] = experiment_state
+        save_state(state, durable=True)
+        log_event(
+            "engagement_question_experiment_pair_started",
+            experiment_id=experiment_state["experiment_id"],
+            plan_sha256=experiment_state["active_plan_sha256"],
+            pair_id=experiment_state["active_pair_id"],
+            pair_index=experiment_state["current_pair_index"],
+        )
+    member, reason = engagement_question_trial.member_for_current_opportunity(
+        plan,
+        experiment_state,
+        current_epoch=current_epoch,
+    )
+    if reason == "pair_start_required":
+        engagement_question_trial.start_next_pair(experiment_state, plan)
+        state["engagement_question_experiment"] = experiment_state
+        save_state(state, durable=True)
+        log_event(
+            "engagement_question_experiment_pair_started",
+            experiment_id=experiment_state["experiment_id"],
+            plan_sha256=experiment_state["active_plan_sha256"],
+            pair_id=experiment_state["active_pair_id"],
+            pair_index=experiment_state["current_pair_index"],
+        )
+        member, reason = engagement_question_trial.member_for_current_opportunity(
+            plan,
+            experiment_state,
+            current_epoch=current_epoch,
+        )
+    if reason is not None:
+        member = None
+    reserved = engagement_question_trial.reserved_quote_ids(
+        plan,
+        experiment_state,
+    )
+    return plan, member, reserved
+
+
+def resolve_engagement_question_quote_choice(
+    member: dict,
+    *,
+    catalogue: dict,
+) -> tuple[dict, str]:
+    """Re-resolve and validate one exact planned canonical quotation."""
+
+    lines, quote_analysis, today_mm_dd = load_quote_lines_and_analysis()
+    quote_id = str(member["quote_id"])
+    found: tuple[int, str] | None = None
+    for line_no, source_line in enumerate(lines):
+        exact_text = source_line[:-1] if source_line.endswith("\n") else source_line
+        if exact_text.endswith("\r"):
+            exact_text = exact_text[:-1]
+        if engagement_question_trial.sha256_text(exact_text) == quote_id:
+            found = (line_no, exact_text)
+            break
+    if found is None:
+        raise engagement_question_trial.ExperimentValidationError(
+            "planned canonical quotation is no longer present"
+        )
+    line_no, exact_text = found
+    if quote_text_hash(exact_text) != quote_id:
+        raise engagement_question_trial.ExperimentValidationError(
+            "planned canonical identity no longer matches production"
+        )
+    if quote_id not in completed_research_quote_hashes():
+        raise engagement_question_trial.ExperimentValidationError(
+            "planned quotation is no longer runtime attribution eligible"
+        )
+    from historical_context_formatter import (
+        format_context_reply_public,
+        load_and_validate_corpus,
+        packet_for_posted_quote,
+        packet_is_attributed_to_margaret_thatcher,
+    )
+
+    if _HISTORICAL_CONTEXT_CORPUS_SNAPSHOT is None:
+        packets, unresolved = load_and_validate_corpus(
+            HISTORICAL_CONTEXT_RESEARCH_DIR,
+            require_source_role_audit=True,
+        )
+    else:
+        packets, unresolved = _HISTORICAL_CONTEXT_CORPUS_SNAPSHOT
+    packet = packet_for_posted_quote(
+        packets,
+        unresolved,
+        quote_id,
+        exact_text,
+    )
+    formatted = (
+        format_context_reply_public(
+            packet,
+            maximum_length=int(historical_context_reply["maximum_length"]),
+            include_meaning=bool(historical_context_reply["include_meaning"]),
+            include_source=bool(historical_context_reply["include_source"]),
+            include_verification=bool(
+                historical_context_reply["include_verification"]
+            ),
+        )
+        if packet is not None
+        and packet_is_attributed_to_margaret_thatcher(packet)
+        else None
+    )
+    if (
+        not isinstance(formatted, dict)
+        or formatted.get("rendering_mode") != "public"
+        or formatted.get("verification_label") != member["verification_label"]
+        or formatted.get("source_class") != member["source_class"]
+    ):
+        raise engagement_question_trial.ExperimentValidationError(
+            "planned historical context is no longer publicly renderable"
+        )
+    analysis = quote_metadata_for_hash(quote_analysis, quote_id, exact_text)
+    if analysis is None:
+        raise engagement_question_trial.ExperimentValidationError(
+            "planned quotation analysis is unavailable"
+        )
+    topics = analysis.get("primary_topics")
+    if (
+        not isinstance(topics, list)
+        or not topics
+        or topics[0] != member["topic"]
+        or engagement_question_trial.quotation_length_band(exact_text)
+        != member["quotation_length_band"]
+    ):
+        raise engagement_question_trial.ExperimentValidationError(
+            "planned quotation matching metadata changed"
+        )
+    weight, season_status = quote_candidate_weight(
+        analysis,
+        today_mm_dd=today_mm_dd,
+    )
+    if weight <= 0:
+        raise engagement_question_trial.ExperimentValidationError(
+            "planned quotation is currently hard-seasonally excluded"
+        )
+    entry = catalogue["entries"].get(quote_id)
+    if not isinstance(entry, dict):
+        raise engagement_question_trial.ExperimentValidationError(
+            "planned quotation is outside the approved catalogue"
+        )
+    public_text = engagement_question_trial.validate_complete_public_text(
+        exact_quote_text=exact_text,
+        catalogue_entry=entry,
+        arm=str(member["arm"]),
+    )
+    if (
+        entry["question_body"] != member["approved_question_body"]
+        or entry["question_sha256"] != member["approved_question_sha256"]
+        or entry["complete_treatment_sha256"]
+        != member["complete_treatment_sha256"]
+        or entry["complete_treatment_weighted_length"]
+        != member["complete_treatment_weighted_length"]
+    ):
+        raise engagement_question_trial.ExperimentValidationError(
+            "planned approved question metadata changed"
+        )
+    return (
+        {
+            "line_no": line_no,
+            "text": exact_text,
+            "quote_hash": quote_id,
+            "analysis": analysis,
+            "weight": weight,
+            "season_status": season_status,
+        },
+        public_text,
+    )
+
+
+def defer_engagement_question_member(
+    state: dict,
+    *,
+    code: str,
+    recorded_epoch: int,
+) -> None:
+    """Durably record a bounded member deferral without advancing it."""
+
+    experiment_state = state.get("engagement_question_experiment")
+    if not isinstance(experiment_state, dict):
+        raise RuntimeError("cannot defer an experiment before it starts")
+    engagement_question_trial.record_deferral(
+        experiment_state,
+        code=code,
+        recorded_epoch=recorded_epoch,
+    )
+    state["engagement_question_experiment"] = experiment_state
+    save_state(state, durable=True)
+    reason = experiment_state["current_deferral_reason"]
+    log_event(
+        "engagement_question_experimental_member_deferred",
+        experiment_id=experiment_state["experiment_id"],
+        plan_sha256=experiment_state["active_plan_sha256"],
+        pair_id=reason["pair_id"],
+        member_position=reason["member_position"],
+        reason=reason["code"],
+    )
+
+
+def publish_pending_engagement_question_notification(state: dict) -> bool:
+    """Atomically publish the latest confirmed treatment observation."""
+
+    global _ENGAGEMENT_QUESTION_LAST_NOTIFICATION_FAILURE_POST_ID
+    experiment_state = state.get("engagement_question_experiment")
+    if not isinstance(experiment_state, dict):
+        return False
+    identity = experiment_state.get("latest_treatment_notification_identity")
+    if not isinstance(identity, dict) or identity.get("delivered") is True:
+        return False
+    output_setting = engagement_question_notification_output_path
+    if not output_setting:
+        return False
+    post_id = str(identity.get("post_id") or "")
+    try:
+        document = engagement_question_trial.validate_notification_document(
+            copy.deepcopy(identity["document"])
+        )
+        if (
+            engagement_question_trial.canonical_sha256(document)
+            != identity["document_sha256"]
+        ):
+            raise RuntimeError("pending treatment notification identity changed")
+        output_path = configured_engagement_question_path(output_setting)
+        atomic_write_json(output_path, document, durable=True)
+        if not json_file_matches(output_path, document):
+            raise RuntimeError("treatment notification output verification failed")
+        engagement_question_trial.mark_notification_delivered(
+            experiment_state,
+            post_id,
+        )
+        state["engagement_question_experiment"] = experiment_state
+        try:
+            save_state(state, durable=True)
+        except Exception:
+            experiment_state["latest_treatment_notification_identity"][
+                "delivered"
+            ] = False
+            raise
+        _ENGAGEMENT_QUESTION_LAST_NOTIFICATION_FAILURE_POST_ID = None
+        return True
+    except Exception:
+        log.error(
+            "Confirmed treatment notification write failed for post_id=%s",
+            post_id,
+            exc_info=True,
+        )
+        if _ENGAGEMENT_QUESTION_LAST_NOTIFICATION_FAILURE_POST_ID != post_id:
+            log_event(
+                "engagement_question_treatment_notification_write_failed",
+                experiment_id=engagement_question_trial.EXPERIMENT_ID,
+                post_id=post_id or None,
+            )
+            _ENGAGEMENT_QUESTION_LAST_NOTIFICATION_FAILURE_POST_ID = post_id
+        return False
+
+
 def build_quote_candidates(
     lines: list[str],
     available_lines: list[int],
@@ -18576,7 +19390,7 @@ def quote_candidates_for_current_cycle(lines_used: set, *, excluded_quote_hashes
     unused_research_eligible_lines = [
         line_no
         for line_no, quote_hash in hashes_by_line.items()
-        if quote_hash not in lines_used and quote_hash not in research_ineligible_hashes
+        if quote_hash not in lines_used and quote_hash not in excluded_quote_hashes
     ]
     available_lines = [line_no for line_no, quote_hash in hashes_by_line.items() if quote_hash not in lines_used]
 
@@ -19135,9 +19949,11 @@ def choose_regular_quote_image_pair(
     *,
     force_image_cycle_reset: bool = False,
     avoid_last_image_at_cycle_boundary: bool = True,
+    excluded_quote_hashes: set[str] | None = None,
 ) -> tuple[dict, dict, int]:
     """Select a production quotation-image pair under current cycle rules."""
-    attempted_quote_hashes: set[str] = set()
+    attempted_quote_hashes: set[str] = set(excluded_quote_hashes or set())
+    initial_excluded_count = len(attempted_quote_hashes)
     attempts = 0
     reset_available_images_once = force_image_cycle_reset
     cycle_boundary_exclusions: set[str] = set()
@@ -19148,7 +19964,7 @@ def choose_regular_quote_image_pair(
         try:
             quote_choice = choose_unused_line_candidate(lines_used, excluded_quote_hashes=attempted_quote_hashes)
         except RuntimeError:
-            if attempted_quote_hashes:
+            if len(attempted_quote_hashes) > initial_excluded_count:
                 break
             raise
         attempted_quote_hashes.add(str(quote_choice["quote_hash"]))
@@ -19191,6 +20007,50 @@ def choose_regular_quote_image_pair(
     )
 
 
+def choose_engagement_question_image(
+    images_used: set,
+    quote_choice: dict,
+    state: dict,
+) -> dict:
+    """Apply the existing image policy to one fixed experimental quotation."""
+
+    original_images_used = set(images_used)
+    generated_images_allowed = log_generated_image_spacing_status(state)
+    cycle_boundary_exclusions: set[str] = set()
+    phases = (
+        (False, True, "normal"),
+        (True, True, "forced_cycle_reset"),
+        (True, False, "last_image_fallback"),
+    )
+    last_mismatch: QuoteSpecificImageMismatch | None = None
+    for force_reset, avoid_last, phase in phases:
+        try:
+            return choose_matched_unused_image(
+                images_used,
+                quote_choice,
+                state,
+                force_cycle_reset=force_reset,
+                avoid_last_image_at_cycle_boundary=avoid_last,
+                cycle_boundary_exclusions=(
+                    cycle_boundary_exclusions if force_reset else None
+                ),
+                generated_images_allowed=generated_images_allowed,
+                selection_phase=phase,
+            )
+        except QuoteSpecificImageMismatch as exc:
+            last_mismatch = exc
+            log.warning(
+                "Experimental quotation quote_hash=%s has no valid image in phase=%s",
+                quote_choice.get("quote_hash"),
+                phase,
+            )
+    images_used.clear()
+    images_used.update(original_images_used)
+    raise QuoteSpecificImageMismatch(
+        str(last_mismatch or "experimental quotation has no valid image")
+    )
+
+
 def post_random_quote(lines_used: set, images_used: set, state: dict) -> None:
     """Select and post one quotation-image pair transactionally."""
     log.info("Starting quote/image post cycle")
@@ -19219,29 +20079,124 @@ def post_random_quote(lines_used: set, images_used: set, state: dict) -> None:
                 "Quote used-history still contains legacy integer entries; refusing regular quote posting until source-verified migration is possible"
             )
 
-        try:
-            quote_choice, image_choice, attempts = choose_regular_quote_image_pair(lines_used, images_used, state)
-        except NoViableQuoteImagePair as exc:
-            log.warning(
-                "No viable regular quote/image pair found within current image cycle after %d attempt(s); "
-                "resetting image cycle and retrying once",
-                exc.attempts,
+        experiment_plan, experiment_member, reserved_quote_hashes = (
+            engagement_question_opportunity(
+                state,
+                current_epoch=transaction_preflight_epoch,
+            )
+        )
+        engagement_experiment_envelope: dict | None = None
+        experimental_public_text: str | None = None
+        quote_choice: dict | None = None
+        image_choice: dict | None = None
+
+        if experiment_member is not None and experiment_plan is not None:
+            try:
+                current_plan, catalogue, _quote_text_by_id = (
+                    load_engagement_question_runtime_plan()
+                )
+                if current_plan["plan_sha256"] != experiment_plan["plan_sha256"]:
+                    raise RuntimeError("active plan changed during opportunity")
+            except Exception:
+                invalidate_engagement_question_experiment(
+                    state,
+                    code="active_plan_changed_during_opportunity",
+                    recorded_epoch=transaction_preflight_epoch,
+                )
+                experiment_plan = None
+                experiment_member = None
+                reserved_quote_hashes = set()
+            else:
+                try:
+                    if str(experiment_member["quote_id"]) in lines_used:
+                        raise engagement_question_trial.ExperimentValidationError(
+                            "pending planned quotation is already in used history"
+                        )
+                    quote_choice, experimental_public_text = (
+                        resolve_engagement_question_quote_choice(
+                            experiment_member,
+                            catalogue=catalogue,
+                        )
+                    )
+                    binding = engagement_question_trial.build_attempt_binding(
+                        plan=experiment_plan,
+                        state=state["engagement_question_experiment"],
+                        member=experiment_member,
+                        exact_quote_text=str(quote_choice["text"]),
+                        public_text=experimental_public_text,
+                    )
+                    engagement_experiment_envelope = {
+                        "binding": binding,
+                        "canonical_quote_text": str(quote_choice["text"]),
+                        "approved_question_body": str(
+                            experiment_member["approved_question_body"]
+                        ),
+                        "complete_treatment_sha256": str(
+                            experiment_member["complete_treatment_sha256"]
+                        ),
+                        "complete_treatment_weighted_length": int(
+                            experiment_member[
+                                "complete_treatment_weighted_length"
+                            ]
+                        ),
+                    }
+                    if not engagement_experiment_attempt_envelope_is_valid(
+                        engagement_experiment_envelope,
+                        public_text=experimental_public_text,
+                        quote_hash=quote_choice["quote_hash"],
+                        plan=experiment_plan,
+                    ):
+                        raise engagement_question_trial.ExperimentValidationError(
+                            "experimental pre-write envelope validation failed"
+                        )
+                    image_choice = choose_engagement_question_image(
+                        images_used,
+                        quote_choice,
+                        state,
+                    )
+                except QuoteSpecificImageMismatch:
+                    defer_engagement_question_member(
+                        state,
+                        code="quote_specific_image_unavailable",
+                        recorded_epoch=transaction_preflight_epoch,
+                    )
+                    quote_choice = None
+                    image_choice = None
+                    experimental_public_text = None
+                    engagement_experiment_envelope = None
+                except engagement_question_trial.ExperimentValidationError:
+                    log.error(
+                        "Experimental member failed immediate pre-post validation",
+                        exc_info=True,
+                    )
+                    defer_engagement_question_member(
+                        state,
+                        code="immediate_member_validation_failed",
+                        recorded_epoch=transaction_preflight_epoch,
+                    )
+                    quote_choice = None
+                    image_choice = None
+                    experimental_public_text = None
+                    engagement_experiment_envelope = None
+
+        if quote_choice is None or image_choice is None:
+            ordinary_selection_options = (
+                {"excluded_quote_hashes": reserved_quote_hashes}
+                if reserved_quote_hashes
+                else {}
             )
             try:
                 quote_choice, image_choice, attempts = choose_regular_quote_image_pair(
                     lines_used,
                     images_used,
                     state,
-                    force_image_cycle_reset=True,
+                    **ordinary_selection_options,
                 )
-            except NoViableQuoteImagePair as reset_exc:
-                if not reset_exc.excluded_last_image:
-                    log.error("No viable regular quote/image pair found after image-cycle recovery; giving up for this post attempt")
-                    raise RuntimeError(str(reset_exc)) from reset_exc
+            except NoViableQuoteImagePair as exc:
                 log.warning(
-                    "No viable regular quote/image pair found after image-cycle recovery while excluding last regular image %s; "
-                    "retrying once with last image permitted",
-                    reset_exc.excluded_last_image,
+                    "No viable regular quote/image pair found within current image cycle after %d attempt(s); "
+                    "resetting image cycle and retrying once",
+                    exc.attempts,
                 )
                 try:
                     quote_choice, image_choice, attempts = choose_regular_quote_image_pair(
@@ -19249,21 +20204,46 @@ def post_random_quote(lines_used: set, images_used: set, state: dict) -> None:
                         images_used,
                         state,
                         force_image_cycle_reset=True,
-                        avoid_last_image_at_cycle_boundary=False,
+                        **ordinary_selection_options,
                     )
-                except NoViableQuoteImagePair as final_exc:
-                    log.error(
-                        "No viable regular quote/image pair found after final last-image recovery fallback; "
-                        "giving up for this post attempt"
+                except NoViableQuoteImagePair as reset_exc:
+                    if not reset_exc.excluded_last_image:
+                        log.error("No viable regular quote/image pair found after image-cycle recovery; giving up for this post attempt")
+                        raise RuntimeError(str(reset_exc)) from reset_exc
+                    log.warning(
+                        "No viable regular quote/image pair found after image-cycle recovery while excluding last regular image %s; "
+                        "retrying once with last image permitted",
+                        reset_exc.excluded_last_image,
                     )
-                    raise RuntimeError(str(final_exc)) from final_exc
-                log.info("Regular quote/image pairing succeeded after permitting last regular image as final recovery fallback")
-            else:
-                log.info("Regular quote/image pairing succeeded after image-cycle recovery")
+                    try:
+                        quote_choice, image_choice, attempts = choose_regular_quote_image_pair(
+                            lines_used,
+                            images_used,
+                            state,
+                            force_image_cycle_reset=True,
+                            avoid_last_image_at_cycle_boundary=False,
+                            **ordinary_selection_options,
+                        )
+                    except NoViableQuoteImagePair as final_exc:
+                        log.error(
+                            "No viable regular quote/image pair found after final last-image recovery fallback; "
+                            "giving up for this post attempt"
+                        )
+                        raise RuntimeError(str(final_exc)) from final_exc
+                    log.info("Regular quote/image pairing succeeded after permitting last regular image as final recovery fallback")
+                else:
+                    log.info("Regular quote/image pairing succeeded after image-cycle recovery")
+        else:
+            attempts = 1
 
         line_no = int(quote_choice["line_no"])
         quote_hash = str(quote_choice["quote_hash"])
-        tweet = str(quote_choice["text"])
+        canonical_quote_text = str(quote_choice["text"])
+        tweet = (
+            experimental_public_text
+            if engagement_experiment_envelope is not None
+            else canonical_quote_text
+        )
         image_no = int(image_choice["image_no"])
         image = str(image_choice["path"])
         image_basename = str(image_choice["basename"])
@@ -19315,6 +20295,7 @@ def post_random_quote(lines_used: set, images_used: set, state: dict) -> None:
                 ),
             },
             attempt_epoch=transaction_preflight_epoch,
+            engagement_experiment=engagement_experiment_envelope,
         )
         write_main_post_attempt(main_post_attempt)
         (
@@ -19397,6 +20378,8 @@ def post_random_quote(lines_used: set, images_used: set, state: dict) -> None:
             "quote_post_epoch": quote_post_epoch,
             "text": tweet,
         }
+        if engagement_experiment_envelope is not None:
+            context_obligation_receipt["quote_text"] = canonical_quote_text
         pending_schedule_receipt = build_confirmed_pending_schedule_receipt(
             main_post_attempt,
             post_id=str(posted_id),
@@ -19505,6 +20488,11 @@ def post_random_quote(lines_used: set, images_used: set, state: dict) -> None:
             if "quote_post_epoch" in locals():
                 state["last_quote_post_epoch"] = quote_post_epoch
             state["last_regular_image_filename"] = image_basename
+            if "fallback_receipt" in locals():
+                apply_confirmed_engagement_experiment_receipt(
+                    fallback_receipt,
+                    state,
+                )
         except Exception:
             fallback_failures.append("in_memory_regular_post_state")
             log.critical(
@@ -19606,6 +20594,30 @@ def post_random_quote(lines_used: set, images_used: set, state: dict) -> None:
                     "persisting its historical-context disposition; the durable "
                     "attempt receipt remains unresolved"
                 ) from context_exc
+            if (
+                "fallback_receipt" in locals()
+                and engagement_experiment_envelope_from_receipt(
+                    fallback_receipt
+                )
+                is not None
+            ):
+                # Protected state is now durable and the sending receipt still
+                # exists as replay authority.  Emit the experiment evidence
+                # before retiring that final authority, just as the ordinary
+                # confirmed-receipt path does.
+                log_confirmed_engagement_experiment_receipt(fallback_receipt)
+                log_event(
+                    "main_post_posted",
+                    lane="quote_image",
+                    post_id=posted_id,
+                    line_no=line_no,
+                    image_no=image_no,
+                    image_basename=image_basename,
+                    image_hash=image_choice.get("image_hash"),
+                    image_score=image_choice.get("score"),
+                    quote_hash=quote_hash,
+                    **engagement_experiment_event_fields(fallback_receipt),
+                )
             retire_lane_transport_journal_if_present(
                 receipt_path=REGULAR_POST_RECEIPT_FILE,
                 receipt=main_post_attempt,
@@ -19616,6 +20628,21 @@ def post_random_quote(lines_used: set, images_used: set, state: dict) -> None:
                 main_post_attempt,
                 sending_disposition="confirmed_state_fallback",
             )
+            if (
+                "fallback_receipt" in locals()
+                and engagement_experiment_envelope_from_receipt(
+                    fallback_receipt
+                )
+                is not None
+            ):
+                publish_pending_engagement_question_notification(state)
+                emit_account_root_posted(
+                    lane="quote_image",
+                    post_id=posted_id,
+                    public_text=tweet,
+                    quote_id=quote_hash,
+                    quote_text=canonical_quote_text,
+                )
         elif status_after_fallback != "valid":
             raise UnrecoverableConfirmedPostPersistenceError(
                 f"Confirmed regular quote/image post {posted_id} has no stable "
@@ -19651,7 +20678,24 @@ def post_random_quote(lines_used: set, images_used: set, state: dict) -> None:
             post_type="quote",
         )
         record_recent_own_post(state, str(posted_id))
+        apply_confirmed_engagement_experiment_receipt(receipt, state)
         save_regular_post_protected_state(lines_used, images_used, state, durable=True)
+        log_confirmed_engagement_experiment_receipt(receipt)
+        if engagement_experiment_envelope_from_receipt(receipt) is not None:
+            # Keep confirmed experiment evidence recoverable until after its
+            # structured analytics event has been emitted.
+            log_event(
+                "main_post_posted",
+                lane="quote_image",
+                post_id=posted_id,
+                line_no=line_no,
+                image_no=image_no,
+                image_basename=image_basename,
+                image_hash=image_choice.get("image_hash"),
+                image_score=image_choice.get("score"),
+                quote_hash=quote_hash,
+                **engagement_experiment_event_fields(receipt),
+            )
         enqueue_historical_context_obligation(receipt)
         retire_lane_transport_journal_if_present(
             receipt_path=REGULAR_POST_RECEIPT_FILE,
@@ -19660,29 +20704,32 @@ def post_random_quote(lines_used: set, images_used: set, state: dict) -> None:
             post_id=str(posted_id),
         )
         remove_regular_post_receipt(receipt)
+        publish_pending_engagement_question_notification(state)
     except Exception as exc:
         log.critical("Confirmed regular quote/image post_id=%s but protected local persistence failed", posted_id, exc_info=True)
         raise ConfirmedPostLocalPersistenceError(
             f"Confirmed regular quote/image post {posted_id} but protected local persistence failed"
         ) from exc
 
-    log_event(
-        "main_post_posted",
-        lane="quote_image",
-        post_id=posted_id,
-        line_no=line_no,
-        image_no=image_no,
-        image_basename=image_basename,
-        image_hash=image_choice.get("image_hash"),
-        image_score=image_choice.get("score"),
-        quote_hash=quote_hash,
-    )
+    if engagement_experiment_envelope_from_receipt(receipt) is None:
+        # Preserve the ordinary-post event path and fields byte-for-byte.
+        log_event(
+            "main_post_posted",
+            lane="quote_image",
+            post_id=posted_id,
+            line_no=line_no,
+            image_no=image_no,
+            image_basename=image_basename,
+            image_hash=image_choice.get("image_hash"),
+            image_score=image_choice.get("score"),
+            quote_hash=quote_hash,
+        )
     emit_account_root_posted(
         lane="quote_image",
         post_id=posted_id,
         public_text=tweet,
         quote_id=quote_hash,
-        quote_text=tweet,
+        quote_text=canonical_quote_text,
     )
     safely_process_due_historical_context_obligations(
         parent_post_id=str(posted_id),
@@ -25476,6 +26523,12 @@ def main() -> None:
             startup_current,
         )
 
+    initialise_engagement_question_experiment(
+        state,
+        current_epoch=startup_current,
+    )
+    publish_pending_engagement_question_notification(state)
+
     seed_recent_own_post_ids_from_cache(state)
     save_state(state)
 
@@ -25555,6 +26608,8 @@ def main() -> None:
                         "remote scheduling: %s",
                         {key: value for key, value in reconciled.items() if value},
                     )
+
+        publish_pending_engagement_question_notification(state)
 
         ambiguity_blocked, ambiguity_pause_logged = (
             maintain_global_remote_write_barrier_tick(

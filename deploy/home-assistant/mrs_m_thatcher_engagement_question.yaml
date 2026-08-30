@@ -1,0 +1,81 @@
+# Canonical Home Assistant package for confirmed treatment-post notifications.
+# Install only in a later deployment task.
+
+command_line:
+  - sensor:
+      name: "Mrs M Thatcher Engagement Question"
+      unique_id: mrs_m_thatcher_engagement_question
+      command: "cat /config/.runtime/mrs_m_thatcher_engagement_question.json"
+      command_timeout: 5
+      scan_interval: 30
+      value_template: >-
+        {% if value_json is mapping
+              and value_json.post_id is defined
+              and (value_json.post_id | string)
+                is match('^[0-9]{1,30}$') %}
+          {{ value_json.post_id }}
+        {% else %}
+          unavailable
+        {% endif %}
+      json_attributes:
+        - schema_version
+        - experiment_id
+        - plan_sha256
+        - post_id
+        - pair_id
+        - treatment_number
+        - target_treatment_count
+        - published_epoch
+        - quote_excerpt
+        - question
+        - post_url
+
+automation:
+  - id: mrs_m_thatcher_engagement_question_treatment
+    alias: "Mrs M Thatcher confirmed treatment post"
+    description: "Notify once for a newly confirmed, recent treatment root."
+    triggers:
+      - trigger: state
+        entity_id: sensor.mrs_m_thatcher_engagement_question
+    conditions:
+      - condition: template
+        value_template: >-
+          {% set state = trigger.to_state.state
+            if trigger.to_state is not none else '' %}
+          {% set published = trigger.to_state.attributes.get('published_epoch')
+            if trigger.to_state is not none else none %}
+          {% set age = as_timestamp(now()) - published
+            if published is number else none %}
+          {{ state is match('^[0-9]{1,30}$')
+             and trigger.from_state is not none
+             and trigger.from_state.state != state
+             and trigger.to_state.attributes.get('experiment_id')
+               == 'substantive-question-v1'
+             and published is number
+             and published > 0
+             and age >= -60
+             and age <= 600
+             and trigger.to_state.attributes.get('treatment_number') is number
+             and trigger.to_state.attributes.get('target_treatment_count') == 30
+             and trigger.to_state.attributes.get('quote_excerpt') is string
+             and trigger.to_state.attributes.get('question') is string
+             and trigger.to_state.attributes.get('post_url') is string }}
+    actions:
+      - action: notify.millie_powerwall_alert_devices
+        continue_on_error: true
+        data:
+          title: >-
+            MrsMThatcher treatment post
+            {{ trigger.to_state.attributes.get('treatment_number') }}/30
+          message: >-
+            {{ trigger.to_state.attributes.get('quote_excerpt') }}
+
+            Question — {{ trigger.to_state.attributes.get('question') }}
+
+            {{ trigger.to_state.attributes.get('post_url') }}
+          data:
+            tag: >-
+              mrs_m_thatcher_treatment_{{ trigger.to_state.state }}
+    mode: queued
+    max: 5
+    max_exceeded: silent

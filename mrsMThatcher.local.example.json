@@ -23,6 +23,9 @@
     "include_source": true,
     "include_verification": true
   },
+  "engagement_question_experiment_enabled": false,
+  "engagement_question_experiment_plan_path": "engagement_question_experiment/active_plan.json",
+  "engagement_question_notification_output_path": "",
   "ai_first_reply_strategy": {
     "enabled": false,
     "strategy_version": "ai-first-reply-v3",

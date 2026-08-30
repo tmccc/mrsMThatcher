@@ -27,8 +27,8 @@ import requests
 from requests_oauthlib import OAuth1
 
 
-SCHEMA_VERSION = 1
-COLLECTOR_VERSION = "engagement-analytics-v1"
+SCHEMA_VERSION = 2
+COLLECTOR_VERSION = "engagement-analytics-v2"
 IDENTITY_CORRECTION_SCHEMA_VERSION = 1
 SNAPSHOT_TARGETS = (3600, 6 * 3600, 24 * 3600, 72 * 3600, 168 * 3600)
 TARGET_LABELS = {
@@ -64,6 +64,30 @@ X_SNOWFLAKE_EPOCH_MS = 1_288_834_974_657
 LOG_TIMESTAMP_RE = re.compile(r"^(\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}).*? - EVENT (\{.*\})$")
 POST_ID_RE = re.compile(r"\d{1,30}")
 QUOTE_ID_RE = re.compile(r"[0-9a-f]{64}")
+EXPERIMENT_PAIR_ID_RE = re.compile(r"pair-[0-9a-f]{24}")
+ENGAGEMENT_EXPERIMENT_ID = "substantive-question-v1"
+ENGAGEMENT_EXPERIMENT_EVENT_FIELDS = {
+    "engagement_experiment_id": "engagement_experiment_id",
+    "engagement_experiment_plan_sha256": "engagement_experiment_plan_sha256",
+    "engagement_experiment_pair_id": "engagement_experiment_pair_id",
+    "engagement_experiment_arm": "engagement_experiment_arm",
+    "engagement_experiment_member_position": "engagement_experiment_member_position",
+    "engagement_experiment_publication_order": "engagement_experiment_publication_order",
+    "engagement_experiment_sequence": "engagement_experiment_sequence",
+    "engagement_approved_question_sha256": "engagement_approved_question_sha256",
+    "engagement_question_present": "engagement_question_present",
+    "engagement_public_text_sha256": "engagement_public_text_sha256",
+}
+ENGAGEMENT_EXPERIMENT_COLUMNS = tuple(ENGAGEMENT_EXPERIMENT_EVENT_FIELDS.values())
+ENGAGEMENT_EXPERIMENT_REPORT_TARGETS = (24 * 3600, 72 * 3600, 168 * 3600)
+ENGAGEMENT_EXPERIMENT_REPORT_RATES = (
+    "engagement_rate",
+    "reply_rate",
+    "repost_rate",
+    "quote_post_rate",
+    "bookmark_rate",
+    "profile_click_rate",
+)
 SECRET_KEY_RE = re.compile(r"authorization|api.?key|access.?token|secret|cookie", re.I)
 SAFE_RESPONSE_HEADERS = (
     "content-type",
@@ -335,6 +359,16 @@ CREATE TABLE IF NOT EXISTS post_pairs (
     image_score REAL,
     made_with_ai INTEGER,
     quotation_topic TEXT,
+    engagement_experiment_id TEXT,
+    engagement_experiment_plan_sha256 TEXT,
+    engagement_experiment_pair_id TEXT,
+    engagement_experiment_arm TEXT,
+    engagement_experiment_member_position INTEGER,
+    engagement_experiment_publication_order TEXT,
+    engagement_experiment_sequence INTEGER,
+    engagement_approved_question_sha256 TEXT,
+    engagement_question_present INTEGER,
+    engagement_public_text_sha256 TEXT,
     discovery_sources_json TEXT NOT NULL,
     first_discovered_at TEXT NOT NULL,
     last_discovered_at TEXT NOT NULL,
@@ -342,7 +376,11 @@ CREATE TABLE IF NOT EXISTS post_pairs (
     CHECK (context_post_id IS NULL OR context_post_id <> main_post_id),
     CHECK (meaning_included IS NULL OR meaning_included IN (0, 1)),
     CHECK (shortening_applied IS NULL OR shortening_applied IN (0, 1)),
-    CHECK (made_with_ai IS NULL OR made_with_ai IN (0, 1))
+    CHECK (made_with_ai IS NULL OR made_with_ai IN (0, 1)),
+    CHECK (engagement_experiment_arm IS NULL OR engagement_experiment_arm IN ('control', 'treatment')),
+    CHECK (engagement_experiment_member_position IS NULL OR engagement_experiment_member_position IN (1, 2)),
+    CHECK (engagement_experiment_publication_order IS NULL OR engagement_experiment_publication_order IN ('control_first', 'treatment_first')),
+    CHECK (engagement_question_present IS NULL OR engagement_question_present IN (0, 1))
 );
 
 CREATE TABLE IF NOT EXISTS post_pair_revisions (
@@ -510,10 +548,33 @@ def initialise_database(paths: AnalyticsPaths) -> dict[str, Any]:
         path.mkdir(parents=True, exist_ok=True)
     with connect_database(paths, create=True) as connection:
         connection.executescript(SCHEMA_SQL)
-        connection.execute(
-            "INSERT OR IGNORE INTO schema_migrations(version, applied_at) VALUES (?, ?)",
-            (SCHEMA_VERSION, iso_utc()),
-        )
+        existing_columns = {
+            str(row[1])
+            for row in connection.execute("PRAGMA table_info(post_pairs)")
+        }
+        migration_columns = {
+            "engagement_experiment_id": "TEXT",
+            "engagement_experiment_plan_sha256": "TEXT",
+            "engagement_experiment_pair_id": "TEXT",
+            "engagement_experiment_arm": "TEXT",
+            "engagement_experiment_member_position": "INTEGER",
+            "engagement_experiment_publication_order": "TEXT",
+            "engagement_experiment_sequence": "INTEGER",
+            "engagement_approved_question_sha256": "TEXT",
+            "engagement_question_present": "INTEGER",
+            "engagement_public_text_sha256": "TEXT",
+        }
+        for column, sql_type in migration_columns.items():
+            if column not in existing_columns:
+                connection.execute(
+                    f"ALTER TABLE post_pairs ADD COLUMN {column} {sql_type}"
+                )
+        applied_at = iso_utc()
+        for version in range(1, SCHEMA_VERSION + 1):
+            connection.execute(
+                "INSERT OR IGNORE INTO schema_migrations(version, applied_at) VALUES (?, ?)",
+                (version, applied_at),
+            )
         connection.commit()
     state = {
         "schema_version": 1,
@@ -712,6 +773,54 @@ def _topic_for_quote(quote_analysis: dict[str, Any], quote_id: str) -> str | Non
     return None
 
 
+def _experiment_metadata_from_confirmed_event(
+    event: dict[str, Any],
+) -> dict[str, Any] | None:
+    """Validate optional all-or-none experiment metadata from confirmation."""
+
+    present = set(event).intersection(ENGAGEMENT_EXPERIMENT_EVENT_FIELDS)
+    if not present:
+        return None
+    if present != set(ENGAGEMENT_EXPERIMENT_EVENT_FIELDS):
+        raise IdentityConflict("confirmed experiment event metadata is partial")
+    values = {
+        column: event[event_field]
+        for event_field, column in ENGAGEMENT_EXPERIMENT_EVENT_FIELDS.items()
+    }
+    if all(value is None for value in values.values()):
+        return None
+    if any(value is None for value in values.values()):
+        raise IdentityConflict("confirmed experiment event mixes null metadata")
+    if (
+        values["engagement_experiment_id"] != ENGAGEMENT_EXPERIMENT_ID
+        or type(values["engagement_experiment_plan_sha256"]) is not str
+        or not QUOTE_ID_RE.fullmatch(
+            values["engagement_experiment_plan_sha256"]
+        )
+        or type(values["engagement_experiment_pair_id"]) is not str
+        or not EXPERIMENT_PAIR_ID_RE.fullmatch(
+            values["engagement_experiment_pair_id"]
+        )
+        or values["engagement_experiment_arm"] not in {"control", "treatment"}
+        or values["engagement_experiment_member_position"] not in {1, 2}
+        or values["engagement_experiment_publication_order"]
+        not in {"control_first", "treatment_first"}
+        or type(values["engagement_experiment_sequence"]) is not int
+        or not 1 <= values["engagement_experiment_sequence"] <= 60
+        or type(values["engagement_approved_question_sha256"]) is not str
+        or not QUOTE_ID_RE.fullmatch(
+            values["engagement_approved_question_sha256"]
+        )
+        or type(values["engagement_question_present"]) is not bool
+        or values["engagement_question_present"]
+        != (values["engagement_experiment_arm"] == "treatment")
+        or type(values["engagement_public_text_sha256"]) is not str
+        or not QUOTE_ID_RE.fullmatch(values["engagement_public_text_sha256"])
+    ):
+        raise IdentityConflict("confirmed experiment event metadata is invalid")
+    return values
+
+
 def discover_post_pairs(
     paths: AnalyticsPaths,
     *,
@@ -844,6 +953,9 @@ def discover_post_pairs(
                 "quotation_topic",
             ):
                 _fill(item, field, record[field])
+            for field in ENGAGEMENT_EXPERIMENT_COLUMNS:
+                if field in record.keys():
+                    _fill(item, field, record[field])
 
     # Confirmed/sending context receipt, if one exists, is retained as a secondary source.
     receipt_path = paths.project_dir / "historical_context_reply_receipt.json"
@@ -890,6 +1002,7 @@ def discover_post_pairs(
                 _fill(item, "quote_text", text)
 
     context_events: dict[str, dict[str, Any]] = {}
+    structured_experiment_metadata: dict[str, dict[str, Any]] = {}
     ignored_line_identities: list[tuple[str, str, str]] = []
     for event in events:
         if event.get("event") == "historical_context_reply":
@@ -903,6 +1016,23 @@ def discover_post_pairs(
             continue
         main_post_id = str(event.get("post_id") or "")
         item = candidate_for(main_post_id, "structured_log_main_post_event")
+        _merge_identity(
+            item,
+            "quote_id",
+            event.get("quote_hash"),
+            "structured_log_main_post_event",
+        )
+        experiment_metadata = _experiment_metadata_from_confirmed_event(event)
+        if experiment_metadata is not None:
+            previous_metadata = structured_experiment_metadata.setdefault(
+                main_post_id,
+                experiment_metadata,
+            )
+            if previous_metadata != experiment_metadata:
+                raise IdentityConflict(
+                    f"contradictory confirmed experiment metadata for {main_post_id}"
+                )
+            item.update(experiment_metadata)
         line_no = event.get("line_no")
         if type(line_no) is int and 0 <= line_no < len(lines):
             quote_text = lines[line_no].rstrip()
@@ -1063,6 +1193,10 @@ def discover_post_pairs(
             "image_score": item.get("image_score"),
             "made_with_ai": item.get("made_with_ai"),
             "quotation_topic": item.get("quotation_topic"),
+            **{
+                field: item.get(field)
+                for field in ENGAGEMENT_EXPERIMENT_COLUMNS
+            },
             "discovery_sources": sorted(item.get("discovery_sources") or []),
         })
     output.sort(key=lambda row: (row["main_posted_at"], row["main_post_id"]))
@@ -1079,6 +1213,7 @@ PAIR_COLUMNS = (
     "verification_label", "source_class", "historical_confidence",
     "context_weighted_character_count", "meaning_included", "shortening_applied",
     "image_source", "image_filename", "image_score", "made_with_ai", "quotation_topic",
+    *ENGAGEMENT_EXPERIMENT_COLUMNS,
 )
 
 
@@ -1113,6 +1248,15 @@ def apply_discovery(connection: sqlite3.Connection, pairs: Sequence[dict[str, An
                     new = _db_value(pair.get(field))
                     old = existing[field]
                     if old in (None, "") and new not in (None, ""):
+                        changes[field] = new
+                    elif (
+                        field in ENGAGEMENT_EXPERIMENT_COLUMNS
+                        and new not in (None, "")
+                        and old != new
+                    ):
+                        # Confirmed structured evidence may correct earlier
+                        # metadata.  The previous row remains in the append-only
+                        # post_pair_revisions history.
                         changes[field] = new
                     elif field in {"discovery_sources"}:
                         pass
@@ -2262,6 +2406,480 @@ def render_report(summary: dict[str, Any]) -> str:
     return "\n".join(lines).rstrip() + "\n"
 
 
+def _experiment_latest_snapshots(
+    connection: sqlite3.Connection,
+    experiment_id: str,
+) -> dict[tuple[str, int], dict[str, Any]]:
+    """Return the latest append-only revision for each experiment target."""
+
+    rows = connection.execute(
+        """SELECT snapshots.*
+             FROM metric_snapshots snapshots
+             JOIN posts ON posts.post_id = snapshots.post_id
+             JOIN post_pairs pairs ON pairs.pair_id = posts.pair_id
+            WHERE posts.role = 'main_quote'
+              AND pairs.engagement_experiment_id = ?
+              AND snapshots.target_age_seconds IN (?, ?, ?)
+            ORDER BY snapshots.post_id,
+                     snapshots.target_age_seconds,
+                     snapshots.revision_number DESC,
+                     snapshots.snapshot_id DESC""",
+        (experiment_id, *ENGAGEMENT_EXPERIMENT_REPORT_TARGETS),
+    ).fetchall()
+    latest: dict[tuple[str, int], dict[str, Any]] = {}
+    for row in rows:
+        record = dict(row)
+        key = (str(record["post_id"]), int(record["target_age_seconds"]))
+        latest.setdefault(key, record)
+    return latest
+
+
+def _experiment_snapshot_statuses(
+    latest: dict[tuple[str, int], dict[str, Any]],
+    *,
+    tolerance_seconds: int,
+) -> dict[tuple[str, int], tuple[dict[str, Any] | None, str | None]]:
+    """Classify experiment snapshots and reject one response reused for targets."""
+
+    duplicate_groups: dict[tuple[str, str], list[dict[str, Any]]] = {}
+    for row in latest.values():
+        digest = str(row.get("raw_response_sha256") or "")
+        if digest:
+            duplicate_groups.setdefault((str(row["post_id"]), digest), []).append(row)
+    duplicate_rejections: set[tuple[str, int]] = set()
+    for group in duplicate_groups.values():
+        targets = {int(row["target_age_seconds"]) for row in group}
+        if len(targets) < 2:
+            continue
+        proper = min(
+            group,
+            key=lambda row: (
+                abs(int(row["actual_age_seconds"]) - int(row["target_age_seconds"])),
+                int(row["target_age_seconds"]),
+                int(row["snapshot_id"]),
+            ),
+        )
+        proper_key = (str(proper["post_id"]), int(proper["target_age_seconds"]))
+        duplicate_rejections.update(
+            (str(row["post_id"]), int(row["target_age_seconds"]))
+            for row in group
+            if (str(row["post_id"]), int(row["target_age_seconds"])) != proper_key
+        )
+
+    statuses: dict[tuple[str, int], tuple[dict[str, Any] | None, str | None]] = {}
+    for key, row in latest.items():
+        target = int(row["target_age_seconds"])
+        if key in duplicate_rejections:
+            statuses[key] = (None, "duplicated_response_used_for_another_target")
+        elif abs(int(row["actual_age_seconds"]) - target) > tolerance_seconds:
+            statuses[key] = (None, "outside_on_time_tolerance")
+        elif row.get("impressions") is None:
+            statuses[key] = (None, "impressions_unavailable")
+        else:
+            statuses[key] = (row, None)
+    return statuses
+
+
+def _positive_proportion(
+    rows: Sequence[dict[str, Any]],
+    field: str,
+) -> dict[str, Any]:
+    """Return the available-value proportion whose count is at least one."""
+
+    available = [int(row[field]) for row in rows if row.get(field) is not None]
+    positive = sum(value >= 1 for value in available)
+    return {
+        "available_observations": len(available),
+        "posts_with_at_least_one": positive,
+        "proportion": positive / len(available) if available else None,
+    }
+
+
+def _experiment_arm_summary(
+    rows: Sequence[dict[str, Any]],
+    *,
+    published_posts: int,
+) -> dict[str, Any]:
+    """Summarise one arm's usable observations at one target age."""
+
+    return {
+        "published_posts": published_posts,
+        "usable_on_time_observations": len(rows),
+        "impressions": _distribution(
+            [row.get("impressions") for row in rows],
+            minimum_sample=1,
+        ),
+        "rates": {
+            field: _distribution(
+                [row.get(field) for row in rows],
+                minimum_sample=1,
+            )
+            for field in ENGAGEMENT_EXPERIMENT_REPORT_RATES
+        },
+        "quote_posts_at_least_one": _positive_proportion(rows, "quote_posts"),
+        "bookmarks_at_least_one": _positive_proportion(rows, "bookmarks"),
+    }
+
+
+def _gap_distribution(values: Sequence[int]) -> dict[str, Any]:
+    """Return a compact publication-gap distribution in seconds."""
+
+    distribution = _distribution(values, minimum_sample=1)
+    return {
+        "sample_size": distribution["sample_size"],
+        "minimum": min(values) if values else None,
+        "q1": distribution["q1"],
+        "median": distribution["median"],
+        "q3": distribution["q3"],
+        "maximum": max(values) if values else None,
+    }
+
+
+def _experiment_paired_summary(
+    pairs: Sequence[dict[str, Any]],
+) -> dict[str, Any]:
+    """Summarise complete matched-pair observations descriptively."""
+
+    impression_differences = [
+        int(pair["treatment"]["impressions"])
+        - int(pair["control"]["impressions"])
+        for pair in pairs
+    ]
+    impression_ratios = [
+        int(pair["treatment"]["impressions"])
+        / int(pair["control"]["impressions"])
+        for pair in pairs
+        if int(pair["control"]["impressions"]) > 0
+    ]
+    wins = sum(value > 0 for value in impression_differences)
+    losses = sum(value < 0 for value in impression_differences)
+    paired_rate_differences: dict[str, dict[str, Any]] = {}
+    for field in ENGAGEMENT_EXPERIMENT_REPORT_RATES:
+        differences = [
+            float(pair["treatment"][field]) - float(pair["control"][field])
+            for pair in pairs
+            if pair["treatment"].get(field) is not None
+            and pair["control"].get(field) is not None
+        ]
+        paired_rate_differences[field] = _distribution(
+            differences,
+            minimum_sample=1,
+        )
+    return {
+        "complete_pair_count": len(pairs),
+        "pair_ids": [pair["pair_id"] for pair in pairs],
+        "median_treatment_minus_control_impressions": (
+            statistics.median(impression_differences)
+            if impression_differences
+            else None
+        ),
+        "median_treatment_control_impression_ratio": (
+            statistics.median(impression_ratios) if impression_ratios else None
+        ),
+        "treatment_wins": wins,
+        "control_wins": losses,
+        "ties": len(impression_differences) - wins - losses,
+        "paired_rate_differences": paired_rate_differences,
+        "member_publication_gap_seconds": _gap_distribution(
+            [int(pair["publication_gap_seconds"]) for pair in pairs]
+        ),
+    }
+
+
+def engagement_experiment_report_summary(
+    connection: sqlite3.Connection,
+    *,
+    experiment_id: str = ENGAGEMENT_EXPERIMENT_ID,
+    tolerance_seconds: int,
+    now: datetime | None = None,
+) -> dict[str, Any]:
+    """Build the local descriptive matched-pair experiment report."""
+
+    if experiment_id != ENGAGEMENT_EXPERIMENT_ID:
+        raise AnalyticsError(f"unsupported engagement experiment: {experiment_id!r}")
+    if type(tolerance_seconds) is not int or not 0 <= tolerance_seconds <= 24 * 3600:
+        raise AnalyticsError("experiment report tolerance must be from 0 to 86400 seconds")
+    columns = {
+        str(row[1]) for row in connection.execute("PRAGMA table_info(post_pairs)")
+    }
+    missing_columns = set(ENGAGEMENT_EXPERIMENT_COLUMNS) - columns
+    if missing_columns:
+        raise AnalyticsError(
+            "engagement analytics schema must be migrated before experiment reporting: "
+            + ", ".join(sorted(missing_columns))
+        )
+
+    publications = [
+        dict(row)
+        for row in connection.execute(
+            """SELECT * FROM post_pairs
+                WHERE engagement_experiment_id = ?
+                ORDER BY main_posted_at, main_post_id""",
+            (experiment_id,),
+        ).fetchall()
+    ]
+    for row in publications:
+        if (
+            row.get("engagement_experiment_arm") not in {"control", "treatment"}
+            or not EXPERIMENT_PAIR_ID_RE.fullmatch(
+                str(row.get("engagement_experiment_pair_id") or "")
+            )
+        ):
+            raise AnalyticsError("stored engagement experiment metadata is invalid")
+
+    published_counts = {
+        arm: sum(row["engagement_experiment_arm"] == arm for row in publications)
+        for arm in ("control", "treatment")
+    }
+    grouped: dict[str, dict[str, list[dict[str, Any]]]] = {}
+    for row in publications:
+        grouped.setdefault(
+            str(row["engagement_experiment_pair_id"]),
+            {"control": [], "treatment": []},
+        )[str(row["engagement_experiment_arm"])].append(row)
+
+    latest = _experiment_latest_snapshots(connection, experiment_id)
+    statuses = _experiment_snapshot_statuses(
+        latest,
+        tolerance_seconds=tolerance_seconds,
+    )
+    targets: dict[str, Any] = {}
+    for target in ENGAGEMENT_EXPERIMENT_REPORT_TARGETS:
+        usable_by_arm: dict[str, list[dict[str, Any]]] = {
+            "control": [],
+            "treatment": [],
+        }
+        valid_pairs: list[dict[str, Any]] = []
+        excluded_pairs: list[dict[str, Any]] = []
+        wider_gap_pairs: list[dict[str, Any]] = []
+        for pair_id, members in sorted(grouped.items()):
+            reasons: list[str] = []
+            selected_members: dict[str, dict[str, Any]] = {}
+            for arm in ("control", "treatment"):
+                if len(members[arm]) == 0:
+                    reasons.append(f"{arm}_publication_missing")
+                    continue
+                if len(members[arm]) > 1:
+                    reasons.append(f"multiple_{arm}_publications")
+                    continue
+                publication = members[arm][0]
+                status = statuses.get((str(publication["main_post_id"]), target))
+                if status is None:
+                    reasons.append(f"{arm}_observation_missing")
+                    continue
+                snapshot, status_reason = status
+                if snapshot is None:
+                    reasons.append(f"{arm}_{status_reason}")
+                    continue
+                selected_members[arm] = snapshot
+                usable_by_arm[arm].append(snapshot)
+
+            gap_seconds: int | None = None
+            if len(members["control"]) == 1 and len(members["treatment"]) == 1:
+                gap_seconds = abs(
+                    int(
+                        (
+                            parse_datetime(members["treatment"][0]["main_posted_at"])
+                            - parse_datetime(members["control"][0]["main_posted_at"])
+                        ).total_seconds()
+                    )
+                )
+                if gap_seconds > 4 * 3600:
+                    reasons.append("member_publication_gap_over_four_hours")
+                    wider_gap_pairs.append(
+                        {
+                            "pair_id": pair_id,
+                            "publication_gap_seconds": gap_seconds,
+                            "both_target_observations_usable": len(selected_members) == 2,
+                        }
+                    )
+            if not reasons and gap_seconds is not None:
+                valid_pairs.append(
+                    {
+                        "pair_id": pair_id,
+                        "control": selected_members["control"],
+                        "treatment": selected_members["treatment"],
+                        "publication_gap_seconds": gap_seconds,
+                    }
+                )
+            else:
+                excluded_pairs.append(
+                    {
+                        "pair_id": pair_id,
+                        "reasons": sorted(set(reasons)),
+                    }
+                )
+
+        valid_pairs.sort(key=lambda row: row["pair_id"])
+        largest_pair_id: str | None = None
+        sensitivity_pairs = list(valid_pairs)
+        if valid_pairs:
+            largest = min(
+                valid_pairs,
+                key=lambda pair: (
+                    -(
+                        int(pair["control"]["impressions"])
+                        + int(pair["treatment"]["impressions"])
+                    ),
+                    pair["pair_id"],
+                ),
+            )
+            largest_pair_id = str(largest["pair_id"])
+            sensitivity_pairs = [
+                pair for pair in valid_pairs if pair is not largest
+            ]
+        targets[TARGET_LABELS[target]] = {
+            "target_age_seconds": target,
+            "on_time_tolerance_seconds": tolerance_seconds,
+            "arms": {
+                arm: _experiment_arm_summary(
+                    usable_by_arm[arm],
+                    published_posts=published_counts[arm],
+                )
+                for arm in ("control", "treatment")
+            },
+            "matched_pairs": {
+                "all_valid_pairs": _experiment_paired_summary(valid_pairs),
+                "largest_impression_pair_removed": {
+                    "removed_pair_id": largest_pair_id,
+                    **_experiment_paired_summary(sensitivity_pairs),
+                },
+            },
+            "wider_gap_pairs": wider_gap_pairs,
+            "excluded_pairs": excluded_pairs,
+        }
+
+    return {
+        "schema_version": 1,
+        "experiment_id": experiment_id,
+        "generated_at": iso_utc((now or utc_now()).astimezone(timezone.utc)),
+        "description": "descriptive matched-pair results; no automatic stopping or promotion",
+        "published_posts": published_counts,
+        "targets": targets,
+    }
+
+
+def _format_report_number(value: Any, *, rate: bool = False) -> str:
+    """Format an optional numeric value for the experiment Markdown report."""
+
+    if value is None:
+        return "unavailable"
+    if rate:
+        return f"{float(value) * 100:.4f}%"
+    return f"{float(value):.3f}".rstrip("0").rstrip(".")
+
+
+def render_engagement_experiment_report(summary: dict[str, Any]) -> str:
+    """Render the compact substantive-question experiment report."""
+
+    lines = [
+        "# Substantive-question engagement experiment",
+        "",
+        f"Experiment: `{summary['experiment_id']}`",
+        f"Generated: `{summary['generated_at']}`",
+        "",
+        "> Descriptive matched-pair results only. No p-values, automatic stopping, or automatic production promotion are applied.",
+        "",
+    ]
+    for label, target in summary["targets"].items():
+        lines.extend(
+            [
+                f"## {label}",
+                "",
+                "| arm | published | usable on-time | median impressions | impressions IQR | median engagement | median reply | median repost | median quote-post | median bookmark | median profile click | quote-post ≥1 | bookmark ≥1 |",
+                "|---|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|",
+            ]
+        )
+        for arm in ("control", "treatment"):
+            values = target["arms"][arm]
+            impressions = values["impressions"]
+            rates = values["rates"]
+            quote_positive = values["quote_posts_at_least_one"]
+            bookmark_positive = values["bookmarks_at_least_one"]
+            iqr = (
+                "unavailable"
+                if impressions["q1"] is None
+                else f"{_format_report_number(impressions['q1'])}–{_format_report_number(impressions['q3'])}"
+            )
+            lines.append(
+                f"| {arm} | {values['published_posts']} | {values['usable_on_time_observations']} | "
+                f"{_format_report_number(impressions['median'])} | {iqr} | "
+                f"{_format_report_number(rates['engagement_rate']['median'], rate=True)} | "
+                f"{_format_report_number(rates['reply_rate']['median'], rate=True)} | "
+                f"{_format_report_number(rates['repost_rate']['median'], rate=True)} | "
+                f"{_format_report_number(rates['quote_post_rate']['median'], rate=True)} | "
+                f"{_format_report_number(rates['bookmark_rate']['median'], rate=True)} | "
+                f"{_format_report_number(rates['profile_click_rate']['median'], rate=True)} | "
+                f"{_format_report_number(quote_positive['proportion'], rate=True)} | "
+                f"{_format_report_number(bookmark_positive['proportion'], rate=True)} |"
+            )
+        lines.extend(["", "### Matched comparisons", ""])
+        for name, values in target["matched_pairs"].items():
+            removed = values.get("removed_pair_id")
+            suffix = f" (removed `{removed}`)" if removed else ""
+            lines.append(
+                f"- {name.replace('_', ' ')}{suffix}: {values['complete_pair_count']} pairs; "
+                f"median treatment-minus-control impressions "
+                f"{_format_report_number(values['median_treatment_minus_control_impressions'])}; "
+                f"median treatment/control ratio "
+                f"{_format_report_number(values['median_treatment_control_impression_ratio'])}; "
+                f"wins {values['treatment_wins']}/{values['control_wins']}/{values['ties']} "
+                "(treatment/control/ties)."
+            )
+            rate_parts = [
+                f"{field.replace('_', ' ')}={_format_report_number(distribution['median'], rate=True)}"
+                for field, distribution in values["paired_rate_differences"].items()
+            ]
+            lines.append("  Median paired rate differences: " + "; ".join(rate_parts) + ".")
+        gap = target["matched_pairs"]["all_valid_pairs"]["member_publication_gap_seconds"]
+        lines.append(
+            ""
+            f"Valid-pair publication gaps (seconds): n={gap['sample_size']}, "
+            f"min={_format_report_number(gap['minimum'])}, "
+            f"median={_format_report_number(gap['median'])}, "
+            f"max={_format_report_number(gap['maximum'])}."
+        )
+        if target["wider_gap_pairs"]:
+            lines.append("")
+            lines.append(
+                "Wider-gap pairs (>4h): "
+                + ", ".join(
+                    f"`{item['pair_id']}` ({item['publication_gap_seconds']}s)"
+                    for item in target["wider_gap_pairs"]
+                )
+                + "."
+            )
+        if target["excluded_pairs"]:
+            lines.extend(["", "Excluded from primary comparison:", ""])
+            lines.extend(
+                f"- `{item['pair_id']}`: {', '.join(item['reasons'])}"
+                for item in target["excluded_pairs"]
+            )
+        lines.append("")
+    return "\n".join(lines).rstrip() + "\n"
+
+
+def generate_engagement_experiment_report(
+    paths: AnalyticsPaths,
+    *,
+    experiment_id: str = ENGAGEMENT_EXPERIMENT_ID,
+) -> dict[str, str]:
+    """Write the experiment report using only existing local observations."""
+
+    with connect_database(paths, readonly=True) as connection:
+        summary = engagement_experiment_report_summary(
+            connection,
+            experiment_id=experiment_id,
+            tolerance_seconds=int(load_config(paths)["on_time_tolerance_seconds"]),
+        )
+    stem = experiment_id.replace("-", "_")
+    markdown_path = _runtime_path(paths, paths.reports / f"{stem}.md")
+    json_path = markdown_path.with_suffix(".json")
+    atomic_write_text(markdown_path, render_engagement_experiment_report(summary))
+    atomic_write_json(json_path, summary)
+    return {"markdown": str(markdown_path), "json": str(json_path)}
+
+
 def generate_reports(paths: AnalyticsPaths, *, window_days: int | None = None) -> dict[str, str]:
     """Generate bounded engagement reports from local analytics data."""
     windows = [window_days] if window_days is not None else [7, 28, 90, None]
@@ -2395,6 +3013,11 @@ def build_parser() -> argparse.ArgumentParser:
     report = subparsers.add_parser("report", help="Generate prospective local reports")
     project_argument(report)
     report.add_argument("--window-days", type=int)
+    report.add_argument(
+        "--experiment",
+        choices=[ENGAGEMENT_EXPERIMENT_ID],
+        help="Generate the local matched-pair experiment report without collecting",
+    )
 
     export = subparsers.add_parser("export", help="Export append-only analytics data")
     project_argument(export)
@@ -2463,7 +3086,15 @@ def main(argv: Sequence[str] | None = None) -> int:
         return 0
     if args.command == "report":
         with collector_lock(paths):
-            result = generate_reports(paths, window_days=args.window_days)
+            if args.experiment:
+                if args.window_days is not None:
+                    raise SystemExit("--window-days cannot be combined with --experiment")
+                result = generate_engagement_experiment_report(
+                    paths,
+                    experiment_id=args.experiment,
+                )
+            else:
+                result = generate_reports(paths, window_days=args.window_days)
         LOG.info("Generated engagement reports count=%s", len(result))
         _print_json(result)
         return 0

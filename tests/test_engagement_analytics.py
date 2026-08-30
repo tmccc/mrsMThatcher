@@ -1101,3 +1101,374 @@ def test_bounded_backfill_requires_scope_and_confirmation(tmp_path):
             "backfill", "--project-dir", str(test_paths.project_dir), "--execute-read",
             "--max-pairs", "1", "--max-api-requests", "1",
         ])
+
+
+def experiment_metadata(
+    pair_id: str,
+    arm: str,
+    *,
+    sequence: int,
+    position: int,
+    plan_sha256: str = "a" * 64,
+) -> dict:
+    return {
+        "engagement_experiment_id": analytics.ENGAGEMENT_EXPERIMENT_ID,
+        "engagement_experiment_plan_sha256": plan_sha256,
+        "engagement_experiment_pair_id": pair_id,
+        "engagement_experiment_arm": arm,
+        "engagement_experiment_member_position": position,
+        "engagement_experiment_publication_order": "control_first",
+        "engagement_experiment_sequence": sequence,
+        "engagement_approved_question_sha256": "b" * 64,
+        "engagement_question_present": arm == "treatment",
+        "engagement_public_text_sha256": "c" * 64,
+    }
+
+
+def experimental_publication_record(
+    *,
+    experiment_pair_id: str,
+    arm: str,
+    posted_at: datetime,
+    sequence: int,
+    position: int,
+) -> dict:
+    quote = f"Experimental quote {experiment_pair_id} {arm}"
+    record = pair_record(context=False, suffix=sequence + 100)
+    record.update(
+        {
+            "quote_id": analytics.quote_text_hash(quote),
+            "canonical_quote_hash": analytics.quote_text_hash(quote),
+            "quote_text": quote,
+            "main_post_id": snowflake(posted_at, sequence),
+            "main_posted_at": analytics.iso_utc(posted_at),
+            "context_post_id": None,
+            "context_posted_at": None,
+            "context_missing_reason": "context_reply_not_recorded",
+            **experiment_metadata(
+                experiment_pair_id,
+                arm,
+                sequence=sequence,
+                position=position,
+            ),
+        }
+    )
+    return record
+
+
+def insert_experiment_snapshot(
+    connection: sqlite3.Connection,
+    record: dict,
+    *,
+    target: int,
+    actual_age: int,
+    impressions: int | None,
+    engagement_rate: float | None,
+    reply_rate: float | None = 0.01,
+    repost_rate: float | None = 0.02,
+    quote_post_rate: float | None = 0.0,
+    bookmark_rate: float | None = 0.0,
+    profile_click_rate: float | None = 0.005,
+    quote_posts: int | None = 0,
+    bookmarks: int | None = 0,
+    raw_hash: str | None = None,
+) -> None:
+    posted = analytics.parse_datetime(record["main_posted_at"])
+    due = posted + timedelta(seconds=target)
+    collected = posted + timedelta(seconds=actual_age)
+    digest = raw_hash or hashlib.sha256(
+        f"{record['main_post_id']}:{target}".encode()
+    ).hexdigest()
+    connection.execute(
+        """INSERT INTO metric_snapshots(
+               post_id, role, target_age_seconds, revision_number,
+               actual_age_seconds, due_at, collected_at, endpoint, auth_class,
+               impressions, likes, replies, reposts, quote_posts, bookmarks,
+               user_profile_clicks, engagement_count, engagement_rate,
+               bookmark_rate, reply_rate, repost_rate, quote_post_rate,
+               profile_click_rate, unavailable_fields_json,
+               request_attempt_number, response_status, raw_response_path,
+               raw_response_sha256, terminal_state
+           ) VALUES (?, 'main_quote', ?, 1, ?, ?, ?, '/2/tweets',
+                     'oauth1_user_context', ?, 1, 1, 1, ?, ?, 1, 4, ?, ?, ?,
+                     ?, ?, ?, '{}', 1, 200, ?, ?, NULL)""",
+        (
+            record["main_post_id"],
+            target,
+            actual_age,
+            analytics.iso_utc(due),
+            analytics.iso_utc(collected),
+            impressions,
+            quote_posts,
+            bookmarks,
+            engagement_rate,
+            bookmark_rate,
+            reply_rate,
+            repost_rate,
+            quote_post_rate,
+            profile_click_rate,
+            f"raw/{digest}.json",
+            digest,
+        ),
+    )
+
+
+def test_schema_v2_forward_migration_preserves_historical_rows_and_snapshots(tmp_path):
+    test_paths = paths(tmp_path)
+    test_paths.runtime_dir.mkdir()
+    connection = sqlite3.connect(test_paths.database)
+    connection.executescript(
+        """
+        CREATE TABLE schema_migrations(version INTEGER PRIMARY KEY, applied_at TEXT NOT NULL);
+        INSERT INTO schema_migrations VALUES(1, '2026-01-01T00:00:00Z');
+        CREATE TABLE post_pairs(
+            pair_id INTEGER PRIMARY KEY,
+            quote_id TEXT NOT NULL,
+            canonical_quote_hash TEXT NOT NULL,
+            quote_text TEXT NOT NULL,
+            main_post_id TEXT NOT NULL,
+            main_posted_at TEXT NOT NULL,
+            discovery_sources_json TEXT NOT NULL,
+            first_discovered_at TEXT NOT NULL,
+            last_discovered_at TEXT NOT NULL
+        );
+        INSERT INTO post_pairs VALUES(
+            1, 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa',
+            'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa',
+            'Historical quote', '123', '2026-01-01T00:00:00Z', '[]',
+            '2026-01-01T00:00:00Z', '2026-01-01T00:00:00Z'
+        );
+        CREATE TABLE metric_snapshots(
+            snapshot_id INTEGER PRIMARY KEY,
+            post_id TEXT,
+            likes INTEGER
+        );
+        INSERT INTO metric_snapshots VALUES(9, '123', 7);
+        """
+    )
+    connection.commit()
+    connection.close()
+
+    analytics.initialise_database(test_paths)
+    with analytics.connect_database(test_paths, readonly=True) as migrated:
+        row = migrated.execute("SELECT * FROM post_pairs WHERE pair_id=1").fetchone()
+        assert row["quote_text"] == "Historical quote"
+        assert all(row[field] is None for field in analytics.ENGAGEMENT_EXPERIMENT_COLUMNS)
+        assert migrated.execute(
+            "SELECT likes FROM metric_snapshots WHERE snapshot_id=9"
+        ).fetchone()[0] == 7
+        assert [
+            value[0]
+            for value in migrated.execute(
+                "SELECT version FROM schema_migrations ORDER BY version"
+            )
+        ] == [1, 2]
+
+
+def test_confirmed_event_is_only_experiment_metadata_source_and_is_strict():
+    event = {
+        "event": "main_post_posted",
+        **experiment_metadata("pair-" + "1" * 24, "treatment", sequence=7, position=2),
+    }
+    values = analytics._experiment_metadata_from_confirmed_event(event)
+    assert values is not None
+    assert values["engagement_experiment_arm"] == "treatment"
+    partial = dict(event)
+    partial.pop("engagement_public_text_sha256")
+    with pytest.raises(analytics.IdentityConflict, match="partial"):
+        analytics._experiment_metadata_from_confirmed_event(partial)
+    contradictory = dict(event)
+    contradictory["engagement_question_present"] = False
+    with pytest.raises(analytics.IdentityConflict, match="invalid"):
+        analytics._experiment_metadata_from_confirmed_event(contradictory)
+    assert analytics._experiment_metadata_from_confirmed_event(
+        {"event": "main_post_posted", "quote_id": "d" * 64}
+    ) is None
+
+
+def test_post_pair_experiment_enrichment_and_correction_remain_auditable(tmp_path):
+    test_paths = paths(tmp_path)
+    analytics.initialise_database(test_paths)
+    connection = analytics.connect_database(test_paths)
+    record = pair_record(context=False)
+    analytics.apply_discovery(connection, [record], now=NOW)
+    stored = connection.execute(
+        "SELECT * FROM post_pairs WHERE main_post_id=?", (record["main_post_id"],)
+    ).fetchone()
+    assert all(stored[field] is None for field in analytics.ENGAGEMENT_EXPERIMENT_COLUMNS)
+
+    enriched = {
+        **record,
+        **experiment_metadata("pair-" + "2" * 24, "control", sequence=1, position=1),
+    }
+    assert analytics.apply_discovery(connection, [enriched], now=NOW)["updated"] == 1
+    corrected = dict(enriched)
+    corrected["engagement_experiment_plan_sha256"] = "d" * 64
+    assert analytics.apply_discovery(
+        connection,
+        [corrected],
+        now=NOW + timedelta(seconds=1),
+    )["updated"] == 1
+    current = connection.execute(
+        "SELECT * FROM post_pairs WHERE main_post_id=?", (record["main_post_id"],)
+    ).fetchone()
+    assert current["engagement_experiment_arm"] == "control"
+    assert current["engagement_experiment_plan_sha256"] == "d" * 64
+    revisions = connection.execute(
+        "SELECT record_json FROM post_pair_revisions WHERE pair_id=? ORDER BY revision_number",
+        (current["pair_id"],),
+    ).fetchall()
+    assert len(revisions) == 3
+    assert json.loads(revisions[0][0])["engagement_experiment_id"] is None
+    assert json.loads(revisions[1][0])["engagement_experiment_plan_sha256"] == "a" * 64
+    connection.close()
+
+
+def _experiment_report_fixture(tmp_path):
+    test_paths = paths(tmp_path)
+    analytics.initialise_database(test_paths)
+    connection = analytics.connect_database(test_paths)
+    base = NOW - timedelta(days=10)
+    records: dict[tuple[int, str], dict] = {}
+    sequence = 1
+    pair_specs = {
+        1: (2 * 3600, {"control": 100, "treatment": 150}),
+        2: (2 * 3600, {"control": 200, "treatment": 150}),
+        3: (2 * 3600, {"control": 50, "treatment": 50}),
+        4: (5 * 3600, {"control": 80, "treatment": 120}),
+        5: (0, {"control": 70}),
+    }
+    for pair_number, (gap, arms) in pair_specs.items():
+        pair_id = f"pair-{pair_number:024x}"
+        for position, arm in enumerate(arms, 1):
+            posted_at = base + timedelta(days=pair_number, seconds=(position - 1) * gap)
+            record = experimental_publication_record(
+                experiment_pair_id=pair_id,
+                arm=arm,
+                posted_at=posted_at,
+                sequence=sequence,
+                position=position,
+            )
+            sequence += 1
+            records[(pair_number, arm)] = record
+            analytics.apply_discovery(connection, [record], now=NOW)
+            impression_count = arms[arm]
+            insert_experiment_snapshot(
+                connection,
+                record,
+                target=24 * 3600,
+                actual_age=24 * 3600,
+                impressions=impression_count,
+                engagement_rate=impression_count / 1000,
+                reply_rate=impression_count / 10000,
+                repost_rate=impression_count / 20000,
+                quote_post_rate=(0.01 if arm == "treatment" else 0.0),
+                bookmark_rate=0.0,
+                profile_click_rate=0.002,
+                quote_posts=(1 if arm == "treatment" else 0),
+                bookmarks=0,
+            )
+    connection.commit()
+    return test_paths, connection, records
+
+
+def test_experiment_report_describes_arms_pairs_gaps_and_outlier_sensitivity(tmp_path):
+    test_paths, connection, _records = _experiment_report_fixture(tmp_path)
+    summary = analytics.engagement_experiment_report_summary(
+        connection,
+        tolerance_seconds=20 * 60,
+        now=NOW,
+    )
+    target = summary["targets"]["24h"]
+    assert target["arms"]["control"]["published_posts"] == 5
+    assert target["arms"]["treatment"]["published_posts"] == 4
+    assert target["arms"]["control"]["usable_on_time_observations"] == 5
+    assert target["arms"]["treatment"]["usable_on_time_observations"] == 4
+    assert target["arms"]["control"]["impressions"]["median"] == 80
+    assert target["arms"]["control"]["impressions"]["q1"] == 70
+    assert target["arms"]["control"]["impressions"]["q3"] == 100
+    assert target["arms"]["control"]["quote_posts_at_least_one"]["proportion"] == 0
+    assert target["arms"]["control"]["bookmarks_at_least_one"]["proportion"] == 0
+    all_pairs = target["matched_pairs"]["all_valid_pairs"]
+    assert all_pairs["complete_pair_count"] == 3
+    assert all_pairs["median_treatment_minus_control_impressions"] == 0
+    assert all_pairs["median_treatment_control_impression_ratio"] == 1
+    assert (all_pairs["treatment_wins"], all_pairs["control_wins"], all_pairs["ties"]) == (1, 1, 1)
+    assert all_pairs["paired_rate_differences"]["engagement_rate"]["sample_size"] == 3
+    assert all_pairs["member_publication_gap_seconds"]["median"] == 7200
+    sensitivity = target["matched_pairs"]["largest_impression_pair_removed"]
+    assert sensitivity["removed_pair_id"] == f"pair-{2:024x}"
+    assert sensitivity["complete_pair_count"] == 2
+    assert target["wider_gap_pairs"] == [
+        {
+            "pair_id": f"pair-{4:024x}",
+            "publication_gap_seconds": 5 * 3600,
+            "both_target_observations_usable": True,
+        }
+    ]
+    excluded = {row["pair_id"]: row["reasons"] for row in target["excluded_pairs"]}
+    assert "member_publication_gap_over_four_hours" in excluded[f"pair-{4:024x}"]
+    assert "treatment_publication_missing" in excluded[f"pair-{5:024x}"]
+    rendered = analytics.render_engagement_experiment_report(summary)
+    assert "Wider-gap pairs (>4h)" in rendered
+    assert "largest impression pair removed" in rendered
+    connection.close()
+
+
+def test_duplicate_late_observation_is_not_reused_as_target_growth(tmp_path):
+    test_paths = paths(tmp_path)
+    analytics.initialise_database(test_paths)
+    connection = analytics.connect_database(test_paths)
+    pair_id = "pair-" + "9" * 24
+    base = NOW - timedelta(days=10)
+    records = []
+    for sequence, arm in enumerate(("control", "treatment"), 1):
+        record = experimental_publication_record(
+            experiment_pair_id=pair_id,
+            arm=arm,
+            posted_at=base + timedelta(hours=sequence - 1),
+            sequence=sequence,
+            position=sequence,
+        )
+        records.append(record)
+        analytics.apply_discovery(connection, [record], now=NOW)
+        digest = hashlib.sha256(record["main_post_id"].encode()).hexdigest()
+        for target in (24 * 3600, 72 * 3600):
+            insert_experiment_snapshot(
+                connection,
+                record,
+                target=target,
+                actual_age=72 * 3600,
+                impressions=100 + sequence,
+                engagement_rate=0.1,
+                raw_hash=digest,
+            )
+    connection.commit()
+    summary = analytics.engagement_experiment_report_summary(
+        connection,
+        tolerance_seconds=20 * 60,
+        now=NOW,
+    )
+    excluded_24 = summary["targets"]["24h"]["excluded_pairs"][0]
+    assert excluded_24["pair_id"] == pair_id
+    assert all(
+        "duplicated_response_used_for_another_target" in reason
+        for reason in excluded_24["reasons"]
+    )
+    assert summary["targets"]["72h"]["matched_pairs"]["all_valid_pairs"]["complete_pair_count"] == 1
+    connection.close()
+
+
+def test_experiment_report_mode_makes_no_additional_x_request(tmp_path, monkeypatch):
+    test_paths, connection, _records = _experiment_report_fixture(tmp_path)
+    connection.close()
+    monkeypatch.setattr(
+        requests,
+        "get",
+        lambda *_args, **_kwargs: pytest.fail("experiment report made an X request"),
+    )
+    written = analytics.generate_engagement_experiment_report(test_paths)
+    assert set(written) == {"markdown", "json"}
+    assert Path(written["markdown"]).is_file()
+    report = json.loads(Path(written["json"]).read_text())
+    assert report["experiment_id"] == analytics.ENGAGEMENT_EXPERIMENT_ID
