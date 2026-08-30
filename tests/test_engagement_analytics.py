@@ -255,6 +255,159 @@ def identity_correction_fixture(tmp_path: Path, monkeypatch):
     return test_paths, packets, (main_post_id, context_post_id, canonical_id, derived_id)
 
 
+def legacy_whitespace_hash_fixture(
+    tmp_path: Path,
+    monkeypatch,
+    *,
+    age_days: int,
+    include_history: bool = True,
+    include_ledger: bool = True,
+) -> tuple[analytics.AnalyticsPaths, dict, dict]:
+    """Build the historical raw-hash/legacy-normalised-hash incident shape."""
+    test_paths = paths(tmp_path)
+    quote_text = (
+        "A free society depends on people choosing for themselves.  "
+        "That choice carries responsibility."
+    )
+    raw_quote_id = hashlib.sha256(quote_text.encode("utf-8")).hexdigest()
+    legacy_quote_id = analytics.quote_text_hash(quote_text)
+    assert raw_quote_id != legacy_quote_id
+
+    packets = {
+        raw_quote_id: {
+            "quote_id": raw_quote_id,
+            "quote_text": quote_text,
+            "research_confidence": "high",
+        },
+    }
+    monkeypatch.setattr(
+        formatter,
+        "load_and_validate_corpus",
+        lambda _path: (packets, set()),
+    )
+    monkeypatch.setattr(
+        formatter,
+        "format_context_reply",
+        lambda packet: {
+            "character_count": 320,
+            "verification_label": "Exact wording",
+            "source_class": "Margaret Thatcher Foundation",
+            "historical_confidence": packet["research_confidence"],
+            "shortening_applied": False,
+            "meaning_included": True,
+        },
+    )
+
+    main_time = NOW - timedelta(days=age_days, hours=1)
+    context_time = main_time + timedelta(seconds=2)
+    main_post_id = snowflake(main_time, 201)
+    context_post_id = snowflake(context_time, 202)
+    test_paths.project_dir.joinpath("mrsMThatcher.txt").write_text(
+        quote_text + "\n",
+        encoding="utf-8",
+    )
+    test_paths.project_dir.joinpath("quote_analysis.json").write_text(
+        json.dumps({"items": {raw_quote_id: {"analysis": {"primary_topics": ["freedom"]}}}}),
+        encoding="utf-8",
+    )
+    test_paths.project_dir.joinpath("bot_state.json").write_text(
+        json.dumps({"marker": "must remain unchanged"}),
+        encoding="utf-8",
+    )
+    history_path = test_paths.project_dir / "historical_context_reply_history.json"
+    history_path.write_text(
+        json.dumps({
+            "schema_version": 1,
+            "items": {
+                main_post_id: {
+                    "status": "completed",
+                    "parent_post_id": main_post_id,
+                    "reply_post_id": context_post_id,
+                    "quote_id": raw_quote_id,
+                },
+            } if include_history else {},
+        }),
+        encoding="utf-8",
+    )
+
+    event = {
+        "event": "main_post_posted",
+        "lane": "quote_image",
+        "post_id": main_post_id,
+        "quote_hash": legacy_quote_id,
+        "line_no": 0,
+        "image_basename": "t01.jpg",
+        "image_score": 50,
+    }
+    london = analytics.ZoneInfo("Europe/London")
+    stamp = main_time.astimezone(london).strftime("%Y-%m-%d %H:%M:%S")
+    log_path = test_paths.project_dir / "mrsMThatcher.log"
+    log_path.write_text(
+        f"{stamp} INFO log_event:1 - EVENT {json.dumps(event, separators=(',', ':'))}\n",
+        encoding="utf-8",
+    )
+
+    analytics.initialise_database(test_paths)
+    ledger_record = {
+        **pair_record(age_days=age_days, context=True, suffix=201),
+        "quote_id": raw_quote_id,
+        "canonical_quote_hash": raw_quote_id,
+        "quote_text": quote_text,
+        "main_post_id": main_post_id,
+        "main_posted_at": analytics.iso_utc(main_time),
+        "context_post_id": context_post_id,
+        "context_posted_at": analytics.iso_utc(context_time),
+        "quotation_topic": "freedom",
+    }
+    connection = analytics.connect_database(test_paths)
+    try:
+        if include_ledger:
+            analytics.apply_discovery(connection, [ledger_record], now=main_time)
+    finally:
+        connection.close()
+
+    evidence = {
+        "quote_text": quote_text,
+        "raw_quote_id": raw_quote_id,
+        "legacy_quote_id": legacy_quote_id,
+        "main_post_id": main_post_id,
+        "context_post_id": context_post_id,
+        "event": event,
+        "packets": packets,
+        "history_path": history_path,
+        "log_path": log_path,
+    }
+    return test_paths, packets, evidence
+
+
+def project_durable_state(test_paths: analytics.AnalyticsPaths) -> dict:
+    """Snapshot synthetic source files and the logical analytics database."""
+    connection = sqlite3.connect(
+        f"file:{test_paths.database}?mode=ro",
+        uri=True,
+    )
+    try:
+        database_dump = tuple(connection.iterdump())
+    finally:
+        connection.close()
+    files = {
+        str(path.relative_to(test_paths.project_dir)): path.read_bytes()
+        for path in sorted(test_paths.project_dir.rglob("*"))
+        if path.is_file()
+        and not path.name.endswith(("-shm", "-wal"))
+    }
+    return {"database_dump": database_dump, "files": files}
+
+
+def replace_fixture_log_event(evidence: dict, event: dict) -> None:
+    """Replace the fixture's one structured event without changing its time."""
+    prefix = evidence["log_path"].read_text(encoding="utf-8").split("EVENT ", 1)[0]
+    evidence["log_path"].write_text(
+        f"{prefix}EVENT {json.dumps(event, separators=(',', ':'))}\n",
+        encoding="utf-8",
+    )
+
+
 def test_deterministic_structured_discovery_precedence_and_missing_context(tmp_path, monkeypatch):
     test_paths, _packets, ids = discovery_fixture(tmp_path, monkeypatch)
     first = analytics.discover_post_pairs(test_paths, since_days=1, now=NOW)
@@ -416,6 +569,258 @@ def test_discovery_accepts_exact_corpus_identity_with_repeated_whitespace(
     assert "engagement_post_pair_ledger" in replayed[0]["discovery_sources"]
 
 
+def test_discovery_excludes_old_equivalent_legacy_hash_without_mutating_state(
+    tmp_path,
+    monkeypatch,
+):
+    test_paths, _packets, _evidence = legacy_whitespace_hash_fixture(
+        tmp_path,
+        monkeypatch,
+        age_days=17,
+    )
+    before = project_durable_state(test_paths)
+
+    # The live failure happened while merging an old history/event candidate,
+    # before the normal 14-day output cutoff could exclude it.
+    assert analytics.discover_post_pairs(
+        test_paths,
+        since_days=14,
+        now=NOW,
+    ) == []
+
+    assert project_durable_state(test_paths) == before
+
+
+def test_discovery_ignores_old_unrelated_event_hash_before_identity_merge(
+    tmp_path,
+    monkeypatch,
+):
+    test_paths, _packets, evidence = legacy_whitespace_hash_fixture(
+        tmp_path,
+        monkeypatch,
+        age_days=17,
+    )
+    event = {
+        **evidence["event"],
+        "quote_hash": analytics.quote_text_hash("A genuinely unrelated quotation."),
+    }
+    replace_fixture_log_event(evidence, event)
+    before = project_durable_state(test_paths)
+
+    assert analytics.discover_post_pairs(
+        test_paths,
+        since_days=14,
+        now=NOW,
+    ) == []
+
+    assert project_durable_state(test_paths) == before
+
+
+def test_discovery_accepts_in_window_equivalent_legacy_hash_as_raw_identity(
+    tmp_path,
+    monkeypatch,
+):
+    test_paths, _packets, evidence = legacy_whitespace_hash_fixture(
+        tmp_path,
+        monkeypatch,
+        age_days=8,
+    )
+    before = project_durable_state(test_paths)
+
+    pairs = analytics.discover_post_pairs(test_paths, since_days=14, now=NOW)
+
+    assert len(pairs) == 1
+    assert pairs[0]["main_post_id"] == evidence["main_post_id"]
+    assert pairs[0]["quote_id"] == evidence["raw_quote_id"]
+    assert pairs[0]["canonical_quote_hash"] == evidence["raw_quote_id"]
+    assert pairs[0]["quote_text"] == evidence["quote_text"]
+    assert {
+        "historical_context_reply_history",
+        "engagement_post_pair_ledger",
+        "structured_log_main_post_event",
+    }.issubset(pairs[0]["discovery_sources"])
+    assert "stale_main_post_line_number_ignored" not in pairs[0]["discovery_sources"]
+    assert project_durable_state(test_paths) == before
+
+
+@pytest.mark.parametrize("line_matches_event", [True, False])
+def test_event_only_hash_precedes_mutable_current_line(
+    tmp_path,
+    monkeypatch,
+    line_matches_event,
+):
+    test_paths, packets, evidence = legacy_whitespace_hash_fixture(
+        tmp_path,
+        monkeypatch,
+        age_days=8,
+        include_history=False,
+        include_ledger=False,
+    )
+    expected_id = evidence["legacy_quote_id"]
+    expected_text = evidence["quote_text"]
+    if not line_matches_event:
+        second_text = "A different eligible quotation."
+        second_id = hashlib.sha256(second_text.encode("utf-8")).hexdigest()
+        packets[second_id] = {
+            "quote_id": second_id,
+            "quote_text": second_text,
+            "research_confidence": "high",
+        }
+        replace_fixture_log_event(
+            evidence,
+            {**evidence["event"], "quote_hash": second_id},
+        )
+        expected_id = second_id
+        expected_text = second_text
+    before = project_durable_state(test_paths)
+
+    pairs = analytics.discover_post_pairs(test_paths, since_days=14, now=NOW)
+
+    assert len(pairs) == 1
+    assert pairs[0]["quote_id"] == expected_id
+    assert pairs[0]["canonical_quote_hash"] == expected_id
+    assert pairs[0]["quote_text"] == expected_text
+    assert (
+        "stale_main_post_line_number_ignored" in pairs[0]["discovery_sources"]
+    ) is (not line_matches_event)
+
+    assert project_durable_state(test_paths) == before
+
+
+def test_event_only_conflicting_hashes_fail_without_a_current_line(
+    tmp_path,
+    monkeypatch,
+):
+    test_paths, _packets, evidence = legacy_whitespace_hash_fixture(
+        tmp_path,
+        monkeypatch,
+        age_days=8,
+        include_history=False,
+        include_ledger=False,
+    )
+    first_event = {**evidence["event"], "line_no": 999}
+    second_event = {
+        **first_event,
+        "quote_hash": analytics.quote_text_hash("A conflicting event identity."),
+    }
+    prefix = evidence["log_path"].read_text(encoding="utf-8").split("EVENT ", 1)[0]
+    evidence["log_path"].write_text(
+        "".join(
+            f"{prefix}EVENT {json.dumps(event, separators=(',', ':'))}\n"
+            for event in (first_event, second_event)
+        ),
+        encoding="utf-8",
+    )
+    before = project_durable_state(test_paths)
+
+    with pytest.raises(analytics.IdentityConflict, match="quote_id conflict"):
+        analytics.discover_post_pairs(test_paths, since_days=14, now=NOW)
+
+    assert project_durable_state(test_paths) == before
+
+
+def test_discovery_rejects_unrelated_structured_event_hash_despite_raw_evidence(
+    tmp_path,
+    monkeypatch,
+):
+    test_paths, _packets, evidence = legacy_whitespace_hash_fixture(
+        tmp_path,
+        monkeypatch,
+        age_days=8,
+    )
+    event = {
+        **evidence["event"],
+        "quote_hash": analytics.quote_text_hash("A genuinely unrelated quotation."),
+    }
+    replace_fixture_log_event(evidence, event)
+    before = project_durable_state(test_paths)
+
+    with pytest.raises(
+        analytics.IdentityConflict,
+        match="quote_id conflict",
+    ):
+        analytics.discover_post_pairs(test_paths, since_days=14, now=NOW)
+
+    assert project_durable_state(test_paths) == before
+
+
+@pytest.mark.parametrize(
+    ("event_hash_kind", "expected_success"),
+    [
+        ("exact_raw", True),
+        ("legacy_normalised", False),
+        ("missing", False),
+        ("malformed", False),
+    ],
+)
+def test_experimental_confirmation_requires_exact_raw_event_hash(
+    tmp_path,
+    monkeypatch,
+    event_hash_kind,
+    expected_success,
+):
+    test_paths, _packets, evidence = legacy_whitespace_hash_fixture(
+        tmp_path,
+        monkeypatch,
+        age_days=8,
+    )
+    event = {
+        **evidence["event"],
+        **experiment_metadata(
+            "pair-" + "9" * 24,
+            "control",
+            sequence=1,
+            position=1,
+        ),
+    }
+    if event_hash_kind == "exact_raw":
+        event["quote_hash"] = evidence["raw_quote_id"]
+    elif event_hash_kind == "legacy_normalised":
+        event["quote_hash"] = evidence["legacy_quote_id"]
+    elif event_hash_kind == "missing":
+        event.pop("quote_hash")
+    else:
+        event["quote_hash"] = "not-a-sha256"
+    replace_fixture_log_event(evidence, event)
+    before = project_durable_state(test_paths)
+
+    if expected_success:
+        pairs = analytics.discover_post_pairs(test_paths, since_days=14, now=NOW)
+        assert len(pairs) == 1
+        assert pairs[0]["quote_id"] == evidence["raw_quote_id"]
+        assert pairs[0]["engagement_experiment_arm"] == "control"
+    else:
+        with pytest.raises(analytics.IdentityConflict):
+            analytics.discover_post_pairs(test_paths, since_days=14, now=NOW)
+
+    assert project_durable_state(test_paths) == before
+
+
+@pytest.mark.parametrize("authority_problem", ["missing_packet", "malformed_packet"])
+def test_discovery_rejects_legacy_hash_without_exact_authoritative_text(
+    tmp_path,
+    monkeypatch,
+    authority_problem,
+):
+    test_paths, packets, evidence = legacy_whitespace_hash_fixture(
+        tmp_path,
+        monkeypatch,
+        age_days=8,
+    )
+    if authority_problem == "missing_packet":
+        packets.clear()
+    else:
+        packets[evidence["raw_quote_id"]]["quote_text"] = (
+            evidence["quote_text"] + " Materially changed."
+        )
+    before = project_durable_state(test_paths)
+
+    with pytest.raises(analytics.IdentityConflict):
+        analytics.discover_post_pairs(test_paths, since_days=14, now=NOW)
+
+    assert project_durable_state(test_paths) == before
+
+
 def test_exact_historical_line_shift_correction_preserves_one_canonical_pair_and_history(
     tmp_path, monkeypatch, caplog
 ):
@@ -496,12 +901,21 @@ def test_identity_correction_cannot_cross_post_ids(tmp_path, monkeypatch, caplog
     assert len(correction_messages) == 1 and ids[0] in correction_messages[0]
 
 
+@pytest.mark.parametrize(
+    "replacement_text",
+    [
+        "A materially altered quotation now occupies the registered historical line.",
+        "Capitalism is the moral way of running an economy.",
+    ],
+)
 def test_registered_identity_correction_fails_closed_when_observed_text_changes(
-    tmp_path, monkeypatch
+    tmp_path,
+    monkeypatch,
+    replacement_text,
 ):
     test_paths, _packets, _ids = identity_correction_fixture(tmp_path, monkeypatch)
     lines = test_paths.project_dir.joinpath("mrsMThatcher.txt").read_text().splitlines()
-    lines[599] = "A materially altered quotation now occupies the registered historical line."
+    lines[599] = replacement_text
     test_paths.project_dir.joinpath("mrsMThatcher.txt").write_text("\n".join(lines) + "\n")
 
     with pytest.raises(analytics.IdentityConflict, match="correction evidence mismatch"):

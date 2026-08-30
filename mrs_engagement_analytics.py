@@ -830,6 +830,29 @@ def _merge_identity(candidate: dict[str, Any], field: str, value: Any, source: s
             sources.append(source)
 
 
+def _main_post_event_quote_hash_matches_canonical(
+    canonical_quote_id: str,
+    event_quote_id: str,
+    packets: dict[str, dict[str, Any]],
+    unresolved: set[str],
+) -> bool:
+    """Validate an exact ID or the legacy normalised hash of canonical text."""
+
+    if canonical_quote_id == event_quote_id:
+        return True
+    packet = packets.get(canonical_quote_id)
+    canonical_text = packet.get("quote_text") if isinstance(packet, dict) else None
+    return bool(
+        canonical_quote_id not in unresolved
+        and isinstance(packet, dict)
+        and packet.get("quote_id") == canonical_quote_id
+        and isinstance(canonical_text, str)
+        and hashlib.sha256(canonical_text.encode("utf-8")).hexdigest()
+        == canonical_quote_id
+        and quote_text_hash(canonical_text) == event_quote_id
+    )
+
+
 def _fill(candidate: dict[str, Any], field: str, value: Any) -> None:
     if candidate.get(field) in (None, "", []):
         candidate[field] = value
@@ -1081,20 +1104,76 @@ def discover_post_pairs(
             main_post_id = str(event.get("parent_post_id") or "")
             if not main_post_id:
                 continue
+            try:
+                main_post_time = snowflake_datetime(main_post_id)
+            except ValueError as exc:
+                raise IdentityConflict(
+                    f"invalid main post ID from structured_log_context_event: {main_post_id!r}"
+                ) from exc
+            if main_post_time < cutoff:
+                continue
             item = candidate_for(main_post_id, "structured_log_context_event")
             _merge_identity(item, "quote_id", event.get("quote_id"), "structured_log_context_event")
             context_events[main_post_id] = event
         if event.get("event") != "main_post_posted" or event.get("lane") != "quote_image":
             continue
         main_post_id = str(event.get("post_id") or "")
+        try:
+            main_post_time = snowflake_datetime(main_post_id)
+        except ValueError as exc:
+            raise IdentityConflict(
+                f"invalid main post ID from structured_log_main_post_event: {main_post_id!r}"
+            ) from exc
+        if main_post_time < cutoff:
+            continue
         item = candidate_for(main_post_id, "structured_log_main_post_event")
-        _merge_identity(
-            item,
-            "quote_id",
-            event.get("quote_hash"),
-            "structured_log_main_post_event",
-        )
         experiment_metadata = _experiment_metadata_from_confirmed_event(event)
+        event_quote_id = event.get("quote_hash")
+        if event_quote_id not in (None, "") and (
+            type(event_quote_id) is not str
+            or QUOTE_ID_RE.fullmatch(event_quote_id) is None
+        ):
+            raise IdentityConflict(
+                f"invalid quote_hash for main post {main_post_id} from "
+                "structured_log_main_post_event"
+            )
+        event_quote_id = str(event_quote_id or "")
+        canonical_quote_id = str(item.get("quote_id") or "")
+        if experiment_metadata is not None:
+            if not event_quote_id:
+                raise IdentityConflict(
+                    f"missing quote_hash for confirmed experiment main post {main_post_id}"
+                )
+            _merge_identity(
+                item,
+                "quote_id",
+                event_quote_id,
+                "structured_log_main_post_event",
+            )
+        elif event_quote_id:
+            if not canonical_quote_id:
+                _merge_identity(
+                    item,
+                    "quote_id",
+                    event_quote_id,
+                    "structured_log_main_post_event",
+                )
+            else:
+                if not _main_post_event_quote_hash_matches_canonical(
+                    canonical_quote_id,
+                    event_quote_id,
+                    packets,
+                    unresolved,
+                ):
+                    _merge_identity(
+                        item,
+                        "quote_id",
+                        event_quote_id,
+                        "structured_log_main_post_event",
+                    )
+                sources = item.setdefault("_quote_identity_sources", [])
+                if "structured_log_main_post_event" not in sources:
+                    sources.append("structured_log_main_post_event")
         if experiment_metadata is not None:
             previous_metadata = structured_experiment_metadata.setdefault(
                 main_post_id,
@@ -1109,6 +1188,9 @@ def discover_post_pairs(
         if type(line_no) is int and 0 <= line_no < len(lines):
             quote_text = lines[line_no].rstrip()
             derived_quote_id = quote_text_hash(quote_text)
+            raw_derived_quote_id = hashlib.sha256(
+                quote_text.encode("utf-8")
+            ).hexdigest()
             canonical_quote_id = str(item.get("quote_id") or "")
             correction_key = (
                 main_post_id,
@@ -1148,6 +1230,8 @@ def discover_post_pairs(
                     derived_quote_id,
                     correction_id,
                 )
+            elif canonical_quote_id and raw_derived_quote_id == canonical_quote_id:
+                _fill(item, "quote_text", quote_text)
             elif canonical_quote_id and canonical_quote_id != derived_quote_id:
                 # line_no identifies a position in the source file used when the
                 # post was created. It is not a durable quote identity after an

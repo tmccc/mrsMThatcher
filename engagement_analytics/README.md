@@ -15,6 +15,15 @@ edits shift retained lines. X snowflake timestamps are checked against log
 timestamps so copied test records are rejected. Contradictory explicit quote,
 main-post, or context-post identities abort discovery.
 
+Ordinary posting events use the bot's historical whitespace-normalised quote
+hash. When durable evidence already supplies a raw canonical packet ID, discovery
+accepts that event hash only if it is exactly the normalised hash of the same
+packet's exact text; the raw packet ID remains canonical. This is a deterministic
+comparison, not a general identity alias, and every other explicit conflict is
+fatal. Without a higher-precedence identity, the validated posting-event hash
+remains authoritative over its mutable historical line position. Experiment
+confirmation hashes continue to require an exact identity match.
+
 Evidence-backed corrections for a specific historical line-derived mismatch live
 in `quote_identity_corrections.json`. Each record is fail-closed against the exact
 post ID, line number, observed and canonical hashes and texts, completed research
