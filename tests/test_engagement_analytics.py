@@ -1125,6 +1125,18 @@ def experiment_metadata(
     }
 
 
+def test_confirmed_experiment_metadata_rejects_boolean_member_position():
+    metadata = experiment_metadata(
+        "pair-" + "1" * 24,
+        "control",
+        sequence=1,
+        position=1,
+    )
+    metadata["engagement_experiment_member_position"] = True
+    with pytest.raises(analytics.IdentityConflict, match="metadata is invalid"):
+        analytics._experiment_metadata_from_confirmed_event(metadata)
+
+
 def experimental_publication_record(
     *,
     experiment_pair_id: str,
@@ -1265,6 +1277,77 @@ def test_schema_v2_forward_migration_preserves_historical_rows_and_snapshots(tmp
         ] == [1, 2]
 
 
+def test_scheduled_run_migrates_v1_before_discovery_or_collection(
+    tmp_path,
+    monkeypatch,
+    capsys,
+):
+    test_paths = paths(tmp_path)
+    test_paths.runtime_dir.mkdir()
+    schema_v1 = "\n".join(
+        line
+        for line in analytics.SCHEMA_SQL.splitlines()
+        if "engagement_experiment_" not in line
+        and "engagement_approved_question_sha256" not in line
+        and "engagement_question_present" not in line
+        and "engagement_public_text_sha256" not in line
+    ).replace(
+        "CHECK (made_with_ai IS NULL OR made_with_ai IN (0, 1)),\n);",
+        "CHECK (made_with_ai IS NULL OR made_with_ai IN (0, 1))\n);",
+    )
+    connection = sqlite3.connect(test_paths.database)
+    connection.executescript(schema_v1)
+    connection.execute(
+        "INSERT INTO schema_migrations(version, applied_at) VALUES(1, ?)",
+        (analytics.iso_utc(NOW),),
+    )
+    connection.commit()
+    connection.close()
+
+    stale = analytics.database_status(test_paths, now=NOW)
+    assert stale["initialised"] is False
+    assert stale["schema_current"] is False
+    assert stale["migration_required"] is True
+    assert set(stale["missing_columns"]) == set(
+        analytics.ENGAGEMENT_EXPERIMENT_COLUMNS
+    )
+
+    monkeypatch.setattr(analytics, "configure_logging", lambda *_args, **_kwargs: None)
+    monkeypatch.setattr(analytics, "discover_post_pairs", lambda *_args, **_kwargs: [])
+    monkeypatch.setattr(
+        analytics,
+        "XReadClient",
+        lambda **_kwargs: pytest.fail("scheduled migration constructed an X client"),
+    )
+
+    def local_collection(_paths, writable, **_kwargs):
+        assert analytics.database_schema_status(writable)["schema_current"] is True
+        return {
+            "status": "nothing_due",
+            "requests_made": 0,
+            "completed_snapshots": 0,
+        }
+
+    monkeypatch.setattr(analytics, "collect_due_snapshots", local_collection)
+    assert analytics.main(
+        [
+            "scheduled-run",
+            "--project-dir",
+            str(test_paths.project_dir),
+            "--execute-read",
+            "--max-api-requests",
+            "1",
+        ]
+    ) == 0
+    capsys.readouterr()
+
+    current = analytics.database_status(test_paths, now=NOW)
+    assert current["initialised"] is True
+    assert current["schema_current"] is True
+    assert current["migration_required"] is False
+    assert current["schema_version"] == analytics.SCHEMA_VERSION
+
+
 def test_confirmed_event_is_only_experiment_metadata_source_and_is_strict():
     event = {
         "event": "main_post_posted",
@@ -1284,6 +1367,189 @@ def test_confirmed_event_is_only_experiment_metadata_source_and_is_strict():
     assert analytics._experiment_metadata_from_confirmed_event(
         {"event": "main_post_posted", "quote_id": "d" * 64}
     ) is None
+
+
+def test_delayed_recovery_event_requires_exact_protected_state_corroboration(
+    tmp_path,
+):
+    test_paths = paths(tmp_path)
+    published_at = NOW - timedelta(hours=4)
+    post_id = snowflake(published_at, 17)
+    pair_id = "pair-" + "7" * 24
+    quote_id = "8" * 64
+    metadata = experiment_metadata(
+        pair_id,
+        "treatment",
+        sequence=9,
+        position=2,
+    )
+    event = {
+        "event": "main_post_posted",
+        "lane": "quote_image",
+        "post_id": post_id,
+        "quote_hash": quote_id,
+        **metadata,
+    }
+    publication = {
+        "post_id": post_id,
+        "pair_id": pair_id,
+        "quote_id": quote_id,
+        "arm": "treatment",
+        "member_position": 2,
+        "publication_order": "control_first",
+        "publication_sequence": 9,
+        "question_present": True,
+        "approved_question_sha256": metadata[
+            "engagement_approved_question_sha256"
+        ],
+        "public_text_sha256": metadata["engagement_public_text_sha256"],
+    }
+    protected = {
+        "engagement_question_experiment": {
+            "experiment_id": analytics.ENGAGEMENT_EXPERIMENT_ID,
+            "active_plan_sha256": metadata[
+                "engagement_experiment_plan_sha256"
+            ],
+            "confirmed_publications": [publication],
+        }
+    }
+    test_paths.project_dir.joinpath("bot_state.json").write_text(
+        json.dumps(protected),
+        encoding="utf-8",
+    )
+    stamp = NOW.astimezone(analytics.ZoneInfo("Europe/London")).strftime(
+        "%Y-%m-%d %H:%M:%S"
+    )
+    test_paths.project_dir.joinpath("mrsMThatcher.log").write_text(
+        f"{stamp} INFO log_event:1 - EVENT {json.dumps(event)}\n",
+        encoding="utf-8",
+    )
+
+    recovered = analytics._structured_log_events(test_paths.project_dir)
+    assert len(recovered) == 1
+    assert recovered[0]["post_id"] == post_id
+
+    protected["engagement_question_experiment"]["confirmed_publications"][0][
+        "public_text_sha256"
+    ] = "f" * 64
+    test_paths.project_dir.joinpath("bot_state.json").write_text(
+        json.dumps(protected),
+        encoding="utf-8",
+    )
+    assert analytics._structured_log_events(test_paths.project_dir) == []
+
+
+def test_delayed_recovery_event_labels_discovered_post_pair(
+    tmp_path,
+    monkeypatch,
+):
+    test_paths, _packets, (_main_one, _context_one, main_post_id) = (
+        discovery_fixture(tmp_path, monkeypatch)
+    )
+    quote_text = "Government should serve the people."
+    quote_id = analytics.quote_text_hash(quote_text)
+    pair_id = "pair-" + "5" * 24
+    metadata = experiment_metadata(
+        pair_id,
+        "control",
+        sequence=1,
+        position=1,
+    )
+    event = {
+        "event": "main_post_posted",
+        "lane": "quote_image",
+        "post_id": main_post_id,
+        "quote_hash": quote_id,
+        "line_no": 1,
+        **metadata,
+    }
+    protected = json.loads(
+        test_paths.project_dir.joinpath("bot_state.json").read_text(encoding="utf-8")
+    )
+    protected["engagement_question_experiment"] = {
+        "experiment_id": analytics.ENGAGEMENT_EXPERIMENT_ID,
+        "active_plan_sha256": metadata["engagement_experiment_plan_sha256"],
+        "confirmed_publications": [
+            {
+                "post_id": main_post_id,
+                "pair_id": pair_id,
+                "quote_id": quote_id,
+                "arm": "control",
+                "member_position": 1,
+                "publication_order": "control_first",
+                "publication_sequence": 1,
+                "question_present": False,
+                "approved_question_sha256": metadata[
+                    "engagement_approved_question_sha256"
+                ],
+                "public_text_sha256": metadata[
+                    "engagement_public_text_sha256"
+                ],
+            }
+        ],
+    }
+    test_paths.project_dir.joinpath("bot_state.json").write_text(
+        json.dumps(protected),
+        encoding="utf-8",
+    )
+    stamp = NOW.astimezone(analytics.ZoneInfo("Europe/London")).strftime(
+        "%Y-%m-%d %H:%M:%S"
+    )
+    test_paths.project_dir.joinpath("mrsMThatcher.log").write_text(
+        f"{stamp} INFO log_event:1 - EVENT {json.dumps(event)}\n",
+        encoding="utf-8",
+    )
+
+    pairs = analytics.discover_post_pairs(test_paths, since_days=1, now=NOW)
+    recovered = next(row for row in pairs if row["main_post_id"] == main_post_id)
+    assert recovered["engagement_experiment_pair_id"] == pair_id
+    assert recovered["engagement_experiment_arm"] == "control"
+    assert recovered["engagement_public_text_sha256"] == metadata[
+        "engagement_public_text_sha256"
+    ]
+
+
+def test_same_second_conflicting_experiment_events_are_not_deduplicated(
+    tmp_path,
+    monkeypatch,
+):
+    test_paths, _packets, (_main_one, _context_one, main_post_id) = (
+        discovery_fixture(tmp_path, monkeypatch)
+    )
+    post_time = analytics.snowflake_datetime(main_post_id)
+    quote_text = "Government should serve the people."
+    quote_id = analytics.quote_text_hash(quote_text)
+    pair_id = "pair-" + "6" * 24
+    first = {
+        "event": "main_post_posted",
+        "lane": "quote_image",
+        "post_id": main_post_id,
+        "quote_hash": quote_id,
+        "line_no": 1,
+        **experiment_metadata(pair_id, "control", sequence=1, position=1),
+    }
+    conflicting = {
+        **first,
+        **experiment_metadata(pair_id, "treatment", sequence=2, position=2),
+    }
+    stamp = post_time.astimezone(analytics.ZoneInfo("Europe/London")).strftime(
+        "%Y-%m-%d %H:%M:%S"
+    )
+    log_lines = "".join(
+        f"{stamp} INFO log_event:1 - EVENT {json.dumps(item)}\n"
+        for item in (first, first, conflicting)
+    )
+    test_paths.project_dir.joinpath("mrsMThatcher.log").write_text(
+        log_lines,
+        encoding="utf-8",
+    )
+
+    assert len(analytics._structured_log_events(test_paths.project_dir)) == 2
+    with pytest.raises(
+        analytics.IdentityConflict,
+        match="contradictory confirmed experiment metadata",
+    ):
+        analytics.discover_post_pairs(test_paths, since_days=1, now=NOW)
 
 
 def test_post_pair_experiment_enrichment_and_correction_remain_auditable(tmp_path):
@@ -1396,6 +1662,10 @@ def test_experiment_report_describes_arms_pairs_gaps_and_outlier_sensitivity(tmp
     assert (all_pairs["treatment_wins"], all_pairs["control_wins"], all_pairs["ties"]) == (1, 1, 1)
     assert all_pairs["paired_rate_differences"]["engagement_rate"]["sample_size"] == 3
     assert all_pairs["member_publication_gap_seconds"]["median"] == 7200
+    all_published_gaps = target["all_fully_published_pair_gaps"]
+    assert all_published_gaps["sample_size"] == 4
+    assert all_published_gaps["median"] == 7200
+    assert all_published_gaps["maximum"] == 5 * 3600
     sensitivity = target["matched_pairs"]["largest_impression_pair_removed"]
     assert sensitivity["removed_pair_id"] == f"pair-{2:024x}"
     assert sensitivity["complete_pair_count"] == 2
@@ -1411,7 +1681,60 @@ def test_experiment_report_describes_arms_pairs_gaps_and_outlier_sensitivity(tmp
     assert "treatment_publication_missing" in excluded[f"pair-{5:024x}"]
     rendered = analytics.render_engagement_experiment_report(summary)
     assert "Wider-gap pairs (>4h)" in rendered
+    assert "All fully published-pair gaps" in rendered
     assert "largest impression pair removed" in rendered
+    connection.close()
+
+
+def test_fully_published_pair_gap_survives_missing_target_observation(tmp_path):
+    test_paths = paths(tmp_path)
+    analytics.initialise_database(test_paths)
+    connection = analytics.connect_database(test_paths)
+    pair_id = "pair-" + "4" * 24
+    base = NOW - timedelta(days=8)
+    records = {}
+    for sequence, arm in enumerate(("control", "treatment"), 1):
+        record = experimental_publication_record(
+            experiment_pair_id=pair_id,
+            arm=arm,
+            posted_at=base + timedelta(hours=2 * (sequence - 1)),
+            sequence=sequence,
+            position=sequence,
+        )
+        records[arm] = record
+        analytics.apply_discovery(connection, [record], now=NOW)
+    insert_experiment_snapshot(
+        connection,
+        records["control"],
+        target=24 * 3600,
+        actual_age=24 * 3600,
+        impressions=100,
+        engagement_rate=0.1,
+    )
+    connection.commit()
+
+    summary = analytics.engagement_experiment_report_summary(
+        connection,
+        tolerance_seconds=20 * 60,
+        now=NOW,
+    )
+    target = summary["targets"]["24h"]
+    assert target["matched_pairs"]["all_valid_pairs"]["complete_pair_count"] == 0
+    assert target["all_fully_published_pair_gaps"] == {
+        "pair_ids": [pair_id],
+        "sample_size": 1,
+        "minimum": 2 * 3600,
+        "q1": 2 * 3600,
+        "median": 2 * 3600,
+        "q3": 2 * 3600,
+        "maximum": 2 * 3600,
+    }
+    assert target["excluded_pairs"] == [
+        {
+            "pair_id": pair_id,
+            "reasons": ["treatment_observation_missing"],
+        }
+    ]
     connection.close()
 
 
@@ -1472,3 +1795,35 @@ def test_experiment_report_mode_makes_no_additional_x_request(tmp_path, monkeypa
     assert Path(written["markdown"]).is_file()
     report = json.loads(Path(written["json"]).read_text())
     assert report["experiment_id"] == analytics.ENGAGEMENT_EXPERIMENT_ID
+
+
+def test_experiment_report_cli_does_not_construct_x_client(
+    tmp_path,
+    monkeypatch,
+    capsys,
+):
+    test_paths, connection, _records = _experiment_report_fixture(tmp_path)
+    connection.close()
+    monkeypatch.setattr(
+        analytics,
+        "XReadClient",
+        lambda **_kwargs: pytest.fail("experiment report constructed an X client"),
+    )
+    monkeypatch.setattr(
+        requests,
+        "get",
+        lambda *_args, **_kwargs: pytest.fail("experiment report made an X request"),
+    )
+    monkeypatch.setattr(analytics, "configure_logging", lambda *_args, **_kwargs: None)
+
+    assert analytics.main(
+        [
+            "report",
+            "--project-dir",
+            str(test_paths.project_dir),
+            "--experiment",
+            analytics.ENGAGEMENT_EXPERIMENT_ID,
+        ]
+    ) == 0
+    output = json.loads(capsys.readouterr().out)
+    assert set(output) == {"markdown", "json"}

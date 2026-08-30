@@ -80,6 +80,8 @@ PLAN_FIELDS = {
     "approved_catalogue_source_snapshot_sha256",
     "plan_created_at",
     "used_history_sha256_at_creation",
+    "used_quote_ids_at_creation",
+    "eligible_candidates_at_creation",
     "target_completed_pairs",
     "pair_count",
     "pairs",
@@ -119,6 +121,14 @@ CANDIDATE_FIELDS = {
     "verification_label",
     "source_class",
 }
+PLAN_CANDIDATE_EVIDENCE_FIELDS = {
+    "quote_id",
+    "topic",
+    "quotation_length_band",
+    "control_weighted_length",
+    "verification_label",
+    "source_class",
+}
 STATE_FIELDS = {
     "schema_version",
     "experiment_id",
@@ -131,7 +141,7 @@ STATE_FIELDS = {
     "confirmed_publications",
     "last_experimental_publication_local_date",
     "treatment_publication_count",
-    "latest_treatment_notification_identity",
+    "treatment_notification_identities",
     "current_deferral_reason",
 }
 PUBLICATION_FIELDS = {
@@ -249,6 +259,26 @@ def sha256_file(path: Path) -> str:
     return digest.hexdigest()
 
 
+def canonical_used_history_file_bytes(value: Any) -> bytes:
+    """Return the exact canonical file bytes for a used-quote snapshot."""
+
+    if (
+        not isinstance(value, list)
+        or value != sorted(set(value))
+        or any(type(item) is not str or not HEX64_RE.fullmatch(item) for item in value)
+    ):
+        raise ExperimentValidationError(
+            "used-quotation history snapshot is not canonical and unique"
+        )
+    return (json.dumps(value, indent=2, sort_keys=True) + "\n").encode("utf-8")
+
+
+def used_history_file_sha256(value: Any) -> str:
+    """Hash one exact canonical used-quote history snapshot."""
+
+    return hashlib.sha256(canonical_used_history_file_bytes(value)).hexdigest()
+
+
 def _strict_json_bytes(document: bytes, *, label: str) -> Any:
     """Decode strict JSON, rejecting duplicate fields and non-finite values."""
 
@@ -327,7 +357,9 @@ def _validate_question_body(value: Any) -> str:
         )
     if len(value) > 500:
         raise ExperimentValidationError("approved question body is unbounded")
-    if "\n" in value or "\r" in value:
+    if "\n" in value or "\r" in value or any(
+        unicodedata.category(character) in {"Zl", "Zp"} for character in value
+    ):
         raise ExperimentValidationError("approved question body contains a newline")
     if any(unicodedata.category(character) == "Cc" for character in value):
         raise ExperimentValidationError(
@@ -350,13 +382,21 @@ def validate_catalogue_document(
 ) -> dict[str, Any]:
     """Strictly validate and recompute every approved catalogue value."""
 
+    if type(expected_entry_count) is not int or expected_entry_count < 1:
+        raise ExperimentValidationError("approved catalogue entry target is invalid")
     if not isinstance(document, dict) or set(document) != CATALOGUE_FIELDS:
         raise ExperimentValidationError("approved catalogue fields mismatch")
-    if document.get("schema_version") != APPROVED_CATALOGUE_SCHEMA_VERSION:
+    if (
+        type(document.get("schema_version")) is not int
+        or document["schema_version"] != APPROVED_CATALOGUE_SCHEMA_VERSION
+    ):
         raise ExperimentValidationError("unsupported approved catalogue schema")
     if document.get("experiment_id") != EXPERIMENT_ID:
         raise ExperimentValidationError("approved catalogue experiment ID mismatch")
-    if not HEX64_RE.fullmatch(str(document.get("source_snapshot_sha256") or "")):
+    if (
+        type(document.get("source_snapshot_sha256")) is not str
+        or not HEX64_RE.fullmatch(document["source_snapshot_sha256"])
+    ):
         raise ExperimentValidationError(
             "approved catalogue source snapshot SHA-256 is invalid"
         )
@@ -512,6 +552,88 @@ def candidate_from_catalogue(
     return candidate
 
 
+def plan_candidate_evidence(candidate: Mapping[str, Any]) -> dict[str, Any]:
+    """Return the immutable matching inputs for one creation-time candidate."""
+
+    if not isinstance(candidate, Mapping) or set(candidate) != CANDIDATE_FIELDS:
+        raise ExperimentValidationError("plan candidate fields mismatch")
+    quote_id = candidate.get("quote_id")
+    exact_quote_text = candidate.get("exact_quote_text")
+    topic = candidate.get("topic")
+    verification_label = candidate.get("verification_label")
+    source_class = candidate.get("source_class")
+    if (
+        type(quote_id) is not str
+        or not HEX64_RE.fullmatch(quote_id)
+        or type(exact_quote_text) is not str
+        or sha256_text(exact_quote_text) != quote_id
+        or type(topic) is not str
+        or not TOPIC_RE.fullmatch(topic)
+        or type(verification_label) is not str
+        or not verification_label.strip()
+        or len(verification_label) > 200
+        or type(source_class) is not str
+        or not source_class.strip()
+        or len(source_class) > 200
+    ):
+        raise ExperimentValidationError("plan candidate evidence source is invalid")
+    return {
+        "quote_id": quote_id,
+        "topic": topic,
+        "quotation_length_band": quotation_length_band(exact_quote_text),
+        "control_weighted_length": x_weighted_length(exact_quote_text),
+        "verification_label": verification_label,
+        "source_class": source_class,
+    }
+
+
+def candidate_from_plan_evidence(
+    evidence: Mapping[str, Any],
+    *,
+    quote_text_by_id: Mapping[str, str],
+) -> dict[str, Any]:
+    """Rebuild one matching candidate from immutable plan evidence."""
+
+    if (
+        not isinstance(evidence, Mapping)
+        or set(evidence) != PLAN_CANDIDATE_EVIDENCE_FIELDS
+    ):
+        raise ExperimentValidationError("plan candidate evidence fields mismatch")
+    quote_id = evidence.get("quote_id")
+    exact_quote_text = (
+        quote_text_by_id.get(quote_id) if type(quote_id) is str else None
+    )
+    if (
+        type(quote_id) is not str
+        or not HEX64_RE.fullmatch(quote_id)
+        or type(exact_quote_text) is not str
+        or sha256_text(exact_quote_text) != quote_id
+        or type(evidence.get("topic")) is not str
+        or not TOPIC_RE.fullmatch(evidence["topic"])
+        or evidence.get("quotation_length_band")
+        not in {"short", "medium", "long"}
+        or type(evidence.get("control_weighted_length")) is not int
+        or type(evidence.get("verification_label")) is not str
+        or not evidence["verification_label"].strip()
+        or len(evidence["verification_label"]) > 200
+        or type(evidence.get("source_class")) is not str
+        or not evidence["source_class"].strip()
+        or len(evidence["source_class"]) > 200
+        or evidence["quotation_length_band"]
+        != quotation_length_band(exact_quote_text)
+        or evidence["control_weighted_length"]
+        != x_weighted_length(exact_quote_text)
+    ):
+        raise ExperimentValidationError("plan candidate evidence changed")
+    return {
+        "quote_id": quote_id,
+        "exact_quote_text": exact_quote_text,
+        "topic": evidence["topic"],
+        "verification_label": evidence["verification_label"],
+        "source_class": evidence["source_class"],
+    }
+
+
 def _pair_cost(left: Mapping[str, Any], right: Mapping[str, Any]) -> tuple[int, int, int]:
     return (
         int(left["verification_label"] != right["verification_label"]),
@@ -651,9 +773,12 @@ def construct_exact_matched_pairs(
 ) -> tuple[list[dict[str, Any]], dict[str, Any]]:
     """Match exact topic/band groups and select pairs by topic round-robin."""
 
-    if target_pair_count != TARGET_COMPLETED_PAIRS:
+    if (
+        type(target_pair_count) is not int
+        or target_pair_count != TARGET_COMPLETED_PAIRS
+    ):
         raise ExperimentValidationError("plan v1 target must remain exactly 30 pairs")
-    if not HEX64_RE.fullmatch(catalogue_sha256):
+    if type(catalogue_sha256) is not str or not HEX64_RE.fullmatch(catalogue_sha256):
         raise ExperimentValidationError("catalogue SHA-256 is invalid")
     seen: set[str] = set()
     grouped: dict[tuple[str, str], list[Mapping[str, Any]]] = defaultdict(list)
@@ -775,6 +900,7 @@ def build_plan(
     catalogue_sha256: str,
     candidates: Sequence[Mapping[str, Any]],
     used_history_sha256: str,
+    used_quote_ids_at_creation: Sequence[str],
     plan_created_at: str,
     plan_kind: str,
 ) -> tuple[dict[str, Any], dict[str, Any]]:
@@ -784,8 +910,13 @@ def build_plan(
         raise ExperimentValidationError("catalogue experiment ID mismatch")
     if plan_kind not in PLAN_KINDS:
         raise ExperimentValidationError("plan kind must be preview or live")
-    if not HEX64_RE.fullmatch(used_history_sha256):
-        raise ExperimentValidationError("used-history SHA-256 is invalid")
+    used_quote_ids = list(used_quote_ids_at_creation)
+    if (
+        type(used_history_sha256) is not str
+        or not HEX64_RE.fullmatch(used_history_sha256)
+        or used_history_file_sha256(used_quote_ids) != used_history_sha256
+    ):
+        raise ExperimentValidationError("used-history snapshot or SHA-256 is invalid")
     _validate_iso_timestamp(plan_created_at)
     raw_pairs, diagnostics = construct_exact_matched_pairs(
         candidates,
@@ -856,6 +987,11 @@ def build_plan(
         ),
         "plan_created_at": plan_created_at,
         "used_history_sha256_at_creation": used_history_sha256,
+        "used_quote_ids_at_creation": used_quote_ids,
+        "eligible_candidates_at_creation": sorted(
+            (plan_candidate_evidence(candidate) for candidate in candidates),
+            key=lambda candidate: candidate["quote_id"],
+        ),
         "target_completed_pairs": TARGET_COMPLETED_PAIRS,
         "pair_count": len(pairs),
         "pairs": pairs,
@@ -907,7 +1043,10 @@ def validate_plan_document(
 
     if not isinstance(document, dict) or set(document) != PLAN_FIELDS:
         raise ExperimentValidationError("experiment plan fields mismatch")
-    if document.get("schema_version") != PLAN_SCHEMA_VERSION:
+    if (
+        type(document.get("schema_version")) is not int
+        or document["schema_version"] != PLAN_SCHEMA_VERSION
+    ):
         raise ExperimentValidationError("unsupported experiment plan schema")
     if document.get("experiment_id") != EXPERIMENT_ID:
         raise ExperimentValidationError("experiment plan ID mismatch")
@@ -924,15 +1063,88 @@ def validate_plan_document(
     ):
         raise ExperimentValidationError("experiment plan source snapshot mismatch")
     _validate_iso_timestamp(document.get("plan_created_at"))
-    if not HEX64_RE.fullmatch(str(document.get("used_history_sha256_at_creation") or "")):
+    if (
+        type(document.get("used_history_sha256_at_creation")) is not str
+        or not HEX64_RE.fullmatch(document["used_history_sha256_at_creation"])
+    ):
         raise ExperimentValidationError("experiment plan used-history hash is invalid")
-    if document.get("target_completed_pairs") != TARGET_COMPLETED_PAIRS:
+    used_quote_ids_at_creation = document.get("used_quote_ids_at_creation")
+    if (
+        not isinstance(used_quote_ids_at_creation, list)
+        or used_history_file_sha256(used_quote_ids_at_creation)
+        != document["used_history_sha256_at_creation"]
+    ):
+        raise ExperimentValidationError(
+            "experiment plan used-history snapshot changed"
+        )
+    creation_used_ids = set(used_quote_ids_at_creation)
+    evidence_documents = document.get("eligible_candidates_at_creation")
+    if (
+        not isinstance(evidence_documents, list)
+        or len(evidence_documents) < TARGET_COMPLETED_PAIRS * 2
+    ):
+        raise ExperimentValidationError(
+            "experiment plan creation candidate evidence is incomplete"
+        )
+    evidence_candidates: list[dict[str, Any]] = []
+    evidence_quote_ids: list[str] = []
+    for evidence in evidence_documents:
+        candidate = candidate_from_plan_evidence(
+            evidence,
+            quote_text_by_id=quote_text_by_id,
+        )
+        quote_id = candidate["quote_id"]
+        if quote_id not in (catalogue.get("entries") or {}):
+            raise ExperimentValidationError(
+                "plan creation candidate is outside the approved catalogue"
+            )
+        if metadata_by_quote_id is not None:
+            current = metadata_by_quote_id.get(quote_id)
+            if not isinstance(current, Mapping) or plan_candidate_evidence(
+                current
+            ) != dict(evidence):
+                raise ExperimentValidationError(
+                    "plan creation candidate metadata changed"
+                )
+        evidence_candidates.append(candidate)
+        evidence_quote_ids.append(quote_id)
+    if (
+        evidence_quote_ids != sorted(evidence_quote_ids)
+        or len(set(evidence_quote_ids)) != len(evidence_quote_ids)
+    ):
+        raise ExperimentValidationError(
+            "experiment plan creation candidates are not canonical and unique"
+        )
+    if metadata_by_quote_id is not None and set(evidence_quote_ids) != (
+        set(metadata_by_quote_id) - creation_used_ids
+    ):
+        raise ExperimentValidationError(
+            "experiment plan creation candidate roster changed"
+        )
+    evidence_by_quote_id = {
+        candidate["quote_id"]: evidence
+        for candidate, evidence in zip(evidence_candidates, evidence_documents)
+    }
+    expected_constructed_pairs, _construction_diagnostics = (
+        construct_exact_matched_pairs(
+            evidence_candidates,
+            catalogue_sha256=catalogue_sha256,
+        )
+    )
+    expected_constructed_pair_ids = [
+        pair["pair_id"] for pair in expected_constructed_pairs
+    ]
+    if (
+        type(document.get("target_completed_pairs")) is not int
+        or document["target_completed_pairs"] != TARGET_COMPLETED_PAIRS
+    ):
         raise ExperimentValidationError("experiment plan target is not 30 pairs")
     pairs = document.get("pairs")
     if (
         not isinstance(pairs, list)
         or len(pairs) != TARGET_COMPLETED_PAIRS
-        or document.get("pair_count") != len(pairs)
+        or type(document.get("pair_count")) is not int
+        or document["pair_count"] != len(pairs)
     ):
         raise ExperimentValidationError("experiment plan must contain 30 pairs")
     if (
@@ -985,6 +1197,8 @@ def validate_plan_document(
         for member in members:
             if not isinstance(member, dict) or set(member) != MEMBER_FIELDS:
                 raise ExperimentValidationError("experiment member fields mismatch")
+            if type(member.get("position")) is not int:
+                raise ExperimentValidationError("experiment member position is invalid")
             quote_id = member.get("quote_id")
             if type(quote_id) is not str or not HEX64_RE.fullmatch(quote_id):
                 raise ExperimentValidationError("experiment member quote ID is invalid")
@@ -1018,6 +1232,13 @@ def validate_plan_document(
                 "control_weighted_length": x_weighted_length(exact),
                 "question_source": entry["question_source"],
             }
+            if (
+                type(member.get("complete_treatment_weighted_length")) is not int
+                or type(member.get("control_weighted_length")) is not int
+            ):
+                raise ExperimentValidationError(
+                    f"experiment member weighted length is invalid for {quote_id}"
+                )
             for field, value in expected.items():
                 if member.get(field) != value:
                     raise ExperimentValidationError(
@@ -1031,6 +1252,18 @@ def validate_plan_document(
                     raise ExperimentValidationError(
                         f"experiment member {field} is invalid"
                     )
+            creation_evidence = evidence_by_quote_id.get(quote_id)
+            if (
+                not isinstance(creation_evidence, Mapping)
+                or creation_evidence.get("topic") != topic
+                or any(
+                    member.get(field) != creation_evidence.get(field)
+                    for field in ("verification_label", "source_class")
+                )
+            ):
+                raise ExperimentValidationError(
+                    "experiment pair metadata differs from creation evidence"
+                )
             if metadata_by_quote_id is not None:
                 metadata = metadata_by_quote_id.get(quote_id)
                 if not isinstance(metadata, Mapping):
@@ -1069,6 +1302,10 @@ def validate_plan_document(
 
     if len(seen_quotes) != TARGET_COMPLETED_PAIRS * 2:
         raise ExperimentValidationError("experiment plan does not contain 60 unique quotes")
+    if [pair["pair_id"] for pair in pairs] != expected_constructed_pair_ids:
+        raise ExperimentValidationError(
+            "experiment plan differs from deterministic matching and selection"
+        )
     ranked = sorted(
         seen_pairs,
         key=lambda pair_id: (
@@ -1088,7 +1325,13 @@ def validate_plan_document(
 def new_experiment_state(plan: Mapping[str, Any]) -> dict[str, Any]:
     """Create the bounded state only when an enabled live plan is starting."""
 
-    if plan.get("experiment_id") != EXPERIMENT_ID or plan.get("pair_count") != 30:
+    if (
+        plan.get("experiment_id") != EXPERIMENT_ID
+        or type(plan.get("pair_count")) is not int
+        or plan["pair_count"] != TARGET_COMPLETED_PAIRS
+        or type(plan.get("plan_sha256")) is not str
+        or not HEX64_RE.fullmatch(plan["plan_sha256"])
+    ):
         raise ExperimentValidationError("cannot start state from an invalid plan")
     return {
         "schema_version": STATE_SCHEMA_VERSION,
@@ -1102,7 +1345,7 @@ def new_experiment_state(plan: Mapping[str, Any]) -> dict[str, Any]:
         "confirmed_publications": [],
         "last_experimental_publication_local_date": None,
         "treatment_publication_count": 0,
-        "latest_treatment_notification_identity": None,
+        "treatment_notification_identities": [],
         "current_deferral_reason": None,
     }
 
@@ -1145,21 +1388,33 @@ def validate_notification_document(document: Any) -> dict[str, Any]:
 
     if not isinstance(document, dict) or set(document) != NOTIFICATION_FIELDS:
         raise ExperimentValidationError("treatment notification fields mismatch")
-    if document.get("schema_version") != NOTIFICATION_SCHEMA_VERSION:
+    if (
+        type(document.get("schema_version")) is not int
+        or document["schema_version"] != NOTIFICATION_SCHEMA_VERSION
+    ):
         raise ExperimentValidationError("unsupported treatment notification schema")
     if document.get("experiment_id") != EXPERIMENT_ID:
         raise ExperimentValidationError("treatment notification experiment mismatch")
-    if not HEX64_RE.fullmatch(str(document.get("plan_sha256") or "")):
+    if (
+        type(document.get("plan_sha256")) is not str
+        or not HEX64_RE.fullmatch(document["plan_sha256"])
+    ):
         raise ExperimentValidationError("treatment notification plan hash is invalid")
     post_id = document.get("post_id")
     if type(post_id) is not str or not POST_ID_RE.fullmatch(post_id):
         raise ExperimentValidationError("treatment notification post ID is invalid")
-    if not PAIR_ID_RE.fullmatch(str(document.get("pair_id") or "")):
+    if (
+        type(document.get("pair_id")) is not str
+        or not PAIR_ID_RE.fullmatch(document["pair_id"])
+    ):
         raise ExperimentValidationError("treatment notification pair ID is invalid")
     number = document.get("treatment_number")
     if type(number) is not int or not 1 <= number <= TARGET_TREATMENT_COUNT:
         raise ExperimentValidationError("treatment notification sequence is invalid")
-    if document.get("target_treatment_count") != TARGET_TREATMENT_COUNT:
+    if (
+        type(document.get("target_treatment_count")) is not int
+        or document["target_treatment_count"] != TARGET_TREATMENT_COUNT
+    ):
         raise ExperimentValidationError("treatment notification target is invalid")
     epoch = document.get("published_epoch")
     if type(epoch) is not int or epoch < 0:
@@ -1179,8 +1434,6 @@ def validate_notification_document(document: Any) -> dict[str, Any]:
 
 
 def _validate_notification_identity(value: Any) -> bool:
-    if value is None:
-        return True
     if not isinstance(value, dict) or set(value) != NOTIFICATION_IDENTITY_FIELDS:
         return False
     try:
@@ -1205,11 +1458,17 @@ def validate_experiment_state(
 
     if not isinstance(value, dict) or set(value) != STATE_FIELDS:
         raise ExperimentValidationError("protected experiment state fields mismatch")
-    if value.get("schema_version") != STATE_SCHEMA_VERSION:
+    if (
+        type(value.get("schema_version")) is not int
+        or value["schema_version"] != STATE_SCHEMA_VERSION
+    ):
         raise ExperimentValidationError("unsupported protected experiment state schema")
     if value.get("experiment_id") != EXPERIMENT_ID:
         raise ExperimentValidationError("protected experiment state ID mismatch")
-    if not HEX64_RE.fullmatch(str(value.get("active_plan_sha256") or "")):
+    if (
+        type(value.get("active_plan_sha256")) is not str
+        or not HEX64_RE.fullmatch(value["active_plan_sha256"])
+    ):
         raise ExperimentValidationError("protected experiment plan hash is invalid")
     if plan is not None and value["active_plan_sha256"] != plan.get("plan_sha256"):
         raise ExperimentValidationError("protected experiment state is bound to another plan")
@@ -1247,11 +1506,17 @@ def validate_experiment_state(
     seen_quotes: set[str] = set()
     counted_treatments = 0
     latest_date: str | None = None
+    previous_epoch: int | None = None
+    prior_publication_dates: set[str] = set()
+    treatment_dates: set[str] = set()
     pair_publications: dict[str, list[dict[str, Any]]] = defaultdict(list)
     for sequence, publication in enumerate(publications, 1):
         if not isinstance(publication, dict) or set(publication) != PUBLICATION_FIELDS:
             raise ExperimentValidationError("protected publication fields mismatch")
-        if publication.get("publication_sequence") != sequence:
+        if (
+            type(publication.get("publication_sequence")) is not int
+            or publication["publication_sequence"] != sequence
+        ):
             raise ExperimentValidationError("protected publication sequence is not contiguous")
         post_id = publication.get("post_id")
         quote_id = publication.get("quote_id")
@@ -1279,12 +1544,10 @@ def validate_experiment_state(
             or order not in PUBLICATION_ORDERS
             or type(publication.get("question_present")) is not bool
             or publication["question_present"] != (arm == "treatment")
-            or not HEX64_RE.fullmatch(
-                str(publication.get("approved_question_sha256") or "")
-            )
-            or not HEX64_RE.fullmatch(
-                str(publication.get("public_text_sha256") or "")
-            )
+            or type(publication.get("approved_question_sha256")) is not str
+            or not HEX64_RE.fullmatch(publication["approved_question_sha256"])
+            or type(publication.get("public_text_sha256")) is not str
+            or not HEX64_RE.fullmatch(publication["public_text_sha256"])
         ):
             raise ExperimentValidationError("protected publication arm metadata is invalid")
         epoch = publication.get("published_epoch")
@@ -1293,6 +1556,7 @@ def validate_experiment_state(
         if (
             type(epoch) is not int
             or epoch < 0
+            or (previous_epoch is not None and epoch < previous_epoch)
             or not _valid_date(local_date)
             or local_date_for_epoch(epoch) != local_date
             or (gap is not None and (type(gap) is not int or gap < 0))
@@ -1301,32 +1565,82 @@ def validate_experiment_state(
         pair_rows = pair_publications[pair_id]
         if not pair_rows and gap is not None:
             raise ExperimentValidationError("first pair member cannot have a publication gap")
+        if not pair_rows and local_date in prior_publication_dates:
+            raise ExperimentValidationError(
+                "protected state starts more than one pair on a local date"
+            )
         if pair_rows:
             if len(pair_rows) != 1 or gap != abs(epoch - pair_rows[0]["published_epoch"]):
                 raise ExperimentValidationError("second pair-member gap is invalid")
         pair_rows.append(publication)
         if arm == "treatment":
+            if local_date in treatment_dates:
+                raise ExperimentValidationError(
+                    "protected state confirms two treatments on one local date"
+                )
+            treatment_dates.add(local_date)
             counted_treatments += 1
         latest_date = local_date
+        previous_epoch = epoch
+        prior_publication_dates.add(local_date)
     if counted_treatments != treatment_count:
         raise ExperimentValidationError("protected treatment count is inconsistent")
     last_date = value.get("last_experimental_publication_local_date")
     if not _valid_date(last_date, optional=True) or last_date != latest_date:
         raise ExperimentValidationError("protected last publication date is inconsistent")
-    if not _validate_notification_identity(
-        value.get("latest_treatment_notification_identity")
+    notifications = value.get("treatment_notification_identities")
+    treatment_publications = [
+        publication for publication in publications if publication["arm"] == "treatment"
+    ]
+    if (
+        not isinstance(notifications, list)
+        or len(notifications) > TARGET_TREATMENT_COUNT
+        or len(notifications) != len(treatment_publications)
     ):
-        raise ExperimentValidationError("protected treatment notification identity is invalid")
-    notification = value.get("latest_treatment_notification_identity")
-    if treatment_count == 0 and notification is not None:
-        raise ExperimentValidationError("notification exists without a treatment")
-    if notification is not None:
-        latest_treatment = next(
-            (row for row in reversed(publications) if row["arm"] == "treatment"),
-            None,
+        raise ExperimentValidationError(
+            "protected treatment notification history is inconsistent"
         )
-        if latest_treatment is None or notification["post_id"] != latest_treatment["post_id"]:
-            raise ExperimentValidationError("notification does not identify latest treatment")
+    undelivered_seen = False
+    for treatment_number, (notification, publication) in enumerate(
+        zip(notifications, treatment_publications),
+        1,
+    ):
+        if not _validate_notification_identity(notification):
+            raise ExperimentValidationError(
+                "protected treatment notification identity is invalid"
+            )
+        document = notification["document"]
+        if (
+            notification["post_id"] != publication["post_id"]
+            or document["plan_sha256"] != value["active_plan_sha256"]
+            or document["post_id"] != publication["post_id"]
+            or document["pair_id"] != publication["pair_id"]
+            or document["treatment_number"] != treatment_number
+            or document["published_epoch"] != publication["published_epoch"]
+            or sha256_text(document["question"])
+            != publication["approved_question_sha256"]
+        ):
+            raise ExperimentValidationError(
+                "protected treatment notification differs from its publication"
+            )
+        if plan is not None:
+            pair = plan["pairs"][(publication["publication_sequence"] - 1) // 2]
+            member = pair["members"][publication["member_position"] - 1]
+            if (
+                pair["pair_id"] != publication["pair_id"]
+                or member["quote_id"] != publication["quote_id"]
+                or document["question"] != member["approved_question_body"]
+            ):
+                raise ExperimentValidationError(
+                    "protected treatment notification differs from the plan"
+                )
+        if notification["delivered"]:
+            if undelivered_seen:
+                raise ExperimentValidationError(
+                    "protected treatment notifications were delivered out of order"
+                )
+        else:
+            undelivered_seen = True
     deferral = value.get("current_deferral_reason")
     if deferral is not None:
         if not isinstance(deferral, dict) or set(deferral) != DEFERRAL_FIELDS:
@@ -1336,11 +1650,17 @@ def validate_experiment_state(
             or not re.fullmatch(r"[a-z0-9_]{1,80}", deferral["code"])
             or (
                 deferral.get("pair_id") is not None
-                and not PAIR_ID_RE.fullmatch(str(deferral["pair_id"]))
+                and (
+                    type(deferral["pair_id"]) is not str
+                    or not PAIR_ID_RE.fullmatch(deferral["pair_id"])
+                )
             )
             or (
                 deferral.get("member_position") is not None
-                and deferral["member_position"] not in {1, 2}
+                and (
+                    type(deferral["member_position"]) is not int
+                    or deferral["member_position"] not in {1, 2}
+                )
             )
             or type(deferral.get("recorded_epoch")) is not int
             or deferral["recorded_epoch"] < 0
@@ -1441,6 +1761,8 @@ def mark_experiment_invalid(
     """Stop publication and naturally release reservations after plan invalidation."""
 
     validate_experiment_state(state)
+    if type(recorded_epoch) is not int or recorded_epoch < 0:
+        raise ExperimentValidationError("experiment invalidation epoch is invalid")
     state["status"] = "invalid"
     state["current_deferral_reason"] = {
         "code": _bounded_reason_code(code),
@@ -1450,7 +1772,7 @@ def mark_experiment_invalid(
             if state.get("active_pair_id") is not None
             else None
         ),
-        "recorded_epoch": int(recorded_epoch),
+        "recorded_epoch": recorded_epoch,
     }
     validate_experiment_state(state)
     return state
@@ -1470,6 +1792,8 @@ def record_deferral(
     """Record one bounded deterministic deferral without advancing progress."""
 
     validate_experiment_state(state)
+    if type(recorded_epoch) is not int or recorded_epoch < 0:
+        raise ExperimentValidationError("experiment deferral epoch is invalid")
     state["current_deferral_reason"] = {
         "code": _bounded_reason_code(code),
         "pair_id": state.get("active_pair_id"),
@@ -1478,7 +1802,7 @@ def record_deferral(
             if state.get("active_pair_id") is not None
             else None
         ),
-        "recorded_epoch": int(recorded_epoch),
+        "recorded_epoch": recorded_epoch,
     }
     validate_experiment_state(state)
     return state
@@ -1610,24 +1934,29 @@ def validate_attempt_binding(
     if not isinstance(binding, dict) or set(binding) != ATTEMPT_BINDING_FIELDS:
         raise ExperimentValidationError("experiment attempt binding fields mismatch")
     if (
-        binding.get("schema_version") != ATTEMPT_BINDING_SCHEMA_VERSION
+        type(binding.get("schema_version")) is not int
+        or binding["schema_version"] != ATTEMPT_BINDING_SCHEMA_VERSION
         or binding.get("experiment_id") != EXPERIMENT_ID
-        or not HEX64_RE.fullmatch(str(binding.get("plan_sha256") or ""))
-        or not PAIR_ID_RE.fullmatch(str(binding.get("pair_id") or ""))
+        or type(binding.get("plan_sha256")) is not str
+        or not HEX64_RE.fullmatch(binding["plan_sha256"])
+        or type(binding.get("pair_id")) is not str
+        or not PAIR_ID_RE.fullmatch(binding["pair_id"])
         or type(binding.get("pair_index")) is not int
         or not 0 <= binding["pair_index"] < TARGET_COMPLETED_PAIRS
-        or binding.get("member_position") not in {1, 2}
+        or type(binding.get("member_position")) is not int
+        or binding["member_position"] not in {1, 2}
         or binding.get("arm") not in ARMS
         or binding.get("publication_order") not in PUBLICATION_ORDERS
         or type(binding.get("publication_sequence")) is not int
         or not 1 <= binding["publication_sequence"] <= MAX_CONFIRMED_PUBLICATIONS
-        or not HEX64_RE.fullmatch(
-            str(binding.get("approved_question_sha256") or "")
-        )
+        or type(binding.get("approved_question_sha256")) is not str
+        or not HEX64_RE.fullmatch(binding["approved_question_sha256"])
         or type(binding.get("question_present")) is not bool
         or binding["question_present"] != (binding["arm"] == "treatment")
-        or not HEX64_RE.fullmatch(str(binding.get("canonical_quote_sha256") or ""))
-        or not HEX64_RE.fullmatch(str(binding.get("public_text_sha256") or ""))
+        or type(binding.get("canonical_quote_sha256")) is not str
+        or not HEX64_RE.fullmatch(binding["canonical_quote_sha256"])
+        or type(binding.get("public_text_sha256")) is not str
+        or not HEX64_RE.fullmatch(binding["public_text_sha256"])
     ):
         raise ExperimentValidationError("experiment attempt binding is invalid")
     transition = binding.get("expected_transition")
@@ -1643,8 +1972,9 @@ def validate_attempt_binding(
     }
     if any(type(transition.get(field)) is not int for field in integer_fields):
         raise ExperimentValidationError("experiment expected transition counters are invalid")
-    if transition.get("active_pair_id_after") is not None and not PAIR_ID_RE.fullmatch(
-        str(transition["active_pair_id_after"])
+    if transition.get("active_pair_id_after") is not None and (
+        type(transition["active_pair_id_after"]) is not str
+        or not PAIR_ID_RE.fullmatch(transition["active_pair_id_after"])
     ):
         raise ExperimentValidationError("experiment expected active pair is invalid")
     if transition.get("status_after") not in {"active", "completed"}:
@@ -1702,7 +2032,8 @@ def validate_attempt_binding(
         raise ExperimentValidationError("attempt binding public payload changed")
     if state_before is not None:
         if (
-            len(state_before["confirmed_publications"])
+            binding["plan_sha256"] != state_before.get("active_plan_sha256")
+            or len(state_before["confirmed_publications"])
             != transition["confirmed_publication_count_before"]
             or state_before["completed_pair_count"]
             != transition["completed_pair_count_before"]
@@ -1741,10 +2072,16 @@ def apply_confirmed_publication(
         exact_quote_text=exact_quote_text,
         public_text=public_text,
     )
-    if not POST_ID_RE.fullmatch(str(post_id)):
+    if binding["plan_sha256"] != state["active_plan_sha256"]:
+        raise ExperimentValidationError(
+            "confirmed experiment binding differs from protected plan identity"
+        )
+    if type(post_id) is not str or not POST_ID_RE.fullmatch(post_id):
         raise ExperimentValidationError("confirmed experimental post ID is invalid")
+    if type(published_epoch) is not int or published_epoch < 0:
+        raise ExperimentValidationError("confirmed experimental epoch is invalid")
     existing = next(
-        (row for row in state["confirmed_publications"] if row["post_id"] == str(post_id)),
+        (row for row in state["confirmed_publications"] if row["post_id"] == post_id),
         None,
     )
     if existing is not None:
@@ -1773,7 +2110,15 @@ def apply_confirmed_publication(
         or state["next_pair_member_position"] != binding["member_position"]
     ):
         raise ExperimentValidationError("confirmed experiment transition precondition changed")
-    local_date = local_date_for_epoch(int(published_epoch))
+    local_date = local_date_for_epoch(published_epoch)
+    if (
+        state["confirmed_publications"]
+        and published_epoch
+        < int(state["confirmed_publications"][-1]["published_epoch"])
+    ):
+        raise ExperimentValidationError(
+            "confirmed experiment publication time moved backwards"
+        )
     if binding["arm"] == "treatment" and any(
         row["arm"] == "treatment" and row["local_date"] == local_date
         for row in state["confirmed_publications"]
@@ -1787,13 +2132,19 @@ def apply_confirmed_publication(
         ),
         None,
     )
+    if previous_pair_member is None and any(
+        row["local_date"] == local_date for row in state["confirmed_publications"]
+    ):
+        raise ExperimentValidationError(
+            "another experiment pair already started on this local date"
+        )
     gap = (
-        abs(int(published_epoch) - int(previous_pair_member["published_epoch"]))
+        abs(published_epoch - int(previous_pair_member["published_epoch"]))
         if previous_pair_member is not None
         else None
     )
     publication = {
-        "post_id": str(post_id),
+        "post_id": post_id,
         "pair_id": str(binding["pair_id"]),
         "quote_id": str(binding["canonical_quote_sha256"]),
         "arm": str(binding["arm"]),
@@ -1803,21 +2154,11 @@ def apply_confirmed_publication(
         "question_present": bool(binding["question_present"]),
         "approved_question_sha256": str(binding["approved_question_sha256"]),
         "public_text_sha256": str(binding["public_text_sha256"]),
-        "published_epoch": int(published_epoch),
+        "published_epoch": published_epoch,
         "local_date": local_date,
         "pair_member_gap_seconds": gap,
     }
-    state["confirmed_publications"].append(publication)
-    state["last_experimental_publication_local_date"] = local_date
-    state["treatment_publication_count"] += int(binding["arm"] == "treatment")
-    state["current_pair_index"] = transition["current_pair_index_after"]
-    state["active_pair_id"] = transition["active_pair_id_after"]
-    state["next_pair_member_position"] = transition[
-        "next_pair_member_position_after"
-    ]
-    state["completed_pair_count"] = transition["completed_pair_count_after"]
-    state["status"] = transition["status_after"]
-    state["current_deferral_reason"] = None
+    notification_identity: dict[str, Any] | None = None
     if binding["arm"] == "treatment":
         question = (
             plan["pairs"][binding["pair_index"]]["members"][
@@ -1831,41 +2172,98 @@ def apply_confirmed_publication(
             raise ExperimentValidationError(
                 "receipt-bound approved question body changed"
             )
+        if len(state["treatment_notification_identities"]) >= TARGET_TREATMENT_COUNT:
+            raise ExperimentValidationError(
+                "treatment notification history exceeds its fixed bound"
+            )
         notification = {
             "schema_version": NOTIFICATION_SCHEMA_VERSION,
             "experiment_id": EXPERIMENT_ID,
             "plan_sha256": str(binding["plan_sha256"]),
-            "post_id": str(post_id),
+            "post_id": post_id,
             "pair_id": str(binding["pair_id"]),
-            "treatment_number": int(state["treatment_publication_count"]),
+            "treatment_number": int(state["treatment_publication_count"]) + 1,
             "target_treatment_count": TARGET_TREATMENT_COUNT,
-            "published_epoch": int(published_epoch),
+            "published_epoch": published_epoch,
             "quote_excerpt": bounded_quote_excerpt(exact_quote_text),
             "question": str(question),
             "post_url": f"https://x.com/MrsMThatcher/status/{post_id}",
         }
         validate_notification_document(notification)
-        state["latest_treatment_notification_identity"] = {
-            "post_id": str(post_id),
+        notification_identity = {
+            "post_id": post_id,
             "document_sha256": canonical_sha256(notification),
             "delivered": False,
             "document": notification,
         }
+    state["confirmed_publications"].append(publication)
+    state["last_experimental_publication_local_date"] = local_date
+    state["treatment_publication_count"] += int(binding["arm"] == "treatment")
+    state["current_pair_index"] = transition["current_pair_index_after"]
+    state["active_pair_id"] = transition["active_pair_id_after"]
+    state["next_pair_member_position"] = transition[
+        "next_pair_member_position_after"
+    ]
+    state["completed_pair_count"] = transition["completed_pair_count_after"]
+    state["status"] = transition["status_after"]
+    state["current_deferral_reason"] = None
+    if notification_identity is not None:
+        state["treatment_notification_identities"].append(notification_identity)
     validate_experiment_state(state, plan=plan)
     return True
 
 
-def mark_notification_delivered(state: dict[str, Any], post_id: str) -> bool:
-    """Mark the latest idempotent notification observation as delivered."""
+def pending_treatment_notification(state: Mapping[str, Any]) -> dict[str, Any] | None:
+    """Return a copy of the oldest durable undelivered treatment notification."""
 
-    validate_experiment_state(state)
-    identity = state.get("latest_treatment_notification_identity")
-    if not isinstance(identity, dict) or identity.get("post_id") != str(post_id):
+    validated = validate_experiment_state(dict(state))
+    identity = next(
+        (
+            value
+            for value in validated["treatment_notification_identities"]
+            if not value["delivered"]
+        ),
+        None,
+    )
+    return (
+        json.loads(json.dumps(identity, ensure_ascii=False))
+        if identity is not None
+        else None
+    )
+
+
+def mark_notification_delivered(state: dict[str, Any], post_id: str) -> bool:
+    """Mark the oldest pending notification delivered by exact post identity."""
+
+    if type(post_id) is not str or not POST_ID_RE.fullmatch(post_id):
+        raise ExperimentValidationError("notification delivery post ID is invalid")
+    changed = validate_experiment_state(state)
+    matching = next(
+        (
+            value
+            for value in changed["treatment_notification_identities"]
+            if value["post_id"] == post_id
+        ),
+        None,
+    )
+    if not isinstance(matching, dict):
         raise ExperimentValidationError("notification delivery identity changed")
-    if identity["delivered"]:
+    if matching["delivered"]:
         return False
-    identity["delivered"] = True
-    validate_experiment_state(state)
+    oldest_pending = next(
+        (
+            value
+            for value in changed["treatment_notification_identities"]
+            if not value["delivered"]
+        ),
+        None,
+    )
+    if oldest_pending is not matching:
+        raise ExperimentValidationError("notification delivery identity changed")
+    matching["delivered"] = True
+    validate_experiment_state(changed)
+    state.clear()
+    state.update(changed)
     return True
 
 
@@ -1898,12 +2296,19 @@ def experiment_status_summary(
         }
     publications = list(state.get("confirmed_publications") or [])
     next_member = None
-    if (
+    compatible_plan = bool(
         isinstance(plan, Mapping)
+        and plan.get("plan_sha256") == state.get("active_plan_sha256")
+    )
+    if (
+        compatible_plan
+        and state.get("status") in {"active", "paused"}
         and state.get("active_pair_id") is not None
         and type(state.get("current_pair_index")) is int
         and type(state.get("next_pair_member_position")) is int
         and 0 <= state["current_pair_index"] < len(plan.get("pairs") or [])
+        and plan["pairs"][state["current_pair_index"]].get("pair_id")
+        == state.get("active_pair_id")
     ):
         member = plan["pairs"][state["current_pair_index"]]["members"][
             state["next_pair_member_position"] - 1
@@ -1912,6 +2317,29 @@ def experiment_status_summary(
             "position": member["position"],
             "quote_id": member["quote_id"],
             "arm": member["arm"],
+        }
+    elif (
+        state.get("status") in {"active", "paused"}
+        and state.get("active_pair_id") is not None
+    ):
+        prior_active_member = next(
+            (
+                row
+                for row in reversed(publications)
+                if row.get("pair_id") == state.get("active_pair_id")
+            ),
+            None,
+        )
+        pending_arm = None
+        if isinstance(prior_active_member, Mapping):
+            if prior_active_member.get("arm") == "treatment":
+                pending_arm = "control"
+            elif prior_active_member.get("arm") == "control":
+                pending_arm = "treatment"
+        next_member = {
+            "position": state.get("next_pair_member_position"),
+            "quote_id": None,
+            "arm": pending_arm,
         }
     wide = sorted(
         {
@@ -1925,11 +2353,12 @@ def experiment_status_summary(
         (row for row in reversed(publications) if row.get("arm") == "treatment"),
         None,
     )
-    reserved = (
-        reserved_quote_ids(plan, state)
-        if isinstance(plan, Mapping) and plan_valid and state_valid
-        else set()
-    )
+    if compatible_plan and plan_valid and state_valid:
+        reserved_count = len(reserved_quote_ids(plan, state))
+    elif state.get("status") in {"active", "paused"}:
+        reserved_count = MAX_CONFIRMED_PUBLICATIONS - len(publications)
+    else:
+        reserved_count = 0
     return {
         "experiment_status": state.get("status"),
         "active_plan_sha256": state.get("active_plan_sha256"),
@@ -1941,7 +2370,7 @@ def experiment_status_summary(
         "next_pending_member": next_member,
         "last_experimental_publication": publications[-1] if publications else None,
         "latest_treatment_post": latest_treatment,
-        "current_reserved_quote_count": len(reserved),
+        "current_reserved_quote_count": reserved_count,
         "current_deferral_reason": state.get("current_deferral_reason"),
         "pairs_with_publication_gap_over_four_hours": wide,
         "plan_valid": bool(plan_valid),

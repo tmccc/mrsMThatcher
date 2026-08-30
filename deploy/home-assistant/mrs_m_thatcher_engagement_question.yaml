@@ -49,17 +49,27 @@ automation:
           {{ state is match('^[0-9]{1,30}$')
              and trigger.from_state is not none
              and trigger.from_state.state != state
+             and trigger.to_state.attributes.get('schema_version') == 1
              and trigger.to_state.attributes.get('experiment_id')
                == 'substantive-question-v1'
+             and (trigger.to_state.attributes.get('plan_sha256') | string)
+               is match('^[0-9a-f]{64}$')
+             and (trigger.to_state.attributes.get('pair_id') | string)
+               is match('^pair-[0-9a-f]{24}$')
              and published is number
              and published > 0
              and age >= -60
              and age <= 600
              and trigger.to_state.attributes.get('treatment_number') is number
+             and trigger.to_state.attributes.get('treatment_number') >= 1
+             and trigger.to_state.attributes.get('treatment_number') <= 30
              and trigger.to_state.attributes.get('target_treatment_count') == 30
              and trigger.to_state.attributes.get('quote_excerpt') is string
+             and trigger.to_state.attributes.get('quote_excerpt') | length > 0
              and trigger.to_state.attributes.get('question') is string
-             and trigger.to_state.attributes.get('post_url') is string }}
+             and trigger.to_state.attributes.get('question') | length > 0
+             and trigger.to_state.attributes.get('post_url')
+               == 'https://x.com/MrsMThatcher/status/' ~ state }}
     actions:
       - action: notify.millie_powerwall_alert_devices
         continue_on_error: true

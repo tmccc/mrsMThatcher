@@ -79,6 +79,18 @@ ENGAGEMENT_EXPERIMENT_EVENT_FIELDS = {
     "engagement_public_text_sha256": "engagement_public_text_sha256",
 }
 ENGAGEMENT_EXPERIMENT_COLUMNS = tuple(ENGAGEMENT_EXPERIMENT_EVENT_FIELDS.values())
+ENGAGEMENT_EXPERIMENT_MIGRATION_COLUMNS = {
+    "engagement_experiment_id": "TEXT",
+    "engagement_experiment_plan_sha256": "TEXT",
+    "engagement_experiment_pair_id": "TEXT",
+    "engagement_experiment_arm": "TEXT",
+    "engagement_experiment_member_position": "INTEGER",
+    "engagement_experiment_publication_order": "TEXT",
+    "engagement_experiment_sequence": "INTEGER",
+    "engagement_approved_question_sha256": "TEXT",
+    "engagement_question_present": "INTEGER",
+    "engagement_public_text_sha256": "TEXT",
+}
 ENGAGEMENT_EXPERIMENT_REPORT_TARGETS = (24 * 3600, 72 * 3600, 168 * 3600)
 ENGAGEMENT_EXPERIMENT_REPORT_RATES = (
     "engagement_rate",
@@ -287,7 +299,7 @@ def load_config(paths: AnalyticsPaths) -> dict[str, Any]:
         if unknown:
             raise AnalyticsError(f"unknown engagement analytics config fields: {sorted(unknown)}")
         config.update(loaded)
-    if config.get("schema_version") != 1:
+    if type(config.get("schema_version")) is not int or config["schema_version"] != 1:
         raise AnalyticsError("unsupported engagement analytics config schema")
     batch = config.get("maximum_batch_size")
     if type(batch) is not int or not 1 <= batch <= 100:
@@ -552,19 +564,7 @@ def initialise_database(paths: AnalyticsPaths) -> dict[str, Any]:
             str(row[1])
             for row in connection.execute("PRAGMA table_info(post_pairs)")
         }
-        migration_columns = {
-            "engagement_experiment_id": "TEXT",
-            "engagement_experiment_plan_sha256": "TEXT",
-            "engagement_experiment_pair_id": "TEXT",
-            "engagement_experiment_arm": "TEXT",
-            "engagement_experiment_member_position": "INTEGER",
-            "engagement_experiment_publication_order": "TEXT",
-            "engagement_experiment_sequence": "INTEGER",
-            "engagement_approved_question_sha256": "TEXT",
-            "engagement_question_present": "INTEGER",
-            "engagement_public_text_sha256": "TEXT",
-        }
-        for column, sql_type in migration_columns.items():
+        for column, sql_type in ENGAGEMENT_EXPERIMENT_MIGRATION_COLUMNS.items():
             if column not in existing_columns:
                 connection.execute(
                     f"ALTER TABLE post_pairs ADD COLUMN {column} {sql_type}"
@@ -592,6 +592,16 @@ def initialise_database(paths: AnalyticsPaths) -> dict[str, Any]:
     if not isinstance(preserved, dict):
         raise AnalyticsError("invalid engagement analytics collector state")
     return preserved
+
+
+def migrate_existing_database(paths: AnalyticsPaths) -> dict[str, Any]:
+    """Apply forward-only migrations without implicitly creating a database."""
+
+    if not paths.database.is_file():
+        raise AnalyticsError(
+            f"analytics database is not initialised: {paths.database}"
+        )
+    return initialise_database(paths)
 
 
 def state_value(connection: sqlite3.Connection, key: str, default: Any = None) -> Any:
@@ -700,9 +710,55 @@ def _load_quote_identity_corrections(
     return corrections
 
 
+def _delayed_experiment_event_is_corroborated(
+    event: dict[str, Any],
+    protected_state: Any,
+) -> bool:
+    """Return whether protected confirmation state proves a delayed log event."""
+
+    if not isinstance(protected_state, dict):
+        return False
+    experiment_state = protected_state.get("engagement_question_experiment")
+    if not isinstance(experiment_state, dict):
+        return False
+    try:
+        metadata = _experiment_metadata_from_confirmed_event(event)
+    except IdentityConflict:
+        return False
+    if metadata is None or (
+        experiment_state.get("experiment_id") != metadata["engagement_experiment_id"]
+        or experiment_state.get("active_plan_sha256")
+        != metadata["engagement_experiment_plan_sha256"]
+    ):
+        return False
+    publications = experiment_state.get("confirmed_publications")
+    if not isinstance(publications, list):
+        return False
+    expected = {
+        "post_id": str(event.get("post_id") or ""),
+        "pair_id": metadata["engagement_experiment_pair_id"],
+        "quote_id": str(event.get("quote_hash") or ""),
+        "arm": metadata["engagement_experiment_arm"],
+        "member_position": metadata["engagement_experiment_member_position"],
+        "publication_order": metadata["engagement_experiment_publication_order"],
+        "publication_sequence": metadata["engagement_experiment_sequence"],
+        "question_present": metadata["engagement_question_present"],
+        "approved_question_sha256": metadata[
+            "engagement_approved_question_sha256"
+        ],
+        "public_text_sha256": metadata["engagement_public_text_sha256"],
+    }
+    return any(
+        isinstance(publication, dict)
+        and all(publication.get(field) == value for field, value in expected.items())
+        for publication in publications
+    )
+
+
 def _structured_log_events(project_dir: Path) -> list[dict[str, Any]]:
     events: dict[tuple[Any, ...], dict[str, Any]] = {}
     london = ZoneInfo("Europe/London")
+    protected_state = _json_file(project_dir / "bot_state.json", {})
     candidates = [project_dir / "mrsMThatcher.log"]
     candidates.extend(sorted(project_dir.glob("mrsMThatcher.log.[0-9]*")))
     for path in candidates:
@@ -729,15 +785,30 @@ def _structured_log_events(project_dir: Path) -> list[dict[str, Any]]:
                         continue
                     # Reject copied test events and malformed records whose ID epoch does not
                     # correspond to the structured log timestamp.
-                    if abs((snowflake_time - local_time.astimezone(timezone.utc)).total_seconds()) > 3600:
+                    event_delay = (
+                        local_time.astimezone(timezone.utc) - snowflake_time
+                    ).total_seconds()
+                    if abs(event_delay) > 3600 and not (
+                        event_name == "main_post_posted"
+                        and event_delay > 3600
+                        and _delayed_experiment_event_is_corroborated(
+                            event,
+                            protected_state,
+                        )
+                    ):
                         continue
                 item = {**event, "_event_time": iso_utc(local_time), "_log_path": str(path)}
+                canonical_event = json.dumps(
+                    event,
+                    ensure_ascii=False,
+                    sort_keys=True,
+                    separators=(",", ":"),
+                )
                 key = (
                     event_name,
                     post_id,
-                    str(event.get("quote_id") or ""),
-                    str(event.get("status") or ""),
                     item["_event_time"],
+                    canonical_event,
                 )
                 events.setdefault(key, item)
     return sorted(events.values(), key=lambda item: (item["_event_time"], str(item.get("event") or "")))
@@ -802,6 +873,7 @@ def _experiment_metadata_from_confirmed_event(
             values["engagement_experiment_pair_id"]
         )
         or values["engagement_experiment_arm"] not in {"control", "treatment"}
+        or type(values["engagement_experiment_member_position"]) is not int
         or values["engagement_experiment_member_position"] not in {1, 2}
         or values["engagement_experiment_publication_order"]
         not in {"control_first", "treatment_first"}
@@ -1230,6 +1302,7 @@ def _pair_record(connection: sqlite3.Connection, pair_id: int) -> dict[str, Any]
 
 def apply_discovery(connection: sqlite3.Connection, pairs: Sequence[dict[str, Any]], *, now: datetime | None = None) -> dict[str, int]:
     """Merge discovered post identities while preserving conflict detection."""
+    require_current_database_schema(connection)
     now_text = iso_utc(now)
     inserted = updated = unchanged = 0
     with connection:
@@ -2073,6 +2146,38 @@ def collect_due_snapshots(
     }
 
 
+def database_schema_status(connection: sqlite3.Connection) -> dict[str, Any]:
+    """Describe whether an existing database is ready for this collector."""
+
+    columns = {
+        str(row[1]) for row in connection.execute("PRAGMA table_info(post_pairs)")
+    }
+    migration_rows = connection.execute(
+        "SELECT version FROM schema_migrations ORDER BY version"
+    ).fetchall()
+    applied_versions = [int(row[0]) for row in migration_rows]
+    missing_columns = sorted(set(ENGAGEMENT_EXPERIMENT_COLUMNS) - columns)
+    schema_current = SCHEMA_VERSION in applied_versions and not missing_columns
+    return {
+        "schema_version": max(applied_versions, default=0),
+        "required_schema_version": SCHEMA_VERSION,
+        "schema_current": schema_current,
+        "migration_required": not schema_current,
+        "missing_columns": missing_columns,
+    }
+
+
+def require_current_database_schema(connection: sqlite3.Connection) -> None:
+    """Reject a stale writable schema with one actionable error."""
+
+    status = database_schema_status(connection)
+    if not status["schema_current"]:
+        raise AnalyticsError(
+            "engagement analytics schema migration is required; run "
+            "mrs_engagement_analytics.py initialise before writing"
+        )
+
+
 def database_status(paths: AnalyticsPaths, *, now: datetime | None = None) -> dict[str, Any]:
     """Return the database status."""
     now = (now or utc_now()).astimezone(timezone.utc)
@@ -2080,6 +2185,11 @@ def database_status(paths: AnalyticsPaths, *, now: datetime | None = None) -> di
         return {
             "initialised": False,
             "database": str(paths.database),
+            "schema_version": 0,
+            "required_schema_version": SCHEMA_VERSION,
+            "schema_current": False,
+            "migration_required": False,
+            "missing_columns": list(ENGAGEMENT_EXPERIMENT_COLUMNS),
             "discovered_post_pairs": 0,
             "due_snapshots": 0,
             "overdue_snapshots": 0,
@@ -2092,6 +2202,7 @@ def database_status(paths: AnalyticsPaths, *, now: datetime | None = None) -> di
         }
     with connect_database(paths, readonly=True) as connection:
         config = load_config(paths)
+        schema_status = database_schema_status(connection)
         pair_count = connection.execute("SELECT COUNT(*) FROM post_pairs").fetchone()[0]
         post_count = connection.execute("SELECT COUNT(*) FROM posts").fetchone()[0]
         due_count = connection.execute(
@@ -2115,8 +2226,9 @@ def database_status(paths: AnalyticsPaths, *, now: datetime | None = None) -> di
         available = capabilities.get("available_counts", {}) if isinstance(capabilities, dict) else {}
         unavailable = [field for field in METRIC_FIELDS if not int(available.get(field, 0) or 0)]
         return {
-            "initialised": True,
+            "initialised": bool(schema_status["schema_current"]),
             "database": str(paths.database),
+            **schema_status,
             "discovered_post_pairs": pair_count,
             "tracked_posts": post_count,
             "due_snapshots": due_count,
@@ -2638,6 +2750,31 @@ def engagement_experiment_report_summary(
             {"control": [], "treatment": []},
         )[str(row["engagement_experiment_arm"])].append(row)
 
+    fully_published_pair_gaps: list[dict[str, Any]] = []
+    for pair_id, members in sorted(grouped.items()):
+        if len(members["control"]) != 1 or len(members["treatment"]) != 1:
+            continue
+        gap_seconds = abs(
+            int(
+                (
+                    parse_datetime(members["treatment"][0]["main_posted_at"])
+                    - parse_datetime(members["control"][0]["main_posted_at"])
+                ).total_seconds()
+            )
+        )
+        fully_published_pair_gaps.append(
+            {
+                "pair_id": pair_id,
+                "publication_gap_seconds": gap_seconds,
+            }
+        )
+    full_gap_distribution = {
+        "pair_ids": [row["pair_id"] for row in fully_published_pair_gaps],
+        **_gap_distribution(
+            [row["publication_gap_seconds"] for row in fully_published_pair_gaps]
+        ),
+    }
+
     latest = _experiment_latest_snapshots(connection, experiment_id)
     statuses = _experiment_snapshot_statuses(
         latest,
@@ -2745,6 +2882,7 @@ def engagement_experiment_report_summary(
                     **_experiment_paired_summary(sensitivity_pairs),
                 },
             },
+            "all_fully_published_pair_gaps": full_gap_distribution,
             "wider_gap_pairs": wider_gap_pairs,
             "excluded_pairs": excluded_pairs,
         }
@@ -2831,12 +2969,14 @@ def render_engagement_experiment_report(summary: dict[str, Any]) -> str:
                 for field, distribution in values["paired_rate_differences"].items()
             ]
             lines.append("  Median paired rate differences: " + "; ".join(rate_parts) + ".")
-        gap = target["matched_pairs"]["all_valid_pairs"]["member_publication_gap_seconds"]
+        gap = target["all_fully_published_pair_gaps"]
         lines.append(
             ""
-            f"Valid-pair publication gaps (seconds): n={gap['sample_size']}, "
+            f"All fully published-pair gaps (seconds): n={gap['sample_size']}, "
             f"min={_format_report_number(gap['minimum'])}, "
+            f"q1={_format_report_number(gap['q1'])}, "
             f"median={_format_report_number(gap['median'])}, "
+            f"q3={_format_report_number(gap['q3'])}, "
             f"max={_format_report_number(gap['maximum'])}."
         )
         if target["wider_gap_pairs"]:
@@ -3062,25 +3202,39 @@ def main(argv: Sequence[str] | None = None) -> int:
         _print_json(result)
         return 0
     if args.command == "discover":
-        pairs = discover_post_pairs(paths, since_days=args.since_days, max_pairs=args.max_pairs)
         if args.dry_run:
+            pairs = discover_post_pairs(
+                paths,
+                since_days=args.since_days,
+                max_pairs=args.max_pairs,
+            )
             _print_json({"status": "dry_run", "pair_count": len(pairs), "pairs": pairs})
             return 0
-        with collector_lock(paths), connect_database(paths) as connection:
-            result = apply_discovery(connection, pairs)
-            sync_state_file(paths, connection)
+        with collector_lock(paths):
+            migrate_existing_database(paths)
+            pairs = discover_post_pairs(
+                paths,
+                since_days=args.since_days,
+                max_pairs=args.max_pairs,
+            )
+            with connect_database(paths) as connection:
+                result = apply_discovery(connection, pairs)
+                sync_state_file(paths, connection)
         LOG.info("Discovered engagement pairs inserted=%s updated=%s unchanged=%s", result["inserted"], result["updated"], result["unchanged"])
         _print_json(result)
         return 0
     if args.command == "collect":
-        with collector_lock(paths), connect_database(paths) as connection:
-            result = collect_due_snapshots(
-                paths,
-                connection,
-                execute_read=bool(args.execute_read),
-                max_api_requests=args.max_api_requests,
-                max_pairs=args.max_pairs,
-            )
+        with collector_lock(paths):
+            if args.execute_read:
+                migrate_existing_database(paths)
+            with connect_database(paths) as connection:
+                result = collect_due_snapshots(
+                    paths,
+                    connection,
+                    execute_read=bool(args.execute_read),
+                    max_api_requests=args.max_api_requests,
+                    max_pairs=args.max_pairs,
+                )
         LOG.info("Engagement collection status=%s requests=%s snapshots=%s", result["status"], result["requests_made"], result["completed_snapshots"])
         _print_json(result)
         return 0
@@ -3109,29 +3263,34 @@ def main(argv: Sequence[str] | None = None) -> int:
             raise SystemExit("backfill requires a date bound or --max-pairs")
         if args.execute_read and not args.confirm_read_only:
             raise SystemExit("live backfill requires --confirm-read-only")
-        with collector_lock(paths), connect_database(paths) as connection:
-            result = collect_due_snapshots(
-                paths,
-                connection,
-                execute_read=bool(args.execute_read),
-                max_api_requests=args.max_api_requests,
-                max_pairs=args.max_pairs,
-                from_date=_parse_cli_datetime(args.from_date),
-                to_date=_parse_cli_datetime(args.to_date),
-            )
+        with collector_lock(paths):
+            if args.execute_read:
+                migrate_existing_database(paths)
+            with connect_database(paths) as connection:
+                result = collect_due_snapshots(
+                    paths,
+                    connection,
+                    execute_read=bool(args.execute_read),
+                    max_api_requests=args.max_api_requests,
+                    max_pairs=args.max_pairs,
+                    from_date=_parse_cli_datetime(args.from_date),
+                    to_date=_parse_cli_datetime(args.to_date),
+                )
         LOG.info("Bounded engagement backfill status=%s requests=%s", result["status"], result["requests_made"])
         _print_json({**result, "read_only_endpoint_confirmation": bool(args.confirm_read_only)})
         return 0
     if args.command == "scheduled-run":
-        with collector_lock(paths), connect_database(paths) as connection:
-            pairs = discover_post_pairs(paths, since_days=args.since_days)
-            discovery = apply_discovery(connection, pairs)
-            result = collect_due_snapshots(
-                paths,
-                connection,
-                execute_read=True,
-                max_api_requests=args.max_api_requests,
-            )
+        with collector_lock(paths):
+            migrate_existing_database(paths)
+            with connect_database(paths) as connection:
+                pairs = discover_post_pairs(paths, since_days=args.since_days)
+                discovery = apply_discovery(connection, pairs)
+                result = collect_due_snapshots(
+                    paths,
+                    connection,
+                    execute_read=True,
+                    max_api_requests=args.max_api_requests,
+                )
         LOG.info("Scheduled engagement run discovery=%s collection=%s", discovery, result["status"])
         _print_json({"discovery": discovery, "collection": result})
         return 0

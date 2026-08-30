@@ -48,7 +48,7 @@ def _small_catalogue(quotes: list[str]) -> tuple[dict, dict[str, str]]:
     entries = {
         quote_id: _catalogue_entry(
             quote,
-            f"Why does approved synthetic question {index} matter?",
+            f"Why does approved synthetic question {index} matter to citizens’ lives?",
             tuple(sorted(experiment.QUESTION_SOURCES))[index % 3],
         )
         for index, (quote_id, quote) in enumerate(quote_text_by_id.items())
@@ -113,7 +113,8 @@ def synthetic_plan_bundle() -> dict:
         catalogue=catalogue,
         catalogue_sha256=catalogue_sha256,
         candidates=candidates,
-        used_history_sha256="2" * 64,
+        used_history_sha256=experiment.used_history_file_sha256([]),
+        used_quote_ids_at_creation=[],
         plan_created_at="2026-08-30T08:00:00Z",
         plan_kind="preview",
     )
@@ -237,6 +238,55 @@ def _experimental_attempt(
     return attempt, envelope, member, exact, public
 
 
+def _refresh_plan_assignments(plan: dict) -> None:
+    """Recompute derived pair/arm/order metadata after an intentional test edit."""
+
+    catalogue_sha = plan["approved_catalogue_sha256"]
+    for pair in plan["pairs"]:
+        quote_ids = [member["quote_id"] for member in pair["members"]]
+        pair["pair_id"] = experiment.pair_id_for_members(catalogue_sha, *quote_ids)
+        treatment_id = experiment.treatment_quote_id_for_pair(
+            catalogue_sha,
+            pair["pair_id"],
+            quote_ids,
+        )
+        for member in pair["members"]:
+            member["arm"] = (
+                "treatment" if member["quote_id"] == treatment_id else "control"
+            )
+    ranked = sorted(
+        (pair["pair_id"] for pair in plan["pairs"]),
+        key=lambda pair_id: (
+            experiment.publication_order_hash(catalogue_sha, pair_id),
+            pair_id,
+        ),
+    )
+    treatment_first = set(ranked[: experiment.TARGET_COMPLETED_PAIRS // 2])
+    for pair in plan["pairs"]:
+        order = (
+            "treatment_first"
+            if pair["pair_id"] in treatment_first
+            else "control_first"
+        )
+        pair["planned_publication_order"] = order
+        first_arm = "treatment" if order == "treatment_first" else "control"
+        pair["members"].sort(key=lambda member: member["arm"] != first_arm)
+        for position, member in enumerate(pair["members"], 1):
+            member["position"] = position
+        left, right = pair["members"]
+        pair["matching"] = {
+            "verification_label_mismatch": (
+                left["verification_label"] != right["verification_label"]
+            ),
+            "source_class_mismatch": left["source_class"] != right["source_class"],
+            "control_weighted_length_difference": abs(
+                left["control_weighted_length"]
+                - right["control_weighted_length"]
+            ),
+        }
+    plan["plan_sha256"] = experiment.calculate_plan_sha256(plan)
+
+
 def test_approved_catalogue_exact_identity_and_recomputed_values(
     approved_catalogue_bundle,
 ) -> None:
@@ -306,6 +356,24 @@ def test_duplicate_normalised_question_body_fails_closed(
         experiment.validate_catalogue_document(changed, quote_text_by_id)
 
 
+@pytest.mark.parametrize("separator", ["\u2028", "\u2029"])
+def test_unicode_line_and_paragraph_separators_fail_closed(
+    approved_catalogue_bundle,
+    separator: str,
+) -> None:
+    catalogue, _digest, quote_text_by_id = approved_catalogue_bundle
+    changed = copy.deepcopy(catalogue)
+    first_id = next(iter(changed["entries"]))
+    changed["entries"][first_id].update(
+        _catalogue_entry(
+            quote_text_by_id[first_id],
+            f"What follows{separator}from this argument?",
+        )
+    )
+    with pytest.raises(experiment.ExperimentValidationError, match="newline"):
+        experiment.validate_catalogue_document(changed, quote_text_by_id)
+
+
 @pytest.mark.parametrize("mutation", ["schema", "field", "source"])
 def test_unknown_catalogue_schema_field_or_source_fails_closed(
     approved_catalogue_bundle,
@@ -322,6 +390,74 @@ def test_unknown_catalogue_schema_field_or_source_fails_closed(
         changed["entries"][first_id]["question_source"] = "unapproved"
     with pytest.raises(experiment.ExperimentValidationError):
         experiment.validate_catalogue_document(changed, quote_text_by_id)
+
+
+def test_strict_schema_versions_reject_json_booleans_and_plan_positions(
+    approved_catalogue_bundle,
+    synthetic_plan_bundle,
+) -> None:
+    catalogue, _digest, quote_text_by_id = approved_catalogue_bundle
+    changed_catalogue = copy.deepcopy(catalogue)
+    changed_catalogue["schema_version"] = True
+    with pytest.raises(experiment.ExperimentValidationError, match="schema"):
+        experiment.validate_catalogue_document(changed_catalogue, quote_text_by_id)
+
+    bundle = synthetic_plan_bundle
+    changed_plan = copy.deepcopy(bundle["plan"])
+    changed_plan["schema_version"] = True
+    changed_plan["plan_sha256"] = experiment.calculate_plan_sha256(changed_plan)
+    with pytest.raises(experiment.ExperimentValidationError, match="schema"):
+        experiment.validate_plan_document(
+            changed_plan,
+            catalogue=bundle["catalogue"],
+            catalogue_sha256=bundle["catalogue_sha256"],
+            quote_text_by_id=bundle["quote_text_by_id"],
+        )
+
+    changed_plan = copy.deepcopy(bundle["plan"])
+    changed_plan["pairs"][0]["members"][0]["position"] = True
+    changed_plan["plan_sha256"] = experiment.calculate_plan_sha256(changed_plan)
+    with pytest.raises(experiment.ExperimentValidationError, match="position"):
+        experiment.validate_plan_document(
+            changed_plan,
+            catalogue=bundle["catalogue"],
+            catalogue_sha256=bundle["catalogue_sha256"],
+            quote_text_by_id=bundle["quote_text_by_id"],
+        )
+
+    state = experiment.new_experiment_state(bundle["plan"])
+    state["schema_version"] = True
+    with pytest.raises(experiment.ExperimentValidationError, match="schema"):
+        experiment.validate_experiment_state(state)
+
+    state = experiment.new_experiment_state(bundle["plan"])
+    experiment.start_next_pair(state, bundle["plan"])
+    epoch = int(datetime(2026, 8, 30, 10, tzinfo=timezone.utc).timestamp())
+    member, exact, public = _current_member(bundle, state, epoch)
+    binding = experiment.build_attempt_binding(
+        plan=bundle["plan"],
+        state=state,
+        member=member,
+        exact_quote_text=exact,
+        public_text=public,
+    )
+    with pytest.raises(experiment.ExperimentValidationError, match="epoch"):
+        experiment.apply_confirmed_publication(
+            state,
+            binding=binding,
+            plan=bundle["plan"],
+            post_id="3998",
+            published_epoch=True,
+            exact_quote_text=exact,
+            public_text=public,
+            approved_question_body=member["approved_question_body"],
+        )
+    assert state["confirmed_publications"] == []
+    binding["schema_version"] = True
+    with pytest.raises(experiment.ExperimentValidationError, match="binding"):
+        experiment.validate_attempt_binding(binding)
+    with pytest.raises(experiment.ExperimentValidationError, match="epoch"):
+        experiment.record_deferral(state, code="test", recorded_epoch=True)
 
 
 @pytest.mark.parametrize(("weighted_length", "accepted"), [(280, True), (281, False)])
@@ -362,7 +498,8 @@ def test_plan_is_canonical_deterministic_and_exactly_balanced(
         catalogue=bundle["catalogue"],
         catalogue_sha256=bundle["catalogue_sha256"],
         candidates=list(reversed(bundle["candidates"])),
-        used_history_sha256="2" * 64,
+        used_history_sha256=experiment.used_history_file_sha256([]),
+        used_quote_ids_at_creation=[],
         plan_created_at="2026-08-30T08:00:00Z",
         plan_kind="preview",
     )
@@ -638,6 +775,262 @@ def test_preview_preparation_writes_only_requested_outputs(
     assert "NON-LIVE PREVIEW" in args.report_path.read_text()
     assert stat.S_IMODE(args.plan_path.stat().st_mode) == 0o600
     assert stat.S_IMODE(args.report_path.stat().st_mode) == 0o600
+    assert b"citizens\\u2019 lives" in args.plan_path.read_bytes()
+    present, securely_loaded = bot.load_receipt_json_no_follow(args.plan_path)
+    assert present is True
+    assert securely_loaded == json.loads(args.plan_path.read_text())
+
+
+def test_validate_plan_reconstructs_and_rejects_suboptimal_pairing(
+    synthetic_plan_bundle,
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    bundle = synthetic_plan_bundle
+    runtime_root = tmp_path / "runtime"
+    runtime_root.mkdir()
+    history_source = b"[]\n"
+    runtime_root.joinpath("lines_used.json").write_bytes(history_source)
+    history_sha = hashlib.sha256(history_source).hexdigest()
+    plan, _diagnostics = experiment.build_plan(
+        catalogue=bundle["catalogue"],
+        catalogue_sha256=bundle["catalogue_sha256"],
+        candidates=bundle["candidates"],
+        used_history_sha256=history_sha,
+        used_quote_ids_at_creation=[],
+        plan_created_at="2026-08-30T08:00:00Z",
+        plan_kind="preview",
+    )
+    plan_path = tmp_path / "plan.json"
+    plan_path.write_bytes(prepare.pretty_json_bytes(plan))
+    monkeypatch.setattr(
+        prepare,
+        "validate_catalogue_from_paths",
+        lambda *_args: (
+            bundle["catalogue"],
+            bundle["catalogue_sha256"],
+            bundle["quote_text_by_id"],
+        ),
+    )
+    monkeypatch.setattr(
+        prepare,
+        "candidate_metadata",
+        lambda **_kwargs: (bundle["candidates"], {}),
+    )
+    args = argparse.Namespace(
+        repository_root=PROJECT_ROOT,
+        runtime_root=runtime_root,
+        catalogue_path=CATALOGUE_PATH,
+        plan_path=plan_path,
+        report_path=None,
+        manifest_path=None,
+        state_path=None,
+        plan_kind="preview",
+        require_plan_kind="preview",
+        prepare_plan=False,
+        validate_plan=True,
+        status=False,
+    )
+    validated, summary = prepare.load_and_validate_plan(args)
+    assert validated == plan
+    assert summary["deterministic_construction_validated"] is True
+    runtime_root.joinpath("lines_used.json").write_text(
+        json.dumps(["f" * 64], indent=2) + "\n",
+        encoding="utf-8",
+    )
+    validated_after_history_advanced, advanced_summary = (
+        prepare.load_and_validate_plan(args)
+    )
+    assert validated_after_history_advanced == plan
+    assert advanced_summary["deterministic_construction_validated"] is True
+    assert advanced_summary["used_history_snapshot_still_current"] is False
+
+    changed = copy.deepcopy(plan)
+    grouped_indices: dict[tuple[str, str], list[int]] = {}
+    for index, pair in enumerate(changed["pairs"]):
+        grouped_indices.setdefault(
+            (pair["topic"], pair["quotation_length_band"]),
+            [],
+        ).append(index)
+    first_index, second_index = next(
+        indices[:2] for indices in grouped_indices.values() if len(indices) >= 2
+    )
+    members = [
+        *changed["pairs"][first_index]["members"],
+        *changed["pairs"][second_index]["members"],
+    ]
+
+    def aggregate_cost(groups: tuple[tuple[dict, dict], tuple[dict, dict]]) -> tuple[int, int, int]:
+        costs = [
+            (
+                int(left["verification_label"] != right["verification_label"]),
+                int(left["source_class"] != right["source_class"]),
+                abs(
+                    left["control_weighted_length"]
+                    - right["control_weighted_length"]
+                ),
+            )
+            for left, right in groups
+        ]
+        return tuple(sum(cost[index] for cost in costs) for index in range(3))
+
+    original_groups = ((members[0], members[1]), (members[2], members[3]))
+    alternatives = (
+        ((members[0], members[2]), (members[1], members[3])),
+        ((members[0], members[3]), (members[1], members[2])),
+    )
+    worse_groups = max(alternatives, key=aggregate_cost)
+    assert aggregate_cost(worse_groups) > aggregate_cost(original_groups)
+    changed["pairs"][first_index]["members"] = [
+        copy.deepcopy(member) for member in worse_groups[0]
+    ]
+    changed["pairs"][second_index]["members"] = [
+        copy.deepcopy(member) for member in worse_groups[1]
+    ]
+    _refresh_plan_assignments(changed)
+    with pytest.raises(
+        experiment.ExperimentValidationError,
+        match="deterministic matching",
+    ):
+        experiment.validate_plan_document(
+            changed,
+            catalogue=bundle["catalogue"],
+            catalogue_sha256=bundle["catalogue_sha256"],
+            quote_text_by_id=bundle["quote_text_by_id"],
+            metadata_by_quote_id={
+                row["quote_id"]: row for row in bundle["candidates"]
+            },
+            require_plan_kind="preview",
+        )
+    plan_path.write_bytes(prepare.pretty_json_bytes(changed))
+    with pytest.raises(
+        experiment.ExperimentValidationError,
+        match="deterministic matching",
+    ):
+        prepare.load_and_validate_plan(args)
+
+
+def test_plan_creation_evidence_binds_roster_topic_and_member_metadata(
+    synthetic_plan_bundle,
+) -> None:
+    bundle = synthetic_plan_bundle
+    metadata = {row["quote_id"]: row for row in bundle["candidates"]}
+    selected_ids = {
+        member["quote_id"]
+        for pair in bundle["plan"]["pairs"]
+        for member in pair["members"]
+    }
+    unselected_id = next(
+        evidence["quote_id"]
+        for evidence in bundle["plan"]["eligible_candidates_at_creation"]
+        if evidence["quote_id"] not in selected_ids
+    )
+
+    changed_roster = copy.deepcopy(bundle["plan"])
+    changed_roster["eligible_candidates_at_creation"] = [
+        evidence
+        for evidence in changed_roster["eligible_candidates_at_creation"]
+        if evidence["quote_id"] != unselected_id
+    ]
+    changed_roster["plan_sha256"] = experiment.calculate_plan_sha256(
+        changed_roster
+    )
+    with pytest.raises(
+        experiment.ExperimentValidationError,
+        match="candidate roster",
+    ):
+        experiment.validate_plan_document(
+            changed_roster,
+            catalogue=bundle["catalogue"],
+            catalogue_sha256=bundle["catalogue_sha256"],
+            quote_text_by_id=bundle["quote_text_by_id"],
+            metadata_by_quote_id=metadata,
+            require_plan_kind="preview",
+        )
+
+    changed_topic = copy.deepcopy(bundle["plan"])
+    changed_topic["pairs"][0]["topic"] += "_changed"
+    changed_topic["plan_sha256"] = experiment.calculate_plan_sha256(changed_topic)
+    with pytest.raises(
+        experiment.ExperimentValidationError,
+        match="creation evidence",
+    ):
+        experiment.validate_plan_document(
+            changed_topic,
+            catalogue=bundle["catalogue"],
+            catalogue_sha256=bundle["catalogue_sha256"],
+            quote_text_by_id=bundle["quote_text_by_id"],
+            require_plan_kind="preview",
+        )
+
+    changed_label = copy.deepcopy(bundle["plan"])
+    changed_label["pairs"][0]["members"][0]["verification_label"] = (
+        "Invented verification label"
+    )
+    changed_label["pairs"][0]["matching"]["verification_label_mismatch"] = (
+        changed_label["pairs"][0]["members"][0]["verification_label"]
+        != changed_label["pairs"][0]["members"][1]["verification_label"]
+    )
+    changed_label["plan_sha256"] = experiment.calculate_plan_sha256(changed_label)
+    with pytest.raises(
+        experiment.ExperimentValidationError,
+        match="creation evidence",
+    ):
+        experiment.validate_plan_document(
+            changed_label,
+            catalogue=bundle["catalogue"],
+            catalogue_sha256=bundle["catalogue_sha256"],
+            quote_text_by_id=bundle["quote_text_by_id"],
+            require_plan_kind="preview",
+        )
+
+
+def test_tool_live_plan_bytes_load_through_real_runtime_loader(
+    synthetic_plan_bundle,
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    bundle = synthetic_plan_bundle
+    live_plan = copy.deepcopy(bundle["plan"])
+    live_plan["plan_kind"] = "live"
+    live_plan["plan_sha256"] = experiment.calculate_plan_sha256(live_plan)
+    path = tmp_path / "active_plan.json"
+    path.write_bytes(prepare.pretty_json_bytes(live_plan))
+    path.chmod(0o600)
+    monkeypatch.setattr(bot, "engagement_question_experiment_plan_path", str(path))
+    monkeypatch.setattr(
+        bot,
+        "current_exact_quote_text_by_sha256",
+        lambda: bundle["quote_text_by_id"],
+    )
+    monkeypatch.setattr(
+        bot.engagement_question_trial,
+        "load_approved_catalogue",
+        lambda *_args, **_kwargs: (
+            bundle["catalogue"],
+            bundle["catalogue_sha256"],
+        ),
+    )
+    monkeypatch.setattr(bot, "log_event", lambda *_args, **_kwargs: None)
+    monkeypatch.setattr(bot, "_ENGAGEMENT_QUESTION_LAST_LOADED_PLAN_SHA256", None)
+    loaded, loaded_catalogue, loaded_quotes = bot.load_engagement_question_runtime_plan()
+    assert loaded == live_plan
+    assert loaded_catalogue == bundle["catalogue"]
+    assert loaded_quotes == bundle["quote_text_by_id"]
+
+
+def test_live_plan_report_is_not_labelled_non_live(synthetic_plan_bundle) -> None:
+    bundle = synthetic_plan_bundle
+    live_plan = copy.deepcopy(bundle["plan"])
+    live_plan["plan_kind"] = "live"
+    report = prepare.render_preview_report(
+        live_plan,
+        bundle["quote_text_by_id"],
+        catalogue_sha256=bundle["catalogue_sha256"],
+        eligible_approved_count=len(bundle["candidates"]),
+    )
+    assert "LIVE PLAN" in report
+    assert "NON-LIVE PREVIEW" not in report
 
 
 def test_source_default_disabled_does_not_load_or_create_experiment(
@@ -807,6 +1200,57 @@ def test_started_plan_disappearance_invalidates_trial_without_reservation(
     )
 
 
+def test_offline_status_preserves_bound_progress_when_plan_sha_mismatches(
+    synthetic_plan_bundle,
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    bundle = synthetic_plan_bundle
+    state = experiment.new_experiment_state(bundle["plan"])
+    experiment.start_next_pair(state, bundle["plan"])
+    state_path = tmp_path / "bot_state.json"
+    state_path.write_text(
+        json.dumps({"engagement_question_experiment": state}),
+        encoding="utf-8",
+    )
+    replacement_plan = copy.deepcopy(bundle["plan"])
+    replacement_plan["plan_sha256"] = "f" * 64
+    monkeypatch.setattr(
+        prepare,
+        "load_and_validate_plan",
+        lambda _args: (replacement_plan, {}),
+    )
+    args = argparse.Namespace(
+        repository_root=PROJECT_ROOT,
+        runtime_root=tmp_path,
+        catalogue_path=CATALOGUE_PATH,
+        plan_path=tmp_path / "active_plan.json",
+        report_path=None,
+        manifest_path=None,
+        state_path=state_path,
+        plan_kind="live",
+        require_plan_kind="live",
+        prepare_plan=False,
+        validate_plan=False,
+        status=True,
+    )
+    status = prepare.offline_status(args)
+    assert status["experiment_status"] == "active"
+    assert status["active_plan_sha256"] == bundle["plan"]["plan_sha256"]
+    assert status["current_active_pair"] == bundle["plan"]["pairs"][0]["pair_id"]
+    assert status["next_pending_member"] == {
+        "position": 1,
+        "quote_id": None,
+        "arm": None,
+    }
+    assert status["current_reserved_quote_count"] == 60
+    assert status["state_structure_valid"] is True
+    assert status["state_plan_binding_valid"] is False
+    assert status["state_valid"] is False
+    assert status["plan_and_state_validate"] is False
+    assert "another plan" in status["state_error"]
+
+
 def test_carry_over_completion_blocks_new_pair_that_date(
     synthetic_plan_bundle,
 ) -> None:
@@ -868,12 +1312,13 @@ def test_exactly_30_pairs_complete_and_recovery_is_idempotent(
     assert state["completed_pair_count"] == 30
     assert state["treatment_publication_count"] == 30
     assert len(state["confirmed_publications"]) == 60
-    assert state["latest_treatment_notification_identity"]["document"][
+    assert state["treatment_notification_identities"][-1]["document"][
         "treatment_number"
     ] == 30
-    assert state["latest_treatment_notification_identity"]["document"][
+    assert state["treatment_notification_identities"][-1]["document"][
         "target_treatment_count"
     ] == 30
+    assert len(state["treatment_notification_identities"]) == 30
     assert experiment.reserved_quote_ids(plan, state) == set()
     assert latest_binding is not None and latest_member is not None
     assert experiment.apply_confirmed_publication(
@@ -947,6 +1392,37 @@ def test_exact_payload_binding_and_canonical_identity_remain_distinct(
         catalogue_entry=bundle["catalogue"]["entries"][member["quote_id"]],
         arm="control",
     ) == exact
+
+
+def test_planless_confirmed_recovery_requires_protected_plan_binding(
+    synthetic_plan_bundle,
+) -> None:
+    bundle = synthetic_plan_bundle
+    state = experiment.new_experiment_state(bundle["plan"])
+    experiment.start_next_pair(state, bundle["plan"])
+    epoch = int(datetime(2026, 8, 30, 10, tzinfo=timezone.utc).timestamp())
+    member, exact, public = _current_member(bundle, state, epoch)
+    binding = experiment.build_attempt_binding(
+        plan=bundle["plan"],
+        state=state,
+        member=member,
+        exact_quote_text=exact,
+        public_text=public,
+    )
+    state["active_plan_sha256"] = "f" * 64
+    experiment.validate_experiment_state(state)
+    with pytest.raises(experiment.ExperimentValidationError, match="protected plan"):
+        experiment.apply_confirmed_publication(
+            state,
+            binding=binding,
+            plan=None,
+            post_id="3999",
+            published_epoch=epoch,
+            exact_quote_text=exact,
+            public_text=public,
+            approved_question_body=member["approved_question_body"],
+        )
+    assert state["confirmed_publications"] == []
 
 
 def test_experimental_attempt_pending_receipt_and_restart_recovery_keep_identity(
@@ -1077,11 +1553,7 @@ def test_image_mismatch_restores_history_and_uses_existing_phases(
             {},
         )
     assert images_used == {"old.jpg"}
-    assert calls == [
-        (False, True, "normal"),
-        (True, True, "forced_cycle_reset"),
-        (True, False, "last_image_fallback"),
-    ]
+    assert calls == [(False, True, "normal")]
 
 
 def test_confirmed_treatment_notification_is_exact_retryable_and_idempotent(
@@ -1101,7 +1573,7 @@ def test_confirmed_treatment_notification_is_exact_retryable_and_idempotent(
         post_id="4001",
     )
     if first["arm"] == "control":
-        assert state["latest_treatment_notification_identity"] is None
+        assert state["treatment_notification_identities"] == []
         second, _binding = _confirm_current(
             bundle,
             state,
@@ -1112,7 +1584,7 @@ def test_confirmed_treatment_notification_is_exact_retryable_and_idempotent(
         treatment_post_id = "4002"
     else:
         treatment_post_id = "4001"
-    identity = state["latest_treatment_notification_identity"]
+    identity = state["treatment_notification_identities"][-1]
     assert identity["post_id"] == treatment_post_id
     document = identity["document"]
     assert document["treatment_number"] == 1
@@ -1143,6 +1615,55 @@ def test_confirmed_treatment_notification_is_exact_retryable_and_idempotent(
     output_before = output.read_bytes()
     assert bot.publish_pending_engagement_question_notification(wrapped_state) is False
     assert output.read_bytes() == output_before
+
+
+def test_undelivered_treatment_notifications_are_queued_and_strictly_bound(
+    synthetic_plan_bundle,
+) -> None:
+    bundle = synthetic_plan_bundle
+    plan = bundle["plan"]
+    state = experiment.new_experiment_state(plan)
+    epoch = int(datetime(2026, 8, 30, 9, tzinfo=timezone.utc).timestamp())
+    treatment_post_ids: list[str] = []
+    post_number = 4500
+    for pair_index in range(2):
+        experiment.start_next_pair(state, plan)
+        for position in range(2):
+            post_number += 1
+            member, _binding = _confirm_current(
+                bundle,
+                state,
+                epoch=epoch + position * 7200,
+                post_id=str(post_number),
+            )
+            if member["arm"] == "treatment":
+                treatment_post_ids.append(str(post_number))
+        epoch += 24 * 3600
+
+    notifications = state["treatment_notification_identities"]
+    assert len(notifications) == 2
+    assert [value["post_id"] for value in notifications] == treatment_post_ids
+    assert [value["delivered"] for value in notifications] == [False, False]
+    first_pending = experiment.pending_treatment_notification(state)
+    assert first_pending is not None
+    assert first_pending["post_id"] == treatment_post_ids[0]
+    first_pending["document"]["question"] = "A caller-side mutation?"
+    assert notifications[0]["document"]["question"] != "A caller-side mutation?"
+
+    assert experiment.mark_notification_delivered(state, treatment_post_ids[0]) is True
+    assert experiment.mark_notification_delivered(state, treatment_post_ids[0]) is False
+    second_pending = experiment.pending_treatment_notification(state)
+    assert second_pending is not None
+    assert second_pending["post_id"] == treatment_post_ids[1]
+
+    changed = copy.deepcopy(state)
+    changed_document = changed["treatment_notification_identities"][1]["document"]
+    changed_document["question"] = "A different but syntactically valid question?"
+    changed["treatment_notification_identities"][1]["document_sha256"] = (
+        experiment.canonical_sha256(changed_document)
+    )
+    with pytest.raises(experiment.ExperimentValidationError, match="publication"):
+        experiment.validate_experiment_state(changed, plan=plan)
 
 
 def test_historical_context_obligation_uses_canonical_quote_not_question(

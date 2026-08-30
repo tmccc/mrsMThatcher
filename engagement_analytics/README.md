@@ -27,6 +27,17 @@ Confirmed `main_post_posted` events are also the sole source of nullable
 older posts remain valid with `NULL` experiment fields. Later confirmed evidence
 can enrich or correct a post-pair row while the prior record remains in
 `post_pair_revisions`. Arm assignment is never reconstructed from a quotation ID.
+When restart reconciliation emits a confirmation event more than an hour after its
+post was created, analytics accepts the delayed event only when the exact post,
+plan, pair, arm, sequence and payload hashes are corroborated by the protected bot
+state. The ordinary snowflake/log-time check continues to reject copied events.
+
+Writable discovery and the deployed `scheduled-run` entrypoint apply the
+forward-only schema migration to an existing database before writing. `status` is
+read-only and reports `initialised: false`, `migration_required: true` for a stale
+schema, causing the existing installer readiness check to print the `initialise`
+command. Running `initialise` again on an existing database is the explicit manual
+migration command; it preserves post-pair revisions and metric snapshots.
 
 ## Snapshot policy
 
@@ -81,9 +92,12 @@ additional X request. At 24h, 72h and 168h it separates control and treatment,
 then reports descriptive complete-pair differences only when both target-age
 observations are on time and the members were published no more than four hours
 apart. Reused late observations, incomplete pairs and wider gaps are identified
-explicitly. It also shows the same valid-pair summary after removing the single
-largest combined-impression pair. The report does not calculate p-values, stop
-the trial, promote a treatment, or alter collection cadence.
+explicitly. Publication-gap distribution covers every pair with both members
+published, independently of target-observation availability; primary comparisons
+remain restricted to gaps of no more than four hours. It also shows the same
+valid-pair summary after removing the single largest combined-impression pair. The
+report does not calculate p-values, stop the trial, promote a treatment, or alter
+collection cadence.
 
 Bounded historical collection additionally requires a date bound or maximum pair
 count, a request limit, `--execute-read`, and `--confirm-read-only`. There is no

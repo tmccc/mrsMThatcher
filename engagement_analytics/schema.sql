@@ -15,6 +15,9 @@
 --   ALTER TABLE post_pairs ADD COLUMN engagement_public_text_sha256 TEXT;
 -- Existing rows retain NULL for every experiment field. Existing post-pair
 -- revisions and append-only metric snapshots are not rewritten.
+-- Writable discovery and scheduled collection run this migration before using
+-- the database. The read-only status command reports an existing v1 database as
+-- migration-required rather than ready.
 
 -- post_pairs: one auditable main quote/context relationship.
 -- post_pair_revisions: append-only discovery revisions.

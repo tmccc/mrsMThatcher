@@ -214,7 +214,11 @@ def capture_used_history(runtime_root: Path) -> tuple[set[str], bytes, str]:
         raise PreparationError("used-quotation history is not canonical and unique")
     if any(type(item) is not str or not experiment.HEX64_RE.fullmatch(item) for item in value):
         raise PreparationError("used-quotation history contains a non-SHA-256 identity")
-    return set(value), first, hashlib.sha256(first).hexdigest()
+    if first != experiment.canonical_used_history_file_bytes(value):
+        raise PreparationError(
+            "used-quotation history does not use canonical protected-state bytes"
+        )
+    return set(value), first, experiment.used_history_file_sha256(value)
 
 
 def canonical_quote_source(runtime_root: Path) -> tuple[dict[str, str], list[str], bytes]:
@@ -347,7 +351,8 @@ def runtime_manifest_ids(
     count = manifest.get("runtime_eligible_quote_count")
     source_count = manifest.get("source_record_count")
     if (
-        manifest.get("schema_version") != 1
+        type(manifest.get("schema_version")) is not int
+        or manifest["schema_version"] != 1
         or manifest.get("eligibility_rule_version")
         != THATCHER_ATTRIBUTION_RULE_VERSION
         or type(count) is not int
@@ -455,6 +460,9 @@ def currently_production_eligible(analysis: Mapping[str, Any], *, today_mm_dd: s
     seasonality = analysis.get("seasonality")
     if not isinstance(seasonality, Mapping):
         return True
+    hard_exclude = seasonality.get("hard_exclude_outside_windows", False)
+    if type(hard_exclude) is not bool:
+        raise PreparationError("quote-analysis seasonal exclusion flag is invalid")
     windows = seasonality.get("preferred_windows")
     if not isinstance(windows, list) or not windows:
         return True
@@ -466,7 +474,7 @@ def currently_production_eligible(analysis: Mapping[str, Any], *, today_mm_dd: s
         end = str(window.get("end_mm_dd") or "")
         if re.fullmatch(r"\d{2}-\d{2}", start) and re.fullmatch(r"\d{2}-\d{2}", end):
             in_window = in_window or _mm_dd_in_window(today_mm_dd, start, end)
-    return not bool(seasonality.get("hard_exclude_outside_windows")) or in_window
+    return not hard_exclude or in_window
 
 
 def candidate_metadata(
@@ -659,9 +667,9 @@ def write_new_file(path: Path, content: bytes, *, mode: int = 0o600) -> None:
 
 
 def pretty_json_bytes(value: Any) -> bytes:
-    """Return human-readable deterministic UTF-8 JSON file bytes."""
+    """Return the bot's exact secure-loader canonical JSON representation."""
     return (
-        json.dumps(value, ensure_ascii=False, indent=2, sort_keys=True, allow_nan=False)
+        json.dumps(value, indent=2, sort_keys=True, allow_nan=False)
         + "\n"
     ).encode("utf-8")
 
@@ -685,10 +693,23 @@ def render_preview_report(
     """Render the complete human-review plan without reserving anything."""
 
     summary = experiment.plan_selection_summary(plan)
+    if plan.get("plan_kind") == "preview":
+        heading = "# Proposed substantive-question experiment plan"
+        disposition = (
+            "> **NON-LIVE PREVIEW.** This file is not an active plan, reserves no "
+            "quotation, and must not be copied into production as runtime state."
+        )
+    else:
+        heading = "# Prepared live substantive-question experiment plan"
+        disposition = (
+            "> **LIVE PLAN.** Preparation itself reserves nothing, but this plan is "
+            "intended for the configured active-plan path and must be created only "
+            "while the bot is paused."
+        )
     lines = [
-        "# Proposed substantive-question experiment plan",
+        heading,
         "",
-        "> **NON-LIVE PREVIEW.** This file is not an active plan, reserves no quotation, and must not be copied into production as runtime state.",
+        disposition,
         "",
         f"- Experiment: `{experiment.EXPERIMENT_ID}`",
         f"- Approved catalogue SHA-256: `{catalogue_sha256}`",
@@ -809,6 +830,7 @@ def prepare_plan(args: argparse.Namespace) -> dict[str, Any]:
             catalogue_sha256=catalogue_sha,
             candidates=candidates,
             used_history_sha256=used_sha,
+            used_quote_ids_at_creation=sorted(used_ids),
             plan_created_at=iso_utc(),
             plan_kind=args.plan_kind,
         )
@@ -902,13 +924,17 @@ def load_and_validate_plan(args: argparse.Namespace) -> tuple[dict[str, Any], di
         catalogue=catalogue,
         used_ids=set(),
         enforce_unused=False,
-        selected_ids=selected_ids,
     )
     metadata = {row["quote_id"]: row for row in candidates}
-    if exclusions:
+    selected_exclusions = {
+        quote_id: exclusions.get(quote_id, ["current_candidate_unavailable"])
+        for quote_id in selected_ids
+        if quote_id not in metadata
+    }
+    if selected_exclusions:
         raise PreparationError(
             "plan member current eligibility failed: "
-            + json.dumps(exclusions, sort_keys=True)
+            + json.dumps(selected_exclusions, sort_keys=True)
         )
     plan = experiment.validate_plan_document(
         plan_document,
@@ -918,18 +944,42 @@ def load_and_validate_plan(args: argparse.Namespace) -> tuple[dict[str, Any], di
         metadata_by_quote_id=metadata,
         require_plan_kind=args.require_plan_kind,
     )
-    return plan, experiment.plan_selection_summary(plan)
+    summary = experiment.plan_selection_summary(plan)
+    _current_used_ids, initial_used_source, current_used_sha = capture_used_history(
+        runtime_root
+    )
+    _ids_again, final_used_source, final_used_sha = capture_used_history(
+        runtime_root
+    )
+    if (
+        final_used_source != initial_used_source
+        or final_used_sha != current_used_sha
+    ):
+        raise PreparationError(
+            "used-quotation history changed during deterministic plan validation"
+        )
+    summary["deterministic_construction_validated"] = True
+    summary["deterministic_construction_validation_reason"] = (
+        "immutable_creation_candidate_evidence"
+    )
+    summary["used_history_snapshot_still_current"] = (
+        current_used_sha == plan["used_history_sha256_at_creation"]
+    )
+    return plan, summary
 
 
 def offline_status(args: argparse.Namespace) -> dict[str, Any]:
     """Return bounded plan/protected-state status without network access."""
     plan: dict[str, Any] | None = None
+    plan_summary: dict[str, Any] = {}
     plan_valid = False
     state_valid = False
+    state_structure_valid = False
+    state_plan_binding_valid: bool | None = None
     plan_error: str | None = None
     state_error: str | None = None
     try:
-        plan, _summary = load_and_validate_plan(args)
+        plan, plan_summary = load_and_validate_plan(args)
         plan_valid = True
     except Exception as exc:
         plan_error = f"{type(exc).__name__}: {exc}"
@@ -940,22 +990,42 @@ def offline_status(args: argparse.Namespace) -> dict[str, Any]:
     )
     experiment_state: dict[str, Any] | None = None
     try:
-        state_document, _source = stable_json(
-            state_path,
-            label="protected bot state",
-            maximum_bytes=32 * 1024 * 1024,
-        )
-        if not isinstance(state_document, dict):
-            raise PreparationError("protected bot state is not an object")
-        raw_state = state_document.get("engagement_question_experiment")
-        if raw_state is not None:
-            experiment_state = experiment.validate_experiment_state(
-                raw_state,
-                plan=plan if plan_valid else None,
+        state_exists = True
+        try:
+            os.lstat(state_path)
+        except FileNotFoundError:
+            state_exists = False
+        if not state_exists:
+            state_structure_valid = state_valid = True
+            state_plan_binding_valid = True if plan_valid else None
+        else:
+            state_document, _source = stable_json(
+                state_path,
+                label="protected bot state",
+                maximum_bytes=32 * 1024 * 1024,
             )
-        state_valid = True
-    except FileNotFoundError:
-        state_valid = True
+            if not isinstance(state_document, dict):
+                raise PreparationError("protected bot state is not an object")
+            raw_state = state_document.get("engagement_question_experiment")
+            if raw_state is not None:
+                experiment_state = experiment.validate_experiment_state(raw_state)
+            state_structure_valid = True
+            if raw_state is None:
+                state_plan_binding_valid = True if plan_valid else None
+                state_valid = True
+            elif not plan_valid:
+                state_plan_binding_valid = False
+                state_valid = True
+            else:
+                try:
+                    experiment.validate_experiment_state(raw_state, plan=plan)
+                except Exception as exc:
+                    state_plan_binding_valid = False
+                    state_error = f"{type(exc).__name__}: {exc}"
+                    state_valid = False
+                else:
+                    state_plan_binding_valid = True
+                    state_valid = True
     except Exception as exc:
         state_error = f"{type(exc).__name__}: {exc}"
     result = experiment.experiment_status_summary(
@@ -966,6 +1036,15 @@ def offline_status(args: argparse.Namespace) -> dict[str, Any]:
     )
     result["plan_error"] = plan_error
     result["state_error"] = state_error
+    result["state_structure_valid"] = state_structure_valid
+    result["state_plan_binding_valid"] = state_plan_binding_valid
+    result["deterministic_construction_validated"] = plan_summary.get(
+        "deterministic_construction_validated",
+        False,
+    )
+    result["deterministic_construction_validation_reason"] = plan_summary.get(
+        "deterministic_construction_validation_reason",
+    )
     result["plan_and_state_validate"] = bool(plan_valid and state_valid)
     return result
 

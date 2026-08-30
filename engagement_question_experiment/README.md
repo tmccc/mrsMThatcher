@@ -49,6 +49,14 @@ python3 /disks/disk1/etc/mrsMThatcher/tools/prepare_engagement_question_experime
   --plan-kind live
 ```
 
+The live JSON uses the exact canonical byte representation required by the bot's
+secure no-follow loader. It also carries the bounded, canonical matching inputs
+for every creation-time eligible candidate and the exact canonical used-history
+identity snapshot from which that roster was derived. `--validate-plan` therefore
+reconstructs matching, selection, arm, and order assignments even after the
+running bot has advanced used history, while still revalidating current source
+and eligibility metadata.
+
 Only normal rolling regular-root opportunities are used. At most one pair starts
 on a Europe/London date; its other member is preferred at the next opportunity.
 A carry-over member blocks a new pair on its later completion date, and at most
@@ -68,7 +76,11 @@ retaining its reservations.
 After a treatment post is confirmed and experiment progress is durable, the bot
 atomically writes the configured compact Home Assistant source document. A failed
 notification write is observational: it cannot retry or invalidate the X post,
-and the same latest notification remains available for idempotent retry.
+and every treatment notification remains in a bounded durable queue until it has
+been published idempotently. Older failures cannot be overwritten by a later
+treatment; retries always publish the oldest pending identity first and preserve
+each different document for at least two 30-second Home Assistant polling
+intervals before replacement.
 The later deployment configuration is:
 
 ```json

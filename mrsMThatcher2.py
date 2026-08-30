@@ -234,6 +234,7 @@ from remote_write_safety_protocol import (
 from remote_media_upload_receipt import (
     RETIREMENT_GUARD_PREFIX as MEDIA_RETIREMENT_GUARD_PREFIX,
     TRANSITION_PREFIX as MEDIA_TRANSITION_PREFIX,
+    ConfirmedMediaUpload,
     ReceiptBoundMediaPayload,
     MediaUploadAuthority,
     MediaUploadReceiptError,
@@ -244,6 +245,7 @@ from remote_media_upload_receipt import (
     confirm_media_upload,
     consume_media_upload_authority,
     fence_path_for_receipt as media_fence_path_for_receipt,
+    inspect_media_upload_receipt,
     load_confirmed_media_upload,
     media_upload_has_valid_restart_barrier,
     media_upload_receipt_is_blocking,
@@ -7044,6 +7046,7 @@ def x_request(
     ambiguous_write: bool = False,
     _remote_write_authorization: TransportAuthority | MediaUploadAuthority | None = None,
     _remote_media_payload: ReceiptBoundMediaPayload | None = None,
+    _remote_media_payload_metadata: dict[str, object] | None = None,
     **kwargs,
 ) -> dict:
     """Send an authenticated X API request with bounded retries."""
@@ -7091,6 +7094,13 @@ def x_request(
     if _remote_media_payload is not None and not is_media_upload:
         raise AmbiguousRemotePostOutcome(
             "A receipt-bound media body cannot authorise another X endpoint",
+            service="x",
+            request_method=method,
+            request_path=path,
+        )
+    if _remote_media_payload_metadata is not None and not is_media_upload:
+        raise AmbiguousRemotePostOutcome(
+            "Media receipt metadata cannot authorise another X endpoint",
             service="x",
             request_method=method,
             request_path=path,
@@ -7238,6 +7248,22 @@ def x_request(
                 request_path=path,
             )
         try:
+            receipt_payload_metadata = (
+                media_upload_payload_metadata(form)
+                if _remote_media_payload_metadata is None
+                else validate_media_upload_payload_metadata(
+                    _remote_media_payload_metadata,
+                    form=form,
+                )
+            )
+        except (TypeError, ValueError) as exc:
+            raise AmbiguousRemotePostOutcome(
+                "X media upload receipt metadata does not match its exact form",
+                service="x",
+                request_method=method,
+                request_path=path,
+            ) from exc
+        try:
             block_if_unrelated_receipt_appeared_for_media_transport()
             consume_media_upload_authority(
                 MEDIA_UPLOAD_RECEIPT_FILE,
@@ -7245,7 +7271,7 @@ def x_request(
                 payload=_remote_media_payload,
                 lane=_remote_write_authorization.lane,
                 mime_type=media_part[2],
-                payload_metadata=media_upload_payload_metadata(form),
+                payload_metadata=receipt_payload_metadata,
             )
         except MediaUploadReceiptError as exc:
             raise AmbiguousRemotePostOutcome(
@@ -9461,20 +9487,80 @@ def dedupe_reply_candidates(mentions: list[dict], hot_post_replies: list[dict]) 
 # Media / posting
 # ---------------------------------------------------------------------
 
-def media_upload_payload_metadata(form: dict[str, object]) -> dict[str, object]:
-    """Bind the durable media receipt to the exact remote form fields."""
+def validate_media_upload_payload_metadata(
+    value: object,
+    *,
+    form: dict[str, object],
+) -> dict[str, object]:
+    """Validate local receipt metadata against one exact remote media form."""
 
-    return {
+    base: dict[str, object] = {
         "request_method": "POST",
         "request_path": "/2/media/upload",
         "form": dict(form),
     }
+    if not isinstance(value, dict):
+        raise TypeError("media receipt payload metadata is not an object")
+    allowed_fields = {*base, "engagement_question_experiment"}
+    observed_fields = set(value)
+    if observed_fields != set(base) and observed_fields != allowed_fields:
+        raise ValueError("media receipt payload metadata fields are invalid")
+    if any(value.get(field) != expected for field, expected in base.items()):
+        raise ValueError("media receipt payload metadata changed its remote form")
+    envelope = value.get("engagement_question_experiment")
+    if envelope is not None:
+        if not isinstance(envelope, dict):
+            raise ValueError("media receipt experiment authority is invalid")
+        binding = envelope.get("binding")
+        canonical_quote_text = envelope.get("canonical_quote_text")
+        question_body = envelope.get("approved_question_body")
+        if (
+            not isinstance(binding, dict)
+            or type(canonical_quote_text) is not str
+            or type(question_body) is not str
+        ):
+            raise ValueError("media receipt experiment authority is incomplete")
+        public_text = (
+            engagement_question_trial.complete_treatment_text(
+                canonical_quote_text,
+                question_body,
+            )
+            if binding.get("arm") == "treatment"
+            else canonical_quote_text
+        )
+        if not engagement_experiment_attempt_envelope_is_valid(
+            envelope,
+            public_text=public_text,
+            quote_hash=binding.get("canonical_quote_sha256"),
+        ):
+            raise ValueError("media receipt experiment authority is inconsistent")
+    return copy.deepcopy(value)
+
+
+def media_upload_payload_metadata(
+    form: dict[str, object],
+    *,
+    engagement_experiment: dict | None = None,
+) -> dict[str, object]:
+    """Bind the durable media receipt to its remote form and optional trial."""
+
+    metadata: dict[str, object] = {
+        "request_method": "POST",
+        "request_path": "/2/media/upload",
+        "form": dict(form),
+    }
+    if engagement_experiment is not None:
+        metadata["engagement_question_experiment"] = copy.deepcopy(
+            engagement_experiment
+        )
+    return validate_media_upload_payload_metadata(metadata, form=form)
 
 
 def upload_media_v2(
     *,
     authority: MediaUploadAuthority,
     payload: ReceiptBoundMediaPayload,
+    payload_metadata: dict[str, object] | None = None,
 ) -> str:
     """Upload once through v2 and return its confirmed media identity."""
     log.info("Uploading receipt-bound media via X API v2: %s", payload.basename)
@@ -9485,15 +9571,30 @@ def upload_media_v2(
         "media_category": "tweet_image",
         "media_type": payload.mime_type,
     }
-    result = x_request(
-        "POST",
-        "/2/media/upload",
-        files=files,
-        data=data,
-        ambiguous_write=True,
-        _remote_write_authorization=authority,
-        _remote_media_payload=payload,
-    )
+    if payload_metadata is None:
+        result = x_request(
+            "POST",
+            "/2/media/upload",
+            files=files,
+            data=data,
+            ambiguous_write=True,
+            _remote_write_authorization=authority,
+            _remote_media_payload=payload,
+        )
+    else:
+        result = x_request(
+            "POST",
+            "/2/media/upload",
+            files=files,
+            data=data,
+            ambiguous_write=True,
+            _remote_write_authorization=authority,
+            _remote_media_payload=payload,
+            _remote_media_payload_metadata=validate_media_upload_payload_metadata(
+                payload_metadata,
+                form=data,
+            ),
+        )
 
     response_data = result.get("data") if isinstance(result, dict) else None
     raw_media_id = (
@@ -9529,8 +9630,19 @@ def upload_media_v1_1(image_path: str) -> str:
     )
 
 
-def upload_media(image_path: str, *, lane: str) -> str:
+def upload_media(
+    image_path: str,
+    *,
+    lane: str,
+    engagement_experiment: dict | None = None,
+    pre_transport_validation: Callable[[], None] | None = None,
+) -> str:
     """Upload once under a restart-visible, image-bound sending receipt."""
+    if (engagement_experiment is None) != (pre_transport_validation is None):
+        raise ValueError(
+            "experimental media authority and pre-transport validation must "
+            "be supplied together"
+        )
     require_remote_operation_unpaused("X media upload")
     block_if_ambiguous_remote_post()
     mime_type, _ = mimetypes.guess_type(image_path)
@@ -9540,13 +9652,17 @@ def upload_media(image_path: str, *, lane: str) -> str:
         "media_category": "tweet_image",
         "media_type": mime_type,
     }
+    payload_metadata = media_upload_payload_metadata(
+        form,
+        engagement_experiment=engagement_experiment,
+    )
     try:
         authority = begin_media_upload(
             receipt_path=MEDIA_UPLOAD_RECEIPT_FILE,
             image_path=Path(image_path),
             lane=lane,
             mime_type=mime_type,
-            payload_metadata=media_upload_payload_metadata(form),
+            payload_metadata=payload_metadata,
         )
         bound_payload = bind_media_upload_payload(
             MEDIA_UPLOAD_RECEIPT_FILE,
@@ -9554,7 +9670,7 @@ def upload_media(image_path: str, *, lane: str) -> str:
             image_path=Path(image_path),
             lane=lane,
             mime_type=mime_type,
-            payload_metadata=media_upload_payload_metadata(form),
+            payload_metadata=payload_metadata,
         )
     except MediaUploadReceiptError as exc:
         raise AmbiguousRemotePostOutcome(
@@ -9563,13 +9679,44 @@ def upload_media(image_path: str, *, lane: str) -> str:
             request_method="POST",
             request_path="/2/media/upload",
         ) from exc
+    if pre_transport_validation is not None:
+        try:
+            pre_transport_validation()
+        except BaseException:
+            try:
+                abort_untransmitted_media_upload(
+                    MEDIA_UPLOAD_RECEIPT_FILE,
+                    authority,
+                    mutation_authority=transaction_mutation_authority(
+                        "invalid untransmitted experimental media abort"
+                    ),
+                )
+            except Exception as abort_exc:
+                record_ambiguous_remote_post(
+                    {"text": "", "media": {"media_ids": []}}
+                )
+                raise AmbiguousRemotePostOutcome(
+                    "Experimental pre-transport validation failed and left an "
+                    "unresolved media-upload barrier",
+                    service="x",
+                    request_method="POST",
+                    request_path="/2/media/upload",
+                ) from abort_exc
+            raise
     media_sigint_guard = begin_confirmed_post_sigint_deferral()
     try:
         try:
-            media_id = upload_media_v2(
-                authority=authority,
-                payload=bound_payload,
-            )
+            if engagement_experiment is None:
+                media_id = upload_media_v2(
+                    authority=authority,
+                    payload=bound_payload,
+                )
+            else:
+                media_id = upload_media_v2(
+                    authority=authority,
+                    payload=bound_payload,
+                    payload_metadata=payload_metadata,
+                )
             confirm_media_upload(
                 MEDIA_UPLOAD_RECEIPT_FILE,
                 authority,
@@ -13647,6 +13794,41 @@ def prepare_main_tweet_transport(
     return attempt, source, authority
 
 
+def confirmed_media_upload_experiment_envelope(
+    confirmation: ConfirmedMediaUpload,
+) -> dict | None:
+    """Return trial authority from the exact confirmed media generation."""
+
+    if not isinstance(confirmation, ConfirmedMediaUpload):
+        raise MediaUploadReceiptError("confirmed media identity is invalid")
+    snapshot = inspect_media_upload_receipt(Path(confirmation.receipt_path))
+    if snapshot is None or (
+        snapshot.device != confirmation.receipt_device
+        or snapshot.inode != confirmation.receipt_inode
+        or snapshot.ctime_ns != confirmation.receipt_ctime_ns
+        or snapshot.sha256 != confirmation.receipt_sha256
+        or snapshot.document.get("transaction_id")
+        != confirmation.transaction_id
+        or snapshot.document.get("lifecycle_state") != "confirmed"
+        or snapshot.document.get("remote_media_id") != confirmation.media_id
+    ):
+        raise MediaUploadReceiptError(
+            "confirmed media receipt changed before main-post handoff"
+        )
+    metadata = snapshot.document.get("payload_metadata")
+    form = metadata.get("form") if isinstance(metadata, dict) else None
+    if not isinstance(form, dict):
+        raise MediaUploadReceiptError("confirmed media receipt form is invalid")
+    try:
+        validated = validate_media_upload_payload_metadata(metadata, form=form)
+    except (TypeError, ValueError) as exc:
+        raise MediaUploadReceiptError(
+            "confirmed media receipt payload authority is invalid"
+        ) from exc
+    envelope = validated.get("engagement_question_experiment")
+    return copy.deepcopy(envelope) if isinstance(envelope, dict) else None
+
+
 def handoff_confirmed_media_upload_to_main_attempt(
     attempt: dict,
     transport_authority: TransportAuthority,
@@ -13657,6 +13839,12 @@ def handoff_confirmed_media_upload_to_main_attempt(
     if confirmation is None:
         raise MediaUploadReceiptError(
             "main-post attempt has no confirmed media-upload receipt"
+        )
+    media_experiment = confirmed_media_upload_experiment_envelope(confirmation)
+    attempt_experiment = engagement_experiment_envelope_from_attempt(attempt)
+    if media_experiment != attempt_experiment:
+        raise MediaUploadReceiptError(
+            "confirmed media experiment authority does not match main-post attempt"
         )
     path = main_post_attempt_path(attempt)
     handoff = bind_media_handoff_to_transport(
@@ -18724,6 +18912,7 @@ def concise_components(components: dict[str, float]) -> str:
 
 _ENGAGEMENT_QUESTION_LAST_LOADED_PLAN_SHA256: str | None = None
 _ENGAGEMENT_QUESTION_LAST_NOTIFICATION_FAILURE_POST_ID: str | None = None
+ENGAGEMENT_QUESTION_NOTIFICATION_REPLACEMENT_MIN_AGE_SECONDS = 60
 
 
 def configured_engagement_question_path(raw_path: str) -> Path:
@@ -19093,6 +19282,130 @@ def resolve_engagement_question_quote_choice(
     )
 
 
+def revalidate_engagement_question_publication_authority(
+    *,
+    state: dict,
+    lines_used: set,
+    envelope: dict,
+    quote_choice: dict,
+    public_text: str,
+) -> None:
+    """Re-resolve one prepared trial member at the remote-write handoff."""
+
+    plan, catalogue, _quote_text_by_id = load_engagement_question_runtime_plan()
+    experiment_state = state.get("engagement_question_experiment")
+    if not isinstance(experiment_state, dict):
+        raise engagement_question_trial.ExperimentValidationError(
+            "prepared experimental publication lost protected state"
+        )
+    engagement_question_trial.validate_experiment_state(
+        experiment_state,
+        plan=plan,
+    )
+    binding = envelope.get("binding")
+    if not isinstance(binding, dict):
+        raise engagement_question_trial.ExperimentValidationError(
+            "prepared experimental publication lost its binding"
+        )
+    pair_index = binding.get("pair_index")
+    member_position = binding.get("member_position")
+    if (
+        type(pair_index) is not int
+        or member_position not in {1, 2}
+        or experiment_state.get("status") != "active"
+        or experiment_state.get("active_pair_id") != binding.get("pair_id")
+        or experiment_state.get("current_pair_index") != pair_index
+        or experiment_state.get("next_pair_member_position") != member_position
+    ):
+        raise engagement_question_trial.ExperimentValidationError(
+            "prepared experimental publication state authority changed"
+        )
+    try:
+        member = plan["pairs"][pair_index]["members"][member_position - 1]
+    except (IndexError, KeyError, TypeError) as exc:
+        raise engagement_question_trial.ExperimentValidationError(
+            "prepared experimental publication member is unavailable"
+        ) from exc
+    quote_id = str(member.get("quote_id") or "")
+    if quote_id in lines_used:
+        raise engagement_question_trial.ExperimentValidationError(
+            "prepared experimental quotation entered used history"
+        )
+    current_choice, current_public_text = resolve_engagement_question_quote_choice(
+        member,
+        catalogue=catalogue,
+    )
+    if (
+        current_public_text != public_text
+        or current_choice.get("quote_hash") != quote_choice.get("quote_hash")
+        or current_choice.get("line_no") != quote_choice.get("line_no")
+        or current_choice.get("text") != quote_choice.get("text")
+    ):
+        raise engagement_question_trial.ExperimentValidationError(
+            "prepared experimental quotation or payload changed"
+        )
+    rebuilt_binding = engagement_question_trial.build_attempt_binding(
+        plan=plan,
+        state=experiment_state,
+        member=member,
+        exact_quote_text=str(current_choice["text"]),
+        public_text=current_public_text,
+    )
+    rebuilt_envelope = {
+        "binding": rebuilt_binding,
+        "canonical_quote_text": str(current_choice["text"]),
+        "approved_question_body": str(member["approved_question_body"]),
+        "complete_treatment_sha256": str(
+            member["complete_treatment_sha256"]
+        ),
+        "complete_treatment_weighted_length": int(
+            member["complete_treatment_weighted_length"]
+        ),
+    }
+    if rebuilt_envelope != envelope or not engagement_experiment_attempt_envelope_is_valid(
+        envelope,
+        public_text=public_text,
+        quote_hash=quote_id,
+        plan=plan,
+    ):
+        raise engagement_question_trial.ExperimentValidationError(
+            "prepared experimental publication authority changed"
+        )
+
+
+def revalidate_or_invalidate_engagement_question_publication(
+    *,
+    state: dict,
+    lines_used: set,
+    envelope: dict,
+    quote_choice: dict,
+    public_text: str,
+) -> None:
+    """Fail closed and invalidate a trial whose prepared authority changed."""
+
+    try:
+        revalidate_engagement_question_publication_authority(
+            state=state,
+            lines_used=lines_used,
+            envelope=envelope,
+            quote_choice=quote_choice,
+            public_text=public_text,
+        )
+    except Exception as exc:
+        log.error(
+            "Experimental publication authority changed at remote-write handoff",
+            exc_info=True,
+        )
+        invalidate_engagement_question_experiment(
+            state,
+            code="pre_write_authority_changed",
+            recorded_epoch=now_epoch(),
+        )
+        raise engagement_question_trial.ExperimentValidationError(
+            "experimental publication authority changed before remote root posting"
+        ) from exc
+
+
 def defer_engagement_question_member(
     state: dict,
     *,
@@ -19123,20 +19436,23 @@ def defer_engagement_question_member(
 
 
 def publish_pending_engagement_question_notification(state: dict) -> bool:
-    """Atomically publish the latest confirmed treatment observation."""
+    """Atomically publish the oldest pending treatment observation."""
 
     global _ENGAGEMENT_QUESTION_LAST_NOTIFICATION_FAILURE_POST_ID
     experiment_state = state.get("engagement_question_experiment")
     if not isinstance(experiment_state, dict):
         return False
-    identity = experiment_state.get("latest_treatment_notification_identity")
-    if not isinstance(identity, dict) or identity.get("delivered") is True:
-        return False
     output_setting = engagement_question_notification_output_path
     if not output_setting:
         return False
-    post_id = str(identity.get("post_id") or "")
+    post_id = ""
     try:
+        identity = engagement_question_trial.pending_treatment_notification(
+            experiment_state
+        )
+        if identity is None:
+            return False
+        post_id = str(identity.get("post_id") or "")
         document = engagement_question_trial.validate_notification_document(
             copy.deepcopy(identity["document"])
         )
@@ -19146,20 +19462,43 @@ def publish_pending_engagement_question_notification(state: dict) -> bool:
         ):
             raise RuntimeError("pending treatment notification identity changed")
         output_path = configured_engagement_question_path(output_setting)
-        atomic_write_json(output_path, document, durable=True)
+        output_already_matches = json_file_matches(output_path, document)
+        if not output_already_matches:
+            try:
+                output_metadata = os.lstat(output_path)
+            except FileNotFoundError:
+                output_metadata = None
+            if output_metadata is not None:
+                if not stat.S_ISREG(output_metadata.st_mode):
+                    raise RuntimeError(
+                        "treatment notification output is not a regular file"
+                    )
+                output_age_seconds = now_epoch() - output_metadata.st_mtime
+                if (
+                    output_age_seconds
+                    < ENGAGEMENT_QUESTION_NOTIFICATION_REPLACEMENT_MIN_AGE_SECONDS
+                ):
+                    # Home Assistant polls this single-document file every 30
+                    # seconds.  Preserve each queued post for two complete poll
+                    # intervals before replacing it with the next identity.
+                    return False
+            atomic_write_json(output_path, document, durable=True)
         if not json_file_matches(output_path, document):
             raise RuntimeError("treatment notification output verification failed")
-        engagement_question_trial.mark_notification_delivered(
-            experiment_state,
-            post_id,
-        )
-        state["engagement_question_experiment"] = experiment_state
+        state_before_delivery = copy.deepcopy(experiment_state)
         try:
+            if not engagement_question_trial.mark_notification_delivered(
+                experiment_state,
+                post_id,
+            ):
+                raise RuntimeError(
+                    "pending treatment notification was not marked delivered"
+                )
+            state["engagement_question_experiment"] = experiment_state
             save_state(state, durable=True)
         except Exception:
-            experiment_state["latest_treatment_notification_identity"][
-                "delivered"
-            ] = False
+            experiment_state.clear()
+            experiment_state.update(state_before_delivery)
             raise
         _ENGAGEMENT_QUESTION_LAST_NOTIFICATION_FAILURE_POST_ID = None
         return True
@@ -20016,39 +20355,30 @@ def choose_engagement_question_image(
 
     original_images_used = set(images_used)
     generated_images_allowed = log_generated_image_spacing_status(state)
-    cycle_boundary_exclusions: set[str] = set()
-    phases = (
-        (False, True, "normal"),
-        (True, True, "forced_cycle_reset"),
-        (True, False, "last_image_fallback"),
-    )
-    last_mismatch: QuoteSpecificImageMismatch | None = None
-    for force_reset, avoid_last, phase in phases:
-        try:
-            return choose_matched_unused_image(
-                images_used,
-                quote_choice,
-                state,
-                force_cycle_reset=force_reset,
-                avoid_last_image_at_cycle_boundary=avoid_last,
-                cycle_boundary_exclusions=(
-                    cycle_boundary_exclusions if force_reset else None
-                ),
-                generated_images_allowed=generated_images_allowed,
-                selection_phase=phase,
-            )
-        except QuoteSpecificImageMismatch as exc:
-            last_mismatch = exc
-            log.warning(
-                "Experimental quotation quote_hash=%s has no valid image in phase=%s",
-                quote_choice.get("quote_hash"),
-                phase,
-            )
-    images_used.clear()
-    images_used.update(original_images_used)
-    raise QuoteSpecificImageMismatch(
-        str(last_mismatch or "experimental quotation has no valid image")
-    )
+    try:
+        return choose_matched_unused_image(
+            images_used,
+            quote_choice,
+            state,
+            force_cycle_reset=False,
+            avoid_last_image_at_cycle_boundary=True,
+            cycle_boundary_exclusions=None,
+            generated_images_allowed=generated_images_allowed,
+            selection_phase="normal",
+        )
+    except QuoteSpecificImageMismatch:
+        # A fixed planned member cannot follow the ordinary selector's next
+        # step of trying another quotation.  Preserve the current cycle and
+        # defer this member instead of manufacturing exhaustion and reusing an
+        # already-consumed image.
+        images_used.clear()
+        images_used.update(original_images_used)
+        log.warning(
+            "Experimental quotation quote_hash=%s has no valid image in the "
+            "current ordinary image cycle",
+            quote_choice.get("quote_hash"),
+        )
+        raise
 
 
 def post_random_quote(lines_used: set, images_used: set, state: dict) -> None:
@@ -20265,7 +20595,28 @@ def post_random_quote(lines_used: set, images_used: set, state: dict) -> None:
         )
         log.debug("Quote text=%r", tweet)
 
-        media_id = upload_media(image, lane="quote_image")
+        if engagement_experiment_envelope is None:
+            # Keep the ordinary path's call shape and receipt bytes unchanged.
+            media_id = upload_media(image, lane="quote_image")
+        else:
+            def revalidate_experimental_root() -> None:
+                revalidate_or_invalidate_engagement_question_publication(
+                    state=state,
+                    lines_used=lines_used,
+                    envelope=engagement_experiment_envelope,
+                    quote_choice=quote_choice,
+                    public_text=tweet,
+                )
+
+            media_id = upload_media(
+                image,
+                lane="quote_image",
+                engagement_experiment=engagement_experiment_envelope,
+                pre_transport_validation=revalidate_experimental_root,
+            )
+            # The media receipt remains the durable barrier if an immutable
+            # input changes after upload; no root transport is then prepared.
+            revalidate_experimental_root()
         main_post_attempt = build_main_post_attempt(
             lane="quote_image",
             text=tweet,
@@ -20298,6 +20649,11 @@ def post_random_quote(lines_used: set, images_used: set, state: dict) -> None:
             engagement_experiment=engagement_experiment_envelope,
         )
         write_main_post_attempt(main_post_attempt)
+        if engagement_experiment_envelope is not None:
+            # Recheck after the durable main owner exists and immediately
+            # before preparing any root transport.  A concurrent immutable
+            # input change leaves both existing receipts as barriers.
+            revalidate_experimental_root()
         (
             main_post_attempt,
             transport_source,
