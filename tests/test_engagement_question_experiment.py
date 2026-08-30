@@ -12,6 +12,7 @@ from pathlib import Path
 import pytest
 
 import engagement_question_experiment as experiment
+import historical_context_formatter
 import mrsMThatcher2 as bot
 from tools import prepare_engagement_question_experiment as prepare
 
@@ -236,6 +237,667 @@ def _experimental_attempt(
         engagement_experiment=envelope,
     )
     return attempt, envelope, member, exact, public
+
+
+def _live_synthetic_bundle(bundle: dict) -> dict:
+    """Return the existing synthetic fixture with a fully validated live plan."""
+
+    live = copy.deepcopy(bundle)
+    live["plan"]["plan_kind"] = "live"
+    live["plan"]["plan_sha256"] = experiment.calculate_plan_sha256(
+        live["plan"]
+    )
+    assert experiment.validate_plan_document(
+        live["plan"],
+        catalogue=live["catalogue"],
+        catalogue_sha256=live["catalogue_sha256"],
+        quote_text_by_id=live["quote_text_by_id"],
+        require_plan_kind="live",
+    ) == live["plan"]
+    return live
+
+
+def _state_at_first_member_with_arm(
+    bundle: dict,
+    arm: str,
+) -> tuple[dict, int]:
+    """Advance valid protected state to the first pair beginning with ``arm``."""
+
+    plan = bundle["plan"]
+    state = experiment.new_experiment_state(plan)
+    epoch = int(datetime(2026, 8, 30, 10, tzinfo=timezone.utc).timestamp())
+    post_number = 1
+    for _pair_index in range(experiment.TARGET_COMPLETED_PAIRS):
+        experiment.start_next_pair(state, plan)
+        member, _exact, _public = _current_member(bundle, state, epoch)
+        if member["arm"] == arm:
+            return state, epoch
+        for offset in (0, 3600):
+            _confirm_current(
+                bundle,
+                state,
+                epoch=epoch + offset,
+                post_id=str(9000 + post_number),
+            )
+            post_number += 1
+        epoch += 24 * 3600
+    raise AssertionError(f"synthetic live plan has no {arm}-first pair")
+
+
+def _install_synthetic_runtime_authority(
+    bundle: dict,
+    monkeypatch: pytest.MonkeyPatch,
+) -> dict:
+    """Install independently revalidated authority inputs for handoff tests."""
+
+    authority = {
+        "plan": copy.deepcopy(bundle["plan"]),
+        "catalogue": copy.deepcopy(bundle["catalogue"]),
+        "catalogue_sha256": bundle["catalogue_sha256"],
+        "quote_text_by_id": dict(bundle["quote_text_by_id"]),
+    }
+    topic_by_quote_id = {
+        candidate["quote_id"]: candidate["topic"]
+        for candidate in bundle["candidates"]
+    }
+    member_by_quote_id = {
+        member["quote_id"]: member
+        for pair in authority["plan"]["pairs"]
+        for member in pair["members"]
+    }
+    lines = [
+        f"{exact}\n" for exact in authority["quote_text_by_id"].values()
+    ]
+    quote_analysis = {
+        "items": {
+            quote_id: {
+                "text": exact,
+                "analysis": {"primary_topics": [topic_by_quote_id[quote_id]]},
+            }
+            for quote_id, exact in authority["quote_text_by_id"].items()
+        }
+    }
+    packets = {
+        quote_id: {
+            "verification_label": member["verification_label"],
+            "source_class": member["source_class"],
+        }
+        for quote_id, member in member_by_quote_id.items()
+    }
+
+    def load_runtime_plan() -> tuple[dict, dict, dict[str, str]]:
+        quote_text_by_id = dict(authority["quote_text_by_id"])
+        catalogue = experiment.validate_catalogue_document(
+            copy.deepcopy(authority["catalogue"]),
+            quote_text_by_id,
+            expected_entry_count=len(authority["catalogue"]["entries"]),
+        )
+        plan = experiment.validate_plan_document(
+            copy.deepcopy(authority["plan"]),
+            catalogue=catalogue,
+            catalogue_sha256=str(authority["catalogue_sha256"]),
+            quote_text_by_id=quote_text_by_id,
+            require_plan_kind="live",
+        )
+        return plan, catalogue, quote_text_by_id
+
+    monkeypatch.setattr(bot, "load_engagement_question_runtime_plan", load_runtime_plan)
+    monkeypatch.setattr(
+        bot,
+        "load_quote_lines_and_analysis",
+        lambda: (copy.deepcopy(lines), copy.deepcopy(quote_analysis), "08-30"),
+    )
+    monkeypatch.setattr(
+        bot,
+        "completed_research_quote_hashes",
+        lambda: set(authority["quote_text_by_id"]),
+    )
+    monkeypatch.setattr(
+        bot,
+        "_HISTORICAL_CONTEXT_CORPUS_SNAPSHOT",
+        (copy.deepcopy(packets), set()),
+    )
+    monkeypatch.setattr(
+        historical_context_formatter,
+        "packet_for_posted_quote",
+        lambda packet_map, _unresolved, quote_id, _text: packet_map.get(quote_id),
+    )
+    monkeypatch.setattr(
+        historical_context_formatter,
+        "packet_is_attributed_to_margaret_thatcher",
+        lambda _packet: True,
+    )
+    monkeypatch.setattr(
+        historical_context_formatter,
+        "format_context_reply_public",
+        lambda packet, **_kwargs: {
+            "rendering_mode": "public",
+            "verification_label": packet["verification_label"],
+            "source_class": packet["source_class"],
+        },
+    )
+    return authority
+
+
+def _prepare_synthetic_publication(
+    bundle: dict,
+    state: dict,
+    epoch: int,
+) -> tuple[dict, dict, dict, str]:
+    """Perform the normal member, payload, binding and envelope preparation."""
+
+    member, reason = experiment.member_for_current_opportunity(
+        bundle["plan"],
+        state,
+        current_epoch=epoch,
+    )
+    assert reason is None and member is not None
+    quote_choice, public_text = bot.resolve_engagement_question_quote_choice(
+        member,
+        catalogue=bundle["catalogue"],
+    )
+    binding = experiment.build_attempt_binding(
+        plan=bundle["plan"],
+        state=state,
+        member=member,
+        exact_quote_text=quote_choice["text"],
+        public_text=public_text,
+    )
+    envelope = {
+        "binding": binding,
+        "canonical_quote_text": quote_choice["text"],
+        "approved_question_body": member["approved_question_body"],
+        "complete_treatment_sha256": member["complete_treatment_sha256"],
+        "complete_treatment_weighted_length": member[
+            "complete_treatment_weighted_length"
+        ],
+    }
+    assert bot.engagement_experiment_attempt_envelope_is_valid(
+        envelope,
+        public_text=public_text,
+        quote_hash=member["quote_id"],
+        plan=bundle["plan"],
+    )
+    return member, quote_choice, envelope, public_text
+
+
+def _prepared_synthetic_authority_case(
+    synthetic_plan_bundle: dict,
+    monkeypatch: pytest.MonkeyPatch,
+    *,
+    arm: str = "control",
+) -> tuple[dict, dict, dict, dict, dict, dict, str, int]:
+    """Return one prepared publication plus independently reloadable authority."""
+
+    bundle = _live_synthetic_bundle(synthetic_plan_bundle)
+    authority = _install_synthetic_runtime_authority(bundle, monkeypatch)
+    experiment_state, epoch = _state_at_first_member_with_arm(bundle, arm)
+    state = {"engagement_question_experiment": experiment_state}
+    member, quote_choice, envelope, public_text = _prepare_synthetic_publication(
+        bundle,
+        experiment_state,
+        epoch,
+    )
+    return (
+        bundle,
+        authority,
+        state,
+        member,
+        quote_choice,
+        envelope,
+        public_text,
+        epoch,
+    )
+
+
+@pytest.mark.parametrize("arm", ["control", "treatment"])
+def test_unchanged_prewrite_authority_reloads_enriched_member_for_both_arms(
+    synthetic_plan_bundle,
+    monkeypatch: pytest.MonkeyPatch,
+    arm: str,
+) -> None:
+    bundle = _live_synthetic_bundle(synthetic_plan_bundle)
+    _install_synthetic_runtime_authority(bundle, monkeypatch)
+    experiment_state, epoch = _state_at_first_member_with_arm(bundle, arm)
+    state = {"engagement_question_experiment": experiment_state}
+    member, quote_choice, envelope, public_text = _prepare_synthetic_publication(
+        bundle,
+        experiment_state,
+        epoch,
+    )
+    state_before = copy.deepcopy(state)
+
+    if arm == "control":
+        assert public_text == quote_choice["text"]
+    else:
+        assert public_text == experiment.complete_treatment_text(
+            quote_choice["text"],
+            member["approved_question_body"],
+        )
+
+    bot.revalidate_engagement_question_publication_authority(
+        state=state,
+        lines_used=set(),
+        envelope=envelope,
+        quote_choice=quote_choice,
+        public_text=public_text,
+    )
+
+    assert state == state_before
+
+
+def test_prewrite_authority_rejects_a_valid_changed_plan(
+    synthetic_plan_bundle,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    (
+        _bundle,
+        authority,
+        state,
+        _member,
+        quote_choice,
+        envelope,
+        public_text,
+        _epoch,
+    ) = _prepared_synthetic_authority_case(synthetic_plan_bundle, monkeypatch)
+    state_before = copy.deepcopy(state)
+    authority["plan"]["plan_created_at"] = "2026-08-30T08:00:01Z"
+    authority["plan"]["plan_sha256"] = experiment.calculate_plan_sha256(
+        authority["plan"]
+    )
+
+    with pytest.raises(
+        experiment.ExperimentValidationError,
+        match="bound to another plan",
+    ):
+        bot.revalidate_engagement_question_publication_authority(
+            state=state,
+            lines_used=set(),
+            envelope=envelope,
+            quote_choice=quote_choice,
+            public_text=public_text,
+        )
+
+    assert state == state_before
+
+
+@pytest.mark.parametrize(
+    "authority_failure",
+    [
+        FileNotFoundError("active plan missing"),
+        PermissionError("active plan unreadable"),
+        experiment.ExperimentValidationError("experiment plan fields mismatch"),
+    ],
+    ids=["missing", "unreadable", "malformed"],
+)
+def test_prewrite_authority_rejects_unavailable_authority_inputs(
+    synthetic_plan_bundle,
+    monkeypatch: pytest.MonkeyPatch,
+    authority_failure: Exception,
+) -> None:
+    (
+        _bundle,
+        _authority,
+        state,
+        _member,
+        quote_choice,
+        envelope,
+        public_text,
+        _epoch,
+    ) = _prepared_synthetic_authority_case(synthetic_plan_bundle, monkeypatch)
+    state_before = copy.deepcopy(state)
+
+    def unavailable() -> tuple[dict, dict, dict[str, str]]:
+        raise authority_failure
+
+    monkeypatch.setattr(bot, "load_engagement_question_runtime_plan", unavailable)
+    with pytest.raises(type(authority_failure), match=str(authority_failure)):
+        bot.revalidate_engagement_question_publication_authority(
+            state=state,
+            lines_used=set(),
+            envelope=envelope,
+            quote_choice=quote_choice,
+            public_text=public_text,
+        )
+
+    assert state == state_before
+
+
+def test_prewrite_authority_rejects_changed_catalogue(
+    synthetic_plan_bundle,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    (
+        _bundle,
+        authority,
+        state,
+        member,
+        quote_choice,
+        envelope,
+        public_text,
+        _epoch,
+    ) = _prepared_synthetic_authority_case(synthetic_plan_bundle, monkeypatch)
+    authority["catalogue"]["entries"][member["quote_id"]][
+        "question_body"
+    ] = "Which altered approved question should now be asked?"
+
+    with pytest.raises(
+        experiment.ExperimentValidationError,
+        match="question SHA-256 mismatch",
+    ):
+        bot.revalidate_engagement_question_publication_authority(
+            state=state,
+            lines_used=set(),
+            envelope=envelope,
+            quote_choice=quote_choice,
+            public_text=public_text,
+        )
+
+
+@pytest.mark.parametrize(
+    "changed_value",
+    ["public_text", "quote_hash", "line_no", "quote_text"],
+)
+def test_prewrite_authority_rejects_changed_prepared_payload_identity(
+    synthetic_plan_bundle,
+    monkeypatch: pytest.MonkeyPatch,
+    changed_value: str,
+) -> None:
+    (
+        _bundle,
+        _authority,
+        state,
+        _member,
+        quote_choice,
+        envelope,
+        public_text,
+        _epoch,
+    ) = _prepared_synthetic_authority_case(synthetic_plan_bundle, monkeypatch)
+    changed_choice = copy.deepcopy(quote_choice)
+    changed_public_text = public_text
+    if changed_value == "public_text":
+        changed_public_text += " "
+    elif changed_value == "quote_hash":
+        changed_choice["quote_hash"] = "0" * 64
+    elif changed_value == "line_no":
+        changed_choice["line_no"] += 1
+    else:
+        changed_choice["text"] += " altered"
+
+    with pytest.raises(
+        experiment.ExperimentValidationError,
+        match="quotation or payload changed",
+    ):
+        bot.revalidate_engagement_question_publication_authority(
+            state=state,
+            lines_used=set(),
+            envelope=envelope,
+            quote_choice=changed_choice,
+            public_text=changed_public_text,
+        )
+
+
+@pytest.mark.parametrize("binding_field", ["pair_id", "member_position"])
+def test_prewrite_authority_rejects_changed_pair_or_member_binding(
+    synthetic_plan_bundle,
+    monkeypatch: pytest.MonkeyPatch,
+    binding_field: str,
+) -> None:
+    (
+        bundle,
+        _authority,
+        state,
+        _member,
+        quote_choice,
+        envelope,
+        public_text,
+        _epoch,
+    ) = _prepared_synthetic_authority_case(synthetic_plan_bundle, monkeypatch)
+    changed_envelope = copy.deepcopy(envelope)
+    if binding_field == "pair_id":
+        changed_envelope["binding"]["pair_id"] = bundle["plan"]["pairs"][1][
+            "pair_id"
+        ]
+    else:
+        changed_envelope["binding"]["member_position"] = 2
+
+    with pytest.raises(
+        experiment.ExperimentValidationError,
+        match="state authority changed",
+    ):
+        bot.revalidate_engagement_question_publication_authority(
+            state=state,
+            lines_used=set(),
+            envelope=changed_envelope,
+            quote_choice=quote_choice,
+            public_text=public_text,
+        )
+
+
+@pytest.mark.parametrize("progress_change", ["member_position", "active_pair"])
+def test_prewrite_authority_rejects_changed_authoritative_progress(
+    synthetic_plan_bundle,
+    monkeypatch: pytest.MonkeyPatch,
+    progress_change: str,
+) -> None:
+    (
+        bundle,
+        _authority,
+        state,
+        _member,
+        quote_choice,
+        envelope,
+        public_text,
+        epoch,
+    ) = _prepared_synthetic_authority_case(synthetic_plan_bundle, monkeypatch)
+    experiment_state = state["engagement_question_experiment"]
+    _confirm_current(bundle, experiment_state, epoch=epoch, post_id="9101")
+    if progress_change == "active_pair":
+        _confirm_current(
+            bundle,
+            experiment_state,
+            epoch=epoch + 3600,
+            post_id="9102",
+        )
+        experiment.start_next_pair(experiment_state, bundle["plan"])
+    experiment.validate_experiment_state(experiment_state, plan=bundle["plan"])
+
+    with pytest.raises(
+        experiment.ExperimentValidationError,
+        match="state authority changed",
+    ):
+        bot.revalidate_engagement_question_publication_authority(
+            state=state,
+            lines_used=set(),
+            envelope=envelope,
+            quote_choice=quote_choice,
+            public_text=public_text,
+        )
+
+
+@pytest.mark.parametrize("protected_state", [None, {}], ids=["missing", "malformed"])
+def test_prewrite_authority_rejects_missing_or_malformed_protected_state(
+    synthetic_plan_bundle,
+    monkeypatch: pytest.MonkeyPatch,
+    protected_state: object,
+) -> None:
+    (
+        _bundle,
+        _authority,
+        _state,
+        _member,
+        quote_choice,
+        envelope,
+        public_text,
+        _epoch,
+    ) = _prepared_synthetic_authority_case(synthetic_plan_bundle, monkeypatch)
+    changed_state = {"engagement_question_experiment": protected_state}
+
+    with pytest.raises(experiment.ExperimentValidationError):
+        bot.revalidate_engagement_question_publication_authority(
+            state=changed_state,
+            lines_used=set(),
+            envelope=envelope,
+            quote_choice=quote_choice,
+            public_text=public_text,
+        )
+
+
+def test_prewrite_authority_rejects_quote_newly_entering_used_history(
+    synthetic_plan_bundle,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    (
+        _bundle,
+        _authority,
+        state,
+        member,
+        quote_choice,
+        envelope,
+        public_text,
+        _epoch,
+    ) = _prepared_synthetic_authority_case(synthetic_plan_bundle, monkeypatch)
+
+    with pytest.raises(
+        experiment.ExperimentValidationError,
+        match="entered used history",
+    ):
+        bot.revalidate_engagement_question_publication_authority(
+            state=state,
+            lines_used={member["quote_id"]},
+            envelope=envelope,
+            quote_choice=quote_choice,
+            public_text=public_text,
+        )
+
+
+def test_failed_prewrite_authority_invalidates_without_remote_write_or_progress(
+    synthetic_plan_bundle,
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    (
+        _bundle,
+        _authority,
+        state,
+        _member,
+        quote_choice,
+        envelope,
+        public_text,
+        _epoch,
+    ) = _prepared_synthetic_authority_case(synthetic_plan_bundle, monkeypatch)
+    state.update(
+        {
+            "next_quote_post_epoch": 1_800_001_000,
+            "next_meme_post_epoch": 1_800_002_000,
+        }
+    )
+    progress_before = {
+        key: copy.deepcopy(state["engagement_question_experiment"][key])
+        for key in (
+            "active_pair_id",
+            "current_pair_index",
+            "next_pair_member_position",
+            "completed_pair_count",
+            "confirmed_publications",
+            "treatment_publication_count",
+        )
+    }
+    schedule_before = {
+        key: state[key]
+        for key in ("next_quote_post_epoch", "next_meme_post_epoch")
+    }
+    lines_used: set[str] = set()
+    image = tmp_path / "trial.png"
+    image.write_bytes(b"synthetic image bytes")
+    receipt_path = tmp_path / "media-upload.json"
+    events: list[tuple[str, dict]] = []
+    remote_writes: list[str] = []
+
+    monkeypatch.setattr(bot, "MEDIA_UPLOAD_RECEIPT_FILE", receipt_path)
+    monkeypatch.setattr(
+        bot,
+        "require_remote_operation_unpaused",
+        lambda *_args, **_kwargs: None,
+    )
+    monkeypatch.setattr(bot, "block_if_ambiguous_remote_post", lambda: None)
+    monkeypatch.setattr(
+        bot,
+        "require_instance_lock_for_remote_write",
+        lambda _operation: None,
+    )
+    monkeypatch.setattr(bot, "save_state", lambda *_args, **_kwargs: None)
+    monkeypatch.setattr(bot, "now_epoch", lambda: 1_800_000_100)
+    monkeypatch.setattr(
+        bot,
+        "log_event",
+        lambda event, **fields: events.append((event, copy.deepcopy(fields))),
+    )
+    monkeypatch.setattr(
+        bot,
+        "upload_media_v2",
+        lambda **_kwargs: remote_writes.append("media") or "700010",
+    )
+    monkeypatch.setattr(
+        bot,
+        "create_post",
+        lambda **_kwargs: remote_writes.append("root") or {"data": {"id": "700011"}},
+    )
+
+    def revalidate_changed_public_text() -> None:
+        bot.revalidate_or_invalidate_engagement_question_publication(
+            state=state,
+            lines_used=lines_used,
+            envelope=envelope,
+            quote_choice=quote_choice,
+            public_text=public_text + " ",
+        )
+
+    with pytest.raises(
+        experiment.ExperimentValidationError,
+        match="changed before remote root posting",
+    ):
+        bot.upload_media(
+            str(image),
+            lane="quote_image",
+            engagement_experiment=envelope,
+            pre_transport_validation=revalidate_changed_public_text,
+        )
+
+    experiment_state = state["engagement_question_experiment"]
+    assert experiment_state["status"] == "invalid"
+    assert experiment_state["current_deferral_reason"]["code"] == (
+        "pre_write_authority_changed"
+    )
+    assert {
+        key: experiment_state[key] for key in progress_before
+    } == progress_before
+    assert {key: state[key] for key in schedule_before} == schedule_before
+    assert lines_used == set()
+    assert remote_writes == []
+    assert not receipt_path.exists()
+    assert not bot.media_fence_path_for_receipt(receipt_path).exists()
+    invalid_events = [fields for event, fields in events if event == "engagement_question_experiment_invalid"]
+    assert invalid_events == [
+        {
+            "experiment_id": experiment.EXPERIMENT_ID,
+            "plan_sha256": experiment_state["active_plan_sha256"],
+            "reason": "pre_write_authority_changed",
+            "started": True,
+            "exception_class": "ExperimentValidationError",
+            "authority_component": "public_payload",
+        }
+    ]
+
+    monkeypatch.setattr(
+        bot,
+        "load_engagement_question_runtime_plan",
+        lambda: pytest.fail("an invalid trial must not reload on restart"),
+    )
+    assert bot.initialise_engagement_question_experiment(
+        state,
+        current_epoch=1_800_000_200,
+    ) == (None, experiment_state)
 
 
 def _refresh_plan_assignments(plan: dict) -> None:

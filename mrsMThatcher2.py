@@ -18984,6 +18984,8 @@ def invalidate_engagement_question_experiment(
     *,
     code: str,
     recorded_epoch: int,
+    exception_class: str | None = None,
+    authority_component: str | None = None,
 ) -> None:
     """Durably invalidate a started trial while ordinary posting continues."""
 
@@ -19005,13 +19007,17 @@ def invalidate_engagement_question_experiment(
     )
     state["engagement_question_experiment"] = experiment_state
     save_state(state, durable=True)
-    log_event(
-        "engagement_question_experiment_invalid",
-        experiment_id=engagement_question_trial.EXPERIMENT_ID,
-        plan_sha256=experiment_state["active_plan_sha256"],
-        reason=experiment_state["current_deferral_reason"]["code"],
-        started=True,
-    )
+    event_fields = {
+        "experiment_id": engagement_question_trial.EXPERIMENT_ID,
+        "plan_sha256": experiment_state["active_plan_sha256"],
+        "reason": experiment_state["current_deferral_reason"]["code"],
+        "started": True,
+    }
+    if exception_class is not None:
+        event_fields["exception_class"] = exception_class
+    if authority_component is not None:
+        event_fields["authority_component"] = authority_component
+    log_event("engagement_question_experiment_invalid", **event_fields)
 
 
 def initialise_engagement_question_experiment(
@@ -19321,7 +19327,16 @@ def revalidate_engagement_question_publication_authority(
             "prepared experimental publication state authority changed"
         )
     try:
-        member = plan["pairs"][pair_index]["members"][member_position - 1]
+        pair = plan["pairs"][pair_index]
+        plan_member = pair["members"][member_position - 1]
+        member = {
+            **dict(plan_member),
+            "pair_index": pair_index,
+            "pair_id": str(pair["pair_id"]),
+            "topic": str(pair["topic"]),
+            "quotation_length_band": str(pair["quotation_length_band"]),
+            "publication_order": str(pair["planned_publication_order"]),
+        }
     except (IndexError, KeyError, TypeError) as exc:
         raise engagement_question_trial.ExperimentValidationError(
             "prepared experimental publication member is unavailable"
@@ -19373,6 +19388,42 @@ def revalidate_engagement_question_publication_authority(
         )
 
 
+def engagement_question_authority_failure_diagnostic(
+    exc: BaseException,
+) -> tuple[str, str]:
+    """Return bounded, non-sensitive structured handoff failure detail."""
+
+    raw_class = type(exc).__name__
+    exception_class = (
+        raw_class
+        if len(raw_class) <= 80 and re.fullmatch(r"[A-Za-z][A-Za-z0-9_]*", raw_class)
+        else "Exception"
+    )
+    message_arg = exc.args[0] if exc.args and type(exc.args[0]) is str else ""
+    message = message_arg[:240].casefold()
+    if isinstance(exc, KeyError):
+        component = "member_metadata"
+    elif "used histor" in message:
+        component = "used_history"
+    elif "catalogue" in message:
+        component = "catalogue"
+    elif "plan" in message:
+        component = "plan"
+    elif "state" in message:
+        component = "protected_state"
+    elif "binding" in message:
+        component = "publication_binding"
+    elif "payload" in message or "public text" in message:
+        component = "public_payload"
+    elif "quotation" in message or "member" in message:
+        component = "publication_member"
+    elif isinstance(exc, (OSError, UnicodeError, json.JSONDecodeError)):
+        component = "authority_input"
+    else:
+        component = "authority_revalidation"
+    return exception_class, component
+
+
 def revalidate_or_invalidate_engagement_question_publication(
     *,
     state: dict,
@@ -19396,10 +19447,15 @@ def revalidate_or_invalidate_engagement_question_publication(
             "Experimental publication authority changed at remote-write handoff",
             exc_info=True,
         )
+        exception_class, authority_component = (
+            engagement_question_authority_failure_diagnostic(exc)
+        )
         invalidate_engagement_question_experiment(
             state,
             code="pre_write_authority_changed",
             recorded_epoch=now_epoch(),
+            exception_class=exception_class,
+            authority_component=authority_component,
         )
         raise engagement_question_trial.ExperimentValidationError(
             "experimental publication authority changed before remote root posting"
