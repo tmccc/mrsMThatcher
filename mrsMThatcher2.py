@@ -19388,6 +19388,19 @@ def revalidate_engagement_question_publication_authority(
         )
 
 
+ENGAGEMENT_QUESTION_MEMBER_AUTHORITY_KEYS = frozenset(
+    set(engagement_question_trial.MEMBER_FIELDS)
+    | {
+        "pair_index",
+        "pair_id",
+        "topic",
+        "quotation_length_band",
+        "publication_order",
+        "planned_publication_order",
+    }
+)
+
+
 def engagement_question_authority_failure_diagnostic(
     exc: BaseException,
 ) -> tuple[str, str]:
@@ -19402,7 +19415,12 @@ def engagement_question_authority_failure_diagnostic(
     message_arg = exc.args[0] if exc.args and type(exc.args[0]) is str else ""
     message = message_arg[:240].casefold()
     if isinstance(exc, KeyError):
-        component = "member_metadata"
+        missing_key = exc.args[0] if len(exc.args) == 1 else None
+        component = (
+            "member_metadata"
+            if missing_key in ENGAGEMENT_QUESTION_MEMBER_AUTHORITY_KEYS
+            else "authority_revalidation"
+        )
     elif "used histor" in message:
         component = "used_history"
     elif "catalogue" in message:

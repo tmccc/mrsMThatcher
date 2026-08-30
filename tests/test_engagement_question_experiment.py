@@ -771,6 +771,24 @@ def test_prewrite_authority_rejects_quote_newly_entering_used_history(
         )
 
 
+@pytest.mark.parametrize(
+    ("exc", "expected_component"),
+    [
+        (KeyError("topic"), "member_metadata"),
+        (KeyError("entries"), "authority_revalidation"),
+    ],
+    ids=["known-member-key", "unrelated-key"],
+)
+def test_authority_failure_diagnostic_classifies_only_known_member_keys(
+    exc: KeyError,
+    expected_component: str,
+) -> None:
+    assert bot.engagement_question_authority_failure_diagnostic(exc) == (
+        "KeyError",
+        expected_component,
+    )
+
+
 def test_failed_prewrite_authority_invalidates_without_remote_write_or_progress(
     synthetic_plan_bundle,
     tmp_path: Path,
@@ -812,7 +830,7 @@ def test_failed_prewrite_authority_invalidates_without_remote_write_or_progress(
     image.write_bytes(b"synthetic image bytes")
     receipt_path = tmp_path / "media-upload.json"
     events: list[tuple[str, dict]] = []
-    remote_writes: list[str] = []
+    media_writes: list[str] = []
 
     monkeypatch.setattr(bot, "MEDIA_UPLOAD_RECEIPT_FILE", receipt_path)
     monkeypatch.setattr(
@@ -836,14 +854,8 @@ def test_failed_prewrite_authority_invalidates_without_remote_write_or_progress(
     monkeypatch.setattr(
         bot,
         "upload_media_v2",
-        lambda **_kwargs: remote_writes.append("media") or "700010",
+        lambda **_kwargs: media_writes.append("media") or "700010",
     )
-    monkeypatch.setattr(
-        bot,
-        "create_post",
-        lambda **_kwargs: remote_writes.append("root") or {"data": {"id": "700011"}},
-    )
-
     def revalidate_changed_public_text() -> None:
         bot.revalidate_or_invalidate_engagement_question_publication(
             state=state,
@@ -874,10 +886,14 @@ def test_failed_prewrite_authority_invalidates_without_remote_write_or_progress(
     } == progress_before
     assert {key: state[key] for key in schedule_before} == schedule_before
     assert lines_used == set()
-    assert remote_writes == []
+    assert media_writes == []
     assert not receipt_path.exists()
     assert not bot.media_fence_path_for_receipt(receipt_path).exists()
-    invalid_events = [fields for event, fields in events if event == "engagement_question_experiment_invalid"]
+    invalid_events = [
+        fields
+        for event, fields in events
+        if event == "engagement_question_experiment_invalid"
+    ]
     assert invalid_events == [
         {
             "experiment_id": experiment.EXPERIMENT_ID,
@@ -898,6 +914,164 @@ def test_failed_prewrite_authority_invalidates_without_remote_write_or_progress(
         state,
         current_epoch=1_800_000_200,
     ) == (None, experiment_state)
+
+
+def test_real_plan_change_in_post_random_quote_never_reaches_x_write(
+    synthetic_plan_bundle,
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    bundle = _live_synthetic_bundle(synthetic_plan_bundle)
+    authority = _install_synthetic_runtime_authority(bundle, monkeypatch)
+    experiment_state, epoch = _state_at_first_member_with_arm(bundle, "control")
+    state = {
+        "engagement_question_experiment": experiment_state,
+        "next_quote_post_epoch": 1_800_001_000,
+        "next_meme_post_epoch": 1_800_002_000,
+    }
+    state_before = copy.deepcopy(experiment_state)
+    schedule_before = {
+        key: state[key]
+        for key in ("next_quote_post_epoch", "next_meme_post_epoch")
+    }
+    lines_used: set[str] = set()
+    images_used: set[str] = set()
+    image = tmp_path / "trial.png"
+    image.write_bytes(b"synthetic image bytes")
+    receipt_path = tmp_path / "media-upload.json"
+    events: list[tuple[str, dict]] = []
+
+    monkeypatch.setattr(bot, "engagement_question_experiment_enabled", True)
+    monkeypatch.setattr(bot, "MEDIA_UPLOAD_RECEIPT_FILE", receipt_path)
+    monkeypatch.setattr(bot, "now_epoch", lambda: epoch)
+    monkeypatch.setattr(
+        bot,
+        "block_if_ambiguous_remote_post",
+        lambda *_args, **_kwargs: None,
+    )
+    monkeypatch.setattr(
+        bot,
+        "reconcile_main_post_receipts",
+        lambda *_args, **_kwargs: {},
+    )
+    monkeypatch.setattr(
+        bot,
+        "require_historical_context_outbox_writable",
+        lambda: None,
+    )
+    monkeypatch.setattr(
+        bot,
+        "quote_used_history_has_legacy_indices",
+        lambda _used: False,
+    )
+    monkeypatch.setattr(
+        bot,
+        "require_remote_operation_unpaused",
+        lambda *_args, **_kwargs: None,
+    )
+    monkeypatch.setattr(
+        bot,
+        "require_instance_lock_for_remote_write",
+        lambda _operation: None,
+    )
+    monkeypatch.setattr(bot, "save_state", lambda *_args, **_kwargs: None)
+    monkeypatch.setattr(
+        bot,
+        "log_event",
+        lambda event, **fields: events.append((event, copy.deepcopy(fields))),
+    )
+
+    def choose_image_and_change_plan(
+        _images_used: set,
+        _quote_choice: dict,
+        _state: dict,
+    ) -> dict:
+        authority["plan"]["plan_created_at"] = "2026-08-30T08:00:01Z"
+        authority["plan"]["plan_sha256"] = experiment.calculate_plan_sha256(
+            authority["plan"]
+        )
+        assert authority["plan"]["plan_sha256"] != bundle["plan"]["plan_sha256"]
+        return {
+            "image_no": 0,
+            "path": str(image),
+            "basename": image.name,
+            "image_source": "original",
+            "score": 10.0,
+        }
+
+    monkeypatch.setattr(
+        bot,
+        "choose_engagement_question_image",
+        choose_image_and_change_plan,
+    )
+    monkeypatch.setattr(
+        bot,
+        "upload_media_v2",
+        lambda **_kwargs: pytest.fail("changed plan must forbid media upload"),
+    )
+    monkeypatch.setattr(
+        bot,
+        "write_main_post_attempt",
+        lambda _attempt: pytest.fail("changed plan must forbid a main attempt"),
+    )
+    monkeypatch.setattr(
+        bot,
+        "prepare_main_tweet_transport",
+        lambda _attempt: pytest.fail("changed plan must forbid root transport"),
+    )
+    monkeypatch.setattr(
+        bot,
+        "create_post",
+        lambda **_kwargs: pytest.fail("changed plan must forbid root creation"),
+    )
+
+    with pytest.raises(
+        experiment.ExperimentValidationError,
+        match="changed before remote root posting",
+    ) as raised:
+        bot.post_random_quote(lines_used, images_used, state)
+
+    assert isinstance(raised.value.__cause__, experiment.ExperimentValidationError)
+    assert str(raised.value.__cause__) == (
+        "protected experiment state is bound to another plan"
+    )
+    current = state["engagement_question_experiment"]
+    assert current["status"] == "invalid"
+    assert current["current_deferral_reason"]["code"] == (
+        "pre_write_authority_changed"
+    )
+    assert {
+        key: current[key]
+        for key in (
+            "active_pair_id",
+            "current_pair_index",
+            "next_pair_member_position",
+            "completed_pair_count",
+            "confirmed_publications",
+            "treatment_publication_count",
+        )
+    } == {
+        key: state_before[key]
+        for key in (
+            "active_pair_id",
+            "current_pair_index",
+            "next_pair_member_position",
+            "completed_pair_count",
+            "confirmed_publications",
+            "treatment_publication_count",
+        )
+    }
+    assert {key: state[key] for key in schedule_before} == schedule_before
+    assert lines_used == set()
+    assert images_used == set()
+    assert not receipt_path.exists()
+    assert not bot.media_fence_path_for_receipt(receipt_path).exists()
+    assert any(
+        event == "engagement_question_experiment_invalid"
+        and fields.get("exception_class") == "ExperimentValidationError"
+        and fields.get("authority_component") == "plan"
+        for event, fields in events
+    )
 
 
 def _refresh_plan_assignments(plan: dict) -> None:
