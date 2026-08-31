@@ -8449,6 +8449,16 @@ def xai_reply_cost_summary(
         ) or _terminal_local_rejection_outcome(
             (local_rejection or {}).get("reason")
         )
+        writer_local_failure = any(
+            _is_writer_local_failure(value)
+            for value in (
+                (decision or {}).get("effective_reason"),
+                (decision or {}).get("reason"),
+                (decision or {}).get("no_reply_reason"),
+                (local_rejection or {}).get("effective_reason"),
+                (local_rejection or {}).get("reason"),
+            )
+        )
         outcome_status = str((outcome or {}).get("status") or "")
         decision_terminal_failure = _is_terminal_pipeline_failure(
             (decision or {}).get("reason")
@@ -8461,6 +8471,8 @@ def xai_reply_cost_summary(
             "fail" in outcome_status or outcome_status not in {"", "confirmed"}
         ):
             disposition = "posting_failed"
+        elif writer_local_failure:
+            disposition = "writer_local_failure"
         elif terminal_local_outcome is not None:
             disposition = terminal_local_outcome
         elif (
@@ -8680,6 +8692,7 @@ def xai_reply_cost_summary(
         "pipeline_failed",
         "terminal_repetition_rejection",
         "terminal_clarification_mode_rejection",
+        "writer_local_failure",
     }
     coverage_reasons: List[str] = []
     if unattributed_usage:
@@ -11287,7 +11300,19 @@ def _is_terminal_pipeline_failure(reason: Any, status: Any = None) -> bool:
     )
 
 
+def _is_writer_local_failure(reason: Any) -> bool:
+    """Identify a terminal failure to obtain locally compliant writer prose."""
+    normalised = str(reason or "").strip().lower()
+    return (
+        normalised.startswith("writer_local_rejection:")
+        or normalised == "writer_link_repair_failed"
+        or normalised.startswith("writer_link_repair_local_rejection:")
+    )
+
+
 def _no_reply_category(value: Any) -> str:
+    if _is_writer_local_failure(value):
+        return "writer_local_failure"
     reason = " ".join(str(value or "").lower().replace("-", "_").split())
     if not reason:
         return "other_editorial_decline"
@@ -12144,7 +12169,21 @@ def reply_strategy_summary(events: List[Dict[str, Any]]) -> Dict[str, Any]:
             )
             if target in terminal_local_targets:
                 continue
-            reason = str(event.get("no_reply_reason") or "model-selected no_reply")
+            writer_local_reason = next(
+                (
+                    str(value)
+                    for value in (
+                        event.get("effective_reason"),
+                        event.get("reason"),
+                        event.get("no_reply_reason"),
+                    )
+                    if _is_writer_local_failure(value)
+                ),
+                None,
+            )
+            reason = writer_local_reason or str(
+                event.get("no_reply_reason") or "model-selected no_reply"
+            )
             rejection_reasons[reason] += 1
             category = _no_reply_category(reason)
             no_reply_categories[category] += 1
@@ -12218,11 +12257,22 @@ def reply_strategy_summary(events: List[Dict[str, Any]]) -> Dict[str, Any]:
             for event in observations
         ),
         "conversational_candidate_count": len(decisions),
+        "writer_local_failure_count": int(
+            no_reply_categories.get("writer_local_failure", 0)
+        ),
         "deliberately_declined_count": sum(
             event.get("mode") == "no_reply"
             and not _is_terminal_pipeline_failure(
                 event.get("reason") or event.get("no_reply_reason"),
                 event.get("status"),
+            )
+            and not any(
+                _is_writer_local_failure(value)
+                for value in (
+                    event.get("effective_reason"),
+                    event.get("reason"),
+                    event.get("no_reply_reason"),
+                )
             )
             and (
                 _normalise_lane(event.get("lane")),
@@ -17358,17 +17408,23 @@ def analyse(
             candidate.get("outcome") == "deliberately_declined"
             for candidate in cost_candidates
         )
+        writer_local_failure_count = int(
+            strategy_quality.get("writer_local_failure_count", 0) or 0
+        )
         strategy_quality.update({
             "conversational_candidate_count": int(
                 provider_usage["cost_summary"].get("candidate_count", 0) or 0
             ),
             "deliberately_declined_count": deliberately_declined_count,
             "ai_reviewed_decline_count": ai_reviewed_decline_count,
+            "writer_local_failure_count": writer_local_failure_count,
             "deterministic_suppression_count": len(
                 deterministic_suppressions
             ),
             "terminal_no_reply_decision_count": (
-                ai_reviewed_decline_count + len(deterministic_suppressions)
+                ai_reviewed_decline_count
+                + writer_local_failure_count
+                + len(deterministic_suppressions)
             ),
             "review_classification_available": True,
             "deterministic_suppressions": deterministic_suppressions,
@@ -17400,6 +17456,9 @@ def analyse(
     candidates = int(strategy_quality.get("conversational_candidate_count", 0) or 0)
     posted_replies = int(strategy_quality.get("confirmed_outcome_count", 0) or 0)
     declined = int(strategy_quality.get("deliberately_declined_count", 0) or 0)
+    writer_local_failures = int(
+        strategy_quality.get("writer_local_failure_count", 0) or 0
+    )
     repetition_rejections = int(
         strategy_quality.get("terminal_repetition_rejection_count", 0) or 0
     )
@@ -17412,7 +17471,7 @@ def analyse(
     deterministic_suppression_count = int(
         strategy_quality.get("deterministic_suppression_count", 0) or 0
     )
-    if candidates or deterministic_suppression_count:
+    if candidates or deterministic_suppression_count or writer_local_failures:
         candidate_summary = (
             f"{plural_count(candidates, 'conversational candidate')} AI-reviewed; "
             f"{plural_count(posted_replies, 'reply', 'replies')} posted; "
@@ -17428,6 +17487,10 @@ def analyse(
             )
         else:
             candidate_summary += f"; {declined} deliberately declined"
+        if writer_local_failures:
+            candidate_summary += (
+                f"; {plural_count(writer_local_failures, 'writer-local failure')}"
+            )
         headline.insert(
             health_index,
             candidate_summary,
@@ -20368,13 +20431,21 @@ def render_markdown(report: Dict[str, Any]) -> str:
             f"; {plural_count(strategy.get('ai_reviewed_decline_count', 0), 'AI-reviewed decline')} total "
             f"({strategy.get('deliberately_declined_count', 0)} deliberately declined); "
             f"{plural_count(strategy.get('deterministic_suppression_count', 0), 'deterministic suppression')}; "
-            f"{plural_count(strategy.get('terminal_no_reply_decision_count', 0), 'terminal no-reply decision')}.**"
+            f"{plural_count(strategy.get('terminal_no_reply_decision_count', 0), 'terminal no-reply decision')}"
         )
     else:
         strategy_summary += (
             f"; {strategy.get('deliberately_declined_count', 0)} "
-            "deliberately declined.**"
+            "deliberately declined"
         )
+    writer_local_failures = int(
+        strategy.get("writer_local_failure_count", 0) or 0
+    )
+    if writer_local_failures:
+        strategy_summary += (
+            f"; {plural_count(writer_local_failures, 'writer-local failure')}"
+        )
+    strategy_summary += ".**"
     out.append(strategy_summary)
     pipeline_stages = report.get("reply_pipeline_stages") or {}
     if pipeline_stages.get("tested_pipeline_decision_count"):
@@ -20446,7 +20517,11 @@ def render_markdown(report: Dict[str, Any]) -> str:
     out.append("No-reply categories: " + compact_counts(strategy.get("no_reply_category_counts") or {}))
     out.append("Repetition controls: " + compact_counts(strategy.get("repetition_control_counts") or {}))
     if strategy.get("rejection_reason_counts"):
-        out.append("Editorial no-reply/rejections:")
+        out.append(
+            "No-reply/rejection reasons (writer-local failures reported separately):"
+            if writer_local_failures
+            else "Editorial no-reply/rejections:"
+        )
         out.append(md_table_row(["reason", "count"]))
         out.append(md_table_row(["---", "---"]))
         for reason, count in strategy["rejection_reason_counts"].items():

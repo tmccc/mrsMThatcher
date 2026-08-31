@@ -987,6 +987,365 @@ def run(text: str, transport: Transport, *, facts: bool = False, recent=None):
     )
 
 
+class WriterLinkRepairTransport(Transport):
+    def __init__(self, *, initial_reply: str, repair_response: object) -> None:
+        super().__init__(writer=initial_reply)
+        self.repair_response = repair_response
+
+    def __call__(self, **kwargs):
+        if kwargs["stage"] == "writer_v3_link_repair":
+            self.calls.append(kwargs)
+            return copy.deepcopy(self.repair_response)
+        return super().__call__(**kwargs)
+
+
+def test_writer_prompt_prohibits_complete_reply_contains_link_class() -> None:
+    prompt = pipeline.WRITER_PROMPT.casefold()
+
+    for prohibited in (
+        "urls",
+        "web addresses",
+        "domain names",
+        "email addresses",
+        "ip addresses",
+        "network addresses",
+    ):
+        assert prohibited in prompt
+    assert "refer to a source descriptively rather than linking to it" in prompt
+
+
+def test_writer_link_repair_succeeds_once_and_preserves_downstream_safeguards() -> None:
+    incoming = "Thank you for setting out the principle."
+    value = context(incoming)
+    rejected = "The useful point is explained at example.com."
+    repaired = (
+        "Responsibility is the useful point here; the argument can stand on its own."
+    )
+    repository = Repository(facts=True)
+    transport = WriterLinkRepairTransport(
+        initial_reply=rejected,
+        repair_response={"status": "reply", "reply": repaired},
+    )
+
+    result = pipeline.run_reply_pipeline(
+        context=value,
+        config=enabled_config(),
+        repository=repository,
+        transport=transport,
+        maximum_reply_length=270,
+        recent_replies=[],
+        media_context=None,
+    )
+    baseline_transport = Transport(writer=repaired)
+    baseline = pipeline.run_reply_pipeline(
+        context=value,
+        config=enabled_config(),
+        repository=Repository(facts=True),
+        transport=baseline_transport,
+        maximum_reply_length=270,
+        recent_replies=[],
+        media_context=None,
+    )
+
+    assert result.status == "approved"
+    assert result.reason == "pipeline_approved"
+    assert str(result.reply) == repaired
+    assert result.model_call_count == len(transport.calls) == 3
+    assert result.model_call_count == baseline.model_call_count + 1
+    assert result.revision_count == 1
+    assert [call["stage"] for call in transport.calls] == [
+        "candidate_backed_engagement",
+        "writer_v3_initial",
+        "writer_v3_link_repair",
+    ]
+    assert sum(
+        call["stage"] == "writer_v3_link_repair" for call in transport.calls
+    ) == 1
+
+    initial_call = next(
+        call for call in transport.calls if call["stage"] == "writer_v3_initial"
+    )
+    repair_call = next(
+        call for call in transport.calls if call["stage"] == "writer_v3_link_repair"
+    )
+    assert repair_call["provider"] == "OpenAI"
+    assert repair_call["model"] == enabled_config()["openai_model"]
+    assert repair_call["system_prompt"] == pipeline.WRITER_LINK_REPAIR_PROMPT
+    assert repair_call["response_schema"] == pipeline.WRITER_SCHEMA
+    assert repair_call["max_output_tokens"] == enabled_config()[
+        "writer_max_output_tokens"
+    ]
+    assert repair_call["reasoning_effort"] == enabled_config()[
+        "openai_reasoning_effort"
+    ]
+    assert repair_call["timeout_seconds"] == enabled_config()["timeout_seconds"]
+    assert set(repair_call["payload"]) == set(initial_call["payload"]) | {
+        "rejected_draft_untrusted",
+        "original_local_rejection_reason",
+    }
+    for field in (
+        "context",
+        "recent_replies",
+        "trusted_facts",
+        "media_context",
+        "reply_requirement",
+    ):
+        assert repair_call["payload"][field] == initial_call["payload"][field]
+    assert repair_call["payload"]["context"] == value
+    assert repair_call["payload"]["trusted_facts"] == [Passage().prompt_record()]
+    assert repair_call["payload"]["reply_requirement"] == "general"
+    assert repair_call["payload"]["rejected_draft_untrusted"] == rejected
+    assert repair_call["payload"]["original_local_rejection_reason"] == (
+        "reply_contains_link"
+    )
+    assert "rejected_draft_untrusted" not in initial_call["payload"]
+
+    audit_stages = [row["stage"] for row in result.audit]
+    for stage in (
+        "writer_link_repair_trigger",
+        "writer_link_repair_outcome",
+        "narrow_claim_audit_risk",
+        "exact_duplicate_check",
+        "final_deterministic_validation",
+    ):
+        assert stage in audit_stages
+    assert {
+        "stage": "writer_link_repair_trigger",
+        "original_local_rejection_reason": "reply_contains_link",
+    } in result.audit
+    assert {
+        "stage": "writer_link_repair_outcome",
+        "outcome": "approved",
+    } in result.audit
+    assert rejected not in json.dumps(result.audit, sort_keys=True)
+    telemetry = pipeline.stage_telemetry(result.audit)
+    assert telemetry["provider_call_counts"] == {"xAI": 1, "OpenAI": 2}
+    assert rejected not in json.dumps(telemetry, sort_keys=True)
+
+    assert pipeline._public_reply_error(
+        str(result.reply),
+        repository,
+        maximum_reply_length=270,
+        maximum_sentences=enabled_config()["maximum_reply_sentences"],
+    ) is None
+    assert "example.com" not in str(result.reply)
+    assert result.reply.draft_record["proposed_reply"] == repaired
+    assert rejected not in json.dumps(result.reply.draft_record, sort_keys=True)
+    persisted = pipeline.validate_persisted_draft(
+        result.reply.draft_record,
+        context=value,
+        config=enabled_config(),
+        repository=repository,
+        maximum_reply_length=270,
+        recent_replies=[],
+    )
+    assert persisted["proposed_reply"] == repaired
+
+
+def test_writer_link_repair_still_containing_link_fails_closed_without_loop() -> None:
+    transport = WriterLinkRepairTransport(
+        initial_reply="The useful point is explained at example.com.",
+        repair_response={
+            "status": "reply",
+            "reply": "The same explanation remains at example.org.",
+        },
+    )
+
+    result = run("Thank you for explaining the principle.", transport)
+
+    assert result.status == "no_reply"
+    assert result.reason == (
+        "writer_link_repair_local_rejection:reply_contains_link"
+    )
+    assert result.reply is None
+    assert result.model_call_count == len(transport.calls) == 3
+    assert result.revision_count == 1
+    assert [call["stage"] for call in transport.calls].count(
+        "writer_v3_link_repair"
+    ) == 1
+    assert {
+        "stage": "writer_link_repair_outcome",
+        "outcome": "local_rejection:reply_contains_link",
+    } in result.audit
+    assert "narrow_claim_audit_risk" not in {
+        row["stage"] for row in result.audit
+    }
+
+
+@pytest.mark.parametrize(
+    ("repair_response", "expected_outcome", "schema_invalid"),
+    [
+        pytest.param(
+            {"status": "reply"},
+            "unavailable",
+            True,
+            id="schema-invalid",
+        ),
+        pytest.param(
+            {"status": "cannot_compose_safely", "reply": ""},
+            "cannot_compose_safely",
+            False,
+            id="cannot-compose-safely",
+        ),
+    ],
+)
+def test_writer_link_repair_failure_is_bounded(
+    repair_response: object,
+    expected_outcome: str,
+    schema_invalid: bool,
+) -> None:
+    transport = WriterLinkRepairTransport(
+        initial_reply="The useful point is explained at example.com.",
+        repair_response=repair_response,
+    )
+
+    result = run("Thank you for explaining the principle.", transport)
+
+    assert result.status == "no_reply"
+    assert result.reason == "writer_link_repair_failed"
+    assert result.reply is None
+    assert result.model_call_count == len(transport.calls) == 3
+    assert result.revision_count == 0
+    assert [call["stage"] for call in transport.calls].count(
+        "writer_v3_link_repair"
+    ) == 1
+    assert {
+        "stage": "writer_link_repair_outcome",
+        "outcome": expected_outcome,
+    } in result.audit
+    telemetry = pipeline.stage_telemetry(result.audit)
+    assert ("writer_v3_link_repair" in telemetry["schema_invalid_stages"]) is (
+        schema_invalid
+    )
+
+
+def test_writer_non_link_local_rejection_does_not_trigger_link_repair() -> None:
+    transport = Transport(writer="First line.\nSecond line.")
+
+    result = run("Thank you for explaining the principle.", transport)
+
+    assert result.status == "no_reply"
+    assert result.reason == "writer_local_rejection:reply_contains_line_break"
+    assert result.reply is None
+    assert result.model_call_count == len(transport.calls) == 2
+    assert result.revision_count == 0
+    assert "writer_v3_link_repair" not in {
+        call["stage"] for call in transport.calls
+    }
+
+
+def test_writer_compliant_path_does_not_trigger_link_repair() -> None:
+    transport = Transport(writer="Responsibility is the useful point here.")
+
+    result = run("Thank you for explaining the principle.", transport)
+
+    assert result.status == "approved"
+    assert result.reason == "pipeline_approved"
+    assert result.model_call_count == len(transport.calls) == 2
+    assert result.revision_count == 0
+    assert [call["stage"] for call in transport.calls] == [
+        "candidate_backed_engagement",
+        "writer_v3_initial",
+    ]
+    audit_stages = {row["stage"] for row in result.audit}
+    assert "writer_link_repair_trigger" not in audit_stages
+    assert "writer_link_repair_outcome" not in audit_stages
+    assert "narrow_claim_audit_risk" in audit_stages
+    assert "exact_duplicate_check" in audit_stages
+    assert "final_deterministic_validation" in audit_stages
+
+
+def test_writer_link_repair_obeys_existing_model_call_ceiling(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    class CeilingTransport:
+        def __init__(self) -> None:
+            self.calls: list[dict] = []
+
+        def __call__(self, **kwargs):
+            self.calls.append(kwargs)
+            stage = kwargs["stage"]
+            responses = {
+                "candidate_backed_engagement": {"decision": "no_reply", "reply": ""},
+                "reply_necessity_1": {"outcome": "require_claim_free_reply"},
+                "reply_necessity_2": {"outcome": "confirm_no_reply"},
+                "reply_necessity_3": {"outcome": "require_claim_free_reply"},
+                "focused_group_review": {"outcome": "allow_reply"},
+                "allegation_review_1": {"outcome": "require_claim_free_reply"},
+                "allegation_review_2": {"outcome": "confirm_no_reply"},
+                "allegation_review_3": {"outcome": "require_claim_free_reply"},
+                "authentication_review_1": {
+                    "outcome": "require_supported_factual_reply"
+                },
+                "authentication_review_2": {
+                    "outcome": "suppress_unsupported_authentication"
+                },
+                "authentication_review_3": {
+                    "outcome": "require_supported_factual_reply"
+                },
+                "writer_v3_initial": {
+                    "status": "reply",
+                    "reply": "The useful point is explained at example.com.",
+                },
+            }
+            if stage == "writer_v3_link_repair":
+                pytest.fail("ceiling must stop the repair before transport")
+            return copy.deepcopy(responses[stage])
+
+    monkeypatch.setattr(
+        pipeline,
+        "group_hostility_review_candidate",
+        lambda _context: {"candidate": True},
+    )
+    monkeypatch.setattr(
+        pipeline,
+        "allegation_review_candidate",
+        lambda _context: {"candidate": True},
+    )
+    monkeypatch.setattr(
+        pipeline,
+        "attribution_route_v2",
+        lambda _context, _facts=None: {
+            "route_class": "direct_authentication",
+            "reply_requirement": None,
+        },
+    )
+    transport = CeilingTransport()
+    config = enabled_config()
+    config["maximum_model_calls"] = 12
+
+    with pytest.raises(
+        RuntimeError,
+        match="tested reply pipeline model-call ceiling reached",
+    ):
+        pipeline.run_reply_pipeline(
+            context=context("Please explain this civil question."),
+            config=config,
+            repository=Repository(facts=True),
+            transport=transport,
+            maximum_reply_length=270,
+        )
+
+    assert len(transport.calls) == config["maximum_model_calls"] == 12
+    assert [call["stage"] for call in transport.calls] == [
+        "candidate_backed_engagement",
+        "reply_necessity_1",
+        "reply_necessity_2",
+        "reply_necessity_3",
+        "focused_group_review",
+        "allegation_review_1",
+        "allegation_review_2",
+        "allegation_review_3",
+        "authentication_review_1",
+        "authentication_review_2",
+        "authentication_review_3",
+        "writer_v3_initial",
+    ]
+    assert "writer_v3_link_repair" not in {
+        call["stage"] for call in transport.calls
+    }
+
+
 @pytest.mark.parametrize(
     "writer",
     [
@@ -1656,7 +2015,10 @@ def test_frozen_prompt_hashes_and_provider_profiles() -> None:
         "XAI_GATE_PROMPT": "e145e67c365cc295174e00284568fd05c1848ad85e63f01815891ca00ca5ba55",
         "REPLY_NECESSITY_PROMPT": "66d2c3ef36a5cb1560f025ed1ead588e3c2e343e5dcde51d36508c3dd545b13b",
         "GROUP_REVIEW_PROMPT": "2355c7056d0ba93ddd79d731cc2999fc2e5fecd55eb8444814c1d21c06e7e6fc",
-        "WRITER_PROMPT": "832b086a4e32dfec255143146ab7a7d0674b4773041b643b037187402d8ae717",
+        "WRITER_PROMPT": "c63cf4a70694beda982fd727a8415e94db515007bc62bf288400cfebebc5966a",
+        "WRITER_LINK_REPAIR_PROMPT": (
+            "5eecd8449a9149726498351e5849d3bdc0f5783ad7e795ab7915907ce5c7b234"
+        ),
         "CLAIM_AUDIT_PROMPT": "a2e0f3e78bdd3aa5a45e4fc2ba1eed7819043b4ffec97caeeb29c66ac6824589",
         "CLAIM_CLEANUP_PROMPT": "04a926149d8e5440f6b6426bfbba173112c01776f6bad1698c81755badffc7a5",
         "DIVERSITY_PROMPT": "fcb4b58e153023cd638642158fbdd4a53213fe2e69320ee92a0b48c89563b66b",

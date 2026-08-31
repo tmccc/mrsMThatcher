@@ -490,6 +490,64 @@ def digest_event_line(timestamp: str, event: str, **fields: object) -> str:
     )
 
 
+def pipeline_digest_lines(
+    *,
+    target_id: str,
+    status: str,
+    reason: str,
+    model_call_count: int,
+    revision_count: int,
+    route_source: str,
+    xai_gate_decision: str,
+    provider_call_counts: dict[str, int],
+    mode: str | None = None,
+) -> list[str]:
+    """Build the paired decision/stage records for one tested-pipeline result."""
+    decision_fields: dict[str, object] = {
+        "status": status,
+        "lane": "mention",
+        "target_id": target_id,
+        "strategy_version": "tested-reply-pipeline-20260817",
+        "reason": reason,
+        "reply_requirement": "general" if xai_gate_decision == "reply" else None,
+        "route_source": route_source,
+        "model_call_count": model_call_count,
+        "revision_count": revision_count,
+        "author_quarantine_evidence": None,
+        "pipeline_stage_status": status,
+        "effective_status": status,
+        "effective_reason": reason,
+    }
+    if mode is not None:
+        decision_fields["mode"] = mode
+    return [
+        digest_event_line(
+            "2026-08-31 09:14:23",
+            "ai_reply_pipeline_decision",
+            **decision_fields,
+        ),
+        digest_event_line(
+            "2026-08-31 09:14:24",
+            "ai_reply_pipeline_stage_summary",
+            status=status,
+            lane="mention",
+            target_id=target_id,
+            strategy_version="tested-reply-pipeline-20260817",
+            terminal_reason=reason,
+            effective_status=status,
+            effective_reason=reason,
+            reply_requirement=(
+                "general" if xai_gate_decision == "reply" else None
+            ),
+            route_source=route_source,
+            xai_gate_decision=xai_gate_decision,
+            model_call_count=model_call_count,
+            revision_count=revision_count,
+            provider_call_counts=provider_call_counts,
+        ),
+    ]
+
+
 def digest_markdown_section(markdown: str, title: str) -> str:
     marker = f"## {title}\n"
     assert marker in markdown
@@ -8282,6 +8340,213 @@ def test_digest_markdown_distinguishes_principle_and_editorial_no_reply_categori
     assert result.returncode == 0, result.stderr
     assert "principle_reply=1" in result.stdout
     assert "No-reply categories: no_reply_due_to_unverifiable_claim=1" in result.stdout
+
+
+def test_digest_writer_local_production_regression_is_not_deliberately_declined(
+    tmp_path: Path,
+) -> None:
+    base = tmp_path / "digest-writer-local-production-regression"
+    target_id = "2094332420753645620"
+    reason = "writer_local_rejection:reply_contains_link"
+    lines = pipeline_digest_lines(
+        target_id=target_id,
+        status="no_reply",
+        reason=reason,
+        model_call_count=2,
+        revision_count=0,
+        route_source="xai_gate",
+        xai_gate_decision="reply",
+        provider_call_counts={"xAI": 1, "OpenAI": 1},
+    )
+    lines.append(
+        digest_event_line(
+            "2026-08-31 09:14:25",
+            "candidate_skipped",
+            lane="mention",
+            id=target_id,
+            author_id="1971488580590866432",
+            reason="no_usable_reply_generated",
+        )
+    )
+    write_digest_log(base, lines)
+
+    json_result = run_digest(base, as_json=True)
+
+    assert json_result.returncode == 0, json_result.stderr
+    payload = json.loads(json_result.stdout)
+    strategy = payload["reply_strategy"]
+    assert strategy["writer_local_failure_count"] == 1
+    assert strategy["deliberately_declined_count"] == 0
+    assert strategy["ai_reviewed_decline_count"] == 0
+    assert strategy["terminal_no_reply_decision_count"] == 1
+    assert strategy["no_reply_category_counts"]["writer_local_failure"] == 1
+    assert strategy["no_reply_category_counts"].get(
+        "other_editorial_decline", 0
+    ) == 0
+    assert strategy["rejection_reason_counts"][reason] == 1
+    headline = payload["summary"]["headline"]
+    assert "1 writer-local failure" in headline
+    assert "1 deliberately declined" not in headline
+    assert "editorial decline" not in headline.lower()
+    decision = next(
+        event
+        for event in payload["events"]
+        if event.get("kind") == "reply_strategy_decision"
+    )
+    assert decision["target_id"] == target_id
+    assert decision["author_quarantine_evidence"] is None
+
+    markdown_result = run_digest(base)
+
+    assert markdown_result.returncode == 0, markdown_result.stderr
+    section = digest_markdown_section(
+        markdown_result.stdout, "Conversational reply strategy"
+    )
+    assert "1 writer-local failure" in section
+    assert "No-reply categories: writer_local_failure=1" in section
+    assert "Editorial no-reply/rejections:" not in section
+
+
+@pytest.mark.parametrize(
+    ("reason", "revision_count"),
+    (
+        ("writer_link_repair_failed", 0),
+        ("writer_link_repair_local_rejection:reply_contains_link", 1),
+    ),
+    ids=("repair-unavailable", "repair-local-rejection"),
+)
+def test_digest_writer_local_repair_terminal_reasons_are_not_editorial_declines(
+    tmp_path: Path,
+    reason: str,
+    revision_count: int,
+) -> None:
+    base = tmp_path / f"digest-{reason.replace(':', '-')}"
+    write_digest_log(
+        base,
+        pipeline_digest_lines(
+            target_id="2094332420753645621",
+            status="no_reply",
+            reason=reason,
+            model_call_count=3,
+            revision_count=revision_count,
+            route_source="xai_gate",
+            xai_gate_decision="reply",
+            provider_call_counts={"xAI": 1, "OpenAI": 2},
+        ),
+    )
+
+    result = run_digest(base, as_json=True)
+
+    assert result.returncode == 0, result.stderr
+    strategy = json.loads(result.stdout)["reply_strategy"]
+    assert strategy["writer_local_failure_count"] == 1
+    assert strategy["deliberately_declined_count"] == 0
+    assert strategy["ai_reviewed_decline_count"] == 0
+    assert strategy["terminal_no_reply_decision_count"] == 1
+    assert strategy["no_reply_category_counts"] == {"writer_local_failure": 1}
+    assert strategy["rejection_reason_counts"][reason] == 1
+
+
+def test_digest_genuine_deliberately_declined_decision_remains_unchanged(
+    tmp_path: Path,
+) -> None:
+    base = tmp_path / "digest-genuine-deliberate-decline"
+    write_digest_log(
+        base,
+        pipeline_digest_lines(
+            target_id="2094332420753645622",
+            status="no_reply",
+            reason="reply_necessity_review",
+            model_call_count=3,
+            revision_count=0,
+            route_source="reply_necessity_review",
+            xai_gate_decision="no_reply",
+            provider_call_counts={"xAI": 3, "OpenAI": 0},
+        ),
+    )
+
+    result = run_digest(base, as_json=True)
+
+    assert result.returncode == 0, result.stderr
+    payload = json.loads(result.stdout)
+    strategy = payload["reply_strategy"]
+    assert strategy["writer_local_failure_count"] == 0
+    assert strategy["deliberately_declined_count"] == 1
+    assert strategy["ai_reviewed_decline_count"] == 1
+    assert strategy["terminal_no_reply_decision_count"] == 1
+    assert strategy["no_reply_category_counts"]["other_editorial_decline"] == 1
+    assert strategy["no_reply_category_counts"].get(
+        "writer_local_failure", 0
+    ) == 0
+    assert "1 deliberately declined" in payload["summary"]["headline"]
+    assert "writer-local failure" not in payload["summary"]["headline"]
+
+
+def test_digest_successful_writer_link_repair_is_not_a_writer_local_failure(
+    tmp_path: Path,
+) -> None:
+    base = tmp_path / "digest-successful-writer-link-repair"
+    target_id = "2094332420753645623"
+    lines = [
+        (
+            "2026-08-31 09:14:20 INFO     maybe_reply_to_mentions:1 - "
+            f"Considering mention id={target_id} author_id=200 text='A question'"
+        ),
+        (
+            "2026-08-31 09:14:21 INFO     tested_pipeline_structured_call:1 - "
+            "Calling tested reply pipeline stage=writer_v3_link_repair "
+            "provider=OpenAI model=gpt-test reasoning_effort=low"
+        ),
+        (
+            "2026-08-31 09:14:22 INFO     tested_pipeline_structured_call:1 - "
+            "Tested reply stage=writer_v3_link_repair provider=OpenAI "
+            "usage={'prompt_tokens': 8, 'completion_tokens': 2, "
+            "'total_tokens': 10, 'num_sources_used': 0}"
+        ),
+        *pipeline_digest_lines(
+            target_id=target_id,
+            status="approved",
+            reason="pipeline_approved",
+            model_call_count=3,
+            revision_count=1,
+            route_source="xai_gate",
+            xai_gate_decision="reply",
+            provider_call_counts={"xAI": 1, "OpenAI": 2},
+            mode="opinion_or_principle",
+        ),
+        digest_event_line(
+            "2026-08-31 09:14:25",
+            "ai_reply_pipeline_outcome",
+            status="confirmed",
+            lane="mention",
+            target_id=target_id,
+            reply_post_id="2094332420753645699",
+            strategy_version="tested-reply-pipeline-20260817",
+            mode="opinion_or_principle",
+            reply_requirement="general",
+            route_source="xai_gate",
+            model_call_count=3,
+            revision_count=1,
+        ),
+    ]
+    write_digest_log(base, lines)
+
+    result = run_digest(base, as_json=True)
+
+    assert result.returncode == 0, result.stderr
+    payload = json.loads(result.stdout)
+    strategy = payload["reply_strategy"]
+    assert strategy["confirmed_outcome_count"] == 1
+    assert strategy["outcome_status_counts"]["posted"] == 1
+    assert strategy["writer_local_failure_count"] == 0
+    assert strategy["terminal_no_reply_decision_count"] == 0
+    assert strategy["no_reply_category_counts"].get(
+        "writer_local_failure", 0
+    ) == 0
+    assert "writer-local failure" not in payload["summary"]["headline"]
+    candidate = payload["provider_usage"]["cost_summary"]["candidates"][0]
+    assert candidate["outcome"] == "published"
+    assert candidate["stages"] == {"writer_v3_link_repair": 1}
 
 
 def test_digest_reports_xai_usage_unknown_context_and_malformed_records(tmp_path: Path) -> None:
