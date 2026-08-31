@@ -8628,12 +8628,13 @@ def test_digest_json_contract_identifies_the_additive_schema_and_preserves_legac
     assert len(source_hash) == 64
     assert source_hash == source_hash.lower()
     assert set(source_hash) <= set("0123456789abcdef")
-    generator_sha = contract["generator_git_sha"]
-    assert generator_sha is None or (
-        len(generator_sha) == 40
-        and generator_sha == generator_sha.lower()
-        and set(generator_sha) <= set("0123456789abcdef")
+    repository_sha = contract["repository_head_sha"]
+    assert repository_sha is None or (
+        40 <= len(repository_sha) <= 64
+        and repository_sha == repository_sha.lower()
+        and set(repository_sha) <= set("0123456789abcdef")
     )
+    assert "generator" + "_git_sha" not in contract
     projection_semantics = contract["projection_semantics"]
     assert set(projection_semantics) == {
         "latest_state",
@@ -8763,7 +8764,8 @@ def test_copied_digest_without_git_still_emits_valid_contract_json(
     assert contract["producer_source_sha256"] == hashlib.sha256(
         copied_script.read_bytes()
     ).hexdigest()
-    assert contract["generator_git_sha"] is None
+    assert contract["repository_head_sha"] is None
+    assert "generator" + "_git_sha" not in contract
 
 
 def test_digest_json_is_a_recursive_superset_of_verified_base_and_markdown_is_unchanged(

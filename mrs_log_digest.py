@@ -502,8 +502,8 @@ def _strict_native_json_object(data: bytes, *, label: str) -> Dict[str, Any]:
     return value
 
 
-def generator_git_sha(source_path: Path) -> Optional[str]:
-    """Return the local generator revision without making Git a dependency."""
+def repository_head_sha(source_path: Path) -> Optional[str]:
+    """Return the enclosing Git worktree HEAD, not source-byte identity."""
 
     try:
         completed = subprocess.run(
@@ -547,7 +547,7 @@ def build_digest_contract(source_path: Optional[Path] = None) -> Dict[str, Any]:
         "compatibility_policy": "additive",
         "producer_source_sha256": source_hash,
         "producer_source_status": source_status,
-        "generator_git_sha": generator_git_sha(resolved_source),
+        "repository_head_sha": repository_head_sha(resolved_source),
         "projection_semantics": {
             "latest_state": "selected projection, not full bot_state.json",
             "latest_config": "selected projection, not full local configuration",
