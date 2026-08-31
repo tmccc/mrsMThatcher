@@ -1,7 +1,7 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://mrs-m-thatcher.invalid/research/proposition-ledger-experiment-v1.schema.json",
-  "title": "Proposition-ledger experiment protocol v1.1",
+  "title": "Proposition-ledger experiment protocol v1.2",
   "type": "object",
   "additionalProperties": false,
   "required": [
@@ -10,6 +10,7 @@
     "protocol_status",
     "phase1_execution_boundary",
     "provider_response_schema",
+    "provider_schema_compatibility",
     "deterministic_materialiser",
     "persisted_ledger_schema",
     "research_questions",
@@ -32,7 +33,7 @@
     "limitations"
   ],
   "properties": {
-    "schema_version": {"const": "proposition-ledger-experiment-v1.1.0"},
+    "schema_version": {"const": "proposition-ledger-experiment-v1.2.0"},
     "protocol_id": {"type": "string", "minLength": 1},
     "protocol_status": {"enum": ["draft", "frozen"]},
     "phase1_execution_boundary": {
@@ -47,6 +48,7 @@
       }
     },
     "provider_response_schema": {"$ref": "#/$defs/providerResponseSchemaContract"},
+    "provider_schema_compatibility": {"$ref": "#/$defs/providerSchemaCompatibility"},
     "deterministic_materialiser": {"$ref": "#/$defs/deterministicMaterialiserContract"},
     "persisted_ledger_schema": {"$ref": "#/$defs/persistedLedgerSchemaContract"},
     "research_questions": {
@@ -197,13 +199,39 @@
         "provider_assigns_permanent_ids"
       ],
       "properties": {
-        "schema_version": {"const": "proposition-ledger-semantic-delta-v1.0.0"},
+        "schema_version": {"const": "proposition-ledger-semantic-delta-v1.1.0"},
         "schema_path": {"const": "proposition_ledger_research/schema/proposition-ledger-semantic-delta-v1.schema.json"},
         "contract_role": {"const": "current_turn_semantic_analysis_only"},
         "provider_emits_cumulative_state": {"const": false},
         "provider_emits_persistence_hashes": {"const": false},
         "provider_emits_state_patch": {"const": false},
         "provider_assigns_permanent_ids": {"const": false}
+      }
+    },
+    "providerSchemaCompatibility": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "status",
+        "selected_provider",
+        "selected_model",
+        "provider_specific_validator_run",
+        "provider_sdk_compilation_run",
+        "network_call_made",
+        "feature_inventory_sha256",
+        "provider_specific_validation_record_sha256",
+        "next_required_action"
+      ],
+      "properties": {
+        "status": {"const": "pending_model_profile_selection"},
+        "selected_provider": {"type": "null"},
+        "selected_model": {"type": "null"},
+        "provider_specific_validator_run": {"const": false},
+        "provider_sdk_compilation_run": {"const": false},
+        "network_call_made": {"const": false},
+        "feature_inventory_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+        "provider_specific_validation_record_sha256": {"type": "null"},
+        "next_required_action": {"const": "freeze provider/model profile and run its local schema compilation or dry-validation before any provider call"}
       }
     },
     "deterministicMaterialiserContract": {
@@ -214,16 +242,22 @@
         "implementation_path",
         "contract_role",
         "assigns_permanent_ids",
+        "materialises_genesis",
+        "registers_current_participant_on_first_seen",
+        "provider_controls_participant_identity",
         "resolves_same_turn_local_references",
         "constructs_state_patch",
         "calculates_predecessor_and_ledger_hashes",
         "validates_persisted_ledger"
       ],
       "properties": {
-        "materialiser_id": {"const": "proposition-ledger-semantic-delta-materialiser-v1"},
+        "materialiser_id": {"const": "proposition-ledger-semantic-delta-materialiser-v2"},
         "implementation_path": {"const": "tools/proposition_ledger_semantic_delta.py"},
         "contract_role": {"const": "semantic_delta_to_authoritative_persisted_ledger"},
         "assigns_permanent_ids": {"const": true},
+        "materialises_genesis": {"const": true},
+        "registers_current_participant_on_first_seen": {"const": true},
+        "provider_controls_participant_identity": {"const": false},
         "resolves_same_turn_local_references": {"const": true},
         "constructs_state_patch": {"const": true},
         "calculates_predecessor_and_ledger_hashes": {"const": true},
@@ -301,9 +335,9 @@
         },
         "grade_b_analysis_policy": {"const": "separate_secondary_robustness_never_pooled_with_or_promoted_to_primary"},
         "split_unit": {"const": "whole_conversation"},
-        "author_grouping": {"enum": ["required_where_comparable_pseudonym_exists", "not_feasible"]},
+        "author_grouping": {"enum": ["required_by_domain_qualified_within_family_identity_and_any_later_available_cross_family_identity", "not_feasible"]},
         "previously_seen_policy": {"const": "development_or_calibration_only"},
-        "held_out_policy": {"const": "select_only_after_protocol_freeze_without_opening_in_phase1"},
+        "held_out_policy": {"const": "persistent_multiturn_targets_only; select only after protocol freeze without opening in Phase 1.2"},
         "synthetic_policy": {"const": "schema_validation_only_never_historical_test_cases"}
       }
     },
@@ -750,7 +784,7 @@
       "required": ["whole_conversation_split", "principal_author_grouping", "previously_labelled_excluded_from_test", "manually_reviewed_excluded_from_test", "final_test_opened_in_phase1", "prompt_tuning_on_test", "future_turn_checks", "exposure_registry_required"],
       "properties": {
         "whole_conversation_split": {"const": true},
-        "principal_author_grouping": {"const": "where_cross_record_pseudonym_comparability_is_proven"},
+        "principal_author_grouping": {"const": "domain_qualified_within_family_and_any_authoritative_cross_family_domain"},
         "previously_labelled_excluded_from_test": {"const": true},
         "manually_reviewed_excluded_from_test": {"const": true},
         "final_test_opened_in_phase1": {"const": false},

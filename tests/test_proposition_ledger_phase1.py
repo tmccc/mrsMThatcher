@@ -1100,18 +1100,30 @@ def test_material_defect_dominates_grade_b_eligibility() -> None:
     assert "missing_substantive_text" in record["exclusion_reasons"]
 
 
-def test_protocol_v1_1_separates_provider_materialiser_and_persisted_contracts(
+def _pending_provider_schema_compatibility() -> dict[str, Any]:
+    from tools import proposition_ledger_provider_schema as provider_schema
+
+    inventory = provider_schema.build_schema_feature_inventory(
+        PROJECT_DIR
+        / "proposition_ledger_research/schema/proposition-ledger-semantic-delta-v1.schema.json"
+    )
+    return provider_schema.build_provider_schema_compatibility(inventory)
+
+
+def test_protocol_v1_2_separates_provider_materialiser_and_persisted_contracts(
     experiment_schema: dict[str, Any],
 ) -> None:
-    protocol = phase1._build_protocol("a" * 64, "b" * 64)
+    protocol = phase1._build_protocol(
+        "a" * 64, "b" * 64, _pending_provider_schema_compatibility()
+    )
 
-    assert protocol["schema_version"] == "proposition-ledger-experiment-v1.1.0"
+    assert protocol["schema_version"] == "proposition-ledger-experiment-v1.2.0"
     assert phase1._jsonschema_errors(protocol, experiment_schema) == []
     provider = protocol["provider_response_schema"]
     materialiser = protocol["deterministic_materialiser"]
     persisted = protocol["persisted_ledger_schema"]
     assert provider["schema_version"] == (
-        "proposition-ledger-semantic-delta-v1.0.0"
+        "proposition-ledger-semantic-delta-v1.1.0"
     )
     assert provider["contract_role"] == "current_turn_semantic_analysis_only"
     assert provider["provider_emits_cumulative_state"] is False
@@ -1124,11 +1136,20 @@ def test_protocol_v1_1_separates_provider_materialiser_and_persisted_contracts(
     assert materialiser["assigns_permanent_ids"] is True
     assert materialiser["constructs_state_patch"] is True
     assert materialiser["calculates_predecessor_and_ledger_hashes"] is True
+    assert materialiser["materialiser_id"] == (
+        "proposition-ledger-semantic-delta-materialiser-v2"
+    )
     assert persisted["contract_role"] == "authoritative_cumulative_persisted_state"
     assert persisted["schema_version"] == "proposition-ledger-v1.0.0"
     assert persisted["contains_cumulative_state"] is True
     assert persisted["contains_state_patch"] is True
     assert persisted["contains_persistence_hashes"] is True
+    compatibility = protocol["provider_schema_compatibility"]
+    assert compatibility["status"] == "pending_model_profile_selection"
+    assert compatibility["selected_provider"] is None
+    assert compatibility["selected_model"] is None
+    assert compatibility["provider_specific_validator_run"] is False
+    assert compatibility["network_call_made"] is False
     assert len(
         {
             provider["contract_role"],
@@ -1145,7 +1166,9 @@ def test_protocol_v1_1_separates_provider_materialiser_and_persisted_contracts(
 def test_transcript_first_gold_requires_exactly_two_independent_blinded_raters(
     experiment_schema: dict[str, Any],
 ) -> None:
-    protocol = phase1._build_protocol("a" * 64, "b" * 64)
+    protocol = phase1._build_protocol(
+        "a" * 64, "b" * 64, _pending_provider_schema_compatibility()
+    )
     adjudication = protocol["adjudication"]
 
     assert adjudication["construction_input"] == "exact_transcript_prefix"
@@ -1179,7 +1202,9 @@ def test_transcript_first_gold_requires_exactly_two_independent_blinded_raters(
 def test_blinded_adjudication_and_gold_lock_precede_machine_reveal(
     experiment_schema: dict[str, Any],
 ) -> None:
-    protocol = phase1._build_protocol("a" * 64, "b" * 64)
+    protocol = phase1._build_protocol(
+        "a" * 64, "b" * 64, _pending_provider_schema_compatibility()
+    )
     adjudication = protocol["adjudication"]
 
     assert adjudication["disagreement_resolution"] == (
@@ -1214,7 +1239,9 @@ def test_blinded_adjudication_and_gold_lock_precede_machine_reveal(
 def test_arm_d_uses_locked_transcript_first_gold_in_exactly_four_arm_design(
     experiment_schema: dict[str, Any],
 ) -> None:
-    protocol = phase1._build_protocol("a" * 64, "b" * 64)
+    protocol = phase1._build_protocol(
+        "a" * 64, "b" * 64, _pending_provider_schema_compatibility()
+    )
     arms = protocol["arms"]
 
     assert len(arms) == 4
@@ -1538,11 +1565,124 @@ def _target_index_case(
 def test_target_prefix_distinguishes_first_response_and_multi_turn(tmp_path: Path) -> None:
     rows, _ = _target_index_case(tmp_path)
     by_turn = {row["target_turn_id"]: row for row in rows}
+    assert by_turn["t0"]["target_sequence_class"] == "initial_user_target"
     assert by_turn["t0"]["first_response_control"] is True
     assert by_turn["t0"]["multi_turn_evaluation_candidate"] is False
+    assert by_turn["t2"]["target_sequence_class"] == (
+        "persistent_multiturn_target"
+    )
     assert by_turn["t2"]["first_response_control"] is False
     assert by_turn["t2"]["multi_turn_evaluation_candidate"] is True
+    assert by_turn["t2"]["persistent_multiturn_evaluation_candidate"] is True
     assert by_turn["t2"]["preceding_account_reply_count"] == 1
+    assert by_turn["t2"]["preceding_account_root_count"] == 0
+
+
+def _sequence_turn(
+    post_id: str,
+    role: str,
+    parent_post_id: str | None,
+    publication_status: str | None = None,
+) -> dict[str, Any]:
+    return {
+        "turn_id": f"turn-{post_id}",
+        "post_id": post_id,
+        "parent_post_id": parent_post_id,
+        "author_role": role,
+        "publication_status": publication_status,
+    }
+
+
+def test_account_root_response_is_a_control_not_persistent() -> None:
+    sequence = phase1._target_sequence_classification(
+        [
+            _sequence_turn("account-root", "account", None, "published"),
+            _sequence_turn("user-response", "user", "account-root"),
+        ]
+    )
+
+    assert sequence["target_sequence_class"] == "account_root_response"
+    assert sequence["account_root_response_control"] is True
+    assert sequence["persistent_multiturn_evaluation_candidate"] is False
+    assert sequence["multi_turn_evaluation_candidate"] is False
+    assert sequence["preceding_account_root_count"] == 1
+    assert sequence["preceding_account_reply_count"] == 0
+    assert sequence["target_follows_prior_account_reply"] is False
+
+
+def test_initial_and_pre_account_user_targets_are_not_persistent() -> None:
+    user_root = _sequence_turn("user-root", "user", None)
+    initial = phase1._target_sequence_classification([user_root])
+    follow_up = phase1._target_sequence_classification(
+        [user_root, _sequence_turn("user-follow-up", "user", "user-root")]
+    )
+
+    assert initial["target_sequence_class"] == "initial_user_target"
+    assert initial["persistent_multiturn_evaluation_candidate"] is False
+    assert follow_up["target_sequence_class"] == "pre_account_user_follow_up"
+    assert follow_up["persistent_multiturn_evaluation_candidate"] is False
+
+
+@pytest.mark.parametrize("publication_status", ["published", "observed"])
+def test_only_parent_linked_published_or_observed_account_reply_is_persistent(
+    publication_status: str,
+) -> None:
+    sequence = phase1._target_sequence_classification(
+        [
+            _sequence_turn("user-root", "user", None),
+            _sequence_turn(
+                "account-reply", "account", "user-root", publication_status
+            ),
+            _sequence_turn("user-response", "user", "account-reply"),
+        ]
+    )
+
+    assert sequence["target_sequence_class"] == "persistent_multiturn_target"
+    assert sequence["preceding_account_reply_count"] == 1
+    assert sequence["target_follows_prior_account_reply"] is True
+
+
+def test_unparented_or_unconfirmed_account_turn_is_not_a_persistent_reply() -> None:
+    unparented = phase1._target_sequence_classification(
+        [
+            _sequence_turn("user-root", "user", None),
+            _sequence_turn("account-post", "account", None, "published"),
+            _sequence_turn("user-response", "user", "account-post"),
+        ]
+    )
+    draft = phase1._target_sequence_classification(
+        [
+            _sequence_turn("user-root", "user", None),
+            _sequence_turn("account-draft", "account", "user-root", "draft"),
+            _sequence_turn("user-response", "user", "account-draft"),
+        ]
+    )
+
+    assert unparented["target_sequence_class"] == "other_sequence"
+    assert unparented["preceding_account_reply_count"] == 0
+    assert draft["target_sequence_class"] == "other_sequence"
+    assert draft["preceding_account_reply_count"] == 0
+    assert draft["target_follows_prior_account_reply"] is False
+
+
+def test_sequence_classes_partition_rows_and_account_roots_are_ineligible(
+    tmp_path: Path,
+) -> None:
+    rows, crosstab = _target_index_case(tmp_path)
+    sequence_counts = crosstab["dimensions"]["target_sequence_class"]
+
+    assert set(sequence_counts) == set(phase1.TARGET_SEQUENCE_CLASSES)
+    assert sum(sequence_counts.values()) == len(rows)
+    assert all(
+        sum(row["target_sequence_class"] == value for value in phase1.TARGET_SEQUENCE_CLASSES)
+        == 1
+        for row in rows
+    )
+    assert all(
+        row["preliminary_within_family_held_out_eligibility"] is False
+        for row in rows
+        if row["target_sequence_class"] != "persistent_multiturn_target"
+    )
 
 
 def test_open_or_exposed_target_is_preliminarily_ineligible(tmp_path: Path) -> None:
@@ -1785,8 +1925,19 @@ def _readiness(**overrides: Any) -> dict[str, Any]:
         "no_future_turn_leakage": True,
         "semantic_schema_valid": True,
         "materialiser_valid": True,
+        "genesis_materialisation_valid": True,
+        "first_seen_participant_registration_valid": True,
+        "complete_incremental_chain_valid": True,
+        "persistent_multiturn_classification_complete": True,
+        "within_family_author_group_exposure_enforced": True,
+        "cross_family_author_identity_status": "unavailable",
+        "provider_schema_feature_inventory_valid": True,
+        "provider_schema_compatibility_status": (
+            "pending_model_profile_selection"
+        ),
         "transcript_first_protocol_valid": True,
-        "preliminary_target_count": 1,
+        "preliminary_within_family_target_count": 1,
+        "preliminary_cross_family_target_count": 0,
     }
     values.update(overrides)
     return phase1._derive_readiness_gates(**values)
@@ -1797,23 +1948,23 @@ def _readiness(**overrides: Any) -> dict[str, Any]:
     [
         (
             {"source_identity_valid": False},
-            "phase1_1_blocked_by_source_or_leakage_failure",
+            "phase1_2_blocked_by_source_identity_or_classification_failure",
         ),
         (
             {"privacy_valid": False},
-            "phase1_1_blocked_by_privacy_failure",
+            "phase1_2_blocked_by_privacy_failure",
         ),
         (
             {"schema_valid": False},
-            "phase1_1_blocked_by_schema_or_materialiser_failure",
+            "phase1_2_blocked_by_schema_or_materialiser_failure",
         ),
         (
             {"materialiser_valid": False},
-            "phase1_1_blocked_by_schema_or_materialiser_failure",
+            "phase1_2_blocked_by_schema_or_materialiser_failure",
         ),
         (
-            {"preliminary_target_count": 0},
-            "phase1_1_blocked_no_unexposed_stable_multiturn_targets",
+            {"preliminary_within_family_target_count": 0},
+            "phase1_2_blocked_no_within_family_eligible_persistent_targets",
         ),
     ],
 )
@@ -1826,12 +1977,29 @@ def test_readiness_failures_derive_blocked_dispositions(
 def test_nonzero_structurally_complete_run_reports_sample_threshold_pending() -> None:
     readiness = _readiness()
     assert readiness["disposition"] == (
-        "phase1_1_complete_phase2_sample_threshold_pending"
+        "phase1_2_complete_sample_and_provider_preflight_pending"
     )
-    assert readiness["sample_size_threshold_status"]["status"] == "pending"
+    assert readiness["sample_size_threshold_status"]["status"] == (
+        "pending_development_only_power_analysis"
+    )
+    assert readiness["provider_schema_compatibility_status"]["status"] == (
+        "pending_model_profile_selection"
+    )
+    assert readiness["cross_family_author_identity_status"]["status"] == (
+        "unavailable"
+    )
     mutated = copy.deepcopy(readiness)
     mutated["privacy_validation"]["status"] = "failed"
     assert phase1._derive_disposition(mutated) != readiness["disposition"]
+
+
+def test_readiness_rejects_bare_provider_compatibility_pass() -> None:
+    readiness = _readiness(provider_schema_compatibility_status="passed")
+
+    assert readiness["provider_schema_compatibility_status"]["status"] == "failed"
+    assert readiness["disposition"] == (
+        "phase1_2_blocked_by_schema_or_materialiser_failure"
+    )
 
 
 @pytest.mark.parametrize(
@@ -1839,23 +2007,23 @@ def test_nonzero_structurally_complete_run_reports_sample_threshold_pending() ->
     [
         (
             {"source_identity_valid": False},
-            "phase1_1_blocked_by_source_or_leakage_failure",
+            "phase1_2_blocked_by_source_identity_or_classification_failure",
         ),
         (
             {"privacy_valid": False},
-            "phase1_1_blocked_by_privacy_failure",
+            "phase1_2_blocked_by_privacy_failure",
         ),
         (
             {"schema_valid": False},
-            "phase1_1_blocked_by_schema_or_materialiser_failure",
+            "phase1_2_blocked_by_schema_or_materialiser_failure",
         ),
         (
             {"materialiser_valid": False},
-            "phase1_1_blocked_by_schema_or_materialiser_failure",
+            "phase1_2_blocked_by_schema_or_materialiser_failure",
         ),
         (
-            {"preliminary_target_count": 0},
-            "phase1_1_blocked_no_unexposed_stable_multiturn_targets",
+            {"preliminary_within_family_target_count": 0},
+            "phase1_2_blocked_no_within_family_eligible_persistent_targets",
         ),
     ],
 )
@@ -1870,13 +2038,14 @@ def test_failed_readiness_dispositions_are_reportable_blocks(
 
 def test_privacy_failure_selects_bounded_report_without_derived_details() -> None:
     readiness = _readiness(privacy_valid=False)
-    report = phase1._phase1_1_report_for_readiness(
+    report = phase1._phase1_2_report_for_readiness(
         {"source_count": "PRIVATE-SOURCE-SENTINEL"},
         {"grade_counts": "PRIVATE-GRADE-SENTINEL"},
         {"headline_counts": "PRIVATE-TARGET-SENTINEL"},
         "PRIVATE-PROTOCOL-HASH-SENTINEL",
         {"semantic_delta_schema_sha256": "PRIVATE-SCHEMA-SENTINEL"},
         {"source_sha256": "PRIVATE-MATERIALISER-SENTINEL"},
+        {"schema_sha256": "PRIVATE-PROVIDER-SENTINEL"},
         readiness,
         {"passed": False},
     )
@@ -1916,7 +2085,7 @@ def test_validation_exceptions_become_failed_readiness_records(
     assert materialiser["validation_error"].startswith("SyntaxError:")
 
 
-def test_phase1_1_report_contains_complete_old_versus_new_metric_set() -> None:
+def test_phase1_2_report_contains_complete_old_versus_new_metric_set() -> None:
     outcomes = {
         "confirmed_published_reply": 101,
         "confirmed_pipeline_terminal_no_reply": 2,
@@ -1927,30 +2096,51 @@ def test_phase1_1_report_contains_complete_old_versus_new_metric_set() -> None:
     }
     headline = {
         "grade_a_target_prefix_count": 110,
-        "grade_a_multi_turn_target_prefix_count": 80,
-        "first_response_control_count": 20,
-        "open_conversation_target_prefix_count": 12,
-        "open_conversation_count": 7,
-        "exposed_multi_turn_target_prefix_count": 30,
-        "structurally_mined_only_multi_turn_target_prefix_count": 15,
-        "genuinely_unexposed_stable_grade_a_multi_turn_target_prefix_count": 25,
-        "genuinely_unexposed_stable_grade_a_multi_turn_conversation_count": 18,
-        "preliminary_held_out_eligible_target_prefix_count": 21,
-        "preliminary_held_out_eligible_conversation_count": 16,
+        "initial_user_target_count": 9,
+        "pre_account_user_follow_up_count": 3,
+        "account_root_response_count": 20,
+        "persistent_multiturn_target_count": 80,
+        "other_sequence_count": 9,
+        "exposed_persistent_multiturn_target_prefix_count": 30,
+        "structurally_mined_only_persistent_multiturn_target_prefix_count": 15,
+        "genuinely_unexposed_stable_grade_a_persistent_multiturn_target_prefix_count": 25,
+        "within_family_group_clean_persistent_target_prefix_count": 21,
+        "cross_family_clean_persistent_target_prefix_count": 0,
+        "preliminary_within_family_held_out_eligible_target_prefix_count": 21,
+        "preliminary_within_family_held_out_eligible_conversation_count": 16,
+        "preliminary_cross_family_clean_held_out_eligible_target_prefix_count": 0,
+        "comparable_within_family_author_group_count": 32,
+        "cross_family_identity_available_target_count": 0,
+        "cross_family_identity_unavailable_target_count": 121,
+        "author_group_contains_direct_exposure_count": 8,
+        "author_group_requires_groupwise_split_count": 12,
     }
     feasibility = {
         "canonical_union_conversation_count": 155,
         "grade_counts": {"A": 143, "B": 1, "C": 11},
+        "author_grouping": {
+            "crosstab": {
+                "comparable_within_family_author_group_count": 40,
+                "headline_counts": {
+                    "cross_family_identity_available_conversation_count": 0,
+                    "cross_family_identity_unavailable_conversation_count": 155,
+                    "within_family_groups_containing_direct_exposure": 8,
+                    "within_family_groups_requiring_groupwise_split": 12,
+                },
+            }
+        },
     }
     target_crosstab = {
         "target_prefix_count": 121,
         "headline_counts": headline,
         "dimensions": {
             "outcome_evidence_class": outcomes,
-            "first_response_versus_multi_turn": {
-                "first_response_control": 20,
-                "multi_turn_evaluation_candidate": 91,
-                "other_pre_account_reply_target": 10,
+            "target_sequence_class": {
+                "initial_user_target": 9,
+                "pre_account_user_follow_up": 3,
+                "account_root_response": 20,
+                "persistent_multiturn_target": 80,
+                "other_sequence": 9,
             },
         },
     }
@@ -1960,20 +2150,33 @@ def test_phase1_1_report_contains_complete_old_versus_new_metric_set() -> None:
         "ledger_schema_sha256": "b" * 64,
         "experiment_schema_sha256": "c" * 64,
     }
-    report = phase1._phase1_1_report(
+    from tools import proposition_ledger_provider_schema as provider_schema
+
+    provider_inventory = provider_schema.build_schema_feature_inventory(
+        PROJECT_DIR
+        / "proposition_ledger_research/schema/proposition-ledger-semantic-delta-v1.schema.json"
+    )
+    report = phase1._phase1_2_report(
         {"source_count": 9},
         feasibility,
         target_crosstab,
         "d" * 64,
         schema_validation,
-        {"passed": True, "source_sha256": "e" * 64},
-        _readiness(preliminary_target_count=21),
+        {
+            "passed": True,
+            "source_sha256": "e" * 64,
+            "genesis_materialisation_valid": True,
+            "first_seen_participant_registration_valid": True,
+            "complete_incremental_chain_valid": True,
+        },
+        provider_inventory,
+        _readiness(preliminary_within_family_target_count=21),
         {"passed": True},
     )
     text = "\n".join(report)
     comparison = {
-        metric: (phase1_value, phase1_1_value)
-        for metric, phase1_value, phase1_1_value in phase1._phase1_1_metric_comparison(
+        metric: (phase1_1_value, phase1_2_value)
+        for metric, phase1_1_value, phase1_2_value in phase1._phase1_2_metric_comparison(
             feasibility, target_crosstab
         )
     }
@@ -1982,33 +2185,34 @@ def test_phase1_1_report_contains_complete_old_versus_new_metric_set() -> None:
     assert comparison["Grade A conversation count"] == ("144", "143")
     assert comparison["Grade B conversation count"] == ("0", "1")
     assert comparison["Grade C conversation count"] == ("11", "11")
-    assert comparison["Total structurally usable target-prefix count"] == (
-        "205",
-        "121",
-    )
+    assert comparison["Total structurally usable target-prefix count"] == ("219", "121")
     assert comparison["Confirmed published-reply target-prefix count"] == (
-        "182",
+        "188",
         "101",
     )
-    assert comparison[
-        "Confirmed pipeline-terminal no-reply target-prefix count"
-    ][0].startswith("not measured in Phase 1")
+    assert comparison["Confirmed pipeline-terminal no-reply target-prefix count"] == (
+        "30",
+        "2",
+    )
+    assert comparison["Account-root response count"] == (
+        "not distinguished within 156 overbroad multi-turn labels",
+        "20",
+    )
     required_not_measured = {
-        "Confirmed local-skip target-prefix count",
-        "Quiescent unreplied-tip outcome-unknown target-prefix count",
-        "Outcome-evidence-unavailable target-prefix count",
-        "Conflicting-outcome-evidence target-prefix count",
-        "First-response control target-prefix count",
-        "Multi-turn evaluation-candidate target-prefix count",
-        "Distinct open-conversation count",
-        "Exposed multi-turn target-prefix count",
-        "Structurally mined-only multi-turn target-prefix count",
-        "Genuinely unexposed stable Grade-A multi-turn target-prefix count",
-        "Preliminary held-out-eligible conversation count",
-        "Preliminary held-out-eligible target-prefix count",
+        "Pre-account user follow-up count",
+        "Exposed persistent target-prefix count",
+        "Structurally mined-only persistent target-prefix count",
+        "Genuinely unexposed stable Grade-A persistent target-prefix count",
+        "Within-family group-clean persistent target-prefix count",
+        "Cross-family-clean persistent target-prefix count",
+        "Comparable within-family author-group count",
+        "Cross-family identities available (conversations)",
+        "Cross-family identities unavailable (conversations)",
+        "Author groups containing direct exposure",
+        "Author groups requiring groupwise split",
     }
     assert all(
-        comparison[metric][0] == "not measured in Phase 1"
+        comparison[metric][0] == "not measured in Phase 1.1"
         for metric in required_not_measured
     )
     assert all(metric in text for metric in comparison)
@@ -2035,6 +2239,22 @@ def test_materialiser_gate_requires_behavioral_validation(
     failing = phase1._semantic_materialiser_validation(PROJECT_DIR)
     assert failing["behavioral_validation_passed"] is False
     assert failing["passed"] is False
+
+
+def test_materialiser_gate_binds_implementation_identity(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from tools import proposition_ledger_semantic_delta as semantic_delta
+
+    monkeypatch.setattr(
+        semantic_delta,
+        "MATERIALISER_VERSION",
+        "proposition-ledger-semantic-delta-materialiser-v999",
+    )
+    validation = phase1._semantic_materialiser_validation(PROJECT_DIR)
+
+    assert validation["materialiser_identity_matches"] is False
+    assert validation["passed"] is False
 
 
 def _write_fresh_determinism_fixture(

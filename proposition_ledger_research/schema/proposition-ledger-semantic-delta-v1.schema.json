@@ -1,7 +1,7 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://mrs-m-thatcher.invalid/research/proposition-ledger-semantic-delta-v1.schema.json",
-  "title": "Proposition ledger current-turn semantic delta v1",
+  "title": "Proposition ledger current-turn semantic delta v1.1",
   "description": "Provider-facing semantic analysis for one exact transcript turn. Persistence identifiers, hashes, replay patches, and cumulative state are intentionally absent.",
   "type": "object",
   "additionalProperties": false,
@@ -31,7 +31,7 @@
   ],
   "properties": {
     "schema_version": {
-      "const": "proposition-ledger-semantic-delta-v1.0.0"
+      "const": "proposition-ledger-semantic-delta-v1.1.0"
     },
     "conversation_key": {
       "type": "string",
@@ -42,10 +42,17 @@
     },
     "as_of_turn_index": {
       "type": "integer",
-      "minimum": 1
+      "minimum": 0
     },
     "prior_ledger_reference": {
-      "$ref": "#/$defs/priorLedgerReference"
+      "oneOf": [
+        {
+          "$ref": "#/$defs/priorLedgerReference"
+        },
+        {
+          "type": "null"
+        }
+      ]
     },
     "new_propositions": {
       "type": "array",
@@ -186,6 +193,34 @@
       }
     }
   },
+  "allOf": [
+    {
+      "if": {
+        "properties": {
+          "as_of_turn_index": {
+            "const": 0
+          }
+        },
+        "required": [
+          "as_of_turn_index"
+        ]
+      },
+      "then": {
+        "properties": {
+          "prior_ledger_reference": {
+            "type": "null"
+          }
+        }
+      },
+      "else": {
+        "properties": {
+          "prior_ledger_reference": {
+            "$ref": "#/$defs/priorLedgerReference"
+          }
+        }
+      }
+    }
+  ],
   "$defs": {
     "opaqueId": {
       "type": "string",

@@ -187,7 +187,424 @@ def direct_answer_case() -> tuple[dict[str, Any], dict[str, Any], dict[str, Any]
 def _materialise(
     case: tuple[dict[str, Any], dict[str, Any], dict[str, Any]]
 ) -> semantic.MaterialisationResult:
-    return semantic.materialise_semantic_delta(*case)
+    prior, current_turn, delta = case
+    participant = next(
+        copy.deepcopy(record)
+        for record in prior["participants"]
+        if record["participant_id"] == current_turn["speaker_id"]
+    )
+    return semantic.materialise_semantic_delta(
+        prior,
+        current_turn,
+        delta,
+        current_participant=participant,
+    )
+
+
+def _materialise_existing(
+    prior: dict[str, Any],
+    current_turn: dict[str, Any],
+    delta: dict[str, Any],
+) -> semantic.MaterialisationResult:
+    participant = next(
+        copy.deepcopy(record)
+        for record in prior["participants"]
+        if record["participant_id"] == current_turn["speaker_id"]
+    )
+    return semantic.materialise_semantic_delta(
+        prior,
+        current_turn,
+        delta,
+        current_participant=participant,
+    )
+
+
+def _synthetic_participant(participant_id: str, role: str) -> dict[str, Any]:
+    return {
+        "author_key": f"synthetic-author-{participant_id}",
+        "identity_confidence": 1.0,
+        "participant_id": participant_id,
+        "role": role,
+    }
+
+
+def _semantic_noop(
+    conversation_key: str,
+    turn: dict[str, Any],
+    previous: dict[str, Any] | None,
+) -> dict[str, Any]:
+    return {
+        "abstentions": [],
+        "answer_target_changes": [],
+        "as_of_turn_index": turn["turn_index"],
+        "commitment_changes": [],
+        "conversation_key": conversation_key,
+        "extraction_status": "complete",
+        "issue_state_updates": [],
+        "new_issue_states": [],
+        "new_proposition_groups": [],
+        "new_propositions": [],
+        "new_relations": [],
+        "obligation_changes": [],
+        "prior_ledger_reference": (
+            {
+                "as_of_turn_index": previous["as_of_turn_index"],
+                "ledger_id": previous["ledger_id"],
+            }
+            if previous is not None
+            else None
+        ),
+        "proposition_group_updates": [],
+        "proposition_updates": [],
+        "rejected_answer_target_changes": [],
+        "repair_records": [],
+        "resolved_items": [],
+        "schema_version": semantic.SEMANTIC_DELTA_SCHEMA_VERSION,
+        "target_turn_id": turn["turn_id"],
+        "unsupported_inferences_rejected": 0,
+        "warnings": [],
+    }
+
+
+def _run_synthetic_chain(
+    speakers: list[tuple[str, str]],
+) -> tuple[list[dict[str, Any]], list[semantic.MaterialisationResult]]:
+    conversation_key = "synthetic:test-incremental-chain"
+    descriptors = {
+        participant_id: _synthetic_participant(participant_id, role)
+        for participant_id, role in speakers
+    }
+    previous: dict[str, Any] | None = None
+    snapshots: list[dict[str, Any]] = []
+    results: list[semantic.MaterialisationResult] = []
+    for index, (participant_id, _role) in enumerate(speakers):
+        turn = {
+            "conversation_key": conversation_key,
+            "parent_turn_id": f"synthetic-chain-t{index - 1}" if index else None,
+            "post_id": f"synthetic-chain-post-{index}",
+            "speaker_id": participant_id,
+            "text": f"Wholly invented turn {index} by {participant_id}.",
+            "turn_id": f"synthetic-chain-t{index}",
+            "turn_index": index,
+        }
+        descriptor = descriptors[participant_id]
+        genesis_context = None
+        if index == 0:
+            genesis_context = {
+                "conversation_key": conversation_key,
+                "current_participant": copy.deepcopy(descriptor),
+                "root_post_id": turn["post_id"],
+                "source_completeness": {
+                    "account_publication_confirmed": True,
+                    "chronology_complete": True,
+                    "complete_prefix_through_turn": True,
+                    "exact_text_complete": True,
+                    "limitations": ["Wholly invented unit-test chain."],
+                    "parent_graph_complete": True,
+                    "reconstruction_grade": "A",
+                },
+            }
+        result = semantic.materialise_semantic_delta(
+            previous,
+            turn,
+            _semantic_noop(conversation_key, turn, previous),
+            current_participant=descriptor,
+            genesis_context=genesis_context,
+        )
+        results.append(result)
+        if result.ledger is None:
+            break
+        snapshots.append(result.ledger)
+        previous = result.ledger
+    return snapshots, results
+
+
+@pytest.mark.parametrize(
+    ("participant_id", "role"),
+    [("contributor", "contributor"), ("account", "account")],
+)
+def test_turn_zero_materialises_for_contributor_and_account_roots(
+    participant_id: str,
+    role: str,
+) -> None:
+    snapshots, results = _run_synthetic_chain([(participant_id, role)])
+
+    assert [result.status for result in results] == ["ok"]
+    assert len(snapshots) == 1
+    genesis = snapshots[0]
+    assert genesis["as_of_turn_index"] == 0
+    assert genesis["previous_ledger_sha256"] is None
+    assert genesis["state_transitions"][0]["from_ledger_sha256"] is None
+    assert genesis["participants"] == [
+        _synthetic_participant(participant_id, role)
+    ]
+    assert genesis["turn_refs"][0]["parent_turn_id"] is None
+    assert genesis["ledger_sha256"] == phase1.ledger_sha256(genesis)
+
+
+def test_first_seen_contributor_is_registered_after_account_root() -> None:
+    snapshots, results = _run_synthetic_chain(
+        [("account", "account"), ("contributor", "contributor")]
+    )
+
+    assert [result.status for result in results] == ["ok", "ok"]
+    assert [record["participant_id"] for record in snapshots[0]["participants"]] == [
+        "account"
+    ]
+    assert [record["participant_id"] for record in snapshots[1]["participants"]] == [
+        "account",
+        "contributor",
+    ]
+    participant_patch = [
+        operation
+        for operation in snapshots[1]["state_transitions"][0]["state_patch"]
+        if operation["collection"] == "participants"
+    ]
+    assert participant_patch == [
+        {
+            "after_record": _synthetic_participant("contributor", "contributor"),
+            "before_record_sha256": None,
+            "collection": "participants",
+            "item_id": "contributor",
+            "operation": "add",
+        }
+    ]
+
+
+def test_third_participant_is_registered_only_at_first_appearance() -> None:
+    snapshots, results = _run_synthetic_chain(
+        [
+            ("account", "account"),
+            ("contributor", "contributor"),
+            ("third", "unknown"),
+        ]
+    )
+
+    assert [result.status for result in results] == ["ok", "ok", "ok"]
+    assert [
+        [record["participant_id"] for record in snapshot["participants"]]
+        for snapshot in snapshots
+    ] == [["account"], ["account", "contributor"], ["account", "contributor", "third"]]
+
+
+def test_complete_three_and_four_turn_chains_preserve_seen_participants_only() -> None:
+    three_snapshots, three_results = _run_synthetic_chain(
+        [
+            ("account", "account"),
+            ("contributor", "contributor"),
+            ("account", "account"),
+        ]
+    )
+    four_snapshots, four_results = _run_synthetic_chain(
+        [
+            ("account", "account"),
+            ("contributor", "contributor"),
+            ("account", "account"),
+            ("contributor", "contributor"),
+        ]
+    )
+
+    assert [result.status for result in three_results] == ["ok"] * 3
+    assert [result.status for result in four_results] == ["ok"] * 4
+    assert [
+        [record["participant_id"] for record in snapshot["participants"]]
+        for snapshot in four_snapshots
+    ] == [
+        ["account"],
+        ["account", "contributor"],
+        ["account", "contributor"],
+        ["account", "contributor"],
+    ]
+    assert all(
+        len(snapshot["turn_refs"]) == index + 1
+        for index, snapshot in enumerate(three_snapshots)
+    )
+    assert not any(
+        operation["collection"] == "participants"
+        for operation in four_snapshots[3]["state_transitions"][0]["state_patch"]
+    )
+
+
+def test_genesis_rejects_future_participant_preseeding() -> None:
+    participant = _synthetic_participant("account", "account")
+    turn = {
+        "conversation_key": "synthetic:future-preseed",
+        "parent_turn_id": None,
+        "post_id": "synthetic-future-post-0",
+        "speaker_id": "account",
+        "text": "Wholly invented root.",
+        "turn_id": "synthetic-future-t0",
+        "turn_index": 0,
+    }
+    context = {
+        "conversation_key": turn["conversation_key"],
+        "current_participant": participant,
+        "participants": [
+            participant,
+            _synthetic_participant("future", "contributor"),
+        ],
+        "root_post_id": turn["post_id"],
+        "source_completeness": {
+            "account_publication_confirmed": True,
+            "chronology_complete": True,
+            "complete_prefix_through_turn": True,
+            "exact_text_complete": True,
+            "limitations": ["Wholly invented unit-test root."],
+            "parent_graph_complete": True,
+            "reconstruction_grade": "A",
+        },
+    }
+
+    result = semantic.materialise_semantic_delta(
+        None,
+        turn,
+        _semantic_noop(turn["conversation_key"], turn, None),
+        current_participant=participant,
+        genesis_context=context,
+    )
+
+    assert result.status == "semantic_reference_invalid"
+    assert "genesis_context_fields_invalid" in result.errors
+
+
+def test_existing_participant_descriptor_must_agree_exactly() -> None:
+    snapshots, results = _run_synthetic_chain([("account", "account")])
+    assert results[0].status == "ok"
+    prior = snapshots[0]
+    turn = {
+        "conversation_key": prior["conversation_key"],
+        "parent_turn_id": prior["target_turn_id"],
+        "post_id": "synthetic-mismatch-post-1",
+        "speaker_id": "account",
+        "text": "Wholly invented returning turn.",
+        "turn_id": "synthetic-mismatch-t1",
+        "turn_index": 1,
+    }
+    mismatch = _synthetic_participant("account", "account")
+    mismatch["identity_confidence"] = 0.5
+
+    result = semantic.materialise_semantic_delta(
+        prior,
+        turn,
+        _semantic_noop(prior["conversation_key"], turn, prior),
+        current_participant=mismatch,
+    )
+
+    assert result.status == "semantic_reference_invalid"
+    assert "current_participant_descriptor_mismatch" in result.errors
+
+
+def test_genesis_ids_and_hashes_are_deterministic() -> None:
+    first, first_results = _run_synthetic_chain([("account", "account")])
+    second, second_results = _run_synthetic_chain([("account", "account")])
+
+    assert first_results[0].status == second_results[0].status == "ok"
+    assert first[0]["participants"] == second[0]["participants"]
+    assert first[0]["ledger_id"] == second[0]["ledger_id"]
+    assert first[0]["ledger_sha256"] == second[0]["ledger_sha256"]
+    assert phase1.canonical_json_bytes(first[0]) == phase1.canonical_json_bytes(
+        second[0]
+    )
+
+
+def test_semantic_predecessor_nullability_is_exactly_turn_zero() -> None:
+    schema = _load_json(SEMANTIC_SCHEMA_PATH)
+    turn_zero = {
+        "turn_id": "semantic-null-t0",
+        "turn_index": 0,
+    }
+    genesis_delta = _semantic_noop("synthetic:nullability", turn_zero, None)
+    assert phase1._jsonschema_errors(genesis_delta, schema) == []
+
+    invalid_genesis = copy.deepcopy(genesis_delta)
+    invalid_genesis["prior_ledger_reference"] = {
+        "as_of_turn_index": 0,
+        "ledger_id": "ledger-invalid",
+    }
+    assert phase1._jsonschema_errors(invalid_genesis, schema)
+
+    invalid_later = copy.deepcopy(genesis_delta)
+    invalid_later["as_of_turn_index"] = 1
+    invalid_later["target_turn_id"] = "semantic-null-t1"
+    assert phase1._jsonschema_errors(invalid_later, schema)
+
+
+def test_arbitrary_unknown_provider_participant_reference_is_rejected(
+    direct_answer_case: tuple[dict[str, Any], dict[str, Any], dict[str, Any]],
+) -> None:
+    prior, current_turn, delta = direct_answer_case
+    delta["new_propositions"][0]["speaker_or_attributor"][
+        "participant_id"
+    ] = "future-participant"
+
+    result = _materialise_existing(prior, current_turn, delta)
+
+    assert result.status == "semantic_reference_invalid"
+    assert any("unknown_participant_reference" in error for error in result.errors)
+
+
+def test_exact_first_seen_current_speaker_may_be_referenced_semantically(
+    direct_answer_case: tuple[dict[str, Any], dict[str, Any], dict[str, Any]],
+) -> None:
+    prior, current_turn, delta = direct_answer_case
+    current_turn["speaker_id"] = "newcomer"
+    newcomer = _synthetic_participant("newcomer", "contributor")
+    delta["new_propositions"][0]["speaker_or_attributor"][
+        "participant_id"
+    ] = "newcomer"
+    delta["commitment_changes"][0]["participant_id"] = "newcomer"
+    delta["new_relations"][0]["asserted_or_analysed_by"] = "newcomer"
+
+    result = semantic.materialise_semantic_delta(
+        prior,
+        current_turn,
+        delta,
+        current_participant=newcomer,
+    )
+
+    assert result.status == "ok", result.errors
+    assert result.ledger is not None
+    assert result.ledger["participants"][-1] == newcomer
+
+
+@pytest.mark.parametrize("field", ["participants", "participant_id"])
+def test_provider_cannot_supply_participant_collection_or_permanent_id(
+    direct_answer_case: tuple[dict[str, Any], dict[str, Any], dict[str, Any]],
+    field: str,
+) -> None:
+    prior, current_turn, delta = direct_answer_case
+    delta[field] = [] if field == "participants" else "provider-participant-id"
+
+    result = _materialise_existing(prior, current_turn, delta)
+
+    assert result.status == "semantic_delta_schema_invalid"
+
+
+def test_raw_identity_field_cannot_enter_participant_record() -> None:
+    snapshots, results = _run_synthetic_chain([("account", "account")])
+    assert results[0].status == "ok"
+    prior = snapshots[0]
+    turn = {
+        "conversation_key": prior["conversation_key"],
+        "parent_turn_id": prior["target_turn_id"],
+        "post_id": "synthetic-raw-field-post-1",
+        "speaker_id": "contributor",
+        "text": "Wholly invented contributor turn.",
+        "turn_id": "synthetic-raw-field-t1",
+        "turn_index": 1,
+    }
+    descriptor = _synthetic_participant("contributor", "contributor")
+    descriptor["raw_contributor_id"] = "forbidden-raw-value"
+
+    result = semantic.materialise_semantic_delta(
+        prior,
+        turn,
+        _semantic_noop(prior["conversation_key"], turn, prior),
+        current_participant=descriptor,
+    )
+
+    assert result.status == "semantic_reference_invalid"
+    assert result.ledger is None
 
 
 @pytest.mark.parametrize(
@@ -209,7 +626,7 @@ def test_semantic_schema_rejects_hashes_patches_and_cumulative_state(
     prior, current_turn, delta = direct_answer_case
     delta[forbidden_field] = [] if forbidden_field.endswith("s") else "forbidden"
 
-    result = semantic.materialise_semantic_delta(prior, current_turn, delta)
+    result = _materialise_existing(prior, current_turn, delta)
 
     assert result.status == "semantic_delta_schema_invalid"
 
@@ -263,7 +680,7 @@ def test_existing_item_references_bind_only_to_prior_ids(
     prior, current_turn, delta = direct_answer_case
     delta["new_relations"][0]["target_proposition_refs"] = ["p-not-in-prior"]
 
-    result = semantic.materialise_semantic_delta(prior, current_turn, delta)
+    result = _materialise_existing(prior, current_turn, delta)
 
     assert result.status == "semantic_reference_invalid"
     assert any("unknown_existing_reference" in error for error in result.errors)
@@ -277,7 +694,7 @@ def test_duplicate_local_references_are_rejected(
     duplicate["canonical_text"] = "A second semantic item must not reuse the local ref."
     delta["new_propositions"].append(duplicate)
 
-    result = semantic.materialise_semantic_delta(prior, current_turn, delta)
+    result = _materialise_existing(prior, current_turn, delta)
 
     assert result.status == "semantic_reference_invalid"
     assert any("duplicate_local_reference" in error for error in result.errors)
@@ -289,7 +706,7 @@ def test_orphan_local_references_are_rejected(
     prior, current_turn, delta = direct_answer_case
     delta["new_relations"][0]["source_proposition_refs"] = ["new-proposition-99"]
 
-    result = semantic.materialise_semantic_delta(prior, current_turn, delta)
+    result = _materialise_existing(prior, current_turn, delta)
 
     assert result.status == "semantic_reference_invalid"
     assert any("orphan_local_reference" in error for error in result.errors)
@@ -303,7 +720,7 @@ def test_evidence_span_mismatch_is_rejected(
         "This text is not present."
     )
 
-    result = semantic.materialise_semantic_delta(prior, current_turn, delta)
+    result = _materialise_existing(prior, current_turn, delta)
 
     assert result.status == "semantic_evidence_invalid"
     assert any("evidence_span_mismatch" in error for error in result.errors)
@@ -315,7 +732,7 @@ def test_future_turn_reference_is_rejected(
     prior, current_turn, delta = direct_answer_case
     delta["new_relations"][0]["exact_evidence_spans"][0]["turn_id"] = "t2"
 
-    result = semantic.materialise_semantic_delta(prior, current_turn, delta)
+    result = _materialise_existing(prior, current_turn, delta)
 
     assert result.status == "semantic_evidence_invalid"
     assert any("non_current_evidence_turn" in error for error in result.errors)
@@ -329,7 +746,7 @@ def test_model_supplied_permanent_id_or_hash_is_rejected(
     prior, current_turn, delta = direct_answer_case
     delta["new_propositions"][0][field] = "provider-controlled-value"
 
-    result = semantic.materialise_semantic_delta(prior, current_turn, delta)
+    result = _materialise_existing(prior, current_turn, delta)
 
     assert result.status == "semantic_delta_schema_invalid"
 
@@ -357,17 +774,13 @@ def test_all_failure_classes_remain_distinguishable(
     invalid_schema = copy.deepcopy(delta)
     invalid_schema["ledger_sha256"] = "0" * 64
     observed.add(
-        semantic.materialise_semantic_delta(
-            prior, current_turn, invalid_schema
-        ).status
+        _materialise_existing(prior, current_turn, invalid_schema).status
     )
 
     invalid_reference = copy.deepcopy(delta)
     invalid_reference["new_relations"][0]["target_proposition_refs"] = ["missing"]
     observed.add(
-        semantic.materialise_semantic_delta(
-            prior, current_turn, invalid_reference
-        ).status
+        _materialise_existing(prior, current_turn, invalid_reference).status
     )
 
     invalid_evidence = copy.deepcopy(delta)
@@ -375,9 +788,7 @@ def test_all_failure_classes_remain_distinguishable(
         "exact_text"
     ] = "mismatch"
     observed.add(
-        semantic.materialise_semantic_delta(
-            prior, current_turn, invalid_evidence
-        ).status
+        _materialise_existing(prior, current_turn, invalid_evidence).status
     )
 
     invalid_transition = copy.deepcopy(delta)
@@ -385,17 +796,13 @@ def test_all_failure_classes_remain_distinguishable(
         "lifecycle_status"
     ] = "introduced"
     observed.add(
-        semantic.materialise_semantic_delta(
-            prior, current_turn, invalid_transition
-        ).status
+        _materialise_existing(prior, current_turn, invalid_transition).status
     )
 
     invalid_prior = copy.deepcopy(prior)
     invalid_prior["ledger_sha256"] = "0" * 64
     observed.add(
-        semantic.materialise_semantic_delta(
-            invalid_prior, current_turn, delta
-        ).status
+        _materialise_existing(invalid_prior, current_turn, delta).status
     )
 
     monkeypatch.setattr(
@@ -404,7 +811,7 @@ def test_all_failure_classes_remain_distinguishable(
         lambda *_args, **_kwargs: ["synthetic_persisted_failure"],
     )
     observed.add(
-        semantic.materialise_semantic_delta(prior, current_turn, delta).status
+        _materialise_existing(prior, current_turn, delta).status
     )
 
     assert observed == semantic.FAILURE_STATUSES
@@ -443,6 +850,11 @@ def test_behavioral_materialiser_validation_exercises_persisted_boundary() -> No
     validation = semantic.behavioral_materialiser_validation(PROJECT_DIR)
 
     assert validation["passed"] is True
+    assert validation["materialiser_version"] == semantic.MATERIALISER_VERSION
+    assert validation["genesis_materialisation_valid"] is True
+    assert validation["first_seen_participant_registration_valid"] is True
+    assert validation["complete_incremental_chain_valid"] is True
+    assert validation["incremental_chain_statuses"] == ["ok"] * 4
     assert validation["valid_materialisation_status"] == "ok"
     assert validation["repeated_materialisation_status"] == "ok"
     assert validation["full_persisted_validator_passed"] is True

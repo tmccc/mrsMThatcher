@@ -2,7 +2,7 @@
 
 ## Contract boundary
 
-`proposition-ledger-semantic-delta-v1.0.0` is the provider-facing response
+`proposition-ledger-semantic-delta-v1.1.0` is the provider-facing response
 contract for semantic analysis of one exact current transcript turn. It is not
 a persisted ledger and cannot be replayed as storage state by itself.
 
@@ -10,8 +10,9 @@ The durable output remains `proposition-ledger-v1.0.0`. Three separately
 identified objects therefore participate in ledger construction:
 
 1. the provider response schema,
-   `proposition-ledger-semantic-delta-v1.0.0`;
+   `proposition-ledger-semantic-delta-v1.1.0`;
 2. the pure deterministic materialiser,
+   `proposition-ledger-semantic-delta-materialiser-v2` in
    `tools/proposition_ledger_semantic_delta.py`; and
 3. the persisted ledger schema, `proposition-ledger-v1.0.0`.
 
@@ -22,10 +23,11 @@ unchanged cumulative state, transcript turn references, participants, source
 completeness, or provider-chosen permanent identifiers. `additionalProperties:
 false` applies at the response boundary and within every semantic record.
 
-`prior_ledger_reference` echoes only the supplied predecessor `ledger_id` and
-turn index. It intentionally contains no persistence hash. The materialiser
-binds that reference, `conversation_key`, `target_turn_id`, and
-`as_of_turn_index` to the actual validated predecessor and exact current turn.
+At turn zero, required `prior_ledger_reference` is null. At every later turn it
+echoes only the supplied predecessor `ledger_id` and turn index. It
+intentionally contains no persistence hash. The materialiser binds that
+reference, `conversation_key`, `target_turn_id`, and `as_of_turn_index` to the
+actual validated predecessor and exact current turn.
 
 ## References and identifiers
 
@@ -43,12 +45,18 @@ relations, commitments, obligations, answer targets, rejected targets, repairs,
 and resolved items may refer to declared local references; an undeclared,
 wrong-namespace, or ambiguous local reference is rejected.
 
-Participants cannot be introduced by the semantic delta. Participant
-references must already exist in the validated prior ledger. A provider cannot
-set an introduction turn, update turn, resolution turn, reply turn, selection
-turn, rejection turn, repair trigger turn, acknowledgement turn, ledger ID,
-transition ID, or warning ID. Deterministic code supplies those values from the
-exact current-turn binding.
+Participants cannot be introduced by the semantic delta. The trusted harness
+supplies exactly one current-speaker descriptor from corpus metadata at each
+turn. The materialiser requires it to agree byte-for-byte with an existing
+participant or registers that one speaker at first appearance. Semantic
+participant references may name only a prior participant or that exact current
+speaker. No future participant may be pre-seeded. The authoritative state
+patch records each first-seen participant addition. A provider cannot set an
+introduction turn, update turn, resolution turn, reply turn, selection turn,
+rejection turn, repair trigger turn, acknowledgement turn, ledger ID,
+transition ID, participant record, or warning ID. Deterministic code supplies
+those values from the exact current-turn binding and trusted pseudonymous
+identity metadata.
 
 ## Evidence and epistemic boundaries
 
@@ -70,22 +78,27 @@ type, issue status, resolution type, and abstention.
 
 ## Materialisation sequence
 
-The materialiser accepts exactly the validated prior full ledger, the exact
-current transcript turn, and one semantic delta. Schema objects may be supplied
-as keyword-only validation dependencies; by default the two tracked schemas are
-loaded locally.
+The materialiser accepts a nullable prior full ledger, the exact current
+transcript turn, one semantic delta, and the trusted current-participant
+descriptor. A prior ledger may be null only for turn zero, when a bounded
+`genesis_context` supplies the conversation key, root post ID, source
+completeness, and the same exact current participant. Schema objects may be
+supplied as keyword-only validation dependencies; by default the two tracked
+schemas are loaded locally.
 
 It performs these operations in order:
 
 1. validate the semantic delta against its provider response schema;
-2. validate the predecessor's persisted shape and self-hash;
+2. for genesis, require turn index zero, a null parent and predecessor, and the
+   exact bounded genesis context; otherwise validate the predecessor's
+   persisted shape and self-hash;
 3. bind the predecessor reference, conversation, target turn, turn index,
-   parent, and speaker;
+   parent, and trusted current speaker;
 4. validate every exact current-turn evidence span;
 5. inventory local references and assign deterministic permanent IDs;
 6. validate and resolve every existing and same-turn reference;
-7. apply semantic additions and explicit changes to a deep copy of the prior
-   cumulative state;
+7. deterministically register only a first-seen current speaker, then apply
+   semantic additions and explicit changes to the cumulative state;
 8. apply only allow-listed lifecycle transitions and current-turn resolution
    fields;
 9. append the deterministic current `turn_ref` and construct the new ledger
@@ -95,10 +108,13 @@ It performs these operations in order:
 11. derive the typed transition projections and transition reasons from that
     patch, never from provider-supplied persistence data;
 12. calculate the predecessor link and final ledger hash; and
-13. run the incremental full-ledger validator against the validated immediate
-    predecessor and exact current turn.
+13. run the full persisted-ledger validator at genesis or the incremental
+    validator against the validated immediate predecessor and exact current
+    turn.
 
-The incremental validation hook is necessary because the persisted predecessor
+The genesis snapshot is validated from empty state and must reconstruct through
+its authoritative patch with null predecessor semantics. The incremental
+validation hook is necessary because the persisted predecessor
 contains hashes and evidence spans, not the complete prior raw transcript text.
 `validate_ledger_incremental(ledger, previous_ledger, current_turn, schema)`
 treats the predecessor as already fully validated, requires its turn references
@@ -137,7 +153,7 @@ undifferentiated outcome.
 
 ## Execution boundary
 
-This Phase 1.1 implementation contains no provider invocation, network client,
+This Phase 1.2 amendment contains no provider invocation, network client,
 X integration, production-bot import, prompt, or response-generation path. Its
 tests use only the checked-in wholly synthetic fixtures. It creates no ledger,
 summary, annotation, or candidate reply for a real conversation and does not

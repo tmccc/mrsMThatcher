@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Build and verify the read-only proposition-ledger Phase 1.1 preflight pack.
+"""Build and verify the read-only proposition-ledger Phase 1.2 preflight pack.
 
 The tool deliberately has no production-module imports and no network or model
 client. All source locations are explicit, frozen inputs. Conversation text is
@@ -14,6 +14,7 @@ import copy
 import csv
 import hashlib
 import hmac
+import importlib
 import json
 import math
 import os
@@ -28,11 +29,12 @@ from typing import Any, Iterable, Mapping, Sequence
 
 
 LEDGER_SCHEMA_VERSION = "proposition-ledger-v1.0.0"
-SEMANTIC_DELTA_SCHEMA_VERSION = "proposition-ledger-semantic-delta-v1.0.0"
-EXPERIMENT_SCHEMA_VERSION = "proposition-ledger-experiment-v1.1.0"
+SEMANTIC_DELTA_SCHEMA_VERSION = "proposition-ledger-semantic-delta-v1.1.0"
+EXPERIMENT_SCHEMA_VERSION = "proposition-ledger-experiment-v1.2.0"
 SOURCE_MANIFEST_VERSION = "proposition-ledger-phase1-source-manifest-v1"
-OUTPUT_SCHEMA_VERSION = "proposition-ledger-phase1.1-output-v1"
-PHASE1_BASE_SHA = "cc2f86f135524b995fa2f332d2a9de3aa91e2b22"
+OUTPUT_SCHEMA_VERSION = "proposition-ledger-phase1.2-output-v1"
+PHASE1_1_BASE_SHA = "47cd7579fdbe2da07bd032ae23be7fad763626f6"
+MATERIALISER_ID = "proposition-ledger-semantic-delta-materialiser-v2"
 FRESH_BUILD_DETERMINISM_EVIDENCE = (
     "two fresh full private-directory builds compared byte-for-byte; "
     "only run path/timestamp metadata was isolated"
@@ -83,6 +85,13 @@ OUTCOME_EVIDENCE_CLASSES = (
     "quiescent_unreplied_tip_outcome_unknown",
     "outcome_evidence_unavailable",
     "conflicting_outcome_evidence",
+)
+TARGET_SEQUENCE_CLASSES = (
+    "initial_user_target",
+    "pre_account_user_follow_up",
+    "account_root_response",
+    "persistent_multiturn_target",
+    "other_sequence",
 )
 OUTCOME_TARGET_ID_FIELDS = {
     "confirmed_published_reply": "published_reply_target_turn_ids",
@@ -174,6 +183,16 @@ TRANSITION_UPDATED_COLLECTIONS = {
 
 class Phase1Error(RuntimeError):
     """Describe a deterministic Phase 1 validation or input failure."""
+
+
+def _import_research_tool(module_name: str) -> Any:
+    """Import a sibling research helper in package and direct-script modes."""
+    try:
+        return importlib.import_module(f"tools.{module_name}")
+    except ModuleNotFoundError as exc:
+        if exc.name != "tools":
+            raise
+        return importlib.import_module(module_name)
 
 
 def _reject_json_constant(value: str) -> None:
@@ -3198,6 +3217,67 @@ def _build_feasibility_and_exposure(
         exposure_rows,
         turns_by_conversation,
     )
+    author_groups = _import_research_tool("proposition_ledger_author_groups")
+
+    unhashed_target_rows: list[dict[str, Any]] = []
+    for target_row in target_rows:
+        unhashed = copy.deepcopy(dict(target_row))
+        unhashed.pop("row_sha256", None)
+        unhashed_target_rows.append(unhashed)
+    author_group_analysis = author_groups.apply_author_group_exposure(
+        unhashed_target_rows,
+        records,
+    )
+    if author_group_analysis.get("author_group_split_performed") is not False:
+        raise Phase1Error("Phase 1.2 must not assign an author-group split")
+    author_group_errors = author_groups.author_group_crosstab_errors(
+        author_group_analysis["target_rows"],
+        author_group_analysis["conversation_rows"],
+        author_group_analysis["within_family_author_groups"],
+        author_group_analysis["cross_family_author_groups"],
+        author_group_analysis["crosstab"],
+    )
+    if author_group_errors:
+        raise Phase1Error(
+            "author-group exposure reconciliation failed: "
+            + ",".join(author_group_errors)
+        )
+    target_rows = []
+    for annotated_target in author_group_analysis["target_rows"]:
+        target_row = copy.deepcopy(dict(annotated_target))
+        target_row["preliminary_held_out_eligibility"] = target_row[
+            "preliminary_within_family_held_out_eligibility"
+        ]
+        target_row["preliminary_held_out_exclusion_reasons"] = list(
+            target_row["preliminary_within_family_held_out_exclusion_reasons"]
+        )
+        target_rows.append(_row_with_hash(target_row))
+    records = [dict(row) for row in author_group_analysis["conversation_rows"]]
+    for group in author_group_analysis["within_family_author_groups"]:
+        group_key = str(group["within_family_author_group_key"])
+        exposure_rows.append(
+            _row_with_hash(
+                {
+                    "exposure_key": f"within-family-author-group:{group_key}",
+                    "entity_type": "within_family_author_group",
+                    "conversation_key": None,
+                    "root_post_id": None,
+                    "conversation_id": None,
+                    "branch_key": None,
+                    "target_post_id": None,
+                    "case_id": None,
+                    "exposure_statuses": list(
+                        group["author_group_exposure_categories"]
+                    ),
+                    "exposure_reasons": list(
+                        group["author_group_exposure_reasons"]
+                    ),
+                    "known_label_status": "groupwise_exposure_aggregate",
+                    "reconstruction_grade": None,
+                    **copy.deepcopy(dict(group)),
+                }
+            )
+        )
     target_crosstab = _build_target_prefix_crosstab(target_rows)
     classified_by_conversation: dict[str, dict[str, list[str]]] = defaultdict(
         lambda: {outcome: [] for outcome in OUTCOME_EVIDENCE_CLASSES}
@@ -3245,8 +3325,17 @@ def _build_feasibility_and_exposure(
             "feasible_within_benchmark_family": True,
             "feasible_within_prospective_v4_family": True,
             "cross_family_comparable": False,
-            "raw_identity_required": False,
-            "limitation": "benchmark truncated SHA-256 and prospective HMAC keys use different domains and cannot prove cross-family author identity",
+            "cross_family_author_identity_status": "unavailable",
+            "author_group_split_performed": False,
+            "eventual_split_policy": (
+                "whole conversation and whole author group in every available identity domain"
+            ),
+            "limitation": (
+                "held-out claims are conversation-level and within-family grouped; "
+                "cross-family author overlap is unresolvable because authoritative raw "
+                "identity is not available in both frozen source families"
+            ),
+            "crosstab": author_group_analysis["crosstab"],
         },
         "canonical_base_recommendation": "Use the frozen benchmark for pre-boundary conversations after explicit quote-parent reconciliation, and prospective-v4 for boundary/post-boundary graph evidence; use historical target corpora only as corroboration.",
         "final_held_out_selected": False,
@@ -3268,6 +3357,13 @@ def _build_feasibility_and_exposure(
         },
         "potential_unexposed_by_grade": feasibility_summary["potential_unexposed_by_grade"],
         "status_category_counts": dict(sorted(Counter(status for record in records for status in record["prior_exposure_categories"]).items())),
+        "author_group_crosstab": author_group_analysis["crosstab"],
+        "within_family_author_group_count": len(
+            author_group_analysis["within_family_author_groups"]
+        ),
+        "cross_family_author_group_count": len(
+            author_group_analysis["cross_family_author_groups"]
+        ),
         "final_held_out_selected_or_opened": False,
         "newly_mined_is_not_held_out": True,
         "prospective_is_not_automatically_held_out": True,
@@ -3305,9 +3401,9 @@ def _feasibility_markdown(summary: Mapping[str, Any]) -> list[str]:
         "",
         summary["canonical_base_recommendation"],
         "",
-        "Author-grouped splitting is feasible within each source family without raw identities. The benchmark and prospective pseudonym schemes are not cross-family comparable.",
+        "Author-grouped splitting is enforceable within each source family using the domain-qualified pseudonym scheme and value. Authoritative identity is unavailable in both frozen families, so cross-family overlap is not inferred and cross-family-clean eligibility remains unavailable.",
         "",
-        "No final held-out set was selected or opened in Phase 1.",
+        "No author-group split or final held-out set was selected or opened in Phase 1.2.",
     ]
 
 
@@ -3341,6 +3437,85 @@ def _ancestor_chain(
         cursor = post_to_turn.get(str(parent_id)) if parent_id is not None else None
     chain.reverse()
     return chain
+
+
+def _target_sequence_classification(
+    chain: Sequence[Mapping[str, Any]],
+) -> dict[str, Any]:
+    """Classify one exact target ancestry without treating an account root as a reply."""
+    if not chain:
+        raise Phase1Error("target sequence classification requires a non-empty chain")
+    preceding = list(chain[:-1])
+    preceding_user_turn_count = sum(
+        turn.get("author_role") == "user" for turn in preceding
+    )
+    preceding_account_turn_count = sum(
+        turn.get("author_role") == "account" for turn in preceding
+    )
+    preceding_account_root_count = sum(
+        turn.get("author_role") == "account"
+        and _parent_post_id(turn) is None
+        for turn in preceding
+    )
+
+    parent_linked_account_reply_indexes: list[int] = []
+    for index, turn in enumerate(preceding):
+        if (
+            index == 0
+            or turn.get("author_role") != "account"
+            or turn.get("publication_status") not in {"published", "observed"}
+        ):
+            continue
+        parent = preceding[index - 1]
+        if (
+            parent.get("author_role") == "user"
+            and _parent_post_id(turn) is not None
+            and str(_parent_post_id(turn)) == str(parent.get("post_id"))
+        ):
+            parent_linked_account_reply_indexes.append(index)
+
+    preceding_account_reply_count = len(parent_linked_account_reply_indexes)
+    target_follows_prior_account_reply = bool(
+        parent_linked_account_reply_indexes
+        and parent_linked_account_reply_indexes[-1] == len(preceding) - 1
+    )
+    reason: str | None = None
+    if not preceding:
+        sequence_class = "initial_user_target"
+    elif preceding_user_turn_count > 0 and preceding_account_turn_count == 0:
+        sequence_class = "pre_account_user_follow_up"
+    elif preceding_account_reply_count > 0 and preceding_user_turn_count > 0:
+        sequence_class = "persistent_multiturn_target"
+    elif (
+        preceding_account_turn_count > 0
+        and preceding_user_turn_count == 0
+        and preceding_account_reply_count == 0
+    ):
+        sequence_class = "account_root_response"
+    else:
+        sequence_class = "other_sequence"
+        if preceding_user_turn_count and preceding_account_turn_count:
+            reason = "preceding_user_and_account_turns_without_parent_linked_published_reply"
+        else:
+            reason = "structurally_valid_sequence_outside_defined_target_strata"
+    return {
+        "target_sequence_class": sequence_class,
+        "target_sequence_other_reason": reason,
+        "preceding_account_root_count": preceding_account_root_count,
+        "preceding_user_turn_count": preceding_user_turn_count,
+        "preceding_account_turn_count": preceding_account_turn_count,
+        "preceding_account_reply_count": preceding_account_reply_count,
+        "target_follows_prior_account_reply": target_follows_prior_account_reply,
+        "account_root_response_control": sequence_class == "account_root_response",
+        "persistent_multiturn_evaluation_candidate": (
+            sequence_class == "persistent_multiturn_target"
+        ),
+        "multi_turn_evaluation_candidate": (
+            sequence_class == "persistent_multiturn_target"
+        ),
+        "first_response_control": sequence_class
+        in {"initial_user_target", "account_root_response"},
+    }
 
 
 def _ancestor_prefix(turns: Sequence[Mapping[str, Any]], target_identity: str) -> list[dict[str, Any]]:
@@ -3581,27 +3756,7 @@ def _build_target_prefix_rows(
                 turns,
                 candidates.get((conversation_key, target_turn_id)),
             )
-            preceding = chain[:-1]
-            preceding_user_turn_count = sum(
-                turn.get("author_role") == "user" for turn in preceding
-            )
-            preceding_account_turn_count = sum(
-                turn.get("author_role") == "account" for turn in preceding
-            )
-            preceding_account_reply_count = sum(
-                turn.get("author_role") == "account"
-                and turn.get("publication_status") in {"published", "observed"}
-                for turn in preceding
-            )
-            target_follows_prior_account_reply = bool(
-                preceding
-                and preceding[-1].get("author_role") == "account"
-                and preceding[-1].get("publication_status") in {"published", "observed"}
-            )
-            first_response_control = (
-                preceding_user_turn_count == 0 and preceding_account_reply_count == 0
-            )
-            multi_turn = preceding_account_reply_count > 0
+            sequence = _target_sequence_classification(chain)
             conversation_exposure = _normalise_exposure_status(
                 record.get("prior_exposure_categories", [])
             )
@@ -3627,11 +3782,7 @@ def _build_target_prefix_rows(
             source_family = _source_family_for_record(record)
             author_scheme = str(record.get("author_key_scheme") or "")
             author_key = record.get("principal_author_key")
-            cross_family_uncertainty = (
-                source_family == "source_family_unknown"
-                or not author_scheme
-                or author_key in (None, "")
-            )
+            within_family_identity_available = bool(author_scheme and author_key not in (None, ""))
             exclusion_reasons: list[str] = []
             if record.get("reconstruction_grade") != "A":
                 exclusion_reasons.append("reconstruction_grade_not_a")
@@ -3642,14 +3793,14 @@ def _build_target_prefix_rows(
                 "quiescent_at_frozen_cutoff",
             }:
                 exclusion_reasons.append("conversation_not_frozen_or_quiescent")
-            if not multi_turn:
-                exclusion_reasons.append("no_preceding_published_or_observed_account_reply")
+            if sequence["target_sequence_class"] != "persistent_multiturn_target":
+                exclusion_reasons.append("not_a_persistent_multiturn_target")
             if not complete_target_ancestry:
                 exclusion_reasons.append("incomplete_target_ancestry")
             if outcome["outcome_evidence_class"] == "conflicting_outcome_evidence":
                 exclusion_reasons.append("outcome_evidence_conflict")
-            if cross_family_uncertainty:
-                exclusion_reasons.append("cross_family_identity_or_leakage_uncertainty")
+            if not within_family_identity_available:
+                exclusion_reasons.append("within_family_identity_group_unavailable")
             row = {
                 "target_key": "target-"
                 + sha256_bytes(f"{conversation_key}\0{target_turn_id}".encode("utf-8")),
@@ -3666,26 +3817,39 @@ def _build_target_prefix_rows(
                 **outcome,
                 "prefix_turn_count": len(chain),
                 "prefix_turn_count_band": _prefix_turn_count_band(len(chain)),
-                "preceding_user_turn_count": preceding_user_turn_count,
-                "preceding_account_turn_count": preceding_account_turn_count,
-                "preceding_account_reply_count": preceding_account_reply_count,
-                "target_follows_prior_account_reply": target_follows_prior_account_reply,
-                "first_response_control": first_response_control,
-                "multi_turn_evaluation_candidate": multi_turn,
+                **sequence,
                 "principal_author_key": author_key,
                 "author_key_scheme": author_scheme,
                 "author_group_comparability_status": (
                     "comparable_within_source_family_only"
-                    if not cross_family_uncertainty
+                    if within_family_identity_available
                     else "not_comparable"
                 ),
+                "within_family_author_group_key": (
+                    f"{author_scheme}:{author_key}"
+                    if within_family_identity_available
+                    else None
+                ),
                 "complete_target_ancestry": complete_target_ancestry,
-                "cross_family_identity_or_leakage_uncertainty": cross_family_uncertainty,
+                "cross_family_author_group_key": None,
+                "cross_family_author_identity_status": "unavailable",
+                "cross_family_author_group_exposure_status": "identity_group_unavailable",
+                "cross_family_author_group_exposure_reasons": [
+                    "authoritative_raw_identity_is_not_available_in_both_frozen_source_families"
+                ],
+                "cross_family_identity_or_leakage_uncertainty": True,
+                "preliminary_within_family_held_out_eligibility": not exclusion_reasons,
+                "preliminary_within_family_held_out_exclusion_reasons": exclusion_reasons,
+                "preliminary_cross_family_clean_held_out_eligibility": False,
+                "preliminary_cross_family_clean_held_out_exclusion_reasons": [
+                    "cross_family_author_identity_unavailable"
+                ],
                 "preliminary_held_out_eligibility": not exclusion_reasons,
                 "preliminary_held_out_exclusion_reasons": exclusion_reasons,
                 "source_provenance": source_ids,
             }
-            rows.append(_row_with_hash(row))
+            rows.append(row)
+    rows = [_row_with_hash(row) for row in rows]
     rows.sort(key=lambda row: (row["conversation_key"], row["target_turn_id"]))
     structural_exclusions.sort(
         key=lambda row: (row["conversation_key"], row["target_turn_id"])
@@ -3717,16 +3881,33 @@ def _build_target_prefix_crosstab(
             sorted(Counter(str(row.get(field)) for row in rows).items())
         )
 
-    response_types = Counter(
-        "first_response_control"
-        if row.get("first_response_control") is True
-        else "multi_turn_evaluation_candidate"
-        if row.get("multi_turn_evaluation_candidate") is True
-        else "other_pre_account_reply_target"
-        for row in rows
-    )
+    sequence_counts = {
+        sequence_class: sum(
+            row.get("target_sequence_class") == sequence_class for row in rows
+        )
+        for sequence_class in TARGET_SEQUENCE_CLASSES
+    }
+    response_types = {
+        "first_response_control": sum(
+            row.get("first_response_control") is True for row in rows
+        ),
+        "multi_turn_evaluation_candidate": sum(
+            row.get("persistent_multiturn_evaluation_candidate") is True
+            or row.get("multi_turn_evaluation_candidate") is True
+            for row in rows
+        ),
+        "other_pre_account_reply_target": sum(
+            row.get("first_response_control") is not True
+            and row.get("persistent_multiturn_evaluation_candidate") is not True
+            and row.get("multi_turn_evaluation_candidate") is not True
+            for row in rows
+        ),
+    }
     author_groups = Counter(
-        f"{row.get('author_key_scheme')}:{row.get('principal_author_key')}"
+        str(
+            row.get("within_family_author_group_key")
+            or f"{row.get('author_key_scheme')}:{row.get('principal_author_key')}"
+        )
         for row in rows
         if row.get("author_group_comparability_status")
         == "comparable_within_source_family_only"
@@ -3735,7 +3916,20 @@ def _build_target_prefix_crosstab(
         outcome: sum(row.get("outcome_evidence_class") == outcome for row in rows)
         for outcome in OUTCOME_EVIDENCE_CLASSES
     }
-    eligible = [row for row in rows if row.get("preliminary_held_out_eligibility") is True]
+    within_family_eligible = [
+        row
+        for row in rows
+        if row.get("preliminary_within_family_held_out_eligibility") is True
+        or (
+            "preliminary_within_family_held_out_eligibility" not in row
+            and row.get("preliminary_held_out_eligibility") is True
+        )
+    ]
+    cross_family_eligible = [
+        row
+        for row in rows
+        if row.get("preliminary_cross_family_clean_held_out_eligibility") is True
+    ]
     grade_a = [row for row in rows if row.get("reconstruction_grade") == "A"]
     unexposed = [
         row for row in grade_a if row.get("effective_exposure_status") == "genuinely_unexposed"
@@ -3746,8 +3940,17 @@ def _build_target_prefix_crosstab(
         if row.get("stability_status")
         in {"frozen_historical", "quiescent_at_frozen_cutoff"}
     ]
-    multi_turn = [
-        row for row in grade_a if row.get("multi_turn_evaluation_candidate") is True
+    persistent = [
+        row
+        for row in rows
+        if row.get("target_sequence_class") == "persistent_multiturn_target"
+        or (
+            "target_sequence_class" not in row
+            and row.get("multi_turn_evaluation_candidate") is True
+        )
+    ]
+    grade_a_persistent = [
+        row for row in persistent if row.get("reconstruction_grade") == "A"
     ]
     source_outcomes: dict[str, dict[str, int]] = {}
     for family in sorted({str(row.get("source_family")) for row in rows}):
@@ -3760,10 +3963,30 @@ def _build_target_prefix_crosstab(
             for outcome in OUTCOME_EVIDENCE_CLASSES
         }
     eligible_author_groups = {
-        f"{row.get('author_key_scheme')}:{row.get('principal_author_key')}"
-        for row in eligible
+        str(
+            row.get("within_family_author_group_key")
+            or f"{row.get('author_key_scheme')}:{row.get('principal_author_key')}"
+        )
+        for row in within_family_eligible
         if row.get("author_group_comparability_status")
         == "comparable_within_source_family_only"
+    }
+    comparable_group_keys = {
+        str(row.get("within_family_author_group_key"))
+        for row in rows
+        if row.get("within_family_author_group_key") not in (None, "")
+    }
+    direct_exposure_groups = {
+        str(row.get("within_family_author_group_key"))
+        for row in rows
+        if row.get("within_family_author_group_key") not in (None, "")
+        and row.get("author_group_contains_directly_exposed_material") is True
+    }
+    groupwise_split_groups = {
+        str(row.get("within_family_author_group_key"))
+        for row in rows
+        if row.get("within_family_author_group_key") not in (None, "")
+        and row.get("author_group_requires_groupwise_split") is True
     }
     dimensions = {
         "reconstruction_grade": counts("reconstruction_grade"),
@@ -3771,13 +3994,46 @@ def _build_target_prefix_crosstab(
         "source_family": counts("source_family"),
         "stability_status": counts("stability_status"),
         "outcome_evidence_class": outcome_counts,
+        "target_sequence_class": sequence_counts,
         "prefix_turn_count_band": counts("prefix_turn_count_band"),
         "preceding_account_reply_count": counts("preceding_account_reply_count"),
+        "preceding_account_root_count": counts("preceding_account_root_count"),
         "preceding_user_turn_count": counts("preceding_user_turn_count"),
+        "preceding_account_turn_count": counts("preceding_account_turn_count"),
         "first_response_versus_multi_turn": dict(sorted(response_types.items())),
         "principal_author_group_where_comparable": dict(sorted(author_groups.items())),
-        "preliminary_held_out_eligibility": counts("preliminary_held_out_eligibility"),
+        "author_group_exposure_status": counts("author_group_exposure_status"),
+        "cross_family_author_identity_status": counts(
+            "cross_family_author_identity_status"
+        ),
+        "preliminary_within_family_held_out_eligibility": counts(
+            "preliminary_within_family_held_out_eligibility"
+        ),
+        "preliminary_cross_family_clean_held_out_eligibility": counts(
+            "preliminary_cross_family_clean_held_out_eligibility"
+        ),
+        "preliminary_held_out_eligibility": counts(
+            "preliminary_held_out_eligibility"
+        ),
     }
+    exposed_persistent = [
+        row
+        for row in persistent
+        if row.get("effective_exposure_status") == "exposed"
+    ]
+    structural_persistent = [
+        row
+        for row in persistent
+        if row.get("effective_exposure_status") == "structurally_mined_only"
+    ]
+    unexposed_stable_grade_a_persistent = [
+        row
+        for row in persistent
+        if row.get("reconstruction_grade") == "A"
+        and row.get("effective_exposure_status") == "genuinely_unexposed"
+        and row.get("stability_status")
+        in {"frozen_historical", "quiescent_at_frozen_cutoff"}
+    ]
     return {
         "schema_version": OUTPUT_SCHEMA_VERSION,
         "target_prefix_count": len(rows),
@@ -3787,10 +4043,38 @@ def _build_target_prefix_crosstab(
             "grade_a_target_prefix_count": len(grade_a),
             "grade_a_genuinely_unexposed_target_prefix_count": len(unexposed),
             "grade_a_frozen_or_quiescent_target_prefix_count": len(stable),
-            "grade_a_multi_turn_target_prefix_count": len(multi_turn),
-            "preliminary_held_out_eligible_target_prefix_count": len(eligible),
+            "grade_a_persistent_multiturn_target_prefix_count": len(
+                grade_a_persistent
+            ),
+            "grade_a_multi_turn_target_prefix_count": len(grade_a_persistent),
+            "initial_user_target_count": sequence_counts["initial_user_target"],
+            "pre_account_user_follow_up_count": sequence_counts[
+                "pre_account_user_follow_up"
+            ],
+            "account_root_response_count": sequence_counts[
+                "account_root_response"
+            ],
+            "persistent_multiturn_target_count": sequence_counts[
+                "persistent_multiturn_target"
+            ],
+            "other_sequence_count": sequence_counts["other_sequence"],
+            "preliminary_within_family_held_out_eligible_target_prefix_count": len(
+                within_family_eligible
+            ),
+            "preliminary_within_family_held_out_eligible_conversation_count": len(
+                {str(row["conversation_key"]) for row in within_family_eligible}
+            ),
+            "preliminary_cross_family_clean_held_out_eligible_target_prefix_count": len(
+                cross_family_eligible
+            ),
+            "preliminary_cross_family_clean_held_out_eligible_conversation_count": len(
+                {str(row["conversation_key"]) for row in cross_family_eligible}
+            ),
+            "preliminary_held_out_eligible_target_prefix_count": len(
+                within_family_eligible
+            ),
             "preliminary_held_out_eligible_conversation_count": len(
-                {str(row["conversation_key"]) for row in eligible}
+                {str(row["conversation_key"]) for row in within_family_eligible}
             ),
             "preliminary_held_out_eligible_author_group_count": len(eligible_author_groups),
             "first_response_control_count": sum(
@@ -3806,43 +4090,60 @@ def _build_target_prefix_crosstab(
                     if row.get("stability_status") == "open_at_frozen_cutoff"
                 }
             ),
-            "exposed_multi_turn_target_prefix_count": sum(
-                row.get("multi_turn_evaluation_candidate") is True
-                and row.get("effective_exposure_status") == "exposed"
-                for row in rows
+            "exposed_persistent_multiturn_target_prefix_count": len(
+                exposed_persistent
             ),
-            "structurally_mined_only_multi_turn_target_prefix_count": sum(
-                row.get("multi_turn_evaluation_candidate") is True
-                and row.get("effective_exposure_status") == "structurally_mined_only"
-                for row in rows
+            "exposed_multi_turn_target_prefix_count": len(exposed_persistent),
+            "structurally_mined_only_persistent_multiturn_target_prefix_count": len(
+                structural_persistent
             ),
-            "genuinely_unexposed_stable_grade_a_multi_turn_target_prefix_count": sum(
-                row.get("reconstruction_grade") == "A"
-                and row.get("effective_exposure_status") == "genuinely_unexposed"
-                and row.get("stability_status")
-                in {"frozen_historical", "quiescent_at_frozen_cutoff"}
-                and row.get("multi_turn_evaluation_candidate") is True
-                for row in rows
+            "structurally_mined_only_multi_turn_target_prefix_count": len(
+                structural_persistent
+            ),
+            "genuinely_unexposed_stable_grade_a_persistent_multiturn_target_prefix_count": len(
+                unexposed_stable_grade_a_persistent
+            ),
+            "genuinely_unexposed_stable_grade_a_multi_turn_target_prefix_count": len(
+                unexposed_stable_grade_a_persistent
             ),
             "genuinely_unexposed_stable_grade_a_multi_turn_conversation_count": len(
                 {
                     str(row["conversation_key"])
-                    for row in rows
-                    if row.get("reconstruction_grade") == "A"
-                    and row.get("effective_exposure_status") == "genuinely_unexposed"
-                    and row.get("stability_status")
-                    in {"frozen_historical", "quiescent_at_frozen_cutoff"}
-                    and row.get("multi_turn_evaluation_candidate") is True
+                    for row in unexposed_stable_grade_a_persistent
                 }
+            ),
+            "within_family_group_clean_persistent_target_prefix_count": sum(
+                row in persistent for row in within_family_eligible
+            ),
+            "cross_family_clean_persistent_target_prefix_count": sum(
+                row in persistent for row in cross_family_eligible
+            ),
+            "comparable_within_family_author_group_count": len(
+                comparable_group_keys
+            ),
+            "cross_family_identity_available_target_count": sum(
+                row.get("cross_family_author_identity_status") == "available"
+                for row in rows
+            ),
+            "cross_family_identity_unavailable_target_count": sum(
+                row.get("cross_family_author_identity_status") == "unavailable"
+                for row in rows
+            ),
+            "author_group_contains_direct_exposure_count": len(
+                direct_exposure_groups
+            ),
+            "author_group_requires_groupwise_split_count": len(
+                groupwise_split_groups
             ),
             **{f"outcome_{key}_count": value for key, value in outcome_counts.items()},
         },
         "eligible_distinct_conversation_count": len(
-            {str(row["conversation_key"]) for row in eligible}
+            {str(row["conversation_key"]) for row in within_family_eligible}
         ),
         "eligible_comparable_author_group_count": len(eligible_author_groups),
         "author_grouping_cross_family_performed": False,
-        "sample_size_sufficiency": "pending_phase2_development_only_power_analysis",
+        "author_group_split_selected": False,
+        "sample_size_sufficiency": "pending_development_only_power_analysis",
         "final_held_out_selected": False,
     }
 
@@ -3865,17 +4166,46 @@ def _target_prefix_crosstab_errors(
     )
     if outcome_total != len(rows):
         errors.append("outcome_partition_total")
+    sequence_total = sum(
+        int(value)
+        for value in crosstab.get("dimensions", {})
+        .get("target_sequence_class", {})
+        .values()
+    )
+    if sequence_total != len(rows):
+        errors.append("target_sequence_partition_total")
     if any(
         row.get("outcome_evidence_class") not in OUTCOME_EVIDENCE_CLASSES
         for row in rows
     ):
         errors.append("unknown_outcome_evidence_class")
     if any(
+        row.get("target_sequence_class") not in TARGET_SEQUENCE_CLASSES
+        for row in rows
+    ):
+        errors.append("unknown_target_sequence_class")
+    if any(
+        row.get("multi_turn_evaluation_candidate")
+        != row.get("persistent_multiturn_evaluation_candidate")
+        or row.get("persistent_multiturn_evaluation_candidate")
+        != (row.get("target_sequence_class") == "persistent_multiturn_target")
+        for row in rows
+    ):
+        errors.append("persistent_multiturn_alias_mismatch")
+    if any(
+        row.get("preliminary_within_family_held_out_eligibility") is True
+        and row.get("target_sequence_class") != "persistent_multiturn_target"
+        for row in rows
+    ):
+        errors.append("nonpersistent_target_preliminarily_eligible")
+    if any(
         row.get("preliminary_held_out_eligibility") is True
         and row.get("stability_status") == "open_at_frozen_cutoff"
         for row in rows
     ):
         errors.append("open_target_preliminarily_eligible")
+    if crosstab.get("author_group_split_selected") is not False:
+        errors.append("author_group_split_selected_in_phase1_2")
     return errors
 
 
@@ -3889,9 +4219,9 @@ def _target_prefix_crosstab_markdown(crosstab: Mapping[str, Any]) -> list[str]:
         "",
         f"Grade A: **{h['grade_a_target_prefix_count']}**; genuinely unexposed Grade A: **{h['grade_a_genuinely_unexposed_target_prefix_count']}**; frozen or quiescent Grade A: **{h['grade_a_frozen_or_quiescent_target_prefix_count']}**.",
         "",
-        f"Grade-A prefixes containing a preceding published or observed account reply: **{h['grade_a_multi_turn_target_prefix_count']}**. First-response controls: **{h['first_response_control_count']}**.",
+        f"Persistent multi-turn targets: **{h['persistent_multiturn_target_count']}** (Grade A **{h['grade_a_persistent_multiturn_target_prefix_count']}**). Account-root response controls: **{h['account_root_response_count']}**; initial user targets: **{h['initial_user_target_count']}**; pre-account user follow-ups: **{h['pre_account_user_follow_up_count']}**; other sequences: **{h['other_sequence_count']}**.",
         "",
-        f"All preliminary structural held-out requirements are met by **{h['preliminary_held_out_eligible_target_prefix_count']}** prefixes across **{h['preliminary_held_out_eligible_conversation_count']}** conversations and **{h['preliminary_held_out_eligible_author_group_count']}** comparable within-family author groups.",
+        f"Within-family preliminary requirements are met by **{h['preliminary_within_family_held_out_eligible_target_prefix_count']}** persistent prefixes across **{h['preliminary_within_family_held_out_eligible_conversation_count']}** conversations and **{h['preliminary_held_out_eligible_author_group_count']}** comparable groups. Cross-family-clean eligibility is **{h['preliminary_cross_family_clean_held_out_eligible_target_prefix_count']}** because common authoritative identity is unavailable.",
         "",
         f"Open conversations contribute **{h['open_conversation_target_prefix_count']}** prefixes across **{h['open_conversation_count']}** conversations; all are excluded from preliminary eligibility.",
         "",
@@ -3913,14 +4243,14 @@ def _target_prefix_crosstab_markdown(crosstab: Mapping[str, Any]) -> list[str]:
     lines.extend(
         [
             "",
-            "Counts are structural preflight evidence only. Statistical sufficiency remains pending a Phase 2 development-only power analysis; no final held-out set was selected.",
+            "Counts are structural preflight evidence only. Account roots never count as account replies. Statistical sufficiency remains pending a later development-only power analysis; no author-group split or final held-out set was selected.",
         ]
     )
     return lines
 
 
 def _derive_disposition(readiness_gates: Mapping[str, Any]) -> str:
-    """Derive the Phase 1.1 disposition from machine-readable gate statuses."""
+    """Derive the Phase 1.2 disposition from machine-readable gate statuses."""
     failed = {
         name
         for name, gate in readiness_gates.items()
@@ -3929,28 +4259,38 @@ def _derive_disposition(readiness_gates: Mapping[str, Any]) -> str:
         and gate.get("status") == "failed"
     }
     if "privacy_validation" in failed:
-        return "phase1_1_blocked_by_privacy_failure"
+        return "phase1_2_blocked_by_privacy_failure"
     source_or_leakage = {
         "source_identity_validation",
         "deterministic_rebuild_validation",
         "target_outcome_classification_complete",
         "target_prefix_cross_tab_complete",
+        "persistent_multiturn_classification_complete",
+        "within_family_author_group_exposure_enforced",
         "no_future_turn_leakage",
     }
     if failed & source_or_leakage:
-        return "phase1_1_blocked_by_source_or_leakage_failure"
+        return "phase1_2_blocked_by_source_identity_or_classification_failure"
     schema_or_materialiser = {
         "schema_validation",
         "synthetic_fixture_validation",
         "semantic_delta_schema_valid",
         "deterministic_materialiser_valid",
+        "genesis_materialisation_valid",
+        "first_seen_participant_registration_valid",
+        "complete_incremental_chain_valid",
+        "provider_schema_feature_inventory_valid",
+        "provider_schema_compatibility_status",
         "transcript_first_gold_protocol_defined",
     }
     if failed & schema_or_materialiser:
-        return "phase1_1_blocked_by_schema_or_materialiser_failure"
-    if "preliminary_unexposed_stable_multiturn_target_count" in failed:
-        return "phase1_1_blocked_no_unexposed_stable_multiturn_targets"
-    return "phase1_1_complete_phase2_sample_threshold_pending"
+        return "phase1_2_blocked_by_schema_or_materialiser_failure"
+    if (
+        "preliminary_within_family_unexposed_stable_persistent_target_count"
+        in failed
+    ):
+        return "phase1_2_blocked_no_within_family_eligible_persistent_targets"
+    return "phase1_2_complete_sample_and_provider_preflight_pending"
 
 
 def _derive_readiness_gates(
@@ -3965,12 +4305,62 @@ def _derive_readiness_gates(
     no_future_turn_leakage: bool,
     semantic_schema_valid: bool,
     materialiser_valid: bool,
+    genesis_materialisation_valid: bool,
+    first_seen_participant_registration_valid: bool,
+    complete_incremental_chain_valid: bool,
+    persistent_multiturn_classification_complete: bool,
+    within_family_author_group_exposure_enforced: bool,
+    cross_family_author_identity_status: str,
+    provider_schema_feature_inventory_valid: bool,
+    provider_schema_compatibility_status: str,
     transcript_first_protocol_valid: bool,
-    preliminary_target_count: int,
+    preliminary_within_family_target_count: int,
+    preliminary_cross_family_target_count: int,
     deterministic_rebuild_evidence: Any = FRESH_BUILD_DETERMINISM_EVIDENCE,
+    provider_schema_compatibility_record: Mapping[str, Any] | None = None,
+    provider_schema_feature_inventory: Mapping[str, Any] | None = None,
+    provider_specific_validation_record: Mapping[str, Any] | None = None,
 ) -> dict[str, Any]:
     def gate(passed: bool, evidence: Any) -> dict[str, Any]:
         return {"status": "passed" if passed else "failed", "evidence": evidence}
+
+    compatibility_errors: list[str] = []
+    if provider_schema_compatibility_record is not None or provider_schema_feature_inventory is not None:
+        if provider_schema_compatibility_record is None or provider_schema_feature_inventory is None:
+            compatibility_errors.append(
+                "compatibility record and feature inventory must be supplied together"
+            )
+        else:
+            provider_schema = _import_research_tool(
+                "proposition_ledger_provider_schema"
+            )
+
+            if (
+                provider_schema_compatibility_record.get("status")
+                != provider_schema_compatibility_status
+            ):
+                compatibility_errors.append(
+                    "readiness status does not match the compatibility record"
+                )
+            compatibility_errors.extend(
+                provider_schema.validate_provider_schema_compatibility(
+                    provider_schema_compatibility_record,
+                    feature_inventory=provider_schema_feature_inventory,
+                    provider_specific_validation_record=(
+                        provider_specific_validation_record
+                    ),
+                )
+            )
+    if (
+        provider_schema_compatibility_status == "passed"
+        and provider_specific_validation_record is None
+    ):
+        compatibility_errors.append(
+            "passed compatibility lacks an explicit provider-specific validation record"
+        )
+    effective_provider_compatibility_status = (
+        "failed" if compatibility_errors else provider_schema_compatibility_status
+    )
 
     gates: dict[str, Any] = {
         "schema_version": OUTPUT_SCHEMA_VERSION,
@@ -4001,16 +4391,68 @@ def _derive_readiness_gates(
         "deterministic_materialiser_valid": gate(
             materialiser_valid, "pure local materialiser validation"
         ),
+        "genesis_materialisation_valid": gate(
+            genesis_materialisation_valid,
+            "turn-zero ledger materialises from empty state with a null predecessor",
+        ),
+        "first_seen_participant_registration_valid": gate(
+            first_seen_participant_registration_valid,
+            "only the exact current speaker is registered at first appearance",
+        ),
+        "complete_incremental_chain_valid": gate(
+            complete_incremental_chain_valid,
+            "synthetic account-root, contributor, account-response, contributor-return chain",
+        ),
+        "persistent_multiturn_classification_complete": gate(
+            persistent_multiturn_classification_complete,
+            "every usable target has exactly one exact-ancestry sequence class",
+        ),
+        "within_family_author_group_exposure_enforced": gate(
+            within_family_author_group_exposure_enforced,
+            "domain-qualified groups propagate direct exposure and groupwise-split requirements",
+        ),
+        "cross_family_author_identity_status": {
+            "status": cross_family_author_identity_status,
+            "evidence": (
+                "authoritative raw identity is unavailable in both frozen source families; "
+                "no cross-family match is inferred"
+                if cross_family_author_identity_status == "unavailable"
+                else "cross-family identity availability derived from frozen authoritative metadata"
+            ),
+        },
+        "provider_schema_feature_inventory_valid": gate(
+            provider_schema_feature_inventory_valid,
+            "deterministic provider-neutral semantic-schema feature inventory",
+        ),
+        "provider_schema_compatibility_status": {
+            "status": effective_provider_compatibility_status,
+            "evidence": (
+                "; ".join(compatibility_errors)
+                if compatibility_errors
+                else "no provider/model profile selected; local provider-specific schema validation is required before any call"
+            ),
+        },
         "transcript_first_gold_protocol_defined": gate(
             transcript_first_protocol_valid,
             "two independent transcript-first raters, blinded adjudication, lock before reveal",
         ),
-        "preliminary_unexposed_stable_multiturn_target_count": gate(
-            preliminary_target_count > 0, preliminary_target_count
+        "preliminary_within_family_unexposed_stable_persistent_target_count": gate(
+            preliminary_within_family_target_count > 0,
+            preliminary_within_family_target_count,
         ),
+        "preliminary_cross_family_clean_persistent_target_count": {
+            "status": (
+                "unavailable"
+                if cross_family_author_identity_status == "unavailable"
+                else "passed"
+                if preliminary_cross_family_target_count > 0
+                else "failed"
+            ),
+            "evidence": preliminary_cross_family_target_count,
+        },
         "sample_size_threshold_status": {
-            "status": "pending",
-            "evidence": "no minimum threshold invented; Phase 2 development-only power analysis required",
+            "status": "pending_development_only_power_analysis",
+            "evidence": "no minimum threshold invented; a later development-only power analysis is required",
         },
     }
     gates["disposition"] = _derive_disposition(gates)
@@ -4020,12 +4462,7 @@ def _derive_readiness_gates(
 def _emitted_blocking_disposition(readiness: Mapping[str, Any]) -> str | None:
     """Return a gate failure that must be reported before the build exits."""
     disposition = str(readiness.get("disposition") or "")
-    if disposition in {
-        "phase1_1_blocked_no_unexposed_stable_multiturn_targets",
-        "phase1_1_blocked_by_source_or_leakage_failure",
-        "phase1_1_blocked_by_privacy_failure",
-        "phase1_1_blocked_by_schema_or_materialiser_failure",
-    }:
+    if disposition.startswith("phase1_2_blocked_"):
         return disposition
     return None
 
@@ -4124,7 +4561,34 @@ def _measurement(measurement_id: str, direction: str, unit: str, source: str) ->
     }
 
 
-def _build_protocol(source_manifest_sha256: str, exposure_registry_sha256: str) -> dict[str, Any]:
+def _provider_schema_preflight(
+    project_dir: Path,
+) -> tuple[dict[str, Any], dict[str, Any]]:
+    """Return the provider-neutral inventory and an honestly pending gate."""
+    provider_schema = _import_research_tool("proposition_ledger_provider_schema")
+
+    inventory = provider_schema.build_schema_feature_inventory(
+        project_dir
+        / "proposition_ledger_research/schema/proposition-ledger-semantic-delta-v1.schema.json"
+    )
+    compatibility = provider_schema.build_provider_schema_compatibility(inventory)
+    errors = provider_schema.validate_provider_schema_compatibility(
+        compatibility,
+        feature_inventory=inventory,
+    )
+    if errors:
+        raise Phase1Error(
+            "invalid provider schema compatibility preflight: " + ",".join(errors)
+        )
+    return inventory, compatibility
+
+
+def _build_protocol(
+    source_manifest_sha256: str,
+    exposure_registry_sha256: str,
+    provider_schema_compatibility: Mapping[str, Any],
+) -> dict[str, Any]:
+    compatibility = copy.deepcopy(dict(provider_schema_compatibility))
     ledger_measurements = [
         _measurement("proposition_precision", "higher_better", "proportion", "combined"),
         _measurement("proposition_recall", "higher_better", "proportion", "combined"),
@@ -4178,11 +4642,15 @@ def _build_protocol(source_manifest_sha256: str, exposure_registry_sha256: str) 
             "provider_emits_state_patch": False,
             "provider_assigns_permanent_ids": False,
         },
+        "provider_schema_compatibility": compatibility,
         "deterministic_materialiser": {
-            "materialiser_id": "proposition-ledger-semantic-delta-materialiser-v1",
+            "materialiser_id": MATERIALISER_ID,
             "implementation_path": "tools/proposition_ledger_semantic_delta.py",
             "contract_role": "semantic_delta_to_authoritative_persisted_ledger",
             "assigns_permanent_ids": True,
+            "materialises_genesis": True,
+            "registers_current_participant_on_first_seen": True,
+            "provider_controls_participant_identity": False,
             "resolves_same_turn_local_references": True,
             "constructs_state_patch": True,
             "calculates_predecessor_and_ledger_hashes": True,
@@ -4214,9 +4682,9 @@ def _build_protocol(source_manifest_sha256: str, exposure_registry_sha256: str) 
             "secondary_robustness_reconstruction_grades": ["B"],
             "grade_b_analysis_policy": "separate_secondary_robustness_never_pooled_with_or_promoted_to_primary",
             "split_unit": "whole_conversation",
-            "author_grouping": "required_where_comparable_pseudonym_exists",
+            "author_grouping": "required_by_domain_qualified_within_family_identity_and_any_later_available_cross_family_identity",
             "previously_seen_policy": "development_or_calibration_only",
-            "held_out_policy": "select_only_after_protocol_freeze_without_opening_in_phase1",
+            "held_out_policy": "persistent_multiturn_targets_only; select only after protocol freeze without opening in Phase 1.2",
             "synthetic_policy": "schema_validation_only_never_historical_test_cases",
         },
         "target_prefix_policy": {
@@ -4374,7 +4842,7 @@ def _build_protocol(source_manifest_sha256: str, exposure_registry_sha256: str) 
         "downstream_measurements": downstream_measurements,
         "splitting_and_leakage_controls": {
             "whole_conversation_split": True,
-            "principal_author_grouping": "where_cross_record_pseudonym_comparability_is_proven",
+            "principal_author_grouping": "domain_qualified_within_family_and_any_authoritative_cross_family_domain",
             "previously_labelled_excluded_from_test": True,
             "manually_reviewed_excluded_from_test": True,
             "final_test_opened_in_phase1": False,
@@ -4489,9 +4957,9 @@ def _build_protocol(source_manifest_sha256: str, exposure_registry_sha256: str) 
             "verify resource and leakage ledgers before staged unblinding",
         ],
         "limitations": [
-            "Phase 1 does not select or inspect the final held-out set.",
+            "Phase 1.2 does not select or inspect the final held-out set.",
             "Model profiles, prompts, token tolerance, random seed, rubrics, and numeric thresholds remain to be frozen in Phase 2 before any provider call.",
-            "No Phase 1 result estimates ledger effectiveness or supports production integration.",
+            "No Phase 1.2 result estimates ledger effectiveness or supports production integration.",
         ],
     }
 
@@ -4500,7 +4968,7 @@ def _protocol_markdown(protocol: Mapping[str, Any]) -> list[str]:
     lines = [
         "# Proposition-ledger Phase 2 protocol draft",
         "",
-        "This hash-bound draft defines the experiment design. It authorizes no provider call, model output, held-out selection, or experimental scoring in Phase 1.",
+        "This hash-bound draft defines the experiment design. It authorizes no provider call, model output, held-out selection, or experimental scoring in Phase 1.2.",
         "",
         "## Paired arms",
         "",
@@ -4520,11 +4988,13 @@ def _protocol_markdown(protocol: Mapping[str, Any]) -> list[str]:
             "",
             "Arm B must be a neutral ordinary summary with no ledger fields, outcome labels, or condition cues. Its per-prefix additional token budget is paired to Arm C under a tolerance frozen before any provider call.",
             "",
-            "All A/B/C comparisons are paired within the same conversation and target prefix; Arm D comparisons use the smaller adjudicated subset. Splits are by whole conversation, grouped by principal-author pseudonym where that pseudonym is demonstrably comparable. Previously labelled or manually reviewed material remains development/calibration only. The final test set is neither selected nor opened in Phase 1.",
+            "All A/B/C comparisons are paired within the same conversation and target prefix; Arm D comparisons use the smaller adjudicated subset. Splits are by whole conversation and whole domain-qualified author group wherever an identity domain is available. Previously labelled or manually reviewed material remains development/calibration only. The final test set is neither selected nor opened in Phase 1.2.",
             "",
             "Arm D uses a transcript-first independently adjudicated proposition ledger. Two raters work independently from the exact transcript prefix while machine ledgers, historical replies, production decisions, arms, and provider identities remain hidden; a blinded adjudicator locks and hashes gold before any machine comparison or reveal.",
             "",
             "Provider output is only a current-turn semantic delta. Deterministic local code assigns permanent IDs, resolves references, constructs state patches, computes hashes, and validates the cumulative persisted ledger.",
+            "",
+            f"Provider structured-output compatibility is `{protocol['provider_schema_compatibility']['status']}`. No provider/model profile is selected; provider-specific local compilation or dry-validation must pass before any later provider call.",
             "",
             "The operational split, model profiles, prompts, response schemas, budgets, randomisation, rubric, numeric success/failure thresholds, blinding method, and unblinding sequence must all be frozen before paid calls.",
         ]
@@ -4603,6 +5073,8 @@ def _privacy_validation(
         [
             project_dir / "tools/build_proposition_ledger_phase1.py",
             project_dir / "tools/proposition_ledger_semantic_delta.py",
+            project_dir / "tools/proposition_ledger_author_groups.py",
+            project_dir / "tools/proposition_ledger_provider_schema.py",
         ]
         + list((project_dir / "proposition_ledger_research").rglob("*"))
         + [
@@ -4610,6 +5082,8 @@ def _privacy_validation(
             for path in (
                 project_dir / "tests/test_proposition_ledger_phase1.py",
                 project_dir / "tests/test_proposition_ledger_semantic_delta.py",
+                project_dir / "tests/test_proposition_ledger_author_groups.py",
+                project_dir / "tests/test_proposition_ledger_provider_schema.py",
             )
             if path.exists()
         ]
@@ -4730,11 +5204,28 @@ def _schema_validation(
         "forbidden_persistence_fields_absent_from_root": all(
             field not in semantic_schema.get("properties", {})
             for field in (
+                "participants",
+                "participant",
+                "participant_records",
+                "participant_id",
+                "permanent_participant_id",
+                "ledger_id",
                 "ledger_sha256",
                 "previous_ledger_sha256",
                 "state_patch",
+                "transition_id",
                 "ledger_history",
                 "turn_refs",
+                "source_path",
+                "source_paths",
+                "cumulative_state",
+                "cumulative_propositions",
+                "cumulative_relations",
+                "unchanged_state",
+                "proposition_id",
+                "relation_id",
+                "permanent_proposition_id",
+                "permanent_relation_id",
             )
         ),
     }
@@ -4856,11 +5347,17 @@ def _semantic_materialiser_validation(project_dir: Path) -> dict[str, Any]:
     }
     project_import_root = str(project_dir.resolve())
     import_root_added = project_import_root not in sys.path
+    implementation_materialiser_id = "unavailable"
     try:
         if import_root_added:
             sys.path.insert(0, project_import_root)
-        from tools import proposition_ledger_semantic_delta as semantic_delta
+        semantic_delta = _import_research_tool(
+            "proposition_ledger_semantic_delta"
+        )
 
+        implementation_materialiser_id = str(
+            getattr(semantic_delta, "MATERIALISER_VERSION", "unavailable")
+        )
         behavioral_validation = semantic_delta.behavioral_materialiser_validation(
             project_dir
         )
@@ -4874,7 +5371,13 @@ def _semantic_materialiser_validation(project_dir: Path) -> dict[str, Any]:
             sys.path.remove(project_import_root)
     result = {
         "schema_version": OUTPUT_SCHEMA_VERSION,
-        "materialiser_id": "proposition-ledger-semantic-delta-materialiser-v1",
+        "materialiser_id": MATERIALISER_ID,
+        "implementation_materialiser_id": implementation_materialiser_id,
+        "materialiser_identity_matches": (
+            implementation_materialiser_id == MATERIALISER_ID
+            and behavioral_validation.get("materialiser_version")
+            == MATERIALISER_ID
+        ),
         "implementation_path": "tools/proposition_ledger_semantic_delta.py",
         "source_sha256": sha256_file(path),
         "forbidden_import_roots_found": sorted(imported_roots & forbidden_roots),
@@ -4886,13 +5389,29 @@ def _semantic_materialiser_validation(project_dir: Path) -> dict[str, Any]:
         "provider_invocation_code_present": False,
         "behavioral_validation": behavioral_validation,
         "behavioral_validation_passed": behavioral_validation.get("passed") is True,
+        "genesis_materialisation_valid": behavioral_validation.get(
+            "genesis_materialisation_valid"
+        )
+        is True,
+        "first_seen_participant_registration_valid": behavioral_validation.get(
+            "first_seen_participant_registration_valid"
+        )
+        is True,
+        "complete_incremental_chain_valid": behavioral_validation.get(
+            "complete_incremental_chain_valid"
+        )
+        is True,
     }
     result["passed"] = (
         not result["forbidden_import_roots_found"]
         and result["materialise_entrypoint_present"]
         and result["incremental_full_ledger_validator_hook_present"]
+        and result["materialiser_identity_matches"]
         and set(result["typed_failure_statuses_present"]) == required_statuses
         and result["behavioral_validation_passed"]
+        and result["genesis_materialisation_valid"]
+        and result["first_seen_participant_registration_valid"]
+        and result["complete_incremental_chain_valid"]
     )
     return result
 
@@ -4906,7 +5425,9 @@ def _semantic_materialiser_validation_for_readiness(
     except Exception as exc:
         return {
             "schema_version": OUTPUT_SCHEMA_VERSION,
-            "materialiser_id": "proposition-ledger-semantic-delta-materialiser-v1",
+            "materialiser_id": MATERIALISER_ID,
+            "implementation_materialiser_id": "unavailable",
+            "materialiser_identity_matches": False,
             "implementation_path": "tools/proposition_ledger_semantic_delta.py",
             "source_sha256": _validation_file_sha256(
                 project_dir, "tools/proposition_ledger_semantic_delta.py"
@@ -4916,6 +5437,9 @@ def _semantic_materialiser_validation_for_readiness(
             "incremental_full_ledger_validator_hook_present": False,
             "typed_failure_statuses_present": [],
             "provider_invocation_code_present": False,
+            "genesis_materialisation_valid": False,
+            "first_seen_participant_registration_valid": False,
+            "complete_incremental_chain_valid": False,
             "validation_error": f"{type(exc).__name__}:{exc}",
             "passed": False,
         }
@@ -5005,6 +5529,7 @@ def _validate_outputs(
         "target-prefix-structural-exclusions.jsonl",
         "target-prefix-crosstab.json",
         "target-prefix-crosstab.md",
+        "provider-schema-feature-inventory.json",
         "calibration-pack/calibration-records.jsonl",
         "calibration-pack/calibration-index.json",
         "calibration-pack/manifest.json",
@@ -5014,7 +5539,7 @@ def _validate_outputs(
         "semantic-delta-schema-validation.json",
         "semantic-materialiser-validation.json",
         "readiness-gates.json",
-        "phase1.1-report.md",
+        "phase1.2-report.md",
         "SHA256SUMS",
     ]
     missing = [relative for relative in required if not (private_output / relative).is_file()]
@@ -5113,6 +5638,38 @@ def _validate_outputs(
         ):
             if schema_validation.get(field) != sha256_file(project_dir / relative):
                 schema_hash_errors.append(field)
+    provider_preflight_errors: list[str] = []
+    if not missing:
+        provider_schema = _import_research_tool(
+            "proposition_ledger_provider_schema"
+        )
+
+        provider_inventory = _read_json(
+            private_output / "provider-schema-feature-inventory.json"
+        )
+        expected_provider_inventory = provider_schema.build_schema_feature_inventory(
+            project_dir
+            / "proposition_ledger_research/schema/proposition-ledger-semantic-delta-v1.schema.json"
+        )
+        if canonical_json_bytes(provider_inventory) != canonical_json_bytes(
+            expected_provider_inventory
+        ):
+            provider_preflight_errors.append("feature_inventory_not_reproducible")
+        protocol_document = _read_json(
+            private_output / "experiment-protocol-draft.json"
+        )
+        compatibility = protocol_document.get("provider_schema_compatibility", {})
+        compatibility_errors = provider_schema.validate_provider_schema_compatibility(
+            compatibility,
+            feature_inventory=provider_inventory,
+        )
+        provider_preflight_errors.extend(
+            f"compatibility:{error}" for error in compatibility_errors
+        )
+        if compatibility.get("status") != "pending_model_profile_selection":
+            provider_preflight_errors.append("compatibility_status_not_pending")
+        if compatibility.get("network_call_made") is not False:
+            provider_preflight_errors.append("provider_network_call_recorded")
     source_manifest_binding_errors: list[str] = []
     if not missing and expected_source_manifest_sha256 is not None:
         run_manifest = _read_json(private_output / "run-manifest.json")
@@ -5123,8 +5680,8 @@ def _validate_outputs(
             source_manifest_binding_errors.append("frozen_source_manifest_copy")
         if run_manifest.get("schema_version") != OUTPUT_SCHEMA_VERSION:
             source_manifest_binding_errors.append("run_manifest_schema_version")
-        if run_manifest.get("phase1_base_sha") != PHASE1_BASE_SHA:
-            source_manifest_binding_errors.append("phase1_base_sha")
+        if run_manifest.get("phase1_1_base_sha") != PHASE1_1_BASE_SHA:
+            source_manifest_binding_errors.append("phase1_1_base_sha")
         if protocol.get("corpus_policy", {}).get("source_manifest_sha256") != expected_source_manifest_sha256:
             source_manifest_binding_errors.append("experiment_protocol")
         exposure_hash = sha256_file(private_output / "prior-exposure-registry.jsonl")
@@ -5178,6 +5735,31 @@ def _validate_outputs(
         ]
         if len(target_pairs) != len(set(target_pairs)):
             target_prefix_count_errors.append("duplicate_conversation_target_pair")
+        author_groups = _import_research_tool("proposition_ledger_author_groups")
+
+        exposure_summary = _read_json(
+            private_output / "prior-exposure-summary.json"
+        )
+        within_group_rows = [
+            row
+            for row in exposure_rows
+            if row.get("entity_type") == "within_family_author_group"
+        ]
+        target_prefix_count_errors.extend(
+            author_groups.author_group_crosstab_errors(
+                target_rows,
+                feasibility_rows,
+                within_group_rows,
+                [],
+                exposure_summary.get("author_group_crosstab", {}),
+            )
+        )
+        if any(
+            row.get("author_group_split_assignment") is not None
+            or row.get("cross_family_author_group_split_assignment") is not None
+            for row in [*target_rows, *feasibility_rows]
+        ):
+            target_prefix_count_errors.append("author_group_split_assigned")
     readiness_errors: list[str] = []
     if not missing:
         readiness = _read_json(private_output / "readiness-gates.json")
@@ -5194,6 +5776,35 @@ def _validate_outputs(
             readiness_errors.append("semantic_delta_schema_validation_binding")
         if _read_json(private_output / "semantic-materialiser-validation.json").get("passed") is not True:
             readiness_errors.append("semantic_materialiser_validation")
+        materialiser_output = _read_json(
+            private_output / "semantic-materialiser-validation.json"
+        )
+        for field in (
+            "genesis_materialisation_valid",
+            "first_seen_participant_registration_valid",
+            "complete_incremental_chain_valid",
+        ):
+            if materialiser_output.get(field) is not True:
+                readiness_errors.append(field)
+            if readiness.get(field, {}).get("status") != "passed":
+                readiness_errors.append(f"readiness:{field}")
+        protocol_document = _read_json(
+            private_output / "experiment-protocol-draft.json"
+        )
+        compatibility_status = protocol_document.get(
+            "provider_schema_compatibility", {}
+        ).get("status")
+        if compatibility_status != "pending_model_profile_selection":
+            readiness_errors.append("provider_schema_compatibility_status")
+        if (
+            readiness.get("provider_schema_compatibility_status", {}).get(
+                "status"
+            )
+            != compatibility_status
+        ):
+            readiness_errors.append(
+                "provider_schema_compatibility_readiness_binding"
+            )
     return {
         "missing_required_outputs": missing,
         "strict_json_parse_errors": parse_errors,
@@ -5205,6 +5816,7 @@ def _validate_outputs(
         "calibration_future_prefix_errors": sorted(set(future_prefix_errors)),
         "sha256sum_errors": sha256sum_errors,
         "schema_hash_errors": schema_hash_errors,
+        "provider_schema_preflight_errors": provider_preflight_errors,
         "source_manifest_binding_errors": source_manifest_binding_errors,
         "target_prefix_count_errors": target_prefix_count_errors,
         "readiness_errors": readiness_errors,
@@ -5221,6 +5833,7 @@ def _validate_outputs(
                 future_prefix_errors,
                 sha256sum_errors,
                 schema_hash_errors,
+                provider_preflight_errors,
                 source_manifest_binding_errors,
                 target_prefix_count_errors,
                 readiness_errors,
@@ -5230,168 +5843,226 @@ def _validate_outputs(
     }
 
 
-def _phase1_1_metric_comparison(
+def _phase1_2_metric_comparison(
     feasibility: Mapping[str, Any],
     target_crosstab: Mapping[str, Any],
 ) -> list[tuple[str, str, str]]:
-    """Return the complete requested Phase 1 versus Phase 1.1 metric set."""
+    """Return the requested Phase 1.1 baseline versus Phase 1.2 metrics."""
     grades = feasibility["grade_counts"]
     h = target_crosstab["headline_counts"]
     outcomes = target_crosstab["dimensions"]["outcome_evidence_class"]
-    response_types = target_crosstab["dimensions"][
-        "first_response_versus_multi_turn"
-    ]
-    not_measured = "not measured in Phase 1"
+    author_crosstab = feasibility["author_grouping"]["crosstab"]
+    author_headline = author_crosstab["headline_counts"]
+    not_measured = "not measured in Phase 1.1"
     return [
+        (
+            "Canonical conversation count",
+            "155",
+            str(feasibility["canonical_union_conversation_count"]),
+        ),
         ("Grade A conversation count", "144", str(grades["A"])),
         ("Grade B conversation count", "0", str(grades["B"])),
         ("Grade C conversation count", "11", str(grades["C"])),
         (
             "Total structurally usable target-prefix count",
-            "205",
+            "219",
             str(target_crosstab["target_prefix_count"]),
         ),
         (
             "Confirmed published-reply target-prefix count",
-            "182",
+            "188",
             str(outcomes.get("confirmed_published_reply", 0)),
         ),
         (
             "Confirmed pipeline-terminal no-reply target-prefix count",
-            "not measured in Phase 1; 23 targets were only purported terminal no-replies",
+            "30",
             str(outcomes.get("confirmed_pipeline_terminal_no_reply", 0)),
         ),
         (
             "Confirmed local-skip target-prefix count",
-            not_measured,
+            "1",
             str(outcomes.get("confirmed_local_skip", 0)),
         ),
         (
             "Quiescent unreplied-tip outcome-unknown target-prefix count",
-            not_measured,
+            "0",
             str(outcomes.get("quiescent_unreplied_tip_outcome_unknown", 0)),
         ),
         (
             "Outcome-evidence-unavailable target-prefix count",
-            not_measured,
+            "0",
             str(outcomes.get("outcome_evidence_unavailable", 0)),
         ),
         (
             "Conflicting-outcome-evidence target-prefix count",
-            not_measured,
+            "0",
             str(outcomes.get("conflicting_outcome_evidence", 0)),
         ),
         (
-            "First-response control target-prefix count",
-            not_measured,
-            str(h["first_response_control_count"]),
+            "Initial user target count",
+            "not distinguished within 62 bundled first-response controls",
+            str(h["initial_user_target_count"]),
         ),
         (
-            "Multi-turn evaluation-candidate target-prefix count",
+            "Pre-account user follow-up count",
             not_measured,
-            str(response_types.get("multi_turn_evaluation_candidate", 0)),
+            str(h["pre_account_user_follow_up_count"]),
         ),
         (
-            "Distinct open-conversation count",
-            not_measured,
-            str(h["open_conversation_count"]),
+            "Account-root response count",
+            "not distinguished within 156 overbroad multi-turn labels",
+            str(h["account_root_response_count"]),
         ),
         (
-            "Open-conversation target-prefix count",
-            not_measured,
-            str(h["open_conversation_target_prefix_count"]),
+            "Persistent multi-turn target count",
+            "156 overbroad multi-turn labels",
+            str(h["persistent_multiturn_target_count"]),
         ),
         (
-            "Exposed multi-turn target-prefix count",
-            not_measured,
-            str(h["exposed_multi_turn_target_prefix_count"]),
+            "Other sequence count",
+            "1 residual old response-type row",
+            str(h["other_sequence_count"]),
         ),
         (
-            "Structurally mined-only multi-turn target-prefix count",
+            "Exposed persistent target-prefix count",
             not_measured,
-            str(h["structurally_mined_only_multi_turn_target_prefix_count"]),
+            str(h["exposed_persistent_multiturn_target_prefix_count"]),
         ),
         (
-            "Genuinely unexposed stable Grade-A multi-turn target-prefix count",
+            "Structurally mined-only persistent target-prefix count",
             not_measured,
             str(
                 h[
-                    "genuinely_unexposed_stable_grade_a_multi_turn_target_prefix_count"
+                    "structurally_mined_only_persistent_multiturn_target_prefix_count"
                 ]
             ),
         ),
         (
-            "Preliminary held-out-eligible conversation count",
+            "Genuinely unexposed stable Grade-A persistent target-prefix count",
             not_measured,
-            str(h["preliminary_held_out_eligible_conversation_count"]),
+            str(
+                h[
+                    "genuinely_unexposed_stable_grade_a_persistent_multiturn_target_prefix_count"
+                ]
+            ),
         ),
         (
-            "Preliminary held-out-eligible target-prefix count",
+            "Within-family group-clean persistent target-prefix count",
             not_measured,
-            str(h["preliminary_held_out_eligible_target_prefix_count"]),
+            str(h["within_family_group_clean_persistent_target_prefix_count"]),
+        ),
+        (
+            "Cross-family-clean persistent target-prefix count",
+            not_measured,
+            str(h["cross_family_clean_persistent_target_prefix_count"]),
+        ),
+        (
+            "Preliminarily eligible conversation count",
+            "2",
+            str(h["preliminary_within_family_held_out_eligible_conversation_count"]),
+        ),
+        (
+            "Preliminarily eligible target-prefix count",
+            "5",
+            str(h["preliminary_within_family_held_out_eligible_target_prefix_count"]),
+        ),
+        (
+            "Comparable within-family author-group count",
+            not_measured,
+            str(author_crosstab["comparable_within_family_author_group_count"]),
+        ),
+        (
+            "Cross-family identities available (conversations)",
+            not_measured,
+            str(author_headline["cross_family_identity_available_conversation_count"]),
+        ),
+        (
+            "Cross-family identities unavailable (conversations)",
+            not_measured,
+            str(author_headline["cross_family_identity_unavailable_conversation_count"]),
+        ),
+        (
+            "Author groups containing direct exposure",
+            not_measured,
+            str(author_headline["within_family_groups_containing_direct_exposure"]),
+        ),
+        (
+            "Author groups requiring groupwise split",
+            not_measured,
+            str(author_headline["within_family_groups_requiring_groupwise_split"]),
         ),
     ]
 
 
-def _phase1_1_report(
+def _phase1_2_report(
     inventory: Mapping[str, Any],
     feasibility: Mapping[str, Any],
     target_crosstab: Mapping[str, Any],
     protocol_sha256: str,
     schema_validation: Mapping[str, Any],
     materialiser_validation: Mapping[str, Any],
+    provider_inventory: Mapping[str, Any],
     readiness: Mapping[str, Any],
     privacy: Mapping[str, Any],
 ) -> list[str]:
     grades = feasibility["grade_counts"]
     h = target_crosstab["headline_counts"]
     outcomes = target_crosstab["dimensions"]["outcome_evidence_class"]
-    metric_comparison = _phase1_1_metric_comparison(feasibility, target_crosstab)
+    author_crosstab = feasibility["author_grouping"]["crosstab"]
+    author_headline = author_crosstab["headline_counts"]
+    metric_comparison = _phase1_2_metric_comparison(feasibility, target_crosstab)
+    inventory_sha256 = sha256_bytes(canonical_json_bytes(provider_inventory))
     lines = [
-        "# Proposition-ledger Phase 1.1 preflight amendment report",
+        "# Proposition-ledger Phase 1.2 execution-preflight amendment report",
         "",
         "## Disposition",
         "",
         f"**{readiness['disposition']}**",
         "",
-        "Phase 1.1 corrects preflight evidence and execution boundaries only. It does not establish that a proposition ledger improves conversational reasoning, authorise provider calls, or recommend production integration.",
+        "Phase 1.2 fixes four execution-preflight defects only. It does not establish that a proposition ledger improves reasoning, authorise a provider call, select a held-out set, or begin Phase 2.",
         "",
         "## Frozen corpus and target outcomes",
         "",
         f"The inventory revalidated **{inventory['source_count']}** exact frozen source artefacts. The canonical union remains **{feasibility['canonical_union_conversation_count']}** conversations: Grade A **{grades['A']}**, Grade B **{grades['B']}**, Grade C **{grades['C']}**.",
         "",
-        "Phase 1 reported 205 Grade-A targets as 182 confirmed published replies plus 23 purported terminal no-replies. Phase 1.1 does not preserve that unsupported binary description; it indexes the structurally usable target universe and classifies each target from exact evidence.",
+        "The Phase 1.1 outcome-evidence taxonomy is preserved unchanged. Phase 1.2 changes sequence, identity-group, genesis, and provider-compatibility preflight only.",
         "",
         "## Old-versus-new metric comparison",
         "",
-        "| Metric | Phase 1 | Phase 1.1 |",
+        "| Metric | Phase 1.1 | Phase 1.2 |",
         "| --- | ---: | ---: |",
         *(
-            f"| {metric} | {phase1_value} | {phase1_1_value} |"
-            for metric, phase1_value, phase1_1_value in metric_comparison
+            f"| {metric} | {phase1_1_value} | {phase1_2_value} |"
+            for metric, phase1_1_value, phase1_2_value in metric_comparison
         ),
         "",
-        f"Phase 1.1 structurally usable target prefixes: **{target_crosstab['target_prefix_count']}**; Grade A: **{h['grade_a_target_prefix_count']}**. Outcome counts: "
+        f"Phase 1.2 structurally usable target prefixes: **{target_crosstab['target_prefix_count']}**; Grade A: **{h['grade_a_target_prefix_count']}**. Outcome counts: "
         + "; ".join(f"{name}=**{outcomes.get(name, 0)}**" for name in OUTCOME_EVIDENCE_CLASSES)
         + ".",
         "",
         "Silence alone is never classified as a confirmed no-reply. Confirmed pipeline no-reply and local-skip classes require exact structured records bound to the target; a quiescent unreplied tip without such evidence remains outcome-unknown.",
         "",
-        "## Target-prefix feasibility",
+        "## Exact target-sequence strata",
         "",
-        f"First-response controls: **{h['first_response_control_count']}**. Grade-A multi-turn candidates with a preceding published/observed account reply: **{h['grade_a_multi_turn_target_prefix_count']}**. Open-conversation prefixes excluded: **{h['open_conversation_target_prefix_count']}** across **{h['open_conversation_count']}** conversations.",
+        f"Initial user targets **{h['initial_user_target_count']}**; pre-account user follow-ups **{h['pre_account_user_follow_up_count']}**; account-root responses **{h['account_root_response_count']}**; persistent multi-turn targets **{h['persistent_multiturn_target_count']}**; other sequences **{h['other_sequence_count']}**. Only a parent-linked published/observed account reply to an earlier user turn creates persistent multi-turn evidence.",
         "",
-        f"Exposed multi-turn prefixes: **{h['exposed_multi_turn_target_prefix_count']}**. Structurally mined-only multi-turn prefixes: **{h['structurally_mined_only_multi_turn_target_prefix_count']}**. Genuinely unexposed, stable, Grade-A multi-turn prefixes: **{h['genuinely_unexposed_stable_grade_a_multi_turn_target_prefix_count']}** across **{h['genuinely_unexposed_stable_grade_a_multi_turn_conversation_count']}** conversations.",
+        f"Exposed persistent prefixes **{h['exposed_persistent_multiturn_target_prefix_count']}**; structurally mined-only persistent prefixes **{h['structurally_mined_only_persistent_multiturn_target_prefix_count']}**; genuinely unexposed stable Grade-A persistent prefixes **{h['genuinely_unexposed_stable_grade_a_persistent_multiturn_target_prefix_count']}**.",
         "",
-        f"All preliminary structural requirements are met by **{h['preliminary_held_out_eligible_target_prefix_count']}** prefixes across **{h['preliminary_held_out_eligible_conversation_count']}** conversations. This is not a final held-out selection and does not establish statistical sufficiency.",
+        f"Within-family preliminary eligibility remains for **{h['preliminary_within_family_held_out_eligible_target_prefix_count']}** prefixes across **{h['preliminary_within_family_held_out_eligible_conversation_count']}** conversations. Cross-family-clean eligibility is **{h['preliminary_cross_family_clean_held_out_eligible_target_prefix_count']}**. These are eligibility counts, not a split or final selection.",
         "",
-        "Author grouping remains domain-qualified and within-family only; incompatible benchmark and prospective pseudonym domains were never joined.",
+        f"Comparable within-family groups across the canonical conversations **{author_crosstab['comparable_within_family_author_group_count']}**; groups containing direct exposure **{author_headline['within_family_groups_containing_direct_exposure']}**; groups requiring a later whole-group split **{author_headline['within_family_groups_requiring_groupwise_split']}**. The usable target rows cover **{h['comparable_within_family_author_group_count']}** of those groups. No group was split in Phase 1.2.",
+        "",
+        f"Benchmark and prospective-v4 pseudonyms remain incompatible. Cross-family identity is available for **{author_headline['cross_family_identity_available_conversation_count']}** conversations and unavailable for **{author_headline['cross_family_identity_unavailable_conversation_count']}**. Authoritative raw identity is not available in both frozen families, so no common key is fabricated and the claim remains conversation-level and within-family grouped with cross-family overlap unresolvable.",
         "",
         "## Semantic and gold boundaries",
         "",
         f"Provider response schema: `{SEMANTIC_DELTA_SCHEMA_VERSION}`, SHA-256 `{schema_validation['semantic_delta_schema_sha256']}`. Persisted ledger schema: `{LEDGER_SCHEMA_VERSION}`, SHA-256 `{schema_validation['ledger_schema_sha256']}`. Experiment protocol: `{EXPERIMENT_SCHEMA_VERSION}`, document SHA-256 `{protocol_sha256}`, schema SHA-256 `{schema_validation['experiment_schema_sha256']}`.",
         "",
-        f"Deterministic materialiser validation passed: **{materialiser_validation['passed']}**; source SHA-256 `{materialiser_validation['source_sha256']}`. The provider-facing delta owns semantic analysis only; deterministic code owns permanent IDs, local-reference resolution, state patches, predecessor hashes, ledger hashes, and persisted-ledger validation.",
+        f"Deterministic materialiser `{MATERIALISER_ID}` passed: **{materialiser_validation['passed']}**; source SHA-256 `{materialiser_validation['source_sha256']}`. Genesis **{materialiser_validation['genesis_materialisation_valid']}**; first-seen participant registration **{materialiser_validation['first_seen_participant_registration_valid']}**; complete incremental chain **{materialiser_validation['complete_incremental_chain_valid']}**. Persisted schema remains `{LEDGER_SCHEMA_VERSION}` because its authoritative state patch already represents participant additions.",
+        "",
+        f"Provider-schema feature inventory SHA-256 `{inventory_sha256}`; canonical schema SHA-256 `{provider_inventory['schema_sha256']}`; size **{provider_inventory['schema_size_bytes']}** bytes; object depth **{provider_inventory['maximum_object_depth']}**; properties **{provider_inventory['property_count']}**; required properties **{provider_inventory['required_property_count']}**; refs **{provider_inventory['ref_count']}**; oneOf/anyOf/allOf **{provider_inventory['one_of_count']}/{provider_inventory['any_of_count']}/{provider_inventory['all_of_count']}**; enums/consts **{provider_inventory['enum_count']}/{provider_inventory['const_count']}**; nullable unions **{provider_inventory['nullable_union_count']}**; additionalProperties false **{provider_inventory['additional_properties_false_count']}**; recursive refs **{provider_inventory['recursive_reference_count']}**; maximum array-item nesting **{provider_inventory['maximum_array_item_nesting']}**; unbounded arrays **{provider_inventory['unbounded_array_count']}**.",
+        "",
+        f"Provider compatibility remains **{readiness['provider_schema_compatibility_status']['status']}**. No provider/model profile or SDK was selected; local provider-specific compilation or dry-validation is required before any call.",
         "",
         "Gold construction requires two independent transcript-first raters who cannot see the machine ledger, one another's work, production outcomes, historical replies, arm identity, or provider identity. A blinded adjudicator locks and hashes the adjudicated ledger before any machine reveal or scoring; that locked ledger supplies Arm D. The design remains four-arm.",
         "",
@@ -5409,23 +6080,23 @@ def _phase1_1_report(
             "",
             "## Remaining limitations and boundary",
             "",
-            "- Sample-size sufficiency remains pending a separately frozen Phase 2 development-only power analysis; Phase 1.1 invents no threshold.",
-            "- No authoritative real-conversation gold annotations were created in Phase 1.1.",
-            "- Cross-family author identity remains unprovable from incompatible pseudonym domains.",
+            "- Sample-size sufficiency remains pending a later development-only power analysis; Phase 1.2 invents no threshold.",
+            "- No authoritative real-conversation gold annotations were created in Phase 1.2.",
+            "- Cross-family author overlap is unresolvable from the bounded frozen material.",
             "- The final held-out set was neither selected nor opened.",
             "",
-            f"Schema validation passed: **{schema_validation['passed']}**. Privacy validation passed: **{privacy['passed']}**. No provider/model or X call, production write, production import, service change, held-out selection, merge, deployment, generated experimental reply, or real-conversation machine ledger occurred.",
+            f"Schema validation passed: **{schema_validation['passed']}**. Privacy validation passed: **{privacy['passed']}**. No provider/model or X call, production write, production import, service change, real annotation, held-out selection, merge, deployment, Phase 2 experiment, generated experimental reply, ordinary summary, or real-conversation machine ledger occurred.",
         ]
     )
     return lines
 
 
-def _privacy_blocked_phase1_1_report(
+def _privacy_blocked_phase1_2_report(
     readiness: Mapping[str, Any],
 ) -> list[str]:
     """Return a bounded report containing no corpus-derived detail."""
     lines = [
-        "# Proposition-ledger Phase 1.1 preflight amendment report",
+        "# Proposition-ledger Phase 1.2 execution-preflight amendment report",
         "",
         "## Disposition",
         "",
@@ -5449,26 +6120,28 @@ def _privacy_blocked_phase1_1_report(
     return lines
 
 
-def _phase1_1_report_for_readiness(
+def _phase1_2_report_for_readiness(
     inventory: Mapping[str, Any],
     feasibility: Mapping[str, Any],
     target_crosstab: Mapping[str, Any],
     protocol_sha256: str,
     schema_validation: Mapping[str, Any],
     materialiser_validation: Mapping[str, Any],
+    provider_inventory: Mapping[str, Any],
     readiness: Mapping[str, Any],
     privacy: Mapping[str, Any],
 ) -> list[str]:
-    """Select the full or privacy-minimal Phase 1.1 report."""
+    """Select the full or privacy-minimal Phase 1.2 report."""
     if privacy.get("passed") is not True:
-        return _privacy_blocked_phase1_1_report(readiness)
-    return _phase1_1_report(
+        return _privacy_blocked_phase1_2_report(readiness)
+    return _phase1_2_report(
         inventory,
         feasibility,
         target_crosstab,
         protocol_sha256,
         schema_validation,
         materialiser_validation,
+        provider_inventory,
         readiness,
         privacy,
     )
@@ -5587,7 +6260,7 @@ def _fresh_build_determinism_validation(
     scratch_parent = args.private_output.resolve().parent
     with tempfile.TemporaryDirectory(
         dir=scratch_parent,
-        prefix="proposition-ledger-phase1.1-internal-determinism-",
+        prefix="proposition-ledger-phase1.2-internal-determinism-",
     ) as scratch_name:
         scratch = Path(scratch_name)
         os.chmod(scratch, 0o700)
@@ -5645,7 +6318,14 @@ def _build_outputs(
     source_manifest_hash = sha256_file(args.source_manifest.resolve())
     exposure_registry_payload = _jsonl_payload(exposure_rows)
     exposure_registry_hash = sha256_bytes(exposure_registry_payload)
-    protocol = _build_protocol(source_manifest_hash, exposure_registry_hash)
+    provider_inventory, provider_compatibility = _provider_schema_preflight(
+        project_dir
+    )
+    protocol = _build_protocol(
+        source_manifest_hash,
+        exposure_registry_hash,
+        provider_compatibility,
+    )
     schema_validation = _schema_validation_for_readiness(project_dir, protocol)
     materialiser_validation = _semantic_materialiser_validation_for_readiness(
         project_dir
@@ -5666,9 +6346,13 @@ def _build_outputs(
     second_calibration_records, second_calibration_manifest, second_calibration_index = _build_calibration_pack(
         manifest, second_feasibility_rows, second_turns
     )
+    second_provider_inventory, second_provider_compatibility = (
+        _provider_schema_preflight(project_dir)
+    )
     second_protocol = _build_protocol(
         source_manifest_hash,
         sha256_bytes(_jsonl_payload(second_exposure_rows)),
+        second_provider_compatibility,
     )
     second_schema_validation = _schema_validation_for_readiness(
         project_dir, second_protocol
@@ -5684,6 +6368,8 @@ def _build_outputs(
             "target_rows": target_rows,
             "target_structural_exclusions": target_structural_exclusions,
             "target_crosstab": target_crosstab,
+            "provider_schema_feature_inventory": provider_inventory,
+            "provider_schema_compatibility": provider_compatibility,
             "calibration_records": calibration_records,
             "calibration_manifest": calibration_manifest,
             "calibration_index": calibration_index,
@@ -5701,6 +6387,8 @@ def _build_outputs(
             "target_rows": second_target_rows,
             "target_structural_exclusions": second_target_structural_exclusions,
             "target_crosstab": second_target_crosstab,
+            "provider_schema_feature_inventory": second_provider_inventory,
+            "provider_schema_compatibility": second_provider_compatibility,
             "calibration_records": second_calibration_records,
             "calibration_manifest": second_calibration_manifest,
             "calibration_index": second_calibration_index,
@@ -5734,6 +6422,10 @@ def _build_outputs(
     _write_markdown(
         private_output / "target-prefix-crosstab.md",
         _target_prefix_crosstab_markdown(target_crosstab),
+    )
+    _write_json(
+        private_output / "provider-schema-feature-inventory.json",
+        provider_inventory,
     )
     _write_jsonl(private_output / "calibration-pack/calibration-records.jsonl", calibration_records)
     _write_json(private_output / "calibration-pack/calibration-index.json", calibration_index)
@@ -5770,10 +6462,23 @@ def _build_outputs(
         is True
         and len(protocol.get("arms", [])) == 4
     )
-    preliminary_target_count = int(
+    preliminary_within_family_target_count = int(
         target_crosstab["headline_counts"][
-            "preliminary_held_out_eligible_target_prefix_count"
+            "preliminary_within_family_held_out_eligible_target_prefix_count"
         ]
+    )
+    preliminary_cross_family_target_count = int(
+        target_crosstab["headline_counts"][
+            "preliminary_cross_family_clean_held_out_eligible_target_prefix_count"
+        ]
+    )
+    provider_inventory_valid = (
+        provider_inventory.get("schema_version") == SEMANTIC_DELTA_SCHEMA_VERSION
+        and provider_inventory.get("schema_sha256")
+        == schema_validation.get("semantic_delta_schema_sha256")
+        and provider_compatibility.get("feature_inventory_sha256")
+        == sha256_bytes(canonical_json_bytes(provider_inventory))
+        and provider_compatibility.get("network_call_made") is False
     )
     readiness = _derive_readiness_gates(
         source_identity_valid=True,
@@ -5794,30 +6499,65 @@ def _build_outputs(
             schema_validation["semantic_delta_schema_validation"]["passed"] is True
         ),
         materialiser_valid=materialiser_validation["passed"] is True,
+        genesis_materialisation_valid=(
+            materialiser_validation.get("genesis_materialisation_valid") is True
+        ),
+        first_seen_participant_registration_valid=(
+            materialiser_validation.get("first_seen_participant_registration_valid")
+            is True
+        ),
+        complete_incremental_chain_valid=(
+            materialiser_validation.get("complete_incremental_chain_valid") is True
+        ),
+        persistent_multiturn_classification_complete=(
+            not target_crosstab_errors
+            and sum(
+                target_crosstab["dimensions"]["target_sequence_class"].values()
+            )
+            == len(target_rows)
+        ),
+        within_family_author_group_exposure_enforced=all(
+            row.get("author_group_exposure_status") is not None
+            and row.get("author_group_requires_groupwise_split") is not None
+            for row in target_rows
+        ),
+        cross_family_author_identity_status="unavailable",
+        provider_schema_feature_inventory_valid=provider_inventory_valid,
+        provider_schema_compatibility_status=str(
+            provider_compatibility.get("status")
+        ),
+        provider_schema_compatibility_record=provider_compatibility,
+        provider_schema_feature_inventory=provider_inventory,
         transcript_first_protocol_valid=transcript_first_protocol_valid,
-        preliminary_target_count=preliminary_target_count,
+        preliminary_within_family_target_count=(
+            preliminary_within_family_target_count
+        ),
+        preliminary_cross_family_target_count=(
+            preliminary_cross_family_target_count
+        ),
         deterministic_rebuild_evidence=FRESH_BUILD_DETERMINISM_EVIDENCE,
     )
     _write_json(private_output / "readiness-gates.json", readiness)
     protocol_sha256 = sha256_file(private_output / "experiment-protocol-draft.json")
-    report_lines = _phase1_1_report_for_readiness(
+    report_lines = _phase1_2_report_for_readiness(
         inventory,
         feasibility_summary,
         target_crosstab,
         protocol_sha256,
         schema_validation,
         materialiser_validation,
+        provider_inventory,
         readiness,
         privacy,
     )
-    _write_markdown(private_output / "phase1.1-report.md", report_lines)
+    _write_markdown(private_output / "phase1.2-report.md", report_lines)
     run_manifest = {
         "schema_version": OUTPUT_SCHEMA_VERSION,
-        "run_kind": "proposition-ledger-phase1.1-preflight-amendment",
+        "run_kind": "proposition-ledger-phase1.2-execution-preflight-amendment",
         "generated_at": datetime.now(timezone.utc).replace(microsecond=0).isoformat().replace("+00:00", "Z"),
         "private_output": str(private_output),
         "verified_origin_master_sha": manifest.get("verified_origin_master_sha"),
-        "phase1_base_sha": PHASE1_BASE_SHA,
+        "phase1_1_base_sha": PHASE1_1_BASE_SHA,
         "prospective_batch_resolved_once": manifest.get("prospective_batch_resolved_once"),
         "prospective_batch_manifest_sha256": manifest.get("prospective_batch_manifest_sha256"),
         "source_manifest_input_path": str(args.source_manifest.resolve()),
@@ -5845,7 +6585,7 @@ def _build_outputs(
                 "blocked_after_artifact_emission": True,
             }
         raise Phase1Error(
-            f"Phase 1.1 preflight blocked after readiness/report emission: {emitted_block}"
+            f"Phase 1.2 preflight blocked after readiness/report emission: {emitted_block}"
         )
     validation = _validate_outputs(private_output, project_dir, source_manifest_hash)
     if not validation["passed"]:
@@ -5967,9 +6707,13 @@ def _substantive_rebuild_errors(
         turns_by_conversation,
     )
     exposure_payload = _jsonl_payload(exposure_rows)
+    provider_inventory, provider_compatibility = _provider_schema_preflight(
+        project_dir
+    )
     protocol = _build_protocol(
         sha256_file(args.source_manifest.resolve()),
         sha256_bytes(exposure_payload),
+        provider_compatibility,
     )
     schema_validation = _schema_validation_for_readiness(project_dir, protocol)
     materialiser_validation = _semantic_materialiser_validation_for_readiness(
@@ -6000,6 +6744,43 @@ def _substantive_rebuild_errors(
             schema_validation["semantic_delta_schema_validation"]["passed"] is True
         ),
         materialiser_valid=materialiser_validation["passed"] is True,
+        genesis_materialisation_valid=(
+            materialiser_validation.get("genesis_materialisation_valid") is True
+        ),
+        first_seen_participant_registration_valid=(
+            materialiser_validation.get("first_seen_participant_registration_valid")
+            is True
+        ),
+        complete_incremental_chain_valid=(
+            materialiser_validation.get("complete_incremental_chain_valid") is True
+        ),
+        persistent_multiturn_classification_complete=(
+            not crosstab_errors
+            and sum(
+                target_crosstab["dimensions"]["target_sequence_class"].values()
+            )
+            == len(target_rows)
+        ),
+        within_family_author_group_exposure_enforced=all(
+            row.get("author_group_exposure_status") is not None
+            and row.get("author_group_requires_groupwise_split") is not None
+            for row in target_rows
+        ),
+        cross_family_author_identity_status="unavailable",
+        provider_schema_feature_inventory_valid=(
+            provider_inventory.get("schema_version")
+            == SEMANTIC_DELTA_SCHEMA_VERSION
+            and provider_inventory.get("schema_sha256")
+            == schema_validation.get("semantic_delta_schema_sha256")
+            and provider_compatibility.get("feature_inventory_sha256")
+            == sha256_bytes(canonical_json_bytes(provider_inventory))
+            and provider_compatibility.get("network_call_made") is False
+        ),
+        provider_schema_compatibility_status=str(
+            provider_compatibility.get("status")
+        ),
+        provider_schema_compatibility_record=provider_compatibility,
+        provider_schema_feature_inventory=provider_inventory,
         transcript_first_protocol_valid=(
             protocol.get("adjudication", {}).get("independent_raters") == 2
             and protocol.get("adjudication", {})
@@ -6012,9 +6793,14 @@ def _substantive_rebuild_errors(
             is True
             and len(protocol.get("arms", [])) == 4
         ),
-        preliminary_target_count=int(
+        preliminary_within_family_target_count=int(
             target_crosstab["headline_counts"][
-                "preliminary_held_out_eligible_target_prefix_count"
+                "preliminary_within_family_held_out_eligible_target_prefix_count"
+            ]
+        ),
+        preliminary_cross_family_target_count=int(
+            target_crosstab["headline_counts"][
+                "preliminary_cross_family_clean_held_out_eligible_target_prefix_count"
             ]
         ),
         deterministic_rebuild_evidence=FRESH_BUILD_DETERMINISM_EVIDENCE,
@@ -6026,6 +6812,7 @@ def _substantive_rebuild_errors(
         "corpus-feasibility.json": feasibility_summary,
         "prior-exposure-summary.json": exposure_summary,
         "target-prefix-crosstab.json": target_crosstab,
+        "provider-schema-feature-inventory.json": provider_inventory,
         "calibration-pack/calibration-index.json": calibration_index,
         "calibration-pack/manifest.json": calibration_manifest,
         "experiment-protocol-draft.json": protocol,
@@ -6058,13 +6845,14 @@ def _substantive_rebuild_errors(
         "corpus-feasibility.md": _feasibility_markdown(feasibility_summary),
         "target-prefix-crosstab.md": _target_prefix_crosstab_markdown(target_crosstab),
         "experiment-protocol-draft.md": _protocol_markdown(protocol),
-        "phase1.1-report.md": _phase1_1_report_for_readiness(
+        "phase1.2-report.md": _phase1_2_report_for_readiness(
             inventory,
             feasibility_summary,
             target_crosstab,
             protocol_sha256,
             schema_validation,
             materialiser_validation,
+            provider_inventory,
             readiness,
             privacy,
         ),

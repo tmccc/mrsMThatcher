@@ -17,7 +17,8 @@ from typing import Any, Iterable, Mapping, Sequence
 from tools import build_proposition_ledger_phase1 as phase1
 
 
-SEMANTIC_DELTA_SCHEMA_VERSION = "proposition-ledger-semantic-delta-v1.0.0"
+SEMANTIC_DELTA_SCHEMA_VERSION = "proposition-ledger-semantic-delta-v1.1.0"
+MATERIALISER_VERSION = "proposition-ledger-semantic-delta-materialiser-v2"
 PERSISTED_LEDGER_SCHEMA_VERSION = "proposition-ledger-v1.0.0"
 SUCCESS_STATUS = "ok"
 FAILURE_STATUSES = {
@@ -32,6 +33,18 @@ MAX_FAILURE_ERRORS = 32
 MAX_FAILURE_ERROR_LENGTH = 512
 OPAQUE_ID_RE = re.compile(r"^[A-Za-z][A-Za-z0-9_.:-]{0,127}$")
 LOCAL_REF_RE = re.compile(r"^new-[a-z-]+-[1-9][0-9]{0,2}$")
+PARTICIPANT_FIELDS = {
+    "author_key",
+    "identity_confidence",
+    "participant_id",
+    "role",
+}
+GENESIS_CONTEXT_FIELDS = {
+    "conversation_key",
+    "current_participant",
+    "root_post_id",
+    "source_completeness",
+}
 
 PROJECT_DIR = Path(__file__).resolve().parents[1]
 DEFAULT_SEMANTIC_SCHEMA_PATH = (
@@ -297,12 +310,128 @@ class _ReferenceResolver:
         return identifier
 
 
+def _validate_current_turn(current_turn: Mapping[str, Any]) -> None:
+    """Validate the harness-owned fields needed at every turn boundary."""
+
+    required_turn_fields = {
+        "turn_id",
+        "turn_index",
+        "post_id",
+        "parent_turn_id",
+        "speaker_id",
+        "text",
+    }
+    if not isinstance(current_turn, Mapping) or not required_turn_fields <= current_turn.keys():
+        _raise(
+            "semantic_reference_invalid",
+            "current_turn_missing_required_field",
+        )
+    turn_id = current_turn.get("turn_id")
+    turn_index = current_turn.get("turn_index")
+    speaker_id = current_turn.get("speaker_id")
+    parent_turn_id = current_turn.get("parent_turn_id")
+    text = current_turn.get("text")
+    if not isinstance(turn_id, str) or not OPAQUE_ID_RE.fullmatch(turn_id):
+        _raise("semantic_reference_invalid", "current_turn_id_invalid")
+    if isinstance(turn_index, bool) or not isinstance(turn_index, int) or turn_index < 0:
+        _raise("semantic_reference_invalid", "current_turn_index_invalid")
+    if not isinstance(text, str):
+        _raise("semantic_evidence_invalid", "current_turn_text_not_string")
+    if current_turn.get("post_id") is not None and not isinstance(
+        current_turn.get("post_id"), str
+    ):
+        _raise("semantic_reference_invalid", "current_turn_post_id_invalid")
+    if not isinstance(speaker_id, str) or not OPAQUE_ID_RE.fullmatch(speaker_id):
+        _raise("semantic_reference_invalid", "current_turn_speaker_invalid")
+    if parent_turn_id is not None and not isinstance(parent_turn_id, str):
+        _raise("semantic_reference_invalid", "current_turn_parent_invalid")
+
+
+def _validated_participant_descriptor(
+    current_participant: Mapping[str, Any],
+    ledger_schema: Mapping[str, Any],
+) -> dict[str, Any]:
+    """Return one exact persisted participant supplied by trusted metadata."""
+
+    if not isinstance(current_participant, Mapping):
+        _raise("semantic_reference_invalid", "current_participant_not_object")
+    descriptor = copy.deepcopy(dict(current_participant))
+    if set(descriptor) != PARTICIPANT_FIELDS:
+        _raise(
+            "semantic_reference_invalid",
+            "current_participant_descriptor_fields_invalid",
+        )
+    participant_schema = {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "$ref": "#/$defs/participant",
+        "$defs": copy.deepcopy(dict(ledger_schema.get("$defs", {}))),
+    }
+    errors = phase1._jsonschema_errors(descriptor, participant_schema)
+    if errors:
+        _raise(
+            "semantic_reference_invalid",
+            "current_participant_descriptor_schema_invalid",
+        )
+    return descriptor
+
+
 def _validate_prior_and_bindings(
-    prior_ledger: Mapping[str, Any],
+    prior_ledger: Mapping[str, Any] | None,
     current_turn: Mapping[str, Any],
     semantic_delta: Mapping[str, Any],
+    current_participant: Mapping[str, Any],
+    genesis_context: Mapping[str, Any] | None,
     ledger_schema: Mapping[str, Any],
 ) -> None:
+    _validate_current_turn(current_turn)
+    if current_participant.get("participant_id") != current_turn.get("speaker_id"):
+        _raise(
+            "semantic_reference_invalid",
+            "current_participant_speaker_binding_mismatch",
+        )
+
+    turn_id = str(current_turn["turn_id"])
+    turn_index = int(current_turn["turn_index"])
+    parent_turn_id = current_turn.get("parent_turn_id")
+    if semantic_delta.get("target_turn_id") != turn_id:
+        _raise("semantic_reference_invalid", "target_turn_binding_mismatch")
+    if semantic_delta.get("as_of_turn_index") != turn_index:
+        _raise("semantic_reference_invalid", "target_index_binding_mismatch")
+
+    if prior_ledger is None:
+        if genesis_context is None or not isinstance(genesis_context, Mapping):
+            _raise("semantic_reference_invalid", "genesis_context_required")
+        if set(genesis_context) != GENESIS_CONTEXT_FIELDS:
+            _raise("semantic_reference_invalid", "genesis_context_fields_invalid")
+        if turn_index != 0:
+            _raise("semantic_reference_invalid", "genesis_turn_index_not_zero")
+        if parent_turn_id is not None:
+            _raise("semantic_reference_invalid", "genesis_parent_not_null")
+        if semantic_delta.get("prior_ledger_reference") is not None:
+            _raise("semantic_reference_invalid", "genesis_predecessor_not_null")
+        if genesis_context.get("current_participant") != current_participant:
+            _raise(
+                "semantic_reference_invalid",
+                "genesis_current_participant_mismatch",
+            )
+        conversation_key = genesis_context.get("conversation_key")
+        if not isinstance(conversation_key, str) or not conversation_key:
+            _raise("semantic_reference_invalid", "genesis_conversation_key_invalid")
+        if semantic_delta.get("conversation_key") != conversation_key:
+            _raise("semantic_reference_invalid", "conversation_binding_mismatch")
+        if (
+            current_turn.get("conversation_key") is not None
+            and current_turn.get("conversation_key") != conversation_key
+        ):
+            _raise("semantic_reference_invalid", "conversation_binding_mismatch")
+        if genesis_context.get("root_post_id") != current_turn.get("post_id"):
+            _raise("semantic_reference_invalid", "genesis_root_post_binding_mismatch")
+        if not isinstance(genesis_context.get("source_completeness"), Mapping):
+            _raise("semantic_reference_invalid", "genesis_source_completeness_invalid")
+        return
+
+    if genesis_context is not None:
+        _raise("semantic_reference_invalid", "genesis_context_for_non_genesis")
     prior_schema_errors = phase1._jsonschema_errors(prior_ledger, ledger_schema)
     if prior_schema_errors:
         _raise(
@@ -320,49 +449,14 @@ def _validate_prior_and_bindings(
             "prior_ledger_self_hash_mismatch",
         )
 
-    required_turn_fields = {
-        "turn_id",
-        "turn_index",
-        "post_id",
-        "parent_turn_id",
-        "speaker_id",
-        "text",
-    }
-    if not required_turn_fields <= current_turn.keys():
-        _raise(
-            "semantic_reference_invalid",
-            "current_turn_missing_required_field",
-        )
-    turn_id = current_turn.get("turn_id")
-    turn_index = current_turn.get("turn_index")
-    speaker_id = current_turn.get("speaker_id")
-    parent_turn_id = current_turn.get("parent_turn_id")
-    text = current_turn.get("text")
-    if not isinstance(turn_id, str) or not OPAQUE_ID_RE.fullmatch(turn_id):
-        _raise("semantic_reference_invalid", "current_turn_id_invalid")
-    if isinstance(turn_index, bool) or not isinstance(turn_index, int):
-        _raise("semantic_reference_invalid", "current_turn_index_invalid")
-    if not isinstance(text, str):
-        _raise("semantic_evidence_invalid", "current_turn_text_not_string")
-    if current_turn.get("post_id") is not None and not isinstance(
-        current_turn.get("post_id"), str
-    ):
-        _raise("semantic_reference_invalid", "current_turn_post_id_invalid")
-    if not isinstance(speaker_id, str):
-        _raise("semantic_reference_invalid", "current_turn_speaker_invalid")
-    if parent_turn_id is not None and not isinstance(parent_turn_id, str):
-        _raise("semantic_reference_invalid", "current_turn_parent_invalid")
-
     prior_index = prior_ledger.get("as_of_turn_index")
     if not isinstance(prior_index, int) or turn_index != prior_index + 1:
         _raise("semantic_reference_invalid", "nonconsecutive_turn_boundary")
     if semantic_delta.get("conversation_key") != prior_ledger.get("conversation_key"):
         _raise("semantic_reference_invalid", "conversation_binding_mismatch")
-    if semantic_delta.get("target_turn_id") != turn_id:
-        _raise("semantic_reference_invalid", "target_turn_binding_mismatch")
-    if semantic_delta.get("as_of_turn_index") != turn_index:
-        _raise("semantic_reference_invalid", "target_index_binding_mismatch")
-    prior_reference = semantic_delta.get("prior_ledger_reference", {})
+    prior_reference = semantic_delta.get("prior_ledger_reference")
+    if not isinstance(prior_reference, Mapping):
+        _raise("semantic_reference_invalid", "non_genesis_predecessor_is_null")
     if (
         prior_reference.get("ledger_id") != prior_ledger.get("ledger_id")
         or prior_reference.get("as_of_turn_index") != prior_index
@@ -380,13 +474,74 @@ def _validate_prior_and_bindings(
         _raise("semantic_reference_invalid", "current_parent_not_in_prior_prefix")
     if prior_turns[parent_turn_id].get("turn_index", turn_index) >= turn_index:
         _raise("semantic_reference_invalid", "current_parent_not_backward")
-    participant_ids = {
-        str(record.get("participant_id"))
-        for record in prior_ledger.get("participants", [])
+
+
+def _ledger_base_with_current_participant(
+    previous_ledger: Mapping[str, Any] | None,
+    current_participant: Mapping[str, Any],
+    genesis_context: Mapping[str, Any] | None,
+) -> tuple[dict[str, Any], bool]:
+    """Create the cumulative base and register only the exact current speaker."""
+
+    descriptor = copy.deepcopy(dict(current_participant))
+    if previous_ledger is None:
+        if genesis_context is None:  # guarded before this helper
+            _raise("materialisation_invariant_failure", "genesis_context_lost")
+        return (
+            {
+                "answer_targets": [],
+                "as_of_turn_index": 0,
+                "conversation_key": genesis_context["conversation_key"],
+                "conversational_obligations": [],
+                "extraction_status": {
+                    "abstentions": [],
+                    "status": "complete",
+                    "unsupported_inferences_rejected": 0,
+                },
+                "issue_states": [],
+                "ledger_id": "ledger-genesis-placeholder",
+                "ledger_sha256": phase1.ZERO_SHA256,
+                "participant_commitments": [],
+                "participants": [descriptor],
+                "previous_ledger_sha256": None,
+                "proposition_groups": [],
+                "proposition_relations": [],
+                "propositions": [],
+                "rejected_answer_targets": [],
+                "repair_records": [],
+                "resolved_items": [],
+                "root_post_id": genesis_context["root_post_id"],
+                "schema_version": PERSISTED_LEDGER_SCHEMA_VERSION,
+                "source_completeness": copy.deepcopy(
+                    genesis_context["source_completeness"]
+                ),
+                "state_transitions": [],
+                "target_turn_id": "genesis-placeholder",
+                "turn_refs": [],
+                "unresolved_items": [],
+                "warnings": [],
+            },
+            True,
+        )
+
+    candidate = copy.deepcopy(dict(previous_ledger))
+    matching = [
+        record
+        for record in candidate.get("participants", [])
         if isinstance(record, Mapping)
-    }
-    if speaker_id not in participant_ids:
-        _raise("semantic_reference_invalid", "current_speaker_not_in_prior_ledger")
+        and record.get("participant_id") == descriptor["participant_id"]
+    ]
+    if len(matching) > 1:
+        _raise("materialisation_invariant_failure", "duplicate_prior_participant")
+    if matching:
+        if dict(matching[0]) != descriptor:
+            _raise(
+                "semantic_reference_invalid",
+                "current_participant_descriptor_mismatch",
+            )
+        return candidate, False
+    candidate["participants"].append(descriptor)
+    return candidate, True
 
 
 def _iter_evidence_spans(
@@ -1384,7 +1539,7 @@ def _apply_warnings(
 
 
 def _transition_from_patch(
-    previous_ledger: Mapping[str, Any],
+    previous_ledger: Mapping[str, Any] | None,
     candidate: Mapping[str, Any],
     current_turn_id: str,
     current_turn_index: int,
@@ -1399,7 +1554,11 @@ def _transition_from_patch(
         "commitments_updated": [],
         "current_turn_id": current_turn_id,
         "current_turn_index": current_turn_index,
-        "from_ledger_sha256": previous_ledger["ledger_sha256"],
+        "from_ledger_sha256": (
+            previous_ledger["ledger_sha256"]
+            if previous_ledger is not None
+            else None
+        ),
         "issue_states_added": [],
         "issue_states_updated": [],
         "items_resolved": [],
@@ -1431,7 +1590,11 @@ def _transition_from_patch(
         collection: (field, status_field)
         for field, (collection, status_field) in phase1.TRANSITION_UPDATED_COLLECTIONS.items()
     }
-    previous = phase1.ledger_state_projection(previous_ledger)
+    previous = (
+        phase1.ledger_state_projection(previous_ledger)
+        if previous_ledger is not None
+        else {collection: {} for collection in phase1.LEDGER_STATE_COLLECTIONS}
+    )
     current = phase1.ledger_state_projection(candidate)
     allowed_remove_collections = {"unresolved_items"}
     for operation in patch:
@@ -1486,22 +1649,27 @@ def _transition_from_patch(
 
 
 def _build_candidate(
-    previous_ledger: Mapping[str, Any],
+    previous_ledger: Mapping[str, Any] | None,
+    base_ledger: Mapping[str, Any],
     current_turn: Mapping[str, Any],
     semantic_delta: Mapping[str, Any],
     resolver: _ReferenceResolver,
     local_ids: Mapping[str, str],
 ) -> dict[str, Any]:
-    candidate = copy.deepcopy(dict(previous_ledger))
+    candidate = copy.deepcopy(dict(base_ledger))
     turn_id = str(current_turn["turn_id"])
     turn_index = int(current_turn["turn_index"])
-    conversation_key = str(previous_ledger["conversation_key"])
+    conversation_key = str(base_ledger["conversation_key"])
     candidate["ledger_id"] = _derived_id(
         "ledger", conversation_key, turn_id, "persisted-snapshot"
     )
     candidate["target_turn_id"] = turn_id
     candidate["as_of_turn_index"] = turn_index
-    candidate["previous_ledger_sha256"] = previous_ledger["ledger_sha256"]
+    candidate["previous_ledger_sha256"] = (
+        previous_ledger["ledger_sha256"]
+        if previous_ledger is not None
+        else None
+    )
     candidate["ledger_sha256"] = phase1.ZERO_SHA256
     candidate["turn_refs"].append(
         {
@@ -1607,19 +1775,49 @@ def _build_candidate(
     return candidate
 
 
+def _participant_patch_valid(
+    candidate: Mapping[str, Any],
+    participant_id: str,
+    participant_registered: bool,
+) -> bool:
+    """Check that the authoritative patch records exactly the registration."""
+
+    transitions = candidate.get("state_transitions", [])
+    if not isinstance(transitions, list) or len(transitions) != 1:
+        return False
+    participant_operations = [
+        operation
+        for operation in transitions[0].get("state_patch", [])
+        if isinstance(operation, Mapping)
+        and operation.get("collection") == "participants"
+    ]
+    if not participant_registered:
+        return not participant_operations
+    return (
+        len(participant_operations) == 1
+        and participant_operations[0].get("operation") == "add"
+        and participant_operations[0].get("item_id") == participant_id
+        and participant_operations[0].get("before_record_sha256") is None
+        and isinstance(participant_operations[0].get("after_record"), Mapping)
+    )
+
+
 def materialise_semantic_delta(
-    previous_ledger: Mapping[str, Any],
+    previous_ledger: Mapping[str, Any] | None,
     current_turn: Mapping[str, Any],
     semantic_delta: Mapping[str, Any],
     *,
+    current_participant: Mapping[str, Any],
+    genesis_context: Mapping[str, Any] | None = None,
     semantic_schema: Mapping[str, Any] | None = None,
     ledger_schema: Mapping[str, Any] | None = None,
 ) -> MaterialisationResult:
     """Materialise one current-turn semantic delta without trusting persistence data.
 
     Failure details are capped and carry one of the six public failure statuses.
-    The required incremental validator hook treats ``previous_ledger`` as an
-    already validated predecessor while checking the complete new snapshot.
+    ``previous_ledger`` is nullable only at the exact turn-zero genesis
+    boundary. Participant identity and first-seen registration are supplied by
+    trusted harness metadata, never by the provider semantic delta.
     """
 
     try:
@@ -1640,19 +1838,31 @@ def materialise_semantic_delta(
             raise _MaterialisationFailure(
                 "semantic_delta_schema_invalid", schema_errors
             )
+        descriptor = _validated_participant_descriptor(
+            current_participant,
+            effective_ledger_schema,
+        )
         _validate_prior_and_bindings(
             previous_ledger,
             current_turn,
             semantic_delta,
+            descriptor,
+            genesis_context,
             effective_ledger_schema,
         )
         _validate_current_evidence(semantic_delta, current_turn)
+        base_ledger, participant_registered = _ledger_base_with_current_participant(
+            previous_ledger,
+            descriptor,
+            genesis_context,
+        )
         local_ids, local_namespaces, prior_ids = _collect_local_ids(
-            previous_ledger, semantic_delta
+            base_ledger if previous_ledger is None else previous_ledger,
+            semantic_delta,
         )
         participants = {
             str(record.get("participant_id"))
-            for record in previous_ledger.get("participants", [])
+            for record in base_ledger.get("participants", [])
             if isinstance(record, Mapping)
         }
         resolver = _ReferenceResolver(
@@ -1663,25 +1873,53 @@ def materialise_semantic_delta(
         )
         candidate = _build_candidate(
             previous_ledger,
+            base_ledger,
             current_turn,
             semantic_delta,
             resolver,
             local_ids,
         )
-        incremental_validator = getattr(
-            phase1, "validate_ledger_incremental", None
-        )
-        if not callable(incremental_validator):
+        if not _participant_patch_valid(
+            candidate,
+            str(descriptor["participant_id"]),
+            participant_registered,
+        ):
             _raise(
                 "materialisation_invariant_failure",
-                "incremental_full_ledger_validator_unavailable",
+                "participant_registration_patch_invalid",
             )
-        persisted_errors = incremental_validator(
-            candidate,
-            previous_ledger,
-            current_turn,
-            effective_ledger_schema,
-        )
+        if previous_ledger is None:
+            full_validator = getattr(phase1, "validate_ledger", None)
+            if not callable(full_validator):
+                _raise(
+                    "materialisation_invariant_failure",
+                    "genesis_full_ledger_validator_unavailable",
+                )
+            persisted_errors = full_validator(
+                candidate,
+                {
+                    "conversation_key": candidate["conversation_key"],
+                    "turns": [copy.deepcopy(dict(current_turn))],
+                },
+                effective_ledger_schema,
+                _immediate_previous=None,
+                _validate_history=False,
+            )
+        else:
+            incremental_validator = getattr(
+                phase1, "validate_ledger_incremental", None
+            )
+            if not callable(incremental_validator):
+                _raise(
+                    "materialisation_invariant_failure",
+                    "incremental_full_ledger_validator_unavailable",
+                )
+            persisted_errors = incremental_validator(
+                candidate,
+                previous_ledger,
+                current_turn,
+                effective_ledger_schema,
+            )
         if persisted_errors:
             raise _MaterialisationFailure(
                 "persisted_ledger_validation_failure", persisted_errors
@@ -1832,24 +2070,218 @@ def _synthetic_behavioral_validation_case(
     return prior, current_turn, delta
 
 
+def _synthetic_empty_delta(
+    conversation_key: str,
+    current_turn: Mapping[str, Any],
+    previous_ledger: Mapping[str, Any] | None,
+) -> dict[str, Any]:
+    """Return a schema-complete semantic no-op for one invented turn."""
+
+    return {
+        "abstentions": [],
+        "answer_target_changes": [],
+        "as_of_turn_index": current_turn["turn_index"],
+        "commitment_changes": [],
+        "conversation_key": conversation_key,
+        "extraction_status": "complete",
+        "issue_state_updates": [],
+        "new_issue_states": [],
+        "new_proposition_groups": [],
+        "new_propositions": [],
+        "new_relations": [],
+        "obligation_changes": [],
+        "prior_ledger_reference": (
+            {
+                "as_of_turn_index": previous_ledger["as_of_turn_index"],
+                "ledger_id": previous_ledger["ledger_id"],
+            }
+            if previous_ledger is not None
+            else None
+        ),
+        "proposition_group_updates": [],
+        "proposition_updates": [],
+        "rejected_answer_target_changes": [],
+        "repair_records": [],
+        "resolved_items": [],
+        "schema_version": SEMANTIC_DELTA_SCHEMA_VERSION,
+        "target_turn_id": current_turn["turn_id"],
+        "unsupported_inferences_rejected": 0,
+        "warnings": [],
+    }
+
+
+def _synthetic_incremental_chain_validation() -> dict[str, Any]:
+    """Exercise genesis, first-seen registration, and a returning speaker."""
+
+    conversation_key = "synthetic:semantic-materialiser-chain-v2"
+    participants = {
+        "account": {
+            "author_key": "synthetic-chain-account",
+            "identity_confidence": 1.0,
+            "participant_id": "account",
+            "role": "account",
+        },
+        "contributor": {
+            "author_key": "synthetic-chain-contributor",
+            "identity_confidence": 1.0,
+            "participant_id": "contributor",
+            "role": "contributor",
+        },
+    }
+    turns = [
+        {
+            "conversation_key": conversation_key,
+            "parent_turn_id": None,
+            "post_id": "synthetic-chain-post-0",
+            "speaker_id": "account",
+            "text": "An invented account root.",
+            "turn_id": "synthetic-chain-t0",
+            "turn_index": 0,
+        },
+        {
+            "conversation_key": conversation_key,
+            "parent_turn_id": "synthetic-chain-t0",
+            "post_id": "synthetic-chain-post-1",
+            "speaker_id": "contributor",
+            "text": "An invented contributor reply.",
+            "turn_id": "synthetic-chain-t1",
+            "turn_index": 1,
+        },
+        {
+            "conversation_key": conversation_key,
+            "parent_turn_id": "synthetic-chain-t1",
+            "post_id": "synthetic-chain-post-2",
+            "speaker_id": "account",
+            "text": "An invented account response.",
+            "turn_id": "synthetic-chain-t2",
+            "turn_index": 2,
+        },
+        {
+            "conversation_key": conversation_key,
+            "parent_turn_id": "synthetic-chain-t2",
+            "post_id": "synthetic-chain-post-3",
+            "speaker_id": "contributor",
+            "text": "The invented contributor returns.",
+            "turn_id": "synthetic-chain-t3",
+            "turn_index": 3,
+        },
+    ]
+    genesis_context = {
+        "conversation_key": conversation_key,
+        "current_participant": copy.deepcopy(participants["account"]),
+        "root_post_id": turns[0]["post_id"],
+        "source_completeness": {
+            "account_publication_confirmed": True,
+            "chronology_complete": True,
+            "complete_prefix_through_turn": True,
+            "exact_text_complete": True,
+            "limitations": ["Wholly invented materialiser validation chain."],
+            "parent_graph_complete": True,
+            "reconstruction_grade": "A",
+        },
+    }
+    snapshots: list[dict[str, Any]] = []
+    statuses: list[str] = []
+    previous: dict[str, Any] | None = None
+    for index, turn in enumerate(turns):
+        participant = participants[str(turn["speaker_id"])]
+        result = materialise_semantic_delta(
+            previous,
+            turn,
+            _synthetic_empty_delta(conversation_key, turn, previous),
+            current_participant=participant,
+            genesis_context=genesis_context if index == 0 else None,
+        )
+        statuses.append(result.status)
+        if not isinstance(result.ledger, dict):
+            break
+        snapshots.append(result.ledger)
+        previous = result.ledger
+
+    genesis_valid = (
+        len(snapshots) >= 1
+        and statuses[0] == SUCCESS_STATUS
+        and snapshots[0].get("previous_ledger_sha256") is None
+        and snapshots[0].get("state_transitions", [{}])[0].get(
+            "from_ledger_sha256"
+        )
+        is None
+        and [
+            record.get("participant_id")
+            for record in snapshots[0].get("participants", [])
+        ]
+        == ["account"]
+    )
+    first_seen_valid = (
+        len(snapshots) >= 2
+        and statuses[1] == SUCCESS_STATUS
+        and [
+            record.get("participant_id")
+            for record in snapshots[1].get("participants", [])
+        ]
+        == ["account", "contributor"]
+        and _participant_patch_valid(snapshots[1], "contributor", True)
+    )
+    expected_participants = [
+        ["account"],
+        ["account", "contributor"],
+        ["account", "contributor"],
+        ["account", "contributor"],
+    ]
+    complete_chain_valid = (
+        len(snapshots) == len(turns)
+        and statuses == [SUCCESS_STATUS] * len(turns)
+        and all(
+            [
+                record.get("participant_id")
+                for record in snapshot.get("participants", [])
+            ]
+            == expected_participants[index]
+            and snapshot.get("ledger_sha256") == phase1.ledger_sha256(snapshot)
+            and len(snapshot.get("turn_refs", [])) == index + 1
+            for index, snapshot in enumerate(snapshots)
+        )
+        and _participant_patch_valid(snapshots[2], "account", False)
+        and _participant_patch_valid(snapshots[3], "contributor", False)
+    )
+    return {
+        "complete_incremental_chain_valid": complete_chain_valid,
+        "first_seen_participant_registration_valid": first_seen_valid,
+        "genesis_materialisation_valid": genesis_valid,
+        "incremental_chain_statuses": statuses,
+    }
+
+
 def behavioral_materialiser_validation(project_dir: Path) -> dict[str, Any]:
     """Run a bounded, wholly synthetic behavioral materialiser validation."""
 
     base_result = {
-        "case_id": "synthetic-semantic-materialiser-current-turn-v1",
+        "case_id": "synthetic-semantic-materialiser-current-turn-v2",
+        "materialiser_version": MATERIALISER_VERSION,
         "provider_calls": 0,
         "real_conversation_inputs": 0,
-        "schema_version": "proposition-ledger-semantic-materialiser-validation-v1",
+        "schema_version": "proposition-ledger-semantic-materialiser-validation-v2",
     }
     try:
         prior, current_turn, delta = _synthetic_behavioral_validation_case(
             project_dir
         )
-        first = materialise_semantic_delta(prior, current_turn, delta)
+        current_participant = next(
+            copy.deepcopy(record)
+            for record in prior["participants"]
+            if record["participant_id"] == current_turn["speaker_id"]
+        )
+        first = materialise_semantic_delta(
+            prior,
+            current_turn,
+            delta,
+            current_participant=current_participant,
+        )
         second = materialise_semantic_delta(
             copy.deepcopy(prior),
             copy.deepcopy(current_turn),
             copy.deepcopy(delta),
+            current_participant=copy.deepcopy(current_participant),
         )
         first_ledger = first.ledger if isinstance(first.ledger, dict) else None
         second_ledger = second.ledger if isinstance(second.ledger, dict) else None
@@ -1907,6 +2339,7 @@ def behavioral_materialiser_validation(project_dir: Path) -> dict[str, Any]:
             and isinstance(commitment, Mapping)
             and commitment.get("proposition_id") == new_proposition_id
         )
+        chain_validation = _synthetic_incremental_chain_validation()
 
         failure_inputs: dict[
             str, tuple[dict[str, Any], dict[str, Any], dict[str, Any]]
@@ -2003,6 +2436,7 @@ def behavioral_materialiser_validation(project_dir: Path) -> dict[str, Any]:
                 copy.deepcopy(case_prior),
                 copy.deepcopy(case_turn),
                 copy.deepcopy(case_delta),
+                current_participant=copy.deepcopy(current_participant),
             )
             for expected, (case_prior, case_turn, case_delta) in failure_inputs.items()
         }
@@ -2025,6 +2459,7 @@ def behavioral_materialiser_validation(project_dir: Path) -> dict[str, Any]:
         )
         result = {
             **base_result,
+            **chain_validation,
             "deterministic_bytes": deterministic_bytes,
             "deterministic_ledger_hash": deterministic_hash,
             "distinguishable_failure_statuses": failures_distinguishable,
@@ -2046,6 +2481,9 @@ def behavioral_materialiser_validation(project_dir: Path) -> dict[str, Any]:
                 deterministic_bytes,
                 deterministic_hash,
                 local_references_resolved,
+                result["genesis_materialisation_valid"],
+                result["first_seen_participant_registration_valid"],
+                result["complete_incremental_chain_valid"],
                 failures_distinguishable,
                 failures_bounded,
             )
@@ -2063,6 +2501,7 @@ __all__ = [
     "behavioral_materialiser_validation",
     "FAILURE_STATUSES",
     "MaterialisationResult",
+    "MATERIALISER_VERSION",
     "PERSISTED_LEDGER_SCHEMA_VERSION",
     "SEMANTIC_DELTA_SCHEMA_VERSION",
     "SUCCESS_STATUS",
