@@ -45,7 +45,7 @@ from dataclasses import dataclass
 from datetime import datetime, time, timedelta, timezone
 from decimal import Decimal, ROUND_HALF_UP
 from pathlib import Path
-from typing import Any, Dict, Iterable, List, Optional, Tuple
+from typing import Any, Dict, Iterable, List, Optional, Tuple, Union
 from urllib.parse import urlsplit
 from zoneinfo import ZoneInfo
 
@@ -71,8 +71,11 @@ DIGEST_JSON_OUTPUT_KIND = "mrs_log_digest"
 DIGEST_SOURCE_MAX_BYTES = 4 * 1024 * 1024
 CURRENT_RUNTIME_STATE_MAX_BYTES = 64 * 1024 * 1024
 CURRENT_RUNTIME_CONFIG_MAX_BYTES = 64 * 1024
+CONFIRMED_REPLY_RECEIPT_MAX_BYTES = 1024 * 1024
+HISTORICAL_REPLY_HISTORY_MAX_BYTES = 64 * 1024 * 1024
 MAX_REASONABLE_STATE_EPOCH = 4_102_531_200
 AUTHOR_NO_REPLY_PROGRESS_MAX_AUTHORS = 25_000
+AUTHOR_NO_REPLY_PROGRESS_MAX_THRESHOLD = 250_000
 AUTHOR_EVALUATION_QUARANTINE_EVIDENCE_POLICY = (
     "majority_resolvable_terminal_no_reply_v3"
 )
@@ -84,6 +87,8 @@ AUTHOR_EVALUATION_QUARANTINE_LEGACY_EVIDENCE_POLICY = (
 )
 PUBLISHED_REPLY_TEXT_MAX_CHARACTERS = 25_000
 PUBLISHED_REPLY_WARNING_LIMIT = 100
+MIN_CONFIRMED_PUBLICATION_EPOCH = 1_500_000_000
+MAX_CONFIRMED_PUBLICATION_EPOCH = 4_102_444_800
 SOURCE_REFERENCE_LIMIT = 8
 LONDON = ZoneInfo("Europe/London")
 PROVENANCE_EVENT_KINDS = frozenset(
@@ -264,6 +269,8 @@ REPLY_VISUAL_DESCRIPTION_MAX_REPORTED_IMAGES = 2_147_483_647
 REPLY_VISUAL_DESCRIPTION_MAX_CALL_COUNT = 1
 REPLY_VISUAL_DESCRIPTION_MAX_SCHEMA_VERSION = 2_147_483_647
 SHA256_LOWER_RE = re.compile(r"[0-9a-f]{64}\Z")
+PUBLIC_POST_ID_RE = re.compile(r"[0-9]{1,30}\Z")
+SAFE_SOURCE_LOGGER_RE = re.compile(r"[A-Za-z_][A-Za-z0-9_.]{0,127}\Z")
 
 
 def file_sha256(path: Path) -> str:
@@ -282,19 +289,32 @@ def _stable_file_identity(metadata: os.stat_result) -> Tuple[int, ...]:
         int(metadata.st_dev),
         int(metadata.st_ino),
         int(metadata.st_mode),
+        int(metadata.st_nlink),
+        int(metadata.st_uid),
         int(metadata.st_size),
         int(metadata.st_mtime_ns),
         int(metadata.st_ctime_ns),
     )
 
 
-def read_stable_regular_bytes(path: Path, *, maximum: int) -> bytes:
-    """Read one bounded regular file twice-bound to its no-follow pathname."""
+def read_stable_regular_snapshot(
+    path: Path,
+    *,
+    maximum: int,
+    require_private: bool = False,
+) -> Tuple[bytes, os.stat_result]:
+    """Read bytes and metadata from one stable no-follow file observation."""
 
     path = Path(path)
     before_path = os.lstat(path)
     if not stat.S_ISREG(before_path.st_mode):
         raise ValueError(f"not a regular file: {path.name}")
+    if require_private and (
+        before_path.st_nlink != 1
+        or before_path.st_uid != os.geteuid()
+        or stat.S_IMODE(before_path.st_mode) != 0o600
+    ):
+        raise ValueError(f"unsafe private file metadata: {path.name}")
     if before_path.st_size > maximum:
         raise ValueError(f"file exceeds {maximum} bytes: {path.name}")
     nofollow = getattr(os, "O_NOFOLLOW", 0)
@@ -328,7 +348,78 @@ def read_stable_regular_bytes(path: Path, *, maximum: int) -> bytes:
         or _stable_file_identity(after_fd) != _stable_file_identity(after_path)
     ):
         raise RuntimeError(f"file changed while read: {path.name}")
+    return data, after_fd
+
+
+def read_stable_regular_bytes(path: Path, *, maximum: int) -> bytes:
+    """Read one bounded regular file twice-bound to its no-follow pathname."""
+
+    data, _metadata = read_stable_regular_snapshot(path, maximum=maximum)
     return data
+
+
+def read_stable_private_json_bytes(path: Path, *, maximum: int) -> bytes:
+    """Read one stable, owned, single-link mode-0600 JSON authority."""
+
+    data, metadata = read_stable_regular_snapshot(
+        path,
+        maximum=maximum,
+        require_private=True,
+    )
+    if (
+        metadata.st_nlink != 1
+        or metadata.st_uid != os.geteuid()
+        or stat.S_IMODE(metadata.st_mode) != 0o600
+    ):
+        raise ValueError(f"unsafe private file metadata: {Path(path).name}")
+    return data
+
+
+def canonical_atomic_json_bytes(value: Any) -> bytes:
+    """Return the canonical encoding used by conversational receipts."""
+
+    return (json.dumps(value, indent=2, sort_keys=True) + "\n").encode("utf-8")
+
+
+def canonical_private_json_bytes(value: Any) -> bytes:
+    """Return the canonical encoding used by historical reply history."""
+
+    return (
+        json.dumps(
+            value,
+            ensure_ascii=False,
+            allow_nan=False,
+            indent=2,
+            sort_keys=True,
+        )
+        + "\n"
+    ).encode("utf-8")
+
+
+def bounded_exception_status(prefix: str, exc: BaseException) -> str:
+    """Describe a local read failure without echoing private file content."""
+
+    return f"{prefix}: {type(exc).__name__}"[:320]
+
+
+SAFE_RECONCILIATION_INSPECTION_ERRORS = frozenset(
+    {
+        "archive path is not a safe project-relative path",
+        "archive path is not a direct reconciliation-archive child",
+        "archive is not a mode-0400 regular file",
+        "marker audit/archive binding is invalid",
+        "definite-non-success audit identity is invalid",
+    }
+)
+
+
+def reconciliation_inspection_error(exc: BaseException) -> str:
+    """Retain fixed legacy diagnostics while redacting data-derived failures."""
+
+    message = str(exc)
+    if type(exc) is ValueError and message in SAFE_RECONCILIATION_INSPECTION_ERRORS:
+        return f"ValueError: {message}"
+    return bounded_exception_status("inspection failed", exc)
 
 
 def _strict_json_object(data: bytes, *, label: str) -> Dict[str, Any]:
@@ -356,8 +447,8 @@ def _strict_json_object(data: bytes, *, label: str) -> Dict[str, Any]:
     return value
 
 
-def _strict_native_json_object(data: bytes, *, label: str) -> Dict[str, Any]:
-    """Parse duplicate-free finite JSON while retaining ordinary float types."""
+def _strict_native_json_value(data: bytes, *, label: str) -> Any:
+    """Parse duplicate-free finite UTF-8 JSON with ordinary float types."""
 
     def reject_constant(value: str) -> None:
         raise ValueError(f"{label} contains non-finite number {value}")
@@ -376,12 +467,36 @@ def _strict_native_json_object(data: bytes, *, label: str) -> Dict[str, Any]:
             result[key] = value
         return result
 
+    def require_utf8_strings(value: Any) -> None:
+        if isinstance(value, str):
+            try:
+                value.encode("utf-8")
+            except UnicodeEncodeError as exc:
+                raise ValueError(
+                    f"{label} contains a non-UTF-8 string"
+                ) from exc
+        elif isinstance(value, list):
+            for item in value:
+                require_utf8_strings(item)
+        elif isinstance(value, dict):
+            for key, item in value.items():
+                require_utf8_strings(key)
+                require_utf8_strings(item)
+
     value = json.loads(
         data.decode("utf-8"),
         object_pairs_hook=pairs,
         parse_float=parse_finite_float,
         parse_constant=reject_constant,
     )
+    require_utf8_strings(value)
+    return value
+
+
+def _strict_native_json_object(data: bytes, *, label: str) -> Dict[str, Any]:
+    """Parse one strict native JSON object."""
+
+    value = _strict_native_json_value(data, label=label)
     if not isinstance(value, dict):
         raise ValueError(f"{label} root is not an object")
     return value
@@ -727,7 +842,7 @@ def reconciliation_archive_snapshot(project_dir: Path) -> Dict[str, Any]:
                     }
                 except Exception as exc:
                     marker_identity["identity_error"] = (
-                        f"{type(exc).__name__}: {exc}"
+                        reconciliation_inspection_error(exc)
                     )
                 try:
                     resolution = _strict_json_object(
@@ -785,7 +900,7 @@ def reconciliation_archive_snapshot(project_dir: Path) -> Dict[str, Any]:
                     )
                 except Exception as exc:
                     marker_identity["reference_identity_error"] = (
-                        f"{type(exc).__name__}: {exc}"
+                        reconciliation_inspection_error(exc)
                     )
                 valid_marker.append(
                     {
@@ -1447,7 +1562,10 @@ def remote_write_safety_snapshot(project_dir: Path) -> Dict[str, Any]:
                             ).hexdigest()
                         )
             except Exception as exc:
-                entry["identity_error"] = f"{type(exc).__name__}: {exc}"
+                entry["identity_error"] = bounded_exception_status(
+                    "inspection failed",
+                    exc,
+                )
         active_entries.append(entry)
 
     for name in REMOTE_WRITE_MARKER_BASENAMES:
@@ -1989,9 +2107,9 @@ def configured_quote_image_semantic_veto_snapshot(project_dir: Path) -> Dict[str
     """Validate the configured semantic-veto manifest without changing runtime state."""
     config_path = project_dir / "mrsMThatcher.local.json"
     try:
-        local_config = json.loads(config_path.read_text(encoding="utf-8"))
-        if not isinstance(local_config, dict):
-            raise ValueError("local config root is not an object")
+        local_config = _strict_native_json_object(
+            config_path.read_bytes(), label="mrsMThatcher.local.json"
+        )
     except FileNotFoundError:
         return {"present": False}
     except Exception as exc:
@@ -2030,9 +2148,9 @@ def configured_quote_image_semantic_veto_snapshot(project_dir: Path) -> Dict[str
         config_errors = validate_shadow_config(config)
         if config_errors:
             raise ValueError("; ".join(config_errors))
-        manifest = json.loads(configured_path.read_text(encoding="utf-8"))
-        if not isinstance(manifest, dict):
-            raise ValueError("manifest root is not an object")
+        manifest = _strict_native_json_object(
+            configured_path.read_bytes(), label="semantic-veto manifest"
+        )
         audit = validate_compiled_manifest(manifest)
         stale = manifest_source_hash_mismatches(project_dir, manifest)
         manifest_hash = file_sha256(configured_path)
@@ -2222,20 +2340,22 @@ def quote_image_semantic_veto_shadow_snapshot(project_dir: Path) -> Dict[str, An
     configured = configured_quote_image_semantic_veto_snapshot(project_dir)
     path = project_dir / "quote_image_semantic_veto_runtime" / "shadow_status.json"
     try:
-        value = json.loads(path.read_text(encoding="utf-8"))
-        if not isinstance(value, dict):
-            raise ValueError("status root is not an object")
+        value = _strict_native_json_object(
+            path.read_bytes(), label="semantic-veto shadow status"
+        )
         if "mixed_manifest_versions" not in value:
             history_path = path.with_name("shadow_history.jsonl")
             history_rows: List[Dict[str, Any]] = []
             if history_path.is_file():
                 for line in history_path.read_text(encoding="utf-8", errors="replace").splitlines()[-10_000:]:
                     try:
-                        row = json.loads(line)
-                    except json.JSONDecodeError:
+                        row = _strict_native_json_object(
+                            line.encode("utf-8"),
+                            label="semantic-veto shadow history row",
+                        )
+                    except (UnicodeEncodeError, ValueError):
                         continue
-                    if isinstance(row, dict):
-                        history_rows.append(row)
+                    history_rows.append(row)
             if history_rows:
                 reconstructed = quote_image_semantic_veto_summary(history_rows)
                 value = {
@@ -2411,9 +2531,9 @@ def historical_context_corpus_snapshot(project_dir: Path) -> Dict[str, Any]:
     malformed: List[str] = []
     for label, path in paths.items():
         try:
-            value = json.loads(path.read_text(encoding="utf-8"))
-            if not isinstance(value, dict):
-                raise ValueError("root is not an object")
+            value = _strict_native_json_object(
+                path.read_bytes(), label=f"historical corpus {label}"
+            )
             loaded[label] = value
             hashes[label] = file_sha256(path)
         except FileNotFoundError:
@@ -2513,9 +2633,9 @@ def generated_pool_health_snapshot(base_dir: Path, now: Optional[datetime] = Non
     parsed = {"analysis": False, "audit": False}
     for label, path, target in (("analysis", analysis_path, "analysis"), ("audit", audit_path, "audit")):
         try:
-            value = json.loads(path.read_text(encoding="utf-8"))
-            if not isinstance(value, dict):
-                raise ValueError("root is not an object")
+            value = _strict_native_json_object(
+                path.read_bytes(), label=f"generated image {label}"
+            )
             if target == "analysis": analysis = value
             else: audit = value
             parsed[label] = True
@@ -2603,8 +2723,10 @@ def generated_pool_health_snapshot(base_dir: Path, now: Optional[datetime] = Non
     if quarantine_dir.exists():
         for manifest_path in sorted(quarantine_dir.glob("*/manifest.json")):
             try:
-                transaction = json.loads(manifest_path.read_text(encoding="utf-8"))
-                if not isinstance(transaction, dict): raise ValueError("manifest root is not an object")
+                transaction = _strict_native_json_object(
+                    manifest_path.read_bytes(),
+                    label="generated image curation manifest",
+                )
             except Exception as exc:
                 warning("transaction_malformed", manifest_path.parent.name, str(exc)); continue
             if transaction.get("status") != "completed":
@@ -2657,7 +2779,9 @@ def generated_pool_health_snapshot(base_dir: Path, now: Optional[datetime] = Non
 
     used_generated: set[str] = set()
     try:
-        raw_used = json.loads(used_path.read_text(encoding="utf-8"))
+        raw_used = _strict_native_json_value(
+            used_path.read_bytes(), label="images_used.json"
+        )
         if not isinstance(raw_used, list): raise ValueError("expected JSON list")
         used_generated = {str(value) for value in raw_used if GENERATED_BASENAME_RE.fullmatch(str(value))}
     except FileNotFoundError: warning("used_history_unavailable", "", str(used_path))
@@ -2710,7 +2834,7 @@ def generated_post_rate_history(logs: List[Path], now: Optional[datetime] = None
     for record in records:
         if record.ts in contaminated_seconds or not record.msg.startswith("EVENT "):
             continue
-        event = try_parse_json_object_from_msg(record.msg)
+        event = try_parse_strict_json_object_from_msg(record.msg)
         if not event or event.get("event") != "main_post_posted" or event.get("lane") != "quote_image":
             continue
         post_id = str(event.get("post_id") or "")
@@ -2896,11 +3020,16 @@ def load_runway_config(project_dir: Path, observed_config: Dict[str, Any]) -> Di
     if not local_path.exists():
         return result
     try:
-        local_config = json.loads(local_path.read_text(encoding="utf-8"))
+        local_config = _strict_native_json_object(
+            local_path.read_bytes(), label="mrsMThatcher.local.json"
+        )
     except Exception as exc:
-        return {"_runway_config_error": f"cannot read valid local config {local_path}: {exc}"}
-    if not isinstance(local_config, dict):
-        return {"_runway_config_error": f"local config is not a JSON object: {local_path}"}
+        return {
+            "_runway_config_error": (
+                "cannot read valid local config: "
+                f"{type(exc).__name__}"
+            )
+        }
     result.update({key: value for key, value in local_config.items() if key in result})
     return result
 
@@ -2986,8 +3115,9 @@ def read_resume_data(state_file: Path) -> Dict[str, Any]:
     if not state_file.exists():
         return {}
     try:
-        data = json.loads(state_file.read_text(encoding="utf-8"))
-        return data if isinstance(data, dict) else {}
+        return _strict_native_json_object(
+            state_file.read_bytes(), label="digest resume state"
+        )
     except Exception as e:
         print(f"WARNING: could not read state file {state_file}: {e}", file=sys.stderr)
         return {}
@@ -3221,6 +3351,127 @@ class Record:
     ordinal: int
 
 
+def valid_public_post_id(value: Any) -> bool:
+    """Return whether a value is one bounded ASCII decimal post identity."""
+
+    return bool(PUBLIC_POST_ID_RE.fullmatch(str(value or "")))
+
+
+def valid_string_public_post_id(value: Any) -> bool:
+    """Return whether a durable authority stores an exact string post ID."""
+
+    return type(value) is str and valid_public_post_id(value)
+
+
+def valid_bounded_utf8_text(
+    value: Any,
+    *,
+    allow_empty: bool = False,
+) -> bool:
+    """Return whether exact public text is bounded and UTF-8 encodable."""
+
+    if (
+        not isinstance(value, str)
+        or len(value) > PUBLISHED_REPLY_TEXT_MAX_CHARACTERS
+        or (not allow_empty and not value)
+    ):
+        return False
+    try:
+        value.encode("utf-8")
+    except UnicodeEncodeError:
+        return False
+    return True
+
+
+def valid_conversational_public_reply_text(value: Any) -> bool:
+    """Validate durable exact reply text, including long and multiline posts."""
+
+    # Publication receipts and current state describe text already confirmed by
+    # X, not a draft to be revalidated against today's generation policy.  The
+    # evidence contract therefore preserves valid long posts and embedded
+    # newlines exactly, while retaining the digest's explicit safety bound.
+    return valid_bounded_utf8_text(value)
+
+
+def bounded_event_text(
+    value: Any,
+    *,
+    default: Optional[str] = None,
+    max_characters: int = 1000,
+) -> Optional[str]:
+    """Project one structured display string without coercing nested values."""
+
+    if (
+        type(value) is str
+        and len(value) <= max_characters
+        and valid_bounded_utf8_text(value, allow_empty=True)
+    ):
+        return value
+    return default
+
+
+def bounded_event_nonnegative_integer(
+    value: Any,
+    *,
+    maximum: int = MAX_REASONABLE_STATE_EPOCH,
+) -> Optional[int]:
+    """Project one bounded non-negative structured display integer."""
+
+    return value if type(value) is int and 0 <= value <= maximum else None
+
+
+def bounded_event_finite_number(
+    value: Any,
+    *,
+    absolute_maximum: float = 1_000_000_000.0,
+) -> Optional[Union[int, float]]:
+    """Project one bounded finite structured display number."""
+
+    if type(value) is int and abs(value) <= absolute_maximum:
+        return value
+    if (
+        type(value) is float
+        and math.isfinite(value)
+        and abs(value) <= absolute_maximum
+    ):
+        return value
+    return None
+
+
+def bounded_event_boolean(value: Any) -> Optional[bool]:
+    """Project one structured display boolean without truthiness coercion."""
+
+    return value if type(value) is bool else None
+
+
+def bounded_event_string_list(
+    value: Any,
+    *,
+    limit: int = 100,
+    item_max_characters: int = 240,
+) -> List[str]:
+    """Project a bounded list containing only bounded exact strings."""
+
+    if not isinstance(value, list):
+        return []
+    projected: List[str] = []
+    for item in value[:limit]:
+        text = bounded_event_text(
+            item,
+            max_characters=item_max_characters,
+        )
+        if text is not None:
+            projected.append(text)
+    return projected
+
+
+def safe_source_logger(value: Any) -> str:
+    """Return a non-sensitive bounded logger/function identifier."""
+
+    logger = str(value or "")
+    return logger if SAFE_SOURCE_LOGGER_RE.fullmatch(logger) else "unavailable"
+
+
 def record_source_ref(
     record: Record,
     input_file_indexes: Optional[Dict[str, int]] = None,
@@ -3237,7 +3488,7 @@ def record_source_ref(
         {
             "record_number": record.ordinal,
             "timestamp": dt_text(record.ts),
-            "logger": record.src,
+            "logger": safe_source_logger(record.src),
         }
     )
     if record.line > 0:
@@ -3624,6 +3875,113 @@ ENGAGEMENT_QUESTION_EXPERIMENT_STATUSES = {
     "invalid",
 }
 ENGAGEMENT_CORRELATION_WARNING_LIMIT = 100
+ENGAGEMENT_PAIR_ID_RE = re.compile(r"pair-[0-9a-f]{24}\Z")
+ENGAGEMENT_PUBLICATION_ORDERS = {"control_first", "treatment_first"}
+ENGAGEMENT_ARMS = {"control", "treatment"}
+ENGAGEMENT_MAX_CONFIRMED_PUBLICATIONS = 60
+
+
+def valid_account_root_publication_identity(event: Any) -> bool:
+    """Return whether an account-root event has the producer's core contract."""
+
+    if not isinstance(event, dict):
+        return False
+    post_id = event.get("post_id")
+    return bool(
+        event.get("event") == "account_root_posted"
+        and type(event.get("event_version")) is int
+        and event.get("event_version") == 1
+        and type(event.get("lane")) is str
+        and event.get("lane") in {"quote_image", "daily_meme"}
+        and valid_string_public_post_id(post_id)
+        and event.get("root_post_id") == post_id
+        and event.get("conversation_id") == post_id
+        and event.get("publication_authority") == "confirmed_transport"
+    )
+
+
+def valid_engagement_confirmation_event(event: Any) -> bool:
+    """Return whether a trial confirmation matches its producer schema."""
+
+    return bool(
+        isinstance(event, dict)
+        and event.get("event")
+        == "engagement_question_experimental_member_confirmed"
+        and valid_string_public_post_id(event.get("post_id"))
+        and isinstance(event.get("plan_sha256"), str)
+        and SHA256_LOWER_RE.fullmatch(event["plan_sha256"]) is not None
+        and isinstance(event.get("pair_id"), str)
+        and ENGAGEMENT_PAIR_ID_RE.fullmatch(event["pair_id"]) is not None
+        and type(event.get("member_position")) is int
+        and event.get("member_position") in {1, 2}
+        and type(event.get("arm")) is str
+        and event.get("arm") in ENGAGEMENT_ARMS
+        and type(event.get("publication_sequence")) is int
+        and 1
+        <= event.get("publication_sequence")
+        <= ENGAGEMENT_MAX_CONFIRMED_PUBLICATIONS
+    )
+
+
+def engagement_main_metadata_status(event: Any) -> str:
+    """Return absent, valid, or invalid for main-post experiment metadata."""
+
+    fields = (
+        "engagement_experiment_id",
+        "engagement_experiment_plan_sha256",
+        "engagement_experiment_pair_id",
+        "engagement_experiment_arm",
+        "engagement_experiment_member_position",
+        "engagement_experiment_publication_order",
+        "engagement_experiment_sequence",
+        "engagement_question_present",
+        "engagement_approved_question_sha256",
+        "engagement_public_text_sha256",
+    )
+    if not isinstance(event, dict) or not any(field in event for field in fields):
+        return "absent"
+    arm = event.get("engagement_experiment_arm")
+    valid = bool(
+        event.get("engagement_experiment_id")
+        == ENGAGEMENT_QUESTION_EXPERIMENT_ID
+        and isinstance(event.get("engagement_experiment_plan_sha256"), str)
+        and SHA256_LOWER_RE.fullmatch(
+            event["engagement_experiment_plan_sha256"]
+        )
+        is not None
+        and isinstance(event.get("engagement_experiment_pair_id"), str)
+        and ENGAGEMENT_PAIR_ID_RE.fullmatch(
+            event["engagement_experiment_pair_id"]
+        )
+        is not None
+        and type(event.get("engagement_experiment_member_position")) is int
+        and event.get("engagement_experiment_member_position") in {1, 2}
+        and type(arm) is str
+        and arm in ENGAGEMENT_ARMS
+        and type(event.get("engagement_experiment_publication_order")) is str
+        and event.get("engagement_experiment_publication_order")
+        in ENGAGEMENT_PUBLICATION_ORDERS
+        and type(event.get("engagement_experiment_sequence")) is int
+        and 1
+        <= event.get("engagement_experiment_sequence")
+        <= ENGAGEMENT_MAX_CONFIRMED_PUBLICATIONS
+        and type(event.get("engagement_question_present")) is bool
+        and event.get("engagement_question_present")
+        is (arm == "treatment")
+        and isinstance(
+            event.get("engagement_approved_question_sha256"), str
+        )
+        and SHA256_LOWER_RE.fullmatch(
+            event["engagement_approved_question_sha256"]
+        )
+        is not None
+        and isinstance(event.get("engagement_public_text_sha256"), str)
+        and SHA256_LOWER_RE.fullmatch(
+            event["engagement_public_text_sha256"]
+        )
+        is not None
+    )
+    return "valid" if valid else "invalid"
 
 
 def state_list_count(state: Dict[str, Any], key: str) -> Any:
@@ -3831,10 +4189,9 @@ def load_authoritative_state_for_logs(logs: List[Path]) -> Tuple[Optional[Dict[s
         if not path.exists():
             continue
         try:
-            data = json.loads(path.read_text(encoding="utf-8"))
-            if not isinstance(data, dict):
-                print(f"WARNING: ignoring non-object bot state {path}", file=sys.stderr)
-                continue
+            data = _strict_native_json_object(
+                path.read_bytes(), label="authoritative bot state"
+            )
             mtime = datetime.fromtimestamp(path.stat().st_mtime)
             return data, path, mtime
         except Exception as e:
@@ -3848,7 +4205,7 @@ def load_current_runtime_state(
     """Read and minimally validate the production runtime state at generation time."""
     path = project_dir / "bot_state.json"
     try:
-        raw = read_stable_regular_bytes(
+        raw, metadata = read_stable_regular_snapshot(
             path,
             maximum=CURRENT_RUNTIME_STATE_MAX_BYTES,
         )
@@ -3869,19 +4226,15 @@ def load_current_runtime_state(
                 type(data[key]) is not int or data[key] < 0
             ):
                 raise ValueError(f"{key} is not a non-negative integer")
-        mtime = datetime.fromtimestamp(os.lstat(path).st_mtime)
+        mtime = datetime.fromtimestamp(metadata.st_mtime)
         return data, path, mtime, "available"
     except FileNotFoundError:
         return None, path, None, "absent"
     except RuntimeError as exc:
         status = "unstable" if "changed" in str(exc) else "malformed"
-        return None, path, None, (
-            f"{status}: {type(exc).__name__}: {str(exc)[:240]}"
-        )
+        return None, path, None, bounded_exception_status(status, exc)
     except Exception as exc:
-        return None, path, None, (
-            f"malformed: {type(exc).__name__}: {str(exc)[:240]}"
-        )
+        return None, path, None, bounded_exception_status("malformed", exc)
 
 
 CURRENT_CONFIG_REPORT_KEYS = {
@@ -3923,7 +4276,7 @@ def load_current_runtime_config(
     """Read allow-listed values from the on-disk local override file."""
     path = project_dir / "mrsMThatcher.local.json"
     try:
-        raw = read_stable_regular_bytes(
+        raw, metadata = read_stable_regular_snapshot(
             path,
             maximum=CURRENT_RUNTIME_CONFIG_MAX_BYTES,
         )
@@ -3946,28 +4299,27 @@ def load_current_runtime_config(
         config["_config_source"] = "mrsMThatcher.local.json"
         config["_config_source_path"] = str(path)
         config["_config_source_time"] = dt_text(
-            datetime.fromtimestamp(os.lstat(path).st_mtime)
+            datetime.fromtimestamp(metadata.st_mtime)
         )
-        return config, path, datetime.fromtimestamp(os.lstat(path).st_mtime), "available"
+        return config, path, datetime.fromtimestamp(metadata.st_mtime), "available"
     except FileNotFoundError:
         return None, path, None, "absent"
     except RuntimeError as exc:
         status = "unstable" if "changed" in str(exc) else "malformed"
-        return None, path, None, (
-            f"{status}: {type(exc).__name__}: {str(exc)[:240]}"
-        )
+        return None, path, None, bounded_exception_status(status, exc)
     except Exception as exc:
-        return None, path, None, (
-            f"malformed: {type(exc).__name__}: {str(exc)[:240]}"
-        )
+        return None, path, None, bounded_exception_status("malformed", exc)
 
 
-def epoch_to_london_text(value: int) -> str:
+def epoch_to_london_text(value: int) -> Optional[str]:
     """Render a validated epoch in the digest's explicit London timezone."""
 
-    return datetime.fromtimestamp(value, tz=LONDON).strftime(
-        "%Y-%m-%d %H:%M:%S"
-    )
+    try:
+        return datetime.fromtimestamp(value, tz=LONDON).strftime(
+            "%Y-%m-%d %H:%M:%S"
+        )
+    except (OverflowError, OSError, ValueError):
+        return None
 
 
 def current_author_no_reply_strike_progress(
@@ -3976,10 +4328,17 @@ def current_author_no_reply_strike_progress(
     runtime_config: Any,
     runtime_config_status: str,
     generation_time: datetime,
+    *,
+    state_observed_at: Optional[datetime] = None,
 ) -> Dict[str, Any]:
     """Project current durable author strikes without mutating runtime state."""
 
-    as_of_epoch = int(generation_time.timestamp())
+    observation_time = state_observed_at or generation_time
+    try:
+        as_of_epoch = int(observation_time.timestamp())
+    except (OverflowError, OSError, ValueError):
+        as_of_epoch = -1
+    as_of_time = epoch_to_london_text(as_of_epoch)
     limitation = (
         "Expired or cleared sub-threshold strikes cannot be reconstructed when "
         "current durable state and retained structured logs no longer contain them."
@@ -3993,7 +4352,7 @@ def current_author_no_reply_strike_progress(
             "selected log window"
         ),
         "as_of_epoch": as_of_epoch,
-        "as_of_time": epoch_to_london_text(as_of_epoch),
+        "as_of_time": as_of_time,
         "time_zone": "Europe/London",
         "rolling_window_semantics": (
             "retain strikes where cutoff_epoch < strike_epoch <= as_of_epoch"
@@ -4040,6 +4399,24 @@ def current_author_no_reply_strike_progress(
             "quarantine_seconds": quarantine_seconds,
         }
     )
+    if (
+        as_of_epoch < 0
+        or as_of_epoch > MAX_REASONABLE_STATE_EPOCH
+        or as_of_time is None
+    ):
+        result["reason"] = "current state observation time is not representable"
+        return result
+    if (
+        threshold > AUTHOR_NO_REPLY_PROGRESS_MAX_THRESHOLD
+        or window_seconds > MAX_REASONABLE_STATE_EPOCH
+        or quarantine_seconds > MAX_REASONABLE_STATE_EPOCH
+        or as_of_epoch + window_seconds > MAX_REASONABLE_STATE_EPOCH
+        or as_of_epoch + quarantine_seconds > MAX_REASONABLE_STATE_EPOCH
+    ):
+        result["reason"] = (
+            "current quarantine configuration exceeds bounded reporting limits"
+        )
+        return result
 
     if runtime_state_status != "available" or not isinstance(
         runtime_state, dict
@@ -4081,14 +4458,14 @@ def current_author_no_reply_strike_progress(
     ordered_records = sorted(
         records.items(),
         key=lambda item: (
-            not str(item[0]).isdigit(),
+            not valid_public_post_id(item[0]),
             len(str(item[0])),
             str(item[0]),
         ),
     )
     for position, (raw_author_id, raw_record) in enumerate(ordered_records, 1):
         author_id = str(raw_author_id)
-        if not author_id.isdigit() or not isinstance(raw_record, dict):
+        if not valid_public_post_id(author_id) or not isinstance(raw_record, dict):
             result["reason"] = (
                 f"malformed author quarantine record at position {position}"
             )
@@ -4438,6 +4815,26 @@ def try_parse_response_id_text(msg: str) -> Tuple[Optional[str], Optional[str]]:
         return (m.group(1) if m else None), None
 
 
+def response_post_id_is_canonical_string(msg: str) -> bool:
+    """Return whether a legacy success response stores its ID as a string."""
+
+    marker = "response="
+    if marker not in msg:
+        return False
+    raw = msg.split(marker, 1)[1].strip()
+    try:
+        data = ast.literal_eval(raw)
+        payload = data.get("data") if isinstance(data, dict) else None
+        return bool(
+            isinstance(payload, dict)
+            and valid_string_public_post_id(payload.get("id"))
+        )
+    except Exception:
+        # The compatibility parser may salvage an old display event below,
+        # but malformed payload text is never immutable success authority.
+        return False
+
+
 def try_parse_json_object_from_msg(msg: str) -> Optional[Dict[str, Any]]:
     """Return the try parse JSON object from msg."""
     start = msg.find("{")
@@ -4451,6 +4848,24 @@ def try_parse_json_object_from_msg(msg: str) -> Optional[Dict[str, Any]]:
     except Exception:
         return None
     return None
+
+
+def try_parse_strict_json_object_from_msg(
+    msg: str,
+) -> Optional[Dict[str, Any]]:
+    """Parse an authority-bearing EVENT with one unambiguous JSON object."""
+
+    prefix = "EVENT "
+    if not msg.startswith(prefix + "{"):
+        return None
+    raw = msg[len(prefix):]
+    try:
+        return _strict_native_json_object(
+            raw.encode("utf-8"),
+            label="structured EVENT",
+        )
+    except Exception:
+        return None
 
 
 def parse_partial_state_from_msg(msg: str) -> Optional[Dict[str, Any]]:
@@ -5701,6 +6116,8 @@ def summarise_operational_error_health(
             )
     terminal_reply_receipts: List[Dict[str, Any]] = []
     for item in confirmed_reply_receipt_events:
+        if item.get("source_class") == "selftest":
+            continue
         if item.get("kind") not in {
             "sending_removed",
             "confirmed_state_fallback_removed",
@@ -8774,22 +9191,806 @@ def _normalise_lane(value: Any) -> str:
     return {"hot-post": "hot-post", "quote-tweet": "quote-tweet", "mention": "mention"}.get(lane, "unavailable")
 
 
-def canonical_public_reply_lane(value: Any) -> str:
-    """Normalise a confirmed public-reply lane to its durable state spelling."""
+def _structured_value_sha256(value: Any) -> str:
+    """Hash one immutable draft value using the production approval encoding."""
 
-    lane = str(value or "").strip().lower().replace("-", "_")
-    aliases = {
-        "mention": "mention",
-        "mention_reply": "mention",
-        "mention+hot_post_reply": "mention",
-        "hot_post": "hot_post_reply",
-        "hot_post_reply": "hot_post_reply",
-        "quote_tweet": "quote_tweet",
-        "quote_tweet_reply": "quote_tweet",
-        "historical_context": "historical_context_reply",
-        "historical_context_reply": "historical_context_reply",
+    return hashlib.sha256(
+        json.dumps(
+            value,
+            ensure_ascii=False,
+            sort_keys=True,
+            separators=(",", ":"),
+        ).encode("utf-8")
+    ).hexdigest()
+
+
+def _valid_durable_ai_reply_draft(
+    draft: Any,
+    *,
+    context: Dict[str, Any],
+    lane: str,
+    target_id: str,
+    conversation_id: str,
+    reply_text: str,
+) -> bool:
+    """Validate immutable draft identity and its reviewer-approval hash."""
+
+    if not isinstance(draft, dict):
+        return False
+    common = {
+        "schema_version",
+        "strategy_version",
+        "target_id",
+        "thread_id",
+        "candidate_source",
+        "contribution_hash",
+        "context_hash",
+        "proposed_reply",
+        "mode",
+        "reviewer_verdict",
+        "creation_time",
+        "approval_hash",
     }
-    return aliases.get(lane, "unavailable")
+    strategy = draft.get("strategy_version")
+    if strategy == "tested-reply-pipeline-20260817":
+        required = common | {
+            "trusted_facts_hash",
+            "final_reply_kind",
+            "tone",
+            "factual_claims",
+            "evidence_ids",
+            "trusted_facts_supplied_count",
+            "trusted_fact_ids_supplied",
+            "used_fact_count",
+            "used_fact_ids",
+            "claim_risk_categories",
+            "model_call_count",
+            "revision_count",
+            "reply_requirement",
+            "route_source",
+        }
+        optional_repair = {
+            "direct_answer_repair_attempted",
+            "direct_answer_repair_outcome",
+            "original_local_rejection_reason",
+            "original_proposed_reply",
+        }
+        if (
+            type(draft.get("schema_version")) is not int
+            or draft.get("schema_version") != 1
+            or not required.issubset(draft)
+            or set(draft) - required - optional_repair
+            or not SHA256_LOWER_RE.fullmatch(
+                str(draft.get("trusted_facts_hash") or "")
+            )
+        ):
+            return False
+        supplied_fact_ids = draft.get("trusted_fact_ids_supplied")
+        supplied_fact_count = draft.get("trusted_facts_supplied_count")
+        used_fact_count = draft.get("used_fact_count")
+        used_fact_ids = draft.get("used_fact_ids")
+        if (
+            draft.get("mode")
+            not in {"direct_factual_answer", "opinion_or_principle"}
+            or draft.get("final_reply_kind") not in {"factual", "unknown"}
+            or draft.get("tone") != "unknown"
+            or not isinstance(draft.get("factual_claims"), list)
+            or not all(
+                isinstance(item, str) for item in draft["factual_claims"]
+            )
+            or draft.get("evidence_ids") is not None
+            or type(supplied_fact_count) is not int
+            or supplied_fact_count < 0
+            or not isinstance(supplied_fact_ids, list)
+            or not all(isinstance(item, str) for item in supplied_fact_ids)
+            or supplied_fact_count != len(supplied_fact_ids)
+            or (
+                used_fact_count != "unknown"
+                and (type(used_fact_count) is not int or used_fact_count < 0)
+            )
+            or (
+                used_fact_count == "unknown" and used_fact_ids is not None
+            )
+            or (
+                type(used_fact_count) is int
+                and (
+                    not isinstance(used_fact_ids, list)
+                    or not all(isinstance(item, str) for item in used_fact_ids)
+                    or used_fact_count != len(used_fact_ids)
+                )
+            )
+            or not isinstance(draft.get("claim_risk_categories"), list)
+            or not all(
+                isinstance(item, str)
+                for item in draft["claim_risk_categories"]
+            )
+            or type(draft.get("model_call_count")) is not int
+            or draft["model_call_count"] < 1
+            or type(draft.get("revision_count")) is not int
+            or draft["revision_count"] < 0
+            or draft.get("reply_requirement")
+            not in {"general", "claim_free", "supported_factual", "premise_neutral"}
+            or not isinstance(draft.get("route_source"), str)
+            or not draft["route_source"]
+            or len(draft["route_source"]) > 128
+        ):
+            return False
+    elif strategy == "ai-first-reply-v3":
+        required = common | {
+            "direct_factual_question_present",
+            "requested_answer_type",
+            "direct_answer_text",
+            "tone",
+            "factual_claims",
+            "exact_thatcher_wording_used",
+            "exact_thatcher_wording",
+            "evidence_ids",
+            "claim_evidence",
+            "source_hashes",
+            "evidence_input_hashes",
+            "reviewer_reasons",
+            "reviewer_sentence_assessments",
+            "claim_auditor_sentence_assessments",
+            "resolved_quote_id",
+            "resolved_quote_context_hash",
+            "proposer_model",
+            "evidence_model",
+            "reviewer_model",
+            "claim_auditor_model",
+            "proposer_prompt_version",
+            "evidence_prompt_version",
+            "reviewer_prompt_version",
+            "claim_auditor_prompt_version",
+            "model_call_count",
+            "revision_count",
+        }
+        if (
+            type(draft.get("schema_version")) is not int
+            or draft.get("schema_version") != 9
+            or frozenset(draft)
+            not in {
+                frozenset(required),
+                frozenset(required | {"retrieved_count"}),
+            }
+        ):
+            return False
+        if (
+            draft.get("mode")
+            not in {
+                "direct_factual_answer",
+                "opinion_or_principle",
+                "light_humour",
+                "courtesy",
+            }
+            or draft.get("tone")
+            not in {"firm", "dry", "wry", "warm", "neutral", "light", "none"}
+            or type(draft.get("model_call_count")) is not int
+            or draft["model_call_count"] < 1
+            or type(draft.get("revision_count")) is not int
+            or draft["revision_count"] not in {0, 1}
+            or (
+                "retrieved_count" in draft
+                and (
+                    type(draft.get("retrieved_count")) is not int
+                    or draft["retrieved_count"] < 0
+                )
+            )
+        ):
+            return False
+    else:
+        return False
+    incoming = context.get("incoming_contribution")
+    approval = draft.get("approval_hash")
+    unsigned = {key: value for key, value in draft.items() if key != "approval_hash"}
+    return bool(
+        draft.get("target_id") == target_id
+        and draft.get("thread_id") == conversation_id
+        and draft.get("candidate_source") == lane
+        and draft.get("proposed_reply") == reply_text
+        and draft.get("reviewer_verdict") == "approve"
+        and isinstance(draft.get("mode"), str)
+        and bool(draft["mode"])
+        and isinstance(incoming, str)
+        and bool(incoming.strip())
+        and draft.get("contribution_hash")
+        == hashlib.sha256(incoming.encode("utf-8")).hexdigest()
+        and draft.get("context_hash") == _structured_value_sha256(context)
+        and _valid_canonical_utc_timestamp(draft.get("creation_time"))
+        and isinstance(approval, str)
+        and SHA256_LOWER_RE.fullmatch(approval)
+        and approval == _structured_value_sha256(unsigned)
+    )
+
+
+def _confirmed_conversational_receipt_evidence(
+    receipt: Any,
+) -> Optional[Dict[str, Any]]:
+    """Project exact text from one narrowly validated confirmed receipt."""
+
+    if not isinstance(receipt, dict):
+        return None
+    schema_version = receipt.get("schema_version")
+    if type(schema_version) is not int or schema_version not in {2, 3, 4}:
+        return None
+    if schema_version == 2:
+        if "lifecycle_state" in receipt:
+            return None
+    elif receipt.get("lifecycle_state") != "confirmed":
+        # A sending receipt proves only an unresolved attempt, never publication.
+        return None
+    source = receipt.get("candidate_source")
+    target_value = receipt.get("target_id")
+    reply_post_value = receipt.get("reply_post_id")
+    author_value = receipt.get("author_id")
+    conversation_value = receipt.get("conversation_id")
+    lane = (
+        source
+        if type(source) is str
+        and source in {"mention", "hot_post_reply", "quote_tweet"}
+        else "unavailable"
+    )
+    target_id = str(target_value or "")
+    reply_post_id = str(reply_post_value or "")
+    author_id = str(author_value or "")
+    conversation_id = str(conversation_value or "")
+    reply_text = receipt.get("reply_text")
+    reply_epoch = receipt.get("reply_epoch")
+    if (
+        lane not in {"mention", "hot_post_reply", "quote_tweet"}
+        or not valid_string_public_post_id(target_value)
+        or not valid_string_public_post_id(reply_post_value)
+        or not valid_string_public_post_id(author_value)
+        or not valid_string_public_post_id(conversation_value)
+        or not valid_conversational_public_reply_text(reply_text)
+        or type(reply_epoch) is not int
+        or not (
+            MIN_CONFIRMED_PUBLICATION_EPOCH
+            <= reply_epoch
+            <= MAX_CONFIRMED_PUBLICATION_EPOCH
+        )
+    ):
+        return None
+    context = receipt.get("reply_context")
+    if (
+        not isinstance(context, dict)
+        or context.get("target_id") != target_id
+        or context.get("thread_id") != conversation_id
+        or context.get("lane") != lane
+    ):
+        return None
+    draft = receipt.get("ai_reply_draft")
+    if not _valid_durable_ai_reply_draft(
+        draft,
+        context=context,
+        lane=lane,
+        target_id=target_id,
+        conversation_id=conversation_id,
+        reply_text=reply_text,
+    ):
+        return None
+    original_post_id = receipt.get("original_post_id")
+    if lane == "quote_tweet":
+        quoted_post = context.get("quoted_post")
+        if (
+            not valid_string_public_post_id(original_post_id)
+            or not isinstance(quoted_post, dict)
+            or type(quoted_post.get("post_id")) is not str
+            or quoted_post.get("post_id") != original_post_id
+        ):
+            return None
+        original_post_id = str(original_post_id)
+    elif original_post_id is not None:
+        return None
+    else:
+        original_post_id = ""
+    if "mention_pagination" in receipt:
+        pagination = receipt.get("mention_pagination")
+        if (
+            schema_version not in {3, 4}
+            or lane != "mention"
+            or not isinstance(pagination, dict)
+            or set(pagination) != {"base_since_id", "next_token"}
+            or type(pagination.get("base_since_id")) is not str
+            or (
+                pagination.get("base_since_id") != ""
+                and not valid_string_public_post_id(
+                    pagination.get("base_since_id")
+                )
+            )
+            or type(pagination.get("next_token")) is not str
+            or not pagination.get("next_token")
+            or pagination.get("next_token")
+            != pagination.get("next_token").strip()
+            or any(
+                character.isspace()
+                for character in pagination.get("next_token")
+            )
+        ):
+            return None
+    clarification = receipt.get("clarification_reply")
+    if clarification is not None:
+        if (
+            lane not in {"mention", "hot_post_reply"}
+            or not isinstance(clarification, dict)
+            or set(clarification)
+            != {
+                "thread_id",
+                "prior_bot_reply_id",
+                "original_question_id",
+                "trigger",
+            }
+            or any(
+                not valid_string_public_post_id(clarification.get(field))
+                for field in (
+                    "thread_id",
+                    "prior_bot_reply_id",
+                    "original_question_id",
+                )
+            )
+            or clarification.get("trigger")
+            not in {"explicit_correction", "restated_question"}
+            or clarification.get("thread_id") != conversation_id
+            or draft.get("mode") != "direct_factual_answer"
+        ):
+            return None
+    if schema_version == 4:
+        attempt_epoch = receipt.get("attempt_epoch")
+        confirmation_epoch = receipt.get("confirmation_epoch")
+        if (
+            type(attempt_epoch) is not int
+            or type(confirmation_epoch) is not int
+            or not (
+                MIN_CONFIRMED_PUBLICATION_EPOCH
+                <= attempt_epoch
+                <= confirmation_epoch
+                <= MAX_CONFIRMED_PUBLICATION_EPOCH
+            )
+            or reply_epoch != confirmation_epoch
+        ):
+            return None
+        confirmation_date = datetime.fromtimestamp(
+            confirmation_epoch,
+            tz=LONDON,
+        ).strftime("%Y-%m-%d")
+        if receipt.get("daily_reply_date") != confirmation_date:
+            return None
+        if lane == "quote_tweet":
+            if receipt.get("daily_quote_reply_date") != confirmation_date:
+                return None
+        elif "daily_quote_reply_date" in receipt:
+            return None
+        if "source_receipt_sha256" in receipt:
+            source_hash = receipt.get("source_receipt_sha256")
+            if not isinstance(source_hash, str) or not SHA256_LOWER_RE.fullmatch(
+                source_hash
+            ):
+                return None
+            sending = dict(receipt)
+            sending.pop("reply_post_id", None)
+            sending.pop("confirmation_epoch", None)
+            sending.pop("source_receipt_sha256", None)
+            sending["lifecycle_state"] = "sending"
+            sending["reply_epoch"] = attempt_epoch
+            attempt_date = datetime.fromtimestamp(
+                attempt_epoch,
+                tz=LONDON,
+            ).strftime("%Y-%m-%d")
+            sending["daily_reply_date"] = attempt_date
+            if lane == "quote_tweet":
+                sending["daily_quote_reply_date"] = attempt_date
+            else:
+                sending.pop("daily_quote_reply_date", None)
+            if hashlib.sha256(canonical_atomic_json_bytes(sending)).hexdigest() != source_hash:
+                return None
+    else:
+        for date_key in ("daily_reply_date", "daily_quote_reply_date"):
+            if receipt.get(date_key) is not None and not isinstance(
+                receipt.get(date_key),
+                str,
+            ):
+                return None
+        if "source_receipt_sha256" in receipt:
+            return None
+    return {
+        "lane": lane,
+        "target_id": target_id,
+        "reply_post_id": reply_post_id,
+        "original_post_id": original_post_id,
+        "reply_text": reply_text,
+        "reply_epoch": reply_epoch,
+        "source": "confirmed_reply_receipt.json",
+    }
+
+
+def load_confirmed_reply_receipt_evidence(
+    project_dir: Path,
+) -> Tuple[List[Dict[str, Any]], Dict[str, Any]]:
+    """Load an active exact confirmed conversational receipt, if present."""
+
+    path = Path(project_dir) / "confirmed_reply_receipt.json"
+    status: Dict[str, Any] = {
+        "source": path.name,
+        "available": False,
+        "status": "absent",
+        "record_count": 0,
+        "reason": "",
+    }
+    try:
+        raw = read_stable_private_json_bytes(
+            path,
+            maximum=CONFIRMED_REPLY_RECEIPT_MAX_BYTES,
+        )
+    except FileNotFoundError:
+        return [], status
+    except Exception as exc:
+        status.update(
+            {
+                "status": "unavailable",
+                "reason": bounded_exception_status("unavailable", exc),
+            }
+        )
+        return [], status
+    try:
+        receipt = _strict_native_json_object(
+            raw,
+            label="confirmed_reply_receipt.json",
+        )
+        if canonical_atomic_json_bytes(receipt) != raw:
+            raise ValueError("receipt is not canonical JSON")
+        evidence = _confirmed_conversational_receipt_evidence(receipt)
+        if evidence is None:
+            raise ValueError("receipt is not a confirmed publication authority")
+    except Exception as exc:
+        status.update(
+            {
+                "status": "unavailable",
+                "reason": bounded_exception_status("unavailable", exc),
+            }
+        )
+        return [], status
+    status.update({"available": True, "status": "available", "record_count": 1})
+    return [evidence], status
+
+
+def _valid_canonical_utc_timestamp(value: Any) -> bool:
+    """Return whether a value is one bounded canonical UTC timestamp."""
+
+    if type(value) is not str or not value.endswith("Z") or len(value) > 64:
+        return False
+    try:
+        parsed = datetime.fromisoformat(value[:-1] + "+00:00")
+    except ValueError:
+        return False
+    return bool(
+        parsed.tzinfo is not None
+        and parsed.utcoffset() == timezone.utc.utcoffset(parsed)
+        and parsed.isoformat().replace("+00:00", "Z") == value
+    )
+
+
+def _valid_historical_formatter_metadata(value: Any) -> bool:
+    """Mirror the durable history store's bounded formatter metadata schema."""
+
+    if not isinstance(value, dict):
+        return False
+    v2_keys = {
+        "formatter_version",
+        "template_variant",
+        "meaning_included",
+        "meaning_decision_reason",
+        "raw_character_count",
+        "weighted_character_count",
+        "verification_label",
+        "source_class",
+        "historical_confidence",
+        "shortening_applied",
+    }
+    v3_keys = v2_keys | {"confidence_dimensions", "source_role_audit_version"}
+    v4_keys = v3_keys | {"rendering_mode"}
+    keys = frozenset(value)
+    if keys not in {frozenset(v2_keys), frozenset(v3_keys), frozenset(v4_keys)}:
+        return False
+    version = value.get("formatter_version")
+    if keys == v3_keys and version != "historical_context_reply_schema_v3":
+        return False
+    if keys == v4_keys and version not in {
+        "historical_context_reply_schema_v4",
+        "historical_context_reply_schema_v5",
+    }:
+        return False
+    if version in {
+        "historical_context_reply_schema_v3",
+        "historical_context_reply_schema_v4",
+        "historical_context_reply_schema_v5",
+    }:
+        dimensions = value.get("confidence_dimensions")
+        audit_versions = {
+            "historical-context-source-roles-v1",
+            "historical-context-source-roles-v2-recovered-citations",
+            "historical-context-source-roles-v4-multi-provider-guarded-approximate-80",
+            "historical-context-source-roles-v5-independent-review-and-exclusive-counts",
+            "historical-context-source-roles-v7-curated-source-adjudications",
+            "historical-context-source-roles-v8-claim-specific-public-context",
+            "historical-context-source-roles-v9-archive-provenance",
+        }
+        if (
+            not isinstance(dimensions, dict)
+            or set(dimensions)
+            != {
+                "attribution",
+                "wording",
+                "source_event",
+                "date",
+                "historical_context",
+                "interpretation",
+            }
+            or any(
+                item not in {"high", "medium", "low", "unknown"}
+                for item in dimensions.values()
+            )
+            or value.get("source_role_audit_version") not in audit_versions
+        ):
+            return False
+    if version in {
+        "historical_context_reply_schema_v4",
+        "historical_context_reply_schema_v5",
+    } and value.get("rendering_mode") not in {"public", "internal"}:
+        return False
+    return bool(
+        isinstance(version, str)
+        and version.startswith("historical_context_reply_schema_v")
+        and isinstance(value.get("template_variant"), str)
+        and bool(value["template_variant"])
+        and type(value.get("meaning_included")) is bool
+        and isinstance(value.get("meaning_decision_reason"), str)
+        and bool(value["meaning_decision_reason"])
+        and type(value.get("raw_character_count")) is int
+        and value["raw_character_count"] >= 1
+        and type(value.get("weighted_character_count")) is int
+        and value["weighted_character_count"] >= 1
+        and (
+            value.get("verification_label") is None
+            or isinstance(value["verification_label"], str)
+        )
+        and isinstance(value.get("source_class"), str)
+        and value.get("historical_confidence")
+        in {"high", "medium", "low", "unavailable"}
+        and type(value.get("shortening_applied")) is bool
+    )
+
+
+def _valid_historical_completed_item(
+    parent_key: str,
+    item: Any,
+) -> Optional[Dict[str, Any]]:
+    """Validate and project one completed historical-context history row."""
+
+    if not isinstance(item, dict) or item.get("status") != "completed":
+        return None
+    receipt = {key: value for key, value in item.items() if key != "status"}
+    required = {
+        "schema_version",
+        "parent_post_id",
+        "reply_post_id",
+        "quote_id",
+        "reply_text",
+        "reply_epoch",
+        "confirmed_at",
+    }
+    lifecycle = required | {"lifecycle_state", "started_at", "attempt_number"}
+    permitted = {
+        frozenset(required),
+        frozenset(lifecycle),
+        frozenset(lifecycle | {"formatter_metadata"}),
+        frozenset(lifecycle | {"source_receipt_sha256"}),
+        frozenset(lifecycle | {"formatter_metadata", "source_receipt_sha256"}),
+    }
+    parent_value = receipt.get("parent_post_id")
+    reply_post_value = receipt.get("reply_post_id")
+    parent_id = str(parent_value or "")
+    reply_post_id = str(reply_post_value or "")
+    quote_id = receipt.get("quote_id")
+    reply_text = receipt.get("reply_text")
+    if (
+        frozenset(receipt) not in permitted
+        or receipt.get("schema_version") != 1
+        or type(receipt.get("schema_version")) is not int
+        or parent_id != parent_key
+        or not valid_string_public_post_id(parent_value)
+        or not valid_string_public_post_id(reply_post_value)
+        or not isinstance(quote_id, str)
+        or not SHA256_LOWER_RE.fullmatch(quote_id)
+        or not valid_bounded_utf8_text(reply_text)
+        or not reply_text.strip()
+        or type(receipt.get("reply_epoch")) is not int
+        or receipt["reply_epoch"] < 0
+        or not isinstance(receipt.get("confirmed_at"), str)
+        or not receipt["confirmed_at"].strip()
+    ):
+        return None
+    if "lifecycle_state" in receipt and receipt.get("lifecycle_state") != "confirmed":
+        return None
+    if "started_at" in receipt and (
+        not isinstance(receipt["started_at"], str)
+        or not receipt["started_at"].strip()
+    ):
+        return None
+    if "attempt_number" in receipt and (
+        type(receipt["attempt_number"]) is not int
+        or receipt["attempt_number"] < 1
+    ):
+        return None
+    if "formatter_metadata" in receipt and not _valid_historical_formatter_metadata(
+        receipt["formatter_metadata"]
+    ):
+        return None
+    if "source_receipt_sha256" in receipt:
+        source_hash = receipt.get("source_receipt_sha256")
+        if not isinstance(source_hash, str) or not SHA256_LOWER_RE.fullmatch(
+            source_hash
+        ):
+            return None
+        if not (
+            MIN_CONFIRMED_PUBLICATION_EPOCH
+            <= receipt["reply_epoch"]
+            <= MAX_CONFIRMED_PUBLICATION_EPOCH
+        ):
+            return None
+        sending = dict(receipt)
+        sending.pop("reply_post_id", None)
+        sending.pop("confirmed_at", None)
+        sending.pop("source_receipt_sha256", None)
+        sending["lifecycle_state"] = "sending"
+        if hashlib.sha256(canonical_private_json_bytes(sending)).hexdigest() != source_hash:
+            return None
+    return {
+        "time": str(receipt.get("confirmed_at") or ""),
+        "parent_post_id": parent_id,
+        "reply_post_id": reply_post_id,
+        "quote_id": quote_id,
+        "authoritative": True,
+        "reply_text": reply_text,
+        "source": "historical_context_reply_history.json",
+        "durable_only": True,
+    }
+
+
+def _valid_historical_failed_item(parent_key: str, item: Any) -> bool:
+    """Validate enough of a failed row to prove the history object is coherent."""
+
+    if not isinstance(item, dict) or item.get("status") != "failed":
+        return False
+    required = {
+        "parent_post_id",
+        "quote_id",
+        "reply_text",
+        "status",
+        "failure",
+        "attempt_count",
+        "updated_at",
+    }
+    source_proof = {
+        "remote_outcome",
+        "source_receipt_sha256",
+        "source_receipt_attempt_number",
+    }
+    allowed_sets = {
+        frozenset(required),
+        frozenset(required | {"formatter_metadata"}),
+        frozenset(required | source_proof),
+        frozenset(required | source_proof | {"formatter_metadata"}),
+    }
+    if (
+        frozenset(item) not in allowed_sets
+        or type(item.get("parent_post_id")) is not str
+        or item.get("parent_post_id") != parent_key
+        or not valid_string_public_post_id(parent_key)
+        or not isinstance(item.get("quote_id"), str)
+        or not SHA256_LOWER_RE.fullmatch(item["quote_id"])
+        or not valid_bounded_utf8_text(item.get("reply_text"))
+        or not item["reply_text"].strip()
+        or not isinstance(item.get("failure"), str)
+        or not item["failure"].strip()
+        or type(item.get("attempt_count")) is not int
+        or item["attempt_count"] < 1
+        or not _valid_canonical_utc_timestamp(item.get("updated_at"))
+        or (
+            "formatter_metadata" in item
+            and not _valid_historical_formatter_metadata(
+                item["formatter_metadata"]
+            )
+        )
+    ):
+        return False
+    if source_proof & set(item):
+        return bool(
+            source_proof.issubset(item)
+            and item.get("remote_outcome") == "proved_non_success"
+            and isinstance(item.get("source_receipt_sha256"), str)
+            and SHA256_LOWER_RE.fullmatch(item["source_receipt_sha256"])
+            and type(item.get("source_receipt_attempt_number")) is int
+            and item["source_receipt_attempt_number"] >= 1
+            and item["source_receipt_attempt_number"] == item["attempt_count"]
+        )
+    return True
+
+
+def load_historical_reply_history_evidence(
+    project_dir: Path,
+) -> Tuple[List[Dict[str, Any]], Dict[str, Any]]:
+    """Load bounded exact text from completed durable historical reply history."""
+
+    path = Path(project_dir) / "historical_context_reply_history.json"
+    status: Dict[str, Any] = {
+        "source": path.name,
+        "available": False,
+        "status": "absent",
+        "completed_record_count": 0,
+        "failed_record_count": 0,
+        "reason": "",
+        "byte_limit": HISTORICAL_REPLY_HISTORY_MAX_BYTES,
+    }
+    try:
+        raw = read_stable_private_json_bytes(
+            path,
+            maximum=HISTORICAL_REPLY_HISTORY_MAX_BYTES,
+        )
+    except FileNotFoundError:
+        return [], status
+    except Exception as exc:
+        status.update(
+            {
+                "status": "unavailable",
+                "reason": bounded_exception_status("unavailable", exc),
+            }
+        )
+        return [], status
+    try:
+        history = _strict_native_json_object(
+            raw,
+            label="historical_context_reply_history.json",
+        )
+        if canonical_private_json_bytes(history) != raw:
+            raise ValueError("history is not canonical JSON")
+        if (
+            set(history) != {"schema_version", "items"}
+            or type(history.get("schema_version")) is not int
+            or history.get("schema_version") != 1
+            or not isinstance(history.get("items"), dict)
+        ):
+            raise ValueError("history root schema is invalid")
+        evidence: List[Dict[str, Any]] = []
+        failed_count = 0
+        for position, (parent_key, item) in enumerate(
+            history["items"].items(),
+            1,
+        ):
+            projected = _valid_historical_completed_item(parent_key, item)
+            if projected is not None:
+                evidence.append(projected)
+            elif _valid_historical_failed_item(parent_key, item):
+                failed_count += 1
+            else:
+                raise ValueError(
+                    f"invalid history item at position {position}"
+                )
+    except Exception as exc:
+        status.update(
+            {
+                "status": "unavailable",
+                "reason": bounded_exception_status("unavailable", exc),
+            }
+        )
+        return [], status
+    status.update(
+        {
+            "available": True,
+            "status": "available",
+            "completed_record_count": len(evidence),
+            "failed_record_count": failed_count,
+        }
+    )
+    return evidence, status
 
 
 def _public_reply_text_result(
@@ -8802,9 +10003,7 @@ def _public_reply_text_result(
     valid = [
         candidate
         for candidate in candidates
-        if isinstance(candidate.get("text"), str)
-        and bool(candidate["text"])
-        and len(candidate["text"]) <= PUBLISHED_REPLY_TEXT_MAX_CHARACTERS
+        if valid_bounded_utf8_text(candidate.get("text"))
     ]
     invalid_count = len(candidates) - len(valid)
     invalid_reasons = list(
@@ -8812,10 +10011,7 @@ def _public_reply_text_result(
             str(candidate.get("invalid_reason") or "").strip()
             for candidate in candidates
             if not (
-                isinstance(candidate.get("text"), str)
-                and bool(candidate["text"])
-                and len(candidate["text"])
-                <= PUBLISHED_REPLY_TEXT_MAX_CHARACTERS
+                valid_bounded_utf8_text(candidate.get("text"))
             )
             and str(candidate.get("invalid_reason") or "").strip()
         )
@@ -8884,35 +10080,80 @@ def _durable_public_reply_text_candidates(
     lane: str,
     target_id: str,
     reply_post_id: str,
+    original_post_id: str = "",
+    confirmed_receipt_evidence: Optional[List[Dict[str, Any]]] = None,
 ) -> List[Dict[str, Any]]:
     """Read narrowly validated exact text for one immutable confirmed identity."""
 
-    if not isinstance(runtime_state, dict):
-        return []
     candidates: List[Dict[str, Any]] = []
+    for item in confirmed_receipt_evidence or []:
+        if (
+            not isinstance(item, dict)
+            or item.get("reply_post_id") != reply_post_id
+        ):
+            continue
+        identity_matches = (
+            item.get("target_id") == target_id
+            and item.get("lane") == lane
+            and (item.get("original_post_id") or "")
+            == (original_post_id if lane == "quote_tweet" else "")
+        )
+        text_valid = valid_conversational_public_reply_text(
+            item.get("reply_text")
+        )
+        candidates.append(
+            {
+                "text": (
+                    item.get("reply_text")
+                    if identity_matches and text_valid
+                    else None
+                ),
+                "source": str(
+                    item.get("source") or "confirmed_reply_receipt.json"
+                ),
+                "invalid_reason": (
+                    "confirmed reply receipt identity disagrees with structured confirmation"
+                    if not identity_matches
+                    else "confirmed reply receipt text violates the conversational public-text contract"
+                    if not text_valid
+                    else ""
+                ),
+            }
+        )
+    if not isinstance(runtime_state, dict):
+        return candidates
     history = runtime_state.get("ai_reply_history")
     if isinstance(history, list):
         for item in history[-1000:]:
             if not isinstance(item, dict):
                 continue
-            if str(item.get("reply_post_id") or "") != reply_post_id:
+            if item.get("reply_post_id") != reply_post_id:
                 continue
             identity_matches = (
-                str(item.get("target_id") or "") == target_id
-                and canonical_public_reply_lane(item.get("candidate_source"))
-                == lane
+                item.get("target_id") == target_id
+                and item.get("candidate_source") == lane
+                and (
+                    lane != "quote_tweet"
+                    or item.get("original_post_id") in (None, "")
+                    or item.get("original_post_id") == original_post_id
+                )
+            )
+            text_valid = valid_conversational_public_reply_text(
+                item.get("proposed_reply")
             )
             candidates.append(
                 {
                     "text": (
                         item.get("proposed_reply")
-                        if identity_matches
+                        if identity_matches and text_valid
                         else None
                     ),
                     "source": "bot_state.json.ai_reply_history",
                     "invalid_reason": (
                         "ai_reply_history identity disagrees with structured confirmation"
                         if not identity_matches
+                        else "ai_reply_history text violates the conversational public-text contract"
+                        if not text_valid
                         else ""
                     ),
                 }
@@ -8921,25 +10162,37 @@ def _durable_public_reply_text_candidates(
     cached = cache.get(reply_post_id) if isinstance(cache, dict) else None
     if isinstance(cached, dict):
         references = cached.get("referenced_tweets")
-        replied_to_targets = {
-            str(reference.get("id") or "")
-            for reference in references
+        exact_reference = (
+            references[0]
             if isinstance(references, list)
-            and isinstance(reference, dict)
-            and reference.get("type") == "replied_to"
-        } if isinstance(references, list) else set()
+            and len(references) == 1
+            and isinstance(references[0], dict)
+            else None
+        )
         identity_matches = (
-            str(cached.get("id") or "") == reply_post_id
+            cached.get("id") == reply_post_id
             and cached.get("post_type") == "auto_reply"
-            and replied_to_targets == {target_id}
+            and isinstance(exact_reference, dict)
+            and exact_reference.get("type") == "replied_to"
+            and exact_reference.get("id") == target_id
+            and valid_string_public_post_id(exact_reference.get("id"))
+        )
+        text_valid = valid_conversational_public_reply_text(
+            cached.get("text")
         )
         candidates.append(
             {
-                "text": cached.get("text") if identity_matches else None,
+                "text": (
+                    cached.get("text")
+                    if identity_matches and text_valid
+                    else None
+                ),
                 "source": "bot_state.json.tweet_cache",
                 "invalid_reason": (
                     "tweet_cache identity disagrees with structured confirmation"
                     if not identity_matches
+                    else "tweet_cache text violates the conversational public-text contract"
+                    if not text_valid
                     else ""
                 ),
             }
@@ -8954,17 +10207,42 @@ def _normalised_structured_reply_confirmation(
 
     if not isinstance(value, dict):
         return None
-    lane = canonical_public_reply_lane(value.get("lane"))
-    target_id = str(value.get("target_id") or "")
-    reply_post_id = str(value.get("reply_post_id") or "")
-    original_post_id = str(value.get("original_post_id") or "")
+    logged_lane = value.get("lane")
+    lane = (
+        "mention"
+        if logged_lane == "mention+hot_post_reply"
+        else logged_lane
+    )
+    target_value = value.get("target_id")
+    reply_post_value = value.get("reply_post_id")
+    original_post_value = value.get("original_post_id")
     if (
-        lane not in {"mention", "hot_post_reply", "quote_tweet"}
-        or not target_id.isdigit()
-        or not reply_post_id.isdigit()
-        or (lane == "quote_tweet" and not original_post_id.isdigit())
+        type(logged_lane) is not str
+        or logged_lane
+        not in {
+            "mention",
+            "mention+hot_post_reply",
+            "hot_post_reply",
+            "quote_tweet",
+        }
+        or not valid_string_public_post_id(target_value)
+        or not valid_string_public_post_id(reply_post_value)
+        or (
+            lane == "quote_tweet"
+            and not valid_string_public_post_id(original_post_value)
+        )
+        or (
+            lane != "quote_tweet"
+            and original_post_value is not None
+            and original_post_value != ""
+        )
     ):
         return None
+    target_id = str(target_value)
+    reply_post_id = str(reply_post_value)
+    original_post_id = (
+        str(original_post_value) if lane == "quote_tweet" else ""
+    )
     return {
         **value,
         "lane": lane,
@@ -8982,6 +10260,9 @@ def enrich_published_reply_text(
     runtime_state: Any,
     structured_reply_confirmations: List[Dict[str, Any]],
     historical_reply_text_evidence: List[Dict[str, Any]],
+    confirmed_receipt_evidence: Optional[List[Dict[str, Any]]] = None,
+    durable_evidence_status: Optional[Dict[str, Any]] = None,
+    production_event_object_ids: Optional[set[int]] = None,
 ) -> None:
     """Enrich confirmed reply records from exact immutable publication evidence."""
 
@@ -8991,6 +10272,11 @@ def enrich_published_reply_text(
     warnings: List[Dict[str, Any]] = []
     warning_omitted_count = 0
     synthesized_events: List[Tuple[int, int, Dict[str, Any]]] = []
+    production_ids = (
+        {id(event) for event in events if isinstance(event, dict)}
+        if production_event_object_ids is None
+        else production_event_object_ids
+    )
 
     def warn(
         *,
@@ -9019,6 +10305,31 @@ def enrich_published_reply_text(
         "hot_post_reply_posted": ("hot_post_reply", "hot_post_reply_id"),
         "quote_tweet_reply_posted": ("quote_tweet", "quote_tweet_id"),
     }
+    legacy_records: List[Dict[str, Any]] = []
+    legacy_records_by_reply: Dict[str, List[Dict[str, Any]]] = {}
+    for event in events:
+        if not isinstance(event, dict) or event.get("kind") not in representation_specs:
+            continue
+        legacy_records.append(event)
+        reply_post_id = str(event.get("reply_post_id") or "")
+        if (
+            id(event) in production_ids
+            and valid_public_post_id(reply_post_id)
+        ):
+            legacy_records_by_reply.setdefault(reply_post_id, []).append(event)
+
+    def legacy_identity(event: Dict[str, Any]) -> Tuple[str, str, str]:
+        expected_lane, target_field = representation_specs[str(event["kind"])]
+        return (
+            expected_lane,
+            str(event.get(target_field) or ""),
+            (
+                str(event.get("original_post_id") or "")
+                if expected_lane == "quote_tweet"
+                else ""
+            ),
+        )
+
     confirmations_by_reply: Dict[str, List[Dict[str, Any]]] = {}
     for raw_confirmation in structured_reply_confirmations:
         confirmation = _normalised_structured_reply_confirmation(
@@ -9030,6 +10341,28 @@ def enrich_published_reply_text(
         confirmations_by_reply.setdefault(reply_post_id, []).append(
             confirmation
         )
+    for receipt_index, receipt in enumerate(confirmed_receipt_evidence or []):
+        confirmation = _normalised_structured_reply_confirmation(
+            {
+                "time": epoch_to_london_text(
+                    int(receipt.get("reply_epoch") or 0)
+                )
+                or "",
+                "lane": receipt.get("lane"),
+                "target_id": receipt.get("target_id"),
+                "reply_post_id": receipt.get("reply_post_id"),
+                "original_post_id": receipt.get("original_post_id"),
+                "publication_authority": "confirmed_reply_receipt.json",
+                "current_snapshot_authority": True,
+                "_event_insertion_index": len(events),
+                "_source_sequence": len(events) + receipt_index,
+            }
+        )
+        if confirmation is None:
+            continue
+        reply_post_id = str(confirmation["reply_post_id"])
+        if reply_post_id not in confirmations_by_reply:
+            confirmations_by_reply[reply_post_id] = [confirmation]
 
     enriched_records: set[int] = set()
     for reply_post_id, confirmations in confirmations_by_reply.items():
@@ -9043,15 +10376,38 @@ def enrich_published_reply_text(
         }
         identity_conflict = len(identities) != 1
         lane, target_id, original_post_id = sorted(identities)[0]
-        matching_records = [
+        same_reply_records = legacy_records_by_reply.get(reply_post_id, [])
+        matching_records = (
+            [
+                event
+                for event in same_reply_records
+                if legacy_identity(event)
+                == (lane, target_id, original_post_id)
+            ]
+            if not identity_conflict
+            else []
+        )
+        matching_record_ids = {id(event) for event in matching_records}
+        mismatched_records = [
             event
-            for event in events
-            if isinstance(event, dict)
-            and event.get("kind") in representation_specs
-            and str(event.get("reply_post_id") or "") == reply_post_id
+            for event in same_reply_records
+            if id(event) not in matching_record_ids
         ]
         confirmation_refs, confirmation_refs_omitted = bounded_source_refs(
             *[item.get("source_refs") for item in confirmations]
+        )
+        publication_authorities = list(
+            dict.fromkeys(
+                str(
+                    item.get("publication_authority")
+                    or "structured reply_posted"
+                )
+                for item in confirmations
+            )
+        )
+        current_snapshot_authority = any(
+            item.get("current_snapshot_authority") is True
+            for item in confirmations
         )
         if not matching_records:
             matching_records = [
@@ -9061,7 +10417,19 @@ def enrich_published_reply_text(
                         str(item.get("time") or "") for item in confirmations
                     ),
                     "status": "confirmed",
-                    "publication_authority": "structured reply_posted",
+                    "publication_authority": " + ".join(
+                        publication_authorities
+                    ),
+                    **(
+                        {
+                            "evidence_scope": (
+                                "authoritative current durable snapshot, independent "
+                                "of the selected log window"
+                            )
+                        }
+                        if current_snapshot_authority
+                        else {}
+                    ),
                     "lane": lane if not identity_conflict else None,
                     "target_id": target_id if not identity_conflict else None,
                     "reply_post_id": reply_post_id,
@@ -9116,6 +10484,8 @@ def enrich_published_reply_text(
                 lane=lane,
                 target_id=target_id,
                 reply_post_id=reply_post_id,
+                original_post_id=original_post_id,
+                confirmed_receipt_evidence=confirmed_receipt_evidence,
             )
             text_result = _public_reply_text_result(
                 candidates,
@@ -9170,39 +10540,54 @@ def enrich_published_reply_text(
             )
             if total_omitted:
                 event["source_ref_omitted_count"] = total_omitted
-            if identity_conflict or (
-                expected_lane is not None and expected_lane != lane
-            ) or (
-                legacy_target_id and legacy_target_id != target_id
-            ) or (
-                legacy_original_post_id
-                and legacy_original_post_id != original_post_id
-            ):
-                event["correlation_status"] = "conflict"
-                event["public_reply_text"] = None
-                event["public_reply_text_sha256"] = None
-                event["public_reply_text_character_count"] = None
-                event["public_reply_text_complete"] = False
-                event["public_reply_text_status"] = "conflict"
-                event["public_reply_text_reason"] = (
-                    "legacy posted record identity disagrees with structured confirmation"
-                )
-                warn(
-                    reply_post_id=reply_post_id,
-                    target_id=target_id,
-                    lane=lane,
-                    reason=str(event["public_reply_text_reason"]),
-                )
             if target_field is not None and not identity_conflict:
                 event.setdefault(target_field, target_id)
             enriched_records.add(id(event))
 
+        for event in mismatched_records:
+            expected_lane, target_field = representation_specs[str(event["kind"])]
+            legacy_target_id = str(event.get(target_field) or "")
+            event.setdefault("lane", expected_lane)
+            event.setdefault("target_id", legacy_target_id or None)
+            event["reply_post_id"] = reply_post_id
+            combined_refs, omitted = bounded_source_refs(
+                event.get("source_refs"),
+                confirmation_refs,
+            )
+            if combined_refs:
+                event["source_refs"] = combined_refs
+            total_omitted = omitted + confirmation_refs_omitted
+            if total_omitted:
+                event["source_ref_omitted_count"] = total_omitted
+            event.update(
+                {
+                    "correlation_status": "conflict",
+                    "public_reply_text": None,
+                    "public_reply_text_sha256": None,
+                    "public_reply_text_character_count": None,
+                    "public_reply_text_complete": False,
+                    "public_reply_text_status": "conflict",
+                    "public_reply_text_source": None,
+                    "public_reply_text_reason": (
+                        "legacy posted record identity disagrees with structured confirmation"
+                    ),
+                }
+            )
+            warn(
+                reply_post_id=reply_post_id,
+                target_id=target_id,
+                lane=lane,
+                reason=str(event["public_reply_text_reason"]),
+            )
+            enriched_records.add(id(event))
+
     consumed_historical_evidence: set[int] = set()
-    for event in events:
+    for event in legacy_records:
         if (
             not isinstance(event, dict)
             or event.get("kind") not in representation_specs
             or id(event) in enriched_records
+            or id(event) not in production_ids
         ):
             continue
         expected_lane, target_field = representation_specs[str(event["kind"])]
@@ -9227,10 +10612,17 @@ def enrich_published_reply_text(
     ] = {}
     historical_evidence_by_reply: Dict[str, List[Dict[str, Any]]] = {}
     for evidence in historical_reply_text_evidence:
-        parent_id = str(evidence.get("parent_post_id") or "")
-        quote_id = str(evidence.get("quote_id") or "")
-        reply_post_id = str(evidence.get("reply_post_id") or "")
-        if not parent_id.isdigit() or not reply_post_id.isdigit() or not quote_id:
+        if evidence.get("authoritative") is not True:
+            continue
+        parent_id = evidence.get("parent_post_id")
+        quote_id = evidence.get("quote_id")
+        reply_post_id = evidence.get("reply_post_id")
+        if (
+            not valid_string_public_post_id(parent_id)
+            or not valid_string_public_post_id(reply_post_id)
+            or not isinstance(quote_id, str)
+            or SHA256_LOWER_RE.fullmatch(quote_id) is None
+        ):
             continue
         evidence_by_identity.setdefault((parent_id, quote_id), []).append(
             evidence
@@ -9243,13 +10635,25 @@ def enrich_published_reply_text(
             not isinstance(event, dict)
             or event.get("kind") != "historical_context_reply"
             or event.get("status") not in {"completed", "already_completed"}
+            or id(event) not in production_ids
         ):
             continue
-        parent_id = str(event.get("parent_post_id") or "")
-        quote_id = str(event.get("quote_id") or "")
-        evidence = evidence_by_identity.get((parent_id, quote_id), [])
+        parent_value = event.get("parent_post_id")
+        quote_value = event.get("quote_id")
+        selected_identity_valid = bool(
+            valid_string_public_post_id(parent_value)
+            and isinstance(quote_value, str)
+            and SHA256_LOWER_RE.fullmatch(quote_value) is not None
+        )
+        parent_id = parent_value if selected_identity_valid else ""
+        quote_id = quote_value if selected_identity_valid else ""
+        evidence = (
+            evidence_by_identity.get((parent_id, quote_id), [])
+            if selected_identity_valid
+            else []
+        )
         reply_ids = {
-            str(item.get("reply_post_id") or "") for item in evidence
+            item["reply_post_id"] for item in evidence
         }
         identity_conflict = False
         if len(reply_ids) == 1:
@@ -9260,8 +10664,8 @@ def enrich_published_reply_text(
             identity_conflict = len(
                 {
                     (
-                        str(item.get("parent_post_id") or ""),
-                        str(item.get("quote_id") or ""),
+                        item.get("parent_post_id"),
+                        item.get("quote_id"),
                     )
                     for item in evidence
                 }
@@ -9279,7 +10683,10 @@ def enrich_published_reply_text(
         candidates = [
             {
                 "text": item.get("reply_text"),
-                "source": "structured historical_context_reply_posted",
+                "source": str(
+                    item.get("source")
+                    or "structured historical_context_reply_posted"
+                ),
                 "source_refs": item.get("source_refs"),
             }
             for item in evidence
@@ -9287,7 +10694,9 @@ def enrich_published_reply_text(
         text_result = _public_reply_text_result(
             candidates,
             unavailable_reason=(
-                "no retained exact historical_context_reply_posted evidence"
+                "selected historical-context identity is not canonical"
+                if not selected_identity_valid
+                else "no retained exact historical_context_reply_posted evidence"
             ),
         )
         if len(reply_ids) > 1 or identity_conflict:
@@ -9343,8 +10752,9 @@ def enrich_published_reply_text(
         if (
             id(evidence) in consumed_historical_evidence
             or evidence.get("authoritative") is not True
-            or not parent_id.isdigit()
-            or not reply_post_id.isdigit()
+            or evidence.get("durable_only") is True
+            or not valid_public_post_id(parent_id)
+            or not valid_public_post_id(reply_post_id)
             or not quote_id
         ):
             continue
@@ -9365,7 +10775,10 @@ def enrich_published_reply_text(
             [
                 {
                     "text": item.get("reply_text"),
-                    "source": "structured historical_context_reply_posted",
+                    "source": str(
+                        item.get("source")
+                        or "structured historical_context_reply_posted"
+                    ),
                     "source_refs": item.get("source_refs"),
                 }
                 for item in evidence_items
@@ -9460,6 +10873,7 @@ def enrich_published_reply_text(
         "state_evidence_scope": (
             "current bounded bot_state.json retention, not reconstructed drafts"
         ),
+        "durable_evidence": dict(durable_evidence_status or {}),
     }
 
 
@@ -11002,6 +12416,9 @@ def analyse(
     current_snapshot_authoritative: bool = False,
     current_runtime_state: Optional[Dict[str, Any]] = None,
     input_file_indexes: Optional[Dict[str, int]] = None,
+    confirmed_receipt_evidence: Optional[List[Dict[str, Any]]] = None,
+    historical_history_evidence: Optional[List[Dict[str, Any]]] = None,
+    durable_reply_evidence_status: Optional[Dict[str, Any]] = None,
 ) -> Dict[str, Any]:
     """Aggregate parsed production records into digest metrics."""
     if selected_window_end is None:
@@ -11050,6 +12467,7 @@ def analyse(
 
     pending_quote: Dict[str, Any] = {}
     quote_post_correlations: Dict[str, Dict[str, Dict[str, Any]]] = {}
+    invalid_quote_post_evidence: Dict[str, set[str]] = {}
     engagement_trial_outcomes: List[Dict[str, Any]] = []
     engagement_correlation_warnings: List[Dict[str, Any]] = []
     engagement_correlation_warning_keys: set[
@@ -11060,17 +12478,47 @@ def analyse(
     pending_meme: Dict[str, Any] = {}
     pending_mention: Dict[str, Any] = dict(initial_pending_mention or {})
     pending_qt: Dict[str, Any] = dict(initial_pending_qt or {})
+    if pending_mention:
+        pending_mention.setdefault("_identity_production", True)
+        pending_mention.setdefault("_reply_post_id_production", True)
+    if pending_qt:
+        pending_qt.setdefault("_identity_production", True)
+        pending_qt.setdefault("_reply_post_id_production", True)
     pending_confirmed_reply_receipt: Dict[str, Any] = {}
     active_xai_context: Optional[Dict[str, Any]] = dict(initial_active_xai_context or {}) or None
     active_xai_call_attempt_index: Optional[int] = (
         0 if restored_xai_call_attempt else None
     )
+    production_active_xai_call_attempt_index = active_xai_call_attempt_index
+    selftest_active_xai_call_attempt_index: Optional[int] = None
     last_created_post: Dict[str, Any] = {}
     pending_semantic_veto_event: Optional[Dict[str, Any]] = None
     pending_semantic_veto_ts: Optional[datetime] = None
+    production_pending_quote = pending_quote
+    production_pending_meme = pending_meme
+    production_pending_mention = pending_mention
+    production_pending_qt = pending_qt
+    production_pending_confirmed_reply_receipt = pending_confirmed_reply_receipt
+    production_last_created_post = last_created_post
+    production_active_xai_context = active_xai_context
+    production_pending_semantic_veto_event = pending_semantic_veto_event
+    production_pending_semantic_veto_ts = pending_semantic_veto_ts
+    selftest_pending_quote: Dict[str, Any] = {}
+    selftest_pending_meme: Dict[str, Any] = {}
+    selftest_pending_mention: Dict[str, Any] = {}
+    selftest_pending_qt: Dict[str, Any] = {}
+    selftest_pending_confirmed_reply_receipt: Dict[str, Any] = {}
+    selftest_last_created_post: Dict[str, Any] = {}
+    selftest_active_xai_context: Optional[Dict[str, Any]] = None
+    selftest_pending_semantic_veto_event: Optional[Dict[str, Any]] = None
+    selftest_pending_semantic_veto_ts: Optional[datetime] = None
+    previous_record_production = True
     structured_reply_confirmations: List[Dict[str, Any]] = []
-    historical_reply_text_evidence: List[Dict[str, Any]] = []
+    historical_reply_text_evidence: List[Dict[str, Any]] = list(
+        historical_history_evidence or []
+    )
     current_source_record: Optional[Record] = None
+    production_event_object_ids: set[int] = set()
 
     def semantic_veto_matches_post(
         shadow_event: Dict[str, Any],
@@ -11105,6 +12553,11 @@ def analyse(
                 record_source_ref(current_source_record, input_file_indexes)
             ]
         events.append(ev)
+        if (
+            current_source_record is not None
+            and not is_selftest_log_path(current_source_record.path)
+        ):
+            production_event_object_ids.add(id(ev))
         stats[kind] += 1
         return ev
 
@@ -11150,6 +12603,11 @@ def analyse(
         payload: Dict[str, Any],
     ) -> None:
         """Keep one fixed-shape evidence slot per structured event and post."""
+        if (
+            current_source_record is not None
+            and is_selftest_log_path(current_source_record.path)
+        ):
+            return
         slots = quote_post_correlations.setdefault(post_id, {})
         existing = slots.get(event_type)
         if existing is None:
@@ -11166,8 +12624,16 @@ def analyse(
                     existing.get("source_refs"), value
                 )
                 existing["source_refs"] = references
-                if omitted:
-                    existing["source_ref_omitted_count"] = omitted
+                prior_omitted = existing.get("source_ref_omitted_count")
+                cumulative_omitted = (
+                    prior_omitted
+                    if type(prior_omitted) is int and prior_omitted >= 0
+                    else 0
+                ) + omitted
+                if cumulative_omitted:
+                    existing["source_ref_omitted_count"] = (
+                        cumulative_omitted
+                    )
                 continue
             if field in conflicted_fields:
                 continue
@@ -11185,6 +12651,31 @@ def analyse(
                     right_event=event_type,
                 )
 
+    def note_invalid_quote_post_evidence(
+        post_id: Any,
+        event_type: str,
+        time_text: str,
+    ) -> None:
+        """Record malformed observability without letting it replace authority."""
+
+        if (
+            not valid_string_public_post_id(post_id)
+            or (
+                current_source_record is not None
+                and is_selftest_log_path(current_source_record.path)
+            )
+        ):
+            return
+        invalid_quote_post_evidence.setdefault(post_id, set()).add(event_type)
+        add_engagement_correlation_warning(
+            time_text=time_text,
+            post_id=post_id,
+            field="producer_schema",
+            left_event=event_type,
+            right_event="required_contract",
+            status="invalid",
+        )
+
     local_rejections_by_identity: Dict[Tuple[str, str], Dict[str, Any]] = {}
 
     def add_or_merge_local_rejection(
@@ -11195,8 +12686,25 @@ def analyse(
         **kwargs: Any,
     ) -> Dict[str, Any]:
         """Keep one enriched effective local-rejection record per target."""
-        target = str(target_id or "")
+        target = (
+            target_id if valid_string_public_post_id(target_id) else ""
+        )
         normalised_lane = _normalise_lane(lane)
+        safe_lane = bounded_event_text(
+            lane, default="unavailable", max_characters=100
+        )
+        safe_kwargs: Dict[str, Any] = {}
+        for field, value in kwargs.items():
+            if type(value) is str:
+                safe_kwargs[field] = short(value, max_text)
+            elif type(value) is bool:
+                safe_kwargs[field] = value
+            elif type(value) is int and 0 <= value <= 1_000_000:
+                safe_kwargs[field] = value
+            elif isinstance(value, list):
+                safe_kwargs[field] = bounded_event_string_list(value)
+            elif value is None:
+                safe_kwargs[field] = None
         key = (normalised_lane, target)
         existing = local_rejections_by_identity.get(key)
         if existing is None and target:
@@ -11213,17 +12721,17 @@ def analyse(
             existing = add_event(
                 "reply_strategy_local_rejection",
                 ts,
-                lane=lane or "unavailable",
+                lane=safe_lane,
                 target_id=target,
-                **kwargs,
+                **safe_kwargs,
             )
             local_rejections_by_identity[key] = existing
             return existing
         if _normalise_lane(existing.get("lane")) == "unavailable" and normalised_lane != "unavailable":
-            existing["lane"] = lane
+            existing["lane"] = safe_lane
             local_rejections_by_identity.pop(("unavailable", target), None)
             local_rejections_by_identity[key] = existing
-        for field, value in kwargs.items():
+        for field, value in safe_kwargs.items():
             existing_value = existing.get(field)
             if (
                 value is not None
@@ -11239,6 +12747,9 @@ def analyse(
             "kind": kind,
             "level": r.level,
             "message": short(r.msg, 500),
+            "source_class": (
+                "selftest" if is_selftest_log_path(r.path) else "production"
+            ),
         }
         item.update(kwargs)
         item["source_refs"] = [record_source_ref(r, input_file_indexes)]
@@ -11255,6 +12766,9 @@ def analyse(
             "kind": kind,
             "level": r.level,
             "message": short(r.msg, 500),
+            "source_class": (
+                "selftest" if is_selftest_log_path(r.path) else "production"
+            ),
         }
         item.update(kwargs)
         item["source_refs"] = [record_source_ref(r, input_file_indexes)]
@@ -11301,17 +12815,38 @@ def analyse(
             if type(factual_claim_count) is int
             else None
         )
-        confidence = event_obj.get("evidence_confidence")
-        if not isinstance(confidence, str) or not confidence:
+        confidence = bounded_event_text(
+            event_obj.get("evidence_confidence"), max_characters=100
+        )
+        if not confidence:
             confidence = "none" if factual_claim is False else "unavailable"
-        supplied_ids = event_obj.get("trusted_fact_ids_supplied")
-        has_explicit_supply = isinstance(supplied_ids, list)
+        raw_supplied_ids = event_obj.get("trusted_fact_ids_supplied")
+        has_explicit_supply = isinstance(raw_supplied_ids, list)
+        supplied_ids = (
+            bounded_event_string_list(
+                raw_supplied_ids, limit=1000, item_max_characters=200
+            )
+            if has_explicit_supply
+            else None
+        )
         if not has_explicit_supply:
-            supplied_ids = list(evidence_ids) if isinstance(evidence_ids, list) else None
+            supplied_ids = (
+                bounded_event_string_list(
+                    evidence_ids, limit=1000, item_max_characters=200
+                )
+                if isinstance(evidence_ids, list)
+                else None
+            )
         supplied_count = event_obj.get("trusted_facts_supplied_count")
-        if type(supplied_count) is not int or supplied_count < 0:
+        if (
+            type(supplied_count) is not int
+            or not 0 <= supplied_count <= 1_000_000
+        ):
             supplied_count = event_obj.get("retrieved_count")
-        if type(supplied_count) is not int or supplied_count < 0:
+        if (
+            type(supplied_count) is not int
+            or not 0 <= supplied_count <= 1_000_000
+        ):
             supplied_count = (
                 len(supplied_ids)
                 if has_explicit_supply and isinstance(supplied_ids, list)
@@ -11323,10 +12858,25 @@ def analyse(
         if not has_explicit_use:
             used_count = event_obj.get("evidence_reference_count")
             if type(used_count) is not int or used_count < 0:
-                used_count = len(evidence_ids) if isinstance(evidence_ids, list) else None
-        elif not (type(used_count) is int and used_count >= 0):
+                used_count = (
+                    len(supplied_ids or [])
+                    if isinstance(evidence_ids, list)
+                    else None
+                )
+        elif not (
+            type(used_count) is int and 0 <= used_count <= 1_000_000
+        ):
             used_count = "unknown"
-        used_ids = event_obj.get("used_fact_ids") if has_explicit_use else evidence_ids
+        raw_used_ids = (
+            event_obj.get("used_fact_ids") if has_explicit_use else evidence_ids
+        )
+        used_ids = (
+            bounded_event_string_list(
+                raw_used_ids, limit=1000, item_max_characters=200
+            )
+            if isinstance(raw_used_ids, list)
+            else None
+        )
         reference_count = used_count if type(used_count) is int else None
         return {
             "evidence_confidence": confidence,
@@ -11348,19 +12898,95 @@ def analyse(
         current_source_record = r
         msg = r.msg
         production_record = not is_selftest_log_path(r.path)
-        structured_event_obj = (
+        if previous_record_production:
+            production_pending_quote = pending_quote
+            production_pending_meme = pending_meme
+            production_pending_mention = pending_mention
+            production_pending_qt = pending_qt
+            production_pending_confirmed_reply_receipt = (
+                pending_confirmed_reply_receipt
+            )
+            production_last_created_post = last_created_post
+            production_active_xai_context = active_xai_context
+            production_active_xai_call_attempt_index = (
+                active_xai_call_attempt_index
+            )
+            production_pending_semantic_veto_event = (
+                pending_semantic_veto_event
+            )
+            production_pending_semantic_veto_ts = pending_semantic_veto_ts
+        else:
+            selftest_pending_quote = pending_quote
+            selftest_pending_meme = pending_meme
+            selftest_pending_mention = pending_mention
+            selftest_pending_qt = pending_qt
+            selftest_pending_confirmed_reply_receipt = (
+                pending_confirmed_reply_receipt
+            )
+            selftest_last_created_post = last_created_post
+            selftest_active_xai_context = active_xai_context
+            selftest_active_xai_call_attempt_index = (
+                active_xai_call_attempt_index
+            )
+            selftest_pending_semantic_veto_event = pending_semantic_veto_event
+            selftest_pending_semantic_veto_ts = pending_semantic_veto_ts
+        if production_record:
+            pending_quote = production_pending_quote
+            pending_meme = production_pending_meme
+            pending_mention = production_pending_mention
+            pending_qt = production_pending_qt
+            pending_confirmed_reply_receipt = (
+                production_pending_confirmed_reply_receipt
+            )
+            last_created_post = production_last_created_post
+            active_xai_context = production_active_xai_context
+            active_xai_call_attempt_index = (
+                production_active_xai_call_attempt_index
+            )
+            pending_semantic_veto_event = (
+                production_pending_semantic_veto_event
+            )
+            pending_semantic_veto_ts = production_pending_semantic_veto_ts
+        else:
+            pending_quote = selftest_pending_quote
+            pending_meme = selftest_pending_meme
+            pending_mention = selftest_pending_mention
+            pending_qt = selftest_pending_qt
+            pending_confirmed_reply_receipt = (
+                selftest_pending_confirmed_reply_receipt
+            )
+            last_created_post = selftest_last_created_post
+            active_xai_context = selftest_active_xai_context
+            active_xai_call_attempt_index = (
+                selftest_active_xai_call_attempt_index
+            )
+            pending_semantic_veto_event = selftest_pending_semantic_veto_event
+            pending_semantic_veto_ts = selftest_pending_semantic_veto_ts
+        previous_record_production = production_record
+        compatibility_event_obj = (
             try_parse_json_object_from_msg(msg)
             if msg.startswith("EVENT ")
             else None
         )
+        strict_structured_event_obj = (
+            try_parse_strict_json_object_from_msg(msg)
+            if msg.startswith("EVENT ")
+            else None
+        )
+        # Structured EVENT fields are projected into the JSON contract only
+        # after duplicate-key, finite-number, UTF-8 and exact-envelope
+        # validation.  The compatibility parse is detection-only so malformed
+        # events can still contribute bounded parser diagnostics without
+        # leaking non-standard JSON values into the digest.
+        structured_event_obj = strict_structured_event_obj
         is_reply_visual_description_event = bool(
             (
-                structured_event_obj
-                and structured_event_obj.get("event")
+                compatibility_event_obj
+                and compatibility_event_obj.get("event")
                 == "reply_visual_description"
             )
             or (
-                structured_event_obj is None
+                compatibility_event_obj is None
                 and msg.startswith("EVENT ")
                 and re.search(
                     r'"event"\s*:\s*"reply_visual_description"', msg
@@ -11712,29 +13338,71 @@ def analyse(
                     )
                     stats["reply_visual_description_events"] += 1
             elif event_obj and event_obj.get("event") == "main_post_posted":
+                authority_event_obj = (
+                    strict_structured_event_obj
+                    if strict_structured_event_obj
+                    and strict_structured_event_obj.get("event")
+                    == "main_post_posted"
+                    else None
+                )
                 raw_post_id = event_obj.get("post_id")
-                if raw_post_id is not None and str(raw_post_id):
-                    post_id = str(raw_post_id)
-                    retain_quote_post_evidence(
-                        post_id,
-                        "main_post_posted",
-                        {
-                            "event": "main_post_posted",
-                            "time": r.ts.strftime("%Y-%m-%d %H:%M:%S"),
-                            "post_id": post_id,
-                            "source_refs": [
-                                record_source_ref(r, input_file_indexes)
-                            ],
-                            **{
-                                key: event_obj.get(key)
+                main_core_valid = bool(
+                    authority_event_obj is not None
+                    and valid_string_public_post_id(
+                        authority_event_obj.get("post_id")
+                    )
+                    and type(authority_event_obj.get("lane")) is str
+                    and authority_event_obj.get("lane")
+                    in {"quote_image", "daily_meme"}
+                )
+                if main_core_valid:
+                    raw_post_id = authority_event_obj.get("post_id")
+                    post_id = raw_post_id
+                    payload: Dict[str, Any] = {
+                        "event": "main_post_posted",
+                        "time": r.ts.strftime("%Y-%m-%d %H:%M:%S"),
+                        "post_id": post_id,
+                        "lane": authority_event_obj.get("lane"),
+                        "source_refs": [
+                            record_source_ref(r, input_file_indexes)
+                        ],
+                    }
+                    for key in ("line_no", "image_no"):
+                        value = authority_event_obj.get(key)
+                        if type(value) is int and value >= 0:
+                            payload[key] = value
+                    for key in ("image_basename",):
+                        value = authority_event_obj.get(key)
+                        if isinstance(value, str) and len(value) <= 500:
+                            payload[key] = value
+                    for key in ("image_hash", "quote_hash"):
+                        value = authority_event_obj.get(key)
+                        if (
+                            isinstance(value, str)
+                            and SHA256_LOWER_RE.fullmatch(value) is not None
+                        ):
+                            payload[key] = value
+                    image_score = authority_event_obj.get("image_score")
+                    if (
+                        (
+                            type(image_score) is int
+                            and abs(image_score) <= 1_000_000_000
+                        )
+                        or (
+                            type(image_score) is float
+                            and math.isfinite(image_score)
+                            and abs(image_score) <= 1_000_000_000
+                        )
+                    ):
+                        payload["image_score"] = image_score
+                    experiment_status = engagement_main_metadata_status(
+                        authority_event_obj
+                    )
+                    if experiment_status == "valid":
+                        payload.update(
+                            {
+                                key: authority_event_obj.get(key)
                                 for key in (
-                                    "lane",
-                                    "line_no",
-                                    "image_no",
-                                    "image_basename",
-                                    "image_hash",
-                                    "image_score",
-                                    "quote_hash",
                                     "engagement_experiment_id",
                                     "engagement_experiment_plan_sha256",
                                     "engagement_experiment_pair_id",
@@ -11743,10 +13411,27 @@ def analyse(
                                     "engagement_experiment_publication_order",
                                     "engagement_experiment_sequence",
                                     "engagement_question_present",
+                                    "engagement_approved_question_sha256",
                                     "engagement_public_text_sha256",
                                 )
-                            },
-                        },
+                            }
+                        )
+                    elif experiment_status == "invalid":
+                        note_invalid_quote_post_evidence(
+                            post_id,
+                            "main_post_posted.engagement_metadata",
+                            r.ts.strftime("%Y-%m-%d %H:%M:%S"),
+                        )
+                    retain_quote_post_evidence(
+                        post_id,
+                        "main_post_posted",
+                        payload,
+                    )
+                else:
+                    note_invalid_quote_post_evidence(
+                        raw_post_id,
+                        "main_post_posted",
+                        r.ts.strftime("%Y-%m-%d %H:%M:%S"),
                     )
                 if event_obj.get("lane") == "quote_image":
                     if (
@@ -11769,43 +13454,118 @@ def analyse(
                         "file": event_obj.get("filename"),
                     })
             elif event_obj and event_obj.get("event") == "account_root_posted":
+                authority_event_obj = (
+                    strict_structured_event_obj
+                    if strict_structured_event_obj
+                    and strict_structured_event_obj.get("event")
+                    == "account_root_posted"
+                    else None
+                )
                 raw_post_id = event_obj.get("post_id")
-                if raw_post_id is not None and str(raw_post_id):
-                    post_id = str(raw_post_id)
+                if valid_account_root_publication_identity(
+                    authority_event_obj
+                ):
+                    raw_post_id = authority_event_obj.get("post_id")
+                    post_id = raw_post_id
+                    payload = {
+                        "event": "account_root_posted",
+                        "time": r.ts.strftime("%Y-%m-%d %H:%M:%S"),
+                        "post_id": post_id,
+                        "event_version": authority_event_obj.get(
+                            "event_version"
+                        ),
+                        "root_post_id": authority_event_obj.get(
+                            "root_post_id"
+                        ),
+                        "conversation_id": authority_event_obj.get(
+                            "conversation_id"
+                        ),
+                        "lane": authority_event_obj.get("lane"),
+                        "publication_authority": authority_event_obj.get(
+                            "publication_authority"
+                        ),
+                        "source_refs": [
+                            record_source_ref(r, input_file_indexes)
+                        ],
+                    }
+                    optional_fields_valid = True
+                    quote_id = authority_event_obj.get("quote_id")
+                    if quote_id is None:
+                        payload["quote_id"] = None
+                    elif (
+                        isinstance(quote_id, str)
+                        and SHA256_LOWER_RE.fullmatch(quote_id) is not None
+                    ):
+                        payload["quote_id"] = quote_id
+                    else:
+                        optional_fields_valid = False
+                    for key in ("quote_text", "public_text"):
+                        value = authority_event_obj.get(key)
+                        if value is None:
+                            payload[key] = None
+                        elif valid_bounded_utf8_text(
+                            value,
+                            allow_empty=True,
+                        ):
+                            payload[key] = value
+                        else:
+                            optional_fields_valid = False
+                    visible_source = authority_event_obj.get(
+                        "visible_text_source"
+                    )
+                    if (
+                        visible_source is None
+                        or (
+                            isinstance(visible_source, str)
+                            and len(visible_source) <= 100
+                        )
+                    ):
+                        payload["visible_text_source"] = visible_source
+                    else:
+                        optional_fields_valid = False
+                    if not optional_fields_valid:
+                        for key in (
+                            "quote_id",
+                            "quote_text",
+                            "public_text",
+                            "visible_text_source",
+                        ):
+                            payload.pop(key, None)
+                        note_invalid_quote_post_evidence(
+                            post_id,
+                            "account_root_posted.optional_fields",
+                            r.ts.strftime("%Y-%m-%d %H:%M:%S"),
+                        )
                     retain_quote_post_evidence(
                         post_id,
                         "account_root_posted",
-                        {
-                            "event": "account_root_posted",
-                            "time": r.ts.strftime("%Y-%m-%d %H:%M:%S"),
-                            "post_id": post_id,
-                            "source_refs": [
-                                record_source_ref(r, input_file_indexes)
-                            ],
-                            **{
-                                key: event_obj.get(key)
-                                for key in (
-                                    "event_version",
-                                    "root_post_id",
-                                    "conversation_id",
-                                    "lane",
-                                    "quote_id",
-                                    "quote_text",
-                                    "public_text",
-                                    "visible_text_source",
-                                    "publication_authority",
-                                )
-                            },
-                        },
+                        payload,
+                    )
+                else:
+                    note_invalid_quote_post_evidence(
+                        raw_post_id,
+                        "account_root_posted",
+                        r.ts.strftime("%Y-%m-%d %H:%M:%S"),
                     )
             elif (
                 event_obj
                 and event_obj.get("event")
                 == "engagement_question_experimental_member_confirmed"
             ):
-                raw_post_id = event_obj.get("post_id")
-                if raw_post_id is not None and str(raw_post_id):
-                    post_id = str(raw_post_id)
+                authority_event_obj = (
+                    strict_structured_event_obj
+                    if strict_structured_event_obj
+                    and strict_structured_event_obj.get("event")
+                    == "engagement_question_experimental_member_confirmed"
+                    else None
+                )
+                raw_post_id = (
+                    authority_event_obj.get("post_id")
+                    if authority_event_obj is not None
+                    else None
+                )
+                if valid_engagement_confirmation_event(authority_event_obj):
+                    post_id = raw_post_id
                     retain_quote_post_evidence(
                         post_id,
                         "engagement_question_experimental_member_confirmed",
@@ -11819,7 +13579,7 @@ def analyse(
                                 record_source_ref(r, input_file_indexes)
                             ],
                             **{
-                                key: event_obj.get(key)
+                                key: authority_event_obj.get(key)
                                 for key in (
                                     "plan_sha256",
                                     "pair_id",
@@ -11829,6 +13589,12 @@ def analyse(
                                 )
                             },
                         },
+                    )
+                else:
+                    note_invalid_quote_post_evidence(
+                        event_obj.get("post_id"),
+                        "engagement_question_experimental_member_confirmed",
+                        r.ts.strftime("%Y-%m-%d %H:%M:%S"),
                     )
             elif event_obj and event_obj.get("event") in {
                 "engagement_question_experiment_invalid",
@@ -11842,54 +13608,164 @@ def analyse(
                     "source_refs": [
                         record_source_ref(r, input_file_indexes)
                     ],
-                    **{
-                        key: event_obj.get(key)
-                        for key in (
-                            "experiment_id",
-                            "plan_sha256",
-                            "post_id",
-                            "pair_id",
-                            "member_position",
-                            "reason",
-                            "started",
-                            "exception_class",
-                            "authority_component",
+                    "experiment_id": bounded_event_text(
+                        event_obj.get("experiment_id"), max_characters=200
+                    ),
+                    "plan_sha256": (
+                        event_obj.get("plan_sha256")
+                        if isinstance(event_obj.get("plan_sha256"), str)
+                        and SHA256_LOWER_RE.fullmatch(
+                            event_obj["plan_sha256"]
                         )
-                    },
+                        else None
+                    ),
+                    "post_id": (
+                        event_obj.get("post_id")
+                        if valid_string_public_post_id(
+                            event_obj.get("post_id")
+                        )
+                        else None
+                    ),
+                    "pair_id": (
+                        event_obj.get("pair_id")
+                        if isinstance(event_obj.get("pair_id"), str)
+                        and ENGAGEMENT_PAIR_ID_RE.fullmatch(
+                            event_obj["pair_id"]
+                        )
+                        else None
+                    ),
+                    "member_position": bounded_event_nonnegative_integer(
+                        event_obj.get("member_position"), maximum=2
+                    ),
+                    "reason": bounded_event_text(
+                        event_obj.get("reason"), max_characters=240
+                    ),
+                    "started": bounded_event_boolean(
+                        event_obj.get("started")
+                    ),
+                    "exception_class": bounded_event_text(
+                        event_obj.get("exception_class"), max_characters=200
+                    ),
+                    "authority_component": bounded_event_text(
+                        event_obj.get("authority_component"),
+                        max_characters=200,
+                    ),
                 }
-                if outcome.get("post_id") is not None:
-                    outcome["post_id"] = str(outcome["post_id"])
                 engagement_trial_outcomes.append(outcome)
             elif event_obj and event_obj.get("event") == "quote_image_semantic_veto_shadow":
                 pending_semantic_veto_event = add_event(
                     "quote_image_semantic_veto_shadow",
                     r.ts,
-                    quote_id=event_obj.get("quote_id") or "",
-                    quote_hash=event_obj.get("quote_hash") or "",
-                    quote_preview=event_obj.get("quote_preview") or "",
-                    selected_image_hash=event_obj.get("selected_image_hash") or "",
-                    selected_image_basename=event_obj.get("selected_image_basename") or "",
-                    selected_image_source=event_obj.get("selected_image_source") or "other",
-                    selected_score=event_obj.get("selected_score"),
-                    shadow_status=event_obj.get("shadow_status") or "unknown",
-                    would_veto_production_winner=event_obj.get("would_veto_production_winner"),
-                    veto_category=event_obj.get("veto_category"),
-                    veto_reason_codes=event_obj.get("veto_reason_codes") if isinstance(event_obj.get("veto_reason_codes"), list) else [],
-                    veto_explanation=event_obj.get("veto_explanation") or "",
-                    alternative_available=event_obj.get("alternative_available"),
-                    alternative_image_basename=event_obj.get("alternative_image_basename"),
-                    alternative_score=event_obj.get("alternative_score"),
-                    score_delta_from_production_winner=event_obj.get("score_delta_from_production_winner"),
-                    quote_has_no_allowed_candidate_globally=event_obj.get("quote_has_no_allowed_candidate_globally"),
-                    quote_has_incomplete_pair_coverage=event_obj.get("quote_has_incomplete_pair_coverage"),
-                    quote_pair_fully_resolved=event_obj.get("quote_pair_fully_resolved"),
-                    selected_pair_adjudication_status=event_obj.get("selected_pair_adjudication_status"),
-                    quote_pair_adjudicated_unknown_count=event_obj.get("quote_pair_adjudicated_unknown_count"),
-                    quote_pair_not_adjudicated_count=event_obj.get("quote_pair_not_adjudicated_count"),
-                    manifest_policy_version=event_obj.get("manifest_policy_version") or "unavailable",
-                    manifest_sha256=event_obj.get("manifest_sha256") or "",
-                    lookup_latency_ms=event_obj.get("lookup_latency_ms"),
-                    production_selection_changed=event_obj.get("production_selection_changed"),
+                    quote_id=(
+                        event_obj.get("quote_id")
+                        if isinstance(event_obj.get("quote_id"), str)
+                        and SHA256_LOWER_RE.fullmatch(event_obj["quote_id"])
+                        else ""
+                    ),
+                    quote_hash=(
+                        event_obj.get("quote_hash")
+                        if isinstance(event_obj.get("quote_hash"), str)
+                        and SHA256_LOWER_RE.fullmatch(event_obj["quote_hash"])
+                        else ""
+                    ),
+                    quote_preview=bounded_event_text(
+                        event_obj.get("quote_preview"),
+                        default="",
+                        max_characters=1000,
+                    ),
+                    selected_image_hash=(
+                        event_obj.get("selected_image_hash")
+                        if isinstance(event_obj.get("selected_image_hash"), str)
+                        and SHA256_LOWER_RE.fullmatch(
+                            event_obj["selected_image_hash"]
+                        )
+                        else ""
+                    ),
+                    selected_image_basename=bounded_event_text(
+                        event_obj.get("selected_image_basename"),
+                        default="",
+                        max_characters=500,
+                    ),
+                    selected_image_source=bounded_event_text(
+                        event_obj.get("selected_image_source"),
+                        default="other",
+                        max_characters=100,
+                    ),
+                    selected_score=bounded_event_finite_number(
+                        event_obj.get("selected_score")
+                    ),
+                    shadow_status=bounded_event_text(
+                        event_obj.get("shadow_status"),
+                        default="unknown",
+                        max_characters=100,
+                    ),
+                    would_veto_production_winner=bounded_event_boolean(
+                        event_obj.get("would_veto_production_winner")
+                    ),
+                    veto_category=bounded_event_text(
+                        event_obj.get("veto_category"), max_characters=100
+                    ),
+                    veto_reason_codes=bounded_event_string_list(
+                        event_obj.get("veto_reason_codes")
+                    ),
+                    veto_explanation=bounded_event_text(
+                        event_obj.get("veto_explanation"),
+                        default="",
+                        max_characters=1000,
+                    ),
+                    alternative_available=bounded_event_boolean(
+                        event_obj.get("alternative_available")
+                    ),
+                    alternative_image_basename=bounded_event_text(
+                        event_obj.get("alternative_image_basename"),
+                        max_characters=500,
+                    ),
+                    alternative_score=bounded_event_finite_number(
+                        event_obj.get("alternative_score")
+                    ),
+                    score_delta_from_production_winner=bounded_event_finite_number(
+                        event_obj.get("score_delta_from_production_winner")
+                    ),
+                    quote_has_no_allowed_candidate_globally=bounded_event_boolean(
+                        event_obj.get("quote_has_no_allowed_candidate_globally")
+                    ),
+                    quote_has_incomplete_pair_coverage=bounded_event_boolean(
+                        event_obj.get("quote_has_incomplete_pair_coverage")
+                    ),
+                    quote_pair_fully_resolved=bounded_event_boolean(
+                        event_obj.get("quote_pair_fully_resolved")
+                    ),
+                    selected_pair_adjudication_status=bounded_event_text(
+                        event_obj.get("selected_pair_adjudication_status"),
+                        max_characters=100,
+                    ),
+                    quote_pair_adjudicated_unknown_count=bounded_event_nonnegative_integer(
+                        event_obj.get("quote_pair_adjudicated_unknown_count"),
+                        maximum=1_000_000,
+                    ),
+                    quote_pair_not_adjudicated_count=bounded_event_nonnegative_integer(
+                        event_obj.get("quote_pair_not_adjudicated_count"),
+                        maximum=1_000_000,
+                    ),
+                    manifest_policy_version=bounded_event_text(
+                        event_obj.get("manifest_policy_version"),
+                        default="unavailable",
+                        max_characters=200,
+                    ),
+                    manifest_sha256=(
+                        event_obj.get("manifest_sha256")
+                        if isinstance(event_obj.get("manifest_sha256"), str)
+                        and SHA256_LOWER_RE.fullmatch(
+                            event_obj["manifest_sha256"]
+                        )
+                        else ""
+                    ),
+                    lookup_latency_ms=bounded_event_finite_number(
+                        event_obj.get("lookup_latency_ms")
+                    ),
+                    production_selection_changed=bounded_event_boolean(
+                        event_obj.get("production_selection_changed")
+                    ),
                     confirmed_post=False,
                 )
                 quote_image_semantic_veto_events.append(pending_semantic_veto_event)
@@ -11898,92 +13774,170 @@ def analyse(
                 add_event(
                     "historical_context_semantic_gate",
                     r.ts,
-                    status=event_obj.get("status") or "unavailable",
-                    policy_version=event_obj.get("policy_version") or "unavailable",
-                    ledger_sha256=event_obj.get("ledger_sha256") or "",
-                    projection_sha256=event_obj.get("projection_sha256") or "",
-                    blocked_quote_count=event_obj.get("blocked_quote_count"),
-                    reason=event_obj.get("reason") or "",
+                    status=bounded_event_text(
+                        event_obj.get("status"),
+                        default="unavailable",
+                        max_characters=100,
+                    ),
+                    policy_version=bounded_event_text(
+                        event_obj.get("policy_version"),
+                        default="unavailable",
+                        max_characters=200,
+                    ),
+                    ledger_sha256=(
+                        event_obj.get("ledger_sha256")
+                        if isinstance(event_obj.get("ledger_sha256"), str)
+                        and SHA256_LOWER_RE.fullmatch(
+                            event_obj["ledger_sha256"]
+                        )
+                        else ""
+                    ),
+                    projection_sha256=(
+                        event_obj.get("projection_sha256")
+                        if isinstance(event_obj.get("projection_sha256"), str)
+                        and SHA256_LOWER_RE.fullmatch(
+                            event_obj["projection_sha256"]
+                        )
+                        else ""
+                    ),
+                    blocked_quote_count=bounded_event_nonnegative_integer(
+                        event_obj.get("blocked_quote_count"), maximum=1_000_000
+                    ),
+                    reason=bounded_event_text(
+                        event_obj.get("reason"),
+                        default="",
+                        max_characters=1000,
+                    ),
                 )
             elif event_obj and event_obj.get("event") == "historical_context_runtime":
-                status = str(event_obj.get("status") or "unavailable")
+                status = bounded_event_text(
+                    event_obj.get("status"),
+                    default="unavailable",
+                    max_characters=100,
+                )
                 add_event(
                     "historical_context_runtime",
                     r.ts,
                     status=status,
-                    reason=event_obj.get("reason") or "",
-                    regular_post_eligibility_unchanged=event_obj.get(
-                        "regular_post_eligibility_unchanged"
+                    reason=bounded_event_text(
+                        event_obj.get("reason"),
+                        default="",
+                        max_characters=1000,
+                    ),
+                    regular_post_eligibility_unchanged=bounded_event_boolean(
+                        event_obj.get("regular_post_eligibility_unchanged")
                     ),
                 )
                 stats[f"historical_context_runtime_status_{status}"] += 1
             elif event_obj and event_obj.get("event") == "reply_evidence_unavailable":
-                lane = str(event_obj.get("lane") or "unavailable")
+                lane = bounded_event_text(
+                    event_obj.get("lane"),
+                    default="unavailable",
+                    max_characters=100,
+                )
                 add_event(
                     "reply_evidence_unavailable",
                     r.ts,
                     lane=lane,
-                    target_id=event_obj.get("target_id") or "",
+                    target_id=(
+                        event_obj.get("target_id")
+                        if valid_string_public_post_id(
+                            event_obj.get("target_id")
+                        )
+                        else ""
+                    ),
                 )
                 stats[f"reply_evidence_unavailable_lane_{lane}"] += 1
             elif event_obj and event_obj.get("event") == "runtime_control_pause":
-                lanes = event_obj.get("lanes")
+                control_lanes = bounded_event_string_list(
+                    event_obj.get("lanes"), limit=20, item_max_characters=100
+                )
                 add_event(
                     "runtime_control_pause",
                     r.ts,
-                    key=event_obj.get("key") or "unavailable",
-                    lanes=", ".join(str(item) for item in lanes)
-                    if isinstance(lanes, list)
-                    else "",
-                    control_lanes=[str(item) for item in lanes]
-                    if isinstance(lanes, list)
-                    else [],
-                    until_epoch=event_obj.get("until_epoch"),
+                    key=bounded_event_text(
+                        event_obj.get("key"),
+                        default="unavailable",
+                        max_characters=200,
+                    ),
+                    lanes=", ".join(control_lanes),
+                    control_lanes=control_lanes,
+                    until_epoch=bounded_event_nonnegative_integer(
+                        event_obj.get("until_epoch")
+                    ),
                 )
                 stats["runtime_control_pause"] += 1
             elif event_obj and event_obj.get("event") == "runtime_control_clear":
-                lanes = event_obj.get("lanes")
+                control_lanes = bounded_event_string_list(
+                    event_obj.get("lanes"), limit=20, item_max_characters=100
+                )
                 add_event(
                     "runtime_control_clear",
                     r.ts,
-                    key=event_obj.get("key") or "unavailable",
-                    lanes=", ".join(str(item) for item in lanes)
-                    if isinstance(lanes, list)
-                    else "",
-                    control_lanes=[str(item) for item in lanes]
-                    if isinstance(lanes, list)
-                    else [],
+                    key=bounded_event_text(
+                        event_obj.get("key"),
+                        default="unavailable",
+                        max_characters=200,
+                    ),
+                    lanes=", ".join(control_lanes),
+                    control_lanes=control_lanes,
                 )
                 stats["runtime_control_clear"] += 1
             elif event_obj and event_obj.get("event") == "clarification_reply_cap_override":
                 add_event(
                     "clarification_reply_cap_override",
                     r.ts,
-                    target_id=event_obj.get("target_id") or "",
-                    thread_id=event_obj.get("thread_id") or "",
-                    author_id=event_obj.get("author_id") or "",
-                    bypassed_cap=event_obj.get("bypassed_cap") or "",
+                    target_id=(
+                        event_obj.get("target_id")
+                        if valid_string_public_post_id(
+                            event_obj.get("target_id")
+                        )
+                        else ""
+                    ),
+                    thread_id=(
+                        event_obj.get("thread_id")
+                        if valid_string_public_post_id(
+                            event_obj.get("thread_id")
+                        )
+                        else ""
+                    ),
+                    author_id=(
+                        event_obj.get("author_id")
+                        if valid_string_public_post_id(
+                            event_obj.get("author_id")
+                        )
+                        else ""
+                    ),
+                    bypassed_cap=bounded_event_text(
+                        event_obj.get("bypassed_cap"),
+                        default="",
+                        max_characters=100,
+                    ),
                 )
                 stats["clarification_reply_cap_override"] += 1
             elif event_obj and event_obj.get("event") == "clarification_reply_used":
                 add_event(
                     "clarification_reply_used",
                     r.ts,
-                    target_id=event_obj.get("target_id") or "",
-                    thread_id=event_obj.get("thread_id") or "",
-                    author_id=event_obj.get("author_id") or "",
-                    reply_post_id=event_obj.get("reply_post_id") or "",
-                    trigger=event_obj.get("trigger") or "",
+                    target_id=(event_obj.get("target_id") if valid_string_public_post_id(event_obj.get("target_id")) else ""),
+                    thread_id=(event_obj.get("thread_id") if valid_string_public_post_id(event_obj.get("thread_id")) else ""),
+                    author_id=(event_obj.get("author_id") if valid_string_public_post_id(event_obj.get("author_id")) else ""),
+                    reply_post_id=(event_obj.get("reply_post_id") if valid_string_public_post_id(event_obj.get("reply_post_id")) else ""),
+                    trigger=bounded_event_text(
+                        event_obj.get("trigger"),
+                        default="",
+                        max_characters=100,
+                    ),
                 )
                 stats["clarification_reply_used"] += 1
             elif event_obj and event_obj.get("event") == "repair_reply_completed":
                 add_event(
                     "repair_reply_completed",
                     r.ts,
-                    target_id=event_obj.get("target_id") or "",
-                    thread_id=event_obj.get("thread_id") or "",
-                    author_id=event_obj.get("author_id") or "",
-                    reply_post_id=event_obj.get("reply_post_id") or "",
+                    target_id=(event_obj.get("target_id") if valid_string_public_post_id(event_obj.get("target_id")) else ""),
+                    thread_id=(event_obj.get("thread_id") if valid_string_public_post_id(event_obj.get("thread_id")) else ""),
+                    author_id=(event_obj.get("author_id") if valid_string_public_post_id(event_obj.get("author_id")) else ""),
+                    reply_post_id=(event_obj.get("reply_post_id") if valid_string_public_post_id(event_obj.get("reply_post_id")) else ""),
                 )
                 stats["repair_reply_completed"] += 1
             elif event_obj and event_obj.get("event") in {
@@ -11996,14 +13950,32 @@ def analyse(
                 add_event(
                     kind,
                     r.ts,
-                    since_id=event_obj.get("since_id"),
-                    pages_completed=event_obj.get("pages_completed"),
-                    highest_mention_id=event_obj.get("highest_mention_id"),
-                    continuation_token_present=event_obj.get(
-                        "continuation_token_present"
+                    since_id=(
+                        event_obj.get("since_id")
+                        if event_obj.get("since_id") is None
+                        or valid_string_public_post_id(event_obj.get("since_id"))
+                        else None
                     ),
-                    backlog_age_seconds=event_obj.get("backlog_age_seconds"),
-                    reason=event_obj.get("reason") or "",
+                    pages_completed=bounded_event_nonnegative_integer(
+                        event_obj.get("pages_completed"), maximum=1_000_000
+                    ),
+                    highest_mention_id=(
+                        event_obj.get("highest_mention_id")
+                        if event_obj.get("highest_mention_id") is None
+                        or valid_string_public_post_id(
+                            event_obj.get("highest_mention_id")
+                        )
+                        else None
+                    ),
+                    continuation_token_present=bounded_event_boolean(
+                        event_obj.get("continuation_token_present")
+                    ),
+                    backlog_age_seconds=bounded_event_nonnegative_integer(
+                        event_obj.get("backlog_age_seconds")
+                    ),
+                    reason=bounded_event_text(
+                        event_obj.get("reason"), default="", max_characters=240
+                    ),
                 )
                 stats[kind] += 1
             elif event_obj and event_obj.get("event") in {
@@ -12015,61 +13987,108 @@ def analyse(
                 add_event(
                     kind,
                     r.ts,
-                    author_id=event_obj.get("author_id") or "",
-                    target_id=event_obj.get("target_id") or "",
-                    strike_count=event_obj.get("strike_count"),
-                    quarantine_until_epoch=event_obj.get(
-                        "quarantine_until_epoch"
+                    author_id=(
+                        event_obj.get("author_id")
+                        if valid_string_public_post_id(
+                            event_obj.get("author_id")
+                        )
+                        else ""
                     ),
-                    pipeline_evaluations_skipped=event_obj.get(
-                        "pipeline_evaluations_skipped"
+                    target_id=(
+                        event_obj.get("target_id")
+                        if valid_string_public_post_id(
+                            event_obj.get("target_id")
+                        )
+                        else ""
+                    ),
+                    strike_count=bounded_event_nonnegative_integer(
+                        event_obj.get("strike_count"), maximum=250_000
+                    ),
+                    quarantine_until_epoch=bounded_event_nonnegative_integer(
+                        event_obj.get("quarantine_until_epoch")
+                    ),
+                    pipeline_evaluations_skipped=bounded_event_nonnegative_integer(
+                        event_obj.get("pipeline_evaluations_skipped"),
+                        maximum=1_000_000,
                     ),
                 )
                 stats[kind] += 1
             elif event_obj and event_obj.get("event") == "reply_posted":
-                structured_reply_confirmations.append(
-                    {
-                        "time": dt_text(r.ts),
-                        "lane": event_obj.get("lane"),
-                        "target_id": event_obj.get("target_id"),
-                        "reply_post_id": event_obj.get("reply_post_id"),
-                        "author_id": event_obj.get("author_id"),
-                        "original_post_id": event_obj.get(
-                            "original_post_id"
-                        ),
-                        "_event_insertion_index": len(events),
-                        "_source_sequence": record_index,
-                        "source_refs": [
-                            record_source_ref(r, input_file_indexes)
-                        ],
-                    }
+                authority_event_obj = (
+                    strict_structured_event_obj
+                    if strict_structured_event_obj
+                    and strict_structured_event_obj.get("event")
+                    == "reply_posted"
+                    else None
                 )
+                if production_record and authority_event_obj is not None:
+                    structured_reply_confirmations.append(
+                        {
+                            "time": dt_text(r.ts),
+                            "lane": authority_event_obj.get("lane"),
+                            "target_id": authority_event_obj.get("target_id"),
+                            "reply_post_id": authority_event_obj.get(
+                                "reply_post_id"
+                            ),
+                            "author_id": authority_event_obj.get("author_id"),
+                            "original_post_id": authority_event_obj.get(
+                                "original_post_id"
+                            ),
+                            "_event_insertion_index": len(events),
+                            "_source_sequence": record_index,
+                            "source_refs": [
+                                record_source_ref(r, input_file_indexes)
+                            ],
+                        }
+                    )
             elif (
                 event_obj
                 and event_obj.get("event")
                 == "historical_context_reply_posted"
             ):
-                parent_post_id = str(event_obj.get("parent_post_id") or "")
-                reply_post_id = str(event_obj.get("reply_post_id") or "")
-                root_post_id = str(event_obj.get("root_post_id") or "")
-                conversation_id = str(event_obj.get("conversation_id") or "")
-                quote_id = str(event_obj.get("quote_id") or "")
-                reply_text = event_obj.get("reply_text")
+                authority_event_obj = (
+                    strict_structured_event_obj
+                    if strict_structured_event_obj
+                    and strict_structured_event_obj.get("event")
+                    == "historical_context_reply_posted"
+                    else None
+                )
+                publication_event_obj = authority_event_obj or event_obj
+                parent_value = publication_event_obj.get("parent_post_id")
+                reply_post_value = publication_event_obj.get("reply_post_id")
+                root_value = publication_event_obj.get("root_post_id")
+                conversation_value = publication_event_obj.get(
+                    "conversation_id"
+                )
+                quote_value = publication_event_obj.get("quote_id")
+                parent_post_id = (
+                    parent_value if isinstance(parent_value, str) else ""
+                )
+                reply_post_id = (
+                    reply_post_value
+                    if isinstance(reply_post_value, str)
+                    else ""
+                )
+                quote_id = quote_value if isinstance(quote_value, str) else ""
+                reply_text = publication_event_obj.get("reply_text")
                 authoritative = (
-                    type(event_obj.get("event_version")) is int
-                    and event_obj.get("event_version") == 1
-                    and event_obj.get("lane")
+                    production_record
+                    and authority_event_obj is not None
+                    and type(authority_event_obj.get("event_version")) is int
+                    and authority_event_obj.get("event_version") == 1
+                    and authority_event_obj.get("lane")
                     == "historical_context_reply"
-                    and event_obj.get("publication_authority")
+                    and authority_event_obj.get("publication_authority")
                     == "confirmed_transport"
-                    and parent_post_id.isdigit()
-                    and reply_post_id.isdigit()
-                    and root_post_id == parent_post_id
-                    and conversation_id == parent_post_id
-                    and re.fullmatch(r"[0-9a-f]{64}", quote_id) is not None
-                    and isinstance(reply_text, str)
-                    and bool(reply_text)
-                    and len(reply_text) <= PUBLISHED_REPLY_TEXT_MAX_CHARACTERS
+                    and valid_string_public_post_id(parent_value)
+                    and valid_string_public_post_id(reply_post_value)
+                    and valid_string_public_post_id(root_value)
+                    and valid_string_public_post_id(conversation_value)
+                    and root_value == parent_value
+                    and conversation_value == parent_value
+                    and isinstance(quote_value, str)
+                    and SHA256_LOWER_RE.fullmatch(quote_value) is not None
+                    and valid_bounded_utf8_text(reply_text)
                 )
                 historical_reply_text_evidence.append(
                     {
@@ -12079,6 +14098,8 @@ def analyse(
                         "quote_id": quote_id,
                         "authoritative": authoritative,
                         "reply_text": reply_text if authoritative else None,
+                        "source": "structured historical_context_reply_posted",
+                        "durable_only": False,
                         "_event_insertion_index": len(events),
                         "_source_sequence": record_index,
                         "source_refs": [
@@ -12087,108 +14108,330 @@ def analyse(
                     }
                 )
             elif event_obj and event_obj.get("event") == "historical_context_reply":
-                status = str(event_obj.get("status") or "unknown")
-                confidence_dimensions = event_obj.get("confidence_dimensions")
-                add_event(
+                status = bounded_event_text(
+                    event_obj.get("status"),
+                    default="unknown",
+                    max_characters=100,
+                )
+                raw_confidence_dimensions = event_obj.get(
+                    "confidence_dimensions"
+                )
+                confidence_dimensions = (
+                    dict(raw_confidence_dimensions)
+                    if isinstance(raw_confidence_dimensions, dict)
+                    and set(raw_confidence_dimensions)
+                    == set(_HISTORICAL_CONTEXT_CONFIDENCE_DIMENSIONS)
+                    and all(
+                        type(value) is str
+                        and value in _HISTORICAL_CONTEXT_CONFIDENCE_VALUES
+                        for value in raw_confidence_dimensions.values()
+                    )
+                    else None
+                )
+                character_count = event_obj.get("character_count")
+                if (
+                    type(character_count) is not int
+                    or not 0 <= character_count <= 25_000
+                ):
+                    character_count = None
+                raw_character_count = event_obj.get("raw_character_count")
+                if (
+                    type(raw_character_count) is not int
+                    or not 0 <= raw_character_count <= 25_000
+                ):
+                    raw_character_count = None
+                historical_event = add_event(
                     "historical_context_reply",
                     r.ts,
                     status=status,
-                    parent_post_id=event_obj.get("parent_post_id"),
-                    quote_id=event_obj.get("quote_id"),
-                    character_count=event_obj.get("character_count"),
-                    weighted_character_count=event_obj.get("character_count"),
-                    raw_character_count=event_obj.get("raw_character_count"),
-                    verification_label=event_obj.get("verification_label") or "unavailable",
-                    source_class=event_obj.get("source_class") or "unavailable",
-                    historical_confidence=event_obj.get("historical_confidence") or "unavailable",
-                    formatter_version=event_obj.get("formatter_version") or "unavailable",
-                    rendering_mode=event_obj.get("rendering_mode") or "unavailable",
-                    confidence_dimensions=(
-                        confidence_dimensions if isinstance(confidence_dimensions, dict) else None
+                    parent_post_id=(
+                        event_obj.get("parent_post_id")
+                        if valid_string_public_post_id(
+                            event_obj.get("parent_post_id")
+                        )
+                        else None
                     ),
-                    source_role_audit_version=(
-                        event_obj.get("source_role_audit_version") or "unavailable"
+                    quote_id=(
+                        event_obj.get("quote_id")
+                        if isinstance(event_obj.get("quote_id"), str)
+                        and SHA256_LOWER_RE.fullmatch(event_obj["quote_id"])
+                        else None
                     ),
-                    template_variant=event_obj.get("template_variant") or "",
-                    shortening_applied=event_obj.get("shortening_applied"),
-                    meaning_omitted=event_obj.get("meaning_omitted"),
-                    source_omitted=event_obj.get("source_omitted"),
-                    verification_omitted=event_obj.get("verification_omitted"),
-                    reason=event_obj.get("reason") or "",
-                    semantic_review_disposition=(
-                        event_obj.get("semantic_review_disposition") or "unavailable"
+                    character_count=character_count,
+                    weighted_character_count=character_count,
+                    raw_character_count=raw_character_count,
+                    verification_label=bounded_event_text(
+                        event_obj.get("verification_label"),
+                        default="unavailable",
+                        max_characters=500,
+                    ),
+                    source_class=bounded_event_text(
+                        event_obj.get("source_class"),
+                        default="unavailable",
+                        max_characters=500,
+                    ),
+                    historical_confidence=(
+                        event_obj.get("historical_confidence")
+                        if event_obj.get("historical_confidence")
+                        in {"high", "medium", "low", "unavailable"}
+                        else "unavailable"
+                    ),
+                    formatter_version=bounded_event_text(
+                        event_obj.get("formatter_version"),
+                        default="unavailable",
+                        max_characters=200,
+                    ),
+                    rendering_mode=bounded_event_text(
+                        event_obj.get("rendering_mode"),
+                        default="unavailable",
+                        max_characters=100,
+                    ),
+                    confidence_dimensions=confidence_dimensions,
+                    source_role_audit_version=bounded_event_text(
+                        event_obj.get("source_role_audit_version"),
+                        default="unavailable",
+                        max_characters=200,
+                    ),
+                    template_variant=bounded_event_text(
+                        event_obj.get("template_variant"),
+                        default="",
+                        max_characters=200,
+                    ),
+                    shortening_applied=bounded_event_boolean(
+                        event_obj.get("shortening_applied")
+                    ),
+                    meaning_omitted=bounded_event_boolean(
+                        event_obj.get("meaning_omitted")
+                    ),
+                    source_omitted=bounded_event_boolean(
+                        event_obj.get("source_omitted")
+                    ),
+                    verification_omitted=bounded_event_boolean(
+                        event_obj.get("verification_omitted")
+                    ),
+                    reason=bounded_event_text(
+                        event_obj.get("reason"),
+                        default="",
+                        max_characters=1000,
+                    ),
+                    semantic_review_disposition=bounded_event_text(
+                        event_obj.get("semantic_review_disposition"),
+                        default="unavailable",
+                        max_characters=200,
                     ),
                     semantic_review_ledger_sha256=(
-                        event_obj.get("semantic_review_ledger_sha256") or "unavailable"
+                        event_obj.get("semantic_review_ledger_sha256")
+                        if isinstance(
+                            event_obj.get("semantic_review_ledger_sha256"),
+                            str,
+                        )
+                        and SHA256_LOWER_RE.fullmatch(
+                            event_obj["semantic_review_ledger_sha256"]
+                        )
+                        else "unavailable"
                     ),
                     semantic_review_projection_sha256=(
                         event_obj.get("semantic_review_projection_sha256")
-                        or "unavailable"
+                        if isinstance(
+                            event_obj.get("semantic_review_projection_sha256"),
+                            str,
+                        )
+                        and SHA256_LOWER_RE.fullmatch(
+                            event_obj["semantic_review_projection_sha256"]
+                        )
+                        else "unavailable"
                     ),
-                    reply_preview=event_obj.get("reply_preview") or "",
+                    reply_preview=bounded_event_text(
+                        event_obj.get("reply_preview"),
+                        default="",
+                        max_characters=25_000,
+                    ),
                 )
+                if status in {"completed", "already_completed"}:
+                    strict_anchor = (
+                        strict_structured_event_obj
+                        if strict_structured_event_obj
+                        and strict_structured_event_obj.get("event")
+                        == "historical_context_reply"
+                        else None
+                    )
+                    anchor_valid = bool(
+                        strict_anchor is not None
+                        and type(strict_anchor.get("status")) is str
+                        and strict_anchor.get("status") == status
+                        and valid_string_public_post_id(
+                            strict_anchor.get("parent_post_id")
+                        )
+                        and isinstance(strict_anchor.get("quote_id"), str)
+                        and SHA256_LOWER_RE.fullmatch(
+                            strict_anchor["quote_id"]
+                        )
+                        is not None
+                        and type(strict_anchor.get("character_count")) is int
+                        and 0 <= strict_anchor.get("character_count") <= 25_000
+                        and (
+                            "reply_preview" not in strict_anchor
+                            or valid_bounded_utf8_text(
+                                strict_anchor.get("reply_preview"),
+                                allow_empty=True,
+                            )
+                        )
+                    )
+                    if not anchor_valid:
+                        historical_event["reply_post_id"] = None
+                        historical_event.update(
+                            _public_reply_text_result(
+                                [],
+                                unavailable_reason=(
+                                    "structured historical-context anchor is not canonical"
+                                ),
+                            )
+                        )
+                        production_event_object_ids.discard(
+                            id(historical_event)
+                        )
                 stats[f"historical_context_reply_status_{status}"] += 1
             elif event_obj and event_obj.get("event") == "posting_transaction_state":
-                context_state = str(
-                    event_obj.get("context_reply_state") or "unavailable"
+                context_state = bounded_event_text(
+                    event_obj.get("context_reply_state"),
+                    default="unavailable",
+                    max_characters=100,
                 )
                 add_event(
                     "posting_transaction_state",
                     r.ts,
-                    parent_post_id=event_obj.get("parent_post_id") or "",
-                    main_post_state=event_obj.get("main_post_state") or "unavailable",
-                    context_reply_state=context_state,
-                    context_state_persisted=event_obj.get(
-                        "context_state_persisted"
+                    parent_post_id=(
+                        event_obj.get("parent_post_id")
+                        if valid_string_public_post_id(
+                            event_obj.get("parent_post_id")
+                        )
+                        else ""
                     ),
-                    reason=event_obj.get("reason") or "",
+                    main_post_state=bounded_event_text(
+                        event_obj.get("main_post_state"),
+                        default="unavailable",
+                        max_characters=100,
+                    ),
+                    context_reply_state=context_state,
+                    context_state_persisted=bounded_event_boolean(
+                        event_obj.get("context_state_persisted")
+                    ),
+                    reason=bounded_event_text(
+                        event_obj.get("reason"),
+                        default="",
+                        max_characters=1000,
+                    ),
                 )
                 stats[f"context_transaction_state_{context_state}"] += 1
             elif event_obj and event_obj.get("event") == "historical_context_obligation":
-                context_state = str(
-                    event_obj.get("context_reply_state") or "unavailable"
+                context_state = bounded_event_text(
+                    event_obj.get("context_reply_state"),
+                    default="unavailable",
+                    max_characters=100,
                 )
-                status = str(event_obj.get("status") or "unknown")
+                status = bounded_event_text(
+                    event_obj.get("status"),
+                    default="unknown",
+                    max_characters=100,
+                )
                 add_event(
                     "historical_context_obligation",
                     r.ts,
                     status=status,
-                    parent_post_id=event_obj.get("parent_post_id") or "",
+                    parent_post_id=(
+                        event_obj.get("parent_post_id")
+                        if valid_string_public_post_id(
+                            event_obj.get("parent_post_id")
+                        )
+                        else ""
+                    ),
                     context_reply_state=context_state,
-                    attempt_number=event_obj.get("attempt_number"),
-                    remote_work_repeated=event_obj.get("remote_work_repeated"),
-                    error_type=event_obj.get("error_type") or "",
-                    reason=event_obj.get("reason") or "",
+                    attempt_number=bounded_event_nonnegative_integer(
+                        event_obj.get("attempt_number"), maximum=1_000_000
+                    ),
+                    remote_work_repeated=bounded_event_boolean(
+                        event_obj.get("remote_work_repeated")
+                    ),
+                    error_type=bounded_event_text(
+                        event_obj.get("error_type"),
+                        default="",
+                        max_characters=200,
+                    ),
+                    reason=bounded_event_text(
+                        event_obj.get("reason"),
+                        default="",
+                        max_characters=1000,
+                    ),
                 )
                 stats[f"context_obligation_state_{context_state}"] += 1
                 stats[f"context_obligation_status_{status}"] += 1
             elif event_obj and event_obj.get("event") == "historical_context_outbox":
-                status = str(event_obj.get("status") or "unknown")
+                status = bounded_event_text(
+                    event_obj.get("status"),
+                    default="unknown",
+                    max_characters=100,
+                )
                 add_event(
                     "historical_context_outbox",
                     r.ts,
                     status=status,
-                    parent_post_id=event_obj.get("parent_post_id") or "",
-                    error_type=event_obj.get("error_type") or "",
-                    reason=event_obj.get("reason") or "",
-                    main_post_success_preserved=event_obj.get(
-                        "main_post_success_preserved"
+                    parent_post_id=(
+                        event_obj.get("parent_post_id")
+                        if valid_string_public_post_id(
+                            event_obj.get("parent_post_id")
+                        )
+                        else ""
                     ),
-                    unrelated_lanes_available=event_obj.get(
-                        "unrelated_lanes_available"
+                    error_type=bounded_event_text(
+                        event_obj.get("error_type"),
+                        default="",
+                        max_characters=200,
+                    ),
+                    reason=bounded_event_text(
+                        event_obj.get("reason"),
+                        default="",
+                        max_characters=1000,
+                    ),
+                    main_post_success_preserved=bounded_event_boolean(
+                        event_obj.get("main_post_success_preserved")
+                    ),
+                    unrelated_lanes_available=bounded_event_boolean(
+                        event_obj.get("unrelated_lanes_available")
                     ),
                 )
                 stats[f"historical_context_outbox_status_{status}"] += 1
             elif event_obj and event_obj.get("event") == "daily_meme_failure":
-                stage = str(event_obj.get("stage") or "unavailable")
+                stage = bounded_event_text(
+                    event_obj.get("stage"),
+                    default="unavailable",
+                    max_characters=100,
+                )
                 add_event(
                     "daily_meme_failure",
                     r.ts,
-                    status=event_obj.get("status") or "failed",
+                    status=bounded_event_text(
+                        event_obj.get("status"),
+                        default="failed",
+                        max_characters=100,
+                    ),
                     stage=stage,
-                    post_id=event_obj.get("post_id") or "",
-                    error_type=event_obj.get("error_type") or "",
-                    reason=event_obj.get("reason") or "",
+                    post_id=(
+                        event_obj.get("post_id")
+                        if valid_string_public_post_id(
+                            event_obj.get("post_id")
+                        )
+                        else ""
+                    ),
+                    error_type=bounded_event_text(
+                        event_obj.get("error_type"),
+                        default="",
+                        max_characters=200,
+                    ),
+                    reason=bounded_event_text(
+                        event_obj.get("reason"),
+                        default="",
+                        max_characters=1000,
+                    ),
                 )
                 stats[f"daily_meme_failure_stage_{stage}"] += 1
             elif event_obj and event_obj.get("event") == "reply_strategy_decision":
@@ -12203,21 +14446,35 @@ def analyse(
                 )
                 if type(event_obj.get("retrieved_count")) is not int:
                     evidence_fields["retrieved_count"] = (
-                        len(retrieved_ids)
+                        min(len(retrieved_ids), 1_000_000)
                         if isinstance(retrieved_ids, list)
                         else None
                     )
-                evidence_fields["grounded"] = event_obj.get("grounded")
+                evidence_fields["grounded"] = bounded_event_boolean(
+                    event_obj.get("grounded")
+                )
                 decision_event = add_event(
                     "reply_strategy_decision",
                     r.ts,
-                    lane=event_obj.get("lane") or "unavailable",
-                    target_id=event_obj.get("target_id") or "",
-                    mode=event_obj.get("mode"),
-                    humour_tone=event_obj.get("humour_tone"),
-                    tone=event_obj.get("humour_tone"),
+                    lane=bounded_event_text(
+                        event_obj.get("lane"),
+                        default="unavailable",
+                        max_characters=100,
+                    ),
+                    target_id=(event_obj.get("target_id") if valid_string_public_post_id(event_obj.get("target_id")) else ""),
+                    mode=bounded_event_text(
+                        event_obj.get("mode"), max_characters=100
+                    ),
+                    humour_tone=bounded_event_text(
+                        event_obj.get("humour_tone"), max_characters=100
+                    ),
+                    tone=bounded_event_text(
+                        event_obj.get("humour_tone"), max_characters=100
+                    ),
                     **evidence_fields,
-                    no_reply_reason=event_obj.get("no_reply_reason"),
+                    no_reply_reason=bounded_event_text(
+                        event_obj.get("no_reply_reason"), max_characters=500
+                    ),
                 )
             elif event_obj and event_obj.get("event") == "reply_strategy_outcome":
                 retrieved_ids = event_obj.get("retrieved_quote_ids")
@@ -12231,38 +14488,40 @@ def analyse(
                 )
                 if type(event_obj.get("retrieved_count")) is not int:
                     evidence_fields["retrieved_count"] = (
-                        len(retrieved_ids)
+                        min(len(retrieved_ids), 1_000_000)
                         if isinstance(retrieved_ids, list)
                         else None
                     )
-                evidence_fields["grounded"] = event_obj.get("grounded")
+                evidence_fields["grounded"] = bounded_event_boolean(
+                    event_obj.get("grounded")
+                )
                 add_event(
                     "reply_strategy_outcome", r.ts,
-                    status=event_obj.get("status") or "confirmed",
-                    lane=event_obj.get("lane") or "unavailable",
-                    target_id=event_obj.get("target_id") or "",
-                    reply_post_id=event_obj.get("reply_post_id") or "",
-                    mode=event_obj.get("mode"),
-                    final_reply_kind=event_obj.get("final_reply_kind"),
-                    humour_tone=event_obj.get("humour_tone"),
-                    tone=event_obj.get("humour_tone"),
+                    status=bounded_event_text(event_obj.get("status"), default="confirmed", max_characters=100),
+                    lane=bounded_event_text(event_obj.get("lane"), default="unavailable", max_characters=100),
+                    target_id=(event_obj.get("target_id") if valid_string_public_post_id(event_obj.get("target_id")) else ""),
+                    reply_post_id=(event_obj.get("reply_post_id") if valid_string_public_post_id(event_obj.get("reply_post_id")) else ""),
+                    mode=bounded_event_text(event_obj.get("mode"), max_characters=100),
+                    final_reply_kind=bounded_event_text(event_obj.get("final_reply_kind"), max_characters=100),
+                    humour_tone=bounded_event_text(event_obj.get("humour_tone"), max_characters=100),
+                    tone=bounded_event_text(event_obj.get("humour_tone"), max_characters=100),
                     **evidence_fields,
-                    no_reply_reason=event_obj.get("no_reply_reason"),
-                    failure_reason=event_obj.get("failure_reason") or "",
+                    no_reply_reason=bounded_event_text(event_obj.get("no_reply_reason"), max_characters=500),
+                    failure_reason=bounded_event_text(event_obj.get("failure_reason"), default="", max_characters=1000),
                 )
             elif event_obj and event_obj.get("event") == "reply_target_terminal":
                 add_event(
                     "reply_target_terminal", r.ts,
-                    lane=event_obj.get("lane") or "unavailable",
-                    target_id=event_obj.get("target_id") or "",
-                    outcome=event_obj.get("outcome") or "reply_not_permitted",
-                    reason=event_obj.get("reason") or "",
+                    lane=bounded_event_text(event_obj.get("lane"), default="unavailable", max_characters=100),
+                    target_id=(event_obj.get("target_id") if valid_string_public_post_id(event_obj.get("target_id")) else ""),
+                    outcome=bounded_event_text(event_obj.get("outcome"), default="reply_not_permitted", max_characters=100),
+                    reason=bounded_event_text(event_obj.get("reason"), default="", max_characters=500),
                 )
             elif event_obj and event_obj.get("event") == "reply_strategy_rejection":
                 add_event(
                     "reply_strategy_rejection", r.ts,
-                    lane=event_obj.get("lane") or "unavailable",
-                    reason=event_obj.get("reason") or "other",
+                    lane=bounded_event_text(event_obj.get("lane"), default="unavailable", max_characters=100),
+                    reason=bounded_event_text(event_obj.get("reason"), default="other", max_characters=500),
                 )
             elif event_obj and event_obj.get("event") == "ai_reply_pipeline_decision":
                 evidence_ids = event_obj.get("evidence_ids")
@@ -12272,61 +14531,55 @@ def analyse(
                     evidence_ids=evidence_ids,
                     factual_claim_count=factual_claim_count,
                 )
-                decision_status = str(event_obj.get("status") or "")
-                final_reply_kind = event_obj.get("final_reply_kind")
+                decision_status = bounded_event_text(
+                    event_obj.get("status"), default="", max_characters=100
+                )
+                final_reply_kind = bounded_event_text(
+                    event_obj.get("final_reply_kind"), max_characters=100
+                )
                 effective_mode = (
-                    event_obj.get("mode")
+                    bounded_event_text(
+                        event_obj.get("mode"), max_characters=100
+                    )
                     or ("no_reply" if decision_status == "no_reply" else None)
                 )
                 add_event(
                     "reply_strategy_decision",
                     r.ts,
-                    lane=event_obj.get("lane") or "unavailable",
-                    target_id=event_obj.get("target_id") or "",
-                    strategy_version=event_obj.get("strategy_version") or "unavailable",
+                    lane=bounded_event_text(event_obj.get("lane"), default="unavailable", max_characters=100),
+                    target_id=(event_obj.get("target_id") if valid_string_public_post_id(event_obj.get("target_id")) else ""),
+                    strategy_version=bounded_event_text(event_obj.get("strategy_version"), default="unavailable", max_characters=200),
                     status=decision_status or "unavailable",
                     mode=effective_mode,
-                    proposer_mode=event_obj.get("proposer_mode") or event_obj.get("mode"),
+                    proposer_mode=bounded_event_text(event_obj.get("proposer_mode"), max_characters=100) or effective_mode,
                     final_reply_kind=final_reply_kind,
-                    reply_requirement=event_obj.get("reply_requirement"),
-                    route_source=event_obj.get("route_source"),
-                    claim_risk_categories=(
-                        [str(value) for value in event_obj.get("claim_risk_categories") if str(value)]
-                        if isinstance(event_obj.get("claim_risk_categories"), list)
-                        else []
+                    reply_requirement=bounded_event_text(event_obj.get("reply_requirement"), max_characters=100),
+                    route_source=bounded_event_text(event_obj.get("route_source"), max_characters=100),
+                    claim_risk_categories=bounded_event_string_list(
+                        event_obj.get("claim_risk_categories")
                     ),
-                    humour_tone=event_obj.get("tone"),
-                    tone=event_obj.get("tone"),
+                    humour_tone=bounded_event_text(event_obj.get("tone"), max_characters=100),
+                    tone=bounded_event_text(event_obj.get("tone"), max_characters=100),
                     **evidence_fields,
-                    no_reply_reason=event_obj.get("reason"),
-                    reason=event_obj.get("reason"),
-                    reviewer_verdict=event_obj.get("reviewer_verdict"),
-                    model_call_count=event_obj.get("model_call_count"),
-                    revision_count=event_obj.get("revision_count"),
-                    author_quarantine_evidence=event_obj.get(
-                        "author_quarantine_evidence"
-                    ),
+                    no_reply_reason=bounded_event_text(event_obj.get("reason"), max_characters=500),
+                    reason=bounded_event_text(event_obj.get("reason"), max_characters=500),
+                    reviewer_verdict=bounded_event_text(event_obj.get("reviewer_verdict"), max_characters=100),
+                    model_call_count=bounded_event_nonnegative_integer(event_obj.get("model_call_count"), maximum=1000),
+                    revision_count=bounded_event_nonnegative_integer(event_obj.get("revision_count"), maximum=1000),
+                    author_quarantine_evidence=bounded_event_text(event_obj.get("author_quarantine_evidence"), max_characters=200),
                     pipeline_stage_status=(
-                        event_obj.get("pipeline_stage_status")
+                        bounded_event_text(event_obj.get("pipeline_stage_status"), max_characters=100)
                         or decision_status
                         or "unavailable"
                     ),
-                    effective_status=event_obj.get("effective_status"),
-                    effective_reason=event_obj.get("effective_reason"),
-                    original_local_rejection_reason=event_obj.get(
-                        "original_local_rejection_reason"
-                    ),
-                    direct_answer_repair_attempted=event_obj.get(
-                        "direct_answer_repair_attempted"
-                    ),
-                    direct_answer_repair_outcome=event_obj.get(
-                        "direct_answer_repair_outcome"
-                    ),
-                    incoming_contribution=event_obj.get(
-                        "incoming_contribution"
-                    ),
-                    proposed_draft=event_obj.get("proposed_draft"),
-                    repaired_draft=event_obj.get("repaired_draft"),
+                    effective_status=bounded_event_text(event_obj.get("effective_status"), max_characters=100),
+                    effective_reason=bounded_event_text(event_obj.get("effective_reason"), max_characters=500),
+                    original_local_rejection_reason=bounded_event_text(event_obj.get("original_local_rejection_reason"), max_characters=500),
+                    direct_answer_repair_attempted=bounded_event_boolean(event_obj.get("direct_answer_repair_attempted")),
+                    direct_answer_repair_outcome=bounded_event_text(event_obj.get("direct_answer_repair_outcome"), max_characters=100),
+                    incoming_contribution=bounded_event_text(event_obj.get("incoming_contribution"), max_characters=25_000),
+                    proposed_draft=bounded_event_text(event_obj.get("proposed_draft"), max_characters=25_000),
+                    repaired_draft=bounded_event_text(event_obj.get("repaired_draft"), max_characters=25_000),
                 )
                 if event_obj.get("effective_status") == "local_rejection":
                     add_or_merge_local_rejection(
@@ -12367,7 +14620,7 @@ def analyse(
                     for provider in ("xAI", "OpenAI")
                     if isinstance(raw_provider_counts, dict)
                     and type(count := raw_provider_counts.get(provider)) is int
-                    and count >= 0
+                    and 0 <= count <= 1_000_000
                 }
                 schema_invalid_stages = event_obj.get("schema_invalid_stages")
                 allegation_categories = event_obj.get(
@@ -12377,17 +14630,25 @@ def analyse(
                 raw_claim_outcomes = event_obj.get("claim_audit_outcomes")
                 claim_audit_outcomes = [
                     {
-                        "stage": str(item.get("stage") or ""),
-                        "outcome": str(item.get("outcome") or ""),
+                        "stage": stage,
+                        "outcome": outcome,
                     }
-                    for item in (
+                    for item in list(
                         raw_claim_outcomes
                         if isinstance(raw_claim_outcomes, list)
                         else []
-                    )
+                    )[:100]
                     if isinstance(item, dict)
-                    and item.get("stage")
-                    and item.get("outcome")
+                    and (
+                        stage := bounded_event_text(
+                            item.get("stage"), max_characters=100
+                        )
+                    )
+                    and (
+                        outcome := bounded_event_text(
+                            item.get("outcome"), max_characters=100
+                        )
+                    )
                 ]
                 majority_review = normalise_majority_review_telemetry(
                     event_obj
@@ -12395,32 +14656,26 @@ def analyse(
                 add_event(
                     "reply_pipeline_stage_summary",
                     r.ts,
-                    lane=event_obj.get("lane") or "unavailable",
-                    target_id=event_obj.get("target_id") or "",
-                    strategy_version=event_obj.get("strategy_version") or "unavailable",
-                    status=event_obj.get("status") or "unavailable",
+                    lane=bounded_event_text(event_obj.get("lane"), default="unavailable", max_characters=100),
+                    target_id=(event_obj.get("target_id") if valid_string_public_post_id(event_obj.get("target_id")) else ""),
+                    strategy_version=bounded_event_text(event_obj.get("strategy_version"), default="unavailable", max_characters=200),
+                    status=bounded_event_text(event_obj.get("status"), default="unavailable", max_characters=100),
                     pipeline_stage_status=(
-                        event_obj.get("pipeline_stage_status")
-                        or event_obj.get("status")
+                        bounded_event_text(event_obj.get("pipeline_stage_status"), max_characters=100)
+                        or bounded_event_text(event_obj.get("status"), max_characters=100)
                         or "unavailable"
                     ),
                     pipeline_stage_reason=(
-                        event_obj.get("terminal_reason") or ""
+                        bounded_event_text(event_obj.get("terminal_reason"), default="", max_characters=500)
                     ),
-                    terminal_reason=event_obj.get("terminal_reason") or "",
-                    effective_status=event_obj.get("effective_status"),
-                    effective_reason=event_obj.get("effective_reason"),
-                    original_local_rejection_reason=event_obj.get(
-                        "original_local_rejection_reason"
-                    ),
-                    direct_answer_repair_attempted=event_obj.get(
-                        "direct_answer_repair_attempted"
-                    ),
-                    direct_answer_repair_outcome=event_obj.get(
-                        "direct_answer_repair_outcome"
-                    ),
-                    model_call_count=event_obj.get("model_call_count"),
-                    revision_count=event_obj.get("revision_count"),
+                    terminal_reason=bounded_event_text(event_obj.get("terminal_reason"), default="", max_characters=500),
+                    effective_status=bounded_event_text(event_obj.get("effective_status"), max_characters=100),
+                    effective_reason=bounded_event_text(event_obj.get("effective_reason"), max_characters=500),
+                    original_local_rejection_reason=bounded_event_text(event_obj.get("original_local_rejection_reason"), max_characters=500),
+                    direct_answer_repair_attempted=bounded_event_boolean(event_obj.get("direct_answer_repair_attempted")),
+                    direct_answer_repair_outcome=bounded_event_text(event_obj.get("direct_answer_repair_outcome"), max_characters=100),
+                    model_call_count=bounded_event_nonnegative_integer(event_obj.get("model_call_count"), maximum=1000),
+                    revision_count=bounded_event_nonnegative_integer(event_obj.get("revision_count"), maximum=1000),
                     provider_call_counts=provider_call_counts,
                     majority_review_telemetry_present=majority_review[
                         "present"
@@ -12439,25 +14694,15 @@ def analyse(
                     majority_review_duplicate_family=majority_review[
                         "duplicate_family"
                     ],
-                    reply_requirement=event_obj.get("reply_requirement"),
-                    route_source=event_obj.get("route_source"),
-                    trusted_facts_supplied_count=event_obj.get(
-                        "trusted_facts_supplied_count"
-                    ),
-                    trusted_fact_ids_supplied=(
-                        [str(value) for value in event_obj.get("trusted_fact_ids_supplied") if str(value)]
-                        if isinstance(event_obj.get("trusted_fact_ids_supplied"), list)
-                        else []
-                    ),
-                    schema_invalid_stages=(
-                        [str(value) for value in schema_invalid_stages if str(value)]
-                        if isinstance(schema_invalid_stages, list)
-                        else []
-                    ),
-                    deterministic_suppressed=event_obj.get("deterministic_suppressed"),
-                    deterministic_reason=event_obj.get("deterministic_reason"),
-                    xai_gate_decision=event_obj.get("xai_gate_decision"),
-                    reply_necessity_outcome=event_obj.get("reply_necessity_outcome"),
+                    reply_requirement=bounded_event_text(event_obj.get("reply_requirement"), max_characters=100),
+                    route_source=bounded_event_text(event_obj.get("route_source"), max_characters=100),
+                    trusted_facts_supplied_count=bounded_event_nonnegative_integer(event_obj.get("trusted_facts_supplied_count"), maximum=1_000_000),
+                    trusted_fact_ids_supplied=bounded_event_string_list(event_obj.get("trusted_fact_ids_supplied"), limit=1000, item_max_characters=200),
+                    schema_invalid_stages=bounded_event_string_list(schema_invalid_stages),
+                    deterministic_suppressed=bounded_event_boolean(event_obj.get("deterministic_suppressed")),
+                    deterministic_reason=bounded_event_text(event_obj.get("deterministic_reason"), max_characters=500),
+                    xai_gate_decision=bounded_event_text(event_obj.get("xai_gate_decision"), max_characters=100),
+                    reply_necessity_outcome=bounded_event_text(event_obj.get("reply_necessity_outcome"), max_characters=100),
                     reply_necessity_majority_resolvable=(
                         event_obj.get("reply_necessity_majority_resolvable")
                         if type(
@@ -12471,15 +14716,11 @@ def analyse(
                         and event_obj.get("reply_necessity_invalid_calls") >= 0
                         else 0
                     ),
-                    group_hostility_candidate=event_obj.get("group_hostility_candidate"),
-                    group_hostility_outcome=event_obj.get("group_hostility_outcome"),
-                    allegation_conspiracy_candidate=event_obj.get("allegation_conspiracy_candidate"),
-                    allegation_conspiracy_categories=(
-                        [str(value) for value in allegation_categories if str(value)]
-                        if isinstance(allegation_categories, list)
-                        else []
-                    ),
-                    allegation_conspiracy_outcome=event_obj.get("allegation_conspiracy_outcome"),
+                    group_hostility_candidate=bounded_event_boolean(event_obj.get("group_hostility_candidate")),
+                    group_hostility_outcome=bounded_event_text(event_obj.get("group_hostility_outcome"), max_characters=100),
+                    allegation_conspiracy_candidate=bounded_event_boolean(event_obj.get("allegation_conspiracy_candidate")),
+                    allegation_conspiracy_categories=bounded_event_string_list(allegation_categories),
+                    allegation_conspiracy_outcome=bounded_event_text(event_obj.get("allegation_conspiracy_outcome"), max_characters=100),
                     allegation_conspiracy_majority_resolvable=(
                         event_obj.get(
                             "allegation_conspiracy_majority_resolvable"
@@ -12497,26 +14738,22 @@ def analyse(
                         and event_obj.get("allegation_conspiracy_invalid_calls") >= 0
                         else 0
                     ),
-                    attribution_route=event_obj.get("attribution_route"),
-                    attribution_reply_requirement=event_obj.get("attribution_reply_requirement"),
-                    authentication_outcome=event_obj.get("authentication_outcome"),
-                    claim_risk_categories=(
-                        [str(value) for value in claim_risk_categories if str(value)]
-                        if isinstance(claim_risk_categories, list)
-                        else []
-                    ),
+                    attribution_route=bounded_event_text(event_obj.get("attribution_route"), max_characters=100),
+                    attribution_reply_requirement=bounded_event_text(event_obj.get("attribution_reply_requirement"), max_characters=100),
+                    authentication_outcome=bounded_event_text(event_obj.get("authentication_outcome"), max_characters=100),
+                    claim_risk_categories=bounded_event_string_list(claim_risk_categories),
                     claim_audit_outcomes=claim_audit_outcomes,
-                    claim_cleanup_called=event_obj.get("claim_cleanup_called"),
-                    exact_duplicate_detected=event_obj.get("exact_duplicate_detected"),
+                    claim_cleanup_called=bounded_event_boolean(event_obj.get("claim_cleanup_called")),
+                    exact_duplicate_detected=bounded_event_boolean(event_obj.get("exact_duplicate_detected")),
                     near_duplicate_count=(
                         event_obj.get("near_duplicate_count")
                         if type(event_obj.get("near_duplicate_count")) is int
                         and event_obj.get("near_duplicate_count") >= 0
                         else None
                     ),
-                    duplicate_repair_called=event_obj.get("duplicate_repair_called"),
-                    duplicate_repair_outcome=event_obj.get("duplicate_repair_outcome"),
-                    final_validation=event_obj.get("final_validation"),
+                    duplicate_repair_called=bounded_event_boolean(event_obj.get("duplicate_repair_called")),
+                    duplicate_repair_outcome=bounded_event_text(event_obj.get("duplicate_repair_outcome"), max_characters=100),
+                    final_validation=bounded_event_text(event_obj.get("final_validation"), max_characters=100),
                 )
             elif event_obj and event_obj.get("event") == "ai_reply_pipeline_effective_outcome":
                 if event_obj.get("effective_status") == "local_rejection":
@@ -12554,16 +14791,14 @@ def analyse(
                 add_event(
                     "reply_strategy_failure",
                     r.ts,
-                    status=event_obj.get("status") or "operational_failure",
-                    lane=event_obj.get("lane") or "unavailable",
-                    target_id=event_obj.get("target_id") or "",
-                    strategy_version=event_obj.get("strategy_version") or "unavailable",
-                    reason=event_obj.get("reason") or "unknown_pipeline_failure",
-                    model_call_count=event_obj.get("model_call_count"),
-                    revision_count=event_obj.get("revision_count"),
-                    author_quarantine_evidence=event_obj.get(
-                        "author_quarantine_evidence"
-                    ),
+                    status=bounded_event_text(event_obj.get("status"), default="operational_failure", max_characters=100),
+                    lane=bounded_event_text(event_obj.get("lane"), default="unavailable", max_characters=100),
+                    target_id=(event_obj.get("target_id") if valid_string_public_post_id(event_obj.get("target_id")) else ""),
+                    strategy_version=bounded_event_text(event_obj.get("strategy_version"), default="unavailable", max_characters=200),
+                    reason=bounded_event_text(event_obj.get("reason"), default="unknown_pipeline_failure", max_characters=1000),
+                    model_call_count=bounded_event_nonnegative_integer(event_obj.get("model_call_count"), maximum=1000),
+                    revision_count=bounded_event_nonnegative_integer(event_obj.get("revision_count"), maximum=1000),
+                    author_quarantine_evidence=bounded_event_text(event_obj.get("author_quarantine_evidence"), max_characters=200),
                 )
             elif event_obj and event_obj.get("event") == "ai_reply_pipeline_outcome":
                 evidence_ids = event_obj.get("evidence_ids")
@@ -12576,44 +14811,40 @@ def analyse(
                 add_event(
                     "reply_strategy_outcome",
                     r.ts,
-                    status=event_obj.get("status") or "confirmed",
-                    lane=event_obj.get("lane") or "unavailable",
-                    target_id=event_obj.get("target_id") or "",
-                    reply_post_id=event_obj.get("reply_post_id") or "",
-                    strategy_version=event_obj.get("strategy_version") or "unavailable",
-                    mode=event_obj.get("mode"),
-                    final_reply_kind=event_obj.get("final_reply_kind"),
-                    reply_requirement=event_obj.get("reply_requirement"),
-                    route_source=event_obj.get("route_source"),
-                    claim_risk_categories=(
-                        [str(value) for value in event_obj.get("claim_risk_categories") if str(value)]
-                        if isinstance(event_obj.get("claim_risk_categories"), list)
-                        else []
-                    ),
-                    humour_tone=event_obj.get("tone"),
-                    tone=event_obj.get("tone"),
+                    status=bounded_event_text(event_obj.get("status"), default="confirmed", max_characters=100),
+                    lane=bounded_event_text(event_obj.get("lane"), default="unavailable", max_characters=100),
+                    target_id=(event_obj.get("target_id") if valid_string_public_post_id(event_obj.get("target_id")) else ""),
+                    reply_post_id=(event_obj.get("reply_post_id") if valid_string_public_post_id(event_obj.get("reply_post_id")) else ""),
+                    strategy_version=bounded_event_text(event_obj.get("strategy_version"), default="unavailable", max_characters=200),
+                    mode=bounded_event_text(event_obj.get("mode"), max_characters=100),
+                    final_reply_kind=bounded_event_text(event_obj.get("final_reply_kind"), max_characters=100),
+                    reply_requirement=bounded_event_text(event_obj.get("reply_requirement"), max_characters=100),
+                    route_source=bounded_event_text(event_obj.get("route_source"), max_characters=100),
+                    claim_risk_categories=bounded_event_string_list(event_obj.get("claim_risk_categories")),
+                    humour_tone=bounded_event_text(event_obj.get("tone"), max_characters=100),
+                    tone=bounded_event_text(event_obj.get("tone"), max_characters=100),
                     **evidence_fields,
-                    reviewer_verdict=event_obj.get("reviewer_verdict"),
-                    model_call_count=event_obj.get("model_call_count"),
-                    revision_count=event_obj.get("revision_count"),
-                    failure_reason=event_obj.get("failure_reason") or "",
+                    reviewer_verdict=bounded_event_text(event_obj.get("reviewer_verdict"), max_characters=100),
+                    model_call_count=bounded_event_nonnegative_integer(event_obj.get("model_call_count"), maximum=1000),
+                    revision_count=bounded_event_nonnegative_integer(event_obj.get("revision_count"), maximum=1000),
+                    failure_reason=bounded_event_text(event_obj.get("failure_reason"), default="", max_characters=1000),
                 )
             elif event_obj and event_obj.get("event") == "quote_pagination_repeated_token":
                 add_event(
                     "quote_pagination_repeated_token",
                     r.ts,
-                    post_id=event_obj.get("post_id") or "",
-                    token_fingerprint=event_obj.get("token_fingerprint") or "",
-                    pages_completed=event_obj.get("pages_completed"),
-                    results_retained=event_obj.get("results_retained"),
+                    post_id=(event_obj.get("post_id") if valid_string_public_post_id(event_obj.get("post_id")) else ""),
+                    token_fingerprint=bounded_event_text(event_obj.get("token_fingerprint"), default="", max_characters=200),
+                    pages_completed=bounded_event_nonnegative_integer(event_obj.get("pages_completed"), maximum=1_000_000),
+                    results_retained=bounded_event_nonnegative_integer(event_obj.get("results_retained"), maximum=1_000_000),
                 )
                 stats["quote_pagination_repeated_token"] += 1
             elif event_obj and event_obj.get("event") == "candidate_skipped":
                 add_event(
                     "candidate_skipped", r.ts,
-                    lane=event_obj.get("lane") or "unavailable",
-                    target_id=event_obj.get("id") or "",
-                    reason=event_obj.get("reason") or "other",
+                    lane=bounded_event_text(event_obj.get("lane"), default="unavailable", max_characters=100),
+                    target_id=(event_obj.get("id") if valid_string_public_post_id(event_obj.get("id")) else ""),
+                    reason=bounded_event_text(event_obj.get("reason"), default="other", max_characters=500),
                 )
             continue
 
@@ -13077,7 +15308,10 @@ def analyse(
         if "ORIGINAL_EDITORIAL_SHADOW_RESULT " in msg:
             raw = msg.split("ORIGINAL_EDITORIAL_SHADOW_RESULT ", 1)[1].strip()
             try:
-                parsed = json.loads(raw)
+                parsed = _strict_native_json_object(
+                    raw.encode("utf-8"),
+                    label="ORIGINAL_EDITORIAL_SHADOW_RESULT",
+                )
             except Exception as exc:
                 errors.append({
                     "time": r.ts.strftime("%Y-%m-%d %H:%M:%S"),
@@ -13087,16 +15321,18 @@ def analyse(
                 })
                 stats["original_editorial_shadow_parse_errors"] += 1
                 continue
-            if isinstance(parsed, dict):
-                parsed["time"] = r.ts.strftime("%Y-%m-%d %H:%M:%S")
-                original_editorial_shadow_events.append(parsed)
-                stats["original_editorial_shadow_observations"] += 1
+            parsed["time"] = r.ts.strftime("%Y-%m-%d %H:%M:%S")
+            original_editorial_shadow_events.append(parsed)
+            stats["original_editorial_shadow_observations"] += 1
             continue
 
         if "GENERATED_IDENTITY_POLICY_SHADOW_RESULT " in msg:
             raw = msg.split("GENERATED_IDENTITY_POLICY_SHADOW_RESULT ", 1)[1].strip()
             try:
-                parsed = json.loads(raw)
+                parsed = _strict_native_json_object(
+                    raw.encode("utf-8"),
+                    label="GENERATED_IDENTITY_POLICY_SHADOW_RESULT",
+                )
             except Exception as exc:
                 errors.append({
                     "time": r.ts.strftime("%Y-%m-%d %H:%M:%S"),
@@ -13106,16 +15342,18 @@ def analyse(
                 })
                 stats["generated_identity_shadow_parse_errors"] += 1
                 continue
-            if isinstance(parsed, dict):
-                parsed["time"] = r.ts.strftime("%Y-%m-%d %H:%M:%S")
-                generated_identity_shadow_events.append(parsed)
-                stats["generated_identity_shadow_observations"] += 1
+            parsed["time"] = r.ts.strftime("%Y-%m-%d %H:%M:%S")
+            generated_identity_shadow_events.append(parsed)
+            stats["generated_identity_shadow_observations"] += 1
             continue
 
         if "GENERATED_IDENTITY_POLICY_APPLIED " in msg:
             raw = msg.split("GENERATED_IDENTITY_POLICY_APPLIED ", 1)[1].strip()
             try:
-                parsed = json.loads(raw)
+                parsed = _strict_native_json_object(
+                    raw.encode("utf-8"),
+                    label="GENERATED_IDENTITY_POLICY_APPLIED",
+                )
             except Exception as exc:
                 errors.append({
                     "time": r.ts.strftime("%Y-%m-%d %H:%M:%S"),
@@ -13125,10 +15363,9 @@ def analyse(
                 })
                 stats["generated_identity_policy_parse_errors"] += 1
                 continue
-            if isinstance(parsed, dict):
-                parsed["time"] = r.ts.strftime("%Y-%m-%d %H:%M:%S")
-                generated_identity_policy_events.append(parsed)
-                stats["generated_identity_policy_observations"] += 1
+            parsed["time"] = r.ts.strftime("%Y-%m-%d %H:%M:%S")
+            generated_identity_policy_events.append(parsed)
+            stats["generated_identity_policy_observations"] += 1
             continue
 
         m = re.search(
@@ -13276,10 +15513,22 @@ def analyse(
         # Created X post: remember it so reply/post events can attach if needed.
         if "Created X post successfully" in msg:
             post_id, post_text = try_parse_response_id_text(msg)
-            last_created_post = {"time": r.ts, "post_id": post_id, "post_text": post_text}
+            last_created_post = {
+                "time": r.ts,
+                "post_id": post_id,
+                "post_text": post_text,
+                "canonical_post_id": response_post_id_is_canonical_string(msg),
+                "production_identity": production_record,
+            }
             stats["created_x_posts"] += 1
             if post_id and re.fullmatch(r"\d+", post_id):
-                add_event("remote_write_succeeded", r.ts, post_id=post_id)
+                success_event = add_event(
+                    "remote_write_succeeded",
+                    r.ts,
+                    post_id=post_id,
+                )
+                if not response_post_id_is_canonical_string(msg):
+                    production_event_object_ids.discard(id(success_event))
             continue
 
         # Normal mention lane, including synthetic hot-post reply candidates.
@@ -13295,13 +15544,18 @@ def analyse(
                 "incoming_text": lit(m.group(4)),
                 "considered_at": r.ts.strftime("%Y-%m-%d %H:%M:%S"),
                 "considered_seq": record_index,
+                "_identity_production": production_record,
             }
             continue
 
         m = re.search(r"Generated reply to mention (\d+): (.*)$", msg, re.S)
         if m:
             if pending_mention.get("mention_id") != m.group(1):
-                pending_mention = {"mention_id": m.group(1), "source": "unknown"}
+                pending_mention = {
+                    "mention_id": m.group(1),
+                    "source": "unknown",
+                    "_identity_production": production_record,
+                }
             pending_mention["reply"] = lit(m.group(2))
             pending_mention["generated_at"] = r.ts.strftime("%Y-%m-%d %H:%M:%S")
             active_xai_context = None
@@ -13310,21 +15564,54 @@ def analyse(
         m = re.search(r"Recorded and cached own auto-reply id=(\d+)", msg)
         if m and pending_mention:
             pending_mention["reply_post_id"] = m.group(1)
+            pending_mention["_reply_post_id_production"] = production_record
             continue
 
         if msg == "Reply posted successfully" and pending_mention:
+            reply_id_from_nonauthoritative_response = False
             if not pending_mention.get("reply_post_id") and last_created_post.get("post_id"):
                 pending_mention["reply_post_id"] = last_created_post.get("post_id")
+                reply_id_from_nonauthoritative_response = not bool(
+                    last_created_post.get("canonical_post_id")
+                )
+                pending_mention["_reply_post_id_production"] = bool(
+                    last_created_post.get("production_identity")
+                )
+            reply_identity_is_production = bool(
+                pending_mention.get("_identity_production", True)
+                and pending_mention.get(
+                    "_reply_post_id_production", True
+                )
+            )
             source = pending_mention.get("source", "mention")
             if source == "hot_post_reply":
                 data = dict(pending_mention)
                 data.pop("mention_id", None)
                 data.pop("source", None)
-                add_event("hot_post_reply_posted", r.ts, **data)
+                data = {
+                    key: value
+                    for key, value in data.items()
+                    if not key.startswith("_")
+                }
+                posted_event = add_event(
+                    "hot_post_reply_posted", r.ts, **data
+                )
             else:
                 data = dict(pending_mention)
                 data.pop("source", None)
-                add_event("mention_reply_posted", r.ts, **data)
+                data = {
+                    key: value
+                    for key, value in data.items()
+                    if not key.startswith("_")
+                }
+                posted_event = add_event(
+                    "mention_reply_posted", r.ts, **data
+                )
+            if (
+                reply_id_from_nonauthoritative_response
+                or not reply_identity_is_production
+            ):
+                production_event_object_ids.discard(id(posted_event))
             pending_mention = {}
             continue
 
@@ -13394,13 +15681,17 @@ def analyse(
                 "incoming_text": lit(m.group(4)),
                 "considered_at": r.ts.strftime("%Y-%m-%d %H:%M:%S"),
                 "considered_seq": record_index,
+                "_identity_production": production_record,
             }
             continue
 
         m = re.search(r"Generated reply to quote tweet (\d+): (.*)$", msg, re.S)
         if m:
             if pending_qt.get("quote_tweet_id") != m.group(1):
-                pending_qt = {"quote_tweet_id": m.group(1)}
+                pending_qt = {
+                    "quote_tweet_id": m.group(1),
+                    "_identity_production": production_record,
+                }
             pending_qt["reply"] = lit(m.group(2))
             pending_qt["generated_at"] = r.ts.strftime("%Y-%m-%d %H:%M:%S")
             active_xai_context = None
@@ -13409,12 +15700,36 @@ def analyse(
         m = re.search(r"Recorded and cached own quote-tweet auto-reply id=(\d+)", msg)
         if m and pending_qt:
             pending_qt["reply_post_id"] = m.group(1)
+            pending_qt["_reply_post_id_production"] = production_record
             continue
 
         if msg == "Quote-tweet reply posted successfully" and pending_qt:
+            reply_id_from_nonauthoritative_response = False
             if not pending_qt.get("reply_post_id") and last_created_post.get("post_id"):
                 pending_qt["reply_post_id"] = last_created_post.get("post_id")
-            add_event("quote_tweet_reply_posted", r.ts, **pending_qt)
+                reply_id_from_nonauthoritative_response = not bool(
+                    last_created_post.get("canonical_post_id")
+                )
+                pending_qt["_reply_post_id_production"] = bool(
+                    last_created_post.get("production_identity")
+                )
+            reply_identity_is_production = bool(
+                pending_qt.get("_identity_production", True)
+                and pending_qt.get("_reply_post_id_production", True)
+            )
+            posted_data = {
+                key: value
+                for key, value in pending_qt.items()
+                if not key.startswith("_")
+            }
+            posted_event = add_event(
+                "quote_tweet_reply_posted", r.ts, **posted_data
+            )
+            if (
+                reply_id_from_nonauthoritative_response
+                or not reply_identity_is_production
+            ):
+                production_event_object_ids.discard(id(posted_event))
             pending_qt = {}
             continue
 
@@ -13460,6 +15775,33 @@ def analyse(
             if msg == "Skipping mention check: minimum interval between replies not reached":
                 stats["mention_checks_skipped_spacing"] += 1
 
+    if previous_record_production:
+        production_pending_quote = pending_quote
+        production_pending_meme = pending_meme
+        production_pending_mention = pending_mention
+        production_pending_qt = pending_qt
+        production_pending_confirmed_reply_receipt = (
+            pending_confirmed_reply_receipt
+        )
+        production_last_created_post = last_created_post
+        production_active_xai_context = active_xai_context
+        production_active_xai_call_attempt_index = (
+            active_xai_call_attempt_index
+        )
+        production_pending_semantic_veto_event = pending_semantic_veto_event
+        production_pending_semantic_veto_ts = pending_semantic_veto_ts
+    pending_quote = production_pending_quote
+    pending_meme = production_pending_meme
+    pending_mention = production_pending_mention
+    pending_qt = production_pending_qt
+    pending_confirmed_reply_receipt = (
+        production_pending_confirmed_reply_receipt
+    )
+    last_created_post = production_last_created_post
+    active_xai_context = production_active_xai_context
+    active_xai_call_attempt_index = production_active_xai_call_attempt_index
+    pending_semantic_veto_event = production_pending_semantic_veto_event
+    pending_semantic_veto_ts = production_pending_semantic_veto_ts
     current_source_record = None
 
     def correlated_quote_post_fields(
@@ -13470,6 +15812,7 @@ def analyse(
     ) -> Dict[str, Any]:
         """Resolve fixed structured evidence for one immutable post identity."""
         slots = quote_post_correlations.get(post_id) or {}
+        invalid_evidence = invalid_quote_post_evidence.get(post_id) or set()
         main_event = slots.get("main_post_posted") or {}
         root_event = slots.get("account_root_posted") or {}
         confirmation = slots.get(
@@ -13571,6 +15914,7 @@ def analyse(
         quote_text = evidence_value(root_event, "quote_text")
         experimental_evidence = bool(
             confirmation
+            or any("engagement" in item for item in invalid_evidence)
             or any(
                 present(evidence_value(main_event, key))
                 for key in (
@@ -13582,19 +15926,40 @@ def analyse(
                 )
             )
         )
-        account_root_usable = bool(
+        account_root_authoritative = bool(
             root_event
+            and type(root_event.get("event_version")) is int
+            and root_event.get("event_version") == 1
+            and root_event.get("post_id") == post_id
+            and root_event.get("root_post_id") == post_id
+            and root_event.get("conversation_id") == post_id
+            and type(root_event.get("lane")) is str
+            and root_event.get("lane") == "quote_image"
+            and root_event.get("publication_authority")
+            == "confirmed_transport"
+        )
+        account_root_usable = bool(
+            account_root_authoritative
             and lane == "quote_image"
             and resolved_post_id == post_id
-            and isinstance(public_text, str)
+            and valid_bounded_utf8_text(public_text)
+            and (
+                quote_text is None
+                or valid_bounded_utf8_text(
+                    quote_text,
+                    allow_empty=True,
+                )
+            )
         )
+        public_text_sha256 = ""
+        resolved_public_text_sha256: Optional[str] = None
         if account_root_usable:
             if not isinstance(quote_text, str):
                 quote_text = ""
             public_text_sha256 = hashlib.sha256(
                 public_text.encode("utf-8")
             ).hexdigest()
-            resolve(
+            resolved_public_text_sha256 = resolve(
                 "public_text_sha256",
                 [
                     (
@@ -13613,7 +15978,7 @@ def analyse(
             "confirmed"
             if account_root_usable
             else "unavailable_inconsistent"
-            if root_event or experimental_evidence
+            if root_event or invalid_evidence or experimental_evidence
             else ""
         )
 
@@ -13719,19 +16084,46 @@ def analyse(
                 ),
             ],
         )
+        engagement_approved_question_sha256 = resolve(
+            "engagement_approved_question_sha256",
+            [
+                (
+                    "main_post_posted",
+                    evidence_value(
+                        main_event,
+                        "engagement_approved_question_sha256",
+                    ),
+                ),
+            ],
+        )
 
         engagement_question_text: Any = ""
         engagement_question_text_status = ""
         if engagement_question_present is True:
             prefix = quote_text + ENGAGEMENT_QUESTION_PUBLIC_TEXT_SEPARATOR
-            if (
-                engagement_arm == "treatment"
-                and account_root_usable
+            candidate_question = (
+                public_text[len(prefix):]
+                if account_root_usable
                 and bool(quote_text)
                 and public_text.startswith(prefix)
                 and len(public_text) > len(prefix)
+                else None
+            )
+            candidate_question_sha256 = (
+                hashlib.sha256(
+                    candidate_question.encode("utf-8")
+                ).hexdigest()
+                if isinstance(candidate_question, str)
+                else None
+            )
+            if (
+                engagement_arm == "treatment"
+                and candidate_question is not None
+                and resolved_public_text_sha256 == public_text_sha256
+                and engagement_approved_question_sha256
+                == candidate_question_sha256
             ):
-                engagement_question_text = public_text[len(prefix):]
+                engagement_question_text = candidate_question
                 engagement_question_text_status = "validated"
             else:
                 engagement_question_text = None
@@ -13777,6 +16169,12 @@ def analyse(
             root_event.get("source_refs"),
             confirmation.get("source_refs"),
         )
+        source_ref_omitted += sum(
+            omitted
+            for item in (main_event, root_event, confirmation)
+            for omitted in [item.get("source_ref_omitted_count")]
+            if type(omitted) is int and omitted >= 0
+        )
         result = {
             **selection_fields,
             "quote_hash": quote_hash,
@@ -13788,6 +16186,12 @@ def analyse(
             "engagement_publication_order": engagement_publication_order or "",
             "engagement_publication_sequence": engagement_publication_sequence,
             "engagement_question_present": engagement_question_present,
+            "engagement_approved_question_sha256": (
+                engagement_approved_question_sha256 or ""
+            ),
+            "engagement_public_text_sha256": (
+                resolved_public_text_sha256 or ""
+            ),
             "engagement_question_text": engagement_question_text,
             "engagement_question_text_status": engagement_question_text_status,
             "engagement_question_display": (
@@ -13811,7 +16215,10 @@ def analyse(
         return result
 
     quote_image_events = [
-        event for event in events if event.get("kind") == "quote_image_posted"
+        event
+        for event in events
+        if event.get("kind") == "quote_image_posted"
+        and id(event) in production_event_object_ids
     ]
     for event in quote_image_events:
         post_id = str(event.get("post_id") or "")
@@ -14076,6 +16483,8 @@ def analyse(
         return None
 
     for item in confirmed_reply_receipts:
+        if item.get("source_class") == "selftest":
+            continue
         sending_identity = (
             str(item.get("lane") or ""),
             str(item.get("target_id") or ""),
@@ -14502,6 +16911,7 @@ def analyse(
         item.get("endpoint") == "media/upload" for item in x_requests
     )
     observed_tweet_transport_by_id: Dict[str, Dict[str, Any]] = {}
+    observed_tweet_transport_lanes_by_id: Dict[str, set[str]] = {}
     for item in remote_write_transactions:
         if (
             item.get("kind") == "tweet_transport"
@@ -14510,22 +16920,69 @@ def analyse(
                 r"[0-9a-f]{64}", str(item.get("transaction_id") or "")
             )
         ):
-            observed_tweet_transport_by_id.setdefault(
-                str(item["transaction_id"]), item
+            transaction_id = str(item["transaction_id"])
+            observed_tweet_transport_by_id.setdefault(transaction_id, item)
+            lane = bounded_event_text(
+                item.get("lane"), default="unavailable", max_characters=100
             )
+            observed_tweet_transport_lanes_by_id.setdefault(
+                transaction_id, set()
+            ).add(lane or "unavailable")
+    observed_tweet_transport_lane_conflict_ids = sorted(
+        transaction_id
+        for transaction_id, lanes in observed_tweet_transport_lanes_by_id.items()
+        if len(lanes) > 1
+    )
     observed_tweet_transport_lane_counts = Counter(
-        str(item.get("lane") or "unavailable")
-        for item in observed_tweet_transport_by_id.values()
+        (
+            next(iter(lanes))
+            if len(lanes) == 1
+            else "conflicted"
+        )
+        for lanes in observed_tweet_transport_lanes_by_id.values()
+    )
+    observed_tweet_transport_main_post_lanes = (
+        "quote_image",
+        "daily_meme",
+    )
+    observed_tweet_transport_reply_lanes = (
+        "conversational_reply",
+        "historical_context_reply",
+        "mention",
+        "hot_post_reply",
+        "quote_tweet",
+    )
+    observed_tweet_transport_main_post_request_count = sum(
+        observed_tweet_transport_lane_counts[lane]
+        for lane in observed_tweet_transport_main_post_lanes
+    )
+    observed_tweet_transport_reply_request_count = sum(
+        observed_tweet_transport_lane_counts[lane]
+        for lane in observed_tweet_transport_reply_lanes
+    )
+    observed_tweet_transport_unclassified_request_count = (
+        len(observed_tweet_transport_by_id)
+        - observed_tweet_transport_main_post_request_count
+        - observed_tweet_transport_reply_request_count
     )
     observed_media_upload_request_count = sum(
         item.get("kind") == "media_upload"
         and item.get("phase") == "request_started"
         for item in remote_write_transactions
     )
+    observed_media_upload_successes = {
+        (str(item.get("attempt_id")), str(item.get("media_id")))
+        for item in remote_write_transactions
+        if item.get("kind") == "media_upload"
+        and item.get("phase") == "confirmed_handoff"
+        and SHA256_LOWER_RE.fullmatch(str(item.get("attempt_id") or ""))
+        and valid_string_public_post_id(item.get("media_id"))
+    }
     observed_success_post_ids = {
         str(event.get("post_id") or event.get("reply_post_id") or "")
         for event in events
-        if event.get("kind")
+        if id(event) in production_event_object_ids
+        and event.get("kind")
         in {
             "remote_write_succeeded",
             "quote_image_posted",
@@ -14534,28 +16991,30 @@ def analyse(
             "hot_post_reply_posted",
             "quote_tweet_reply_posted",
         }
-        and str(event.get("post_id") or event.get("reply_post_id") or "").isdigit()
+        and valid_string_public_post_id(
+            event.get("post_id") or event.get("reply_post_id")
+        )
     }
     for declared_post_id, slots in quote_post_correlations.items():
-        if not str(declared_post_id).isdigit():
+        if not valid_string_public_post_id(declared_post_id):
             continue
         main_confirmation = slots.get("main_post_posted") or {}
         if (
-            str(main_confirmation.get("post_id") or "") == declared_post_id
-            and main_confirmation.get("lane") in {"quote_image", "daily_meme"}
+            main_confirmation.get("post_id") == declared_post_id
+            and type(main_confirmation.get("lane")) is str
+            and main_confirmation.get("lane") in ("quote_image", "daily_meme")
         ):
             observed_success_post_ids.add(declared_post_id)
         root_confirmation = slots.get("account_root_posted") or {}
         if (
             type(root_confirmation.get("event_version")) is int
             and root_confirmation.get("event_version") == 1
-            and str(root_confirmation.get("post_id") or "")
-            == declared_post_id
-            and str(root_confirmation.get("root_post_id") or "")
-            == declared_post_id
-            and str(root_confirmation.get("conversation_id") or "")
-            == declared_post_id
-            and root_confirmation.get("lane") in {"quote_image", "daily_meme"}
+            and root_confirmation.get("post_id") == declared_post_id
+            and root_confirmation.get("root_post_id") == declared_post_id
+            and root_confirmation.get("conversation_id") == declared_post_id
+            and type(root_confirmation.get("lane")) is str
+            and root_confirmation.get("lane")
+            in ("quote_image", "daily_meme")
             and root_confirmation.get("publication_authority")
             == "confirmed_transport"
         ):
@@ -14567,9 +17026,11 @@ def analyse(
         if confirmation is not None
     )
     observed_success_post_ids.update(
-        str(item.get("reply_post_id") or "")
+        item["reply_post_id"]
         for item in historical_reply_text_evidence
-        if str(item.get("reply_post_id") or "").isdigit()
+        if item.get("durable_only") is not True
+        and item.get("authoritative") is True
+        and valid_string_public_post_id(item.get("reply_post_id"))
         and isinstance(item.get("reply_text"), str)
     )
     api_counter_semantics = {
@@ -14584,37 +17045,99 @@ def analyse(
         "tweet_create_request_count": {
             "retained_compatibility_field": True,
             "scope": (
-                "DEBUG X request-start log records parsed as POST /2/tweets; "
-                "not complete when DEBUG transport logging is absent"
+                "X request-start message-pattern records parsed as POST /2/tweets; "
+                "parsed regardless of log level and not complete when low-level "
+                "transport messages are absent"
             ),
             "preferred_field": "observed_tweet_transport_request_count",
         },
         "media_upload_request_count": {
             "retained_compatibility_field": True,
             "scope": (
-                "DEBUG X request-start log records whose parsed URL path is "
+                "X request-start message-pattern records whose parsed URL path is "
                 "/2/media/upload; the legacy classifier does not constrain the "
-                "method, and the count is incomplete when DEBUG transport logging "
-                "is absent"
+                "method; parsed regardless of log level, and incomplete when "
+                "low-level transport messages are absent"
             ),
             "preferred_field": "observed_media_upload_request_count",
         },
         "observed_tweet_transport_request_count": {
             "scope": (
-                "unique INFO durable tweet-transport starts immediately before the "
-                "request callback; evidence of an observed pre-request boundary, not "
-                "proof that X received the request"
+                "selected production log records only: unique durable tweet-transport "
+                "start message patterns immediately before the request callback; "
+                "self-test logs are excluded; evidence of an observed pre-request "
+                "boundary, not proof that X received the request; parsed regardless "
+                "of log level and incomplete when confirmation logs are absent"
             ),
             "deduplication": "unique durable transaction_id",
         },
+        "observed_tweet_transport_request_counts_by_lane": {
+            "scope": (
+                "the same unique durable tweet-transport starts, grouped by the "
+                "literal bounded lane recorded at that boundary"
+            ),
+            "deduplication": "unique durable transaction_id before grouping",
+        },
+        "observed_tweet_transport_main_post_request_count": {
+            "scope": (
+                "subset of observed_tweet_transport_request_count whose lane is "
+                "quote_image or daily_meme"
+            ),
+            "classification": list(observed_tweet_transport_main_post_lanes),
+        },
+        "observed_tweet_transport_reply_request_count": {
+            "scope": (
+                "subset of observed_tweet_transport_request_count whose lane is "
+                "conversational_reply, historical_context_reply, mention, "
+                "hot_post_reply or quote_tweet"
+            ),
+            "classification": list(observed_tweet_transport_reply_lanes),
+        },
+        "observed_tweet_transport_unclassified_request_count": {
+            "scope": (
+                "subset of observed_tweet_transport_request_count whose literal "
+                "lane is not in either documented main-post or reply lane set, "
+                "including transaction identities observed with conflicting lanes"
+            ),
+            "relationship": (
+                "main-post plus reply plus unclassified equals the observed "
+                "tweet-transport request total"
+            ),
+        },
+        "observed_tweet_transport_lane_conflict_count": {
+            "scope": (
+                "unique durable transaction_id values whose selected production "
+                "request-start records disagree on the literal lane"
+            ),
+            "classification": (
+                "conflicts remain in the request total but are classified as "
+                "unclassified rather than choosing a log-order-dependent lane"
+            ),
+        },
         "observed_media_upload_request_count": {
             "scope": (
-                "INFO receipt-bound media-upload starts before X API v2 transport"
+                "selected production log records only: receipt-bound media-upload "
+                "start message patterns before X API v2 transport; self-test logs "
+                "are excluded; parsed regardless of log level and incomplete when "
+                "transport logs are absent"
             ),
             "deduplication": "retained physical log-record identity",
         },
+        "observed_media_upload_success_count": {
+            "scope": (
+                "selected production log records only: durable confirmed media "
+                "handoffs to a bound main-post attempt; self-test logs are excluded; "
+                "not a request-start count or proof of final post publication"
+            ),
+            "deduplication": "unique validated attempt_id and media_id pair",
+        },
         "observed_remote_write_success_count": {
-            "scope": "unique immutable post IDs in confirmed remote-write evidence",
+            "scope": (
+                "selected production log records only: unique immutable post IDs in "
+                "validated confirmed remote-write evidence; self-test records, "
+                "durable-only historical history and current durable receipt/state "
+                "snapshots are excluded; incomplete when confirmation logs are absent"
+            ),
             "deduplication": "unique post or reply post ID across lane and generic confirmations",
         },
     }
@@ -15014,22 +17537,30 @@ def analyse(
             "observed_tweet_transport_request_counts_by_lane": dict(
                 sorted(observed_tweet_transport_lane_counts.items())
             ),
-            "observed_tweet_transport_main_post_request_count": sum(
-                observed_tweet_transport_lane_counts[lane]
-                for lane in ("quote_image", "daily_meme")
+            "observed_tweet_transport_main_post_request_count": (
+                observed_tweet_transport_main_post_request_count
             ),
-            "observed_tweet_transport_reply_request_count": sum(
-                observed_tweet_transport_lane_counts[lane]
-                for lane in (
-                    "conversational_reply",
-                    "historical_context_reply",
-                    "mention",
-                    "hot_post_reply",
-                    "quote_tweet",
-                )
+            "observed_tweet_transport_reply_request_count": (
+                observed_tweet_transport_reply_request_count
+            ),
+            "observed_tweet_transport_unclassified_request_count": (
+                observed_tweet_transport_unclassified_request_count
+            ),
+            "observed_tweet_transport_lane_conflict_count": len(
+                observed_tweet_transport_lane_conflict_ids
+            ),
+            "observed_tweet_transport_lane_conflict_transaction_ids": (
+                observed_tweet_transport_lane_conflict_ids[:100]
+            ),
+            "observed_tweet_transport_lane_conflict_transaction_id_omitted_count": max(
+                0,
+                len(observed_tweet_transport_lane_conflict_ids) - 100,
             ),
             "observed_media_upload_request_count": (
                 observed_media_upload_request_count
+            ),
+            "observed_media_upload_success_count": len(
+                observed_media_upload_successes
             ),
             "observed_remote_write_success_count": len(
                 observed_success_post_ids
@@ -15170,8 +17701,24 @@ def analyse(
                 is not True
                 else None
             ),
-            "pending_mention": pending_mention if active_xai_context else None,
-            "pending_qt": pending_qt if active_xai_context else None,
+            "pending_mention": (
+                {
+                    key: value
+                    for key, value in pending_mention.items()
+                    if not key.startswith("_")
+                }
+                if active_xai_context
+                else None
+            ),
+            "pending_qt": (
+                {
+                    key: value
+                    for key, value in pending_qt.items()
+                    if not key.startswith("_")
+                }
+                if active_xai_context
+                else None
+            ),
         },
         "lifecycle": lifecycle[-12:],
         "events": events,
@@ -15191,6 +17738,9 @@ def analyse(
         runtime_state=current_runtime_state,
         structured_reply_confirmations=structured_reply_confirmations,
         historical_reply_text_evidence=historical_reply_text_evidence,
+        confirmed_receipt_evidence=confirmed_receipt_evidence,
+        durable_evidence_status=durable_reply_evidence_status,
+        production_event_object_ids=production_event_object_ids,
     )
     return report
 
@@ -19899,9 +22449,24 @@ def run_digest(args: argparse.Namespace, *, project_dir: Path, state_file: Path)
     runtime_state, runtime_state_path, runtime_state_ts, runtime_state_status = (
         load_current_runtime_state(project_dir)
     )
+    runtime_state_observed_at = datetime.now()
     runtime_config, runtime_config_path, runtime_config_ts, runtime_config_status = (
         load_current_runtime_config(project_dir)
     )
+    confirmed_receipt_evidence: List[Dict[str, Any]] = []
+    historical_history_evidence: List[Dict[str, Any]] = []
+    durable_reply_evidence_status: Dict[str, Any] = {}
+    if args.json or args.json_output is not None:
+        confirmed_receipt_evidence, confirmed_receipt_status = (
+            load_confirmed_reply_receipt_evidence(project_dir)
+        )
+        historical_history_evidence, historical_history_status = (
+            load_historical_reply_history_evidence(project_dir)
+        )
+        durable_reply_evidence_status = {
+            "confirmed_reply_receipt": confirmed_receipt_status,
+            "historical_context_reply_history": historical_history_status,
+        }
     initial_active_xai_context = None
     initial_active_xai_call_attempt = None
     initial_pending_mention = None
@@ -19947,6 +22512,9 @@ def run_digest(args: argparse.Namespace, *, project_dir: Path, state_file: Path)
         current_snapshot_authoritative=until is None,
         current_runtime_state=runtime_state,
         input_file_indexes=input_file_indexes,
+        confirmed_receipt_evidence=confirmed_receipt_evidence,
+        historical_history_evidence=historical_history_evidence,
+        durable_reply_evidence_status=durable_reply_evidence_status,
     )
     report["generation_time"] = dt_text(generation_time)
     report["generation_epoch"] = int(generation_time.timestamp())
@@ -20029,6 +22597,7 @@ def run_digest(args: argparse.Namespace, *, project_dir: Path, state_file: Path)
     report["runtime_state_status"] = {
         "status": runtime_state_status,
         "path": str(runtime_state_path),
+        "observed_at": dt_text(runtime_state_observed_at),
     }
     report["latest_state"] = (
         summarize_latest_state(
@@ -20053,6 +22622,7 @@ def run_digest(args: argparse.Namespace, *, project_dir: Path, state_file: Path)
         runtime_config,
         runtime_config_status,
         generation_time,
+        state_observed_at=runtime_state_observed_at,
     )
     report.setdefault("mention_backlog_and_quarantine", {})[
         "current_author_no_reply_strike_progress"
@@ -20100,10 +22670,20 @@ def run_digest(args: argparse.Namespace, *, project_dir: Path, state_file: Path)
         generation_time_local=generation_time,
         provider_usage=report.get("provider_usage") or report.get("xai_usage") or {},
     )
-    report["digest_contract"] = build_digest_contract()
+    json_rendered: Optional[str] = None
+    if args.json or args.json_output is not None:
+        json_report = dict(report)
+        json_report["digest_contract"] = build_digest_contract()
+        json_rendered = json.dumps(
+            json_report,
+            indent=2,
+            ensure_ascii=False,
+            allow_nan=False,
+        ) + "\n"
 
     if args.json:
-        rendered = json.dumps(report, indent=2, ensure_ascii=False) + "\n"
+        assert json_rendered is not None
+        rendered = json_rendered
     else:
         rendered = render_markdown(report) + "\n"
         if not records:
@@ -20113,7 +22693,8 @@ def run_digest(args: argparse.Namespace, *, project_dir: Path, state_file: Path)
     if args.markdown_output is not None:
         deliver_report(render_markdown(report) + "\n", args.markdown_output)
     if args.json_output is not None:
-        deliver_report(json.dumps(report, indent=2, ensure_ascii=False) + "\n", args.json_output)
+        assert json_rendered is not None
+        deliver_report(json_rendered, args.json_output)
 
     if records and not args.no_state and not args.no_update_state:
         last_ts = max(record.ts for record in physical_records)

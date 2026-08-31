@@ -2,7 +2,9 @@ from __future__ import annotations
 
 import copy
 import json
+import os
 from datetime import datetime, timedelta
+from pathlib import Path
 from zoneinfo import ZoneInfo
 
 import pytest
@@ -3610,3 +3612,295 @@ def test_digest_strike_progress_rejects_seeded_v2_epoch_outside_strike_membershi
     assert progress["omitted_author_count"] is None
     assert progress["discarded_legacy_author_count"] is None
     assert progress["migrated_prior_policy_author_count"] is None
+
+
+@pytest.mark.parametrize(
+    "setting",
+    [
+        "AUTHOR_NO_REPLY_QUARANTINE_THRESHOLD",
+        "AUTHOR_NO_REPLY_QUARANTINE_WINDOW_SECONDS",
+        "AUTHOR_NO_REPLY_QUARANTINE_SECONDS",
+    ],
+)
+def test_digest_strike_progress_rejects_extreme_positive_quarantine_configuration(
+    setting: str,
+) -> None:
+    """Unbounded positive integers must not become trusted reporting policy."""
+    generation_time = datetime(2026, 8, 31, 12, 0, 0, tzinfo=LONDON)
+    config = {
+        **DIGEST_AUTHOR_NO_REPLY_CONFIG,
+        setting: 10**100,
+    }
+
+    progress = digest_author_no_reply_progress(
+        {"author_evaluation_quarantines": {}},
+        generation_time,
+        config=config,
+    )
+
+    assert progress["available"] is False
+    assert 0 < len(progress["reason"]) <= 512
+    assert progress["authors"] is None
+    assert progress["author_count"] is None
+    assert progress["omitted_author_count"] is None
+
+
+def test_digest_strike_progress_reports_derived_epoch_overflow_as_unavailable(
+) -> None:
+    """An overflowing strike-expiry derivation must not abort JSON generation."""
+    generation_time = datetime(2026, 8, 31, 12, 0, 0, tzinfo=LONDON)
+    now = int(generation_time.timestamp())
+    config = {
+        **DIGEST_AUTHOR_NO_REPLY_CONFIG,
+        "AUTHOR_NO_REPLY_QUARANTINE_WINDOW_SECONDS": 10**100,
+    }
+    state = {
+        "author_evaluation_quarantines": {
+            "900": digest_author_no_reply_record(
+                [now - 10],
+                last_updated_epoch=now,
+            )
+        }
+    }
+
+    progress = digest_author_no_reply_progress(
+        state,
+        generation_time,
+        config=config,
+    )
+
+    assert progress["available"] is False
+    assert 0 < len(progress["reason"]) <= 512
+    assert progress["authors"] is None
+    assert progress["author_count"] is None
+    assert progress["omitted_author_count"] is None
+
+
+def test_digest_strike_progress_uses_state_observation_time_for_as_of_boundary(
+) -> None:
+    """The current-state projection must not use a pre-log-analysis clock."""
+    generation_time = datetime(2026, 8, 31, 12, 0, 0, tzinfo=LONDON)
+    state_observed_at = generation_time + timedelta(minutes=5)
+    observed_epoch = int(state_observed_at.timestamp())
+    strike_epoch = observed_epoch - 10
+    state = {
+        "author_evaluation_quarantines": {
+            "900": digest_author_no_reply_record(
+                [strike_epoch],
+                last_updated_epoch=strike_epoch,
+            )
+        }
+    }
+
+    progress = digest.current_author_no_reply_strike_progress(
+        state,
+        "available",
+        DIGEST_AUTHOR_NO_REPLY_CONFIG,
+        "available",
+        generation_time,
+        state_observed_at=state_observed_at,
+    )
+
+    assert progress["available"] is True
+    assert progress["as_of_epoch"] == observed_epoch
+    assert progress["as_of_time"] == state_observed_at.strftime(
+        "%Y-%m-%d %H:%M:%S"
+    )
+    assert progress["authors"][0][
+        "recent_qualifying_no_reply_epochs"
+    ] == [strike_epoch]
+
+
+def test_digest_run_passes_post_parse_state_observation_to_strike_projection(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """The CLI path must not discard the reporter's observation-time input."""
+    generation_time = datetime(2026, 8, 31, 12, 0, 0)
+    state_observed_at = generation_time + timedelta(minutes=5)
+    observed_epoch = int(state_observed_at.timestamp())
+    strike_epoch = observed_epoch - 10
+    (tmp_path / "bot_state.json").write_text(
+        json.dumps(
+            {
+                "author_evaluation_quarantines": {
+                    "900": digest_author_no_reply_record(
+                        [strike_epoch],
+                        last_updated_epoch=strike_epoch,
+                    )
+                }
+            }
+        ),
+        encoding="utf-8",
+    )
+    (tmp_path / "mrsMThatcher.local.json").write_text(
+        json.dumps(DIGEST_AUTHOR_NO_REPLY_CONFIG),
+        encoding="utf-8",
+    )
+    log_path = tmp_path / "test.log"
+    log_path.write_text(
+        "2026-08-31 11:59:59 INFO log_event:10 - harmless fixture\n",
+        encoding="utf-8",
+    )
+    now_calls = 0
+
+    class SequencedDateTime(datetime):
+        @classmethod
+        def now(cls, tz: object = None) -> "SequencedDateTime":
+            nonlocal now_calls
+            now_calls += 1
+            selected = generation_time if now_calls == 1 else state_observed_at
+            if tz is not None:
+                selected = selected.astimezone(tz)  # type: ignore[arg-type]
+            return cls.fromtimestamp(selected.timestamp(), tz=selected.tzinfo)
+
+    monkeypatch.setattr(digest, "datetime", SequencedDateTime)
+
+    return_code = digest.main(
+        [
+            "--project-dir",
+            str(tmp_path),
+            "--no-state",
+            "--json",
+            str(log_path),
+        ]
+    )
+
+    captured = capsys.readouterr()
+    assert return_code == 0, captured.err
+    payload = json.loads(captured.out)
+    progress = payload["mention_backlog_and_quarantine"][
+        "current_author_no_reply_strike_progress"
+    ]
+    assert progress["available"] is True
+    assert progress["as_of_epoch"] == observed_epoch
+    assert progress["authors"][0][
+        "recent_qualifying_no_reply_epochs"
+    ] == [strike_epoch]
+    assert payload["runtime_state_status"]["observed_at"] == (
+        state_observed_at.strftime("%Y-%m-%d %H:%M:%S")
+    )
+
+
+@pytest.mark.parametrize(
+    ("loader_name", "filename", "old_document", "new_document"),
+    [
+        (
+            "load_current_runtime_state",
+            "bot_state.json",
+            {"author_evaluation_quarantines": {}, "daily_reply_count": 1},
+            {"author_evaluation_quarantines": {}, "daily_reply_count": 2},
+        ),
+        (
+            "load_current_runtime_config",
+            "mrsMThatcher.local.json",
+            {
+                **DIGEST_AUTHOR_NO_REPLY_CONFIG,
+                "MAX_AUTO_REPLIES_PER_DAY": 11,
+            },
+            {
+                **DIGEST_AUTHOR_NO_REPLY_CONFIG,
+                "MAX_AUTO_REPLIES_PER_DAY": 12,
+            },
+        ),
+    ],
+    ids=("state", "config"),
+)
+def test_digest_current_loader_binds_content_and_mtime_to_one_observation(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    loader_name: str,
+    filename: str,
+    old_document: dict,
+    new_document: dict,
+) -> None:
+    """A pathname replacement after reading is detected as unstable."""
+    runtime_path = tmp_path / filename
+    replacement = tmp_path / f"replacement-{filename}"
+    runtime_path.write_text(json.dumps(old_document), encoding="utf-8")
+    replacement.write_text(json.dumps(new_document), encoding="utf-8")
+    old_epoch = 1_700_000_000
+    new_epoch = old_epoch + 3_600
+    os.utime(runtime_path, ns=(old_epoch * 1_000_000_000,) * 2)
+    os.utime(replacement, ns=(new_epoch * 1_000_000_000,) * 2)
+
+    real_lstat = digest.os.lstat
+    matching_lstat_calls = 0
+
+    def replace_before_detached_metadata_read(
+        path: os.PathLike[str] | str,
+        *args: object,
+        **kwargs: object,
+    ) -> os.stat_result:
+        nonlocal matching_lstat_calls
+        if Path(path) == runtime_path:
+            matching_lstat_calls += 1
+            if matching_lstat_calls == 2:
+                replacement.replace(runtime_path)
+        return real_lstat(path, *args, **kwargs)
+
+    monkeypatch.setattr(digest.os, "lstat", replace_before_detached_metadata_read)
+
+    loaded, loaded_path, observed_mtime, status = getattr(
+        digest, loader_name
+    )(tmp_path)
+
+    assert loaded_path == runtime_path
+    assert matching_lstat_calls == 2
+    assert not replacement.exists()
+    assert status.startswith("unstable")
+    assert loaded is None
+    assert observed_mtime is None
+
+
+@pytest.mark.parametrize(
+    "unsafe_logger",
+    [
+        "sk-live-provenance-secret",
+        "sk-live-provenance-secret../" + ("x" * 4_096),
+    ],
+    ids=("short-token-like", "oversized-path-like"),
+)
+def test_digest_source_ref_rejects_sensitive_logger_values(
+    unsafe_logger: str,
+) -> None:
+    """Unsafe logger text must not be copied or prefix-truncated into JSON."""
+    sensitive_marker = "sk-live-provenance-secret"
+    record = digest.Record(
+        ts=datetime(2026, 8, 31, 12, 0, 0),
+        level="ERROR",
+        src=unsafe_logger,
+        line=99,
+        msg="safe synthetic error",
+        path="/tmp/test.log",
+        ordinal=7,
+    )
+
+    reference = digest.record_source_ref(record, {record.path: 0})
+    rendered = json.dumps(reference)
+
+    assert sensitive_marker not in rendered
+    assert unsafe_logger not in rendered
+    logger = reference.get("logger")
+    assert logger is None or (
+        isinstance(logger, str)
+        and 0 < len(logger) <= 128
+        and sensitive_marker not in logger
+    )
+
+
+def test_digest_source_ref_preserves_bounded_identifier_logger() -> None:
+    record = digest.Record(
+        ts=datetime(2026, 8, 31, 12, 0, 0),
+        level="INFO",
+        src="maybe_reply_to_mentions",
+        line=100,
+        msg="safe synthetic event",
+        path="/tmp/test.log",
+        ordinal=8,
+    )
+
+    reference = digest.record_source_ref(record, {record.path: 0})
+
+    assert reference["logger"] == "maybe_reply_to_mentions"
