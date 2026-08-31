@@ -15,6 +15,23 @@ from reply_strategy import AIReply
 
 LONDON = ZoneInfo("Europe/London")
 
+DIGEST_AUTHOR_NO_REPLY_EVIDENCE_POLICY = (
+    "majority_resolvable_terminal_no_reply_v3"
+)
+DIGEST_AUTHOR_NO_REPLY_SEEDED_EVIDENCE_POLICY = (
+    "majority_spam_or_abuse_seeded_corroboration_v2"
+)
+DIGEST_AUTHOR_NO_REPLY_LEGACY_EVIDENCE_POLICY = "majority_spam_or_abuse_v1"
+DIGEST_AUTHOR_NO_REPLY_CONFIG = {
+    "AUTHOR_NO_REPLY_QUARANTINE_THRESHOLD": 3,
+    "AUTHOR_NO_REPLY_QUARANTINE_WINDOW_SECONDS": 21_600,
+    "AUTHOR_NO_REPLY_QUARANTINE_SECONDS": 43_200,
+}
+DIGEST_AUTHOR_NO_REPLY_AUTHORITY_SCOPE = (
+    "authoritative current state at JSON generation time, independent of "
+    "selected log window"
+)
+
 
 def london_epoch(day: int, hour: int, minute: int, second: int) -> int:
     return int(
@@ -3078,3 +3095,518 @@ def test_digest_reports_backlog_quarantines_and_skipped_pipeline_evaluations() -
     ) in rendered
     assert "Active quarantined author IDs: 200" in rendered
     assert "secret-token" not in rendered
+
+
+def digest_author_no_reply_record(
+    epochs: list[int],
+    *,
+    quarantine_until_epoch: int = 0,
+    last_updated_epoch: int | None = None,
+) -> dict:
+    """Build the exact current durable author-quarantine record shape."""
+    updated = last_updated_epoch
+    if updated is None:
+        updated = max([*epochs, quarantine_until_epoch, 0])
+    return {
+        "recent_no_reply_epochs": list(epochs),
+        "quarantine_until_epoch": quarantine_until_epoch,
+        "last_updated_epoch": updated,
+        "latest_explicit_spam_or_abuse_epoch": epochs[-1] if epochs else 0,
+        "evidence_policy": DIGEST_AUTHOR_NO_REPLY_EVIDENCE_POLICY,
+    }
+
+
+def digest_author_no_reply_progress(
+    state: object,
+    generation_time: datetime,
+    *,
+    state_status: str = "available",
+    config: object = DIGEST_AUTHOR_NO_REPLY_CONFIG,
+    config_status: str = "available",
+) -> dict:
+    """Call the digest-only reporter without importing production bot logic."""
+    return digest.current_author_no_reply_strike_progress(
+        state,
+        state_status,
+        config,
+        config_status,
+        generation_time,
+    )
+
+
+def assert_digest_author_no_reply_progress_header(
+    progress: dict,
+    generation_time: datetime,
+    *,
+    discarded_legacy_author_count: int = 0,
+    migrated_prior_policy_author_count: int = 0,
+) -> None:
+    """Assert the stable metadata shared by available progress snapshots."""
+    assert progress["available"] is True
+    assert progress["reason"] == ""
+    assert progress["source"] == "bot_state.json"
+    assert progress["authority_scope"] == DIGEST_AUTHOR_NO_REPLY_AUTHORITY_SCOPE
+    assert progress["as_of_epoch"] == int(generation_time.timestamp())
+    assert progress["as_of_time"] == generation_time.strftime("%Y-%m-%d %H:%M:%S")
+    assert progress["threshold"] == 3
+    assert progress["window_seconds"] == 21_600
+    assert progress["quarantine_seconds"] == 43_200
+    assert progress["omitted_author_count"] == 0
+    assert (
+        progress["discarded_legacy_author_count"]
+        == discarded_legacy_author_count
+    )
+    assert (
+        progress["migrated_prior_policy_author_count"]
+        == migrated_prior_policy_author_count
+    )
+
+
+@pytest.mark.parametrize(
+    ("epochs_ago", "expected_strikes_remaining"),
+    [
+        ([], None),
+        ([3_600], 2),
+        ([7_200, 3_600], 1),
+    ],
+    ids=("zero", "one", "two"),
+)
+def test_digest_current_author_no_reply_strike_progress_zero_one_and_two(
+    epochs_ago: list[int],
+    expected_strikes_remaining: int | None,
+) -> None:
+    generation_time = datetime(2026, 8, 31, 12, 0, 0, tzinfo=LONDON)
+    now = int(generation_time.timestamp())
+    author_id = "1762401049766436864"
+    epochs = [now - seconds for seconds in epochs_ago]
+    state = {
+        "author_evaluation_quarantines": (
+            {
+                author_id: digest_author_no_reply_record(
+                    epochs,
+                    last_updated_epoch=now,
+                )
+            }
+            if epochs
+            else {}
+        )
+    }
+
+    progress = digest_author_no_reply_progress(state, generation_time)
+
+    assert_digest_author_no_reply_progress_header(progress, generation_time)
+    if not epochs:
+        assert progress["authors"] == []
+        assert progress["author_count"] == 0
+        return
+    oldest_expiry = epochs[0] + 21_600
+    assert progress["authors"] == [
+        {
+            "author_id": author_id,
+            "recent_qualifying_no_reply_epochs": epochs,
+            "recent_qualifying_no_reply_times": [
+                datetime.fromtimestamp(epoch, tz=LONDON).strftime(
+                    "%Y-%m-%d %H:%M:%S"
+                )
+                for epoch in epochs
+            ],
+            "strike_count": len(epochs),
+            "strikes_remaining": expected_strikes_remaining,
+            "oldest_strike_expires_epoch": oldest_expiry,
+            "oldest_strike_expires_time": datetime.fromtimestamp(
+                oldest_expiry,
+                tz=LONDON,
+            ).strftime("%Y-%m-%d %H:%M:%S"),
+            "quarantine_active": False,
+            "quarantine_until_epoch": None,
+            "quarantine_until_time": None,
+        }
+    ]
+    assert progress["author_count"] == 1
+
+
+def test_digest_current_author_no_reply_strike_progress_active_quarantine() -> None:
+    generation_time = datetime(2026, 8, 31, 12, 0, 0, tzinfo=LONDON)
+    now = int(generation_time.timestamp())
+    epochs = [now - 20, now - 10, now]
+    quarantine_until = now + 43_200
+    state = {
+        "author_evaluation_quarantines": {
+            "900": digest_author_no_reply_record(
+                epochs,
+                quarantine_until_epoch=quarantine_until,
+                last_updated_epoch=now,
+            )
+        }
+    }
+
+    progress = digest_author_no_reply_progress(state, generation_time)
+
+    assert_digest_author_no_reply_progress_header(progress, generation_time)
+    assert progress["author_count"] == 1
+    assert progress["authors"][0] == {
+        "author_id": "900",
+        "recent_qualifying_no_reply_epochs": epochs,
+        "recent_qualifying_no_reply_times": [
+            datetime.fromtimestamp(epoch, tz=LONDON).strftime(
+                "%Y-%m-%d %H:%M:%S"
+            )
+            for epoch in epochs
+        ],
+        "strike_count": 3,
+        "strikes_remaining": 0,
+        "oldest_strike_expires_epoch": epochs[0] + 21_600,
+        "oldest_strike_expires_time": datetime.fromtimestamp(
+            epochs[0] + 21_600,
+            tz=LONDON,
+        ).strftime("%Y-%m-%d %H:%M:%S"),
+        "quarantine_active": True,
+        "quarantine_until_epoch": quarantine_until,
+        "quarantine_until_time": datetime.fromtimestamp(
+            quarantine_until,
+            tz=LONDON,
+        ).strftime("%Y-%m-%d %H:%M:%S"),
+    }
+
+
+@pytest.mark.parametrize(
+    "quarantine_until_offset",
+    [-1, 0],
+    ids=("already-expired", "expires-exactly-now"),
+)
+def test_digest_current_author_no_reply_strike_progress_expired_quarantine_clears_strikes(
+    quarantine_until_offset: int,
+) -> None:
+    generation_time = datetime(2026, 8, 31, 12, 0, 0, tzinfo=LONDON)
+    now = int(generation_time.timestamp())
+    state = {
+        "author_evaluation_quarantines": {
+            "900": digest_author_no_reply_record(
+                [now - 20, now - 10, now],
+                quarantine_until_epoch=now + quarantine_until_offset,
+                last_updated_epoch=now,
+            )
+        }
+    }
+
+    progress = digest_author_no_reply_progress(state, generation_time)
+
+    assert_digest_author_no_reply_progress_header(progress, generation_time)
+    assert progress["authors"] == []
+    assert progress["author_count"] == 0
+
+
+def test_digest_current_author_no_reply_strike_progress_filters_stale_epochs() -> None:
+    generation_time = datetime(2026, 8, 31, 12, 0, 0, tzinfo=LONDON)
+    now = int(generation_time.timestamp())
+    state = {
+        "author_evaluation_quarantines": {
+            "900": digest_author_no_reply_record(
+                [now - 21_602, now - 21_601],
+                last_updated_epoch=now - 21_601,
+            )
+        }
+    }
+
+    progress = digest_author_no_reply_progress(state, generation_time)
+
+    assert_digest_author_no_reply_progress_header(progress, generation_time)
+    assert progress["authors"] == []
+    assert progress["author_count"] == 0
+
+
+def test_digest_current_author_no_reply_strike_progress_uses_exact_window_boundaries() -> None:
+    generation_time = datetime(2026, 8, 31, 12, 0, 0, tzinfo=LONDON)
+    now = int(generation_time.timestamp())
+    cutoff = now - 21_600
+    state = {
+        "author_evaluation_quarantines": {
+            "900": digest_author_no_reply_record(
+                [cutoff, cutoff + 1, now],
+                last_updated_epoch=now,
+            )
+        }
+    }
+
+    progress = digest_author_no_reply_progress(state, generation_time)
+
+    assert_digest_author_no_reply_progress_header(progress, generation_time)
+    author = progress["authors"][0]
+    assert author["recent_qualifying_no_reply_epochs"] == [cutoff + 1, now]
+    assert author["recent_qualifying_no_reply_times"] == [
+        datetime.fromtimestamp(epoch, tz=LONDON).strftime("%Y-%m-%d %H:%M:%S")
+        for epoch in (cutoff + 1, now)
+    ]
+    assert author["strike_count"] == 2
+    assert author["strikes_remaining"] == 1
+    assert author["oldest_strike_expires_epoch"] == now + 1
+    assert author["oldest_strike_expires_time"] == datetime.fromtimestamp(
+        now + 1,
+        tz=LONDON,
+    ).strftime("%Y-%m-%d %H:%M:%S")
+
+
+@pytest.mark.parametrize(
+    ("state", "state_status"),
+    [
+        (None, "absent"),
+        (None, "malformed: ValueError: invalid state"),
+        (None, "unstable: changed during read"),
+        ({}, "available"),
+        ({"author_evaluation_quarantines": []}, "available"),
+    ],
+    ids=(
+        "missing-state",
+        "malformed-state",
+        "unstable-state",
+        "missing-quarantine-field",
+        "malformed-quarantine-container",
+    ),
+)
+def test_digest_current_author_no_reply_strike_progress_state_unavailable(
+    state: object,
+    state_status: str,
+) -> None:
+    generation_time = datetime(2026, 8, 31, 12, 0, 0, tzinfo=LONDON)
+
+    progress = digest_author_no_reply_progress(
+        state,
+        generation_time,
+        state_status=state_status,
+    )
+
+    assert progress["available"] is False
+    assert 0 < len(progress["reason"]) <= 512
+    assert progress["source"] == "bot_state.json"
+    assert progress["authority_scope"] == DIGEST_AUTHOR_NO_REPLY_AUTHORITY_SCOPE
+    assert progress["as_of_epoch"] == int(generation_time.timestamp())
+    assert progress["as_of_time"] == generation_time.strftime("%Y-%m-%d %H:%M:%S")
+    assert progress["authors"] is None
+    assert progress["author_count"] is None
+    assert progress["omitted_author_count"] is None
+
+
+@pytest.mark.parametrize(
+    ("config", "config_status"),
+    [
+        (None, "absent"),
+        (None, "malformed: ValueError: invalid config"),
+        (
+            {
+                "AUTHOR_NO_REPLY_QUARANTINE_THRESHOLD": 3,
+                "AUTHOR_NO_REPLY_QUARANTINE_WINDOW_SECONDS": 21_600,
+            },
+            "available",
+        ),
+        (
+            {
+                **DIGEST_AUTHOR_NO_REPLY_CONFIG,
+                "AUTHOR_NO_REPLY_QUARANTINE_THRESHOLD": "3",
+            },
+            "available",
+        ),
+    ],
+    ids=(
+        "missing-config",
+        "malformed-config-status",
+        "missing-required-setting",
+        "malformed-required-setting",
+    ),
+)
+def test_digest_current_author_no_reply_strike_progress_config_unavailable(
+    config: object,
+    config_status: str,
+) -> None:
+    generation_time = datetime(2026, 8, 31, 12, 0, 0, tzinfo=LONDON)
+    state = {"author_evaluation_quarantines": {}}
+
+    progress = digest_author_no_reply_progress(
+        state,
+        generation_time,
+        config=config,
+        config_status=config_status,
+    )
+
+    assert progress["available"] is False
+    assert 0 < len(progress["reason"]) <= 512
+    assert progress["authors"] is None
+    assert progress["author_count"] is None
+    assert progress["omitted_author_count"] is None
+    assert progress["threshold"] is None
+    assert progress["window_seconds"] is None
+    assert progress["quarantine_seconds"] is None
+
+
+@pytest.mark.parametrize(
+    "records",
+    [
+        {"not-an-author-id": {}},
+        {"900": []},
+        {
+            "900": {
+                **digest_author_no_reply_record([1_788_173_999]),
+                "evidence_policy": "obsolete-policy",
+            }
+        },
+        {
+            "900": {
+                **digest_author_no_reply_record([1_788_173_999]),
+                "recent_no_reply_epochs": ["1788173999"],
+            }
+        },
+    ],
+    ids=("invalid-author-id", "non-object", "wrong-policy", "malformed-epoch"),
+)
+def test_digest_current_author_no_reply_strike_progress_rejects_malformed_author(
+    records: dict,
+) -> None:
+    generation_time = datetime(2026, 8, 31, 12, 0, 0, tzinfo=LONDON)
+
+    progress = digest_author_no_reply_progress(
+        {"author_evaluation_quarantines": records},
+        generation_time,
+    )
+
+    assert progress["available"] is False
+    assert 0 < len(progress["reason"]) <= 512
+    assert progress["authors"] is None
+    assert progress["author_count"] is None
+    assert progress["omitted_author_count"] is None
+
+
+def test_digest_strike_progress_discards_bare_legacy_record_without_losing_snapshot(
+) -> None:
+    generation_time = datetime(2026, 8, 31, 12, 0, 0, tzinfo=LONDON)
+    now = int(generation_time.timestamp())
+    state = {
+        "author_evaluation_quarantines": {
+            "800": {
+                "recent_no_reply_epochs": [now - 30],
+                "quarantine_until_epoch": 0,
+                "last_updated_epoch": now - 30,
+            },
+            "900": digest_author_no_reply_record(
+                [now - 20],
+                last_updated_epoch=now,
+            ),
+        }
+    }
+
+    progress = digest_author_no_reply_progress(state, generation_time)
+
+    assert_digest_author_no_reply_progress_header(
+        progress,
+        generation_time,
+        discarded_legacy_author_count=1,
+    )
+    assert progress["author_count"] == 1
+    assert [author["author_id"] for author in progress["authors"]] == ["900"]
+    assert progress["authors"][0]["recent_qualifying_no_reply_epochs"] == [
+        now - 20
+    ]
+
+
+@pytest.mark.parametrize(
+    "active_quarantine_without_live_strikes",
+    [False, True],
+    ids=("live-strikes", "active-quarantine-only"),
+)
+def test_digest_strike_progress_migrates_valid_prior_v1_policy_record(
+    active_quarantine_without_live_strikes: bool,
+) -> None:
+    generation_time = datetime(2026, 8, 31, 12, 0, 0, tzinfo=LONDON)
+    now = int(generation_time.timestamp())
+    epochs = [] if active_quarantine_without_live_strikes else [now - 20, now - 10]
+    quarantine_until = (
+        now + 43_200 if active_quarantine_without_live_strikes else 0
+    )
+    state = {
+        "author_evaluation_quarantines": {
+            "900": {
+                "recent_no_reply_epochs": epochs,
+                "quarantine_until_epoch": quarantine_until,
+                "last_updated_epoch": now,
+                "evidence_policy": DIGEST_AUTHOR_NO_REPLY_LEGACY_EVIDENCE_POLICY,
+            }
+        }
+    }
+
+    progress = digest_author_no_reply_progress(state, generation_time)
+
+    assert_digest_author_no_reply_progress_header(
+        progress,
+        generation_time,
+        migrated_prior_policy_author_count=1,
+    )
+    assert progress["author_count"] == 1
+    author = progress["authors"][0]
+    assert author["author_id"] == "900"
+    assert author["recent_qualifying_no_reply_epochs"] == epochs
+    assert author["quarantine_active"] is (
+        active_quarantine_without_live_strikes
+    )
+    assert author["quarantine_until_epoch"] == (
+        quarantine_until
+        if active_quarantine_without_live_strikes
+        else None
+    )
+
+
+def test_digest_strike_progress_migrates_valid_seeded_v2_policy_record() -> None:
+    generation_time = datetime(2026, 8, 31, 12, 0, 0, tzinfo=LONDON)
+    now = int(generation_time.timestamp())
+    epochs = [now - 20, now - 10]
+    record = digest_author_no_reply_record(
+        epochs,
+        last_updated_epoch=now,
+    )
+    record.update(
+        {
+            "latest_explicit_spam_or_abuse_epoch": epochs[0],
+            "evidence_policy": DIGEST_AUTHOR_NO_REPLY_SEEDED_EVIDENCE_POLICY,
+        }
+    )
+
+    progress = digest_author_no_reply_progress(
+        {"author_evaluation_quarantines": {"900": record}},
+        generation_time,
+    )
+
+    assert_digest_author_no_reply_progress_header(
+        progress,
+        generation_time,
+        migrated_prior_policy_author_count=1,
+    )
+    assert progress["author_count"] == 1
+    assert progress["authors"][0]["author_id"] == "900"
+    assert progress["authors"][0]["recent_qualifying_no_reply_epochs"] == epochs
+    assert progress["authors"][0]["strike_count"] == 2
+
+
+def test_digest_strike_progress_rejects_seeded_v2_epoch_outside_strike_membership(
+) -> None:
+    generation_time = datetime(2026, 8, 31, 12, 0, 0, tzinfo=LONDON)
+    now = int(generation_time.timestamp())
+    record = digest_author_no_reply_record(
+        [now - 20, now - 10],
+        last_updated_epoch=now,
+    )
+    record.update(
+        {
+            "latest_explicit_spam_or_abuse_epoch": now - 30,
+            "evidence_policy": DIGEST_AUTHOR_NO_REPLY_SEEDED_EVIDENCE_POLICY,
+        }
+    )
+
+    progress = digest_author_no_reply_progress(
+        {"author_evaluation_quarantines": {"900": record}},
+        generation_time,
+    )
+
+    assert progress["available"] is False
+    assert "malformed author quarantine record" in progress["reason"]
+    assert progress["authors"] is None
+    assert progress["author_count"] is None
+    assert progress["omitted_author_count"] is None
+    assert progress["discarded_legacy_author_count"] is None
+    assert progress["migrated_prior_policy_author_count"] is None

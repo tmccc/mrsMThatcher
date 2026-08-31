@@ -36,6 +36,7 @@ import os
 import re
 import stat
 import statistics
+import subprocess
 import sys
 import tempfile
 from collections import Counter
@@ -46,6 +47,7 @@ from decimal import Decimal, ROUND_HALF_UP
 from pathlib import Path
 from typing import Any, Dict, Iterable, List, Optional, Tuple
 from urllib.parse import urlsplit
+from zoneinfo import ZoneInfo
 
 from tested_reply_pipeline import validate_visual_description
 
@@ -60,6 +62,48 @@ GENERATED_ANALYSIS_SCHEMA_VERSION = 3
 GENERATED_ANALYSIS_KIND = "images"
 GENERATED_AUDIT_SCHEMA_VERSION = 1
 GENERATED_AUDIT_KIND = "generated_image_identity_dependence_audit"
+# Version 1 is an additive compatibility contract. Increment this integer before
+# removing or renaming a JSON field, changing an established field's type or
+# meaning, or otherwise making a consumer-visible incompatible change. Purely
+# additive fields do not require an increment under this policy.
+DIGEST_JSON_SCHEMA_VERSION = 1
+DIGEST_JSON_OUTPUT_KIND = "mrs_log_digest"
+DIGEST_SOURCE_MAX_BYTES = 4 * 1024 * 1024
+CURRENT_RUNTIME_STATE_MAX_BYTES = 64 * 1024 * 1024
+CURRENT_RUNTIME_CONFIG_MAX_BYTES = 64 * 1024
+MAX_REASONABLE_STATE_EPOCH = 4_102_531_200
+AUTHOR_NO_REPLY_PROGRESS_MAX_AUTHORS = 25_000
+AUTHOR_EVALUATION_QUARANTINE_EVIDENCE_POLICY = (
+    "majority_resolvable_terminal_no_reply_v3"
+)
+AUTHOR_EVALUATION_QUARANTINE_SEEDED_EVIDENCE_POLICY = (
+    "majority_spam_or_abuse_seeded_corroboration_v2"
+)
+AUTHOR_EVALUATION_QUARANTINE_LEGACY_EVIDENCE_POLICY = (
+    "majority_spam_or_abuse_v1"
+)
+PUBLISHED_REPLY_TEXT_MAX_CHARACTERS = 25_000
+PUBLISHED_REPLY_WARNING_LIMIT = 100
+SOURCE_REFERENCE_LIMIT = 8
+LONDON = ZoneInfo("Europe/London")
+PROVENANCE_EVENT_KINDS = frozenset(
+    {
+        "author_evaluation_quarantine_expired",
+        "author_evaluation_quarantine_skip",
+        "author_evaluation_quarantine_started",
+        "daily_meme_posted",
+        "historical_context_reply",
+        "hot_post_reply_posted",
+        "mention_backlog_completed",
+        "mention_backlog_progress",
+        "mention_backlog_reset",
+        "mention_backlog_started",
+        "mention_reply_posted",
+        "quote_image_posted",
+        "quote_tweet_reply_posted",
+        "remote_write_succeeded",
+    }
+)
 RESUME_FINGERPRINT_TAIL_LIMIT = 128
 USD_TICKS_PER_DOLLAR = 10_000_000_000
 USD_DISPLAY_QUANTUM = Decimal("0.00000001")
@@ -310,6 +354,98 @@ def _strict_json_object(data: bytes, *, label: str) -> Dict[str, Any]:
     if not isinstance(value, dict):
         raise ValueError(f"{label} root is not an object")
     return value
+
+
+def _strict_native_json_object(data: bytes, *, label: str) -> Dict[str, Any]:
+    """Parse duplicate-free finite JSON while retaining ordinary float types."""
+
+    def reject_constant(value: str) -> None:
+        raise ValueError(f"{label} contains non-finite number {value}")
+
+    def parse_finite_float(value: str) -> float:
+        parsed = float(value)
+        if not math.isfinite(parsed):
+            raise ValueError(f"{label} contains non-finite number {value}")
+        return parsed
+
+    def pairs(items: List[Tuple[str, Any]]) -> Dict[str, Any]:
+        result: Dict[str, Any] = {}
+        for key, value in items:
+            if key in result:
+                raise ValueError(f"{label} contains duplicate key {key!r}")
+            result[key] = value
+        return result
+
+    value = json.loads(
+        data.decode("utf-8"),
+        object_pairs_hook=pairs,
+        parse_float=parse_finite_float,
+        parse_constant=reject_constant,
+    )
+    if not isinstance(value, dict):
+        raise ValueError(f"{label} root is not an object")
+    return value
+
+
+def generator_git_sha(source_path: Path) -> Optional[str]:
+    """Return the local generator revision without making Git a dependency."""
+
+    try:
+        completed = subprocess.run(
+            ["git", "-C", str(source_path.parent), "rev-parse", "--verify", "HEAD"],
+            check=False,
+            stdin=subprocess.DEVNULL,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.DEVNULL,
+            text=True,
+            timeout=2,
+        )
+    except (OSError, subprocess.SubprocessError):
+        return None
+    candidate = completed.stdout.strip().lower()
+    if completed.returncode == 0 and re.fullmatch(r"[0-9a-f]{40,64}", candidate):
+        return candidate
+    return None
+
+
+def build_digest_contract(source_path: Optional[Path] = None) -> Dict[str, Any]:
+    """Build the explicit additive identity for this JSON producer."""
+
+    resolved_source = Path(source_path or __file__).resolve()
+    source_hash: Optional[str] = None
+    source_status = "unavailable"
+    try:
+        source_bytes = read_stable_regular_bytes(
+            resolved_source,
+            maximum=DIGEST_SOURCE_MAX_BYTES,
+        )
+        source_hash = hashlib.sha256(source_bytes).hexdigest()
+        source_status = "verified"
+    except Exception as exc:
+        source_status = (
+            f"unavailable: {type(exc).__name__}: {str(exc)[:160]}"
+        )
+    return {
+        "schema_version": DIGEST_JSON_SCHEMA_VERSION,
+        "output_kind": DIGEST_JSON_OUTPUT_KIND,
+        "producer": "mrs_log_digest.py",
+        "compatibility_policy": "additive",
+        "producer_source_sha256": source_hash,
+        "producer_source_status": source_status,
+        "generator_git_sha": generator_git_sha(resolved_source),
+        "projection_semantics": {
+            "latest_state": "selected projection, not full bot_state.json",
+            "latest_config": "selected projection, not full local configuration",
+            "historical_retained_state": "selected historical projection",
+            "historical_retained_config": "selected historical projection",
+        },
+        "source_reference_semantics": {
+            "input_file_index": "zero-based index into the root input_files list",
+            "record_number": "one-based timestamped record number within that physical file",
+            "raw_log_line_included": False,
+            "maximum_correlated_source_refs": SOURCE_REFERENCE_LIMIT,
+        },
+    }
 
 
 def _canonical_retirement_source_identity(value: Any) -> str:
@@ -3085,6 +3221,76 @@ class Record:
     ordinal: int
 
 
+def record_source_ref(
+    record: Record,
+    input_file_indexes: Optional[Dict[str, int]] = None,
+) -> Dict[str, Any]:
+    """Return bounded location metadata for one retained physical log record."""
+
+    reference: Dict[str, Any] = {}
+    index = (input_file_indexes or {}).get(record.path)
+    if type(index) is int and index >= 0:
+        reference["input_file_index"] = index
+    else:
+        reference["source_basename"] = Path(record.path).name
+    reference.update(
+        {
+            "record_number": record.ordinal,
+            "timestamp": dt_text(record.ts),
+            "logger": record.src,
+        }
+    )
+    if record.line > 0:
+        reference["logged_source_line_number"] = record.line
+    return reference
+
+
+def bounded_source_refs(
+    *collections: Any,
+    limit: int = SOURCE_REFERENCE_LIMIT,
+) -> Tuple[List[Dict[str, Any]], int]:
+    """Merge, de-duplicate and cap source references without raw log content."""
+
+    unique: List[Dict[str, Any]] = []
+    identities: set[str] = set()
+    for collection in collections:
+        if isinstance(collection, dict):
+            candidates = [collection]
+        elif isinstance(collection, list):
+            candidates = collection
+        else:
+            continue
+        for candidate in candidates:
+            if not isinstance(candidate, dict):
+                continue
+            allowed = {
+                key: candidate[key]
+                for key in (
+                    "input_file_index",
+                    "source_basename",
+                    "record_number",
+                    "timestamp",
+                    "logger",
+                    "logged_source_line_number",
+                )
+                if key in candidate
+            }
+            if not allowed or "record_number" not in allowed:
+                continue
+            identity = json.dumps(
+                allowed,
+                allow_nan=False,
+                sort_keys=True,
+                separators=(",", ":"),
+            )
+            if identity in identities:
+                continue
+            identities.add(identity)
+            unique.append(allowed)
+    omitted = max(0, len(unique) - limit)
+    return unique[:limit], omitted
+
+
 def record_fingerprint(record: Record) -> str:
     """Record fingerprint."""
     body = "\x1f".join(
@@ -3641,12 +3847,12 @@ def load_current_runtime_state(
 ) -> Tuple[Optional[Dict[str, Any]], Path, Optional[datetime], str]:
     """Read and minimally validate the production runtime state at generation time."""
     path = project_dir / "bot_state.json"
-    if not path.exists():
-        return None, path, None, "absent"
     try:
-        data = json.loads(path.read_text(encoding="utf-8"))
-        if not isinstance(data, dict):
-            raise ValueError("state root is not a JSON object")
+        raw = read_stable_regular_bytes(
+            path,
+            maximum=CURRENT_RUNTIME_STATE_MAX_BYTES,
+        )
+        data = _strict_native_json_object(raw, label="bot_state.json")
         if not any(
             key in data
             for key in (
@@ -3654,6 +3860,7 @@ def load_current_runtime_state(
                 "last_main_post_id",
                 "last_seen_mention_id",
                 "next_reply_lane_priority",
+                "author_evaluation_quarantines",
             )
         ):
             raise ValueError("state has no recognised runtime fields")
@@ -3662,10 +3869,19 @@ def load_current_runtime_state(
                 type(data[key]) is not int or data[key] < 0
             ):
                 raise ValueError(f"{key} is not a non-negative integer")
-        mtime = datetime.fromtimestamp(path.stat().st_mtime)
+        mtime = datetime.fromtimestamp(os.lstat(path).st_mtime)
         return data, path, mtime, "available"
+    except FileNotFoundError:
+        return None, path, None, "absent"
+    except RuntimeError as exc:
+        status = "unstable" if "changed" in str(exc) else "malformed"
+        return None, path, None, (
+            f"{status}: {type(exc).__name__}: {str(exc)[:240]}"
+        )
     except Exception as exc:
-        return None, path, None, f"malformed: {type(exc).__name__}: {exc}"
+        return None, path, None, (
+            f"malformed: {type(exc).__name__}: {str(exc)[:240]}"
+        )
 
 
 CURRENT_CONFIG_REPORT_KEYS = {
@@ -3706,12 +3922,15 @@ def load_current_runtime_config(
 ) -> Tuple[Optional[Dict[str, Any]], Path, Optional[datetime], str]:
     """Read allow-listed values from the on-disk local override file."""
     path = project_dir / "mrsMThatcher.local.json"
-    if not path.exists():
-        return None, path, None, "absent"
     try:
-        data = json.loads(path.read_text(encoding="utf-8"))
-        if not isinstance(data, dict):
-            raise ValueError("config root is not a JSON object")
+        raw = read_stable_regular_bytes(
+            path,
+            maximum=CURRENT_RUNTIME_CONFIG_MAX_BYTES,
+        )
+        data = _strict_native_json_object(
+            raw,
+            label="mrsMThatcher.local.json",
+        )
         for key in (
             "MAX_AUTO_REPLIES_PER_DAY",
             "MAX_REPLIES_PER_AUTHOR_PER_DAY",
@@ -3727,11 +3946,299 @@ def load_current_runtime_config(
         config["_config_source"] = "mrsMThatcher.local.json"
         config["_config_source_path"] = str(path)
         config["_config_source_time"] = dt_text(
-            datetime.fromtimestamp(path.stat().st_mtime)
+            datetime.fromtimestamp(os.lstat(path).st_mtime)
         )
-        return config, path, datetime.fromtimestamp(path.stat().st_mtime), "available"
+        return config, path, datetime.fromtimestamp(os.lstat(path).st_mtime), "available"
+    except FileNotFoundError:
+        return None, path, None, "absent"
+    except RuntimeError as exc:
+        status = "unstable" if "changed" in str(exc) else "malformed"
+        return None, path, None, (
+            f"{status}: {type(exc).__name__}: {str(exc)[:240]}"
+        )
     except Exception as exc:
-        return None, path, None, f"malformed: {type(exc).__name__}: {exc}"
+        return None, path, None, (
+            f"malformed: {type(exc).__name__}: {str(exc)[:240]}"
+        )
+
+
+def epoch_to_london_text(value: int) -> str:
+    """Render a validated epoch in the digest's explicit London timezone."""
+
+    return datetime.fromtimestamp(value, tz=LONDON).strftime(
+        "%Y-%m-%d %H:%M:%S"
+    )
+
+
+def current_author_no_reply_strike_progress(
+    runtime_state: Any,
+    runtime_state_status: str,
+    runtime_config: Any,
+    runtime_config_status: str,
+    generation_time: datetime,
+) -> Dict[str, Any]:
+    """Project current durable author strikes without mutating runtime state."""
+
+    as_of_epoch = int(generation_time.timestamp())
+    limitation = (
+        "Expired or cleared sub-threshold strikes cannot be reconstructed when "
+        "current durable state and retained structured logs no longer contain them."
+    )
+    result: Dict[str, Any] = {
+        "available": False,
+        "reason": "",
+        "source": "bot_state.json",
+        "authority_scope": (
+            "authoritative current state at JSON generation time, independent of "
+            "selected log window"
+        ),
+        "as_of_epoch": as_of_epoch,
+        "as_of_time": epoch_to_london_text(as_of_epoch),
+        "time_zone": "Europe/London",
+        "rolling_window_semantics": (
+            "retain strikes where cutoff_epoch < strike_epoch <= as_of_epoch"
+        ),
+        "quarantine_active_semantics": (
+            "quarantine_until_epoch > as_of_epoch; exact expiry is inactive and "
+            "clears retained strikes"
+        ),
+        "threshold": None,
+        "window_seconds": None,
+        "quarantine_seconds": None,
+        "authors": None,
+        "author_count": None,
+        "omitted_author_count": None,
+        "discarded_legacy_author_count": None,
+        "migrated_prior_policy_author_count": None,
+        "limitation": limitation,
+    }
+
+    config_keys = (
+        "AUTHOR_NO_REPLY_QUARANTINE_THRESHOLD",
+        "AUTHOR_NO_REPLY_QUARANTINE_WINDOW_SECONDS",
+        "AUTHOR_NO_REPLY_QUARANTINE_SECONDS",
+    )
+    if runtime_config_status != "available" or not isinstance(
+        runtime_config, dict
+    ):
+        result["reason"] = (
+            "current quarantine configuration unavailable: "
+            + str(runtime_config_status or "unknown")[:320]
+        )[:512]
+        return result
+    config_values = [runtime_config.get(key) for key in config_keys]
+    if any(type(value) is not int or value <= 0 for value in config_values):
+        result["reason"] = (
+            "current quarantine configuration is missing or malformed"
+        )
+        return result
+    threshold, window_seconds, quarantine_seconds = config_values
+    result.update(
+        {
+            "threshold": threshold,
+            "window_seconds": window_seconds,
+            "quarantine_seconds": quarantine_seconds,
+        }
+    )
+
+    if runtime_state_status != "available" or not isinstance(
+        runtime_state, dict
+    ):
+        result["reason"] = (
+            "current bot state unavailable: "
+            + str(runtime_state_status or "unknown")[:360]
+        )[:512]
+        return result
+    if "author_evaluation_quarantines" not in runtime_state:
+        result["reason"] = (
+            "current bot state does not contain author_evaluation_quarantines"
+        )
+        return result
+    records = runtime_state.get("author_evaluation_quarantines")
+    if not isinstance(records, dict):
+        result["reason"] = (
+            "current author_evaluation_quarantines value is malformed"
+        )
+        return result
+
+    required_fields = {
+        "recent_no_reply_epochs",
+        "quarantine_until_epoch",
+        "last_updated_epoch",
+        "latest_explicit_spam_or_abuse_epoch",
+        "evidence_policy",
+    }
+    legacy_fields = {
+        "recent_no_reply_epochs",
+        "quarantine_until_epoch",
+        "last_updated_epoch",
+    }
+    previous_policy_fields = legacy_fields | {"evidence_policy"}
+    epoch_limit = max(100, threshold * 4)
+    validated: List[Tuple[str, List[int], int]] = []
+    discarded_legacy_author_count = 0
+    migrated_prior_policy_author_count = 0
+    ordered_records = sorted(
+        records.items(),
+        key=lambda item: (
+            not str(item[0]).isdigit(),
+            len(str(item[0])),
+            str(item[0]),
+        ),
+    )
+    for position, (raw_author_id, raw_record) in enumerate(ordered_records, 1):
+        author_id = str(raw_author_id)
+        if not author_id.isdigit() or not isinstance(raw_record, dict):
+            result["reason"] = (
+                f"malformed author quarantine record at position {position}"
+            )
+            return result
+        record_fields = set(raw_record)
+        if record_fields == legacy_fields:
+            # Production deliberately discards this pre-policy broad evidence
+            # instead of treating it as current qualifying no-reply history.
+            discarded_legacy_author_count += 1
+            continue
+        if (
+            record_fields != previous_policy_fields
+            and record_fields != required_fields
+        ):
+            result["reason"] = (
+                f"malformed author quarantine record at position {position}"
+            )
+            return result
+        timestamps = raw_record.get("recent_no_reply_epochs")
+        until = raw_record.get("quarantine_until_epoch")
+        updated = raw_record.get("last_updated_epoch")
+        evidence_policy = raw_record.get("evidence_policy")
+        is_legacy_policy = (
+            record_fields == previous_policy_fields
+            and evidence_policy
+            == AUTHOR_EVALUATION_QUARANTINE_LEGACY_EVIDENCE_POLICY
+        )
+        is_seeded_policy = (
+            record_fields == required_fields
+            and evidence_policy
+            == AUTHOR_EVALUATION_QUARANTINE_SEEDED_EVIDENCE_POLICY
+        )
+        is_current_policy = (
+            record_fields == required_fields
+            and evidence_policy
+            == AUTHOR_EVALUATION_QUARANTINE_EVIDENCE_POLICY
+        )
+        malformed = (
+            not (is_legacy_policy or is_seeded_policy or is_current_policy)
+            or not isinstance(timestamps, list)
+            or len(timestamps) > epoch_limit
+            or any(
+                type(epoch) is not int
+                or epoch < 0
+                or epoch > MAX_REASONABLE_STATE_EPOCH
+                for epoch in timestamps
+            )
+            or timestamps != sorted(timestamps)
+            or type(until) is not int
+            or until < 0
+            or until > MAX_REASONABLE_STATE_EPOCH
+            or type(updated) is not int
+            or updated < 0
+            or updated > MAX_REASONABLE_STATE_EPOCH
+        )
+        if malformed:
+            result["reason"] = (
+                f"malformed author quarantine record at position {position}"
+            )
+            return result
+        if is_legacy_policy:
+            if not timestamps and not until:
+                discarded_legacy_author_count += 1
+                continue
+            migrated_prior_policy_author_count += 1
+        else:
+            explicit_epoch = raw_record.get(
+                "latest_explicit_spam_or_abuse_epoch"
+            )
+            if (
+                type(explicit_epoch) is not int
+                or explicit_epoch < 0
+                or explicit_epoch > MAX_REASONABLE_STATE_EPOCH
+                or explicit_epoch > updated
+                or (
+                    is_seeded_policy
+                    and not until
+                    and explicit_epoch not in timestamps
+                )
+            ):
+                result["reason"] = (
+                    f"malformed author quarantine record at position {position}"
+                )
+                return result
+            if is_seeded_policy:
+                migrated_prior_policy_author_count += 1
+        validated.append((author_id, list(timestamps), until))
+
+    cutoff = as_of_epoch - window_seconds
+    authors: List[Dict[str, Any]] = []
+    for author_id, timestamps, until in validated:
+        recent = [
+            epoch
+            for epoch in timestamps
+            if cutoff < epoch <= as_of_epoch
+        ][-epoch_limit:]
+        if until and until <= as_of_epoch:
+            # Production pruning treats exact expiry as terminal and clears the
+            # retained strike window together with the quarantine.
+            recent = []
+            until = 0
+        quarantine_active = until > as_of_epoch
+        if not recent and not quarantine_active:
+            continue
+        oldest_expiry = recent[0] + window_seconds if recent else None
+        authors.append(
+            {
+                "author_id": author_id,
+                "recent_qualifying_no_reply_epochs": recent,
+                "recent_qualifying_no_reply_times": [
+                    epoch_to_london_text(epoch) for epoch in recent
+                ],
+                "strike_count": len(recent),
+                "strikes_remaining": (
+                    0
+                    if quarantine_active
+                    else max(0, threshold - len(recent))
+                ),
+                "oldest_strike_expires_epoch": oldest_expiry,
+                "oldest_strike_expires_time": (
+                    epoch_to_london_text(oldest_expiry)
+                    if oldest_expiry is not None
+                    else None
+                ),
+                "quarantine_active": quarantine_active,
+                "quarantine_until_epoch": until if quarantine_active else None,
+                "quarantine_until_time": (
+                    epoch_to_london_text(until)
+                    if quarantine_active
+                    else None
+                ),
+            }
+        )
+    omitted = max(0, len(authors) - AUTHOR_NO_REPLY_PROGRESS_MAX_AUTHORS)
+    result.update(
+        {
+            "available": True,
+            "reason": "",
+            "authors": authors[:AUTHOR_NO_REPLY_PROGRESS_MAX_AUTHORS],
+            "author_count": min(
+                len(authors), AUTHOR_NO_REPLY_PROGRESS_MAX_AUTHORS
+            ),
+            "omitted_author_count": omitted,
+            "discarded_legacy_author_count": discarded_legacy_author_count,
+            "migrated_prior_policy_author_count": (
+                migrated_prior_policy_author_count
+            ),
+        }
+    )
+    return result
 
 
 def state_context_is_within_window(state: Dict[str, Any], window_end: Optional[datetime]) -> bool:
@@ -5931,6 +6438,15 @@ def summarise_operational_error_health(
                 "resolution_reason": resolution_reason,
                 "resolution_time": dt_text(resolution_time) if resolution_time else None,
             }
+        incident_source_refs, incident_source_ref_omitted = bounded_source_refs(
+            *[item.get("source_refs") for item in ordered]
+        )
+        if incident_source_refs:
+            incident["source_refs"] = incident_source_refs
+        if incident_source_ref_omitted:
+            incident["source_ref_omitted_count"] = (
+                incident_source_ref_omitted
+            )
         subordinate_symptoms = Counter(
             str(item.get("_remote_write_subordinate_category") or "")
             for item in ordered
@@ -6450,7 +6966,11 @@ def find_recent_media_path(records: List[Record], index: int) -> Optional[str]:
     return None
 
 
-def correlate_media_upload_incidents(records: List[Record], max_text: int) -> Tuple[List[Dict[str, Any]], set[str]]:
+def correlate_media_upload_incidents(
+    records: List[Record],
+    max_text: int,
+    input_file_indexes: Optional[Dict[str, int]] = None,
+) -> Tuple[List[Dict[str, Any]], set[str]]:
     """Return the correlate media upload incidents."""
     incidents: List[Dict[str, Any]] = []
     suppressed: set[str] = set()
@@ -6483,6 +7003,12 @@ def correlate_media_upload_incidents(records: List[Record], max_text: int) -> Tu
         chain_records.extend(v1_failures)
         for item in chain_records:
             suppressed.add(record_fingerprint(item))
+        source_refs, source_ref_omitted = bounded_source_refs(
+            *[
+                record_source_ref(item, input_file_indexes)
+                for item in chain_records
+            ]
+        )
 
         handled = bool(v1_success and post_success and not v1_failures)
         status = "handled" if handled else "unrecovered"
@@ -6501,6 +7027,12 @@ def correlate_media_upload_incidents(records: List[Record], max_text: int) -> Tu
                 "v2 upload failed; v1.1 fallback succeeded and final post completed"
                 if handled
                 else "v2 upload failed and media/post completion was not observed"
+            ),
+            **({"source_refs": source_refs} if source_refs else {}),
+            **(
+                {"source_ref_omitted_count": source_ref_omitted}
+                if source_ref_omitted
+                else {}
             ),
         })
 
@@ -8242,6 +8774,695 @@ def _normalise_lane(value: Any) -> str:
     return {"hot-post": "hot-post", "quote-tweet": "quote-tweet", "mention": "mention"}.get(lane, "unavailable")
 
 
+def canonical_public_reply_lane(value: Any) -> str:
+    """Normalise a confirmed public-reply lane to its durable state spelling."""
+
+    lane = str(value or "").strip().lower().replace("-", "_")
+    aliases = {
+        "mention": "mention",
+        "mention_reply": "mention",
+        "mention+hot_post_reply": "mention",
+        "hot_post": "hot_post_reply",
+        "hot_post_reply": "hot_post_reply",
+        "quote_tweet": "quote_tweet",
+        "quote_tweet_reply": "quote_tweet",
+        "historical_context": "historical_context_reply",
+        "historical_context_reply": "historical_context_reply",
+    }
+    return aliases.get(lane, "unavailable")
+
+
+def _public_reply_text_result(
+    candidates: List[Dict[str, Any]],
+    *,
+    unavailable_reason: str,
+) -> Dict[str, Any]:
+    """Resolve exact authoritative text candidates without selecting conflicts."""
+
+    valid = [
+        candidate
+        for candidate in candidates
+        if isinstance(candidate.get("text"), str)
+        and bool(candidate["text"])
+        and len(candidate["text"]) <= PUBLISHED_REPLY_TEXT_MAX_CHARACTERS
+    ]
+    invalid_count = len(candidates) - len(valid)
+    invalid_reasons = list(
+        dict.fromkeys(
+            str(candidate.get("invalid_reason") or "").strip()
+            for candidate in candidates
+            if not (
+                isinstance(candidate.get("text"), str)
+                and bool(candidate["text"])
+                and len(candidate["text"])
+                <= PUBLISHED_REPLY_TEXT_MAX_CHARACTERS
+            )
+            and str(candidate.get("invalid_reason") or "").strip()
+        )
+    )
+    texts = list(dict.fromkeys(candidate["text"] for candidate in valid))
+    sources = list(
+        dict.fromkeys(
+            str(candidate.get("source") or "authoritative evidence")
+            for candidate in candidates
+        )
+    )
+    references, omitted = bounded_source_refs(
+        *[candidate.get("source_refs") for candidate in candidates]
+    )
+    if invalid_count or len(texts) > 1:
+        result = {
+            "public_reply_text": None,
+            "public_reply_text_sha256": None,
+            "public_reply_text_character_count": None,
+            "public_reply_text_complete": False,
+            "public_reply_text_status": "conflict",
+            "public_reply_text_source": " + ".join(sources) or None,
+            "public_reply_text_reason": (
+                "; ".join(invalid_reasons)[:320]
+                or "authoritative text evidence is malformed or exceeds the supported bound"
+                if invalid_count
+                else "authoritative text sources disagree"
+            ),
+            "correlation_status": "conflict",
+        }
+    elif not texts:
+        result = {
+            "public_reply_text": None,
+            "public_reply_text_sha256": None,
+            "public_reply_text_character_count": None,
+            "public_reply_text_complete": False,
+            "public_reply_text_status": "unavailable",
+            "public_reply_text_source": None,
+            "public_reply_text_reason": unavailable_reason[:320],
+            "correlation_status": "unavailable",
+        }
+    else:
+        text = texts[0]
+        result = {
+            "public_reply_text": text,
+            "public_reply_text_sha256": hashlib.sha256(
+                text.encode("utf-8")
+            ).hexdigest(),
+            "public_reply_text_character_count": len(text),
+            "public_reply_text_complete": True,
+            "public_reply_text_status": "confirmed",
+            "public_reply_text_source": " + ".join(sources),
+            "public_reply_text_reason": "",
+            "correlation_status": "exact",
+        }
+    if references:
+        result["source_refs"] = references
+    if omitted:
+        result["source_ref_omitted_count"] = omitted
+    return result
+
+
+def _durable_public_reply_text_candidates(
+    runtime_state: Any,
+    *,
+    lane: str,
+    target_id: str,
+    reply_post_id: str,
+) -> List[Dict[str, Any]]:
+    """Read narrowly validated exact text for one immutable confirmed identity."""
+
+    if not isinstance(runtime_state, dict):
+        return []
+    candidates: List[Dict[str, Any]] = []
+    history = runtime_state.get("ai_reply_history")
+    if isinstance(history, list):
+        for item in history[-1000:]:
+            if not isinstance(item, dict):
+                continue
+            if str(item.get("reply_post_id") or "") != reply_post_id:
+                continue
+            identity_matches = (
+                str(item.get("target_id") or "") == target_id
+                and canonical_public_reply_lane(item.get("candidate_source"))
+                == lane
+            )
+            candidates.append(
+                {
+                    "text": (
+                        item.get("proposed_reply")
+                        if identity_matches
+                        else None
+                    ),
+                    "source": "bot_state.json.ai_reply_history",
+                    "invalid_reason": (
+                        "ai_reply_history identity disagrees with structured confirmation"
+                        if not identity_matches
+                        else ""
+                    ),
+                }
+            )
+    cache = runtime_state.get("tweet_cache")
+    cached = cache.get(reply_post_id) if isinstance(cache, dict) else None
+    if isinstance(cached, dict):
+        references = cached.get("referenced_tweets")
+        replied_to_targets = {
+            str(reference.get("id") or "")
+            for reference in references
+            if isinstance(references, list)
+            and isinstance(reference, dict)
+            and reference.get("type") == "replied_to"
+        } if isinstance(references, list) else set()
+        identity_matches = (
+            str(cached.get("id") or "") == reply_post_id
+            and cached.get("post_type") == "auto_reply"
+            and replied_to_targets == {target_id}
+        )
+        candidates.append(
+            {
+                "text": cached.get("text") if identity_matches else None,
+                "source": "bot_state.json.tweet_cache",
+                "invalid_reason": (
+                    "tweet_cache identity disagrees with structured confirmation"
+                    if not identity_matches
+                    else ""
+                ),
+            }
+        )
+    return candidates
+
+
+def _normalised_structured_reply_confirmation(
+    value: Any,
+) -> Optional[Dict[str, Any]]:
+    """Validate the immutable identity carried by one reply-posted event."""
+
+    if not isinstance(value, dict):
+        return None
+    lane = canonical_public_reply_lane(value.get("lane"))
+    target_id = str(value.get("target_id") or "")
+    reply_post_id = str(value.get("reply_post_id") or "")
+    original_post_id = str(value.get("original_post_id") or "")
+    if (
+        lane not in {"mention", "hot_post_reply", "quote_tweet"}
+        or not target_id.isdigit()
+        or not reply_post_id.isdigit()
+        or (lane == "quote_tweet" and not original_post_id.isdigit())
+    ):
+        return None
+    return {
+        **value,
+        "lane": lane,
+        "target_id": target_id,
+        "reply_post_id": reply_post_id,
+        "original_post_id": (
+            original_post_id if lane == "quote_tweet" else ""
+        ),
+    }
+
+
+def enrich_published_reply_text(
+    report: Dict[str, Any],
+    *,
+    runtime_state: Any,
+    structured_reply_confirmations: List[Dict[str, Any]],
+    historical_reply_text_evidence: List[Dict[str, Any]],
+) -> None:
+    """Enrich confirmed reply records from exact immutable publication evidence."""
+
+    events = report.get("events")
+    if not isinstance(events, list):
+        return
+    warnings: List[Dict[str, Any]] = []
+    warning_omitted_count = 0
+    synthesized_events: List[Tuple[int, int, Dict[str, Any]]] = []
+
+    def warn(
+        *,
+        reply_post_id: str,
+        target_id: str,
+        lane: str,
+        reason: str,
+    ) -> None:
+        nonlocal warning_omitted_count
+        item = {
+            "reply_post_id": reply_post_id,
+            "target_id": target_id,
+            "lane": lane,
+            "status": "conflict",
+            "reason": reason[:240],
+        }
+        if item in warnings:
+            return
+        if len(warnings) >= PUBLISHED_REPLY_WARNING_LIMIT:
+            warning_omitted_count += 1
+            return
+        warnings.append(item)
+
+    representation_specs = {
+        "mention_reply_posted": ("mention", "mention_id"),
+        "hot_post_reply_posted": ("hot_post_reply", "hot_post_reply_id"),
+        "quote_tweet_reply_posted": ("quote_tweet", "quote_tweet_id"),
+    }
+    confirmations_by_reply: Dict[str, List[Dict[str, Any]]] = {}
+    for raw_confirmation in structured_reply_confirmations:
+        confirmation = _normalised_structured_reply_confirmation(
+            raw_confirmation
+        )
+        if confirmation is None:
+            continue
+        reply_post_id = str(confirmation["reply_post_id"])
+        confirmations_by_reply.setdefault(reply_post_id, []).append(
+            confirmation
+        )
+
+    enriched_records: set[int] = set()
+    for reply_post_id, confirmations in confirmations_by_reply.items():
+        identities = {
+            (
+                str(item.get("lane")),
+                str(item.get("target_id")),
+                str(item.get("original_post_id") or ""),
+            )
+            for item in confirmations
+        }
+        identity_conflict = len(identities) != 1
+        lane, target_id, original_post_id = sorted(identities)[0]
+        matching_records = [
+            event
+            for event in events
+            if isinstance(event, dict)
+            and event.get("kind") in representation_specs
+            and str(event.get("reply_post_id") or "") == reply_post_id
+        ]
+        confirmation_refs, confirmation_refs_omitted = bounded_source_refs(
+            *[item.get("source_refs") for item in confirmations]
+        )
+        if not matching_records:
+            matching_records = [
+                {
+                    "kind": "confirmed_public_reply",
+                    "time": min(
+                        str(item.get("time") or "") for item in confirmations
+                    ),
+                    "status": "confirmed",
+                    "publication_authority": "structured reply_posted",
+                    "lane": lane if not identity_conflict else None,
+                    "target_id": target_id if not identity_conflict else None,
+                    "reply_post_id": reply_post_id,
+                    **(
+                        {"original_post_id": original_post_id}
+                        if not identity_conflict and original_post_id
+                        else {}
+                    ),
+                    **(
+                        {"source_refs": confirmation_refs}
+                        if confirmation_refs
+                        else {}
+                    ),
+                }
+            ]
+            synthesized_events.append(
+                (
+                    min(
+                        int(item.get("_event_insertion_index") or 0)
+                        for item in confirmations
+                    ),
+                    min(
+                        int(item.get("_source_sequence") or 0)
+                        for item in confirmations
+                    ),
+                    matching_records[0],
+                )
+            )
+        if identity_conflict:
+            text_result = _public_reply_text_result(
+                [
+                    {
+                        "text": None,
+                        "source": "structured reply_posted",
+                        "source_refs": confirmation_refs,
+                    }
+                ],
+                unavailable_reason="",
+            )
+            text_result["public_reply_text_reason"] = (
+                "structured reply confirmations disagree on immutable identity"
+            )
+            warn(
+                reply_post_id=reply_post_id,
+                target_id=target_id,
+                lane=lane,
+                reason=text_result["public_reply_text_reason"],
+            )
+        else:
+            candidates = _durable_public_reply_text_candidates(
+                runtime_state,
+                lane=lane,
+                target_id=target_id,
+                reply_post_id=reply_post_id,
+            )
+            text_result = _public_reply_text_result(
+                candidates,
+                unavailable_reason=(
+                    "exact confirmed text is no longer retained in current durable state"
+                ),
+            )
+            if text_result["public_reply_text_status"] == "conflict":
+                warn(
+                    reply_post_id=reply_post_id,
+                    target_id=target_id,
+                    lane=lane,
+                    reason=str(text_result["public_reply_text_reason"]),
+                )
+        for event in matching_records:
+            legacy_kind = str(event["kind"])
+            expected_lane: Optional[str] = None
+            target_field: Optional[str] = None
+            legacy_target_id = ""
+            legacy_original_post_id = ""
+            if legacy_kind in representation_specs:
+                expected_lane, target_field = representation_specs[legacy_kind]
+                legacy_target_id = str(event.get(target_field) or "")
+                if expected_lane == "quote_tweet":
+                    legacy_original_post_id = str(
+                        event.get("original_post_id") or ""
+                    )
+            if not identity_conflict:
+                event["lane"] = lane
+                event["target_id"] = target_id
+                if original_post_id:
+                    event["original_post_id"] = (
+                        legacy_original_post_id or original_post_id
+                    )
+            event["reply_post_id"] = reply_post_id
+            combined_refs, omitted = bounded_source_refs(
+                event.get("source_refs"),
+                confirmation_refs,
+                text_result.get("source_refs"),
+            )
+            event.update(
+                {
+                    key: value
+                    for key, value in text_result.items()
+                    if key not in {"source_refs", "source_ref_omitted_count"}
+                }
+            )
+            if combined_refs:
+                event["source_refs"] = combined_refs
+            total_omitted = omitted + confirmation_refs_omitted + int(
+                text_result.get("source_ref_omitted_count") or 0
+            )
+            if total_omitted:
+                event["source_ref_omitted_count"] = total_omitted
+            if identity_conflict or (
+                expected_lane is not None and expected_lane != lane
+            ) or (
+                legacy_target_id and legacy_target_id != target_id
+            ) or (
+                legacy_original_post_id
+                and legacy_original_post_id != original_post_id
+            ):
+                event["correlation_status"] = "conflict"
+                event["public_reply_text"] = None
+                event["public_reply_text_sha256"] = None
+                event["public_reply_text_character_count"] = None
+                event["public_reply_text_complete"] = False
+                event["public_reply_text_status"] = "conflict"
+                event["public_reply_text_reason"] = (
+                    "legacy posted record identity disagrees with structured confirmation"
+                )
+                warn(
+                    reply_post_id=reply_post_id,
+                    target_id=target_id,
+                    lane=lane,
+                    reason=str(event["public_reply_text_reason"]),
+                )
+            if target_field is not None and not identity_conflict:
+                event.setdefault(target_field, target_id)
+            enriched_records.add(id(event))
+
+    consumed_historical_evidence: set[int] = set()
+    for event in events:
+        if (
+            not isinstance(event, dict)
+            or event.get("kind") not in representation_specs
+            or id(event) in enriched_records
+        ):
+            continue
+        expected_lane, target_field = representation_specs[str(event["kind"])]
+        target_id = str(event.get(target_field) or "")
+        reply_post_id = str(event.get("reply_post_id") or "")
+        event["lane"] = expected_lane
+        event["target_id"] = target_id or None
+        event["reply_post_id"] = reply_post_id or None
+        event.update(
+            _public_reply_text_result(
+                [],
+                unavailable_reason=(
+                    "no retained structured reply_posted confirmation binds this "
+                    "legacy posted record to exact durable text"
+                ),
+            )
+        )
+        enriched_records.add(id(event))
+
+    evidence_by_identity: Dict[
+        Tuple[str, str], List[Dict[str, Any]]
+    ] = {}
+    historical_evidence_by_reply: Dict[str, List[Dict[str, Any]]] = {}
+    for evidence in historical_reply_text_evidence:
+        parent_id = str(evidence.get("parent_post_id") or "")
+        quote_id = str(evidence.get("quote_id") or "")
+        reply_post_id = str(evidence.get("reply_post_id") or "")
+        if not parent_id.isdigit() or not reply_post_id.isdigit() or not quote_id:
+            continue
+        evidence_by_identity.setdefault((parent_id, quote_id), []).append(
+            evidence
+        )
+        historical_evidence_by_reply.setdefault(reply_post_id, []).append(
+            evidence
+        )
+    for event in events:
+        if (
+            not isinstance(event, dict)
+            or event.get("kind") != "historical_context_reply"
+            or event.get("status") not in {"completed", "already_completed"}
+        ):
+            continue
+        parent_id = str(event.get("parent_post_id") or "")
+        quote_id = str(event.get("quote_id") or "")
+        evidence = evidence_by_identity.get((parent_id, quote_id), [])
+        reply_ids = {
+            str(item.get("reply_post_id") or "") for item in evidence
+        }
+        identity_conflict = False
+        if len(reply_ids) == 1:
+            evidence = historical_evidence_by_reply.get(
+                next(iter(reply_ids)),
+                evidence,
+            )
+            identity_conflict = len(
+                {
+                    (
+                        str(item.get("parent_post_id") or ""),
+                        str(item.get("quote_id") or ""),
+                    )
+                    for item in evidence
+                }
+            ) != 1
+        elif reply_ids:
+            evidence = [
+                item
+                for reply_post_id in reply_ids
+                for item in historical_evidence_by_reply.get(
+                    reply_post_id,
+                    [],
+                )
+            ]
+        consumed_historical_evidence.update(id(item) for item in evidence)
+        candidates = [
+            {
+                "text": item.get("reply_text"),
+                "source": "structured historical_context_reply_posted",
+                "source_refs": item.get("source_refs"),
+            }
+            for item in evidence
+        ]
+        text_result = _public_reply_text_result(
+            candidates,
+            unavailable_reason=(
+                "no retained exact historical_context_reply_posted evidence"
+            ),
+        )
+        if len(reply_ids) > 1 or identity_conflict:
+            text_result.update(
+                {
+                    "public_reply_text": None,
+                    "public_reply_text_sha256": None,
+                    "public_reply_text_character_count": None,
+                    "public_reply_text_complete": False,
+                    "public_reply_text_status": "conflict",
+                    "public_reply_text_reason": (
+                        "structured historical-context evidence disagrees on "
+                        "reply or parent identity"
+                    ),
+                    "correlation_status": "conflict",
+                }
+            )
+        event["reply_post_id"] = (
+            next(iter(reply_ids)) if len(reply_ids) == 1 else None
+        )
+        combined_refs, omitted = bounded_source_refs(
+            event.get("source_refs"),
+            text_result.get("source_refs"),
+        )
+        event.update(
+            {
+                key: value
+                for key, value in text_result.items()
+                if key not in {"source_refs", "source_ref_omitted_count"}
+            }
+        )
+        if combined_refs:
+            event["source_refs"] = combined_refs
+        total_omitted = omitted + int(
+            text_result.get("source_ref_omitted_count") or 0
+        )
+        if total_omitted:
+            event["source_ref_omitted_count"] = total_omitted
+        if event["public_reply_text_status"] == "conflict":
+            warn(
+                reply_post_id=str(event.get("reply_post_id") or ""),
+                target_id=parent_id,
+                lane="historical_context_reply",
+                reason=str(event["public_reply_text_reason"]),
+            )
+        enriched_records.add(id(event))
+
+    remaining_historical_by_reply: Dict[str, List[Dict[str, Any]]] = {}
+    for evidence in historical_reply_text_evidence:
+        parent_id = str(evidence.get("parent_post_id") or "")
+        quote_id = str(evidence.get("quote_id") or "")
+        reply_post_id = str(evidence.get("reply_post_id") or "")
+        if (
+            id(evidence) in consumed_historical_evidence
+            or evidence.get("authoritative") is not True
+            or not parent_id.isdigit()
+            or not reply_post_id.isdigit()
+            or not quote_id
+        ):
+            continue
+        remaining_historical_by_reply.setdefault(reply_post_id, []).append(
+            evidence
+        )
+    for reply_post_id, evidence_items in remaining_historical_by_reply.items():
+        identities = {
+            (
+                str(item.get("parent_post_id") or ""),
+                str(item.get("quote_id") or ""),
+            )
+            for item in evidence_items
+        }
+        identity_conflict = len(identities) != 1
+        parent_id, quote_id = sorted(identities)[0]
+        text_result = _public_reply_text_result(
+            [
+                {
+                    "text": item.get("reply_text"),
+                    "source": "structured historical_context_reply_posted",
+                    "source_refs": item.get("source_refs"),
+                }
+                for item in evidence_items
+            ],
+            unavailable_reason=(
+                "confirmed historical-context text is unavailable"
+            ),
+        )
+        if identity_conflict:
+            text_result.update(
+                {
+                    "public_reply_text": None,
+                    "public_reply_text_sha256": None,
+                    "public_reply_text_character_count": None,
+                    "public_reply_text_complete": False,
+                    "public_reply_text_status": "conflict",
+                    "public_reply_text_reason": (
+                        "structured historical-context confirmations disagree "
+                        "on immutable identity"
+                    ),
+                    "correlation_status": "conflict",
+                }
+            )
+        normalized_event: Dict[str, Any] = {
+            "kind": "confirmed_public_reply",
+            "time": min(str(item.get("time") or "") for item in evidence_items),
+            "status": "confirmed",
+            "publication_authority": (
+                "structured historical_context_reply_posted"
+            ),
+            "lane": "historical_context_reply",
+            "target_id": parent_id if not identity_conflict else None,
+            "parent_post_id": parent_id if not identity_conflict else None,
+            "reply_post_id": reply_post_id,
+            "quote_id": quote_id if not identity_conflict else None,
+        }
+        normalized_event.update(text_result)
+        synthesized_events.append(
+            (
+                min(
+                    int(item.get("_event_insertion_index") or 0)
+                    for item in evidence_items
+                ),
+                min(
+                    int(item.get("_source_sequence") or 0)
+                    for item in evidence_items
+                ),
+                normalized_event,
+            )
+        )
+        enriched_records.add(id(normalized_event))
+        if normalized_event["public_reply_text_status"] == "conflict":
+            warn(
+                reply_post_id=reply_post_id,
+                target_id=parent_id,
+                lane="historical_context_reply",
+                reason=str(normalized_event["public_reply_text_reason"]),
+            )
+
+    for offset, (insertion_index, _source_sequence, event) in enumerate(
+        sorted(synthesized_events, key=lambda item: (item[0], item[1]))
+    ):
+        events.insert(min(insertion_index + offset, len(events)), event)
+    historical_section = report.get("historical_context_replies")
+    if isinstance(historical_section, dict):
+        historical_section["events"] = [
+            event
+            for event in events
+            if event.get("kind") == "historical_context_reply"
+            or (
+                event.get("kind") == "confirmed_public_reply"
+                and event.get("lane") == "historical_context_reply"
+            )
+        ]
+
+    report["published_reply_text_health"] = {
+        "confirmed_record_count": len(enriched_records),
+        "complete_text_record_count": sum(
+            id(event) in enriched_records
+            and event.get("public_reply_text_complete") is True
+            for event in events
+            if isinstance(event, dict)
+        ),
+        "conflict_count": sum(
+            id(event) in enriched_records
+            and event.get("public_reply_text_status") == "conflict"
+            for event in events
+            if isinstance(event, dict)
+        ),
+        "warnings": warnings,
+        "warning_omitted_count": warning_omitted_count,
+        "state_evidence_scope": (
+            "current bounded bot_state.json retention, not reconstructed drafts"
+        ),
+    }
+
+
 def parse_reply_visual_description_event(
     event: Dict[str, Any],
 ) -> Optional[Dict[str, Any]]:
@@ -9779,6 +11000,8 @@ def analyse(
     generation_time: Optional[datetime] = None,
     selected_window_end: Optional[datetime] = None,
     current_snapshot_authoritative: bool = False,
+    current_runtime_state: Optional[Dict[str, Any]] = None,
+    input_file_indexes: Optional[Dict[str, int]] = None,
 ) -> Dict[str, Any]:
     """Aggregate parsed production records into digest metrics."""
     if selected_window_end is None:
@@ -9845,6 +11068,9 @@ def analyse(
     last_created_post: Dict[str, Any] = {}
     pending_semantic_veto_event: Optional[Dict[str, Any]] = None
     pending_semantic_veto_ts: Optional[datetime] = None
+    structured_reply_confirmations: List[Dict[str, Any]] = []
+    historical_reply_text_evidence: List[Dict[str, Any]] = []
+    current_source_record: Optional[Record] = None
 
     def semantic_veto_matches_post(
         shadow_event: Dict[str, Any],
@@ -9874,6 +11100,10 @@ def analyse(
                 ev[k] = short(v, max_text)
             else:
                 ev[k] = v
+        if kind in PROVENANCE_EVENT_KINDS and current_source_record is not None:
+            ev["source_refs"] = [
+                record_source_ref(current_source_record, input_file_indexes)
+            ]
         events.append(ev)
         stats[kind] += 1
         return ev
@@ -9930,6 +11160,14 @@ def analyse(
         conflicted_fields = existing.setdefault("_conflicted_fields", set())
         for field, value in payload.items():
             if field in {"event", "time"} or value is None or value == "":
+                continue
+            if field == "source_refs":
+                references, omitted = bounded_source_refs(
+                    existing.get("source_refs"), value
+                )
+                existing["source_refs"] = references
+                if omitted:
+                    existing["source_ref_omitted_count"] = omitted
                 continue
             if field in conflicted_fields:
                 continue
@@ -10003,6 +11241,7 @@ def analyse(
             "message": short(r.msg, 500),
         }
         item.update(kwargs)
+        item["source_refs"] = [record_source_ref(r, input_file_indexes)]
         receipt_events.append(item)
         stats[f"receipt_{kind}"] += 1
 
@@ -10018,6 +11257,7 @@ def analyse(
             "message": short(r.msg, 500),
         }
         item.update(kwargs)
+        item["source_refs"] = [record_source_ref(r, input_file_indexes)]
         confirmed_reply_receipts.append(item)
         stats[f"confirmed_reply_receipt_{kind}"] += 1
         if kind in {"written", "reconciled"}:
@@ -10105,6 +11345,7 @@ def analyse(
         }
 
     for record_index, r in enumerate(records):
+        current_source_record = r
         msg = r.msg
         production_record = not is_selftest_log_path(r.path)
         structured_event_obj = (
@@ -10137,6 +11378,7 @@ def analyse(
                 "time": r.ts.strftime("%Y-%m-%d %H:%M:%S"),
                 "source": r.src,
                 **request_start,
+                "source_refs": [record_source_ref(r, input_file_indexes)],
             }
             x_requests.append(request_event)
             latest_x_request_by_source[r.src] = request_event
@@ -10146,6 +11388,9 @@ def analyse(
             parse_remote_write_transaction_event(r) if production_record else None
         )
         if transaction_event is not None:
+            transaction_event["source_refs"] = [
+                record_source_ref(r, input_file_indexes)
+            ]
             remote_write_transactions.append(transaction_event)
             stats[
                 "remote_write_transaction_"
@@ -10300,6 +11545,7 @@ def analyse(
                 "level": r.level,
                 "where": f"{r.src}:{r.line}",
                 "message": short(msg, 900),
+                "source_refs": [record_source_ref(r, input_file_indexes)],
             })
         elif is_confirmed_post_recovery and r.level in {"ERROR", "CRITICAL", "WARNING"}:
             confirmed_post_recovery.append({
@@ -10307,6 +11553,7 @@ def analyse(
                 "level": r.level,
                 "where": f"{r.src}:{r.line}",
                 "message": short(msg, 900),
+                "source_refs": [record_source_ref(r, input_file_indexes)],
             })
         elif is_confirmed_reply_recovery and r.level in {"ERROR", "CRITICAL", "WARNING"}:
             confirmed_reply_recovery.append({
@@ -10314,6 +11561,7 @@ def analyse(
                 "level": r.level,
                 "where": f"{r.src}:{r.line}",
                 "message": short(msg, 900),
+                "source_refs": [record_source_ref(r, input_file_indexes)],
             })
         elif is_receipt_routine and r.level in {"ERROR", "CRITICAL", "WARNING"}:
             pass
@@ -10339,6 +11587,7 @@ def analyse(
                 "message": short(msg, 900),
                 "_raw_message": msg,
                 "_fingerprint": record_fingerprint(r),
+                "source_refs": [record_source_ref(r, input_file_indexes)],
             }
             if classify_operational_error(msg) == "remote_operations_paused":
                 source = str(r.src or "").lower()
@@ -10473,6 +11722,9 @@ def analyse(
                             "event": "main_post_posted",
                             "time": r.ts.strftime("%Y-%m-%d %H:%M:%S"),
                             "post_id": post_id,
+                            "source_refs": [
+                                record_source_ref(r, input_file_indexes)
+                            ],
                             **{
                                 key: event_obj.get(key)
                                 for key in (
@@ -10527,15 +11779,21 @@ def analyse(
                             "event": "account_root_posted",
                             "time": r.ts.strftime("%Y-%m-%d %H:%M:%S"),
                             "post_id": post_id,
+                            "source_refs": [
+                                record_source_ref(r, input_file_indexes)
+                            ],
                             **{
                                 key: event_obj.get(key)
                                 for key in (
+                                    "event_version",
                                     "root_post_id",
+                                    "conversation_id",
                                     "lane",
                                     "quote_id",
                                     "quote_text",
                                     "public_text",
                                     "visible_text_source",
+                                    "publication_authority",
                                 )
                             },
                         },
@@ -10557,6 +11815,9 @@ def analyse(
                             ),
                             "time": r.ts.strftime("%Y-%m-%d %H:%M:%S"),
                             "post_id": post_id,
+                            "source_refs": [
+                                record_source_ref(r, input_file_indexes)
+                            ],
                             **{
                                 key: event_obj.get(key)
                                 for key in (
@@ -10578,6 +11839,9 @@ def analyse(
                 outcome = {
                     "time": r.ts.strftime("%Y-%m-%d %H:%M:%S"),
                     "event": event_name,
+                    "source_refs": [
+                        record_source_ref(r, input_file_indexes)
+                    ],
                     **{
                         key: event_obj.get(key)
                         for key in (
@@ -10762,6 +12026,66 @@ def analyse(
                     ),
                 )
                 stats[kind] += 1
+            elif event_obj and event_obj.get("event") == "reply_posted":
+                structured_reply_confirmations.append(
+                    {
+                        "time": dt_text(r.ts),
+                        "lane": event_obj.get("lane"),
+                        "target_id": event_obj.get("target_id"),
+                        "reply_post_id": event_obj.get("reply_post_id"),
+                        "author_id": event_obj.get("author_id"),
+                        "original_post_id": event_obj.get(
+                            "original_post_id"
+                        ),
+                        "_event_insertion_index": len(events),
+                        "_source_sequence": record_index,
+                        "source_refs": [
+                            record_source_ref(r, input_file_indexes)
+                        ],
+                    }
+                )
+            elif (
+                event_obj
+                and event_obj.get("event")
+                == "historical_context_reply_posted"
+            ):
+                parent_post_id = str(event_obj.get("parent_post_id") or "")
+                reply_post_id = str(event_obj.get("reply_post_id") or "")
+                root_post_id = str(event_obj.get("root_post_id") or "")
+                conversation_id = str(event_obj.get("conversation_id") or "")
+                quote_id = str(event_obj.get("quote_id") or "")
+                reply_text = event_obj.get("reply_text")
+                authoritative = (
+                    type(event_obj.get("event_version")) is int
+                    and event_obj.get("event_version") == 1
+                    and event_obj.get("lane")
+                    == "historical_context_reply"
+                    and event_obj.get("publication_authority")
+                    == "confirmed_transport"
+                    and parent_post_id.isdigit()
+                    and reply_post_id.isdigit()
+                    and root_post_id == parent_post_id
+                    and conversation_id == parent_post_id
+                    and re.fullmatch(r"[0-9a-f]{64}", quote_id) is not None
+                    and isinstance(reply_text, str)
+                    and bool(reply_text)
+                    and len(reply_text) <= PUBLISHED_REPLY_TEXT_MAX_CHARACTERS
+                )
+                historical_reply_text_evidence.append(
+                    {
+                        "time": dt_text(r.ts),
+                        "parent_post_id": parent_post_id,
+                        "reply_post_id": reply_post_id,
+                        "quote_id": quote_id,
+                        "authoritative": authoritative,
+                        "reply_text": reply_text if authoritative else None,
+                        "_event_insertion_index": len(events),
+                        "_source_sequence": record_index,
+                        "source_refs": [
+                            record_source_ref(r, input_file_indexes)
+                        ],
+                    }
+                )
             elif event_obj and event_obj.get("event") == "historical_context_reply":
                 status = str(event_obj.get("status") or "unknown")
                 confidence_dimensions = event_obj.get("confidence_dimensions")
@@ -11568,6 +12892,7 @@ def analyse(
                 "request_url": (
                     request_context.get("url") if request_context else ""
                 ),
+                "source_refs": [record_source_ref(r, input_file_indexes)],
             }
             if request_context is not None:
                 request_context["status"] = status_code
@@ -11596,6 +12921,7 @@ def analyse(
                 "endpoint": "chat",
                 "status": m.group(1) if m else "",
                 "message": short(msg, 240),
+                "source_refs": [record_source_ref(r, input_file_indexes)],
             })
             active_xai_context = None
         if r.src == "ask_grok_for_reply" and (
@@ -11757,6 +13083,7 @@ def analyse(
                     "time": r.ts.strftime("%Y-%m-%d %H:%M:%S"),
                     "level": r.level,
                     "message": f"Malformed ORIGINAL_EDITORIAL_SHADOW_RESULT: {exc}: {short(raw, 240)}",
+                    "source_refs": [record_source_ref(r, input_file_indexes)],
                 })
                 stats["original_editorial_shadow_parse_errors"] += 1
                 continue
@@ -11775,6 +13102,7 @@ def analyse(
                     "time": r.ts.strftime("%Y-%m-%d %H:%M:%S"),
                     "level": r.level,
                     "message": f"Malformed GENERATED_IDENTITY_POLICY_SHADOW_RESULT: {exc}: {short(raw, 240)}",
+                    "source_refs": [record_source_ref(r, input_file_indexes)],
                 })
                 stats["generated_identity_shadow_parse_errors"] += 1
                 continue
@@ -11789,7 +13117,12 @@ def analyse(
             try:
                 parsed = json.loads(raw)
             except Exception as exc:
-                errors.append({"time": r.ts.strftime("%Y-%m-%d %H:%M:%S"), "level": r.level, "message": f"Malformed GENERATED_IDENTITY_POLICY_APPLIED: {exc}: {short(raw, 240)}"})
+                errors.append({
+                    "time": r.ts.strftime("%Y-%m-%d %H:%M:%S"),
+                    "level": r.level,
+                    "message": f"Malformed GENERATED_IDENTITY_POLICY_APPLIED: {exc}: {short(raw, 240)}",
+                    "source_refs": [record_source_ref(r, input_file_indexes)],
+                })
                 stats["generated_identity_policy_parse_errors"] += 1
                 continue
             if isinstance(parsed, dict):
@@ -12127,6 +13460,8 @@ def analyse(
             if msg == "Skipping mention check: minimum interval between replies not reached":
                 stats["mention_checks_skipped_spacing"] += 1
 
+    current_source_record = None
+
     def correlated_quote_post_fields(
         post_id: str,
         *,
@@ -12437,7 +13772,12 @@ def analyse(
             )
         }
         post_warning_count = engagement_correlation_warning_counts[post_id]
-        return {
+        source_refs, source_ref_omitted = bounded_source_refs(
+            main_event.get("source_refs"),
+            root_event.get("source_refs"),
+            confirmation.get("source_refs"),
+        )
+        result = {
             **selection_fields,
             "quote_hash": quote_hash,
             "engagement_experiment_id": engagement_experiment_id or "",
@@ -12464,6 +13804,11 @@ def analyse(
             ),
             "correlation_warning_count": post_warning_count,
         }
+        if source_refs:
+            result["source_refs"] = source_refs
+        if source_ref_omitted:
+            result["source_ref_omitted_count"] = source_ref_omitted
+        return result
 
     quote_image_events = [
         event for event in events if event.get("kind") == "quote_image_posted"
@@ -12477,7 +13822,23 @@ def analyse(
             legacy=event,
             warning_time=str(event.get("time") or ""),
         )
-        event.update(correlated)
+        source_refs, source_ref_omitted = bounded_source_refs(
+            event.get("source_refs"), correlated.get("source_refs")
+        )
+        event.update(
+            {
+                key: value
+                for key, value in correlated.items()
+                if key not in {"source_refs", "source_ref_omitted_count"}
+            }
+        )
+        if source_refs:
+            event["source_refs"] = source_refs
+        total_source_ref_omitted = source_ref_omitted + int(
+            correlated.get("source_ref_omitted_count") or 0
+        )
+        if total_source_ref_omitted:
+            event["source_ref_omitted_count"] = total_source_ref_omitted
         if correlated.get("public_text_status") == "confirmed":
             # Preserve exact structured text, including real newlines, in JSON.
             event["text"] = correlated["public_text"]
@@ -12522,6 +13883,20 @@ def analyse(
                 "quote_text": correlated.get("quote_text") or "",
                 "public_text": correlated.get("public_text") or "",
                 "correlation_status": correlated.get("correlation_status"),
+                **(
+                    {"source_refs": correlated["source_refs"]}
+                    if correlated.get("source_refs")
+                    else {}
+                ),
+                **(
+                    {
+                        "source_ref_omitted_count": correlated[
+                            "source_ref_omitted_count"
+                        ]
+                    }
+                    if correlated.get("source_ref_omitted_count")
+                    else {}
+                ),
             }
         )
     confirmed_experimental_publications.sort(
@@ -12549,7 +13924,13 @@ def analyse(
         for item in handled_api_restrictions
         if item.get("time")
     ]
-    media_upload_incidents, media_suppressed_fingerprints = correlate_media_upload_incidents(records, max_text)
+    media_upload_incidents, media_suppressed_fingerprints = (
+        correlate_media_upload_incidents(
+            records,
+            max_text,
+            input_file_indexes,
+        )
+    )
     for event in remote_write_transactions:
         if event.get("kind") != "media_upload" or event.get("phase") != "ambiguous":
             continue
@@ -12615,6 +13996,20 @@ def analyse(
                     else "ambiguous receipt-bound media upload remains blocked"
                 ),
                 "protocol": "receipt_bound_v2",
+                **(
+                    {"source_refs": list(event.get("source_refs") or [])}
+                    if event.get("source_refs")
+                    else {}
+                ),
+                **(
+                    {
+                        "source_ref_omitted_count": int(
+                            event["source_ref_omitted_count"]
+                        )
+                    }
+                    if event.get("source_ref_omitted_count")
+                    else {}
+                ),
             }
         )
     remaining_errors: List[Dict[str, Any]] = []
@@ -12724,6 +14119,7 @@ def analyse(
                     "where": "confirmed_reply_receipt_lifecycle",
                     "message": raw_message,
                     "_raw_message": raw_message,
+                    "source_refs": list(source.get("source_refs") or []),
                 }
             )
     for identity, source in pending_reconciliations:
@@ -12740,6 +14136,7 @@ def analyse(
                 "where": "confirmed_reply_receipt_lifecycle",
                 "message": raw_message,
                 "_raw_message": raw_message,
+                "source_refs": list(source.get("source_refs") or []),
             }
         )
 
@@ -13104,6 +14501,123 @@ def analyse(
     media_upload_request_count = sum(
         item.get("endpoint") == "media/upload" for item in x_requests
     )
+    observed_tweet_transport_by_id: Dict[str, Dict[str, Any]] = {}
+    for item in remote_write_transactions:
+        if (
+            item.get("kind") == "tweet_transport"
+            and item.get("phase") == "request_started"
+            and re.fullmatch(
+                r"[0-9a-f]{64}", str(item.get("transaction_id") or "")
+            )
+        ):
+            observed_tweet_transport_by_id.setdefault(
+                str(item["transaction_id"]), item
+            )
+    observed_tweet_transport_lane_counts = Counter(
+        str(item.get("lane") or "unavailable")
+        for item in observed_tweet_transport_by_id.values()
+    )
+    observed_media_upload_request_count = sum(
+        item.get("kind") == "media_upload"
+        and item.get("phase") == "request_started"
+        for item in remote_write_transactions
+    )
+    observed_success_post_ids = {
+        str(event.get("post_id") or event.get("reply_post_id") or "")
+        for event in events
+        if event.get("kind")
+        in {
+            "remote_write_succeeded",
+            "quote_image_posted",
+            "daily_meme_posted",
+            "mention_reply_posted",
+            "hot_post_reply_posted",
+            "quote_tweet_reply_posted",
+        }
+        and str(event.get("post_id") or event.get("reply_post_id") or "").isdigit()
+    }
+    for declared_post_id, slots in quote_post_correlations.items():
+        if not str(declared_post_id).isdigit():
+            continue
+        main_confirmation = slots.get("main_post_posted") or {}
+        if (
+            str(main_confirmation.get("post_id") or "") == declared_post_id
+            and main_confirmation.get("lane") in {"quote_image", "daily_meme"}
+        ):
+            observed_success_post_ids.add(declared_post_id)
+        root_confirmation = slots.get("account_root_posted") or {}
+        if (
+            type(root_confirmation.get("event_version")) is int
+            and root_confirmation.get("event_version") == 1
+            and str(root_confirmation.get("post_id") or "")
+            == declared_post_id
+            and str(root_confirmation.get("root_post_id") or "")
+            == declared_post_id
+            and str(root_confirmation.get("conversation_id") or "")
+            == declared_post_id
+            and root_confirmation.get("lane") in {"quote_image", "daily_meme"}
+            and root_confirmation.get("publication_authority")
+            == "confirmed_transport"
+        ):
+            observed_success_post_ids.add(declared_post_id)
+    observed_success_post_ids.update(
+        str(confirmation.get("reply_post_id") or "")
+        for item in structured_reply_confirmations
+        for confirmation in [_normalised_structured_reply_confirmation(item)]
+        if confirmation is not None
+    )
+    observed_success_post_ids.update(
+        str(item.get("reply_post_id") or "")
+        for item in historical_reply_text_evidence
+        if str(item.get("reply_post_id") or "").isdigit()
+        and isinstance(item.get("reply_text"), str)
+    )
+    api_counter_semantics = {
+        "posting_attempt_count": {
+            "retained_compatibility_field": True,
+            "scope": (
+                "failed or handled-restriction X post/reply API records only; "
+                "not all posting attempts"
+            ),
+            "preferred_field": "observed_tweet_transport_request_count",
+        },
+        "tweet_create_request_count": {
+            "retained_compatibility_field": True,
+            "scope": (
+                "DEBUG X request-start log records parsed as POST /2/tweets; "
+                "not complete when DEBUG transport logging is absent"
+            ),
+            "preferred_field": "observed_tweet_transport_request_count",
+        },
+        "media_upload_request_count": {
+            "retained_compatibility_field": True,
+            "scope": (
+                "DEBUG X request-start log records whose parsed URL path is "
+                "/2/media/upload; the legacy classifier does not constrain the "
+                "method, and the count is incomplete when DEBUG transport logging "
+                "is absent"
+            ),
+            "preferred_field": "observed_media_upload_request_count",
+        },
+        "observed_tweet_transport_request_count": {
+            "scope": (
+                "unique INFO durable tweet-transport starts immediately before the "
+                "request callback; evidence of an observed pre-request boundary, not "
+                "proof that X received the request"
+            ),
+            "deduplication": "unique durable transaction_id",
+        },
+        "observed_media_upload_request_count": {
+            "scope": (
+                "INFO receipt-bound media-upload starts before X API v2 transport"
+            ),
+            "deduplication": "retained physical log-record identity",
+        },
+        "observed_remote_write_success_count": {
+            "scope": "unique immutable post IDs in confirmed remote-write evidence",
+            "deduplication": "unique post or reply post ID across lane and generic confirmations",
+        },
+    }
     transient_failure_count = sum(
         str(item.get("status") or "") in {"408", "425"}
         or str(item.get("status") or "").startswith("5")
@@ -13461,7 +14975,7 @@ def analyse(
         ),
     )
 
-    return {
+    report = {
         "summary": {
             "record_count": len(records),
             "time_start": records[0].ts.strftime("%Y-%m-%d %H:%M:%S") if records else None,
@@ -13493,6 +15007,33 @@ def analyse(
             "posting_attempt_count": posting_attempt_count,
             "tweet_create_request_count": tweet_create_request_count,
             "media_upload_request_count": media_upload_request_count,
+            "counter_semantics": api_counter_semantics,
+            "observed_tweet_transport_request_count": len(
+                observed_tweet_transport_by_id
+            ),
+            "observed_tweet_transport_request_counts_by_lane": dict(
+                sorted(observed_tweet_transport_lane_counts.items())
+            ),
+            "observed_tweet_transport_main_post_request_count": sum(
+                observed_tweet_transport_lane_counts[lane]
+                for lane in ("quote_image", "daily_meme")
+            ),
+            "observed_tweet_transport_reply_request_count": sum(
+                observed_tweet_transport_lane_counts[lane]
+                for lane in (
+                    "conversational_reply",
+                    "historical_context_reply",
+                    "mention",
+                    "hot_post_reply",
+                    "quote_tweet",
+                )
+            ),
+            "observed_media_upload_request_count": (
+                observed_media_upload_request_count
+            ),
+            "observed_remote_write_success_count": len(
+                observed_success_post_ids
+            ),
             "x_requests": x_requests,
             "target_eligibility_403_count": target_eligibility_403_count,
             "deleted_or_inaccessible_tweet_403_count": (
@@ -13645,6 +15186,13 @@ def analyse(
             for item in errors[-40:]
         ],
     }
+    enrich_published_reply_text(
+        report,
+        runtime_state=current_runtime_state,
+        structured_reply_confirmations=structured_reply_confirmations,
+        historical_reply_text_evidence=historical_reply_text_evidence,
+    )
+    return report
 
 
 def md_table_row(cols: List[Any], *, cell_limit: int = 240) -> str:
@@ -18345,6 +19893,15 @@ def run_digest(args: argparse.Namespace, *, project_dir: Path, state_file: Path)
         if since is not None and resume_boundary_counts:
             records = filter_resume_boundary_records(records, since, resume_boundary_counts)
     input_files = summarize_input_files(logs, since, until, since_exclusive=since_exclusive)
+    input_file_indexes = {
+        str(path): index for index, path in enumerate(logs)
+    }
+    runtime_state, runtime_state_path, runtime_state_ts, runtime_state_status = (
+        load_current_runtime_state(project_dir)
+    )
+    runtime_config, runtime_config_path, runtime_config_ts, runtime_config_status = (
+        load_current_runtime_config(project_dir)
+    )
     initial_active_xai_context = None
     initial_active_xai_call_attempt = None
     initial_pending_mention = None
@@ -18388,6 +19945,8 @@ def run_digest(args: argparse.Namespace, *, project_dir: Path, state_file: Path)
         generation_time=generation_time,
         selected_window_end=report_window_end,
         current_snapshot_authoritative=until is None,
+        current_runtime_state=runtime_state,
+        input_file_indexes=input_file_indexes,
     )
     report["generation_time"] = dt_text(generation_time)
     report["generation_epoch"] = int(generation_time.timestamp())
@@ -18467,9 +20026,6 @@ def run_digest(args: argparse.Namespace, *, project_dir: Path, state_file: Path)
     if not args.no_state and not args.reset_state:
         apply_saved_context(report, state_file, window_end=report_window_end)
 
-    runtime_state, runtime_state_path, runtime_state_ts, runtime_state_status = (
-        load_current_runtime_state(project_dir)
-    )
     report["runtime_state_status"] = {
         "status": runtime_state_status,
         "path": str(runtime_state_path),
@@ -18485,15 +20041,34 @@ def run_digest(args: argparse.Namespace, *, project_dir: Path, state_file: Path)
         else {}
     )
 
-    runtime_config, runtime_config_path, runtime_config_ts, runtime_config_status = (
-        load_current_runtime_config(project_dir)
-    )
     report["runtime_config_status"] = {
         "status": runtime_config_status,
         "path": str(runtime_config_path),
         "time": dt_text(runtime_config_ts) if runtime_config_ts else None,
     }
     report["latest_config"] = runtime_config or {}
+    strike_progress = current_author_no_reply_strike_progress(
+        runtime_state,
+        runtime_state_status,
+        runtime_config,
+        runtime_config_status,
+        generation_time,
+    )
+    report.setdefault("mention_backlog_and_quarantine", {})[
+        "current_author_no_reply_strike_progress"
+    ] = strike_progress
+    if (
+        strike_progress.get("available") is True
+        and strike_progress.get("omitted_author_count") == 0
+        and report.get("latest_state")
+    ):
+        report["latest_state"][
+            "current_subthreshold_author_no_reply_strike_author_count"
+        ] = sum(
+            0 < item.get("strike_count", 0) < strike_progress["threshold"]
+            and item.get("quarantine_active") is False
+            for item in strike_progress.get("authors") or []
+        )
     refresh_derived(report)
 
     if not records:
@@ -18525,6 +20100,7 @@ def run_digest(args: argparse.Namespace, *, project_dir: Path, state_file: Path)
         generation_time_local=generation_time,
         provider_usage=report.get("provider_usage") or report.get("xai_usage") or {},
     )
+    report["digest_contract"] = build_digest_contract()
 
     if args.json:
         rendered = json.dumps(report, indent=2, ensure_ascii=False) + "\n"

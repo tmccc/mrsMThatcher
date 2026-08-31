@@ -7673,6 +7673,105 @@ def test_digest_groups_handled_media_v2_fallback_as_one_warning(tmp_path: Path) 
     assert "Read timed out. (read timeout=60.0)" in digest.stdout
 
 
+def test_digest_json_media_upload_incident_has_correlated_source_refs(
+    tmp_path: Path,
+) -> None:
+    base = tmp_path / "digest-media-fallback-provenance"
+    media_file = "/tmp/provenance.png"
+    write_digest_log(
+        base,
+        [
+            f"2026-07-06 15:20:24 INFO     upload_media_v2:2970 - Uploading media via X API v2: {media_file}",
+            "2026-07-06 15:21:23 ERROR    x_request:1967 - X request failed before receiving response\nrequests.exceptions.ReadTimeout: timed out",
+            "2026-07-06 15:21:24 ERROR    upload_media:3054 - v2 media upload failed; trying v1.1 fallback",
+            "2026-07-06 15:21:25 INFO     upload_media_v1_1:3043 - Uploaded media via v1.1. media_id=2074136638502866945",
+            "2026-07-06 15:21:26 INFO     post_random_quote:5281 - Quote/image posted successfully. posted_id=2074136641040499171",
+        ],
+    )
+
+    result = run_digest(base, as_json=True)
+
+    assert result.returncode == 0, result.stderr
+    payload = json.loads(result.stdout)
+    incident = payload["media_upload"]["incidents"][0]
+    assert incident["status"] == "handled"
+    assert "source_ref_omitted_count" not in incident
+    assert incident["source_refs"] == [
+        {
+            "input_file_index": 0,
+            "record_number": 3,
+            "timestamp": "2026-07-06 15:21:24",
+            "logger": "upload_media",
+            "logged_source_line_number": 3054,
+        },
+        {
+            "input_file_index": 0,
+            "record_number": 2,
+            "timestamp": "2026-07-06 15:21:23",
+            "logger": "x_request",
+            "logged_source_line_number": 1967,
+        },
+        {
+            "input_file_index": 0,
+            "record_number": 4,
+            "timestamp": "2026-07-06 15:21:25",
+            "logger": "upload_media_v1_1",
+            "logged_source_line_number": 3043,
+        },
+        {
+            "input_file_index": 0,
+            "record_number": 5,
+            "timestamp": "2026-07-06 15:21:26",
+            "logger": "post_random_quote",
+            "logged_source_line_number": 5281,
+        },
+    ]
+    assert Path(payload["input_files"][0]["path"]).name == "test.log"
+
+
+def test_digest_json_media_upload_incident_bounds_correlated_source_refs(
+    tmp_path: Path,
+) -> None:
+    base = tmp_path / "digest-media-fallback-provenance-bound"
+    media_file = "/tmp/provenance-bound.png"
+    failures = [
+        (
+            f"2026-07-06 15:21:{16 + index:02d} ERROR    "
+            f"x_request:{1960 + index} - X request failed before receiving response"
+        )
+        for index in range(8)
+    ]
+    write_digest_log(
+        base,
+        [
+            f"2026-07-06 15:20:24 INFO     upload_media_v2:2970 - Uploading media via X API v2: {media_file}",
+            *failures,
+            "2026-07-06 15:21:24 ERROR    upload_media:3054 - v2 media upload failed; trying v1.1 fallback",
+            "2026-07-06 15:21:25 INFO     upload_media_v1_1:3043 - Uploaded media via v1.1. media_id=2074136638502866945",
+            "2026-07-06 15:21:26 INFO     post_random_quote:5281 - Quote/image posted successfully. posted_id=2074136641040499171",
+        ],
+    )
+
+    result = run_digest(base, as_json=True)
+
+    assert result.returncode == 0, result.stderr
+    incident = json.loads(result.stdout)["media_upload"]["incidents"][0]
+    assert incident["status"] == "handled"
+    assert len(incident["source_refs"]) == 8
+    assert incident["source_ref_omitted_count"] == 3
+    assert incident["source_refs"][0] == {
+        "input_file_index": 0,
+        "record_number": 10,
+        "timestamp": "2026-07-06 15:21:24",
+        "logger": "upload_media",
+        "logged_source_line_number": 3054,
+    }
+    assert [
+        source_ref["record_number"]
+        for source_ref in incident["source_refs"][1:]
+    ] == list(range(2, 9))
+
+
 def test_digest_counts_unrecovered_media_fallback_as_one_incident(tmp_path: Path) -> None:
     base = tmp_path / "digest-media-fallback-unrecovered"
     media_file = "/tmp/meme.png"
@@ -8230,6 +8329,64 @@ def test_digest_carries_active_xai_context_across_resume_boundary(tmp_path: Path
     assert "| 2026-07-08 06:39:45 | unknown |" not in second_digest.stdout
 
 
+def test_digest_json_source_identity_is_stable_across_resume_filtering(
+    tmp_path: Path,
+) -> None:
+    base = tmp_path / "digest-provenance-resume-boundary"
+    state_file = tmp_path / "digest-provenance-state.json"
+    boundary = digest_event_line(
+        "2026-07-08 06:39:38",
+        "mention_backlog_started",
+        pages_completed=1,
+        since_id="100",
+    )
+    retained = digest_event_line(
+        "2026-07-08 06:39:38",
+        "mention_backlog_progress",
+        pages_completed=2,
+        since_id="100",
+    )
+    write_digest_log(base, [boundary])
+    initial = run_digest(base, state_file=state_file, as_json=True)
+    assert initial.returncode == 0, initial.stderr
+
+    write_digest_log(base, [boundary, retained])
+    no_state = run_digest(base, as_json=True)
+    resumed = run_digest(base, state_file=state_file, as_json=True)
+
+    assert no_state.returncode == 0, no_state.stderr
+    assert resumed.returncode == 0, resumed.stderr
+    no_state_payload = json.loads(no_state.stdout)
+    resumed_payload = json.loads(resumed.stdout)
+
+    def progress_source(payload: dict) -> dict:
+        event = next(
+            item
+            for item in payload["events"]
+            if item.get("kind") == "mention_backlog_progress"
+        )
+        assert len(event["source_refs"]) == 1
+        return event["source_refs"][0]
+
+    expected_source = {
+        "input_file_index": 0,
+        "record_number": 2,
+        "timestamp": "2026-07-08 06:39:38",
+        "logger": "log_event",
+        "logged_source_line_number": 330,
+    }
+    assert progress_source(no_state_payload) == expected_source
+    assert progress_source(resumed_payload) == expected_source
+    assert resumed_payload["resume_cursor_mode"] == "fingerprint_tail"
+    assert resumed_payload["resume_tail_match_length"] == 1
+    assert resumed_payload["summary"]["record_count"] == 1
+    assert Path(no_state_payload["input_files"][0]["path"]).name == "test.log"
+    assert (
+        resumed_payload["input_files"][0]["path"]
+        == no_state_payload["input_files"][0]["path"]
+    )
+
+
 def test_digest_does_not_carry_completed_xai_context_across_resume_boundary(tmp_path: Path) -> None:
     base = tmp_path / "digest-xai-completed-resume-boundary"
     state_file = tmp_path / "digest-state.json"
@@ -8290,3 +8447,1356 @@ def test_digest_new_request_beats_carried_pending_xai_candidate(tmp_path: Path) 
     assert second_digest.returncode == 0, second_digest.stderr
     assert f"| 2026-07-08 06:40:01 | mention | {new_mention} | 11 | 2 | 7 | 3 | 21 | 0 | 101 |" in second_digest.stdout
     assert f"| 2026-07-08 06:40:01 | quote-tweet | {old_quote} |" not in second_digest.stdout
+
+
+def test_digest_json_contract_identifies_the_additive_schema_and_preserves_legacy_roots(
+    tmp_path: Path,
+) -> None:
+    base = tmp_path / "digest-json-contract"
+    write_digest_log(
+        base,
+        ["2026-08-30 20:00:00 INFO     main:1 - Main loop tick"],
+    )
+
+    result = run_digest(base, as_json=True)
+
+    assert result.returncode == 0, result.stderr
+    payload = json.loads(result.stdout)
+    contract = payload["digest_contract"]
+    assert contract["schema_version"] == 1
+    assert contract["output_kind"] == "mrs_log_digest"
+    assert contract["producer"] == "mrs_log_digest.py"
+    assert contract["compatibility_policy"] == "additive"
+    source_hash = contract["producer_source_sha256"]
+    assert source_hash == hashlib.sha256(DIGEST.read_bytes()).hexdigest()
+    assert len(source_hash) == 64
+    assert source_hash == source_hash.lower()
+    assert set(source_hash) <= set("0123456789abcdef")
+    generator_sha = contract["generator_git_sha"]
+    assert generator_sha is None or (
+        len(generator_sha) == 40
+        and generator_sha == generator_sha.lower()
+        and set(generator_sha) <= set("0123456789abcdef")
+    )
+    projection_semantics = contract["projection_semantics"]
+    assert set(projection_semantics) == {
+        "latest_state",
+        "latest_config",
+        "historical_retained_state",
+        "historical_retained_config",
+    }
+    assert all(
+        "projection" in str(description).lower()
+        for description in projection_semantics.values()
+    )
+
+    legacy_top_level_keys = {
+        "summary",
+        "latest_config",
+        "latest_state",
+        "derived",
+        "mention_backlog_and_quarantine",
+        "api_health",
+        "main_post_recovery",
+        "remote_write_transactions",
+        "confirmed_reply_recovery",
+        "engagement_question_trial",
+        "historical_context_replies",
+        "production_consistency",
+        "historical_context_quality",
+        "reply_strategy",
+        "reply_pipeline_stages",
+        "semantic_veto_load_lifecycle",
+        "reply_media_context",
+        "reply_visual_context_summary",
+        "reply_visual_context_targets",
+        "asset_health",
+        "media_upload",
+        "regular_image_usage",
+        "original_editorial_shadow",
+        "generated_identity_shadow",
+        "generated_identity_policy",
+        "quote_image_semantic_veto_shadow",
+        "generated_image_spacing",
+        "provider_usage",
+        "xai_usage",
+        "resume_context",
+        "lifecycle",
+        "events",
+        "self_test_errors",
+        "error_health",
+        "errors_and_warnings",
+        "generation_time",
+        "generation_epoch",
+        "remote_write_safety",
+        "log_files",
+        "input_files",
+        "input_warning",
+        "input_retention_coverage",
+        "requested_since",
+        "requested_until",
+        "since_source",
+        "since_exclusive",
+        "resume_cursor_mode",
+        "resume_tail_match_length",
+        "local_clock_rollback_count",
+        "resume_boundary_fingerprint_count",
+        "resume_boundary_occurrence_count",
+        "project_dir",
+        "resume_state_file",
+        "state_updated",
+        "generated_image_pool_health",
+        "historical_context_corpus_snapshot",
+        "historical_context_engagement",
+        "shadow_feature_lifecycle",
+        "runtime_state_status",
+        "runtime_config_status",
+        "current_cooldown_status",
+        "generated_image_post_rates",
+        "generated_image_pool_runway",
+        "generated_image_utilisation",
+        "verbose_replies",
+        "detailed_appendix",
+        "openai_published_cost",
+    }
+    assert legacy_top_level_keys <= set(payload)
+
+
+def test_copied_digest_without_git_still_emits_valid_contract_json(
+    tmp_path: Path,
+) -> None:
+    isolated = tmp_path / "outside-git"
+    isolated.mkdir()
+    copied_script = isolated / "mrs_log_digest.py"
+    copied_script.write_bytes(DIGEST.read_bytes())
+    log = isolated / "test.log"
+    log.write_text(
+        "2026-08-30 20:00:00 INFO     main:1 - Main loop tick\n",
+        encoding="utf-8",
+    )
+    environment = os.environ.copy()
+    environment.update(
+        {
+            "HOME": str(isolated / "empty-home"),
+            "PATH": "",
+            "PYTHONPATH": str(ROOT),
+        }
+    )
+
+    result = subprocess.run(
+        [
+            sys.executable,
+            str(copied_script),
+            "--project-dir",
+            str(isolated),
+            "--no-state",
+            "--json",
+            str(log),
+        ],
+        cwd=isolated,
+        env=environment,
+        text=True,
+        capture_output=True,
+        timeout=30,
+        check=False,
+    )
+
+    assert result.returncode == 0, result.stderr
+    payload = json.loads(result.stdout)
+    contract = payload["digest_contract"]
+    assert contract["producer_source_sha256"] == hashlib.sha256(
+        copied_script.read_bytes()
+    ).hexdigest()
+    assert contract["generator_git_sha"] is None
+
+
+def test_digest_json_is_a_recursive_superset_of_verified_base_and_markdown_is_unchanged(
+    tmp_path: Path,
+) -> None:
+    base_sha = "0097657357c0ffb0dd87e860073d947c2ecb032e"
+    fixture = tmp_path / "recursive-additive-contract"
+    fixture.mkdir()
+    log = fixture / "test.log"
+    mention_target = "2096000000000000001"
+    mention_reply = "2096000000000000002"
+    historical_parent = "2096000000000000011"
+    historical_reply = "2096000000000000012"
+    historical_quote = "b" * 64
+    exact_mention_text = "Exact durable mention reply.\nSecond line."
+    exact_historical_text = "Context — Exact durable context.\n\nMeaning — Preserved."
+    log.write_text(
+        "\n".join(
+            [
+                "2026-08-30 20:00:00 INFO     main:1 - Main loop tick",
+                digest_event_line(
+                    "2026-08-30 20:00:01",
+                    "historical_context_reply",
+                    status="completed",
+                    parent_post_id=historical_parent,
+                    quote_id=historical_quote,
+                    character_count=len(exact_historical_text),
+                    reply_preview="Context — Preview…",
+                ),
+                digest_event_line(
+                    "2026-08-30 20:00:02",
+                    "historical_context_reply_posted",
+                    event_version=1,
+                    lane="historical_context_reply",
+                    parent_post_id=historical_parent,
+                    reply_post_id=historical_reply,
+                    root_post_id=historical_parent,
+                    conversation_id=historical_parent,
+                    reply_text=exact_historical_text,
+                    quote_id=historical_quote,
+                    publication_authority="confirmed_transport",
+                ),
+                f"2026-08-30 20:01:00 INFO maybe_reply_to_mentions:100 - Considering mention id={mention_target} author_id=501 text='Input'",
+                f"2026-08-30 20:01:01 INFO maybe_reply_to_mentions:101 - Generated reply to mention {mention_target}: 'Preview.'",
+                f"2026-08-30 20:01:02 INFO create_post:102 - Created X post successfully. response={{'data': {{'id': '{mention_reply}'}}}}",
+                f"2026-08-30 20:01:03 INFO maybe_reply_to_mentions:103 - Recorded and cached own auto-reply id={mention_reply}",
+                "2026-08-30 20:01:04 INFO maybe_reply_to_mentions:104 - Reply posted successfully",
+                digest_event_line(
+                    "2026-08-30 20:01:05",
+                    "reply_posted",
+                    lane="mention",
+                    target_id=mention_target,
+                    reply_post_id=mention_reply,
+                    author_id="501",
+                ),
+                "2026-08-30 20:02:00 INFO create_post:200 - Creating X post with durable transport journal. lane=mention transaction_id="
+                + ("c" * 64)
+                + f" reply_to_id={mention_target} media_count=0 made_with_ai=True",
+                "2026-08-30 20:02:01 INFO x_request:201 - X request: POST https://api.x.com/2/tweets",
+                "2026-08-30 20:02:02 ERROR x_request:202 - X API error 503: service unavailable",
+            ]
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+    write_json(
+        fixture / "bot_state.json",
+        {
+            "daily_reply_count": 1,
+            "daily_quote_reply_count": 0,
+            "last_seen_mention_id": mention_target,
+            "author_evaluation_quarantines": {},
+            "ai_reply_history": [
+                {
+                    "target_id": mention_target,
+                    "reply_post_id": mention_reply,
+                    "candidate_source": "mention",
+                    "proposed_reply": exact_mention_text,
+                }
+            ],
+            "tweet_cache": {
+                mention_reply: {
+                    "id": mention_reply,
+                    "post_type": "auto_reply",
+                    "text": exact_mention_text,
+                    "referenced_tweets": [
+                        {"type": "replied_to", "id": mention_target}
+                    ],
+                }
+            },
+        },
+    )
+    write_json(
+        fixture / "mrsMThatcher.local.json",
+        {
+            "MAX_AUTO_REPLIES_PER_DAY": 8,
+            "MAX_REPLIES_PER_AUTHOR_PER_DAY": 2,
+            "MAX_QUOTE_REPLIES_PER_DAY": 3,
+            "AUTHOR_NO_REPLY_QUARANTINE_THRESHOLD": 3,
+            "AUTHOR_NO_REPLY_QUARANTINE_WINDOW_SECONDS": 21_600,
+            "AUTHOR_NO_REPLY_QUARANTINE_SECONDS": 43_200,
+        },
+    )
+    try:
+        source = subprocess.run(
+            ["git", "-C", str(ROOT), "show", f"{base_sha}:mrs_log_digest.py"],
+            text=True,
+            capture_output=True,
+            timeout=30,
+            check=False,
+        )
+    except FileNotFoundError:
+        pytest.skip("Git is unavailable for the verified-base compatibility check")
+    if source.returncode != 0:
+        pytest.skip(f"verified base source is unavailable: {source.stderr.strip()}")
+    base_script = fixture / "mrs_log_digest.base.py"
+    base_script.write_text(source.stdout, encoding="utf-8")
+    environment = os.environ.copy()
+    environment.update(
+        {
+            "HOME": str(fixture / "empty-home"),
+            "PYTHONPATH": str(ROOT),
+        }
+    )
+
+    def invoke(script: Path, *, as_json: bool) -> subprocess.CompletedProcess[str]:
+        arguments = [
+            sys.executable,
+            str(script),
+            "--project-dir",
+            str(fixture),
+            "--glob",
+            "test.log",
+            "--no-state",
+        ]
+        if as_json:
+            arguments.append("--json")
+        arguments.append(str(log))
+        return subprocess.run(
+            arguments,
+            cwd=ROOT,
+            env=environment,
+            text=True,
+            capture_output=True,
+            timeout=30,
+            check=False,
+        )
+
+    old_json = invoke(base_script, as_json=True)
+    new_json = invoke(DIGEST, as_json=True)
+    assert old_json.returncode == 0, old_json.stderr
+    assert new_json.returncode == 0, new_json.stderr
+    old_payload = json.loads(old_json.stdout)
+    new_payload = json.loads(new_json.stdout)
+    ignored_dynamic_paths = {
+        "$.generation_epoch",
+        "$.generation_time",
+        "$.error_health.safety_snapshot_observed_at",
+        "$.remote_write_safety.observed_at",
+        "$.openai_published_cost.age",
+        "$.openai_published_cost.age_seconds",
+    }
+
+    def assert_recursive_superset(before: object, after: object, path: str) -> None:
+        if path in ignored_dynamic_paths:
+            return
+        assert type(after) is type(before), path
+        if isinstance(before, dict):
+            assert set(before) <= set(after), path
+            for key, value in before.items():
+                assert_recursive_superset(value, after[key], f"{path}.{key}")
+        elif isinstance(before, list):
+            assert len(after) == len(before), path
+            for index, (old_item, new_item) in enumerate(zip(before, after)):
+                assert_recursive_superset(
+                    old_item,
+                    new_item,
+                    f"{path}[{index}]",
+                )
+        else:
+            assert after == before, path
+
+    assert_recursive_superset(old_payload, new_payload, "$")
+    assert "digest_contract" not in old_payload
+    assert new_payload["digest_contract"]["schema_version"] == 1
+
+    old_markdown = invoke(base_script, as_json=False)
+    new_markdown = invoke(DIGEST, as_json=False)
+    assert old_markdown.returncode == 0, old_markdown.stderr
+    assert new_markdown.returncode == 0, new_markdown.stderr
+    assert new_markdown.stdout == old_markdown.stdout
+
+
+def test_digest_historical_context_reply_uses_exact_confirmed_text_and_bounded_provenance(
+    tmp_path: Path,
+) -> None:
+    base = tmp_path / "historical-context-exact-text"
+    base.mkdir()
+    active = base / "mrsMThatcher.log"
+    rotated = base / "mrsMThatcher.log.1"
+    parent_id = "2095000000000000001"
+    reply_id = "2095000000000000002"
+    quote_id = "a" * 64
+    preview = "Context — a short preview…"
+    exact_text = (
+        "Context — The confirmed first line.\n"
+        "\n"
+        "Meaning — The confirmed second line preserves spacing."
+    )
+    rotated.write_text(
+        digest_event_line(
+            "2026-08-30 20:00:00",
+            "historical_context_reply",
+            status="completed",
+            parent_post_id=parent_id,
+            quote_id=quote_id,
+            character_count=len(exact_text),
+            reply_preview=preview,
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+    active.write_text(
+        "2026-08-30 20:00:01 INFO     create_post:901 - Created X post "
+        f"successfully. response={{'data': {{'id': '{reply_id}', "
+        "'text': 'Context — transport preview…'}}}}\n"
+        + digest_event_line(
+            "2026-08-30 20:00:02",
+            "historical_context_reply_posted",
+            event_version=1,
+            lane="historical_context_reply",
+            parent_post_id=parent_id,
+            reply_post_id=reply_id,
+            root_post_id=parent_id,
+            conversation_id=parent_id,
+            reply_text=exact_text,
+            quote_id=quote_id,
+            reply_created_at="2026-08-30T19:00:02Z",
+            publication_authority="confirmed_transport",
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+
+    result = subprocess.run(
+        [
+            sys.executable,
+            str(DIGEST),
+            "--project-dir",
+            str(base),
+            "--no-state",
+            "--json",
+            str(active),
+        ],
+        cwd=ROOT,
+        text=True,
+        capture_output=True,
+        timeout=30,
+        check=False,
+    )
+
+    assert result.returncode == 0, result.stderr
+    payload = json.loads(result.stdout)
+    historical = payload["historical_context_replies"]["events"]
+    assert len(historical) == 1
+    reply = historical[0]
+    assert reply["reply_preview"] == preview
+    assert reply["parent_post_id"] == parent_id
+    assert reply["reply_post_id"] == reply_id
+    assert reply["public_reply_text"] == exact_text
+    assert reply["public_reply_text_sha256"] == hashlib.sha256(
+        exact_text.encode("utf-8")
+    ).hexdigest()
+    assert reply["public_reply_text_character_count"] == len(exact_text)
+    assert reply["public_reply_text_complete"] is True
+    assert reply["public_reply_text_status"] == "confirmed"
+    assert "historical_context_reply_posted" in reply["public_reply_text_source"]
+    assert reply["public_reply_text_reason"] == ""
+    assert reply["correlation_status"] == "exact"
+    assert reply["public_reply_text"] != "Context — transport preview…"
+
+    root_reply = next(
+        event
+        for event in payload["events"]
+        if event.get("kind") == "historical_context_reply"
+    )
+    for field in (
+        "reply_post_id",
+        "parent_post_id",
+        "public_reply_text",
+        "public_reply_text_sha256",
+        "public_reply_text_character_count",
+        "public_reply_text_complete",
+        "public_reply_text_status",
+        "public_reply_text_source",
+        "public_reply_text_reason",
+        "correlation_status",
+    ):
+        assert root_reply[field] == reply[field]
+
+    assert "source_ref_omitted_count" not in reply
+    assert len(reply["source_refs"]) == 2
+    input_names = {
+        index: Path(item["path"]).name
+        for index, item in enumerate(payload["input_files"])
+    }
+    assert {
+        input_names[source_ref["input_file_index"]]
+        for source_ref in reply["source_refs"]
+    } == {"mrsMThatcher.log", "mrsMThatcher.log.1"}
+    assert {source_ref["timestamp"] for source_ref in reply["source_refs"]} == {
+        "2026-08-30 20:00:00",
+        "2026-08-30 20:00:02",
+    }
+    assert all(source_ref["record_number"] >= 1 for source_ref in reply["source_refs"])
+    assert all(source_ref["logger"] == "log_event" for source_ref in reply["source_refs"])
+    assert all(
+        source_ref["logged_source_line_number"] == 330
+        for source_ref in reply["source_refs"]
+    )
+
+
+def test_digest_confirmed_reply_lanes_use_authoritative_state_text_and_exclude_drafts(
+    tmp_path: Path,
+) -> None:
+    base = tmp_path / "confirmed-reply-lanes"
+    base.mkdir()
+    replies = {
+        "mention": ("1001", "9001", "Mention reply, complete and confirmed.\nSecond line."),
+        "hot_post_reply": ("1002", "9002", "Hot-post reply, complete and confirmed."),
+        "quote_tweet": ("1003", "9003", "Quote-tweet reply, complete and confirmed."),
+    }
+    state = {
+        "daily_reply_count": 3,
+        "tweet_cache": {},
+        "ai_reply_history": [],
+        "pending_ai_reply_drafts": {
+            "mention:1999": {
+                "target_id": "1999",
+                "candidate_source": "mention",
+                "proposed_reply": "Unconfirmed draft must not be published.",
+            }
+        },
+    }
+    for lane, (target_id, reply_id, text) in replies.items():
+        state["tweet_cache"][reply_id] = {
+            "id": reply_id,
+            "author_id": "12345",
+            "conversation_id": target_id,
+            "created_at": "2026-08-30T19:10:00Z",
+            "referenced_tweets": [{"type": "replied_to", "id": target_id}],
+            "text": text,
+            "cached_epoch": 1_788_120_600,
+            "post_type": "auto_reply",
+        }
+        state["ai_reply_history"].append(
+            {
+                "target_id": target_id,
+                "reply_post_id": reply_id,
+                "candidate_source": lane,
+                "reply_epoch": 1_788_120_600,
+                "proposed_reply": text,
+            }
+        )
+    write_json(base / "bot_state.json", state)
+    mention_target, mention_reply, _mention_text = replies["mention"]
+    hot_target, hot_reply, _hot_text = replies["hot_post_reply"]
+    quote_target, quote_reply, _quote_text = replies["quote_tweet"]
+    write_digest_log(
+        base,
+        [
+            f"2026-08-30 20:10:00 INFO maybe_reply_to_mentions:100 - Considering mention id={mention_target} author_id=501 text='Mention input'",
+            f"2026-08-30 20:10:01 INFO maybe_reply_to_mentions:101 - Generated reply to mention {mention_target}: 'Short mention draft.'",
+            f"2026-08-30 20:10:02 INFO create_post:102 - Created X post successfully. response={{'data': {{'id': '{mention_reply}'}}}}",
+            f"2026-08-30 20:10:03 INFO maybe_reply_to_mentions:103 - Recorded and cached own auto-reply id={mention_reply}",
+            "2026-08-30 20:10:04 INFO maybe_reply_to_mentions:104 - Reply posted successfully",
+            digest_event_line(
+                "2026-08-30 20:10:05",
+                "reply_posted",
+                lane="mention",
+                target_id=mention_target,
+                reply_post_id=mention_reply,
+                author_id="501",
+            ),
+            f"2026-08-30 20:11:00 INFO maybe_reply_to_mentions:110 - Considering hot_post_reply id={hot_target} author_id=502 text='Hot input'",
+            f"2026-08-30 20:11:01 INFO maybe_reply_to_mentions:111 - Generated reply to mention {hot_target}: 'Short hot draft.'",
+            f"2026-08-30 20:11:02 INFO create_post:112 - Created X post successfully. response={{'data': {{'id': '{hot_reply}'}}}}",
+            f"2026-08-30 20:11:03 INFO maybe_reply_to_mentions:113 - Recorded and cached own auto-reply id={hot_reply}",
+            "2026-08-30 20:11:04 INFO maybe_reply_to_mentions:114 - Reply posted successfully",
+            digest_event_line(
+                "2026-08-30 20:11:05",
+                "reply_posted",
+                lane="hot_post_reply",
+                target_id=hot_target,
+                reply_post_id=hot_reply,
+                author_id="502",
+            ),
+            f"2026-08-30 20:12:00 INFO maybe_reply_to_quote_tweets:120 - Considering quote tweet id={quote_target} author_id=503 original_post_id=7001 text='Quote input'",
+            f"2026-08-30 20:12:01 INFO maybe_reply_to_quote_tweets:121 - Generated reply to quote tweet {quote_target}: 'Short quote draft.'",
+            f"2026-08-30 20:12:02 INFO create_post:122 - Created X post successfully. response={{'data': {{'id': '{quote_reply}'}}}}",
+            f"2026-08-30 20:12:03 INFO maybe_reply_to_quote_tweets:123 - Recorded and cached own quote-tweet auto-reply id={quote_reply}",
+            "2026-08-30 20:12:04 INFO maybe_reply_to_quote_tweets:124 - Quote-tweet reply posted successfully",
+            digest_event_line(
+                "2026-08-30 20:12:05",
+                "reply_posted",
+                lane="quote_tweet",
+                target_id=quote_target,
+                reply_post_id=quote_reply,
+                author_id="503",
+                original_post_id="7001",
+            ),
+            "2026-08-30 20:13:00 INFO maybe_reply_to_mentions:130 - Considering mention id=1999 author_id=504 text='Unconfirmed input'",
+            "2026-08-30 20:13:01 INFO maybe_reply_to_mentions:131 - Generated reply to mention 1999: 'Unconfirmed draft must not be published.'",
+        ],
+    )
+
+    result = run_digest(base, as_json=True)
+
+    assert result.returncode == 0, result.stderr
+    payload = json.loads(result.stdout)
+    expected_kinds = {
+        "mention": "mention_reply_posted",
+        "hot_post_reply": "hot_post_reply_posted",
+        "quote_tweet": "quote_tweet_reply_posted",
+    }
+    for lane, (target_id, reply_id, text) in replies.items():
+        event = next(
+            item
+            for item in payload["events"]
+            if item.get("kind") == expected_kinds[lane]
+        )
+        target_field = {
+            "mention": "mention_id",
+            "hot_post_reply": "hot_post_reply_id",
+            "quote_tweet": "quote_tweet_id",
+        }[lane]
+        assert event[target_field] == target_id
+        assert event["reply_post_id"] == reply_id
+        assert event["public_reply_text"] == text
+        assert event["public_reply_text_sha256"] == hashlib.sha256(
+            text.encode("utf-8")
+        ).hexdigest()
+        assert event["public_reply_text_character_count"] == len(text)
+        assert event["public_reply_text_complete"] is True
+        assert event["public_reply_text_status"] == "confirmed"
+        assert "bot_state.json" in event["public_reply_text_source"]
+        assert "tweet_cache" in event["public_reply_text_source"]
+        assert event["public_reply_text_reason"] == ""
+        assert event["correlation_status"] == "exact"
+
+    assert not any(
+        event.get("public_reply_text") == "Unconfirmed draft must not be published."
+        for event in payload["events"]
+    )
+
+
+def test_digest_reply_text_correlation_uses_immutable_interleaved_identities(
+    tmp_path: Path,
+) -> None:
+    base = tmp_path / "interleaved-reply-identities"
+    base.mkdir()
+    replies = {
+        "9101": ("1101", "First immutable reply."),
+        "9102": ("1102", "Second immutable reply."),
+    }
+    state = {
+        "daily_reply_count": 2,
+        "tweet_cache": {},
+        "ai_reply_history": [],
+    }
+    for reply_id, (target_id, text) in replies.items():
+        state["tweet_cache"][reply_id] = {
+            "id": reply_id,
+            "author_id": "12345",
+            "conversation_id": target_id,
+            "referenced_tweets": [{"type": "replied_to", "id": target_id}],
+            "text": text,
+            "cached_epoch": 1_788_121_200,
+            "post_type": "auto_reply",
+        }
+        state["ai_reply_history"].append(
+            {
+                "target_id": target_id,
+                "reply_post_id": reply_id,
+                "candidate_source": "mention",
+                "proposed_reply": text,
+            }
+        )
+    write_json(base / "bot_state.json", state)
+    write_digest_log(
+        base,
+        [
+            "2026-08-30 20:20:00 INFO maybe_reply_to_mentions:200 - Considering mention id=1101 author_id=601 text='First input'",
+            "2026-08-30 20:20:01 INFO maybe_reply_to_mentions:201 - Generated reply to mention 1101: 'First preview.'",
+            "2026-08-30 20:20:02 INFO maybe_reply_to_mentions:202 - Recorded and cached own auto-reply id=9101",
+            "2026-08-30 20:20:03 INFO maybe_reply_to_mentions:203 - Reply posted successfully",
+            "2026-08-30 20:20:04 INFO maybe_reply_to_mentions:204 - Considering mention id=1102 author_id=602 text='Second input'",
+            "2026-08-30 20:20:05 INFO maybe_reply_to_mentions:205 - Generated reply to mention 1102: 'Second preview.'",
+            "2026-08-30 20:20:06 INFO maybe_reply_to_mentions:206 - Recorded and cached own auto-reply id=9102",
+            "2026-08-30 20:20:07 INFO maybe_reply_to_mentions:207 - Reply posted successfully",
+            digest_event_line(
+                "2026-08-30 20:20:08",
+                "reply_posted",
+                lane="mention",
+                target_id="1102",
+                reply_post_id="9102",
+            ),
+            digest_event_line(
+                "2026-08-30 20:20:09",
+                "reply_posted",
+                lane="mention",
+                target_id="1101",
+                reply_post_id="9101",
+            ),
+        ],
+    )
+
+    result = run_digest(base, as_json=True)
+
+    assert result.returncode == 0, result.stderr
+    payload = json.loads(result.stdout)
+    outcomes = {
+        event["reply_post_id"]: event
+        for event in payload["events"]
+        if event.get("kind") == "mention_reply_posted"
+    }
+    assert set(outcomes) == set(replies)
+    for reply_id, (target_id, text) in replies.items():
+        assert outcomes[reply_id]["target_id"] == target_id
+        assert outcomes[reply_id]["public_reply_text"] == text
+        assert outcomes[reply_id]["correlation_status"] == "exact"
+
+
+def test_digest_reply_text_conflict_is_explicit_and_does_not_choose_a_text(
+    tmp_path: Path,
+) -> None:
+    base = tmp_path / "conflicting-reply-text"
+    base.mkdir()
+    reply_id = "9201"
+    target_id = "1201"
+    write_json(
+        base / "bot_state.json",
+        {
+            "daily_reply_count": 1,
+            "tweet_cache": {
+                reply_id: {
+                    "id": reply_id,
+                    "author_id": "12345",
+                    "conversation_id": target_id,
+                    "referenced_tweets": [
+                        {"type": "replied_to", "id": target_id}
+                    ],
+                    "text": "Confirmed cache evidence A.",
+                    "cached_epoch": 1_788_121_800,
+                    "post_type": "auto_reply",
+                }
+            },
+            "ai_reply_history": [
+                {
+                    "target_id": target_id,
+                    "reply_post_id": reply_id,
+                    "candidate_source": "mention",
+                    "proposed_reply": "Confirmed history evidence B.",
+                }
+            ],
+        },
+    )
+    write_digest_log(
+        base,
+        [
+            f"2026-08-30 20:29:55 INFO maybe_reply_to_mentions:290 - Considering mention id={target_id} author_id=701 text='Conflicting input'",
+            f"2026-08-30 20:29:56 INFO maybe_reply_to_mentions:291 - Generated reply to mention {target_id}: 'Short preview.'",
+            f"2026-08-30 20:29:57 INFO maybe_reply_to_mentions:292 - Recorded and cached own auto-reply id={reply_id}",
+            "2026-08-30 20:29:58 INFO maybe_reply_to_mentions:293 - Reply posted successfully",
+            digest_event_line(
+                "2026-08-30 20:30:00",
+                "reply_posted",
+                lane="mention",
+                target_id=target_id,
+                reply_post_id=reply_id,
+            )
+        ],
+    )
+
+    result = run_digest(base, as_json=True)
+
+    assert result.returncode == 0, result.stderr
+    payload = json.loads(result.stdout)
+    event = next(
+        item
+        for item in payload["events"]
+        if item.get("kind") == "mention_reply_posted"
+    )
+    assert event["reply_post_id"] == reply_id
+    assert event["public_reply_text"] is None
+    assert event["public_reply_text_sha256"] is None
+    assert event["public_reply_text_character_count"] is None
+    assert event["public_reply_text_complete"] is False
+    assert event["public_reply_text_status"] == "conflict"
+    assert event["correlation_status"] == "conflict"
+    assert "disagree" in event["public_reply_text_reason"].lower()
+    assert len(event["public_reply_text_reason"]) <= 500
+
+
+def test_digest_api_health_counter_semantics_distinguish_successful_observed_transports(
+    tmp_path: Path,
+) -> None:
+    base = tmp_path / "api-counter-semantics-success"
+    transaction_id = "a" * 64
+    write_digest_log(
+        base,
+        [
+            "2026-08-30 20:40:00 INFO upload_media:200 - Uploading receipt-bound media via X API v2: /tmp/t01.jpg",
+            "2026-08-30 20:40:02 INFO create_post:202 - Creating X post with durable transport journal. "
+            f"lane=mention transaction_id={transaction_id} reply_to_id=1301 "
+            "media_count=1 made_with_ai=True",
+            "2026-08-30 20:40:03 INFO create_post:202 - Creating X post with durable transport journal. "
+            f"lane=mention transaction_id={transaction_id} reply_to_id=1301 "
+            "media_count=1 made_with_ai=True",
+            "2026-08-30 20:40:04 INFO create_post:204 - Created X post successfully. "
+            "response={'data': {'id': '9301', 'text': 'Confirmed reply.'}}",
+        ],
+    )
+
+    result = run_digest(base, as_json=True)
+
+    assert result.returncode == 0, result.stderr
+    payload = json.loads(result.stdout)
+    health = payload["api_health"]
+    assert health["posting_attempt_count"] == 0
+    assert health["tweet_create_request_count"] == 0
+    assert health["media_upload_request_count"] == 0
+    semantics = health["counter_semantics"]
+    assert "failed" in json.dumps(semantics["posting_attempt_count"]).lower()
+    assert "/2/tweets" in json.dumps(
+        semantics["tweet_create_request_count"]
+    ).lower()
+    assert "/2/media/upload" in json.dumps(
+        semantics["media_upload_request_count"]
+    ).lower()
+    assert health["observed_tweet_transport_request_count"] == 1
+    assert health["observed_media_upload_request_count"] == 1
+    assert health["observed_remote_write_success_count"] == 1
+    by_lane = health["observed_tweet_transport_request_counts_by_lane"]
+    assert by_lane["mention"] == 1
+    assert sum(by_lane.values()) == 1
+
+
+def test_digest_api_health_counter_semantics_keep_failed_requests_distinct(
+    tmp_path: Path,
+) -> None:
+    base = tmp_path / "api-counter-semantics-failure"
+    transaction_id = "b" * 64
+    write_digest_log(
+        base,
+        [
+            "2026-08-30 20:50:00 INFO create_post:300 - Creating X post with durable transport journal. "
+            f"lane=quote_tweet transaction_id={transaction_id} reply_to_id=1401 "
+            "media_count=0 made_with_ai=True",
+            "2026-08-30 20:50:01 INFO x_request:301 - X request: POST https://api.x.com/2/tweets",
+            "2026-08-30 20:50:02 ERROR x_request:302 - X API error 503: service unavailable",
+        ],
+    )
+
+    result = run_digest(base, as_json=True)
+
+    assert result.returncode == 0, result.stderr
+    payload = json.loads(result.stdout)
+    health = payload["api_health"]
+    assert health["posting_attempt_count"] == 1
+    assert health["tweet_create_request_count"] == 1
+    assert health["media_upload_request_count"] == 0
+    assert health["observed_tweet_transport_request_count"] == 1
+    assert health["observed_media_upload_request_count"] == 0
+    assert health["observed_remote_write_success_count"] == 0
+    assert health["observed_tweet_transport_request_counts_by_lane"][
+        "quote_tweet"
+    ] == 1
+    assert health["errors"][0]["status"] == "503"
+
+
+def test_digest_state_derived_quarantine_strike_progress_has_no_false_log_provenance(
+    tmp_path: Path,
+) -> None:
+    base = tmp_path / "state-derived-strike-provenance"
+    base.mkdir()
+    current_epoch = int(time.time())
+    write_json(
+        base / "bot_state.json",
+        {
+            "daily_reply_count": 0,
+            "author_evaluation_quarantines": {
+                "1501": {
+                    "recent_no_reply_epochs": [current_epoch - 60],
+                    "quarantine_until_epoch": 0,
+                    "last_updated_epoch": current_epoch - 60,
+                    "latest_explicit_spam_or_abuse_epoch": current_epoch - 60,
+                    "evidence_policy": (
+                        "majority_resolvable_terminal_no_reply_v3"
+                    ),
+                }
+            },
+        },
+    )
+    write_json(
+        base / "mrsMThatcher.local.json",
+        {
+            "AUTHOR_NO_REPLY_QUARANTINE_THRESHOLD": 3,
+            "AUTHOR_NO_REPLY_QUARANTINE_WINDOW_SECONDS": 21600,
+            "AUTHOR_NO_REPLY_QUARANTINE_SECONDS": 43200,
+        },
+    )
+    write_digest_log(
+        base,
+        ["2026-08-30 21:00:00 INFO     main:400 - Main loop tick"],
+    )
+
+    result = run_digest(base, as_json=True)
+
+    assert result.returncode == 0, result.stderr
+    payload = json.loads(result.stdout)
+    progress = payload["mention_backlog_and_quarantine"][
+        "current_author_no_reply_strike_progress"
+    ]
+    assert progress["available"] is True
+    assert progress["source"] == "bot_state.json"
+    assert "source_refs" not in progress
+    assert progress["authors"][0]["author_id"] == "1501"
+    assert "source_refs" not in progress["authors"][0]
+
+
+def test_digest_structured_only_confirmation_is_normalised_and_unidentified_legacy_reply_is_explicitly_unavailable(
+    tmp_path: Path,
+) -> None:
+    base = tmp_path / "structured-only-and-legacy-reply-text"
+    base.mkdir()
+    structured_target_id = "1601"
+    structured_reply_id = "9601"
+    exact_text = "A structured-only confirmed reply.\nWith its exact second line."
+    write_json(
+        base / "bot_state.json",
+        {
+            "daily_reply_count": 2,
+            "tweet_cache": {
+                structured_reply_id: {
+                    "id": structured_reply_id,
+                    "author_id": "12345",
+                    "conversation_id": structured_target_id,
+                    "referenced_tweets": [
+                        {"type": "replied_to", "id": structured_target_id}
+                    ],
+                    "text": exact_text,
+                    "cached_epoch": 1_788_124_200,
+                    "post_type": "auto_reply",
+                }
+            },
+            "ai_reply_history": [
+                {
+                    "target_id": structured_target_id,
+                    "reply_post_id": structured_reply_id,
+                    "candidate_source": "mention",
+                    "reply_epoch": 1_788_124_200,
+                    "proposed_reply": exact_text,
+                }
+            ],
+        },
+    )
+    write_digest_log(
+        base,
+        [
+            digest_event_line(
+                "2026-08-30 21:10:00",
+                "reply_posted",
+                lane="mention",
+                target_id=structured_target_id,
+                reply_post_id=structured_reply_id,
+                author_id="801",
+            ),
+            "2026-08-30 21:11:00 INFO maybe_reply_to_mentions:500 - "
+            "Considering mention id=1602 author_id=802 text='Legacy input retained'",
+            "2026-08-30 21:11:01 INFO maybe_reply_to_mentions:501 - "
+            "Generated reply to mention 1602: 'Legacy preview retained.'",
+            "2026-08-30 21:11:02 INFO maybe_reply_to_mentions:502 - "
+            "Recorded and cached own auto-reply id=9602",
+            "2026-08-30 21:11:03 INFO maybe_reply_to_mentions:503 - "
+            "Reply posted successfully",
+        ],
+    )
+
+    result = run_digest(base, as_json=True)
+
+    assert result.returncode == 0, result.stderr
+    payload = json.loads(result.stdout)
+    events = payload["events"]
+    normalised = next(
+        event
+        for event in events
+        if event.get("kind") == "confirmed_public_reply"
+    )
+    assert normalised["time"] == "2026-08-30 21:10:00"
+    assert normalised["lane"] == "mention"
+    assert normalised["target_id"] == structured_target_id
+    assert normalised["reply_post_id"] == structured_reply_id
+    assert normalised["public_reply_text"] == exact_text
+    assert normalised["public_reply_text_sha256"] == hashlib.sha256(
+        exact_text.encode("utf-8")
+    ).hexdigest()
+    assert normalised["public_reply_text_character_count"] == len(exact_text)
+    assert normalised["public_reply_text_complete"] is True
+    assert normalised["public_reply_text_status"] == "confirmed"
+    assert "bot_state.json.ai_reply_history" in normalised[
+        "public_reply_text_source"
+    ]
+    assert "bot_state.json.tweet_cache" in normalised[
+        "public_reply_text_source"
+    ]
+    assert normalised["public_reply_text_reason"] == ""
+    assert normalised["correlation_status"] == "exact"
+
+    legacy = next(
+        event
+        for event in events
+        if event.get("kind") == "mention_reply_posted"
+    )
+    assert legacy["time"] == "2026-08-30 21:11:03"
+    assert events.index(normalised) < events.index(legacy)
+    assert normalised["time"] < legacy["time"]
+    assert legacy["mention_id"] == "1602"
+    assert legacy["author_id"] == "802"
+    assert legacy["incoming_text"] == "Legacy input retained"
+    assert legacy["reply"] == "Legacy preview retained."
+    assert legacy["reply_post_id"] == "9602"
+    assert legacy["public_reply_text"] is None
+    assert legacy["public_reply_text_sha256"] is None
+    assert legacy["public_reply_text_character_count"] is None
+    assert legacy["public_reply_text_complete"] is False
+    assert legacy["public_reply_text_status"] == "unavailable"
+    assert legacy["public_reply_text_source"] is None
+    assert 0 < len(legacy["public_reply_text_reason"]) <= 320
+    assert legacy["correlation_status"] == "unavailable"
+
+
+@pytest.mark.parametrize(
+    "confirmation_fields",
+    [
+        {"target_id": "1701", "reply_post_id": "9701"},
+        {
+            "lane": "not_a_reply_lane",
+            "target_id": "1702",
+            "reply_post_id": "9702",
+        },
+        {"lane": "mention", "reply_post_id": "9703"},
+        {
+            "lane": "mention",
+            "target_id": "not-a-numeric-target",
+            "reply_post_id": "9704",
+        },
+    ],
+    ids=("missing-lane", "invalid-lane", "missing-target", "invalid-target"),
+)
+def test_digest_malformed_reply_confirmation_is_not_counted_as_remote_write_success(
+    tmp_path: Path,
+    confirmation_fields: dict[str, str],
+) -> None:
+    base = tmp_path / "malformed-reply-confirmation"
+    write_digest_log(
+        base,
+        [
+            digest_event_line(
+                "2026-08-30 21:20:00",
+                "reply_posted",
+                **confirmation_fields,
+            )
+        ],
+    )
+
+    result = run_digest(base, as_json=True)
+
+    assert result.returncode == 0, result.stderr
+    payload = json.loads(result.stdout)
+    assert payload["api_health"]["observed_remote_write_success_count"] == 0
+    assert not any(
+        event.get("kind") == "confirmed_public_reply"
+        for event in payload["events"]
+    )
+
+
+@pytest.mark.parametrize(
+    "mismatch",
+    ("history-target", "history-lane", "cache-target", "cache-post-type"),
+)
+def test_digest_durable_reply_identity_mismatch_is_an_explicit_text_conflict(
+    tmp_path: Path,
+    mismatch: str,
+) -> None:
+    base = tmp_path / f"durable-reply-identity-{mismatch}"
+    base.mkdir()
+    target_id = "1801"
+    reply_id = "9801"
+    exact_text = "Exact durable reply text that must not cross identities."
+    history = {
+        "target_id": target_id,
+        "reply_post_id": reply_id,
+        "candidate_source": "mention",
+        "reply_epoch": 1_788_124_800,
+        "proposed_reply": exact_text,
+    }
+    cached = {
+        "id": reply_id,
+        "author_id": "12345",
+        "conversation_id": target_id,
+        "referenced_tweets": [{"type": "replied_to", "id": target_id}],
+        "text": exact_text,
+        "cached_epoch": 1_788_124_800,
+        "post_type": "auto_reply",
+    }
+    if mismatch == "history-target":
+        history["target_id"] = "1802"
+    elif mismatch == "history-lane":
+        history["candidate_source"] = "quote_tweet"
+    elif mismatch == "cache-target":
+        cached["referenced_tweets"] = [
+            {"type": "replied_to", "id": "1802"}
+        ]
+    else:
+        cached["post_type"] = "quote_image"
+    write_json(
+        base / "bot_state.json",
+        {
+            "daily_reply_count": 1,
+            "ai_reply_history": [history],
+            "tweet_cache": {reply_id: cached},
+        },
+    )
+    write_digest_log(
+        base,
+        [
+            digest_event_line(
+                "2026-08-30 21:30:00",
+                "reply_posted",
+                lane="mention",
+                target_id=target_id,
+                reply_post_id=reply_id,
+                author_id="901",
+            )
+        ],
+    )
+
+    result = run_digest(base, as_json=True)
+
+    assert result.returncode == 0, result.stderr
+    payload = json.loads(result.stdout)
+    event = next(
+        item
+        for item in payload["events"]
+        if item.get("kind") == "confirmed_public_reply"
+    )
+    assert event["target_id"] == target_id
+    assert event["reply_post_id"] == reply_id
+    assert event["public_reply_text"] is None
+    assert event["public_reply_text_sha256"] is None
+    assert event["public_reply_text_character_count"] is None
+    assert event["public_reply_text_complete"] is False
+    assert event["public_reply_text_status"] == "conflict"
+    assert event["correlation_status"] == "conflict"
+    assert 0 < len(event["public_reply_text_reason"]) <= 320
+
+
+def test_digest_quote_reply_original_post_identity_disagreement_conflicts(
+    tmp_path: Path,
+) -> None:
+    base = tmp_path / "quote-reply-original-post-conflict"
+    base.mkdir()
+    target_id = "1811"
+    reply_id = "9811"
+    exact_text = "Exact quote-tweet reply text."
+    write_json(
+        base / "bot_state.json",
+        {
+            "daily_reply_count": 1,
+            "ai_reply_history": [
+                {
+                    "target_id": target_id,
+                    "reply_post_id": reply_id,
+                    "candidate_source": "quote_tweet",
+                    "proposed_reply": exact_text,
+                }
+            ],
+            "tweet_cache": {
+                reply_id: {
+                    "id": reply_id,
+                    "referenced_tweets": [
+                        {"type": "replied_to", "id": target_id}
+                    ],
+                    "text": exact_text,
+                    "post_type": "auto_reply",
+                }
+            },
+        },
+    )
+    write_digest_log(
+        base,
+        [
+            "2026-08-30 21:31:00 INFO maybe_reply_to_quote_tweets:600 - "
+            "Considering quote tweet id=1811 author_id=902 "
+            "original_post_id=2811 text='Quote input'",
+            "2026-08-30 21:31:01 INFO maybe_reply_to_quote_tweets:601 - "
+            "Generated reply to quote tweet 1811: 'Quote preview.'",
+            "2026-08-30 21:31:02 INFO maybe_reply_to_quote_tweets:602 - "
+            "Recorded and cached own quote-tweet auto-reply id=9811",
+            "2026-08-30 21:31:03 INFO maybe_reply_to_quote_tweets:603 - "
+            "Quote-tweet reply posted successfully",
+            digest_event_line(
+                "2026-08-30 21:31:04",
+                "reply_posted",
+                lane="quote_tweet",
+                target_id=target_id,
+                reply_post_id=reply_id,
+                original_post_id="2812",
+                author_id="902",
+            ),
+        ],
+    )
+
+    result = run_digest(base, as_json=True)
+
+    assert result.returncode == 0, result.stderr
+    payload = json.loads(result.stdout)
+    event = next(
+        item
+        for item in payload["events"]
+        if item.get("kind") == "quote_tweet_reply_posted"
+    )
+    assert event["quote_tweet_id"] == target_id
+    assert event["reply_post_id"] == reply_id
+    assert event["original_post_id"] == "2811"
+    assert event["public_reply_text"] is None
+    assert event["public_reply_text_sha256"] is None
+    assert event["public_reply_text_character_count"] is None
+    assert event["public_reply_text_complete"] is False
+    assert event["public_reply_text_status"] == "conflict"
+    assert event["correlation_status"] == "conflict"
+    assert "identity" in event["public_reply_text_reason"]
+
+
+@pytest.mark.parametrize(
+    "invalid_field",
+    ("boolean-version", "root-post-id", "conversation-id"),
+)
+def test_digest_historical_publication_rejects_invalid_authority_identity(
+    tmp_path: Path,
+    invalid_field: str,
+) -> None:
+    base = tmp_path / f"invalid-historical-authority-{invalid_field}"
+    parent_id = "1821"
+    reply_id = "9821"
+    fields: dict[str, object] = {
+        "event_version": 1,
+        "lane": "historical_context_reply",
+        "parent_post_id": parent_id,
+        "reply_post_id": reply_id,
+        "root_post_id": parent_id,
+        "conversation_id": parent_id,
+        "reply_text": "Text without valid publication authority.",
+        "quote_id": "b" * 64,
+        "publication_authority": "confirmed_transport",
+    }
+    if invalid_field == "boolean-version":
+        fields["event_version"] = True
+    elif invalid_field == "root-post-id":
+        fields["root_post_id"] = "1822"
+    else:
+        fields["conversation_id"] = "1822"
+    write_digest_log(
+        base,
+        [
+            digest_event_line(
+                "2026-08-30 21:32:00",
+                "historical_context_reply_posted",
+                **fields,
+            )
+        ],
+    )
+
+    result = run_digest(base, as_json=True)
+
+    assert result.returncode == 0, result.stderr
+    payload = json.loads(result.stdout)
+    assert not any(
+        event.get("kind") == "confirmed_public_reply"
+        and event.get("reply_post_id") == reply_id
+        for event in payload["events"]
+    )
+    assert payload["api_health"]["observed_remote_write_success_count"] == 0
+
+
+def test_digest_structured_only_historical_confirmation_normalises_exact_text(
+    tmp_path: Path,
+) -> None:
+    base = tmp_path / "structured-only-historical-confirmation"
+    parent_id = "1831"
+    reply_id = "9831"
+    quote_id = "c" * 64
+    exact_text = "Historical exact first line.\n\nHistorical exact final line."
+    write_digest_log(
+        base,
+        [
+            digest_event_line(
+                "2026-08-30 21:33:00",
+                "historical_context_reply_posted",
+                event_version=1,
+                lane="historical_context_reply",
+                parent_post_id=parent_id,
+                reply_post_id=reply_id,
+                root_post_id=parent_id,
+                conversation_id=parent_id,
+                reply_text=exact_text,
+                quote_id=quote_id,
+                publication_authority="confirmed_transport",
+            )
+        ],
+    )
+
+    result = run_digest(base, as_json=True)
+
+    assert result.returncode == 0, result.stderr
+    payload = json.loads(result.stdout)
+    event = next(
+        item
+        for item in payload["events"]
+        if item.get("kind") == "confirmed_public_reply"
+    )
+    assert event is payload["events"][-1]
+    assert event["lane"] == "historical_context_reply"
+    assert event["target_id"] == parent_id
+    assert event["parent_post_id"] == parent_id
+    assert event["reply_post_id"] == reply_id
+    assert event["quote_id"] == quote_id
+    assert event["public_reply_text"] == exact_text
+    assert event["public_reply_text_sha256"] == hashlib.sha256(
+        exact_text.encode("utf-8")
+    ).hexdigest()
+    assert event["public_reply_text_character_count"] == len(exact_text)
+    assert event["public_reply_text_complete"] is True
+    assert event["public_reply_text_status"] == "confirmed"
+    assert "historical_context_reply_posted" in event[
+        "public_reply_text_source"
+    ]
+    assert event["public_reply_text_reason"] == ""
+    assert event["correlation_status"] == "exact"
+    assert payload["api_health"]["observed_remote_write_success_count"] == 1
+
+
+def test_digest_structured_main_post_success_deduplicates_generic_success(
+    tmp_path: Path,
+) -> None:
+    post_id = "9841"
+    observed_counts: list[int] = []
+    for include_generic_success in (False, True):
+        base = tmp_path / (
+            "structured-main-post-with-generic"
+            if include_generic_success
+            else "structured-main-post-only"
+        )
+        lines = [
+            digest_event_line(
+                "2026-08-30 21:34:00",
+                "main_post_posted",
+                lane="quote_image",
+                post_id=post_id,
+                line_no=14,
+                image_no=3,
+                image_basename="t04.jpg",
+                quote_hash="d" * 64,
+            )
+        ]
+        if include_generic_success:
+            lines.append(
+                "2026-08-30 21:34:01 INFO create_post:700 - "
+                "Created X post successfully. "
+                f"response={{'data': {{'id': '{post_id}'}}}}"
+            )
+        write_digest_log(base, lines)
+        result = run_digest(base, as_json=True)
+        assert result.returncode == 0, result.stderr
+        observed_counts.append(
+            json.loads(result.stdout)["api_health"][
+                "observed_remote_write_success_count"
+            ]
+        )
+
+    assert observed_counts == [1, 1]
