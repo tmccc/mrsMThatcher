@@ -407,7 +407,9 @@ def run_digest(
     base_dir: Path,
     *,
     state_file: Path | None = None,
+    since: str | None = None,
     until: str | None = None,
+    as_json: bool = False,
 ) -> subprocess.CompletedProcess[str]:
     args = [
         sys.executable,
@@ -421,8 +423,12 @@ def run_digest(
         args.append("--no-state")
     else:
         args.extend(["--state-file", str(state_file)])
+    if since is not None:
+        args.extend(["--since", since])
     if until is not None:
         args.extend(["--until", until])
+    if as_json:
+        args.append("--json")
     args.append(str(base_dir / "test.log"))
     return subprocess.run(
         args,
@@ -437,6 +443,110 @@ def run_digest(
 def write_digest_log(base_dir: Path, lines: list[str]) -> None:
     base_dir.mkdir(parents=True, exist_ok=True)
     (base_dir / "test.log").write_text("\n".join(lines) + "\n", encoding="utf-8")
+
+
+def digest_event_line(timestamp: str, event: str, **fields: object) -> str:
+    payload = {"event": event, **fields}
+    return (
+        f"{timestamp} INFO     log_event:330 - EVENT "
+        + json.dumps(
+            payload,
+            ensure_ascii=False,
+            sort_keys=True,
+            separators=(",", ":"),
+        )
+    )
+
+
+def digest_markdown_section(markdown: str, title: str) -> str:
+    marker = f"## {title}\n"
+    assert marker in markdown
+    return markdown.split(marker, 1)[1].split("\n## ", 1)[0]
+
+
+def write_treatment_quote_digest_fixture(base_dir: Path) -> dict[str, object]:
+    post_id = "2094174293231812903"
+    quote_hash = "67d4ca636be56c737a34bc9332278a8ba4293a2625825404942ef0123a8bdc56"
+    pair_id = "pair-3ae2bf3b69a07dd3a7b605cf"
+    plan_sha256 = "d543b32b36d6fc8f9a27b3765d9bfecfcc166f22ca1d152b5ff0ac8c3c988d06"
+    quote_text = (
+        "Marxism-Leninism is simply not capable of producing either political "
+        "freedom or economic success, because it does not recognise the dignity "
+        "of the individual or his desire to better himself."
+    )
+    question = (
+        "Can state control bring prosperity without denying individual dignity?"
+    )
+    public_text = quote_text + "\n\nQuestion — " + question
+    x_response_text = public_text + " https://t.co/example-media"
+    write_digest_log(
+        base_dir,
+        [
+            "2026-08-30 22:23:50 INFO     select_quote_candidate:4630 - "
+            f"Selected quote line_no=398 quote_hash={quote_hash} "
+            "weight=1.00 seasonal_boost=False",
+            "2026-08-30 22:23:51 INFO     choose_matched_unused_image:4931 - "
+            "Selected matched image basename=t12.jpg image_no=11 score=25.4 "
+            "components=historical=8.0",
+            "2026-08-30 22:23:53 INFO     create_post:3204 - "
+            "Created X post successfully response="
+            f"{{'data': {{'id': '{post_id}', 'text': {x_response_text!r}}}}}",
+            digest_event_line(
+                "2026-08-30 22:23:54",
+                "engagement_question_experimental_member_confirmed",
+                arm="treatment",
+                member_position=2,
+                pair_id=pair_id,
+                plan_sha256=plan_sha256,
+                post_id=post_id,
+                publication_sequence=2,
+            ),
+            digest_event_line(
+                "2026-08-30 22:23:54",
+                "main_post_posted",
+                lane="quote_image",
+                post_id=post_id,
+                line_no=398,
+                image_no=11,
+                image_basename="t12.jpg",
+                image_score=25.4,
+                quote_hash=quote_hash,
+                engagement_experiment_id="substantive-question-v1",
+                engagement_experiment_arm="treatment",
+                engagement_experiment_member_position=2,
+                engagement_experiment_pair_id=pair_id,
+                engagement_experiment_plan_sha256=plan_sha256,
+                engagement_experiment_publication_order="control_first",
+                engagement_experiment_sequence=2,
+                engagement_question_present=True,
+                engagement_public_text_sha256=hashlib.sha256(
+                    public_text.encode("utf-8")
+                ).hexdigest(),
+            ),
+            digest_event_line(
+                "2026-08-30 22:23:55",
+                "account_root_posted",
+                lane="quote_image",
+                post_id=post_id,
+                root_post_id=post_id,
+                quote_id=quote_hash,
+                quote_text=quote_text,
+                public_text=public_text,
+                visible_text_source="public_text",
+            ),
+            "2026-08-30 22:23:55 INFO     post_random_quote:5198 - "
+            f"Quote/image posted successfully. posted_id={post_id}",
+        ],
+    )
+    return {
+        "post_id": post_id,
+        "quote_hash": quote_hash,
+        "pair_id": pair_id,
+        "plan_sha256": plan_sha256,
+        "quote_text": quote_text,
+        "question": question,
+        "public_text": public_text,
+    }
 
 
 def test_digest_reports_historical_context_reply_outcomes(tmp_path: Path) -> None:
@@ -6434,6 +6544,852 @@ def test_digest_golden_sections_for_generated_logs(tmp_path: Path) -> None:
     assert "2026-07-03 05:55:42" in historical_section
     assert "old cooldown" in historical_section
     assert "old write cooldown" in historical_section
+
+
+def test_digest_engagement_question_treatment_post_uses_confirmed_public_text(
+    tmp_path: Path,
+) -> None:
+    base = tmp_path / "digest-engagement-treatment"
+    fixture = write_treatment_quote_digest_fixture(base)
+
+    digest = run_digest(base)
+
+    assert digest.returncode == 0, digest.stderr
+    quote_section = digest_markdown_section(digest.stdout, "Quote/image posts")
+    quote_row = next(
+        line
+        for line in quote_section.splitlines()
+        if f"| {fixture['post_id']} |" in line
+    )
+    assert "| 398 |" in quote_row
+    assert f"| {fixture['quote_hash']} | t12.jpg | 11 | 25.4 |" in quote_row
+    assert f"| treatment | yes | {fixture['question']} |" in quote_row
+    assert str(fixture["public_text"]).replace("\n", "\\n") in quote_row
+    assert "t.co" not in quote_row
+
+    activity = digest_markdown_section(
+        digest.stdout, "Engagement-question trial activity"
+    )
+    activity_row = next(
+        line
+        for line in activity.splitlines()
+        if f"| {fixture['post_id']} |" in line
+    )
+    assert (
+        f"| {fixture['pair_id']} | 2 | treatment | 2 | yes | "
+        f"{fixture['question']} | {fixture['quote_hash']} |"
+    ) in activity_row
+
+
+def test_digest_engagement_question_control_member_has_no_question(
+    tmp_path: Path,
+) -> None:
+    base = tmp_path / "digest-engagement-control"
+    post_id = "2094000000000000001"
+    quote_hash = "a" * 64
+    plan_sha256 = "b" * 64
+    pair_id = "pair-111111111111111111111111"
+    quote_text = "A control quotation remains the complete public text."
+    write_digest_log(
+        base,
+        [
+            "2026-08-30 19:56:01 INFO     select_quote_candidate:4630 - "
+            f"Selected quote line_no=397 quote_hash={quote_hash} "
+            "weight=1.00 seasonal_boost=False",
+            "2026-08-30 19:56:02 INFO     choose_matched_unused_image:4931 - "
+            "Selected matched image basename=t11.jpg image_no=10 score=5.5 "
+            "components=historical=2.0",
+            digest_event_line(
+                "2026-08-30 19:56:03",
+                "engagement_question_experimental_member_confirmed",
+                arm="control",
+                member_position=1,
+                pair_id=pair_id,
+                plan_sha256=plan_sha256,
+                post_id=post_id,
+                publication_sequence=1,
+            ),
+            digest_event_line(
+                "2026-08-30 19:56:04",
+                "main_post_posted",
+                lane="quote_image",
+                post_id=post_id,
+                line_no=397,
+                image_no=10,
+                image_basename="t11.jpg",
+                image_score=5.5,
+                quote_hash=quote_hash,
+                engagement_experiment_id="substantive-question-v1",
+                engagement_experiment_arm="control",
+                engagement_experiment_member_position=1,
+                engagement_experiment_pair_id=pair_id,
+                engagement_experiment_plan_sha256=plan_sha256,
+                engagement_experiment_publication_order="control_first",
+                engagement_experiment_sequence=1,
+                engagement_question_present=False,
+                engagement_public_text_sha256=hashlib.sha256(
+                    quote_text.encode("utf-8")
+                ).hexdigest(),
+            ),
+            digest_event_line(
+                "2026-08-30 19:56:05",
+                "account_root_posted",
+                lane="quote_image",
+                post_id=post_id,
+                root_post_id=post_id,
+                quote_id=quote_hash,
+                quote_text=quote_text,
+                public_text=quote_text,
+                visible_text_source="public_text",
+            ),
+            "2026-08-30 19:56:06 INFO     post_random_quote:5198 - "
+            f"Quote/image posted successfully. posted_id={post_id}",
+        ],
+    )
+
+    digest = run_digest(base)
+
+    assert digest.returncode == 0, digest.stderr
+    quote_section = digest_markdown_section(digest.stdout, "Quote/image posts")
+    quote_row = next(
+        line for line in quote_section.splitlines() if f"| {post_id} |" in line
+    )
+    assert f"| control | no |  | {quote_text} |" in quote_row
+    activity = digest_markdown_section(
+        digest.stdout, "Engagement-question trial activity"
+    )
+    activity_row = next(
+        line for line in activity.splitlines() if f"| {post_id} |" in line
+    )
+    assert f"| {pair_id} | 1 | control | 1 | no |  | {quote_hash} |" in activity_row
+    assert "Question —" not in quote_row
+
+
+def test_digest_quote_image_ordinary_post_uses_account_root_text(
+    tmp_path: Path,
+) -> None:
+    base = tmp_path / "digest-ordinary-quote-root-text"
+    post_id = "2094000000000000002"
+    quote_hash = "c" * 64
+    quote_text = "An ordinary | quotation keeps its exact public text."
+    write_digest_log(
+        base,
+        [
+            "2026-08-30 20:00:00 INFO     select_quote_candidate:4630 - "
+            f"Selected quote line_no=22 quote_hash={quote_hash} "
+            "weight=1.00 seasonal_boost=False",
+            "2026-08-30 20:00:01 INFO     choose_matched_unused_image:4931 - "
+            "Selected matched image basename=t03.jpg image_no=2 score=8.0 "
+            "components=historical=4.0",
+            digest_event_line(
+                "2026-08-30 20:00:02",
+                "main_post_posted",
+                lane="quote_image",
+                post_id=post_id,
+                line_no=22,
+                image_no=2,
+                image_basename="t03.jpg",
+                image_score=8.0,
+                quote_hash=quote_hash,
+            ),
+            digest_event_line(
+                "2026-08-30 20:00:03",
+                "account_root_posted",
+                lane="quote_image",
+                post_id=post_id,
+                root_post_id=post_id,
+                quote_id=quote_hash,
+                quote_text=quote_text,
+                public_text=quote_text,
+                visible_text_source="public_text",
+            ),
+            "2026-08-30 20:00:04 INFO     post_random_quote:5198 - "
+            f"Quote/image posted successfully. posted_id={post_id}",
+        ],
+    )
+
+    digest = run_digest(base)
+
+    assert digest.returncode == 0, digest.stderr
+    quote_section = digest_markdown_section(digest.stdout, "Quote/image posts")
+    quote_row = next(
+        line for line in quote_section.splitlines() if f"| {post_id} |" in line
+    )
+    assert "An ordinary \\| quotation keeps its exact public text." in quote_row
+    assert quote_row.endswith(
+        "|  |  |  | An ordinary \\| quotation keeps its exact public text. |"
+    )
+    assert "## Engagement-question trial activity" not in digest.stdout
+
+
+def test_digest_engagement_question_correlates_interleaved_post_ids(
+    tmp_path: Path,
+) -> None:
+    base = tmp_path / "digest-engagement-interleaved"
+    post_a = "2094000000000000010"
+    post_b = "2094000000000000020"
+    quote_hash_a = "d" * 64
+    quote_hash_b = "e" * 64
+    plan_sha256 = "f" * 64
+    pair_a = "pair-aaaaaaaaaaaaaaaaaaaaaaaa"
+    pair_b = "pair-bbbbbbbbbbbbbbbbbbbbbbbb"
+    quote_a = "Control text for immutable post A."
+    quote_b = "Treatment text for immutable post B."
+    question_b = "Which evidence belongs only to post B?"
+    public_b = quote_b + "\n\nQuestion — " + question_b
+    write_digest_log(
+        base,
+        [
+            "2026-08-30 20:10:00 INFO     select_quote_candidate:4630 - "
+            f"Selected quote line_no=101 quote_hash={quote_hash_a} "
+            "weight=1.00 seasonal_boost=False",
+            "2026-08-30 20:10:01 INFO     choose_matched_unused_image:4931 - "
+            "Selected matched image basename=t01.jpg image_no=0 score=7.0 "
+            "components=historical=3.0",
+            digest_event_line(
+                "2026-08-30 20:10:02",
+                "main_post_posted",
+                lane="quote_image",
+                post_id=post_a,
+                line_no=101,
+                image_no=0,
+                image_basename="t01.jpg",
+                image_score=7.0,
+                quote_hash=quote_hash_a,
+                engagement_experiment_id="substantive-question-v1",
+                engagement_experiment_arm="control",
+                engagement_experiment_member_position=1,
+                engagement_experiment_pair_id=pair_a,
+                engagement_experiment_plan_sha256=plan_sha256,
+                engagement_experiment_publication_order="control_first",
+                engagement_experiment_sequence=11,
+                engagement_question_present=False,
+            ),
+            digest_event_line(
+                "2026-08-30 20:10:03",
+                "account_root_posted",
+                lane="quote_image",
+                post_id=post_b,
+                root_post_id=post_b,
+                quote_id=quote_hash_b,
+                quote_text=quote_b,
+                public_text=public_b,
+                visible_text_source="public_text",
+            ),
+            digest_event_line(
+                "2026-08-30 20:10:04",
+                "engagement_question_experimental_member_confirmed",
+                arm="control",
+                member_position=1,
+                pair_id=pair_a,
+                plan_sha256=plan_sha256,
+                post_id=post_a,
+                publication_sequence=11,
+            ),
+            digest_event_line(
+                "2026-08-30 20:10:05",
+                "account_root_posted",
+                lane="quote_image",
+                post_id=post_a,
+                root_post_id=post_a,
+                quote_id=quote_hash_a,
+                quote_text=quote_a,
+                public_text=quote_a,
+                visible_text_source="public_text",
+            ),
+            "2026-08-30 20:10:06 INFO     post_random_quote:5198 - "
+            f"Quote/image posted successfully. posted_id={post_a}",
+            "2026-08-30 20:11:00 INFO     select_quote_candidate:4630 - "
+            f"Selected quote line_no=202 quote_hash={quote_hash_b} "
+            "weight=1.00 seasonal_boost=False",
+            "2026-08-30 20:11:01 INFO     choose_matched_unused_image:4931 - "
+            "Selected matched image basename=t02.jpg image_no=1 score=9.0 "
+            "components=historical=5.0",
+            digest_event_line(
+                "2026-08-30 20:11:02",
+                "engagement_question_experimental_member_confirmed",
+                arm="treatment",
+                member_position=2,
+                pair_id=pair_b,
+                plan_sha256=plan_sha256,
+                post_id=post_b,
+                publication_sequence=12,
+            ),
+            digest_event_line(
+                "2026-08-30 20:11:03",
+                "main_post_posted",
+                lane="quote_image",
+                post_id=post_b,
+                line_no=202,
+                image_no=1,
+                image_basename="t02.jpg",
+                image_score=9.0,
+                quote_hash=quote_hash_b,
+                engagement_experiment_id="substantive-question-v1",
+                engagement_experiment_arm="treatment",
+                engagement_experiment_member_position=2,
+                engagement_experiment_pair_id=pair_b,
+                engagement_experiment_plan_sha256=plan_sha256,
+                engagement_experiment_publication_order="control_first",
+                engagement_experiment_sequence=12,
+                engagement_question_present=True,
+            ),
+            "2026-08-30 20:11:04 INFO     post_random_quote:5198 - "
+            f"Quote/image posted successfully. posted_id={post_b}",
+        ],
+    )
+
+    digest = run_digest(base)
+
+    assert digest.returncode == 0, digest.stderr
+    quote_section = digest_markdown_section(digest.stdout, "Quote/image posts")
+    row_a = next(
+        line for line in quote_section.splitlines() if f"| {post_a} |" in line
+    )
+    row_b = next(
+        line for line in quote_section.splitlines() if f"| {post_b} |" in line
+    )
+    assert quote_a in row_a
+    assert "| control | no |" in row_a
+    assert quote_b not in row_a
+    assert question_b not in row_a
+    assert quote_b in row_b
+    assert f"| treatment | yes | {question_b} |" in row_b
+    assert quote_a not in row_b
+    assert pair_a not in row_b
+
+    activity = digest_markdown_section(
+        digest.stdout, "Engagement-question trial activity"
+    )
+    activity_a = next(
+        line for line in activity.splitlines() if f"| {post_a} |" in line
+    )
+    activity_b = next(
+        line for line in activity.splitlines() if f"| {post_b} |" in line
+    )
+    assert f"| {pair_a} | 1 | control | 11 | no |" in activity_a
+    assert f"| {pair_b} | 2 | treatment | 12 | yes | {question_b} |" in activity_b
+
+
+def test_digest_engagement_question_conflicts_are_bounded_and_unresolved(
+    tmp_path: Path,
+) -> None:
+    base = tmp_path / "digest-engagement-conflict"
+    post_id = "2094000000000000030"
+    main_quote_hash = "1" * 64
+    root_quote_hash = "2" * 64
+    plan_sha256 = "3" * 64
+    main_pair = "pair-333333333333333333333333"
+    confirmation_pair = "pair-444444444444444444444444"
+    quote_text = "The account root carries a different quotation identity."
+    public_text = "This public text does not have the required question envelope."
+    write_digest_log(
+        base,
+        [
+            "2026-08-30 20:20:00 INFO     select_quote_candidate:4630 - "
+            f"Selected quote line_no=303 quote_hash={main_quote_hash} "
+            "weight=1.00 seasonal_boost=False",
+            "2026-08-30 20:20:01 INFO     choose_matched_unused_image:4931 - "
+            "Selected matched image basename=t04.jpg image_no=3 score=10.0 "
+            "components=historical=5.0",
+            digest_event_line(
+                "2026-08-30 20:20:02",
+                "engagement_question_experimental_member_confirmed",
+                arm="control",
+                member_position=1,
+                pair_id=confirmation_pair,
+                plan_sha256=plan_sha256,
+                post_id=post_id,
+                publication_sequence=1,
+            ),
+            digest_event_line(
+                "2026-08-30 20:20:03",
+                "main_post_posted",
+                lane="quote_image",
+                post_id=post_id,
+                line_no=303,
+                image_no=3,
+                image_basename="t04.jpg",
+                image_score=10.0,
+                quote_hash=main_quote_hash,
+                engagement_experiment_id="substantive-question-v1",
+                engagement_experiment_arm="treatment",
+                engagement_experiment_member_position=2,
+                engagement_experiment_pair_id=main_pair,
+                engagement_experiment_plan_sha256=plan_sha256,
+                engagement_experiment_publication_order="control_first",
+                engagement_experiment_sequence=2,
+                engagement_question_present=True,
+                engagement_public_text_sha256="5" * 64,
+            ),
+            digest_event_line(
+                "2026-08-30 20:20:04",
+                "account_root_posted",
+                lane="quote_image",
+                post_id=post_id,
+                root_post_id=post_id,
+                quote_id=root_quote_hash,
+                quote_text=quote_text,
+                public_text=public_text,
+                visible_text_source="public_text",
+            ),
+            "2026-08-30 20:20:05 INFO     post_random_quote:5198 - "
+            f"Quote/image posted successfully. posted_id={post_id}",
+        ],
+    )
+
+    digest = run_digest(base)
+
+    assert digest.returncode == 0, digest.stderr
+    quote_section = digest_markdown_section(digest.stdout, "Quote/image posts")
+    quote_row = next(
+        line for line in quote_section.splitlines() if f"| {post_id} |" in line
+    )
+    assert "|  | yes | unavailable/inconsistent |" in quote_row
+    assert public_text in quote_row
+    assert main_pair not in quote_row
+    assert confirmation_pair not in quote_row
+
+    activity = digest_markdown_section(
+        digest.stdout, "Engagement-question trial activity"
+    )
+    assert "### Correlation warnings" in activity
+    assert post_id in activity
+    assert "engagement_arm" in activity
+    assert "engagement_pair_id" in activity
+    assert "quote_hash" in activity
+    assert "public_text_sha256" in activity
+    assert "engagement_question_text" in activity
+    assert "main_post_posted" in activity
+    assert "account_root_posted" in activity
+    assert "engagement_question_experimental_member_confirmed" in activity
+    assert "operational error(s)" not in digest.stdout
+
+    as_json = run_digest(base, as_json=True)
+    assert as_json.returncode == 0, as_json.stderr
+    payload = json.loads(as_json.stdout)
+    quote_event = next(
+        event
+        for event in payload["events"]
+        if event.get("kind") == "quote_image_posted"
+    )
+    assert quote_event["engagement_arm"] == ""
+    assert quote_event["engagement_pair_id"] == ""
+    assert quote_event["engagement_member_position"] is None
+    assert quote_event["engagement_publication_sequence"] is None
+    assert quote_event["engagement_question_present"] is True
+    assert quote_event["engagement_question_text"] is None
+    warnings = payload["engagement_question_trial"]["correlation_warnings"]
+    assert warnings
+    assert all(
+        set(item)
+        <= {"time", "post_id", "field", "event_types", "status", "message"}
+        for item in warnings
+    )
+    assert {item["status"] for item in warnings} <= {"conflict", "unavailable"}
+
+
+def test_digest_engagement_question_window_does_not_backscan_confirmation(
+    tmp_path: Path,
+) -> None:
+    base = tmp_path / "digest-engagement-window-boundary"
+    control_post_id = "2094000000000000040"
+    treatment_post_id = "2094000000000000050"
+    quote_hash = "6" * 64
+    plan_sha256 = "7" * 64
+    pair_id = "pair-777777777777777777777777"
+    quote_text = "Only the treatment member is confirmed inside this event window."
+    question = "Which member was actually observed in this window?"
+    public_text = quote_text + "\n\nQuestion — " + question
+    london = ZoneInfo("Europe/London")
+    control_epoch = int(
+        datetime(2026, 8, 30, 19, 56, 8, tzinfo=london).timestamp()
+    )
+    treatment_epoch = int(
+        datetime(2026, 8, 30, 19, 56, 11, tzinfo=london).timestamp()
+    )
+    approved_question_sha256 = hashlib.sha256(question.encode("utf-8")).hexdigest()
+    notification_document = {
+        "schema_version": 1,
+        "experiment_id": "substantive-question-v1",
+        "plan_sha256": plan_sha256,
+        "post_id": treatment_post_id,
+        "pair_id": pair_id,
+        "treatment_number": 1,
+        "target_treatment_count": 30,
+        "published_epoch": treatment_epoch,
+        "quote_excerpt": quote_text,
+        "question": question,
+        "post_url": f"https://x.com/MrsMThatcher/status/{treatment_post_id}",
+    }
+    notification_sha256 = hashlib.sha256(
+        json.dumps(
+            notification_document,
+            ensure_ascii=False,
+            sort_keys=True,
+            separators=(",", ":"),
+        ).encode("utf-8")
+    ).hexdigest()
+    write_digest_log(
+        base,
+        [
+            digest_event_line(
+                "2026-08-30 19:56:08",
+                "engagement_question_experimental_member_confirmed",
+                arm="control",
+                member_position=1,
+                pair_id=pair_id,
+                plan_sha256=plan_sha256,
+                post_id=control_post_id,
+                publication_sequence=1,
+            ),
+            "2026-08-30 19:56:09 INFO     select_quote_candidate:4630 - "
+            f"Selected quote line_no=404 quote_hash={quote_hash} "
+            "weight=1.00 seasonal_boost=False",
+            "2026-08-30 19:56:10 INFO     choose_matched_unused_image:4931 - "
+            "Selected matched image basename=t05.jpg image_no=4 score=11.0 "
+            "components=historical=6.0",
+            digest_event_line(
+                "2026-08-30 19:56:11",
+                "engagement_question_experimental_member_confirmed",
+                arm="treatment",
+                member_position=2,
+                pair_id=pair_id,
+                plan_sha256=plan_sha256,
+                post_id=treatment_post_id,
+                publication_sequence=2,
+            ),
+            digest_event_line(
+                "2026-08-30 19:56:12",
+                "main_post_posted",
+                lane="quote_image",
+                post_id=treatment_post_id,
+                line_no=404,
+                image_no=4,
+                image_basename="t05.jpg",
+                image_score=11.0,
+                quote_hash=quote_hash,
+                engagement_experiment_id="substantive-question-v1",
+                engagement_experiment_arm="treatment",
+                engagement_experiment_member_position=2,
+                engagement_experiment_pair_id=pair_id,
+                engagement_experiment_plan_sha256=plan_sha256,
+                engagement_experiment_publication_order="control_first",
+                engagement_experiment_sequence=2,
+                engagement_question_present=True,
+            ),
+            digest_event_line(
+                "2026-08-30 19:56:13",
+                "account_root_posted",
+                lane="quote_image",
+                post_id=treatment_post_id,
+                root_post_id=treatment_post_id,
+                quote_id=quote_hash,
+                quote_text=quote_text,
+                public_text=public_text,
+                visible_text_source="public_text",
+            ),
+            "2026-08-30 19:56:14 INFO     post_random_quote:5198 - "
+            f"Quote/image posted successfully. posted_id={treatment_post_id}",
+        ],
+    )
+    write_json(
+        base / "bot_state.json",
+        {
+            "daily_reply_count": 0,
+            "engagement_question_experiment": {
+                "schema_version": 1,
+                "experiment_id": "substantive-question-v1",
+                "active_plan_sha256": plan_sha256,
+                "status": "active",
+                "current_pair_index": 1,
+                "active_pair_id": None,
+                "next_pair_member_position": 1,
+                "completed_pair_count": 1,
+                "confirmed_publications": [
+                    {
+                        "post_id": control_post_id,
+                        "pair_id": pair_id,
+                        "quote_id": "a" * 64,
+                        "arm": "control",
+                        "member_position": 1,
+                        "publication_order": "control_first",
+                        "publication_sequence": 1,
+                        "question_present": False,
+                        "approved_question_sha256": "b" * 64,
+                        "public_text_sha256": "c" * 64,
+                        "published_epoch": control_epoch,
+                        "local_date": "2026-08-30",
+                        "pair_member_gap_seconds": None,
+                    },
+                    {
+                        "post_id": treatment_post_id,
+                        "pair_id": pair_id,
+                        "quote_id": quote_hash,
+                        "arm": "treatment",
+                        "member_position": 2,
+                        "publication_order": "control_first",
+                        "publication_sequence": 2,
+                        "question_present": True,
+                        "approved_question_sha256": approved_question_sha256,
+                        "public_text_sha256": hashlib.sha256(
+                            public_text.encode("utf-8")
+                        ).hexdigest(),
+                        "published_epoch": treatment_epoch,
+                        "local_date": "2026-08-30",
+                        "pair_member_gap_seconds": treatment_epoch - control_epoch,
+                    },
+                ],
+                "last_experimental_publication_local_date": "2026-08-30",
+                "treatment_publication_count": 1,
+                "treatment_notification_identities": [
+                    {
+                        "post_id": treatment_post_id,
+                        "document_sha256": notification_sha256,
+                        "delivered": True,
+                        "document": notification_document,
+                    }
+                ],
+                "current_deferral_reason": None,
+            }
+        },
+    )
+
+    digest = run_digest(base, since="2026-08-30 19:56:09")
+
+    assert digest.returncode == 0, digest.stderr
+    activity = digest_markdown_section(
+        digest.stdout, "Engagement-question trial activity"
+    )
+    assert treatment_post_id in activity
+    assert control_post_id not in activity
+    assert "| 2 | treatment | 2 | yes |" in activity
+    assert "pair completed in" not in activity.lower()
+    assert "### Current engagement-question trial state" in digest.stdout
+    assert "Compact authoritative current `bot_state.json` state" in digest.stdout
+    assert "| completed_pair_count | 1 |" in digest.stdout
+    assert "| confirmed_publication_count | 2 |" in digest.stdout
+
+
+def test_digest_engagement_question_json_matches_markdown_publication(
+    tmp_path: Path,
+) -> None:
+    base = tmp_path / "digest-engagement-json"
+    fixture = write_treatment_quote_digest_fixture(base)
+
+    digest = run_digest(base, as_json=True)
+
+    assert digest.returncode == 0, digest.stderr
+    payload = json.loads(digest.stdout)
+    quote_event = next(
+        event
+        for event in payload["events"]
+        if event.get("kind") == "quote_image_posted"
+    )
+    assert quote_event["post_id"] == fixture["post_id"]
+    assert quote_event["line_no"] == 398
+    assert quote_event["image_basename"] == "t12.jpg"
+    assert quote_event["quote_hash"] == fixture["quote_hash"]
+    assert quote_event["text"] == fixture["public_text"]
+    assert quote_event["public_text"] == fixture["public_text"]
+    assert quote_event["quote_text"] == fixture["quote_text"]
+    assert quote_event["engagement_experiment_id"] == "substantive-question-v1"
+    assert quote_event["engagement_plan_sha256"] == fixture["plan_sha256"]
+    assert quote_event["engagement_pair_id"] == fixture["pair_id"]
+    assert quote_event["engagement_member_position"] == 2
+    assert quote_event["engagement_arm"] == "treatment"
+    assert quote_event["engagement_publication_order"] == "control_first"
+    assert quote_event["engagement_publication_sequence"] == 2
+    assert quote_event["engagement_question_present"] is True
+    assert quote_event["engagement_question_text"] == fixture["question"]
+    assert "t.co" not in quote_event["text"]
+
+    trial = payload["engagement_question_trial"]
+    assert trial["correlation_warnings"] == []
+    publication = trial["confirmed_publications"]
+    assert len(publication) == 1
+    assert publication[0]["post_id"] == fixture["post_id"]
+    assert publication[0]["pair_id"] == fixture["pair_id"]
+    assert publication[0]["member_position"] == 2
+    assert publication[0]["arm"] == "treatment"
+    assert publication[0]["publication_sequence"] == 2
+    assert publication[0]["question_present"] is True
+    assert publication[0]["question"] == fixture["question"]
+    assert publication[0]["public_text"] == fixture["public_text"]
+
+
+def test_digest_engagement_question_current_state_is_compact_and_unknown_safe(
+    tmp_path: Path,
+) -> None:
+    base = tmp_path / "digest-engagement-current-state"
+    plan_sha256 = "8" * 64
+    pair_id = "pair-888888888888888888888888"
+    write_digest_log(
+        base,
+        ["2026-08-30 21:00:00 INFO     main:6000 - Main loop sleeping"],
+    )
+    write_json(
+        base / "bot_state.json",
+        {
+            "daily_reply_count": 0,
+            "engagement_question_experiment": {
+                "schema_version": 1,
+                "experiment_id": "substantive-question-v1",
+                "active_plan_sha256": plan_sha256,
+                "status": "active",
+                "current_pair_index": 0,
+                "active_pair_id": pair_id,
+                "next_pair_member_position": 1,
+                "completed_pair_count": 0,
+                "confirmed_publications": [],
+                "last_experimental_publication_local_date": None,
+                "treatment_publication_count": 0,
+                "treatment_notification_identities": [],
+                "current_deferral_reason": {
+                    "code": "quote_specific_image_unavailable",
+                    "pair_id": pair_id,
+                    "member_position": 1,
+                    "recorded_epoch": 1788123600,
+                },
+            }
+        },
+    )
+
+    digest = run_digest(base)
+
+    assert digest.returncode == 0, digest.stderr
+    assert "### Current engagement-question trial state" in digest.stdout
+    assert "Compact authoritative current `bot_state.json` state" in digest.stdout
+    assert "| experiment_id | substantive-question-v1 |" in digest.stdout
+    assert f"| active_plan_sha256 | {plan_sha256} |" in digest.stdout
+    assert "| status | active |" in digest.stdout
+    assert "| current_pair_index | 0 |" in digest.stdout
+    assert f"| active_pair_id | {pair_id} |" in digest.stdout
+    assert "| next_pair_member_position | 1 |" in digest.stdout
+    assert "| completed_pair_count | 0 |" in digest.stdout
+    assert "| confirmed_publication_count | 0 |" in digest.stdout
+    assert "| treatment_publication_count | 0 |" in digest.stdout
+    assert "| last_experimental_publication_local_date |  |" in digest.stdout
+    assert "quote_specific_image_unavailable" in digest.stdout
+    assert "confirmed_publications" not in digest.stdout
+    assert "treatment_notification_identities" not in digest.stdout
+
+    json_digest = run_digest(base, as_json=True)
+    assert json_digest.returncode == 0, json_digest.stderr
+    compact = json.loads(json_digest.stdout)["latest_state"][
+        "engagement_question_experiment"
+    ]
+    assert compact["confirmed_publication_count"] == 0
+    assert compact["treatment_publication_count"] == 0
+    assert "confirmed_publications" not in compact
+    assert "treatment_notification_identities" not in compact
+    assert compact["current_deferral_reason"] == {
+        "code": "quote_specific_image_unavailable",
+        "pair_id": pair_id,
+        "member_position": 1,
+        "recorded_epoch": 1788123600,
+    }
+
+    missing_base = tmp_path / "digest-engagement-current-state-missing"
+    write_digest_log(
+        missing_base,
+        ["2026-08-30 21:01:00 INFO     main:6000 - Main loop sleeping"],
+    )
+    write_json(
+        missing_base / "bot_state.json",
+        {
+            "daily_reply_count": 0,
+            "engagement_question_experiment": {
+                "schema_version": 1,
+                "experiment_id": "substantive-question-v1",
+                "status": "invalid",
+                "current_deferral_reason": {
+                    "code": "configured_plan_unavailable_or_invalid"
+                },
+            }
+        },
+    )
+    missing_digest = run_digest(missing_base)
+    assert missing_digest.returncode == 0, missing_digest.stderr
+    assert (
+        "| confirmed_publication_count | unknown (not present in latest snapshot) |"
+        in missing_digest.stdout
+    )
+    assert (
+        "| treatment_publication_count | unknown (not present in latest snapshot) |"
+        in missing_digest.stdout
+    )
+    assert "| confirmed_publication_count | 0 |" not in missing_digest.stdout
+    assert "| treatment_publication_count | 0 |" not in missing_digest.stdout
+
+
+def test_digest_engagement_question_reports_invalidation_and_deferral_outcomes(
+    tmp_path: Path,
+) -> None:
+    base = tmp_path / "digest-engagement-outcomes"
+    plan_sha256 = "9" * 64
+    pair_id = "pair-999999999999999999999999"
+    post_id = "2094000000000000090"
+    write_digest_log(
+        base,
+        [
+            digest_event_line(
+                "2026-08-30 21:10:00",
+                "engagement_question_experimental_member_deferred",
+                experiment_id="substantive-question-v1",
+                plan_sha256=plan_sha256,
+                pair_id=pair_id,
+                member_position=2,
+                reason="quote_specific_image_unavailable",
+            ),
+            digest_event_line(
+                "2026-08-30 21:11:00",
+                "engagement_question_experiment_invalid",
+                experiment_id="substantive-question-v1",
+                plan_sha256=plan_sha256,
+                reason="pre_write_authority_changed",
+                started=True,
+                exception_class="ExperimentValidationError",
+                authority_component="public_payload",
+            ),
+            digest_event_line(
+                "2026-08-30 21:12:00",
+                "engagement_question_treatment_notification_write_failed",
+                experiment_id="substantive-question-v1",
+                post_id=post_id,
+            ),
+        ],
+    )
+
+    digest = run_digest(base)
+
+    assert digest.returncode == 0, digest.stderr
+    activity = digest_markdown_section(
+        digest.stdout, "Engagement-question trial activity"
+    )
+    assert "No confirmed experimental publication was observed in this window." in activity
+    assert "### Invalidation, deferral, and notification outcomes" in activity
+    assert "engagement_question_experimental_member_deferred" in activity
+    assert pair_id in activity
+    assert "quote_specific_image_unavailable" in activity
+    assert "engagement_question_experiment_invalid" in activity
+    assert "pre_write_authority_changed" in activity
+    assert "engagement_question_treatment_notification_write_failed" in activity
+    assert post_id in activity
+
+    json_digest = run_digest(base, as_json=True)
+    assert json_digest.returncode == 0, json_digest.stderr
+    outcomes = json.loads(json_digest.stdout)["engagement_question_trial"]["outcomes"]
+    assert [item["event"] for item in outcomes] == [
+        "engagement_question_experimental_member_deferred",
+        "engagement_question_experiment_invalid",
+        "engagement_question_treatment_notification_write_failed",
+    ]
+    assert outcomes[0]["pair_id"] == pair_id
+    assert outcomes[0]["member_position"] == 2
+    assert outcomes[0]["reason"] == "quote_specific_image_unavailable"
+    assert outcomes[1]["reason"] == "pre_write_authority_changed"
+    assert outcomes[2]["post_id"] == post_id
 
 
 def test_digest_latest_state_counts_do_not_default_missing_lists_to_zero(tmp_path: Path) -> None:
