@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Build and verify the read-only proposition-ledger Phase 1 evidence pack.
+"""Build and verify the read-only proposition-ledger Phase 1.1 preflight pack.
 
 The tool deliberately has no production-module imports and no network or model
 client. All source locations are explicit, frozen inputs. Conversation text is
@@ -9,6 +9,7 @@ written only beneath the caller-supplied mode-0700 private output directory.
 from __future__ import annotations
 
 import argparse
+import ast
 import copy
 import csv
 import hashlib
@@ -19,6 +20,7 @@ import os
 import re
 import stat
 import sys
+import tempfile
 from collections import Counter, defaultdict
 from datetime import datetime, timezone
 from pathlib import Path
@@ -26,9 +28,15 @@ from typing import Any, Iterable, Mapping, Sequence
 
 
 LEDGER_SCHEMA_VERSION = "proposition-ledger-v1.0.0"
-EXPERIMENT_SCHEMA_VERSION = "proposition-ledger-experiment-v1.0.0"
+SEMANTIC_DELTA_SCHEMA_VERSION = "proposition-ledger-semantic-delta-v1.0.0"
+EXPERIMENT_SCHEMA_VERSION = "proposition-ledger-experiment-v1.1.0"
 SOURCE_MANIFEST_VERSION = "proposition-ledger-phase1-source-manifest-v1"
-OUTPUT_SCHEMA_VERSION = "proposition-ledger-phase1-output-v1"
+OUTPUT_SCHEMA_VERSION = "proposition-ledger-phase1.1-output-v1"
+PHASE1_BASE_SHA = "cc2f86f135524b995fa2f332d2a9de3aa91e2b22"
+FRESH_BUILD_DETERMINISM_EVIDENCE = (
+    "two fresh full private-directory builds compared byte-for-byte; "
+    "only run path/timestamp metadata was isolated"
+)
 ZERO_SHA256 = "0" * 64
 SHA256_RE = re.compile(r"^[0-9a-f]{64}$")
 RAW_ID_KEYS = {
@@ -68,6 +76,49 @@ ALL_EXPOSURE_STATUSES = EXPOSED_STATUSES | {
     "structurally_mined_only",
     "unexposed_candidate",
 }
+OUTCOME_EVIDENCE_CLASSES = (
+    "confirmed_published_reply",
+    "confirmed_pipeline_terminal_no_reply",
+    "confirmed_local_skip",
+    "quiescent_unreplied_tip_outcome_unknown",
+    "outcome_evidence_unavailable",
+    "conflicting_outcome_evidence",
+)
+OUTCOME_TARGET_ID_FIELDS = {
+    "confirmed_published_reply": "published_reply_target_turn_ids",
+    "confirmed_pipeline_terminal_no_reply": (
+        "confirmed_pipeline_terminal_no_reply_target_turn_ids"
+    ),
+    "confirmed_local_skip": "confirmed_local_skip_target_turn_ids",
+    "quiescent_unreplied_tip_outcome_unknown": (
+        "quiescent_unreplied_tip_outcome_unknown_target_turn_ids"
+    ),
+    "outcome_evidence_unavailable": (
+        "outcome_evidence_unavailable_target_turn_ids"
+    ),
+    "conflicting_outcome_evidence": (
+        "conflicting_outcome_evidence_target_turn_ids"
+    ),
+}
+TARGET_STRUCTURAL_EXCLUSION_REASONS = (
+    "declared_root_identity_unavailable",
+    "target_absent_from_canonical_conversation",
+    "target_role_not_user",
+    "target_post_identity_missing",
+    "target_ancestry_cycle",
+    "target_ancestry_does_not_reach_declared_root",
+    "target_prefix_parent_graph_ambiguous_or_incomplete",
+    "target_prefix_text_incomplete",
+    "target_prefix_immutable_identity_incomplete",
+    "target_prefix_role_assignment_incomplete",
+    "target_prefix_turn_order_ambiguous",
+)
+STABILITY_STATUSES = (
+    "frozen_historical",
+    "quiescent_at_frozen_cutoff",
+    "open_at_frozen_cutoff",
+    "stability_unknown",
+)
 PROPOSITION_LIFECYCLE_TRANSITIONS = {
     "introduced": {"live", "challenged", "qualified", "conceded", "withdrawn", "resolved", "superseded", "abandoned"},
     "live": {"challenged", "qualified", "conceded", "withdrawn", "resolved", "superseded", "abandoned"},
@@ -660,8 +711,10 @@ def validate_ledger(
                 if proposition and proposition.get("proposition_group_id") != group.get("proposition_group_id"):
                     errors.append(f"nonreciprocal_group_membership:{group.get('proposition_group_id')}:{proposition_id}")
         if group.get("structure_type") == "compound_accusation":
-            member_roles = {member.get("role") for member in members}
-            if len(member_ids) < 3 or not {"conduct", "cause", "motive"}.issubset(member_roles):
+            # A compound accusation preserves each evidenced component, but
+            # the transcript need not allege motive.  Two distinct members are
+            # sufficient; duplicate identifiers/ordinals are rejected above.
+            if len(member_ids) < 2:
                 errors.append(f"compound_collapse:{group.get('proposition_group_id')}")
     for proposition in ledger.get("propositions", []):
         group_id = proposition.get("proposition_group_id")
@@ -1001,6 +1054,105 @@ def validate_ledger(
     expected_hash = ledger_sha256(ledger)
     if ledger.get("ledger_sha256") != expected_hash:
         errors.append("ledger_hash_mismatch")
+    return sorted(set(errors))
+
+
+def validate_ledger_incremental(
+    ledger: Mapping[str, Any],
+    previous_ledger: Mapping[str, Any],
+    current_turn: Mapping[str, Any],
+    schema: Mapping[str, Any],
+) -> list[str]:
+    """Validate one appended snapshot from a trusted validated predecessor.
+
+    The persisted predecessor deliberately contains hashes rather than prior
+    raw transcript text.  This wrapper therefore preserves every predecessor
+    turn reference and evidence span byte-for-byte, validates newly introduced
+    evidence only against the exact current turn, and delegates all remaining
+    schema, reference, lifecycle, state-patch, predecessor, and ledger-hash
+    checks to :func:`validate_ledger`.
+    """
+    errors: list[str] = []
+    previous_turn_refs = list(previous_ledger.get("turn_refs", []))
+    candidate_turn_refs = list(ledger.get("turn_refs", []))
+    if not isinstance(current_turn.get("text"), str):
+        return ["incremental_current_turn_text_missing"]
+    previous_as_of = previous_ledger.get("as_of_turn_index")
+    if not isinstance(previous_as_of, int):
+        return ["incremental_previous_boundary_invalid"]
+    expected_index = previous_as_of + 1
+    expected_current_ref = {
+        "turn_id": current_turn.get("turn_id"),
+        "turn_index": expected_index,
+        "post_id": current_turn.get("post_id"),
+        "parent_turn_id": current_turn.get("parent_turn_id"),
+        "speaker_id": current_turn.get("speaker_id"),
+        "text_sha256": sha256_bytes(str(current_turn["text"]).encode("utf-8")),
+    }
+    if candidate_turn_refs != [*previous_turn_refs, expected_current_ref]:
+        errors.append("incremental_turn_refs_not_exact_predecessor_plus_current")
+    if ledger.get("target_turn_id") != current_turn.get("turn_id"):
+        errors.append("incremental_target_turn_binding_mismatch")
+    if ledger.get("as_of_turn_index") != expected_index:
+        errors.append("incremental_target_index_binding_mismatch")
+    current_conversation = current_turn.get("conversation_key")
+    if current_conversation is not None and current_conversation != ledger.get("conversation_key"):
+        errors.append("incremental_conversation_binding_mismatch")
+
+    previous_span_material = Counter(
+        canonical_json_bytes(dict(span))
+        for _, span in _all_evidence_spans(previous_ledger)
+    )
+    candidate_span_material = Counter(
+        canonical_json_bytes(dict(span)) for _, span in _all_evidence_spans(ledger)
+    )
+    for material, count in previous_span_material.items():
+        if candidate_span_material[material] < count:
+            errors.append("incremental_predecessor_evidence_removed_or_changed")
+            break
+    prior_turn_ids = {
+        str(turn.get("turn_id") or "") for turn in previous_turn_refs
+    }
+    introduced_spans = candidate_span_material - previous_span_material
+    for material, count in introduced_spans.items():
+        span = json.loads(material.decode("utf-8"))
+        if count and str(span.get("turn_id") or "") in prior_turn_ids:
+            errors.append("incremental_new_evidence_references_prior_turn")
+
+    synthetic_turns: list[dict[str, Any]] = []
+    for turn_ref in candidate_turn_refs:
+        turn_id = str(turn_ref.get("turn_id") or "")
+        synthetic_turns.append(
+            {
+                "turn_id": turn_id,
+                "turn_index": turn_ref.get("turn_index"),
+                "post_id": turn_ref.get("post_id"),
+                "text": current_turn["text"]
+                if turn_id == str(current_turn.get("turn_id") or "")
+                else "",
+            }
+        )
+    delegated = validate_ledger(
+        ledger,
+        {
+            "conversation_key": ledger.get("conversation_key"),
+            "turns": synthetic_turns,
+        },
+        schema,
+        _immediate_previous=previous_ledger,
+        _validate_history=False,
+    )
+    for error in delegated:
+        if any(
+            error == f"turn_text_hash_mismatch:{turn_id}"
+            for turn_id in prior_turn_ids
+        ):
+            continue
+        if error.startswith(("evidence_span_out_of_bounds:", "evidence_span_mismatch:")) and any(
+            f":{turn_id}:" in error for turn_id in prior_turn_ids
+        ):
+            continue
+        errors.append(error)
     return sorted(set(errors))
 
 
@@ -1713,6 +1865,7 @@ def _assign_reconstruction_grade(
         immutable_post_identity_complete,
         role_assignment_complete,
         chronology_complete,
+        turn_order_unambiguous,
         account_publication_confirmed,
         root_identity_complete,
         parent_graph_unambiguous,
@@ -1726,7 +1879,6 @@ def _assign_reconstruction_grade(
         exact_text_complete,
         immutable_post_identity_complete,
         role_assignment_complete,
-        turn_order_unambiguous,
         account_publication_confirmed,
         parent_graph_unambiguous,
         complete_prefix_through_targets,
@@ -1736,6 +1888,8 @@ def _assign_reconstruction_grade(
     limited_gaps: list[str] = []
     if not chronology_complete:
         limited_gaps.append("one_limited_timing_gap")
+    if not turn_order_unambiguous:
+        limited_gaps.append("one_limited_turn_order_gap")
     if not root_identity_complete:
         limited_gaps.append("one_limited_root_identity_gap")
     if reconstruction_confidence == "medium":
@@ -1758,7 +1912,7 @@ def _published_reply_target_turns(turns: Sequence[Mapping[str, Any]]) -> set[str
     return target_turn_ids
 
 
-def _quiescent_terminal_no_reply_target(
+def _quiescent_unreplied_tip_target(
     candidate: Mapping[str, Any],
     record: Mapping[str, Any],
     conversation_turns: Sequence[Mapping[str, Any]],
@@ -1796,6 +1950,243 @@ def _quiescent_terminal_no_reply_target(
     if target_turn_id in set(record.get("published_reply_target_turn_ids", [])):
         return None
     return target_turn_id
+
+
+def _outcome_event_reason(event: Mapping[str, Any]) -> str | None:
+    """Return the most specific retained structured outcome reason."""
+    for field in (
+        "effective_reason",
+        "terminal_reason",
+        "deterministic_reason",
+        "original_local_rejection_reason",
+    ):
+        value = event.get(field)
+        if isinstance(value, str) and value:
+            return value
+    return None
+
+
+def _deduplicated_pipeline_events(target: Mapping[str, Any]) -> list[tuple[str, int, Mapping[str, Any]]]:
+    """Return target-bound structured events without duplicated tested aliases."""
+    events: list[tuple[str, int, Mapping[str, Any]]] = []
+    seen: set[bytes] = set()
+    for collection in ("pipeline_stage_summaries", "tested_pipeline_stage_summaries"):
+        values = target.get(collection) or []
+        if not isinstance(values, list):
+            continue
+        for index, event in enumerate(values):
+            if not isinstance(event, Mapping):
+                continue
+            identity = canonical_json_bytes(dict(event))
+            if identity in seen:
+                continue
+            seen.add(identity)
+            events.append((collection, index, event))
+    return events
+
+
+def _classify_target_outcome(
+    target: Mapping[str, Any],
+    record: Mapping[str, Any],
+    conversation_turns: Sequence[Mapping[str, Any]],
+    candidate: Mapping[str, Any] | None,
+) -> dict[str, Any]:
+    """Classify one target using only exact target-bound retained evidence."""
+    target_turn_id = str(target.get("turn_id") or "")
+    target_post_id = str(target.get("post_id") or "")
+    source_ids = [str(value) for value in record.get("source_ids", [])]
+    published: list[dict[str, Any]] = []
+    for turn in conversation_turns:
+        if (
+            turn.get("author_role") == "account"
+            and turn.get("publication_status") in {"published", "observed"}
+            and str(_parent_post_id(turn) or "") == target_post_id
+        ):
+            published.append(
+                {
+                    "record_ref": f"account-reply-turn:{turn.get('turn_id')}",
+                    "reason": "exact_parent_linked_account_reply_with_confirmed_or_observed_publication",
+                    "strategy_version": None,
+                    "timestamp": turn.get("timestamp")
+                    or turn.get("created_at")
+                    or turn.get("first_observed_at"),
+                }
+            )
+
+    pipeline_terminal: list[dict[str, Any]] = []
+    local_skip: list[dict[str, Any]] = []
+    approved_decisions: list[dict[str, Any]] = []
+    for collection, index, event in _deduplicated_pipeline_events(target):
+        reason = _outcome_event_reason(event)
+        ref = str(event.get("event_id") or f"{target_turn_id}:{collection}:{index}")
+        retained = {
+            "record_ref": ref,
+            "reason": reason,
+            "strategy_version": event.get("strategy_version"),
+            "timestamp": event.get("observed_at"),
+        }
+        no_reply_status = (
+            event.get("status") == "no_reply"
+            or event.get("effective_status") == "no_reply"
+            or event.get("pipeline_stage_status") == "no_reply"
+            or event.get("final_reply_kind") == "no_reply"
+        )
+        local_status = any(
+            event.get(field)
+            in {"candidate_terminal", "local_rejection", "local_skip"}
+            for field in ("status", "effective_status", "pipeline_stage_status")
+        )
+        local_reason = isinstance(reason, str) and reason.startswith("writer_local_rejection:")
+        is_local_skip = (
+            event.get("event_kind") == "reply_strategy_local_rejection"
+            or local_status
+            or (
+                no_reply_status
+                and (event.get("deterministic_suppressed") is True or local_reason)
+            )
+        )
+        is_pipeline_terminal = no_reply_status and (
+            (
+                event.get("event_kind") == "ai_reply_pipeline_decision"
+                and event.get("reviewer_verdict")
+                in {"confirm_no_reply", "pipeline_no_reply"}
+            )
+            or (
+                event.get("event_kind") == "ai_reply_pipeline_stage_summary"
+                and event.get("status") == "no_reply"
+                and reason is not None
+            )
+        )
+        if is_local_skip:
+            # A successful repair may retain an original rejection reason, so
+            # that field alone cannot prove a terminal local skip.  Once an
+            # exact local terminal record is established above, however, it is
+            # the source-faithful skip reason to preserve.
+            local_skip.append(
+                {
+                    **retained,
+                    "reason": event.get("original_local_rejection_reason")
+                    or reason,
+                }
+            )
+        elif is_pipeline_terminal:
+            pipeline_terminal.append(retained)
+        if (
+            event.get("event_kind") == "ai_reply_pipeline_decision"
+            and event.get("status") == "approved"
+            and not is_local_skip
+        ):
+            approved_decisions.append(retained)
+
+    def result(
+        outcome_class: str,
+        status: str,
+        evidence: Sequence[Mapping[str, Any]],
+        *,
+        default_reason: str | None,
+        conflict_details: Mapping[str, Any] | None = None,
+    ) -> dict[str, Any]:
+        selected = next((item for item in reversed(evidence) if item.get("reason")), None)
+        if selected is None and evidence:
+            selected = evidence[-1]
+        return {
+            "outcome_evidence_class": outcome_class,
+            "outcome_evidence_status": status,
+            "outcome_evidence_source_ids": sorted(set(source_ids)),
+            "outcome_evidence_record_refs": sorted(
+                {str(item["record_ref"]) for item in evidence if item.get("record_ref")}
+            ),
+            "outcome_reason": selected.get("reason") if selected and selected.get("reason") else default_reason,
+            "outcome_strategy_version": selected.get("strategy_version") if selected else None,
+            "outcome_timestamp": selected.get("timestamp") if selected else None,
+            "outcome_conflict_details": copy.deepcopy(conflict_details),
+        }
+
+    no_reply_evidence = [*local_skip, *pipeline_terminal]
+    if published and no_reply_evidence:
+        evidence = [*published, *no_reply_evidence]
+        return result(
+            "conflicting_outcome_evidence",
+            "conflicting_authoritative_evidence",
+            evidence,
+            default_reason=None,
+            conflict_details={
+                "published_reply_record_refs": sorted(item["record_ref"] for item in published),
+                "no_reply_record_refs": sorted(item["record_ref"] for item in no_reply_evidence),
+            },
+        )
+    if local_skip and pipeline_terminal:
+        evidence = [*local_skip, *pipeline_terminal]
+        return result(
+            "conflicting_outcome_evidence",
+            "conflicting_structured_no_reply_evidence",
+            evidence,
+            default_reason=None,
+            conflict_details={
+                "local_skip_record_refs": sorted(
+                    item["record_ref"] for item in local_skip
+                ),
+                "pipeline_terminal_no_reply_record_refs": sorted(
+                    item["record_ref"] for item in pipeline_terminal
+                ),
+            },
+        )
+    if no_reply_evidence and approved_decisions:
+        evidence = [*no_reply_evidence, *approved_decisions]
+        return result(
+            "conflicting_outcome_evidence",
+            "conflicting_structured_pipeline_evidence",
+            evidence,
+            default_reason=None,
+            conflict_details={
+                "approved_decision_record_refs": sorted(item["record_ref"] for item in approved_decisions),
+                "no_reply_record_refs": sorted(item["record_ref"] for item in no_reply_evidence),
+            },
+        )
+    if published:
+        return result(
+            "confirmed_published_reply",
+            "confirmed",
+            published,
+            default_reason="exact_parent_linked_account_reply_with_confirmed_or_observed_publication",
+        )
+    if local_skip:
+        return result(
+            "confirmed_local_skip",
+            "confirmed",
+            local_skip,
+            default_reason="exact_target_bound_structured_local_skip",
+        )
+    if pipeline_terminal:
+        return result(
+            "confirmed_pipeline_terminal_no_reply",
+            "confirmed",
+            pipeline_terminal,
+            default_reason="exact_target_bound_final_pipeline_no_reply",
+        )
+    unknown_target = (
+        _quiescent_unreplied_tip_target(candidate, record, conversation_turns)
+        if candidate is not None
+        else None
+    )
+    if unknown_target == target_turn_id and not approved_decisions:
+        return result(
+            "quiescent_unreplied_tip_outcome_unknown",
+            "observed_without_decision_evidence",
+            [],
+            default_reason="quiescent_unreplied_user_tip_without_structured_outcome_evidence",
+        )
+    unavailable_reason = (
+        "pipeline_approval_without_confirmed_publication_outcome"
+        if approved_decisions
+        else None
+    )
+    return result(
+        "outcome_evidence_unavailable",
+        "retained_sources_do_not_establish_usable_outcome",
+        approved_decisions,
+        default_reason=unavailable_reason,
+    )
 
 
 def _conversation_record_from_benchmark(
@@ -1912,7 +2303,11 @@ def _conversation_record_from_benchmark(
         "source_provenance": row.get("source_provenance", []),
         "graph_reconciliation": reconciliation,
         "published_reply_target_turn_ids": sorted(_published_reply_target_turns(turns)),
-        "terminal_no_reply_target_turn_ids": [],
+        "confirmed_pipeline_terminal_no_reply_target_turn_ids": [],
+        "confirmed_local_skip_target_turn_ids": [],
+        "quiescent_unreplied_tip_outcome_unknown_target_turn_ids": [],
+        "outcome_evidence_unavailable_target_turn_ids": [],
+        "conflicting_outcome_evidence_target_turn_ids": [],
     }
     return record, turns
 
@@ -1997,7 +2392,11 @@ def _conversation_record_from_prospective(row: Mapping[str, Any]) -> tuple[dict[
         "graph_reconciliation": [],
         "activity_status": row.get("activity_status"),
         "published_reply_target_turn_ids": sorted(_published_reply_target_turns(turns)),
-        "terminal_no_reply_target_turn_ids": [],
+        "confirmed_pipeline_terminal_no_reply_target_turn_ids": [],
+        "confirmed_local_skip_target_turn_ids": [],
+        "quiescent_unreplied_tip_outcome_unknown_target_turn_ids": [],
+        "outcome_evidence_unavailable_target_turn_ids": [],
+        "conflicting_outcome_evidence_target_turn_ids": [],
     }
     return record, turns
 
@@ -2115,9 +2514,226 @@ def _record_with_hash(row: Mapping[str, Any]) -> dict[str, Any]:
     return result
 
 
+def _target_candidate_map(
+    manifest: Mapping[str, Any],
+    known_conversation_keys: set[str],
+) -> dict[tuple[str, str], Mapping[str, Any]]:
+    """Load the exact frozen prospective target candidates without omissions."""
+    candidates: dict[tuple[str, str], Mapping[str, Any]] = {}
+    for index, candidate in enumerate(
+        _read_jsonl(_source_path(manifest, "prospective_review_candidates"))
+    ):
+        conversation_key = str(candidate.get("conversation_key") or "")
+        path_turns = candidate.get("path_turns") or []
+        if not conversation_key or conversation_key not in known_conversation_keys:
+            raise Phase1Error(
+                f"prospective target candidate has no canonical conversation: row {index}"
+            )
+        if not isinstance(path_turns, list) or not path_turns:
+            raise Phase1Error(
+                f"prospective target candidate has no target path: {conversation_key}:row-{index}"
+            )
+        target = path_turns[-1]
+        target_turn_id = str(target.get("turn_id") or "")
+        target_post_id = str(target.get("post_id") or "")
+        if not target_turn_id or not target_post_id:
+            raise Phase1Error(
+                "prospective review candidate tip lacks an exact identity: "
+                f"{conversation_key}:row-{index}"
+            )
+        for branch_tip_field in ("branch_tip_post_id", "source_branch_tip_post_id"):
+            if str(candidate.get(branch_tip_field) or "") != target_post_id:
+                raise Phase1Error(
+                    "prospective review candidate tip identity is inconsistent: "
+                    f"{conversation_key}:row-{index}:{branch_tip_field}"
+                )
+        if target.get("author_role") == "account":
+            # Review candidates also retain completed account-tip branches.  They
+            # are validated source rows, but they are not user target prefixes.
+            if target.get("publication_status") not in {"published", "observed"}:
+                raise Phase1Error(
+                    "prospective account-tip review candidate lacks confirmed "
+                    f"publication: {conversation_key}:row-{index}"
+                )
+            continue
+        if target.get("author_role") != "user":
+            raise Phase1Error(
+                "prospective target candidate tip has no exact user role: "
+                f"{conversation_key}:row-{index}"
+            )
+        key = (conversation_key, target_turn_id)
+        if (
+            key in candidates
+            and canonical_json_bytes(candidates[key])
+            != canonical_json_bytes(candidate)
+        ):
+            raise Phase1Error(
+                f"ambiguous prospective target candidate: {conversation_key}:{target_turn_id}"
+            )
+        candidates[key] = candidate
+    return candidates
+
+
+def _source_target_pairs(
+    records: Sequence[Mapping[str, Any]],
+    turns_by_conversation: Mapping[str, Sequence[Mapping[str, Any]]],
+    candidates: Mapping[tuple[str, str], Mapping[str, Any]],
+) -> set[tuple[str, str]]:
+    """Derive the frozen target universe independently from source evidence."""
+    pairs = set(candidates)
+    for record in records:
+        conversation_key = str(record["conversation_key"])
+        pairs.update(
+            (conversation_key, target_turn_id)
+            for target_turn_id in _published_reply_target_turns(
+                turns_by_conversation[conversation_key]
+            )
+        )
+    return pairs
+
+
+def _declared_target_pairs(
+    records: Sequence[Mapping[str, Any]],
+) -> set[tuple[str, str]]:
+    """Return the target universe frozen on the conversation audit rows."""
+    pairs: set[tuple[str, str]] = set()
+    for record in records:
+        conversation_key = str(record.get("conversation_key") or "")
+        expected_ids = record.get("expected_target_turn_ids")
+        if not conversation_key or not isinstance(expected_ids, list):
+            raise Phase1Error(
+                f"conversation lacks an expected target universe: {conversation_key!r}"
+            )
+        for value in expected_ids:
+            target_turn_id = str(value or "")
+            if not target_turn_id:
+                raise Phase1Error(
+                    f"conversation has an empty expected target identity: {conversation_key}"
+                )
+            pairs.add((conversation_key, target_turn_id))
+    return pairs
+
+
+def _target_partition_errors(
+    expected_pairs: set[tuple[str, str]],
+    rows: Sequence[Mapping[str, Any]],
+    structural_exclusions: Sequence[Mapping[str, Any]],
+) -> list[str]:
+    """Validate the usable/excluded partition of all potential source targets."""
+    usable_pairs = [
+        (str(row.get("conversation_key") or ""), str(row.get("target_turn_id") or ""))
+        for row in rows
+    ]
+    excluded_pairs = [
+        (str(row.get("conversation_key") or ""), str(row.get("target_turn_id") or ""))
+        for row in structural_exclusions
+    ]
+    usable_set = set(usable_pairs)
+    excluded_set = set(excluded_pairs)
+    actual_set = usable_set | excluded_set
+    errors: list[str] = []
+    if len(usable_pairs) != len(usable_set):
+        errors.append("target_partition_duplicate_usable_pair")
+    if len(excluded_pairs) != len(excluded_set):
+        errors.append("target_partition_duplicate_excluded_pair")
+    if usable_set & excluded_set:
+        errors.append("target_partition_usable_excluded_overlap")
+    if expected_pairs - actual_set:
+        errors.append("target_partition_missing_expected_pair")
+    if actual_set - expected_pairs:
+        errors.append("target_partition_unexpected_pair")
+    return errors
+
+
+def _target_universe_errors(
+    expected_pairs: set[tuple[str, str]],
+    rows: Sequence[Mapping[str, Any]],
+) -> list[str]:
+    """Backward-compatible validation for an all-usable target universe."""
+    return _target_partition_errors(expected_pairs, rows, [])
+
+
+def _target_structural_reconciliation_summary(
+    expected_pairs: set[tuple[str, str]],
+    rows: Sequence[Mapping[str, Any]],
+    structural_exclusions: Sequence[Mapping[str, Any]],
+) -> dict[str, Any]:
+    """Summarise the explicit partition without folding exclusions into targets."""
+    partition_errors = _target_partition_errors(
+        expected_pairs, rows, structural_exclusions
+    )
+    return {
+        "schema_version": OUTPUT_SCHEMA_VERSION,
+        "potential_source_target_count": len(expected_pairs),
+        "structurally_usable_target_prefix_count": len(rows),
+        "structurally_excluded_target_count": len(structural_exclusions),
+        "structural_exclusion_reason_counts": dict(
+            sorted(
+                Counter(
+                    str(reason)
+                    for row in structural_exclusions
+                    for reason in row.get("structural_exclusion_reasons", [])
+                ).items()
+            )
+        ),
+        "partition_complete": not partition_errors,
+        "partition_errors": partition_errors,
+        "structural_exclusions_outside_target_outcome_and_crosstab_counts": True,
+    }
+
+
+def _target_structural_reconciliation_errors(
+    expected_pairs: set[tuple[str, str]],
+    rows: Sequence[Mapping[str, Any]],
+    structural_exclusions: Sequence[Mapping[str, Any]],
+    summary: Mapping[str, Any],
+) -> list[str]:
+    """Validate exclusion vocabulary, partition, and the derived summary."""
+    errors = _target_partition_errors(expected_pairs, rows, structural_exclusions)
+    permitted_reasons = set(TARGET_STRUCTURAL_EXCLUSION_REASONS)
+    exclusion_keys = [
+        str(row.get("structural_exclusion_key") or "")
+        for row in structural_exclusions
+    ]
+    if not all(exclusion_keys) or len(exclusion_keys) != len(set(exclusion_keys)):
+        errors.append("target_structural_exclusion_keys_not_unique")
+    for row in structural_exclusions:
+        reasons = row.get("structural_exclusion_reasons")
+        if (
+            not isinstance(reasons, list)
+            or not reasons
+            or len(reasons) != len(set(reasons))
+            or not set(reasons) <= permitted_reasons
+        ):
+            errors.append("target_structural_exclusion_reason_invalid")
+            break
+        if (
+            row.get("structural_exclusion_status")
+            != "excluded_from_structurally_usable_target_universe"
+            or "outcome_evidence_class" in row
+        ):
+            errors.append("target_structural_exclusion_contract_invalid")
+            break
+    expected_summary = _target_structural_reconciliation_summary(
+        expected_pairs, rows, structural_exclusions
+    )
+    if canonical_json_bytes(expected_summary) != canonical_json_bytes(summary):
+        errors.append("target_structural_reconciliation_summary_mismatch")
+    return errors
+
+
 def _build_feasibility_and_exposure(
     manifest: Mapping[str, Any],
-) -> tuple[list[dict[str, Any]], dict[str, Any], list[dict[str, Any]], dict[str, Any], dict[str, list[dict[str, Any]]]]:
+) -> tuple[
+    list[dict[str, Any]],
+    dict[str, Any],
+    list[dict[str, Any]],
+    dict[str, Any],
+    dict[str, list[dict[str, Any]]],
+    list[dict[str, Any]],
+    list[dict[str, Any]],
+    dict[str, Any],
+]:
     benchmark_rows = _read_jsonl(_source_path(manifest, "benchmark_conversations"))
     prospective_rows = _read_jsonl(_source_path(manifest, "prospective_conversations"))
     prospective_posts = {
@@ -2137,23 +2753,18 @@ def _build_feasibility_and_exposure(
     conversation_keys = [str(record["conversation_key"]) for record in records]
     if len(conversation_keys) != len(set(conversation_keys)):
         raise Phase1Error("canonical benchmark/prospective union has duplicate conversation keys")
-    terminal_candidate_map: dict[str, set[str]] = defaultdict(set)
     records_by_key = {str(record["conversation_key"]): record for record in records}
-    candidate_rows = _read_jsonl(_source_path(manifest, "prospective_review_candidates"))
-    for candidate in candidate_rows:
-        conversation_key = str(candidate.get("conversation_key") or "")
-        record = records_by_key.get(conversation_key)
-        if record is None:
-            continue
-        target_turn_id = _quiescent_terminal_no_reply_target(
-            candidate,
-            record,
-            turns_by_conversation[conversation_key],
-        )
-        if target_turn_id is not None:
-            terminal_candidate_map[conversation_key].add(target_turn_id)
+    candidate_map = _target_candidate_map(manifest, set(records_by_key))
     for record in records:
-        record["terminal_no_reply_target_turn_ids"] = sorted(terminal_candidate_map.get(str(record["conversation_key"]), set()))
+        conversation_key = str(record["conversation_key"])
+        turns = turns_by_conversation[conversation_key]
+        target_ids = set(record.get("published_reply_target_turn_ids", []))
+        target_ids.update(
+            target_turn_id
+            for candidate_conversation, target_turn_id in candidate_map
+            if candidate_conversation == conversation_key
+        )
+        record["expected_target_turn_ids"] = sorted(target_ids)
     evidence = _load_exposure_evidence(manifest)
     post_to_conversation = _post_to_conversation(records, turns_by_conversation)
     target_statuses: dict[str, set[str]] = defaultdict(set)
@@ -2581,13 +3192,42 @@ def _build_feasibility_and_exposure(
                 }
             )
         )
+    target_rows, target_structural_exclusions = _build_target_prefix_rows(
+        manifest,
+        records,
+        exposure_rows,
+        turns_by_conversation,
+    )
+    target_crosstab = _build_target_prefix_crosstab(target_rows)
+    classified_by_conversation: dict[str, dict[str, list[str]]] = defaultdict(
+        lambda: {outcome: [] for outcome in OUTCOME_EVIDENCE_CLASSES}
+    )
+    for row in target_rows:
+        classified_by_conversation[str(row["conversation_key"])][
+            str(row["outcome_evidence_class"])
+        ].append(str(row["target_turn_id"]))
+    for record in records:
+        classified = classified_by_conversation[str(record["conversation_key"])]
+        for outcome, field in OUTCOME_TARGET_ID_FIELDS.items():
+            record[field] = sorted(classified[outcome])
+    expected_target_pairs = _declared_target_pairs(records)
+    target_structural_reconciliation = _target_structural_reconciliation_summary(
+        expected_target_pairs,
+        target_rows,
+        target_structural_exclusions,
+    )
+    if target_structural_reconciliation["partition_complete"] is not True:
+        raise Phase1Error("potential source target partition is incomplete")
     records = [_row_with_hash(record) for record in sorted(records, key=lambda item: (item.get("start_time") or "", item["conversation_key"]))]
     grade_counts = Counter(record["reconstruction_grade"] for record in records)
+    outcome_counts = target_crosstab["dimensions"]["outcome_evidence_class"]
     target_counts = {
-        "published_reply_target_prefixes": sum(len(record["published_reply_target_turn_ids"]) for record in records if record["reconstruction_grade"] == "A"),
-        "terminal_no_reply_target_prefixes": sum(len(record["terminal_no_reply_target_turn_ids"]) for record in records if record["reconstruction_grade"] == "A"),
+        "total_usable_target_prefixes": len(target_rows),
+        **{
+            f"{outcome}_target_prefixes": outcome_counts.get(outcome, 0)
+            for outcome in OUTCOME_EVIDENCE_CLASSES
+        },
     }
-    target_counts["total_usable_target_prefixes"] = sum(target_counts.values())
     direct_exposed = [record for record in records if record["prior_exposure_status"] == "exposed"]
     structural_only = [record for record in records if record["prior_exposure_status"] == "structurally_mined_only"]
     unexposed = [record for record in records if record["prior_exposure_status"] == "unexposed_candidate"]
@@ -2596,6 +3236,7 @@ def _build_feasibility_and_exposure(
         "canonical_union_conversation_count": len(records),
         "grade_counts": {grade: grade_counts.get(grade, 0) for grade in ("A", "B", "C")},
         "target_prefix_counts": target_counts,
+        "target_structural_reconciliation": target_structural_reconciliation,
         "directly_exposed_conversation_count": len(direct_exposed),
         "structurally_mined_only_conversation_count": len(structural_only),
         "potential_unexposed_candidate_count": len(unexposed),
@@ -2631,18 +3272,34 @@ def _build_feasibility_and_exposure(
         "newly_mined_is_not_held_out": True,
         "prospective_is_not_automatically_held_out": True,
     }
-    return records, feasibility_summary, sorted(exposure_rows, key=lambda row: row["exposure_key"]), exposure_summary, turns_by_conversation
+    return (
+        records,
+        feasibility_summary,
+        sorted(exposure_rows, key=lambda row: row["exposure_key"]),
+        exposure_summary,
+        turns_by_conversation,
+        target_rows,
+        target_structural_exclusions,
+        target_crosstab,
+    )
 
 
 def _feasibility_markdown(summary: Mapping[str, Any]) -> list[str]:
     grades = summary["grade_counts"]
     targets = summary["target_prefix_counts"]
+    structural = summary["target_structural_reconciliation"]
+    outcome_summary = ", ".join(
+        f"{name}={targets.get(name + '_target_prefixes', 0)}"
+        for name in OUTCOME_EVIDENCE_CLASSES
+    )
     return [
         "# Corpus feasibility audit",
         "",
         f"The structural union contains **{summary['canonical_union_conversation_count']}** independent conversations: Grade A **{grades['A']}**, Grade B **{grades['B']}**, and Grade C **{grades['C']}**.",
         "",
-        f"There are **{targets['total_usable_target_prefixes']}** structurally usable Grade-A target prefixes: {targets['published_reply_target_prefixes']} confirmed published-reply targets and {targets['terminal_no_reply_target_prefixes']} quiescent terminal no-reply targets.",
+        f"There are **{targets['total_usable_target_prefixes']}** structurally usable target prefixes. Outcome evidence is partitioned into {outcome_summary}.",
+        "",
+        f"The **{structural['potential_source_target_count']}** potential source targets partition into **{structural['structurally_usable_target_prefix_count']}** usable prefixes and **{structural['structurally_excluded_target_count']}** private structural-exclusion records. Structural exclusions are reported separately and are not assigned outcome classes or included in the cross-tab.",
         "",
         f"Directly exposed conversations: **{summary['directly_exposed_conversation_count']}**. Structurally mined-only conversations: **{summary['structurally_mined_only_conversation_count']}**. Potential unexposed candidates, without selecting or opening a final test set: **{summary['potential_unexposed_candidate_count']}**.",
         "",
@@ -2662,24 +3319,33 @@ def _parent_turn_id(turn: Mapping[str, Any], post_to_turn: Mapping[str, Mapping[
     return str(parent.get("turn_id")) if parent and parent.get("turn_id") else None
 
 
-def _ancestor_prefix(turns: Sequence[Mapping[str, Any]], target_identity: str) -> list[dict[str, Any]]:
+def _ancestor_chain(
+    turns: Sequence[Mapping[str, Any]], target_identity: str
+) -> list[Mapping[str, Any]]:
+    """Return the exact in-segment ancestor chain ending at one target."""
     post_to_turn = {str(turn.get("post_id")): turn for turn in turns if turn.get("post_id") is not None}
     turn_to_turn = {str(turn.get("turn_id")): turn for turn in turns if turn.get("turn_id") is not None}
     target = turn_to_turn.get(target_identity) or post_to_turn.get(target_identity)
     if target is None:
-        raise Phase1Error(f"calibration target is absent from conversation: {target_identity}")
+        raise Phase1Error(f"target is absent from conversation: {target_identity}")
     chain: list[Mapping[str, Any]] = []
     seen_posts: set[str] = set()
     cursor: Mapping[str, Any] | None = target
     while cursor is not None:
         post_id = str(cursor.get("post_id") or cursor.get("turn_id"))
         if post_id in seen_posts:
-            raise Phase1Error(f"parent cycle while constructing calibration prefix: {target_identity}")
+            raise Phase1Error(f"parent cycle while constructing target prefix: {target_identity}")
         seen_posts.add(post_id)
         chain.append(cursor)
         parent_id = cursor.get("parent_id") if "parent_id" in cursor else cursor.get("parent_post_id")
         cursor = post_to_turn.get(str(parent_id)) if parent_id is not None else None
     chain.reverse()
+    return chain
+
+
+def _ancestor_prefix(turns: Sequence[Mapping[str, Any]], target_identity: str) -> list[dict[str, Any]]:
+    post_to_turn = {str(turn.get("post_id")): turn for turn in turns if turn.get("post_id") is not None}
+    chain = _ancestor_chain(turns, target_identity)
     result: list[dict[str, Any]] = []
     for index, turn in enumerate(chain):
         text = _text_for_turn(turn)
@@ -2699,6 +3365,669 @@ def _ancestor_prefix(turns: Sequence[Mapping[str, Any]], target_identity: str) -
             }
         )
     return result
+
+
+def _normalise_exposure_status(statuses: Iterable[str]) -> str:
+    values = set(statuses)
+    if values & EXPOSED_STATUSES:
+        return "exposed"
+    if "structurally_mined_only" in values:
+        return "structurally_mined_only"
+    if "unexposed_candidate" in values or not values:
+        return "genuinely_unexposed"
+    return "exposure_unknown"
+
+
+def _target_specific_exposure_statuses(
+    exposure_rows: Sequence[Mapping[str, Any]],
+    conversation_key: str,
+    target_turn_id: str,
+    target_post_id: str,
+) -> set[str]:
+    identities = {target_turn_id, target_post_id}
+    statuses: set[str] = set()
+    for row in exposure_rows:
+        if row.get("entity_type") == "conversation" or row.get("conversation_key") != conversation_key:
+            continue
+        row_identities = {
+            str(value)
+            for value in [row.get("target_post_id"), *(row.get("target_identities") or [])]
+            if value not in (None, "")
+        }
+        if identities & row_identities:
+            statuses.update(str(value) for value in row.get("exposure_statuses", []))
+    return statuses
+
+
+def _prefix_turn_count_band(count: int) -> str:
+    if count == 1:
+        return "1"
+    if count <= 3:
+        return "2-3"
+    if count <= 5:
+        return "4-5"
+    return "6+"
+
+
+def _stability_for_record(record: Mapping[str, Any]) -> tuple[str, str]:
+    if "benchmark_conversations" in record.get("source_ids", []):
+        return "frozen_historical", "frozen_historical"
+    activity = record.get("activity_status")
+    if activity == "quiescent":
+        return "quiescent_at_frozen_cutoff", "quiescent"
+    if activity == "open":
+        return "open_at_frozen_cutoff", "open"
+    return "stability_unknown", "unknown"
+
+
+def _source_family_for_record(record: Mapping[str, Any]) -> str:
+    source_ids = [str(value) for value in record.get("source_ids", [])]
+    if source_ids == ["benchmark_conversations"]:
+        return "benchmark"
+    if source_ids == ["prospective_conversations"]:
+        return "prospective-v4"
+    return "source_family_unknown"
+
+
+def _target_structural_assessment(
+    record: Mapping[str, Any],
+    turns: Sequence[Mapping[str, Any]],
+    target_turn_id: str,
+) -> tuple[Mapping[str, Any] | None, list[Mapping[str, Any]], list[str]]:
+    """Return one target, its ancestry, and bounded structural exclusions."""
+    turns_by_id = {str(turn.get("turn_id") or ""): turn for turn in turns}
+    target = turns_by_id.get(target_turn_id)
+    if target is None:
+        return None, [], ["target_absent_from_canonical_conversation"]
+
+    reasons: set[str] = set()
+    if target.get("author_role") != "user":
+        reasons.add("target_role_not_user")
+    if not target.get("post_id"):
+        reasons.add("target_post_identity_missing")
+    try:
+        chain = _ancestor_chain(turns, target_turn_id)
+    except Phase1Error:
+        chain = []
+        reasons.add("target_ancestry_cycle")
+
+    root_post_id = str(record.get("root_post_id") or "")
+    if not root_post_id:
+        reasons.add("declared_root_identity_unavailable")
+    if chain:
+        chain_root_post_id = str(chain[0].get("post_id") or "")
+        if root_post_id and chain_root_post_id != root_post_id:
+            reasons.add("target_ancestry_does_not_reach_declared_root")
+        _, graph_unambiguous, complete_prefix = _graph_properties(
+            chain, chain[0].get("post_id")
+        )
+        if not graph_unambiguous or not complete_prefix:
+            reasons.add("target_prefix_parent_graph_ambiguous_or_incomplete")
+        if not all(_text_for_turn(turn) is not None for turn in chain):
+            reasons.add("target_prefix_text_incomplete")
+        if not _immutable_turn_identities_complete(chain):
+            reasons.add("target_prefix_immutable_identity_incomplete")
+        if not _roles_complete(chain):
+            reasons.add("target_prefix_role_assignment_incomplete")
+        if not _turn_order_unambiguous(chain):
+            reasons.add("target_prefix_turn_order_ambiguous")
+    elif "target_ancestry_cycle" not in reasons:
+        reasons.add("target_prefix_parent_graph_ambiguous_or_incomplete")
+
+    reason_order = {
+        reason: index
+        for index, reason in enumerate(TARGET_STRUCTURAL_EXCLUSION_REASONS)
+    }
+    return target, chain, sorted(reasons, key=reason_order.__getitem__)
+
+
+def _build_target_prefix_rows(
+    manifest: Mapping[str, Any],
+    records: Sequence[Mapping[str, Any]],
+    exposure_rows: Sequence[Mapping[str, Any]],
+    turns_by_conversation: Mapping[str, Sequence[Mapping[str, Any]]],
+) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
+    """Partition potential targets into usable rows and structural exclusions.
+
+    The frozen target universe is the union of exact user turns with a
+    parent-linked published/observed account reply and user branch tips in the
+    frozen prospective review-candidate source.  This extends the reviewed
+    Phase 1 target universe only far enough to retain open tips for explicit
+    exclusion; it performs no new mining.  Every source target is emitted
+    exactly once as either a structurally usable target row or a private,
+    text-free exclusion row with bounded reasons.
+    """
+    conversation_keys = {str(record["conversation_key"]) for record in records}
+    candidates = _target_candidate_map(manifest, conversation_keys)
+    expected_pairs = _source_target_pairs(records, turns_by_conversation, candidates)
+    declared_pairs = _declared_target_pairs(records)
+    if declared_pairs != expected_pairs:
+        raise Phase1Error(
+            "declared target universe differs from independently derived source targets"
+        )
+
+    rows: list[dict[str, Any]] = []
+    structural_exclusions: list[dict[str, Any]] = []
+    for record in records:
+        conversation_key = str(record["conversation_key"])
+        turns = list(turns_by_conversation[conversation_key])
+        target_ids = {
+            target_turn_id
+            for candidate_conversation, target_turn_id in expected_pairs
+            if candidate_conversation == conversation_key
+        }
+        for target_turn_id in sorted(target_ids):
+            target, chain, structural_reasons = _target_structural_assessment(
+                record, turns, target_turn_id
+            )
+            if structural_reasons:
+                candidate = candidates.get((conversation_key, target_turn_id))
+                candidate_tip = (
+                    (candidate.get("path_turns") or [])[-1]
+                    if candidate and candidate.get("path_turns")
+                    else {}
+                )
+                target_post_id = str(
+                    (target or {}).get("post_id")
+                    or candidate_tip.get("post_id")
+                    or ""
+                )
+                source_kinds: list[str] = []
+                if candidate is not None:
+                    source_kinds.append("prospective_review_candidate_tip")
+                if target_turn_id in _published_reply_target_turns(turns):
+                    source_kinds.append("confirmed_published_reply_parent")
+                structural_exclusions.append(
+                    _row_with_hash(
+                        {
+                            "structural_exclusion_key": (
+                                "target-structural-exclusion-"
+                                + sha256_bytes(
+                                    f"{conversation_key}\0{target_turn_id}".encode(
+                                        "utf-8"
+                                    )
+                                )
+                            ),
+                            "conversation_key": conversation_key,
+                            "target_turn_id": target_turn_id,
+                            "target_post_id": target_post_id or None,
+                            "source_family": _source_family_for_record(record),
+                            "reconstruction_grade": record.get(
+                                "reconstruction_grade"
+                            ),
+                            "potential_target_source_kinds": sorted(source_kinds),
+                            "structural_exclusion_status": (
+                                "excluded_from_structurally_usable_target_universe"
+                            ),
+                            "structural_exclusion_reasons": structural_reasons,
+                            "source_provenance": [
+                                str(value)
+                                for value in record.get("source_ids", [])
+                            ],
+                        }
+                    )
+                )
+                continue
+            if target is None or not chain:
+                raise Phase1Error(
+                    "structural assessment emitted no row or exclusion: "
+                    f"{conversation_key}:{target_turn_id}"
+                )
+            complete_target_ancestry = True
+            target_post_id = str(target.get("post_id") or "")
+            outcome = _classify_target_outcome(
+                target,
+                record,
+                turns,
+                candidates.get((conversation_key, target_turn_id)),
+            )
+            preceding = chain[:-1]
+            preceding_user_turn_count = sum(
+                turn.get("author_role") == "user" for turn in preceding
+            )
+            preceding_account_turn_count = sum(
+                turn.get("author_role") == "account" for turn in preceding
+            )
+            preceding_account_reply_count = sum(
+                turn.get("author_role") == "account"
+                and turn.get("publication_status") in {"published", "observed"}
+                for turn in preceding
+            )
+            target_follows_prior_account_reply = bool(
+                preceding
+                and preceding[-1].get("author_role") == "account"
+                and preceding[-1].get("publication_status") in {"published", "observed"}
+            )
+            first_response_control = (
+                preceding_user_turn_count == 0 and preceding_account_reply_count == 0
+            )
+            multi_turn = preceding_account_reply_count > 0
+            conversation_exposure = _normalise_exposure_status(
+                record.get("prior_exposure_categories", [])
+            )
+            target_statuses = _target_specific_exposure_statuses(
+                exposure_rows,
+                conversation_key,
+                target_turn_id,
+                target_post_id,
+            )
+            target_exposure = _normalise_exposure_status(target_statuses)
+            effective_exposure = (
+                "exposed"
+                if "exposed" in {conversation_exposure, target_exposure}
+                else "structurally_mined_only"
+                if "structurally_mined_only"
+                in {conversation_exposure, target_exposure}
+                else "genuinely_unexposed"
+                if conversation_exposure == target_exposure == "genuinely_unexposed"
+                else "exposure_unknown"
+            )
+            stability_status, activity_status = _stability_for_record(record)
+            source_ids = [str(value) for value in record.get("source_ids", [])]
+            source_family = _source_family_for_record(record)
+            author_scheme = str(record.get("author_key_scheme") or "")
+            author_key = record.get("principal_author_key")
+            cross_family_uncertainty = (
+                source_family == "source_family_unknown"
+                or not author_scheme
+                or author_key in (None, "")
+            )
+            exclusion_reasons: list[str] = []
+            if record.get("reconstruction_grade") != "A":
+                exclusion_reasons.append("reconstruction_grade_not_a")
+            if effective_exposure != "genuinely_unexposed":
+                exclusion_reasons.append("effective_exposure_not_genuinely_unexposed")
+            if stability_status not in {
+                "frozen_historical",
+                "quiescent_at_frozen_cutoff",
+            }:
+                exclusion_reasons.append("conversation_not_frozen_or_quiescent")
+            if not multi_turn:
+                exclusion_reasons.append("no_preceding_published_or_observed_account_reply")
+            if not complete_target_ancestry:
+                exclusion_reasons.append("incomplete_target_ancestry")
+            if outcome["outcome_evidence_class"] == "conflicting_outcome_evidence":
+                exclusion_reasons.append("outcome_evidence_conflict")
+            if cross_family_uncertainty:
+                exclusion_reasons.append("cross_family_identity_or_leakage_uncertainty")
+            row = {
+                "target_key": "target-"
+                + sha256_bytes(f"{conversation_key}\0{target_turn_id}".encode("utf-8")),
+                "conversation_key": conversation_key,
+                "target_turn_id": target_turn_id,
+                "target_post_id": target_post_id,
+                "source_family": source_family,
+                "reconstruction_grade": record.get("reconstruction_grade"),
+                "conversation_exposure_status": conversation_exposure,
+                "target_exposure_status": target_exposure,
+                "effective_exposure_status": effective_exposure,
+                "stability_status": stability_status,
+                "activity_status_at_frozen_cutoff": activity_status,
+                **outcome,
+                "prefix_turn_count": len(chain),
+                "prefix_turn_count_band": _prefix_turn_count_band(len(chain)),
+                "preceding_user_turn_count": preceding_user_turn_count,
+                "preceding_account_turn_count": preceding_account_turn_count,
+                "preceding_account_reply_count": preceding_account_reply_count,
+                "target_follows_prior_account_reply": target_follows_prior_account_reply,
+                "first_response_control": first_response_control,
+                "multi_turn_evaluation_candidate": multi_turn,
+                "principal_author_key": author_key,
+                "author_key_scheme": author_scheme,
+                "author_group_comparability_status": (
+                    "comparable_within_source_family_only"
+                    if not cross_family_uncertainty
+                    else "not_comparable"
+                ),
+                "complete_target_ancestry": complete_target_ancestry,
+                "cross_family_identity_or_leakage_uncertainty": cross_family_uncertainty,
+                "preliminary_held_out_eligibility": not exclusion_reasons,
+                "preliminary_held_out_exclusion_reasons": exclusion_reasons,
+                "source_provenance": source_ids,
+            }
+            rows.append(_row_with_hash(row))
+    rows.sort(key=lambda row: (row["conversation_key"], row["target_turn_id"]))
+    structural_exclusions.sort(
+        key=lambda row: (row["conversation_key"], row["target_turn_id"])
+    )
+    target_keys = [str(row["target_key"]) for row in rows]
+    if len(target_keys) != len(set(target_keys)):
+        raise Phase1Error("target-prefix index contains duplicate target keys")
+    exclusion_keys = [
+        str(row["structural_exclusion_key"]) for row in structural_exclusions
+    ]
+    if len(exclusion_keys) != len(set(exclusion_keys)):
+        raise Phase1Error("target structural exclusions contain duplicate keys")
+    partition_errors = _target_partition_errors(
+        expected_pairs, rows, structural_exclusions
+    )
+    if partition_errors:
+        raise Phase1Error(
+            "target-prefix partition does not reproduce the expected source universe: "
+            + ",".join(partition_errors)
+        )
+    return rows, structural_exclusions
+
+
+def _build_target_prefix_crosstab(
+    rows: Sequence[Mapping[str, Any]],
+) -> dict[str, Any]:
+    def counts(field: str) -> dict[str, int]:
+        return dict(
+            sorted(Counter(str(row.get(field)) for row in rows).items())
+        )
+
+    response_types = Counter(
+        "first_response_control"
+        if row.get("first_response_control") is True
+        else "multi_turn_evaluation_candidate"
+        if row.get("multi_turn_evaluation_candidate") is True
+        else "other_pre_account_reply_target"
+        for row in rows
+    )
+    author_groups = Counter(
+        f"{row.get('author_key_scheme')}:{row.get('principal_author_key')}"
+        for row in rows
+        if row.get("author_group_comparability_status")
+        == "comparable_within_source_family_only"
+    )
+    outcome_counts = {
+        outcome: sum(row.get("outcome_evidence_class") == outcome for row in rows)
+        for outcome in OUTCOME_EVIDENCE_CLASSES
+    }
+    eligible = [row for row in rows if row.get("preliminary_held_out_eligibility") is True]
+    grade_a = [row for row in rows if row.get("reconstruction_grade") == "A"]
+    unexposed = [
+        row for row in grade_a if row.get("effective_exposure_status") == "genuinely_unexposed"
+    ]
+    stable = [
+        row
+        for row in grade_a
+        if row.get("stability_status")
+        in {"frozen_historical", "quiescent_at_frozen_cutoff"}
+    ]
+    multi_turn = [
+        row for row in grade_a if row.get("multi_turn_evaluation_candidate") is True
+    ]
+    source_outcomes: dict[str, dict[str, int]] = {}
+    for family in sorted({str(row.get("source_family")) for row in rows}):
+        source_outcomes[family] = {
+            outcome: sum(
+                row.get("source_family") == family
+                and row.get("outcome_evidence_class") == outcome
+                for row in rows
+            )
+            for outcome in OUTCOME_EVIDENCE_CLASSES
+        }
+    eligible_author_groups = {
+        f"{row.get('author_key_scheme')}:{row.get('principal_author_key')}"
+        for row in eligible
+        if row.get("author_group_comparability_status")
+        == "comparable_within_source_family_only"
+    }
+    dimensions = {
+        "reconstruction_grade": counts("reconstruction_grade"),
+        "effective_exposure_status": counts("effective_exposure_status"),
+        "source_family": counts("source_family"),
+        "stability_status": counts("stability_status"),
+        "outcome_evidence_class": outcome_counts,
+        "prefix_turn_count_band": counts("prefix_turn_count_band"),
+        "preceding_account_reply_count": counts("preceding_account_reply_count"),
+        "preceding_user_turn_count": counts("preceding_user_turn_count"),
+        "first_response_versus_multi_turn": dict(sorted(response_types.items())),
+        "principal_author_group_where_comparable": dict(sorted(author_groups.items())),
+        "preliminary_held_out_eligibility": counts("preliminary_held_out_eligibility"),
+    }
+    return {
+        "schema_version": OUTPUT_SCHEMA_VERSION,
+        "target_prefix_count": len(rows),
+        "dimensions": dimensions,
+        "source_family_by_outcome_evidence_class": source_outcomes,
+        "headline_counts": {
+            "grade_a_target_prefix_count": len(grade_a),
+            "grade_a_genuinely_unexposed_target_prefix_count": len(unexposed),
+            "grade_a_frozen_or_quiescent_target_prefix_count": len(stable),
+            "grade_a_multi_turn_target_prefix_count": len(multi_turn),
+            "preliminary_held_out_eligible_target_prefix_count": len(eligible),
+            "preliminary_held_out_eligible_conversation_count": len(
+                {str(row["conversation_key"]) for row in eligible}
+            ),
+            "preliminary_held_out_eligible_author_group_count": len(eligible_author_groups),
+            "first_response_control_count": sum(
+                row.get("first_response_control") is True for row in rows
+            ),
+            "open_conversation_target_prefix_count": sum(
+                row.get("stability_status") == "open_at_frozen_cutoff" for row in rows
+            ),
+            "open_conversation_count": len(
+                {
+                    str(row["conversation_key"])
+                    for row in rows
+                    if row.get("stability_status") == "open_at_frozen_cutoff"
+                }
+            ),
+            "exposed_multi_turn_target_prefix_count": sum(
+                row.get("multi_turn_evaluation_candidate") is True
+                and row.get("effective_exposure_status") == "exposed"
+                for row in rows
+            ),
+            "structurally_mined_only_multi_turn_target_prefix_count": sum(
+                row.get("multi_turn_evaluation_candidate") is True
+                and row.get("effective_exposure_status") == "structurally_mined_only"
+                for row in rows
+            ),
+            "genuinely_unexposed_stable_grade_a_multi_turn_target_prefix_count": sum(
+                row.get("reconstruction_grade") == "A"
+                and row.get("effective_exposure_status") == "genuinely_unexposed"
+                and row.get("stability_status")
+                in {"frozen_historical", "quiescent_at_frozen_cutoff"}
+                and row.get("multi_turn_evaluation_candidate") is True
+                for row in rows
+            ),
+            "genuinely_unexposed_stable_grade_a_multi_turn_conversation_count": len(
+                {
+                    str(row["conversation_key"])
+                    for row in rows
+                    if row.get("reconstruction_grade") == "A"
+                    and row.get("effective_exposure_status") == "genuinely_unexposed"
+                    and row.get("stability_status")
+                    in {"frozen_historical", "quiescent_at_frozen_cutoff"}
+                    and row.get("multi_turn_evaluation_candidate") is True
+                }
+            ),
+            **{f"outcome_{key}_count": value for key, value in outcome_counts.items()},
+        },
+        "eligible_distinct_conversation_count": len(
+            {str(row["conversation_key"]) for row in eligible}
+        ),
+        "eligible_comparable_author_group_count": len(eligible_author_groups),
+        "author_grouping_cross_family_performed": False,
+        "sample_size_sufficiency": "pending_phase2_development_only_power_analysis",
+        "final_held_out_selected": False,
+    }
+
+
+def _target_prefix_crosstab_errors(
+    rows: Sequence[Mapping[str, Any]], crosstab: Mapping[str, Any]
+) -> list[str]:
+    expected = _build_target_prefix_crosstab(rows)
+    errors: list[str] = []
+    if canonical_json_bytes(expected) != canonical_json_bytes(crosstab):
+        errors.append("crosstab_does_not_reproduce_rows")
+    target_keys = [str(row.get("target_key") or "") for row in rows]
+    if len(target_keys) != len(set(target_keys)) or not all(target_keys):
+        errors.append("target_keys_not_unique")
+    outcome_total = sum(
+        int(value)
+        for value in crosstab.get("dimensions", {})
+        .get("outcome_evidence_class", {})
+        .values()
+    )
+    if outcome_total != len(rows):
+        errors.append("outcome_partition_total")
+    if any(
+        row.get("outcome_evidence_class") not in OUTCOME_EVIDENCE_CLASSES
+        for row in rows
+    ):
+        errors.append("unknown_outcome_evidence_class")
+    if any(
+        row.get("preliminary_held_out_eligibility") is True
+        and row.get("stability_status") == "open_at_frozen_cutoff"
+        for row in rows
+    ):
+        errors.append("open_target_preliminarily_eligible")
+    return errors
+
+
+def _target_prefix_crosstab_markdown(crosstab: Mapping[str, Any]) -> list[str]:
+    h = crosstab["headline_counts"]
+    outcomes = crosstab["dimensions"]["outcome_evidence_class"]
+    lines = [
+        "# Target-prefix feasibility cross-tab",
+        "",
+        f"Total structurally usable target prefixes: **{crosstab['target_prefix_count']}**.",
+        "",
+        f"Grade A: **{h['grade_a_target_prefix_count']}**; genuinely unexposed Grade A: **{h['grade_a_genuinely_unexposed_target_prefix_count']}**; frozen or quiescent Grade A: **{h['grade_a_frozen_or_quiescent_target_prefix_count']}**.",
+        "",
+        f"Grade-A prefixes containing a preceding published or observed account reply: **{h['grade_a_multi_turn_target_prefix_count']}**. First-response controls: **{h['first_response_control_count']}**.",
+        "",
+        f"All preliminary structural held-out requirements are met by **{h['preliminary_held_out_eligible_target_prefix_count']}** prefixes across **{h['preliminary_held_out_eligible_conversation_count']}** conversations and **{h['preliminary_held_out_eligible_author_group_count']}** comparable within-family author groups.",
+        "",
+        f"Open conversations contribute **{h['open_conversation_target_prefix_count']}** prefixes across **{h['open_conversation_count']}** conversations; all are excluded from preliminary eligibility.",
+        "",
+        "Outcome evidence: "
+        + "; ".join(f"{name} **{outcomes.get(name, 0)}**" for name in OUTCOME_EVIDENCE_CLASSES)
+        + ".",
+        "",
+        "## Exact dimensions",
+        "",
+    ]
+    for dimension, values in crosstab["dimensions"].items():
+        if dimension == "principal_author_group_where_comparable":
+            lines.append(
+                f"- `{dimension}`: {len(values)} distinct domain-qualified groups (individual pseudonyms omitted from Markdown)."
+            )
+        else:
+            rendered = ", ".join(f"{key}={value}" for key, value in values.items())
+            lines.append(f"- `{dimension}`: {rendered}.")
+    lines.extend(
+        [
+            "",
+            "Counts are structural preflight evidence only. Statistical sufficiency remains pending a Phase 2 development-only power analysis; no final held-out set was selected.",
+        ]
+    )
+    return lines
+
+
+def _derive_disposition(readiness_gates: Mapping[str, Any]) -> str:
+    """Derive the Phase 1.1 disposition from machine-readable gate statuses."""
+    failed = {
+        name
+        for name, gate in readiness_gates.items()
+        if name != "disposition"
+        and isinstance(gate, Mapping)
+        and gate.get("status") == "failed"
+    }
+    if "privacy_validation" in failed:
+        return "phase1_1_blocked_by_privacy_failure"
+    source_or_leakage = {
+        "source_identity_validation",
+        "deterministic_rebuild_validation",
+        "target_outcome_classification_complete",
+        "target_prefix_cross_tab_complete",
+        "no_future_turn_leakage",
+    }
+    if failed & source_or_leakage:
+        return "phase1_1_blocked_by_source_or_leakage_failure"
+    schema_or_materialiser = {
+        "schema_validation",
+        "synthetic_fixture_validation",
+        "semantic_delta_schema_valid",
+        "deterministic_materialiser_valid",
+        "transcript_first_gold_protocol_defined",
+    }
+    if failed & schema_or_materialiser:
+        return "phase1_1_blocked_by_schema_or_materialiser_failure"
+    if "preliminary_unexposed_stable_multiturn_target_count" in failed:
+        return "phase1_1_blocked_no_unexposed_stable_multiturn_targets"
+    return "phase1_1_complete_phase2_sample_threshold_pending"
+
+
+def _derive_readiness_gates(
+    *,
+    source_identity_valid: bool,
+    deterministic_rebuild_valid: bool,
+    privacy_valid: bool,
+    schema_valid: bool,
+    synthetic_fixtures_valid: bool,
+    target_outcomes_valid: bool,
+    target_crosstab_valid: bool,
+    no_future_turn_leakage: bool,
+    semantic_schema_valid: bool,
+    materialiser_valid: bool,
+    transcript_first_protocol_valid: bool,
+    preliminary_target_count: int,
+    deterministic_rebuild_evidence: Any = FRESH_BUILD_DETERMINISM_EVIDENCE,
+) -> dict[str, Any]:
+    def gate(passed: bool, evidence: Any) -> dict[str, Any]:
+        return {"status": "passed" if passed else "failed", "evidence": evidence}
+
+    gates: dict[str, Any] = {
+        "schema_version": OUTPUT_SCHEMA_VERSION,
+        "source_identity_validation": gate(
+            source_identity_valid, "all frozen source identities matched manifest"
+        ),
+        "deterministic_rebuild_validation": gate(
+            deterministic_rebuild_valid,
+            deterministic_rebuild_evidence,
+        ),
+        "privacy_validation": gate(privacy_valid, "private-output privacy validator"),
+        "schema_validation": gate(schema_valid, "persisted, semantic, and protocol schemas"),
+        "synthetic_fixture_validation": gate(
+            synthetic_fixtures_valid, "all tracked synthetic fixtures and negative cases"
+        ),
+        "target_outcome_classification_complete": gate(
+            target_outcomes_valid, "every indexed target has exactly one evidence class"
+        ),
+        "target_prefix_cross_tab_complete": gate(
+            target_crosstab_valid, "all required cross-tab totals derive from target rows"
+        ),
+        "no_future_turn_leakage": gate(
+            no_future_turn_leakage, "all indexed target chains terminate at the target"
+        ),
+        "semantic_delta_schema_valid": gate(
+            semantic_schema_valid, SEMANTIC_DELTA_SCHEMA_VERSION
+        ),
+        "deterministic_materialiser_valid": gate(
+            materialiser_valid, "pure local materialiser validation"
+        ),
+        "transcript_first_gold_protocol_defined": gate(
+            transcript_first_protocol_valid,
+            "two independent transcript-first raters, blinded adjudication, lock before reveal",
+        ),
+        "preliminary_unexposed_stable_multiturn_target_count": gate(
+            preliminary_target_count > 0, preliminary_target_count
+        ),
+        "sample_size_threshold_status": {
+            "status": "pending",
+            "evidence": "no minimum threshold invented; Phase 2 development-only power analysis required",
+        },
+    }
+    gates["disposition"] = _derive_disposition(gates)
+    return gates
+
+
+def _emitted_blocking_disposition(readiness: Mapping[str, Any]) -> str | None:
+    """Return a gate failure that must be reported before the build exits."""
+    disposition = str(readiness.get("disposition") or "")
+    if disposition in {
+        "phase1_1_blocked_no_unexposed_stable_multiturn_targets",
+        "phase1_1_blocked_by_source_or_leakage_failure",
+        "phase1_1_blocked_by_privacy_failure",
+        "phase1_1_blocked_by_schema_or_materialiser_failure",
+    }:
+        return disposition
+    return None
 
 
 def _build_calibration_pack(
@@ -2840,6 +4169,33 @@ def _build_protocol(source_manifest_sha256: str, exposure_registry_sha256: str) 
             "experimental_scoring_permitted": False,
             "held_out_selection_permitted": False,
         },
+        "provider_response_schema": {
+            "schema_version": SEMANTIC_DELTA_SCHEMA_VERSION,
+            "schema_path": "proposition_ledger_research/schema/proposition-ledger-semantic-delta-v1.schema.json",
+            "contract_role": "current_turn_semantic_analysis_only",
+            "provider_emits_cumulative_state": False,
+            "provider_emits_persistence_hashes": False,
+            "provider_emits_state_patch": False,
+            "provider_assigns_permanent_ids": False,
+        },
+        "deterministic_materialiser": {
+            "materialiser_id": "proposition-ledger-semantic-delta-materialiser-v1",
+            "implementation_path": "tools/proposition_ledger_semantic_delta.py",
+            "contract_role": "semantic_delta_to_authoritative_persisted_ledger",
+            "assigns_permanent_ids": True,
+            "resolves_same_turn_local_references": True,
+            "constructs_state_patch": True,
+            "calculates_predecessor_and_ledger_hashes": True,
+            "validates_persisted_ledger": True,
+        },
+        "persisted_ledger_schema": {
+            "schema_version": LEDGER_SCHEMA_VERSION,
+            "schema_path": "proposition_ledger_research/schema/proposition-ledger-v1.schema.json",
+            "contract_role": "authoritative_cumulative_persisted_state",
+            "contains_cumulative_state": True,
+            "contains_state_patch": True,
+            "contains_persistence_hashes": True,
+        },
         "research_questions": [
             "Can the ledger extract propositions, issue state, commitments, obligations, and relations accurately?",
             "Does a correct ledger improve downstream reasoning?",
@@ -2908,12 +4264,13 @@ def _build_protocol(source_manifest_sha256: str, exposure_registry_sha256: str) 
             },
             {
                 "arm_id": "D",
-                "label": "transcript plus human-corrected proposition ledger",
+                "label": "transcript plus transcript-first independently adjudicated proposition ledger",
                 "transcript_prefix": "exact_target_bounded_transcript",
-                "additional_representation": "human_corrected_proposition_ledger",
+                "additional_representation": "transcript_first_independently_adjudicated_proposition_ledger",
                 "future_information_allowed": False,
                 "population": "smaller_adjudicated_subset",
-                "budget_rule": "corrected ledger preserves the same schema and target boundary; size is reported rather than forced to match extraction errors",
+                "budget_rule": "locked adjudicated ledger preserves the same schema and target boundary; size is reported rather than forced to match extraction errors",
+                "gold_representation_source": "locked_transcript_first_independently_adjudicated_proposition_ledger",
             },
         ],
         "paired_comparisons": {
@@ -2962,7 +4319,7 @@ def _build_protocol(source_manifest_sha256: str, exposure_registry_sha256: str) 
                 "paired_within_target_prefix": True,
                 "analysis_role": "primary",
                 "task_family_ids": ["continuity_reasoning", "reply_composition_quality"],
-                "estimand": "effect of a human-corrected ledger relative to transcript alone",
+                "estimand": "effect of a transcript-first independently adjudicated ledger relative to transcript alone",
                 "purpose": "estimate the downstream value of a correct ledger",
             },
             "B_vs_D": {
@@ -2974,7 +4331,7 @@ def _build_protocol(source_manifest_sha256: str, exposure_registry_sha256: str) 
                 "paired_within_target_prefix": True,
                 "analysis_role": "secondary",
                 "task_family_ids": ["continuity_reasoning", "reply_composition_quality"],
-                "estimand": "effect of a corrected ledger relative to an equal-budget neutral summary",
+                "estimand": "effect of a transcript-first independently adjudicated ledger relative to an equal-budget neutral summary",
                 "purpose": "separate correct ledger structure from ordinary compression",
             },
             "C_vs_D": {
@@ -2986,7 +4343,7 @@ def _build_protocol(source_manifest_sha256: str, exposure_registry_sha256: str) 
                 "paired_within_target_prefix": True,
                 "analysis_role": "extraction_diagnostic",
                 "task_family_ids": ["ledger_construction_accuracy", "continuity_reasoning", "reply_composition_quality"],
-                "estimand": "effect attributable to machine extraction error relative to a corrected ledger",
+                "estimand": "effect attributable to machine extraction error relative to a locked transcript-first independently adjudicated ledger",
                 "purpose": "separate ledger-construction error from downstream-consumer error",
             },
         },
@@ -2996,7 +4353,7 @@ def _build_protocol(source_manifest_sha256: str, exposure_registry_sha256: str) 
                 "label": "Ledger construction accuracy",
                 "scored_separately": True,
                 "inputs": ["exact transcript prefix"],
-                "outputs": ["schema-valid incremental ledger", "abstention or validation failure"],
+                "outputs": ["schema-valid semantic delta materialised into a validated persisted ledger", "abstention or typed validation failure"],
             },
             {
                 "task_id": "continuity_reasoning",
@@ -3031,7 +4388,9 @@ def _build_protocol(source_manifest_sha256: str, exposure_registry_sha256: str) 
             "split_manifest",
             "model_profiles",
             "prompt_texts_and_hashes",
-            "response_schemas",
+            "provider_response_schema",
+            "deterministic_materialiser",
+            "persisted_ledger_schema",
             "token_budgets",
             "arm_b_budget_tolerance",
             "randomisation",
@@ -3050,9 +4409,49 @@ def _build_protocol(source_manifest_sha256: str, exposure_registry_sha256: str) 
         },
         "adjudication": {
             "rubric_status": "pending_phase2_freeze",
+            "construction_input": "exact_transcript_prefix",
             "independent_raters": 2,
-            "disagreement_resolution": "independent ratings followed by blinded adjudication; adjudicator sees neither arm labels nor provider identity",
-            "ledger_gold_boundary": "human_corrected_subset_only",
+            "rater_annotations_independently_authored": True,
+            "rater_hidden_information": [
+                "machine_ledger",
+                "other_rater_annotation",
+                "production_pipeline_decision",
+                "historical_account_reply",
+                "arm_identity",
+                "provider_or_model_identity",
+            ],
+            "annotation_dimensions": [
+                "propositions",
+                "compound_structure",
+                "participant_commitments",
+                "issue_state",
+                "obligations",
+                "proposition_relations",
+                "answer_targets",
+                "rejected_answer_targets",
+                "uncertainty_and_abstentions",
+            ],
+            "disagreement_resolution": "blinded_adjudicator_resolves_from_transcript_and_two_independent_annotations",
+            "adjudicator_input": "exact_transcript_prefix_and_two_independent_annotations",
+            "adjudicator_hidden_information": [
+                "machine_ledger",
+                "production_pipeline_decision",
+                "historical_account_reply",
+                "arm_identity",
+                "provider_or_model_identity",
+            ],
+            "adjudication_before_machine_comparison": True,
+            "gold_lock": {
+                "artifact": "transcript_first_independently_adjudicated_proposition_ledger",
+                "hash_algorithm": "sha256",
+                "locked_before_machine_ledger_reveal": True,
+                "locked_before_machine_scoring": True,
+            },
+            "machine_reveal": {
+                "permitted_only_after_gold_lock": True,
+                "locked_gold_supplies_arm_d_representation": True,
+            },
+            "ledger_gold_boundary": "transcript_first_independently_adjudicated_subset_only",
             "arm_d_scope": "smaller_adjudicated_subset",
         },
         "success_thresholds": {
@@ -3080,11 +4479,13 @@ def _build_protocol(source_manifest_sha256: str, exposure_registry_sha256: str) 
         "resource_measurement": ["provider_calls", "input_tokens", "output_tokens", "latency_ms", "cost_minor_units"],
         "execution_sequence": [
             "freeze source, exposure, split, prompt, schema, model, budget, randomisation, rubric, thresholds, and blinding artefacts",
-            "construct ledgers and validate them without downstream outcome access",
-            "score ledger construction accuracy separately on the adjudicated subset",
+            "two raters independently annotate exact transcript prefixes without machine ledgers, historical replies, production outcomes, arm identity, or provider identity",
+            "a blinded adjudicator resolves the two annotations and locks and hashes transcript-first gold before any machine ledger is revealed",
+            "construct semantic deltas, deterministically materialise persisted ledgers, and validate them without downstream outcome access",
+            "reveal and score machine ledgers only after transcript-first gold is locked",
             "run continuity reasoning in paired blinded conditions",
             "run reply composition only where the frozen task design calls for a reply",
-            "complete blinded ratings and adjudication",
+            "complete blinded downstream ratings and downstream-output adjudication",
             "verify resource and leakage ledgers before staged unblinding",
         ],
         "limitations": [
@@ -3120,6 +4521,10 @@ def _protocol_markdown(protocol: Mapping[str, Any]) -> list[str]:
             "Arm B must be a neutral ordinary summary with no ledger fields, outcome labels, or condition cues. Its per-prefix additional token budget is paired to Arm C under a tolerance frozen before any provider call.",
             "",
             "All A/B/C comparisons are paired within the same conversation and target prefix; Arm D comparisons use the smaller adjudicated subset. Splits are by whole conversation, grouped by principal-author pseudonym where that pseudonym is demonstrably comparable. Previously labelled or manually reviewed material remains development/calibration only. The final test set is neither selected nor opened in Phase 1.",
+            "",
+            "Arm D uses a transcript-first independently adjudicated proposition ledger. Two raters work independently from the exact transcript prefix while machine ledgers, historical replies, production decisions, arms, and provider identities remain hidden; a blinded adjudicator locks and hashes gold before any machine comparison or reveal.",
+            "",
+            "Provider output is only a current-turn semantic delta. Deterministic local code assigns permanent IDs, resolves references, constructs state patches, computes hashes, and validates the cumulative persisted ledger.",
             "",
             "The operational split, model profiles, prompts, response schemas, budgets, randomisation, rubric, numeric success/failure thresholds, blinding method, and unblinding sequence must all be frozen before paid calls.",
         ]
@@ -3195,9 +4600,19 @@ def _privacy_validation(
     private_texts = _collect_private_conversation_texts(manifest)
     output_files = sorted(path for path in private_output.rglob("*") if path.is_file() and path.name != "private-author-key")
     tracked_research_files = sorted(
-        [project_dir / "tools/build_proposition_ledger_phase1.py"]
+        [
+            project_dir / "tools/build_proposition_ledger_phase1.py",
+            project_dir / "tools/proposition_ledger_semantic_delta.py",
+        ]
         + list((project_dir / "proposition_ledger_research").rglob("*"))
-        + ([project_dir / "tests/test_proposition_ledger_phase1.py"] if (project_dir / "tests/test_proposition_ledger_phase1.py").exists() else [])
+        + [
+            path
+            for path in (
+                project_dir / "tests/test_proposition_ledger_phase1.py",
+                project_dir / "tests/test_proposition_ledger_semantic_delta.py",
+            )
+            if path.exists()
+        ]
     )
     scanned_files = [path for path in [*output_files, *tracked_research_files] if path.is_file()]
     tracked_files = [path for path in tracked_research_files if path.is_file()]
@@ -3238,6 +4653,8 @@ def _privacy_validation(
                 private_text_matches += 1
     private_conversation_files = [
         private_output / "calibration-pack/calibration-records.jsonl",
+        private_output / "target-prefix-feasibility-index.jsonl",
+        private_output / "target-prefix-structural-exclusions.jsonl",
     ]
     bad_file_modes = [
         {"path": str(path), "mode": oct(stat.S_IMODE(path.stat().st_mode))}
@@ -3278,15 +4695,21 @@ def _schema_validation(
 ) -> dict[str, Any]:
     ledger_schema_path = project_dir / "proposition_ledger_research/schema/proposition-ledger-v1.schema.json"
     experiment_schema_path = project_dir / "proposition_ledger_research/schema/proposition-ledger-experiment-v1.schema.json"
+    semantic_schema_path = project_dir / "proposition_ledger_research/schema/proposition-ledger-semantic-delta-v1.schema.json"
     ledger_schema = _read_json(ledger_schema_path)
     experiment_schema = _read_json(experiment_schema_path)
+    semantic_schema = _read_json(semantic_schema_path)
     try:
         import jsonschema
     except ImportError as exc:  # pragma: no cover
         raise Phase1Error("jsonschema is required for Phase 1 validation") from exc
     meta_errors: list[str] = []
     validator_class = getattr(jsonschema, "Draft202012Validator", jsonschema.Draft7Validator)
-    for name, schema in (("ledger", ledger_schema), ("experiment", experiment_schema)):
+    for name, schema in (
+        ("ledger", ledger_schema),
+        ("semantic_delta", semantic_schema),
+        ("experiment", experiment_schema),
+    ):
         try:
             effective_schema = schema if hasattr(jsonschema, "Draft202012Validator") else _draft7_compatible_schema(schema)
             validator_class.check_schema(effective_schema)
@@ -3294,19 +4717,208 @@ def _schema_validation(
             meta_errors.append(f"{name}:{type(exc).__name__}:{exc}")
     fixture_validation = validate_synthetic_fixtures(project_dir)
     protocol_errors = _jsonschema_errors(protocol, experiment_schema)
+    semantic_meta_errors = [
+        error for error in meta_errors if error.startswith("semantic_delta:")
+    ]
+    semantic_validation = {
+        "schema_version": OUTPUT_SCHEMA_VERSION,
+        "semantic_delta_schema_version": semantic_schema.get("properties", {})
+        .get("schema_version", {})
+        .get("const"),
+        "semantic_delta_schema_sha256": sha256_file(semantic_schema_path),
+        "meta_schema_errors": semantic_meta_errors,
+        "forbidden_persistence_fields_absent_from_root": all(
+            field not in semantic_schema.get("properties", {})
+            for field in (
+                "ledger_sha256",
+                "previous_ledger_sha256",
+                "state_patch",
+                "ledger_history",
+                "turn_refs",
+            )
+        ),
+    }
+    semantic_validation["passed"] = (
+        semantic_validation["semantic_delta_schema_version"]
+        == SEMANTIC_DELTA_SCHEMA_VERSION
+        and not semantic_meta_errors
+        and semantic_validation["forbidden_persistence_fields_absent_from_root"]
+    )
     return {
         "schema_version": OUTPUT_SCHEMA_VERSION,
         "ledger_schema_sha256": sha256_file(ledger_schema_path),
+        "semantic_delta_schema_sha256": sha256_file(semantic_schema_path),
         "experiment_schema_sha256": sha256_file(experiment_schema_path),
         "meta_schema_errors": meta_errors,
         "protocol_schema_errors": protocol_errors,
+        "semantic_delta_schema_validation": semantic_validation,
         "synthetic_fixtures": fixture_validation,
         "passed": not meta_errors
         and not protocol_errors
+        and semantic_validation["passed"]
         and fixture_validation["fixture_count"] == 12
         and fixture_validation["valid_fixture_count"] == 12
         and fixture_validation["all_invalid_examples_detected"],
     }
+
+
+def _validation_file_sha256(project_dir: Path, relative: str) -> str:
+    """Return a tracked validation-input hash without following a symlink."""
+    path = project_dir / relative
+    if not path.is_file() or path.is_symlink():
+        return "unavailable"
+    try:
+        return sha256_file(path)
+    except OSError:
+        return "unavailable"
+
+
+def _schema_validation_for_readiness(
+    project_dir: Path, protocol: Mapping[str, Any]
+) -> dict[str, Any]:
+    """Convert a bounded schema-check exception into a failed gate record."""
+    try:
+        return _schema_validation(project_dir, protocol)
+    except Exception as exc:
+        error = f"{type(exc).__name__}:{exc}"
+        semantic_hash = _validation_file_sha256(
+            project_dir,
+            "proposition_ledger_research/schema/proposition-ledger-semantic-delta-v1.schema.json",
+        )
+        return {
+            "schema_version": OUTPUT_SCHEMA_VERSION,
+            "ledger_schema_sha256": _validation_file_sha256(
+                project_dir,
+                "proposition_ledger_research/schema/proposition-ledger-v1.schema.json",
+            ),
+            "semantic_delta_schema_sha256": semantic_hash,
+            "experiment_schema_sha256": _validation_file_sha256(
+                project_dir,
+                "proposition_ledger_research/schema/proposition-ledger-experiment-v1.schema.json",
+            ),
+            "meta_schema_errors": [error],
+            "protocol_schema_errors": [],
+            "semantic_delta_schema_validation": {
+                "schema_version": OUTPUT_SCHEMA_VERSION,
+                "semantic_delta_schema_version": None,
+                "semantic_delta_schema_sha256": semantic_hash,
+                "meta_schema_errors": [error],
+                "forbidden_persistence_fields_absent_from_root": False,
+                "passed": False,
+            },
+            "synthetic_fixtures": {
+                "fixture_count": 0,
+                "valid_fixture_count": 0,
+                "invalid_example_count": 0,
+                "all_invalid_examples_detected": False,
+                "validation_error": error,
+                "results": [],
+            },
+            "validation_error": error,
+            "passed": False,
+        }
+
+
+def _semantic_materialiser_validation(project_dir: Path) -> dict[str, Any]:
+    """Validate the pure materialiser statically and with synthetic behavior."""
+    path = project_dir / "tools/proposition_ledger_semantic_delta.py"
+    source = path.read_text(encoding="utf-8")
+    tree = ast.parse(source)
+    imported_roots: set[str] = set()
+    defined_names: set[str] = set()
+    for node in ast.walk(tree):
+        if isinstance(node, ast.Import):
+            imported_roots.update(alias.name.partition(".")[0] for alias in node.names)
+        elif isinstance(node, ast.ImportFrom) and node.module:
+            imported_roots.add(node.module.partition(".")[0])
+        elif isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef)):
+            defined_names.add(node.name)
+    forbidden_roots = {
+        "mrsMThatcher2",
+        "tested_reply_pipeline",
+        "openai",
+        "anthropic",
+        "google",
+        "xai",
+        "tweepy",
+        "requests",
+        "urllib",
+        "httpx",
+        "socket",
+    }
+    required_statuses = {
+        "semantic_delta_schema_invalid",
+        "semantic_reference_invalid",
+        "semantic_evidence_invalid",
+        "semantic_transition_invalid",
+        "materialisation_invariant_failure",
+        "persisted_ledger_validation_failure",
+    }
+    project_import_root = str(project_dir.resolve())
+    import_root_added = project_import_root not in sys.path
+    try:
+        if import_root_added:
+            sys.path.insert(0, project_import_root)
+        from tools import proposition_ledger_semantic_delta as semantic_delta
+
+        behavioral_validation = semantic_delta.behavioral_materialiser_validation(
+            project_dir
+        )
+    except Exception as exc:  # pragma: no cover - bounded gate failure
+        behavioral_validation = {
+            "harness_error": f"unexpected:{type(exc).__name__}",
+            "passed": False,
+        }
+    finally:
+        if import_root_added:
+            sys.path.remove(project_import_root)
+    result = {
+        "schema_version": OUTPUT_SCHEMA_VERSION,
+        "materialiser_id": "proposition-ledger-semantic-delta-materialiser-v1",
+        "implementation_path": "tools/proposition_ledger_semantic_delta.py",
+        "source_sha256": sha256_file(path),
+        "forbidden_import_roots_found": sorted(imported_roots & forbidden_roots),
+        "materialise_entrypoint_present": "materialise_semantic_delta" in defined_names,
+        "incremental_full_ledger_validator_hook_present": "validate_ledger_incremental" in source,
+        "typed_failure_statuses_present": sorted(
+            status for status in required_statuses if status in source
+        ),
+        "provider_invocation_code_present": False,
+        "behavioral_validation": behavioral_validation,
+        "behavioral_validation_passed": behavioral_validation.get("passed") is True,
+    }
+    result["passed"] = (
+        not result["forbidden_import_roots_found"]
+        and result["materialise_entrypoint_present"]
+        and result["incremental_full_ledger_validator_hook_present"]
+        and set(result["typed_failure_statuses_present"]) == required_statuses
+        and result["behavioral_validation_passed"]
+    )
+    return result
+
+
+def _semantic_materialiser_validation_for_readiness(
+    project_dir: Path,
+) -> dict[str, Any]:
+    """Convert a bounded materialiser-check exception into a failed gate record."""
+    try:
+        return _semantic_materialiser_validation(project_dir)
+    except Exception as exc:
+        return {
+            "schema_version": OUTPUT_SCHEMA_VERSION,
+            "materialiser_id": "proposition-ledger-semantic-delta-materialiser-v1",
+            "implementation_path": "tools/proposition_ledger_semantic_delta.py",
+            "source_sha256": _validation_file_sha256(
+                project_dir, "tools/proposition_ledger_semantic_delta.py"
+            ),
+            "forbidden_import_roots_found": [],
+            "materialise_entrypoint_present": False,
+            "incremental_full_ledger_validator_hook_present": False,
+            "typed_failure_statuses_present": [],
+            "provider_invocation_code_present": False,
+            "validation_error": f"{type(exc).__name__}:{exc}",
+            "passed": False,
+        }
 
 
 def _validate_row_hashes(rows: Sequence[Mapping[str, Any]], label: str) -> list[str]:
@@ -3379,6 +4991,7 @@ def _validate_outputs(
 ) -> dict[str, Any]:
     required = [
         "run-manifest.json",
+        "frozen-source-manifest.json",
         "source-inventory.json",
         "source-inventory.md",
         "source-overlap.json",
@@ -3388,13 +5001,20 @@ def _validate_outputs(
         "corpus-feasibility.md",
         "prior-exposure-registry.jsonl",
         "prior-exposure-summary.json",
+        "target-prefix-feasibility-index.jsonl",
+        "target-prefix-structural-exclusions.jsonl",
+        "target-prefix-crosstab.json",
+        "target-prefix-crosstab.md",
         "calibration-pack/calibration-records.jsonl",
         "calibration-pack/calibration-index.json",
         "calibration-pack/manifest.json",
         "experiment-protocol-draft.json",
         "experiment-protocol-draft.md",
         "schema-validation.json",
-        "phase1-report.md",
+        "semantic-delta-schema-validation.json",
+        "semantic-materialiser-validation.json",
+        "readiness-gates.json",
+        "phase1.1-report.md",
         "SHA256SUMS",
     ]
     missing = [relative for relative in required if not (private_output / relative).is_file()]
@@ -3411,10 +5031,18 @@ def _validate_outputs(
             parse_errors.append(f"{path.relative_to(private_output)}:{type(exc).__name__}")
     feasibility_rows = _read_jsonl(private_output / "conversation-feasibility-index.jsonl") if not missing else []
     exposure_rows = _read_jsonl(private_output / "prior-exposure-registry.jsonl") if not missing else []
+    target_rows = _read_jsonl(private_output / "target-prefix-feasibility-index.jsonl") if not missing else []
+    target_structural_exclusions = _read_jsonl(
+        private_output / "target-prefix-structural-exclusions.jsonl"
+    ) if not missing else []
     calibration_rows = _read_jsonl(private_output / "calibration-pack/calibration-records.jsonl") if not missing else []
     row_hash_errors = [
         *_validate_row_hashes(feasibility_rows, "feasibility"),
         *_validate_row_hashes(exposure_rows, "exposure"),
+        *_validate_row_hashes(target_rows, "target_prefix"),
+        *_validate_row_hashes(
+            target_structural_exclusions, "target_structural_exclusion"
+        ),
         *_validate_record_hashes(calibration_rows, "calibration"),
     ]
     conversation_keys = [row.get("conversation_key") for row in feasibility_rows]
@@ -3451,11 +5079,15 @@ def _validate_outputs(
                     "account_publication_confirmed",
                     "immutable_post_identity_complete",
                     "role_assignment_complete",
-                    "turn_order_unambiguous",
                     "complete_prefix_through_targets",
                 )
             )
             or len(row.get("secondary_quality_limitations", [])) != 1
+            or (
+                row.get("turn_order_unambiguous") is not True
+                and row.get("secondary_quality_limitations")
+                != ["one_limited_turn_order_gap"]
+            )
         )
     ]
     exposure_reason_errors = [
@@ -3476,6 +5108,7 @@ def _validate_outputs(
     if not missing:
         for field, relative in (
             ("ledger_schema_sha256", "proposition_ledger_research/schema/proposition-ledger-v1.schema.json"),
+            ("semantic_delta_schema_sha256", "proposition_ledger_research/schema/proposition-ledger-semantic-delta-v1.schema.json"),
             ("experiment_schema_sha256", "proposition_ledger_research/schema/proposition-ledger-experiment-v1.schema.json"),
         ):
             if schema_validation.get(field) != sha256_file(project_dir / relative):
@@ -3486,6 +5119,12 @@ def _validate_outputs(
         protocol = _read_json(private_output / "experiment-protocol-draft.json")
         if run_manifest.get("source_manifest_sha256") != expected_source_manifest_sha256:
             source_manifest_binding_errors.append("run_manifest")
+        if sha256_file(private_output / "frozen-source-manifest.json") != expected_source_manifest_sha256:
+            source_manifest_binding_errors.append("frozen_source_manifest_copy")
+        if run_manifest.get("schema_version") != OUTPUT_SCHEMA_VERSION:
+            source_manifest_binding_errors.append("run_manifest_schema_version")
+        if run_manifest.get("phase1_base_sha") != PHASE1_BASE_SHA:
+            source_manifest_binding_errors.append("phase1_base_sha")
         if protocol.get("corpus_policy", {}).get("source_manifest_sha256") != expected_source_manifest_sha256:
             source_manifest_binding_errors.append("experiment_protocol")
         exposure_hash = sha256_file(private_output / "prior-exposure-registry.jsonl")
@@ -3494,26 +5133,67 @@ def _validate_outputs(
     target_prefix_count_errors: list[str] = []
     if not missing:
         feasibility_summary = _read_json(private_output / "corpus-feasibility.json")
-        published_count = sum(
-            len(row.get("published_reply_target_turn_ids", []))
-            for row in feasibility_rows
-            if row.get("reconstruction_grade") == "A"
+        target_crosstab = _read_json(private_output / "target-prefix-crosstab.json")
+        target_prefix_count_errors.extend(
+            _target_prefix_crosstab_errors(target_rows, target_crosstab)
         )
-        terminal_count = sum(
-            len(row.get("terminal_no_reply_target_turn_ids", []))
-            for row in feasibility_rows
-            if row.get("reconstruction_grade") == "A"
-        )
+        try:
+            expected_target_pairs = _declared_target_pairs(feasibility_rows)
+        except Phase1Error:
+            target_prefix_count_errors.append("invalid_declared_target_universe")
+        else:
+            target_prefix_count_errors.extend(
+                _target_structural_reconciliation_errors(
+                    expected_target_pairs,
+                    target_rows,
+                    target_structural_exclusions,
+                    feasibility_summary.get("target_structural_reconciliation", {}),
+                )
+            )
         expected_counts = feasibility_summary.get("target_prefix_counts", {})
-        if published_count != expected_counts.get("published_reply_target_prefixes"):
-            target_prefix_count_errors.append("published_reply_target_prefixes")
-        if terminal_count != expected_counts.get("terminal_no_reply_target_prefixes"):
-            target_prefix_count_errors.append("terminal_no_reply_target_prefixes")
-        if published_count + terminal_count != expected_counts.get("total_usable_target_prefixes"):
+        if len(target_rows) != expected_counts.get("total_usable_target_prefixes"):
             target_prefix_count_errors.append("total_usable_target_prefixes")
-        for row in feasibility_rows:
-            if set(row.get("published_reply_target_turn_ids", [])) & set(row.get("terminal_no_reply_target_turn_ids", [])):
-                target_prefix_count_errors.append(f"overlap:{row.get('conversation_key')}")
+        for outcome in OUTCOME_EVIDENCE_CLASSES:
+            actual = sum(row.get("outcome_evidence_class") == outcome for row in target_rows)
+            if actual != expected_counts.get(f"{outcome}_target_prefixes"):
+                target_prefix_count_errors.append(f"outcome_count:{outcome}")
+            row_pairs = {
+                (str(row.get("conversation_key") or ""), str(row.get("target_turn_id") or ""))
+                for row in target_rows
+                if row.get("outcome_evidence_class") == outcome
+            }
+            field = OUTCOME_TARGET_ID_FIELDS[outcome]
+            declared_pairs = {
+                (str(record.get("conversation_key") or ""), str(target_turn_id or ""))
+                for record in feasibility_rows
+                for target_turn_id in record.get(field, [])
+            }
+            if row_pairs != declared_pairs:
+                target_prefix_count_errors.append(
+                    f"conversation_outcome_partition:{outcome}"
+                )
+        target_pairs = [
+            (row.get("conversation_key"), row.get("target_turn_id"))
+            for row in target_rows
+        ]
+        if len(target_pairs) != len(set(target_pairs)):
+            target_prefix_count_errors.append("duplicate_conversation_target_pair")
+    readiness_errors: list[str] = []
+    if not missing:
+        readiness = _read_json(private_output / "readiness-gates.json")
+        if readiness.get("disposition") != _derive_disposition(readiness):
+            readiness_errors.append("disposition_not_derived_from_gates")
+        semantic_validation_output = _read_json(
+            private_output / "semantic-delta-schema-validation.json"
+        )
+        if semantic_validation_output.get("passed") is not True:
+            readiness_errors.append("semantic_delta_schema_validation")
+        if canonical_json_bytes(semantic_validation_output) != canonical_json_bytes(
+            schema_validation.get("semantic_delta_schema_validation", {})
+        ):
+            readiness_errors.append("semantic_delta_schema_validation_binding")
+        if _read_json(private_output / "semantic-materialiser-validation.json").get("passed") is not True:
+            readiness_errors.append("semantic_materialiser_validation")
     return {
         "missing_required_outputs": missing,
         "strict_json_parse_errors": parse_errors,
@@ -3527,6 +5207,7 @@ def _validate_outputs(
         "schema_hash_errors": schema_hash_errors,
         "source_manifest_binding_errors": source_manifest_binding_errors,
         "target_prefix_count_errors": target_prefix_count_errors,
+        "readiness_errors": readiness_errors,
         "schema_validation_passed": schema_validation.get("passed") is True,
         "passed": not any(
             (
@@ -3542,87 +5223,255 @@ def _validate_outputs(
                 schema_hash_errors,
                 source_manifest_binding_errors,
                 target_prefix_count_errors,
+                readiness_errors,
                 schema_validation.get("passed") is not True,
             )
         ),
     }
 
 
-def _phase1_report(
-    inventory: Mapping[str, Any],
-    overlap: Mapping[str, Any],
+def _phase1_1_metric_comparison(
     feasibility: Mapping[str, Any],
-    exposure: Mapping[str, Any],
+    target_crosstab: Mapping[str, Any],
+) -> list[tuple[str, str, str]]:
+    """Return the complete requested Phase 1 versus Phase 1.1 metric set."""
+    grades = feasibility["grade_counts"]
+    h = target_crosstab["headline_counts"]
+    outcomes = target_crosstab["dimensions"]["outcome_evidence_class"]
+    response_types = target_crosstab["dimensions"][
+        "first_response_versus_multi_turn"
+    ]
+    not_measured = "not measured in Phase 1"
+    return [
+        ("Grade A conversation count", "144", str(grades["A"])),
+        ("Grade B conversation count", "0", str(grades["B"])),
+        ("Grade C conversation count", "11", str(grades["C"])),
+        (
+            "Total structurally usable target-prefix count",
+            "205",
+            str(target_crosstab["target_prefix_count"]),
+        ),
+        (
+            "Confirmed published-reply target-prefix count",
+            "182",
+            str(outcomes.get("confirmed_published_reply", 0)),
+        ),
+        (
+            "Confirmed pipeline-terminal no-reply target-prefix count",
+            "not measured in Phase 1; 23 targets were only purported terminal no-replies",
+            str(outcomes.get("confirmed_pipeline_terminal_no_reply", 0)),
+        ),
+        (
+            "Confirmed local-skip target-prefix count",
+            not_measured,
+            str(outcomes.get("confirmed_local_skip", 0)),
+        ),
+        (
+            "Quiescent unreplied-tip outcome-unknown target-prefix count",
+            not_measured,
+            str(outcomes.get("quiescent_unreplied_tip_outcome_unknown", 0)),
+        ),
+        (
+            "Outcome-evidence-unavailable target-prefix count",
+            not_measured,
+            str(outcomes.get("outcome_evidence_unavailable", 0)),
+        ),
+        (
+            "Conflicting-outcome-evidence target-prefix count",
+            not_measured,
+            str(outcomes.get("conflicting_outcome_evidence", 0)),
+        ),
+        (
+            "First-response control target-prefix count",
+            not_measured,
+            str(h["first_response_control_count"]),
+        ),
+        (
+            "Multi-turn evaluation-candidate target-prefix count",
+            not_measured,
+            str(response_types.get("multi_turn_evaluation_candidate", 0)),
+        ),
+        (
+            "Distinct open-conversation count",
+            not_measured,
+            str(h["open_conversation_count"]),
+        ),
+        (
+            "Open-conversation target-prefix count",
+            not_measured,
+            str(h["open_conversation_target_prefix_count"]),
+        ),
+        (
+            "Exposed multi-turn target-prefix count",
+            not_measured,
+            str(h["exposed_multi_turn_target_prefix_count"]),
+        ),
+        (
+            "Structurally mined-only multi-turn target-prefix count",
+            not_measured,
+            str(h["structurally_mined_only_multi_turn_target_prefix_count"]),
+        ),
+        (
+            "Genuinely unexposed stable Grade-A multi-turn target-prefix count",
+            not_measured,
+            str(
+                h[
+                    "genuinely_unexposed_stable_grade_a_multi_turn_target_prefix_count"
+                ]
+            ),
+        ),
+        (
+            "Preliminary held-out-eligible conversation count",
+            not_measured,
+            str(h["preliminary_held_out_eligible_conversation_count"]),
+        ),
+        (
+            "Preliminary held-out-eligible target-prefix count",
+            not_measured,
+            str(h["preliminary_held_out_eligible_target_prefix_count"]),
+        ),
+    ]
+
+
+def _phase1_1_report(
+    inventory: Mapping[str, Any],
+    feasibility: Mapping[str, Any],
+    target_crosstab: Mapping[str, Any],
     protocol_sha256: str,
-    ledger_schema_sha256: str,
-    calibration_manifest: Mapping[str, Any],
     schema_validation: Mapping[str, Any],
+    materialiser_validation: Mapping[str, Any],
+    readiness: Mapping[str, Any],
     privacy: Mapping[str, Any],
-    manifest: Mapping[str, Any],
 ) -> list[str]:
     grades = feasibility["grade_counts"]
-    targets = feasibility["target_prefix_counts"]
-    q = manifest.get("qud_summary", {})
-    disposition = "ready_for_phase2_with_corpus_limitations"
+    h = target_crosstab["headline_counts"]
+    outcomes = target_crosstab["dimensions"]["outcome_evidence_class"]
+    metric_comparison = _phase1_1_metric_comparison(feasibility, target_crosstab)
     lines = [
-        "# Proposition-ledger Phase 1 evidence report",
+        "# Proposition-ledger Phase 1.1 preflight amendment report",
         "",
         "## Disposition",
         "",
-        f"**{disposition}**",
+        f"**{readiness['disposition']}**",
         "",
-        "Phase 1 establishes corpus and protocol feasibility only. It does not test whether a proposition ledger is effective and does not recommend production integration.",
+        "Phase 1.1 corrects preflight evidence and execution boundaries only. It does not establish that a proposition ledger improves conversational reasoning, authorise provider calls, or recommend production integration.",
         "",
-        "## Historical evidence",
+        "## Frozen corpus and target outcomes",
         "",
-        f"The inventory contains {inventory['source_count']} exact source artefacts. The strongest pre-boundary conversation base is the frozen 44-conversation benchmark; prospective-v4 is the strongest boundary/post-boundary graph source. Historical 266/293-row replay unions are isolated real target/pipeline reconstructions, not complete independent conversations, and no model replicate is counted as a conversation.",
+        f"The inventory revalidated **{inventory['source_count']}** exact frozen source artefacts. The canonical union remains **{feasibility['canonical_union_conversation_count']}** conversations: Grade A **{grades['A']}**, Grade B **{grades['B']}**, Grade C **{grades['C']}**.",
         "",
-        "The prospective canonical-post source corroborates 185 benchmark turns. Three quote-tweet roots have a resolved quote-versus-reply parent semantic discrepancy; the Phase 1 index records the correction explicitly rather than merging quoted context as a reply parent.",
+        "Phase 1 reported 205 Grade-A targets as 182 confirmed published replies plus 23 purported terminal no-replies. Phase 1.1 does not preserve that unsupported binary description; it indexes the structurally usable target universe and classifies each target from exact evidence.",
         "",
-        "The multi-turn audit contributes 39 exposed development conversations, 87 per-reply labels, and 104 user-proposition extraction records. It is development evidence rather than an authoritative proposition gold set.",
+        "## Old-versus-new metric comparison",
         "",
-        "## Corpus feasibility",
+        "| Metric | Phase 1 | Phase 1.1 |",
+        "| --- | ---: | ---: |",
+        *(
+            f"| {metric} | {phase1_value} | {phase1_1_value} |"
+            for metric, phase1_value, phase1_1_value in metric_comparison
+        ),
         "",
-        f"Independent canonical-union conversations: **{feasibility['canonical_union_conversation_count']}**. Grade A: **{grades['A']}**; Grade B: **{grades['B']}**; Grade C: **{grades['C']}**.",
+        f"Phase 1.1 structurally usable target prefixes: **{target_crosstab['target_prefix_count']}**; Grade A: **{h['grade_a_target_prefix_count']}**. Outcome counts: "
+        + "; ".join(f"{name}=**{outcomes.get(name, 0)}**" for name in OUTCOME_EVIDENCE_CLASSES)
+        + ".",
         "",
-        f"Structurally usable Grade-A target prefixes: **{targets['total_usable_target_prefixes']}** ({targets['published_reply_target_prefixes']} confirmed published-reply targets and {targets['terminal_no_reply_target_prefixes']} quiescent terminal no-reply targets).",
+        "Silence alone is never classified as a confirmed no-reply. Confirmed pipeline no-reply and local-skip classes require exact structured records bound to the target; a quiescent unreplied tip without such evidence remains outcome-unknown.",
         "",
-        f"Directly exposed conversations: **{feasibility['directly_exposed_conversation_count']}**. Structurally mined-only: **{feasibility['structurally_mined_only_conversation_count']}**. Potential unexposed candidates, without selecting a final held-out set: **{feasibility['potential_unexposed_candidate_count']}**.",
+        "## Target-prefix feasibility",
         "",
-        "Author-grouped splitting is feasible within the benchmark and prospective families without raw identity, but their pseudonym domains are not cross-family comparable.",
+        f"First-response controls: **{h['first_response_control_count']}**. Grade-A multi-turn candidates with a preceding published/observed account reply: **{h['grade_a_multi_turn_target_prefix_count']}**. Open-conversation prefixes excluded: **{h['open_conversation_target_prefix_count']}** across **{h['open_conversation_count']}** conversations.",
         "",
-        "## Prior QUD work",
+        f"Exposed multi-turn prefixes: **{h['exposed_multi_turn_target_prefix_count']}**. Structurally mined-only multi-turn prefixes: **{h['structurally_mined_only_multi_turn_target_prefix_count']}**. Genuinely unexposed, stable, Grade-A multi-turn prefixes: **{h['genuinely_unexposed_stable_grade_a_multi_turn_target_prefix_count']}** across **{h['genuinely_unexposed_stable_grade_a_multi_turn_conversation_count']}** conversations.",
         "",
-        f"The located QUD run is `{q.get('run_path')}` at worktree commit `{q.get('worktree_head')}`. Its frozen candidate identity is `{q.get('candidate_pool_sha256')}` and paid set identity is `{q.get('paid_case_set_sha256')}`.",
+        f"All preliminary structural requirements are met by **{h['preliminary_held_out_eligible_target_prefix_count']}** prefixes across **{h['preliminary_held_out_eligible_conversation_count']}** conversations. This is not a final held-out selection and does not establish statistical sufficiency.",
         "",
-        f"Verified pilot counts: {q.get('candidate_pool_count')} candidates, {q.get('paid_case_count')} paid cases, {q.get('issue_found')} issue-found, {q.get('no_stable_issue')} no-stable-issue, {q.get('schema_or_provider_failure')} schema/provider failure, {q.get('rejected_target_case_count')} rejected-target cases, broad flags {q.get('transcript_broad_flags')}/{q.get('ledger_broad_flags')}, narrow triggers {q.get('transcript_narrow_triggers')}/{q.get('ledger_narrow_triggers')}, and repairs {q.get('repair_successes')}/{q.get('repair_failures')} success/failure.",
+        "Author grouping remains domain-qualified and within-family only; incompatible benchmark and prospective pseudonym domains were never joined.",
         "",
-        "Reusable elements are immutable branch/target binding, exact transcript hashes and span validation, future-turn exclusion, sibling-context non-authority, deterministic request/cache accounting, strict response validation, blinding, and explicit failure categories. The old one-issue/signature design is not reused.",
+        "## Semantic and gold boundaries",
         "",
-        "Failed assumptions included forcing rhetoric into a polar fact, collapsing compound accusations, losing a live counterfactual, inferring false rejected targets, diagnosing premise-neutral replies as substitutions, and rejecting direct compound decomposition. The v1 schema covers each through explicit proposition kinds/groups, issue lifecycles, participant commitments, answer-target repair, relation provenance, obligations, abstention, and incremental deltas.",
+        f"Provider response schema: `{SEMANTIC_DELTA_SCHEMA_VERSION}`, SHA-256 `{schema_validation['semantic_delta_schema_sha256']}`. Persisted ledger schema: `{LEDGER_SCHEMA_VERSION}`, SHA-256 `{schema_validation['ledger_schema_sha256']}`. Experiment protocol: `{EXPERIMENT_SCHEMA_VERSION}`, document SHA-256 `{protocol_sha256}`, schema SHA-256 `{schema_validation['experiment_schema_sha256']}`.",
         "",
-        "## Protocol and calibration",
+        f"Deterministic materialiser validation passed: **{materialiser_validation['passed']}**; source SHA-256 `{materialiser_validation['source_sha256']}`. The provider-facing delta owns semantic analysis only; deterministic code owns permanent IDs, local-reference resolution, state patches, predecessor hashes, ledger hashes, and persisted-ledger validation.",
         "",
-        f"Ledger schema: `proposition-ledger-v1.0.0`, SHA-256 `{ledger_schema_sha256}`. Four-arm protocol draft SHA-256 `{protocol_sha256}`.",
+        "Gold construction requires two independent transcript-first raters who cannot see the machine ledger, one another's work, production outcomes, historical replies, arm identity, or provider identity. A blinded adjudicator locks and hashes the adjudicated ledger before any machine reveal or scoring; that locked ledger supplies Arm D. The design remains four-arm.",
         "",
-        f"The private transcript-only calibration pack contains {calibration_manifest['conversation_count']} already exposed Grade-A conversations and {calibration_manifest['target_prefix_count']} target prefixes; pack identity `{calibration_manifest['pack_content_sha256']}`. Synthetic fixture count: {schema_validation['synthetic_fixtures']['fixture_count']}.",
+        "A compound accusation requires at least two materially distinct evidenced propositions. Motive is represented only when alleged; absence of motive is valid. Grade A now directly requires unambiguous turn order.",
         "",
-        "Phase 2 must freeze the split, model profiles, prompts, schemas, budgets, randomisation, rubric, thresholds, and blinding sequence before any paid call. It should then score ledger construction, continuity reasoning, and reply composition separately across transcript-only, equal-budget summary, machine-ledger, and smaller human-corrected-ledger arms.",
+        "## Readiness gates",
         "",
-        "## Remaining uncertainty",
-        "",
-        "- No authoritative real-conversation gold proposition annotations exist.",
-        "- Three benchmark quote-parent fields required explicit later-source reconciliation; three native benchmark conversations and eight prospective conversations remain Grade C.",
-        "- Historical replay target corpora do not contain complete downstream conversations.",
-        "- Cross-family author identity cannot be established from the incompatible pseudonym schemes.",
-        "- Prior QUD scored-sheet filenames requested for discovery are absent; retained score CSVs are blank, so later recurrence metadata is the conservative human-review exposure authority.",
-        "- The final held-out set was not selected or opened.",
-        "",
-        "## Integrity boundary",
-        "",
-        f"Schema validation passed: **{schema_validation['passed']}**. Privacy validation passed: **{privacy['passed']}**. No provider/model or X call, production write, runtime import, service change, merge, deployment, generated experimental reply, or real-conversation machine ledger occurred.",
     ]
+    for name, gate in readiness.items():
+        if name in {"schema_version", "disposition"}:
+            continue
+        lines.append(f"- `{name}`: **{gate['status']}** — {gate['evidence']}.")
+    lines.extend(
+        [
+            "",
+            "## Remaining limitations and boundary",
+            "",
+            "- Sample-size sufficiency remains pending a separately frozen Phase 2 development-only power analysis; Phase 1.1 invents no threshold.",
+            "- No authoritative real-conversation gold annotations were created in Phase 1.1.",
+            "- Cross-family author identity remains unprovable from incompatible pseudonym domains.",
+            "- The final held-out set was neither selected nor opened.",
+            "",
+            f"Schema validation passed: **{schema_validation['passed']}**. Privacy validation passed: **{privacy['passed']}**. No provider/model or X call, production write, production import, service change, held-out selection, merge, deployment, generated experimental reply, or real-conversation machine ledger occurred.",
+        ]
+    )
     return lines
+
+
+def _privacy_blocked_phase1_1_report(
+    readiness: Mapping[str, Any],
+) -> list[str]:
+    """Return a bounded report containing no corpus-derived detail."""
+    lines = [
+        "# Proposition-ledger Phase 1.1 preflight amendment report",
+        "",
+        "## Disposition",
+        "",
+        f"**{readiness['disposition']}**",
+        "",
+        "Privacy validation failed. Corpus metrics, source details, hashes, pseudonyms, and other derived research content are deliberately omitted from this report.",
+        "",
+        "## Readiness gate statuses",
+        "",
+    ]
+    for name, gate in readiness.items():
+        if name in {"schema_version", "disposition"}:
+            continue
+        lines.append(f"- `{name}`: **{gate['status']}**.")
+    lines.extend(
+        [
+            "",
+            "No provider/model or X call, production write, production import, service change, held-out selection, merge, or deployment was authorised by this blocked run.",
+        ]
+    )
+    return lines
+
+
+def _phase1_1_report_for_readiness(
+    inventory: Mapping[str, Any],
+    feasibility: Mapping[str, Any],
+    target_crosstab: Mapping[str, Any],
+    protocol_sha256: str,
+    schema_validation: Mapping[str, Any],
+    materialiser_validation: Mapping[str, Any],
+    readiness: Mapping[str, Any],
+    privacy: Mapping[str, Any],
+) -> list[str]:
+    """Select the full or privacy-minimal Phase 1.1 report."""
+    if privacy.get("passed") is not True:
+        return _privacy_blocked_phase1_1_report(readiness)
+    return _phase1_1_report(
+        inventory,
+        feasibility,
+        target_crosstab,
+        protocol_sha256,
+        schema_validation,
+        materialiser_validation,
+        readiness,
+        privacy,
+    )
 
 
 def _write_sha256s(private_output: Path) -> None:
@@ -3642,16 +5491,154 @@ def _verify_source_hashes_unchanged(manifest: Mapping[str, Any], before_hashes: 
             raise Phase1Error(f"source changed while Phase 1 was reading it: {source_id}")
 
 
-def _build_outputs(args: argparse.Namespace, manifest: Mapping[str, Any]) -> dict[str, Any]:
+def _normalised_fresh_build_file(path: Path) -> bytes:
+    """Return bytes suitable for comparing independently rendered private runs."""
+    if path.name == "run-manifest.json":
+        manifest = _read_json(path)
+        if not isinstance(manifest, dict):
+            raise Phase1Error("run manifest must be an object during determinism comparison")
+        for field in ("generated_at", "private_output", "source_manifest_path"):
+            manifest.pop(field, None)
+        return canonical_json_bytes(manifest)
+    if path.name == "SHA256SUMS":
+        lines = path.read_bytes().splitlines(keepends=True)
+        return b"".join(
+            line
+            for line in lines
+            if not line.rstrip(b"\r\n").endswith(b"  run-manifest.json")
+        )
+    return path.read_bytes()
+
+
+def _fresh_build_directory_comparison(left: Path, right: Path) -> dict[str, Any]:
+    """Compare two complete fresh private builds while isolating run metadata."""
+    errors: list[str] = []
+    entries: list[dict[str, Path]] = []
+    for root in (left, right):
+        if not root.is_dir() or root.is_symlink():
+            errors.append(f"fresh build is not a regular directory: {root.name}")
+            entries.append({})
+            continue
+        if stat.S_IMODE(root.stat().st_mode) != 0o700:
+            errors.append(f"fresh-build root directory mode is not 0700: {root.name}")
+        root_entries = {
+            str(path.relative_to(root)): path
+            for path in root.rglob("*")
+        }
+        entries.append(root_entries)
+    left_entries, right_entries = entries
+    left_names = set(left_entries)
+    right_names = set(right_entries)
+    if left_names != right_names:
+        errors.append("fresh build file/directory sets differ")
+    substantive_file_count = 0
+    for relative in sorted(left_names & right_names):
+        left_path = left_entries[relative]
+        right_path = right_entries[relative]
+        if left_path.is_symlink() or right_path.is_symlink():
+            errors.append(f"fresh build contains a symlink: {relative}")
+            continue
+        if left_path.is_dir() != right_path.is_dir():
+            errors.append(f"fresh build entry types differ: {relative}")
+            continue
+        if left_path.is_dir():
+            if stat.S_IMODE(left_path.stat().st_mode) != 0o700:
+                errors.append(f"left fresh-build directory mode is not 0700: {relative}")
+            if stat.S_IMODE(right_path.stat().st_mode) != 0o700:
+                errors.append(f"right fresh-build directory mode is not 0700: {relative}")
+            continue
+        if not left_path.is_file() or not right_path.is_file():
+            errors.append(f"fresh build entry is not a regular file: {relative}")
+            continue
+        if stat.S_IMODE(left_path.stat().st_mode) != 0o600:
+            errors.append(f"left fresh-build file mode is not 0600: {relative}")
+        if stat.S_IMODE(right_path.stat().st_mode) != 0o600:
+            errors.append(f"right fresh-build file mode is not 0600: {relative}")
+        if relative == "private-author-key":
+            if left_path.read_bytes() != right_path.read_bytes():
+                errors.append("fresh builds did not reuse identical private key bytes")
+            continue
+        if relative not in {"run-manifest.json", "SHA256SUMS"}:
+            substantive_file_count += 1
+        if _normalised_fresh_build_file(left_path) != _normalised_fresh_build_file(right_path):
+            errors.append(f"fresh build output differs: {relative}")
+    return {
+        "passed": not errors,
+        "errors": errors,
+        "substantive_file_count": substantive_file_count,
+        "isolated_run_metadata": [
+            "run-manifest.generated_at",
+            "run-manifest.private_output",
+            "run-manifest.source_manifest_path",
+            "SHA256SUMS run-manifest entry",
+        ],
+    }
+
+
+def _fresh_build_determinism_validation(
+    args: argparse.Namespace,
+    manifest: Mapping[str, Any],
+) -> dict[str, Any]:
+    """Render and byte-compare two fresh complete private builds."""
+    source_key = args.private_output.resolve() / "private-author-key"
+    key_bytes = source_key.read_bytes()
+    if len(key_bytes) != 32:
+        raise Phase1Error("determinism source key is not exactly 32 bytes")
+    scratch_parent = args.private_output.resolve().parent
+    with tempfile.TemporaryDirectory(
+        dir=scratch_parent,
+        prefix="proposition-ledger-phase1.1-internal-determinism-",
+    ) as scratch_name:
+        scratch = Path(scratch_name)
+        os.chmod(scratch, 0o700)
+        builds = [scratch / "build-a", scratch / "build-b"]
+        for build in builds:
+            _ensure_private_directory(build)
+            _write_private(build / "private-author-key", key_bytes)
+            probe_args = copy.copy(args)
+            probe_args.private_output = build
+            _build_outputs(
+                probe_args,
+                manifest,
+                perform_fresh_determinism_check=False,
+            )
+        return _fresh_build_directory_comparison(builds[0], builds[1])
+
+
+def _build_outputs(
+    args: argparse.Namespace,
+    manifest: Mapping[str, Any],
+    *,
+    perform_fresh_determinism_check: bool = True,
+) -> dict[str, Any]:
     project_dir = args.project_dir.resolve()
     private_output = args.private_output.resolve()
     _ensure_private_directory(private_output)
     key_path = private_output / "private-author-key"
     if not key_path.is_file() or key_path.is_symlink() or key_path.stat().st_size != 32 or stat.S_IMODE(key_path.stat().st_mode) != 0o600:
         raise Phase1Error("private output must already contain a mode-0600 32-byte private-author-key")
+    fresh_determinism = (
+        _fresh_build_determinism_validation(args, manifest)
+        if perform_fresh_determinism_check
+        else {
+            "passed": True,
+            "errors": [],
+            "substantive_file_count": 0,
+            "isolated_run_metadata": [],
+        }
+    )
     inventory, before_hashes = _inventory_sources(manifest)
     overlap = _build_overlap(manifest)
-    feasibility_rows, feasibility_summary, exposure_rows, exposure_summary, turns_by_conversation = _build_feasibility_and_exposure(manifest)
+    (
+        feasibility_rows,
+        feasibility_summary,
+        exposure_rows,
+        exposure_summary,
+        turns_by_conversation,
+        target_rows,
+        target_structural_exclusions,
+        target_crosstab,
+    ) = _build_feasibility_and_exposure(manifest)
     calibration_records, calibration_manifest, calibration_index = _build_calibration_pack(
         manifest, feasibility_rows, turns_by_conversation
     )
@@ -3659,9 +5646,76 @@ def _build_outputs(args: argparse.Namespace, manifest: Mapping[str, Any]) -> dic
     exposure_registry_payload = _jsonl_payload(exposure_rows)
     exposure_registry_hash = sha256_bytes(exposure_registry_payload)
     protocol = _build_protocol(source_manifest_hash, exposure_registry_hash)
-    schema_validation = _schema_validation(project_dir, protocol)
-    if not schema_validation["passed"]:
-        raise Phase1Error("schema or synthetic-fixture validation failed")
+    schema_validation = _schema_validation_for_readiness(project_dir, protocol)
+    materialiser_validation = _semantic_materialiser_validation_for_readiness(
+        project_dir
+    )
+
+    second_inventory, _ = _inventory_sources(manifest)
+    second_overlap = _build_overlap(manifest)
+    (
+        second_feasibility_rows,
+        second_feasibility_summary,
+        second_exposure_rows,
+        second_exposure_summary,
+        second_turns,
+        second_target_rows,
+        second_target_structural_exclusions,
+        second_target_crosstab,
+    ) = _build_feasibility_and_exposure(manifest)
+    second_calibration_records, second_calibration_manifest, second_calibration_index = _build_calibration_pack(
+        manifest, second_feasibility_rows, second_turns
+    )
+    second_protocol = _build_protocol(
+        source_manifest_hash,
+        sha256_bytes(_jsonl_payload(second_exposure_rows)),
+    )
+    second_schema_validation = _schema_validation_for_readiness(
+        project_dir, second_protocol
+    )
+    in_process_rebuild_valid = canonical_json_bytes(
+        {
+            "inventory": inventory,
+            "overlap": overlap,
+            "feasibility_rows": feasibility_rows,
+            "feasibility_summary": feasibility_summary,
+            "exposure_rows": exposure_rows,
+            "exposure_summary": exposure_summary,
+            "target_rows": target_rows,
+            "target_structural_exclusions": target_structural_exclusions,
+            "target_crosstab": target_crosstab,
+            "calibration_records": calibration_records,
+            "calibration_manifest": calibration_manifest,
+            "calibration_index": calibration_index,
+            "protocol": protocol,
+            "schema_validation": schema_validation,
+        }
+    ) == canonical_json_bytes(
+        {
+            "inventory": second_inventory,
+            "overlap": second_overlap,
+            "feasibility_rows": second_feasibility_rows,
+            "feasibility_summary": second_feasibility_summary,
+            "exposure_rows": second_exposure_rows,
+            "exposure_summary": second_exposure_summary,
+            "target_rows": second_target_rows,
+            "target_structural_exclusions": second_target_structural_exclusions,
+            "target_crosstab": second_target_crosstab,
+            "calibration_records": second_calibration_records,
+            "calibration_manifest": second_calibration_manifest,
+            "calibration_index": second_calibration_index,
+            "protocol": second_protocol,
+            "schema_validation": second_schema_validation,
+        }
+    )
+    deterministic_rebuild_valid = (
+        in_process_rebuild_valid and fresh_determinism["passed"] is True
+    )
+
+    _write_private(
+        private_output / "frozen-source-manifest.json",
+        args.source_manifest.resolve().read_bytes(),
+    )
     _write_json(private_output / "source-inventory.json", inventory)
     _write_markdown(private_output / "source-inventory.md", _inventory_markdown(inventory))
     _write_json(private_output / "source-overlap.json", overlap)
@@ -3671,38 +5725,103 @@ def _build_outputs(args: argparse.Namespace, manifest: Mapping[str, Any]) -> dic
     _write_markdown(private_output / "corpus-feasibility.md", _feasibility_markdown(feasibility_summary))
     _write_private(private_output / "prior-exposure-registry.jsonl", exposure_registry_payload)
     _write_json(private_output / "prior-exposure-summary.json", exposure_summary)
+    _write_jsonl(private_output / "target-prefix-feasibility-index.jsonl", target_rows)
+    _write_jsonl(
+        private_output / "target-prefix-structural-exclusions.jsonl",
+        target_structural_exclusions,
+    )
+    _write_json(private_output / "target-prefix-crosstab.json", target_crosstab)
+    _write_markdown(
+        private_output / "target-prefix-crosstab.md",
+        _target_prefix_crosstab_markdown(target_crosstab),
+    )
     _write_jsonl(private_output / "calibration-pack/calibration-records.jsonl", calibration_records)
     _write_json(private_output / "calibration-pack/calibration-index.json", calibration_index)
     _write_json(private_output / "calibration-pack/manifest.json", calibration_manifest)
     _write_json(private_output / "experiment-protocol-draft.json", protocol)
     _write_markdown(private_output / "experiment-protocol-draft.md", _protocol_markdown(protocol))
     _write_json(private_output / "schema-validation.json", schema_validation)
-    privacy = _privacy_validation(project_dir, private_output, manifest)
-    if not privacy["passed"]:
-        raise Phase1Error("privacy validation failed")
-    protocol_sha256 = sha256_file(private_output / "experiment-protocol-draft.json")
-    report_lines = _phase1_report(
-        inventory,
-        overlap,
-        feasibility_summary,
-        exposure_summary,
-        protocol_sha256,
-        schema_validation["ledger_schema_sha256"],
-        calibration_manifest,
-        schema_validation,
-        privacy,
-        manifest,
+    _write_json(
+        private_output / "semantic-delta-schema-validation.json",
+        schema_validation["semantic_delta_schema_validation"],
     )
-    _write_markdown(private_output / "phase1-report.md", report_lines)
+    _write_json(
+        private_output / "semantic-materialiser-validation.json",
+        materialiser_validation,
+    )
+    privacy = _privacy_validation(project_dir, private_output, manifest)
+    target_crosstab_errors = _target_prefix_crosstab_errors(target_rows, target_crosstab)
+    outcome_complete = (
+        not target_crosstab_errors
+        and sum(
+            target_crosstab["dimensions"]["outcome_evidence_class"].values()
+        )
+        == len(target_rows)
+    )
+    transcript_first_protocol_valid = (
+        protocol.get("adjudication", {}).get("independent_raters") == 2
+        and protocol.get("adjudication", {})
+        .get("gold_lock", {})
+        .get("locked_before_machine_ledger_reveal")
+        is True
+        and protocol.get("adjudication", {})
+        .get("machine_reveal", {})
+        .get("permitted_only_after_gold_lock")
+        is True
+        and len(protocol.get("arms", [])) == 4
+    )
+    preliminary_target_count = int(
+        target_crosstab["headline_counts"][
+            "preliminary_held_out_eligible_target_prefix_count"
+        ]
+    )
+    readiness = _derive_readiness_gates(
+        source_identity_valid=True,
+        deterministic_rebuild_valid=deterministic_rebuild_valid,
+        privacy_valid=privacy["passed"] is True,
+        schema_valid=schema_validation["passed"] is True,
+        synthetic_fixtures_valid=(
+            schema_validation["synthetic_fixtures"]["fixture_count"] == 12
+            and schema_validation["synthetic_fixtures"]["valid_fixture_count"] == 12
+            and schema_validation["synthetic_fixtures"]["all_invalid_examples_detected"]
+        ),
+        target_outcomes_valid=outcome_complete,
+        target_crosstab_valid=not target_crosstab_errors,
+        no_future_turn_leakage=all(
+            row.get("complete_target_ancestry") is True for row in target_rows
+        ),
+        semantic_schema_valid=(
+            schema_validation["semantic_delta_schema_validation"]["passed"] is True
+        ),
+        materialiser_valid=materialiser_validation["passed"] is True,
+        transcript_first_protocol_valid=transcript_first_protocol_valid,
+        preliminary_target_count=preliminary_target_count,
+        deterministic_rebuild_evidence=FRESH_BUILD_DETERMINISM_EVIDENCE,
+    )
+    _write_json(private_output / "readiness-gates.json", readiness)
+    protocol_sha256 = sha256_file(private_output / "experiment-protocol-draft.json")
+    report_lines = _phase1_1_report_for_readiness(
+        inventory,
+        feasibility_summary,
+        target_crosstab,
+        protocol_sha256,
+        schema_validation,
+        materialiser_validation,
+        readiness,
+        privacy,
+    )
+    _write_markdown(private_output / "phase1.1-report.md", report_lines)
     run_manifest = {
         "schema_version": OUTPUT_SCHEMA_VERSION,
-        "run_kind": "proposition-ledger-phase1-evidence-only",
+        "run_kind": "proposition-ledger-phase1.1-preflight-amendment",
         "generated_at": datetime.now(timezone.utc).replace(microsecond=0).isoformat().replace("+00:00", "Z"),
         "private_output": str(private_output),
         "verified_origin_master_sha": manifest.get("verified_origin_master_sha"),
+        "phase1_base_sha": PHASE1_BASE_SHA,
         "prospective_batch_resolved_once": manifest.get("prospective_batch_resolved_once"),
         "prospective_batch_manifest_sha256": manifest.get("prospective_batch_manifest_sha256"),
-        "source_manifest_path": str(args.source_manifest.resolve()),
+        "source_manifest_input_path": str(args.source_manifest.resolve()),
+        "source_manifest_path": str(private_output / "frozen-source-manifest.json"),
         "source_manifest_sha256": source_manifest_hash,
         "cutoff": args.cutoff,
         "network_calls": 0,
@@ -3711,9 +5830,23 @@ def _build_outputs(args: argparse.Namespace, manifest: Mapping[str, Any]) -> dic
         "model_generated_real_ledgers": 0,
         "model_generated_experimental_replies": 0,
         "production_writes": 0,
+        "final_held_out_selected": False,
+        "phase2_started": False,
     }
     _write_json(private_output / "run-manifest.json", run_manifest)
     _write_sha256s(private_output)
+    emitted_block = _emitted_blocking_disposition(readiness)
+    if emitted_block is not None:
+        _verify_source_hashes_unchanged(manifest, before_hashes)
+        if not perform_fresh_determinism_check:
+            return {
+                "private_output": str(private_output),
+                "readiness_disposition": emitted_block,
+                "blocked_after_artifact_emission": True,
+            }
+        raise Phase1Error(
+            f"Phase 1.1 preflight blocked after readiness/report emission: {emitted_block}"
+        )
     validation = _validate_outputs(private_output, project_dir, source_manifest_hash)
     if not validation["passed"]:
         raise Phase1Error(f"generated output validation failed: {validation}")
@@ -3725,9 +5858,17 @@ def _build_outputs(args: argparse.Namespace, manifest: Mapping[str, Any]) -> dic
         "private_output": str(private_output),
         "grade_counts": feasibility_summary["grade_counts"],
         "target_prefix_counts": feasibility_summary["target_prefix_counts"],
+        "target_structural_reconciliation": feasibility_summary[
+            "target_structural_reconciliation"
+        ],
         "exposure_counts": exposure_summary["conversation_status_counts"],
         "protocol_sha256": protocol_sha256,
         "ledger_schema_sha256": schema_validation["ledger_schema_sha256"],
+        "semantic_delta_schema_sha256": schema_validation["semantic_delta_schema_sha256"],
+        "experiment_schema_sha256": schema_validation["experiment_schema_sha256"],
+        "materialiser_sha256": materialiser_validation["source_sha256"],
+        "readiness_disposition": readiness["disposition"],
+        "target_prefix_crosstab": target_crosstab["headline_counts"],
         "calibration_pack_sha256": calibration_manifest["pack_content_sha256"],
         "fixture_count": schema_validation["synthetic_fixtures"]["fixture_count"],
         "privacy": final_privacy,
@@ -3810,7 +5951,16 @@ def _substantive_rebuild_errors(
     private_output = args.private_output.resolve()
     project_dir = args.project_dir.resolve()
     overlap = _build_overlap(manifest)
-    feasibility_rows, feasibility_summary, exposure_rows, exposure_summary, turns_by_conversation = _build_feasibility_and_exposure(manifest)
+    (
+        feasibility_rows,
+        feasibility_summary,
+        exposure_rows,
+        exposure_summary,
+        turns_by_conversation,
+        target_rows,
+        target_structural_exclusions,
+        target_crosstab,
+    ) = _build_feasibility_and_exposure(manifest)
     calibration_records, calibration_manifest, calibration_index = _build_calibration_pack(
         manifest,
         feasibility_rows,
@@ -3821,20 +5971,78 @@ def _substantive_rebuild_errors(
         sha256_file(args.source_manifest.resolve()),
         sha256_bytes(exposure_payload),
     )
-    schema_validation = _schema_validation(project_dir, protocol)
+    schema_validation = _schema_validation_for_readiness(project_dir, protocol)
+    materialiser_validation = _semantic_materialiser_validation_for_readiness(
+        project_dir
+    )
+    privacy = _privacy_validation(project_dir, private_output, manifest)
+    crosstab_errors = _target_prefix_crosstab_errors(target_rows, target_crosstab)
+    readiness = _derive_readiness_gates(
+        source_identity_valid=True,
+        deterministic_rebuild_valid=True,
+        privacy_valid=privacy["passed"] is True,
+        schema_valid=schema_validation["passed"] is True,
+        synthetic_fixtures_valid=(
+            schema_validation["synthetic_fixtures"]["fixture_count"] == 12
+            and schema_validation["synthetic_fixtures"]["valid_fixture_count"] == 12
+            and schema_validation["synthetic_fixtures"]["all_invalid_examples_detected"]
+        ),
+        target_outcomes_valid=(
+            not crosstab_errors
+            and sum(target_crosstab["dimensions"]["outcome_evidence_class"].values())
+            == len(target_rows)
+        ),
+        target_crosstab_valid=not crosstab_errors,
+        no_future_turn_leakage=all(
+            row.get("complete_target_ancestry") is True for row in target_rows
+        ),
+        semantic_schema_valid=(
+            schema_validation["semantic_delta_schema_validation"]["passed"] is True
+        ),
+        materialiser_valid=materialiser_validation["passed"] is True,
+        transcript_first_protocol_valid=(
+            protocol.get("adjudication", {}).get("independent_raters") == 2
+            and protocol.get("adjudication", {})
+            .get("gold_lock", {})
+            .get("locked_before_machine_ledger_reveal")
+            is True
+            and protocol.get("adjudication", {})
+            .get("machine_reveal", {})
+            .get("permitted_only_after_gold_lock")
+            is True
+            and len(protocol.get("arms", [])) == 4
+        ),
+        preliminary_target_count=int(
+            target_crosstab["headline_counts"][
+                "preliminary_held_out_eligible_target_prefix_count"
+            ]
+        ),
+        deterministic_rebuild_evidence=FRESH_BUILD_DETERMINISM_EVIDENCE,
+    )
+    protocol_sha256 = sha256_file(private_output / "experiment-protocol-draft.json")
     expected_json = {
         "source-inventory.json": inventory,
         "source-overlap.json": overlap,
         "corpus-feasibility.json": feasibility_summary,
         "prior-exposure-summary.json": exposure_summary,
+        "target-prefix-crosstab.json": target_crosstab,
         "calibration-pack/calibration-index.json": calibration_index,
         "calibration-pack/manifest.json": calibration_manifest,
         "experiment-protocol-draft.json": protocol,
         "schema-validation.json": schema_validation,
+        "semantic-delta-schema-validation.json": schema_validation[
+            "semantic_delta_schema_validation"
+        ],
+        "semantic-materialiser-validation.json": materialiser_validation,
+        "readiness-gates.json": readiness,
     }
     expected_jsonl = {
         "conversation-feasibility-index.jsonl": feasibility_rows,
         "prior-exposure-registry.jsonl": exposure_rows,
+        "target-prefix-feasibility-index.jsonl": target_rows,
+        "target-prefix-structural-exclusions.jsonl": (
+            target_structural_exclusions
+        ),
         "calibration-pack/calibration-records.jsonl": calibration_records,
     }
     errors: list[str] = []
@@ -3844,6 +6052,29 @@ def _substantive_rebuild_errors(
     for relative, expected in expected_jsonl.items():
         if _jsonl_payload(_read_jsonl(private_output / relative)) != _jsonl_payload(expected):
             errors.append(relative)
+    expected_markdown = {
+        "source-inventory.md": _inventory_markdown(inventory),
+        "source-overlap.md": _overlap_markdown(overlap),
+        "corpus-feasibility.md": _feasibility_markdown(feasibility_summary),
+        "target-prefix-crosstab.md": _target_prefix_crosstab_markdown(target_crosstab),
+        "experiment-protocol-draft.md": _protocol_markdown(protocol),
+        "phase1.1-report.md": _phase1_1_report_for_readiness(
+            inventory,
+            feasibility_summary,
+            target_crosstab,
+            protocol_sha256,
+            schema_validation,
+            materialiser_validation,
+            readiness,
+            privacy,
+        ),
+    }
+    for relative, lines in expected_markdown.items():
+        expected_payload = ("\n".join(lines) + "\n").encode("utf-8")
+        if (private_output / relative).read_bytes() != expected_payload:
+            errors.append(relative)
+    if (private_output / "frozen-source-manifest.json").read_bytes() != args.source_manifest.resolve().read_bytes():
+        errors.append("frozen-source-manifest.json")
     return errors
 
 

@@ -1,0 +1,1964 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://mrs-m-thatcher.invalid/research/proposition-ledger-semantic-delta-v1.schema.json",
+  "title": "Proposition ledger current-turn semantic delta v1",
+  "description": "Provider-facing semantic analysis for one exact transcript turn. Persistence identifiers, hashes, replay patches, and cumulative state are intentionally absent.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "conversation_key",
+    "target_turn_id",
+    "as_of_turn_index",
+    "prior_ledger_reference",
+    "new_propositions",
+    "proposition_updates",
+    "new_proposition_groups",
+    "proposition_group_updates",
+    "new_issue_states",
+    "issue_state_updates",
+    "commitment_changes",
+    "obligation_changes",
+    "new_relations",
+    "answer_target_changes",
+    "rejected_answer_target_changes",
+    "repair_records",
+    "resolved_items",
+    "extraction_status",
+    "abstentions",
+    "unsupported_inferences_rejected",
+    "warnings"
+  ],
+  "properties": {
+    "schema_version": {
+      "const": "proposition-ledger-semantic-delta-v1.0.0"
+    },
+    "conversation_key": {
+      "type": "string",
+      "minLength": 1
+    },
+    "target_turn_id": {
+      "$ref": "#/$defs/opaqueId"
+    },
+    "as_of_turn_index": {
+      "type": "integer",
+      "minimum": 1
+    },
+    "prior_ledger_reference": {
+      "$ref": "#/$defs/priorLedgerReference"
+    },
+    "new_propositions": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/newProposition"
+      }
+    },
+    "proposition_updates": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/propositionUpdate"
+      }
+    },
+    "new_proposition_groups": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/newPropositionGroup"
+      }
+    },
+    "proposition_group_updates": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/propositionGroupUpdate"
+      }
+    },
+    "new_issue_states": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/newIssueState"
+      }
+    },
+    "issue_state_updates": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/issueStateUpdate"
+      }
+    },
+    "commitment_changes": {
+      "type": "array",
+      "items": {
+        "oneOf": [
+          {
+            "$ref": "#/$defs/newCommitment"
+          },
+          {
+            "$ref": "#/$defs/commitmentUpdate"
+          }
+        ]
+      }
+    },
+    "obligation_changes": {
+      "type": "array",
+      "items": {
+        "oneOf": [
+          {
+            "$ref": "#/$defs/newObligation"
+          },
+          {
+            "$ref": "#/$defs/obligationUpdate"
+          }
+        ]
+      }
+    },
+    "new_relations": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/newRelation"
+      }
+    },
+    "answer_target_changes": {
+      "type": "array",
+      "items": {
+        "oneOf": [
+          {
+            "$ref": "#/$defs/newAnswerTarget"
+          },
+          {
+            "$ref": "#/$defs/answerTargetUpdate"
+          }
+        ]
+      }
+    },
+    "rejected_answer_target_changes": {
+      "type": "array",
+      "items": {
+        "oneOf": [
+          {
+            "$ref": "#/$defs/newRejectedAnswerTarget"
+          },
+          {
+            "$ref": "#/$defs/rejectedAnswerTargetUpdate"
+          }
+        ]
+      }
+    },
+    "repair_records": {
+      "type": "array",
+      "items": {
+        "oneOf": [
+          {
+            "$ref": "#/$defs/newRepairRecord"
+          },
+          {
+            "$ref": "#/$defs/repairRecordUpdate"
+          }
+        ]
+      }
+    },
+    "resolved_items": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/resolvedItem"
+      }
+    },
+    "extraction_status": {
+      "enum": [
+        "complete",
+        "partial",
+        "abstained",
+        "invalid_source"
+      ]
+    },
+    "abstentions": {
+      "type": "array",
+      "uniqueItems": true,
+      "items": {
+        "$ref": "#/$defs/abstentionCode"
+      }
+    },
+    "unsupported_inferences_rejected": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "warnings": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/newWarning"
+      }
+    }
+  },
+  "$defs": {
+    "opaqueId": {
+      "type": "string",
+      "pattern": "^[A-Za-z][A-Za-z0-9_.:-]{0,127}$"
+    },
+    "confidence": {
+      "type": "number",
+      "minimum": 0,
+      "maximum": 1
+    },
+    "uncertaintyReason": {
+      "type": [
+        "string",
+        "null"
+      ],
+      "minLength": 1,
+      "maxLength": 1000
+    },
+    "priorLedgerReference": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "ledger_id",
+        "as_of_turn_index"
+      ],
+      "properties": {
+        "ledger_id": {
+          "$ref": "#/$defs/opaqueId"
+        },
+        "as_of_turn_index": {
+          "type": "integer",
+          "minimum": 0
+        }
+      }
+    },
+    "localPropositionRef": {
+      "type": "string",
+      "pattern": "^new-proposition-[1-9][0-9]{0,2}$"
+    },
+    "localPropositionGroupRef": {
+      "type": "string",
+      "pattern": "^new-proposition-group-[1-9][0-9]{0,2}$"
+    },
+    "localIssueRef": {
+      "type": "string",
+      "pattern": "^new-issue-[1-9][0-9]{0,2}$"
+    },
+    "localCommitmentRef": {
+      "type": "string",
+      "pattern": "^new-commitment-[1-9][0-9]{0,2}$"
+    },
+    "localObligationRef": {
+      "type": "string",
+      "pattern": "^new-obligation-[1-9][0-9]{0,2}$"
+    },
+    "localRelationRef": {
+      "type": "string",
+      "pattern": "^new-relation-[1-9][0-9]{0,2}$"
+    },
+    "localAnswerTargetRef": {
+      "type": "string",
+      "pattern": "^new-answer-target-[1-9][0-9]{0,2}$"
+    },
+    "localRejectedAnswerTargetRef": {
+      "type": "string",
+      "pattern": "^new-rejected-answer-target-[1-9][0-9]{0,2}$"
+    },
+    "localRepairRef": {
+      "type": "string",
+      "pattern": "^new-repair-[1-9][0-9]{0,2}$"
+    },
+    "localWarningRef": {
+      "type": "string",
+      "pattern": "^new-warning-[1-9][0-9]{0,2}$"
+    },
+    "localAlternativeRef": {
+      "type": "string",
+      "pattern": "^new-alternative-[1-9][0-9]{0,2}$"
+    },
+    "propositionRef": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/opaqueId"
+        },
+        {
+          "$ref": "#/$defs/localPropositionRef"
+        }
+      ]
+    },
+    "propositionGroupRef": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/opaqueId"
+        },
+        {
+          "$ref": "#/$defs/localPropositionGroupRef"
+        }
+      ]
+    },
+    "issueRef": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/opaqueId"
+        },
+        {
+          "$ref": "#/$defs/localIssueRef"
+        }
+      ]
+    },
+    "commitmentRef": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/opaqueId"
+        },
+        {
+          "$ref": "#/$defs/localCommitmentRef"
+        }
+      ]
+    },
+    "obligationRef": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/opaqueId"
+        },
+        {
+          "$ref": "#/$defs/localObligationRef"
+        }
+      ]
+    },
+    "answerTargetRef": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/opaqueId"
+        },
+        {
+          "$ref": "#/$defs/localAnswerTargetRef"
+        }
+      ]
+    },
+    "rejectedAnswerTargetRef": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/opaqueId"
+        },
+        {
+          "$ref": "#/$defs/localRejectedAnswerTargetRef"
+        }
+      ]
+    },
+    "repairRef": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/opaqueId"
+        },
+        {
+          "$ref": "#/$defs/localRepairRef"
+        }
+      ]
+    },
+    "evidenceSpan": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "turn_id",
+        "start_char",
+        "end_char",
+        "exact_text"
+      ],
+      "properties": {
+        "turn_id": {
+          "$ref": "#/$defs/opaqueId"
+        },
+        "start_char": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "end_char": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "exact_text": {
+          "type": "string",
+          "minLength": 1
+        }
+      }
+    },
+    "evidenceSpans": {
+      "type": "array",
+      "minItems": 1,
+      "uniqueItems": true,
+      "items": {
+        "$ref": "#/$defs/evidenceSpan"
+      }
+    },
+    "speakerOrAttributor": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "kind",
+        "participant_id",
+        "attributed_participant_id"
+      ],
+      "properties": {
+        "kind": {
+          "enum": [
+            "speaker",
+            "attributor",
+            "unknown"
+          ]
+        },
+        "participant_id": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/opaqueId"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "attributed_participant_id": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/opaqueId"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      }
+    },
+    "modality": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "type",
+        "strength"
+      ],
+      "properties": {
+        "type": {
+          "enum": [
+            "none",
+            "possible",
+            "probable",
+            "necessary",
+            "obligatory",
+            "permitted",
+            "hypothetical",
+            "unknown"
+          ]
+        },
+        "strength": {
+          "enum": [
+            "none",
+            "weak",
+            "medium",
+            "strong",
+            "unknown"
+          ]
+        }
+      }
+    },
+    "quantification": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "type",
+        "surface_marker"
+      ],
+      "properties": {
+        "type": {
+          "enum": [
+            "none",
+            "existential",
+            "universal",
+            "most",
+            "many",
+            "some",
+            "few",
+            "exact",
+            "comparative",
+            "unknown"
+          ]
+        },
+        "surface_marker": {
+          "type": [
+            "string",
+            "null"
+          ]
+        }
+      }
+    },
+    "temporalScope": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "type",
+        "start",
+        "end",
+        "surface_marker"
+      ],
+      "properties": {
+        "type": {
+          "enum": [
+            "timeless",
+            "past",
+            "present",
+            "future",
+            "interval",
+            "counterfactual",
+            "relative",
+            "unknown"
+          ]
+        },
+        "start": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "end": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "surface_marker": {
+          "type": [
+            "string",
+            "null"
+          ]
+        }
+      }
+    },
+    "derivation": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "kind",
+        "source_proposition_refs",
+        "normalisation_note"
+      ],
+      "properties": {
+        "kind": {
+          "enum": [
+            "direct_span",
+            "compound_decomposition",
+            "anaphora_resolution",
+            "synthetic_fixture"
+          ]
+        },
+        "source_proposition_refs": {
+          "type": "array",
+          "uniqueItems": true,
+          "items": {
+            "$ref": "#/$defs/propositionRef"
+          }
+        },
+        "normalisation_note": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "maxLength": 1000
+        }
+      }
+    },
+    "propositionSemanticProperties": {
+      "type": "object",
+      "additionalProperties": false,
+      "minProperties": 1,
+      "properties": {
+        "canonical_text": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 2000
+        },
+        "speaker_or_attributor": {
+          "$ref": "#/$defs/speakerOrAttributor"
+        },
+        "original_language": {
+          "type": "string",
+          "pattern": "^[A-Za-z]{2,3}(-[A-Za-z0-9]{2,8})*$"
+        },
+        "speech_act": {
+          "enum": [
+            "assertion",
+            "denial",
+            "question",
+            "challenge",
+            "request",
+            "proposal",
+            "concession",
+            "qualification",
+            "correction",
+            "quotation",
+            "report",
+            "rhetorical",
+            "expressive",
+            "other"
+          ]
+        },
+        "proposition_kind": {
+          "enum": [
+            "descriptive",
+            "causal",
+            "normative",
+            "evaluative",
+            "definitional",
+            "modal",
+            "existential",
+            "universal",
+            "comparative",
+            "counterfactual",
+            "prediction",
+            "proposal",
+            "rhetorical",
+            "expressive",
+            "reported_claim",
+            "quoted_claim",
+            "question_presupposition"
+          ]
+        },
+        "polarity": {
+          "enum": [
+            "positive",
+            "negative",
+            "open",
+            "not_applicable",
+            "unknown"
+          ]
+        },
+        "modality": {
+          "$ref": "#/$defs/modality"
+        },
+        "quantification": {
+          "$ref": "#/$defs/quantification"
+        },
+        "temporal_scope": {
+          "$ref": "#/$defs/temporalScope"
+        },
+        "epistemic_status": {
+          "enum": [
+            "asserted",
+            "denied",
+            "questioned",
+            "presupposed_only",
+            "hypothetical",
+            "quoted_only",
+            "reported_only",
+            "uncertain",
+            "not_applicable"
+          ]
+        },
+        "commitment_status": {
+          "enum": [
+            "speaker_committed",
+            "speaker_not_committed",
+            "attributed_to_another",
+            "questioned_only",
+            "left_uncertain",
+            "withdrawn",
+            "not_applicable"
+          ]
+        },
+        "lifecycle_status": {
+          "enum": [
+            "introduced",
+            "live",
+            "qualified",
+            "challenged",
+            "conceded",
+            "withdrawn",
+            "resolved",
+            "superseded",
+            "abandoned"
+          ]
+        },
+        "proposition_group_ref": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/propositionGroupRef"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "derivation": {
+          "$ref": "#/$defs/derivation"
+        },
+        "confidence": {
+          "$ref": "#/$defs/confidence"
+        },
+        "uncertainty_reason": {
+          "$ref": "#/$defs/uncertaintyReason"
+        }
+      }
+    },
+    "newProposition": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "local_ref",
+        "canonical_text",
+        "speaker_or_attributor",
+        "exact_evidence_spans",
+        "original_language",
+        "speech_act",
+        "proposition_kind",
+        "polarity",
+        "modality",
+        "quantification",
+        "temporal_scope",
+        "epistemic_status",
+        "commitment_status",
+        "lifecycle_status",
+        "proposition_group_ref",
+        "derivation",
+        "confidence",
+        "uncertainty_reason"
+      ],
+      "properties": {
+        "local_ref": {
+          "$ref": "#/$defs/localPropositionRef"
+        },
+        "canonical_text": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 2000
+        },
+        "speaker_or_attributor": {
+          "$ref": "#/$defs/speakerOrAttributor"
+        },
+        "exact_evidence_spans": {
+          "$ref": "#/$defs/evidenceSpans"
+        },
+        "original_language": {
+          "type": "string",
+          "pattern": "^[A-Za-z]{2,3}(-[A-Za-z0-9]{2,8})*$"
+        },
+        "speech_act": {
+          "$ref": "#/$defs/propositionSemanticProperties/properties/speech_act"
+        },
+        "proposition_kind": {
+          "$ref": "#/$defs/propositionSemanticProperties/properties/proposition_kind"
+        },
+        "polarity": {
+          "$ref": "#/$defs/propositionSemanticProperties/properties/polarity"
+        },
+        "modality": {
+          "$ref": "#/$defs/modality"
+        },
+        "quantification": {
+          "$ref": "#/$defs/quantification"
+        },
+        "temporal_scope": {
+          "$ref": "#/$defs/temporalScope"
+        },
+        "epistemic_status": {
+          "$ref": "#/$defs/propositionSemanticProperties/properties/epistemic_status"
+        },
+        "commitment_status": {
+          "$ref": "#/$defs/propositionSemanticProperties/properties/commitment_status"
+        },
+        "lifecycle_status": {
+          "$ref": "#/$defs/propositionSemanticProperties/properties/lifecycle_status"
+        },
+        "proposition_group_ref": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/propositionGroupRef"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "derivation": {
+          "$ref": "#/$defs/derivation"
+        },
+        "confidence": {
+          "$ref": "#/$defs/confidence"
+        },
+        "uncertainty_reason": {
+          "$ref": "#/$defs/uncertaintyReason"
+        }
+      }
+    },
+    "propositionUpdate": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "proposition_id",
+        "changes",
+        "reason",
+        "exact_evidence_spans"
+      ],
+      "properties": {
+        "proposition_id": {
+          "$ref": "#/$defs/opaqueId"
+        },
+        "changes": {
+          "$ref": "#/$defs/propositionSemanticProperties"
+        },
+        "reason": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 1000
+        },
+        "exact_evidence_spans": {
+          "$ref": "#/$defs/evidenceSpans"
+        }
+      }
+    },
+    "groupMember": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "proposition_ref",
+        "role",
+        "ordinal"
+      ],
+      "properties": {
+        "proposition_ref": {
+          "$ref": "#/$defs/propositionRef"
+        },
+        "role": {
+          "enum": [
+            "member",
+            "conjunct",
+            "disjunct",
+            "antecedent",
+            "consequent",
+            "premise",
+            "conclusion",
+            "event",
+            "cause",
+            "intermediate_cause",
+            "outcome",
+            "conduct",
+            "motive",
+            "qualification",
+            "exception"
+          ]
+        },
+        "ordinal": {
+          "type": "integer",
+          "minimum": 0
+        }
+      }
+    },
+    "newPropositionGroup": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "local_ref",
+        "structure_type",
+        "members",
+        "exact_evidence_spans",
+        "decomposition_complete",
+        "confidence",
+        "uncertainty_reason"
+      ],
+      "properties": {
+        "local_ref": {
+          "$ref": "#/$defs/localPropositionGroupRef"
+        },
+        "structure_type": {
+          "$ref": "#/$defs/groupChanges/properties/structure_type"
+        },
+        "members": {
+          "$ref": "#/$defs/groupChanges/properties/members"
+        },
+        "exact_evidence_spans": {
+          "$ref": "#/$defs/evidenceSpans"
+        },
+        "decomposition_complete": {
+          "type": "boolean"
+        },
+        "confidence": {
+          "$ref": "#/$defs/confidence"
+        },
+        "uncertainty_reason": {
+          "$ref": "#/$defs/uncertaintyReason"
+        }
+      }
+    },
+    "groupChanges": {
+      "type": "object",
+      "additionalProperties": false,
+      "minProperties": 1,
+      "properties": {
+        "structure_type": {
+          "enum": [
+            "independent_set",
+            "conjunction",
+            "disjunction",
+            "conditional",
+            "causal_chain",
+            "premise_conclusion",
+            "compound_accusation",
+            "mixed",
+            "uncertain"
+          ]
+        },
+        "members": {
+          "type": "array",
+          "minItems": 2,
+          "uniqueItems": true,
+          "items": {
+            "$ref": "#/$defs/groupMember"
+          }
+        },
+        "decomposition_complete": {
+          "type": "boolean"
+        },
+        "confidence": {
+          "$ref": "#/$defs/confidence"
+        },
+        "uncertainty_reason": {
+          "$ref": "#/$defs/uncertaintyReason"
+        }
+      }
+    },
+    "propositionGroupUpdate": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "proposition_group_id",
+        "changes",
+        "reason",
+        "exact_evidence_spans"
+      ],
+      "properties": {
+        "proposition_group_id": {
+          "$ref": "#/$defs/opaqueId"
+        },
+        "changes": {
+          "$ref": "#/$defs/groupChanges"
+        },
+        "reason": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 1000
+        },
+        "exact_evidence_spans": {
+          "$ref": "#/$defs/evidenceSpans"
+        }
+      }
+    },
+    "answerRequirement": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "requirement_type",
+        "description"
+      ],
+      "properties": {
+        "requirement_type": {
+          "enum": [
+            "yes_no",
+            "select_alternative",
+            "supply_value",
+            "supply_reason",
+            "supply_evidence",
+            "clarify_reference",
+            "address_each_part",
+            "acknowledge_correction",
+            "other"
+          ]
+        },
+        "description": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 1000
+        }
+      }
+    },
+    "liveAlternative": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "local_ref",
+        "label",
+        "proposition_refs",
+        "status"
+      ],
+      "properties": {
+        "local_ref": {
+          "$ref": "#/$defs/localAlternativeRef"
+        },
+        "label": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 1000
+        },
+        "proposition_refs": {
+          "type": "array",
+          "uniqueItems": true,
+          "items": {
+            "$ref": "#/$defs/propositionRef"
+          }
+        },
+        "status": {
+          "enum": [
+            "live",
+            "supported",
+            "rejected",
+            "unknown"
+          ]
+        }
+      }
+    },
+    "issueProperties": {
+      "type": "object",
+      "additionalProperties": false,
+      "minProperties": 1,
+      "properties": {
+        "canonical_question": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "maxLength": 2000
+        },
+        "issue_type": {
+          "enum": [
+            "polar",
+            "wh",
+            "alternative",
+            "clarification",
+            "evidence_request",
+            "counterfactual",
+            "compound",
+            "rhetorical",
+            "expressive",
+            "no_stable_issue",
+            "other"
+          ]
+        },
+        "live_alternatives": {
+          "type": "array",
+          "uniqueItems": true,
+          "items": {
+            "$ref": "#/$defs/liveAlternative"
+          }
+        },
+        "addressed_participant": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/opaqueId"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "answer_requirements": {
+          "type": "array",
+          "uniqueItems": true,
+          "items": {
+            "$ref": "#/$defs/answerRequirement"
+          }
+        },
+        "related_proposition_refs": {
+          "type": "array",
+          "uniqueItems": true,
+          "items": {
+            "$ref": "#/$defs/propositionRef"
+          }
+        },
+        "status": {
+          "enum": [
+            "open",
+            "partly_answered",
+            "answered",
+            "challenged",
+            "superseded",
+            "abandoned",
+            "expired",
+            "no_stable_issue"
+          ]
+        },
+        "resolution_type": {
+          "enum": [
+            null,
+            "direct_answer",
+            "partial_answer",
+            "concession",
+            "withdrawal",
+            "mutual_closure",
+            "topic_change",
+            "expiry",
+            "no_stable_issue",
+            "other"
+          ]
+        },
+        "confidence": {
+          "$ref": "#/$defs/confidence"
+        }
+      }
+    },
+    "newIssueState": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "local_ref",
+        "initiating_speaker",
+        "canonical_question",
+        "issue_type",
+        "live_alternatives",
+        "addressed_participant",
+        "answer_requirements",
+        "related_proposition_refs",
+        "status",
+        "resolution_type",
+        "confidence",
+        "exact_evidence_spans"
+      ],
+      "properties": {
+        "local_ref": {
+          "$ref": "#/$defs/localIssueRef"
+        },
+        "initiating_speaker": {
+          "$ref": "#/$defs/opaqueId"
+        },
+        "canonical_question": {
+          "$ref": "#/$defs/issueProperties/properties/canonical_question"
+        },
+        "issue_type": {
+          "$ref": "#/$defs/issueProperties/properties/issue_type"
+        },
+        "live_alternatives": {
+          "$ref": "#/$defs/issueProperties/properties/live_alternatives"
+        },
+        "addressed_participant": {
+          "$ref": "#/$defs/issueProperties/properties/addressed_participant"
+        },
+        "answer_requirements": {
+          "$ref": "#/$defs/issueProperties/properties/answer_requirements"
+        },
+        "related_proposition_refs": {
+          "$ref": "#/$defs/issueProperties/properties/related_proposition_refs"
+        },
+        "status": {
+          "$ref": "#/$defs/issueProperties/properties/status"
+        },
+        "resolution_type": {
+          "$ref": "#/$defs/issueProperties/properties/resolution_type"
+        },
+        "confidence": {
+          "$ref": "#/$defs/confidence"
+        },
+        "exact_evidence_spans": {
+          "$ref": "#/$defs/evidenceSpans"
+        }
+      }
+    },
+    "issueStateUpdate": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "issue_id",
+        "changes",
+        "reason",
+        "exact_evidence_spans"
+      ],
+      "properties": {
+        "issue_id": {
+          "$ref": "#/$defs/opaqueId"
+        },
+        "changes": {
+          "$ref": "#/$defs/issueProperties"
+        },
+        "reason": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 1000
+        },
+        "exact_evidence_spans": {
+          "$ref": "#/$defs/evidenceSpans"
+        }
+      }
+    },
+    "newCommitment": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "operation",
+        "local_ref",
+        "participant_id",
+        "proposition_ref",
+        "stance",
+        "basis",
+        "confidence",
+        "uncertainty_reason",
+        "exact_evidence_spans"
+      ],
+      "properties": {
+        "operation": {
+          "const": "add"
+        },
+        "local_ref": {
+          "$ref": "#/$defs/localCommitmentRef"
+        },
+        "participant_id": {
+          "$ref": "#/$defs/opaqueId"
+        },
+        "proposition_ref": {
+          "$ref": "#/$defs/propositionRef"
+        },
+        "stance": {
+          "$ref": "#/$defs/commitmentChanges/properties/stance"
+        },
+        "basis": {
+          "$ref": "#/$defs/commitmentChanges/properties/basis"
+        },
+        "confidence": {
+          "$ref": "#/$defs/confidence"
+        },
+        "uncertainty_reason": {
+          "$ref": "#/$defs/uncertaintyReason"
+        },
+        "exact_evidence_spans": {
+          "$ref": "#/$defs/evidenceSpans"
+        }
+      }
+    },
+    "commitmentChanges": {
+      "type": "object",
+      "additionalProperties": false,
+      "minProperties": 1,
+      "properties": {
+        "stance": {
+          "enum": [
+            "asserted",
+            "denied",
+            "questioned",
+            "qualified",
+            "conceded",
+            "withdrawn",
+            "attributed_to_another",
+            "left_uncertain"
+          ]
+        },
+        "basis": {
+          "enum": [
+            "explicit_speech_act",
+            "explicit_correction",
+            "explicit_concession",
+            "explicit_withdrawal",
+            "attribution_only",
+            "uncertain"
+          ]
+        },
+        "confidence": {
+          "$ref": "#/$defs/confidence"
+        },
+        "uncertainty_reason": {
+          "$ref": "#/$defs/uncertaintyReason"
+        }
+      }
+    },
+    "commitmentUpdate": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "operation",
+        "commitment_id",
+        "changes",
+        "reason",
+        "exact_evidence_spans"
+      ],
+      "properties": {
+        "operation": {
+          "const": "update"
+        },
+        "commitment_id": {
+          "$ref": "#/$defs/opaqueId"
+        },
+        "changes": {
+          "$ref": "#/$defs/commitmentChanges"
+        },
+        "reason": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 1000
+        },
+        "exact_evidence_spans": {
+          "$ref": "#/$defs/evidenceSpans"
+        }
+      }
+    },
+    "obligationChangesPayload": {
+      "type": "object",
+      "additionalProperties": false,
+      "minProperties": 1,
+      "properties": {
+        "status": {
+          "enum": [
+            "open",
+            "partly_satisfied",
+            "satisfied",
+            "waived",
+            "expired",
+            "superseded"
+          ]
+        },
+        "expiry_policy": {
+          "enum": [
+            "never_implicit",
+            "on_explicit_withdrawal",
+            "on_issue_resolution",
+            "on_topic_abandonment",
+            "time_bounded",
+            "unspecified"
+          ]
+        },
+        "related_issue_refs": {
+          "type": "array",
+          "uniqueItems": true,
+          "items": {
+            "$ref": "#/$defs/issueRef"
+          }
+        },
+        "related_proposition_refs": {
+          "type": "array",
+          "uniqueItems": true,
+          "items": {
+            "$ref": "#/$defs/propositionRef"
+          }
+        },
+        "confidence": {
+          "$ref": "#/$defs/confidence"
+        }
+      }
+    },
+    "newObligation": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "operation",
+        "local_ref",
+        "obligation_type",
+        "owed_by_participant",
+        "owed_to_participant",
+        "related_issue_refs",
+        "related_proposition_refs",
+        "status",
+        "expiry_policy",
+        "confidence",
+        "exact_evidence_spans"
+      ],
+      "properties": {
+        "operation": {
+          "const": "add"
+        },
+        "local_ref": {
+          "$ref": "#/$defs/localObligationRef"
+        },
+        "obligation_type": {
+          "enum": [
+            "explicit_question",
+            "requested_clarification",
+            "requested_evidence",
+            "promised_follow_up",
+            "correction_requiring_acknowledgement",
+            "unresolved_direct_challenge"
+          ]
+        },
+        "owed_by_participant": {
+          "$ref": "#/$defs/opaqueId"
+        },
+        "owed_to_participant": {
+          "$ref": "#/$defs/opaqueId"
+        },
+        "related_issue_refs": {
+          "$ref": "#/$defs/obligationChangesPayload/properties/related_issue_refs"
+        },
+        "related_proposition_refs": {
+          "$ref": "#/$defs/obligationChangesPayload/properties/related_proposition_refs"
+        },
+        "status": {
+          "$ref": "#/$defs/obligationChangesPayload/properties/status"
+        },
+        "expiry_policy": {
+          "$ref": "#/$defs/obligationChangesPayload/properties/expiry_policy"
+        },
+        "confidence": {
+          "$ref": "#/$defs/confidence"
+        },
+        "exact_evidence_spans": {
+          "$ref": "#/$defs/evidenceSpans"
+        }
+      }
+    },
+    "obligationUpdate": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "operation",
+        "obligation_id",
+        "changes",
+        "reason",
+        "exact_evidence_spans"
+      ],
+      "properties": {
+        "operation": {
+          "const": "update"
+        },
+        "obligation_id": {
+          "$ref": "#/$defs/opaqueId"
+        },
+        "changes": {
+          "$ref": "#/$defs/obligationChangesPayload"
+        },
+        "reason": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 1000
+        },
+        "exact_evidence_spans": {
+          "$ref": "#/$defs/evidenceSpans"
+        }
+      }
+    },
+    "newRelation": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "local_ref",
+        "source_proposition_refs",
+        "target_proposition_refs",
+        "relation_type",
+        "asserted_or_analysed_by",
+        "exact_evidence_spans",
+        "confidence",
+        "uncertainty_reason",
+        "provenance_kind",
+        "analysis_basis"
+      ],
+      "properties": {
+        "local_ref": {
+          "$ref": "#/$defs/localRelationRef"
+        },
+        "source_proposition_refs": {
+          "type": "array",
+          "minItems": 1,
+          "uniqueItems": true,
+          "items": {
+            "$ref": "#/$defs/propositionRef"
+          }
+        },
+        "target_proposition_refs": {
+          "type": "array",
+          "minItems": 1,
+          "uniqueItems": true,
+          "items": {
+            "$ref": "#/$defs/propositionRef"
+          }
+        },
+        "relation_type": {
+          "enum": [
+            "answers",
+            "partially_answers",
+            "fails_to_answer",
+            "supports",
+            "contradicts",
+            "qualifies",
+            "narrows",
+            "broadens",
+            "provides_exception",
+            "distinguishes",
+            "clarifies",
+            "corrects",
+            "concedes",
+            "retracts",
+            "supersedes",
+            "repeats",
+            "rephrases",
+            "presupposes",
+            "challenges",
+            "changes_topic",
+            "targets",
+            "rejects_answer_target",
+            "substitutes_for",
+            "fails_to_address"
+          ]
+        },
+        "asserted_or_analysed_by": {
+          "$ref": "#/$defs/opaqueId"
+        },
+        "exact_evidence_spans": {
+          "$ref": "#/$defs/evidenceSpans"
+        },
+        "confidence": {
+          "$ref": "#/$defs/confidence"
+        },
+        "uncertainty_reason": {
+          "$ref": "#/$defs/uncertaintyReason"
+        },
+        "provenance_kind": {
+          "enum": [
+            "transcript_extraction",
+            "machine_diagnostic",
+            "human_annotation",
+            "human_correction"
+          ]
+        },
+        "analysis_basis": {
+          "enum": [
+            "direct_semantic_content",
+            "speaker_explicit_metadiscourse",
+            "evaluator_diagnosis",
+            "human_correction"
+          ]
+        }
+      }
+    },
+    "answerTargetChangesPayload": {
+      "type": "object",
+      "additionalProperties": false,
+      "minProperties": 1,
+      "properties": {
+        "issue_refs": {
+          "type": "array",
+          "uniqueItems": true,
+          "items": {
+            "$ref": "#/$defs/issueRef"
+          }
+        },
+        "proposition_refs": {
+          "type": "array",
+          "uniqueItems": true,
+          "items": {
+            "$ref": "#/$defs/propositionRef"
+          }
+        },
+        "target_status": {
+          "enum": [
+            "apparent",
+            "confirmed",
+            "partially_addressed",
+            "rejected",
+            "replaced",
+            "uncertain"
+          ]
+        },
+        "confidence": {
+          "$ref": "#/$defs/confidence"
+        }
+      }
+    },
+    "newAnswerTarget": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "operation",
+        "local_ref",
+        "issue_refs",
+        "proposition_refs",
+        "target_status",
+        "confidence",
+        "exact_evidence_spans"
+      ],
+      "properties": {
+        "operation": {
+          "const": "add"
+        },
+        "local_ref": {
+          "$ref": "#/$defs/localAnswerTargetRef"
+        },
+        "issue_refs": {
+          "$ref": "#/$defs/answerTargetChangesPayload/properties/issue_refs"
+        },
+        "proposition_refs": {
+          "$ref": "#/$defs/answerTargetChangesPayload/properties/proposition_refs"
+        },
+        "target_status": {
+          "$ref": "#/$defs/answerTargetChangesPayload/properties/target_status"
+        },
+        "confidence": {
+          "$ref": "#/$defs/confidence"
+        },
+        "exact_evidence_spans": {
+          "$ref": "#/$defs/evidenceSpans"
+        }
+      },
+      "anyOf": [
+        {
+          "properties": {
+            "issue_refs": {
+              "minItems": 1
+            }
+          }
+        },
+        {
+          "properties": {
+            "proposition_refs": {
+              "minItems": 1
+            }
+          }
+        }
+      ]
+    },
+    "answerTargetUpdate": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "operation",
+        "answer_target_id",
+        "changes",
+        "reason",
+        "exact_evidence_spans"
+      ],
+      "properties": {
+        "operation": {
+          "const": "update"
+        },
+        "answer_target_id": {
+          "$ref": "#/$defs/opaqueId"
+        },
+        "changes": {
+          "$ref": "#/$defs/answerTargetChangesPayload"
+        },
+        "reason": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 1000
+        },
+        "exact_evidence_spans": {
+          "$ref": "#/$defs/evidenceSpans"
+        }
+      }
+    },
+    "rejectedChangesPayload": {
+      "type": "object",
+      "additionalProperties": false,
+      "minProperties": 1,
+      "properties": {
+        "answer_target_ref": {
+          "$ref": "#/$defs/answerTargetRef"
+        },
+        "rejection_kind": {
+          "enum": [
+            "not_x_but_y",
+            "wrong_issue",
+            "wrong_proposition",
+            "too_broad",
+            "too_narrow",
+            "false_presupposition",
+            "other"
+          ]
+        },
+        "replacement_answer_target_ref": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/answerTargetRef"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "related_proposition_refs": {
+          "type": "array",
+          "minItems": 1,
+          "uniqueItems": true,
+          "items": {
+            "$ref": "#/$defs/propositionRef"
+          }
+        },
+        "status": {
+          "enum": [
+            "active",
+            "acknowledged",
+            "ignored",
+            "repeated_after_rejection",
+            "superseded"
+          ]
+        },
+        "confidence": {
+          "$ref": "#/$defs/confidence"
+        }
+      }
+    },
+    "newRejectedAnswerTarget": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "operation",
+        "local_ref",
+        "answer_target_ref",
+        "rejection_kind",
+        "replacement_answer_target_ref",
+        "related_proposition_refs",
+        "status",
+        "confidence",
+        "exact_evidence_spans"
+      ],
+      "properties": {
+        "operation": {
+          "const": "add"
+        },
+        "local_ref": {
+          "$ref": "#/$defs/localRejectedAnswerTargetRef"
+        },
+        "answer_target_ref": {
+          "$ref": "#/$defs/answerTargetRef"
+        },
+        "rejection_kind": {
+          "$ref": "#/$defs/rejectedChangesPayload/properties/rejection_kind"
+        },
+        "replacement_answer_target_ref": {
+          "$ref": "#/$defs/rejectedChangesPayload/properties/replacement_answer_target_ref"
+        },
+        "related_proposition_refs": {
+          "$ref": "#/$defs/rejectedChangesPayload/properties/related_proposition_refs"
+        },
+        "status": {
+          "$ref": "#/$defs/rejectedChangesPayload/properties/status"
+        },
+        "confidence": {
+          "$ref": "#/$defs/confidence"
+        },
+        "exact_evidence_spans": {
+          "$ref": "#/$defs/evidenceSpans"
+        }
+      }
+    },
+    "rejectedAnswerTargetUpdate": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "operation",
+        "rejected_answer_target_id",
+        "changes",
+        "reason",
+        "exact_evidence_spans"
+      ],
+      "properties": {
+        "operation": {
+          "const": "update"
+        },
+        "rejected_answer_target_id": {
+          "$ref": "#/$defs/opaqueId"
+        },
+        "changes": {
+          "$ref": "#/$defs/rejectedChangesPayload"
+        },
+        "reason": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 1000
+        },
+        "exact_evidence_spans": {
+          "$ref": "#/$defs/evidenceSpans"
+        }
+      }
+    },
+    "repairChangesPayload": {
+      "type": "object",
+      "additionalProperties": false,
+      "minProperties": 1,
+      "properties": {
+        "repair_type": {
+          "enum": [
+            "contributor_correction",
+            "account_clarification",
+            "answer_target_replacement",
+            "reference_resolution",
+            "topic_boundary",
+            "other"
+          ]
+        },
+        "rejected_answer_target_refs": {
+          "type": "array",
+          "uniqueItems": true,
+          "items": {
+            "$ref": "#/$defs/rejectedAnswerTargetRef"
+          }
+        },
+        "replacement_answer_target_refs": {
+          "type": "array",
+          "uniqueItems": true,
+          "items": {
+            "$ref": "#/$defs/answerTargetRef"
+          }
+        },
+        "acknowledged_at_current_turn": {
+          "type": "boolean"
+        },
+        "outcome": {
+          "enum": [
+            "pending",
+            "acknowledged",
+            "incorporated",
+            "ignored",
+            "repeated_error",
+            "uncertain"
+          ]
+        },
+        "confidence": {
+          "$ref": "#/$defs/confidence"
+        }
+      }
+    },
+    "newRepairRecord": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "operation",
+        "local_ref",
+        "repair_type",
+        "rejected_answer_target_refs",
+        "replacement_answer_target_refs",
+        "acknowledged_at_current_turn",
+        "outcome",
+        "confidence",
+        "exact_evidence_spans"
+      ],
+      "properties": {
+        "operation": {
+          "const": "add"
+        },
+        "local_ref": {
+          "$ref": "#/$defs/localRepairRef"
+        },
+        "repair_type": {
+          "$ref": "#/$defs/repairChangesPayload/properties/repair_type"
+        },
+        "rejected_answer_target_refs": {
+          "$ref": "#/$defs/repairChangesPayload/properties/rejected_answer_target_refs"
+        },
+        "replacement_answer_target_refs": {
+          "$ref": "#/$defs/repairChangesPayload/properties/replacement_answer_target_refs"
+        },
+        "acknowledged_at_current_turn": {
+          "type": "boolean"
+        },
+        "outcome": {
+          "$ref": "#/$defs/repairChangesPayload/properties/outcome"
+        },
+        "confidence": {
+          "$ref": "#/$defs/confidence"
+        },
+        "exact_evidence_spans": {
+          "$ref": "#/$defs/evidenceSpans"
+        }
+      }
+    },
+    "repairRecordUpdate": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "operation",
+        "repair_id",
+        "changes",
+        "reason",
+        "exact_evidence_spans"
+      ],
+      "properties": {
+        "operation": {
+          "const": "update"
+        },
+        "repair_id": {
+          "$ref": "#/$defs/opaqueId"
+        },
+        "changes": {
+          "$ref": "#/$defs/repairChangesPayload"
+        },
+        "reason": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 1000
+        },
+        "exact_evidence_spans": {
+          "$ref": "#/$defs/evidenceSpans"
+        }
+      }
+    },
+    "resolvedItem": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "item_type",
+        "item_ref",
+        "resolution_type",
+        "exact_evidence_spans"
+      ],
+      "properties": {
+        "item_type": {
+          "enum": [
+            "proposition",
+            "issue",
+            "commitment",
+            "obligation",
+            "answer_target",
+            "repair",
+            "reference",
+            "compound_structure"
+          ]
+        },
+        "item_ref": {
+          "$ref": "#/$defs/opaqueId"
+        },
+        "resolution_type": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 1000
+        },
+        "exact_evidence_spans": {
+          "$ref": "#/$defs/evidenceSpans"
+        }
+      }
+    },
+    "abstentionCode": {
+      "enum": [
+        "no_stable_issue",
+        "ambiguous_proposition",
+        "incomplete_context",
+        "ambiguous_attribution",
+        "unresolved_reference",
+        "compound_structure_uncertain",
+        "relation_uncertain",
+        "unsupported_inference_rejected"
+      ]
+    },
+    "newWarning": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "local_ref",
+        "code",
+        "message",
+        "severity",
+        "exact_evidence_spans"
+      ],
+      "properties": {
+        "local_ref": {
+          "$ref": "#/$defs/localWarningRef"
+        },
+        "code": {
+          "enum": [
+            "ambiguous_proposition",
+            "incomplete_context",
+            "ambiguous_attribution",
+            "unresolved_reference",
+            "compound_structure_uncertain",
+            "relation_uncertain",
+            "unsupported_inference_rejected",
+            "source_quality",
+            "other"
+          ]
+        },
+        "message": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 1000
+        },
+        "severity": {
+          "enum": [
+            "info",
+            "warning",
+            "error"
+          ]
+        },
+        "exact_evidence_spans": {
+          "$ref": "#/$defs/evidenceSpans"
+        }
+      }
+    }
+  }
+}

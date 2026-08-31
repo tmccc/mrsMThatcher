@@ -1,7 +1,7 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://mrs-m-thatcher.invalid/research/proposition-ledger-experiment-v1.schema.json",
-  "title": "Proposition-ledger experiment protocol v1",
+  "title": "Proposition-ledger experiment protocol v1.1",
   "type": "object",
   "additionalProperties": false,
   "required": [
@@ -9,6 +9,9 @@
     "protocol_id",
     "protocol_status",
     "phase1_execution_boundary",
+    "provider_response_schema",
+    "deterministic_materialiser",
+    "persisted_ledger_schema",
     "research_questions",
     "corpus_policy",
     "target_prefix_policy",
@@ -29,7 +32,7 @@
     "limitations"
   ],
   "properties": {
-    "schema_version": {"const": "proposition-ledger-experiment-v1.0.0"},
+    "schema_version": {"const": "proposition-ledger-experiment-v1.1.0"},
     "protocol_id": {"type": "string", "minLength": 1},
     "protocol_status": {"enum": ["draft", "frozen"]},
     "phase1_execution_boundary": {
@@ -43,6 +46,9 @@
         "held_out_selection_permitted": {"const": false}
       }
     },
+    "provider_response_schema": {"$ref": "#/$defs/providerResponseSchemaContract"},
+    "deterministic_materialiser": {"$ref": "#/$defs/deterministicMaterialiserContract"},
+    "persisted_ledger_schema": {"$ref": "#/$defs/persistedLedgerSchemaContract"},
     "research_questions": {
       "type": "array",
       "items": {"type": "string", "minLength": 1},
@@ -94,7 +100,9 @@
           "split_manifest",
           "model_profiles",
           "prompt_texts_and_hashes",
-          "response_schemas",
+          "provider_response_schema",
+          "deterministic_materialiser",
+          "persisted_ledger_schema",
           "token_budgets",
           "randomisation",
           "adjudication_rubric",
@@ -105,8 +113,8 @@
           "arm_b_budget_tolerance"
         ]
       },
-      "minItems": 14,
-      "maxItems": 14,
+      "minItems": 16,
+      "maxItems": 16,
       "uniqueItems": true
     },
     "randomisation": {"$ref": "#/$defs/randomisation"},
@@ -176,6 +184,72 @@
     }
   ],
   "$defs": {
+    "providerResponseSchemaContract": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "schema_version",
+        "schema_path",
+        "contract_role",
+        "provider_emits_cumulative_state",
+        "provider_emits_persistence_hashes",
+        "provider_emits_state_patch",
+        "provider_assigns_permanent_ids"
+      ],
+      "properties": {
+        "schema_version": {"const": "proposition-ledger-semantic-delta-v1.0.0"},
+        "schema_path": {"const": "proposition_ledger_research/schema/proposition-ledger-semantic-delta-v1.schema.json"},
+        "contract_role": {"const": "current_turn_semantic_analysis_only"},
+        "provider_emits_cumulative_state": {"const": false},
+        "provider_emits_persistence_hashes": {"const": false},
+        "provider_emits_state_patch": {"const": false},
+        "provider_assigns_permanent_ids": {"const": false}
+      }
+    },
+    "deterministicMaterialiserContract": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "materialiser_id",
+        "implementation_path",
+        "contract_role",
+        "assigns_permanent_ids",
+        "resolves_same_turn_local_references",
+        "constructs_state_patch",
+        "calculates_predecessor_and_ledger_hashes",
+        "validates_persisted_ledger"
+      ],
+      "properties": {
+        "materialiser_id": {"const": "proposition-ledger-semantic-delta-materialiser-v1"},
+        "implementation_path": {"const": "tools/proposition_ledger_semantic_delta.py"},
+        "contract_role": {"const": "semantic_delta_to_authoritative_persisted_ledger"},
+        "assigns_permanent_ids": {"const": true},
+        "resolves_same_turn_local_references": {"const": true},
+        "constructs_state_patch": {"const": true},
+        "calculates_predecessor_and_ledger_hashes": {"const": true},
+        "validates_persisted_ledger": {"const": true}
+      }
+    },
+    "persistedLedgerSchemaContract": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "schema_version",
+        "schema_path",
+        "contract_role",
+        "contains_cumulative_state",
+        "contains_state_patch",
+        "contains_persistence_hashes"
+      ],
+      "properties": {
+        "schema_version": {"const": "proposition-ledger-v1.0.0"},
+        "schema_path": {"const": "proposition_ledger_research/schema/proposition-ledger-v1.schema.json"},
+        "contract_role": {"const": "authoritative_cumulative_persisted_state"},
+        "contains_cumulative_state": {"const": true},
+        "contains_state_patch": {"const": true},
+        "contains_persistence_hashes": {"const": true}
+      }
+    },
     "sha256OrPending": {
       "oneOf": [
         {"type": "string", "pattern": "^[0-9a-f]{64}$"},
@@ -253,12 +327,13 @@
         "arm_id": {"enum": ["A", "B", "C", "D"]},
         "label": {"type": "string", "minLength": 1},
         "transcript_prefix": {"const": "exact_target_bounded_transcript"},
-        "additional_representation": {"enum": ["none", "ordinary_summary", "machine_proposition_ledger", "human_corrected_proposition_ledger"]},
+        "additional_representation": {"enum": ["none", "ordinary_summary", "machine_proposition_ledger", "transcript_first_independently_adjudicated_proposition_ledger"]},
         "future_information_allowed": {"const": false},
         "population": {"enum": ["full_frozen_evaluation_sample", "smaller_adjudicated_subset"]},
         "budget_rule": {"type": "string", "minLength": 1},
         "neutral_summary_policy": {"const": "neutral_conversation_summary_without_ledger_fields_outcome_labels_or_condition_cues"},
-        "equal_budget_control": {"$ref": "#/$defs/equalBudgetControl"}
+        "equal_budget_control": {"$ref": "#/$defs/equalBudgetControl"},
+        "gold_representation_source": {"const": "locked_transcript_first_independently_adjudicated_proposition_ledger"}
       }
     },
     "armA": {
@@ -270,7 +345,8 @@
             "label": {"const": "transcript only"},
             "additional_representation": {"const": "none"},
             "population": {"const": "full_frozen_evaluation_sample"}
-          }
+          },
+          "not": {"required": ["gold_representation_source"]}
         }
       ]
     },
@@ -284,7 +360,8 @@
             "label": {"const": "transcript plus equal-budget ordinary summary"},
             "additional_representation": {"const": "ordinary_summary"},
             "population": {"const": "full_frozen_evaluation_sample"}
-          }
+          },
+          "not": {"required": ["gold_representation_source"]}
         }
       ]
     },
@@ -298,7 +375,8 @@
             "label": {"const": "transcript plus machine proposition ledger"},
             "additional_representation": {"const": "machine_proposition_ledger"},
             "population": {"const": "full_frozen_evaluation_sample"}
-          }
+          },
+          "not": {"required": ["gold_representation_source"]}
         }
       ]
     },
@@ -306,11 +384,11 @@
       "allOf": [
         {"$ref": "#/$defs/armBase"},
         {
-          "required": ["budget_rule"],
+          "required": ["budget_rule", "gold_representation_source"],
           "properties": {
             "arm_id": {"const": "D"},
-            "label": {"const": "transcript plus human-corrected proposition ledger"},
-            "additional_representation": {"const": "human_corrected_proposition_ledger"},
+            "label": {"const": "transcript plus transcript-first independently adjudicated proposition ledger"},
+            "additional_representation": {"const": "transcript_first_independently_adjudicated_proposition_ledger"},
             "population": {"const": "smaller_adjudicated_subset"}
           }
         }
@@ -696,12 +774,103 @@
     "adjudication": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["rubric_status", "independent_raters", "disagreement_resolution", "ledger_gold_boundary", "arm_d_scope"],
+      "required": [
+        "rubric_status",
+        "construction_input",
+        "independent_raters",
+        "rater_annotations_independently_authored",
+        "rater_hidden_information",
+        "annotation_dimensions",
+        "disagreement_resolution",
+        "adjudicator_input",
+        "adjudicator_hidden_information",
+        "adjudication_before_machine_comparison",
+        "gold_lock",
+        "machine_reveal",
+        "ledger_gold_boundary",
+        "arm_d_scope"
+      ],
       "properties": {
         "rubric_status": {"enum": ["pending_phase2_freeze", "frozen"]},
-        "independent_raters": {"type": "integer", "minimum": 2},
-        "disagreement_resolution": {"type": "string", "minLength": 1},
-        "ledger_gold_boundary": {"const": "human_corrected_subset_only"},
+        "construction_input": {"const": "exact_transcript_prefix"},
+        "independent_raters": {"const": 2},
+        "rater_annotations_independently_authored": {"const": true},
+        "rater_hidden_information": {
+          "type": "array",
+          "prefixItems": [
+            {"const": "machine_ledger"},
+            {"const": "other_rater_annotation"},
+            {"const": "production_pipeline_decision"},
+            {"const": "historical_account_reply"},
+            {"const": "arm_identity"},
+            {"const": "provider_or_model_identity"}
+          ],
+          "items": false,
+          "minItems": 6,
+          "maxItems": 6,
+          "uniqueItems": true
+        },
+        "annotation_dimensions": {
+          "type": "array",
+          "prefixItems": [
+            {"const": "propositions"},
+            {"const": "compound_structure"},
+            {"const": "participant_commitments"},
+            {"const": "issue_state"},
+            {"const": "obligations"},
+            {"const": "proposition_relations"},
+            {"const": "answer_targets"},
+            {"const": "rejected_answer_targets"},
+            {"const": "uncertainty_and_abstentions"}
+          ],
+          "items": false,
+          "minItems": 9,
+          "maxItems": 9,
+          "uniqueItems": true
+        },
+        "disagreement_resolution": {"const": "blinded_adjudicator_resolves_from_transcript_and_two_independent_annotations"},
+        "adjudicator_input": {"const": "exact_transcript_prefix_and_two_independent_annotations"},
+        "adjudicator_hidden_information": {
+          "type": "array",
+          "prefixItems": [
+            {"const": "machine_ledger"},
+            {"const": "production_pipeline_decision"},
+            {"const": "historical_account_reply"},
+            {"const": "arm_identity"},
+            {"const": "provider_or_model_identity"}
+          ],
+          "items": false,
+          "minItems": 5,
+          "maxItems": 5,
+          "uniqueItems": true
+        },
+        "adjudication_before_machine_comparison": {"const": true},
+        "gold_lock": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "artifact",
+            "hash_algorithm",
+            "locked_before_machine_ledger_reveal",
+            "locked_before_machine_scoring"
+          ],
+          "properties": {
+            "artifact": {"const": "transcript_first_independently_adjudicated_proposition_ledger"},
+            "hash_algorithm": {"const": "sha256"},
+            "locked_before_machine_ledger_reveal": {"const": true},
+            "locked_before_machine_scoring": {"const": true}
+          }
+        },
+        "machine_reveal": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["permitted_only_after_gold_lock", "locked_gold_supplies_arm_d_representation"],
+          "properties": {
+            "permitted_only_after_gold_lock": {"const": true},
+            "locked_gold_supplies_arm_d_representation": {"const": true}
+          }
+        },
+        "ledger_gold_boundary": {"const": "transcript_first_independently_adjudicated_subset_only"},
         "arm_d_scope": {"const": "smaller_adjudicated_subset"}
       }
     },

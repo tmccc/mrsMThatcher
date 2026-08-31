@@ -22,6 +22,10 @@ FIXTURES_DIR = (
 LEDGER_SCHEMA_PATH = (
     PROJECT_DIR / "proposition_ledger_research/schema/proposition-ledger-v1.schema.json"
 )
+EXPERIMENT_SCHEMA_PATH = (
+    PROJECT_DIR
+    / "proposition_ledger_research/schema/proposition-ledger-experiment-v1.schema.json"
+)
 
 
 def _load_json(path: Path) -> Any:
@@ -52,6 +56,11 @@ def _invalid_example(name: str, invalid_example_id: str) -> tuple[dict[str, Any]
 @pytest.fixture(scope="module")
 def ledger_schema() -> dict[str, Any]:
     return _load_json(LEDGER_SCHEMA_PATH)
+
+
+@pytest.fixture(scope="module")
+def experiment_schema() -> dict[str, Any]:
+    return _load_json(EXPERIMENT_SCHEMA_PATH)
 
 
 def _rehash(ledger: dict[str, Any]) -> dict[str, Any]:
@@ -213,6 +222,70 @@ def test_compound_allegation_remains_separable(
         example["ledger"], invalid_transcript, ledger_schema
     )
     assert _has_error(errors, "compound_collapse")
+
+
+def test_two_part_compound_accusation_without_motive_is_valid(
+    ledger_schema: dict[str, Any],
+) -> None:
+    transcript, _ = _fixture("05-compound-allegation")
+    transcript = copy.deepcopy(transcript)
+    ledger = copy.deepcopy(transcript["ledger_history"][0])
+    no_motive_text = "The curator hid the notice, which delayed the vote"
+    retained_proposition_ids = {
+        "p-curator-hid-notice",
+        "p-hiding-caused-delay",
+    }
+
+    transcript["turns"] = [transcript["turns"][0]]
+    transcript["turns"][0]["text"] = no_motive_text
+    transcript["ledger_history"] = []
+    ledger["propositions"] = [
+        proposition
+        for proposition in ledger["propositions"]
+        if proposition["proposition_id"] in retained_proposition_ids
+    ]
+    ledger["participant_commitments"] = [
+        commitment
+        for commitment in ledger["participant_commitments"]
+        if commitment["proposition_id"] in retained_proposition_ids
+    ]
+    group = ledger["proposition_groups"][0]
+    group["members"] = [
+        member
+        for member in group["members"]
+        if member["proposition_id"] in retained_proposition_ids
+    ]
+    for ordinal, member in enumerate(group["members"]):
+        member["ordinal"] = ordinal
+    group["exact_evidence_spans"] = [
+        {
+            "turn_id": "t0",
+            "start_char": 0,
+            "end_char": len(no_motive_text),
+            "exact_text": no_motive_text,
+        }
+    ]
+    ledger["turn_refs"][0]["text_sha256"] = phase1.sha256_bytes(
+        no_motive_text.encode("utf-8")
+    )
+    transition = ledger["state_transitions"][0]
+    transition["propositions_added"] = sorted(retained_proposition_ids)
+    transition["commitments_added"] = sorted(
+        commitment["commitment_id"]
+        for commitment in ledger["participant_commitments"]
+    )
+    transition["state_patch"] = phase1.build_state_patch(None, ledger)
+    ledger["ledger_sha256"] = phase1.ledger_sha256(ledger)
+
+    assert {member["role"] for member in group["members"]} == {
+        "conduct",
+        "cause",
+    }
+    assert all(
+        proposition["proposition_id"] != "p-curator-wanted-rival-win"
+        for proposition in ledger["propositions"]
+    )
+    assert phase1.validate_ledger(ledger, transcript, ledger_schema) == []
 
 
 def test_no_stable_issue_is_a_valid_abstention(
@@ -956,6 +1029,56 @@ def _synthetic_prospective_row() -> dict[str, Any]:
     }
 
 
+def _complete_grade_arguments() -> dict[str, Any]:
+    return {
+        "exact_text_complete": True,
+        "immutable_post_identity_complete": True,
+        "role_assignment_complete": True,
+        "chronology_complete": True,
+        "turn_order_unambiguous": True,
+        "account_publication_confirmed": True,
+        "root_identity_complete": True,
+        "parent_graph_unambiguous": True,
+        "complete_prefix_through_targets": True,
+        "source_complete": True,
+        "reconstruction_confidence": "high",
+        "hard_exclusion_reasons": [],
+    }
+
+
+def test_grade_a_directly_requires_unambiguous_turn_order() -> None:
+    complete = _complete_grade_arguments()
+    assert phase1._assign_reconstruction_grade(**complete) == ("A", [])
+
+    ambiguous = {**complete, "turn_order_unambiguous": False}
+    grade, limitations = phase1._assign_reconstruction_grade(**ambiguous)
+
+    assert grade != "A"
+    assert limitations == ["one_limited_turn_order_gap"]
+
+
+def test_exactly_one_limited_turn_order_gap_is_grade_b() -> None:
+    arguments = {
+        **_complete_grade_arguments(),
+        "turn_order_unambiguous": False,
+    }
+
+    assert phase1._assign_reconstruction_grade(**arguments) == (
+        "B",
+        ["one_limited_turn_order_gap"],
+    )
+
+
+def test_material_turn_order_ambiguity_is_grade_c() -> None:
+    arguments = {
+        **_complete_grade_arguments(),
+        "chronology_complete": False,
+        "turn_order_unambiguous": False,
+    }
+
+    assert phase1._assign_reconstruction_grade(**arguments) == ("C", [])
+
+
 def test_limited_identity_gap_is_grade_b() -> None:
     record, _ = phase1._conversation_record_from_prospective(
         _synthetic_prospective_row()
@@ -977,32 +1100,1000 @@ def test_material_defect_dominates_grade_b_eligibility() -> None:
     assert "missing_substantive_text" in record["exclusion_reasons"]
 
 
-@pytest.mark.parametrize(
-    ("activity_status", "expected"),
-    [("quiescent", "turn-terminal"), ("open", None)],
-)
-def test_terminal_no_reply_target_must_be_quiescent(
-    activity_status: str,
-    expected: str | None,
+def test_protocol_v1_1_separates_provider_materialiser_and_persisted_contracts(
+    experiment_schema: dict[str, Any],
 ) -> None:
+    protocol = phase1._build_protocol("a" * 64, "b" * 64)
+
+    assert protocol["schema_version"] == "proposition-ledger-experiment-v1.1.0"
+    assert phase1._jsonschema_errors(protocol, experiment_schema) == []
+    provider = protocol["provider_response_schema"]
+    materialiser = protocol["deterministic_materialiser"]
+    persisted = protocol["persisted_ledger_schema"]
+    assert provider["schema_version"] == (
+        "proposition-ledger-semantic-delta-v1.0.0"
+    )
+    assert provider["contract_role"] == "current_turn_semantic_analysis_only"
+    assert provider["provider_emits_cumulative_state"] is False
+    assert provider["provider_emits_persistence_hashes"] is False
+    assert provider["provider_emits_state_patch"] is False
+    assert provider["provider_assigns_permanent_ids"] is False
+    assert materialiser["contract_role"] == (
+        "semantic_delta_to_authoritative_persisted_ledger"
+    )
+    assert materialiser["assigns_permanent_ids"] is True
+    assert materialiser["constructs_state_patch"] is True
+    assert materialiser["calculates_predecessor_and_ledger_hashes"] is True
+    assert persisted["contract_role"] == "authoritative_cumulative_persisted_state"
+    assert persisted["schema_version"] == "proposition-ledger-v1.0.0"
+    assert persisted["contains_cumulative_state"] is True
+    assert persisted["contains_state_patch"] is True
+    assert persisted["contains_persistence_hashes"] is True
+    assert len(
+        {
+            provider["contract_role"],
+            materialiser["contract_role"],
+            persisted["contract_role"],
+        }
+    ) == 3
+
+    invalid = copy.deepcopy(protocol)
+    invalid["provider_response_schema"]["provider_emits_state_patch"] = True
+    assert phase1._jsonschema_errors(invalid, experiment_schema)
+
+
+def test_transcript_first_gold_requires_exactly_two_independent_blinded_raters(
+    experiment_schema: dict[str, Any],
+) -> None:
+    protocol = phase1._build_protocol("a" * 64, "b" * 64)
+    adjudication = protocol["adjudication"]
+
+    assert adjudication["construction_input"] == "exact_transcript_prefix"
+    assert adjudication["independent_raters"] == 2
+    assert adjudication["rater_annotations_independently_authored"] is True
+    assert set(adjudication["rater_hidden_information"]) == {
+        "machine_ledger",
+        "other_rater_annotation",
+        "production_pipeline_decision",
+        "historical_account_reply",
+        "arm_identity",
+        "provider_or_model_identity",
+    }
+    assert set(adjudication["annotation_dimensions"]) == {
+        "propositions",
+        "compound_structure",
+        "participant_commitments",
+        "issue_state",
+        "obligations",
+        "proposition_relations",
+        "answer_targets",
+        "rejected_answer_targets",
+        "uncertainty_and_abstentions",
+    }
+
+    wrong_rater_count = copy.deepcopy(protocol)
+    wrong_rater_count["adjudication"]["independent_raters"] = 3
+    assert phase1._jsonschema_errors(wrong_rater_count, experiment_schema)
+
+
+def test_blinded_adjudication_and_gold_lock_precede_machine_reveal(
+    experiment_schema: dict[str, Any],
+) -> None:
+    protocol = phase1._build_protocol("a" * 64, "b" * 64)
+    adjudication = protocol["adjudication"]
+
+    assert adjudication["disagreement_resolution"] == (
+        "blinded_adjudicator_resolves_from_transcript_and_two_independent_annotations"
+    )
+    assert adjudication["adjudicator_input"] == (
+        "exact_transcript_prefix_and_two_independent_annotations"
+    )
+    assert set(adjudication["adjudicator_hidden_information"]) == {
+        "machine_ledger",
+        "production_pipeline_decision",
+        "historical_account_reply",
+        "arm_identity",
+        "provider_or_model_identity",
+    }
+    assert adjudication["adjudication_before_machine_comparison"] is True
+    assert adjudication["gold_lock"] == {
+        "artifact": "transcript_first_independently_adjudicated_proposition_ledger",
+        "hash_algorithm": "sha256",
+        "locked_before_machine_ledger_reveal": True,
+        "locked_before_machine_scoring": True,
+    }
+    assert adjudication["machine_reveal"]["permitted_only_after_gold_lock"] is True
+
+    premature_reveal = copy.deepcopy(protocol)
+    premature_reveal["adjudication"]["gold_lock"][
+        "locked_before_machine_ledger_reveal"
+    ] = False
+    assert phase1._jsonschema_errors(premature_reveal, experiment_schema)
+
+
+def test_arm_d_uses_locked_transcript_first_gold_in_exactly_four_arm_design(
+    experiment_schema: dict[str, Any],
+) -> None:
+    protocol = phase1._build_protocol("a" * 64, "b" * 64)
+    arms = protocol["arms"]
+
+    assert len(arms) == 4
+    assert [arm["arm_id"] for arm in arms] == ["A", "B", "C", "D"]
+    arm_d = arms[-1]
+    assert arm_d["label"] == (
+        "transcript plus transcript-first independently adjudicated proposition ledger"
+    )
+    assert arm_d["additional_representation"] == (
+        "transcript_first_independently_adjudicated_proposition_ledger"
+    )
+    assert arm_d["gold_representation_source"] == (
+        "locked_transcript_first_independently_adjudicated_proposition_ledger"
+    )
+    assert protocol["adjudication"]["machine_reveal"][
+        "locked_gold_supplies_arm_d_representation"
+    ] is True
+
+    fifth_arm = copy.deepcopy(protocol)
+    fifth_arm["arms"].append(copy.deepcopy(arm_d))
+    assert phase1._jsonschema_errors(fifth_arm, experiment_schema)
+
+
+def _outcome_case(
+    *,
+    events: list[dict[str, Any]] | None = None,
+    published_reply: bool = False,
+    activity_status: str = "quiescent",
+) -> tuple[dict[str, Any], dict[str, Any], list[dict[str, Any]], dict[str, Any]]:
     turn = {
-        "turn_id": "turn-terminal",
-        "post_id": "post-terminal",
+        "turn_id": "turn-target",
+        "post_id": "post-target",
         "parent_post_id": None,
         "author_role": "user",
         "public_text": "Is the synthetic footpath still open?",
         "timestamp": "2026-08-30T10:00:00Z",
+        "pipeline_stage_summaries": events or [],
     }
+    turns = [turn]
+    if published_reply:
+        turns.append(
+            {
+                "turn_id": "turn-reply",
+                "post_id": "post-reply",
+                "parent_post_id": "post-target",
+                "author_role": "account",
+                "public_text": "The synthetic path is open.",
+                "timestamp": "2026-08-30T10:01:00Z",
+                "publication_status": "published",
+            }
+        )
     candidate = {
         "activity_status": activity_status,
         "prospective_status": "eligible",
-        "branch_tip_post_id": "post-terminal",
-        "source_branch_tip_post_id": "post-terminal",
+        "branch_tip_post_id": "post-target",
+        "source_branch_tip_post_id": "post-target",
         "path_turns": [turn],
     }
     record = {
         "reconstruction_grade": "A",
-        "published_reply_target_turn_ids": [],
+        "published_reply_target_turn_ids": ["turn-target"] if published_reply else [],
+        "source_ids": ["prospective_conversations"],
+    }
+    return turn, record, turns, candidate
+
+
+def _pipeline_no_reply_event() -> dict[str, Any]:
+    return {
+        "event_id": "event-no-reply",
+        "event_kind": "ai_reply_pipeline_decision",
+        "status": "no_reply",
+        "reviewer_verdict": "pipeline_no_reply",
+        "effective_reason": "reply_necessity_review",
+        "strategy_version": "synthetic-strategy-v1",
+        "observed_at": "2026-08-30T10:00:30Z",
     }
 
-    assert phase1._quiescent_terminal_no_reply_target(candidate, record, [turn]) == expected
+
+def _production_shaped_local_skip_event() -> dict[str, Any]:
+    return {
+        "event_id": "event-local-rejection",
+        "event_kind": "ai_reply_pipeline_decision",
+        "status": "approved",
+        "pipeline_stage_status": "approved",
+        "effective_status": "local_rejection",
+        "effective_reason": "direct_answer_repair_rejected",
+        "original_local_rejection_reason": (
+            "clarification_not_direct_factual_answer"
+        ),
+        "strategy_version": "synthetic-strategy-v1",
+        "observed_at": "2026-08-30T10:00:31Z",
+    }
+
+
+def test_confirmed_published_reply_is_its_only_outcome_class() -> None:
+    turn, record, turns, candidate = _outcome_case(published_reply=True)
+    outcome = phase1._classify_target_outcome(turn, record, turns, candidate)
+    assert outcome["outcome_evidence_class"] == "confirmed_published_reply"
+    assert outcome["outcome_evidence_status"] == "confirmed"
+
+
+def test_exact_structured_pipeline_terminal_no_reply_is_confirmed() -> None:
+    turn, record, turns, candidate = _outcome_case(events=[_pipeline_no_reply_event()])
+    outcome = phase1._classify_target_outcome(turn, record, turns, candidate)
+    assert outcome["outcome_evidence_class"] == "confirmed_pipeline_terminal_no_reply"
+    assert outcome["outcome_strategy_version"] == "synthetic-strategy-v1"
+    assert outcome["outcome_reason"] == "reply_necessity_review"
+
+
+def test_exact_structured_local_skip_is_confirmed() -> None:
+    local = {
+        "event_id": "event-local-skip",
+        "event_kind": "ai_reply_pipeline_stage_summary",
+        "status": "no_reply",
+        "effective_status": "no_reply",
+        "deterministic_suppressed": True,
+        "effective_reason": "synthetic_local_skip",
+        "strategy_version": "synthetic-strategy-v1",
+    }
+    turn, record, turns, candidate = _outcome_case(events=[local])
+    outcome = phase1._classify_target_outcome(turn, record, turns, candidate)
+    assert outcome["outcome_evidence_class"] == "confirmed_local_skip"
+    assert outcome["outcome_reason"] == "synthetic_local_skip"
+
+
+def test_production_shaped_effective_local_rejection_is_confirmed() -> None:
+    turn, record, turns, candidate = _outcome_case(
+        events=[_production_shaped_local_skip_event()]
+    )
+
+    outcome = phase1._classify_target_outcome(turn, record, turns, candidate)
+
+    assert outcome["outcome_evidence_class"] == "confirmed_local_skip"
+    assert outcome["outcome_reason"] == "clarification_not_direct_factual_answer"
+    assert outcome["outcome_evidence_record_refs"] == ["event-local-rejection"]
+
+
+def test_repaired_approval_is_not_misclassified_from_original_local_reason() -> None:
+    repaired = {
+        **_production_shaped_local_skip_event(),
+        "event_id": "event-repaired-approval",
+        "effective_status": "approved_for_publication",
+        "effective_reason": "direct_answer_repair_passed",
+    }
+    turn, record, turns, candidate = _outcome_case(
+        events=[repaired],
+        published_reply=True,
+    )
+
+    outcome = phase1._classify_target_outcome(turn, record, turns, candidate)
+
+    assert outcome["outcome_evidence_class"] == "confirmed_published_reply"
+
+
+def test_distinct_local_skip_and_pipeline_no_reply_evidence_conflict() -> None:
+    turn, record, turns, candidate = _outcome_case(
+        events=[
+            _pipeline_no_reply_event(),
+            _production_shaped_local_skip_event(),
+        ]
+    )
+
+    outcome = phase1._classify_target_outcome(turn, record, turns, candidate)
+
+    assert outcome["outcome_evidence_class"] == "conflicting_outcome_evidence"
+    assert outcome["outcome_evidence_status"] == (
+        "conflicting_structured_no_reply_evidence"
+    )
+    assert outcome["outcome_conflict_details"] == {
+        "local_skip_record_refs": ["event-local-rejection"],
+        "pipeline_terminal_no_reply_record_refs": ["event-no-reply"],
+    }
+
+
+def test_quiescent_unreplied_tip_without_decision_evidence_is_unknown() -> None:
+    turn, record, turns, candidate = _outcome_case()
+    outcome = phase1._classify_target_outcome(turn, record, turns, candidate)
+    assert outcome["outcome_evidence_class"] == (
+        "quiescent_unreplied_tip_outcome_unknown"
+    )
+    assert outcome["outcome_evidence_record_refs"] == []
+
+
+def test_silence_alone_never_becomes_confirmed_no_reply() -> None:
+    turn, record, turns, candidate = _outcome_case(activity_status="open")
+    outcome = phase1._classify_target_outcome(turn, record, turns, candidate)
+    assert outcome["outcome_evidence_class"] == "outcome_evidence_unavailable"
+    assert "confirmed" not in outcome["outcome_evidence_class"]
+
+
+def test_published_reply_and_no_reply_evidence_conflict() -> None:
+    turn, record, turns, candidate = _outcome_case(
+        events=[_pipeline_no_reply_event()], published_reply=True
+    )
+    outcome = phase1._classify_target_outcome(turn, record, turns, candidate)
+    assert outcome["outcome_evidence_class"] == "conflicting_outcome_evidence"
+    assert outcome["outcome_conflict_details"]["published_reply_record_refs"]
+    assert outcome["outcome_conflict_details"]["no_reply_record_refs"]
+
+
+def test_each_synthetic_target_contributes_to_exactly_one_outcome_count() -> None:
+    cases = [
+        _outcome_case(published_reply=True),
+        _outcome_case(events=[_pipeline_no_reply_event()]),
+        _outcome_case(),
+        _outcome_case(activity_status="open"),
+    ]
+    outcomes = [
+        phase1._classify_target_outcome(turn, record, turns, candidate)[
+            "outcome_evidence_class"
+        ]
+        for turn, record, turns, candidate in cases
+    ]
+    counts = {name: outcomes.count(name) for name in phase1.OUTCOME_EVIDENCE_CLASSES}
+    assert sum(counts.values()) == len(cases)
+
+
+def _target_index_inputs(
+    tmp_path: Path,
+    *,
+    activity_status: str = "quiescent",
+    exposure_categories: list[str] | None = None,
+) -> tuple[dict[str, Any], dict[str, Any], list[dict[str, Any]]]:
+    tmp_path.mkdir(parents=True, exist_ok=True)
+    turns = [
+        {
+            "turn_id": "t0",
+            "post_id": "p0",
+            "parent_post_id": None,
+            "author_role": "user",
+            "author_key": "author-one",
+            "public_text": "Synthetic first question?",
+            "timestamp": "2026-08-30T10:00:00Z",
+        },
+        {
+            "turn_id": "t1",
+            "post_id": "p1",
+            "parent_post_id": "p0",
+            "author_role": "account",
+            "author_key": "account",
+            "public_text": "Synthetic first answer.",
+            "timestamp": "2026-08-30T10:01:00Z",
+            "publication_status": "published",
+        },
+        {
+            "turn_id": "t2",
+            "post_id": "p2",
+            "parent_post_id": "p1",
+            "author_role": "user",
+            "author_key": "author-one",
+            "public_text": "Synthetic follow-up question?",
+            "timestamp": "2026-08-30T10:02:00Z",
+            "pipeline_stage_summaries": [_pipeline_no_reply_event()],
+        },
+    ]
+    candidate_path = tmp_path / "review-candidates.jsonl"
+    candidate_path.write_text(
+        json.dumps(
+            {
+                "conversation_key": "synthetic:conversation",
+                "activity_status": activity_status,
+                "prospective_status": "eligible",
+                "branch_tip_post_id": "p2",
+                "source_branch_tip_post_id": "p2",
+                "path_turns": turns,
+            },
+            sort_keys=True,
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+    manifest = {
+        "sources": [
+            {
+                "source_id": "prospective_review_candidates",
+                "path": str(candidate_path),
+            }
+        ]
+    }
+    record = {
+        "conversation_key": "synthetic:conversation",
+        "root_post_id": "p0",
+        "source_ids": ["prospective_conversations"],
+        "reconstruction_grade": "A",
+        "principal_author_key": "author-one",
+        "author_key_scheme": "synthetic_prospective_domain",
+        "prior_exposure_categories": exposure_categories or ["unexposed_candidate"],
+        "activity_status": activity_status,
+        "expected_target_turn_ids": ["t0", "t2"],
+        "published_reply_target_turn_ids": ["t0"],
+        "confirmed_pipeline_terminal_no_reply_target_turn_ids": ["t2"],
+        "confirmed_local_skip_target_turn_ids": [],
+        "quiescent_unreplied_tip_outcome_unknown_target_turn_ids": [],
+        "outcome_evidence_unavailable_target_turn_ids": [],
+        "conflicting_outcome_evidence_target_turn_ids": [],
+    }
+    return manifest, record, turns
+
+
+def _target_index_case(
+    tmp_path: Path,
+    *,
+    activity_status: str = "quiescent",
+    exposure_categories: list[str] | None = None,
+) -> tuple[list[dict[str, Any]], dict[str, Any]]:
+    manifest, record, turns = _target_index_inputs(
+        tmp_path,
+        activity_status=activity_status,
+        exposure_categories=exposure_categories,
+    )
+    rows, structural_exclusions = phase1._build_target_prefix_rows(
+        manifest,
+        [record],
+        [],
+        {"synthetic:conversation": turns},
+    )
+    assert structural_exclusions == []
+    return rows, phase1._build_target_prefix_crosstab(rows)
+
+
+def test_target_prefix_distinguishes_first_response_and_multi_turn(tmp_path: Path) -> None:
+    rows, _ = _target_index_case(tmp_path)
+    by_turn = {row["target_turn_id"]: row for row in rows}
+    assert by_turn["t0"]["first_response_control"] is True
+    assert by_turn["t0"]["multi_turn_evaluation_candidate"] is False
+    assert by_turn["t2"]["first_response_control"] is False
+    assert by_turn["t2"]["multi_turn_evaluation_candidate"] is True
+    assert by_turn["t2"]["preceding_account_reply_count"] == 1
+
+
+def test_open_or_exposed_target_is_preliminarily_ineligible(tmp_path: Path) -> None:
+    open_rows, _ = _target_index_case(tmp_path / "open", activity_status="open")
+    assert all(not row["preliminary_held_out_eligibility"] for row in open_rows)
+    assert all(
+        "conversation_not_frozen_or_quiescent"
+        in row["preliminary_held_out_exclusion_reasons"]
+        for row in open_rows
+    )
+    exposed_rows, _ = _target_index_case(
+        tmp_path / "exposed", exposure_categories=["prior_model_experiment"]
+    )
+    assert all(not row["preliminary_held_out_eligibility"] for row in exposed_rows)
+    assert all(row["effective_exposure_status"] == "exposed" for row in exposed_rows)
+
+
+def test_quiescent_unexposed_grade_a_multiturn_target_is_eligible(
+    tmp_path: Path,
+) -> None:
+    rows, _ = _target_index_case(tmp_path)
+    follow_up = next(row for row in rows if row["target_turn_id"] == "t2")
+    assert follow_up["preliminary_held_out_eligibility"] is True
+    assert follow_up["preliminary_held_out_exclusion_reasons"] == []
+
+
+def test_target_crosstab_reproduces_rows_and_outcomes_once(tmp_path: Path) -> None:
+    rows, crosstab = _target_index_case(tmp_path)
+    assert phase1._target_prefix_crosstab_errors(rows, crosstab) == []
+    assert crosstab["target_prefix_count"] == len(rows)
+    assert sum(crosstab["dimensions"]["outcome_evidence_class"].values()) == len(
+        rows
+    )
+
+
+def test_published_target_cannot_be_omitted_from_declared_universe(
+    tmp_path: Path,
+) -> None:
+    manifest, record, turns = _target_index_inputs(tmp_path)
+    record["expected_target_turn_ids"] = ["t2"]
+
+    with pytest.raises(
+        phase1.Phase1Error,
+        match="declared target universe differs",
+    ):
+        phase1._build_target_prefix_rows(
+            manifest,
+            [record],
+            [],
+            {"synthetic:conversation": turns},
+        )
+
+
+def test_candidate_target_absent_from_canonical_turns_is_not_silently_omitted(
+    tmp_path: Path,
+) -> None:
+    manifest, record, turns = _target_index_inputs(tmp_path)
+
+    rows, structural_exclusions = phase1._build_target_prefix_rows(
+        manifest,
+        [record],
+        [],
+        {"synthetic:conversation": turns[:-1]},
+    )
+
+    assert [row["target_turn_id"] for row in rows] == ["t0"]
+    assert [row["target_turn_id"] for row in structural_exclusions] == ["t2"]
+    assert structural_exclusions[0]["structural_exclusion_reasons"] == [
+        "target_absent_from_canonical_conversation"
+    ]
+
+
+def test_account_tip_review_candidate_is_not_a_user_target(tmp_path: Path) -> None:
+    manifest, _record, turns = _target_index_inputs(tmp_path)
+    candidate_path = Path(manifest["sources"][0]["path"])
+    account_tip_candidate = {
+        "conversation_key": "synthetic:conversation",
+        "activity_status": "quiescent",
+        "prospective_status": "eligible",
+        "branch_tip_post_id": "p1",
+        "source_branch_tip_post_id": "p1",
+        "path_turns": turns[:2],
+    }
+    with candidate_path.open("a", encoding="utf-8") as handle:
+        handle.write(json.dumps(account_tip_candidate, sort_keys=True) + "\n")
+
+    candidates = phase1._target_candidate_map(
+        manifest,
+        {"synthetic:conversation"},
+    )
+
+    assert set(candidates) == {("synthetic:conversation", "t2")}
+
+
+def test_account_tip_review_candidate_is_validated_before_being_excluded(
+    tmp_path: Path,
+) -> None:
+    manifest, _record, turns = _target_index_inputs(tmp_path)
+    candidate_path = Path(manifest["sources"][0]["path"])
+    account_tip_candidate = {
+        "conversation_key": "synthetic:conversation",
+        "activity_status": "quiescent",
+        "prospective_status": "eligible",
+        "branch_tip_post_id": "wrong-tip",
+        "source_branch_tip_post_id": "p1",
+        "path_turns": turns[:2],
+    }
+    with candidate_path.open("a", encoding="utf-8") as handle:
+        handle.write(json.dumps(account_tip_candidate, sort_keys=True) + "\n")
+
+    with pytest.raises(
+        phase1.Phase1Error,
+        match="tip identity is inconsistent",
+    ):
+        phase1._target_candidate_map(manifest, {"synthetic:conversation"})
+
+
+def test_expected_target_ancestry_failure_is_not_silently_omitted(
+    tmp_path: Path,
+) -> None:
+    manifest, record, turns = _target_index_inputs(tmp_path)
+    turns[-1]["parent_post_id"] = "missing-parent"
+
+    rows, structural_exclusions = phase1._build_target_prefix_rows(
+        manifest,
+        [record],
+        [],
+        {"synthetic:conversation": turns},
+    )
+
+    assert [row["target_turn_id"] for row in rows] == ["t0"]
+    assert [row["target_turn_id"] for row in structural_exclusions] == ["t2"]
+    assert structural_exclusions[0]["structural_exclusion_reasons"] == [
+        "target_ancestry_does_not_reach_declared_root"
+    ]
+
+
+def test_text_incomplete_target_is_a_bounded_structural_exclusion(
+    tmp_path: Path,
+) -> None:
+    manifest, record, turns = _target_index_inputs(tmp_path)
+    turns[-1]["public_text"] = None
+
+    rows, structural_exclusions = phase1._build_target_prefix_rows(
+        manifest,
+        [record],
+        [],
+        {"synthetic:conversation": turns},
+    )
+
+    assert [row["target_turn_id"] for row in rows] == ["t0"]
+    assert structural_exclusions[0]["target_turn_id"] == "t2"
+    assert structural_exclusions[0]["structural_exclusion_reasons"] == [
+        "target_prefix_text_incomplete"
+    ]
+    assert "outcome_evidence_class" not in structural_exclusions[0]
+
+
+def test_potential_targets_partition_into_usable_and_structurally_excluded(
+    tmp_path: Path,
+) -> None:
+    manifest, record, turns = _target_index_inputs(tmp_path)
+    turns[-1]["parent_post_id"] = "missing-parent"
+    rows, structural_exclusions = phase1._build_target_prefix_rows(
+        manifest,
+        [record],
+        [],
+        {"synthetic:conversation": turns},
+    )
+    expected_pairs = phase1._declared_target_pairs([record])
+    summary = phase1._target_structural_reconciliation_summary(
+        expected_pairs, rows, structural_exclusions
+    )
+
+    assert summary == {
+        "schema_version": phase1.OUTPUT_SCHEMA_VERSION,
+        "potential_source_target_count": 2,
+        "structurally_usable_target_prefix_count": 1,
+        "structurally_excluded_target_count": 1,
+        "structural_exclusion_reason_counts": {
+            "target_ancestry_does_not_reach_declared_root": 1
+        },
+        "partition_complete": True,
+        "partition_errors": [],
+        "structural_exclusions_outside_target_outcome_and_crosstab_counts": True,
+    }
+    assert (
+        phase1._target_structural_reconciliation_errors(
+            expected_pairs, rows, structural_exclusions, summary
+        )
+        == []
+    )
+    crosstab = phase1._build_target_prefix_crosstab(rows)
+    assert crosstab["target_prefix_count"] == 1
+    assert sum(crosstab["dimensions"]["outcome_evidence_class"].values()) == 1
+
+    missing_exclusion_errors = phase1._target_structural_reconciliation_errors(
+        expected_pairs,
+        rows,
+        [],
+        phase1._target_structural_reconciliation_summary(expected_pairs, rows, []),
+    )
+    assert "target_partition_missing_expected_pair" in missing_exclusion_errors
+
+
+def test_author_groups_are_domain_qualified() -> None:
+    rows = [
+        {
+            "target_key": "one",
+            "conversation_key": "one",
+            "outcome_evidence_class": "confirmed_published_reply",
+            "author_key_scheme": "domain-a",
+            "principal_author_key": "same-key",
+            "author_group_comparability_status": "comparable_within_source_family_only",
+        },
+        {
+            "target_key": "two",
+            "conversation_key": "two",
+            "outcome_evidence_class": "confirmed_published_reply",
+            "author_key_scheme": "domain-b",
+            "principal_author_key": "same-key",
+            "author_group_comparability_status": "comparable_within_source_family_only",
+        },
+    ]
+    crosstab = phase1._build_target_prefix_crosstab(rows)
+    groups = crosstab["dimensions"]["principal_author_group_where_comparable"]
+    assert groups == {"domain-a:same-key": 1, "domain-b:same-key": 1}
+    assert crosstab["author_grouping_cross_family_performed"] is False
+
+
+def _readiness(**overrides: Any) -> dict[str, Any]:
+    values = {
+        "source_identity_valid": True,
+        "deterministic_rebuild_valid": True,
+        "privacy_valid": True,
+        "schema_valid": True,
+        "synthetic_fixtures_valid": True,
+        "target_outcomes_valid": True,
+        "target_crosstab_valid": True,
+        "no_future_turn_leakage": True,
+        "semantic_schema_valid": True,
+        "materialiser_valid": True,
+        "transcript_first_protocol_valid": True,
+        "preliminary_target_count": 1,
+    }
+    values.update(overrides)
+    return phase1._derive_readiness_gates(**values)
+
+
+@pytest.mark.parametrize(
+    ("override", "expected"),
+    [
+        (
+            {"source_identity_valid": False},
+            "phase1_1_blocked_by_source_or_leakage_failure",
+        ),
+        (
+            {"privacy_valid": False},
+            "phase1_1_blocked_by_privacy_failure",
+        ),
+        (
+            {"schema_valid": False},
+            "phase1_1_blocked_by_schema_or_materialiser_failure",
+        ),
+        (
+            {"materialiser_valid": False},
+            "phase1_1_blocked_by_schema_or_materialiser_failure",
+        ),
+        (
+            {"preliminary_target_count": 0},
+            "phase1_1_blocked_no_unexposed_stable_multiturn_targets",
+        ),
+    ],
+)
+def test_readiness_failures_derive_blocked_dispositions(
+    override: dict[str, Any], expected: str
+) -> None:
+    assert _readiness(**override)["disposition"] == expected
+
+
+def test_nonzero_structurally_complete_run_reports_sample_threshold_pending() -> None:
+    readiness = _readiness()
+    assert readiness["disposition"] == (
+        "phase1_1_complete_phase2_sample_threshold_pending"
+    )
+    assert readiness["sample_size_threshold_status"]["status"] == "pending"
+    mutated = copy.deepcopy(readiness)
+    mutated["privacy_validation"]["status"] = "failed"
+    assert phase1._derive_disposition(mutated) != readiness["disposition"]
+
+
+@pytest.mark.parametrize(
+    ("override", "expected"),
+    [
+        (
+            {"source_identity_valid": False},
+            "phase1_1_blocked_by_source_or_leakage_failure",
+        ),
+        (
+            {"privacy_valid": False},
+            "phase1_1_blocked_by_privacy_failure",
+        ),
+        (
+            {"schema_valid": False},
+            "phase1_1_blocked_by_schema_or_materialiser_failure",
+        ),
+        (
+            {"materialiser_valid": False},
+            "phase1_1_blocked_by_schema_or_materialiser_failure",
+        ),
+        (
+            {"preliminary_target_count": 0},
+            "phase1_1_blocked_no_unexposed_stable_multiturn_targets",
+        ),
+    ],
+)
+def test_failed_readiness_dispositions_are_reportable_blocks(
+    override: dict[str, Any], expected: str
+) -> None:
+    readiness = _readiness(**override)
+
+    assert phase1._emitted_blocking_disposition(readiness) == expected
+    assert phase1._emitted_blocking_disposition(_readiness()) is None
+
+
+def test_privacy_failure_selects_bounded_report_without_derived_details() -> None:
+    readiness = _readiness(privacy_valid=False)
+    report = phase1._phase1_1_report_for_readiness(
+        {"source_count": "PRIVATE-SOURCE-SENTINEL"},
+        {"grade_counts": "PRIVATE-GRADE-SENTINEL"},
+        {"headline_counts": "PRIVATE-TARGET-SENTINEL"},
+        "PRIVATE-PROTOCOL-HASH-SENTINEL",
+        {"semantic_delta_schema_sha256": "PRIVATE-SCHEMA-SENTINEL"},
+        {"source_sha256": "PRIVATE-MATERIALISER-SENTINEL"},
+        readiness,
+        {"passed": False},
+    )
+    text = "\n".join(report)
+
+    assert readiness["disposition"] in text
+    assert "deliberately omitted" in text
+    assert "Old-versus-new metric comparison" not in text
+    assert "PRIVATE-" not in text
+
+
+def test_validation_exceptions_become_failed_readiness_records(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    def schema_failure(
+        project_dir: Path, protocol: dict[str, Any]
+    ) -> dict[str, Any]:
+        raise ValueError("synthetic malformed schema")
+
+    def materialiser_failure(project_dir: Path) -> dict[str, Any]:
+        raise SyntaxError("synthetic malformed materialiser")
+
+    monkeypatch.setattr(phase1, "_schema_validation", schema_failure)
+    monkeypatch.setattr(
+        phase1, "_semantic_materialiser_validation", materialiser_failure
+    )
+
+    schema = phase1._schema_validation_for_readiness(tmp_path, {})
+    materialiser = phase1._semantic_materialiser_validation_for_readiness(tmp_path)
+
+    assert schema["passed"] is False
+    assert schema["semantic_delta_schema_validation"]["passed"] is False
+    assert schema["synthetic_fixtures"]["all_invalid_examples_detected"] is False
+    assert schema["validation_error"].startswith("ValueError:")
+    assert materialiser["passed"] is False
+    assert materialiser["source_sha256"] == "unavailable"
+    assert materialiser["validation_error"].startswith("SyntaxError:")
+
+
+def test_phase1_1_report_contains_complete_old_versus_new_metric_set() -> None:
+    outcomes = {
+        "confirmed_published_reply": 101,
+        "confirmed_pipeline_terminal_no_reply": 2,
+        "confirmed_local_skip": 3,
+        "quiescent_unreplied_tip_outcome_unknown": 4,
+        "outcome_evidence_unavailable": 5,
+        "conflicting_outcome_evidence": 6,
+    }
+    headline = {
+        "grade_a_target_prefix_count": 110,
+        "grade_a_multi_turn_target_prefix_count": 80,
+        "first_response_control_count": 20,
+        "open_conversation_target_prefix_count": 12,
+        "open_conversation_count": 7,
+        "exposed_multi_turn_target_prefix_count": 30,
+        "structurally_mined_only_multi_turn_target_prefix_count": 15,
+        "genuinely_unexposed_stable_grade_a_multi_turn_target_prefix_count": 25,
+        "genuinely_unexposed_stable_grade_a_multi_turn_conversation_count": 18,
+        "preliminary_held_out_eligible_target_prefix_count": 21,
+        "preliminary_held_out_eligible_conversation_count": 16,
+    }
+    feasibility = {
+        "canonical_union_conversation_count": 155,
+        "grade_counts": {"A": 143, "B": 1, "C": 11},
+    }
+    target_crosstab = {
+        "target_prefix_count": 121,
+        "headline_counts": headline,
+        "dimensions": {
+            "outcome_evidence_class": outcomes,
+            "first_response_versus_multi_turn": {
+                "first_response_control": 20,
+                "multi_turn_evaluation_candidate": 91,
+                "other_pre_account_reply_target": 10,
+            },
+        },
+    }
+    schema_validation = {
+        "passed": True,
+        "semantic_delta_schema_sha256": "a" * 64,
+        "ledger_schema_sha256": "b" * 64,
+        "experiment_schema_sha256": "c" * 64,
+    }
+    report = phase1._phase1_1_report(
+        {"source_count": 9},
+        feasibility,
+        target_crosstab,
+        "d" * 64,
+        schema_validation,
+        {"passed": True, "source_sha256": "e" * 64},
+        _readiness(preliminary_target_count=21),
+        {"passed": True},
+    )
+    text = "\n".join(report)
+    comparison = {
+        metric: (phase1_value, phase1_1_value)
+        for metric, phase1_value, phase1_1_value in phase1._phase1_1_metric_comparison(
+            feasibility, target_crosstab
+        )
+    }
+
+    assert "## Old-versus-new metric comparison" in text
+    assert comparison["Grade A conversation count"] == ("144", "143")
+    assert comparison["Grade B conversation count"] == ("0", "1")
+    assert comparison["Grade C conversation count"] == ("11", "11")
+    assert comparison["Total structurally usable target-prefix count"] == (
+        "205",
+        "121",
+    )
+    assert comparison["Confirmed published-reply target-prefix count"] == (
+        "182",
+        "101",
+    )
+    assert comparison[
+        "Confirmed pipeline-terminal no-reply target-prefix count"
+    ][0].startswith("not measured in Phase 1")
+    required_not_measured = {
+        "Confirmed local-skip target-prefix count",
+        "Quiescent unreplied-tip outcome-unknown target-prefix count",
+        "Outcome-evidence-unavailable target-prefix count",
+        "Conflicting-outcome-evidence target-prefix count",
+        "First-response control target-prefix count",
+        "Multi-turn evaluation-candidate target-prefix count",
+        "Distinct open-conversation count",
+        "Exposed multi-turn target-prefix count",
+        "Structurally mined-only multi-turn target-prefix count",
+        "Genuinely unexposed stable Grade-A multi-turn target-prefix count",
+        "Preliminary held-out-eligible conversation count",
+        "Preliminary held-out-eligible target-prefix count",
+    }
+    assert all(
+        comparison[metric][0] == "not measured in Phase 1"
+        for metric in required_not_measured
+    )
+    assert all(metric in text for metric in comparison)
+
+
+def test_materialiser_gate_requires_behavioral_validation(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from tools import proposition_ledger_semantic_delta as semantic_delta
+
+    passing = phase1._semantic_materialiser_validation(PROJECT_DIR)
+    assert passing["behavioral_validation_passed"] is True
+    assert passing["behavioral_validation"]["full_persisted_validator_passed"] is True
+    assert passing["passed"] is True
+
+    monkeypatch.setattr(
+        semantic_delta,
+        "behavioral_materialiser_validation",
+        lambda _project_dir: {
+            "passed": False,
+            "valid_materialisation_status": "persisted_ledger_validation_failure",
+        },
+    )
+    failing = phase1._semantic_materialiser_validation(PROJECT_DIR)
+    assert failing["behavioral_validation_passed"] is False
+    assert failing["passed"] is False
+
+
+def _write_fresh_determinism_fixture(
+    root: Path,
+    *,
+    generated_at: str,
+) -> None:
+    phase1._ensure_private_directory(root)
+    phase1._write_private(root / "private-author-key", b"k" * 32)
+    phase1._write_json(root / "payload.json", {"stable": [1, 2, 3]})
+    phase1._write_json(
+        root / "run-manifest.json",
+        {
+            "generated_at": generated_at,
+            "private_output": str(root),
+            "source_manifest_path": str(root / "frozen-source-manifest.json"),
+            "stable": "same",
+        },
+    )
+    phase1._write_private(
+        root / "SHA256SUMS",
+        (
+            f"{phase1.sha256_file(root / 'payload.json')}  payload.json\n"
+            f"{phase1.sha256_file(root / 'run-manifest.json')}  run-manifest.json\n"
+        ).encode("utf-8"),
+    )
+
+
+def test_fresh_build_comparison_isolates_only_run_metadata(tmp_path: Path) -> None:
+    left = tmp_path / "left"
+    right = tmp_path / "right"
+    _write_fresh_determinism_fixture(left, generated_at="2026-08-31T17:00:00Z")
+    _write_fresh_determinism_fixture(right, generated_at="2026-08-31T17:00:01Z")
+
+    result = phase1._fresh_build_directory_comparison(left, right)
+
+    assert result["passed"] is True
+    assert result["errors"] == []
+    assert result["substantive_file_count"] == 1
+    assert result["isolated_run_metadata"] == [
+        "run-manifest.generated_at",
+        "run-manifest.private_output",
+        "run-manifest.source_manifest_path",
+        "SHA256SUMS run-manifest entry",
+    ]
+
+
+def test_fresh_build_comparison_detects_substantive_and_key_differences(
+    tmp_path: Path,
+) -> None:
+    left = tmp_path / "left"
+    right = tmp_path / "right"
+    _write_fresh_determinism_fixture(left, generated_at="2026-08-31T17:00:00Z")
+    _write_fresh_determinism_fixture(right, generated_at="2026-08-31T17:00:01Z")
+    phase1._write_json(right / "payload.json", {"stable": [1, 2, 4]})
+    phase1._write_private(right / "private-author-key", b"q" * 32)
+
+    result = phase1._fresh_build_directory_comparison(left, right)
+
+    assert result["passed"] is False
+    assert "fresh build output differs: payload.json" in result["errors"]
+    assert "fresh builds did not reuse identical private key bytes" in result["errors"]

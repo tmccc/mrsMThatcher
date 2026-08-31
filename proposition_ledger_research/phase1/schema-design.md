@@ -43,6 +43,13 @@ allow conduct, cause, outcome, and motive to remain distinct. Decomposition is
 therefore permitted without treating the parts as unrelated or collapsing them
 into a stronger compound assertion.
 
+A compound accusation contains at least two materially distinct propositions.
+Every distinct component evidenced by the transcript remains separately
+representable, without duplicating roles merely to satisfy a count. Roles are
+source-faithful rather than a required checklist: motive is present only when
+the cited text alleges motive, and a conduct-plus-cause or conduct-plus-outcome
+accusation without motive is valid.
+
 ## Issues, commitments, and obligations
 
 Issue states preserve live alternatives and answer requirements independently
@@ -138,8 +145,9 @@ updated record's final status to agree with the snapshot, and every resolved ID
 to agree with `resolved_items`. One typed update field may name a logical item
 only once, even if two records use different explanatory text. Native and
 composite state keys must also be unique before projection, so replay cannot
-hide two distinct records behind one key. The complete authenticated history,
-preceding hashes, and replayed `state_patch` form the chain-validation boundary.
+hide two distinct records behind one key. The complete hash-linked turn-by-turn
+history, integrity-validated predecessor chain, and replayed `state_patch` form
+the chain-validation boundary.
 Synthetic fixtures supply the full turn-by-turn chain so Phase 1 can prove
 reconstruction without fabricating missing historical state.
 
@@ -153,7 +161,8 @@ non-deterministic hashes, and future references invalidate a snapshot.
 The contract directly addresses the earlier QUD pilot's diagnostic failures:
 
 - rhetorical or expressive language can abstain with `no_stable_issue`;
-- compound accusations preserve conduct, causation, and motive separately;
+- compound accusations preserve every evidenced component separately, including
+  conduct, causation, outcome, and motive when each is present;
 - still-live counterfactuals survive narrower supporting discussion;
 - rejected and replacement answer targets remain distinct;
 - diagnostic relations are separated from transcript facts;
