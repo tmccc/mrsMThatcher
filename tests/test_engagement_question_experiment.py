@@ -2558,7 +2558,7 @@ def test_home_assistant_package_is_treatment_only_and_stale_guarded() -> None:
 def test_reply_pipeline_and_historical_context_formatter_are_unchanged() -> None:
     assert hashlib.sha256(
         PROJECT_ROOT.joinpath("tested_reply_pipeline.py").read_bytes()
-    ).hexdigest() == "b09f74323b22b0ad4be0229bb1b2758eee99fb6b1b5fbcb833cbe17b18dc7281"
+    ).hexdigest() == "882a6c6694913067a392bc6a1a5586755ae147e93a5c4e86853f7090248f3e60"
     assert hashlib.sha256(
         PROJECT_ROOT.joinpath("historical_context_formatter.py").read_bytes()
     ).hexdigest() == "55982ee4906c020e6dc3fbcd0ea09950d4de6a3e3a75968240ca04163dd806a8"

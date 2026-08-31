@@ -1001,6 +1001,7 @@ class WriterLinkRepairTransport(Transport):
 
 def test_writer_prompt_prohibits_complete_reply_contains_link_class() -> None:
     prompt = pipeline.WRITER_PROMPT.casefold()
+    repair_prompt = pipeline.WRITER_LINK_REPAIR_PROMPT.casefold()
 
     for prohibited in (
         "urls",
@@ -1012,6 +1013,17 @@ def test_writer_prompt_prohibits_complete_reply_contains_link_class() -> None:
     ):
         assert prohibited in prompt
     assert "refer to a source descriptively rather than linking to it" in prompt
+    for requirement in (
+        "general",
+        "claim_free",
+        "supported_factual",
+        "premise_neutral",
+    ):
+        assert f"- {requirement}:" in repair_prompt
+    assert (
+        "without confirming, praising or elaborating the unsupported attribution"
+        in repair_prompt
+    )
 
 
 def test_writer_link_repair_succeeds_once_and_preserves_downstream_safeguards() -> None:
@@ -2017,7 +2029,7 @@ def test_frozen_prompt_hashes_and_provider_profiles() -> None:
         "GROUP_REVIEW_PROMPT": "2355c7056d0ba93ddd79d731cc2999fc2e5fecd55eb8444814c1d21c06e7e6fc",
         "WRITER_PROMPT": "c63cf4a70694beda982fd727a8415e94db515007bc62bf288400cfebebc5966a",
         "WRITER_LINK_REPAIR_PROMPT": (
-            "5eecd8449a9149726498351e5849d3bdc0f5783ad7e795ab7915907ce5c7b234"
+            "95f46b7a3bd6a0d7b65aa7f78aabefdfbddd4b46e59a0d4ecebb3321bd8360df"
         ),
         "CLAIM_AUDIT_PROMPT": "a2e0f3e78bdd3aa5a45e4fc2ba1eed7819043b4ffec97caeeb29c66ac6824589",
         "CLAIM_CLEANUP_PROMPT": "04a926149d8e5440f6b6426bfbba173112c01776f6bad1698c81755badffc7a5",

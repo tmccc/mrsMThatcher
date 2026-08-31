@@ -8404,6 +8404,7 @@ def test_digest_writer_local_production_regression_is_not_deliberately_declined(
     )
     assert "1 writer-local failure" in section
     assert "No-reply categories: writer_local_failure=1" in section
+    assert "No-reply/rejection reasons:" in section
     assert "Editorial no-reply/rejections:" not in section
 
 

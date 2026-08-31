@@ -20518,7 +20518,7 @@ def render_markdown(report: Dict[str, Any]) -> str:
     out.append("Repetition controls: " + compact_counts(strategy.get("repetition_control_counts") or {}))
     if strategy.get("rejection_reason_counts"):
         out.append(
-            "No-reply/rejection reasons (writer-local failures reported separately):"
+            "No-reply/rejection reasons:"
             if writer_local_failures
             else "Editorial no-reply/rejections:"
         )
