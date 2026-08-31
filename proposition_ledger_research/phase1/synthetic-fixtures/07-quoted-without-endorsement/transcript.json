@@ -1,0 +1,353 @@
+{
+  "conversation_key": "synthetic:07-quoted-without-endorsement",
+  "description": "A participant quotes a pamphlet without endorsing its claim.",
+  "fixture_format_version": "proposition-ledger-synthetic-fixture-v1",
+  "fixture_id": "07-quoted-without-endorsement",
+  "ledger_history": [
+    {
+      "answer_targets": [],
+      "as_of_turn_index": 0,
+      "conversation_key": "synthetic:07-quoted-without-endorsement",
+      "conversational_obligations": [],
+      "extraction_status": {
+        "abstentions": [],
+        "status": "complete",
+        "unsupported_inferences_rejected": 0
+      },
+      "issue_states": [],
+      "ledger_id": "ledger-07-quoted-without-endorsement-history-0",
+      "ledger_sha256": "de4adfad1583335068001adf2b5285c19e8c5287b94a6aedb87f4d05102f6f9d",
+      "participant_commitments": [
+        {
+          "basis": "attribution_only",
+          "commitment_id": "c-attribution-only",
+          "confidence": 1.0,
+          "introduced_at_turn_id": "t0",
+          "last_updated_at_turn_id": "t0",
+          "participant_id": "contributor",
+          "proposition_id": "p-pamphlet-moon",
+          "stance": "attributed_to_another",
+          "uncertainty_reason": null
+        }
+      ],
+      "participants": [
+        {
+          "author_key": "synthetic-account",
+          "identity_confidence": 1.0,
+          "participant_id": "account",
+          "role": "account"
+        },
+        {
+          "author_key": "synthetic-contributor",
+          "identity_confidence": 1.0,
+          "participant_id": "contributor",
+          "role": "contributor"
+        },
+        {
+          "author_key": "synthetic-pamphlet",
+          "identity_confidence": 1.0,
+          "participant_id": "pamphlet",
+          "role": "quoted_source"
+        }
+      ],
+      "previous_ledger_sha256": null,
+      "proposition_groups": [],
+      "proposition_relations": [],
+      "propositions": [
+        {
+          "canonical_text": "The moon governs harvest prices.",
+          "commitment_status": "attributed_to_another",
+          "confidence": 1.0,
+          "derivation": {
+            "kind": "direct_span",
+            "normalisation_note": null,
+            "source_proposition_ids": []
+          },
+          "epistemic_status": "quoted_only",
+          "exact_evidence_spans": [
+            {
+              "end_char": 52,
+              "exact_text": "The moon governs harvest prices.",
+              "start_char": 20,
+              "turn_id": "t0"
+            }
+          ],
+          "introduced_at_turn_id": "t0",
+          "lifecycle_status": "introduced",
+          "modality": {
+            "strength": "none",
+            "type": "none"
+          },
+          "original_language": "en",
+          "polarity": "positive",
+          "proposition_group_id": null,
+          "proposition_id": "p-pamphlet-moon",
+          "proposition_kind": "quoted_claim",
+          "quantification": {
+            "surface_marker": null,
+            "type": "none"
+          },
+          "speaker_or_attributor": {
+            "attributed_participant_id": "pamphlet",
+            "kind": "attributor",
+            "participant_id": "contributor"
+          },
+          "speech_act": "quotation",
+          "temporal_scope": {
+            "end": null,
+            "start": null,
+            "surface_marker": null,
+            "type": "timeless"
+          },
+          "uncertainty_reason": null
+        }
+      ],
+      "rejected_answer_targets": [],
+      "repair_records": [],
+      "resolved_items": [],
+      "root_post_id": "synthetic-07-quoted-without-endorsement-post-0",
+      "schema_version": "proposition-ledger-v1.0.0",
+      "source_completeness": {
+        "account_publication_confirmed": true,
+        "chronology_complete": true,
+        "complete_prefix_through_turn": true,
+        "exact_text_complete": true,
+        "limitations": [
+          "Wholly invented schema fixture; not historical evidence."
+        ],
+        "parent_graph_complete": true,
+        "reconstruction_grade": "A"
+      },
+      "state_transitions": [
+        {
+          "answer_targets_added": [],
+          "answer_targets_updated": [],
+          "commitments_added": [
+            "c-attribution-only"
+          ],
+          "commitments_updated": [],
+          "current_turn_id": "t0",
+          "current_turn_index": 0,
+          "from_ledger_sha256": null,
+          "issue_states_added": [],
+          "issue_states_updated": [],
+          "items_resolved": [],
+          "obligations_added": [],
+          "obligations_updated": [],
+          "proposition_groups_added": [],
+          "proposition_groups_updated": [],
+          "propositions_added": [
+            "p-pamphlet-moon"
+          ],
+          "propositions_updated": [],
+          "rejected_answer_targets_added": [],
+          "rejected_answer_targets_updated": [],
+          "relations_added": [],
+          "repair_records_added": [],
+          "repair_records_updated": [],
+          "state_patch": [
+            {
+              "after_record": {
+                "account_publication_confirmed": true,
+                "chronology_complete": true,
+                "complete_prefix_through_turn": true,
+                "exact_text_complete": true,
+                "limitations": [
+                  "Wholly invented schema fixture; not historical evidence."
+                ],
+                "parent_graph_complete": true,
+                "reconstruction_grade": "A"
+              },
+              "before_record_sha256": null,
+              "collection": "source_completeness",
+              "item_id": "source_completeness",
+              "operation": "add"
+            },
+            {
+              "after_record": {
+                "author_key": "synthetic-account",
+                "identity_confidence": 1.0,
+                "participant_id": "account",
+                "role": "account"
+              },
+              "before_record_sha256": null,
+              "collection": "participants",
+              "item_id": "account",
+              "operation": "add"
+            },
+            {
+              "after_record": {
+                "author_key": "synthetic-contributor",
+                "identity_confidence": 1.0,
+                "participant_id": "contributor",
+                "role": "contributor"
+              },
+              "before_record_sha256": null,
+              "collection": "participants",
+              "item_id": "contributor",
+              "operation": "add"
+            },
+            {
+              "after_record": {
+                "author_key": "synthetic-pamphlet",
+                "identity_confidence": 1.0,
+                "participant_id": "pamphlet",
+                "role": "quoted_source"
+              },
+              "before_record_sha256": null,
+              "collection": "participants",
+              "item_id": "pamphlet",
+              "operation": "add"
+            },
+            {
+              "after_record": {
+                "parent_turn_id": null,
+                "post_id": "synthetic-07-quoted-without-endorsement-post-0",
+                "speaker_id": "contributor",
+                "text_sha256": "b048a924d068297f3ccc57c93ddb4fa83312659811850f44e351585292105878",
+                "turn_id": "t0",
+                "turn_index": 0
+              },
+              "before_record_sha256": null,
+              "collection": "turn_refs",
+              "item_id": "t0",
+              "operation": "add"
+            },
+            {
+              "after_record": {
+                "canonical_text": "The moon governs harvest prices.",
+                "commitment_status": "attributed_to_another",
+                "confidence": 1.0,
+                "derivation": {
+                  "kind": "direct_span",
+                  "normalisation_note": null,
+                  "source_proposition_ids": []
+                },
+                "epistemic_status": "quoted_only",
+                "exact_evidence_spans": [
+                  {
+                    "end_char": 52,
+                    "exact_text": "The moon governs harvest prices.",
+                    "start_char": 20,
+                    "turn_id": "t0"
+                  }
+                ],
+                "introduced_at_turn_id": "t0",
+                "lifecycle_status": "introduced",
+                "modality": {
+                  "strength": "none",
+                  "type": "none"
+                },
+                "original_language": "en",
+                "polarity": "positive",
+                "proposition_group_id": null,
+                "proposition_id": "p-pamphlet-moon",
+                "proposition_kind": "quoted_claim",
+                "quantification": {
+                  "surface_marker": null,
+                  "type": "none"
+                },
+                "speaker_or_attributor": {
+                  "attributed_participant_id": "pamphlet",
+                  "kind": "attributor",
+                  "participant_id": "contributor"
+                },
+                "speech_act": "quotation",
+                "temporal_scope": {
+                  "end": null,
+                  "start": null,
+                  "surface_marker": null,
+                  "type": "timeless"
+                },
+                "uncertainty_reason": null
+              },
+              "before_record_sha256": null,
+              "collection": "propositions",
+              "item_id": "p-pamphlet-moon",
+              "operation": "add"
+            },
+            {
+              "after_record": {
+                "basis": "attribution_only",
+                "commitment_id": "c-attribution-only",
+                "confidence": 1.0,
+                "introduced_at_turn_id": "t0",
+                "last_updated_at_turn_id": "t0",
+                "participant_id": "contributor",
+                "proposition_id": "p-pamphlet-moon",
+                "stance": "attributed_to_another",
+                "uncertainty_reason": null
+              },
+              "before_record_sha256": null,
+              "collection": "participant_commitments",
+              "item_id": "c-attribution-only",
+              "operation": "add"
+            },
+            {
+              "after_record": {
+                "abstentions": [],
+                "status": "complete",
+                "unsupported_inferences_rejected": 0
+              },
+              "before_record_sha256": null,
+              "collection": "extraction_status",
+              "item_id": "extraction_status",
+              "operation": "add"
+            }
+          ],
+          "transition_id": "transition-t0",
+          "warnings_added": []
+        }
+      ],
+      "target_turn_id": "t0",
+      "turn_refs": [
+        {
+          "parent_turn_id": null,
+          "post_id": "synthetic-07-quoted-without-endorsement-post-0",
+          "speaker_id": "contributor",
+          "text_sha256": "b048a924d068297f3ccc57c93ddb4fa83312659811850f44e351585292105878",
+          "turn_id": "t0",
+          "turn_index": 0
+        }
+      ],
+      "unresolved_items": [],
+      "warnings": []
+    }
+  ],
+  "participants": [
+    {
+      "participant_id": "account",
+      "role": "account"
+    },
+    {
+      "participant_id": "contributor",
+      "role": "contributor"
+    },
+    {
+      "participant_id": "pamphlet",
+      "role": "quoted_source"
+    }
+  ],
+  "root_post_id": "synthetic-07-quoted-without-endorsement-post-0",
+  "synthetic": true,
+  "turns": [
+    {
+      "language": "en",
+      "parent_turn_id": null,
+      "post_id": "synthetic-07-quoted-without-endorsement-post-0",
+      "speaker_id": "contributor",
+      "text": "The pamphlet says, \"The moon governs harvest prices.\"",
+      "turn_id": "t0",
+      "turn_index": 0
+    },
+    {
+      "language": "en",
+      "parent_turn_id": "t0",
+      "post_id": "synthetic-07-quoted-without-endorsement-post-1",
+      "speaker_id": "account",
+      "text": "Quoting that claim does not show that you endorse it.",
+      "turn_id": "t1",
+      "turn_index": 1
+    }
+  ]
+}

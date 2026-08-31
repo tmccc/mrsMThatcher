@@ -1,0 +1,1131 @@
+{
+  "answer_targets": [
+    {
+      "answer_target_id": "at-every-path",
+      "confidence": 1.0,
+      "issue_ids": [
+        "i-ban-scope"
+      ],
+      "proposition_ids": [
+        "p-ban-every-path"
+      ],
+      "reply_turn_id": "t1",
+      "selected_at_turn_id": "t1",
+      "target_status": "rejected"
+    },
+    {
+      "answer_target_id": "at-glasshouse",
+      "confidence": 1.0,
+      "issue_ids": [
+        "i-ban-scope"
+      ],
+      "proposition_ids": [
+        "p-ban-glasshouse"
+      ],
+      "reply_turn_id": "t1",
+      "selected_at_turn_id": "t2",
+      "target_status": "confirmed"
+    }
+  ],
+  "as_of_turn_index": 2,
+  "conversation_key": "synthetic:02-explicit-correction",
+  "conversational_obligations": [
+    {
+      "confidence": 1.0,
+      "created_by_turn_id": "t0",
+      "expiry_policy": "on_issue_resolution",
+      "obligation_id": "o-ban-answer",
+      "obligation_type": "explicit_question",
+      "owed_by_participant": "account",
+      "owed_to_participant": "contributor",
+      "related_issue_ids": [
+        "i-ban-scope"
+      ],
+      "related_proposition_ids": [
+        "p-ban-question"
+      ],
+      "resolved_by_turn_id": null,
+      "status": "partly_satisfied"
+    },
+    {
+      "confidence": 1.0,
+      "created_by_turn_id": "t2",
+      "expiry_policy": "never_implicit",
+      "obligation_id": "o-acknowledge-ban-correction",
+      "obligation_type": "correction_requiring_acknowledgement",
+      "owed_by_participant": "account",
+      "owed_to_participant": "contributor",
+      "related_issue_ids": [
+        "i-ban-scope"
+      ],
+      "related_proposition_ids": [
+        "p-not-every-path",
+        "p-ban-glasshouse"
+      ],
+      "resolved_by_turn_id": null,
+      "status": "open"
+    }
+  ],
+  "extraction_status": {
+    "abstentions": [],
+    "status": "complete",
+    "unsupported_inferences_rejected": 0
+  },
+  "issue_states": [
+    {
+      "addressed_participant": "account",
+      "answer_requirements": [
+        {
+          "description": "Identify the scope of the bicycle ban.",
+          "requirement_type": "supply_value"
+        }
+      ],
+      "canonical_question": "Where does the new rule ban bicycles?",
+      "confidence": 1.0,
+      "exact_evidence_spans": [
+        {
+          "end_char": 31,
+          "exact_text": "Does the new rule ban bicycles?",
+          "start_char": 0,
+          "turn_id": "t0"
+        }
+      ],
+      "initiating_speaker": "contributor",
+      "initiating_turn_id": "t0",
+      "issue_id": "i-ban-scope",
+      "issue_type": "wh",
+      "live_alternatives": [],
+      "related_proposition_ids": [
+        "p-ban-question",
+        "p-ban-every-path",
+        "p-ban-glasshouse"
+      ],
+      "resolution_turn_id": null,
+      "resolution_type": null,
+      "status": "partly_answered"
+    }
+  ],
+  "ledger_id": "ledger-02-explicit-correction",
+  "ledger_sha256": "13a28a2565fba3eb01b7133b114bb93bde06315c7d60f86476f0c7a1bdb0d17f",
+  "participant_commitments": [
+    {
+      "basis": "explicit_speech_act",
+      "commitment_id": "c-ban-question",
+      "confidence": 1.0,
+      "introduced_at_turn_id": "t0",
+      "last_updated_at_turn_id": "t0",
+      "participant_id": "contributor",
+      "proposition_id": "p-ban-question",
+      "stance": "questioned",
+      "uncertainty_reason": null
+    },
+    {
+      "basis": "explicit_speech_act",
+      "commitment_id": "c-every-path",
+      "confidence": 1.0,
+      "introduced_at_turn_id": "t1",
+      "last_updated_at_turn_id": "t1",
+      "participant_id": "account",
+      "proposition_id": "p-ban-every-path",
+      "stance": "asserted",
+      "uncertainty_reason": null
+    },
+    {
+      "basis": "explicit_correction",
+      "commitment_id": "c-not-every-path",
+      "confidence": 1.0,
+      "introduced_at_turn_id": "t2",
+      "last_updated_at_turn_id": "t2",
+      "participant_id": "contributor",
+      "proposition_id": "p-not-every-path",
+      "stance": "asserted",
+      "uncertainty_reason": null
+    },
+    {
+      "basis": "explicit_correction",
+      "commitment_id": "c-glasshouse",
+      "confidence": 1.0,
+      "introduced_at_turn_id": "t2",
+      "last_updated_at_turn_id": "t2",
+      "participant_id": "contributor",
+      "proposition_id": "p-ban-glasshouse",
+      "stance": "asserted",
+      "uncertainty_reason": null
+    }
+  ],
+  "participants": [
+    {
+      "author_key": "synthetic-account",
+      "identity_confidence": 1.0,
+      "participant_id": "account",
+      "role": "account"
+    },
+    {
+      "author_key": "synthetic-contributor",
+      "identity_confidence": 1.0,
+      "participant_id": "contributor",
+      "role": "contributor"
+    }
+  ],
+  "previous_ledger_sha256": "254587d097021cc8f911e140c7b7fe22086a1a39b22ce1b852fe5dbe121891ea",
+  "proposition_groups": [
+    {
+      "confidence": 1.0,
+      "decomposition_complete": true,
+      "exact_evidence_spans": [
+        {
+          "end_char": 84,
+          "exact_text": "It does not ban bicycles on every path, but it does ban them only in the glasshouse.",
+          "start_char": 0,
+          "turn_id": "t2"
+        }
+      ],
+      "introduced_at_turn_id": "t2",
+      "members": [
+        {
+          "ordinal": 0,
+          "proposition_id": "p-not-every-path",
+          "role": "qualification"
+        },
+        {
+          "ordinal": 1,
+          "proposition_id": "p-ban-glasshouse",
+          "role": "conclusion"
+        }
+      ],
+      "proposition_group_id": "g-correction",
+      "structure_type": "conjunction",
+      "uncertainty_reason": null
+    }
+  ],
+  "proposition_relations": [
+    {
+      "analysis_basis": "direct_semantic_content",
+      "asserted_or_analysed_by": "contributor",
+      "confidence": 1.0,
+      "exact_evidence_spans": [
+        {
+          "end_char": 38,
+          "exact_text": "does not ban bicycles on every path",
+          "start_char": 3,
+          "turn_id": "t2"
+        }
+      ],
+      "introduced_at_turn_id": "t2",
+      "provenance_kind": "transcript_extraction",
+      "relation_id": "r-denies-every-path",
+      "relation_type": "contradicts",
+      "source_proposition_ids": [
+        "p-not-every-path"
+      ],
+      "target_proposition_ids": [
+        "p-ban-every-path"
+      ],
+      "uncertainty_reason": null
+    },
+    {
+      "analysis_basis": "human_correction",
+      "asserted_or_analysed_by": "contributor",
+      "confidence": 1.0,
+      "exact_evidence_spans": [
+        {
+          "end_char": 84,
+          "exact_text": "It does not ban bicycles on every path, but it does ban them only in the glasshouse.",
+          "start_char": 0,
+          "turn_id": "t2"
+        }
+      ],
+      "introduced_at_turn_id": "t2",
+      "provenance_kind": "human_correction",
+      "relation_id": "r-corrects-scope",
+      "relation_type": "corrects",
+      "source_proposition_ids": [
+        "p-ban-glasshouse"
+      ],
+      "target_proposition_ids": [
+        "p-ban-every-path"
+      ],
+      "uncertainty_reason": null
+    }
+  ],
+  "propositions": [
+    {
+      "canonical_text": "The new rule bans bicycles.",
+      "commitment_status": "questioned_only",
+      "confidence": 1.0,
+      "derivation": {
+        "kind": "direct_span",
+        "normalisation_note": null,
+        "source_proposition_ids": []
+      },
+      "epistemic_status": "questioned",
+      "exact_evidence_spans": [
+        {
+          "end_char": 30,
+          "exact_text": "the new rule ban bicycles",
+          "start_char": 5,
+          "turn_id": "t0"
+        }
+      ],
+      "introduced_at_turn_id": "t0",
+      "lifecycle_status": "challenged",
+      "modality": {
+        "strength": "none",
+        "type": "none"
+      },
+      "original_language": "en",
+      "polarity": "open",
+      "proposition_group_id": null,
+      "proposition_id": "p-ban-question",
+      "proposition_kind": "descriptive",
+      "quantification": {
+        "surface_marker": null,
+        "type": "none"
+      },
+      "speaker_or_attributor": {
+        "attributed_participant_id": null,
+        "kind": "speaker",
+        "participant_id": "contributor"
+      },
+      "speech_act": "question",
+      "temporal_scope": {
+        "end": null,
+        "start": null,
+        "surface_marker": null,
+        "type": "timeless"
+      },
+      "uncertainty_reason": null
+    },
+    {
+      "canonical_text": "The rule bans bicycles on every path.",
+      "commitment_status": "speaker_committed",
+      "confidence": 1.0,
+      "derivation": {
+        "kind": "direct_span",
+        "normalisation_note": null,
+        "source_proposition_ids": []
+      },
+      "epistemic_status": "asserted",
+      "exact_evidence_spans": [
+        {
+          "end_char": 30,
+          "exact_text": "bans bicycles on every path",
+          "start_char": 3,
+          "turn_id": "t1"
+        }
+      ],
+      "introduced_at_turn_id": "t1",
+      "lifecycle_status": "challenged",
+      "modality": {
+        "strength": "none",
+        "type": "none"
+      },
+      "original_language": "en",
+      "polarity": "positive",
+      "proposition_group_id": null,
+      "proposition_id": "p-ban-every-path",
+      "proposition_kind": "descriptive",
+      "quantification": {
+        "surface_marker": "every",
+        "type": "universal"
+      },
+      "speaker_or_attributor": {
+        "attributed_participant_id": null,
+        "kind": "speaker",
+        "participant_id": "account"
+      },
+      "speech_act": "assertion",
+      "temporal_scope": {
+        "end": null,
+        "start": null,
+        "surface_marker": null,
+        "type": "timeless"
+      },
+      "uncertainty_reason": null
+    },
+    {
+      "canonical_text": "The rule does not ban bicycles on every path.",
+      "commitment_status": "speaker_committed",
+      "confidence": 1.0,
+      "derivation": {
+        "kind": "compound_decomposition",
+        "normalisation_note": "Expands the explicit elliptical correction without changing its scope.",
+        "source_proposition_ids": []
+      },
+      "epistemic_status": "asserted",
+      "exact_evidence_spans": [
+        {
+          "end_char": 38,
+          "exact_text": "does not ban bicycles on every path",
+          "start_char": 3,
+          "turn_id": "t2"
+        }
+      ],
+      "introduced_at_turn_id": "t2",
+      "lifecycle_status": "live",
+      "modality": {
+        "strength": "none",
+        "type": "none"
+      },
+      "original_language": "en",
+      "polarity": "negative",
+      "proposition_group_id": "g-correction",
+      "proposition_id": "p-not-every-path",
+      "proposition_kind": "descriptive",
+      "quantification": {
+        "surface_marker": null,
+        "type": "none"
+      },
+      "speaker_or_attributor": {
+        "attributed_participant_id": null,
+        "kind": "speaker",
+        "participant_id": "contributor"
+      },
+      "speech_act": "correction",
+      "temporal_scope": {
+        "end": null,
+        "start": null,
+        "surface_marker": null,
+        "type": "timeless"
+      },
+      "uncertainty_reason": null
+    },
+    {
+      "canonical_text": "The rule bans bicycles only in the glasshouse.",
+      "commitment_status": "speaker_committed",
+      "confidence": 1.0,
+      "derivation": {
+        "kind": "compound_decomposition",
+        "normalisation_note": null,
+        "source_proposition_ids": []
+      },
+      "epistemic_status": "asserted",
+      "exact_evidence_spans": [
+        {
+          "end_char": 83,
+          "exact_text": "it does ban them only in the glasshouse",
+          "start_char": 44,
+          "turn_id": "t2"
+        }
+      ],
+      "introduced_at_turn_id": "t2",
+      "lifecycle_status": "live",
+      "modality": {
+        "strength": "none",
+        "type": "none"
+      },
+      "original_language": "en",
+      "polarity": "positive",
+      "proposition_group_id": "g-correction",
+      "proposition_id": "p-ban-glasshouse",
+      "proposition_kind": "descriptive",
+      "quantification": {
+        "surface_marker": null,
+        "type": "none"
+      },
+      "speaker_or_attributor": {
+        "attributed_participant_id": null,
+        "kind": "speaker",
+        "participant_id": "contributor"
+      },
+      "speech_act": "correction",
+      "temporal_scope": {
+        "end": null,
+        "start": null,
+        "surface_marker": null,
+        "type": "timeless"
+      },
+      "uncertainty_reason": null
+    }
+  ],
+  "rejected_answer_targets": [
+    {
+      "answer_target_id": "at-every-path",
+      "confidence": 1.0,
+      "exact_evidence_spans": [
+        {
+          "end_char": 84,
+          "exact_text": "It does not ban bicycles on every path, but it does ban them only in the glasshouse.",
+          "start_char": 0,
+          "turn_id": "t2"
+        }
+      ],
+      "rejected_answer_target_id": "rat-every-path",
+      "rejected_at_turn_id": "t2",
+      "rejection_kind": "not_x_but_y",
+      "related_proposition_ids": [
+        "p-ban-every-path",
+        "p-not-every-path",
+        "p-ban-glasshouse"
+      ],
+      "replacement_answer_target_id": "at-glasshouse",
+      "status": "active"
+    }
+  ],
+  "repair_records": [
+    {
+      "acknowledgement_turn_id": null,
+      "confidence": 1.0,
+      "exact_evidence_spans": [
+        {
+          "end_char": 84,
+          "exact_text": "It does not ban bicycles on every path, but it does ban them only in the glasshouse.",
+          "start_char": 0,
+          "turn_id": "t2"
+        }
+      ],
+      "outcome": "pending",
+      "rejected_answer_target_ids": [
+        "rat-every-path"
+      ],
+      "repair_id": "repair-ban-scope",
+      "repair_type": "contributor_correction",
+      "replacement_answer_target_ids": [
+        "at-glasshouse"
+      ],
+      "trigger_turn_id": "t2"
+    }
+  ],
+  "resolved_items": [],
+  "root_post_id": "synthetic-02-explicit-correction-post-0",
+  "schema_version": "proposition-ledger-v1.0.0",
+  "source_completeness": {
+    "account_publication_confirmed": true,
+    "chronology_complete": true,
+    "complete_prefix_through_turn": true,
+    "exact_text_complete": true,
+    "limitations": [
+      "Wholly invented schema fixture; not historical evidence."
+    ],
+    "parent_graph_complete": true,
+    "reconstruction_grade": "A"
+  },
+  "state_transitions": [
+    {
+      "answer_targets_added": [
+        "at-glasshouse"
+      ],
+      "answer_targets_updated": [
+        {
+          "from_status": "apparent",
+          "item_id": "at-every-path",
+          "reason": "The contributor explicitly rejected the over-broad target.",
+          "to_status": "rejected"
+        }
+      ],
+      "commitments_added": [
+        "c-glasshouse",
+        "c-not-every-path"
+      ],
+      "commitments_updated": [],
+      "current_turn_id": "t2",
+      "current_turn_index": 2,
+      "from_ledger_sha256": "254587d097021cc8f911e140c7b7fe22086a1a39b22ce1b852fe5dbe121891ea",
+      "issue_states_added": [],
+      "issue_states_updated": [
+        {
+          "from_status": "open",
+          "item_id": "i-ban-scope",
+          "reason": "A narrower scope was supplied.",
+          "to_status": "partly_answered"
+        }
+      ],
+      "items_resolved": [],
+      "obligations_added": [
+        "o-acknowledge-ban-correction"
+      ],
+      "obligations_updated": [
+        {
+          "from_status": "open",
+          "item_id": "o-ban-answer",
+          "reason": "Scope was narrowed but not acknowledged.",
+          "to_status": "partly_satisfied"
+        }
+      ],
+      "proposition_groups_added": [
+        "g-correction"
+      ],
+      "proposition_groups_updated": [],
+      "propositions_added": [
+        "p-ban-glasshouse",
+        "p-not-every-path"
+      ],
+      "propositions_updated": [
+        {
+          "from_status": "live",
+          "item_id": "p-ban-every-path",
+          "reason": "Contributor corrected its scope.",
+          "to_status": "challenged"
+        }
+      ],
+      "rejected_answer_targets_added": [
+        "rat-every-path"
+      ],
+      "rejected_answer_targets_updated": [],
+      "relations_added": [
+        "r-corrects-scope",
+        "r-denies-every-path"
+      ],
+      "repair_records_added": [
+        "repair-ban-scope"
+      ],
+      "repair_records_updated": [],
+      "state_patch": [
+        {
+          "after_record": {
+            "parent_turn_id": "t1",
+            "post_id": "synthetic-02-explicit-correction-post-2",
+            "speaker_id": "contributor",
+            "text_sha256": "42adf41639e83ae8f227b8f2883177119e26a845d5597d38695aa30fa40669e1",
+            "turn_id": "t2",
+            "turn_index": 2
+          },
+          "before_record_sha256": null,
+          "collection": "turn_refs",
+          "item_id": "t2",
+          "operation": "add"
+        },
+        {
+          "after_record": {
+            "canonical_text": "The rule bans bicycles on every path.",
+            "commitment_status": "speaker_committed",
+            "confidence": 1.0,
+            "derivation": {
+              "kind": "direct_span",
+              "normalisation_note": null,
+              "source_proposition_ids": []
+            },
+            "epistemic_status": "asserted",
+            "exact_evidence_spans": [
+              {
+                "end_char": 30,
+                "exact_text": "bans bicycles on every path",
+                "start_char": 3,
+                "turn_id": "t1"
+              }
+            ],
+            "introduced_at_turn_id": "t1",
+            "lifecycle_status": "challenged",
+            "modality": {
+              "strength": "none",
+              "type": "none"
+            },
+            "original_language": "en",
+            "polarity": "positive",
+            "proposition_group_id": null,
+            "proposition_id": "p-ban-every-path",
+            "proposition_kind": "descriptive",
+            "quantification": {
+              "surface_marker": "every",
+              "type": "universal"
+            },
+            "speaker_or_attributor": {
+              "attributed_participant_id": null,
+              "kind": "speaker",
+              "participant_id": "account"
+            },
+            "speech_act": "assertion",
+            "temporal_scope": {
+              "end": null,
+              "start": null,
+              "surface_marker": null,
+              "type": "timeless"
+            },
+            "uncertainty_reason": null
+          },
+          "before_record_sha256": "e15b839f7590e0a782045ed3618e9cb897256837ba2027e58bf94c52ecec8b16",
+          "collection": "propositions",
+          "item_id": "p-ban-every-path",
+          "operation": "replace"
+        },
+        {
+          "after_record": {
+            "canonical_text": "The rule bans bicycles only in the glasshouse.",
+            "commitment_status": "speaker_committed",
+            "confidence": 1.0,
+            "derivation": {
+              "kind": "compound_decomposition",
+              "normalisation_note": null,
+              "source_proposition_ids": []
+            },
+            "epistemic_status": "asserted",
+            "exact_evidence_spans": [
+              {
+                "end_char": 83,
+                "exact_text": "it does ban them only in the glasshouse",
+                "start_char": 44,
+                "turn_id": "t2"
+              }
+            ],
+            "introduced_at_turn_id": "t2",
+            "lifecycle_status": "live",
+            "modality": {
+              "strength": "none",
+              "type": "none"
+            },
+            "original_language": "en",
+            "polarity": "positive",
+            "proposition_group_id": "g-correction",
+            "proposition_id": "p-ban-glasshouse",
+            "proposition_kind": "descriptive",
+            "quantification": {
+              "surface_marker": null,
+              "type": "none"
+            },
+            "speaker_or_attributor": {
+              "attributed_participant_id": null,
+              "kind": "speaker",
+              "participant_id": "contributor"
+            },
+            "speech_act": "correction",
+            "temporal_scope": {
+              "end": null,
+              "start": null,
+              "surface_marker": null,
+              "type": "timeless"
+            },
+            "uncertainty_reason": null
+          },
+          "before_record_sha256": null,
+          "collection": "propositions",
+          "item_id": "p-ban-glasshouse",
+          "operation": "add"
+        },
+        {
+          "after_record": {
+            "canonical_text": "The rule does not ban bicycles on every path.",
+            "commitment_status": "speaker_committed",
+            "confidence": 1.0,
+            "derivation": {
+              "kind": "compound_decomposition",
+              "normalisation_note": "Expands the explicit elliptical correction without changing its scope.",
+              "source_proposition_ids": []
+            },
+            "epistemic_status": "asserted",
+            "exact_evidence_spans": [
+              {
+                "end_char": 38,
+                "exact_text": "does not ban bicycles on every path",
+                "start_char": 3,
+                "turn_id": "t2"
+              }
+            ],
+            "introduced_at_turn_id": "t2",
+            "lifecycle_status": "live",
+            "modality": {
+              "strength": "none",
+              "type": "none"
+            },
+            "original_language": "en",
+            "polarity": "negative",
+            "proposition_group_id": "g-correction",
+            "proposition_id": "p-not-every-path",
+            "proposition_kind": "descriptive",
+            "quantification": {
+              "surface_marker": null,
+              "type": "none"
+            },
+            "speaker_or_attributor": {
+              "attributed_participant_id": null,
+              "kind": "speaker",
+              "participant_id": "contributor"
+            },
+            "speech_act": "correction",
+            "temporal_scope": {
+              "end": null,
+              "start": null,
+              "surface_marker": null,
+              "type": "timeless"
+            },
+            "uncertainty_reason": null
+          },
+          "before_record_sha256": null,
+          "collection": "propositions",
+          "item_id": "p-not-every-path",
+          "operation": "add"
+        },
+        {
+          "after_record": {
+            "confidence": 1.0,
+            "decomposition_complete": true,
+            "exact_evidence_spans": [
+              {
+                "end_char": 84,
+                "exact_text": "It does not ban bicycles on every path, but it does ban them only in the glasshouse.",
+                "start_char": 0,
+                "turn_id": "t2"
+              }
+            ],
+            "introduced_at_turn_id": "t2",
+            "members": [
+              {
+                "ordinal": 0,
+                "proposition_id": "p-not-every-path",
+                "role": "qualification"
+              },
+              {
+                "ordinal": 1,
+                "proposition_id": "p-ban-glasshouse",
+                "role": "conclusion"
+              }
+            ],
+            "proposition_group_id": "g-correction",
+            "structure_type": "conjunction",
+            "uncertainty_reason": null
+          },
+          "before_record_sha256": null,
+          "collection": "proposition_groups",
+          "item_id": "g-correction",
+          "operation": "add"
+        },
+        {
+          "after_record": {
+            "addressed_participant": "account",
+            "answer_requirements": [
+              {
+                "description": "Identify the scope of the bicycle ban.",
+                "requirement_type": "supply_value"
+              }
+            ],
+            "canonical_question": "Where does the new rule ban bicycles?",
+            "confidence": 1.0,
+            "exact_evidence_spans": [
+              {
+                "end_char": 31,
+                "exact_text": "Does the new rule ban bicycles?",
+                "start_char": 0,
+                "turn_id": "t0"
+              }
+            ],
+            "initiating_speaker": "contributor",
+            "initiating_turn_id": "t0",
+            "issue_id": "i-ban-scope",
+            "issue_type": "wh",
+            "live_alternatives": [],
+            "related_proposition_ids": [
+              "p-ban-question",
+              "p-ban-every-path",
+              "p-ban-glasshouse"
+            ],
+            "resolution_turn_id": null,
+            "resolution_type": null,
+            "status": "partly_answered"
+          },
+          "before_record_sha256": "7e897f29cbd39ab34378383e18366ac5a4b2c51b63775497d1d12a44ac832037",
+          "collection": "issue_states",
+          "item_id": "i-ban-scope",
+          "operation": "replace"
+        },
+        {
+          "after_record": {
+            "basis": "explicit_correction",
+            "commitment_id": "c-glasshouse",
+            "confidence": 1.0,
+            "introduced_at_turn_id": "t2",
+            "last_updated_at_turn_id": "t2",
+            "participant_id": "contributor",
+            "proposition_id": "p-ban-glasshouse",
+            "stance": "asserted",
+            "uncertainty_reason": null
+          },
+          "before_record_sha256": null,
+          "collection": "participant_commitments",
+          "item_id": "c-glasshouse",
+          "operation": "add"
+        },
+        {
+          "after_record": {
+            "basis": "explicit_correction",
+            "commitment_id": "c-not-every-path",
+            "confidence": 1.0,
+            "introduced_at_turn_id": "t2",
+            "last_updated_at_turn_id": "t2",
+            "participant_id": "contributor",
+            "proposition_id": "p-not-every-path",
+            "stance": "asserted",
+            "uncertainty_reason": null
+          },
+          "before_record_sha256": null,
+          "collection": "participant_commitments",
+          "item_id": "c-not-every-path",
+          "operation": "add"
+        },
+        {
+          "after_record": {
+            "confidence": 1.0,
+            "created_by_turn_id": "t2",
+            "expiry_policy": "never_implicit",
+            "obligation_id": "o-acknowledge-ban-correction",
+            "obligation_type": "correction_requiring_acknowledgement",
+            "owed_by_participant": "account",
+            "owed_to_participant": "contributor",
+            "related_issue_ids": [
+              "i-ban-scope"
+            ],
+            "related_proposition_ids": [
+              "p-not-every-path",
+              "p-ban-glasshouse"
+            ],
+            "resolved_by_turn_id": null,
+            "status": "open"
+          },
+          "before_record_sha256": null,
+          "collection": "conversational_obligations",
+          "item_id": "o-acknowledge-ban-correction",
+          "operation": "add"
+        },
+        {
+          "after_record": {
+            "confidence": 1.0,
+            "created_by_turn_id": "t0",
+            "expiry_policy": "on_issue_resolution",
+            "obligation_id": "o-ban-answer",
+            "obligation_type": "explicit_question",
+            "owed_by_participant": "account",
+            "owed_to_participant": "contributor",
+            "related_issue_ids": [
+              "i-ban-scope"
+            ],
+            "related_proposition_ids": [
+              "p-ban-question"
+            ],
+            "resolved_by_turn_id": null,
+            "status": "partly_satisfied"
+          },
+          "before_record_sha256": "011ab364f8cf1478ee28361c23c72f5aa01b5c940c5b2df14e99d344da2f3edc",
+          "collection": "conversational_obligations",
+          "item_id": "o-ban-answer",
+          "operation": "replace"
+        },
+        {
+          "after_record": {
+            "analysis_basis": "human_correction",
+            "asserted_or_analysed_by": "contributor",
+            "confidence": 1.0,
+            "exact_evidence_spans": [
+              {
+                "end_char": 84,
+                "exact_text": "It does not ban bicycles on every path, but it does ban them only in the glasshouse.",
+                "start_char": 0,
+                "turn_id": "t2"
+              }
+            ],
+            "introduced_at_turn_id": "t2",
+            "provenance_kind": "human_correction",
+            "relation_id": "r-corrects-scope",
+            "relation_type": "corrects",
+            "source_proposition_ids": [
+              "p-ban-glasshouse"
+            ],
+            "target_proposition_ids": [
+              "p-ban-every-path"
+            ],
+            "uncertainty_reason": null
+          },
+          "before_record_sha256": null,
+          "collection": "proposition_relations",
+          "item_id": "r-corrects-scope",
+          "operation": "add"
+        },
+        {
+          "after_record": {
+            "analysis_basis": "direct_semantic_content",
+            "asserted_or_analysed_by": "contributor",
+            "confidence": 1.0,
+            "exact_evidence_spans": [
+              {
+                "end_char": 38,
+                "exact_text": "does not ban bicycles on every path",
+                "start_char": 3,
+                "turn_id": "t2"
+              }
+            ],
+            "introduced_at_turn_id": "t2",
+            "provenance_kind": "transcript_extraction",
+            "relation_id": "r-denies-every-path",
+            "relation_type": "contradicts",
+            "source_proposition_ids": [
+              "p-not-every-path"
+            ],
+            "target_proposition_ids": [
+              "p-ban-every-path"
+            ],
+            "uncertainty_reason": null
+          },
+          "before_record_sha256": null,
+          "collection": "proposition_relations",
+          "item_id": "r-denies-every-path",
+          "operation": "add"
+        },
+        {
+          "after_record": {
+            "answer_target_id": "at-every-path",
+            "confidence": 1.0,
+            "issue_ids": [
+              "i-ban-scope"
+            ],
+            "proposition_ids": [
+              "p-ban-every-path"
+            ],
+            "reply_turn_id": "t1",
+            "selected_at_turn_id": "t1",
+            "target_status": "rejected"
+          },
+          "before_record_sha256": "2dbb4d152799d616e9d0ed2ac5e0a3a65cad0fb82e67798721b5c5a650b03682",
+          "collection": "answer_targets",
+          "item_id": "at-every-path",
+          "operation": "replace"
+        },
+        {
+          "after_record": {
+            "answer_target_id": "at-glasshouse",
+            "confidence": 1.0,
+            "issue_ids": [
+              "i-ban-scope"
+            ],
+            "proposition_ids": [
+              "p-ban-glasshouse"
+            ],
+            "reply_turn_id": "t1",
+            "selected_at_turn_id": "t2",
+            "target_status": "confirmed"
+          },
+          "before_record_sha256": null,
+          "collection": "answer_targets",
+          "item_id": "at-glasshouse",
+          "operation": "add"
+        },
+        {
+          "after_record": {
+            "answer_target_id": "at-every-path",
+            "confidence": 1.0,
+            "exact_evidence_spans": [
+              {
+                "end_char": 84,
+                "exact_text": "It does not ban bicycles on every path, but it does ban them only in the glasshouse.",
+                "start_char": 0,
+                "turn_id": "t2"
+              }
+            ],
+            "rejected_answer_target_id": "rat-every-path",
+            "rejected_at_turn_id": "t2",
+            "rejection_kind": "not_x_but_y",
+            "related_proposition_ids": [
+              "p-ban-every-path",
+              "p-not-every-path",
+              "p-ban-glasshouse"
+            ],
+            "replacement_answer_target_id": "at-glasshouse",
+            "status": "active"
+          },
+          "before_record_sha256": null,
+          "collection": "rejected_answer_targets",
+          "item_id": "rat-every-path",
+          "operation": "add"
+        },
+        {
+          "after_record": {
+            "acknowledgement_turn_id": null,
+            "confidence": 1.0,
+            "exact_evidence_spans": [
+              {
+                "end_char": 84,
+                "exact_text": "It does not ban bicycles on every path, but it does ban them only in the glasshouse.",
+                "start_char": 0,
+                "turn_id": "t2"
+              }
+            ],
+            "outcome": "pending",
+            "rejected_answer_target_ids": [
+              "rat-every-path"
+            ],
+            "repair_id": "repair-ban-scope",
+            "repair_type": "contributor_correction",
+            "replacement_answer_target_ids": [
+              "at-glasshouse"
+            ],
+            "trigger_turn_id": "t2"
+          },
+          "before_record_sha256": null,
+          "collection": "repair_records",
+          "item_id": "repair-ban-scope",
+          "operation": "add"
+        },
+        {
+          "after_record": {
+            "first_opened_at_turn_id": "t2",
+            "item_id": "o-acknowledge-ban-correction",
+            "item_type": "obligation",
+            "reason": "The account owes acknowledgement of the correction."
+          },
+          "before_record_sha256": null,
+          "collection": "unresolved_items",
+          "item_id": "obligation:o-acknowledge-ban-correction",
+          "operation": "add"
+        },
+        {
+          "after_record": {
+            "first_opened_at_turn_id": "t2",
+            "item_id": "repair-ban-scope",
+            "item_type": "repair",
+            "reason": "Correction awaits acknowledgement."
+          },
+          "before_record_sha256": null,
+          "collection": "unresolved_items",
+          "item_id": "repair:repair-ban-scope",
+          "operation": "add"
+        }
+      ],
+      "transition_id": "transition-t2",
+      "warnings_added": []
+    }
+  ],
+  "target_turn_id": "t2",
+  "turn_refs": [
+    {
+      "parent_turn_id": null,
+      "post_id": "synthetic-02-explicit-correction-post-0",
+      "speaker_id": "contributor",
+      "text_sha256": "96d0573d46e5ccf8c0931126fe8e92a82ad2a521dd3a10e4a3c8908e267d068d",
+      "turn_id": "t0",
+      "turn_index": 0
+    },
+    {
+      "parent_turn_id": "t0",
+      "post_id": "synthetic-02-explicit-correction-post-1",
+      "speaker_id": "account",
+      "text_sha256": "39a4ee27c5d74bfc03246bef2592960898641e084d54b9c5c7831c9191a1e067",
+      "turn_id": "t1",
+      "turn_index": 1
+    },
+    {
+      "parent_turn_id": "t1",
+      "post_id": "synthetic-02-explicit-correction-post-2",
+      "speaker_id": "contributor",
+      "text_sha256": "42adf41639e83ae8f227b8f2883177119e26a845d5597d38695aa30fa40669e1",
+      "turn_id": "t2",
+      "turn_index": 2
+    }
+  ],
+  "unresolved_items": [
+    {
+      "first_opened_at_turn_id": "t0",
+      "item_id": "i-ban-scope",
+      "item_type": "issue",
+      "reason": "The corrected scope has not been acknowledged."
+    },
+    {
+      "first_opened_at_turn_id": "t2",
+      "item_id": "o-acknowledge-ban-correction",
+      "item_type": "obligation",
+      "reason": "The account owes acknowledgement of the correction."
+    },
+    {
+      "first_opened_at_turn_id": "t2",
+      "item_id": "repair-ban-scope",
+      "item_type": "repair",
+      "reason": "Correction awaits acknowledgement."
+    }
+  ],
+  "warnings": []
+}

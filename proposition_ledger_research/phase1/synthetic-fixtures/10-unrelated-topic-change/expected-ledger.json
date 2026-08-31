@@ -1,0 +1,875 @@
+{
+  "answer_targets": [],
+  "as_of_turn_index": 2,
+  "conversation_key": "synthetic:10-unrelated-topic-change",
+  "conversational_obligations": [
+    {
+      "confidence": 1.0,
+      "created_by_turn_id": "t1",
+      "expiry_policy": "on_topic_abandonment",
+      "obligation_id": "o-closing-time",
+      "obligation_type": "explicit_question",
+      "owed_by_participant": "contributor",
+      "owed_to_participant": "account",
+      "related_issue_ids": [
+        "i-closing-time"
+      ],
+      "related_proposition_ids": [
+        "p-preferred-closing-time"
+      ],
+      "resolved_by_turn_id": "t2",
+      "status": "expired"
+    }
+  ],
+  "extraction_status": {
+    "abstentions": [],
+    "status": "complete",
+    "unsupported_inferences_rejected": 0
+  },
+  "issue_states": [
+    {
+      "addressed_participant": "account",
+      "answer_requirements": [],
+      "canonical_question": "Should the library extend its hours?",
+      "confidence": 1.0,
+      "exact_evidence_spans": [
+        {
+          "end_char": 36,
+          "exact_text": "Should the library extend its hours?",
+          "start_char": 0,
+          "turn_id": "t0"
+        }
+      ],
+      "initiating_speaker": "contributor",
+      "initiating_turn_id": "t0",
+      "issue_id": "i-library-hours",
+      "issue_type": "polar",
+      "live_alternatives": [],
+      "related_proposition_ids": [
+        "p-library-extend-hours"
+      ],
+      "resolution_turn_id": "t2",
+      "resolution_type": "topic_change",
+      "status": "abandoned"
+    },
+    {
+      "addressed_participant": "contributor",
+      "answer_requirements": [
+        {
+          "description": "Supply a preferred closing time.",
+          "requirement_type": "supply_value"
+        }
+      ],
+      "canonical_question": "What closing time would the contributor prefer?",
+      "confidence": 1.0,
+      "exact_evidence_spans": [
+        {
+          "end_char": 35,
+          "exact_text": "What closing time would you prefer?",
+          "start_char": 0,
+          "turn_id": "t1"
+        }
+      ],
+      "initiating_speaker": "account",
+      "initiating_turn_id": "t1",
+      "issue_id": "i-closing-time",
+      "issue_type": "clarification",
+      "live_alternatives": [],
+      "related_proposition_ids": [
+        "p-preferred-closing-time"
+      ],
+      "resolution_turn_id": "t2",
+      "resolution_type": "topic_change",
+      "status": "abandoned"
+    }
+  ],
+  "ledger_id": "ledger-10-unrelated-topic-change",
+  "ledger_sha256": "5f8418dcbd8390d59cccbe0f9e3b739ec69ea64e5f6efc3c81b5b9684b0c75dd",
+  "participant_commitments": [
+    {
+      "basis": "explicit_speech_act",
+      "commitment_id": "c-library-question",
+      "confidence": 1.0,
+      "introduced_at_turn_id": "t0",
+      "last_updated_at_turn_id": "t0",
+      "participant_id": "contributor",
+      "proposition_id": "p-library-extend-hours",
+      "stance": "questioned",
+      "uncertainty_reason": null
+    },
+    {
+      "basis": "explicit_speech_act",
+      "commitment_id": "c-closing-question",
+      "confidence": 1.0,
+      "introduced_at_turn_id": "t1",
+      "last_updated_at_turn_id": "t1",
+      "participant_id": "account",
+      "proposition_id": "p-preferred-closing-time",
+      "stance": "questioned",
+      "uncertainty_reason": null
+    },
+    {
+      "basis": "explicit_speech_act",
+      "commitment_id": "c-bell",
+      "confidence": 1.0,
+      "introduced_at_turn_id": "t2",
+      "last_updated_at_turn_id": "t2",
+      "participant_id": "contributor",
+      "proposition_id": "p-bicycle-bell-broken",
+      "stance": "asserted",
+      "uncertainty_reason": null
+    }
+  ],
+  "participants": [
+    {
+      "author_key": "synthetic-account",
+      "identity_confidence": 1.0,
+      "participant_id": "account",
+      "role": "account"
+    },
+    {
+      "author_key": "synthetic-contributor",
+      "identity_confidence": 1.0,
+      "participant_id": "contributor",
+      "role": "contributor"
+    }
+  ],
+  "previous_ledger_sha256": "b857e4bf6758c35347c445226b4688e8f87277138bb6b6282ad1d7c14d584b23",
+  "proposition_groups": [],
+  "proposition_relations": [
+    {
+      "analysis_basis": "direct_semantic_content",
+      "asserted_or_analysed_by": "contributor",
+      "confidence": 1.0,
+      "exact_evidence_spans": [
+        {
+          "end_char": 39,
+          "exact_text": "Unrelatedly, my bicycle bell is broken.",
+          "start_char": 0,
+          "turn_id": "t2"
+        }
+      ],
+      "introduced_at_turn_id": "t2",
+      "provenance_kind": "transcript_extraction",
+      "relation_id": "r-topic-change",
+      "relation_type": "changes_topic",
+      "source_proposition_ids": [
+        "p-bicycle-bell-broken"
+      ],
+      "target_proposition_ids": [
+        "p-library-extend-hours",
+        "p-preferred-closing-time"
+      ],
+      "uncertainty_reason": null
+    }
+  ],
+  "propositions": [
+    {
+      "canonical_text": "The library should extend its hours.",
+      "commitment_status": "questioned_only",
+      "confidence": 1.0,
+      "derivation": {
+        "kind": "direct_span",
+        "normalisation_note": null,
+        "source_proposition_ids": []
+      },
+      "epistemic_status": "questioned",
+      "exact_evidence_spans": [
+        {
+          "end_char": 35,
+          "exact_text": "the library extend its hours",
+          "start_char": 7,
+          "turn_id": "t0"
+        }
+      ],
+      "introduced_at_turn_id": "t0",
+      "lifecycle_status": "abandoned",
+      "modality": {
+        "strength": "unknown",
+        "type": "obligatory"
+      },
+      "original_language": "en",
+      "polarity": "open",
+      "proposition_group_id": null,
+      "proposition_id": "p-library-extend-hours",
+      "proposition_kind": "normative",
+      "quantification": {
+        "surface_marker": null,
+        "type": "none"
+      },
+      "speaker_or_attributor": {
+        "attributed_participant_id": null,
+        "kind": "speaker",
+        "participant_id": "contributor"
+      },
+      "speech_act": "question",
+      "temporal_scope": {
+        "end": null,
+        "start": null,
+        "surface_marker": null,
+        "type": "timeless"
+      },
+      "uncertainty_reason": null
+    },
+    {
+      "canonical_text": "The contributor has a preferred library closing time.",
+      "commitment_status": "questioned_only",
+      "confidence": 1.0,
+      "derivation": {
+        "kind": "direct_span",
+        "normalisation_note": null,
+        "source_proposition_ids": []
+      },
+      "epistemic_status": "presupposed_only",
+      "exact_evidence_spans": [
+        {
+          "end_char": 35,
+          "exact_text": "What closing time would you prefer?",
+          "start_char": 0,
+          "turn_id": "t1"
+        }
+      ],
+      "introduced_at_turn_id": "t1",
+      "lifecycle_status": "abandoned",
+      "modality": {
+        "strength": "none",
+        "type": "none"
+      },
+      "original_language": "en",
+      "polarity": "open",
+      "proposition_group_id": null,
+      "proposition_id": "p-preferred-closing-time",
+      "proposition_kind": "question_presupposition",
+      "quantification": {
+        "surface_marker": null,
+        "type": "none"
+      },
+      "speaker_or_attributor": {
+        "attributed_participant_id": null,
+        "kind": "speaker",
+        "participant_id": "account"
+      },
+      "speech_act": "question",
+      "temporal_scope": {
+        "end": null,
+        "start": null,
+        "surface_marker": null,
+        "type": "timeless"
+      },
+      "uncertainty_reason": null
+    },
+    {
+      "canonical_text": "The contributor's bicycle bell is broken.",
+      "commitment_status": "speaker_committed",
+      "confidence": 1.0,
+      "derivation": {
+        "kind": "direct_span",
+        "normalisation_note": null,
+        "source_proposition_ids": []
+      },
+      "epistemic_status": "asserted",
+      "exact_evidence_spans": [
+        {
+          "end_char": 38,
+          "exact_text": "my bicycle bell is broken",
+          "start_char": 13,
+          "turn_id": "t2"
+        }
+      ],
+      "introduced_at_turn_id": "t2",
+      "lifecycle_status": "live",
+      "modality": {
+        "strength": "none",
+        "type": "none"
+      },
+      "original_language": "en",
+      "polarity": "positive",
+      "proposition_group_id": null,
+      "proposition_id": "p-bicycle-bell-broken",
+      "proposition_kind": "descriptive",
+      "quantification": {
+        "surface_marker": null,
+        "type": "none"
+      },
+      "speaker_or_attributor": {
+        "attributed_participant_id": null,
+        "kind": "speaker",
+        "participant_id": "contributor"
+      },
+      "speech_act": "assertion",
+      "temporal_scope": {
+        "end": null,
+        "start": null,
+        "surface_marker": null,
+        "type": "timeless"
+      },
+      "uncertainty_reason": null
+    }
+  ],
+  "rejected_answer_targets": [],
+  "repair_records": [
+    {
+      "acknowledgement_turn_id": null,
+      "confidence": 1.0,
+      "exact_evidence_spans": [
+        {
+          "end_char": 39,
+          "exact_text": "Unrelatedly, my bicycle bell is broken.",
+          "start_char": 0,
+          "turn_id": "t2"
+        }
+      ],
+      "outcome": "incorporated",
+      "rejected_answer_target_ids": [],
+      "repair_id": "repair-topic-boundary",
+      "repair_type": "topic_boundary",
+      "replacement_answer_target_ids": [],
+      "trigger_turn_id": "t2"
+    }
+  ],
+  "resolved_items": [
+    {
+      "item_id": "p-library-extend-hours",
+      "item_type": "proposition",
+      "resolution_type": "topic_change",
+      "resolved_at_turn_id": "t2"
+    },
+    {
+      "item_id": "p-preferred-closing-time",
+      "item_type": "proposition",
+      "resolution_type": "topic_change",
+      "resolved_at_turn_id": "t2"
+    },
+    {
+      "item_id": "i-library-hours",
+      "item_type": "issue",
+      "resolution_type": "topic_change",
+      "resolved_at_turn_id": "t2"
+    },
+    {
+      "item_id": "i-closing-time",
+      "item_type": "issue",
+      "resolution_type": "topic_change",
+      "resolved_at_turn_id": "t2"
+    },
+    {
+      "item_id": "o-closing-time",
+      "item_type": "obligation",
+      "resolution_type": "topic_abandonment",
+      "resolved_at_turn_id": "t2"
+    }
+  ],
+  "root_post_id": "synthetic-10-unrelated-topic-change-post-0",
+  "schema_version": "proposition-ledger-v1.0.0",
+  "source_completeness": {
+    "account_publication_confirmed": true,
+    "chronology_complete": true,
+    "complete_prefix_through_turn": true,
+    "exact_text_complete": true,
+    "limitations": [
+      "Wholly invented schema fixture; not historical evidence."
+    ],
+    "parent_graph_complete": true,
+    "reconstruction_grade": "A"
+  },
+  "state_transitions": [
+    {
+      "answer_targets_added": [],
+      "answer_targets_updated": [],
+      "commitments_added": [
+        "c-bell"
+      ],
+      "commitments_updated": [],
+      "current_turn_id": "t2",
+      "current_turn_index": 2,
+      "from_ledger_sha256": "b857e4bf6758c35347c445226b4688e8f87277138bb6b6282ad1d7c14d584b23",
+      "issue_states_added": [],
+      "issue_states_updated": [
+        {
+          "from_status": "open",
+          "item_id": "i-closing-time",
+          "reason": "Explicit topic change.",
+          "to_status": "abandoned"
+        },
+        {
+          "from_status": "open",
+          "item_id": "i-library-hours",
+          "reason": "Explicit topic change.",
+          "to_status": "abandoned"
+        }
+      ],
+      "items_resolved": [
+        "i-closing-time",
+        "i-library-hours",
+        "o-closing-time",
+        "p-library-extend-hours",
+        "p-preferred-closing-time"
+      ],
+      "obligations_added": [],
+      "obligations_updated": [
+        {
+          "from_status": "open",
+          "item_id": "o-closing-time",
+          "reason": "The topic was explicitly abandoned.",
+          "to_status": "expired"
+        }
+      ],
+      "proposition_groups_added": [],
+      "proposition_groups_updated": [],
+      "propositions_added": [
+        "p-bicycle-bell-broken"
+      ],
+      "propositions_updated": [
+        {
+          "from_status": "live",
+          "item_id": "p-library-extend-hours",
+          "reason": "Explicit topic change.",
+          "to_status": "abandoned"
+        },
+        {
+          "from_status": "live",
+          "item_id": "p-preferred-closing-time",
+          "reason": "Explicit topic change.",
+          "to_status": "abandoned"
+        }
+      ],
+      "rejected_answer_targets_added": [],
+      "rejected_answer_targets_updated": [],
+      "relations_added": [
+        "r-topic-change"
+      ],
+      "repair_records_added": [
+        "repair-topic-boundary"
+      ],
+      "repair_records_updated": [],
+      "state_patch": [
+        {
+          "after_record": {
+            "parent_turn_id": "t1",
+            "post_id": "synthetic-10-unrelated-topic-change-post-2",
+            "speaker_id": "contributor",
+            "text_sha256": "42886bc5928bc4b476edb3ec1bfdafbc33d986da8b0cfb7fd9e50a06ced0a306",
+            "turn_id": "t2",
+            "turn_index": 2
+          },
+          "before_record_sha256": null,
+          "collection": "turn_refs",
+          "item_id": "t2",
+          "operation": "add"
+        },
+        {
+          "after_record": {
+            "canonical_text": "The contributor's bicycle bell is broken.",
+            "commitment_status": "speaker_committed",
+            "confidence": 1.0,
+            "derivation": {
+              "kind": "direct_span",
+              "normalisation_note": null,
+              "source_proposition_ids": []
+            },
+            "epistemic_status": "asserted",
+            "exact_evidence_spans": [
+              {
+                "end_char": 38,
+                "exact_text": "my bicycle bell is broken",
+                "start_char": 13,
+                "turn_id": "t2"
+              }
+            ],
+            "introduced_at_turn_id": "t2",
+            "lifecycle_status": "live",
+            "modality": {
+              "strength": "none",
+              "type": "none"
+            },
+            "original_language": "en",
+            "polarity": "positive",
+            "proposition_group_id": null,
+            "proposition_id": "p-bicycle-bell-broken",
+            "proposition_kind": "descriptive",
+            "quantification": {
+              "surface_marker": null,
+              "type": "none"
+            },
+            "speaker_or_attributor": {
+              "attributed_participant_id": null,
+              "kind": "speaker",
+              "participant_id": "contributor"
+            },
+            "speech_act": "assertion",
+            "temporal_scope": {
+              "end": null,
+              "start": null,
+              "surface_marker": null,
+              "type": "timeless"
+            },
+            "uncertainty_reason": null
+          },
+          "before_record_sha256": null,
+          "collection": "propositions",
+          "item_id": "p-bicycle-bell-broken",
+          "operation": "add"
+        },
+        {
+          "after_record": {
+            "canonical_text": "The library should extend its hours.",
+            "commitment_status": "questioned_only",
+            "confidence": 1.0,
+            "derivation": {
+              "kind": "direct_span",
+              "normalisation_note": null,
+              "source_proposition_ids": []
+            },
+            "epistemic_status": "questioned",
+            "exact_evidence_spans": [
+              {
+                "end_char": 35,
+                "exact_text": "the library extend its hours",
+                "start_char": 7,
+                "turn_id": "t0"
+              }
+            ],
+            "introduced_at_turn_id": "t0",
+            "lifecycle_status": "abandoned",
+            "modality": {
+              "strength": "unknown",
+              "type": "obligatory"
+            },
+            "original_language": "en",
+            "polarity": "open",
+            "proposition_group_id": null,
+            "proposition_id": "p-library-extend-hours",
+            "proposition_kind": "normative",
+            "quantification": {
+              "surface_marker": null,
+              "type": "none"
+            },
+            "speaker_or_attributor": {
+              "attributed_participant_id": null,
+              "kind": "speaker",
+              "participant_id": "contributor"
+            },
+            "speech_act": "question",
+            "temporal_scope": {
+              "end": null,
+              "start": null,
+              "surface_marker": null,
+              "type": "timeless"
+            },
+            "uncertainty_reason": null
+          },
+          "before_record_sha256": "a5c6d87e5df42056332c04a1024153c9b70fcec2efa06c2c0a9ce7609fada3e6",
+          "collection": "propositions",
+          "item_id": "p-library-extend-hours",
+          "operation": "replace"
+        },
+        {
+          "after_record": {
+            "canonical_text": "The contributor has a preferred library closing time.",
+            "commitment_status": "questioned_only",
+            "confidence": 1.0,
+            "derivation": {
+              "kind": "direct_span",
+              "normalisation_note": null,
+              "source_proposition_ids": []
+            },
+            "epistemic_status": "presupposed_only",
+            "exact_evidence_spans": [
+              {
+                "end_char": 35,
+                "exact_text": "What closing time would you prefer?",
+                "start_char": 0,
+                "turn_id": "t1"
+              }
+            ],
+            "introduced_at_turn_id": "t1",
+            "lifecycle_status": "abandoned",
+            "modality": {
+              "strength": "none",
+              "type": "none"
+            },
+            "original_language": "en",
+            "polarity": "open",
+            "proposition_group_id": null,
+            "proposition_id": "p-preferred-closing-time",
+            "proposition_kind": "question_presupposition",
+            "quantification": {
+              "surface_marker": null,
+              "type": "none"
+            },
+            "speaker_or_attributor": {
+              "attributed_participant_id": null,
+              "kind": "speaker",
+              "participant_id": "account"
+            },
+            "speech_act": "question",
+            "temporal_scope": {
+              "end": null,
+              "start": null,
+              "surface_marker": null,
+              "type": "timeless"
+            },
+            "uncertainty_reason": null
+          },
+          "before_record_sha256": "4842e3baaa35672a785244d014a1ff8b84baa9dffd5b94bfd19d673d42ab2cd4",
+          "collection": "propositions",
+          "item_id": "p-preferred-closing-time",
+          "operation": "replace"
+        },
+        {
+          "after_record": {
+            "addressed_participant": "contributor",
+            "answer_requirements": [
+              {
+                "description": "Supply a preferred closing time.",
+                "requirement_type": "supply_value"
+              }
+            ],
+            "canonical_question": "What closing time would the contributor prefer?",
+            "confidence": 1.0,
+            "exact_evidence_spans": [
+              {
+                "end_char": 35,
+                "exact_text": "What closing time would you prefer?",
+                "start_char": 0,
+                "turn_id": "t1"
+              }
+            ],
+            "initiating_speaker": "account",
+            "initiating_turn_id": "t1",
+            "issue_id": "i-closing-time",
+            "issue_type": "clarification",
+            "live_alternatives": [],
+            "related_proposition_ids": [
+              "p-preferred-closing-time"
+            ],
+            "resolution_turn_id": "t2",
+            "resolution_type": "topic_change",
+            "status": "abandoned"
+          },
+          "before_record_sha256": "f5a91b50f98601b2be24c07b1f51d7fc3b1c94e22bf88e90a68bbc42dd8b241c",
+          "collection": "issue_states",
+          "item_id": "i-closing-time",
+          "operation": "replace"
+        },
+        {
+          "after_record": {
+            "addressed_participant": "account",
+            "answer_requirements": [],
+            "canonical_question": "Should the library extend its hours?",
+            "confidence": 1.0,
+            "exact_evidence_spans": [
+              {
+                "end_char": 36,
+                "exact_text": "Should the library extend its hours?",
+                "start_char": 0,
+                "turn_id": "t0"
+              }
+            ],
+            "initiating_speaker": "contributor",
+            "initiating_turn_id": "t0",
+            "issue_id": "i-library-hours",
+            "issue_type": "polar",
+            "live_alternatives": [],
+            "related_proposition_ids": [
+              "p-library-extend-hours"
+            ],
+            "resolution_turn_id": "t2",
+            "resolution_type": "topic_change",
+            "status": "abandoned"
+          },
+          "before_record_sha256": "0eb44f4f4a07d152959a7eecd2763e895ba3944a47353c420630443f2758b7f5",
+          "collection": "issue_states",
+          "item_id": "i-library-hours",
+          "operation": "replace"
+        },
+        {
+          "after_record": {
+            "basis": "explicit_speech_act",
+            "commitment_id": "c-bell",
+            "confidence": 1.0,
+            "introduced_at_turn_id": "t2",
+            "last_updated_at_turn_id": "t2",
+            "participant_id": "contributor",
+            "proposition_id": "p-bicycle-bell-broken",
+            "stance": "asserted",
+            "uncertainty_reason": null
+          },
+          "before_record_sha256": null,
+          "collection": "participant_commitments",
+          "item_id": "c-bell",
+          "operation": "add"
+        },
+        {
+          "after_record": {
+            "confidence": 1.0,
+            "created_by_turn_id": "t1",
+            "expiry_policy": "on_topic_abandonment",
+            "obligation_id": "o-closing-time",
+            "obligation_type": "explicit_question",
+            "owed_by_participant": "contributor",
+            "owed_to_participant": "account",
+            "related_issue_ids": [
+              "i-closing-time"
+            ],
+            "related_proposition_ids": [
+              "p-preferred-closing-time"
+            ],
+            "resolved_by_turn_id": "t2",
+            "status": "expired"
+          },
+          "before_record_sha256": "c43314f7c54151ef5c7a87e5ca04292447fabde73a5e2202dd0204d9fd22a5c4",
+          "collection": "conversational_obligations",
+          "item_id": "o-closing-time",
+          "operation": "replace"
+        },
+        {
+          "after_record": {
+            "analysis_basis": "direct_semantic_content",
+            "asserted_or_analysed_by": "contributor",
+            "confidence": 1.0,
+            "exact_evidence_spans": [
+              {
+                "end_char": 39,
+                "exact_text": "Unrelatedly, my bicycle bell is broken.",
+                "start_char": 0,
+                "turn_id": "t2"
+              }
+            ],
+            "introduced_at_turn_id": "t2",
+            "provenance_kind": "transcript_extraction",
+            "relation_id": "r-topic-change",
+            "relation_type": "changes_topic",
+            "source_proposition_ids": [
+              "p-bicycle-bell-broken"
+            ],
+            "target_proposition_ids": [
+              "p-library-extend-hours",
+              "p-preferred-closing-time"
+            ],
+            "uncertainty_reason": null
+          },
+          "before_record_sha256": null,
+          "collection": "proposition_relations",
+          "item_id": "r-topic-change",
+          "operation": "add"
+        },
+        {
+          "after_record": {
+            "acknowledgement_turn_id": null,
+            "confidence": 1.0,
+            "exact_evidence_spans": [
+              {
+                "end_char": 39,
+                "exact_text": "Unrelatedly, my bicycle bell is broken.",
+                "start_char": 0,
+                "turn_id": "t2"
+              }
+            ],
+            "outcome": "incorporated",
+            "rejected_answer_target_ids": [],
+            "repair_id": "repair-topic-boundary",
+            "repair_type": "topic_boundary",
+            "replacement_answer_target_ids": [],
+            "trigger_turn_id": "t2"
+          },
+          "before_record_sha256": null,
+          "collection": "repair_records",
+          "item_id": "repair-topic-boundary",
+          "operation": "add"
+        },
+        {
+          "after_record": {
+            "item_id": "i-closing-time",
+            "item_type": "issue",
+            "resolution_type": "topic_change",
+            "resolved_at_turn_id": "t2"
+          },
+          "before_record_sha256": null,
+          "collection": "resolved_items",
+          "item_id": "issue:i-closing-time",
+          "operation": "add"
+        },
+        {
+          "after_record": {
+            "item_id": "i-library-hours",
+            "item_type": "issue",
+            "resolution_type": "topic_change",
+            "resolved_at_turn_id": "t2"
+          },
+          "before_record_sha256": null,
+          "collection": "resolved_items",
+          "item_id": "issue:i-library-hours",
+          "operation": "add"
+        },
+        {
+          "after_record": {
+            "item_id": "o-closing-time",
+            "item_type": "obligation",
+            "resolution_type": "topic_abandonment",
+            "resolved_at_turn_id": "t2"
+          },
+          "before_record_sha256": null,
+          "collection": "resolved_items",
+          "item_id": "obligation:o-closing-time",
+          "operation": "add"
+        },
+        {
+          "after_record": {
+            "item_id": "p-library-extend-hours",
+            "item_type": "proposition",
+            "resolution_type": "topic_change",
+            "resolved_at_turn_id": "t2"
+          },
+          "before_record_sha256": null,
+          "collection": "resolved_items",
+          "item_id": "proposition:p-library-extend-hours",
+          "operation": "add"
+        },
+        {
+          "after_record": {
+            "item_id": "p-preferred-closing-time",
+            "item_type": "proposition",
+            "resolution_type": "topic_change",
+            "resolved_at_turn_id": "t2"
+          },
+          "before_record_sha256": null,
+          "collection": "resolved_items",
+          "item_id": "proposition:p-preferred-closing-time",
+          "operation": "add"
+        }
+      ],
+      "transition_id": "transition-t2",
+      "warnings_added": []
+    }
+  ],
+  "target_turn_id": "t2",
+  "turn_refs": [
+    {
+      "parent_turn_id": null,
+      "post_id": "synthetic-10-unrelated-topic-change-post-0",
+      "speaker_id": "contributor",
+      "text_sha256": "5b9b17755f3db64aad94ef8b20f4350541a84b53909a804a5d05003c6f9474b5",
+      "turn_id": "t0",
+      "turn_index": 0
+    },
+    {
+      "parent_turn_id": "t0",
+      "post_id": "synthetic-10-unrelated-topic-change-post-1",
+      "speaker_id": "account",
+      "text_sha256": "0174e589c2bb8f9cee3b47cecd5a42e9789b0f70e7875cd2943638dcddc376bc",
+      "turn_id": "t1",
+      "turn_index": 1
+    },
+    {
+      "parent_turn_id": "t1",
+      "post_id": "synthetic-10-unrelated-topic-change-post-2",
+      "speaker_id": "contributor",
+      "text_sha256": "42886bc5928bc4b476edb3ec1bfdafbc33d986da8b0cfb7fd9e50a06ced0a306",
+      "turn_id": "t2",
+      "turn_index": 2
+    }
+  ],
+  "unresolved_items": [],
+  "warnings": []
+}

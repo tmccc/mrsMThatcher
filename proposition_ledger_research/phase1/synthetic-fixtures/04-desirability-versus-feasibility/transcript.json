@@ -1,0 +1,936 @@
+{
+  "conversation_key": "synthetic:04-desirability-versus-feasibility",
+  "description": "A feasibility response is distinguished from a desirability question.",
+  "fixture_format_version": "proposition-ledger-synthetic-fixture-v1",
+  "fixture_id": "04-desirability-versus-feasibility",
+  "ledger_history": [
+    {
+      "answer_targets": [],
+      "as_of_turn_index": 0,
+      "conversation_key": "synthetic:04-desirability-versus-feasibility",
+      "conversational_obligations": [
+        {
+          "confidence": 1.0,
+          "created_by_turn_id": "t0",
+          "expiry_policy": "never_implicit",
+          "obligation_id": "o-answer-desirability",
+          "obligation_type": "explicit_question",
+          "owed_by_participant": "account",
+          "owed_to_participant": "contributor",
+          "related_issue_ids": [
+            "i-garden-desirable"
+          ],
+          "related_proposition_ids": [
+            "p-garden-desirable"
+          ],
+          "resolved_by_turn_id": null,
+          "status": "open"
+        }
+      ],
+      "extraction_status": {
+        "abstentions": [],
+        "status": "complete",
+        "unsupported_inferences_rejected": 0
+      },
+      "issue_states": [
+        {
+          "addressed_participant": "account",
+          "answer_requirements": [
+            {
+              "description": "Assess desirability independently of feasibility.",
+              "requirement_type": "yes_no"
+            }
+          ],
+          "canonical_question": "Would a rooftop garden be desirable?",
+          "confidence": 1.0,
+          "exact_evidence_spans": [
+            {
+              "end_char": 36,
+              "exact_text": "Would a rooftop garden be desirable?",
+              "start_char": 0,
+              "turn_id": "t0"
+            }
+          ],
+          "initiating_speaker": "contributor",
+          "initiating_turn_id": "t0",
+          "issue_id": "i-garden-desirable",
+          "issue_type": "polar",
+          "live_alternatives": [],
+          "related_proposition_ids": [
+            "p-garden-desirable"
+          ],
+          "resolution_turn_id": null,
+          "resolution_type": null,
+          "status": "open"
+        }
+      ],
+      "ledger_id": "ledger-04-desirability-versus-feasibility-history-0",
+      "ledger_sha256": "47d6eab579725ab29238f80ec6f382dcbdd2ea5dc8d26bf6a160535ccc090fd1",
+      "participant_commitments": [
+        {
+          "basis": "explicit_speech_act",
+          "commitment_id": "c-desirability-question",
+          "confidence": 1.0,
+          "introduced_at_turn_id": "t0",
+          "last_updated_at_turn_id": "t0",
+          "participant_id": "contributor",
+          "proposition_id": "p-garden-desirable",
+          "stance": "questioned",
+          "uncertainty_reason": null
+        }
+      ],
+      "participants": [
+        {
+          "author_key": "synthetic-account",
+          "identity_confidence": 1.0,
+          "participant_id": "account",
+          "role": "account"
+        },
+        {
+          "author_key": "synthetic-contributor",
+          "identity_confidence": 1.0,
+          "participant_id": "contributor",
+          "role": "contributor"
+        }
+      ],
+      "previous_ledger_sha256": null,
+      "proposition_groups": [],
+      "proposition_relations": [],
+      "propositions": [
+        {
+          "canonical_text": "A rooftop garden would be desirable.",
+          "commitment_status": "questioned_only",
+          "confidence": 1.0,
+          "derivation": {
+            "kind": "direct_span",
+            "normalisation_note": null,
+            "source_proposition_ids": []
+          },
+          "epistemic_status": "questioned",
+          "exact_evidence_spans": [
+            {
+              "end_char": 35,
+              "exact_text": "a rooftop garden be desirable",
+              "start_char": 6,
+              "turn_id": "t0"
+            }
+          ],
+          "introduced_at_turn_id": "t0",
+          "lifecycle_status": "live",
+          "modality": {
+            "strength": "unknown",
+            "type": "hypothetical"
+          },
+          "original_language": "en",
+          "polarity": "open",
+          "proposition_group_id": null,
+          "proposition_id": "p-garden-desirable",
+          "proposition_kind": "evaluative",
+          "quantification": {
+            "surface_marker": null,
+            "type": "none"
+          },
+          "speaker_or_attributor": {
+            "attributed_participant_id": null,
+            "kind": "speaker",
+            "participant_id": "contributor"
+          },
+          "speech_act": "question",
+          "temporal_scope": {
+            "end": null,
+            "start": null,
+            "surface_marker": null,
+            "type": "timeless"
+          },
+          "uncertainty_reason": null
+        }
+      ],
+      "rejected_answer_targets": [],
+      "repair_records": [],
+      "resolved_items": [],
+      "root_post_id": "synthetic-04-desirability-versus-feasibility-post-0",
+      "schema_version": "proposition-ledger-v1.0.0",
+      "source_completeness": {
+        "account_publication_confirmed": true,
+        "chronology_complete": true,
+        "complete_prefix_through_turn": true,
+        "exact_text_complete": true,
+        "limitations": [
+          "Wholly invented schema fixture; not historical evidence."
+        ],
+        "parent_graph_complete": true,
+        "reconstruction_grade": "A"
+      },
+      "state_transitions": [
+        {
+          "answer_targets_added": [],
+          "answer_targets_updated": [],
+          "commitments_added": [
+            "c-desirability-question"
+          ],
+          "commitments_updated": [],
+          "current_turn_id": "t0",
+          "current_turn_index": 0,
+          "from_ledger_sha256": null,
+          "issue_states_added": [
+            "i-garden-desirable"
+          ],
+          "issue_states_updated": [],
+          "items_resolved": [],
+          "obligations_added": [
+            "o-answer-desirability"
+          ],
+          "obligations_updated": [],
+          "proposition_groups_added": [],
+          "proposition_groups_updated": [],
+          "propositions_added": [
+            "p-garden-desirable"
+          ],
+          "propositions_updated": [],
+          "rejected_answer_targets_added": [],
+          "rejected_answer_targets_updated": [],
+          "relations_added": [],
+          "repair_records_added": [],
+          "repair_records_updated": [],
+          "state_patch": [
+            {
+              "after_record": {
+                "account_publication_confirmed": true,
+                "chronology_complete": true,
+                "complete_prefix_through_turn": true,
+                "exact_text_complete": true,
+                "limitations": [
+                  "Wholly invented schema fixture; not historical evidence."
+                ],
+                "parent_graph_complete": true,
+                "reconstruction_grade": "A"
+              },
+              "before_record_sha256": null,
+              "collection": "source_completeness",
+              "item_id": "source_completeness",
+              "operation": "add"
+            },
+            {
+              "after_record": {
+                "author_key": "synthetic-account",
+                "identity_confidence": 1.0,
+                "participant_id": "account",
+                "role": "account"
+              },
+              "before_record_sha256": null,
+              "collection": "participants",
+              "item_id": "account",
+              "operation": "add"
+            },
+            {
+              "after_record": {
+                "author_key": "synthetic-contributor",
+                "identity_confidence": 1.0,
+                "participant_id": "contributor",
+                "role": "contributor"
+              },
+              "before_record_sha256": null,
+              "collection": "participants",
+              "item_id": "contributor",
+              "operation": "add"
+            },
+            {
+              "after_record": {
+                "parent_turn_id": null,
+                "post_id": "synthetic-04-desirability-versus-feasibility-post-0",
+                "speaker_id": "contributor",
+                "text_sha256": "e38cbb41f48647ceaaeb3a1ab1ca880c179e4556164095b05763ea0c89e43f32",
+                "turn_id": "t0",
+                "turn_index": 0
+              },
+              "before_record_sha256": null,
+              "collection": "turn_refs",
+              "item_id": "t0",
+              "operation": "add"
+            },
+            {
+              "after_record": {
+                "canonical_text": "A rooftop garden would be desirable.",
+                "commitment_status": "questioned_only",
+                "confidence": 1.0,
+                "derivation": {
+                  "kind": "direct_span",
+                  "normalisation_note": null,
+                  "source_proposition_ids": []
+                },
+                "epistemic_status": "questioned",
+                "exact_evidence_spans": [
+                  {
+                    "end_char": 35,
+                    "exact_text": "a rooftop garden be desirable",
+                    "start_char": 6,
+                    "turn_id": "t0"
+                  }
+                ],
+                "introduced_at_turn_id": "t0",
+                "lifecycle_status": "live",
+                "modality": {
+                  "strength": "unknown",
+                  "type": "hypothetical"
+                },
+                "original_language": "en",
+                "polarity": "open",
+                "proposition_group_id": null,
+                "proposition_id": "p-garden-desirable",
+                "proposition_kind": "evaluative",
+                "quantification": {
+                  "surface_marker": null,
+                  "type": "none"
+                },
+                "speaker_or_attributor": {
+                  "attributed_participant_id": null,
+                  "kind": "speaker",
+                  "participant_id": "contributor"
+                },
+                "speech_act": "question",
+                "temporal_scope": {
+                  "end": null,
+                  "start": null,
+                  "surface_marker": null,
+                  "type": "timeless"
+                },
+                "uncertainty_reason": null
+              },
+              "before_record_sha256": null,
+              "collection": "propositions",
+              "item_id": "p-garden-desirable",
+              "operation": "add"
+            },
+            {
+              "after_record": {
+                "addressed_participant": "account",
+                "answer_requirements": [
+                  {
+                    "description": "Assess desirability independently of feasibility.",
+                    "requirement_type": "yes_no"
+                  }
+                ],
+                "canonical_question": "Would a rooftop garden be desirable?",
+                "confidence": 1.0,
+                "exact_evidence_spans": [
+                  {
+                    "end_char": 36,
+                    "exact_text": "Would a rooftop garden be desirable?",
+                    "start_char": 0,
+                    "turn_id": "t0"
+                  }
+                ],
+                "initiating_speaker": "contributor",
+                "initiating_turn_id": "t0",
+                "issue_id": "i-garden-desirable",
+                "issue_type": "polar",
+                "live_alternatives": [],
+                "related_proposition_ids": [
+                  "p-garden-desirable"
+                ],
+                "resolution_turn_id": null,
+                "resolution_type": null,
+                "status": "open"
+              },
+              "before_record_sha256": null,
+              "collection": "issue_states",
+              "item_id": "i-garden-desirable",
+              "operation": "add"
+            },
+            {
+              "after_record": {
+                "basis": "explicit_speech_act",
+                "commitment_id": "c-desirability-question",
+                "confidence": 1.0,
+                "introduced_at_turn_id": "t0",
+                "last_updated_at_turn_id": "t0",
+                "participant_id": "contributor",
+                "proposition_id": "p-garden-desirable",
+                "stance": "questioned",
+                "uncertainty_reason": null
+              },
+              "before_record_sha256": null,
+              "collection": "participant_commitments",
+              "item_id": "c-desirability-question",
+              "operation": "add"
+            },
+            {
+              "after_record": {
+                "confidence": 1.0,
+                "created_by_turn_id": "t0",
+                "expiry_policy": "never_implicit",
+                "obligation_id": "o-answer-desirability",
+                "obligation_type": "explicit_question",
+                "owed_by_participant": "account",
+                "owed_to_participant": "contributor",
+                "related_issue_ids": [
+                  "i-garden-desirable"
+                ],
+                "related_proposition_ids": [
+                  "p-garden-desirable"
+                ],
+                "resolved_by_turn_id": null,
+                "status": "open"
+              },
+              "before_record_sha256": null,
+              "collection": "conversational_obligations",
+              "item_id": "o-answer-desirability",
+              "operation": "add"
+            },
+            {
+              "after_record": {
+                "first_opened_at_turn_id": "t0",
+                "item_id": "i-garden-desirable",
+                "item_type": "issue",
+                "reason": "Desirability remains unanswered."
+              },
+              "before_record_sha256": null,
+              "collection": "unresolved_items",
+              "item_id": "issue:i-garden-desirable",
+              "operation": "add"
+            },
+            {
+              "after_record": {
+                "first_opened_at_turn_id": "t0",
+                "item_id": "o-answer-desirability",
+                "item_type": "obligation",
+                "reason": "A desirability judgement is still owed."
+              },
+              "before_record_sha256": null,
+              "collection": "unresolved_items",
+              "item_id": "obligation:o-answer-desirability",
+              "operation": "add"
+            },
+            {
+              "after_record": {
+                "abstentions": [],
+                "status": "complete",
+                "unsupported_inferences_rejected": 0
+              },
+              "before_record_sha256": null,
+              "collection": "extraction_status",
+              "item_id": "extraction_status",
+              "operation": "add"
+            }
+          ],
+          "transition_id": "transition-t0",
+          "warnings_added": []
+        }
+      ],
+      "target_turn_id": "t0",
+      "turn_refs": [
+        {
+          "parent_turn_id": null,
+          "post_id": "synthetic-04-desirability-versus-feasibility-post-0",
+          "speaker_id": "contributor",
+          "text_sha256": "e38cbb41f48647ceaaeb3a1ab1ca880c179e4556164095b05763ea0c89e43f32",
+          "turn_id": "t0",
+          "turn_index": 0
+        }
+      ],
+      "unresolved_items": [
+        {
+          "first_opened_at_turn_id": "t0",
+          "item_id": "i-garden-desirable",
+          "item_type": "issue",
+          "reason": "Desirability remains unanswered."
+        },
+        {
+          "first_opened_at_turn_id": "t0",
+          "item_id": "o-answer-desirability",
+          "item_type": "obligation",
+          "reason": "A desirability judgement is still owed."
+        }
+      ],
+      "warnings": []
+    },
+    {
+      "answer_targets": [
+        {
+          "answer_target_id": "at-feasibility",
+          "confidence": 1.0,
+          "issue_ids": [
+            "i-garden-desirable"
+          ],
+          "proposition_ids": [
+            "p-roof-supports-weight"
+          ],
+          "reply_turn_id": "t1",
+          "selected_at_turn_id": "t1",
+          "target_status": "apparent"
+        }
+      ],
+      "as_of_turn_index": 1,
+      "conversation_key": "synthetic:04-desirability-versus-feasibility",
+      "conversational_obligations": [
+        {
+          "confidence": 1.0,
+          "created_by_turn_id": "t0",
+          "expiry_policy": "never_implicit",
+          "obligation_id": "o-answer-desirability",
+          "obligation_type": "explicit_question",
+          "owed_by_participant": "account",
+          "owed_to_participant": "contributor",
+          "related_issue_ids": [
+            "i-garden-desirable"
+          ],
+          "related_proposition_ids": [
+            "p-garden-desirable"
+          ],
+          "resolved_by_turn_id": null,
+          "status": "open"
+        }
+      ],
+      "extraction_status": {
+        "abstentions": [],
+        "status": "complete",
+        "unsupported_inferences_rejected": 0
+      },
+      "issue_states": [
+        {
+          "addressed_participant": "account",
+          "answer_requirements": [
+            {
+              "description": "Assess desirability independently of feasibility.",
+              "requirement_type": "yes_no"
+            }
+          ],
+          "canonical_question": "Would a rooftop garden be desirable?",
+          "confidence": 1.0,
+          "exact_evidence_spans": [
+            {
+              "end_char": 36,
+              "exact_text": "Would a rooftop garden be desirable?",
+              "start_char": 0,
+              "turn_id": "t0"
+            }
+          ],
+          "initiating_speaker": "contributor",
+          "initiating_turn_id": "t0",
+          "issue_id": "i-garden-desirable",
+          "issue_type": "polar",
+          "live_alternatives": [],
+          "related_proposition_ids": [
+            "p-garden-desirable",
+            "p-roof-supports-weight"
+          ],
+          "resolution_turn_id": null,
+          "resolution_type": null,
+          "status": "open"
+        }
+      ],
+      "ledger_id": "ledger-04-desirability-versus-feasibility-history-1",
+      "ledger_sha256": "475bfd6aecfe0040b511d2505502f99ad3082e0ca5c2cf84a749243bc096e43d",
+      "participant_commitments": [
+        {
+          "basis": "explicit_speech_act",
+          "commitment_id": "c-desirability-question",
+          "confidence": 1.0,
+          "introduced_at_turn_id": "t0",
+          "last_updated_at_turn_id": "t0",
+          "participant_id": "contributor",
+          "proposition_id": "p-garden-desirable",
+          "stance": "questioned",
+          "uncertainty_reason": null
+        },
+        {
+          "basis": "explicit_speech_act",
+          "commitment_id": "c-feasibility",
+          "confidence": 1.0,
+          "introduced_at_turn_id": "t1",
+          "last_updated_at_turn_id": "t1",
+          "participant_id": "account",
+          "proposition_id": "p-roof-supports-weight",
+          "stance": "asserted",
+          "uncertainty_reason": null
+        }
+      ],
+      "participants": [
+        {
+          "author_key": "synthetic-account",
+          "identity_confidence": 1.0,
+          "participant_id": "account",
+          "role": "account"
+        },
+        {
+          "author_key": "synthetic-contributor",
+          "identity_confidence": 1.0,
+          "participant_id": "contributor",
+          "role": "contributor"
+        }
+      ],
+      "previous_ledger_sha256": "47d6eab579725ab29238f80ec6f382dcbdd2ea5dc8d26bf6a160535ccc090fd1",
+      "proposition_groups": [],
+      "proposition_relations": [],
+      "propositions": [
+        {
+          "canonical_text": "A rooftop garden would be desirable.",
+          "commitment_status": "questioned_only",
+          "confidence": 1.0,
+          "derivation": {
+            "kind": "direct_span",
+            "normalisation_note": null,
+            "source_proposition_ids": []
+          },
+          "epistemic_status": "questioned",
+          "exact_evidence_spans": [
+            {
+              "end_char": 35,
+              "exact_text": "a rooftop garden be desirable",
+              "start_char": 6,
+              "turn_id": "t0"
+            }
+          ],
+          "introduced_at_turn_id": "t0",
+          "lifecycle_status": "live",
+          "modality": {
+            "strength": "unknown",
+            "type": "hypothetical"
+          },
+          "original_language": "en",
+          "polarity": "open",
+          "proposition_group_id": null,
+          "proposition_id": "p-garden-desirable",
+          "proposition_kind": "evaluative",
+          "quantification": {
+            "surface_marker": null,
+            "type": "none"
+          },
+          "speaker_or_attributor": {
+            "attributed_participant_id": null,
+            "kind": "speaker",
+            "participant_id": "contributor"
+          },
+          "speech_act": "question",
+          "temporal_scope": {
+            "end": null,
+            "start": null,
+            "surface_marker": null,
+            "type": "timeless"
+          },
+          "uncertainty_reason": null
+        },
+        {
+          "canonical_text": "The roof can support the garden's weight.",
+          "commitment_status": "speaker_committed",
+          "confidence": 1.0,
+          "derivation": {
+            "kind": "direct_span",
+            "normalisation_note": null,
+            "source_proposition_ids": []
+          },
+          "epistemic_status": "asserted",
+          "exact_evidence_spans": [
+            {
+              "end_char": 32,
+              "exact_text": "The roof can support the weight.",
+              "start_char": 0,
+              "turn_id": "t1"
+            }
+          ],
+          "introduced_at_turn_id": "t1",
+          "lifecycle_status": "live",
+          "modality": {
+            "strength": "strong",
+            "type": "possible"
+          },
+          "original_language": "en",
+          "polarity": "positive",
+          "proposition_group_id": null,
+          "proposition_id": "p-roof-supports-weight",
+          "proposition_kind": "modal",
+          "quantification": {
+            "surface_marker": null,
+            "type": "none"
+          },
+          "speaker_or_attributor": {
+            "attributed_participant_id": null,
+            "kind": "speaker",
+            "participant_id": "account"
+          },
+          "speech_act": "assertion",
+          "temporal_scope": {
+            "end": null,
+            "start": null,
+            "surface_marker": null,
+            "type": "timeless"
+          },
+          "uncertainty_reason": null
+        }
+      ],
+      "rejected_answer_targets": [],
+      "repair_records": [],
+      "resolved_items": [],
+      "root_post_id": "synthetic-04-desirability-versus-feasibility-post-0",
+      "schema_version": "proposition-ledger-v1.0.0",
+      "source_completeness": {
+        "account_publication_confirmed": true,
+        "chronology_complete": true,
+        "complete_prefix_through_turn": true,
+        "exact_text_complete": true,
+        "limitations": [
+          "Wholly invented schema fixture; not historical evidence."
+        ],
+        "parent_graph_complete": true,
+        "reconstruction_grade": "A"
+      },
+      "state_transitions": [
+        {
+          "answer_targets_added": [
+            "at-feasibility"
+          ],
+          "answer_targets_updated": [],
+          "commitments_added": [
+            "c-feasibility"
+          ],
+          "commitments_updated": [],
+          "current_turn_id": "t1",
+          "current_turn_index": 1,
+          "from_ledger_sha256": "47d6eab579725ab29238f80ec6f382dcbdd2ea5dc8d26bf6a160535ccc090fd1",
+          "issue_states_added": [],
+          "issue_states_updated": [
+            {
+              "from_status": "open",
+              "item_id": "i-garden-desirable",
+              "reason": "The complete state record changed at the current turn.",
+              "to_status": "open"
+            }
+          ],
+          "items_resolved": [],
+          "obligations_added": [],
+          "obligations_updated": [],
+          "proposition_groups_added": [],
+          "proposition_groups_updated": [],
+          "propositions_added": [
+            "p-roof-supports-weight"
+          ],
+          "propositions_updated": [],
+          "rejected_answer_targets_added": [],
+          "rejected_answer_targets_updated": [],
+          "relations_added": [],
+          "repair_records_added": [],
+          "repair_records_updated": [],
+          "state_patch": [
+            {
+              "after_record": {
+                "parent_turn_id": "t0",
+                "post_id": "synthetic-04-desirability-versus-feasibility-post-1",
+                "speaker_id": "account",
+                "text_sha256": "883163f3ec695f999705c7d1ca3a3c16fb7cce8a43d52f1072299e3bfe2700d0",
+                "turn_id": "t1",
+                "turn_index": 1
+              },
+              "before_record_sha256": null,
+              "collection": "turn_refs",
+              "item_id": "t1",
+              "operation": "add"
+            },
+            {
+              "after_record": {
+                "canonical_text": "The roof can support the garden's weight.",
+                "commitment_status": "speaker_committed",
+                "confidence": 1.0,
+                "derivation": {
+                  "kind": "direct_span",
+                  "normalisation_note": null,
+                  "source_proposition_ids": []
+                },
+                "epistemic_status": "asserted",
+                "exact_evidence_spans": [
+                  {
+                    "end_char": 32,
+                    "exact_text": "The roof can support the weight.",
+                    "start_char": 0,
+                    "turn_id": "t1"
+                  }
+                ],
+                "introduced_at_turn_id": "t1",
+                "lifecycle_status": "live",
+                "modality": {
+                  "strength": "strong",
+                  "type": "possible"
+                },
+                "original_language": "en",
+                "polarity": "positive",
+                "proposition_group_id": null,
+                "proposition_id": "p-roof-supports-weight",
+                "proposition_kind": "modal",
+                "quantification": {
+                  "surface_marker": null,
+                  "type": "none"
+                },
+                "speaker_or_attributor": {
+                  "attributed_participant_id": null,
+                  "kind": "speaker",
+                  "participant_id": "account"
+                },
+                "speech_act": "assertion",
+                "temporal_scope": {
+                  "end": null,
+                  "start": null,
+                  "surface_marker": null,
+                  "type": "timeless"
+                },
+                "uncertainty_reason": null
+              },
+              "before_record_sha256": null,
+              "collection": "propositions",
+              "item_id": "p-roof-supports-weight",
+              "operation": "add"
+            },
+            {
+              "after_record": {
+                "addressed_participant": "account",
+                "answer_requirements": [
+                  {
+                    "description": "Assess desirability independently of feasibility.",
+                    "requirement_type": "yes_no"
+                  }
+                ],
+                "canonical_question": "Would a rooftop garden be desirable?",
+                "confidence": 1.0,
+                "exact_evidence_spans": [
+                  {
+                    "end_char": 36,
+                    "exact_text": "Would a rooftop garden be desirable?",
+                    "start_char": 0,
+                    "turn_id": "t0"
+                  }
+                ],
+                "initiating_speaker": "contributor",
+                "initiating_turn_id": "t0",
+                "issue_id": "i-garden-desirable",
+                "issue_type": "polar",
+                "live_alternatives": [],
+                "related_proposition_ids": [
+                  "p-garden-desirable",
+                  "p-roof-supports-weight"
+                ],
+                "resolution_turn_id": null,
+                "resolution_type": null,
+                "status": "open"
+              },
+              "before_record_sha256": "be4c634e72b1ed8af3cc39b66c4193b00034f8f68f3b917d76e9160985d6ed8f",
+              "collection": "issue_states",
+              "item_id": "i-garden-desirable",
+              "operation": "replace"
+            },
+            {
+              "after_record": {
+                "basis": "explicit_speech_act",
+                "commitment_id": "c-feasibility",
+                "confidence": 1.0,
+                "introduced_at_turn_id": "t1",
+                "last_updated_at_turn_id": "t1",
+                "participant_id": "account",
+                "proposition_id": "p-roof-supports-weight",
+                "stance": "asserted",
+                "uncertainty_reason": null
+              },
+              "before_record_sha256": null,
+              "collection": "participant_commitments",
+              "item_id": "c-feasibility",
+              "operation": "add"
+            },
+            {
+              "after_record": {
+                "answer_target_id": "at-feasibility",
+                "confidence": 1.0,
+                "issue_ids": [
+                  "i-garden-desirable"
+                ],
+                "proposition_ids": [
+                  "p-roof-supports-weight"
+                ],
+                "reply_turn_id": "t1",
+                "selected_at_turn_id": "t1",
+                "target_status": "apparent"
+              },
+              "before_record_sha256": null,
+              "collection": "answer_targets",
+              "item_id": "at-feasibility",
+              "operation": "add"
+            }
+          ],
+          "transition_id": "transition-t1",
+          "warnings_added": []
+        }
+      ],
+      "target_turn_id": "t1",
+      "turn_refs": [
+        {
+          "parent_turn_id": null,
+          "post_id": "synthetic-04-desirability-versus-feasibility-post-0",
+          "speaker_id": "contributor",
+          "text_sha256": "e38cbb41f48647ceaaeb3a1ab1ca880c179e4556164095b05763ea0c89e43f32",
+          "turn_id": "t0",
+          "turn_index": 0
+        },
+        {
+          "parent_turn_id": "t0",
+          "post_id": "synthetic-04-desirability-versus-feasibility-post-1",
+          "speaker_id": "account",
+          "text_sha256": "883163f3ec695f999705c7d1ca3a3c16fb7cce8a43d52f1072299e3bfe2700d0",
+          "turn_id": "t1",
+          "turn_index": 1
+        }
+      ],
+      "unresolved_items": [
+        {
+          "first_opened_at_turn_id": "t0",
+          "item_id": "i-garden-desirable",
+          "item_type": "issue",
+          "reason": "Desirability remains unanswered."
+        },
+        {
+          "first_opened_at_turn_id": "t0",
+          "item_id": "o-answer-desirability",
+          "item_type": "obligation",
+          "reason": "A desirability judgement is still owed."
+        }
+      ],
+      "warnings": []
+    }
+  ],
+  "participants": [
+    {
+      "participant_id": "account",
+      "role": "account"
+    },
+    {
+      "participant_id": "contributor",
+      "role": "contributor"
+    }
+  ],
+  "root_post_id": "synthetic-04-desirability-versus-feasibility-post-0",
+  "synthetic": true,
+  "turns": [
+    {
+      "language": "en",
+      "parent_turn_id": null,
+      "post_id": "synthetic-04-desirability-versus-feasibility-post-0",
+      "speaker_id": "contributor",
+      "text": "Would a rooftop garden be desirable?",
+      "turn_id": "t0",
+      "turn_index": 0
+    },
+    {
+      "language": "en",
+      "parent_turn_id": "t0",
+      "post_id": "synthetic-04-desirability-versus-feasibility-post-1",
+      "speaker_id": "account",
+      "text": "The roof can support the weight.",
+      "turn_id": "t1",
+      "turn_index": 1
+    },
+    {
+      "language": "en",
+      "parent_turn_id": "t1",
+      "post_id": "synthetic-04-desirability-versus-feasibility-post-2",
+      "speaker_id": "contributor",
+      "text": "Feasibility is not desirability.",
+      "turn_id": "t2",
+      "turn_index": 2
+    }
+  ]
+}

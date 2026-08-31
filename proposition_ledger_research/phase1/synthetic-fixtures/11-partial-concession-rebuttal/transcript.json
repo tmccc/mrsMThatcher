@@ -1,0 +1,691 @@
+{
+  "conversation_key": "synthetic:11-partial-concession-rebuttal",
+  "description": "A participant concedes lower cost without conceding that lower cost proves superiority.",
+  "fixture_format_version": "proposition-ledger-synthetic-fixture-v1",
+  "fixture_id": "11-partial-concession-rebuttal",
+  "ledger_history": [
+    {
+      "answer_targets": [],
+      "as_of_turn_index": 0,
+      "conversation_key": "synthetic:11-partial-concession-rebuttal",
+      "conversational_obligations": [],
+      "extraction_status": {
+        "abstentions": [],
+        "status": "complete",
+        "unsupported_inferences_rejected": 0
+      },
+      "issue_states": [
+        {
+          "addressed_participant": "account",
+          "answer_requirements": [
+            {
+              "description": "Assess the premise-to-conclusion inference.",
+              "requirement_type": "supply_reason"
+            }
+          ],
+          "canonical_question": "Does the plan's lower cost by itself make it better?",
+          "confidence": 1.0,
+          "exact_evidence_spans": [
+            {
+              "end_char": 42,
+              "exact_text": "The plan is cheaper, so it must be better.",
+              "start_char": 0,
+              "turn_id": "t0"
+            }
+          ],
+          "initiating_speaker": "contributor",
+          "initiating_turn_id": "t0",
+          "issue_id": "i-cheaper-implies-better",
+          "issue_type": "other",
+          "live_alternatives": [],
+          "related_proposition_ids": [
+            "p-plan-cheaper",
+            "p-plan-better"
+          ],
+          "resolution_turn_id": null,
+          "resolution_type": null,
+          "status": "open"
+        }
+      ],
+      "ledger_id": "ledger-11-partial-concession-rebuttal-history-0",
+      "ledger_sha256": "d99d9ae07987ada80cf481b224254531374d56a78a9ca515a21d6303ec279aec",
+      "participant_commitments": [
+        {
+          "basis": "explicit_speech_act",
+          "commitment_id": "c-contributor-cheaper",
+          "confidence": 1.0,
+          "introduced_at_turn_id": "t0",
+          "last_updated_at_turn_id": "t0",
+          "participant_id": "contributor",
+          "proposition_id": "p-plan-cheaper",
+          "stance": "asserted",
+          "uncertainty_reason": null
+        },
+        {
+          "basis": "explicit_speech_act",
+          "commitment_id": "c-contributor-better",
+          "confidence": 1.0,
+          "introduced_at_turn_id": "t0",
+          "last_updated_at_turn_id": "t0",
+          "participant_id": "contributor",
+          "proposition_id": "p-plan-better",
+          "stance": "asserted",
+          "uncertainty_reason": null
+        }
+      ],
+      "participants": [
+        {
+          "author_key": "synthetic-account",
+          "identity_confidence": 1.0,
+          "participant_id": "account",
+          "role": "account"
+        },
+        {
+          "author_key": "synthetic-contributor",
+          "identity_confidence": 1.0,
+          "participant_id": "contributor",
+          "role": "contributor"
+        }
+      ],
+      "previous_ledger_sha256": null,
+      "proposition_groups": [
+        {
+          "confidence": 1.0,
+          "decomposition_complete": true,
+          "exact_evidence_spans": [
+            {
+              "end_char": 42,
+              "exact_text": "The plan is cheaper, so it must be better.",
+              "start_char": 0,
+              "turn_id": "t0"
+            }
+          ],
+          "introduced_at_turn_id": "t0",
+          "members": [
+            {
+              "ordinal": 0,
+              "proposition_id": "p-plan-cheaper",
+              "role": "premise"
+            },
+            {
+              "ordinal": 1,
+              "proposition_id": "p-plan-better",
+              "role": "conclusion"
+            }
+          ],
+          "proposition_group_id": "g-cheaper-better",
+          "structure_type": "premise_conclusion",
+          "uncertainty_reason": null
+        }
+      ],
+      "proposition_relations": [
+        {
+          "analysis_basis": "direct_semantic_content",
+          "asserted_or_analysed_by": "contributor",
+          "confidence": 1.0,
+          "exact_evidence_spans": [
+            {
+              "end_char": 42,
+              "exact_text": "The plan is cheaper, so it must be better.",
+              "start_char": 0,
+              "turn_id": "t0"
+            }
+          ],
+          "introduced_at_turn_id": "t0",
+          "provenance_kind": "transcript_extraction",
+          "relation_id": "r-cheaper-supports-better",
+          "relation_type": "supports",
+          "source_proposition_ids": [
+            "p-plan-cheaper"
+          ],
+          "target_proposition_ids": [
+            "p-plan-better"
+          ],
+          "uncertainty_reason": null
+        }
+      ],
+      "propositions": [
+        {
+          "canonical_text": "The plan is cheaper.",
+          "commitment_status": "speaker_committed",
+          "confidence": 1.0,
+          "derivation": {
+            "kind": "compound_decomposition",
+            "normalisation_note": null,
+            "source_proposition_ids": []
+          },
+          "epistemic_status": "asserted",
+          "exact_evidence_spans": [
+            {
+              "end_char": 19,
+              "exact_text": "The plan is cheaper",
+              "start_char": 0,
+              "turn_id": "t0"
+            }
+          ],
+          "introduced_at_turn_id": "t0",
+          "lifecycle_status": "live",
+          "modality": {
+            "strength": "none",
+            "type": "none"
+          },
+          "original_language": "en",
+          "polarity": "positive",
+          "proposition_group_id": "g-cheaper-better",
+          "proposition_id": "p-plan-cheaper",
+          "proposition_kind": "comparative",
+          "quantification": {
+            "surface_marker": null,
+            "type": "none"
+          },
+          "speaker_or_attributor": {
+            "attributed_participant_id": null,
+            "kind": "speaker",
+            "participant_id": "contributor"
+          },
+          "speech_act": "assertion",
+          "temporal_scope": {
+            "end": null,
+            "start": null,
+            "surface_marker": null,
+            "type": "timeless"
+          },
+          "uncertainty_reason": null
+        },
+        {
+          "canonical_text": "The plan must be better.",
+          "commitment_status": "speaker_committed",
+          "confidence": 1.0,
+          "derivation": {
+            "kind": "compound_decomposition",
+            "normalisation_note": null,
+            "source_proposition_ids": []
+          },
+          "epistemic_status": "asserted",
+          "exact_evidence_spans": [
+            {
+              "end_char": 41,
+              "exact_text": "it must be better",
+              "start_char": 24,
+              "turn_id": "t0"
+            }
+          ],
+          "introduced_at_turn_id": "t0",
+          "lifecycle_status": "live",
+          "modality": {
+            "strength": "strong",
+            "type": "necessary"
+          },
+          "original_language": "en",
+          "polarity": "positive",
+          "proposition_group_id": "g-cheaper-better",
+          "proposition_id": "p-plan-better",
+          "proposition_kind": "evaluative",
+          "quantification": {
+            "surface_marker": null,
+            "type": "none"
+          },
+          "speaker_or_attributor": {
+            "attributed_participant_id": null,
+            "kind": "speaker",
+            "participant_id": "contributor"
+          },
+          "speech_act": "assertion",
+          "temporal_scope": {
+            "end": null,
+            "start": null,
+            "surface_marker": null,
+            "type": "timeless"
+          },
+          "uncertainty_reason": null
+        }
+      ],
+      "rejected_answer_targets": [],
+      "repair_records": [],
+      "resolved_items": [],
+      "root_post_id": "synthetic-11-partial-concession-rebuttal-post-0",
+      "schema_version": "proposition-ledger-v1.0.0",
+      "source_completeness": {
+        "account_publication_confirmed": true,
+        "chronology_complete": true,
+        "complete_prefix_through_turn": true,
+        "exact_text_complete": true,
+        "limitations": [
+          "Wholly invented schema fixture; not historical evidence."
+        ],
+        "parent_graph_complete": true,
+        "reconstruction_grade": "A"
+      },
+      "state_transitions": [
+        {
+          "answer_targets_added": [],
+          "answer_targets_updated": [],
+          "commitments_added": [
+            "c-contributor-better",
+            "c-contributor-cheaper"
+          ],
+          "commitments_updated": [],
+          "current_turn_id": "t0",
+          "current_turn_index": 0,
+          "from_ledger_sha256": null,
+          "issue_states_added": [
+            "i-cheaper-implies-better"
+          ],
+          "issue_states_updated": [],
+          "items_resolved": [],
+          "obligations_added": [],
+          "obligations_updated": [],
+          "proposition_groups_added": [
+            "g-cheaper-better"
+          ],
+          "proposition_groups_updated": [],
+          "propositions_added": [
+            "p-plan-better",
+            "p-plan-cheaper"
+          ],
+          "propositions_updated": [],
+          "rejected_answer_targets_added": [],
+          "rejected_answer_targets_updated": [],
+          "relations_added": [
+            "r-cheaper-supports-better"
+          ],
+          "repair_records_added": [],
+          "repair_records_updated": [],
+          "state_patch": [
+            {
+              "after_record": {
+                "account_publication_confirmed": true,
+                "chronology_complete": true,
+                "complete_prefix_through_turn": true,
+                "exact_text_complete": true,
+                "limitations": [
+                  "Wholly invented schema fixture; not historical evidence."
+                ],
+                "parent_graph_complete": true,
+                "reconstruction_grade": "A"
+              },
+              "before_record_sha256": null,
+              "collection": "source_completeness",
+              "item_id": "source_completeness",
+              "operation": "add"
+            },
+            {
+              "after_record": {
+                "author_key": "synthetic-account",
+                "identity_confidence": 1.0,
+                "participant_id": "account",
+                "role": "account"
+              },
+              "before_record_sha256": null,
+              "collection": "participants",
+              "item_id": "account",
+              "operation": "add"
+            },
+            {
+              "after_record": {
+                "author_key": "synthetic-contributor",
+                "identity_confidence": 1.0,
+                "participant_id": "contributor",
+                "role": "contributor"
+              },
+              "before_record_sha256": null,
+              "collection": "participants",
+              "item_id": "contributor",
+              "operation": "add"
+            },
+            {
+              "after_record": {
+                "parent_turn_id": null,
+                "post_id": "synthetic-11-partial-concession-rebuttal-post-0",
+                "speaker_id": "contributor",
+                "text_sha256": "4153219f47cf7d341aac98d7b2cb4fc535bc239f71c9fe524bdff044cf29d2ef",
+                "turn_id": "t0",
+                "turn_index": 0
+              },
+              "before_record_sha256": null,
+              "collection": "turn_refs",
+              "item_id": "t0",
+              "operation": "add"
+            },
+            {
+              "after_record": {
+                "canonical_text": "The plan must be better.",
+                "commitment_status": "speaker_committed",
+                "confidence": 1.0,
+                "derivation": {
+                  "kind": "compound_decomposition",
+                  "normalisation_note": null,
+                  "source_proposition_ids": []
+                },
+                "epistemic_status": "asserted",
+                "exact_evidence_spans": [
+                  {
+                    "end_char": 41,
+                    "exact_text": "it must be better",
+                    "start_char": 24,
+                    "turn_id": "t0"
+                  }
+                ],
+                "introduced_at_turn_id": "t0",
+                "lifecycle_status": "live",
+                "modality": {
+                  "strength": "strong",
+                  "type": "necessary"
+                },
+                "original_language": "en",
+                "polarity": "positive",
+                "proposition_group_id": "g-cheaper-better",
+                "proposition_id": "p-plan-better",
+                "proposition_kind": "evaluative",
+                "quantification": {
+                  "surface_marker": null,
+                  "type": "none"
+                },
+                "speaker_or_attributor": {
+                  "attributed_participant_id": null,
+                  "kind": "speaker",
+                  "participant_id": "contributor"
+                },
+                "speech_act": "assertion",
+                "temporal_scope": {
+                  "end": null,
+                  "start": null,
+                  "surface_marker": null,
+                  "type": "timeless"
+                },
+                "uncertainty_reason": null
+              },
+              "before_record_sha256": null,
+              "collection": "propositions",
+              "item_id": "p-plan-better",
+              "operation": "add"
+            },
+            {
+              "after_record": {
+                "canonical_text": "The plan is cheaper.",
+                "commitment_status": "speaker_committed",
+                "confidence": 1.0,
+                "derivation": {
+                  "kind": "compound_decomposition",
+                  "normalisation_note": null,
+                  "source_proposition_ids": []
+                },
+                "epistemic_status": "asserted",
+                "exact_evidence_spans": [
+                  {
+                    "end_char": 19,
+                    "exact_text": "The plan is cheaper",
+                    "start_char": 0,
+                    "turn_id": "t0"
+                  }
+                ],
+                "introduced_at_turn_id": "t0",
+                "lifecycle_status": "live",
+                "modality": {
+                  "strength": "none",
+                  "type": "none"
+                },
+                "original_language": "en",
+                "polarity": "positive",
+                "proposition_group_id": "g-cheaper-better",
+                "proposition_id": "p-plan-cheaper",
+                "proposition_kind": "comparative",
+                "quantification": {
+                  "surface_marker": null,
+                  "type": "none"
+                },
+                "speaker_or_attributor": {
+                  "attributed_participant_id": null,
+                  "kind": "speaker",
+                  "participant_id": "contributor"
+                },
+                "speech_act": "assertion",
+                "temporal_scope": {
+                  "end": null,
+                  "start": null,
+                  "surface_marker": null,
+                  "type": "timeless"
+                },
+                "uncertainty_reason": null
+              },
+              "before_record_sha256": null,
+              "collection": "propositions",
+              "item_id": "p-plan-cheaper",
+              "operation": "add"
+            },
+            {
+              "after_record": {
+                "confidence": 1.0,
+                "decomposition_complete": true,
+                "exact_evidence_spans": [
+                  {
+                    "end_char": 42,
+                    "exact_text": "The plan is cheaper, so it must be better.",
+                    "start_char": 0,
+                    "turn_id": "t0"
+                  }
+                ],
+                "introduced_at_turn_id": "t0",
+                "members": [
+                  {
+                    "ordinal": 0,
+                    "proposition_id": "p-plan-cheaper",
+                    "role": "premise"
+                  },
+                  {
+                    "ordinal": 1,
+                    "proposition_id": "p-plan-better",
+                    "role": "conclusion"
+                  }
+                ],
+                "proposition_group_id": "g-cheaper-better",
+                "structure_type": "premise_conclusion",
+                "uncertainty_reason": null
+              },
+              "before_record_sha256": null,
+              "collection": "proposition_groups",
+              "item_id": "g-cheaper-better",
+              "operation": "add"
+            },
+            {
+              "after_record": {
+                "addressed_participant": "account",
+                "answer_requirements": [
+                  {
+                    "description": "Assess the premise-to-conclusion inference.",
+                    "requirement_type": "supply_reason"
+                  }
+                ],
+                "canonical_question": "Does the plan's lower cost by itself make it better?",
+                "confidence": 1.0,
+                "exact_evidence_spans": [
+                  {
+                    "end_char": 42,
+                    "exact_text": "The plan is cheaper, so it must be better.",
+                    "start_char": 0,
+                    "turn_id": "t0"
+                  }
+                ],
+                "initiating_speaker": "contributor",
+                "initiating_turn_id": "t0",
+                "issue_id": "i-cheaper-implies-better",
+                "issue_type": "other",
+                "live_alternatives": [],
+                "related_proposition_ids": [
+                  "p-plan-cheaper",
+                  "p-plan-better"
+                ],
+                "resolution_turn_id": null,
+                "resolution_type": null,
+                "status": "open"
+              },
+              "before_record_sha256": null,
+              "collection": "issue_states",
+              "item_id": "i-cheaper-implies-better",
+              "operation": "add"
+            },
+            {
+              "after_record": {
+                "basis": "explicit_speech_act",
+                "commitment_id": "c-contributor-better",
+                "confidence": 1.0,
+                "introduced_at_turn_id": "t0",
+                "last_updated_at_turn_id": "t0",
+                "participant_id": "contributor",
+                "proposition_id": "p-plan-better",
+                "stance": "asserted",
+                "uncertainty_reason": null
+              },
+              "before_record_sha256": null,
+              "collection": "participant_commitments",
+              "item_id": "c-contributor-better",
+              "operation": "add"
+            },
+            {
+              "after_record": {
+                "basis": "explicit_speech_act",
+                "commitment_id": "c-contributor-cheaper",
+                "confidence": 1.0,
+                "introduced_at_turn_id": "t0",
+                "last_updated_at_turn_id": "t0",
+                "participant_id": "contributor",
+                "proposition_id": "p-plan-cheaper",
+                "stance": "asserted",
+                "uncertainty_reason": null
+              },
+              "before_record_sha256": null,
+              "collection": "participant_commitments",
+              "item_id": "c-contributor-cheaper",
+              "operation": "add"
+            },
+            {
+              "after_record": {
+                "analysis_basis": "direct_semantic_content",
+                "asserted_or_analysed_by": "contributor",
+                "confidence": 1.0,
+                "exact_evidence_spans": [
+                  {
+                    "end_char": 42,
+                    "exact_text": "The plan is cheaper, so it must be better.",
+                    "start_char": 0,
+                    "turn_id": "t0"
+                  }
+                ],
+                "introduced_at_turn_id": "t0",
+                "provenance_kind": "transcript_extraction",
+                "relation_id": "r-cheaper-supports-better",
+                "relation_type": "supports",
+                "source_proposition_ids": [
+                  "p-plan-cheaper"
+                ],
+                "target_proposition_ids": [
+                  "p-plan-better"
+                ],
+                "uncertainty_reason": null
+              },
+              "before_record_sha256": null,
+              "collection": "proposition_relations",
+              "item_id": "r-cheaper-supports-better",
+              "operation": "add"
+            },
+            {
+              "after_record": {
+                "first_opened_at_turn_id": "t0",
+                "item_id": "i-cheaper-implies-better",
+                "item_type": "issue",
+                "reason": "The sufficiency of the premise remains disputed."
+              },
+              "before_record_sha256": null,
+              "collection": "unresolved_items",
+              "item_id": "issue:i-cheaper-implies-better",
+              "operation": "add"
+            },
+            {
+              "after_record": {
+                "first_opened_at_turn_id": "t0",
+                "item_id": "p-plan-better",
+                "item_type": "proposition",
+                "reason": "The conclusion is challenged despite the premise being conceded."
+              },
+              "before_record_sha256": null,
+              "collection": "unresolved_items",
+              "item_id": "proposition:p-plan-better",
+              "operation": "add"
+            },
+            {
+              "after_record": {
+                "abstentions": [],
+                "status": "complete",
+                "unsupported_inferences_rejected": 0
+              },
+              "before_record_sha256": null,
+              "collection": "extraction_status",
+              "item_id": "extraction_status",
+              "operation": "add"
+            }
+          ],
+          "transition_id": "transition-t0",
+          "warnings_added": []
+        }
+      ],
+      "target_turn_id": "t0",
+      "turn_refs": [
+        {
+          "parent_turn_id": null,
+          "post_id": "synthetic-11-partial-concession-rebuttal-post-0",
+          "speaker_id": "contributor",
+          "text_sha256": "4153219f47cf7d341aac98d7b2cb4fc535bc239f71c9fe524bdff044cf29d2ef",
+          "turn_id": "t0",
+          "turn_index": 0
+        }
+      ],
+      "unresolved_items": [
+        {
+          "first_opened_at_turn_id": "t0",
+          "item_id": "p-plan-better",
+          "item_type": "proposition",
+          "reason": "The conclusion is challenged despite the premise being conceded."
+        },
+        {
+          "first_opened_at_turn_id": "t0",
+          "item_id": "i-cheaper-implies-better",
+          "item_type": "issue",
+          "reason": "The sufficiency of the premise remains disputed."
+        }
+      ],
+      "warnings": []
+    }
+  ],
+  "participants": [
+    {
+      "participant_id": "account",
+      "role": "account"
+    },
+    {
+      "participant_id": "contributor",
+      "role": "contributor"
+    }
+  ],
+  "root_post_id": "synthetic-11-partial-concession-rebuttal-post-0",
+  "synthetic": true,
+  "turns": [
+    {
+      "language": "en",
+      "parent_turn_id": null,
+      "post_id": "synthetic-11-partial-concession-rebuttal-post-0",
+      "speaker_id": "contributor",
+      "text": "The plan is cheaper, so it must be better.",
+      "turn_id": "t0",
+      "turn_index": 0
+    },
+    {
+      "language": "en",
+      "parent_turn_id": "t0",
+      "post_id": "synthetic-11-partial-concession-rebuttal-post-1",
+      "speaker_id": "account",
+      "text": "I concede it is cheaper, but lower cost alone does not make it better.",
+      "turn_id": "t1",
+      "turn_index": 1
+    }
+  ]
+}

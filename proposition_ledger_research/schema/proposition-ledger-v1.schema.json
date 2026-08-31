@@ -1,0 +1,909 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://mrs-m-thatcher.invalid/research/proposition-ledger-v1.schema.json",
+  "title": "Incremental proposition ledger v1",
+  "description": "A turn-bounded, evidence-linked proposition ledger snapshot. Cross-record and temporal invariants are validated by the Phase 1 validator in addition to this structural schema.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "ledger_id",
+    "conversation_key",
+    "root_post_id",
+    "target_turn_id",
+    "as_of_turn_index",
+    "previous_ledger_sha256",
+    "ledger_sha256",
+    "source_completeness",
+    "participants",
+    "turn_refs",
+    "propositions",
+    "proposition_groups",
+    "issue_states",
+    "participant_commitments",
+    "conversational_obligations",
+    "proposition_relations",
+    "answer_targets",
+    "rejected_answer_targets",
+    "repair_records",
+    "state_transitions",
+    "unresolved_items",
+    "resolved_items",
+    "extraction_status",
+    "warnings"
+  ],
+  "properties": {
+    "schema_version": {"const": "proposition-ledger-v1.0.0"},
+    "ledger_id": {"$ref": "#/$defs/opaqueId"},
+    "conversation_key": {"type": "string", "minLength": 1},
+    "root_post_id": {"type": ["string", "null"], "minLength": 1},
+    "target_turn_id": {"$ref": "#/$defs/opaqueId"},
+    "as_of_turn_index": {"type": "integer", "minimum": 0},
+    "previous_ledger_sha256": {"$ref": "#/$defs/nullableSha256"},
+    "ledger_sha256": {"$ref": "#/$defs/sha256"},
+    "source_completeness": {"$ref": "#/$defs/sourceCompleteness"},
+    "participants": {
+      "type": "array",
+      "items": {"$ref": "#/$defs/participant"},
+      "minItems": 1,
+      "uniqueItems": true
+    },
+    "turn_refs": {
+      "type": "array",
+      "items": {"$ref": "#/$defs/turnRef"},
+      "minItems": 1,
+      "uniqueItems": true
+    },
+    "propositions": {
+      "type": "array",
+      "items": {"$ref": "#/$defs/proposition"},
+      "uniqueItems": true
+    },
+    "proposition_groups": {
+      "type": "array",
+      "items": {"$ref": "#/$defs/propositionGroup"},
+      "uniqueItems": true
+    },
+    "issue_states": {
+      "type": "array",
+      "items": {"$ref": "#/$defs/issueState"},
+      "uniqueItems": true
+    },
+    "participant_commitments": {
+      "type": "array",
+      "items": {"$ref": "#/$defs/commitment"},
+      "uniqueItems": true
+    },
+    "conversational_obligations": {
+      "type": "array",
+      "items": {"$ref": "#/$defs/obligation"},
+      "uniqueItems": true
+    },
+    "proposition_relations": {
+      "type": "array",
+      "items": {"$ref": "#/$defs/relation"},
+      "uniqueItems": true
+    },
+    "answer_targets": {
+      "type": "array",
+      "items": {"$ref": "#/$defs/answerTarget"},
+      "uniqueItems": true
+    },
+    "rejected_answer_targets": {
+      "type": "array",
+      "items": {"$ref": "#/$defs/rejectedAnswerTarget"},
+      "uniqueItems": true
+    },
+    "repair_records": {
+      "type": "array",
+      "items": {"$ref": "#/$defs/repairRecord"},
+      "uniqueItems": true
+    },
+    "state_transitions": {
+      "type": "array",
+      "items": {"$ref": "#/$defs/stateTransition"},
+      "minItems": 1,
+      "maxItems": 1
+    },
+    "unresolved_items": {
+      "type": "array",
+      "items": {"$ref": "#/$defs/itemRef"},
+      "uniqueItems": true
+    },
+    "resolved_items": {
+      "type": "array",
+      "items": {"$ref": "#/$defs/resolvedItem"},
+      "uniqueItems": true
+    },
+    "extraction_status": {"$ref": "#/$defs/extractionStatus"},
+    "warnings": {
+      "type": "array",
+      "items": {"$ref": "#/$defs/warning"},
+      "uniqueItems": true
+    }
+  },
+  "$defs": {
+    "opaqueId": {
+      "type": "string",
+      "pattern": "^[A-Za-z][A-Za-z0-9_.:-]{0,127}$"
+    },
+    "sha256": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$"
+    },
+    "nullableSha256": {
+      "oneOf": [
+        {"$ref": "#/$defs/sha256"},
+        {"type": "null"}
+      ]
+    },
+    "confidence": {
+      "type": "number",
+      "minimum": 0,
+      "maximum": 1
+    },
+    "uncertaintyReason": {
+      "type": ["string", "null"],
+      "minLength": 1,
+      "maxLength": 1000
+    },
+    "evidenceSpan": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["turn_id", "start_char", "end_char", "exact_text"],
+      "properties": {
+        "turn_id": {"$ref": "#/$defs/opaqueId"},
+        "start_char": {"type": "integer", "minimum": 0},
+        "end_char": {"type": "integer", "minimum": 1},
+        "exact_text": {"type": "string", "minLength": 1}
+      }
+    },
+    "sourceCompleteness": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "reconstruction_grade",
+        "exact_text_complete",
+        "parent_graph_complete",
+        "chronology_complete",
+        "account_publication_confirmed",
+        "complete_prefix_through_turn",
+        "limitations"
+      ],
+      "properties": {
+        "reconstruction_grade": {"enum": ["A", "B", "C"]},
+        "exact_text_complete": {"type": "boolean"},
+        "parent_graph_complete": {"type": "boolean"},
+        "chronology_complete": {"type": "boolean"},
+        "account_publication_confirmed": {"type": "boolean"},
+        "complete_prefix_through_turn": {"type": "boolean"},
+        "limitations": {
+          "type": "array",
+          "items": {"type": "string", "minLength": 1},
+          "uniqueItems": true
+        }
+      }
+    },
+    "participant": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["participant_id", "role", "author_key", "identity_confidence"],
+      "properties": {
+        "participant_id": {"$ref": "#/$defs/opaqueId"},
+        "role": {"enum": ["account", "contributor", "quoted_source", "reported_source", "unknown"]},
+        "author_key": {"type": ["string", "null"], "minLength": 1},
+        "identity_confidence": {"$ref": "#/$defs/confidence"}
+      }
+    },
+    "turnRef": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "turn_id",
+        "turn_index",
+        "post_id",
+        "parent_turn_id",
+        "speaker_id",
+        "text_sha256"
+      ],
+      "properties": {
+        "turn_id": {"$ref": "#/$defs/opaqueId"},
+        "turn_index": {"type": "integer", "minimum": 0},
+        "post_id": {"type": ["string", "null"], "minLength": 1},
+        "parent_turn_id": {
+          "oneOf": [
+            {"$ref": "#/$defs/opaqueId"},
+            {"type": "null"}
+          ]
+        },
+        "speaker_id": {"$ref": "#/$defs/opaqueId"},
+        "text_sha256": {"$ref": "#/$defs/sha256"}
+      }
+    },
+    "speakerOrAttributor": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["kind", "participant_id", "attributed_participant_id"],
+      "properties": {
+        "kind": {"enum": ["speaker", "attributor", "unknown"]},
+        "participant_id": {
+          "oneOf": [
+            {"$ref": "#/$defs/opaqueId"},
+            {"type": "null"}
+          ]
+        },
+        "attributed_participant_id": {
+          "oneOf": [
+            {"$ref": "#/$defs/opaqueId"},
+            {"type": "null"}
+          ]
+        }
+      }
+    },
+    "modality": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["type", "strength"],
+      "properties": {
+        "type": {"enum": ["none", "possible", "probable", "necessary", "obligatory", "permitted", "hypothetical", "unknown"]},
+        "strength": {"enum": ["none", "weak", "medium", "strong", "unknown"]}
+      }
+    },
+    "quantification": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["type", "surface_marker"],
+      "properties": {
+        "type": {"enum": ["none", "existential", "universal", "most", "many", "some", "few", "exact", "comparative", "unknown"]},
+        "surface_marker": {"type": ["string", "null"], "maxLength": 200}
+      }
+    },
+    "temporalScope": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["type", "start", "end", "surface_marker"],
+      "properties": {
+        "type": {"enum": ["timeless", "past", "present", "future", "interval", "counterfactual", "relative", "unknown"]},
+        "start": {"type": ["string", "null"], "format": "date-time"},
+        "end": {"type": ["string", "null"], "format": "date-time"},
+        "surface_marker": {"type": ["string", "null"], "maxLength": 300}
+      }
+    },
+    "derivation": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["kind", "source_proposition_ids", "normalisation_note"],
+      "properties": {
+        "kind": {"enum": ["direct_span", "compound_decomposition", "anaphora_resolution", "synthetic_fixture"]},
+        "source_proposition_ids": {
+          "type": "array",
+          "items": {"$ref": "#/$defs/opaqueId"},
+          "uniqueItems": true
+        },
+        "normalisation_note": {"type": ["string", "null"], "maxLength": 1000}
+      }
+    },
+    "proposition": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "proposition_id",
+        "canonical_text",
+        "speaker_or_attributor",
+        "introduced_at_turn_id",
+        "exact_evidence_spans",
+        "original_language",
+        "speech_act",
+        "proposition_kind",
+        "polarity",
+        "modality",
+        "quantification",
+        "temporal_scope",
+        "epistemic_status",
+        "commitment_status",
+        "lifecycle_status",
+        "proposition_group_id",
+        "derivation",
+        "confidence",
+        "uncertainty_reason"
+      ],
+      "properties": {
+        "proposition_id": {"$ref": "#/$defs/opaqueId"},
+        "canonical_text": {"type": "string", "minLength": 1, "maxLength": 2000},
+        "speaker_or_attributor": {"$ref": "#/$defs/speakerOrAttributor"},
+        "introduced_at_turn_id": {"$ref": "#/$defs/opaqueId"},
+        "exact_evidence_spans": {
+          "type": "array",
+          "items": {"$ref": "#/$defs/evidenceSpan"},
+          "minItems": 1,
+          "uniqueItems": true
+        },
+        "original_language": {"type": "string", "pattern": "^[A-Za-z]{2,3}(-[A-Za-z0-9]{2,8})*$"},
+        "speech_act": {"enum": ["assertion", "denial", "question", "challenge", "request", "proposal", "concession", "qualification", "correction", "quotation", "report", "rhetorical", "expressive", "other"]},
+        "proposition_kind": {"enum": ["descriptive", "causal", "normative", "evaluative", "definitional", "modal", "existential", "universal", "comparative", "counterfactual", "prediction", "proposal", "rhetorical", "expressive", "reported_claim", "quoted_claim", "question_presupposition"]},
+        "polarity": {"enum": ["positive", "negative", "open", "not_applicable", "unknown"]},
+        "modality": {"$ref": "#/$defs/modality"},
+        "quantification": {"$ref": "#/$defs/quantification"},
+        "temporal_scope": {"$ref": "#/$defs/temporalScope"},
+        "epistemic_status": {"enum": ["asserted", "denied", "questioned", "presupposed_only", "hypothetical", "quoted_only", "reported_only", "uncertain", "not_applicable"]},
+        "commitment_status": {"enum": ["speaker_committed", "speaker_not_committed", "attributed_to_another", "questioned_only", "left_uncertain", "withdrawn", "not_applicable"]},
+        "lifecycle_status": {"enum": ["introduced", "live", "qualified", "challenged", "conceded", "withdrawn", "resolved", "superseded", "abandoned"]},
+        "proposition_group_id": {
+          "oneOf": [
+            {"$ref": "#/$defs/opaqueId"},
+            {"type": "null"}
+          ]
+        },
+        "derivation": {"$ref": "#/$defs/derivation"},
+        "confidence": {"$ref": "#/$defs/confidence"},
+        "uncertainty_reason": {"$ref": "#/$defs/uncertaintyReason"}
+      },
+      "allOf": [
+        {
+          "if": {
+            "properties": {"proposition_kind": {"const": "question_presupposition"}},
+            "required": ["proposition_kind"]
+          },
+          "then": {
+            "properties": {
+              "epistemic_status": {"const": "presupposed_only"},
+              "commitment_status": {
+                "enum": [
+                  "speaker_not_committed",
+                  "attributed_to_another",
+                  "questioned_only",
+                  "left_uncertain",
+                  "withdrawn",
+                  "not_applicable"
+                ]
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {"epistemic_status": {"const": "presupposed_only"}},
+            "required": ["epistemic_status"]
+          },
+          "then": {
+            "properties": {"proposition_kind": {"const": "question_presupposition"}}
+          }
+        }
+      ]
+    },
+    "groupMember": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["proposition_id", "role", "ordinal"],
+      "properties": {
+        "proposition_id": {"$ref": "#/$defs/opaqueId"},
+        "role": {"enum": ["member", "conjunct", "disjunct", "antecedent", "consequent", "premise", "conclusion", "event", "cause", "intermediate_cause", "outcome", "conduct", "motive", "qualification", "exception"]},
+        "ordinal": {"type": "integer", "minimum": 0}
+      }
+    },
+    "propositionGroup": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["proposition_group_id", "structure_type", "members", "introduced_at_turn_id", "exact_evidence_spans", "decomposition_complete", "confidence", "uncertainty_reason"],
+      "properties": {
+        "proposition_group_id": {"$ref": "#/$defs/opaqueId"},
+        "structure_type": {"enum": ["independent_set", "conjunction", "disjunction", "conditional", "causal_chain", "premise_conclusion", "compound_accusation", "mixed", "uncertain"]},
+        "members": {"type": "array", "items": {"$ref": "#/$defs/groupMember"}, "minItems": 2, "uniqueItems": true},
+        "introduced_at_turn_id": {"$ref": "#/$defs/opaqueId"},
+        "exact_evidence_spans": {"type": "array", "items": {"$ref": "#/$defs/evidenceSpan"}, "minItems": 1, "uniqueItems": true},
+        "decomposition_complete": {"type": "boolean"},
+        "confidence": {"$ref": "#/$defs/confidence"},
+        "uncertainty_reason": {"$ref": "#/$defs/uncertaintyReason"}
+      }
+    },
+    "liveAlternative": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["alternative_id", "label", "proposition_ids", "status"],
+      "properties": {
+        "alternative_id": {"$ref": "#/$defs/opaqueId"},
+        "label": {"type": "string", "minLength": 1},
+        "proposition_ids": {"type": "array", "items": {"$ref": "#/$defs/opaqueId"}, "uniqueItems": true},
+        "status": {"enum": ["live", "supported", "rejected", "unknown"]}
+      }
+    },
+    "answerRequirement": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["requirement_type", "description"],
+      "properties": {
+        "requirement_type": {"enum": ["yes_no", "select_alternative", "supply_value", "supply_reason", "supply_evidence", "clarify_reference", "address_each_part", "acknowledge_correction", "other"]},
+        "description": {"type": "string", "minLength": 1}
+      }
+    },
+    "issueState": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["issue_id", "initiating_turn_id", "initiating_speaker", "canonical_question", "issue_type", "live_alternatives", "addressed_participant", "answer_requirements", "related_proposition_ids", "status", "resolution_turn_id", "resolution_type", "confidence", "exact_evidence_spans"],
+      "properties": {
+        "issue_id": {"$ref": "#/$defs/opaqueId"},
+        "initiating_turn_id": {"$ref": "#/$defs/opaqueId"},
+        "initiating_speaker": {"$ref": "#/$defs/opaqueId"},
+        "canonical_question": {"type": ["string", "null"], "maxLength": 2000},
+        "issue_type": {"enum": ["polar", "wh", "alternative", "clarification", "evidence_request", "counterfactual", "compound", "rhetorical", "expressive", "no_stable_issue", "other"]},
+        "live_alternatives": {"type": "array", "items": {"$ref": "#/$defs/liveAlternative"}, "uniqueItems": true},
+        "addressed_participant": {
+          "oneOf": [
+            {"$ref": "#/$defs/opaqueId"},
+            {"type": "null"}
+          ]
+        },
+        "answer_requirements": {"type": "array", "items": {"$ref": "#/$defs/answerRequirement"}, "uniqueItems": true},
+        "related_proposition_ids": {"type": "array", "items": {"$ref": "#/$defs/opaqueId"}, "uniqueItems": true},
+        "status": {"enum": ["open", "partly_answered", "answered", "challenged", "superseded", "abandoned", "expired", "no_stable_issue"]},
+        "resolution_turn_id": {
+          "oneOf": [
+            {"$ref": "#/$defs/opaqueId"},
+            {"type": "null"}
+          ]
+        },
+        "resolution_type": {"type": ["string", "null"], "enum": [null, "direct_answer", "partial_answer", "concession", "withdrawal", "mutual_closure", "topic_change", "expiry", "no_stable_issue", "other"]},
+        "confidence": {"$ref": "#/$defs/confidence"},
+        "exact_evidence_spans": {"type": "array", "items": {"$ref": "#/$defs/evidenceSpan"}, "minItems": 1, "uniqueItems": true}
+      },
+      "allOf": [
+        {
+          "if": {"properties": {"status": {"const": "no_stable_issue"}}, "required": ["status"]},
+          "then": {
+            "properties": {
+              "issue_type": {"const": "no_stable_issue"},
+              "canonical_question": {"type": "null"},
+              "live_alternatives": {"maxItems": 0},
+              "answer_requirements": {"maxItems": 0},
+              "resolution_turn_id": {"$ref": "#/$defs/opaqueId"},
+              "resolution_type": {"const": "no_stable_issue"}
+            }
+          }
+        },
+        {
+          "if": {"properties": {"issue_type": {"const": "no_stable_issue"}}, "required": ["issue_type"]},
+          "then": {"properties": {"status": {"const": "no_stable_issue"}}}
+        },
+        {
+          "if": {
+            "properties": {
+              "status": {"enum": ["answered", "superseded", "abandoned", "expired"]}
+            },
+            "required": ["status"]
+          },
+          "then": {
+            "properties": {
+              "resolution_turn_id": {"$ref": "#/$defs/opaqueId"},
+              "resolution_type": {"type": "string"}
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "status": {"enum": ["open", "partly_answered", "challenged"]}
+            },
+            "required": ["status"]
+          },
+          "then": {
+            "properties": {
+              "resolution_turn_id": {"type": "null"},
+              "resolution_type": {"type": "null"}
+            }
+          }
+        },
+        {
+          "if": {"properties": {"status": {"const": "answered"}}, "required": ["status"]},
+          "then": {
+            "properties": {
+              "resolution_type": {
+                "enum": ["direct_answer", "partial_answer", "concession", "withdrawal", "mutual_closure", "other"]
+              }
+            }
+          }
+        },
+        {
+          "if": {"properties": {"status": {"const": "expired"}}, "required": ["status"]},
+          "then": {"properties": {"resolution_type": {"const": "expiry"}}}
+        }
+      ]
+    },
+    "commitment": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["commitment_id", "participant_id", "proposition_id", "stance", "introduced_at_turn_id", "last_updated_at_turn_id", "basis", "confidence", "uncertainty_reason"],
+      "properties": {
+        "commitment_id": {"$ref": "#/$defs/opaqueId"},
+        "participant_id": {"$ref": "#/$defs/opaqueId"},
+        "proposition_id": {"$ref": "#/$defs/opaqueId"},
+        "stance": {"enum": ["asserted", "denied", "questioned", "qualified", "conceded", "withdrawn", "attributed_to_another", "left_uncertain"]},
+        "introduced_at_turn_id": {"$ref": "#/$defs/opaqueId"},
+        "last_updated_at_turn_id": {"$ref": "#/$defs/opaqueId"},
+        "basis": {"enum": ["explicit_speech_act", "explicit_correction", "explicit_concession", "explicit_withdrawal", "attribution_only", "uncertain"]},
+        "confidence": {"$ref": "#/$defs/confidence"},
+        "uncertainty_reason": {"$ref": "#/$defs/uncertaintyReason"}
+      }
+    },
+    "obligation": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["obligation_id", "obligation_type", "created_by_turn_id", "owed_by_participant", "owed_to_participant", "related_issue_ids", "related_proposition_ids", "status", "resolved_by_turn_id", "expiry_policy", "confidence"],
+      "properties": {
+        "obligation_id": {"$ref": "#/$defs/opaqueId"},
+        "obligation_type": {"enum": ["explicit_question", "requested_clarification", "requested_evidence", "promised_follow_up", "correction_requiring_acknowledgement", "unresolved_direct_challenge"]},
+        "created_by_turn_id": {"$ref": "#/$defs/opaqueId"},
+        "owed_by_participant": {"$ref": "#/$defs/opaqueId"},
+        "owed_to_participant": {"$ref": "#/$defs/opaqueId"},
+        "related_issue_ids": {"type": "array", "items": {"$ref": "#/$defs/opaqueId"}, "uniqueItems": true},
+        "related_proposition_ids": {"type": "array", "items": {"$ref": "#/$defs/opaqueId"}, "uniqueItems": true},
+        "status": {"enum": ["open", "partly_satisfied", "satisfied", "waived", "expired", "superseded"]},
+        "resolved_by_turn_id": {
+          "oneOf": [
+            {"$ref": "#/$defs/opaqueId"},
+            {"type": "null"}
+          ]
+        },
+        "expiry_policy": {"enum": ["never_implicit", "on_explicit_withdrawal", "on_issue_resolution", "on_topic_abandonment", "time_bounded", "unspecified"]},
+        "confidence": {"$ref": "#/$defs/confidence"}
+      },
+      "allOf": [
+        {
+          "if": {
+            "properties": {
+              "status": {"enum": ["satisfied", "waived", "expired", "superseded"]}
+            },
+            "required": ["status"]
+          },
+          "then": {"properties": {"resolved_by_turn_id": {"$ref": "#/$defs/opaqueId"}}}
+        },
+        {
+          "if": {
+            "properties": {"status": {"enum": ["open", "partly_satisfied"]}},
+            "required": ["status"]
+          },
+          "then": {"properties": {"resolved_by_turn_id": {"type": "null"}}}
+        }
+      ]
+    },
+    "relation": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["relation_id", "source_proposition_ids", "target_proposition_ids", "relation_type", "asserted_or_analysed_by", "introduced_at_turn_id", "exact_evidence_spans", "confidence", "uncertainty_reason", "provenance_kind", "analysis_basis"],
+      "properties": {
+        "relation_id": {"$ref": "#/$defs/opaqueId"},
+        "source_proposition_ids": {"type": "array", "items": {"$ref": "#/$defs/opaqueId"}, "minItems": 1, "uniqueItems": true},
+        "target_proposition_ids": {"type": "array", "items": {"$ref": "#/$defs/opaqueId"}, "minItems": 1, "uniqueItems": true},
+        "relation_type": {"enum": ["answers", "partially_answers", "fails_to_answer", "supports", "contradicts", "qualifies", "narrows", "broadens", "provides_exception", "distinguishes", "clarifies", "corrects", "concedes", "retracts", "supersedes", "repeats", "rephrases", "presupposes", "challenges", "changes_topic", "targets", "rejects_answer_target", "substitutes_for", "fails_to_address"]},
+        "asserted_or_analysed_by": {"$ref": "#/$defs/opaqueId"},
+        "introduced_at_turn_id": {"$ref": "#/$defs/opaqueId"},
+        "exact_evidence_spans": {"type": "array", "items": {"$ref": "#/$defs/evidenceSpan"}, "minItems": 1, "uniqueItems": true},
+        "confidence": {"$ref": "#/$defs/confidence"},
+        "uncertainty_reason": {"$ref": "#/$defs/uncertaintyReason"},
+        "provenance_kind": {"enum": ["transcript_extraction", "machine_diagnostic", "human_annotation", "human_correction"]},
+        "analysis_basis": {
+          "description": "Why the relation is licensed. Speaker-explicit metadiscourse may be transcript extraction; evaluator diagnoses must remain separately identified.",
+          "enum": ["direct_semantic_content", "speaker_explicit_metadiscourse", "evaluator_diagnosis", "human_correction"]
+        }
+      },
+      "allOf": [
+        {
+          "if": {
+            "properties": {"provenance_kind": {"const": "transcript_extraction"}},
+            "required": ["provenance_kind"]
+          },
+          "then": {
+            "properties": {
+              "analysis_basis": {
+                "enum": ["direct_semantic_content", "speaker_explicit_metadiscourse"]
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {"provenance_kind": {"const": "machine_diagnostic"}},
+            "required": ["provenance_kind"]
+          },
+          "then": {"properties": {"analysis_basis": {"const": "evaluator_diagnosis"}}}
+        },
+        {
+          "if": {
+            "properties": {"provenance_kind": {"const": "human_correction"}},
+            "required": ["provenance_kind"]
+          },
+          "then": {"properties": {"analysis_basis": {"const": "human_correction"}}}
+        },
+        {
+          "if": {
+            "properties": {"analysis_basis": {"const": "evaluator_diagnosis"}},
+            "required": ["analysis_basis"]
+          },
+          "then": {
+            "properties": {
+              "provenance_kind": {"enum": ["machine_diagnostic", "human_annotation"]}
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {"analysis_basis": {"const": "human_correction"}},
+            "required": ["analysis_basis"]
+          },
+          "then": {"properties": {"provenance_kind": {"const": "human_correction"}}}
+        },
+        {
+          "if": {
+            "properties": {
+              "relation_type": {"enum": ["fails_to_answer", "substitutes_for", "fails_to_address"]},
+              "provenance_kind": {"const": "transcript_extraction"}
+            },
+            "required": ["relation_type", "provenance_kind"]
+          },
+          "then": {
+            "properties": {"analysis_basis": {"const": "speaker_explicit_metadiscourse"}}
+          }
+        }
+      ]
+    },
+    "answerTarget": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["answer_target_id", "reply_turn_id", "issue_ids", "proposition_ids", "target_status", "selected_at_turn_id", "confidence"],
+      "properties": {
+        "answer_target_id": {"$ref": "#/$defs/opaqueId"},
+        "reply_turn_id": {"$ref": "#/$defs/opaqueId"},
+        "issue_ids": {"type": "array", "items": {"$ref": "#/$defs/opaqueId"}, "uniqueItems": true},
+        "proposition_ids": {"type": "array", "items": {"$ref": "#/$defs/opaqueId"}, "uniqueItems": true},
+        "target_status": {"enum": ["apparent", "confirmed", "partially_addressed", "rejected", "replaced", "uncertain"]},
+        "selected_at_turn_id": {"$ref": "#/$defs/opaqueId"},
+        "confidence": {"$ref": "#/$defs/confidence"}
+      },
+      "anyOf": [
+        {"properties": {"issue_ids": {"minItems": 1}}},
+        {"properties": {"proposition_ids": {"minItems": 1}}}
+      ]
+    },
+    "rejectedAnswerTarget": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["rejected_answer_target_id", "answer_target_id", "rejected_at_turn_id", "rejection_kind", "replacement_answer_target_id", "related_proposition_ids", "exact_evidence_spans", "status", "confidence"],
+      "properties": {
+        "rejected_answer_target_id": {"$ref": "#/$defs/opaqueId"},
+        "answer_target_id": {"$ref": "#/$defs/opaqueId"},
+        "rejected_at_turn_id": {"$ref": "#/$defs/opaqueId"},
+        "rejection_kind": {"enum": ["not_x_but_y", "wrong_issue", "wrong_proposition", "too_broad", "too_narrow", "false_presupposition", "other"]},
+        "replacement_answer_target_id": {
+          "oneOf": [
+            {"$ref": "#/$defs/opaqueId"},
+            {"type": "null"}
+          ]
+        },
+        "related_proposition_ids": {"type": "array", "items": {"$ref": "#/$defs/opaqueId"}, "minItems": 1, "uniqueItems": true},
+        "exact_evidence_spans": {"type": "array", "items": {"$ref": "#/$defs/evidenceSpan"}, "minItems": 1, "uniqueItems": true},
+        "status": {"enum": ["active", "acknowledged", "ignored", "repeated_after_rejection", "superseded"]},
+        "confidence": {"$ref": "#/$defs/confidence"}
+      }
+    },
+    "repairRecord": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["repair_id", "trigger_turn_id", "repair_type", "rejected_answer_target_ids", "replacement_answer_target_ids", "acknowledgement_turn_id", "outcome", "exact_evidence_spans", "confidence"],
+      "properties": {
+        "repair_id": {"$ref": "#/$defs/opaqueId"},
+        "trigger_turn_id": {"$ref": "#/$defs/opaqueId"},
+        "repair_type": {"enum": ["contributor_correction", "account_clarification", "answer_target_replacement", "reference_resolution", "topic_boundary", "other"]},
+        "rejected_answer_target_ids": {"type": "array", "items": {"$ref": "#/$defs/opaqueId"}, "uniqueItems": true},
+        "replacement_answer_target_ids": {"type": "array", "items": {"$ref": "#/$defs/opaqueId"}, "uniqueItems": true},
+        "acknowledgement_turn_id": {
+          "oneOf": [
+            {"$ref": "#/$defs/opaqueId"},
+            {"type": "null"}
+          ]
+        },
+        "outcome": {"enum": ["pending", "acknowledged", "incorporated", "ignored", "repeated_error", "uncertain"]},
+        "exact_evidence_spans": {"type": "array", "items": {"$ref": "#/$defs/evidenceSpan"}, "minItems": 1, "uniqueItems": true},
+        "confidence": {"$ref": "#/$defs/confidence"}
+      },
+      "allOf": [
+        {
+          "if": {"properties": {"outcome": {"const": "pending"}}, "required": ["outcome"]},
+          "then": {"properties": {"acknowledgement_turn_id": {"type": "null"}}}
+        },
+        {
+          "if": {"properties": {"outcome": {"const": "acknowledged"}}, "required": ["outcome"]},
+          "then": {"properties": {"acknowledgement_turn_id": {"$ref": "#/$defs/opaqueId"}}}
+        },
+        {
+          "if": {
+            "properties": {"acknowledgement_turn_id": {"$ref": "#/$defs/opaqueId"}},
+            "required": ["acknowledgement_turn_id"]
+          },
+          "then": {"properties": {"outcome": {"enum": ["acknowledged", "incorporated"]}}}
+        },
+        {
+          "if": {
+            "properties": {"repair_type": {"const": "answer_target_replacement"}},
+            "required": ["repair_type"]
+          },
+          "then": {"properties": {"replacement_answer_target_ids": {"minItems": 1}}}
+        }
+      ]
+    },
+    "stateTransition": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["transition_id", "from_ledger_sha256", "current_turn_id", "current_turn_index", "propositions_added", "propositions_updated", "proposition_groups_added", "proposition_groups_updated", "issue_states_added", "issue_states_updated", "commitments_added", "commitments_updated", "obligations_added", "obligations_updated", "relations_added", "answer_targets_added", "answer_targets_updated", "rejected_answer_targets_added", "rejected_answer_targets_updated", "repair_records_added", "repair_records_updated", "items_resolved", "warnings_added", "state_patch"],
+      "properties": {
+        "transition_id": {"$ref": "#/$defs/opaqueId"},
+        "from_ledger_sha256": {"$ref": "#/$defs/nullableSha256"},
+        "current_turn_id": {"$ref": "#/$defs/opaqueId"},
+        "current_turn_index": {"type": "integer", "minimum": 0},
+        "propositions_added": {"type": "array", "items": {"$ref": "#/$defs/opaqueId"}, "uniqueItems": true},
+        "propositions_updated": {"type": "array", "items": {"$ref": "#/$defs/transitionUpdate"}, "uniqueItems": true},
+        "proposition_groups_added": {"type": "array", "items": {"$ref": "#/$defs/opaqueId"}, "uniqueItems": true},
+        "proposition_groups_updated": {"type": "array", "items": {"$ref": "#/$defs/transitionUpdate"}, "uniqueItems": true},
+        "issue_states_added": {"type": "array", "items": {"$ref": "#/$defs/opaqueId"}, "uniqueItems": true},
+        "issue_states_updated": {"type": "array", "items": {"$ref": "#/$defs/transitionUpdate"}, "uniqueItems": true},
+        "commitments_added": {"type": "array", "items": {"$ref": "#/$defs/opaqueId"}, "uniqueItems": true},
+        "commitments_updated": {"type": "array", "items": {"$ref": "#/$defs/transitionUpdate"}, "uniqueItems": true},
+        "obligations_added": {"type": "array", "items": {"$ref": "#/$defs/opaqueId"}, "uniqueItems": true},
+        "obligations_updated": {"type": "array", "items": {"$ref": "#/$defs/transitionUpdate"}, "uniqueItems": true},
+        "relations_added": {"type": "array", "items": {"$ref": "#/$defs/opaqueId"}, "uniqueItems": true},
+        "answer_targets_added": {"type": "array", "items": {"$ref": "#/$defs/opaqueId"}, "uniqueItems": true},
+        "answer_targets_updated": {"type": "array", "items": {"$ref": "#/$defs/transitionUpdate"}, "uniqueItems": true},
+        "rejected_answer_targets_added": {"type": "array", "items": {"$ref": "#/$defs/opaqueId"}, "uniqueItems": true},
+        "rejected_answer_targets_updated": {"type": "array", "items": {"$ref": "#/$defs/transitionUpdate"}, "uniqueItems": true},
+        "repair_records_added": {"type": "array", "items": {"$ref": "#/$defs/opaqueId"}, "uniqueItems": true},
+        "repair_records_updated": {"type": "array", "items": {"$ref": "#/$defs/transitionUpdate"}, "uniqueItems": true},
+        "items_resolved": {"type": "array", "items": {"$ref": "#/$defs/opaqueId"}, "uniqueItems": true},
+        "warnings_added": {"type": "array", "items": {"$ref": "#/$defs/opaqueId"}, "uniqueItems": true},
+        "state_patch": {
+          "description": "Ordered operations that reconstruct every state-bearing collection from the preceding snapshot.",
+          "type": "array",
+          "items": {"$ref": "#/$defs/statePatchOperation"},
+          "minItems": 1,
+          "uniqueItems": true
+        }
+      }
+    },
+    "statePatchOperation": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["collection", "operation", "item_id", "before_record_sha256", "after_record"],
+      "properties": {
+        "collection": {
+          "enum": [
+            "source_completeness",
+            "participants",
+            "turn_refs",
+            "propositions",
+            "proposition_groups",
+            "issue_states",
+            "participant_commitments",
+            "conversational_obligations",
+            "proposition_relations",
+            "answer_targets",
+            "rejected_answer_targets",
+            "repair_records",
+            "unresolved_items",
+            "resolved_items",
+            "extraction_status",
+            "warnings"
+          ]
+        },
+        "operation": {"enum": ["add", "remove", "replace"]},
+        "item_id": {
+          "description": "Native record ID, singleton collection name, or item_type:item_id composite for resolved-state collections.",
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 256,
+          "pattern": "^[A-Za-z][A-Za-z0-9_.:-]*$"
+        },
+        "before_record_sha256": {"$ref": "#/$defs/nullableSha256"},
+        "after_record": {"type": ["object", "null"]}
+      },
+      "allOf": [
+        {
+          "if": {"properties": {"operation": {"const": "add"}}, "required": ["operation"]},
+          "then": {
+            "properties": {
+              "before_record_sha256": {"type": "null"},
+              "after_record": {"type": "object"}
+            }
+          }
+        },
+        {
+          "if": {"properties": {"operation": {"const": "remove"}}, "required": ["operation"]},
+          "then": {
+            "properties": {
+              "before_record_sha256": {"$ref": "#/$defs/sha256"},
+              "after_record": {"type": "null"}
+            }
+          }
+        },
+        {
+          "if": {"properties": {"operation": {"const": "replace"}}, "required": ["operation"]},
+          "then": {
+            "properties": {
+              "before_record_sha256": {"$ref": "#/$defs/sha256"},
+              "after_record": {"type": "object"}
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {"collection": {"const": "source_completeness"}},
+            "required": ["collection"]
+          },
+          "then": {"properties": {"item_id": {"const": "source_completeness"}}}
+        },
+        {
+          "if": {
+            "properties": {"collection": {"const": "extraction_status"}},
+            "required": ["collection"]
+          },
+          "then": {"properties": {"item_id": {"const": "extraction_status"}}}
+        }
+      ]
+    },
+    "transitionUpdate": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["item_id", "from_status", "to_status", "reason"],
+      "properties": {
+        "item_id": {"$ref": "#/$defs/opaqueId"},
+        "from_status": {"type": "string", "minLength": 1},
+        "to_status": {"type": "string", "minLength": 1},
+        "reason": {"type": "string", "minLength": 1}
+      }
+    },
+    "itemRef": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["item_type", "item_id", "reason", "first_opened_at_turn_id"],
+      "properties": {
+        "item_type": {"enum": ["proposition", "issue", "commitment", "obligation", "answer_target", "repair", "reference", "compound_structure"]},
+        "item_id": {"$ref": "#/$defs/opaqueId"},
+        "reason": {"type": "string", "minLength": 1},
+        "first_opened_at_turn_id": {"$ref": "#/$defs/opaqueId"}
+      }
+    },
+    "resolvedItem": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["item_type", "item_id", "resolved_at_turn_id", "resolution_type"],
+      "properties": {
+        "item_type": {"enum": ["proposition", "issue", "commitment", "obligation", "answer_target", "repair", "reference", "compound_structure"]},
+        "item_id": {"$ref": "#/$defs/opaqueId"},
+        "resolved_at_turn_id": {"$ref": "#/$defs/opaqueId"},
+        "resolution_type": {"type": "string", "minLength": 1}
+      }
+    },
+    "extractionStatus": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["status", "abstentions", "unsupported_inferences_rejected"],
+      "properties": {
+        "status": {"enum": ["complete", "partial", "abstained", "invalid_source"]},
+        "abstentions": {
+          "type": "array",
+          "items": {"enum": ["no_stable_issue", "ambiguous_proposition", "incomplete_context", "ambiguous_attribution", "unresolved_reference", "compound_structure_uncertain", "relation_uncertain", "unsupported_inference_rejected"]},
+          "uniqueItems": true
+        },
+        "unsupported_inferences_rejected": {"type": "integer", "minimum": 0}
+      }
+    },
+    "warning": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["warning_id", "code", "message", "introduced_at_turn_id", "severity"],
+      "properties": {
+        "warning_id": {"$ref": "#/$defs/opaqueId"},
+        "code": {"enum": ["ambiguous_proposition", "incomplete_context", "ambiguous_attribution", "unresolved_reference", "compound_structure_uncertain", "relation_uncertain", "unsupported_inference_rejected", "source_quality", "other"]},
+        "message": {"type": "string", "minLength": 1, "maxLength": 1000},
+        "introduced_at_turn_id": {"$ref": "#/$defs/opaqueId"},
+        "severity": {"enum": ["info", "warning", "error"]}
+      }
+    }
+  }
+}

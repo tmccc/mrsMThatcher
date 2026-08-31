@@ -1,0 +1,682 @@
+{
+  "examples": [
+    {
+      "description": "The snapshot boundary is moved before its target turn and evidence.",
+      "expected_error_code": "future_turn_reference",
+      "fixture_id": "01-direct-question-answer",
+      "invalid_example_id": "future-turn-reference",
+      "ledger": {
+        "answer_targets": [
+          {
+            "answer_target_id": "at-bridge",
+            "confidence": 1.0,
+            "issue_ids": [
+              "i-bridge-open"
+            ],
+            "proposition_ids": [
+              "p-bridge-question"
+            ],
+            "reply_turn_id": "t1",
+            "selected_at_turn_id": "t1",
+            "target_status": "confirmed"
+          }
+        ],
+        "as_of_turn_index": 0,
+        "conversation_key": "synthetic:01-direct-question-answer",
+        "conversational_obligations": [
+          {
+            "confidence": 1.0,
+            "created_by_turn_id": "t0",
+            "expiry_policy": "on_issue_resolution",
+            "obligation_id": "o-answer-bridge",
+            "obligation_type": "explicit_question",
+            "owed_by_participant": "account",
+            "owed_to_participant": "contributor",
+            "related_issue_ids": [
+              "i-bridge-open"
+            ],
+            "related_proposition_ids": [
+              "p-bridge-question"
+            ],
+            "resolved_by_turn_id": "t1",
+            "status": "satisfied"
+          }
+        ],
+        "extraction_status": {
+          "abstentions": [],
+          "status": "complete",
+          "unsupported_inferences_rejected": 0
+        },
+        "issue_states": [
+          {
+            "addressed_participant": "account",
+            "answer_requirements": [
+              {
+                "description": "Answer whether the bridge is open.",
+                "requirement_type": "yes_no"
+              }
+            ],
+            "canonical_question": "Is the village bridge open today?",
+            "confidence": 1.0,
+            "exact_evidence_spans": [
+              {
+                "end_char": 33,
+                "exact_text": "Is the village bridge open today?",
+                "start_char": 0,
+                "turn_id": "t0"
+              }
+            ],
+            "initiating_speaker": "contributor",
+            "initiating_turn_id": "t0",
+            "issue_id": "i-bridge-open",
+            "issue_type": "polar",
+            "live_alternatives": [
+              {
+                "alternative_id": "alt-open",
+                "label": "The bridge is open.",
+                "proposition_ids": [
+                  "p-bridge-question"
+                ],
+                "status": "supported"
+              },
+              {
+                "alternative_id": "alt-closed",
+                "label": "The bridge is not open.",
+                "proposition_ids": [],
+                "status": "rejected"
+              }
+            ],
+            "related_proposition_ids": [
+              "p-bridge-question"
+            ],
+            "resolution_turn_id": "t1",
+            "resolution_type": "direct_answer",
+            "status": "answered"
+          }
+        ],
+        "ledger_id": "ledger-01-direct-question-answer",
+        "ledger_sha256": "3aec92f9d07dc67b6640044e2fefeeea3b0201cd8a84f5470da6b26f4d6f61d6",
+        "participant_commitments": [
+          {
+            "basis": "explicit_speech_act",
+            "commitment_id": "c-question-bridge",
+            "confidence": 1.0,
+            "introduced_at_turn_id": "t0",
+            "last_updated_at_turn_id": "t0",
+            "participant_id": "contributor",
+            "proposition_id": "p-bridge-question",
+            "stance": "questioned",
+            "uncertainty_reason": null
+          },
+          {
+            "basis": "explicit_speech_act",
+            "commitment_id": "c-answer-bridge",
+            "confidence": 1.0,
+            "introduced_at_turn_id": "t1",
+            "last_updated_at_turn_id": "t1",
+            "participant_id": "account",
+            "proposition_id": "p-bridge-open",
+            "stance": "asserted",
+            "uncertainty_reason": null
+          }
+        ],
+        "participants": [
+          {
+            "author_key": "synthetic-account",
+            "identity_confidence": 1.0,
+            "participant_id": "account",
+            "role": "account"
+          },
+          {
+            "author_key": "synthetic-contributor",
+            "identity_confidence": 1.0,
+            "participant_id": "contributor",
+            "role": "contributor"
+          }
+        ],
+        "previous_ledger_sha256": "84e101bd8d241edd85dca9823e0b9aca4ed42ed26ff7300022852cd8791ee1cb",
+        "proposition_groups": [],
+        "proposition_relations": [
+          {
+            "analysis_basis": "direct_semantic_content",
+            "asserted_or_analysed_by": "account",
+            "confidence": 1.0,
+            "exact_evidence_spans": [
+              {
+                "end_char": 38,
+                "exact_text": "Yes, the village bridge is open today.",
+                "start_char": 0,
+                "turn_id": "t1"
+              }
+            ],
+            "introduced_at_turn_id": "t1",
+            "provenance_kind": "transcript_extraction",
+            "relation_id": "r-direct-answer",
+            "relation_type": "answers",
+            "source_proposition_ids": [
+              "p-bridge-open"
+            ],
+            "target_proposition_ids": [
+              "p-bridge-question"
+            ],
+            "uncertainty_reason": null
+          }
+        ],
+        "propositions": [
+          {
+            "canonical_text": "The village bridge is open today.",
+            "commitment_status": "questioned_only",
+            "confidence": 1.0,
+            "derivation": {
+              "kind": "direct_span",
+              "normalisation_note": null,
+              "source_proposition_ids": []
+            },
+            "epistemic_status": "questioned",
+            "exact_evidence_spans": [
+              {
+                "end_char": 32,
+                "exact_text": "the village bridge open today",
+                "start_char": 3,
+                "turn_id": "t0"
+              }
+            ],
+            "introduced_at_turn_id": "t0",
+            "lifecycle_status": "resolved",
+            "modality": {
+              "strength": "none",
+              "type": "none"
+            },
+            "original_language": "en",
+            "polarity": "open",
+            "proposition_group_id": null,
+            "proposition_id": "p-bridge-question",
+            "proposition_kind": "descriptive",
+            "quantification": {
+              "surface_marker": null,
+              "type": "none"
+            },
+            "speaker_or_attributor": {
+              "attributed_participant_id": null,
+              "kind": "speaker",
+              "participant_id": "contributor"
+            },
+            "speech_act": "question",
+            "temporal_scope": {
+              "end": null,
+              "start": null,
+              "surface_marker": "today",
+              "type": "present"
+            },
+            "uncertainty_reason": null
+          },
+          {
+            "canonical_text": "The village bridge is open today.",
+            "commitment_status": "speaker_committed",
+            "confidence": 1.0,
+            "derivation": {
+              "kind": "direct_span",
+              "normalisation_note": null,
+              "source_proposition_ids": []
+            },
+            "epistemic_status": "asserted",
+            "exact_evidence_spans": [
+              {
+                "end_char": 37,
+                "exact_text": "the village bridge is open today",
+                "start_char": 5,
+                "turn_id": "t1"
+              }
+            ],
+            "introduced_at_turn_id": "t1",
+            "lifecycle_status": "live",
+            "modality": {
+              "strength": "none",
+              "type": "none"
+            },
+            "original_language": "en",
+            "polarity": "positive",
+            "proposition_group_id": null,
+            "proposition_id": "p-bridge-open",
+            "proposition_kind": "descriptive",
+            "quantification": {
+              "surface_marker": null,
+              "type": "none"
+            },
+            "speaker_or_attributor": {
+              "attributed_participant_id": null,
+              "kind": "speaker",
+              "participant_id": "account"
+            },
+            "speech_act": "assertion",
+            "temporal_scope": {
+              "end": null,
+              "start": null,
+              "surface_marker": "today",
+              "type": "present"
+            },
+            "uncertainty_reason": null
+          }
+        ],
+        "rejected_answer_targets": [],
+        "repair_records": [],
+        "resolved_items": [
+          {
+            "item_id": "p-bridge-question",
+            "item_type": "proposition",
+            "resolution_type": "direct_answer",
+            "resolved_at_turn_id": "t1"
+          },
+          {
+            "item_id": "i-bridge-open",
+            "item_type": "issue",
+            "resolution_type": "direct_answer",
+            "resolved_at_turn_id": "t1"
+          },
+          {
+            "item_id": "o-answer-bridge",
+            "item_type": "obligation",
+            "resolution_type": "question_answered",
+            "resolved_at_turn_id": "t1"
+          }
+        ],
+        "root_post_id": "synthetic-01-direct-question-answer-post-0",
+        "schema_version": "proposition-ledger-v1.0.0",
+        "source_completeness": {
+          "account_publication_confirmed": true,
+          "chronology_complete": true,
+          "complete_prefix_through_turn": true,
+          "exact_text_complete": true,
+          "limitations": [
+            "Wholly invented schema fixture; not historical evidence."
+          ],
+          "parent_graph_complete": true,
+          "reconstruction_grade": "A"
+        },
+        "state_transitions": [
+          {
+            "answer_targets_added": [
+              "at-bridge"
+            ],
+            "answer_targets_updated": [],
+            "commitments_added": [
+              "c-answer-bridge"
+            ],
+            "commitments_updated": [],
+            "current_turn_id": "t1",
+            "current_turn_index": 1,
+            "from_ledger_sha256": "84e101bd8d241edd85dca9823e0b9aca4ed42ed26ff7300022852cd8791ee1cb",
+            "issue_states_added": [],
+            "issue_states_updated": [
+              {
+                "from_status": "open",
+                "item_id": "i-bridge-open",
+                "reason": "Direct answer supplied.",
+                "to_status": "answered"
+              }
+            ],
+            "items_resolved": [
+              "i-bridge-open",
+              "o-answer-bridge",
+              "p-bridge-question"
+            ],
+            "obligations_added": [],
+            "obligations_updated": [
+              {
+                "from_status": "open",
+                "item_id": "o-answer-bridge",
+                "reason": "Question answered.",
+                "to_status": "satisfied"
+              }
+            ],
+            "proposition_groups_added": [],
+            "proposition_groups_updated": [],
+            "propositions_added": [
+              "p-bridge-open"
+            ],
+            "propositions_updated": [
+              {
+                "from_status": "live",
+                "item_id": "p-bridge-question",
+                "reason": "Direct answer supplied.",
+                "to_status": "resolved"
+              }
+            ],
+            "rejected_answer_targets_added": [],
+            "rejected_answer_targets_updated": [],
+            "relations_added": [
+              "r-direct-answer"
+            ],
+            "repair_records_added": [],
+            "repair_records_updated": [],
+            "state_patch": [
+              {
+                "after_record": {
+                  "parent_turn_id": "t0",
+                  "post_id": "synthetic-01-direct-question-answer-post-1",
+                  "speaker_id": "account",
+                  "text_sha256": "e7fcf9ed61177471c16499374cfb52e061bcbff15fe715c8e53770de3eeeadd1",
+                  "turn_id": "t1",
+                  "turn_index": 1
+                },
+                "before_record_sha256": null,
+                "collection": "turn_refs",
+                "item_id": "t1",
+                "operation": "add"
+              },
+              {
+                "after_record": {
+                  "canonical_text": "The village bridge is open today.",
+                  "commitment_status": "speaker_committed",
+                  "confidence": 1.0,
+                  "derivation": {
+                    "kind": "direct_span",
+                    "normalisation_note": null,
+                    "source_proposition_ids": []
+                  },
+                  "epistemic_status": "asserted",
+                  "exact_evidence_spans": [
+                    {
+                      "end_char": 37,
+                      "exact_text": "the village bridge is open today",
+                      "start_char": 5,
+                      "turn_id": "t1"
+                    }
+                  ],
+                  "introduced_at_turn_id": "t1",
+                  "lifecycle_status": "live",
+                  "modality": {
+                    "strength": "none",
+                    "type": "none"
+                  },
+                  "original_language": "en",
+                  "polarity": "positive",
+                  "proposition_group_id": null,
+                  "proposition_id": "p-bridge-open",
+                  "proposition_kind": "descriptive",
+                  "quantification": {
+                    "surface_marker": null,
+                    "type": "none"
+                  },
+                  "speaker_or_attributor": {
+                    "attributed_participant_id": null,
+                    "kind": "speaker",
+                    "participant_id": "account"
+                  },
+                  "speech_act": "assertion",
+                  "temporal_scope": {
+                    "end": null,
+                    "start": null,
+                    "surface_marker": "today",
+                    "type": "present"
+                  },
+                  "uncertainty_reason": null
+                },
+                "before_record_sha256": null,
+                "collection": "propositions",
+                "item_id": "p-bridge-open",
+                "operation": "add"
+              },
+              {
+                "after_record": {
+                  "canonical_text": "The village bridge is open today.",
+                  "commitment_status": "questioned_only",
+                  "confidence": 1.0,
+                  "derivation": {
+                    "kind": "direct_span",
+                    "normalisation_note": null,
+                    "source_proposition_ids": []
+                  },
+                  "epistemic_status": "questioned",
+                  "exact_evidence_spans": [
+                    {
+                      "end_char": 32,
+                      "exact_text": "the village bridge open today",
+                      "start_char": 3,
+                      "turn_id": "t0"
+                    }
+                  ],
+                  "introduced_at_turn_id": "t0",
+                  "lifecycle_status": "resolved",
+                  "modality": {
+                    "strength": "none",
+                    "type": "none"
+                  },
+                  "original_language": "en",
+                  "polarity": "open",
+                  "proposition_group_id": null,
+                  "proposition_id": "p-bridge-question",
+                  "proposition_kind": "descriptive",
+                  "quantification": {
+                    "surface_marker": null,
+                    "type": "none"
+                  },
+                  "speaker_or_attributor": {
+                    "attributed_participant_id": null,
+                    "kind": "speaker",
+                    "participant_id": "contributor"
+                  },
+                  "speech_act": "question",
+                  "temporal_scope": {
+                    "end": null,
+                    "start": null,
+                    "surface_marker": "today",
+                    "type": "present"
+                  },
+                  "uncertainty_reason": null
+                },
+                "before_record_sha256": "09c6cbec93b0d260194787f98d5f548be6ff6d210ddad44e1fa3204904e952e7",
+                "collection": "propositions",
+                "item_id": "p-bridge-question",
+                "operation": "replace"
+              },
+              {
+                "after_record": {
+                  "addressed_participant": "account",
+                  "answer_requirements": [
+                    {
+                      "description": "Answer whether the bridge is open.",
+                      "requirement_type": "yes_no"
+                    }
+                  ],
+                  "canonical_question": "Is the village bridge open today?",
+                  "confidence": 1.0,
+                  "exact_evidence_spans": [
+                    {
+                      "end_char": 33,
+                      "exact_text": "Is the village bridge open today?",
+                      "start_char": 0,
+                      "turn_id": "t0"
+                    }
+                  ],
+                  "initiating_speaker": "contributor",
+                  "initiating_turn_id": "t0",
+                  "issue_id": "i-bridge-open",
+                  "issue_type": "polar",
+                  "live_alternatives": [
+                    {
+                      "alternative_id": "alt-open",
+                      "label": "The bridge is open.",
+                      "proposition_ids": [
+                        "p-bridge-question"
+                      ],
+                      "status": "supported"
+                    },
+                    {
+                      "alternative_id": "alt-closed",
+                      "label": "The bridge is not open.",
+                      "proposition_ids": [],
+                      "status": "rejected"
+                    }
+                  ],
+                  "related_proposition_ids": [
+                    "p-bridge-question"
+                  ],
+                  "resolution_turn_id": "t1",
+                  "resolution_type": "direct_answer",
+                  "status": "answered"
+                },
+                "before_record_sha256": "d7fef713e24d8a04692810378fb15c3679928b834b4e4d526d4292ee530c5dd9",
+                "collection": "issue_states",
+                "item_id": "i-bridge-open",
+                "operation": "replace"
+              },
+              {
+                "after_record": {
+                  "basis": "explicit_speech_act",
+                  "commitment_id": "c-answer-bridge",
+                  "confidence": 1.0,
+                  "introduced_at_turn_id": "t1",
+                  "last_updated_at_turn_id": "t1",
+                  "participant_id": "account",
+                  "proposition_id": "p-bridge-open",
+                  "stance": "asserted",
+                  "uncertainty_reason": null
+                },
+                "before_record_sha256": null,
+                "collection": "participant_commitments",
+                "item_id": "c-answer-bridge",
+                "operation": "add"
+              },
+              {
+                "after_record": {
+                  "confidence": 1.0,
+                  "created_by_turn_id": "t0",
+                  "expiry_policy": "on_issue_resolution",
+                  "obligation_id": "o-answer-bridge",
+                  "obligation_type": "explicit_question",
+                  "owed_by_participant": "account",
+                  "owed_to_participant": "contributor",
+                  "related_issue_ids": [
+                    "i-bridge-open"
+                  ],
+                  "related_proposition_ids": [
+                    "p-bridge-question"
+                  ],
+                  "resolved_by_turn_id": "t1",
+                  "status": "satisfied"
+                },
+                "before_record_sha256": "278217d3161ad40f3eb74c97a697b5386ea285d0cb25fe3f38d08c614d367745",
+                "collection": "conversational_obligations",
+                "item_id": "o-answer-bridge",
+                "operation": "replace"
+              },
+              {
+                "after_record": {
+                  "analysis_basis": "direct_semantic_content",
+                  "asserted_or_analysed_by": "account",
+                  "confidence": 1.0,
+                  "exact_evidence_spans": [
+                    {
+                      "end_char": 38,
+                      "exact_text": "Yes, the village bridge is open today.",
+                      "start_char": 0,
+                      "turn_id": "t1"
+                    }
+                  ],
+                  "introduced_at_turn_id": "t1",
+                  "provenance_kind": "transcript_extraction",
+                  "relation_id": "r-direct-answer",
+                  "relation_type": "answers",
+                  "source_proposition_ids": [
+                    "p-bridge-open"
+                  ],
+                  "target_proposition_ids": [
+                    "p-bridge-question"
+                  ],
+                  "uncertainty_reason": null
+                },
+                "before_record_sha256": null,
+                "collection": "proposition_relations",
+                "item_id": "r-direct-answer",
+                "operation": "add"
+              },
+              {
+                "after_record": {
+                  "answer_target_id": "at-bridge",
+                  "confidence": 1.0,
+                  "issue_ids": [
+                    "i-bridge-open"
+                  ],
+                  "proposition_ids": [
+                    "p-bridge-question"
+                  ],
+                  "reply_turn_id": "t1",
+                  "selected_at_turn_id": "t1",
+                  "target_status": "confirmed"
+                },
+                "before_record_sha256": null,
+                "collection": "answer_targets",
+                "item_id": "at-bridge",
+                "operation": "add"
+              },
+              {
+                "after_record": {
+                  "item_id": "i-bridge-open",
+                  "item_type": "issue",
+                  "resolution_type": "direct_answer",
+                  "resolved_at_turn_id": "t1"
+                },
+                "before_record_sha256": null,
+                "collection": "resolved_items",
+                "item_id": "issue:i-bridge-open",
+                "operation": "add"
+              },
+              {
+                "after_record": {
+                  "item_id": "o-answer-bridge",
+                  "item_type": "obligation",
+                  "resolution_type": "question_answered",
+                  "resolved_at_turn_id": "t1"
+                },
+                "before_record_sha256": null,
+                "collection": "resolved_items",
+                "item_id": "obligation:o-answer-bridge",
+                "operation": "add"
+              },
+              {
+                "after_record": {
+                  "item_id": "p-bridge-question",
+                  "item_type": "proposition",
+                  "resolution_type": "direct_answer",
+                  "resolved_at_turn_id": "t1"
+                },
+                "before_record_sha256": null,
+                "collection": "resolved_items",
+                "item_id": "proposition:p-bridge-question",
+                "operation": "add"
+              }
+            ],
+            "transition_id": "transition-t1",
+            "warnings_added": []
+          }
+        ],
+        "target_turn_id": "t1",
+        "turn_refs": [
+          {
+            "parent_turn_id": null,
+            "post_id": "synthetic-01-direct-question-answer-post-0",
+            "speaker_id": "contributor",
+            "text_sha256": "5825241a95cdfa62ae9e2b7ff8d07e3f4378401019662814f60dd1463f3ec88e",
+            "turn_id": "t0",
+            "turn_index": 0
+          },
+          {
+            "parent_turn_id": "t0",
+            "post_id": "synthetic-01-direct-question-answer-post-1",
+            "speaker_id": "account",
+            "text_sha256": "e7fcf9ed61177471c16499374cfb52e061bcbff15fe715c8e53770de3eeeadd1",
+            "turn_id": "t1",
+            "turn_index": 1
+          }
+        ],
+        "unresolved_items": [],
+        "warnings": []
+      },
+      "violation_kind": "semantic_invariant"
+    }
+  ],
+  "fixture_format_version": "proposition-ledger-synthetic-fixture-v1",
+  "fixture_id": "01-direct-question-answer",
+  "synthetic": true
+}

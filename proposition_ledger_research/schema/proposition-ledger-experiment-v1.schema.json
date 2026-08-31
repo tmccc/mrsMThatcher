@@ -1,0 +1,731 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://mrs-m-thatcher.invalid/research/proposition-ledger-experiment-v1.schema.json",
+  "title": "Proposition-ledger experiment protocol v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "protocol_id",
+    "protocol_status",
+    "phase1_execution_boundary",
+    "research_questions",
+    "corpus_policy",
+    "target_prefix_policy",
+    "arms",
+    "paired_comparisons",
+    "task_families",
+    "ledger_measurements",
+    "downstream_measurements",
+    "splitting_and_leakage_controls",
+    "freeze_before_provider_calls",
+    "randomisation",
+    "adjudication",
+    "success_thresholds",
+    "failure_thresholds",
+    "blinding",
+    "resource_measurement",
+    "execution_sequence",
+    "limitations"
+  ],
+  "properties": {
+    "schema_version": {"const": "proposition-ledger-experiment-v1.0.0"},
+    "protocol_id": {"type": "string", "minLength": 1},
+    "protocol_status": {"enum": ["draft", "frozen"]},
+    "phase1_execution_boundary": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["provider_calls_permitted", "model_outputs_permitted", "experimental_scoring_permitted", "held_out_selection_permitted"],
+      "properties": {
+        "provider_calls_permitted": {"const": false},
+        "model_outputs_permitted": {"const": false},
+        "experimental_scoring_permitted": {"const": false},
+        "held_out_selection_permitted": {"const": false}
+      }
+    },
+    "research_questions": {
+      "type": "array",
+      "items": {"type": "string", "minLength": 1},
+      "minItems": 8,
+      "maxItems": 8,
+      "uniqueItems": true
+    },
+    "corpus_policy": {"$ref": "#/$defs/corpusPolicy"},
+    "target_prefix_policy": {"$ref": "#/$defs/targetPrefixPolicy"},
+    "arms": {
+      "type": "array",
+      "prefixItems": [
+        {"$ref": "#/$defs/armA"},
+        {"$ref": "#/$defs/armB"},
+        {"$ref": "#/$defs/armC"},
+        {"$ref": "#/$defs/armD"}
+      ],
+      "items": false,
+      "minItems": 4,
+      "maxItems": 4,
+      "uniqueItems": true
+    },
+    "paired_comparisons": {"$ref": "#/$defs/pairedComparisonMap"},
+    "task_families": {
+      "type": "array",
+      "prefixItems": [
+        {"$ref": "#/$defs/taskFamilyLedgerConstruction"},
+        {"$ref": "#/$defs/taskFamilyContinuityReasoning"},
+        {"$ref": "#/$defs/taskFamilyReplyComposition"}
+      ],
+      "items": false,
+      "minItems": 3,
+      "maxItems": 3,
+      "uniqueItems": true
+    },
+    "ledger_measurements": {
+      "$ref": "#/$defs/ledgerMeasurementList"
+    },
+    "downstream_measurements": {
+      "$ref": "#/$defs/downstreamMeasurementList"
+    },
+    "splitting_and_leakage_controls": {"$ref": "#/$defs/leakageControls"},
+    "freeze_before_provider_calls": {
+      "type": "array",
+      "items": {
+        "enum": [
+          "source_corpus_hashes",
+          "exposure_registry_hash",
+          "split_manifest",
+          "model_profiles",
+          "prompt_texts_and_hashes",
+          "response_schemas",
+          "token_budgets",
+          "randomisation",
+          "adjudication_rubric",
+          "success_thresholds",
+          "failure_thresholds",
+          "blinding_method",
+          "unblinding_sequence",
+          "arm_b_budget_tolerance"
+        ]
+      },
+      "minItems": 14,
+      "maxItems": 14,
+      "uniqueItems": true
+    },
+    "randomisation": {"$ref": "#/$defs/randomisation"},
+    "adjudication": {"$ref": "#/$defs/adjudication"},
+    "success_thresholds": {"$ref": "#/$defs/thresholdPlan"},
+    "failure_thresholds": {"$ref": "#/$defs/thresholdPlan"},
+    "blinding": {"$ref": "#/$defs/blinding"},
+    "resource_measurement": {
+      "type": "array",
+      "items": {"enum": ["provider_calls", "input_tokens", "output_tokens", "latency_ms", "cost_minor_units"]},
+      "minItems": 5,
+      "uniqueItems": true
+    },
+    "execution_sequence": {
+      "type": "array",
+      "items": {"type": "string", "minLength": 1},
+      "minItems": 5
+    },
+    "limitations": {
+      "type": "array",
+      "items": {"type": "string", "minLength": 1}
+    }
+  },
+  "allOf": [
+    {
+      "if": {
+        "properties": {"protocol_status": {"const": "frozen"}},
+        "required": ["protocol_status"]
+      },
+      "then": {
+        "properties": {
+          "corpus_policy": {
+            "properties": {
+              "source_manifest_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+              "exposure_registry_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"}
+            }
+          },
+          "arms": {
+            "prefixItems": [
+              {},
+              {
+                "properties": {
+                  "equal_budget_control": {
+                    "properties": {
+                      "tolerance_status": {"const": "frozen"},
+                      "maximum_relative_difference": {"type": "number", "minimum": 0, "maximum": 1}
+                    }
+                  }
+                }
+              },
+              {},
+              {}
+            ]
+          },
+          "randomisation": {
+            "properties": {
+              "status": {"const": "frozen"},
+              "seed_commitment": {"type": "string", "pattern": "^[0-9a-f]{64}$"}
+            }
+          },
+          "adjudication": {"properties": {"rubric_status": {"const": "frozen"}}},
+          "success_thresholds": {"properties": {"status": {"const": "frozen"}}},
+          "failure_thresholds": {"properties": {"status": {"const": "frozen"}}},
+          "blinding": {"properties": {"status": {"const": "frozen"}}}
+        }
+      }
+    }
+  ],
+  "$defs": {
+    "sha256OrPending": {
+      "oneOf": [
+        {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+        {"const": "pending_phase2_freeze"}
+      ]
+    },
+    "corpusPolicy": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "source_manifest_sha256",
+        "exposure_registry_sha256",
+        "allowed_reconstruction_grades",
+        "primary_analysis_reconstruction_grades",
+        "secondary_robustness_reconstruction_grades",
+        "grade_b_analysis_policy",
+        "split_unit",
+        "author_grouping",
+        "previously_seen_policy",
+        "held_out_policy",
+        "synthetic_policy"
+      ],
+      "properties": {
+        "source_manifest_sha256": {"$ref": "#/$defs/sha256OrPending"},
+        "exposure_registry_sha256": {"$ref": "#/$defs/sha256OrPending"},
+        "allowed_reconstruction_grades": {
+          "type": "array",
+          "prefixItems": [{"const": "A"}, {"const": "B"}],
+          "items": false,
+          "minItems": 2,
+          "maxItems": 2,
+          "uniqueItems": true
+        },
+        "primary_analysis_reconstruction_grades": {
+          "type": "array",
+          "prefixItems": [{"const": "A"}],
+          "items": false,
+          "minItems": 1,
+          "maxItems": 1,
+          "uniqueItems": true
+        },
+        "secondary_robustness_reconstruction_grades": {
+          "type": "array",
+          "prefixItems": [{"const": "B"}],
+          "items": false,
+          "minItems": 1,
+          "maxItems": 1,
+          "uniqueItems": true
+        },
+        "grade_b_analysis_policy": {"const": "separate_secondary_robustness_never_pooled_with_or_promoted_to_primary"},
+        "split_unit": {"const": "whole_conversation"},
+        "author_grouping": {"enum": ["required_where_comparable_pseudonym_exists", "not_feasible"]},
+        "previously_seen_policy": {"const": "development_or_calibration_only"},
+        "held_out_policy": {"const": "select_only_after_protocol_freeze_without_opening_in_phase1"},
+        "synthetic_policy": {"const": "schema_validation_only_never_historical_test_cases"}
+      }
+    },
+    "targetPrefixPolicy": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["same_prefix_all_arms", "future_turns_forbidden", "prefix_ends_at_target", "complete_branch_required", "sibling_branch_policy"],
+      "properties": {
+        "same_prefix_all_arms": {"const": true},
+        "future_turns_forbidden": {"const": true},
+        "prefix_ends_at_target": {"const": true},
+        "complete_branch_required": {"const": true},
+        "sibling_branch_policy": {"enum": ["exclude_unless_visible_and_predeclared", "include_visible_context_with_explicit_graph_refs"]}
+      }
+    },
+    "armBase": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["arm_id", "label", "transcript_prefix", "additional_representation", "future_information_allowed", "population"],
+      "properties": {
+        "arm_id": {"enum": ["A", "B", "C", "D"]},
+        "label": {"type": "string", "minLength": 1},
+        "transcript_prefix": {"const": "exact_target_bounded_transcript"},
+        "additional_representation": {"enum": ["none", "ordinary_summary", "machine_proposition_ledger", "human_corrected_proposition_ledger"]},
+        "future_information_allowed": {"const": false},
+        "population": {"enum": ["full_frozen_evaluation_sample", "smaller_adjudicated_subset"]},
+        "budget_rule": {"type": "string", "minLength": 1},
+        "neutral_summary_policy": {"const": "neutral_conversation_summary_without_ledger_fields_outcome_labels_or_condition_cues"},
+        "equal_budget_control": {"$ref": "#/$defs/equalBudgetControl"}
+      }
+    },
+    "armA": {
+      "allOf": [
+        {"$ref": "#/$defs/armBase"},
+        {
+          "properties": {
+            "arm_id": {"const": "A"},
+            "label": {"const": "transcript only"},
+            "additional_representation": {"const": "none"},
+            "population": {"const": "full_frozen_evaluation_sample"}
+          }
+        }
+      ]
+    },
+    "armB": {
+      "allOf": [
+        {"$ref": "#/$defs/armBase"},
+        {
+          "required": ["budget_rule", "neutral_summary_policy", "equal_budget_control"],
+          "properties": {
+            "arm_id": {"const": "B"},
+            "label": {"const": "transcript plus equal-budget ordinary summary"},
+            "additional_representation": {"const": "ordinary_summary"},
+            "population": {"const": "full_frozen_evaluation_sample"}
+          }
+        }
+      ]
+    },
+    "armC": {
+      "allOf": [
+        {"$ref": "#/$defs/armBase"},
+        {
+          "required": ["budget_rule"],
+          "properties": {
+            "arm_id": {"const": "C"},
+            "label": {"const": "transcript plus machine proposition ledger"},
+            "additional_representation": {"const": "machine_proposition_ledger"},
+            "population": {"const": "full_frozen_evaluation_sample"}
+          }
+        }
+      ]
+    },
+    "armD": {
+      "allOf": [
+        {"$ref": "#/$defs/armBase"},
+        {
+          "required": ["budget_rule"],
+          "properties": {
+            "arm_id": {"const": "D"},
+            "label": {"const": "transcript plus human-corrected proposition ledger"},
+            "additional_representation": {"const": "human_corrected_proposition_ledger"},
+            "population": {"const": "smaller_adjudicated_subset"}
+          }
+        }
+      ]
+    },
+    "equalBudgetControl": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "reference_arm_id",
+        "budget_unit",
+        "approximately_equal",
+        "tolerance_status",
+        "maximum_relative_difference",
+        "freeze_gate"
+      ],
+      "properties": {
+        "reference_arm_id": {"const": "C"},
+        "budget_unit": {"const": "additional_representation_tokens_per_target_prefix"},
+        "approximately_equal": {"const": true},
+        "tolerance_status": {"enum": ["pending_phase2_freeze", "frozen"]},
+        "maximum_relative_difference": {
+          "oneOf": [
+            {"const": "pending_phase2_freeze"},
+            {"type": "number", "minimum": 0, "maximum": 1}
+          ]
+        },
+        "freeze_gate": {"const": "freeze_before_any_provider_call"}
+      },
+      "allOf": [
+        {
+          "if": {"properties": {"tolerance_status": {"const": "pending_phase2_freeze"}}},
+          "then": {"properties": {"maximum_relative_difference": {"const": "pending_phase2_freeze"}}}
+        },
+        {
+          "if": {"properties": {"tolerance_status": {"const": "frozen"}}},
+          "then": {"properties": {"maximum_relative_difference": {"type": "number", "minimum": 0, "maximum": 1}}}
+        }
+      ]
+    },
+    "pairedComparisonMap": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["A_vs_B", "A_vs_C", "B_vs_C", "A_vs_D", "B_vs_D", "C_vs_D"],
+      "properties": {
+        "A_vs_B": {"$ref": "#/$defs/comparisonAvsB"},
+        "A_vs_C": {"$ref": "#/$defs/comparisonAvsC"},
+        "B_vs_C": {"$ref": "#/$defs/comparisonBvsC"},
+        "A_vs_D": {"$ref": "#/$defs/comparisonAvsD"},
+        "B_vs_D": {"$ref": "#/$defs/comparisonBvsD"},
+        "C_vs_D": {"$ref": "#/$defs/comparisonCvsD"}
+      }
+    },
+    "pairedComparison": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "comparison_id",
+        "left_arm_id",
+        "right_arm_id",
+        "population",
+        "pairing_key",
+        "paired_within_target_prefix",
+        "analysis_role",
+        "task_family_ids",
+        "estimand",
+        "purpose"
+      ],
+      "properties": {
+        "comparison_id": {"enum": ["A_vs_B", "A_vs_C", "B_vs_C", "A_vs_D", "B_vs_D", "C_vs_D"]},
+        "left_arm_id": {"enum": ["A", "B", "C"]},
+        "right_arm_id": {"enum": ["B", "C", "D"]},
+        "population": {"enum": ["full_frozen_evaluation_sample", "smaller_adjudicated_subset"]},
+        "pairing_key": {"const": "conversation_key_and_target_turn_id"},
+        "paired_within_target_prefix": {"const": true},
+        "analysis_role": {"enum": ["primary", "compression_control", "secondary", "extraction_diagnostic"]},
+        "task_family_ids": {
+          "type": "array",
+          "items": {"enum": ["ledger_construction_accuracy", "continuity_reasoning", "reply_composition_quality"]},
+          "minItems": 1,
+          "uniqueItems": true
+        },
+        "estimand": {"type": "string", "minLength": 1},
+        "purpose": {"type": "string", "minLength": 1}
+      }
+    },
+    "comparisonAvsB": {
+      "allOf": [
+        {"$ref": "#/$defs/pairedComparison"},
+        {
+          "properties": {
+            "comparison_id": {"const": "A_vs_B"},
+            "left_arm_id": {"const": "A"},
+            "right_arm_id": {"const": "B"},
+            "population": {"const": "full_frozen_evaluation_sample"},
+            "analysis_role": {"const": "compression_control"},
+            "task_family_ids": {
+              "prefixItems": [{"const": "continuity_reasoning"}, {"const": "reply_composition_quality"}],
+              "items": false,
+              "minItems": 2,
+              "maxItems": 2
+            }
+          }
+        }
+      ]
+    },
+    "comparisonAvsC": {
+      "allOf": [
+        {"$ref": "#/$defs/pairedComparison"},
+        {
+          "properties": {
+            "comparison_id": {"const": "A_vs_C"},
+            "left_arm_id": {"const": "A"},
+            "right_arm_id": {"const": "C"},
+            "population": {"const": "full_frozen_evaluation_sample"},
+            "analysis_role": {"const": "primary"},
+            "task_family_ids": {
+              "prefixItems": [{"const": "continuity_reasoning"}, {"const": "reply_composition_quality"}],
+              "items": false,
+              "minItems": 2,
+              "maxItems": 2
+            }
+          }
+        }
+      ]
+    },
+    "comparisonBvsC": {
+      "allOf": [
+        {"$ref": "#/$defs/pairedComparison"},
+        {
+          "properties": {
+            "comparison_id": {"const": "B_vs_C"},
+            "left_arm_id": {"const": "B"},
+            "right_arm_id": {"const": "C"},
+            "population": {"const": "full_frozen_evaluation_sample"},
+            "analysis_role": {"const": "primary"},
+            "task_family_ids": {
+              "prefixItems": [{"const": "continuity_reasoning"}, {"const": "reply_composition_quality"}],
+              "items": false,
+              "minItems": 2,
+              "maxItems": 2
+            }
+          }
+        }
+      ]
+    },
+    "comparisonAvsD": {
+      "allOf": [
+        {"$ref": "#/$defs/pairedComparison"},
+        {
+          "properties": {
+            "comparison_id": {"const": "A_vs_D"},
+            "left_arm_id": {"const": "A"},
+            "right_arm_id": {"const": "D"},
+            "population": {"const": "smaller_adjudicated_subset"},
+            "analysis_role": {"const": "primary"},
+            "task_family_ids": {
+              "prefixItems": [{"const": "continuity_reasoning"}, {"const": "reply_composition_quality"}],
+              "items": false,
+              "minItems": 2,
+              "maxItems": 2
+            }
+          }
+        }
+      ]
+    },
+    "comparisonBvsD": {
+      "allOf": [
+        {"$ref": "#/$defs/pairedComparison"},
+        {
+          "properties": {
+            "comparison_id": {"const": "B_vs_D"},
+            "left_arm_id": {"const": "B"},
+            "right_arm_id": {"const": "D"},
+            "population": {"const": "smaller_adjudicated_subset"},
+            "analysis_role": {"const": "secondary"},
+            "task_family_ids": {
+              "prefixItems": [{"const": "continuity_reasoning"}, {"const": "reply_composition_quality"}],
+              "items": false,
+              "minItems": 2,
+              "maxItems": 2
+            }
+          }
+        }
+      ]
+    },
+    "comparisonCvsD": {
+      "allOf": [
+        {"$ref": "#/$defs/pairedComparison"},
+        {
+          "properties": {
+            "comparison_id": {"const": "C_vs_D"},
+            "left_arm_id": {"const": "C"},
+            "right_arm_id": {"const": "D"},
+            "population": {"const": "smaller_adjudicated_subset"},
+            "analysis_role": {"const": "extraction_diagnostic"},
+            "task_family_ids": {
+              "prefixItems": [
+                {"const": "ledger_construction_accuracy"},
+                {"const": "continuity_reasoning"},
+                {"const": "reply_composition_quality"}
+              ],
+              "items": false,
+              "minItems": 3,
+              "maxItems": 3
+            }
+          }
+        }
+      ]
+    },
+    "taskFamily": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["task_id", "label", "scored_separately", "inputs", "outputs"],
+      "properties": {
+        "task_id": {"enum": ["ledger_construction_accuracy", "continuity_reasoning", "reply_composition_quality"]},
+        "label": {"type": "string", "minLength": 1},
+        "scored_separately": {"const": true},
+        "inputs": {"type": "array", "items": {"type": "string", "minLength": 1}, "minItems": 1},
+        "outputs": {"type": "array", "items": {"type": "string", "minLength": 1}, "minItems": 1}
+      }
+    },
+    "taskFamilyLedgerConstruction": {
+      "allOf": [
+        {"$ref": "#/$defs/taskFamily"},
+        {"properties": {"task_id": {"const": "ledger_construction_accuracy"}, "label": {"const": "Ledger construction accuracy"}}}
+      ]
+    },
+    "taskFamilyContinuityReasoning": {
+      "allOf": [
+        {"$ref": "#/$defs/taskFamily"},
+        {"properties": {"task_id": {"const": "continuity_reasoning"}, "label": {"const": "Reply/no-reply and continuity reasoning"}}}
+      ]
+    },
+    "taskFamilyReplyComposition": {
+      "allOf": [
+        {"$ref": "#/$defs/taskFamily"},
+        {"properties": {"task_id": {"const": "reply_composition_quality"}, "label": {"const": "Reply composition quality"}}}
+      ]
+    },
+    "measurement": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["measurement_id", "direction", "unit", "adjudication_source"],
+      "properties": {
+        "measurement_id": {"type": "string", "minLength": 1},
+        "direction": {"enum": ["higher_better", "lower_better", "descriptive"]},
+        "unit": {"type": "string", "minLength": 1},
+        "adjudication_source": {"enum": ["deterministic_validator", "blinded_human", "provider_telemetry", "combined"]}
+      }
+    },
+    "ledgerMeasurement": {
+      "allOf": [
+        {"$ref": "#/$defs/measurement"},
+        {
+          "properties": {
+            "measurement_id": {
+              "enum": [
+                "proposition_precision",
+                "proposition_recall",
+                "speaker_attribution_accuracy",
+                "polarity_accuracy",
+                "modality_accuracy",
+                "issue_state_accuracy",
+                "commitment_accuracy",
+                "obligation_accuracy",
+                "proposition_relation_accuracy",
+                "invented_proposition_rate",
+                "missed_live_proposition_rate",
+                "compound_collapse_rate",
+                "future_information_leakage_count",
+                "incremental_consistency",
+                "state_size_per_turn"
+              ]
+            }
+          }
+        }
+      ]
+    },
+    "downstreamMeasurement": {
+      "allOf": [
+        {"$ref": "#/$defs/measurement"},
+        {
+          "properties": {
+            "measurement_id": {
+              "enum": [
+                "proposition_substitution_rate",
+                "missed_answer_rate",
+                "ignored_correction_rate",
+                "ignored_clarification_rate",
+                "unnecessary_reply_rate",
+                "direct_question_completion",
+                "conversational_progression_score",
+                "factual_safety_regressions",
+                "premise_authentication_regressions",
+                "unsupported_claim_rate",
+                "human_paired_preference",
+                "provider_calls",
+                "tokens",
+                "latency",
+                "cost"
+              ]
+            }
+          }
+        }
+      ]
+    },
+    "ledgerMeasurementList": {
+      "type": "array",
+      "items": {"$ref": "#/$defs/ledgerMeasurement"},
+      "minItems": 15,
+      "maxItems": 15,
+      "uniqueItems": true,
+      "allOf": [
+        {"contains": {"properties": {"measurement_id": {"const": "proposition_precision"}}, "required": ["measurement_id"]}},
+        {"contains": {"properties": {"measurement_id": {"const": "proposition_recall"}}, "required": ["measurement_id"]}},
+        {"contains": {"properties": {"measurement_id": {"const": "speaker_attribution_accuracy"}}, "required": ["measurement_id"]}},
+        {"contains": {"properties": {"measurement_id": {"const": "polarity_accuracy"}}, "required": ["measurement_id"]}},
+        {"contains": {"properties": {"measurement_id": {"const": "modality_accuracy"}}, "required": ["measurement_id"]}},
+        {"contains": {"properties": {"measurement_id": {"const": "issue_state_accuracy"}}, "required": ["measurement_id"]}},
+        {"contains": {"properties": {"measurement_id": {"const": "commitment_accuracy"}}, "required": ["measurement_id"]}},
+        {"contains": {"properties": {"measurement_id": {"const": "obligation_accuracy"}}, "required": ["measurement_id"]}},
+        {"contains": {"properties": {"measurement_id": {"const": "proposition_relation_accuracy"}}, "required": ["measurement_id"]}},
+        {"contains": {"properties": {"measurement_id": {"const": "invented_proposition_rate"}}, "required": ["measurement_id"]}},
+        {"contains": {"properties": {"measurement_id": {"const": "missed_live_proposition_rate"}}, "required": ["measurement_id"]}},
+        {"contains": {"properties": {"measurement_id": {"const": "compound_collapse_rate"}}, "required": ["measurement_id"]}},
+        {"contains": {"properties": {"measurement_id": {"const": "future_information_leakage_count"}}, "required": ["measurement_id"]}},
+        {"contains": {"properties": {"measurement_id": {"const": "incremental_consistency"}}, "required": ["measurement_id"]}},
+        {"contains": {"properties": {"measurement_id": {"const": "state_size_per_turn"}}, "required": ["measurement_id"]}}
+      ]
+    },
+    "downstreamMeasurementList": {
+      "type": "array",
+      "items": {"$ref": "#/$defs/downstreamMeasurement"},
+      "minItems": 15,
+      "maxItems": 15,
+      "uniqueItems": true,
+      "allOf": [
+        {"contains": {"properties": {"measurement_id": {"const": "proposition_substitution_rate"}}, "required": ["measurement_id"]}},
+        {"contains": {"properties": {"measurement_id": {"const": "missed_answer_rate"}}, "required": ["measurement_id"]}},
+        {"contains": {"properties": {"measurement_id": {"const": "ignored_correction_rate"}}, "required": ["measurement_id"]}},
+        {"contains": {"properties": {"measurement_id": {"const": "ignored_clarification_rate"}}, "required": ["measurement_id"]}},
+        {"contains": {"properties": {"measurement_id": {"const": "unnecessary_reply_rate"}}, "required": ["measurement_id"]}},
+        {"contains": {"properties": {"measurement_id": {"const": "direct_question_completion"}}, "required": ["measurement_id"]}},
+        {"contains": {"properties": {"measurement_id": {"const": "conversational_progression_score"}}, "required": ["measurement_id"]}},
+        {"contains": {"properties": {"measurement_id": {"const": "factual_safety_regressions"}}, "required": ["measurement_id"]}},
+        {"contains": {"properties": {"measurement_id": {"const": "premise_authentication_regressions"}}, "required": ["measurement_id"]}},
+        {"contains": {"properties": {"measurement_id": {"const": "unsupported_claim_rate"}}, "required": ["measurement_id"]}},
+        {"contains": {"properties": {"measurement_id": {"const": "human_paired_preference"}}, "required": ["measurement_id"]}},
+        {"contains": {"properties": {"measurement_id": {"const": "provider_calls"}}, "required": ["measurement_id"]}},
+        {"contains": {"properties": {"measurement_id": {"const": "tokens"}}, "required": ["measurement_id"]}},
+        {"contains": {"properties": {"measurement_id": {"const": "latency"}}, "required": ["measurement_id"]}},
+        {"contains": {"properties": {"measurement_id": {"const": "cost"}}, "required": ["measurement_id"]}}
+      ]
+    },
+    "leakageControls": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["whole_conversation_split", "principal_author_grouping", "previously_labelled_excluded_from_test", "manually_reviewed_excluded_from_test", "final_test_opened_in_phase1", "prompt_tuning_on_test", "future_turn_checks", "exposure_registry_required"],
+      "properties": {
+        "whole_conversation_split": {"const": true},
+        "principal_author_grouping": {"const": "where_cross_record_pseudonym_comparability_is_proven"},
+        "previously_labelled_excluded_from_test": {"const": true},
+        "manually_reviewed_excluded_from_test": {"const": true},
+        "final_test_opened_in_phase1": {"const": false},
+        "prompt_tuning_on_test": {"const": false},
+        "future_turn_checks": {"const": "deterministic_preflight_and_postflight"},
+        "exposure_registry_required": {"const": true}
+      }
+    },
+    "randomisation": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["status", "unit", "seed_commitment", "arm_order_balance", "replicate_policy"],
+      "properties": {
+        "status": {"enum": ["pending_phase2_freeze", "frozen"]},
+        "unit": {"const": "target_prefix_with_conversation_blocking"},
+        "seed_commitment": {"$ref": "#/$defs/sha256OrPending"},
+        "arm_order_balance": {"const": true},
+        "replicate_policy": {"type": "string", "minLength": 1}
+      }
+    },
+    "adjudication": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["rubric_status", "independent_raters", "disagreement_resolution", "ledger_gold_boundary", "arm_d_scope"],
+      "properties": {
+        "rubric_status": {"enum": ["pending_phase2_freeze", "frozen"]},
+        "independent_raters": {"type": "integer", "minimum": 2},
+        "disagreement_resolution": {"type": "string", "minLength": 1},
+        "ledger_gold_boundary": {"const": "human_corrected_subset_only"},
+        "arm_d_scope": {"const": "smaller_adjudicated_subset"}
+      }
+    },
+    "thresholdPlan": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["status", "must_freeze_before_calls", "criteria"],
+      "properties": {
+        "status": {"enum": ["pending_phase2_freeze", "frozen"]},
+        "must_freeze_before_calls": {"const": true},
+        "criteria": {"type": "array", "items": {"type": "string", "minLength": 1}}
+      }
+    },
+    "blinding": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["condition_labels_hidden", "source_identity_hidden_where_safe", "rater_assignment_hidden", "unblinding_sequence", "status"],
+      "properties": {
+        "condition_labels_hidden": {"const": true},
+        "source_identity_hidden_where_safe": {"const": true},
+        "rater_assignment_hidden": {"const": true},
+        "unblinding_sequence": {"type": "array", "items": {"type": "string", "minLength": 1}, "minItems": 3},
+        "status": {"enum": ["pending_phase2_freeze", "frozen"]}
+      }
+    }
+  }
+}

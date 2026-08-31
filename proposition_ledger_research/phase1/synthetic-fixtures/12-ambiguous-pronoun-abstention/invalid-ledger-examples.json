@@ -1,0 +1,457 @@
+{
+  "examples": [
+    {
+      "description": "The ledger guesses Morgan despite the explicit unresolved ambiguity.",
+      "expected_error_code": "unsupported_pronoun_disambiguation",
+      "fixture_id": "12-ambiguous-pronoun-abstention",
+      "invalid_example_id": "guessed-pronoun-referent",
+      "ledger": {
+        "answer_targets": [],
+        "as_of_turn_index": 1,
+        "conversation_key": "synthetic:12-ambiguous-pronoun-abstention",
+        "conversational_obligations": [],
+        "extraction_status": {
+          "abstentions": [
+            "ambiguous_attribution",
+            "unresolved_reference",
+            "unsupported_inference_rejected"
+          ],
+          "status": "partial",
+          "unsupported_inferences_rejected": 2
+        },
+        "issue_states": [
+          {
+            "addressed_participant": "contributor",
+            "answer_requirements": [
+              {
+                "description": "Supply disambiguating context.",
+                "requirement_type": "clarify_reference"
+              }
+            ],
+            "canonical_question": "Who does 'they' refer to: Morgan or Riley?",
+            "confidence": 0.5,
+            "exact_evidence_spans": [
+              {
+                "end_char": 50,
+                "exact_text": "Morgan told Riley that they had misplaced the key.",
+                "start_char": 0,
+                "turn_id": "t0"
+              }
+            ],
+            "initiating_speaker": "contributor",
+            "initiating_turn_id": "t0",
+            "issue_id": "i-pronoun-referent",
+            "issue_type": "clarification",
+            "live_alternatives": [
+              {
+                "alternative_id": "alt-morgan",
+                "label": "The pronoun refers to Morgan.",
+                "proposition_ids": [],
+                "status": "unknown"
+              },
+              {
+                "alternative_id": "alt-riley",
+                "label": "The pronoun refers to Riley.",
+                "proposition_ids": [],
+                "status": "unknown"
+              }
+            ],
+            "related_proposition_ids": [
+              "p-ambiguous-key-report"
+            ],
+            "resolution_turn_id": null,
+            "resolution_type": null,
+            "status": "open"
+          }
+        ],
+        "ledger_id": "ledger-12-ambiguous-pronoun-abstention",
+        "ledger_sha256": "2ae930c5a336f8fb7b034da7f6a9b9003a4bb6845e07da3ba8849c642505693c",
+        "participant_commitments": [
+          {
+            "basis": "uncertain",
+            "commitment_id": "c-reported-ambiguously",
+            "confidence": 0.5,
+            "introduced_at_turn_id": "t0",
+            "last_updated_at_turn_id": "t0",
+            "participant_id": "contributor",
+            "proposition_id": "p-ambiguous-key-report",
+            "stance": "left_uncertain",
+            "uncertainty_reason": "The reported subject is ambiguous."
+          },
+          {
+            "basis": "uncertain",
+            "commitment_id": "c-account-cannot-resolve",
+            "confidence": 1.0,
+            "introduced_at_turn_id": "t1",
+            "last_updated_at_turn_id": "t1",
+            "participant_id": "account",
+            "proposition_id": "p-pronoun-unresolved",
+            "stance": "left_uncertain",
+            "uncertainty_reason": "No disambiguating context is available."
+          }
+        ],
+        "participants": [
+          {
+            "author_key": "synthetic-account",
+            "identity_confidence": 1.0,
+            "participant_id": "account",
+            "role": "account"
+          },
+          {
+            "author_key": "synthetic-contributor",
+            "identity_confidence": 1.0,
+            "participant_id": "contributor",
+            "role": "contributor"
+          },
+          {
+            "author_key": "synthetic-morgan",
+            "identity_confidence": 1.0,
+            "participant_id": "morgan",
+            "role": "reported_source"
+          },
+          {
+            "author_key": "synthetic-riley",
+            "identity_confidence": 1.0,
+            "participant_id": "riley",
+            "role": "reported_source"
+          }
+        ],
+        "previous_ledger_sha256": "691236c559a7020db912845edaa11b9419051cb3eedd0d0b9297b7df19934159",
+        "proposition_groups": [],
+        "proposition_relations": [
+          {
+            "analysis_basis": "direct_semantic_content",
+            "asserted_or_analysed_by": "account",
+            "confidence": 1.0,
+            "exact_evidence_spans": [
+              {
+                "end_char": 51,
+                "exact_text": "I cannot tell whether 'they' means Morgan or Riley.",
+                "start_char": 0,
+                "turn_id": "t1"
+              }
+            ],
+            "introduced_at_turn_id": "t1",
+            "provenance_kind": "transcript_extraction",
+            "relation_id": "r-flags-ambiguity",
+            "relation_type": "clarifies",
+            "source_proposition_ids": [
+              "p-pronoun-unresolved"
+            ],
+            "target_proposition_ids": [
+              "p-ambiguous-key-report"
+            ],
+            "uncertainty_reason": null
+          }
+        ],
+        "propositions": [
+          {
+            "canonical_text": "Morgan had misplaced the key.",
+            "commitment_status": "left_uncertain",
+            "confidence": 1.0,
+            "derivation": {
+              "kind": "anaphora_resolution",
+              "normalisation_note": "Preserves both grammatically available referents without selecting one.",
+              "source_proposition_ids": []
+            },
+            "epistemic_status": "reported_only",
+            "exact_evidence_spans": [
+              {
+                "end_char": 49,
+                "exact_text": "they had misplaced the key",
+                "start_char": 23,
+                "turn_id": "t0"
+              }
+            ],
+            "introduced_at_turn_id": "t0",
+            "lifecycle_status": "introduced",
+            "modality": {
+              "strength": "none",
+              "type": "none"
+            },
+            "original_language": "en",
+            "polarity": "positive",
+            "proposition_group_id": null,
+            "proposition_id": "p-ambiguous-key-report",
+            "proposition_kind": "reported_claim",
+            "quantification": {
+              "surface_marker": null,
+              "type": "none"
+            },
+            "speaker_or_attributor": {
+              "attributed_participant_id": "morgan",
+              "kind": "attributor",
+              "participant_id": "contributor"
+            },
+            "speech_act": "report",
+            "temporal_scope": {
+              "end": null,
+              "start": null,
+              "surface_marker": null,
+              "type": "timeless"
+            },
+            "uncertainty_reason": null
+          },
+          {
+            "canonical_text": "The pronoun's referent cannot be determined from the available context.",
+            "commitment_status": "left_uncertain",
+            "confidence": 1.0,
+            "derivation": {
+              "kind": "direct_span",
+              "normalisation_note": null,
+              "source_proposition_ids": []
+            },
+            "epistemic_status": "uncertain",
+            "exact_evidence_spans": [
+              {
+                "end_char": 51,
+                "exact_text": "I cannot tell whether 'they' means Morgan or Riley.",
+                "start_char": 0,
+                "turn_id": "t1"
+              }
+            ],
+            "introduced_at_turn_id": "t1",
+            "lifecycle_status": "live",
+            "modality": {
+              "strength": "none",
+              "type": "none"
+            },
+            "original_language": "en",
+            "polarity": "positive",
+            "proposition_group_id": null,
+            "proposition_id": "p-pronoun-unresolved",
+            "proposition_kind": "descriptive",
+            "quantification": {
+              "surface_marker": null,
+              "type": "none"
+            },
+            "speaker_or_attributor": {
+              "attributed_participant_id": null,
+              "kind": "speaker",
+              "participant_id": "account"
+            },
+            "speech_act": "assertion",
+            "temporal_scope": {
+              "end": null,
+              "start": null,
+              "surface_marker": null,
+              "type": "timeless"
+            },
+            "uncertainty_reason": "The transcript supplies no disambiguating information."
+          }
+        ],
+        "rejected_answer_targets": [],
+        "repair_records": [],
+        "resolved_items": [],
+        "root_post_id": "synthetic-12-ambiguous-pronoun-abstention-post-0",
+        "schema_version": "proposition-ledger-v1.0.0",
+        "source_completeness": {
+          "account_publication_confirmed": true,
+          "chronology_complete": true,
+          "complete_prefix_through_turn": true,
+          "exact_text_complete": true,
+          "limitations": [
+            "Wholly invented schema fixture; not historical evidence."
+          ],
+          "parent_graph_complete": true,
+          "reconstruction_grade": "A"
+        },
+        "state_transitions": [
+          {
+            "answer_targets_added": [],
+            "answer_targets_updated": [],
+            "commitments_added": [
+              "c-account-cannot-resolve"
+            ],
+            "commitments_updated": [],
+            "current_turn_id": "t1",
+            "current_turn_index": 1,
+            "from_ledger_sha256": "691236c559a7020db912845edaa11b9419051cb3eedd0d0b9297b7df19934159",
+            "issue_states_added": [],
+            "issue_states_updated": [],
+            "items_resolved": [],
+            "obligations_added": [],
+            "obligations_updated": [],
+            "proposition_groups_added": [],
+            "proposition_groups_updated": [],
+            "propositions_added": [
+              "p-pronoun-unresolved"
+            ],
+            "propositions_updated": [],
+            "rejected_answer_targets_added": [],
+            "rejected_answer_targets_updated": [],
+            "relations_added": [
+              "r-flags-ambiguity"
+            ],
+            "repair_records_added": [],
+            "repair_records_updated": [],
+            "state_patch": [
+              {
+                "after_record": {
+                  "parent_turn_id": "t0",
+                  "post_id": "synthetic-12-ambiguous-pronoun-abstention-post-1",
+                  "speaker_id": "account",
+                  "text_sha256": "319fbe610ae04d416c114f19dc50b4788b0f7de232441185a437bd6109d5eef0",
+                  "turn_id": "t1",
+                  "turn_index": 1
+                },
+                "before_record_sha256": null,
+                "collection": "turn_refs",
+                "item_id": "t1",
+                "operation": "add"
+              },
+              {
+                "after_record": {
+                  "canonical_text": "The pronoun's referent cannot be determined from the available context.",
+                  "commitment_status": "left_uncertain",
+                  "confidence": 1.0,
+                  "derivation": {
+                    "kind": "direct_span",
+                    "normalisation_note": null,
+                    "source_proposition_ids": []
+                  },
+                  "epistemic_status": "uncertain",
+                  "exact_evidence_spans": [
+                    {
+                      "end_char": 51,
+                      "exact_text": "I cannot tell whether 'they' means Morgan or Riley.",
+                      "start_char": 0,
+                      "turn_id": "t1"
+                    }
+                  ],
+                  "introduced_at_turn_id": "t1",
+                  "lifecycle_status": "live",
+                  "modality": {
+                    "strength": "none",
+                    "type": "none"
+                  },
+                  "original_language": "en",
+                  "polarity": "positive",
+                  "proposition_group_id": null,
+                  "proposition_id": "p-pronoun-unresolved",
+                  "proposition_kind": "descriptive",
+                  "quantification": {
+                    "surface_marker": null,
+                    "type": "none"
+                  },
+                  "speaker_or_attributor": {
+                    "attributed_participant_id": null,
+                    "kind": "speaker",
+                    "participant_id": "account"
+                  },
+                  "speech_act": "assertion",
+                  "temporal_scope": {
+                    "end": null,
+                    "start": null,
+                    "surface_marker": null,
+                    "type": "timeless"
+                  },
+                  "uncertainty_reason": "The transcript supplies no disambiguating information."
+                },
+                "before_record_sha256": null,
+                "collection": "propositions",
+                "item_id": "p-pronoun-unresolved",
+                "operation": "add"
+              },
+              {
+                "after_record": {
+                  "basis": "uncertain",
+                  "commitment_id": "c-account-cannot-resolve",
+                  "confidence": 1.0,
+                  "introduced_at_turn_id": "t1",
+                  "last_updated_at_turn_id": "t1",
+                  "participant_id": "account",
+                  "proposition_id": "p-pronoun-unresolved",
+                  "stance": "left_uncertain",
+                  "uncertainty_reason": "No disambiguating context is available."
+                },
+                "before_record_sha256": null,
+                "collection": "participant_commitments",
+                "item_id": "c-account-cannot-resolve",
+                "operation": "add"
+              },
+              {
+                "after_record": {
+                  "analysis_basis": "direct_semantic_content",
+                  "asserted_or_analysed_by": "account",
+                  "confidence": 1.0,
+                  "exact_evidence_spans": [
+                    {
+                      "end_char": 51,
+                      "exact_text": "I cannot tell whether 'they' means Morgan or Riley.",
+                      "start_char": 0,
+                      "turn_id": "t1"
+                    }
+                  ],
+                  "introduced_at_turn_id": "t1",
+                  "provenance_kind": "transcript_extraction",
+                  "relation_id": "r-flags-ambiguity",
+                  "relation_type": "clarifies",
+                  "source_proposition_ids": [
+                    "p-pronoun-unresolved"
+                  ],
+                  "target_proposition_ids": [
+                    "p-ambiguous-key-report"
+                  ],
+                  "uncertainty_reason": null
+                },
+                "before_record_sha256": null,
+                "collection": "proposition_relations",
+                "item_id": "r-flags-ambiguity",
+                "operation": "add"
+              }
+            ],
+            "transition_id": "transition-t1",
+            "warnings_added": []
+          }
+        ],
+        "target_turn_id": "t1",
+        "turn_refs": [
+          {
+            "parent_turn_id": null,
+            "post_id": "synthetic-12-ambiguous-pronoun-abstention-post-0",
+            "speaker_id": "contributor",
+            "text_sha256": "50be4e2543e208740aeabd7952df162a1e255d55c11e26226e2faa4757212f9a",
+            "turn_id": "t0",
+            "turn_index": 0
+          },
+          {
+            "parent_turn_id": "t0",
+            "post_id": "synthetic-12-ambiguous-pronoun-abstention-post-1",
+            "speaker_id": "account",
+            "text_sha256": "319fbe610ae04d416c114f19dc50b4788b0f7de232441185a437bd6109d5eef0",
+            "turn_id": "t1",
+            "turn_index": 1
+          }
+        ],
+        "unresolved_items": [
+          {
+            "first_opened_at_turn_id": "t0",
+            "item_id": "p-ambiguous-key-report",
+            "item_type": "proposition",
+            "reason": "The report's subject remains ambiguous."
+          },
+          {
+            "first_opened_at_turn_id": "t0",
+            "item_id": "i-pronoun-referent",
+            "item_type": "issue",
+            "reason": "No referent can be selected from the available context."
+          }
+        ],
+        "warnings": [
+          {
+            "code": "ambiguous_attribution",
+            "introduced_at_turn_id": "t0",
+            "message": "The pronoun cannot be assigned to Morgan or Riley from the transcript prefix.",
+            "severity": "warning",
+            "warning_id": "w-ambiguous-pronoun"
+          }
+        ]
+      },
+      "violation_kind": "semantic_invariant"
+    }
+  ],
+  "fixture_format_version": "proposition-ledger-synthetic-fixture-v1",
+  "fixture_id": "12-ambiguous-pronoun-abstention",
+  "synthetic": true
+}

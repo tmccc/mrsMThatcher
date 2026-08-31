@@ -1,0 +1,836 @@
+{
+  "answer_targets": [
+    {
+      "answer_target_id": "at-referent",
+      "confidence": 1.0,
+      "issue_ids": [
+        "i-referent-it"
+      ],
+      "proposition_ids": [
+        "p-it-has-referent"
+      ],
+      "reply_turn_id": "t2",
+      "selected_at_turn_id": "t2",
+      "target_status": "confirmed"
+    }
+  ],
+  "as_of_turn_index": 2,
+  "conversation_key": "synthetic:09-clarification-then-answer",
+  "conversational_obligations": [
+    {
+      "confidence": 1.0,
+      "created_by_turn_id": "t1",
+      "expiry_policy": "on_issue_resolution",
+      "obligation_id": "o-clarify-it",
+      "obligation_type": "requested_clarification",
+      "owed_by_participant": "contributor",
+      "owed_to_participant": "account",
+      "related_issue_ids": [
+        "i-referent-it"
+      ],
+      "related_proposition_ids": [
+        "p-it-has-referent"
+      ],
+      "resolved_by_turn_id": "t2",
+      "status": "satisfied"
+    }
+  ],
+  "extraction_status": {
+    "abstentions": [],
+    "status": "complete",
+    "unsupported_inferences_rejected": 0
+  },
+  "issue_states": [
+    {
+      "addressed_participant": "contributor",
+      "answer_requirements": [
+        {
+          "description": "Supply the referent of 'it'.",
+          "requirement_type": "clarify_reference"
+        }
+      ],
+      "canonical_question": "What does 'it' refer to?",
+      "confidence": 1.0,
+      "exact_evidence_spans": [
+        {
+          "end_char": 24,
+          "exact_text": "What does 'it' refer to?",
+          "start_char": 0,
+          "turn_id": "t1"
+        }
+      ],
+      "initiating_speaker": "account",
+      "initiating_turn_id": "t1",
+      "issue_id": "i-referent-it",
+      "issue_type": "clarification",
+      "live_alternatives": [],
+      "related_proposition_ids": [
+        "p-it-has-referent",
+        "p-it-refers-to-process"
+      ],
+      "resolution_turn_id": "t2",
+      "resolution_type": "direct_answer",
+      "status": "answered"
+    }
+  ],
+  "ledger_id": "ledger-09-clarification-then-answer",
+  "ledger_sha256": "2dcecc0a649693a99aa63f55063f5385545c507dd3900e5eb292fd00212f96ee",
+  "participant_commitments": [
+    {
+      "basis": "explicit_speech_act",
+      "commitment_id": "c-fairer",
+      "confidence": 1.0,
+      "introduced_at_turn_id": "t0",
+      "last_updated_at_turn_id": "t0",
+      "participant_id": "contributor",
+      "proposition_id": "p-board-made-process-fairer",
+      "stance": "asserted",
+      "uncertainty_reason": null
+    },
+    {
+      "basis": "explicit_speech_act",
+      "commitment_id": "c-referent-question",
+      "confidence": 1.0,
+      "introduced_at_turn_id": "t1",
+      "last_updated_at_turn_id": "t1",
+      "participant_id": "account",
+      "proposition_id": "p-it-has-referent",
+      "stance": "questioned",
+      "uncertainty_reason": null
+    },
+    {
+      "basis": "explicit_speech_act",
+      "commitment_id": "c-referent-answer",
+      "confidence": 1.0,
+      "introduced_at_turn_id": "t2",
+      "last_updated_at_turn_id": "t2",
+      "participant_id": "contributor",
+      "proposition_id": "p-it-refers-to-process",
+      "stance": "asserted",
+      "uncertainty_reason": null
+    }
+  ],
+  "participants": [
+    {
+      "author_key": "synthetic-account",
+      "identity_confidence": 1.0,
+      "participant_id": "account",
+      "role": "account"
+    },
+    {
+      "author_key": "synthetic-contributor",
+      "identity_confidence": 1.0,
+      "participant_id": "contributor",
+      "role": "contributor"
+    }
+  ],
+  "previous_ledger_sha256": "df26a86e5defa699cb5ee5ab473b92d2709e1b3926795ead4b1bbec79cf19209",
+  "proposition_groups": [],
+  "proposition_relations": [
+    {
+      "analysis_basis": "direct_semantic_content",
+      "asserted_or_analysed_by": "contributor",
+      "confidence": 1.0,
+      "exact_evidence_spans": [
+        {
+          "end_char": 26,
+          "exact_text": "The permit appeal process.",
+          "start_char": 0,
+          "turn_id": "t2"
+        }
+      ],
+      "introduced_at_turn_id": "t2",
+      "provenance_kind": "transcript_extraction",
+      "relation_id": "r-answer-referent",
+      "relation_type": "answers",
+      "source_proposition_ids": [
+        "p-it-refers-to-process"
+      ],
+      "target_proposition_ids": [
+        "p-it-has-referent"
+      ],
+      "uncertainty_reason": null
+    },
+    {
+      "analysis_basis": "direct_semantic_content",
+      "asserted_or_analysed_by": "contributor",
+      "confidence": 1.0,
+      "exact_evidence_spans": [
+        {
+          "end_char": 26,
+          "exact_text": "The permit appeal process.",
+          "start_char": 0,
+          "turn_id": "t2"
+        }
+      ],
+      "introduced_at_turn_id": "t2",
+      "provenance_kind": "transcript_extraction",
+      "relation_id": "r-clarifies-fairer",
+      "relation_type": "clarifies",
+      "source_proposition_ids": [
+        "p-it-refers-to-process"
+      ],
+      "target_proposition_ids": [
+        "p-board-made-process-fairer"
+      ],
+      "uncertainty_reason": null
+    }
+  ],
+  "propositions": [
+    {
+      "canonical_text": "The new board made the permit appeal process fairer.",
+      "commitment_status": "speaker_committed",
+      "confidence": 1.0,
+      "derivation": {
+        "kind": "anaphora_resolution",
+        "normalisation_note": "The final-turn answer supplies the previously unresolved referent of 'it'.",
+        "source_proposition_ids": [
+          "p-it-refers-to-process"
+        ]
+      },
+      "epistemic_status": "asserted",
+      "exact_evidence_spans": [
+        {
+          "end_char": 29,
+          "exact_text": "The new board made it fairer.",
+          "start_char": 0,
+          "turn_id": "t0"
+        },
+        {
+          "end_char": 26,
+          "exact_text": "The permit appeal process.",
+          "start_char": 0,
+          "turn_id": "t2"
+        }
+      ],
+      "introduced_at_turn_id": "t0",
+      "lifecycle_status": "qualified",
+      "modality": {
+        "strength": "none",
+        "type": "none"
+      },
+      "original_language": "en",
+      "polarity": "positive",
+      "proposition_group_id": null,
+      "proposition_id": "p-board-made-process-fairer",
+      "proposition_kind": "comparative",
+      "quantification": {
+        "surface_marker": null,
+        "type": "none"
+      },
+      "speaker_or_attributor": {
+        "attributed_participant_id": null,
+        "kind": "speaker",
+        "participant_id": "contributor"
+      },
+      "speech_act": "assertion",
+      "temporal_scope": {
+        "end": null,
+        "start": null,
+        "surface_marker": null,
+        "type": "timeless"
+      },
+      "uncertainty_reason": null
+    },
+    {
+      "canonical_text": "The pronoun 'it' has a referent that can be identified.",
+      "commitment_status": "questioned_only",
+      "confidence": 1.0,
+      "derivation": {
+        "kind": "direct_span",
+        "normalisation_note": null,
+        "source_proposition_ids": []
+      },
+      "epistemic_status": "presupposed_only",
+      "exact_evidence_spans": [
+        {
+          "end_char": 24,
+          "exact_text": "What does 'it' refer to?",
+          "start_char": 0,
+          "turn_id": "t1"
+        }
+      ],
+      "introduced_at_turn_id": "t1",
+      "lifecycle_status": "resolved",
+      "modality": {
+        "strength": "none",
+        "type": "none"
+      },
+      "original_language": "en",
+      "polarity": "open",
+      "proposition_group_id": null,
+      "proposition_id": "p-it-has-referent",
+      "proposition_kind": "question_presupposition",
+      "quantification": {
+        "surface_marker": null,
+        "type": "none"
+      },
+      "speaker_or_attributor": {
+        "attributed_participant_id": null,
+        "kind": "speaker",
+        "participant_id": "account"
+      },
+      "speech_act": "question",
+      "temporal_scope": {
+        "end": null,
+        "start": null,
+        "surface_marker": null,
+        "type": "timeless"
+      },
+      "uncertainty_reason": null
+    },
+    {
+      "canonical_text": "The pronoun 'it' refers to the permit appeal process.",
+      "commitment_status": "speaker_committed",
+      "confidence": 1.0,
+      "derivation": {
+        "kind": "direct_span",
+        "normalisation_note": null,
+        "source_proposition_ids": []
+      },
+      "epistemic_status": "asserted",
+      "exact_evidence_spans": [
+        {
+          "end_char": 26,
+          "exact_text": "The permit appeal process.",
+          "start_char": 0,
+          "turn_id": "t2"
+        }
+      ],
+      "introduced_at_turn_id": "t2",
+      "lifecycle_status": "live",
+      "modality": {
+        "strength": "none",
+        "type": "none"
+      },
+      "original_language": "en",
+      "polarity": "positive",
+      "proposition_group_id": null,
+      "proposition_id": "p-it-refers-to-process",
+      "proposition_kind": "definitional",
+      "quantification": {
+        "surface_marker": null,
+        "type": "none"
+      },
+      "speaker_or_attributor": {
+        "attributed_participant_id": null,
+        "kind": "speaker",
+        "participant_id": "contributor"
+      },
+      "speech_act": "assertion",
+      "temporal_scope": {
+        "end": null,
+        "start": null,
+        "surface_marker": null,
+        "type": "timeless"
+      },
+      "uncertainty_reason": null
+    }
+  ],
+  "rejected_answer_targets": [],
+  "repair_records": [],
+  "resolved_items": [
+    {
+      "item_id": "p-it-has-referent",
+      "item_type": "proposition",
+      "resolution_type": "clarification_answer",
+      "resolved_at_turn_id": "t2"
+    },
+    {
+      "item_id": "i-referent-it",
+      "item_type": "issue",
+      "resolution_type": "direct_answer",
+      "resolved_at_turn_id": "t2"
+    },
+    {
+      "item_id": "o-clarify-it",
+      "item_type": "obligation",
+      "resolution_type": "clarification_supplied",
+      "resolved_at_turn_id": "t2"
+    }
+  ],
+  "root_post_id": "synthetic-09-clarification-then-answer-post-0",
+  "schema_version": "proposition-ledger-v1.0.0",
+  "source_completeness": {
+    "account_publication_confirmed": true,
+    "chronology_complete": true,
+    "complete_prefix_through_turn": true,
+    "exact_text_complete": true,
+    "limitations": [
+      "Wholly invented schema fixture; not historical evidence."
+    ],
+    "parent_graph_complete": true,
+    "reconstruction_grade": "A"
+  },
+  "state_transitions": [
+    {
+      "answer_targets_added": [
+        "at-referent"
+      ],
+      "answer_targets_updated": [],
+      "commitments_added": [
+        "c-referent-answer"
+      ],
+      "commitments_updated": [],
+      "current_turn_id": "t2",
+      "current_turn_index": 2,
+      "from_ledger_sha256": "df26a86e5defa699cb5ee5ab473b92d2709e1b3926795ead4b1bbec79cf19209",
+      "issue_states_added": [],
+      "issue_states_updated": [
+        {
+          "from_status": "open",
+          "item_id": "i-referent-it",
+          "reason": "The referent was supplied.",
+          "to_status": "answered"
+        }
+      ],
+      "items_resolved": [
+        "i-referent-it",
+        "o-clarify-it",
+        "p-it-has-referent"
+      ],
+      "obligations_added": [],
+      "obligations_updated": [
+        {
+          "from_status": "open",
+          "item_id": "o-clarify-it",
+          "reason": "Clarification was supplied.",
+          "to_status": "satisfied"
+        }
+      ],
+      "proposition_groups_added": [],
+      "proposition_groups_updated": [],
+      "propositions_added": [
+        "p-it-refers-to-process"
+      ],
+      "propositions_updated": [
+        {
+          "from_status": "introduced",
+          "item_id": "p-board-made-process-fairer",
+          "reason": "The pronoun was resolved by the clarification answer.",
+          "to_status": "qualified"
+        },
+        {
+          "from_status": "live",
+          "item_id": "p-it-has-referent",
+          "reason": "The referent was supplied.",
+          "to_status": "resolved"
+        }
+      ],
+      "rejected_answer_targets_added": [],
+      "rejected_answer_targets_updated": [],
+      "relations_added": [
+        "r-answer-referent",
+        "r-clarifies-fairer"
+      ],
+      "repair_records_added": [],
+      "repair_records_updated": [],
+      "state_patch": [
+        {
+          "after_record": {
+            "parent_turn_id": "t1",
+            "post_id": "synthetic-09-clarification-then-answer-post-2",
+            "speaker_id": "contributor",
+            "text_sha256": "9bb378d79eecedddc1533b081e3e30888d929e6423074db0e61044e1292330d5",
+            "turn_id": "t2",
+            "turn_index": 2
+          },
+          "before_record_sha256": null,
+          "collection": "turn_refs",
+          "item_id": "t2",
+          "operation": "add"
+        },
+        {
+          "after_record": {
+            "canonical_text": "The new board made the permit appeal process fairer.",
+            "commitment_status": "speaker_committed",
+            "confidence": 1.0,
+            "derivation": {
+              "kind": "anaphora_resolution",
+              "normalisation_note": "The final-turn answer supplies the previously unresolved referent of 'it'.",
+              "source_proposition_ids": [
+                "p-it-refers-to-process"
+              ]
+            },
+            "epistemic_status": "asserted",
+            "exact_evidence_spans": [
+              {
+                "end_char": 29,
+                "exact_text": "The new board made it fairer.",
+                "start_char": 0,
+                "turn_id": "t0"
+              },
+              {
+                "end_char": 26,
+                "exact_text": "The permit appeal process.",
+                "start_char": 0,
+                "turn_id": "t2"
+              }
+            ],
+            "introduced_at_turn_id": "t0",
+            "lifecycle_status": "qualified",
+            "modality": {
+              "strength": "none",
+              "type": "none"
+            },
+            "original_language": "en",
+            "polarity": "positive",
+            "proposition_group_id": null,
+            "proposition_id": "p-board-made-process-fairer",
+            "proposition_kind": "comparative",
+            "quantification": {
+              "surface_marker": null,
+              "type": "none"
+            },
+            "speaker_or_attributor": {
+              "attributed_participant_id": null,
+              "kind": "speaker",
+              "participant_id": "contributor"
+            },
+            "speech_act": "assertion",
+            "temporal_scope": {
+              "end": null,
+              "start": null,
+              "surface_marker": null,
+              "type": "timeless"
+            },
+            "uncertainty_reason": null
+          },
+          "before_record_sha256": "15b37bca8fceefee8142830152e00a016fe6e3be7b6f046cd2309aadcb7ee3de",
+          "collection": "propositions",
+          "item_id": "p-board-made-process-fairer",
+          "operation": "replace"
+        },
+        {
+          "after_record": {
+            "canonical_text": "The pronoun 'it' has a referent that can be identified.",
+            "commitment_status": "questioned_only",
+            "confidence": 1.0,
+            "derivation": {
+              "kind": "direct_span",
+              "normalisation_note": null,
+              "source_proposition_ids": []
+            },
+            "epistemic_status": "presupposed_only",
+            "exact_evidence_spans": [
+              {
+                "end_char": 24,
+                "exact_text": "What does 'it' refer to?",
+                "start_char": 0,
+                "turn_id": "t1"
+              }
+            ],
+            "introduced_at_turn_id": "t1",
+            "lifecycle_status": "resolved",
+            "modality": {
+              "strength": "none",
+              "type": "none"
+            },
+            "original_language": "en",
+            "polarity": "open",
+            "proposition_group_id": null,
+            "proposition_id": "p-it-has-referent",
+            "proposition_kind": "question_presupposition",
+            "quantification": {
+              "surface_marker": null,
+              "type": "none"
+            },
+            "speaker_or_attributor": {
+              "attributed_participant_id": null,
+              "kind": "speaker",
+              "participant_id": "account"
+            },
+            "speech_act": "question",
+            "temporal_scope": {
+              "end": null,
+              "start": null,
+              "surface_marker": null,
+              "type": "timeless"
+            },
+            "uncertainty_reason": null
+          },
+          "before_record_sha256": "244ff708425db7f5588782d010b73b07b167ff8d63b5257283deb3bf65ad92c3",
+          "collection": "propositions",
+          "item_id": "p-it-has-referent",
+          "operation": "replace"
+        },
+        {
+          "after_record": {
+            "canonical_text": "The pronoun 'it' refers to the permit appeal process.",
+            "commitment_status": "speaker_committed",
+            "confidence": 1.0,
+            "derivation": {
+              "kind": "direct_span",
+              "normalisation_note": null,
+              "source_proposition_ids": []
+            },
+            "epistemic_status": "asserted",
+            "exact_evidence_spans": [
+              {
+                "end_char": 26,
+                "exact_text": "The permit appeal process.",
+                "start_char": 0,
+                "turn_id": "t2"
+              }
+            ],
+            "introduced_at_turn_id": "t2",
+            "lifecycle_status": "live",
+            "modality": {
+              "strength": "none",
+              "type": "none"
+            },
+            "original_language": "en",
+            "polarity": "positive",
+            "proposition_group_id": null,
+            "proposition_id": "p-it-refers-to-process",
+            "proposition_kind": "definitional",
+            "quantification": {
+              "surface_marker": null,
+              "type": "none"
+            },
+            "speaker_or_attributor": {
+              "attributed_participant_id": null,
+              "kind": "speaker",
+              "participant_id": "contributor"
+            },
+            "speech_act": "assertion",
+            "temporal_scope": {
+              "end": null,
+              "start": null,
+              "surface_marker": null,
+              "type": "timeless"
+            },
+            "uncertainty_reason": null
+          },
+          "before_record_sha256": null,
+          "collection": "propositions",
+          "item_id": "p-it-refers-to-process",
+          "operation": "add"
+        },
+        {
+          "after_record": {
+            "addressed_participant": "contributor",
+            "answer_requirements": [
+              {
+                "description": "Supply the referent of 'it'.",
+                "requirement_type": "clarify_reference"
+              }
+            ],
+            "canonical_question": "What does 'it' refer to?",
+            "confidence": 1.0,
+            "exact_evidence_spans": [
+              {
+                "end_char": 24,
+                "exact_text": "What does 'it' refer to?",
+                "start_char": 0,
+                "turn_id": "t1"
+              }
+            ],
+            "initiating_speaker": "account",
+            "initiating_turn_id": "t1",
+            "issue_id": "i-referent-it",
+            "issue_type": "clarification",
+            "live_alternatives": [],
+            "related_proposition_ids": [
+              "p-it-has-referent",
+              "p-it-refers-to-process"
+            ],
+            "resolution_turn_id": "t2",
+            "resolution_type": "direct_answer",
+            "status": "answered"
+          },
+          "before_record_sha256": "deec0e2092e916431a0f834bc5237e57b6724dd7416fdee9e758e3cf56fc04a7",
+          "collection": "issue_states",
+          "item_id": "i-referent-it",
+          "operation": "replace"
+        },
+        {
+          "after_record": {
+            "basis": "explicit_speech_act",
+            "commitment_id": "c-referent-answer",
+            "confidence": 1.0,
+            "introduced_at_turn_id": "t2",
+            "last_updated_at_turn_id": "t2",
+            "participant_id": "contributor",
+            "proposition_id": "p-it-refers-to-process",
+            "stance": "asserted",
+            "uncertainty_reason": null
+          },
+          "before_record_sha256": null,
+          "collection": "participant_commitments",
+          "item_id": "c-referent-answer",
+          "operation": "add"
+        },
+        {
+          "after_record": {
+            "confidence": 1.0,
+            "created_by_turn_id": "t1",
+            "expiry_policy": "on_issue_resolution",
+            "obligation_id": "o-clarify-it",
+            "obligation_type": "requested_clarification",
+            "owed_by_participant": "contributor",
+            "owed_to_participant": "account",
+            "related_issue_ids": [
+              "i-referent-it"
+            ],
+            "related_proposition_ids": [
+              "p-it-has-referent"
+            ],
+            "resolved_by_turn_id": "t2",
+            "status": "satisfied"
+          },
+          "before_record_sha256": "25deca4fed3ccba944610ff5aa875bb1b29374b298e48d18625a44c474dddc22",
+          "collection": "conversational_obligations",
+          "item_id": "o-clarify-it",
+          "operation": "replace"
+        },
+        {
+          "after_record": {
+            "analysis_basis": "direct_semantic_content",
+            "asserted_or_analysed_by": "contributor",
+            "confidence": 1.0,
+            "exact_evidence_spans": [
+              {
+                "end_char": 26,
+                "exact_text": "The permit appeal process.",
+                "start_char": 0,
+                "turn_id": "t2"
+              }
+            ],
+            "introduced_at_turn_id": "t2",
+            "provenance_kind": "transcript_extraction",
+            "relation_id": "r-answer-referent",
+            "relation_type": "answers",
+            "source_proposition_ids": [
+              "p-it-refers-to-process"
+            ],
+            "target_proposition_ids": [
+              "p-it-has-referent"
+            ],
+            "uncertainty_reason": null
+          },
+          "before_record_sha256": null,
+          "collection": "proposition_relations",
+          "item_id": "r-answer-referent",
+          "operation": "add"
+        },
+        {
+          "after_record": {
+            "analysis_basis": "direct_semantic_content",
+            "asserted_or_analysed_by": "contributor",
+            "confidence": 1.0,
+            "exact_evidence_spans": [
+              {
+                "end_char": 26,
+                "exact_text": "The permit appeal process.",
+                "start_char": 0,
+                "turn_id": "t2"
+              }
+            ],
+            "introduced_at_turn_id": "t2",
+            "provenance_kind": "transcript_extraction",
+            "relation_id": "r-clarifies-fairer",
+            "relation_type": "clarifies",
+            "source_proposition_ids": [
+              "p-it-refers-to-process"
+            ],
+            "target_proposition_ids": [
+              "p-board-made-process-fairer"
+            ],
+            "uncertainty_reason": null
+          },
+          "before_record_sha256": null,
+          "collection": "proposition_relations",
+          "item_id": "r-clarifies-fairer",
+          "operation": "add"
+        },
+        {
+          "after_record": {
+            "answer_target_id": "at-referent",
+            "confidence": 1.0,
+            "issue_ids": [
+              "i-referent-it"
+            ],
+            "proposition_ids": [
+              "p-it-has-referent"
+            ],
+            "reply_turn_id": "t2",
+            "selected_at_turn_id": "t2",
+            "target_status": "confirmed"
+          },
+          "before_record_sha256": null,
+          "collection": "answer_targets",
+          "item_id": "at-referent",
+          "operation": "add"
+        },
+        {
+          "after_record": {
+            "item_id": "i-referent-it",
+            "item_type": "issue",
+            "resolution_type": "direct_answer",
+            "resolved_at_turn_id": "t2"
+          },
+          "before_record_sha256": null,
+          "collection": "resolved_items",
+          "item_id": "issue:i-referent-it",
+          "operation": "add"
+        },
+        {
+          "after_record": {
+            "item_id": "o-clarify-it",
+            "item_type": "obligation",
+            "resolution_type": "clarification_supplied",
+            "resolved_at_turn_id": "t2"
+          },
+          "before_record_sha256": null,
+          "collection": "resolved_items",
+          "item_id": "obligation:o-clarify-it",
+          "operation": "add"
+        },
+        {
+          "after_record": {
+            "item_id": "p-it-has-referent",
+            "item_type": "proposition",
+            "resolution_type": "clarification_answer",
+            "resolved_at_turn_id": "t2"
+          },
+          "before_record_sha256": null,
+          "collection": "resolved_items",
+          "item_id": "proposition:p-it-has-referent",
+          "operation": "add"
+        }
+      ],
+      "transition_id": "transition-t2",
+      "warnings_added": []
+    }
+  ],
+  "target_turn_id": "t2",
+  "turn_refs": [
+    {
+      "parent_turn_id": null,
+      "post_id": "synthetic-09-clarification-then-answer-post-0",
+      "speaker_id": "contributor",
+      "text_sha256": "97e1cb6a1fc4dcefdd23c527f92654f40b6fb056fdd8a5b08b62a07a0e41d2bf",
+      "turn_id": "t0",
+      "turn_index": 0
+    },
+    {
+      "parent_turn_id": "t0",
+      "post_id": "synthetic-09-clarification-then-answer-post-1",
+      "speaker_id": "account",
+      "text_sha256": "509259f5478f3a17a37a386ed2ff3bccc49716e9919fe48eb41fb821a10ac48f",
+      "turn_id": "t1",
+      "turn_index": 1
+    },
+    {
+      "parent_turn_id": "t1",
+      "post_id": "synthetic-09-clarification-then-answer-post-2",
+      "speaker_id": "contributor",
+      "text_sha256": "9bb378d79eecedddc1533b081e3e30888d929e6423074db0e61044e1292330d5",
+      "turn_id": "t2",
+      "turn_index": 2
+    }
+  ],
+  "unresolved_items": [],
+  "warnings": []
+}

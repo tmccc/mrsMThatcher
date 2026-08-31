@@ -1,0 +1,716 @@
+{
+  "examples": [
+    {
+      "description": "The issue is marked answered while the same ledger retains it as explicitly unresolved.",
+      "expected_error_code": "answered_issue_listed_unresolved",
+      "fixture_id": "06-live-counterfactual",
+      "invalid_example_id": "premature-counterfactual-resolution",
+      "ledger": {
+        "answer_targets": [
+          {
+            "answer_target_id": "at-counterfactual",
+            "confidence": 0.9,
+            "issue_ids": [
+              "i-market-counterfactual"
+            ],
+            "proposition_ids": [
+              "p-market-counterfactual"
+            ],
+            "reply_turn_id": "t1",
+            "selected_at_turn_id": "t1",
+            "target_status": "partially_addressed"
+          }
+        ],
+        "as_of_turn_index": 2,
+        "conversation_key": "synthetic:06-live-counterfactual",
+        "conversational_obligations": [
+          {
+            "confidence": 1.0,
+            "created_by_turn_id": "t0",
+            "expiry_policy": "never_implicit",
+            "obligation_id": "o-answer-counterfactual",
+            "obligation_type": "explicit_question",
+            "owed_by_participant": "account",
+            "owed_to_participant": "contributor",
+            "related_issue_ids": [
+              "i-market-counterfactual"
+            ],
+            "related_proposition_ids": [
+              "p-market-counterfactual"
+            ],
+            "resolved_by_turn_id": null,
+            "status": "open"
+          }
+        ],
+        "extraction_status": {
+          "abstentions": [],
+          "status": "complete",
+          "unsupported_inferences_rejected": 0
+        },
+        "issue_states": [
+          {
+            "addressed_participant": "account",
+            "answer_requirements": [
+              {
+                "description": "Address the counterfactual explicitly.",
+                "requirement_type": "yes_no"
+              }
+            ],
+            "canonical_question": "Would the market have continued if the gate had stayed open?",
+            "confidence": 1.0,
+            "exact_evidence_spans": [
+              {
+                "end_char": 61,
+                "exact_text": "If the gate had stayed open, would the market have continued?",
+                "start_char": 0,
+                "turn_id": "t0"
+              }
+            ],
+            "initiating_speaker": "contributor",
+            "initiating_turn_id": "t0",
+            "issue_id": "i-market-counterfactual",
+            "issue_type": "counterfactual",
+            "live_alternatives": [],
+            "related_proposition_ids": [
+              "p-market-counterfactual",
+              "p-attendance-fell"
+            ],
+            "resolution_turn_id": "t1",
+            "resolution_type": "direct_answer",
+            "status": "answered"
+          }
+        ],
+        "ledger_id": "ledger-06-live-counterfactual",
+        "ledger_sha256": "7a511c88ff3a2865fa3066ad838144ee874dc17e5226238c41eda8c2362118e4",
+        "participant_commitments": [
+          {
+            "basis": "explicit_speech_act",
+            "commitment_id": "c-counterfactual-question",
+            "confidence": 1.0,
+            "introduced_at_turn_id": "t0",
+            "last_updated_at_turn_id": "t0",
+            "participant_id": "contributor",
+            "proposition_id": "p-market-counterfactual",
+            "stance": "questioned",
+            "uncertainty_reason": null
+          },
+          {
+            "basis": "explicit_speech_act",
+            "commitment_id": "c-attendance",
+            "confidence": 1.0,
+            "introduced_at_turn_id": "t1",
+            "last_updated_at_turn_id": "t1",
+            "participant_id": "account",
+            "proposition_id": "p-attendance-fell",
+            "stance": "asserted",
+            "uncertainty_reason": null
+          },
+          {
+            "basis": "explicit_speech_act",
+            "commitment_id": "c-evidence",
+            "confidence": 1.0,
+            "introduced_at_turn_id": "t2",
+            "last_updated_at_turn_id": "t2",
+            "participant_id": "contributor",
+            "proposition_id": "p-attendance-is-evidence",
+            "stance": "asserted",
+            "uncertainty_reason": null
+          },
+          {
+            "basis": "explicit_speech_act",
+            "commitment_id": "c-still-live",
+            "confidence": 1.0,
+            "introduced_at_turn_id": "t2",
+            "last_updated_at_turn_id": "t2",
+            "participant_id": "contributor",
+            "proposition_id": "p-counterfactual-still-question",
+            "stance": "asserted",
+            "uncertainty_reason": null
+          }
+        ],
+        "participants": [
+          {
+            "author_key": "synthetic-account",
+            "identity_confidence": 1.0,
+            "participant_id": "account",
+            "role": "account"
+          },
+          {
+            "author_key": "synthetic-contributor",
+            "identity_confidence": 1.0,
+            "participant_id": "contributor",
+            "role": "contributor"
+          }
+        ],
+        "previous_ledger_sha256": "9f9dce6d63fdc7986432b1aa86e2aa411d360413458d3e7cc83733a14929fb07",
+        "proposition_groups": [],
+        "proposition_relations": [
+          {
+            "analysis_basis": "direct_semantic_content",
+            "asserted_or_analysed_by": "contributor",
+            "confidence": 0.9,
+            "exact_evidence_spans": [
+              {
+                "end_char": 16,
+                "exact_text": "That is evidence",
+                "start_char": 0,
+                "turn_id": "t2"
+              }
+            ],
+            "introduced_at_turn_id": "t2",
+            "provenance_kind": "transcript_extraction",
+            "relation_id": "r-evidence-supports-counterfactual",
+            "relation_type": "supports",
+            "source_proposition_ids": [
+              "p-attendance-fell",
+              "p-attendance-is-evidence"
+            ],
+            "target_proposition_ids": [
+              "p-market-counterfactual"
+            ],
+            "uncertainty_reason": null
+          },
+          {
+            "analysis_basis": "human_correction",
+            "asserted_or_analysed_by": "contributor",
+            "confidence": 1.0,
+            "exact_evidence_spans": [
+              {
+                "end_char": 61,
+                "exact_text": "the counterfactual is still my question",
+                "start_char": 22,
+                "turn_id": "t2"
+              }
+            ],
+            "introduced_at_turn_id": "t2",
+            "provenance_kind": "human_correction",
+            "relation_id": "r-evidence-not-answer",
+            "relation_type": "fails_to_answer",
+            "source_proposition_ids": [
+              "p-attendance-fell"
+            ],
+            "target_proposition_ids": [
+              "p-market-counterfactual"
+            ],
+            "uncertainty_reason": null
+          }
+        ],
+        "propositions": [
+          {
+            "canonical_text": "If the gate had stayed open, the market would have continued.",
+            "commitment_status": "questioned_only",
+            "confidence": 1.0,
+            "derivation": {
+              "kind": "direct_span",
+              "normalisation_note": null,
+              "source_proposition_ids": []
+            },
+            "epistemic_status": "hypothetical",
+            "exact_evidence_spans": [
+              {
+                "end_char": 61,
+                "exact_text": "If the gate had stayed open, would the market have continued?",
+                "start_char": 0,
+                "turn_id": "t0"
+              }
+            ],
+            "introduced_at_turn_id": "t0",
+            "lifecycle_status": "live",
+            "modality": {
+              "strength": "unknown",
+              "type": "hypothetical"
+            },
+            "original_language": "en",
+            "polarity": "open",
+            "proposition_group_id": null,
+            "proposition_id": "p-market-counterfactual",
+            "proposition_kind": "counterfactual",
+            "quantification": {
+              "surface_marker": null,
+              "type": "none"
+            },
+            "speaker_or_attributor": {
+              "attributed_participant_id": null,
+              "kind": "speaker",
+              "participant_id": "contributor"
+            },
+            "speech_act": "question",
+            "temporal_scope": {
+              "end": null,
+              "start": null,
+              "surface_marker": "If the gate had stayed open",
+              "type": "counterfactual"
+            },
+            "uncertainty_reason": null
+          },
+          {
+            "canonical_text": "Attendance fell after the gate closed.",
+            "commitment_status": "speaker_committed",
+            "confidence": 1.0,
+            "derivation": {
+              "kind": "direct_span",
+              "normalisation_note": null,
+              "source_proposition_ids": []
+            },
+            "epistemic_status": "asserted",
+            "exact_evidence_spans": [
+              {
+                "end_char": 38,
+                "exact_text": "Attendance fell after the gate closed.",
+                "start_char": 0,
+                "turn_id": "t1"
+              }
+            ],
+            "introduced_at_turn_id": "t1",
+            "lifecycle_status": "live",
+            "modality": {
+              "strength": "none",
+              "type": "none"
+            },
+            "original_language": "en",
+            "polarity": "positive",
+            "proposition_group_id": null,
+            "proposition_id": "p-attendance-fell",
+            "proposition_kind": "descriptive",
+            "quantification": {
+              "surface_marker": null,
+              "type": "none"
+            },
+            "speaker_or_attributor": {
+              "attributed_participant_id": null,
+              "kind": "speaker",
+              "participant_id": "account"
+            },
+            "speech_act": "assertion",
+            "temporal_scope": {
+              "end": null,
+              "start": null,
+              "surface_marker": "after the gate closed",
+              "type": "past"
+            },
+            "uncertainty_reason": null
+          },
+          {
+            "canonical_text": "The attendance decline is evidence relevant to the counterfactual.",
+            "commitment_status": "speaker_committed",
+            "confidence": 0.95,
+            "derivation": {
+              "kind": "anaphora_resolution",
+              "normalisation_note": "Resolves 'That' only to the immediately preceding attendance claim.",
+              "source_proposition_ids": [
+                "p-attendance-fell"
+              ]
+            },
+            "epistemic_status": "asserted",
+            "exact_evidence_spans": [
+              {
+                "end_char": 16,
+                "exact_text": "That is evidence",
+                "start_char": 0,
+                "turn_id": "t2"
+              }
+            ],
+            "introduced_at_turn_id": "t2",
+            "lifecycle_status": "live",
+            "modality": {
+              "strength": "none",
+              "type": "none"
+            },
+            "original_language": "en",
+            "polarity": "positive",
+            "proposition_group_id": null,
+            "proposition_id": "p-attendance-is-evidence",
+            "proposition_kind": "evaluative",
+            "quantification": {
+              "surface_marker": null,
+              "type": "none"
+            },
+            "speaker_or_attributor": {
+              "attributed_participant_id": null,
+              "kind": "speaker",
+              "participant_id": "contributor"
+            },
+            "speech_act": "assertion",
+            "temporal_scope": {
+              "end": null,
+              "start": null,
+              "surface_marker": null,
+              "type": "timeless"
+            },
+            "uncertainty_reason": null
+          },
+          {
+            "canonical_text": "The counterfactual remains the contributor's question.",
+            "commitment_status": "speaker_committed",
+            "confidence": 1.0,
+            "derivation": {
+              "kind": "direct_span",
+              "normalisation_note": null,
+              "source_proposition_ids": []
+            },
+            "epistemic_status": "asserted",
+            "exact_evidence_spans": [
+              {
+                "end_char": 61,
+                "exact_text": "the counterfactual is still my question",
+                "start_char": 22,
+                "turn_id": "t2"
+              }
+            ],
+            "introduced_at_turn_id": "t2",
+            "lifecycle_status": "live",
+            "modality": {
+              "strength": "none",
+              "type": "none"
+            },
+            "original_language": "en",
+            "polarity": "positive",
+            "proposition_group_id": null,
+            "proposition_id": "p-counterfactual-still-question",
+            "proposition_kind": "descriptive",
+            "quantification": {
+              "surface_marker": null,
+              "type": "none"
+            },
+            "speaker_or_attributor": {
+              "attributed_participant_id": null,
+              "kind": "speaker",
+              "participant_id": "contributor"
+            },
+            "speech_act": "assertion",
+            "temporal_scope": {
+              "end": null,
+              "start": null,
+              "surface_marker": null,
+              "type": "timeless"
+            },
+            "uncertainty_reason": null
+          }
+        ],
+        "rejected_answer_targets": [],
+        "repair_records": [],
+        "resolved_items": [],
+        "root_post_id": "synthetic-06-live-counterfactual-post-0",
+        "schema_version": "proposition-ledger-v1.0.0",
+        "source_completeness": {
+          "account_publication_confirmed": true,
+          "chronology_complete": true,
+          "complete_prefix_through_turn": true,
+          "exact_text_complete": true,
+          "limitations": [
+            "Wholly invented schema fixture; not historical evidence."
+          ],
+          "parent_graph_complete": true,
+          "reconstruction_grade": "A"
+        },
+        "state_transitions": [
+          {
+            "answer_targets_added": [],
+            "answer_targets_updated": [],
+            "commitments_added": [
+              "c-evidence",
+              "c-still-live"
+            ],
+            "commitments_updated": [],
+            "current_turn_id": "t2",
+            "current_turn_index": 2,
+            "from_ledger_sha256": "9f9dce6d63fdc7986432b1aa86e2aa411d360413458d3e7cc83733a14929fb07",
+            "issue_states_added": [],
+            "issue_states_updated": [],
+            "items_resolved": [],
+            "obligations_added": [],
+            "obligations_updated": [],
+            "proposition_groups_added": [],
+            "proposition_groups_updated": [],
+            "propositions_added": [
+              "p-attendance-is-evidence",
+              "p-counterfactual-still-question"
+            ],
+            "propositions_updated": [],
+            "rejected_answer_targets_added": [],
+            "rejected_answer_targets_updated": [],
+            "relations_added": [
+              "r-evidence-not-answer",
+              "r-evidence-supports-counterfactual"
+            ],
+            "repair_records_added": [],
+            "repair_records_updated": [],
+            "state_patch": [
+              {
+                "after_record": {
+                  "parent_turn_id": "t1",
+                  "post_id": "synthetic-06-live-counterfactual-post-2",
+                  "speaker_id": "contributor",
+                  "text_sha256": "f49a9b403080af17a3f99ad843086c0c182405340ffe5d64e85fd62a91af0aeb",
+                  "turn_id": "t2",
+                  "turn_index": 2
+                },
+                "before_record_sha256": null,
+                "collection": "turn_refs",
+                "item_id": "t2",
+                "operation": "add"
+              },
+              {
+                "after_record": {
+                  "canonical_text": "The attendance decline is evidence relevant to the counterfactual.",
+                  "commitment_status": "speaker_committed",
+                  "confidence": 0.95,
+                  "derivation": {
+                    "kind": "anaphora_resolution",
+                    "normalisation_note": "Resolves 'That' only to the immediately preceding attendance claim.",
+                    "source_proposition_ids": [
+                      "p-attendance-fell"
+                    ]
+                  },
+                  "epistemic_status": "asserted",
+                  "exact_evidence_spans": [
+                    {
+                      "end_char": 16,
+                      "exact_text": "That is evidence",
+                      "start_char": 0,
+                      "turn_id": "t2"
+                    }
+                  ],
+                  "introduced_at_turn_id": "t2",
+                  "lifecycle_status": "live",
+                  "modality": {
+                    "strength": "none",
+                    "type": "none"
+                  },
+                  "original_language": "en",
+                  "polarity": "positive",
+                  "proposition_group_id": null,
+                  "proposition_id": "p-attendance-is-evidence",
+                  "proposition_kind": "evaluative",
+                  "quantification": {
+                    "surface_marker": null,
+                    "type": "none"
+                  },
+                  "speaker_or_attributor": {
+                    "attributed_participant_id": null,
+                    "kind": "speaker",
+                    "participant_id": "contributor"
+                  },
+                  "speech_act": "assertion",
+                  "temporal_scope": {
+                    "end": null,
+                    "start": null,
+                    "surface_marker": null,
+                    "type": "timeless"
+                  },
+                  "uncertainty_reason": null
+                },
+                "before_record_sha256": null,
+                "collection": "propositions",
+                "item_id": "p-attendance-is-evidence",
+                "operation": "add"
+              },
+              {
+                "after_record": {
+                  "canonical_text": "The counterfactual remains the contributor's question.",
+                  "commitment_status": "speaker_committed",
+                  "confidence": 1.0,
+                  "derivation": {
+                    "kind": "direct_span",
+                    "normalisation_note": null,
+                    "source_proposition_ids": []
+                  },
+                  "epistemic_status": "asserted",
+                  "exact_evidence_spans": [
+                    {
+                      "end_char": 61,
+                      "exact_text": "the counterfactual is still my question",
+                      "start_char": 22,
+                      "turn_id": "t2"
+                    }
+                  ],
+                  "introduced_at_turn_id": "t2",
+                  "lifecycle_status": "live",
+                  "modality": {
+                    "strength": "none",
+                    "type": "none"
+                  },
+                  "original_language": "en",
+                  "polarity": "positive",
+                  "proposition_group_id": null,
+                  "proposition_id": "p-counterfactual-still-question",
+                  "proposition_kind": "descriptive",
+                  "quantification": {
+                    "surface_marker": null,
+                    "type": "none"
+                  },
+                  "speaker_or_attributor": {
+                    "attributed_participant_id": null,
+                    "kind": "speaker",
+                    "participant_id": "contributor"
+                  },
+                  "speech_act": "assertion",
+                  "temporal_scope": {
+                    "end": null,
+                    "start": null,
+                    "surface_marker": null,
+                    "type": "timeless"
+                  },
+                  "uncertainty_reason": null
+                },
+                "before_record_sha256": null,
+                "collection": "propositions",
+                "item_id": "p-counterfactual-still-question",
+                "operation": "add"
+              },
+              {
+                "after_record": {
+                  "basis": "explicit_speech_act",
+                  "commitment_id": "c-evidence",
+                  "confidence": 1.0,
+                  "introduced_at_turn_id": "t2",
+                  "last_updated_at_turn_id": "t2",
+                  "participant_id": "contributor",
+                  "proposition_id": "p-attendance-is-evidence",
+                  "stance": "asserted",
+                  "uncertainty_reason": null
+                },
+                "before_record_sha256": null,
+                "collection": "participant_commitments",
+                "item_id": "c-evidence",
+                "operation": "add"
+              },
+              {
+                "after_record": {
+                  "basis": "explicit_speech_act",
+                  "commitment_id": "c-still-live",
+                  "confidence": 1.0,
+                  "introduced_at_turn_id": "t2",
+                  "last_updated_at_turn_id": "t2",
+                  "participant_id": "contributor",
+                  "proposition_id": "p-counterfactual-still-question",
+                  "stance": "asserted",
+                  "uncertainty_reason": null
+                },
+                "before_record_sha256": null,
+                "collection": "participant_commitments",
+                "item_id": "c-still-live",
+                "operation": "add"
+              },
+              {
+                "after_record": {
+                  "analysis_basis": "human_correction",
+                  "asserted_or_analysed_by": "contributor",
+                  "confidence": 1.0,
+                  "exact_evidence_spans": [
+                    {
+                      "end_char": 61,
+                      "exact_text": "the counterfactual is still my question",
+                      "start_char": 22,
+                      "turn_id": "t2"
+                    }
+                  ],
+                  "introduced_at_turn_id": "t2",
+                  "provenance_kind": "human_correction",
+                  "relation_id": "r-evidence-not-answer",
+                  "relation_type": "fails_to_answer",
+                  "source_proposition_ids": [
+                    "p-attendance-fell"
+                  ],
+                  "target_proposition_ids": [
+                    "p-market-counterfactual"
+                  ],
+                  "uncertainty_reason": null
+                },
+                "before_record_sha256": null,
+                "collection": "proposition_relations",
+                "item_id": "r-evidence-not-answer",
+                "operation": "add"
+              },
+              {
+                "after_record": {
+                  "analysis_basis": "direct_semantic_content",
+                  "asserted_or_analysed_by": "contributor",
+                  "confidence": 0.9,
+                  "exact_evidence_spans": [
+                    {
+                      "end_char": 16,
+                      "exact_text": "That is evidence",
+                      "start_char": 0,
+                      "turn_id": "t2"
+                    }
+                  ],
+                  "introduced_at_turn_id": "t2",
+                  "provenance_kind": "transcript_extraction",
+                  "relation_id": "r-evidence-supports-counterfactual",
+                  "relation_type": "supports",
+                  "source_proposition_ids": [
+                    "p-attendance-fell",
+                    "p-attendance-is-evidence"
+                  ],
+                  "target_proposition_ids": [
+                    "p-market-counterfactual"
+                  ],
+                  "uncertainty_reason": null
+                },
+                "before_record_sha256": null,
+                "collection": "proposition_relations",
+                "item_id": "r-evidence-supports-counterfactual",
+                "operation": "add"
+              }
+            ],
+            "transition_id": "transition-t2",
+            "warnings_added": []
+          }
+        ],
+        "target_turn_id": "t2",
+        "turn_refs": [
+          {
+            "parent_turn_id": null,
+            "post_id": "synthetic-06-live-counterfactual-post-0",
+            "speaker_id": "contributor",
+            "text_sha256": "2b7ca0f0c5a5cfe0ba52fd438d299f83665d98956c28ec06883f64cdf12a93a8",
+            "turn_id": "t0",
+            "turn_index": 0
+          },
+          {
+            "parent_turn_id": "t0",
+            "post_id": "synthetic-06-live-counterfactual-post-1",
+            "speaker_id": "account",
+            "text_sha256": "86698b632f663bc9ff2b247e4cafb4448ec3246340dda564d6966cdae7d3258b",
+            "turn_id": "t1",
+            "turn_index": 1
+          },
+          {
+            "parent_turn_id": "t1",
+            "post_id": "synthetic-06-live-counterfactual-post-2",
+            "speaker_id": "contributor",
+            "text_sha256": "f49a9b403080af17a3f99ad843086c0c182405340ffe5d64e85fd62a91af0aeb",
+            "turn_id": "t2",
+            "turn_index": 2
+          }
+        ],
+        "unresolved_items": [
+          {
+            "first_opened_at_turn_id": "t0",
+            "item_id": "p-market-counterfactual",
+            "item_type": "proposition",
+            "reason": "Evidence was discussed but the counterfactual was not answered."
+          },
+          {
+            "first_opened_at_turn_id": "t0",
+            "item_id": "i-market-counterfactual",
+            "item_type": "issue",
+            "reason": "The counterfactual remains explicitly live."
+          },
+          {
+            "first_opened_at_turn_id": "t0",
+            "item_id": "o-answer-counterfactual",
+            "item_type": "obligation",
+            "reason": "The account still owes a direct answer."
+          }
+        ],
+        "warnings": []
+      },
+      "violation_kind": "semantic_invariant"
+    }
+  ],
+  "fixture_format_version": "proposition-ledger-synthetic-fixture-v1",
+  "fixture_id": "06-live-counterfactual",
+  "synthetic": true
+}

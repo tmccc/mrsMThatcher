@@ -1,0 +1,806 @@
+{
+  "conversation_key": "synthetic:05-compound-allegation",
+  "description": "A compound allegation is decomposed without treating decomposition as substitution.",
+  "fixture_format_version": "proposition-ledger-synthetic-fixture-v1",
+  "fixture_id": "05-compound-allegation",
+  "ledger_history": [
+    {
+      "answer_targets": [],
+      "as_of_turn_index": 0,
+      "conversation_key": "synthetic:05-compound-allegation",
+      "conversational_obligations": [],
+      "extraction_status": {
+        "abstentions": [],
+        "status": "complete",
+        "unsupported_inferences_rejected": 0
+      },
+      "issue_states": [],
+      "ledger_id": "ledger-05-compound-allegation-history-0",
+      "ledger_sha256": "69735e3105891528e3a40ff6484f5dface0ccf6508a1af76eef093bfcf3a92c2",
+      "participant_commitments": [
+        {
+          "basis": "explicit_speech_act",
+          "commitment_id": "c-conduct",
+          "confidence": 1.0,
+          "introduced_at_turn_id": "t0",
+          "last_updated_at_turn_id": "t0",
+          "participant_id": "contributor",
+          "proposition_id": "p-curator-hid-notice",
+          "stance": "asserted",
+          "uncertainty_reason": null
+        },
+        {
+          "basis": "explicit_speech_act",
+          "commitment_id": "c-outcome",
+          "confidence": 1.0,
+          "introduced_at_turn_id": "t0",
+          "last_updated_at_turn_id": "t0",
+          "participant_id": "contributor",
+          "proposition_id": "p-vote-delayed",
+          "stance": "asserted",
+          "uncertainty_reason": null
+        },
+        {
+          "basis": "explicit_speech_act",
+          "commitment_id": "c-causation",
+          "confidence": 1.0,
+          "introduced_at_turn_id": "t0",
+          "last_updated_at_turn_id": "t0",
+          "participant_id": "contributor",
+          "proposition_id": "p-hiding-caused-delay",
+          "stance": "asserted",
+          "uncertainty_reason": null
+        },
+        {
+          "basis": "explicit_speech_act",
+          "commitment_id": "c-motive",
+          "confidence": 1.0,
+          "introduced_at_turn_id": "t0",
+          "last_updated_at_turn_id": "t0",
+          "participant_id": "contributor",
+          "proposition_id": "p-curator-wanted-rival-win",
+          "stance": "asserted",
+          "uncertainty_reason": null
+        }
+      ],
+      "participants": [
+        {
+          "author_key": "synthetic-account",
+          "identity_confidence": 1.0,
+          "participant_id": "account",
+          "role": "account"
+        },
+        {
+          "author_key": "synthetic-contributor",
+          "identity_confidence": 1.0,
+          "participant_id": "contributor",
+          "role": "contributor"
+        }
+      ],
+      "previous_ledger_sha256": null,
+      "proposition_groups": [
+        {
+          "confidence": 1.0,
+          "decomposition_complete": true,
+          "exact_evidence_spans": [
+            {
+              "end_char": 93,
+              "exact_text": "The curator hid the notice, which delayed the vote, because she wanted the rival plan to win.",
+              "start_char": 0,
+              "turn_id": "t0"
+            }
+          ],
+          "introduced_at_turn_id": "t0",
+          "members": [
+            {
+              "ordinal": 0,
+              "proposition_id": "p-curator-hid-notice",
+              "role": "conduct"
+            },
+            {
+              "ordinal": 1,
+              "proposition_id": "p-hiding-caused-delay",
+              "role": "cause"
+            },
+            {
+              "ordinal": 2,
+              "proposition_id": "p-vote-delayed",
+              "role": "outcome"
+            },
+            {
+              "ordinal": 3,
+              "proposition_id": "p-curator-wanted-rival-win",
+              "role": "motive"
+            }
+          ],
+          "proposition_group_id": "g-compound-allegation",
+          "structure_type": "compound_accusation",
+          "uncertainty_reason": null
+        }
+      ],
+      "proposition_relations": [],
+      "propositions": [
+        {
+          "canonical_text": "The curator hid the notice.",
+          "commitment_status": "speaker_committed",
+          "confidence": 1.0,
+          "derivation": {
+            "kind": "compound_decomposition",
+            "normalisation_note": null,
+            "source_proposition_ids": []
+          },
+          "epistemic_status": "asserted",
+          "exact_evidence_spans": [
+            {
+              "end_char": 26,
+              "exact_text": "The curator hid the notice",
+              "start_char": 0,
+              "turn_id": "t0"
+            }
+          ],
+          "introduced_at_turn_id": "t0",
+          "lifecycle_status": "live",
+          "modality": {
+            "strength": "none",
+            "type": "none"
+          },
+          "original_language": "en",
+          "polarity": "positive",
+          "proposition_group_id": "g-compound-allegation",
+          "proposition_id": "p-curator-hid-notice",
+          "proposition_kind": "descriptive",
+          "quantification": {
+            "surface_marker": null,
+            "type": "none"
+          },
+          "speaker_or_attributor": {
+            "attributed_participant_id": null,
+            "kind": "speaker",
+            "participant_id": "contributor"
+          },
+          "speech_act": "assertion",
+          "temporal_scope": {
+            "end": null,
+            "start": null,
+            "surface_marker": null,
+            "type": "timeless"
+          },
+          "uncertainty_reason": null
+        },
+        {
+          "canonical_text": "The vote was delayed.",
+          "commitment_status": "speaker_committed",
+          "confidence": 1.0,
+          "derivation": {
+            "kind": "compound_decomposition",
+            "normalisation_note": null,
+            "source_proposition_ids": []
+          },
+          "epistemic_status": "asserted",
+          "exact_evidence_spans": [
+            {
+              "end_char": 50,
+              "exact_text": "delayed the vote",
+              "start_char": 34,
+              "turn_id": "t0"
+            }
+          ],
+          "introduced_at_turn_id": "t0",
+          "lifecycle_status": "live",
+          "modality": {
+            "strength": "none",
+            "type": "none"
+          },
+          "original_language": "en",
+          "polarity": "positive",
+          "proposition_group_id": "g-compound-allegation",
+          "proposition_id": "p-vote-delayed",
+          "proposition_kind": "descriptive",
+          "quantification": {
+            "surface_marker": null,
+            "type": "none"
+          },
+          "speaker_or_attributor": {
+            "attributed_participant_id": null,
+            "kind": "speaker",
+            "participant_id": "contributor"
+          },
+          "speech_act": "assertion",
+          "temporal_scope": {
+            "end": null,
+            "start": null,
+            "surface_marker": null,
+            "type": "past"
+          },
+          "uncertainty_reason": null
+        },
+        {
+          "canonical_text": "Hiding the notice caused the vote to be delayed.",
+          "commitment_status": "speaker_committed",
+          "confidence": 1.0,
+          "derivation": {
+            "kind": "compound_decomposition",
+            "normalisation_note": null,
+            "source_proposition_ids": []
+          },
+          "epistemic_status": "asserted",
+          "exact_evidence_spans": [
+            {
+              "end_char": 50,
+              "exact_text": "which delayed the vote",
+              "start_char": 28,
+              "turn_id": "t0"
+            }
+          ],
+          "introduced_at_turn_id": "t0",
+          "lifecycle_status": "live",
+          "modality": {
+            "strength": "none",
+            "type": "none"
+          },
+          "original_language": "en",
+          "polarity": "positive",
+          "proposition_group_id": "g-compound-allegation",
+          "proposition_id": "p-hiding-caused-delay",
+          "proposition_kind": "causal",
+          "quantification": {
+            "surface_marker": null,
+            "type": "none"
+          },
+          "speaker_or_attributor": {
+            "attributed_participant_id": null,
+            "kind": "speaker",
+            "participant_id": "contributor"
+          },
+          "speech_act": "assertion",
+          "temporal_scope": {
+            "end": null,
+            "start": null,
+            "surface_marker": null,
+            "type": "past"
+          },
+          "uncertainty_reason": null
+        },
+        {
+          "canonical_text": "The curator wanted the rival plan to win.",
+          "commitment_status": "speaker_committed",
+          "confidence": 1.0,
+          "derivation": {
+            "kind": "compound_decomposition",
+            "normalisation_note": null,
+            "source_proposition_ids": []
+          },
+          "epistemic_status": "asserted",
+          "exact_evidence_spans": [
+            {
+              "end_char": 92,
+              "exact_text": "she wanted the rival plan to win",
+              "start_char": 60,
+              "turn_id": "t0"
+            }
+          ],
+          "introduced_at_turn_id": "t0",
+          "lifecycle_status": "live",
+          "modality": {
+            "strength": "none",
+            "type": "none"
+          },
+          "original_language": "en",
+          "polarity": "positive",
+          "proposition_group_id": "g-compound-allegation",
+          "proposition_id": "p-curator-wanted-rival-win",
+          "proposition_kind": "descriptive",
+          "quantification": {
+            "surface_marker": null,
+            "type": "none"
+          },
+          "speaker_or_attributor": {
+            "attributed_participant_id": null,
+            "kind": "speaker",
+            "participant_id": "contributor"
+          },
+          "speech_act": "assertion",
+          "temporal_scope": {
+            "end": null,
+            "start": null,
+            "surface_marker": null,
+            "type": "past"
+          },
+          "uncertainty_reason": null
+        }
+      ],
+      "rejected_answer_targets": [],
+      "repair_records": [],
+      "resolved_items": [],
+      "root_post_id": "synthetic-05-compound-allegation-post-0",
+      "schema_version": "proposition-ledger-v1.0.0",
+      "source_completeness": {
+        "account_publication_confirmed": true,
+        "chronology_complete": true,
+        "complete_prefix_through_turn": true,
+        "exact_text_complete": true,
+        "limitations": [
+          "Wholly invented schema fixture; not historical evidence."
+        ],
+        "parent_graph_complete": true,
+        "reconstruction_grade": "A"
+      },
+      "state_transitions": [
+        {
+          "answer_targets_added": [],
+          "answer_targets_updated": [],
+          "commitments_added": [
+            "c-causation",
+            "c-conduct",
+            "c-motive",
+            "c-outcome"
+          ],
+          "commitments_updated": [],
+          "current_turn_id": "t0",
+          "current_turn_index": 0,
+          "from_ledger_sha256": null,
+          "issue_states_added": [],
+          "issue_states_updated": [],
+          "items_resolved": [],
+          "obligations_added": [],
+          "obligations_updated": [],
+          "proposition_groups_added": [
+            "g-compound-allegation"
+          ],
+          "proposition_groups_updated": [],
+          "propositions_added": [
+            "p-curator-hid-notice",
+            "p-curator-wanted-rival-win",
+            "p-hiding-caused-delay",
+            "p-vote-delayed"
+          ],
+          "propositions_updated": [],
+          "rejected_answer_targets_added": [],
+          "rejected_answer_targets_updated": [],
+          "relations_added": [],
+          "repair_records_added": [],
+          "repair_records_updated": [],
+          "state_patch": [
+            {
+              "after_record": {
+                "account_publication_confirmed": true,
+                "chronology_complete": true,
+                "complete_prefix_through_turn": true,
+                "exact_text_complete": true,
+                "limitations": [
+                  "Wholly invented schema fixture; not historical evidence."
+                ],
+                "parent_graph_complete": true,
+                "reconstruction_grade": "A"
+              },
+              "before_record_sha256": null,
+              "collection": "source_completeness",
+              "item_id": "source_completeness",
+              "operation": "add"
+            },
+            {
+              "after_record": {
+                "author_key": "synthetic-account",
+                "identity_confidence": 1.0,
+                "participant_id": "account",
+                "role": "account"
+              },
+              "before_record_sha256": null,
+              "collection": "participants",
+              "item_id": "account",
+              "operation": "add"
+            },
+            {
+              "after_record": {
+                "author_key": "synthetic-contributor",
+                "identity_confidence": 1.0,
+                "participant_id": "contributor",
+                "role": "contributor"
+              },
+              "before_record_sha256": null,
+              "collection": "participants",
+              "item_id": "contributor",
+              "operation": "add"
+            },
+            {
+              "after_record": {
+                "parent_turn_id": null,
+                "post_id": "synthetic-05-compound-allegation-post-0",
+                "speaker_id": "contributor",
+                "text_sha256": "dc72772b20f37a83a9326a16bb5a7d194fc3668ddcc1f08c1c2b9a127f34c4e9",
+                "turn_id": "t0",
+                "turn_index": 0
+              },
+              "before_record_sha256": null,
+              "collection": "turn_refs",
+              "item_id": "t0",
+              "operation": "add"
+            },
+            {
+              "after_record": {
+                "canonical_text": "The curator hid the notice.",
+                "commitment_status": "speaker_committed",
+                "confidence": 1.0,
+                "derivation": {
+                  "kind": "compound_decomposition",
+                  "normalisation_note": null,
+                  "source_proposition_ids": []
+                },
+                "epistemic_status": "asserted",
+                "exact_evidence_spans": [
+                  {
+                    "end_char": 26,
+                    "exact_text": "The curator hid the notice",
+                    "start_char": 0,
+                    "turn_id": "t0"
+                  }
+                ],
+                "introduced_at_turn_id": "t0",
+                "lifecycle_status": "live",
+                "modality": {
+                  "strength": "none",
+                  "type": "none"
+                },
+                "original_language": "en",
+                "polarity": "positive",
+                "proposition_group_id": "g-compound-allegation",
+                "proposition_id": "p-curator-hid-notice",
+                "proposition_kind": "descriptive",
+                "quantification": {
+                  "surface_marker": null,
+                  "type": "none"
+                },
+                "speaker_or_attributor": {
+                  "attributed_participant_id": null,
+                  "kind": "speaker",
+                  "participant_id": "contributor"
+                },
+                "speech_act": "assertion",
+                "temporal_scope": {
+                  "end": null,
+                  "start": null,
+                  "surface_marker": null,
+                  "type": "timeless"
+                },
+                "uncertainty_reason": null
+              },
+              "before_record_sha256": null,
+              "collection": "propositions",
+              "item_id": "p-curator-hid-notice",
+              "operation": "add"
+            },
+            {
+              "after_record": {
+                "canonical_text": "The curator wanted the rival plan to win.",
+                "commitment_status": "speaker_committed",
+                "confidence": 1.0,
+                "derivation": {
+                  "kind": "compound_decomposition",
+                  "normalisation_note": null,
+                  "source_proposition_ids": []
+                },
+                "epistemic_status": "asserted",
+                "exact_evidence_spans": [
+                  {
+                    "end_char": 92,
+                    "exact_text": "she wanted the rival plan to win",
+                    "start_char": 60,
+                    "turn_id": "t0"
+                  }
+                ],
+                "introduced_at_turn_id": "t0",
+                "lifecycle_status": "live",
+                "modality": {
+                  "strength": "none",
+                  "type": "none"
+                },
+                "original_language": "en",
+                "polarity": "positive",
+                "proposition_group_id": "g-compound-allegation",
+                "proposition_id": "p-curator-wanted-rival-win",
+                "proposition_kind": "descriptive",
+                "quantification": {
+                  "surface_marker": null,
+                  "type": "none"
+                },
+                "speaker_or_attributor": {
+                  "attributed_participant_id": null,
+                  "kind": "speaker",
+                  "participant_id": "contributor"
+                },
+                "speech_act": "assertion",
+                "temporal_scope": {
+                  "end": null,
+                  "start": null,
+                  "surface_marker": null,
+                  "type": "past"
+                },
+                "uncertainty_reason": null
+              },
+              "before_record_sha256": null,
+              "collection": "propositions",
+              "item_id": "p-curator-wanted-rival-win",
+              "operation": "add"
+            },
+            {
+              "after_record": {
+                "canonical_text": "Hiding the notice caused the vote to be delayed.",
+                "commitment_status": "speaker_committed",
+                "confidence": 1.0,
+                "derivation": {
+                  "kind": "compound_decomposition",
+                  "normalisation_note": null,
+                  "source_proposition_ids": []
+                },
+                "epistemic_status": "asserted",
+                "exact_evidence_spans": [
+                  {
+                    "end_char": 50,
+                    "exact_text": "which delayed the vote",
+                    "start_char": 28,
+                    "turn_id": "t0"
+                  }
+                ],
+                "introduced_at_turn_id": "t0",
+                "lifecycle_status": "live",
+                "modality": {
+                  "strength": "none",
+                  "type": "none"
+                },
+                "original_language": "en",
+                "polarity": "positive",
+                "proposition_group_id": "g-compound-allegation",
+                "proposition_id": "p-hiding-caused-delay",
+                "proposition_kind": "causal",
+                "quantification": {
+                  "surface_marker": null,
+                  "type": "none"
+                },
+                "speaker_or_attributor": {
+                  "attributed_participant_id": null,
+                  "kind": "speaker",
+                  "participant_id": "contributor"
+                },
+                "speech_act": "assertion",
+                "temporal_scope": {
+                  "end": null,
+                  "start": null,
+                  "surface_marker": null,
+                  "type": "past"
+                },
+                "uncertainty_reason": null
+              },
+              "before_record_sha256": null,
+              "collection": "propositions",
+              "item_id": "p-hiding-caused-delay",
+              "operation": "add"
+            },
+            {
+              "after_record": {
+                "canonical_text": "The vote was delayed.",
+                "commitment_status": "speaker_committed",
+                "confidence": 1.0,
+                "derivation": {
+                  "kind": "compound_decomposition",
+                  "normalisation_note": null,
+                  "source_proposition_ids": []
+                },
+                "epistemic_status": "asserted",
+                "exact_evidence_spans": [
+                  {
+                    "end_char": 50,
+                    "exact_text": "delayed the vote",
+                    "start_char": 34,
+                    "turn_id": "t0"
+                  }
+                ],
+                "introduced_at_turn_id": "t0",
+                "lifecycle_status": "live",
+                "modality": {
+                  "strength": "none",
+                  "type": "none"
+                },
+                "original_language": "en",
+                "polarity": "positive",
+                "proposition_group_id": "g-compound-allegation",
+                "proposition_id": "p-vote-delayed",
+                "proposition_kind": "descriptive",
+                "quantification": {
+                  "surface_marker": null,
+                  "type": "none"
+                },
+                "speaker_or_attributor": {
+                  "attributed_participant_id": null,
+                  "kind": "speaker",
+                  "participant_id": "contributor"
+                },
+                "speech_act": "assertion",
+                "temporal_scope": {
+                  "end": null,
+                  "start": null,
+                  "surface_marker": null,
+                  "type": "past"
+                },
+                "uncertainty_reason": null
+              },
+              "before_record_sha256": null,
+              "collection": "propositions",
+              "item_id": "p-vote-delayed",
+              "operation": "add"
+            },
+            {
+              "after_record": {
+                "confidence": 1.0,
+                "decomposition_complete": true,
+                "exact_evidence_spans": [
+                  {
+                    "end_char": 93,
+                    "exact_text": "The curator hid the notice, which delayed the vote, because she wanted the rival plan to win.",
+                    "start_char": 0,
+                    "turn_id": "t0"
+                  }
+                ],
+                "introduced_at_turn_id": "t0",
+                "members": [
+                  {
+                    "ordinal": 0,
+                    "proposition_id": "p-curator-hid-notice",
+                    "role": "conduct"
+                  },
+                  {
+                    "ordinal": 1,
+                    "proposition_id": "p-hiding-caused-delay",
+                    "role": "cause"
+                  },
+                  {
+                    "ordinal": 2,
+                    "proposition_id": "p-vote-delayed",
+                    "role": "outcome"
+                  },
+                  {
+                    "ordinal": 3,
+                    "proposition_id": "p-curator-wanted-rival-win",
+                    "role": "motive"
+                  }
+                ],
+                "proposition_group_id": "g-compound-allegation",
+                "structure_type": "compound_accusation",
+                "uncertainty_reason": null
+              },
+              "before_record_sha256": null,
+              "collection": "proposition_groups",
+              "item_id": "g-compound-allegation",
+              "operation": "add"
+            },
+            {
+              "after_record": {
+                "basis": "explicit_speech_act",
+                "commitment_id": "c-causation",
+                "confidence": 1.0,
+                "introduced_at_turn_id": "t0",
+                "last_updated_at_turn_id": "t0",
+                "participant_id": "contributor",
+                "proposition_id": "p-hiding-caused-delay",
+                "stance": "asserted",
+                "uncertainty_reason": null
+              },
+              "before_record_sha256": null,
+              "collection": "participant_commitments",
+              "item_id": "c-causation",
+              "operation": "add"
+            },
+            {
+              "after_record": {
+                "basis": "explicit_speech_act",
+                "commitment_id": "c-conduct",
+                "confidence": 1.0,
+                "introduced_at_turn_id": "t0",
+                "last_updated_at_turn_id": "t0",
+                "participant_id": "contributor",
+                "proposition_id": "p-curator-hid-notice",
+                "stance": "asserted",
+                "uncertainty_reason": null
+              },
+              "before_record_sha256": null,
+              "collection": "participant_commitments",
+              "item_id": "c-conduct",
+              "operation": "add"
+            },
+            {
+              "after_record": {
+                "basis": "explicit_speech_act",
+                "commitment_id": "c-motive",
+                "confidence": 1.0,
+                "introduced_at_turn_id": "t0",
+                "last_updated_at_turn_id": "t0",
+                "participant_id": "contributor",
+                "proposition_id": "p-curator-wanted-rival-win",
+                "stance": "asserted",
+                "uncertainty_reason": null
+              },
+              "before_record_sha256": null,
+              "collection": "participant_commitments",
+              "item_id": "c-motive",
+              "operation": "add"
+            },
+            {
+              "after_record": {
+                "basis": "explicit_speech_act",
+                "commitment_id": "c-outcome",
+                "confidence": 1.0,
+                "introduced_at_turn_id": "t0",
+                "last_updated_at_turn_id": "t0",
+                "participant_id": "contributor",
+                "proposition_id": "p-vote-delayed",
+                "stance": "asserted",
+                "uncertainty_reason": null
+              },
+              "before_record_sha256": null,
+              "collection": "participant_commitments",
+              "item_id": "c-outcome",
+              "operation": "add"
+            },
+            {
+              "after_record": {
+                "abstentions": [],
+                "status": "complete",
+                "unsupported_inferences_rejected": 0
+              },
+              "before_record_sha256": null,
+              "collection": "extraction_status",
+              "item_id": "extraction_status",
+              "operation": "add"
+            }
+          ],
+          "transition_id": "transition-t0",
+          "warnings_added": []
+        }
+      ],
+      "target_turn_id": "t0",
+      "turn_refs": [
+        {
+          "parent_turn_id": null,
+          "post_id": "synthetic-05-compound-allegation-post-0",
+          "speaker_id": "contributor",
+          "text_sha256": "dc72772b20f37a83a9326a16bb5a7d194fc3668ddcc1f08c1c2b9a127f34c4e9",
+          "turn_id": "t0",
+          "turn_index": 0
+        }
+      ],
+      "unresolved_items": [],
+      "warnings": []
+    }
+  ],
+  "participants": [
+    {
+      "participant_id": "account",
+      "role": "account"
+    },
+    {
+      "participant_id": "contributor",
+      "role": "contributor"
+    }
+  ],
+  "root_post_id": "synthetic-05-compound-allegation-post-0",
+  "synthetic": true,
+  "turns": [
+    {
+      "language": "en",
+      "parent_turn_id": null,
+      "post_id": "synthetic-05-compound-allegation-post-0",
+      "speaker_id": "contributor",
+      "text": "The curator hid the notice, which delayed the vote, because she wanted the rival plan to win.",
+      "turn_id": "t0",
+      "turn_index": 0
+    },
+    {
+      "language": "en",
+      "parent_turn_id": "t0",
+      "post_id": "synthetic-05-compound-allegation-post-1",
+      "speaker_id": "account",
+      "text": "Which part should I address first: the hiding, the delay, or the alleged motive?",
+      "turn_id": "t1",
+      "turn_index": 1
+    }
+  ]
+}

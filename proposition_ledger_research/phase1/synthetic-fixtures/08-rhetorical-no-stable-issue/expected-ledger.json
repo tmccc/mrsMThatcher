@@ -1,0 +1,386 @@
+{
+  "answer_targets": [],
+  "as_of_turn_index": 1,
+  "conversation_key": "synthetic:08-rhetorical-no-stable-issue",
+  "conversational_obligations": [],
+  "extraction_status": {
+    "abstentions": [
+      "no_stable_issue"
+    ],
+    "status": "abstained",
+    "unsupported_inferences_rejected": 1
+  },
+  "issue_states": [
+    {
+      "addressed_participant": null,
+      "answer_requirements": [],
+      "canonical_question": null,
+      "confidence": 1.0,
+      "exact_evidence_spans": [
+        {
+          "end_char": 56,
+          "exact_text": "Oh splendid - another meeting about scheduling meetings!",
+          "start_char": 0,
+          "turn_id": "t0"
+        }
+      ],
+      "initiating_speaker": "contributor",
+      "initiating_turn_id": "t0",
+      "issue_id": "i-no-stable-issue",
+      "issue_type": "no_stable_issue",
+      "live_alternatives": [],
+      "related_proposition_ids": [
+        "p-rhetorical-meeting"
+      ],
+      "resolution_turn_id": "t0",
+      "resolution_type": "no_stable_issue",
+      "status": "no_stable_issue"
+    }
+  ],
+  "ledger_id": "ledger-08-rhetorical-no-stable-issue",
+  "ledger_sha256": "fae3b72ab79703b2b90a32ad08a91ff7756bf7164408e47ee35df578fcc911ec",
+  "participant_commitments": [
+    {
+      "basis": "explicit_speech_act",
+      "commitment_id": "c-classification",
+      "confidence": 1.0,
+      "introduced_at_turn_id": "t1",
+      "last_updated_at_turn_id": "t1",
+      "participant_id": "account",
+      "proposition_id": "p-no-factual-polar-claim",
+      "stance": "asserted",
+      "uncertainty_reason": null
+    }
+  ],
+  "participants": [
+    {
+      "author_key": "synthetic-account",
+      "identity_confidence": 1.0,
+      "participant_id": "account",
+      "role": "account"
+    },
+    {
+      "author_key": "synthetic-contributor",
+      "identity_confidence": 1.0,
+      "participant_id": "contributor",
+      "role": "contributor"
+    }
+  ],
+  "previous_ledger_sha256": "7ab0d178949cb8f73994a7a6fc6c16aade824a01a32d7a2123bf6c7b92a60850",
+  "proposition_groups": [],
+  "proposition_relations": [
+    {
+      "analysis_basis": "direct_semantic_content",
+      "asserted_or_analysed_by": "account",
+      "confidence": 1.0,
+      "exact_evidence_spans": [
+        {
+          "end_char": 60,
+          "exact_text": "That sounds like frustration, not a factual yes-or-no claim.",
+          "start_char": 0,
+          "turn_id": "t1"
+        }
+      ],
+      "introduced_at_turn_id": "t1",
+      "provenance_kind": "transcript_extraction",
+      "relation_id": "r-classifies-rhetoric",
+      "relation_type": "clarifies",
+      "source_proposition_ids": [
+        "p-no-factual-polar-claim"
+      ],
+      "target_proposition_ids": [
+        "p-rhetorical-meeting"
+      ],
+      "uncertainty_reason": null
+    }
+  ],
+  "propositions": [
+    {
+      "canonical_text": "Another meeting about scheduling meetings!",
+      "commitment_status": "not_applicable",
+      "confidence": 1.0,
+      "derivation": {
+        "kind": "direct_span",
+        "normalisation_note": null,
+        "source_proposition_ids": []
+      },
+      "epistemic_status": "not_applicable",
+      "exact_evidence_spans": [
+        {
+          "end_char": 56,
+          "exact_text": "Oh splendid - another meeting about scheduling meetings!",
+          "start_char": 0,
+          "turn_id": "t0"
+        }
+      ],
+      "introduced_at_turn_id": "t0",
+      "lifecycle_status": "introduced",
+      "modality": {
+        "strength": "none",
+        "type": "none"
+      },
+      "original_language": "en",
+      "polarity": "not_applicable",
+      "proposition_group_id": null,
+      "proposition_id": "p-rhetorical-meeting",
+      "proposition_kind": "rhetorical",
+      "quantification": {
+        "surface_marker": null,
+        "type": "none"
+      },
+      "speaker_or_attributor": {
+        "attributed_participant_id": null,
+        "kind": "speaker",
+        "participant_id": "contributor"
+      },
+      "speech_act": "rhetorical",
+      "temporal_scope": {
+        "end": null,
+        "start": null,
+        "surface_marker": null,
+        "type": "timeless"
+      },
+      "uncertainty_reason": null
+    },
+    {
+      "canonical_text": "The contribution expresses frustration rather than a factual polar claim.",
+      "commitment_status": "speaker_committed",
+      "confidence": 1.0,
+      "derivation": {
+        "kind": "direct_span",
+        "normalisation_note": null,
+        "source_proposition_ids": []
+      },
+      "epistemic_status": "asserted",
+      "exact_evidence_spans": [
+        {
+          "end_char": 60,
+          "exact_text": "That sounds like frustration, not a factual yes-or-no claim.",
+          "start_char": 0,
+          "turn_id": "t1"
+        }
+      ],
+      "introduced_at_turn_id": "t1",
+      "lifecycle_status": "live",
+      "modality": {
+        "strength": "none",
+        "type": "none"
+      },
+      "original_language": "en",
+      "polarity": "positive",
+      "proposition_group_id": null,
+      "proposition_id": "p-no-factual-polar-claim",
+      "proposition_kind": "expressive",
+      "quantification": {
+        "surface_marker": null,
+        "type": "none"
+      },
+      "speaker_or_attributor": {
+        "attributed_participant_id": null,
+        "kind": "speaker",
+        "participant_id": "account"
+      },
+      "speech_act": "assertion",
+      "temporal_scope": {
+        "end": null,
+        "start": null,
+        "surface_marker": null,
+        "type": "timeless"
+      },
+      "uncertainty_reason": null
+    }
+  ],
+  "rejected_answer_targets": [],
+  "repair_records": [],
+  "resolved_items": [
+    {
+      "item_id": "i-no-stable-issue",
+      "item_type": "issue",
+      "resolution_type": "no_stable_issue",
+      "resolved_at_turn_id": "t0"
+    }
+  ],
+  "root_post_id": "synthetic-08-rhetorical-no-stable-issue-post-0",
+  "schema_version": "proposition-ledger-v1.0.0",
+  "source_completeness": {
+    "account_publication_confirmed": true,
+    "chronology_complete": true,
+    "complete_prefix_through_turn": true,
+    "exact_text_complete": true,
+    "limitations": [
+      "Wholly invented schema fixture; not historical evidence."
+    ],
+    "parent_graph_complete": true,
+    "reconstruction_grade": "A"
+  },
+  "state_transitions": [
+    {
+      "answer_targets_added": [],
+      "answer_targets_updated": [],
+      "commitments_added": [
+        "c-classification"
+      ],
+      "commitments_updated": [],
+      "current_turn_id": "t1",
+      "current_turn_index": 1,
+      "from_ledger_sha256": "7ab0d178949cb8f73994a7a6fc6c16aade824a01a32d7a2123bf6c7b92a60850",
+      "issue_states_added": [],
+      "issue_states_updated": [],
+      "items_resolved": [],
+      "obligations_added": [],
+      "obligations_updated": [],
+      "proposition_groups_added": [],
+      "proposition_groups_updated": [],
+      "propositions_added": [
+        "p-no-factual-polar-claim"
+      ],
+      "propositions_updated": [],
+      "rejected_answer_targets_added": [],
+      "rejected_answer_targets_updated": [],
+      "relations_added": [
+        "r-classifies-rhetoric"
+      ],
+      "repair_records_added": [],
+      "repair_records_updated": [],
+      "state_patch": [
+        {
+          "after_record": {
+            "parent_turn_id": "t0",
+            "post_id": "synthetic-08-rhetorical-no-stable-issue-post-1",
+            "speaker_id": "account",
+            "text_sha256": "f369ee0f14ffa1c8ef9cacc94238a47dddaa2df4d664d855f43db514f2825162",
+            "turn_id": "t1",
+            "turn_index": 1
+          },
+          "before_record_sha256": null,
+          "collection": "turn_refs",
+          "item_id": "t1",
+          "operation": "add"
+        },
+        {
+          "after_record": {
+            "canonical_text": "The contribution expresses frustration rather than a factual polar claim.",
+            "commitment_status": "speaker_committed",
+            "confidence": 1.0,
+            "derivation": {
+              "kind": "direct_span",
+              "normalisation_note": null,
+              "source_proposition_ids": []
+            },
+            "epistemic_status": "asserted",
+            "exact_evidence_spans": [
+              {
+                "end_char": 60,
+                "exact_text": "That sounds like frustration, not a factual yes-or-no claim.",
+                "start_char": 0,
+                "turn_id": "t1"
+              }
+            ],
+            "introduced_at_turn_id": "t1",
+            "lifecycle_status": "live",
+            "modality": {
+              "strength": "none",
+              "type": "none"
+            },
+            "original_language": "en",
+            "polarity": "positive",
+            "proposition_group_id": null,
+            "proposition_id": "p-no-factual-polar-claim",
+            "proposition_kind": "expressive",
+            "quantification": {
+              "surface_marker": null,
+              "type": "none"
+            },
+            "speaker_or_attributor": {
+              "attributed_participant_id": null,
+              "kind": "speaker",
+              "participant_id": "account"
+            },
+            "speech_act": "assertion",
+            "temporal_scope": {
+              "end": null,
+              "start": null,
+              "surface_marker": null,
+              "type": "timeless"
+            },
+            "uncertainty_reason": null
+          },
+          "before_record_sha256": null,
+          "collection": "propositions",
+          "item_id": "p-no-factual-polar-claim",
+          "operation": "add"
+        },
+        {
+          "after_record": {
+            "basis": "explicit_speech_act",
+            "commitment_id": "c-classification",
+            "confidence": 1.0,
+            "introduced_at_turn_id": "t1",
+            "last_updated_at_turn_id": "t1",
+            "participant_id": "account",
+            "proposition_id": "p-no-factual-polar-claim",
+            "stance": "asserted",
+            "uncertainty_reason": null
+          },
+          "before_record_sha256": null,
+          "collection": "participant_commitments",
+          "item_id": "c-classification",
+          "operation": "add"
+        },
+        {
+          "after_record": {
+            "analysis_basis": "direct_semantic_content",
+            "asserted_or_analysed_by": "account",
+            "confidence": 1.0,
+            "exact_evidence_spans": [
+              {
+                "end_char": 60,
+                "exact_text": "That sounds like frustration, not a factual yes-or-no claim.",
+                "start_char": 0,
+                "turn_id": "t1"
+              }
+            ],
+            "introduced_at_turn_id": "t1",
+            "provenance_kind": "transcript_extraction",
+            "relation_id": "r-classifies-rhetoric",
+            "relation_type": "clarifies",
+            "source_proposition_ids": [
+              "p-no-factual-polar-claim"
+            ],
+            "target_proposition_ids": [
+              "p-rhetorical-meeting"
+            ],
+            "uncertainty_reason": null
+          },
+          "before_record_sha256": null,
+          "collection": "proposition_relations",
+          "item_id": "r-classifies-rhetoric",
+          "operation": "add"
+        }
+      ],
+      "transition_id": "transition-t1",
+      "warnings_added": []
+    }
+  ],
+  "target_turn_id": "t1",
+  "turn_refs": [
+    {
+      "parent_turn_id": null,
+      "post_id": "synthetic-08-rhetorical-no-stable-issue-post-0",
+      "speaker_id": "contributor",
+      "text_sha256": "91265817e962675d73f08675737803ceb181e9092ba37429bda5ab0b1e5d360e",
+      "turn_id": "t0",
+      "turn_index": 0
+    },
+    {
+      "parent_turn_id": "t0",
+      "post_id": "synthetic-08-rhetorical-no-stable-issue-post-1",
+      "speaker_id": "account",
+      "text_sha256": "f369ee0f14ffa1c8ef9cacc94238a47dddaa2df4d664d855f43db514f2825162",
+      "turn_id": "t1",
+      "turn_index": 1
+    }
+  ],
+  "unresolved_items": [],
+  "warnings": []
+}

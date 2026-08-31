@@ -1,0 +1,960 @@
+{
+  "conversation_key": "synthetic:03-existence-versus-security",
+  "description": "A security answer is rejected as a substitute for an existence question.",
+  "fixture_format_version": "proposition-ledger-synthetic-fixture-v1",
+  "fixture_id": "03-existence-versus-security",
+  "ledger_history": [
+    {
+      "answer_targets": [],
+      "as_of_turn_index": 0,
+      "conversation_key": "synthetic:03-existence-versus-security",
+      "conversational_obligations": [
+        {
+          "confidence": 1.0,
+          "created_by_turn_id": "t0",
+          "expiry_policy": "never_implicit",
+          "obligation_id": "o-answer-existence",
+          "obligation_type": "explicit_question",
+          "owed_by_participant": "account",
+          "owed_to_participant": "contributor",
+          "related_issue_ids": [
+            "i-liberty-existence"
+          ],
+          "related_proposition_ids": [
+            "p-liberty-exists"
+          ],
+          "resolved_by_turn_id": null,
+          "status": "open"
+        }
+      ],
+      "extraction_status": {
+        "abstentions": [],
+        "status": "complete",
+        "unsupported_inferences_rejected": 0
+      },
+      "issue_states": [
+        {
+          "addressed_participant": "account",
+          "answer_requirements": [
+            {
+              "description": "Address possible existence, not merely security.",
+              "requirement_type": "yes_no"
+            }
+          ],
+          "canonical_question": "Can civic liberty exist without secure courts?",
+          "confidence": 1.0,
+          "exact_evidence_spans": [
+            {
+              "end_char": 46,
+              "exact_text": "Can civic liberty exist without secure courts?",
+              "start_char": 0,
+              "turn_id": "t0"
+            }
+          ],
+          "initiating_speaker": "contributor",
+          "initiating_turn_id": "t0",
+          "issue_id": "i-liberty-existence",
+          "issue_type": "polar",
+          "live_alternatives": [],
+          "related_proposition_ids": [
+            "p-liberty-exists"
+          ],
+          "resolution_turn_id": null,
+          "resolution_type": null,
+          "status": "open"
+        }
+      ],
+      "ledger_id": "ledger-03-existence-versus-security-history-0",
+      "ledger_sha256": "7af5a575b0d3fb4fd1d48819af1ed6bc21f2c7e84a8e4737fe6aefa6ef57c736",
+      "participant_commitments": [
+        {
+          "basis": "explicit_speech_act",
+          "commitment_id": "c-existence-question",
+          "confidence": 1.0,
+          "introduced_at_turn_id": "t0",
+          "last_updated_at_turn_id": "t0",
+          "participant_id": "contributor",
+          "proposition_id": "p-liberty-exists",
+          "stance": "questioned",
+          "uncertainty_reason": null
+        }
+      ],
+      "participants": [
+        {
+          "author_key": "synthetic-account",
+          "identity_confidence": 1.0,
+          "participant_id": "account",
+          "role": "account"
+        },
+        {
+          "author_key": "synthetic-contributor",
+          "identity_confidence": 1.0,
+          "participant_id": "contributor",
+          "role": "contributor"
+        }
+      ],
+      "previous_ledger_sha256": null,
+      "proposition_groups": [],
+      "proposition_relations": [],
+      "propositions": [
+        {
+          "canonical_text": "Civic liberty can exist without secure courts.",
+          "commitment_status": "questioned_only",
+          "confidence": 1.0,
+          "derivation": {
+            "kind": "direct_span",
+            "normalisation_note": null,
+            "source_proposition_ids": []
+          },
+          "epistemic_status": "questioned",
+          "exact_evidence_spans": [
+            {
+              "end_char": 45,
+              "exact_text": "civic liberty exist without secure courts",
+              "start_char": 4,
+              "turn_id": "t0"
+            }
+          ],
+          "introduced_at_turn_id": "t0",
+          "lifecycle_status": "live",
+          "modality": {
+            "strength": "unknown",
+            "type": "possible"
+          },
+          "original_language": "en",
+          "polarity": "open",
+          "proposition_group_id": null,
+          "proposition_id": "p-liberty-exists",
+          "proposition_kind": "modal",
+          "quantification": {
+            "surface_marker": null,
+            "type": "none"
+          },
+          "speaker_or_attributor": {
+            "attributed_participant_id": null,
+            "kind": "speaker",
+            "participant_id": "contributor"
+          },
+          "speech_act": "question",
+          "temporal_scope": {
+            "end": null,
+            "start": null,
+            "surface_marker": null,
+            "type": "timeless"
+          },
+          "uncertainty_reason": null
+        }
+      ],
+      "rejected_answer_targets": [],
+      "repair_records": [],
+      "resolved_items": [],
+      "root_post_id": "synthetic-03-existence-versus-security-post-0",
+      "schema_version": "proposition-ledger-v1.0.0",
+      "source_completeness": {
+        "account_publication_confirmed": true,
+        "chronology_complete": true,
+        "complete_prefix_through_turn": true,
+        "exact_text_complete": true,
+        "limitations": [
+          "Wholly invented schema fixture; not historical evidence."
+        ],
+        "parent_graph_complete": true,
+        "reconstruction_grade": "A"
+      },
+      "state_transitions": [
+        {
+          "answer_targets_added": [],
+          "answer_targets_updated": [],
+          "commitments_added": [
+            "c-existence-question"
+          ],
+          "commitments_updated": [],
+          "current_turn_id": "t0",
+          "current_turn_index": 0,
+          "from_ledger_sha256": null,
+          "issue_states_added": [
+            "i-liberty-existence"
+          ],
+          "issue_states_updated": [],
+          "items_resolved": [],
+          "obligations_added": [
+            "o-answer-existence"
+          ],
+          "obligations_updated": [],
+          "proposition_groups_added": [],
+          "proposition_groups_updated": [],
+          "propositions_added": [
+            "p-liberty-exists"
+          ],
+          "propositions_updated": [],
+          "rejected_answer_targets_added": [],
+          "rejected_answer_targets_updated": [],
+          "relations_added": [],
+          "repair_records_added": [],
+          "repair_records_updated": [],
+          "state_patch": [
+            {
+              "after_record": {
+                "account_publication_confirmed": true,
+                "chronology_complete": true,
+                "complete_prefix_through_turn": true,
+                "exact_text_complete": true,
+                "limitations": [
+                  "Wholly invented schema fixture; not historical evidence."
+                ],
+                "parent_graph_complete": true,
+                "reconstruction_grade": "A"
+              },
+              "before_record_sha256": null,
+              "collection": "source_completeness",
+              "item_id": "source_completeness",
+              "operation": "add"
+            },
+            {
+              "after_record": {
+                "author_key": "synthetic-account",
+                "identity_confidence": 1.0,
+                "participant_id": "account",
+                "role": "account"
+              },
+              "before_record_sha256": null,
+              "collection": "participants",
+              "item_id": "account",
+              "operation": "add"
+            },
+            {
+              "after_record": {
+                "author_key": "synthetic-contributor",
+                "identity_confidence": 1.0,
+                "participant_id": "contributor",
+                "role": "contributor"
+              },
+              "before_record_sha256": null,
+              "collection": "participants",
+              "item_id": "contributor",
+              "operation": "add"
+            },
+            {
+              "after_record": {
+                "parent_turn_id": null,
+                "post_id": "synthetic-03-existence-versus-security-post-0",
+                "speaker_id": "contributor",
+                "text_sha256": "f3e676e8d6a8d261a34ccc59469e0cb4782fb7ce3f66c53ee2506df717cadb75",
+                "turn_id": "t0",
+                "turn_index": 0
+              },
+              "before_record_sha256": null,
+              "collection": "turn_refs",
+              "item_id": "t0",
+              "operation": "add"
+            },
+            {
+              "after_record": {
+                "canonical_text": "Civic liberty can exist without secure courts.",
+                "commitment_status": "questioned_only",
+                "confidence": 1.0,
+                "derivation": {
+                  "kind": "direct_span",
+                  "normalisation_note": null,
+                  "source_proposition_ids": []
+                },
+                "epistemic_status": "questioned",
+                "exact_evidence_spans": [
+                  {
+                    "end_char": 45,
+                    "exact_text": "civic liberty exist without secure courts",
+                    "start_char": 4,
+                    "turn_id": "t0"
+                  }
+                ],
+                "introduced_at_turn_id": "t0",
+                "lifecycle_status": "live",
+                "modality": {
+                  "strength": "unknown",
+                  "type": "possible"
+                },
+                "original_language": "en",
+                "polarity": "open",
+                "proposition_group_id": null,
+                "proposition_id": "p-liberty-exists",
+                "proposition_kind": "modal",
+                "quantification": {
+                  "surface_marker": null,
+                  "type": "none"
+                },
+                "speaker_or_attributor": {
+                  "attributed_participant_id": null,
+                  "kind": "speaker",
+                  "participant_id": "contributor"
+                },
+                "speech_act": "question",
+                "temporal_scope": {
+                  "end": null,
+                  "start": null,
+                  "surface_marker": null,
+                  "type": "timeless"
+                },
+                "uncertainty_reason": null
+              },
+              "before_record_sha256": null,
+              "collection": "propositions",
+              "item_id": "p-liberty-exists",
+              "operation": "add"
+            },
+            {
+              "after_record": {
+                "addressed_participant": "account",
+                "answer_requirements": [
+                  {
+                    "description": "Address possible existence, not merely security.",
+                    "requirement_type": "yes_no"
+                  }
+                ],
+                "canonical_question": "Can civic liberty exist without secure courts?",
+                "confidence": 1.0,
+                "exact_evidence_spans": [
+                  {
+                    "end_char": 46,
+                    "exact_text": "Can civic liberty exist without secure courts?",
+                    "start_char": 0,
+                    "turn_id": "t0"
+                  }
+                ],
+                "initiating_speaker": "contributor",
+                "initiating_turn_id": "t0",
+                "issue_id": "i-liberty-existence",
+                "issue_type": "polar",
+                "live_alternatives": [],
+                "related_proposition_ids": [
+                  "p-liberty-exists"
+                ],
+                "resolution_turn_id": null,
+                "resolution_type": null,
+                "status": "open"
+              },
+              "before_record_sha256": null,
+              "collection": "issue_states",
+              "item_id": "i-liberty-existence",
+              "operation": "add"
+            },
+            {
+              "after_record": {
+                "basis": "explicit_speech_act",
+                "commitment_id": "c-existence-question",
+                "confidence": 1.0,
+                "introduced_at_turn_id": "t0",
+                "last_updated_at_turn_id": "t0",
+                "participant_id": "contributor",
+                "proposition_id": "p-liberty-exists",
+                "stance": "questioned",
+                "uncertainty_reason": null
+              },
+              "before_record_sha256": null,
+              "collection": "participant_commitments",
+              "item_id": "c-existence-question",
+              "operation": "add"
+            },
+            {
+              "after_record": {
+                "confidence": 1.0,
+                "created_by_turn_id": "t0",
+                "expiry_policy": "never_implicit",
+                "obligation_id": "o-answer-existence",
+                "obligation_type": "explicit_question",
+                "owed_by_participant": "account",
+                "owed_to_participant": "contributor",
+                "related_issue_ids": [
+                  "i-liberty-existence"
+                ],
+                "related_proposition_ids": [
+                  "p-liberty-exists"
+                ],
+                "resolved_by_turn_id": null,
+                "status": "open"
+              },
+              "before_record_sha256": null,
+              "collection": "conversational_obligations",
+              "item_id": "o-answer-existence",
+              "operation": "add"
+            },
+            {
+              "after_record": {
+                "first_opened_at_turn_id": "t0",
+                "item_id": "i-liberty-existence",
+                "item_type": "issue",
+                "reason": "The existence question remains open."
+              },
+              "before_record_sha256": null,
+              "collection": "unresolved_items",
+              "item_id": "issue:i-liberty-existence",
+              "operation": "add"
+            },
+            {
+              "after_record": {
+                "first_opened_at_turn_id": "t0",
+                "item_id": "o-answer-existence",
+                "item_type": "obligation",
+                "reason": "A direct answer is still owed."
+              },
+              "before_record_sha256": null,
+              "collection": "unresolved_items",
+              "item_id": "obligation:o-answer-existence",
+              "operation": "add"
+            },
+            {
+              "after_record": {
+                "first_opened_at_turn_id": "t0",
+                "item_id": "p-liberty-exists",
+                "item_type": "proposition",
+                "reason": "The existence proposition remains unanswered."
+              },
+              "before_record_sha256": null,
+              "collection": "unresolved_items",
+              "item_id": "proposition:p-liberty-exists",
+              "operation": "add"
+            },
+            {
+              "after_record": {
+                "abstentions": [],
+                "status": "complete",
+                "unsupported_inferences_rejected": 0
+              },
+              "before_record_sha256": null,
+              "collection": "extraction_status",
+              "item_id": "extraction_status",
+              "operation": "add"
+            }
+          ],
+          "transition_id": "transition-t0",
+          "warnings_added": []
+        }
+      ],
+      "target_turn_id": "t0",
+      "turn_refs": [
+        {
+          "parent_turn_id": null,
+          "post_id": "synthetic-03-existence-versus-security-post-0",
+          "speaker_id": "contributor",
+          "text_sha256": "f3e676e8d6a8d261a34ccc59469e0cb4782fb7ce3f66c53ee2506df717cadb75",
+          "turn_id": "t0",
+          "turn_index": 0
+        }
+      ],
+      "unresolved_items": [
+        {
+          "first_opened_at_turn_id": "t0",
+          "item_id": "p-liberty-exists",
+          "item_type": "proposition",
+          "reason": "The existence proposition remains unanswered."
+        },
+        {
+          "first_opened_at_turn_id": "t0",
+          "item_id": "i-liberty-existence",
+          "item_type": "issue",
+          "reason": "The existence question remains open."
+        },
+        {
+          "first_opened_at_turn_id": "t0",
+          "item_id": "o-answer-existence",
+          "item_type": "obligation",
+          "reason": "A direct answer is still owed."
+        }
+      ],
+      "warnings": []
+    },
+    {
+      "answer_targets": [
+        {
+          "answer_target_id": "at-security",
+          "confidence": 1.0,
+          "issue_ids": [
+            "i-liberty-existence"
+          ],
+          "proposition_ids": [
+            "p-courts-protect-liberty"
+          ],
+          "reply_turn_id": "t1",
+          "selected_at_turn_id": "t1",
+          "target_status": "apparent"
+        }
+      ],
+      "as_of_turn_index": 1,
+      "conversation_key": "synthetic:03-existence-versus-security",
+      "conversational_obligations": [
+        {
+          "confidence": 1.0,
+          "created_by_turn_id": "t0",
+          "expiry_policy": "never_implicit",
+          "obligation_id": "o-answer-existence",
+          "obligation_type": "explicit_question",
+          "owed_by_participant": "account",
+          "owed_to_participant": "contributor",
+          "related_issue_ids": [
+            "i-liberty-existence"
+          ],
+          "related_proposition_ids": [
+            "p-liberty-exists"
+          ],
+          "resolved_by_turn_id": null,
+          "status": "open"
+        }
+      ],
+      "extraction_status": {
+        "abstentions": [],
+        "status": "complete",
+        "unsupported_inferences_rejected": 0
+      },
+      "issue_states": [
+        {
+          "addressed_participant": "account",
+          "answer_requirements": [
+            {
+              "description": "Address possible existence, not merely security.",
+              "requirement_type": "yes_no"
+            }
+          ],
+          "canonical_question": "Can civic liberty exist without secure courts?",
+          "confidence": 1.0,
+          "exact_evidence_spans": [
+            {
+              "end_char": 46,
+              "exact_text": "Can civic liberty exist without secure courts?",
+              "start_char": 0,
+              "turn_id": "t0"
+            }
+          ],
+          "initiating_speaker": "contributor",
+          "initiating_turn_id": "t0",
+          "issue_id": "i-liberty-existence",
+          "issue_type": "polar",
+          "live_alternatives": [],
+          "related_proposition_ids": [
+            "p-liberty-exists",
+            "p-courts-protect-liberty"
+          ],
+          "resolution_turn_id": null,
+          "resolution_type": null,
+          "status": "open"
+        }
+      ],
+      "ledger_id": "ledger-03-existence-versus-security-history-1",
+      "ledger_sha256": "3d510c50af5ce1b1106d2af77a4c5f56c9f1235ddca79261bb77538047c1d737",
+      "participant_commitments": [
+        {
+          "basis": "explicit_speech_act",
+          "commitment_id": "c-existence-question",
+          "confidence": 1.0,
+          "introduced_at_turn_id": "t0",
+          "last_updated_at_turn_id": "t0",
+          "participant_id": "contributor",
+          "proposition_id": "p-liberty-exists",
+          "stance": "questioned",
+          "uncertainty_reason": null
+        },
+        {
+          "basis": "explicit_speech_act",
+          "commitment_id": "c-security",
+          "confidence": 1.0,
+          "introduced_at_turn_id": "t1",
+          "last_updated_at_turn_id": "t1",
+          "participant_id": "account",
+          "proposition_id": "p-courts-protect-liberty",
+          "stance": "asserted",
+          "uncertainty_reason": null
+        }
+      ],
+      "participants": [
+        {
+          "author_key": "synthetic-account",
+          "identity_confidence": 1.0,
+          "participant_id": "account",
+          "role": "account"
+        },
+        {
+          "author_key": "synthetic-contributor",
+          "identity_confidence": 1.0,
+          "participant_id": "contributor",
+          "role": "contributor"
+        }
+      ],
+      "previous_ledger_sha256": "7af5a575b0d3fb4fd1d48819af1ed6bc21f2c7e84a8e4737fe6aefa6ef57c736",
+      "proposition_groups": [],
+      "proposition_relations": [],
+      "propositions": [
+        {
+          "canonical_text": "Civic liberty can exist without secure courts.",
+          "commitment_status": "questioned_only",
+          "confidence": 1.0,
+          "derivation": {
+            "kind": "direct_span",
+            "normalisation_note": null,
+            "source_proposition_ids": []
+          },
+          "epistemic_status": "questioned",
+          "exact_evidence_spans": [
+            {
+              "end_char": 45,
+              "exact_text": "civic liberty exist without secure courts",
+              "start_char": 4,
+              "turn_id": "t0"
+            }
+          ],
+          "introduced_at_turn_id": "t0",
+          "lifecycle_status": "live",
+          "modality": {
+            "strength": "unknown",
+            "type": "possible"
+          },
+          "original_language": "en",
+          "polarity": "open",
+          "proposition_group_id": null,
+          "proposition_id": "p-liberty-exists",
+          "proposition_kind": "modal",
+          "quantification": {
+            "surface_marker": null,
+            "type": "none"
+          },
+          "speaker_or_attributor": {
+            "attributed_participant_id": null,
+            "kind": "speaker",
+            "participant_id": "contributor"
+          },
+          "speech_act": "question",
+          "temporal_scope": {
+            "end": null,
+            "start": null,
+            "surface_marker": null,
+            "type": "timeless"
+          },
+          "uncertainty_reason": null
+        },
+        {
+          "canonical_text": "Secure courts protect civic liberty.",
+          "commitment_status": "speaker_committed",
+          "confidence": 1.0,
+          "derivation": {
+            "kind": "direct_span",
+            "normalisation_note": null,
+            "source_proposition_ids": []
+          },
+          "epistemic_status": "asserted",
+          "exact_evidence_spans": [
+            {
+              "end_char": 36,
+              "exact_text": "Secure courts protect civic liberty.",
+              "start_char": 0,
+              "turn_id": "t1"
+            }
+          ],
+          "introduced_at_turn_id": "t1",
+          "lifecycle_status": "live",
+          "modality": {
+            "strength": "none",
+            "type": "none"
+          },
+          "original_language": "en",
+          "polarity": "positive",
+          "proposition_group_id": null,
+          "proposition_id": "p-courts-protect-liberty",
+          "proposition_kind": "causal",
+          "quantification": {
+            "surface_marker": null,
+            "type": "none"
+          },
+          "speaker_or_attributor": {
+            "attributed_participant_id": null,
+            "kind": "speaker",
+            "participant_id": "account"
+          },
+          "speech_act": "assertion",
+          "temporal_scope": {
+            "end": null,
+            "start": null,
+            "surface_marker": null,
+            "type": "timeless"
+          },
+          "uncertainty_reason": null
+        }
+      ],
+      "rejected_answer_targets": [],
+      "repair_records": [],
+      "resolved_items": [],
+      "root_post_id": "synthetic-03-existence-versus-security-post-0",
+      "schema_version": "proposition-ledger-v1.0.0",
+      "source_completeness": {
+        "account_publication_confirmed": true,
+        "chronology_complete": true,
+        "complete_prefix_through_turn": true,
+        "exact_text_complete": true,
+        "limitations": [
+          "Wholly invented schema fixture; not historical evidence."
+        ],
+        "parent_graph_complete": true,
+        "reconstruction_grade": "A"
+      },
+      "state_transitions": [
+        {
+          "answer_targets_added": [
+            "at-security"
+          ],
+          "answer_targets_updated": [],
+          "commitments_added": [
+            "c-security"
+          ],
+          "commitments_updated": [],
+          "current_turn_id": "t1",
+          "current_turn_index": 1,
+          "from_ledger_sha256": "7af5a575b0d3fb4fd1d48819af1ed6bc21f2c7e84a8e4737fe6aefa6ef57c736",
+          "issue_states_added": [],
+          "issue_states_updated": [
+            {
+              "from_status": "open",
+              "item_id": "i-liberty-existence",
+              "reason": "The complete state record changed at the current turn.",
+              "to_status": "open"
+            }
+          ],
+          "items_resolved": [],
+          "obligations_added": [],
+          "obligations_updated": [],
+          "proposition_groups_added": [],
+          "proposition_groups_updated": [],
+          "propositions_added": [
+            "p-courts-protect-liberty"
+          ],
+          "propositions_updated": [],
+          "rejected_answer_targets_added": [],
+          "rejected_answer_targets_updated": [],
+          "relations_added": [],
+          "repair_records_added": [],
+          "repair_records_updated": [],
+          "state_patch": [
+            {
+              "after_record": {
+                "parent_turn_id": "t0",
+                "post_id": "synthetic-03-existence-versus-security-post-1",
+                "speaker_id": "account",
+                "text_sha256": "340e8829a4f7a1218472a7b7f764d21dcb421a3091c7fc70fbb718d2322f3c8e",
+                "turn_id": "t1",
+                "turn_index": 1
+              },
+              "before_record_sha256": null,
+              "collection": "turn_refs",
+              "item_id": "t1",
+              "operation": "add"
+            },
+            {
+              "after_record": {
+                "canonical_text": "Secure courts protect civic liberty.",
+                "commitment_status": "speaker_committed",
+                "confidence": 1.0,
+                "derivation": {
+                  "kind": "direct_span",
+                  "normalisation_note": null,
+                  "source_proposition_ids": []
+                },
+                "epistemic_status": "asserted",
+                "exact_evidence_spans": [
+                  {
+                    "end_char": 36,
+                    "exact_text": "Secure courts protect civic liberty.",
+                    "start_char": 0,
+                    "turn_id": "t1"
+                  }
+                ],
+                "introduced_at_turn_id": "t1",
+                "lifecycle_status": "live",
+                "modality": {
+                  "strength": "none",
+                  "type": "none"
+                },
+                "original_language": "en",
+                "polarity": "positive",
+                "proposition_group_id": null,
+                "proposition_id": "p-courts-protect-liberty",
+                "proposition_kind": "causal",
+                "quantification": {
+                  "surface_marker": null,
+                  "type": "none"
+                },
+                "speaker_or_attributor": {
+                  "attributed_participant_id": null,
+                  "kind": "speaker",
+                  "participant_id": "account"
+                },
+                "speech_act": "assertion",
+                "temporal_scope": {
+                  "end": null,
+                  "start": null,
+                  "surface_marker": null,
+                  "type": "timeless"
+                },
+                "uncertainty_reason": null
+              },
+              "before_record_sha256": null,
+              "collection": "propositions",
+              "item_id": "p-courts-protect-liberty",
+              "operation": "add"
+            },
+            {
+              "after_record": {
+                "addressed_participant": "account",
+                "answer_requirements": [
+                  {
+                    "description": "Address possible existence, not merely security.",
+                    "requirement_type": "yes_no"
+                  }
+                ],
+                "canonical_question": "Can civic liberty exist without secure courts?",
+                "confidence": 1.0,
+                "exact_evidence_spans": [
+                  {
+                    "end_char": 46,
+                    "exact_text": "Can civic liberty exist without secure courts?",
+                    "start_char": 0,
+                    "turn_id": "t0"
+                  }
+                ],
+                "initiating_speaker": "contributor",
+                "initiating_turn_id": "t0",
+                "issue_id": "i-liberty-existence",
+                "issue_type": "polar",
+                "live_alternatives": [],
+                "related_proposition_ids": [
+                  "p-liberty-exists",
+                  "p-courts-protect-liberty"
+                ],
+                "resolution_turn_id": null,
+                "resolution_type": null,
+                "status": "open"
+              },
+              "before_record_sha256": "24c3c5efc15e4ae603701e6dc76af762aa182d2fcfd370cb4062ac5ec631d017",
+              "collection": "issue_states",
+              "item_id": "i-liberty-existence",
+              "operation": "replace"
+            },
+            {
+              "after_record": {
+                "basis": "explicit_speech_act",
+                "commitment_id": "c-security",
+                "confidence": 1.0,
+                "introduced_at_turn_id": "t1",
+                "last_updated_at_turn_id": "t1",
+                "participant_id": "account",
+                "proposition_id": "p-courts-protect-liberty",
+                "stance": "asserted",
+                "uncertainty_reason": null
+              },
+              "before_record_sha256": null,
+              "collection": "participant_commitments",
+              "item_id": "c-security",
+              "operation": "add"
+            },
+            {
+              "after_record": {
+                "answer_target_id": "at-security",
+                "confidence": 1.0,
+                "issue_ids": [
+                  "i-liberty-existence"
+                ],
+                "proposition_ids": [
+                  "p-courts-protect-liberty"
+                ],
+                "reply_turn_id": "t1",
+                "selected_at_turn_id": "t1",
+                "target_status": "apparent"
+              },
+              "before_record_sha256": null,
+              "collection": "answer_targets",
+              "item_id": "at-security",
+              "operation": "add"
+            }
+          ],
+          "transition_id": "transition-t1",
+          "warnings_added": []
+        }
+      ],
+      "target_turn_id": "t1",
+      "turn_refs": [
+        {
+          "parent_turn_id": null,
+          "post_id": "synthetic-03-existence-versus-security-post-0",
+          "speaker_id": "contributor",
+          "text_sha256": "f3e676e8d6a8d261a34ccc59469e0cb4782fb7ce3f66c53ee2506df717cadb75",
+          "turn_id": "t0",
+          "turn_index": 0
+        },
+        {
+          "parent_turn_id": "t0",
+          "post_id": "synthetic-03-existence-versus-security-post-1",
+          "speaker_id": "account",
+          "text_sha256": "340e8829a4f7a1218472a7b7f764d21dcb421a3091c7fc70fbb718d2322f3c8e",
+          "turn_id": "t1",
+          "turn_index": 1
+        }
+      ],
+      "unresolved_items": [
+        {
+          "first_opened_at_turn_id": "t0",
+          "item_id": "p-liberty-exists",
+          "item_type": "proposition",
+          "reason": "The existence proposition remains unanswered."
+        },
+        {
+          "first_opened_at_turn_id": "t0",
+          "item_id": "i-liberty-existence",
+          "item_type": "issue",
+          "reason": "The existence question remains open."
+        },
+        {
+          "first_opened_at_turn_id": "t0",
+          "item_id": "o-answer-existence",
+          "item_type": "obligation",
+          "reason": "A direct answer is still owed."
+        }
+      ],
+      "warnings": []
+    }
+  ],
+  "participants": [
+    {
+      "participant_id": "account",
+      "role": "account"
+    },
+    {
+      "participant_id": "contributor",
+      "role": "contributor"
+    }
+  ],
+  "root_post_id": "synthetic-03-existence-versus-security-post-0",
+  "synthetic": true,
+  "turns": [
+    {
+      "language": "en",
+      "parent_turn_id": null,
+      "post_id": "synthetic-03-existence-versus-security-post-0",
+      "speaker_id": "contributor",
+      "text": "Can civic liberty exist without secure courts?",
+      "turn_id": "t0",
+      "turn_index": 0
+    },
+    {
+      "language": "en",
+      "parent_turn_id": "t0",
+      "post_id": "synthetic-03-existence-versus-security-post-1",
+      "speaker_id": "account",
+      "text": "Secure courts protect civic liberty.",
+      "turn_id": "t1",
+      "turn_index": 1
+    },
+    {
+      "language": "en",
+      "parent_turn_id": "t1",
+      "post_id": "synthetic-03-existence-versus-security-post-2",
+      "speaker_id": "contributor",
+      "text": "I asked whether liberty can exist without them, not whether courts protect it.",
+      "turn_id": "t2",
+      "turn_index": 2
+    }
+  ]
+}

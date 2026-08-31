@@ -1,0 +1,764 @@
+{
+  "answer_targets": [],
+  "as_of_turn_index": 1,
+  "conversation_key": "synthetic:05-compound-allegation",
+  "conversational_obligations": [
+    {
+      "confidence": 1.0,
+      "created_by_turn_id": "t1",
+      "expiry_policy": "on_topic_abandonment",
+      "obligation_id": "o-select-allegation-part",
+      "obligation_type": "requested_clarification",
+      "owed_by_participant": "contributor",
+      "owed_to_participant": "account",
+      "related_issue_ids": [
+        "i-select-allegation-part"
+      ],
+      "related_proposition_ids": [
+        "p-curator-hid-notice",
+        "p-hiding-caused-delay",
+        "p-vote-delayed",
+        "p-curator-wanted-rival-win"
+      ],
+      "resolved_by_turn_id": null,
+      "status": "open"
+    }
+  ],
+  "extraction_status": {
+    "abstentions": [],
+    "status": "complete",
+    "unsupported_inferences_rejected": 0
+  },
+  "issue_states": [
+    {
+      "addressed_participant": "contributor",
+      "answer_requirements": [
+        {
+          "description": "Select one allegation component.",
+          "requirement_type": "select_alternative"
+        }
+      ],
+      "canonical_question": "Which part of the allegation should be addressed first?",
+      "confidence": 1.0,
+      "exact_evidence_spans": [
+        {
+          "end_char": 80,
+          "exact_text": "Which part should I address first: the hiding, the delay, or the alleged motive?",
+          "start_char": 0,
+          "turn_id": "t1"
+        }
+      ],
+      "initiating_speaker": "account",
+      "initiating_turn_id": "t1",
+      "issue_id": "i-select-allegation-part",
+      "issue_type": "clarification",
+      "live_alternatives": [
+        {
+          "alternative_id": "alt-conduct",
+          "label": "Address alleged conduct.",
+          "proposition_ids": [
+            "p-curator-hid-notice"
+          ],
+          "status": "live"
+        },
+        {
+          "alternative_id": "alt-causation",
+          "label": "Address alleged causation and outcome.",
+          "proposition_ids": [
+            "p-hiding-caused-delay",
+            "p-vote-delayed"
+          ],
+          "status": "live"
+        },
+        {
+          "alternative_id": "alt-motive",
+          "label": "Address alleged motive.",
+          "proposition_ids": [
+            "p-curator-wanted-rival-win"
+          ],
+          "status": "live"
+        }
+      ],
+      "related_proposition_ids": [
+        "p-curator-hid-notice",
+        "p-vote-delayed",
+        "p-hiding-caused-delay",
+        "p-curator-wanted-rival-win"
+      ],
+      "resolution_turn_id": null,
+      "resolution_type": null,
+      "status": "open"
+    }
+  ],
+  "ledger_id": "ledger-05-compound-allegation",
+  "ledger_sha256": "26c54c731a8120156e9db2882c84ec7974dd63871437419afcdafe34abbecb42",
+  "participant_commitments": [
+    {
+      "basis": "explicit_speech_act",
+      "commitment_id": "c-conduct",
+      "confidence": 1.0,
+      "introduced_at_turn_id": "t0",
+      "last_updated_at_turn_id": "t0",
+      "participant_id": "contributor",
+      "proposition_id": "p-curator-hid-notice",
+      "stance": "asserted",
+      "uncertainty_reason": null
+    },
+    {
+      "basis": "explicit_speech_act",
+      "commitment_id": "c-outcome",
+      "confidence": 1.0,
+      "introduced_at_turn_id": "t0",
+      "last_updated_at_turn_id": "t0",
+      "participant_id": "contributor",
+      "proposition_id": "p-vote-delayed",
+      "stance": "asserted",
+      "uncertainty_reason": null
+    },
+    {
+      "basis": "explicit_speech_act",
+      "commitment_id": "c-causation",
+      "confidence": 1.0,
+      "introduced_at_turn_id": "t0",
+      "last_updated_at_turn_id": "t0",
+      "participant_id": "contributor",
+      "proposition_id": "p-hiding-caused-delay",
+      "stance": "asserted",
+      "uncertainty_reason": null
+    },
+    {
+      "basis": "explicit_speech_act",
+      "commitment_id": "c-motive",
+      "confidence": 1.0,
+      "introduced_at_turn_id": "t0",
+      "last_updated_at_turn_id": "t0",
+      "participant_id": "contributor",
+      "proposition_id": "p-curator-wanted-rival-win",
+      "stance": "asserted",
+      "uncertainty_reason": null
+    }
+  ],
+  "participants": [
+    {
+      "author_key": "synthetic-account",
+      "identity_confidence": 1.0,
+      "participant_id": "account",
+      "role": "account"
+    },
+    {
+      "author_key": "synthetic-contributor",
+      "identity_confidence": 1.0,
+      "participant_id": "contributor",
+      "role": "contributor"
+    }
+  ],
+  "previous_ledger_sha256": "69735e3105891528e3a40ff6484f5dface0ccf6508a1af76eef093bfcf3a92c2",
+  "proposition_groups": [
+    {
+      "confidence": 1.0,
+      "decomposition_complete": true,
+      "exact_evidence_spans": [
+        {
+          "end_char": 93,
+          "exact_text": "The curator hid the notice, which delayed the vote, because she wanted the rival plan to win.",
+          "start_char": 0,
+          "turn_id": "t0"
+        }
+      ],
+      "introduced_at_turn_id": "t0",
+      "members": [
+        {
+          "ordinal": 0,
+          "proposition_id": "p-curator-hid-notice",
+          "role": "conduct"
+        },
+        {
+          "ordinal": 1,
+          "proposition_id": "p-hiding-caused-delay",
+          "role": "cause"
+        },
+        {
+          "ordinal": 2,
+          "proposition_id": "p-vote-delayed",
+          "role": "outcome"
+        },
+        {
+          "ordinal": 3,
+          "proposition_id": "p-curator-wanted-rival-win",
+          "role": "motive"
+        }
+      ],
+      "proposition_group_id": "g-compound-allegation",
+      "structure_type": "compound_accusation",
+      "uncertainty_reason": null
+    }
+  ],
+  "proposition_relations": [
+    {
+      "analysis_basis": "direct_semantic_content",
+      "asserted_or_analysed_by": "account",
+      "confidence": 1.0,
+      "exact_evidence_spans": [
+        {
+          "end_char": 80,
+          "exact_text": "Which part should I address first: the hiding, the delay, or the alleged motive?",
+          "start_char": 0,
+          "turn_id": "t1"
+        }
+      ],
+      "introduced_at_turn_id": "t1",
+      "provenance_kind": "transcript_extraction",
+      "relation_id": "r-request-targets-components",
+      "relation_type": "targets",
+      "source_proposition_ids": [
+        "p-select-part"
+      ],
+      "target_proposition_ids": [
+        "p-curator-hid-notice",
+        "p-hiding-caused-delay",
+        "p-vote-delayed",
+        "p-curator-wanted-rival-win"
+      ],
+      "uncertainty_reason": null
+    }
+  ],
+  "propositions": [
+    {
+      "canonical_text": "The curator hid the notice.",
+      "commitment_status": "speaker_committed",
+      "confidence": 1.0,
+      "derivation": {
+        "kind": "compound_decomposition",
+        "normalisation_note": null,
+        "source_proposition_ids": []
+      },
+      "epistemic_status": "asserted",
+      "exact_evidence_spans": [
+        {
+          "end_char": 26,
+          "exact_text": "The curator hid the notice",
+          "start_char": 0,
+          "turn_id": "t0"
+        }
+      ],
+      "introduced_at_turn_id": "t0",
+      "lifecycle_status": "live",
+      "modality": {
+        "strength": "none",
+        "type": "none"
+      },
+      "original_language": "en",
+      "polarity": "positive",
+      "proposition_group_id": "g-compound-allegation",
+      "proposition_id": "p-curator-hid-notice",
+      "proposition_kind": "descriptive",
+      "quantification": {
+        "surface_marker": null,
+        "type": "none"
+      },
+      "speaker_or_attributor": {
+        "attributed_participant_id": null,
+        "kind": "speaker",
+        "participant_id": "contributor"
+      },
+      "speech_act": "assertion",
+      "temporal_scope": {
+        "end": null,
+        "start": null,
+        "surface_marker": null,
+        "type": "timeless"
+      },
+      "uncertainty_reason": null
+    },
+    {
+      "canonical_text": "The vote was delayed.",
+      "commitment_status": "speaker_committed",
+      "confidence": 1.0,
+      "derivation": {
+        "kind": "compound_decomposition",
+        "normalisation_note": null,
+        "source_proposition_ids": []
+      },
+      "epistemic_status": "asserted",
+      "exact_evidence_spans": [
+        {
+          "end_char": 50,
+          "exact_text": "delayed the vote",
+          "start_char": 34,
+          "turn_id": "t0"
+        }
+      ],
+      "introduced_at_turn_id": "t0",
+      "lifecycle_status": "live",
+      "modality": {
+        "strength": "none",
+        "type": "none"
+      },
+      "original_language": "en",
+      "polarity": "positive",
+      "proposition_group_id": "g-compound-allegation",
+      "proposition_id": "p-vote-delayed",
+      "proposition_kind": "descriptive",
+      "quantification": {
+        "surface_marker": null,
+        "type": "none"
+      },
+      "speaker_or_attributor": {
+        "attributed_participant_id": null,
+        "kind": "speaker",
+        "participant_id": "contributor"
+      },
+      "speech_act": "assertion",
+      "temporal_scope": {
+        "end": null,
+        "start": null,
+        "surface_marker": null,
+        "type": "past"
+      },
+      "uncertainty_reason": null
+    },
+    {
+      "canonical_text": "Hiding the notice caused the vote to be delayed.",
+      "commitment_status": "speaker_committed",
+      "confidence": 1.0,
+      "derivation": {
+        "kind": "compound_decomposition",
+        "normalisation_note": null,
+        "source_proposition_ids": []
+      },
+      "epistemic_status": "asserted",
+      "exact_evidence_spans": [
+        {
+          "end_char": 50,
+          "exact_text": "which delayed the vote",
+          "start_char": 28,
+          "turn_id": "t0"
+        }
+      ],
+      "introduced_at_turn_id": "t0",
+      "lifecycle_status": "live",
+      "modality": {
+        "strength": "none",
+        "type": "none"
+      },
+      "original_language": "en",
+      "polarity": "positive",
+      "proposition_group_id": "g-compound-allegation",
+      "proposition_id": "p-hiding-caused-delay",
+      "proposition_kind": "causal",
+      "quantification": {
+        "surface_marker": null,
+        "type": "none"
+      },
+      "speaker_or_attributor": {
+        "attributed_participant_id": null,
+        "kind": "speaker",
+        "participant_id": "contributor"
+      },
+      "speech_act": "assertion",
+      "temporal_scope": {
+        "end": null,
+        "start": null,
+        "surface_marker": null,
+        "type": "past"
+      },
+      "uncertainty_reason": null
+    },
+    {
+      "canonical_text": "The curator wanted the rival plan to win.",
+      "commitment_status": "speaker_committed",
+      "confidence": 1.0,
+      "derivation": {
+        "kind": "compound_decomposition",
+        "normalisation_note": null,
+        "source_proposition_ids": []
+      },
+      "epistemic_status": "asserted",
+      "exact_evidence_spans": [
+        {
+          "end_char": 92,
+          "exact_text": "she wanted the rival plan to win",
+          "start_char": 60,
+          "turn_id": "t0"
+        }
+      ],
+      "introduced_at_turn_id": "t0",
+      "lifecycle_status": "live",
+      "modality": {
+        "strength": "none",
+        "type": "none"
+      },
+      "original_language": "en",
+      "polarity": "positive",
+      "proposition_group_id": "g-compound-allegation",
+      "proposition_id": "p-curator-wanted-rival-win",
+      "proposition_kind": "descriptive",
+      "quantification": {
+        "surface_marker": null,
+        "type": "none"
+      },
+      "speaker_or_attributor": {
+        "attributed_participant_id": null,
+        "kind": "speaker",
+        "participant_id": "contributor"
+      },
+      "speech_act": "assertion",
+      "temporal_scope": {
+        "end": null,
+        "start": null,
+        "surface_marker": null,
+        "type": "past"
+      },
+      "uncertainty_reason": null
+    },
+    {
+      "canonical_text": "The contributor should select which part is addressed first.",
+      "commitment_status": "not_applicable",
+      "confidence": 1.0,
+      "derivation": {
+        "kind": "direct_span",
+        "normalisation_note": null,
+        "source_proposition_ids": []
+      },
+      "epistemic_status": "not_applicable",
+      "exact_evidence_spans": [
+        {
+          "end_char": 80,
+          "exact_text": "Which part should I address first: the hiding, the delay, or the alleged motive?",
+          "start_char": 0,
+          "turn_id": "t1"
+        }
+      ],
+      "introduced_at_turn_id": "t1",
+      "lifecycle_status": "live",
+      "modality": {
+        "strength": "weak",
+        "type": "obligatory"
+      },
+      "original_language": "en",
+      "polarity": "not_applicable",
+      "proposition_group_id": null,
+      "proposition_id": "p-select-part",
+      "proposition_kind": "proposal",
+      "quantification": {
+        "surface_marker": null,
+        "type": "none"
+      },
+      "speaker_or_attributor": {
+        "attributed_participant_id": null,
+        "kind": "speaker",
+        "participant_id": "account"
+      },
+      "speech_act": "request",
+      "temporal_scope": {
+        "end": null,
+        "start": null,
+        "surface_marker": null,
+        "type": "timeless"
+      },
+      "uncertainty_reason": null
+    }
+  ],
+  "rejected_answer_targets": [],
+  "repair_records": [],
+  "resolved_items": [],
+  "root_post_id": "synthetic-05-compound-allegation-post-0",
+  "schema_version": "proposition-ledger-v1.0.0",
+  "source_completeness": {
+    "account_publication_confirmed": true,
+    "chronology_complete": true,
+    "complete_prefix_through_turn": true,
+    "exact_text_complete": true,
+    "limitations": [
+      "Wholly invented schema fixture; not historical evidence."
+    ],
+    "parent_graph_complete": true,
+    "reconstruction_grade": "A"
+  },
+  "state_transitions": [
+    {
+      "answer_targets_added": [],
+      "answer_targets_updated": [],
+      "commitments_added": [],
+      "commitments_updated": [],
+      "current_turn_id": "t1",
+      "current_turn_index": 1,
+      "from_ledger_sha256": "69735e3105891528e3a40ff6484f5dface0ccf6508a1af76eef093bfcf3a92c2",
+      "issue_states_added": [
+        "i-select-allegation-part"
+      ],
+      "issue_states_updated": [],
+      "items_resolved": [],
+      "obligations_added": [
+        "o-select-allegation-part"
+      ],
+      "obligations_updated": [],
+      "proposition_groups_added": [],
+      "proposition_groups_updated": [],
+      "propositions_added": [
+        "p-select-part"
+      ],
+      "propositions_updated": [],
+      "rejected_answer_targets_added": [],
+      "rejected_answer_targets_updated": [],
+      "relations_added": [
+        "r-request-targets-components"
+      ],
+      "repair_records_added": [],
+      "repair_records_updated": [],
+      "state_patch": [
+        {
+          "after_record": {
+            "parent_turn_id": "t0",
+            "post_id": "synthetic-05-compound-allegation-post-1",
+            "speaker_id": "account",
+            "text_sha256": "8ec62433b4a5958528b4f25dd5b9a1b951029f1e151a262ae7b43551673dd73b",
+            "turn_id": "t1",
+            "turn_index": 1
+          },
+          "before_record_sha256": null,
+          "collection": "turn_refs",
+          "item_id": "t1",
+          "operation": "add"
+        },
+        {
+          "after_record": {
+            "canonical_text": "The contributor should select which part is addressed first.",
+            "commitment_status": "not_applicable",
+            "confidence": 1.0,
+            "derivation": {
+              "kind": "direct_span",
+              "normalisation_note": null,
+              "source_proposition_ids": []
+            },
+            "epistemic_status": "not_applicable",
+            "exact_evidence_spans": [
+              {
+                "end_char": 80,
+                "exact_text": "Which part should I address first: the hiding, the delay, or the alleged motive?",
+                "start_char": 0,
+                "turn_id": "t1"
+              }
+            ],
+            "introduced_at_turn_id": "t1",
+            "lifecycle_status": "live",
+            "modality": {
+              "strength": "weak",
+              "type": "obligatory"
+            },
+            "original_language": "en",
+            "polarity": "not_applicable",
+            "proposition_group_id": null,
+            "proposition_id": "p-select-part",
+            "proposition_kind": "proposal",
+            "quantification": {
+              "surface_marker": null,
+              "type": "none"
+            },
+            "speaker_or_attributor": {
+              "attributed_participant_id": null,
+              "kind": "speaker",
+              "participant_id": "account"
+            },
+            "speech_act": "request",
+            "temporal_scope": {
+              "end": null,
+              "start": null,
+              "surface_marker": null,
+              "type": "timeless"
+            },
+            "uncertainty_reason": null
+          },
+          "before_record_sha256": null,
+          "collection": "propositions",
+          "item_id": "p-select-part",
+          "operation": "add"
+        },
+        {
+          "after_record": {
+            "addressed_participant": "contributor",
+            "answer_requirements": [
+              {
+                "description": "Select one allegation component.",
+                "requirement_type": "select_alternative"
+              }
+            ],
+            "canonical_question": "Which part of the allegation should be addressed first?",
+            "confidence": 1.0,
+            "exact_evidence_spans": [
+              {
+                "end_char": 80,
+                "exact_text": "Which part should I address first: the hiding, the delay, or the alleged motive?",
+                "start_char": 0,
+                "turn_id": "t1"
+              }
+            ],
+            "initiating_speaker": "account",
+            "initiating_turn_id": "t1",
+            "issue_id": "i-select-allegation-part",
+            "issue_type": "clarification",
+            "live_alternatives": [
+              {
+                "alternative_id": "alt-conduct",
+                "label": "Address alleged conduct.",
+                "proposition_ids": [
+                  "p-curator-hid-notice"
+                ],
+                "status": "live"
+              },
+              {
+                "alternative_id": "alt-causation",
+                "label": "Address alleged causation and outcome.",
+                "proposition_ids": [
+                  "p-hiding-caused-delay",
+                  "p-vote-delayed"
+                ],
+                "status": "live"
+              },
+              {
+                "alternative_id": "alt-motive",
+                "label": "Address alleged motive.",
+                "proposition_ids": [
+                  "p-curator-wanted-rival-win"
+                ],
+                "status": "live"
+              }
+            ],
+            "related_proposition_ids": [
+              "p-curator-hid-notice",
+              "p-vote-delayed",
+              "p-hiding-caused-delay",
+              "p-curator-wanted-rival-win"
+            ],
+            "resolution_turn_id": null,
+            "resolution_type": null,
+            "status": "open"
+          },
+          "before_record_sha256": null,
+          "collection": "issue_states",
+          "item_id": "i-select-allegation-part",
+          "operation": "add"
+        },
+        {
+          "after_record": {
+            "confidence": 1.0,
+            "created_by_turn_id": "t1",
+            "expiry_policy": "on_topic_abandonment",
+            "obligation_id": "o-select-allegation-part",
+            "obligation_type": "requested_clarification",
+            "owed_by_participant": "contributor",
+            "owed_to_participant": "account",
+            "related_issue_ids": [
+              "i-select-allegation-part"
+            ],
+            "related_proposition_ids": [
+              "p-curator-hid-notice",
+              "p-hiding-caused-delay",
+              "p-vote-delayed",
+              "p-curator-wanted-rival-win"
+            ],
+            "resolved_by_turn_id": null,
+            "status": "open"
+          },
+          "before_record_sha256": null,
+          "collection": "conversational_obligations",
+          "item_id": "o-select-allegation-part",
+          "operation": "add"
+        },
+        {
+          "after_record": {
+            "analysis_basis": "direct_semantic_content",
+            "asserted_or_analysed_by": "account",
+            "confidence": 1.0,
+            "exact_evidence_spans": [
+              {
+                "end_char": 80,
+                "exact_text": "Which part should I address first: the hiding, the delay, or the alleged motive?",
+                "start_char": 0,
+                "turn_id": "t1"
+              }
+            ],
+            "introduced_at_turn_id": "t1",
+            "provenance_kind": "transcript_extraction",
+            "relation_id": "r-request-targets-components",
+            "relation_type": "targets",
+            "source_proposition_ids": [
+              "p-select-part"
+            ],
+            "target_proposition_ids": [
+              "p-curator-hid-notice",
+              "p-hiding-caused-delay",
+              "p-vote-delayed",
+              "p-curator-wanted-rival-win"
+            ],
+            "uncertainty_reason": null
+          },
+          "before_record_sha256": null,
+          "collection": "proposition_relations",
+          "item_id": "r-request-targets-components",
+          "operation": "add"
+        },
+        {
+          "after_record": {
+            "first_opened_at_turn_id": "t1",
+            "item_id": "i-select-allegation-part",
+            "item_type": "issue",
+            "reason": "The contributor has not selected a component."
+          },
+          "before_record_sha256": null,
+          "collection": "unresolved_items",
+          "item_id": "issue:i-select-allegation-part",
+          "operation": "add"
+        },
+        {
+          "after_record": {
+            "first_opened_at_turn_id": "t1",
+            "item_id": "o-select-allegation-part",
+            "item_type": "obligation",
+            "reason": "The requested clarification is unanswered."
+          },
+          "before_record_sha256": null,
+          "collection": "unresolved_items",
+          "item_id": "obligation:o-select-allegation-part",
+          "operation": "add"
+        }
+      ],
+      "transition_id": "transition-t1",
+      "warnings_added": []
+    }
+  ],
+  "target_turn_id": "t1",
+  "turn_refs": [
+    {
+      "parent_turn_id": null,
+      "post_id": "synthetic-05-compound-allegation-post-0",
+      "speaker_id": "contributor",
+      "text_sha256": "dc72772b20f37a83a9326a16bb5a7d194fc3668ddcc1f08c1c2b9a127f34c4e9",
+      "turn_id": "t0",
+      "turn_index": 0
+    },
+    {
+      "parent_turn_id": "t0",
+      "post_id": "synthetic-05-compound-allegation-post-1",
+      "speaker_id": "account",
+      "text_sha256": "8ec62433b4a5958528b4f25dd5b9a1b951029f1e151a262ae7b43551673dd73b",
+      "turn_id": "t1",
+      "turn_index": 1
+    }
+  ],
+  "unresolved_items": [
+    {
+      "first_opened_at_turn_id": "t1",
+      "item_id": "i-select-allegation-part",
+      "item_type": "issue",
+      "reason": "The contributor has not selected a component."
+    },
+    {
+      "first_opened_at_turn_id": "t1",
+      "item_id": "o-select-allegation-part",
+      "item_type": "obligation",
+      "reason": "The requested clarification is unanswered."
+    }
+  ],
+  "warnings": []
+}

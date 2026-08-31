@@ -1,0 +1,960 @@
+{
+  "conversation_key": "synthetic:06-live-counterfactual",
+  "description": "A counterfactual remains live while related evidence is discussed.",
+  "fixture_format_version": "proposition-ledger-synthetic-fixture-v1",
+  "fixture_id": "06-live-counterfactual",
+  "ledger_history": [
+    {
+      "answer_targets": [],
+      "as_of_turn_index": 0,
+      "conversation_key": "synthetic:06-live-counterfactual",
+      "conversational_obligations": [
+        {
+          "confidence": 1.0,
+          "created_by_turn_id": "t0",
+          "expiry_policy": "never_implicit",
+          "obligation_id": "o-answer-counterfactual",
+          "obligation_type": "explicit_question",
+          "owed_by_participant": "account",
+          "owed_to_participant": "contributor",
+          "related_issue_ids": [
+            "i-market-counterfactual"
+          ],
+          "related_proposition_ids": [
+            "p-market-counterfactual"
+          ],
+          "resolved_by_turn_id": null,
+          "status": "open"
+        }
+      ],
+      "extraction_status": {
+        "abstentions": [],
+        "status": "complete",
+        "unsupported_inferences_rejected": 0
+      },
+      "issue_states": [
+        {
+          "addressed_participant": "account",
+          "answer_requirements": [
+            {
+              "description": "Address the counterfactual explicitly.",
+              "requirement_type": "yes_no"
+            }
+          ],
+          "canonical_question": "Would the market have continued if the gate had stayed open?",
+          "confidence": 1.0,
+          "exact_evidence_spans": [
+            {
+              "end_char": 61,
+              "exact_text": "If the gate had stayed open, would the market have continued?",
+              "start_char": 0,
+              "turn_id": "t0"
+            }
+          ],
+          "initiating_speaker": "contributor",
+          "initiating_turn_id": "t0",
+          "issue_id": "i-market-counterfactual",
+          "issue_type": "counterfactual",
+          "live_alternatives": [],
+          "related_proposition_ids": [
+            "p-market-counterfactual"
+          ],
+          "resolution_turn_id": null,
+          "resolution_type": null,
+          "status": "open"
+        }
+      ],
+      "ledger_id": "ledger-06-live-counterfactual-history-0",
+      "ledger_sha256": "d72146b24e7308ce36b3c04c865f6acf49458075776b6e320d31b304cd6ed39f",
+      "participant_commitments": [
+        {
+          "basis": "explicit_speech_act",
+          "commitment_id": "c-counterfactual-question",
+          "confidence": 1.0,
+          "introduced_at_turn_id": "t0",
+          "last_updated_at_turn_id": "t0",
+          "participant_id": "contributor",
+          "proposition_id": "p-market-counterfactual",
+          "stance": "questioned",
+          "uncertainty_reason": null
+        }
+      ],
+      "participants": [
+        {
+          "author_key": "synthetic-account",
+          "identity_confidence": 1.0,
+          "participant_id": "account",
+          "role": "account"
+        },
+        {
+          "author_key": "synthetic-contributor",
+          "identity_confidence": 1.0,
+          "participant_id": "contributor",
+          "role": "contributor"
+        }
+      ],
+      "previous_ledger_sha256": null,
+      "proposition_groups": [],
+      "proposition_relations": [],
+      "propositions": [
+        {
+          "canonical_text": "If the gate had stayed open, the market would have continued.",
+          "commitment_status": "questioned_only",
+          "confidence": 1.0,
+          "derivation": {
+            "kind": "direct_span",
+            "normalisation_note": null,
+            "source_proposition_ids": []
+          },
+          "epistemic_status": "hypothetical",
+          "exact_evidence_spans": [
+            {
+              "end_char": 61,
+              "exact_text": "If the gate had stayed open, would the market have continued?",
+              "start_char": 0,
+              "turn_id": "t0"
+            }
+          ],
+          "introduced_at_turn_id": "t0",
+          "lifecycle_status": "live",
+          "modality": {
+            "strength": "unknown",
+            "type": "hypothetical"
+          },
+          "original_language": "en",
+          "polarity": "open",
+          "proposition_group_id": null,
+          "proposition_id": "p-market-counterfactual",
+          "proposition_kind": "counterfactual",
+          "quantification": {
+            "surface_marker": null,
+            "type": "none"
+          },
+          "speaker_or_attributor": {
+            "attributed_participant_id": null,
+            "kind": "speaker",
+            "participant_id": "contributor"
+          },
+          "speech_act": "question",
+          "temporal_scope": {
+            "end": null,
+            "start": null,
+            "surface_marker": "If the gate had stayed open",
+            "type": "counterfactual"
+          },
+          "uncertainty_reason": null
+        }
+      ],
+      "rejected_answer_targets": [],
+      "repair_records": [],
+      "resolved_items": [],
+      "root_post_id": "synthetic-06-live-counterfactual-post-0",
+      "schema_version": "proposition-ledger-v1.0.0",
+      "source_completeness": {
+        "account_publication_confirmed": true,
+        "chronology_complete": true,
+        "complete_prefix_through_turn": true,
+        "exact_text_complete": true,
+        "limitations": [
+          "Wholly invented schema fixture; not historical evidence."
+        ],
+        "parent_graph_complete": true,
+        "reconstruction_grade": "A"
+      },
+      "state_transitions": [
+        {
+          "answer_targets_added": [],
+          "answer_targets_updated": [],
+          "commitments_added": [
+            "c-counterfactual-question"
+          ],
+          "commitments_updated": [],
+          "current_turn_id": "t0",
+          "current_turn_index": 0,
+          "from_ledger_sha256": null,
+          "issue_states_added": [
+            "i-market-counterfactual"
+          ],
+          "issue_states_updated": [],
+          "items_resolved": [],
+          "obligations_added": [
+            "o-answer-counterfactual"
+          ],
+          "obligations_updated": [],
+          "proposition_groups_added": [],
+          "proposition_groups_updated": [],
+          "propositions_added": [
+            "p-market-counterfactual"
+          ],
+          "propositions_updated": [],
+          "rejected_answer_targets_added": [],
+          "rejected_answer_targets_updated": [],
+          "relations_added": [],
+          "repair_records_added": [],
+          "repair_records_updated": [],
+          "state_patch": [
+            {
+              "after_record": {
+                "account_publication_confirmed": true,
+                "chronology_complete": true,
+                "complete_prefix_through_turn": true,
+                "exact_text_complete": true,
+                "limitations": [
+                  "Wholly invented schema fixture; not historical evidence."
+                ],
+                "parent_graph_complete": true,
+                "reconstruction_grade": "A"
+              },
+              "before_record_sha256": null,
+              "collection": "source_completeness",
+              "item_id": "source_completeness",
+              "operation": "add"
+            },
+            {
+              "after_record": {
+                "author_key": "synthetic-account",
+                "identity_confidence": 1.0,
+                "participant_id": "account",
+                "role": "account"
+              },
+              "before_record_sha256": null,
+              "collection": "participants",
+              "item_id": "account",
+              "operation": "add"
+            },
+            {
+              "after_record": {
+                "author_key": "synthetic-contributor",
+                "identity_confidence": 1.0,
+                "participant_id": "contributor",
+                "role": "contributor"
+              },
+              "before_record_sha256": null,
+              "collection": "participants",
+              "item_id": "contributor",
+              "operation": "add"
+            },
+            {
+              "after_record": {
+                "parent_turn_id": null,
+                "post_id": "synthetic-06-live-counterfactual-post-0",
+                "speaker_id": "contributor",
+                "text_sha256": "2b7ca0f0c5a5cfe0ba52fd438d299f83665d98956c28ec06883f64cdf12a93a8",
+                "turn_id": "t0",
+                "turn_index": 0
+              },
+              "before_record_sha256": null,
+              "collection": "turn_refs",
+              "item_id": "t0",
+              "operation": "add"
+            },
+            {
+              "after_record": {
+                "canonical_text": "If the gate had stayed open, the market would have continued.",
+                "commitment_status": "questioned_only",
+                "confidence": 1.0,
+                "derivation": {
+                  "kind": "direct_span",
+                  "normalisation_note": null,
+                  "source_proposition_ids": []
+                },
+                "epistemic_status": "hypothetical",
+                "exact_evidence_spans": [
+                  {
+                    "end_char": 61,
+                    "exact_text": "If the gate had stayed open, would the market have continued?",
+                    "start_char": 0,
+                    "turn_id": "t0"
+                  }
+                ],
+                "introduced_at_turn_id": "t0",
+                "lifecycle_status": "live",
+                "modality": {
+                  "strength": "unknown",
+                  "type": "hypothetical"
+                },
+                "original_language": "en",
+                "polarity": "open",
+                "proposition_group_id": null,
+                "proposition_id": "p-market-counterfactual",
+                "proposition_kind": "counterfactual",
+                "quantification": {
+                  "surface_marker": null,
+                  "type": "none"
+                },
+                "speaker_or_attributor": {
+                  "attributed_participant_id": null,
+                  "kind": "speaker",
+                  "participant_id": "contributor"
+                },
+                "speech_act": "question",
+                "temporal_scope": {
+                  "end": null,
+                  "start": null,
+                  "surface_marker": "If the gate had stayed open",
+                  "type": "counterfactual"
+                },
+                "uncertainty_reason": null
+              },
+              "before_record_sha256": null,
+              "collection": "propositions",
+              "item_id": "p-market-counterfactual",
+              "operation": "add"
+            },
+            {
+              "after_record": {
+                "addressed_participant": "account",
+                "answer_requirements": [
+                  {
+                    "description": "Address the counterfactual explicitly.",
+                    "requirement_type": "yes_no"
+                  }
+                ],
+                "canonical_question": "Would the market have continued if the gate had stayed open?",
+                "confidence": 1.0,
+                "exact_evidence_spans": [
+                  {
+                    "end_char": 61,
+                    "exact_text": "If the gate had stayed open, would the market have continued?",
+                    "start_char": 0,
+                    "turn_id": "t0"
+                  }
+                ],
+                "initiating_speaker": "contributor",
+                "initiating_turn_id": "t0",
+                "issue_id": "i-market-counterfactual",
+                "issue_type": "counterfactual",
+                "live_alternatives": [],
+                "related_proposition_ids": [
+                  "p-market-counterfactual"
+                ],
+                "resolution_turn_id": null,
+                "resolution_type": null,
+                "status": "open"
+              },
+              "before_record_sha256": null,
+              "collection": "issue_states",
+              "item_id": "i-market-counterfactual",
+              "operation": "add"
+            },
+            {
+              "after_record": {
+                "basis": "explicit_speech_act",
+                "commitment_id": "c-counterfactual-question",
+                "confidence": 1.0,
+                "introduced_at_turn_id": "t0",
+                "last_updated_at_turn_id": "t0",
+                "participant_id": "contributor",
+                "proposition_id": "p-market-counterfactual",
+                "stance": "questioned",
+                "uncertainty_reason": null
+              },
+              "before_record_sha256": null,
+              "collection": "participant_commitments",
+              "item_id": "c-counterfactual-question",
+              "operation": "add"
+            },
+            {
+              "after_record": {
+                "confidence": 1.0,
+                "created_by_turn_id": "t0",
+                "expiry_policy": "never_implicit",
+                "obligation_id": "o-answer-counterfactual",
+                "obligation_type": "explicit_question",
+                "owed_by_participant": "account",
+                "owed_to_participant": "contributor",
+                "related_issue_ids": [
+                  "i-market-counterfactual"
+                ],
+                "related_proposition_ids": [
+                  "p-market-counterfactual"
+                ],
+                "resolved_by_turn_id": null,
+                "status": "open"
+              },
+              "before_record_sha256": null,
+              "collection": "conversational_obligations",
+              "item_id": "o-answer-counterfactual",
+              "operation": "add"
+            },
+            {
+              "after_record": {
+                "first_opened_at_turn_id": "t0",
+                "item_id": "i-market-counterfactual",
+                "item_type": "issue",
+                "reason": "The counterfactual remains explicitly live."
+              },
+              "before_record_sha256": null,
+              "collection": "unresolved_items",
+              "item_id": "issue:i-market-counterfactual",
+              "operation": "add"
+            },
+            {
+              "after_record": {
+                "first_opened_at_turn_id": "t0",
+                "item_id": "o-answer-counterfactual",
+                "item_type": "obligation",
+                "reason": "The account still owes a direct answer."
+              },
+              "before_record_sha256": null,
+              "collection": "unresolved_items",
+              "item_id": "obligation:o-answer-counterfactual",
+              "operation": "add"
+            },
+            {
+              "after_record": {
+                "first_opened_at_turn_id": "t0",
+                "item_id": "p-market-counterfactual",
+                "item_type": "proposition",
+                "reason": "Evidence was discussed but the counterfactual was not answered."
+              },
+              "before_record_sha256": null,
+              "collection": "unresolved_items",
+              "item_id": "proposition:p-market-counterfactual",
+              "operation": "add"
+            },
+            {
+              "after_record": {
+                "abstentions": [],
+                "status": "complete",
+                "unsupported_inferences_rejected": 0
+              },
+              "before_record_sha256": null,
+              "collection": "extraction_status",
+              "item_id": "extraction_status",
+              "operation": "add"
+            }
+          ],
+          "transition_id": "transition-t0",
+          "warnings_added": []
+        }
+      ],
+      "target_turn_id": "t0",
+      "turn_refs": [
+        {
+          "parent_turn_id": null,
+          "post_id": "synthetic-06-live-counterfactual-post-0",
+          "speaker_id": "contributor",
+          "text_sha256": "2b7ca0f0c5a5cfe0ba52fd438d299f83665d98956c28ec06883f64cdf12a93a8",
+          "turn_id": "t0",
+          "turn_index": 0
+        }
+      ],
+      "unresolved_items": [
+        {
+          "first_opened_at_turn_id": "t0",
+          "item_id": "p-market-counterfactual",
+          "item_type": "proposition",
+          "reason": "Evidence was discussed but the counterfactual was not answered."
+        },
+        {
+          "first_opened_at_turn_id": "t0",
+          "item_id": "i-market-counterfactual",
+          "item_type": "issue",
+          "reason": "The counterfactual remains explicitly live."
+        },
+        {
+          "first_opened_at_turn_id": "t0",
+          "item_id": "o-answer-counterfactual",
+          "item_type": "obligation",
+          "reason": "The account still owes a direct answer."
+        }
+      ],
+      "warnings": []
+    },
+    {
+      "answer_targets": [
+        {
+          "answer_target_id": "at-counterfactual",
+          "confidence": 0.9,
+          "issue_ids": [
+            "i-market-counterfactual"
+          ],
+          "proposition_ids": [
+            "p-market-counterfactual"
+          ],
+          "reply_turn_id": "t1",
+          "selected_at_turn_id": "t1",
+          "target_status": "partially_addressed"
+        }
+      ],
+      "as_of_turn_index": 1,
+      "conversation_key": "synthetic:06-live-counterfactual",
+      "conversational_obligations": [
+        {
+          "confidence": 1.0,
+          "created_by_turn_id": "t0",
+          "expiry_policy": "never_implicit",
+          "obligation_id": "o-answer-counterfactual",
+          "obligation_type": "explicit_question",
+          "owed_by_participant": "account",
+          "owed_to_participant": "contributor",
+          "related_issue_ids": [
+            "i-market-counterfactual"
+          ],
+          "related_proposition_ids": [
+            "p-market-counterfactual"
+          ],
+          "resolved_by_turn_id": null,
+          "status": "open"
+        }
+      ],
+      "extraction_status": {
+        "abstentions": [],
+        "status": "complete",
+        "unsupported_inferences_rejected": 0
+      },
+      "issue_states": [
+        {
+          "addressed_participant": "account",
+          "answer_requirements": [
+            {
+              "description": "Address the counterfactual explicitly.",
+              "requirement_type": "yes_no"
+            }
+          ],
+          "canonical_question": "Would the market have continued if the gate had stayed open?",
+          "confidence": 1.0,
+          "exact_evidence_spans": [
+            {
+              "end_char": 61,
+              "exact_text": "If the gate had stayed open, would the market have continued?",
+              "start_char": 0,
+              "turn_id": "t0"
+            }
+          ],
+          "initiating_speaker": "contributor",
+          "initiating_turn_id": "t0",
+          "issue_id": "i-market-counterfactual",
+          "issue_type": "counterfactual",
+          "live_alternatives": [],
+          "related_proposition_ids": [
+            "p-market-counterfactual",
+            "p-attendance-fell"
+          ],
+          "resolution_turn_id": null,
+          "resolution_type": null,
+          "status": "open"
+        }
+      ],
+      "ledger_id": "ledger-06-live-counterfactual-history-1",
+      "ledger_sha256": "9f9dce6d63fdc7986432b1aa86e2aa411d360413458d3e7cc83733a14929fb07",
+      "participant_commitments": [
+        {
+          "basis": "explicit_speech_act",
+          "commitment_id": "c-counterfactual-question",
+          "confidence": 1.0,
+          "introduced_at_turn_id": "t0",
+          "last_updated_at_turn_id": "t0",
+          "participant_id": "contributor",
+          "proposition_id": "p-market-counterfactual",
+          "stance": "questioned",
+          "uncertainty_reason": null
+        },
+        {
+          "basis": "explicit_speech_act",
+          "commitment_id": "c-attendance",
+          "confidence": 1.0,
+          "introduced_at_turn_id": "t1",
+          "last_updated_at_turn_id": "t1",
+          "participant_id": "account",
+          "proposition_id": "p-attendance-fell",
+          "stance": "asserted",
+          "uncertainty_reason": null
+        }
+      ],
+      "participants": [
+        {
+          "author_key": "synthetic-account",
+          "identity_confidence": 1.0,
+          "participant_id": "account",
+          "role": "account"
+        },
+        {
+          "author_key": "synthetic-contributor",
+          "identity_confidence": 1.0,
+          "participant_id": "contributor",
+          "role": "contributor"
+        }
+      ],
+      "previous_ledger_sha256": "d72146b24e7308ce36b3c04c865f6acf49458075776b6e320d31b304cd6ed39f",
+      "proposition_groups": [],
+      "proposition_relations": [],
+      "propositions": [
+        {
+          "canonical_text": "If the gate had stayed open, the market would have continued.",
+          "commitment_status": "questioned_only",
+          "confidence": 1.0,
+          "derivation": {
+            "kind": "direct_span",
+            "normalisation_note": null,
+            "source_proposition_ids": []
+          },
+          "epistemic_status": "hypothetical",
+          "exact_evidence_spans": [
+            {
+              "end_char": 61,
+              "exact_text": "If the gate had stayed open, would the market have continued?",
+              "start_char": 0,
+              "turn_id": "t0"
+            }
+          ],
+          "introduced_at_turn_id": "t0",
+          "lifecycle_status": "live",
+          "modality": {
+            "strength": "unknown",
+            "type": "hypothetical"
+          },
+          "original_language": "en",
+          "polarity": "open",
+          "proposition_group_id": null,
+          "proposition_id": "p-market-counterfactual",
+          "proposition_kind": "counterfactual",
+          "quantification": {
+            "surface_marker": null,
+            "type": "none"
+          },
+          "speaker_or_attributor": {
+            "attributed_participant_id": null,
+            "kind": "speaker",
+            "participant_id": "contributor"
+          },
+          "speech_act": "question",
+          "temporal_scope": {
+            "end": null,
+            "start": null,
+            "surface_marker": "If the gate had stayed open",
+            "type": "counterfactual"
+          },
+          "uncertainty_reason": null
+        },
+        {
+          "canonical_text": "Attendance fell after the gate closed.",
+          "commitment_status": "speaker_committed",
+          "confidence": 1.0,
+          "derivation": {
+            "kind": "direct_span",
+            "normalisation_note": null,
+            "source_proposition_ids": []
+          },
+          "epistemic_status": "asserted",
+          "exact_evidence_spans": [
+            {
+              "end_char": 38,
+              "exact_text": "Attendance fell after the gate closed.",
+              "start_char": 0,
+              "turn_id": "t1"
+            }
+          ],
+          "introduced_at_turn_id": "t1",
+          "lifecycle_status": "live",
+          "modality": {
+            "strength": "none",
+            "type": "none"
+          },
+          "original_language": "en",
+          "polarity": "positive",
+          "proposition_group_id": null,
+          "proposition_id": "p-attendance-fell",
+          "proposition_kind": "descriptive",
+          "quantification": {
+            "surface_marker": null,
+            "type": "none"
+          },
+          "speaker_or_attributor": {
+            "attributed_participant_id": null,
+            "kind": "speaker",
+            "participant_id": "account"
+          },
+          "speech_act": "assertion",
+          "temporal_scope": {
+            "end": null,
+            "start": null,
+            "surface_marker": "after the gate closed",
+            "type": "past"
+          },
+          "uncertainty_reason": null
+        }
+      ],
+      "rejected_answer_targets": [],
+      "repair_records": [],
+      "resolved_items": [],
+      "root_post_id": "synthetic-06-live-counterfactual-post-0",
+      "schema_version": "proposition-ledger-v1.0.0",
+      "source_completeness": {
+        "account_publication_confirmed": true,
+        "chronology_complete": true,
+        "complete_prefix_through_turn": true,
+        "exact_text_complete": true,
+        "limitations": [
+          "Wholly invented schema fixture; not historical evidence."
+        ],
+        "parent_graph_complete": true,
+        "reconstruction_grade": "A"
+      },
+      "state_transitions": [
+        {
+          "answer_targets_added": [
+            "at-counterfactual"
+          ],
+          "answer_targets_updated": [],
+          "commitments_added": [
+            "c-attendance"
+          ],
+          "commitments_updated": [],
+          "current_turn_id": "t1",
+          "current_turn_index": 1,
+          "from_ledger_sha256": "d72146b24e7308ce36b3c04c865f6acf49458075776b6e320d31b304cd6ed39f",
+          "issue_states_added": [],
+          "issue_states_updated": [
+            {
+              "from_status": "open",
+              "item_id": "i-market-counterfactual",
+              "reason": "The complete state record changed at the current turn.",
+              "to_status": "open"
+            }
+          ],
+          "items_resolved": [],
+          "obligations_added": [],
+          "obligations_updated": [],
+          "proposition_groups_added": [],
+          "proposition_groups_updated": [],
+          "propositions_added": [
+            "p-attendance-fell"
+          ],
+          "propositions_updated": [],
+          "rejected_answer_targets_added": [],
+          "rejected_answer_targets_updated": [],
+          "relations_added": [],
+          "repair_records_added": [],
+          "repair_records_updated": [],
+          "state_patch": [
+            {
+              "after_record": {
+                "parent_turn_id": "t0",
+                "post_id": "synthetic-06-live-counterfactual-post-1",
+                "speaker_id": "account",
+                "text_sha256": "86698b632f663bc9ff2b247e4cafb4448ec3246340dda564d6966cdae7d3258b",
+                "turn_id": "t1",
+                "turn_index": 1
+              },
+              "before_record_sha256": null,
+              "collection": "turn_refs",
+              "item_id": "t1",
+              "operation": "add"
+            },
+            {
+              "after_record": {
+                "canonical_text": "Attendance fell after the gate closed.",
+                "commitment_status": "speaker_committed",
+                "confidence": 1.0,
+                "derivation": {
+                  "kind": "direct_span",
+                  "normalisation_note": null,
+                  "source_proposition_ids": []
+                },
+                "epistemic_status": "asserted",
+                "exact_evidence_spans": [
+                  {
+                    "end_char": 38,
+                    "exact_text": "Attendance fell after the gate closed.",
+                    "start_char": 0,
+                    "turn_id": "t1"
+                  }
+                ],
+                "introduced_at_turn_id": "t1",
+                "lifecycle_status": "live",
+                "modality": {
+                  "strength": "none",
+                  "type": "none"
+                },
+                "original_language": "en",
+                "polarity": "positive",
+                "proposition_group_id": null,
+                "proposition_id": "p-attendance-fell",
+                "proposition_kind": "descriptive",
+                "quantification": {
+                  "surface_marker": null,
+                  "type": "none"
+                },
+                "speaker_or_attributor": {
+                  "attributed_participant_id": null,
+                  "kind": "speaker",
+                  "participant_id": "account"
+                },
+                "speech_act": "assertion",
+                "temporal_scope": {
+                  "end": null,
+                  "start": null,
+                  "surface_marker": "after the gate closed",
+                  "type": "past"
+                },
+                "uncertainty_reason": null
+              },
+              "before_record_sha256": null,
+              "collection": "propositions",
+              "item_id": "p-attendance-fell",
+              "operation": "add"
+            },
+            {
+              "after_record": {
+                "addressed_participant": "account",
+                "answer_requirements": [
+                  {
+                    "description": "Address the counterfactual explicitly.",
+                    "requirement_type": "yes_no"
+                  }
+                ],
+                "canonical_question": "Would the market have continued if the gate had stayed open?",
+                "confidence": 1.0,
+                "exact_evidence_spans": [
+                  {
+                    "end_char": 61,
+                    "exact_text": "If the gate had stayed open, would the market have continued?",
+                    "start_char": 0,
+                    "turn_id": "t0"
+                  }
+                ],
+                "initiating_speaker": "contributor",
+                "initiating_turn_id": "t0",
+                "issue_id": "i-market-counterfactual",
+                "issue_type": "counterfactual",
+                "live_alternatives": [],
+                "related_proposition_ids": [
+                  "p-market-counterfactual",
+                  "p-attendance-fell"
+                ],
+                "resolution_turn_id": null,
+                "resolution_type": null,
+                "status": "open"
+              },
+              "before_record_sha256": "a5fbe0d24f23f6aff5da92c97925bc73f0b608e48b89a5eec7210ea67d637c2b",
+              "collection": "issue_states",
+              "item_id": "i-market-counterfactual",
+              "operation": "replace"
+            },
+            {
+              "after_record": {
+                "basis": "explicit_speech_act",
+                "commitment_id": "c-attendance",
+                "confidence": 1.0,
+                "introduced_at_turn_id": "t1",
+                "last_updated_at_turn_id": "t1",
+                "participant_id": "account",
+                "proposition_id": "p-attendance-fell",
+                "stance": "asserted",
+                "uncertainty_reason": null
+              },
+              "before_record_sha256": null,
+              "collection": "participant_commitments",
+              "item_id": "c-attendance",
+              "operation": "add"
+            },
+            {
+              "after_record": {
+                "answer_target_id": "at-counterfactual",
+                "confidence": 0.9,
+                "issue_ids": [
+                  "i-market-counterfactual"
+                ],
+                "proposition_ids": [
+                  "p-market-counterfactual"
+                ],
+                "reply_turn_id": "t1",
+                "selected_at_turn_id": "t1",
+                "target_status": "partially_addressed"
+              },
+              "before_record_sha256": null,
+              "collection": "answer_targets",
+              "item_id": "at-counterfactual",
+              "operation": "add"
+            }
+          ],
+          "transition_id": "transition-t1",
+          "warnings_added": []
+        }
+      ],
+      "target_turn_id": "t1",
+      "turn_refs": [
+        {
+          "parent_turn_id": null,
+          "post_id": "synthetic-06-live-counterfactual-post-0",
+          "speaker_id": "contributor",
+          "text_sha256": "2b7ca0f0c5a5cfe0ba52fd438d299f83665d98956c28ec06883f64cdf12a93a8",
+          "turn_id": "t0",
+          "turn_index": 0
+        },
+        {
+          "parent_turn_id": "t0",
+          "post_id": "synthetic-06-live-counterfactual-post-1",
+          "speaker_id": "account",
+          "text_sha256": "86698b632f663bc9ff2b247e4cafb4448ec3246340dda564d6966cdae7d3258b",
+          "turn_id": "t1",
+          "turn_index": 1
+        }
+      ],
+      "unresolved_items": [
+        {
+          "first_opened_at_turn_id": "t0",
+          "item_id": "p-market-counterfactual",
+          "item_type": "proposition",
+          "reason": "Evidence was discussed but the counterfactual was not answered."
+        },
+        {
+          "first_opened_at_turn_id": "t0",
+          "item_id": "i-market-counterfactual",
+          "item_type": "issue",
+          "reason": "The counterfactual remains explicitly live."
+        },
+        {
+          "first_opened_at_turn_id": "t0",
+          "item_id": "o-answer-counterfactual",
+          "item_type": "obligation",
+          "reason": "The account still owes a direct answer."
+        }
+      ],
+      "warnings": []
+    }
+  ],
+  "participants": [
+    {
+      "participant_id": "account",
+      "role": "account"
+    },
+    {
+      "participant_id": "contributor",
+      "role": "contributor"
+    }
+  ],
+  "root_post_id": "synthetic-06-live-counterfactual-post-0",
+  "synthetic": true,
+  "turns": [
+    {
+      "language": "en",
+      "parent_turn_id": null,
+      "post_id": "synthetic-06-live-counterfactual-post-0",
+      "speaker_id": "contributor",
+      "text": "If the gate had stayed open, would the market have continued?",
+      "turn_id": "t0",
+      "turn_index": 0
+    },
+    {
+      "language": "en",
+      "parent_turn_id": "t0",
+      "post_id": "synthetic-06-live-counterfactual-post-1",
+      "speaker_id": "account",
+      "text": "Attendance fell after the gate closed.",
+      "turn_id": "t1",
+      "turn_index": 1
+    },
+    {
+      "language": "en",
+      "parent_turn_id": "t1",
+      "post_id": "synthetic-06-live-counterfactual-post-2",
+      "speaker_id": "contributor",
+      "text": "That is evidence, but the counterfactual is still my question.",
+      "turn_id": "t2",
+      "turn_index": 2
+    }
+  ]
+}
