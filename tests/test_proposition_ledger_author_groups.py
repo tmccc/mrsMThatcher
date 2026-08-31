@@ -54,8 +54,10 @@ def _target(
     scheme: str = "prospective-v4-hmac-domain",
     principal: str = "opaque-author-one",
     exposure: str = "genuinely_unexposed",
+    identity_status: str | None = None,
+    identity_reasons: tuple[str, ...] = (),
 ) -> dict[str, Any]:
-    return {
+    row = {
         "target_key": target_key,
         "conversation_key": conversation_key,
         "author_key_scheme": scheme,
@@ -69,6 +71,39 @@ def _target(
         "complete_target_ancestry": True,
         "outcome_evidence_class": "confirmed_published_reply",
     }
+    if identity_status is not None:
+        row["target_author_identity_status"] = identity_status
+        row["target_author_identity_reasons"] = list(identity_reasons)
+    return row
+
+
+def _observation(
+    conversation_key: str,
+    *,
+    scheme: str | None = "prospective-v4-hmac-domain",
+    principal: str | None = "opaque-author-one",
+    exposure: str = "genuinely_unexposed",
+    categories: tuple[str, ...] = ("unexposed_candidate",),
+    reasons: tuple[str, ...] = (),
+    binding_status: str = "available",
+    cross_identity: dict[str, Any] | None = None,
+) -> dict[str, Any]:
+    row = _conversation(
+        conversation_key,
+        scheme=scheme,
+        principal=principal,
+        exposure=exposure,
+        categories=categories,
+        reasons=reasons,
+        cross_identity=cross_identity,
+    )
+    row["contributor_identity_binding_status"] = binding_status
+    row["contributor_identity_binding_reasons"] = (
+        ["synthetic_scoped_binding_unresolved"]
+        if binding_status == "unresolved"
+        else []
+    )
+    return row
 
 
 def _one_target(result: dict[str, Any]) -> dict[str, Any]:
@@ -205,6 +240,368 @@ def test_completely_unexposed_group_remains_within_family_eligible() -> None:
     assert target["author_group_contains_directly_exposed_material"] is False
     assert target["preliminary_within_family_held_out_eligibility"] is True
     assert target["preliminary_within_family_held_out_exclusion_reasons"] == []
+
+
+def test_multi_author_conversation_targets_use_their_own_complete_tuples() -> None:
+    conversations = [
+        _conversation("shared", principal="synthetic-contributor-a")
+    ]
+    observations = [
+        _observation("shared", principal="synthetic-contributor-a"),
+        _observation("shared", principal="synthetic-contributor-b"),
+    ]
+    targets = [
+        _target(
+            "shared",
+            "target-a",
+            principal="synthetic-contributor-a",
+            identity_status="available",
+        ),
+        _target(
+            "shared",
+            "target-b",
+            principal="synthetic-contributor-b",
+            identity_status="available",
+        ),
+    ]
+
+    result = author_groups.apply_author_group_exposure(
+        targets, conversations, observations
+    )
+    by_key = {row["target_key"]: row for row in result["target_rows"]}
+
+    assert by_key["target-b"]["principal_author_key"] == "synthetic-contributor-b"
+    assert by_key["target-a"]["within_family_author_group_key"] != by_key[
+        "target-b"
+    ]["within_family_author_group_key"]
+    assert all(
+        row["author_group_exposure_status"] != "identity_group_conflicting"
+        for row in by_key.values()
+    )
+    assert len(result["conversation_rows"]) == 1
+    assert "within_family_author_group_key" not in result["conversation_rows"][0]
+    assert "author_group_exposure_status" not in result["conversation_rows"][0]
+    assert len(result["within_family_author_groups"]) == 2
+
+
+def test_missing_exact_target_author_never_inherits_conversation_principal() -> None:
+    target = _target(
+        "shared",
+        "missing-author",
+        principal="placeholder-removed",
+        identity_status="unavailable",
+        identity_reasons=("target_author_identity_unavailable",),
+    )
+    target.pop("author_key_scheme")
+    target.pop("principal_author_key")
+
+    annotated = _one_target(
+        author_groups.apply_author_group_exposure(
+            [target],
+            [_conversation("shared", principal="synthetic-contributor-a")],
+            [_observation("shared", principal="synthetic-contributor-a")],
+        )
+    )
+
+    assert annotated["target_author_identity_status"] == "unavailable"
+    assert annotated["within_family_author_group_key"] is None
+    assert annotated["preliminary_within_family_held_out_eligibility"] is False
+    assert (
+        "target_author_identity_unavailable"
+        in annotated["preliminary_within_family_held_out_exclusion_reasons"]
+    )
+
+
+def test_exposed_multi_author_conversation_contaminates_every_contributor() -> None:
+    conversations = [
+        _conversation("exposed-shared", principal="synthetic-contributor-a"),
+        _conversation("clean-b", principal="synthetic-contributor-b"),
+    ]
+    observations = [
+        _observation(
+            "exposed-shared",
+            principal="synthetic-contributor-a",
+            exposure="exposed",
+            categories=("prior_human_review",),
+        ),
+        _observation(
+            "exposed-shared",
+            principal="synthetic-contributor-b",
+            exposure="exposed",
+            categories=("prior_human_review",),
+        ),
+        _observation("clean-b", principal="synthetic-contributor-b"),
+    ]
+    target = _target(
+        "clean-b",
+        "clean-target-b",
+        principal="synthetic-contributor-b",
+        identity_status="available",
+    )
+
+    annotated = _one_target(
+        author_groups.apply_author_group_exposure(
+            [target], conversations, observations
+        )
+    )
+
+    assert annotated["author_group_conversation_count"] == 2
+    assert annotated["author_group_contains_directly_exposed_material"] is True
+    assert annotated["preliminary_within_family_held_out_eligibility"] is False
+
+
+def test_scoped_exposure_for_a_does_not_contaminate_b_in_shared_conversation() -> None:
+    conversations = [
+        _conversation(
+            "shared",
+            principal="synthetic-contributor-a",
+            exposure="exposed",
+            categories=("prior_model_experiment",),
+        )
+    ]
+    observations = [
+        _observation(
+            "shared",
+            principal="synthetic-contributor-a",
+            exposure="exposed",
+            categories=("prior_model_experiment",),
+        ),
+        _observation("shared", principal="synthetic-contributor-b"),
+    ]
+    targets = [
+        _target(
+            "shared",
+            "target-a",
+            principal="synthetic-contributor-a",
+            exposure="exposed",
+            identity_status="available",
+        ),
+        _target(
+            "shared",
+            "target-b",
+            principal="synthetic-contributor-b",
+            identity_status="available",
+        ),
+    ]
+    targets[1]["conversation_exposure_status"] = "exposed"
+    targets[1]["effective_exposure_status"] = "exposed"
+    targets[1]["author_group_conversation_exposure_status"] = (
+        "genuinely_unexposed"
+    )
+    targets[1]["author_group_target_exposure_status"] = "genuinely_unexposed"
+    targets[1]["author_group_effective_exposure_status"] = "genuinely_unexposed"
+
+    result = author_groups.apply_author_group_exposure(
+        targets, conversations, observations
+    )
+    by_key = {row["target_key"]: row for row in result["target_rows"]}
+
+    assert by_key["target-a"]["preliminary_within_family_held_out_eligibility"] is False
+    assert by_key["target-b"]["effective_exposure_status"] == "exposed"
+    assert by_key["target-b"]["author_group_contains_directly_exposed_material"] is False
+    assert by_key["target-b"]["preliminary_within_family_held_out_eligibility"] is True
+
+
+def test_structural_only_observation_is_a_split_constraint_not_direct_exposure() -> None:
+    observations = [
+        _observation(
+            "structural-b",
+            principal="synthetic-contributor-b",
+            exposure="structurally_mined_only",
+            categories=("structurally_mined_only",),
+        ),
+        _observation("clean-b", principal="synthetic-contributor-b"),
+    ]
+    target = _target(
+        "clean-b",
+        "clean-target-b",
+        principal="synthetic-contributor-b",
+        identity_status="available",
+    )
+
+    annotated = _one_target(
+        author_groups.apply_author_group_exposure(
+            [target],
+            [_conversation("structural-b"), _conversation("clean-b")],
+            observations,
+        )
+    )
+
+    assert annotated["author_group_contains_structurally_mined_material"] is True
+    assert annotated["author_group_contains_directly_exposed_material"] is False
+    assert annotated["author_group_requires_groupwise_split"] is True
+    assert annotated["preliminary_within_family_held_out_eligibility"] is True
+
+
+def test_unresolved_scoped_observation_fails_closed_without_first_author_choice() -> None:
+    observations = [
+        _observation("shared", principal="synthetic-contributor-a"),
+        _observation("shared", principal="synthetic-contributor-b"),
+        _observation(
+            "shared",
+            scheme=None,
+            principal=None,
+            exposure="exposed",
+            categories=("prior_model_experiment",),
+            binding_status="unresolved",
+        ),
+    ]
+    targets = [
+        _target(
+            "shared",
+            "target-a",
+            principal="synthetic-contributor-a",
+            identity_status="available",
+        ),
+        _target(
+            "shared",
+            "target-b",
+            principal="synthetic-contributor-b",
+            identity_status="available",
+        ),
+    ]
+
+    result = author_groups.apply_author_group_exposure(
+        targets,
+        [_conversation("shared", principal="synthetic-contributor-a")],
+        observations,
+    )
+
+    assert all(
+        row["preliminary_within_family_held_out_eligibility"] is False
+        and "scoped_exposure_contributor_unresolved"
+        in row["preliminary_within_family_held_out_exclusion_reasons"]
+        for row in result["target_rows"]
+    )
+
+
+def test_conflicting_scoped_observation_remains_conflicting_and_fails_closed() -> None:
+    observations = [
+        _observation(
+            "shared-conflict",
+            principal="synthetic-contributor-a",
+            exposure="exposed",
+            categories=("prior_model_experiment",),
+            binding_status="conflicting",
+        ),
+        _observation(
+            "shared-conflict",
+            principal="synthetic-contributor-b",
+        ),
+    ]
+    targets = [
+        _target(
+            "shared-conflict",
+            "target-a",
+            principal="synthetic-contributor-a",
+            identity_status="available",
+        ),
+        _target(
+            "shared-conflict",
+            "target-b",
+            principal="synthetic-contributor-b",
+            identity_status="available",
+        ),
+    ]
+
+    result = author_groups.apply_author_group_exposure(
+        targets,
+        [_conversation("shared-conflict", principal="synthetic-contributor-a")],
+        observations,
+    )
+
+    assert all(
+        row["preliminary_within_family_held_out_eligibility"] is False
+        and "scoped_exposure_contributor_unresolved"
+        in row["preliminary_within_family_held_out_exclusion_reasons"]
+        for row in result["target_rows"]
+    )
+    conflicting = next(
+        row
+        for row in result["contributor_exposure_observations"]
+        if row["principal_author_key"] == "synthetic-contributor-a"
+    )
+    assert conflicting["contributor_identity_binding_status"] == "conflicting"
+    assert conflicting["within_family_author_identity_status"] == "conflicting"
+
+
+def test_contradictory_cross_family_keys_for_one_within_identity_conflict() -> None:
+    observation = _observation(
+        "cross-conflict",
+        cross_identity={
+            "cross_family_author_group_key": "synthetic-cross-group-one",
+            "cross_family_author_identity_status": "available",
+            "cross_family_author_identity_reasons": [],
+        },
+    )
+    target = _target("cross-conflict", "cross-conflict-target")
+    target.update(
+        {
+            "cross_family_author_group_key": "synthetic-cross-group-two",
+            "cross_family_author_identity_status": "available",
+            "cross_family_author_identity_reasons": [],
+        }
+    )
+
+    result = author_groups.apply_author_group_exposure(
+        [target], [_conversation("cross-conflict")], [observation]
+    )
+
+    annotated_target = _one_target(result)
+    annotated_observation = result["contributor_exposure_observations"][0]
+    assert annotated_target["cross_family_author_identity_status"] == "conflicting"
+    assert annotated_target["cross_family_author_group_key"] is None
+    assert (
+        annotated_target["preliminary_cross_family_clean_held_out_eligibility"]
+        is False
+    )
+    assert (
+        "cross_family_author_identity_conflicting"
+        in annotated_target[
+            "preliminary_cross_family_clean_held_out_exclusion_reasons"
+        ]
+    )
+    assert (
+        annotated_observation["cross_family_author_identity_status"]
+        == "conflicting"
+    )
+    assert result["cross_family_author_groups"] == []
+
+
+@pytest.mark.parametrize("observation_status", ["unavailable", "conflicting"])
+def test_mixed_cross_family_statuses_in_one_conversation_conflict(
+    observation_status: str,
+) -> None:
+    observation = _observation(
+        "cross-status-conflict",
+        cross_identity={
+            "cross_family_author_group_key": None,
+            "cross_family_author_identity_status": observation_status,
+            "cross_family_author_identity_reasons": [
+                "synthetic_cross_identity_not_available"
+            ],
+        },
+    )
+    target = _target("cross-status-conflict", "cross-status-target")
+    target.update(
+        {
+            "cross_family_author_group_key": "synthetic-cross-group",
+            "cross_family_author_identity_status": "available",
+            "cross_family_author_identity_reasons": [],
+        }
+    )
+
+    result = author_groups.apply_author_group_exposure(
+        [target], [_conversation("cross-status-conflict")], [observation]
+    )
+
+    assert result["target_rows"][0]["cross_family_author_identity_status"] == (
+        "conflicting"
+    )
+    assert result["contributor_exposure_observations"][0][
+        "cross_family_author_identity_status"
+    ] == "conflicting"
+    assert result["cross_family_author_groups"] == []
 
 
 def test_cross_source_hmac_key_is_deterministic_and_family_independent() -> None:
@@ -365,6 +762,9 @@ def test_crosstab_totals_exactly_reproduce_rows_and_group_classifications() -> N
 
     assert crosstab["target_count"] == len(result["target_rows"])
     assert crosstab["conversation_count"] == len(result["conversation_rows"])
+    assert crosstab["contributor_exposure_observation_count"] == len(
+        result["contributor_exposure_observations"]
+    )
     assert sum(
         crosstab["dimensions"]["target_author_group_exposure_status"].values()
     ) == len(result["target_rows"])
@@ -378,15 +778,85 @@ def test_crosstab_totals_exactly_reproduce_rows_and_group_classifications() -> N
             result["within_family_author_groups"],
             result["cross_family_author_groups"],
             crosstab,
+            result["contributor_exposure_observations"],
         )
         == []
+    )
+
+
+def test_reordering_targets_and_contributor_observations_is_invariant() -> None:
+    conversations = [
+        _conversation("shared", principal="synthetic-contributor-a"),
+        _conversation("other", principal="synthetic-contributor-b"),
+    ]
+    observations = [
+        _observation("shared", principal="synthetic-contributor-a"),
+        _observation("shared", principal="synthetic-contributor-b"),
+        _observation(
+            "other",
+            principal="synthetic-contributor-b",
+            exposure="structurally_mined_only",
+            categories=("structurally_mined_only",),
+        ),
+    ]
+    targets = [
+        _target(
+            "shared",
+            "target-a",
+            principal="synthetic-contributor-a",
+            identity_status="available",
+        ),
+        _target(
+            "shared",
+            "target-b",
+            principal="synthetic-contributor-b",
+            identity_status="available",
+        ),
+    ]
+
+    forward = author_groups.apply_author_group_exposure(
+        targets, conversations, observations
+    )
+    reverse = author_groups.apply_author_group_exposure(
+        list(reversed(targets)),
+        list(reversed(conversations)),
+        list(reversed(observations)),
+    )
+
+    assert forward == reverse
+
+
+def test_contributor_observation_privacy_and_deterministic_keys() -> None:
+    unsafe = _observation("unsafe", principal="synthetic-contributor")
+    unsafe["raw_contributor_id"] = "synthetic-raw-identity-never-emit"
+    with pytest.raises(author_groups.AuthorGroupError, match="forbidden raw identity"):
+        author_groups.apply_author_group_exposure([], [], [unsafe])
+
+    result = author_groups.apply_author_group_exposure(
+        [],
+        [_conversation("safe", principal="synthetic-contributor")],
+        [_observation("safe", principal="synthetic-contributor")],
+    )
+    observation = result["contributor_exposure_observations"][0]
+
+    assert result["schema_version"] == "proposition-ledger-author-group-exposure-v2"
+    assert observation["contributor_exposure_observation_key"].startswith(
+        "contributor-exposure-observation-sha256-v1-"
+    )
+    assert "synthetic-raw-identity-never-emit" not in json.dumps(
+        result, sort_keys=True
     )
 
 
 def test_identity_conflict_is_explicit_and_not_grouped() -> None:
     conversation = _conversation("conflict", scheme="domain-a", principal="key-a")
     target = _target(
-        "conflict", "target", scheme="domain-b", principal="same-or-not-inferred"
+        "conflict",
+        "target",
+        scheme="domain-b",
+        principal="exact-target-key",
+        identity_status="conflicting",
+        identity_reasons=("target_author_identity_conflicting",),
     )
     annotated = _one_target(
         author_groups.apply_author_group_exposure([target], [conversation])
@@ -395,6 +865,10 @@ def test_identity_conflict_is_explicit_and_not_grouped() -> None:
     assert annotated["within_family_author_group_key"] is None
     assert annotated["author_group_exposure_status"] == "identity_group_conflicting"
     assert annotated["preliminary_within_family_held_out_eligibility"] is False
+    assert (
+        "target_author_identity_conflicting"
+        in annotated["preliminary_within_family_held_out_exclusion_reasons"]
+    )
     assert (
         "within_family_identity_group_conflicting"
         in annotated["preliminary_within_family_held_out_exclusion_reasons"]

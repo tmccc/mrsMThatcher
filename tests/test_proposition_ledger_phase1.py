@@ -13,6 +13,7 @@ from typing import Any
 import pytest
 
 from tools import build_proposition_ledger_phase1 as phase1
+from tools import proposition_ledger_author_groups as author_groups
 
 
 PROJECT_DIR = Path(__file__).resolve().parents[1]
@@ -1029,6 +1030,126 @@ def _synthetic_prospective_row() -> dict[str, Any]:
     }
 
 
+def _synthetic_benchmark_handoff() -> tuple[
+    dict[str, Any], dict[str, dict[str, Any]]
+]:
+    turns = [
+        {
+            "turn_id": "benchmark-turn-a",
+            "post_id": "benchmark-post-a",
+            "parent_id": None,
+            "author_role": "user",
+            "public_text": "Synthetic question from contributor A.",
+            "timestamp": "2026-08-29T10:00:00Z",
+        },
+        {
+            "turn_id": "benchmark-reply-a",
+            "post_id": "benchmark-account-reply-a",
+            "parent_id": "benchmark-post-a",
+            "author_role": "account",
+            "public_text": "Synthetic account reply to A.",
+            "timestamp": "2026-08-29T10:01:00Z",
+            "publication_status": "published",
+        },
+        {
+            "turn_id": "benchmark-turn-b",
+            "post_id": "benchmark-post-b",
+            "parent_id": "benchmark-account-reply-a",
+            "author_role": "user",
+            "public_text": "Synthetic question from contributor B.",
+            "timestamp": "2026-08-29T10:02:00Z",
+        },
+        {
+            "turn_id": "benchmark-reply-b",
+            "post_id": "benchmark-account-reply-b",
+            "parent_id": "benchmark-post-b",
+            "author_role": "account",
+            "public_text": "Synthetic account reply to B.",
+            "timestamp": "2026-08-29T10:03:00Z",
+            "publication_status": "published",
+        },
+    ]
+    row = {
+        "conversation_key": "synthetic:benchmark-handoff",
+        "root_post_id": "benchmark-post-a",
+        "start_time": "2026-08-29T10:00:00Z",
+        "end_time": "2026-08-29T10:03:00Z",
+        "lane_sequence": ["synthetic"],
+        "author_key": "synthetic-contributor-a",
+        "source_provenance": ["synthetic-test"],
+        "completeness": "complete",
+        "reconstruction_confidence": "high",
+        "turns": turns,
+    }
+    canonical_posts = {
+        turn["post_id"]: {
+            "post_id": turn["post_id"],
+            "parent_post_id": turn["parent_id"],
+            "quoted_post_id": None,
+            "author_role": turn["author_role"],
+            **(
+                {
+                    "author_key": (
+                        "synthetic-contributor-a"
+                        if turn["turn_id"] == "benchmark-turn-a"
+                        else "synthetic-contributor-b"
+                    )
+                }
+                if turn["author_role"] == "user"
+                else {}
+            ),
+        }
+        for turn in turns
+    }
+    return row, canonical_posts
+
+
+def test_benchmark_exact_posts_hydrate_each_user_turn_author() -> None:
+    row, canonical_posts = _synthetic_benchmark_handoff()
+
+    record, turns = phase1._conversation_record_from_benchmark(
+        row, {}, canonical_posts
+    )
+
+    target_b = next(turn for turn in turns if turn["turn_id"] == "benchmark-turn-b")
+    target_identity = phase1._target_author_identity(target_b, None)
+    observations, audit = phase1._build_contributor_exposure_observations(
+        [record], {record["conversation_key"]: turns}, []
+    )
+    grouped = author_groups.apply_author_group_exposure(
+        [
+            {
+                "target_key": "synthetic-benchmark-target-b",
+                "conversation_key": record["conversation_key"],
+                "author_key_scheme": record["author_key_scheme"],
+                **target_identity,
+            }
+        ],
+        [record],
+        observations,
+    )
+    observation_groups = {
+        observation["principal_author_key"]: observation[
+            "within_family_author_group_key"
+        ]
+        for observation in grouped["contributor_exposure_observations"]
+    }
+    target_group = grouped["target_rows"][0]["within_family_author_group_key"]
+    assert record["principal_author_key"] == "synthetic-contributor-a"
+    assert target_identity["principal_author_key"] == "synthetic-contributor-b"
+    assert target_identity["target_author_identity_status"] == "available"
+    assert {
+        observation["principal_author_key"] for observation in observations
+    } == {"synthetic-contributor-a", "synthetic-contributor-b"}
+    assert audit["conversation_external_contributor_counts"] == {
+        "zero": 0,
+        "one": 0,
+        "multiple": 1,
+    }
+    assert target_group == observation_groups["synthetic-contributor-b"]
+    assert target_group != observation_groups["synthetic-contributor-a"]
+
+
 def _complete_grade_arguments() -> dict[str, Any]:
     return {
         "exact_text_complete": True,
@@ -1560,6 +1681,302 @@ def _target_index_case(
     )
     assert structural_exclusions == []
     return rows, phase1._build_target_prefix_crosstab(rows)
+
+
+def _handoff_target_index_inputs(
+    tmp_path: Path,
+    *,
+    exact_target_author: str | None = "author-two",
+    candidate_principals: tuple[str | None, ...] = ("author-two",),
+) -> tuple[dict[str, Any], dict[str, Any], list[dict[str, Any]]]:
+    manifest, record, turns = _target_index_inputs(tmp_path)
+    turns[-1]["author_key"] = exact_target_author
+    candidate_rows = []
+    for principal in candidate_principals:
+        candidate = {
+            "conversation_key": "synthetic:conversation",
+            "activity_status": "quiescent",
+            "prospective_status": "eligible",
+            "branch_tip_post_id": "p2",
+            "source_branch_tip_post_id": "p2",
+            "path_turns": turns,
+        }
+        if principal is not None:
+            candidate["principal_author_key"] = principal
+        candidate_rows.append(candidate)
+    Path(manifest["sources"][0]["path"]).write_text(
+        "".join(json.dumps(row, sort_keys=True) + "\n" for row in candidate_rows),
+        encoding="utf-8",
+    )
+    return manifest, record, turns
+
+
+def test_later_contributor_target_uses_exact_target_turn_author(
+    tmp_path: Path,
+) -> None:
+    manifest, record, turns = _handoff_target_index_inputs(tmp_path)
+
+    rows, structural_exclusions = phase1._build_target_prefix_rows(
+        manifest,
+        [record],
+        [],
+        {"synthetic:conversation": turns},
+    )
+
+    assert structural_exclusions == []
+    later_target = next(row for row in rows if row["target_turn_id"] == "t2")
+    assert record["principal_author_key"] == "author-one"
+    assert later_target["principal_author_key"] == "author-two"
+    assert later_target["target_author_identity_status"] == "available"
+
+
+def test_review_candidate_principal_agrees_with_exact_target_author(
+    tmp_path: Path,
+) -> None:
+    manifest, record, turns = _handoff_target_index_inputs(tmp_path)
+
+    rows, _ = phase1._build_target_prefix_rows(
+        manifest,
+        [record],
+        [],
+        {"synthetic:conversation": turns},
+    )
+
+    later_target = next(row for row in rows if row["target_turn_id"] == "t2")
+    assert later_target["principal_author_key"] == "author-two"
+    assert later_target["review_candidate_author_consistency_status"] == "agreement"
+    assert later_target["review_candidate_principal_agreement_count"] == 1
+    assert later_target["review_candidate_principal_conflict_count"] == 0
+
+
+def test_review_candidate_principal_contradiction_is_explicit_and_ineligible(
+    tmp_path: Path,
+) -> None:
+    manifest, record, turns = _handoff_target_index_inputs(
+        tmp_path,
+        candidate_principals=("author-two", "author-one"),
+    )
+
+    rows, _ = phase1._build_target_prefix_rows(
+        manifest,
+        [record],
+        [],
+        {"synthetic:conversation": turns},
+    )
+
+    later_target = next(row for row in rows if row["target_turn_id"] == "t2")
+    assert later_target["principal_author_key"] == "author-two"
+    assert later_target["target_author_identity_status"] == "conflicting"
+    assert later_target["within_family_author_group_key"] is None
+    assert later_target["preliminary_within_family_held_out_eligibility"] is False
+    assert "target_author_identity_conflicting" in (
+        later_target["preliminary_within_family_held_out_exclusion_reasons"]
+    )
+
+
+def test_missing_exact_target_author_does_not_inherit_conversation_principal(
+    tmp_path: Path,
+) -> None:
+    manifest, record, turns = _handoff_target_index_inputs(
+        tmp_path,
+        exact_target_author=None,
+        candidate_principals=("author-two",),
+    )
+
+    rows, _ = phase1._build_target_prefix_rows(
+        manifest,
+        [record],
+        [],
+        {"synthetic:conversation": turns},
+    )
+
+    later_target = next(row for row in rows if row["target_turn_id"] == "t2")
+    assert record["principal_author_key"] == "author-one"
+    assert later_target["principal_author_key"] is None
+    assert later_target["target_author_identity_status"] == "unavailable"
+    assert later_target["review_candidate_author_consistency_status"] == (
+        "target_author_identity_unavailable"
+    )
+    assert later_target["within_family_author_group_key"] is None
+    assert later_target["preliminary_within_family_held_out_eligibility"] is False
+    assert "target_author_identity_unavailable" in (
+        later_target["preliminary_within_family_held_out_exclusion_reasons"]
+    )
+
+
+def _synthetic_contributor_observation_inputs(
+    *, conversation_categories: list[str]
+) -> tuple[list[dict[str, Any]], dict[str, list[dict[str, Any]]]]:
+    records = [
+        {
+            "conversation_key": "synthetic:shared-conversation",
+            "author_key_scheme": "synthetic-domain",
+            "principal_author_key": "author-one",
+            "conversation_wide_exposure_categories": conversation_categories,
+            "conversation_wide_exposure_reasons": ["synthetic-registry"],
+        }
+    ]
+    turns = {
+        "synthetic:shared-conversation": [
+            {
+                "turn_id": "turn-a",
+                "post_id": "post-a",
+                "author_role": "user",
+                "author_key": "author-one",
+            },
+            {
+                "turn_id": "turn-account",
+                "post_id": "post-account",
+                "author_role": "account",
+                "author_key": "account-key",
+            },
+            {
+                "turn_id": "turn-b",
+                "post_id": "post-b",
+                "author_role": "user",
+                "author_key": "author-two",
+            },
+        ]
+    }
+    return records, turns
+
+
+def test_conversation_wide_exposure_observes_every_external_contributor() -> None:
+    records, turns = _synthetic_contributor_observation_inputs(
+        conversation_categories=["prior_human_review"]
+    )
+
+    observations, audit = phase1._build_contributor_exposure_observations(
+        records, turns, []
+    )
+
+    conversation_observations = [
+        row for row in observations if "conversation" in row["observation_scopes"]
+    ]
+    assert {row["principal_author_key"] for row in conversation_observations} == {
+        "author-one",
+        "author-two",
+    }
+    assert all(
+        row["prior_exposure_status"] == "exposed"
+        for row in conversation_observations
+    )
+    assert "account-key" not in {
+        row["principal_author_key"] for row in observations
+    }
+    assert audit["conversation_external_contributor_counts"] == {
+        "zero": 0,
+        "one": 0,
+        "multiple": 1,
+    }
+
+
+def test_scoped_exposure_is_bound_only_to_its_exact_contributor() -> None:
+    records, turns = _synthetic_contributor_observation_inputs(
+        conversation_categories=["unexposed_candidate"]
+    )
+    exposure_rows = [
+        {
+            "exposure_key": "target:post-a",
+            "entity_type": "target",
+            "conversation_key": "synthetic:shared-conversation",
+            "target_post_id": "post-a",
+            "exposure_statuses": ["prior_model_experiment"],
+            "exposure_reasons": ["synthetic-target-review"],
+        }
+    ]
+
+    observations, audit = phase1._build_contributor_exposure_observations(
+        records, turns, exposure_rows
+    )
+
+    scoped = [row for row in observations if "target" in row["observation_scopes"]]
+    assert [row["principal_author_key"] for row in scoped] == ["author-one"]
+    author_two = [
+        row for row in observations if row["principal_author_key"] == "author-two"
+    ]
+    assert all(row["prior_exposure_status"] == "genuinely_unexposed" for row in author_two)
+    assert audit["scoped_exposure_record_bound_count"] == 1
+    assert audit["scoped_exposure_record_unresolved_count"] == 0
+
+
+def test_ambiguous_scoped_exposure_is_retained_unresolved_for_plausible_authors(
+) -> None:
+    records, turns = _synthetic_contributor_observation_inputs(
+        conversation_categories=["unexposed_candidate"]
+    )
+    exposure_rows = [
+        {
+            "exposure_key": "branch:synthetic-shared",
+            "entity_type": "branch",
+            "conversation_key": "synthetic:shared-conversation",
+            "target_identities": ["post-a", "post-b"],
+            "exposure_statuses": ["prior_human_review"],
+            "exposure_reasons": ["synthetic-ambiguous-branch"],
+        }
+    ]
+
+    observations, audit = phase1._build_contributor_exposure_observations(
+        records, turns, exposure_rows
+    )
+
+    unresolved = [
+        row
+        for row in observations
+        if row["contributor_identity_binding_status"] == "unresolved"
+    ]
+    assert {row["principal_author_key"] for row in unresolved} == {
+        "author-one",
+        "author-two",
+    }
+    assert audit["scoped_exposure_record_bound_count"] == 0
+    assert audit["scoped_exposure_record_unresolved_count"] == 1
+
+
+def test_scoped_target_and_conversation_binding_contradiction_fails_closed() -> None:
+    records, turns = _synthetic_contributor_observation_inputs(
+        conversation_categories=["unexposed_candidate"]
+    )
+    records.append(
+        {
+            "conversation_key": "synthetic:other-conversation",
+            "author_key_scheme": "synthetic-domain",
+            "principal_author_key": "author-three",
+            "conversation_wide_exposure_categories": ["unexposed_candidate"],
+            "conversation_wide_exposure_reasons": ["synthetic-registry"],
+        }
+    )
+    turns["synthetic:other-conversation"] = [
+        {
+            "turn_id": "turn-c",
+            "post_id": "post-c",
+            "author_role": "user",
+            "author_key": "author-three",
+        }
+    ]
+    exposure_rows = [
+        {
+            "exposure_key": "target:contradictory-binding",
+            "entity_type": "target",
+            "conversation_key": "synthetic:other-conversation",
+            "target_post_id": "post-a",
+            "exposure_statuses": ["prior_human_review"],
+            "exposure_reasons": ["synthetic-contradictory-binding"],
+        }
+    ]
+
+    observations, audit = phase1._build_contributor_exposure_observations(
+        records, turns, exposure_rows
+    )
+
+    unresolved = {
+        row["principal_author_key"]
+        for row in observations
+        if row["contributor_identity_binding_status"] == "unresolved"
+    }
+    assert unresolved == {"author-one", "author-three"}
+    assert audit["scoped_exposure_record_bound_count"] == 0
+    assert audit["scoped_exposure_record_unresolved_count"] == 1
 
 
 def test_target_prefix_distinguishes_first_response_and_multi_turn(tmp_path: Path) -> None:

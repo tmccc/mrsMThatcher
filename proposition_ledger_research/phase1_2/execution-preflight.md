@@ -31,7 +31,7 @@ The exact Phase 1.2 contract identities are:
 - deterministic materialiser:
   `proposition-ledger-semantic-delta-materialiser-v2`;
 - experiment protocol: `proposition-ledger-experiment-v1.2.0`;
-- private Phase 1.2 output: `proposition-ledger-phase1.2-output-v1`; and
+- private Phase 1.2 output: `proposition-ledger-phase1.2-output-v2`; and
 - persisted full ledger: `proposition-ledger-v1.0.0`.
 
 The persisted-ledger schema remains unchanged. Its authoritative `state_patch`
@@ -140,6 +140,37 @@ alone and never infers identity from a username, display name, timing, content,
 or semantic similarity. Identical pseudonym text in different key schemes
 therefore remains in different identity domains.
 
+The exact structurally assessed user target turn is now the sole authority for
+target author identity. Its non-empty pseudonymous `author_key`, combined with
+the source-family `author_key_scheme`, supplies the target tuple. The legacy
+conversation-level `principal_author_key` remains source metadata for
+compatibility, but is never a target-author fallback. A target whose exact turn
+lacks a usable key is marked `target_author_identity_unavailable`; contradictory
+`principal_author_key` metadata on any review candidate bound to the exact
+conversation and target turn is marked `target_author_identity_conflicting`.
+Both statuses prevent grouping and preliminary eligibility. Review-candidate
+principal metadata can corroborate the exact turn, but cannot override it or
+resolve absence by record order.
+
+For frozen benchmark rows, the per-turn pseudonym is copied only from the
+exact matching frozen benchmark canonical-post record before structural target
+assessment. This author source is separate from the existing prospective
+canonical-post authority used for quote/parent reconciliation. A missing or
+contradictory exact-post pseudonym is never replaced by the benchmark
+conversation principal.
+
+Canonical conversations remain one row each. A separate private contributor-
+exposure observation enumerates every distinct non-empty user-turn
+`author_key` in each conversation, excluding account turns, and qualifies it
+with the conversation's source-family scheme. Conversation-wide exposure is
+carried to every represented contributor. Target-, branch-, and case-scoped
+exposure is carried only to the contributor resolved from its exact retained
+target identities; it is not assigned to another contributor merely because
+they share a conversation. Ambiguous scoped evidence remains explicitly
+unresolved and fails closed for every plausible affected contributor. Multiple
+contributors in one conversation therefore form separate groups rather than a
+conversation-level identity conflict.
+
 For each comparable within-family group, Phase 1.2 records its opaque group
 key, categories and bounded reasons, conversation and target counts, direct-
 exposure, structurally-mined, and genuinely-unexposed membership flags, and
@@ -195,6 +226,49 @@ An unavailable cross-family identity makes the stronger cross-family-clean
 claim false or pending; it is never reported as passed. Any eventual Phase 2
 split must remain whole-conversation and whole-author-group in every identity
 domain actually available.
+
+The corrected frozen-corpus reconciliation retained 155 canonical
+conversations and produced 145 contributor observations. Conversation
+contributor cardinality was zero for 37 conversations, one for 97, and multiple
+for 21. All 219 usable targets had an available exact-turn identity; none was
+unavailable. In total 39 target authors differ from the legacy conversation
+principal. Review-candidate metadata yielded
+31 agreements and zero target-author conflicts. Scoped evidence records were
+exactly bound 164 times and retained unresolved 180 times; no first-contributor
+resolution was used.
+
+Across the canonical contributor-observation universe, comparable within-
+family groups increased from 77 to 88; clean groups decreased from 29 to 27;
+directly exposed groups increased from 33 to 39; groups containing structurally
+mined material increased from 23 to 33; mixed structural/unexposed groups
+increased from 12 to 18; and groups requiring a later groupwise split increased
+from 35 to 65. The usable target rows represented 72 corrected groups rather
+than 62 legacy groups. Preliminary
+within-family eligibility changed from three prefixes across two conversations
+and two contributor groups to two prefixes across one conversation and one
+contributor group. Two of the former three prefixes retained their status, one
+became ineligible, and none became newly eligible. This is aggregate audit
+information only; no held-out list was selected or opened.
+
+`author-binding-audit.json` records these text-free counts, exact crosstab
+reconciliation, and the raw-identity-field privacy scan. The contributor and
+crosstab addition is the only reason the private Phase 1.2 output contract is
+now v2; `proposition-ledger-v1.0.0`, the semantic-delta contract and
+materialiser, and the experiment schema remain unchanged. Cross-family
+identity remains unavailable for all 155 conversations and all 219 target
+rows; no cross-family match was fabricated.
+
+All findings outside author binding remained unchanged: reconstruction grades
+are 144 / 0 / 11; target outcomes are 188 published replies, 30 confirmed
+pipeline-terminal no-replies, one confirmed local skip, and zero unknown,
+unavailable, or conflicting outcomes; sequence counts are 62 initial targets,
+one pre-account follow-up, 66 account-root responses, 90 persistent targets,
+and zero other sequences. Persistent exposure remains 73 directly exposed, 11
+structurally mined-only, and three genuinely unexposed stable Grade-A targets
+before group checks. Genesis, participant registration, incremental
+materialisation, ledger, provider-schema and privacy conclusions are unchanged.
+Provider/model compatibility remains `pending_model_profile_selection`, with
+zero provider or X calls.
 
 ## 4. Provider-schema compatibility gate
 

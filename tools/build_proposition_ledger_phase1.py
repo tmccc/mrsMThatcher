@@ -32,7 +32,7 @@ LEDGER_SCHEMA_VERSION = "proposition-ledger-v1.0.0"
 SEMANTIC_DELTA_SCHEMA_VERSION = "proposition-ledger-semantic-delta-v1.1.0"
 EXPERIMENT_SCHEMA_VERSION = "proposition-ledger-experiment-v1.2.0"
 SOURCE_MANIFEST_VERSION = "proposition-ledger-phase1-source-manifest-v1"
-OUTPUT_SCHEMA_VERSION = "proposition-ledger-phase1.2-output-v1"
+OUTPUT_SCHEMA_VERSION = "proposition-ledger-phase1.2-output-v2"
 PHASE1_1_BASE_SHA = "47cd7579fdbe2da07bd032ae23be7fad763626f6"
 MATERIALISER_ID = "proposition-ledger-semantic-delta-materialiser-v2"
 FRESH_BUILD_DETERMINISM_EVIDENCE = (
@@ -2210,9 +2210,50 @@ def _classify_target_outcome(
 
 def _conversation_record_from_benchmark(
     row: Mapping[str, Any],
-    canonical_posts: Mapping[str, Mapping[str, Any]],
+    prospective_canonical_posts: Mapping[str, Mapping[str, Any]],
+    benchmark_canonical_posts: Mapping[str, Mapping[str, Any]],
 ) -> tuple[dict[str, Any], list[dict[str, Any]]]:
     turns = [dict(turn) for turn in row.get("turns", [])]
+    for turn in turns:
+        post_id = str(turn.get("post_id"))
+        canonical = benchmark_canonical_posts.get(post_id)
+        if not canonical:
+            continue
+        turn_role = turn.get("author_role")
+        canonical_role = canonical.get("author_role")
+        if (
+            turn_role not in (None, "")
+            and canonical_role not in (None, "")
+            and turn_role != canonical_role
+        ):
+            raise Phase1Error(
+                "benchmark turn and exact canonical post have conflicting roles"
+            )
+        if turn_role != "user":
+            continue
+        turn_author = turn.get("author_key")
+        turn_author = (
+            turn_author
+            if isinstance(turn_author, str) and turn_author.strip()
+            else None
+        )
+        canonical_author = canonical.get("author_key")
+        canonical_author = (
+            canonical_author
+            if isinstance(canonical_author, str) and canonical_author.strip()
+            else None
+        )
+        if (
+            turn_author is not None
+            and canonical_author is not None
+            and turn_author != canonical_author
+        ):
+            raise Phase1Error(
+                "benchmark turn and exact canonical post have conflicting "
+                "pseudonymous authors"
+            )
+        if canonical_author is not None:
+            turn["author_key"] = canonical_author
     exact_text_complete = bool(turns) and all(_text_for_turn(turn) is not None for turn in turns)
     chronology_complete = _chronology_complete(turns)
     turn_order_unambiguous = _turn_order_unambiguous(turns)
@@ -2223,7 +2264,7 @@ def _conversation_record_from_benchmark(
     material_unresolved = False
     for turn in turns:
         post_id = str(turn.get("post_id"))
-        canonical = canonical_posts.get(post_id)
+        canonical = prospective_canonical_posts.get(post_id)
         if not canonical:
             continue
         benchmark_parent = turn.get("parent_id")
@@ -2537,8 +2578,17 @@ def _target_candidate_map(
     manifest: Mapping[str, Any],
     known_conversation_keys: set[str],
 ) -> dict[tuple[str, str], Mapping[str, Any]]:
-    """Load the exact frozen prospective target candidates without omissions."""
-    candidates: dict[tuple[str, str], Mapping[str, Any]] = {}
+    """Load exact frozen candidates and retain all principal observations.
+
+    Candidate principal metadata is a consistency check only.  Records which
+    differ solely in that field are retained as one deterministic structural
+    candidate with a complete multiset of principal observations; other
+    differences for the same exact target remain an ambiguity error.
+    """
+    candidates: dict[tuple[str, str], dict[str, Any]] = {}
+    candidate_principals: dict[tuple[str, str], list[str]] = defaultdict(list)
+    candidate_missing_principals: Counter[tuple[str, str]] = Counter()
+    candidate_record_counts: Counter[tuple[str, str]] = Counter()
     for index, candidate in enumerate(
         _read_jsonl(_source_path(manifest, "prospective_review_candidates"))
     ):
@@ -2581,16 +2631,100 @@ def _target_candidate_map(
                 f"{conversation_key}:row-{index}"
             )
         key = (conversation_key, target_turn_id)
-        if (
-            key in candidates
-            and canonical_json_bytes(candidates[key])
-            != canonical_json_bytes(candidate)
+        structural_candidate = copy.deepcopy(dict(candidate))
+        principal = structural_candidate.pop("principal_author_key", None)
+        if key in candidates and canonical_json_bytes(candidates[key]) != (
+            canonical_json_bytes(structural_candidate)
         ):
             raise Phase1Error(
                 f"ambiguous prospective target candidate: {conversation_key}:{target_turn_id}"
             )
-        candidates[key] = candidate
-    return candidates
+        candidates[key] = structural_candidate
+        candidate_record_counts[key] += 1
+        if isinstance(principal, str) and principal.strip():
+            candidate_principals[key].append(principal)
+        else:
+            candidate_missing_principals[key] += 1
+
+    result: dict[tuple[str, str], Mapping[str, Any]] = {}
+    for key in sorted(candidates):
+        candidate = copy.deepcopy(candidates[key])
+        candidate["_principal_author_key_observations"] = sorted(
+            candidate_principals[key]
+        )
+        candidate["_missing_principal_author_key_count"] = int(
+            candidate_missing_principals[key]
+        )
+        candidate["_candidate_record_count"] = int(candidate_record_counts[key])
+        result[key] = candidate
+    return result
+
+
+def _target_author_identity(
+    target: Mapping[str, Any],
+    candidate: Mapping[str, Any] | None,
+) -> dict[str, Any]:
+    """Bind one target only to its exact canonical user-turn pseudonym."""
+
+    exact_value = target.get("author_key")
+    exact_author_key = (
+        exact_value
+        if isinstance(exact_value, str) and exact_value.strip()
+        else None
+    )
+    candidate_principals = [
+        str(value)
+        for value in (candidate or {}).get(
+            "_principal_author_key_observations", []
+        )
+        if isinstance(value, str) and value.strip()
+    ]
+    candidate_count = int((candidate or {}).get("_candidate_record_count") or 0)
+    missing_count = int(
+        (candidate or {}).get("_missing_principal_author_key_count") or 0
+    )
+    agreement_count = sum(
+        exact_author_key is not None and value == exact_author_key
+        for value in candidate_principals
+    )
+    contradiction_count = sum(
+        exact_author_key is not None and value != exact_author_key
+        for value in candidate_principals
+    )
+
+    if exact_author_key is None:
+        status = "unavailable"
+        reasons = ["target_author_identity_unavailable"]
+    elif contradiction_count:
+        status = "conflicting"
+        reasons = ["target_author_identity_conflicting"]
+    else:
+        status = "available"
+        reasons = []
+
+    if exact_author_key is None:
+        candidate_status = "target_author_identity_unavailable"
+    elif candidate_count == 0:
+        candidate_status = "not_present"
+    elif contradiction_count:
+        candidate_status = "conflicting"
+    elif missing_count and agreement_count:
+        candidate_status = "incomplete_agreement"
+    elif missing_count:
+        candidate_status = "principal_unavailable"
+    else:
+        candidate_status = "agreement"
+
+    return {
+        "principal_author_key": exact_author_key,
+        "target_author_identity_status": status,
+        "target_author_identity_reasons": reasons,
+        "review_candidate_author_consistency_status": candidate_status,
+        "review_candidate_record_count": candidate_count,
+        "review_candidate_principal_agreement_count": agreement_count,
+        "review_candidate_principal_conflict_count": contradiction_count,
+        "review_candidate_principal_missing_count": missing_count,
+    }
 
 
 def _source_target_pairs(
@@ -2759,10 +2893,16 @@ def _build_feasibility_and_exposure(
         str(row["post_id"]): row
         for row in _read_jsonl(_source_path(manifest, "prospective_canonical_posts"))
     }
+    benchmark_posts = {
+        str(row["post_id"]): row
+        for row in _read_jsonl(_source_path(manifest, "benchmark_canonical_posts"))
+    }
     records: list[dict[str, Any]] = []
     turns_by_conversation: dict[str, list[dict[str, Any]]] = {}
     for row in benchmark_rows:
-        record, turns = _conversation_record_from_benchmark(row, prospective_posts)
+        record, turns = _conversation_record_from_benchmark(
+            row, prospective_posts, benchmark_posts
+        )
         records.append(record)
         turns_by_conversation[str(record["conversation_key"])] = turns
     for row in prospective_rows:
@@ -2841,12 +2981,12 @@ def _build_feasibility_and_exposure(
     exposure_rows: list[dict[str, Any]] = []
     for record in sorted(records, key=lambda item: (item.get("start_time") or "", item["conversation_key"])):
         conversation_key = str(record["conversation_key"])
-        statuses: set[str] = set(conversation_target_statuses.get(conversation_key, set()))
-        reasons: set[str] = set(conversation_target_reasons.get(conversation_key, set()))
+        conversation_statuses: set[str] = set()
+        conversation_reasons: set[str] = set()
         is_benchmark = "benchmark_conversations" in record["source_ids"]
         if conversation_key in evidence["audit_conversations"]:
-            statuses.update({"development_labelled", "prior_model_experiment", "prior_human_review"})
-            reasons.update(
+            conversation_statuses.update({"development_labelled", "prior_model_experiment", "prior_human_review"})
+            conversation_reasons.update(
                 {
                     "multi-turn audit contains conversation and per-reply development labels",
                     "writer/structured-focus replay family contains the conversation",
@@ -2857,27 +2997,43 @@ def _build_feasibility_and_exposure(
             conversation_key in evidence["benchmark_registry_conversations"]
             or str(record.get("root_post_id")) in evidence["benchmark_registry_roots"]
         ):
-            statuses.add("prior_model_experiment")
-            reasons.add("frozen benchmark prior-experiment identity registry")
+            conversation_statuses.add("prior_model_experiment")
+            conversation_reasons.add("frozen benchmark prior-experiment identity registry")
         if conversation_key in evidence["benchmark_review_sample_conversations"]:
-            statuses.add("structurally_mined_only")
-            reasons.add("benchmark next-stage unlabelled review sample")
+            conversation_statuses.add("structurally_mined_only")
+            conversation_reasons.add("benchmark next-stage unlabelled review sample")
         if conversation_key in evidence["review_pack_conversations"]:
-            statuses.add("structurally_mined_only")
-            reasons.add("QUD frozen prospective review pack")
+            conversation_statuses.add("structurally_mined_only")
+            conversation_reasons.add("QUD frozen prospective review pack")
         if conversation_key in evidence["report_conversation_keys"]:
-            statuses.add("report_excerpt")
-            reasons.add("exact conversation identity appears in a retained research report")
+            conversation_statuses.add("report_excerpt")
+            conversation_reasons.add("exact conversation identity appears in a retained research report")
         if conversation_key in evidence["calibration_conversations"]:
-            statuses.add("calibration")
-            reasons.add("selected for the private non-blind Phase 1 calibration pack")
-        if not statuses:
+            conversation_statuses.add("calibration")
+            conversation_reasons.add("selected for the private non-blind Phase 1 calibration pack")
+        if not conversation_statuses:
             if record["reconstruction_grade"] == "A":
-                statuses.add("unexposed_candidate")
-                reasons.add("no reliable prior model, human, report, incident, or review-pack identity found")
+                conversation_statuses.add("unexposed_candidate")
+                conversation_reasons.add("no reliable prior model, human, report, incident, or review-pack identity found")
             else:
-                statuses.add("structurally_mined_only")
-                reasons.add("structurally reconstructed but ineligible for primary experiment")
+                conversation_statuses.add("structurally_mined_only")
+                conversation_reasons.add("structurally reconstructed but ineligible for primary experiment")
+
+        record["conversation_wide_exposure_status"] = _normalise_exposure_status(
+            conversation_statuses
+        )
+        record["conversation_wide_exposure_categories"] = sorted(
+            conversation_statuses
+        )
+        record["conversation_wide_exposure_reasons"] = sorted(
+            conversation_reasons
+        )
+        statuses = conversation_statuses | set(
+            conversation_target_statuses.get(conversation_key, set())
+        )
+        reasons = conversation_reasons | set(
+            conversation_target_reasons.get(conversation_key, set())
+        )
         directly_exposed = bool(statuses & EXPOSED_STATUSES)
         if directly_exposed:
             record["prior_exposure_status"] = "exposed"
@@ -2906,8 +3062,8 @@ def _build_feasibility_and_exposure(
                     "branch_key": None,
                     "target_post_id": None,
                     "case_id": None,
-                    "exposure_statuses": sorted(statuses),
-                    "exposure_reasons": sorted(reasons),
+                    "exposure_statuses": sorted(conversation_statuses),
+                    "exposure_reasons": sorted(conversation_reasons),
                     "known_label_status": record["known_label_status"],
                     "reconstruction_grade": record["reconstruction_grade"],
                 }
@@ -3217,6 +3373,13 @@ def _build_feasibility_and_exposure(
         exposure_rows,
         turns_by_conversation,
     )
+    contributor_exposure_observations, contributor_binding_audit = (
+        _build_contributor_exposure_observations(
+            records,
+            turns_by_conversation,
+            exposure_rows,
+        )
+    )
     author_groups = _import_research_tool("proposition_ledger_author_groups")
 
     unhashed_target_rows: list[dict[str, Any]] = []
@@ -3227,6 +3390,7 @@ def _build_feasibility_and_exposure(
     author_group_analysis = author_groups.apply_author_group_exposure(
         unhashed_target_rows,
         records,
+        contributor_exposure_observations,
     )
     if author_group_analysis.get("author_group_split_performed") is not False:
         raise Phase1Error("Phase 1.2 must not assign an author-group split")
@@ -3236,12 +3400,20 @@ def _build_feasibility_and_exposure(
         author_group_analysis["within_family_author_groups"],
         author_group_analysis["cross_family_author_groups"],
         author_group_analysis["crosstab"],
+        author_group_analysis["contributor_exposure_observations"],
     )
     if author_group_errors:
         raise Phase1Error(
             "author-group exposure reconciliation failed: "
             + ",".join(author_group_errors)
         )
+    author_binding_audit = _author_binding_audit(
+        author_groups,
+        unhashed_target_rows,
+        records,
+        author_group_analysis,
+        contributor_binding_audit,
+    )
     target_rows = []
     for annotated_target in author_group_analysis["target_rows"]:
         target_row = copy.deepcopy(dict(annotated_target))
@@ -3253,6 +3425,50 @@ def _build_feasibility_and_exposure(
         )
         target_rows.append(_row_with_hash(target_row))
     records = [dict(row) for row in author_group_analysis["conversation_rows"]]
+    records_by_key = {str(row["conversation_key"]): row for row in records}
+    for observation in author_group_analysis[
+        "contributor_exposure_observations"
+    ]:
+        conversation_key = str(observation["conversation_key"])
+        exposure_rows.append(
+            _row_with_hash(
+                {
+                    "exposure_key": (
+                        "conversation-contributor:"
+                        + str(
+                            observation[
+                                "contributor_exposure_observation_key"
+                            ]
+                        )
+                    ),
+                    "entity_type": "conversation_contributor",
+                    "conversation_key": conversation_key,
+                    "root_post_id": records_by_key.get(
+                        conversation_key, {}
+                    ).get("root_post_id"),
+                    "conversation_id": records_by_key.get(
+                        conversation_key, {}
+                    ).get("conversation_id"),
+                    "branch_key": None,
+                    "target_post_id": None,
+                    "case_id": None,
+                    "exposure_statuses": list(
+                        observation.get("prior_exposure_categories", [])
+                    ),
+                    "exposure_reasons": list(
+                        observation.get("prior_exposure_reasons", [])
+                    ),
+                    "known_label_status": (
+                        "pseudonymous_contributor_exposure_observation"
+                    ),
+                    "reconstruction_grade": records_by_key.get(
+                        conversation_key, {}
+                    ).get("reconstruction_grade"),
+                    "counted_as_independent_conversation": False,
+                    **copy.deepcopy(dict(observation)),
+                }
+            )
+        )
     for group in author_group_analysis["within_family_author_groups"]:
         group_key = str(group["within_family_author_group_key"])
         exposure_rows.append(
@@ -3364,6 +3580,10 @@ def _build_feasibility_and_exposure(
         "cross_family_author_group_count": len(
             author_group_analysis["cross_family_author_groups"]
         ),
+        "contributor_exposure_observation_count": len(
+            author_group_analysis["contributor_exposure_observations"]
+        ),
+        "author_binding_audit": author_binding_audit,
         "final_held_out_selected_or_opened": False,
         "newly_mined_is_not_held_out": True,
         "prospective_is_not_automatically_held_out": True,
@@ -3574,6 +3794,506 @@ def _target_specific_exposure_statuses(
     return statuses
 
 
+def _build_contributor_exposure_observations(
+    records: Sequence[Mapping[str, Any]],
+    turns_by_conversation: Mapping[str, Sequence[Mapping[str, Any]]],
+    exposure_rows: Sequence[Mapping[str, Any]],
+) -> tuple[list[dict[str, Any]], dict[str, Any]]:
+    """Bind existing exposure evidence to exact pseudonymous contributors.
+
+    Canonical conversation rows remain singular.  Conversation-wide evidence
+    is copied once to every distinct user contributor in the transcript;
+    target/branch/case evidence is copied only to an exactly resolved user
+    contributor.  Ambiguous scoped evidence is retained for every plausible
+    contributor with an unresolved binding marker so eligibility fails closed.
+    """
+
+    records_by_key = {
+        str(record["conversation_key"]): record for record in records
+    }
+    contributors_by_conversation: dict[str, set[str]] = defaultdict(set)
+    identity_to_contributor: dict[str, tuple[str, str]] = {}
+    for conversation_key, turns in turns_by_conversation.items():
+        key = str(conversation_key)
+        for turn in turns:
+            if turn.get("author_role") != "user":
+                continue
+            author_value = turn.get("author_key")
+            if not isinstance(author_value, str) or not author_value.strip():
+                continue
+            contributors_by_conversation[key].add(author_value)
+            for field in ("turn_id", "post_id"):
+                value = turn.get(field)
+                if value in (None, ""):
+                    continue
+                identity = str(value)
+                resolved = (key, author_value)
+                previous = identity_to_contributor.get(identity)
+                if previous is not None and previous != resolved:
+                    raise Phase1Error(
+                        "user-turn identity resolves to multiple contributors"
+                    )
+                identity_to_contributor[identity] = resolved
+
+    observations_by_identity: dict[tuple[str, str, str], dict[str, Any]] = {}
+
+    def merge_observation(
+        *,
+        conversation_key: str,
+        principal_author_key: str,
+        observation_scope: str,
+        source_exposure_key: str,
+        statuses: Iterable[str],
+        reasons: Iterable[str],
+        binding_status: str,
+        binding_reasons: Iterable[str] = (),
+    ) -> None:
+        record = records_by_key[conversation_key]
+        author_key_scheme = str(record.get("author_key_scheme") or "")
+        if not author_key_scheme:
+            return
+        identity = {
+            "conversation_key": conversation_key,
+            "author_key_scheme": author_key_scheme,
+            "principal_author_key": principal_author_key,
+        }
+        identity_key = (
+            conversation_key,
+            author_key_scheme,
+            principal_author_key,
+        )
+        observation = observations_by_identity.setdefault(
+            identity_key,
+            {
+                "contributor_exposure_observation_key": (
+                    "contributor-exposure-observation-sha256-v1-"
+                    + sha256_bytes(
+                        canonical_json_bytes(
+                            {
+                                "purpose": (
+                                    "mrsMThatcher/proposition-ledger/phase1.2/"
+                                    "contributor-exposure-observation/v1"
+                                ),
+                                **identity,
+                            }
+                        )
+                    )
+                ),
+                "conversation_key": conversation_key,
+                "observation_scopes": [],
+                "source_exposure_keys": [],
+                "author_key_scheme": author_key_scheme,
+                "principal_author_key": principal_author_key,
+                "within_family_author_identity_status": "available",
+                "contributor_identity_binding_status": "available",
+                "contributor_identity_binding_reasons": [],
+                "prior_exposure_status": "genuinely_unexposed",
+                "prior_exposure_categories": [],
+                "prior_exposure_reasons": [],
+                "cross_family_author_group_key": None,
+                "cross_family_author_identity_status": "unavailable",
+                "cross_family_author_identity_reasons": [
+                    "authoritative_raw_identity_unavailable_in_both_source_families"
+                ],
+            },
+        )
+        observation["observation_scopes"] = sorted(
+            {*observation["observation_scopes"], observation_scope}
+        )
+        observation["source_exposure_keys"] = sorted(
+            {*observation["source_exposure_keys"], source_exposure_key}
+        )
+        observation["prior_exposure_categories"] = sorted(
+            {
+                *observation["prior_exposure_categories"],
+                *(str(value) for value in statuses if value),
+            }
+        )
+        observation["prior_exposure_reasons"] = sorted(
+            {
+                *observation["prior_exposure_reasons"],
+                *(
+                    str(value).replace("\n", " ")[:256]
+                    for value in reasons
+                    if value
+                ),
+            }
+        )[:64]
+        observation["prior_exposure_status"] = _normalise_exposure_status(
+            observation["prior_exposure_categories"]
+        )
+        if binding_status == "unresolved":
+            observation["contributor_identity_binding_status"] = "unresolved"
+        observation["contributor_identity_binding_reasons"] = sorted(
+            {
+                *observation["contributor_identity_binding_reasons"],
+                *(
+                    str(value).replace("\n", " ")[:256]
+                    for value in binding_reasons
+                    if value
+                ),
+            }
+        )[:64]
+
+    for conversation_key in sorted(records_by_key):
+        record = records_by_key[conversation_key]
+        statuses = record.get(
+            "conversation_wide_exposure_categories",
+            record.get("prior_exposure_categories", []),
+        )
+        reasons = record.get(
+            "conversation_wide_exposure_reasons",
+            record.get("prior_exposure_reasons", []),
+        )
+        for author_key in sorted(contributors_by_conversation[conversation_key]):
+            merge_observation(
+                conversation_key=conversation_key,
+                principal_author_key=author_key,
+                observation_scope="conversation",
+                source_exposure_key=f"conversation:{conversation_key}",
+                statuses=statuses,
+                reasons=reasons,
+                binding_status="available",
+            )
+
+    scoped_bound_record_count = 0
+    scoped_unresolved_record_count = 0
+    for exposure_row in sorted(
+        (
+            row
+            for row in exposure_rows
+            if row.get("entity_type") in {"target", "branch", "case"}
+        ),
+        key=lambda row: str(row.get("exposure_key") or ""),
+    ):
+        source_exposure_key = str(exposure_row.get("exposure_key") or "")
+        identities = {
+            str(value)
+            for value in [
+                exposure_row.get("target_post_id"),
+                *(exposure_row.get("target_identities") or []),
+            ]
+            if value not in (None, "")
+        }
+        resolved = {
+            identity_to_contributor[identity]
+            for identity in identities
+            if identity in identity_to_contributor
+        }
+        declared_conversation_keys = {
+            str(value)
+            for value in [
+                exposure_row.get("conversation_key"),
+                *(exposure_row.get("conversation_keys") or []),
+            ]
+            if value not in (None, "")
+        }
+        declared_binding_conflict = bool(
+            resolved
+            and declared_conversation_keys
+            and any(
+                conversation_key not in declared_conversation_keys
+                for conversation_key, _author_key in resolved
+            )
+        )
+        if len(resolved) == 1 and not declared_binding_conflict:
+            scoped_bound_record_count += 1
+            conversation_key, author_key = next(iter(resolved))
+            merge_observation(
+                conversation_key=conversation_key,
+                principal_author_key=author_key,
+                observation_scope=str(exposure_row.get("entity_type")),
+                source_exposure_key=source_exposure_key,
+                statuses=exposure_row.get("exposure_statuses", []),
+                reasons=exposure_row.get("exposure_reasons", []),
+                binding_status="available",
+            )
+            continue
+
+        scoped_unresolved_record_count += 1
+        plausible = set(resolved)
+        if declared_binding_conflict or not plausible:
+            plausible.update(
+                {
+                (conversation_key, author_key)
+                for conversation_key in declared_conversation_keys
+                for author_key in contributors_by_conversation.get(
+                    conversation_key, set()
+                )
+                }
+            )
+        for conversation_key, author_key in sorted(plausible):
+            merge_observation(
+                conversation_key=conversation_key,
+                principal_author_key=author_key,
+                observation_scope=str(exposure_row.get("entity_type")),
+                source_exposure_key=source_exposure_key,
+                statuses=exposure_row.get("exposure_statuses", []),
+                reasons=exposure_row.get("exposure_reasons", []),
+                binding_status="unresolved",
+                binding_reasons=["scoped_exposure_contributor_unresolved"],
+            )
+
+    observations = list(observations_by_identity.values())
+    observation_keys = [
+        str(row["contributor_exposure_observation_key"]) for row in observations
+    ]
+    if len(observation_keys) != len(set(observation_keys)):
+        raise Phase1Error("duplicate contributor exposure observation key")
+    observations.sort(
+        key=lambda row: str(row["contributor_exposure_observation_key"])
+    )
+    distribution = Counter(
+        min(len(contributors_by_conversation[key]), 2)
+        for key in records_by_key
+    )
+    return observations, {
+        "conversation_external_contributor_counts": {
+            "zero": distribution[0],
+            "one": distribution[1],
+            "multiple": distribution[2],
+        },
+        "conversation_wide_contributor_observation_count": sum(
+            "conversation" in row["observation_scopes"] for row in observations
+        ),
+        "contributor_exposure_observation_count": len(observations),
+        "scoped_exposure_record_bound_count": scoped_bound_record_count,
+        "scoped_exposure_record_unresolved_count": (
+            scoped_unresolved_record_count
+        ),
+    }
+
+
+def _author_group_aggregate_counts(
+    analysis: Mapping[str, Any],
+) -> dict[str, int]:
+    groups = list(analysis.get("within_family_author_groups", []))
+    return {
+        "comparable_within_family_author_group_count": len(groups),
+        "clean_group_count": sum(
+            row.get("author_group_exposure_status")
+            == "clean_genuinely_unexposed_group"
+            for row in groups
+        ),
+        "directly_exposed_group_count": sum(
+            row.get("author_group_contains_directly_exposed_material") is True
+            for row in groups
+        ),
+        "structurally_mined_group_count": sum(
+            row.get("author_group_contains_structurally_mined_material") is True
+            for row in groups
+        ),
+        "mixed_structural_unexposed_group_count": sum(
+            row.get("author_group_exposure_status")
+            == "mixed_unexposed_and_structurally_mined"
+            for row in groups
+        ),
+        "groupwise_split_required_count": sum(
+            row.get("author_group_requires_groupwise_split") is True
+            for row in groups
+        ),
+    }
+
+
+def _author_binding_audit(
+    author_groups: Any,
+    target_rows_before_grouping: Sequence[Mapping[str, Any]],
+    records: Sequence[Mapping[str, Any]],
+    corrected_analysis: Mapping[str, Any],
+    contributor_binding_audit: Mapping[str, Any],
+) -> dict[str, Any]:
+    """Return aggregate-only old/corrected author-binding reconciliation."""
+
+    records_by_key = {
+        str(record["conversation_key"]): record for record in records
+    }
+    legacy_targets: list[dict[str, Any]] = []
+    for source_row in target_rows_before_grouping:
+        row = copy.deepcopy(dict(source_row))
+        record = records_by_key[str(row["conversation_key"])]
+        legacy_value = record.get("principal_author_key")
+        legacy_author = (
+            legacy_value
+            if isinstance(legacy_value, str) and legacy_value.strip()
+            else None
+        )
+        scheme = str(record.get("author_key_scheme") or "")
+        available = bool(scheme and legacy_author is not None)
+        row["principal_author_key"] = legacy_author
+        row["target_author_identity_status"] = (
+            "available" if available else "unavailable"
+        )
+        row["target_author_identity_reasons"] = (
+            [] if available else ["target_author_identity_unavailable"]
+        )
+        row["author_group_comparability_status"] = (
+            "comparable_within_source_family_only"
+            if available
+            else "not_comparable"
+        )
+        row["within_family_author_group_key"] = (
+            f"{scheme}:{legacy_author}" if available else None
+        )
+        conversation_exposure = _normalise_exposure_status(
+            record.get("prior_exposure_categories", [])
+        )
+        target_exposure = str(
+            row.get("target_exposure_status") or "exposure_unknown"
+        )
+        row["conversation_exposure_status"] = conversation_exposure
+        row["author_group_conversation_exposure_status"] = (
+            conversation_exposure
+        )
+        row["author_group_target_exposure_status"] = target_exposure
+        row["effective_exposure_status"] = (
+            "exposed"
+            if "exposed" in {conversation_exposure, target_exposure}
+            else "structurally_mined_only"
+            if "structurally_mined_only"
+            in {conversation_exposure, target_exposure}
+            else "genuinely_unexposed"
+            if conversation_exposure == target_exposure == "genuinely_unexposed"
+            else "exposure_unknown"
+        )
+        row["author_group_effective_exposure_status"] = row[
+            "effective_exposure_status"
+        ]
+        legacy_targets.append(row)
+
+    legacy_analysis = author_groups.apply_author_group_exposure(
+        legacy_targets,
+        records,
+    )
+    corrected_targets = list(corrected_analysis["target_rows"])
+    legacy_eligible_keys = {
+        str(row["target_key"])
+        for row in legacy_analysis["target_rows"]
+        if row.get("preliminary_within_family_held_out_eligibility") is True
+    }
+    corrected_eligible_keys = {
+        str(row["target_key"])
+        for row in corrected_targets
+        if row.get("preliminary_within_family_held_out_eligibility") is True
+    }
+
+    def eligibility_counts(rows: Sequence[Mapping[str, Any]]) -> dict[str, int]:
+        eligible = [
+            row
+            for row in rows
+            if row.get("preliminary_within_family_held_out_eligibility") is True
+        ]
+        return {
+            "eligible_target_prefix_count": len(eligible),
+            "eligible_conversation_count": len(
+                {str(row["conversation_key"]) for row in eligible}
+            ),
+            "eligible_contributor_group_count": len(
+                {
+                    str(row["within_family_author_group_key"])
+                    for row in eligible
+                    if row.get("within_family_author_group_key")
+                }
+            ),
+        }
+
+    forbidden_fields: set[str] = set()
+
+    def scan_keys(value: Any) -> None:
+        if isinstance(value, Mapping):
+            for key, child in value.items():
+                if str(key).lower() in RAW_ID_KEYS:
+                    forbidden_fields.add(str(key).lower())
+                scan_keys(child)
+        elif isinstance(value, (list, tuple)):
+            for child in value:
+                scan_keys(child)
+
+    scan_keys(corrected_analysis["contributor_exposure_observations"])
+    scan_keys(corrected_targets)
+    crosstab_errors = author_groups.author_group_crosstab_errors(
+        corrected_targets,
+        corrected_analysis["conversation_rows"],
+        corrected_analysis["within_family_author_groups"],
+        corrected_analysis["cross_family_author_groups"],
+        corrected_analysis["crosstab"],
+        corrected_analysis["contributor_exposure_observations"],
+    )
+    changed_author_count = sum(
+        row.get("principal_author_key")
+        != records_by_key[str(row["conversation_key"])].get(
+            "principal_author_key"
+        )
+        for row in corrected_targets
+    )
+    available_changed_author_count = sum(
+        row.get("target_author_identity_status") == "available"
+        and row.get("principal_author_key")
+        != records_by_key[str(row["conversation_key"])].get(
+            "principal_author_key"
+        )
+        for row in corrected_targets
+    )
+    return {
+        "schema_version": "proposition-ledger-author-binding-audit-v1",
+        "canonical_conversation_count": len(records),
+        **copy.deepcopy(dict(contributor_binding_audit)),
+        "target_exact_author_differs_from_legacy_principal_count": (
+            changed_author_count
+        ),
+        "target_available_exact_author_differs_from_legacy_principal_count": (
+            available_changed_author_count
+        ),
+        "target_author_identity_available_count": sum(
+            row.get("target_author_identity_status") == "available"
+            for row in corrected_targets
+        ),
+        "candidate_target_author_agreement_record_count": sum(
+            int(row.get("review_candidate_principal_agreement_count") or 0)
+            for row in corrected_targets
+        ),
+        "candidate_target_author_conflicting_target_count": sum(
+            row.get("target_author_identity_status") == "conflicting"
+            for row in corrected_targets
+        ),
+        "target_author_identity_unavailable_count": sum(
+            row.get("target_author_identity_status") == "unavailable"
+            for row in corrected_targets
+        ),
+        "legacy_author_group_totals": _author_group_aggregate_counts(
+            legacy_analysis
+        ),
+        "corrected_author_group_totals": _author_group_aggregate_counts(
+            corrected_analysis
+        ),
+        "legacy_preliminary_eligibility_totals": eligibility_counts(
+            legacy_analysis["target_rows"]
+        ),
+        "corrected_preliminary_eligibility_totals": eligibility_counts(
+            corrected_targets
+        ),
+        "former_eligible_prefix_count": len(legacy_eligible_keys),
+        "former_eligible_prefixes_retained_count": len(
+            legacy_eligible_keys & corrected_eligible_keys
+        ),
+        "former_eligible_prefixes_changed_status_count": len(
+            legacy_eligible_keys - corrected_eligible_keys
+        ),
+        "newly_eligible_prefix_count": len(
+            corrected_eligible_keys - legacy_eligible_keys
+        ),
+        "cross_family_identity_fabricated": False,
+        "full_crosstab_reconciliation_status": (
+            "passed" if not crosstab_errors else "failed"
+        ),
+        "full_crosstab_reconciliation_error_count": len(crosstab_errors),
+        "privacy_raw_identity_field_scan_status": (
+            "passed" if not forbidden_fields else "failed"
+        ),
+        "privacy_raw_identity_field_match_count": len(forbidden_fields),
+        "final_held_out_selected_or_opened": False,
+    }
+
+
 def _prefix_turn_count_band(count: int) -> str:
     if count == 1:
         return "1"
@@ -3750,15 +4470,22 @@ def _build_target_prefix_rows(
                 )
             complete_target_ancestry = True
             target_post_id = str(target.get("post_id") or "")
+            candidate = candidates.get((conversation_key, target_turn_id))
             outcome = _classify_target_outcome(
                 target,
                 record,
                 turns,
-                candidates.get((conversation_key, target_turn_id)),
+                candidate,
             )
             sequence = _target_sequence_classification(chain)
             conversation_exposure = _normalise_exposure_status(
                 record.get("prior_exposure_categories", [])
+            )
+            author_group_conversation_exposure = _normalise_exposure_status(
+                record.get(
+                    "conversation_wide_exposure_categories",
+                    record.get("prior_exposure_categories", []),
+                )
             )
             target_statuses = _target_specific_exposure_statuses(
                 exposure_rows,
@@ -3777,12 +4504,33 @@ def _build_target_prefix_rows(
                 if conversation_exposure == target_exposure == "genuinely_unexposed"
                 else "exposure_unknown"
             )
+            author_group_effective_exposure = (
+                "exposed"
+                if "exposed"
+                in {author_group_conversation_exposure, target_exposure}
+                else "structurally_mined_only"
+                if "structurally_mined_only"
+                in {author_group_conversation_exposure, target_exposure}
+                else "genuinely_unexposed"
+                if author_group_conversation_exposure
+                == target_exposure
+                == "genuinely_unexposed"
+                else "exposure_unknown"
+            )
             stability_status, activity_status = _stability_for_record(record)
             source_ids = [str(value) for value in record.get("source_ids", [])]
             source_family = _source_family_for_record(record)
             author_scheme = str(record.get("author_key_scheme") or "")
-            author_key = record.get("principal_author_key")
-            within_family_identity_available = bool(author_scheme and author_key not in (None, ""))
+            target_author_identity = _target_author_identity(target, candidate)
+            author_key = target_author_identity["principal_author_key"]
+            target_author_status = target_author_identity[
+                "target_author_identity_status"
+            ]
+            within_family_identity_available = bool(
+                author_scheme
+                and author_key not in (None, "")
+                and target_author_status == "available"
+            )
             exclusion_reasons: list[str] = []
             if record.get("reconstruction_grade") != "A":
                 exclusion_reasons.append("reconstruction_grade_not_a")
@@ -3799,7 +4547,15 @@ def _build_target_prefix_rows(
                 exclusion_reasons.append("incomplete_target_ancestry")
             if outcome["outcome_evidence_class"] == "conflicting_outcome_evidence":
                 exclusion_reasons.append("outcome_evidence_conflict")
-            if not within_family_identity_available:
+            if target_author_status == "conflicting":
+                exclusion_reasons.extend(
+                    [
+                        "target_author_identity_conflicting",
+                        "within_family_identity_group_conflicting",
+                    ]
+                )
+            elif not within_family_identity_available:
+                exclusion_reasons.append("target_author_identity_unavailable")
                 exclusion_reasons.append("within_family_identity_group_unavailable")
             row = {
                 "target_key": "target-"
@@ -3812,17 +4568,26 @@ def _build_target_prefix_rows(
                 "conversation_exposure_status": conversation_exposure,
                 "target_exposure_status": target_exposure,
                 "effective_exposure_status": effective_exposure,
+                "author_group_conversation_exposure_status": (
+                    author_group_conversation_exposure
+                ),
+                "author_group_target_exposure_status": target_exposure,
+                "author_group_effective_exposure_status": (
+                    author_group_effective_exposure
+                ),
                 "stability_status": stability_status,
                 "activity_status_at_frozen_cutoff": activity_status,
                 **outcome,
                 "prefix_turn_count": len(chain),
                 "prefix_turn_count_band": _prefix_turn_count_band(len(chain)),
                 **sequence,
-                "principal_author_key": author_key,
+                **target_author_identity,
                 "author_key_scheme": author_scheme,
                 "author_group_comparability_status": (
                     "comparable_within_source_family_only"
                     if within_family_identity_available
+                    else "identity_group_conflicting"
+                    if target_author_status == "conflicting"
                     else "not_comparable"
                 ),
                 "within_family_author_group_key": (
@@ -5525,6 +6290,7 @@ def _validate_outputs(
         "corpus-feasibility.md",
         "prior-exposure-registry.jsonl",
         "prior-exposure-summary.json",
+        "author-binding-audit.json",
         "target-prefix-feasibility-index.jsonl",
         "target-prefix-structural-exclusions.jsonl",
         "target-prefix-crosstab.json",
@@ -5745,6 +6511,11 @@ def _validate_outputs(
             for row in exposure_rows
             if row.get("entity_type") == "within_family_author_group"
         ]
+        contributor_observation_rows = [
+            row
+            for row in exposure_rows
+            if row.get("entity_type") == "conversation_contributor"
+        ]
         target_prefix_count_errors.extend(
             author_groups.author_group_crosstab_errors(
                 target_rows,
@@ -5752,12 +6523,52 @@ def _validate_outputs(
                 within_group_rows,
                 [],
                 exposure_summary.get("author_group_crosstab", {}),
+                contributor_observation_rows,
             )
         )
+        author_binding_audit = _read_json(
+            private_output / "author-binding-audit.json"
+        )
+        if canonical_json_bytes(author_binding_audit) != canonical_json_bytes(
+            exposure_summary.get("author_binding_audit", {})
+        ):
+            target_prefix_count_errors.append("author_binding_audit_mismatch")
+        if author_binding_audit.get("schema_version") != (
+            "proposition-ledger-author-binding-audit-v1"
+        ):
+            target_prefix_count_errors.append("author_binding_audit_schema")
+        if author_binding_audit.get("canonical_conversation_count") != len(
+            feasibility_rows
+        ):
+            target_prefix_count_errors.append(
+                "author_binding_audit_conversation_count"
+            )
+        if author_binding_audit.get(
+            "contributor_exposure_observation_count"
+        ) != len(contributor_observation_rows):
+            target_prefix_count_errors.append(
+                "author_binding_audit_contributor_observation_count"
+            )
+        if author_binding_audit.get(
+            "full_crosstab_reconciliation_status"
+        ) != "passed":
+            target_prefix_count_errors.append(
+                "author_binding_audit_crosstab_reconciliation"
+            )
+        if author_binding_audit.get(
+            "privacy_raw_identity_field_scan_status"
+        ) != "passed":
+            target_prefix_count_errors.append(
+                "author_binding_audit_privacy_scan"
+            )
         if any(
             row.get("author_group_split_assignment") is not None
             or row.get("cross_family_author_group_split_assignment") is not None
-            for row in [*target_rows, *feasibility_rows]
+            for row in [
+                *target_rows,
+                *feasibility_rows,
+                *contributor_observation_rows,
+            ]
         ):
             target_prefix_count_errors.append("author_group_split_assigned")
     readiness_errors: list[str] = []
@@ -6413,6 +7224,10 @@ def _build_outputs(
     _write_markdown(private_output / "corpus-feasibility.md", _feasibility_markdown(feasibility_summary))
     _write_private(private_output / "prior-exposure-registry.jsonl", exposure_registry_payload)
     _write_json(private_output / "prior-exposure-summary.json", exposure_summary)
+    _write_json(
+        private_output / "author-binding-audit.json",
+        exposure_summary["author_binding_audit"],
+    )
     _write_jsonl(private_output / "target-prefix-feasibility-index.jsonl", target_rows)
     _write_jsonl(
         private_output / "target-prefix-structural-exclusions.jsonl",
@@ -6811,6 +7626,9 @@ def _substantive_rebuild_errors(
         "source-overlap.json": overlap,
         "corpus-feasibility.json": feasibility_summary,
         "prior-exposure-summary.json": exposure_summary,
+        "author-binding-audit.json": exposure_summary[
+            "author_binding_audit"
+        ],
         "target-prefix-crosstab.json": target_crosstab,
         "provider-schema-feature-inventory.json": provider_inventory,
         "calibration-pack/calibration-index.json": calibration_index,

@@ -22,10 +22,14 @@ from collections import Counter, defaultdict
 from typing import Any, Iterable, Mapping, Sequence
 
 
-OUTPUT_SCHEMA_VERSION = "proposition-ledger-author-group-exposure-v1"
+OUTPUT_SCHEMA_VERSION = "proposition-ledger-author-group-exposure-v2"
 WITHIN_FAMILY_KEY_PURPOSE = (
     "mrsMThatcher/proposition-ledger/phase1.2/"
     "within-family-author-group/v1"
+)
+CONTRIBUTOR_OBSERVATION_KEY_PURPOSE = (
+    "mrsMThatcher/proposition-ledger/phase1.2/"
+    "contributor-exposure-observation/v1"
 )
 CROSS_SOURCE_HMAC_PURPOSE = (
     "mrsMThatcher/proposition-ledger/phase1.2/"
@@ -69,12 +73,18 @@ EXPOSURE_REASON_FIELDS = (
     "exposure_reasons",
     "conversation_exposure_reasons",
     "target_exposure_reasons",
+    "contributor_identity_binding_reasons",
 )
 EXPOSURE_STATUS_FIELDS = (
     "prior_exposure_status",
     "conversation_exposure_status",
     "target_exposure_status",
     "effective_exposure_status",
+)
+AUTHOR_GROUP_EXPOSURE_STATUS_FIELDS = (
+    "author_group_conversation_exposure_status",
+    "author_group_target_exposure_status",
+    "author_group_effective_exposure_status",
 )
 
 RAW_ID_FIELD_NAMES = frozenset(
@@ -102,8 +112,11 @@ WITHIN_ELIGIBILITY_REASON_ORDER = (
     "not_persistent_multiturn_target",
     "conversation_not_genuinely_unexposed",
     "target_not_genuinely_unexposed",
+    "target_author_identity_unavailable",
+    "target_author_identity_conflicting",
     "within_family_identity_group_unavailable",
     "within_family_identity_group_conflicting",
+    "scoped_exposure_contributor_unresolved",
     "direct_exposure_elsewhere_in_within_family_author_group",
     "target_structural_conflict",
     "outcome_evidence_conflict",
@@ -289,7 +302,12 @@ def _exposure_facts(rows: Iterable[Mapping[str, Any]]) -> dict[str, Any]:
             categories.update(_iter_values(row.get(field)))
         for field in EXPOSURE_REASON_FIELDS:
             reasons.update(_iter_values(row.get(field)))
-        for field in EXPOSURE_STATUS_FIELDS:
+        status_fields = (
+            AUTHOR_GROUP_EXPOSURE_STATUS_FIELDS
+            if any(field in row for field in AUTHOR_GROUP_EXPOSURE_STATUS_FIELDS)
+            else EXPOSURE_STATUS_FIELDS
+        )
+        for field in status_fields:
             status = row.get(field)
             if status not in (None, ""):
                 statuses.add(str(status))
@@ -335,118 +353,194 @@ def _group_exposure_status(facts: Mapping[str, Any]) -> str:
     return "exposure_group_unknown"
 
 
-def _identity_assignments(
-    rows_by_conversation: Mapping[str, Sequence[Mapping[str, Any]]],
-) -> dict[str, dict[str, Any]]:
-    assignments: dict[str, dict[str, Any]] = {}
-    for conversation_key, rows in rows_by_conversation.items():
-        pairs: set[tuple[str, str]] = set()
-        explicit_conflict = False
-        for row in rows:
-            scheme = _nonempty_identity_component(row.get("author_key_scheme"))
-            principal = _nonempty_identity_component(row.get("principal_author_key"))
-            if scheme is not None and principal is not None:
-                pairs.add((scheme, principal))
-            if row.get("author_group_comparability_status") in {
-                "identity_group_conflicting",
-                "conflicting",
-            } or row.get("within_family_author_identity_status") == "conflicting":
-                explicit_conflict = True
-        if explicit_conflict or len(pairs) > 1:
-            assignments[conversation_key] = {
-                "status": "conflicting",
-                "key": None,
-            }
-        elif not pairs:
-            assignments[conversation_key] = {
-                "status": "unavailable",
-                "key": None,
-            }
-        else:
-            scheme, principal = next(iter(pairs))
-            assignments[conversation_key] = {
-                "status": "available",
-                "key": domain_qualified_within_family_key(scheme, principal),
-            }
-    return assignments
+def _within_identity_assignment(
+    row: Mapping[str, Any], *, target: bool
+) -> dict[str, Any]:
+    """Resolve one row without consulting another row in its conversation."""
+
+    status_field = (
+        "target_author_identity_status"
+        if target
+        else "within_family_author_identity_status"
+    )
+    explicit_status = row.get(status_field)
+    comparability = row.get("author_group_comparability_status")
+    contributor_binding_status = (
+        None if target else row.get("contributor_identity_binding_status")
+    )
+    if (
+        contributor_binding_status == "conflicting"
+        or explicit_status in {"conflicting", "identity_group_conflicting"}
+        or comparability in {"conflicting", "identity_group_conflicting"}
+    ):
+        return {"status": "conflicting", "key": None}
+    if explicit_status in {"unavailable", "identity_group_unavailable"}:
+        return {"status": "unavailable", "key": None}
+
+    scheme = _nonempty_identity_component(row.get("author_key_scheme"))
+    principal = _nonempty_identity_component(row.get("principal_author_key"))
+    if scheme is None or principal is None:
+        return {"status": "unavailable", "key": None}
+    return {
+        "status": "available",
+        "key": domain_qualified_within_family_key(scheme, principal),
+        "scheme": scheme,
+        "principal": principal,
+    }
 
 
-def _cross_identity_assignments(
-    rows_by_conversation: Mapping[str, Sequence[Mapping[str, Any]]],
-) -> dict[str, dict[str, Any]]:
-    assignments: dict[str, dict[str, Any]] = {}
-    for conversation_key, rows in rows_by_conversation.items():
-        keys: set[str] = set()
-        statuses: set[str] = set()
-        identity_reasons: set[str] = set()
-        for row in rows:
-            key = row.get("cross_family_author_group_key")
-            if isinstance(key, str) and key:
-                keys.add(key)
-            status = row.get("cross_family_author_identity_status")
-            if status not in (None, ""):
-                statuses.add(str(status))
-            identity_reasons.update(
-                _iter_values(row.get("cross_family_author_identity_reasons"))
-            )
+def _cross_identity_assignment(
+    row: Mapping[str, Any], within_assignment: Mapping[str, Any]
+) -> dict[str, Any]:
+    """Resolve one row's guarded cross-family descriptor independently."""
 
-        conflicting = (
-            "conflicting" in statuses
-            or len(keys) > 1
-            or ({"available", "unavailable"} <= statuses)
-            or (bool(keys) and statuses == {"unavailable"})
-            or ("available" in statuses and not keys)
+    reasons = set(_iter_values(row.get("cross_family_author_identity_reasons")))
+    if within_assignment.get("status") == "conflicting":
+        reasons.add("target_or_contributor_identity_conflicting")
+        return {
+            "status": "conflicting",
+            "key": None,
+            "reasons": _bounded_strings(reasons),
+        }
+    if within_assignment.get("status") != "available":
+        reasons.add("cross_family_author_identity_unavailable")
+        return {
+            "status": "unavailable",
+            "key": None,
+            "reasons": _bounded_strings(reasons),
+        }
+
+    key = row.get("cross_family_author_group_key")
+    key = key if isinstance(key, str) and key else None
+    status = row.get("cross_family_author_identity_status")
+    status = str(status) if status not in (None, "") else None
+    conflicting = (
+        status == "conflicting"
+        or (key is not None and status == "unavailable")
+        or (status == "available" and key is None)
+    )
+    if conflicting:
+        reasons.add("cross_family_identity_metadata_conflicting")
+        return {
+            "status": "conflicting",
+            "key": None,
+            "reasons": _bounded_strings(reasons),
+        }
+    if key is not None:
+        return {
+            "status": "available",
+            "key": key,
+            "reasons": _bounded_strings(reasons),
+        }
+    reasons.add("cross_family_author_identity_unavailable")
+    return {
+        "status": "unavailable",
+        "key": None,
+        "reasons": _bounded_strings(reasons),
+    }
+
+
+def _legacy_contributor_observations(
+    conversation_rows: Sequence[Mapping[str, Any]],
+) -> list[dict[str, Any]]:
+    """Derive a single-author compatibility view when no view was supplied.
+
+    This fallback carries conversation exposure only.  It is never consulted to
+    determine a target's author; production multi-author callers must provide
+    observations enumerated from their canonical user turns.
+    """
+
+    fields = (
+        "author_key_scheme",
+        "principal_author_key",
+        "cross_family_author_group_key",
+        "cross_family_author_identity_status",
+        "cross_family_author_identity_reasons",
+        *EXPOSURE_CATEGORY_FIELDS,
+        *EXPOSURE_REASON_FIELDS,
+        *EXPOSURE_STATUS_FIELDS,
+    )
+    observations: list[dict[str, Any]] = []
+    for conversation in conversation_rows:
+        scheme = _nonempty_identity_component(conversation.get("author_key_scheme"))
+        principal = _nonempty_identity_component(
+            conversation.get("principal_author_key")
         )
-        if conflicting:
-            assignments[conversation_key] = {
-                "status": "conflicting",
-                "key": None,
-                "reasons": _bounded_strings(
-                    [
-                        *identity_reasons,
-                        "cross_family_identity_metadata_conflicting",
-                    ]
-                ),
+        if scheme is None or principal is None:
+            continue
+        observation = {
+            "conversation_key": str(conversation["conversation_key"]),
+            "contributor_identity_binding_status": "available",
+            "contributor_identity_binding_reasons": [],
+        }
+        observation.update(
+            {
+                field: copy.deepcopy(conversation[field])
+                for field in fields
+                if field in conversation
             }
-        elif keys:
-            assignments[conversation_key] = {
-                "status": "available",
-                "key": next(iter(keys)),
-                "reasons": _bounded_strings(identity_reasons),
+        )
+        observations.append(observation)
+    return observations
+
+
+def _observation_key(
+    row: Mapping[str, Any], assignment: Mapping[str, Any]
+) -> str:
+    material: dict[str, Any] = {
+        "purpose": CONTRIBUTOR_OBSERVATION_KEY_PURPOSE,
+        "conversation_key": str(row["conversation_key"]),
+    }
+    if assignment.get("status") == "available":
+        material.update(
+            {
+                "author_key_scheme": assignment["scheme"],
+                "principal_author_key": assignment["principal"],
             }
-        else:
-            assignments[conversation_key] = {
-                "status": "unavailable",
-                "key": None,
-                "reasons": _bounded_strings(
-                    [
-                        *identity_reasons,
-                        "cross_family_author_identity_unavailable",
-                    ]
-                ),
+        )
+    else:
+        material["unresolved_observation"] = {
+            key: value
+            for key, value in row.items()
+            if key
+            not in {
+                "contributor_exposure_observation_key",
+                "row_sha256",
             }
-    return assignments
+        }
+    return (
+        "contributor-exposure-observation-sha256-v1-"
+        + hashlib.sha256(_canonical_json_bytes(material)).hexdigest()
+    )
 
 
 def _group_summary(
     *,
     group_key: str,
-    conversation_keys: Sequence[str],
-    rows_by_conversation: Mapping[str, Sequence[Mapping[str, Any]]],
-    target_counts: Mapping[str, int],
+    contributor_rows: Sequence[Mapping[str, Any]],
+    target_rows: Sequence[Mapping[str, Any]],
     cross_family: bool,
+    unresolved_scoped_exposure: bool,
 ) -> dict[str, Any]:
-    observations = [
-        row
-        for conversation_key in conversation_keys
-        for row in rows_by_conversation[conversation_key]
-    ]
+    observations = [*contributor_rows, *target_rows]
     facts = _exposure_facts(observations)
+    reasons = set(facts["reasons"])
+    if unresolved_scoped_exposure:
+        reasons.add("scoped_exposure_contributor_unresolved")
     status = _group_exposure_status(facts)
-    conversation_count = len(conversation_keys)
-    target_count = sum(target_counts.get(key, 0) for key in conversation_keys)
+    if unresolved_scoped_exposure and status in {
+        "clean_genuinely_unexposed_group",
+        "exposure_group_unknown",
+    }:
+        status = "contains_unresolved_scoped_exposure"
+    conversation_count = len(
+        {str(row["conversation_key"]) for row in observations}
+    )
+    target_count = len(target_rows)
     requires_groupwise_split = bool(
-        facts["contains_structural"] or conversation_count > 1
+        facts["contains_structural"]
+        or conversation_count > 1
+        or unresolved_scoped_exposure
     )
     if cross_family:
         return {
@@ -454,7 +548,7 @@ def _group_summary(
             "cross_family_author_identity_status": "available",
             "cross_family_author_group_exposure_status": status,
             "cross_family_author_group_exposure_categories": facts["categories"],
-            "cross_family_author_group_exposure_reasons": facts["reasons"],
+            "cross_family_author_group_exposure_reasons": _bounded_strings(reasons),
             "cross_family_author_group_conversation_count": conversation_count,
             "cross_family_author_group_target_count": target_count,
             "cross_family_author_group_contains_directly_exposed_material": facts[
@@ -466,6 +560,9 @@ def _group_summary(
             "cross_family_author_group_contains_genuinely_unexposed_material": facts[
                 "contains_unexposed"
             ],
+            "cross_family_author_group_contains_unresolved_scoped_exposure": (
+                unresolved_scoped_exposure
+            ),
             "cross_family_author_group_requires_groupwise_split": (
                 requires_groupwise_split
             ),
@@ -475,7 +572,7 @@ def _group_summary(
         "within_family_author_group_key": group_key,
         "author_group_exposure_status": status,
         "author_group_exposure_categories": facts["categories"],
-        "author_group_exposure_reasons": facts["reasons"],
+        "author_group_exposure_reasons": _bounded_strings(reasons),
         "author_group_conversation_count": conversation_count,
         "author_group_target_count": target_count,
         "author_group_contains_directly_exposed_material": facts["contains_direct"],
@@ -485,19 +582,18 @@ def _group_summary(
         "author_group_contains_genuinely_unexposed_material": facts[
             "contains_unexposed"
         ],
+        "author_group_contains_unresolved_scoped_exposure": (
+            unresolved_scoped_exposure
+        ),
         "author_group_requires_groupwise_split": requires_groupwise_split,
         "author_group_split_assignment": None,
     }
 
 
 def _unavailable_group_annotation(
-    *,
-    conversation_key: str,
-    rows: Sequence[Mapping[str, Any]],
-    target_count: int,
-    identity_status: str,
+    row: Mapping[str, Any], *, target_count: int, identity_status: str
 ) -> dict[str, Any]:
-    facts = _exposure_facts(rows)
+    facts = _exposure_facts([row])
     status = (
         "identity_group_conflicting"
         if identity_status == "conflicting"
@@ -509,6 +605,12 @@ def _unavailable_group_annotation(
         if identity_status == "conflicting"
         else "within_family_identity_group_unavailable"
     )
+    unresolved = row.get("contributor_identity_binding_status") in {
+        "unresolved",
+        "conflicting",
+    }
+    if unresolved:
+        reasons.add("scoped_exposure_contributor_unresolved")
     return {
         "within_family_author_group_key": None,
         "author_group_exposure_status": status,
@@ -523,19 +625,18 @@ def _unavailable_group_annotation(
         "author_group_contains_genuinely_unexposed_material": facts[
             "contains_unexposed"
         ],
-        "author_group_requires_groupwise_split": bool(facts["contains_structural"]),
+        "author_group_contains_unresolved_scoped_exposure": unresolved,
+        "author_group_requires_groupwise_split": bool(
+            facts["contains_structural"] or unresolved
+        ),
         "author_group_split_assignment": None,
-        "_conversation_key": conversation_key,
     }
 
 
 def _unavailable_cross_group_annotation(
-    *,
-    rows: Sequence[Mapping[str, Any]],
-    target_count: int,
-    assignment: Mapping[str, Any],
+    row: Mapping[str, Any], *, target_count: int, assignment: Mapping[str, Any]
 ) -> dict[str, Any]:
-    facts = _exposure_facts(rows)
+    facts = _exposure_facts([row])
     identity_status = str(assignment["status"])
     status = (
         "identity_group_conflicting"
@@ -544,6 +645,12 @@ def _unavailable_cross_group_annotation(
     )
     reasons = set(facts["reasons"])
     reasons.update(str(value) for value in assignment.get("reasons", []))
+    unresolved = row.get("contributor_identity_binding_status") in {
+        "unresolved",
+        "conflicting",
+    }
+    if unresolved:
+        reasons.add("scoped_exposure_contributor_unresolved")
     return {
         "cross_family_author_group_key": None,
         "cross_family_author_identity_status": identity_status,
@@ -561,8 +668,9 @@ def _unavailable_cross_group_annotation(
         "cross_family_author_group_contains_genuinely_unexposed_material": facts[
             "contains_unexposed"
         ],
+        "cross_family_author_group_contains_unresolved_scoped_exposure": unresolved,
         "cross_family_author_group_requires_groupwise_split": bool(
-            facts["contains_structural"]
+            facts["contains_structural"] or unresolved
         ),
         "cross_family_author_group_split_assignment": None,
     }
@@ -591,25 +699,34 @@ def evaluate_preliminary_eligibility(row: Mapping[str, Any]) -> dict[str, Any]:
         within_reasons.append("not_persistent_multiturn_target")
 
     effective = row.get("effective_exposure_status")
-    conversation_exposure = row.get("conversation_exposure_status", effective)
-    target_exposure = row.get("target_exposure_status", effective)
+    conversation_exposure = row.get(
+        "author_group_conversation_exposure_status",
+        row.get("conversation_exposure_status", effective),
+    )
+    target_exposure = row.get(
+        "author_group_target_exposure_status",
+        row.get("target_exposure_status", effective),
+    )
     if conversation_exposure not in UNEXPOSED_STATUSES:
         within_reasons.append("conversation_not_genuinely_unexposed")
     if target_exposure not in UNEXPOSED_STATUSES:
         within_reasons.append("target_not_genuinely_unexposed")
 
+    target_identity_status = row.get("target_author_identity_status")
+    if target_identity_status == "conflicting":
+        within_reasons.append("target_author_identity_conflicting")
+    elif target_identity_status != "available":
+        within_reasons.append("target_author_identity_unavailable")
+
     group_status = row.get("author_group_exposure_status")
-    if group_status == "identity_group_unavailable" or not row.get(
+    if group_status == "identity_group_conflicting":
+        within_reasons.append("within_family_identity_group_conflicting")
+    elif group_status == "identity_group_unavailable" or not row.get(
         "within_family_author_group_key"
     ):
         within_reasons.append("within_family_identity_group_unavailable")
-    if group_status == "identity_group_conflicting":
-        within_reasons = [
-            reason
-            for reason in within_reasons
-            if reason != "within_family_identity_group_unavailable"
-        ]
-        within_reasons.append("within_family_identity_group_conflicting")
+    if row.get("author_group_contains_unresolved_scoped_exposure") is True:
+        within_reasons.append("scoped_exposure_contributor_unresolved")
     if row.get("author_group_contains_directly_exposed_material") is True:
         within_reasons.append(
             "direct_exposure_elsewhere_in_within_family_author_group"
@@ -661,18 +778,74 @@ def build_author_group_crosstab(
     conversation_rows: Sequence[Mapping[str, Any]],
     within_family_groups: Sequence[Mapping[str, Any]],
     cross_family_groups: Sequence[Mapping[str, Any]],
+    contributor_exposure_observations: Sequence[Mapping[str, Any]] = (),
 ) -> dict[str, Any]:
     """Build an exact group/row crosstab without selecting any split."""
 
     def counts(rows: Sequence[Mapping[str, Any]], field: str) -> dict[str, int]:
         return dict(sorted(Counter(str(row.get(field)) for row in rows).items()))
 
+    observation_pairs_by_conversation: dict[str, set[tuple[str, str]]] = defaultdict(
+        set
+    )
+    cross_statuses_by_conversation: dict[str, set[str]] = defaultdict(set)
+    for row in contributor_exposure_observations:
+        conversation_key = str(row["conversation_key"])
+        scheme = _nonempty_identity_component(row.get("author_key_scheme"))
+        principal = _nonempty_identity_component(row.get("principal_author_key"))
+        if scheme is not None and principal is not None:
+            observation_pairs_by_conversation[conversation_key].add(
+                (scheme, principal)
+            )
+        status = row.get("cross_family_author_identity_status")
+        if status not in (None, ""):
+            cross_statuses_by_conversation[conversation_key].add(str(status))
+    for row in target_rows:
+        conversation_key = str(row["conversation_key"])
+        status = row.get("cross_family_author_identity_status")
+        if status not in (None, ""):
+            cross_statuses_by_conversation[conversation_key].add(str(status))
+
+    cardinality_rows: list[dict[str, str]] = []
+    conversation_cross_rows: list[dict[str, str]] = []
+    for conversation in conversation_rows:
+        conversation_key = str(conversation["conversation_key"])
+        contributor_count = len(
+            observation_pairs_by_conversation.get(conversation_key, set())
+        )
+        cardinality = (
+            "zero"
+            if contributor_count == 0
+            else "one"
+            if contributor_count == 1
+            else "multiple"
+        )
+        cardinality_rows.append({"value": cardinality})
+
+        statuses = cross_statuses_by_conversation.get(conversation_key, set())
+        if "conflicting" in statuses:
+            aggregate_cross_status = "conflicting"
+        elif statuses == {"available"}:
+            aggregate_cross_status = "available"
+        elif not statuses or statuses == {"unavailable"}:
+            aggregate_cross_status = "unavailable"
+        else:
+            aggregate_cross_status = "conflicting"
+        conversation_cross_rows.append({"value": aggregate_cross_status})
+
     dimensions = {
         "target_author_group_exposure_status": counts(
             target_rows, "author_group_exposure_status"
         ),
-        "conversation_author_group_exposure_status": counts(
-            conversation_rows, "author_group_exposure_status"
+        "conversation_external_contributor_cardinality": counts(
+            cardinality_rows, "value"
+        ),
+        "contributor_observation_author_group_exposure_status": counts(
+            contributor_exposure_observations, "author_group_exposure_status"
+        ),
+        "contributor_observation_identity_binding_status": counts(
+            contributor_exposure_observations,
+            "contributor_identity_binding_status",
         ),
         "within_family_group_exposure_status": counts(
             within_family_groups, "author_group_exposure_status"
@@ -681,7 +854,11 @@ def build_author_group_crosstab(
             target_rows, "cross_family_author_identity_status"
         ),
         "conversation_cross_family_author_identity_status": counts(
-            conversation_rows, "cross_family_author_identity_status"
+            conversation_cross_rows, "value"
+        ),
+        "contributor_observation_cross_family_author_identity_status": counts(
+            contributor_exposure_observations,
+            "cross_family_author_identity_status",
         ),
         "cross_family_group_exposure_status": counts(
             cross_family_groups, "cross_family_author_group_exposure_status"
@@ -698,6 +875,9 @@ def build_author_group_crosstab(
         "schema_version": OUTPUT_SCHEMA_VERSION,
         "target_count": len(target_rows),
         "conversation_count": len(conversation_rows),
+        "contributor_exposure_observation_count": len(
+            contributor_exposure_observations
+        ),
         "comparable_within_family_author_group_count": len(within_family_groups),
         "comparable_cross_family_author_group_count": len(cross_family_groups),
         "dimensions": dimensions,
@@ -719,16 +899,13 @@ def build_author_group_crosstab(
                 for row in target_rows
             ),
             "cross_family_identity_available_conversation_count": sum(
-                row.get("cross_family_author_identity_status") == "available"
-                for row in conversation_rows
+                row["value"] == "available" for row in conversation_cross_rows
             ),
             "cross_family_identity_unavailable_conversation_count": sum(
-                row.get("cross_family_author_identity_status") == "unavailable"
-                for row in conversation_rows
+                row["value"] == "unavailable" for row in conversation_cross_rows
             ),
             "cross_family_identity_conflicting_conversation_count": sum(
-                row.get("cross_family_author_identity_status") == "conflicting"
-                for row in conversation_rows
+                row["value"] == "conflicting" for row in conversation_cross_rows
             ),
         },
         "author_group_split_performed": False,
@@ -741,6 +918,7 @@ def author_group_crosstab_errors(
     within_family_groups: Sequence[Mapping[str, Any]],
     cross_family_groups: Sequence[Mapping[str, Any]],
     crosstab: Mapping[str, Any],
+    contributor_exposure_observations: Sequence[Mapping[str, Any]] = (),
 ) -> list[str]:
     """Return deterministic reconciliation errors for an author-group crosstab."""
 
@@ -749,6 +927,7 @@ def author_group_crosstab_errors(
         conversation_rows,
         within_family_groups,
         cross_family_groups,
+        contributor_exposure_observations,
     )
     errors: list[str] = []
     if _canonical_json_bytes(expected) != _canonical_json_bytes(crosstab):
@@ -756,11 +935,28 @@ def author_group_crosstab_errors(
     dimensions = crosstab.get("dimensions", {})
     totals = (
         ("target_author_group_exposure_status", len(target_rows)),
-        ("conversation_author_group_exposure_status", len(conversation_rows)),
+        ("conversation_external_contributor_cardinality", len(conversation_rows)),
+        (
+            "contributor_observation_author_group_exposure_status",
+            len(contributor_exposure_observations),
+        ),
+        (
+            "contributor_observation_identity_binding_status",
+            len(contributor_exposure_observations),
+        ),
         ("within_family_group_exposure_status", len(within_family_groups)),
         ("target_cross_family_author_identity_status", len(target_rows)),
         ("conversation_cross_family_author_identity_status", len(conversation_rows)),
+        (
+            "contributor_observation_cross_family_author_identity_status",
+            len(contributor_exposure_observations),
+        ),
         ("cross_family_group_exposure_status", len(cross_family_groups)),
+        ("preliminary_within_family_held_out_eligibility", len(target_rows)),
+        (
+            "preliminary_cross_family_clean_held_out_eligibility",
+            len(target_rows),
+        ),
     )
     for field, expected_total in totals:
         actual = sum(int(value) for value in dimensions.get(field, {}).values())
@@ -774,14 +970,20 @@ def author_group_crosstab_errors(
 def apply_author_group_exposure(
     target_rows: Sequence[Mapping[str, Any]],
     conversation_rows: Sequence[Mapping[str, Any]] = (),
+    contributor_exposure_observations: Sequence[Mapping[str, Any]] | None = None,
 ) -> dict[str, Any]:
     """Aggregate author exposure, annotate targets, and return exact crosstabs.
 
-    Conversation rows should include every frozen canonical conversation, even
-    if it contributes no structurally usable target.  This is what lets direct
-    exposure in a sibling conversation disqualify an otherwise clean target.
-    If the sequence is omitted, target rows form the complete observation
-    universe for small synthetic callers.
+    Canonical conversation rows remain one row per conversation and receive no
+    singular group annotation.  Explicit contributor observations should
+    enumerate each complete ``(author_key_scheme, principal_author_key)`` tuple
+    present among that conversation's user turns and carry exposure bound to
+    that contributor.  If observations are omitted, a one-contributor view is
+    derived from legacy conversation metadata for small synthetic callers only.
+
+    A target is always assigned from its own identity tuple and
+    ``target_author_identity_status``.  Conversation metadata is never used to
+    fill, override, or conflict a target's author identity.
     """
 
     targets = _copied_rows(target_rows, "target_rows")
@@ -793,70 +995,229 @@ def apply_author_group_exposure(
     conversation_by_key = {
         str(row["conversation_key"]): row for row in conversations
     }
-    for target in targets:
-        key = str(target["conversation_key"])
+    supplied_observations = contributor_exposure_observations is not None
+    raw_observations = (
+        _copied_rows(
+            contributor_exposure_observations or (),
+            "contributor_exposure_observations",
+        )
+        if supplied_observations
+        else []
+    )
+    for row in [*targets, *raw_observations]:
+        key = str(row["conversation_key"])
         if key not in conversation_by_key:
-            identity_and_exposure = {
-                field: copy.deepcopy(target[field])
-                for field in (
-                    "author_key_scheme",
-                    "principal_author_key",
-                    "cross_family_author_group_key",
-                    "cross_family_author_identity_status",
-                    "cross_family_author_identity_reasons",
-                    *EXPOSURE_CATEGORY_FIELDS,
-                    *EXPOSURE_REASON_FIELDS,
-                    *EXPOSURE_STATUS_FIELDS,
-                )
-                if field in target
-            }
-            conversation_by_key[key] = {
-                "conversation_key": key,
-                **identity_and_exposure,
-            }
+            conversation_by_key[key] = {"conversation_key": key}
     conversations = [conversation_by_key[key] for key in sorted(conversation_by_key)]
 
-    rows_by_conversation: dict[str, list[Mapping[str, Any]]] = defaultdict(list)
-    for conversation in conversations:
-        rows_by_conversation[str(conversation["conversation_key"])].append(conversation)
-    target_counts: Counter[str] = Counter()
-    for target in targets:
-        key = str(target["conversation_key"])
-        rows_by_conversation[key].append(target)
-        target_counts[key] += 1
+    observations = (
+        raw_observations
+        if supplied_observations
+        else _legacy_contributor_observations(conversations)
+    )
+    observation_within_assignments = [
+        _within_identity_assignment(row, target=False) for row in observations
+    ]
+    observation_cross_assignments = [
+        _cross_identity_assignment(row, assignment)
+        for row, assignment in zip(observations, observation_within_assignments)
+    ]
+    observation_keys = [
+        _observation_key(row, assignment)
+        for row, assignment in zip(observations, observation_within_assignments)
+    ]
+    if len(observation_keys) != len(set(observation_keys)):
+        raise AuthorGroupError(
+            "contributor_exposure_observations contains a duplicate contributor "
+            "tuple or unresolved observation"
+        )
 
-    within_assignments = _identity_assignments(rows_by_conversation)
-    cross_assignments = _cross_identity_assignments(rows_by_conversation)
-
-    within_members: dict[str, list[str]] = defaultdict(list)
-    cross_members: dict[str, list[str]] = defaultdict(list)
-    for conversation_key in sorted(rows_by_conversation):
-        within = within_assignments[conversation_key]
-        cross = cross_assignments[conversation_key]
+    target_within_assignments = [
+        _within_identity_assignment(row, target=True) for row in targets
+    ]
+    observation_cross_by_within_key: dict[str, list[Mapping[str, Any]]] = (
+        defaultdict(list)
+    )
+    for within, cross in zip(
+        observation_within_assignments, observation_cross_assignments
+    ):
         if within["status"] == "available":
-            within_members[str(within["key"])].append(conversation_key)
-        if cross["status"] == "available":
-            cross_members[str(cross["key"])].append(conversation_key)
+            observation_cross_by_within_key[str(within["key"])].append(cross)
+    target_cross_assignments: list[dict[str, Any]] = []
+    for row, within in zip(targets, target_within_assignments):
+        cross = _cross_identity_assignment(row, within)
+        cross_metadata_absent = (
+            row.get("cross_family_author_group_key") in (None, "")
+            and row.get("cross_family_author_identity_status") in (None, "")
+        )
+        if cross_metadata_absent and within["status"] == "available":
+            matching = observation_cross_by_within_key.get(
+                str(within["key"]), []
+            )
+            available_keys = {
+                str(value["key"])
+                for value in matching
+                if value.get("status") == "available"
+            }
+            matching_statuses = {str(value.get("status")) for value in matching}
+            if len(available_keys) == 1 and matching_statuses == {"available"}:
+                cross = {
+                    "status": "available",
+                    "key": next(iter(available_keys)),
+                    "reasons": _bounded_strings(
+                        reason
+                        for value in matching
+                        for reason in value.get("reasons", [])
+                    ),
+                }
+        target_cross_assignments.append(cross)
 
+    cross_assignments_by_within_key: dict[
+        str, list[tuple[str, dict[str, Any]]]
+    ] = (
+        defaultdict(list)
+    )
+    for row, within, cross in [
+        *zip(
+            observations,
+            observation_within_assignments,
+            observation_cross_assignments,
+        ),
+        *zip(targets, target_within_assignments, target_cross_assignments),
+    ]:
+        if within["status"] == "available":
+            cross_assignments_by_within_key[str(within["key"])].append(
+                (str(row["conversation_key"]), cross)
+            )
+    for entries in cross_assignments_by_within_key.values():
+        available_keys = {
+            str(assignment["key"])
+            for _conversation_key, assignment in entries
+            if assignment.get("status") == "available"
+        }
+        entries_by_conversation: dict[str, list[dict[str, Any]]] = defaultdict(
+            list
+        )
+        for conversation_key, assignment in entries:
+            entries_by_conversation[conversation_key].append(assignment)
+        conflicting_conversations = {
+            conversation_key
+            for conversation_key, assignments in entries_by_conversation.items()
+            if (
+                "conflicting"
+                in {str(assignment.get("status")) for assignment in assignments}
+                or {"available", "unavailable"}
+                <= {
+                    str(assignment.get("status"))
+                    for assignment in assignments
+                }
+            )
+        }
+        affected = (
+            [assignment for _conversation_key, assignment in entries]
+            if len(available_keys) > 1
+            else [
+                assignment
+                for conversation_key, assignment in entries
+                if conversation_key in conflicting_conversations
+            ]
+        )
+        if not affected:
+            continue
+        reasons = _bounded_strings(
+            [
+                "cross_family_identity_metadata_conflicting",
+                *(
+                    reason
+                    for assignment in affected
+                    for reason in assignment.get("reasons", [])
+                ),
+            ]
+        )
+        for assignment in affected:
+            assignment.clear()
+            assignment.update(
+                {"status": "conflicting", "key": None, "reasons": reasons}
+            )
+
+    within_contributors: dict[str, list[Mapping[str, Any]]] = defaultdict(list)
+    within_targets: dict[str, list[Mapping[str, Any]]] = defaultdict(list)
+    cross_contributors: dict[str, list[Mapping[str, Any]]] = defaultdict(list)
+    cross_targets: dict[str, list[Mapping[str, Any]]] = defaultdict(list)
+    within_keys_by_conversation: dict[str, set[str]] = defaultdict(set)
+    cross_keys_by_conversation: dict[str, set[str]] = defaultdict(set)
+
+    for row, within, cross in zip(
+        observations, observation_within_assignments, observation_cross_assignments
+    ):
+        conversation_key = str(row["conversation_key"])
+        if within["status"] == "available":
+            key = str(within["key"])
+            within_contributors[key].append(row)
+            within_keys_by_conversation[conversation_key].add(key)
+        if cross["status"] == "available":
+            key = str(cross["key"])
+            cross_contributors[key].append(row)
+            cross_keys_by_conversation[conversation_key].add(key)
+    for row, within, cross in zip(
+        targets, target_within_assignments, target_cross_assignments
+    ):
+        conversation_key = str(row["conversation_key"])
+        if within["status"] == "available":
+            key = str(within["key"])
+            within_targets[key].append(row)
+            within_keys_by_conversation[conversation_key].add(key)
+        if cross["status"] == "available":
+            key = str(cross["key"])
+            cross_targets[key].append(row)
+            cross_keys_by_conversation[conversation_key].add(key)
+
+    unresolved_within_keys: set[str] = set()
+    unresolved_cross_keys: set[str] = set()
+    for row, within, cross in zip(
+        observations, observation_within_assignments, observation_cross_assignments
+    ):
+        if (
+            row.get("contributor_identity_binding_status")
+            not in {"unresolved", "conflicting"}
+            and within["status"] != "conflicting"
+        ):
+            continue
+        conversation_key = str(row["conversation_key"])
+        if within["status"] == "available":
+            unresolved_within_keys.add(str(within["key"]))
+        else:
+            unresolved_within_keys.update(
+                within_keys_by_conversation.get(conversation_key, set())
+            )
+        if cross["status"] == "available":
+            unresolved_cross_keys.add(str(cross["key"]))
+        else:
+            unresolved_cross_keys.update(
+                cross_keys_by_conversation.get(conversation_key, set())
+            )
+
+    within_group_keys = sorted(set(within_contributors) | set(within_targets))
+    cross_group_keys = sorted(set(cross_contributors) | set(cross_targets))
     within_summaries = [
         _group_summary(
             group_key=group_key,
-            conversation_keys=conversation_keys_for_group,
-            rows_by_conversation=rows_by_conversation,
-            target_counts=target_counts,
+            contributor_rows=within_contributors[group_key],
+            target_rows=within_targets[group_key],
             cross_family=False,
+            unresolved_scoped_exposure=group_key in unresolved_within_keys,
         )
-        for group_key, conversation_keys_for_group in sorted(within_members.items())
+        for group_key in within_group_keys
     ]
     cross_summaries = [
         _group_summary(
             group_key=group_key,
-            conversation_keys=conversation_keys_for_group,
-            rows_by_conversation=rows_by_conversation,
-            target_counts=target_counts,
+            contributor_rows=cross_contributors[group_key],
+            target_rows=cross_targets[group_key],
             cross_family=True,
+            unresolved_scoped_exposure=group_key in unresolved_cross_keys,
         )
-        for group_key, conversation_keys_for_group in sorted(cross_members.items())
+        for group_key in cross_group_keys
     ]
     within_summary_by_key = {
         str(row["within_family_author_group_key"]): row
@@ -866,62 +1227,125 @@ def apply_author_group_exposure(
         str(row["cross_family_author_group_key"]): row for row in cross_summaries
     }
 
-    within_annotations: dict[str, dict[str, Any]] = {}
-    cross_annotations: dict[str, dict[str, Any]] = {}
-    for conversation_key, rows in rows_by_conversation.items():
-        within_assignment = within_assignments[conversation_key]
-        if within_assignment["status"] == "available":
-            within_annotations[conversation_key] = within_summary_by_key[
-                str(within_assignment["key"])
-            ]
-        else:
-            within_annotations[conversation_key] = _unavailable_group_annotation(
-                conversation_key=conversation_key,
-                rows=rows,
-                target_count=target_counts[conversation_key],
-                identity_status=str(within_assignment["status"]),
-            )
-
-        cross_assignment = cross_assignments[conversation_key]
-        if cross_assignment["status"] == "available":
-            cross_annotations[conversation_key] = cross_summary_by_key[
-                str(cross_assignment["key"])
-            ]
-        else:
-            cross_annotations[conversation_key] = _unavailable_cross_group_annotation(
-                rows=rows,
-                target_count=target_counts[conversation_key],
-                assignment=cross_assignment,
-            )
-
-    def annotate(row: dict[str, Any], *, eligibility: bool) -> dict[str, Any]:
-        conversation_key = str(row["conversation_key"])
+    def group_annotations(
+        row: Mapping[str, Any],
+        within_assignment: Mapping[str, Any],
+        cross_assignment: Mapping[str, Any],
+        *,
+        target_count: int,
+    ) -> dict[str, Any]:
         result = copy.deepcopy(row)
-        within = {
-            key: copy.deepcopy(value)
-            for key, value in within_annotations[conversation_key].items()
-            if key != "_conversation_key"
-        }
-        result.update(within)
-        result.update(copy.deepcopy(cross_annotations[conversation_key]))
-        if eligibility:
-            result.update(evaluate_preliminary_eligibility(result))
+        if within_assignment["status"] == "available":
+            result.update(
+                copy.deepcopy(
+                    within_summary_by_key[str(within_assignment["key"])]
+                )
+            )
+        else:
+            result.update(
+                _unavailable_group_annotation(
+                    row,
+                    target_count=target_count,
+                    identity_status=str(within_assignment["status"]),
+                )
+            )
+        if cross_assignment["status"] == "available":
+            result.update(
+                copy.deepcopy(cross_summary_by_key[str(cross_assignment["key"])])
+            )
+        else:
+            result.update(
+                _unavailable_cross_group_annotation(
+                    row,
+                    target_count=target_count,
+                    assignment=cross_assignment,
+                )
+            )
         return result
 
-    annotated_conversations = [
-        annotate(row, eligibility=False) for row in conversations
-    ]
-    annotated_targets = [annotate(row, eligibility=True) for row in targets]
+    annotated_targets: list[dict[str, Any]] = []
+    for row, within, cross in zip(
+        targets, target_within_assignments, target_cross_assignments
+    ):
+        annotated = group_annotations(
+            row, within, cross, target_count=1
+        )
+        identity_status = str(within["status"])
+        identity_reasons = set(
+            _iter_values(annotated.get("target_author_identity_reasons"))
+        )
+        if identity_status == "conflicting":
+            identity_reasons.add("target_author_identity_conflicting")
+        elif identity_status == "unavailable":
+            identity_reasons.add("target_author_identity_unavailable")
+        annotated["target_author_identity_status"] = identity_status
+        annotated["target_author_identity_reasons"] = _bounded_strings(
+            identity_reasons
+        )
+        annotated.update(evaluate_preliminary_eligibility(annotated))
+        annotated_targets.append(annotated)
+
+    annotated_observations: list[dict[str, Any]] = []
+    for row, within, cross, observation_key in zip(
+        observations,
+        observation_within_assignments,
+        observation_cross_assignments,
+        observation_keys,
+    ):
+        annotated = group_annotations(row, within, cross, target_count=0)
+        annotated["contributor_exposure_observation_key"] = observation_key
+        annotated["within_family_author_identity_status"] = str(within["status"])
+        if annotated.get("contributor_identity_binding_status") not in {
+            "available",
+            "unresolved",
+            "conflicting",
+        }:
+            annotated["contributor_identity_binding_status"] = (
+                "available" if within["status"] == "available" else "unresolved"
+            )
+        annotated_observations.append(annotated)
+
+    annotated_targets.sort(
+        key=lambda row: (
+            str(row.get("conversation_key") or ""),
+            str(row.get("target_turn_id") or ""),
+            str(row.get("target_key") or ""),
+            _canonical_json_bytes(row),
+        )
+    )
+    annotated_observations.sort(
+        key=lambda row: (
+            str(row["contributor_exposure_observation_key"]),
+            _canonical_json_bytes(row),
+        )
+    )
+
+    annotated_conversations: list[dict[str, Any]] = []
+    for row in conversations:
+        canonical = copy.deepcopy(row)
+        for field in list(canonical):
+            if (
+                field == "within_family_author_group_key"
+                or field.startswith("author_group_")
+                or field.startswith("cross_family_author_group_")
+                or field.startswith("preliminary_")
+            ):
+                canonical.pop(field, None)
+        annotated_conversations.append(canonical)
+    annotated_conversations.sort(key=lambda row: str(row["conversation_key"]))
+
     crosstab = build_author_group_crosstab(
         annotated_targets,
         annotated_conversations,
         within_summaries,
         cross_summaries,
+        annotated_observations,
     )
     return {
         "schema_version": OUTPUT_SCHEMA_VERSION,
         "target_rows": annotated_targets,
         "conversation_rows": annotated_conversations,
+        "contributor_exposure_observations": annotated_observations,
         "within_family_author_groups": within_summaries,
         "cross_family_author_groups": cross_summaries,
         "crosstab": crosstab,
