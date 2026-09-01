@@ -1,0 +1,8 @@
+These inputs are wholly synthetic.
+Each turn deliberately contains explicit semantic content.
+At least one evidence-bearing semantic record is required.
+Abstention and `no_stable_issue` are not appropriate for these cases.
+Evidence text must be copied exactly.
+Overlapping matches count.
+Do not supply evidence turn IDs or character offsets.
+Output must contain only the structured response.

@@ -1,0 +1,69 @@
+{
+  "format_version": "proposition-ledger-phase2c-synthetic-cases-v1",
+  "synthetic": true,
+  "cases": [
+    {
+      "case_id": "format-chain",
+      "conversation_key": "synthetic-format-chain",
+      "turns": [
+        {
+          "turn_index": 0,
+          "turn_id": "synthetic-format-turn-0",
+          "parent_turn_id": null,
+          "participant": {
+            "participant_id": "participant-contributor",
+            "role": "contributor",
+            "author_key": "synthetic-author-participant-contributor",
+            "identity_confidence": 1.0
+          },
+          "exact_text": "Café 🧭 status is “ready  now”.\r\nCode:\tA-1.",
+          "provider_instruction": "Represent the explicit status statement. Cite the complete current turn exactly as evidence.",
+          "hidden_local_expectation": {
+            "exact_text": "Café 🧭 status is “ready  now”.\r\nCode:\tA-1.",
+            "occurrence_index": 0
+          }
+        },
+        {
+          "turn_index": 1,
+          "turn_id": "synthetic-format-turn-1",
+          "parent_turn_id": "synthetic-format-turn-0",
+          "participant": {
+            "participant_id": "participant-account",
+            "role": "account",
+            "author_key": "synthetic-author-participant-account",
+            "identity_confidence": 1.0
+          },
+          "exact_text": "First report: the gate is open. Final report: the gate is open.",
+          "provider_instruction": "Represent the final report. Cite the exact phrase \"the gate is open\" at its second literal occurrence.",
+          "hidden_local_expectation": {
+            "exact_text": "the gate is open",
+            "occurrence_index": 1
+          }
+        }
+      ]
+    },
+    {
+      "case_id": "overlap",
+      "conversation_key": "synthetic-overlap",
+      "turns": [
+        {
+          "turn_index": 0,
+          "turn_id": "synthetic-overlap-turn-0",
+          "parent_turn_id": null,
+          "participant": {
+            "participant_id": "participant-contributor",
+            "role": "contributor",
+            "author_key": "synthetic-author-participant-contributor",
+            "identity_confidence": 1.0
+          },
+          "exact_text": "Token: aaaa.",
+          "provider_instruction": "Represent the explicit fact about the token and cite the middle overlapping occurrence of \"aa\" inside \"aaaa\".",
+          "hidden_local_expectation": {
+            "exact_text": "aa",
+            "occurrence_index": 1
+          }
+        }
+      ]
+    }
+  ]
+}
