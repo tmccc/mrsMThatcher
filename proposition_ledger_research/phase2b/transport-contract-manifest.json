@@ -1,0 +1,8 @@
+{
+  "canonical_semantic_schema_sha256": "eea15c28f5019cea405bfdd65b924ee18c76dc428f16a1fe502592b5cb953d8a",
+  "canonical_semantic_schema_version": "proposition-ledger-semantic-delta-v1.1.0",
+  "evidence_selector_contract_version": "exact-evidence-selector-v1",
+  "transport_schema_sha256": "1fad0addc29f4b09ef567c2b8d08ae86d33427919cfebf8b8ec4236badef2236",
+  "transport_schema_version": "proposition-ledger-xai-transport-delta-v2.0.0",
+  "xai_provider_schema_sha256": "3f280218c11bd5d08ab81fcecf4c65a0ca9d1719f6b5456060600aceab1d5bb7"
+}
