@@ -1,8 +1,8 @@
 {
-  "canonical_semantic_schema_sha256": "eea15c28f5019cea405bfdd65b924ee18c76dc428f16a1fe502592b5cb953d8a",
-  "canonical_semantic_schema_version": "proposition-ledger-semantic-delta-v1.1.0",
+  "canonical_semantic_schema_sha256": "986500bcf237b25c4fd7f9828060fd1879c2ed8b2746bb6154fc3d3ecd315bad",
+  "canonical_semantic_schema_version": "proposition-ledger-semantic-delta-v1.1.1",
   "evidence_selector_contract_version": "exact-evidence-selector-v1",
-  "transport_schema_sha256": "1fad0addc29f4b09ef567c2b8d08ae86d33427919cfebf8b8ec4236badef2236",
-  "transport_schema_version": "proposition-ledger-xai-transport-delta-v2.0.0",
-  "xai_provider_schema_sha256": "3f280218c11bd5d08ab81fcecf4c65a0ca9d1719f6b5456060600aceab1d5bb7"
+  "transport_schema_sha256": "36076c48150e6bb8d6368736a75b977fb22197de6f57c78e65e8a09b56745bf9",
+  "transport_schema_version": "proposition-ledger-xai-transport-delta-v2.0.1",
+  "xai_provider_schema_sha256": "5d0fb9d22e0d51885ec16af630268fea09a3b62a1d1efc1ac1f333b587f06a41"
 }

@@ -115,6 +115,10 @@ def test_canonical_schema_hash_and_version_are_frozen(
 ) -> None:
     canonical, _ = schemas
     source = evidence.DEFAULT_CANONICAL_SCHEMA_PATH.read_bytes()
+    assert (
+        evidence.CANONICAL_SCHEMA_VERSION
+        == "proposition-ledger-semantic-delta-v1.1.1"
+    )
     assert hashlib.sha256(source).hexdigest() == evidence.CANONICAL_SCHEMA_FILE_SHA256
     assert (
         canonical["properties"]["schema_version"]["const"]
@@ -126,6 +130,10 @@ def test_transport_schema_is_exact_deterministic_derivation(
     schemas: tuple[dict[str, Any], dict[str, Any]],
 ) -> None:
     canonical, tracked = schemas
+    assert (
+        evidence.TRANSPORT_SCHEMA_VERSION
+        == "proposition-ledger-xai-transport-delta-v2.0.1"
+    )
     first, first_ledger = evidence.derive_transport_schema(canonical)
     second, second_ledger = evidence.derive_transport_schema(canonical)
     assert first == second == tracked
@@ -167,12 +175,12 @@ def test_established_xai_transform_is_deterministic_and_bounded(
     second, second_ledger = established.transform_provider_schema(transport_schema)
     assert evidence.canonical_json_bytes(first) == evidence.canonical_json_bytes(second)
     assert first_ledger == second_ledger
-    assert len(first_ledger) == 19
+    assert len(first_ledger) == 23
     assert sum(
         row["transformation_kind"]
         == "insert_explicit_additional_properties_true"
         for row in first_ledger
-    ) == 5
+    ) == 9
     assert sum(
         row["transformation_kind"]
         == "remove_redundant_outer_anchors_for_xai_full_string_pattern"

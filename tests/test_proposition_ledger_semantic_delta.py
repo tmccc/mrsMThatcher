@@ -674,6 +674,87 @@ def test_same_turn_local_references_resolve(
     assert commitment["proposition_id"] == result.local_id_map["new-proposition-1"]
 
 
+def test_new_speaker_committed_proposition_has_one_matching_commitment(
+    direct_answer_case: tuple[dict[str, Any], dict[str, Any], dict[str, Any]],
+) -> None:
+    result = _materialise(direct_answer_case)
+
+    assert result.status == "ok", result.errors
+    assert result.ledger is not None and result.local_id_map is not None
+    proposition_id = result.local_id_map["new-proposition-1"]
+    matches = [
+        item
+        for item in result.ledger["participant_commitments"]
+        if item["participant_id"] == direct_answer_case[1]["speaker_id"]
+        and item["proposition_id"] == proposition_id
+        and item["stance"] == "asserted"
+    ]
+    assert len(matches) == 1
+
+
+def test_new_speaker_committed_proposition_missing_commitment_is_rejected(
+    direct_answer_case: tuple[dict[str, Any], dict[str, Any], dict[str, Any]],
+) -> None:
+    prior, current_turn, delta = direct_answer_case
+    delta["commitment_changes"] = []
+
+    result = _materialise_existing(prior, current_turn, delta)
+
+    assert result.status == "semantic_transition_invalid"
+    assert result.errors == (
+        "speaker_committed_proposition_missing_commitment_record:"
+        "new-proposition-1",
+    )
+
+
+def test_duplicate_commitments_for_new_speaker_proposition_are_rejected(
+    direct_answer_case: tuple[dict[str, Any], dict[str, Any], dict[str, Any]],
+) -> None:
+    prior, current_turn, delta = direct_answer_case
+    duplicate = copy.deepcopy(delta["commitment_changes"][0])
+    duplicate["local_ref"] = "new-commitment-2"
+    delta["commitment_changes"].append(duplicate)
+
+    result = _materialise_existing(prior, current_turn, delta)
+
+    assert result.status == "semantic_transition_invalid"
+    assert result.errors == (
+        "duplicate_commitment_record_for_new_proposition:new-proposition-1",
+    )
+
+
+@pytest.mark.parametrize(
+    "contradiction",
+    ["commitment_status", "speaker", "attribution_kind", "unknown_speaker"],
+)
+def test_asserted_commitment_to_new_proposition_must_match_status_and_speaker(
+    direct_answer_case: tuple[dict[str, Any], dict[str, Any], dict[str, Any]],
+    contradiction: str,
+) -> None:
+    prior, current_turn, delta = direct_answer_case
+    if contradiction == "commitment_status":
+        delta["new_propositions"][0]["commitment_status"] = (
+            "speaker_not_committed"
+        )
+    elif contradiction == "speaker":
+        delta["commitment_changes"][0]["participant_id"] = "contributor"
+    elif contradiction == "attribution_kind":
+        delta["new_propositions"][0]["speaker_or_attributor"].update(
+            kind="attributor", attributed_participant_id="contributor"
+        )
+    else:
+        delta["new_propositions"][0]["speaker_or_attributor"].update(
+            kind="unknown", participant_id=None, attributed_participant_id=None
+        )
+
+    result = _materialise_existing(prior, current_turn, delta)
+
+    assert result.status == "semantic_transition_invalid"
+    assert result.errors == (
+        "asserted_commitment_proposition_status_mismatch:new-proposition-1",
+    )
+
+
 def test_existing_item_references_bind_only_to_prior_ids(
     direct_answer_case: tuple[dict[str, Any], dict[str, Any], dict[str, Any]],
 ) -> None:
@@ -815,6 +896,82 @@ def test_all_failure_classes_remain_distinguishable(
     )
 
     assert observed == semantic.FAILURE_STATUSES
+
+
+def test_question_presupposition_pairing_is_schema_valid(
+    direct_answer_case: tuple[dict[str, Any], dict[str, Any], dict[str, Any]],
+) -> None:
+    _, _, delta = direct_answer_case
+    proposition = delta["new_propositions"][0]
+    proposition["proposition_kind"] = "question_presupposition"
+    proposition["epistemic_status"] = "presupposed_only"
+    proposition["commitment_status"] = "speaker_not_committed"
+    delta["commitment_changes"] = []
+
+    assert phase1._jsonschema_errors(delta, _load_json(SEMANTIC_SCHEMA_PATH)) == []
+
+
+def test_question_presupposition_with_questioned_status_is_schema_invalid(
+    direct_answer_case: tuple[dict[str, Any], dict[str, Any], dict[str, Any]],
+) -> None:
+    _, _, delta = direct_answer_case
+    proposition = delta["new_propositions"][0]
+    proposition["proposition_kind"] = "question_presupposition"
+    proposition["epistemic_status"] = "questioned"
+    proposition["commitment_status"] = "speaker_not_committed"
+    delta["commitment_changes"] = []
+
+    errors = phase1._jsonschema_errors(delta, _load_json(SEMANTIC_SCHEMA_PATH))
+
+    assert errors
+    assert any("presupposed_only" in error for error in errors)
+
+
+def test_question_presupposition_with_speaker_commitment_is_schema_invalid(
+    direct_answer_case: tuple[dict[str, Any], dict[str, Any], dict[str, Any]],
+) -> None:
+    _, _, delta = direct_answer_case
+    proposition = delta["new_propositions"][0]
+    proposition["proposition_kind"] = "question_presupposition"
+    proposition["epistemic_status"] = "presupposed_only"
+    proposition["commitment_status"] = "speaker_committed"
+
+    errors = phase1._jsonschema_errors(delta, _load_json(SEMANTIC_SCHEMA_PATH))
+
+    assert errors
+    assert any("commitment_status" in error for error in errors)
+
+
+def test_presupposed_only_requires_question_presupposition_kind(
+    direct_answer_case: tuple[dict[str, Any], dict[str, Any], dict[str, Any]],
+) -> None:
+    _, _, delta = direct_answer_case
+    proposition = delta["new_propositions"][0]
+    proposition["epistemic_status"] = "presupposed_only"
+    proposition["commitment_status"] = "speaker_not_committed"
+    delta["commitment_changes"] = []
+
+    errors = phase1._jsonschema_errors(delta, _load_json(SEMANTIC_SCHEMA_PATH))
+
+    assert errors
+    assert any("question_presupposition" in error for error in errors)
+
+
+@pytest.mark.parametrize(
+    "partial_change",
+    [
+        {"proposition_kind": "question_presupposition"},
+        {"epistemic_status": "presupposed_only"},
+    ],
+)
+def test_partial_proposition_update_omitting_pairing_fields_is_schema_valid(
+    direct_answer_case: tuple[dict[str, Any], dict[str, Any], dict[str, Any]],
+    partial_change: dict[str, str],
+) -> None:
+    _, _, delta = direct_answer_case
+    delta["proposition_updates"][0]["changes"].update(partial_change)
+
+    assert phase1._jsonschema_errors(delta, _load_json(SEMANTIC_SCHEMA_PATH)) == []
 
 
 def test_no_stable_issue_is_schema_valid(

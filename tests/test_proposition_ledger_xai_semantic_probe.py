@@ -300,6 +300,86 @@ def test_explicit_proposition_without_issue_is_valid(
     assert checks["explicit_proposition_without_issue_valid"] is True
 
 
+def test_issue_level_no_stable_issue_can_coexist_with_complete_extraction(
+    tracked: Mapping[str, Any],
+) -> None:
+    turn = tracked["chain"]["turns"][0]
+    response = probe.build_expected_transport_delta(tracked, turn, None)
+    response["abstentions"] = ["no_stable_issue"]
+    response["new_issue_states"] = [
+        {
+            "local_ref": "new-issue-1",
+            "initiating_speaker": "participant-contributor",
+            "canonical_question": None,
+            "issue_type": "no_stable_issue",
+            "live_alternatives": [],
+            "addressed_participant": None,
+            "answer_requirements": [],
+            "related_proposition_refs": ["new-proposition-1"],
+            "status": "no_stable_issue",
+            "resolution_type": "no_stable_issue",
+            "confidence": 1.0,
+            "exact_evidence_spans": [
+                {"exact_text": turn["exact_text"], "occurrence_index": 0}
+            ],
+        }
+    ]
+
+    processed = probe.process_response_bytes(
+        probe.canonical_json_bytes(response),
+        turn=turn,
+        prior_ledger=None,
+        tracked=tracked,
+    )
+
+    assert processed["validation"]["structural_validity_status"] == "passed"
+    assert processed["validation"]["semantic_expectation_status"] == "passed"
+    assert processed["validation"]["overall_validation_status"] == "passed"
+    assert processed["validation"]["semantic_checks"]["checks"]["not_abstained"]
+    assert len(processed["canonical"]["new_propositions"]) == 1
+    assert len(processed["canonical"]["commitment_changes"]) == 1
+
+
+def test_no_stable_issue_does_not_substitute_for_explicit_question(
+    tracked: Mapping[str, Any],
+) -> None:
+    genesis = _process_witness(tracked, 0, None)
+    turn = tracked["chain"]["turns"][1]
+    response = probe.build_expected_transport_delta(tracked, turn, genesis["ledger"])
+    response["abstentions"] = ["no_stable_issue"]
+    response["new_issue_states"] = [
+        {
+            "local_ref": "new-issue-1",
+            "initiating_speaker": "participant-account",
+            "canonical_question": None,
+            "issue_type": "no_stable_issue",
+            "live_alternatives": [],
+            "addressed_participant": None,
+            "answer_requirements": [],
+            "related_proposition_refs": ["new-proposition-2"],
+            "status": "no_stable_issue",
+            "resolution_type": "no_stable_issue",
+            "confidence": 1.0,
+            "exact_evidence_spans": [
+                {"exact_text": turn["exact_text"], "occurrence_index": 0}
+            ],
+        }
+    ]
+
+    processed = probe.process_response_bytes(
+        probe.canonical_json_bytes(response),
+        turn=turn,
+        prior_ledger=genesis["ledger"],
+        tracked=tracked,
+    )
+
+    assert processed["validation"]["structural_validity_status"] == "passed"
+    assert processed["validation"]["semantic_expectation_status"] == "failed"
+    checks = processed["validation"]["semantic_checks"]
+    assert checks["checks"]["open_entrance_question"] is False
+    assert checks["checks"]["not_abstained"] is False
+
+
 def test_correction_and_question_reference_valid_prior_objects(
     tracked: Mapping[str, Any],
 ) -> None:

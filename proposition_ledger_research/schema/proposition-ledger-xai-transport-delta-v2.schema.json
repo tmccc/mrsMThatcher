@@ -32,10 +32,10 @@
   ],
   "properties": {
     "schema_version": {
-      "const": "proposition-ledger-xai-transport-delta-v2.0.0"
+      "const": "proposition-ledger-xai-transport-delta-v2.0.1"
     },
     "canonical_schema_version": {
-      "const": "proposition-ledger-semantic-delta-v1.1.0"
+      "const": "proposition-ledger-semantic-delta-v1.1.1"
     },
     "conversation_key": {
       "type": "string",
@@ -807,7 +807,57 @@
         "uncertainty_reason": {
           "$ref": "#/$defs/uncertaintyReason"
         }
-      }
+      },
+      "allOf": [
+        {
+          "if": {
+            "properties": {
+              "proposition_kind": {
+                "const": "question_presupposition"
+              }
+            },
+            "required": [
+              "proposition_kind"
+            ]
+          },
+          "then": {
+            "properties": {
+              "epistemic_status": {
+                "const": "presupposed_only"
+              },
+              "commitment_status": {
+                "enum": [
+                  "speaker_not_committed",
+                  "attributed_to_another",
+                  "questioned_only",
+                  "left_uncertain",
+                  "withdrawn",
+                  "not_applicable"
+                ]
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "epistemic_status": {
+                "const": "presupposed_only"
+              }
+            },
+            "required": [
+              "epistemic_status"
+            ]
+          },
+          "then": {
+            "properties": {
+              "proposition_kind": {
+                "const": "question_presupposition"
+              }
+            }
+          }
+        }
+      ]
     },
     "propositionUpdate": {
       "type": "object",

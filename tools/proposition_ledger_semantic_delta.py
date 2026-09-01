@@ -17,7 +17,7 @@ from typing import Any, Iterable, Mapping, Sequence
 from tools import build_proposition_ledger_phase1 as phase1
 
 
-SEMANTIC_DELTA_SCHEMA_VERSION = "proposition-ledger-semantic-delta-v1.1.0"
+SEMANTIC_DELTA_SCHEMA_VERSION = "proposition-ledger-semantic-delta-v1.1.1"
 MATERIALISER_VERSION = "proposition-ledger-semantic-delta-materialiser-v2"
 PERSISTED_LEDGER_SCHEMA_VERSION = "proposition-ledger-v1.0.0"
 SUCCESS_STATUS = "ok"
@@ -588,6 +588,76 @@ def _validate_current_evidence(
             errors.append(f"evidence_span_mismatch:{location}")
     if errors:
         raise _MaterialisationFailure("semantic_evidence_invalid", errors)
+
+
+def _validate_new_proposition_commitments(
+    semantic_delta: Mapping[str, Any],
+    current_turn: Mapping[str, Any],
+    participants: set[str],
+) -> None:
+    """Require same-turn asserted commitments to agree with new propositions."""
+
+    propositions = {
+        str(item["local_ref"]): item
+        for item in semantic_delta.get("new_propositions", [])
+    }
+    additions = [
+        item
+        for item in semantic_delta.get("commitment_changes", [])
+        if item.get("operation") == "add"
+    ]
+    asserted_by_proposition: dict[str, list[Mapping[str, Any]]] = {}
+    errors: list[str] = []
+    for commitment in additions:
+        if commitment.get("stance") != "asserted":
+            continue
+        proposition_ref = str(commitment.get("proposition_ref"))
+        proposition = propositions.get(proposition_ref)
+        if proposition is None:
+            continue
+        asserted_by_proposition.setdefault(proposition_ref, []).append(commitment)
+        attribution = proposition["speaker_or_attributor"]
+        attributed_participant = attribution.get("participant_id")
+        if commitment.get("participant_id") not in participants or (
+            isinstance(attributed_participant, str)
+            and attributed_participant not in participants
+        ):
+            continue
+        if (
+            attribution.get("kind") != "speaker"
+            or proposition.get("commitment_status") != "speaker_committed"
+            or commitment.get("participant_id") != attribution.get("participant_id")
+        ):
+            errors.append(
+                f"asserted_commitment_proposition_status_mismatch:{proposition_ref}"
+            )
+
+    current_speaker = str(current_turn["speaker_id"])
+    for proposition_ref, proposition in propositions.items():
+        attribution = proposition["speaker_or_attributor"]
+        if not (
+            attribution.get("kind") == "speaker"
+            and attribution.get("participant_id") == current_speaker
+            and proposition.get("commitment_status") == "speaker_committed"
+        ):
+            continue
+        matching = [
+            commitment
+            for commitment in asserted_by_proposition.get(proposition_ref, [])
+            if commitment.get("participant_id") == current_speaker
+        ]
+        if len(matching) > 1:
+            errors.append(
+                f"duplicate_commitment_record_for_new_proposition:{proposition_ref}"
+            )
+        elif not matching and proposition_ref not in asserted_by_proposition:
+            errors.append(
+                "speaker_committed_proposition_missing_commitment_record:"
+                f"{proposition_ref}"
+            )
+
+    if errors:
+        _raise("semantic_transition_invalid", *sorted(set(errors)))
 
 
 def _resolve_speaker(
@@ -1883,6 +1953,11 @@ def materialise_semantic_delta(
             for record in base_ledger.get("participants", [])
             if isinstance(record, Mapping)
         }
+        _validate_new_proposition_commitments(
+            semantic_delta,
+            current_turn,
+            participants,
+        )
         resolver = _ReferenceResolver(
             local_ids,
             local_namespaces,

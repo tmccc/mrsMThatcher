@@ -106,7 +106,7 @@ def validate_tracked_inputs() -> dict[str, Any]:
     chain = validate_chain(base._load_json(CHAIN_PATH, "synthetic chain"))
     provider, transformations = preflight.transform_provider_schema(transport)
     derived = evidence.build_response_contract_manifest(transport_schema=transport, xai_provider_schema=provider)
-    if manifest != derived or len(transformations) != 19:
+    if manifest != derived or len(transformations) != 23:
         raise ProbeError("Phase 2B transport contract differs")
     if sha256_bytes(canonical_raw) != manifest["canonical_semantic_schema_sha256"] or sha256_bytes(transport_raw) != manifest["transport_schema_sha256"] or preflight.value_sha256(provider) != manifest["xai_provider_schema_sha256"]:
         raise ProbeError("tracked schema hash differs")
@@ -226,8 +226,14 @@ def _matches(delta: Mapping[str, Any], *terms: str) -> list[Mapping[str, Any]]:
 def _semantic_check(delta: Mapping[str, Any], turn: Mapping[str, Any], prior: Mapping[str, Any] | None, manifest: Mapping[str, Any]) -> dict[str, Any]:
     fields = base.SEMANTIC_COLLECTIONS
     count = sum(len(delta.get(field, [])) for field in fields if isinstance(delta.get(field), list))
-    checks = {"extraction_complete": delta.get("extraction_status") == "complete", "not_abstained": delta.get("abstentions") == [], "semantic_records_present": count > 0, "transport_resolver_used": int(manifest.get("selector_count", 0)) > 0}
     speaker, index = turn["participant"]["participant_id"], turn["turn_index"]
+    abstentions = delta.get("abstentions")
+    issue_only_abstention = (
+        index == 0
+        and abstentions == ["no_stable_issue"]
+        and delta.get("extraction_status") == "complete"
+    )
+    checks = {"extraction_complete": delta.get("extraction_status") == "complete", "not_abstained": abstentions == [] or issue_only_abstention, "semantic_records_present": count > 0, "transport_resolver_used": int(manifest.get("selector_count", 0)) > 0}
     if index == 0:
         closed = _matches(delta, "bridge", "closed"); refs = {item.get("local_ref") for item in closed}
         checks.update(bridge_closed_proposition=bool(closed), explicit_proposition_without_issue_valid=bool(closed), speaker_commitment_to_closed_proposition=any(item.get("operation") == "add" and item.get("participant_id") == speaker and item.get("proposition_ref") in refs and item.get("stance") == "asserted" for item in delta.get("commitment_changes", [])))
