@@ -1,0 +1,84 @@
+{
+  "artifact_status": "planned",
+  "case_id": "synthetic:phase1.4-live-schema-probe",
+  "case_version": "proposition-ledger-phase1.4-synthetic-live-probe-v1",
+  "conversation_key": "synthetic:phase1.4-live-schema-probe",
+  "evidence_offset_unit": "Unicode code points",
+  "exact_evidence_span": {
+    "end_char": 15,
+    "exact_text": "The lamp is on.",
+    "start_char": 0,
+    "turn_id": "synthetic-turn-0"
+  },
+  "parent_turn_id": null,
+  "post_id": null,
+  "semantic_instruction": {
+    "forbidden_content": [
+      "attributed third-party content",
+      "background facts",
+      "causes",
+      "dates",
+      "external information",
+      "motives"
+    ],
+    "required_empty_collections": [
+      "abstentions",
+      "answer_target_changes",
+      "commitment_changes",
+      "issue_state_updates",
+      "new_issue_states",
+      "new_proposition_groups",
+      "new_relations",
+      "obligation_changes",
+      "proposition_group_updates",
+      "proposition_updates",
+      "rejected_answer_target_changes",
+      "repair_records",
+      "resolved_items",
+      "warnings"
+    ],
+    "requirements": [
+      "Return exactly one new proposition and no invented proposition.",
+      "Represent the supplied visible statement faithfully.",
+      "Derive the proposition directly from the supplied transcript span.",
+      "Use descriptive proposition kind and positive polarity.",
+      "Record the current speaker as the committed speaker.",
+      "Use exactly the supplied current-turn evidence span.",
+      "Do not attribute the proposition to a third party.",
+      "Add no issue, obligation, relation, answer target, rejected answer target, proposition group, commitment record, repair, resolved item, abstention, or warning.",
+      "Infer no motive, cause, date, or background fact.",
+      "Use no information beyond the supplied synthetic turn.",
+      "Set extraction_status to complete.",
+      "Set every other semantic-delta collection to empty unless the canonical contract requires otherwise."
+    ],
+    "unsupported_inferences_rejected": 0
+  },
+  "speaker": {
+    "participant_reference": "participant-contributor-1",
+    "role": "contributor"
+  },
+  "synthetic": true,
+  "synthetic_genesis_context": {
+    "root_post_id": null,
+    "source_completeness": {
+      "account_publication_confirmed": false,
+      "chronology_complete": true,
+      "complete_prefix_through_turn": true,
+      "exact_text_complete": true,
+      "limitations": [
+        "Wholly synthetic single-turn genesis probe; no future turns exist."
+      ],
+      "parent_graph_complete": true,
+      "reconstruction_grade": "A"
+    }
+  },
+  "target_turn_id": "synthetic-turn-0",
+  "trusted_current_participant": {
+    "author_key": "synthetic-author-participant-contributor-1",
+    "identity_confidence": 1.0,
+    "participant_id": "participant-contributor-1",
+    "role": "contributor"
+  },
+  "turn_index": 0,
+  "visible_text": "The lamp is on."
+}
