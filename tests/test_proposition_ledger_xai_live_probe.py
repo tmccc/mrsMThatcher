@@ -2,8 +2,10 @@ from __future__ import annotations
 
 import copy
 import json
+import os
 import runpy
 import socket
+import subprocess
 import sys
 import threading
 from collections.abc import Mapping, Sequence
@@ -187,7 +189,11 @@ class _FakeTransport:
         self.closed = True
 
 
-def _patch_local_preconditions(monkeypatch: pytest.MonkeyPatch) -> None:
+def _patch_local_preconditions(
+    monkeypatch: pytest.MonkeyPatch,
+    *,
+    prepare_head: str = live_probe.SOURCE_COMMIT,
+) -> None:
     monkeypatch.setattr(
         live_probe,
         "verify_pinned_environment",
@@ -211,21 +217,67 @@ def _patch_local_preconditions(monkeypatch: pytest.MonkeyPatch) -> None:
         if arguments == ("rev-parse", "origin/master"):
             return "f" * 40
         if arguments == ("rev-parse", "HEAD"):
-            return live_probe.SOURCE_COMMIT
+            return prepare_head
+        if arguments == ("rev-parse", "HEAD^"):
+            return prepare_head
         raise AssertionError(f"unexpected Git query: {arguments!r}")
 
     monkeypatch.setattr(live_probe, "_git_output", fake_git)
 
 
 def _prepare_private_run(
-    monkeypatch: pytest.MonkeyPatch, parent: Path, name: str = "private-run"
+    monkeypatch: pytest.MonkeyPatch,
+    parent: Path,
+    name: str = "private-run",
+    *,
+    prepare_head: str = live_probe.SOURCE_COMMIT,
 ) -> Path:
-    _patch_local_preconditions(monkeypatch)
+    _patch_local_preconditions(monkeypatch, prepare_head=prepare_head)
     output = parent / name
     result = live_probe.prepare_run(output)
     assert result["status"] == "prepared"
     assert result["provider_call_count"] == 0
     return output
+
+
+def _write_final_operator_evidence(
+    output: Path,
+    *,
+    final_commit: str,
+    final_parent: str,
+) -> None:
+    test_records = [
+        {
+            "check_id": check_id,
+            "command": f"synthetic offline check: {check_id}",
+            "result": "passed",
+            "passed": 1,
+            "failed": 0,
+            "skipped": 0,
+        }
+        for check_id in sorted(live_probe.REQUIRED_OPERATOR_CHECK_IDS)
+    ]
+    live_probe._atomic_write_private_json(
+        output / "operator-record.json",
+        {
+            "artifact_evidence": "derived",
+            "record_format": "proposition-ledger-phase1.4-operator-record-v1",
+            "final_commit": final_commit,
+            "final_parent": final_parent,
+            "test_records": test_records,
+        },
+    )
+    summary = live_probe._load_strict_json_file(
+        output / "result-summary.json", "test result summary"
+    )
+    verification = live_probe._load_strict_json_file(
+        output / "validation.json", "test verification"
+    )
+    live_probe._atomic_write_private_bytes(
+        output / "phase1.4-report.md",
+        live_probe._render_report(output, summary, verification),
+    )
+    live_probe._write_checksums(output)
 
 
 def _enable_fake_live_key(monkeypatch: pytest.MonkeyPatch, value: str = "fake-xai-key") -> None:
@@ -374,12 +426,69 @@ def test_prepare_mode_makes_zero_provider_calls_and_writes_a_two_call_plan(
         "planned",
         "planned",
     ]
-    assert all(path.stat().st_mode & 0o777 == 0o700 for path in [output, output / "grok-4.3", output / "grok-4.6"])
+    live_manifest = live_probe._load_strict_json_file(
+        output / "live-probe-manifest.json", "test live-probe manifest"
+    )
+    assert live_manifest["tool_choice_transport_policy"] == (
+        "omitted_when_tools_empty"
+    )
+    assert all(
+        path.stat().st_mode & 0o777 == 0o700
+        for path in [output, output / "grok-4.3", output / "grok-4.6"]
+    )
     assert all(
         path.stat().st_mode & 0o777 == 0o600
         for path in output.rglob("*")
         if path.is_file()
     )
+
+
+def test_prepare_accepts_correction_base_commit(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    _patch_local_preconditions(
+        monkeypatch, prepare_head=live_probe.CORRECTION_BASE_COMMIT
+    )
+    output = tmp_path / "correction-base-run"
+
+    result = live_probe.prepare_run(output)
+
+    assert result["status"] == "prepared"
+    run_manifest = live_probe._load_strict_json_file(
+        output / "run-manifest.json", "test correction run manifest"
+    )
+    assert run_manifest["git_head_at_prepare"] == live_probe.CORRECTION_BASE_COMMIT
+    assert run_manifest["request_contract_revision"] == (
+        live_probe.REQUEST_CONTRACT_REVISION
+    )
+    assert run_manifest["prior_phase1_4_provider_call_count"] == 2
+    assert run_manifest["diagnostic_provider_call_count"] == 5
+    assert run_manifest["live_probe_tool_sha256_at_prepare"] == (
+        live_probe.sha256_bytes(Path(live_probe.__file__).read_bytes())
+    )
+    ledger = live_probe._load_call_ledger(output)
+    assert all(
+        entry["request_contract_revision"] == live_probe.REQUEST_CONTRACT_REVISION
+        for entry in ledger["entries"]
+    )
+    assert live_probe.CORRECTION_BASE_COMMIT in live_probe.ALLOWED_PREPARE_HEADS
+
+
+def test_prepare_rejects_unapproved_head_before_private_run_creation(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    _patch_local_preconditions(monkeypatch, prepare_head="a" * 40)
+    output = tmp_path / "unapproved-head-run"
+
+    with pytest.raises(
+        live_probe.ProbeError,
+        match="Git HEAD is not approved for Phase 1.4 preparation",
+    ):
+        live_probe.prepare_run(output)
+
+    assert not output.exists()
 
 
 def test_verify_only_on_prepared_run_needs_no_key_and_makes_zero_calls(
@@ -605,13 +714,130 @@ def test_tools_search_code_execution_and_streaming_are_disabled(
     for profile in live_probe.PROFILES:
         request = live_probe.request_representation(profile, tracked_inputs)
         assert request["tools"] == []
-        assert request["tool_choice"] == "none"
+        assert "tool_choice" not in request
+        assert request["tool_choice_parameter_sent"] is False
         assert request["parallel_tool_calls"] is False
         assert request["search_parameters"] is None
         assert request["code_execution"] is False
         assert request["streaming"] is False
         assert request["fallback_model"] is None
         assert request["sampling_parameters_set"] == []
+
+
+def test_public_sdk_requests_omit_tool_choice_when_tools_are_empty(
+    tracked_inputs: Mapping[str, Any],
+) -> None:
+    create_calls: list[dict[str, Any]] = []
+    sampled_models: list[str] = []
+
+    class FakeResponseFormat(dict[str, Any]):
+        def __init__(self, **values: Any) -> None:
+            super().__init__(values)
+
+    class FakeChatPb2:
+        FORMAT_TYPE_JSON_SCHEMA = 3
+        ResponseFormat = FakeResponseFormat
+
+    class FakeResponseProto:
+        def __init__(self, model: str) -> None:
+            self.model = model
+
+    class FakeResponse:
+        def __init__(self, model: str) -> None:
+            self.content = "{}"
+            self.proto = FakeResponseProto(model)
+            self.id = f"synthetic-{model}-response"
+            self.finish_reason = "stop"
+            self.usage = {"total_tokens": 0}
+
+    class FakeChat:
+        def __init__(self, model: str) -> None:
+            self.model = model
+
+        def sample(self) -> FakeResponse:
+            sampled_models.append(self.model)
+            return FakeResponse(self.model)
+
+    class FakeChatClient:
+        def create(self, **request: Any) -> FakeChat:
+            create_calls.append(copy.deepcopy(request))
+            return FakeChat(request["model"])
+
+    class FakeClient:
+        def __init__(self) -> None:
+            self.chat = FakeChatClient()
+
+    transport = object.__new__(live_probe.XaiLiveTransport)
+    transport._client = FakeClient()
+    transport._chat_pb2 = FakeChatPb2
+    transport._system = lambda value: {"role": "system", "content": value}
+    transport._user = lambda value: {"role": "user", "content": value}
+    transport._message_to_dict = lambda value, **_kwargs: copy.deepcopy(value)
+
+    observations = [
+        transport.sample(profile, tracked_inputs) for profile in live_probe.PROFILES
+    ]
+
+    assert sampled_models == ["grok-4.3", "grok-4.6"]
+    assert [item.returned_model_id for item in observations] == sampled_models
+    assert len(create_calls) == 2
+    for request in create_calls:
+        assert request["tools"] == []
+        assert "tool_choice" not in request
+        assert request["parallel_tool_calls"] is False
+        assert request["search_parameters"] is None
+        assert "code_execution" not in request
+    normalized = copy.deepcopy(create_calls)
+    for request in normalized:
+        request.pop("model")
+    assert normalized[0] == normalized[1]
+
+
+def test_pinned_sdk_protobuf_omits_tool_choice_without_transport() -> None:
+    phase13_manifest = json.loads(
+        live_probe.PHASE13_RUN_MANIFEST_PATH.read_text(encoding="utf-8")
+    )
+    selected_python = phase13_manifest["python_executable_path"]
+    child_environment = {
+        name: value
+        for name, value in os.environ.items()
+        if name not in live_probe.preflight.PROVIDER_KEY_ENV_NAMES
+    }
+    script = """
+import json
+from tools import proposition_ledger_xai_live_probe as live_probe
+
+tracked = live_probe.validate_tracked_inputs()
+print(json.dumps(live_probe.compile_local_requests(tracked), sort_keys=True))
+"""
+
+    completed = subprocess.run(
+        [selected_python, "-c", script],
+        cwd=PROJECT_DIR,
+        env=child_environment,
+        check=False,
+        capture_output=True,
+        text=True,
+    )
+
+    assert completed.returncode == 0, completed.stderr
+    compilation = json.loads(completed.stdout)
+    assert compilation["provider_calls_made"] == 0
+    assert compilation["transport_rpc_invocations"] == 0
+    assert compilation["requests_differ_only_by_model_id"] is True
+    assert [record["model"] for record in compilation["profiles"]] == [
+        "grok-4.3",
+        "grok-4.6",
+    ]
+    assert all(
+        record["tool_choice_field_present"] is False
+        for record in compilation["profiles"]
+    )
+    assert all(
+        "tool_choice" not in record["request_representation"]
+        and record["request_representation"]["tool_choice_parameter_sent"] is False
+        for record in compilation["profiles"]
+    )
 
 
 def test_no_retry_is_configured_at_sdk_or_application_layer(
@@ -1630,6 +1856,84 @@ def test_publish_report_refuses_pending_final_commit_or_tests(
         live_probe.publish_report(output, destination)
 
     assert not destination.exists()
+
+
+@pytest.mark.parametrize(
+    ("operator_parent", "git_parent", "accepted"),
+    [
+        (
+            live_probe.CORRECTION_BASE_COMMIT,
+            live_probe.CORRECTION_BASE_COMMIT,
+            True,
+        ),
+        (live_probe.SOURCE_COMMIT, live_probe.CORRECTION_BASE_COMMIT, False),
+        (live_probe.CORRECTION_BASE_COMMIT, live_probe.SOURCE_COMMIT, False),
+    ],
+    ids=("stored-correction-parent", "operator-parent-mismatch", "git-parent-mismatch"),
+)
+def test_publish_report_uses_stored_correction_prepare_head_as_final_parent(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+    tracked_inputs: Mapping[str, Any],
+    operator_parent: str,
+    git_parent: str,
+    accepted: bool,
+) -> None:
+    output = _prepare_private_run(
+        monkeypatch,
+        tmp_path,
+        prepare_head=live_probe.CORRECTION_BASE_COMMIT,
+    )
+    raw = _raw_delta(_valid_delta(tracked_inputs))
+    transport = _FakeTransport(
+        [_observation("grok-4.3", raw), _observation("grok-4.6", raw)]
+    )
+    _execute_with(monkeypatch, output, transport)
+    live_probe.verify_only(output)
+    final_commit = "b" * 40
+    _write_final_operator_evidence(
+        output,
+        final_commit=final_commit,
+        final_parent=operator_parent,
+    )
+
+    fake_home = tmp_path / "home"
+    dropbox = fake_home / "Dropbox"
+    dropbox.mkdir(parents=True, mode=0o700)
+    destination = dropbox / "phase1.4-report.md"
+    monkeypatch.setattr(
+        live_probe.Path, "home", classmethod(lambda _cls: fake_home)
+    )
+
+    def final_git(*arguments: str) -> str:
+        if arguments == ("rev-parse", "HEAD"):
+            return final_commit
+        if arguments == ("rev-parse", "HEAD^"):
+            return git_parent
+        raise AssertionError(f"unexpected Git query: {arguments!r}")
+
+    monkeypatch.setattr(live_probe, "_git_output", final_git)
+
+    if accepted:
+        result = live_probe.publish_report(output, destination)
+        assert result["status"] == "published"
+        assert destination.is_file()
+        assert destination.stat().st_mode & 0o777 == 0o600
+        assert final_commit in destination.read_text(encoding="utf-8")
+        assert live_probe.CORRECTION_BASE_COMMIT in destination.read_text(
+            encoding="utf-8"
+        )
+        report = destination.read_text(encoding="utf-8")
+        assert "Prior malformed-envelope run calls: `2`" in report
+        assert "Diagnosis calls: `5`" in report
+        assert "Cumulative xAI inference calls through this correction: `9`" in report
+        assert f"Request-contract revision: `{live_probe.REQUEST_CONTRACT_REVISION}`" in report
+    else:
+        with pytest.raises(
+            live_probe.ProbeError, match="verified final Git identities"
+        ):
+            live_probe.publish_report(output, destination)
+        assert not destination.exists()
 
 
 def test_resume_after_first_fully_validated_calls_only_grok_46_and_preserves_first(

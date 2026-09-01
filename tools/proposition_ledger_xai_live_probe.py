@@ -50,10 +50,23 @@ PHASE13_PRIVATE_RUN = Path(
 )
 PHASE13_RUN_MANIFEST_PATH = PHASE13_PRIVATE_RUN / "run-manifest.json"
 PHASE13_LOCK_PATH = PHASE13_PRIVATE_RUN / "sdk-environment-lock.json"
+PRIOR_PHASE14_PRIVATE_RUN = Path(
+    "/disks/disk1/research/private-runs/"
+    "proposition-ledger-phase1.4-xai-live-probe-20260901T070907Z"
+)
+DIAGNOSIS_PRIVATE_RUN = Path(
+    "/disks/disk1/research/private-runs/"
+    "proposition-ledger-phase1.4-xai-invalid-argument-diagnosis-20260901T072000Z"
+)
 
 SOURCE_COMMIT = "eb59bcc545920b107f17d9a4b3dffa7a31301fa0"
 SOURCE_PARENT = "777b40f67793d6140fa3f923186cf737c89042ad"
 SOURCE_SUBJECT = "Correct xAI regex compatibility analysis"
+CORRECTION_BASE_COMMIT = "39bb70b6f7974623ce13d2fcbf53331e5acbdffc"
+ALLOWED_PREPARE_HEADS = frozenset((SOURCE_COMMIT, CORRECTION_BASE_COMMIT))
+REQUEST_CONTRACT_REVISION = "phase1.4-no-tools-omit-tool-choice-v2"
+PRIOR_PHASE14_PROVIDER_CALL_COUNT = 2
+DIAGNOSTIC_PROVIDER_CALL_COUNT = 5
 EXPECTED_PROVIDER_SCHEMA_SHA256 = (
     "37423dc87da3a253ee6c3dcc826c764268d094b16ba83bd1d4a9b1e00948bc21"
 )
@@ -617,11 +630,12 @@ def request_representation(
 
     return {
         "model": profile["model"],
+        "request_contract_revision": REQUEST_CONTRACT_REVISION,
         "messages": copy.deepcopy(tracked["messages"]),
         "max_tokens": MAX_OUTPUT_TOKENS,
         "reasoning_effort": "low",
         "tools": [],
-        "tool_choice": "none",
+        "tool_choice_parameter_sent": False,
         "parallel_tool_calls": False,
         "response_format": {
             "format_type": "json_schema",
@@ -652,6 +666,7 @@ def make_call_plan(tracked: Mapping[str, Any]) -> dict[str, Any]:
             ],
             "system_prompt_sha256": tracked["hashes"]["system_prompt_sha256"],
             "user_payload_sha256": tracked["hashes"]["user_payload_sha256"],
+            "request_contract_revision": REQUEST_CONTRACT_REVISION,
         }
         entries.append(
             {
@@ -659,6 +674,7 @@ def make_call_plan(tracked: Mapping[str, Any]) -> dict[str, Any]:
                 "profile_id": profile["profile_id"],
                 "provider": "xAI",
                 "model": profile["model"],
+                "request_contract_revision": REQUEST_CONTRACT_REVISION,
                 "call_identity": sha256_bytes(canonical_json_bytes(identity_material)),
                 "state": "planned",
                 "attempt_number": 0,
@@ -787,7 +803,6 @@ def compile_local_requests(tracked: Mapping[str, Any]) -> dict[str, Any]:
                 max_tokens=MAX_OUTPUT_TOKENS,
                 reasoning_effort="low",
                 tools=[],
-                tool_choice="none",
                 parallel_tool_calls=False,
                 response_format=response_format,
                 search_parameters=None,
@@ -809,8 +824,12 @@ def compile_local_requests(tracked: Mapping[str, Any]) -> dict[str, Any]:
             ]
             if forbidden_set:
                 raise ProbeError("unfrozen sampling fields were set locally")
-            if request.HasField("search_parameters") or request.tools:
-                raise ProbeError("tools or search appeared in local request")
+            if (
+                request.HasField("search_parameters")
+                or request.tools
+                or request.HasField("tool_choice")
+            ):
+                raise ProbeError("tools, tool choice, or search appeared in local request")
             emitted = strict_json_loads(request.response_format.schema.encode("utf-8"))
             if preflight.value_sha256(emitted) != EXPECTED_PROVIDER_SCHEMA_SHA256:
                 raise ProbeError("SDK changed the provider schema")
@@ -824,6 +843,7 @@ def compile_local_requests(tracked: Mapping[str, Any]) -> dict[str, Any]:
                         request.SerializeToString(deterministic=True)
                     ),
                     "request_construction_status": "passed_without_transport",
+                    "tool_choice_field_present": request.HasField("tool_choice"),
                     "rpc_invocation_count": 0,
                 }
             )
@@ -1498,6 +1518,9 @@ def prepare_run(output: str | Path) -> dict[str, Any]:
     ]
     _verify_request_equivalence(representations)
     call_plan = make_call_plan(tracked)
+    prepare_head = _git_output("rev-parse", "HEAD")
+    if prepare_head not in ALLOWED_PREPARE_HEADS:
+        raise ProbeError("Git HEAD is not approved for Phase 1.4 preparation")
     output_dir = _create_private_directory(output, "private run")
     try:
         for profile in PROFILES:
@@ -1510,9 +1533,19 @@ def prepare_run(output: str | Path) -> dict[str, Any]:
             "git_source_commit": SOURCE_COMMIT,
             "git_source_parent": SOURCE_PARENT,
             "git_source_subject": SOURCE_SUBJECT,
-            "git_head_at_prepare": _git_output("rev-parse", "HEAD"),
+            "git_head_at_prepare": prepare_head,
+            "live_probe_tool_sha256_at_prepare": sha256_bytes(
+                _read_regular_bytes(Path(__file__), "live probe tool")
+            ),
             "git_branch": _git_output("branch", "--show-current"),
             "origin_master_at_setup": _git_output("rev-parse", "origin/master"),
+            "request_contract_revision": REQUEST_CONTRACT_REVISION,
+            "correction_base_commit": CORRECTION_BASE_COMMIT,
+            "correction_reason": "omit_tool_choice_when_tools_are_empty",
+            "prior_phase1_4_private_run": str(PRIOR_PHASE14_PRIVATE_RUN),
+            "prior_phase1_4_provider_call_count": PRIOR_PHASE14_PROVIDER_CALL_COUNT,
+            "diagnosis_private_run": str(DIAGNOSIS_PRIVATE_RUN),
+            "diagnostic_provider_call_count": DIAGNOSTIC_PROVIDER_CALL_COUNT,
             "synthetic_only": True,
             "provider_call_budget": PROVIDER_CALL_BUDGET,
             "provider_call_count": 0,
@@ -1572,6 +1605,8 @@ def prepare_run(output: str | Path) -> dict[str, Any]:
             "profiles": list(PROFILES),
             "maximum_output_tokens": MAX_OUTPUT_TOKENS,
             "store_messages": STORE_MESSAGES,
+            "request_contract_revision": REQUEST_CONTRACT_REVISION,
+            "tool_choice_transport_policy": "omitted_when_tools_empty",
             "client_timeout_seconds": CLIENT_TIMEOUT_SECONDS,
             "no_retry_channel_options": [list(item) for item in NO_RETRY_CHANNEL_OPTIONS],
             "sdk_retry_behavior_inspected": True,
@@ -1933,7 +1968,6 @@ class XaiLiveTransport:
             max_tokens=MAX_OUTPUT_TOKENS,
             reasoning_effort="low",
             tools=[],
-            tool_choice="none",
             parallel_tool_calls=False,
             response_format=response_format,
             search_parameters=None,
@@ -2369,9 +2403,12 @@ def _render_report(
     prompt = _load_strict_json_file(
         output_dir / "prompt-manifest.json", "prompt manifest"
     )
+    live = _load_strict_json_file(
+        output_dir / "live-probe-manifest.json", "live probe manifest"
+    )
     operator = _operator_record(output_dir)
     final_commit = operator.get("final_commit", "pending_until_final_commit")
-    final_parent = operator.get("final_parent", SOURCE_COMMIT)
+    final_parent = operator.get("final_parent", run["git_head_at_prepare"])
     test_records = operator.get("test_records", [])
     lines = [
         "# Proposition ledger Phase 1.4 xAI live-schema probe report",
@@ -2381,8 +2418,12 @@ def _render_report(
         "## Disposition",
         "",
         f"- Overall: `{summary['phase1_4_disposition']}`",
-        f"- Provider-call budget: `{summary['provider_call_budget']}`",
-        f"- Provider-call count: `{summary['provider_call_count']}`",
+        f"- Correction-run provider-call budget: `{summary['provider_call_budget']}`",
+        f"- Correction-run provider-call count: `{summary['provider_call_count']}`",
+        f"- Prior malformed-envelope run calls: `{run['prior_phase1_4_provider_call_count']}`",
+        f"- Diagnosis calls: `{run['diagnostic_provider_call_count']}`",
+        f"- Cumulative xAI inference calls through this correction: `{run['prior_phase1_4_provider_call_count'] + run['diagnostic_provider_call_count'] + summary['provider_call_count']}`",
+        "- Automatic retries across all three runs: `0`",
         f"- Verify-only: `{verification.get('status', 'not_yet_run')}`",
         f"- Deterministic saved-byte reprocessing: `{verification.get('deterministic_reprocessing_status', 'not_yet_run')}`",
         f"- Checksum verification: `{verification.get('checksum_status', 'not_yet_run')}`",
@@ -2391,6 +2432,10 @@ def _render_report(
         "",
         f"- Source commit: `{run['git_source_commit']}`",
         f"- Source parent: `{run['git_source_parent']}`",
+        f"- Git HEAD at preparation (correction base): `{run['git_head_at_prepare']}`",
+        f"- Corrected live-probe tool SHA-256 at preparation: `{run.get('live_probe_tool_sha256_at_prepare', 'legacy_not_recorded')}`",
+        f"- Request-contract revision: `{run['request_contract_revision']}`",
+        f"- Correction reason: `{run['correction_reason']}`",
         f"- `origin/master` recorded at setup: `{run['origin_master_at_setup']}`",
         f"- Final commit: `{final_commit}`",
         f"- Final first parent: `{final_parent}`",
@@ -2408,6 +2453,7 @@ def _render_report(
         f"- System prompt SHA-256: `{prompt['system_prompt_sha256']}`",
         f"- User payload SHA-256: `{prompt['user_payload_sha256']}`",
         f"- Complete message-array SHA-256: `{prompt['complete_message_array_sha256']}`",
+        f"- Tool-choice transport policy: `{live.get('tool_choice_transport_policy', 'legacy_explicit_none')}`",
         "",
         "## Per-profile observations",
         "",
@@ -2619,7 +2665,14 @@ def _validate_prepared_run(
     ) != canonical_json_bytes(recovery_ledger):
         raise ProbeError("call ledger changed during prepared-run validation")
     for actual, expected in zip(ledger["entries"], expected_plan["entries"]):
-        for name in ("order", "profile_id", "provider", "model", "call_identity"):
+        for name in (
+            "order",
+            "profile_id",
+            "provider",
+            "model",
+            "request_contract_revision",
+            "call_identity",
+        ):
             if actual.get(name) != expected.get(name):
                 raise ProbeError(f"call ledger plan mismatch: {name}")
     run_manifest = _load_strict_json_file(
@@ -2629,7 +2682,13 @@ def _validate_prepared_run(
         "git_source_commit": SOURCE_COMMIT,
         "git_source_parent": SOURCE_PARENT,
         "git_source_subject": SOURCE_SUBJECT,
-        "git_head_at_prepare": SOURCE_COMMIT,
+        "request_contract_revision": REQUEST_CONTRACT_REVISION,
+        "correction_base_commit": CORRECTION_BASE_COMMIT,
+        "correction_reason": "omit_tool_choice_when_tools_are_empty",
+        "prior_phase1_4_private_run": str(PRIOR_PHASE14_PRIVATE_RUN),
+        "prior_phase1_4_provider_call_count": PRIOR_PHASE14_PROVIDER_CALL_COUNT,
+        "diagnosis_private_run": str(DIAGNOSIS_PRIVATE_RUN),
+        "diagnostic_provider_call_count": DIAGNOSTIC_PROVIDER_CALL_COUNT,
         "git_branch": "research/proposition-ledger-phase1.4-xai-live-probe",
         "private_run_path": str(output_dir),
         "provider_call_budget": PROVIDER_CALL_BUDGET,
@@ -2639,10 +2698,24 @@ def _validate_prepared_run(
         "held_out_use_authorised": False,
         "production_integration_authorised": False,
     }
-    if not isinstance(run_manifest, dict) or any(
-        run_manifest.get(name) != value for name, value in expected_run_fields.items()
+    if (
+        not isinstance(run_manifest, dict)
+        or run_manifest.get("git_head_at_prepare") not in ALLOWED_PREPARE_HEADS
+        or any(
+            run_manifest.get(name) != value
+            for name, value in expected_run_fields.items()
+        )
     ):
         raise ProbeError("stored run manifest differs from the frozen run identity")
+    stored_tool_hash = run_manifest.get("live_probe_tool_sha256_at_prepare")
+    current_tool_hash = sha256_bytes(
+        _read_regular_bytes(Path(__file__), "live probe tool")
+    )
+    if stored_tool_hash not in {None, current_tool_hash} or (
+        run_manifest.get("git_head_at_prepare") == CORRECTION_BASE_COMMIT
+        and stored_tool_hash != current_tool_hash
+    ):
+        raise ProbeError("stored live-probe tool hash differs")
     if run_manifest.get("provider_call_count") not in {
         0,
         ledger["provider_call_count"],
@@ -2655,6 +2728,7 @@ def _validate_prepared_run(
         "profiles": list(PROFILES),
         "maximum_output_tokens": MAX_OUTPUT_TOKENS,
         "store_messages": STORE_MESSAGES,
+        "request_contract_revision": REQUEST_CONTRACT_REVISION,
         "client_timeout_seconds": CLIENT_TIMEOUT_SECONDS,
         "no_retry_channel_options": [list(item) for item in NO_RETRY_CHANNEL_OPTIONS],
         "sdk_retry_behavior_inspected": True,
@@ -2665,6 +2739,12 @@ def _validate_prepared_run(
         for name, value in expected_live_fields.items()
     ):
         raise ProbeError("stored live-probe manifest differs from frozen settings")
+    tool_choice_policy = live_manifest.get("tool_choice_transport_policy")
+    if tool_choice_policy not in {None, "omitted_when_tools_empty"} or (
+        run_manifest.get("git_head_at_prepare") == CORRECTION_BASE_COMMIT
+        and tool_choice_policy != "omitted_when_tools_empty"
+    ):
+        raise ProbeError("stored tool-choice transport policy differs")
     if live_manifest.get("authorisation") != {
         "development_pilot_authorised": False,
         "real_corpus_use_authorised": False,
@@ -3709,6 +3789,11 @@ def publish_report(output: str | Path, destination: str | Path) -> dict[str, Any
         operator = _operator_record(output_dir)
         tests = operator.get("test_records")
         final_commit = operator.get("final_commit")
+        run = _load_strict_json_file(
+            output_dir / "run-manifest.json", "run manifest"
+        )
+        prepared_head = run.get("git_head_at_prepare")
+        final_parent = _git_output("rev-parse", "HEAD^")
         if (
             operator.get("artifact_evidence") != "derived"
             or operator.get("record_format")
@@ -3716,8 +3801,9 @@ def publish_report(output: str | Path, destination: str | Path) -> dict[str, Any
             or not isinstance(final_commit, str)
             or re.fullmatch(r"[0-9a-f]{40}", final_commit) is None
             or final_commit != _git_output("rev-parse", "HEAD")
-            or operator.get("final_parent") != SOURCE_COMMIT
-            or _git_output("rev-parse", "HEAD^") != SOURCE_COMMIT
+            or prepared_head not in ALLOWED_PREPARE_HEADS
+            or operator.get("final_parent") != prepared_head
+            or final_parent != prepared_head
         ):
             raise ProbeError("report publication requires verified final Git identities")
         valid_test_records = isinstance(tests, list) and bool(tests)

@@ -2,7 +2,7 @@
 
 ## Purpose and boundary
 
-Phase 1.4 is a two-call, wholly synthetic live-server schema-acceptance probe. It asks whether the live xAI service accepts the exact provider-facing proposition-ledger schema proved locally compatible in Phase 1.3 and whether each returned observation crosses every mandatory local validation and materialisation boundary.
+This corrected Phase 1.4 run is a two-call, wholly synthetic live-server schema-acceptance probe. It asks whether the live xAI service accepts the exact provider-facing proposition-ledger schema proved locally compatible in Phase 1.3 and whether each returned observation crosses every mandatory local validation and materialisation boundary. The correction-run report separately discloses the two calls from the malformed-envelope run and the five bounded diagnostic calls that established the correction.
 
 This phase is not a development pilot, corpus experiment, effectiveness test, power analysis, or substantive model comparison. It does not select a winner. A successful result does not establish proposition-ledger effectiveness, and semantic-smoke success is not a comparative model score. A failure of either single synthetic response does not show that the ledger concept is unsound.
 
@@ -35,7 +35,9 @@ The ordered profiles are:
 1. `xai-grok-4.3-low-ledger-v1`: xAI `grok-4.3`, reasoning effort `low`.
 2. `xai-grok-4.6-low-ledger-v1`: xAI `grok-4.6`, reasoning effort `low`.
 
-Both use `xai-sdk==1.19.0`, the same corrected provider schema, messages, maximum visible-output token budget of 4096, and `store_messages=false`. Tools are empty, tool choice is none, parallel tool calls are disabled, search parameters are absent, code execution and streaming are disabled, and no sampling parameter is added. There is no fallback and no retry. The maximum provider-call budget is exactly two in total and one attempt per model.
+Both use `xai-sdk==1.19.0`, the same corrected provider schema, messages, maximum visible-output token budget of 4096, and `store_messages=false`. Tools are empty and the `tool_choice` parameter is omitted, which is the provider-compatible representation of no possible tool choice when no tools exist. Parallel tool calls are disabled, search parameters are absent, code execution and streaming are disabled, and no sampling parameter is added. There is no fallback and no retry. The correction-run provider-call budget is exactly two in total and one attempt per model.
+
+The omission is an explicit correction to the first live attempt. Sending `tool_choice="none"` together with an empty tools list caused xAI to reject the request envelope before evaluating the schema. Local construction now fails closed if a zero-tool request contains a `tool_choice` protobuf field.
 
 The calls run in the listed order. A definite first result permits the second call, including a definite schema or model-specific rejection. An uncertain send or a global authentication, authorisation, billing, quota, rate-limit, DNS, or transport failure stops execution. Server schema acceptance and local response validity remain separate findings.
 
@@ -55,6 +57,8 @@ The provider never controls persistent identifiers, participant registration, le
 
 Determinism is tested by processing the same saved response bytes twice, never by requesting another response. Verify-only mode cannot create a provider transport, does not require a credential, preserves the call ledger and counts, repeats the full local processing chain, and verifies the private checksums.
 
+The corrected verifier is intentionally bound to correction-run request-contract revision `phase1.4-no-tools-omit-tool-choice-v2`. The immutable malformed-envelope run remains auditable with the original tool committed at `39bb70b6f7974623ce13d2fcbf53331e5acbdffc`; the correction does not rewrite that earlier evidence.
+
 ## Authorisation limits
 
-Regardless of outcome, `development_pilot_authorised`, `real_corpus_use_authorised`, `held_out_use_authorised`, and `production_integration_authorised` remain false. Phase 1.4 authorises no OpenAI or X call, model-list request, search, tool execution, service action, merge, deployment, real ledger, real summary, or reply decision. Work ends after the two planned synthetic xAI inference attempts and their deterministic verification.
+Regardless of outcome, `development_pilot_authorised`, `real_corpus_use_authorised`, `held_out_use_authorised`, and `production_integration_authorised` remain false. Phase 1.4 authorises no OpenAI or X call, model-list request, search, tool execution, service action, merge, deployment, real ledger, real summary, or reply decision. This correction run ends after its two planned synthetic xAI inference attempts and their deterministic verification.
