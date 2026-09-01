@@ -1,0 +1,839 @@
+{
+  "artifact_class": "frozen input",
+  "call_execution": {
+    "budget_acknowledgement": {
+      "argument": "--confirm-provider-call-budget",
+      "must_equal_frozen_planned_call_count": true,
+      "must_not_exceed": 64
+    },
+    "call_identity_components": [
+      "protocol-freeze hash",
+      "case-manifest hash",
+      "pilot-local conversation ID",
+      "pilot-local turn ID",
+      "profile ID",
+      "current-turn payload hash",
+      "prior-ledger hash or genesis marker",
+      "provider-schema hash",
+      "system-prompt hash"
+    ],
+    "call_ledger_states": [
+      "planned",
+      "sending",
+      "response_received",
+      "provider_error_received",
+      "strict_validation_failed",
+      "materialisation_failed",
+      "validated_and_materialised",
+      "validated_with_diagnostic_flags",
+      "uncertain_after_send",
+      "blocked_by_prior_turn_failure",
+      "not_attempted_due_to_global_failure"
+    ],
+    "chain_failure_policy": {
+      "blocking_failures": [
+        "strict JSON failure",
+        "provider-facing schema failure",
+        "intended canonical failure",
+        "binding failure",
+        "evidence failure",
+        "semantic-reference failure",
+        "materialisation failure",
+        "persisted-ledger failure"
+      ],
+      "independent_other_profile_may_continue": true,
+      "later_same_conversation_profile_state": "blocked_by_prior_turn_failure",
+      "semantic_diagnostic_warning_blocks_chain": false,
+      "unrelated_conversation_may_continue": true
+    },
+    "counterbalancing": {
+      "derivation": "one parity bit from the protocol hash and pilot-local conversation key",
+      "immutable_after_execution_starts": true,
+      "parity_assignments": {
+        "0": "xai-grok-4.3-low-ledger-v1 first",
+        "1": "xai-grok-4.6-low-ledger-v1 first"
+      }
+    },
+    "global_stop_classes": [
+      "authentication",
+      "billing",
+      "account quota",
+      "transport"
+    ],
+    "maximum_provider_calls": 64,
+    "planned_call_formula": "2 * selected_unique_turn_count",
+    "planned_call_range": {
+      "maximum": 64,
+      "minimum": 48
+    },
+    "profile_turn_order": "strict chronological order within each conversation and profile",
+    "restart_policy": {
+      "repeat_any_sent_call": false,
+      "sending_without_definite_completion_becomes": "uncertain_after_send",
+      "terminal_nonrepeatable_states": [
+        "sending",
+        "response_received",
+        "provider_error_received",
+        "strict_validation_failed",
+        "materialisation_failed",
+        "validated_and_materialised",
+        "validated_with_diagnostic_flags",
+        "uncertain_after_send"
+      ]
+    },
+    "sending_transition": {
+      "atomic_before_request": true,
+      "attempt_number": 1,
+      "required_fields": [
+        "state",
+        "started_at_utc",
+        "attempt_number"
+      ],
+      "state": "sending"
+    }
+  },
+  "case_selection": {
+    "ancestor_policy": "complete exact untruncated ancestor prefix to one deepest development target",
+    "candidate_gate_order": [
+      "consume only the completed exposed-development-candidate-index.jsonl sidecar",
+      "require consistent affirmative direct-exposure evidence",
+      "require complete Grade-A reconstruction, exact target text, exact ancestor links, non-conflicting target author identity, and required publication identity",
+      "require frozen-historical or quiescent status unless every frozen-open-prefix exception guard passes",
+      "reconstruct the complete prefix and withhold every future or historical later turn",
+      "apply stressor assignment and deterministic selection"
+    ],
+    "conversation_count": 8,
+    "coverage_assignment_rule": "in fixed stressor order, reuse an already selected conversation when it carries another frozen stressor tag",
+    "deterministic_order_independent": true,
+    "direct_exposure_categories": [
+      "development_labelled",
+      "prior_human_review",
+      "calibration",
+      "prior_model_experiment",
+      "report_excerpt",
+      "current_manual_incident_review"
+    ],
+    "exposure_strength_definition": "descending count of independently evidenced allowed direct-exposure categories, followed by a descending boolean vector in the listed category order",
+    "fail_closed_conditions": [
+      "exposure evidence absent",
+      "exposure evidence inconsistent",
+      "exposure evidence ambiguous",
+      "target author identity unavailable or conflicting",
+      "inexact ancestor link",
+      "incomplete target text",
+      "non-Grade-A included turn",
+      "conversation not frozen historical or quiescent at cutoff and frozen-open-prefix exception unavailable"
+    ],
+    "fill_to_eight_rule": "after all stressor families are covered, apply the same deterministic ranking to eligible unselected conversations until eight independent conversations are selected",
+    "frozen_open_prefix_development_exception": {
+      "eligible_stressor_combination": [
+        "compound allegation requiring decomposition",
+        "account clarification followed by an apparent contributor answer"
+      ],
+      "manifest_fields": {
+        "conversation_stability_status": "open_at_frozen_cutoff",
+        "development_stability_exception": true,
+        "development_stability_exception_policy": "frozen-open-prefix-development-exception-v1",
+        "development_stability_exception_reason": "sole_prelabelled_stressor_case_without_stable_substitute",
+        "post_cutoff_extension_withheld": true,
+        "post_target_extension_withheld": true,
+        "selected_prefix_immutability_status": "frozen_at_cutoff"
+      },
+      "maximum_selected_conversations": 1,
+      "required_guards": [
+        "conversation and target are directly exposed",
+        "target and every included turn are Grade A",
+        "exact text exists for every prefix turn",
+        "every ancestor relationship is exact",
+        "turn order is unambiguous",
+        "entire selected prefix existed by the frozen cutoff",
+        "target author identity is exact, available and non-conflicting",
+        "target is not genuinely unexposed",
+        "target is not preliminarily held out",
+        "target is not structurally mined-only",
+        "required stressor labels pre-date Phase 2A",
+        "no stable directly exposed substitute carries the same required compound-allegation label",
+        "no later turn is included",
+        "no post-cutoff extension is included",
+        "no later turn is used for ledger construction, diagnosis or scoring",
+        "no other selected conversation uses the exception"
+      ],
+      "source_record_stability_must_remain": "open_at_frozen_cutoff",
+      "source_resolution": "locate deterministically from the exposed-only sidecar and pre-existing frozen calibration tags without a hard-coded real identifier or semantic mining of unlabelled transcripts"
+    },
+    "group_constraints": {
+      "at_least_distinct_comparable_groups_where_pool_permits": 6,
+      "maximum_conversations_per_comparable_group": 2,
+      "raw_contributor_ids_in_outputs": false
+    },
+    "one_deepest_target_per_conversation": true,
+    "overlapping_shorter_prefix_reruns": false,
+    "selection_algorithm_version": "phase2a-development-selection-v2",
+    "selection_policy_version": "phase2a-development-selection-v2",
+    "selection_precedes_phase2a_model_output": true,
+    "single_exception_may_cover_stressors_4_and_6": true,
+    "source_family_goal": "include both benchmark and prospective-v4 where feasible",
+    "stressor_priority": [
+      {
+        "priority": 1,
+        "stressor": "existence or availability versus security, durability or independence"
+      },
+      {
+        "priority": 2,
+        "stressor": "valid distinction previously ignored or answered through a weaker nearby proposition"
+      },
+      {
+        "priority": 3,
+        "stressor": "still-live counterfactual or conditional issue"
+      },
+      {
+        "priority": 4,
+        "stressor": "compound allegation requiring separate conduct, causation, outcome or motive propositions"
+      },
+      {
+        "priority": 5,
+        "stressor": "explicit correction, qualification or not-X-but-Y relation"
+      },
+      {
+        "priority": 6,
+        "stressor": "account clarification followed by an apparent contributor answer, including the exposed Greater London Council calibration case when available and Grade A"
+      },
+      {
+        "priority": 7,
+        "stressor": "rhetorical or expressive contribution for which no_stable_issue is legitimate"
+      },
+      {
+        "priority": 8,
+        "stressor": "healthy sustained debate, partial concession, multilingual exchange or other control without a known proposition-substitution defect"
+      }
+    ],
+    "tie_breakers_in_order": [
+      "complete Grade-A status",
+      "direct exposure strength",
+      "greater relevant conversation depth",
+      "contributor-group diversity",
+      "source-family diversity",
+      "stable calibration-case identifier in lexical order"
+    ],
+    "turn_count_definition": "distinct pilot-local transcript turns across all eight exact selected prefixes",
+    "unique_turn_count": {
+      "maximum": 32,
+      "minimum": 24
+    },
+    "withheld_from_selection_payload": [
+      "future turn",
+      "historical reply after selected target",
+      "production reply or no-reply outcome",
+      "production pipeline decision",
+      "audit label",
+      "stressor label",
+      "human judgement"
+    ]
+  },
+  "corpus_boundary": {
+    "administrative_metadata_scan": {
+      "allowed_purposes": [
+        "canonical row-hash verification",
+        "exposure classification",
+        "exclusion enforcement",
+        "aggregate counting",
+        "creation of an exposed-only development sidecar"
+      ],
+      "allowed_row_fields": [
+        "reconstruction grade",
+        "exposure status",
+        "preliminary held-out eligibility",
+        "stability status",
+        "target sequence class",
+        "author-identity status",
+        "source family",
+        "opaque conversation key",
+        "opaque target key"
+      ],
+      "changes_exposure_classification": false,
+      "is_substantive_experimental_exposure": false,
+      "permitted": true
+    },
+    "allowed_source_families": [
+      "corrected Phase 1.2 author-binding corpus",
+      "original Phase 1 corpus and exposed calibration pack",
+      "frozen multi-turn audit",
+      "frozen benchmark",
+      "frozen prospective-v4 batch at the named cutoff"
+    ],
+    "clean_prefixes_remain_sealed": 2,
+    "development_sidecar": {
+      "filename": "exposed-development-candidate-index.jsonl",
+      "protected_rows_emitted": false,
+      "required_before_transcript_loading": true,
+      "selection_and_transcript_loading_must_consume_only_sidecar": true,
+      "whole_target_index_rescan_after_build": false
+    },
+    "excluded_if_any_field_matches": {
+      "conversation_exposure_status": "genuinely_unexposed",
+      "effective_exposure_status": "genuinely_unexposed",
+      "preliminary_within_family_held_out_eligibility": true,
+      "target_exposure_status": "genuinely_unexposed"
+    },
+    "excluded_effective_exposure_statuses": [
+      "genuinely_unexposed",
+      "structurally_mined_only"
+    ],
+    "excluded_only_exposure_category": "structurally_mined_only",
+    "frozen_cutoff_utc": "2026-08-31T14:03:05Z",
+    "frozen_prospective_batch_manifest_sha256": "a28add4ce6b019e56c5bd9ec63bed217c4d5405c0bd3bd48c5ee814e506a339f",
+    "frozen_source_manifest_sha256": "b42ce8f0ead2961f04e81e041c51455a41c64a7830854a7ec080e593ae7289ec",
+    "forbidden_sources": [
+      "moving prospective current link",
+      "later prospective batch",
+      "production logs",
+      "ZFS snapshots",
+      "newly mined conversations",
+      "X queries"
+    ],
+    "held_out_content_seal_audit": {
+      "filename": "held-out-content-seal-audit.json",
+      "prior_administrative_scan_acknowledgement": {
+        "prior_genuinely_unexposed_metadata_row_count": "unknown",
+        "prior_protected_metadata_administrative_scan": true,
+        "prior_protected_metadata_rows_known_minimum": 2,
+        "prior_protected_model_output_count": 0,
+        "prior_protected_provider_payload_count": 0,
+        "prior_protected_transcript_text_bytes_read": 0,
+        "prior_scan_report": "mrsMThatcher-proposition-ledger-phase2a-early-stop-report-20260901T094004Z.md",
+        "prior_substantive_seal_breached": false
+      },
+      "required_fields": [
+        "policy_version",
+        "source_metadata_rows_scanned",
+        "protected_metadata_rows_scanned_for_administration",
+        "protected_metadata_rows_rendered_to_operator",
+        "protected_rows_written_to_development_sidecar",
+        "protected_transcript_records_opened",
+        "protected_transcript_text_bytes_read",
+        "protected_source_mapping_records_opened",
+        "protected_provider_payload_count",
+        "protected_model_output_count",
+        "protected_human_review_count",
+        "directly_exposed_rows_written_to_sidecar",
+        "structurally_mined_only_rows_excluded",
+        "genuinely_unexposed_rows_excluded",
+        "preliminarily_held_out_rows_excluded",
+        "substantive_seal_breached"
+      ],
+      "required_zeroes": {
+        "protected_human_review_count": 0,
+        "protected_metadata_rows_rendered_to_operator": 0,
+        "protected_model_output_count": 0,
+        "protected_provider_payload_count": 0,
+        "protected_rows_written_to_development_sidecar": 0,
+        "protected_source_mapping_records_opened": 0,
+        "protected_transcript_records_opened": 0,
+        "protected_transcript_text_bytes_read": 0
+      },
+      "substantive_seal_breached": false
+    },
+    "protected_row_processing": {
+      "enter_provider_call_plan": false,
+      "enter_review_pack": false,
+      "increment_aggregate_counters": true,
+      "open_source_id_mapping": false,
+      "open_transcript_content": false,
+      "render_opaque_identifiers": false,
+      "write_to_development_sidecar": false
+    },
+    "protected_substantive_content": [
+      "transcript text",
+      "quoted conversation text",
+      "historical replies",
+      "case-specific semantic annotations",
+      "stressor interpretation for protected cases",
+      "raw contributor identity",
+      "private source-ID mappings",
+      "provider payloads",
+      "provider outputs",
+      "generated ledgers",
+      "human-review material",
+      "prompt-tuning examples"
+    ],
+    "protection_enforcement": "classify metadata row before any transcript or source-mapping dereference",
+    "substantive_access_response": "mark substantive_seal_breached=true and block protocol freeze",
+    "substantive_content_access_forbidden": true
+  },
+  "credential_boundary": {
+    "allowed_environment_variable": "XAI_API_KEY",
+    "allowed_check": "present and non-empty only",
+    "missing_key_disposition": "phase2a_not_run_missing_xai_api_key",
+    "prohibited_key_operations": [
+      "print",
+      "log",
+      "hash",
+      "measure",
+      "serialise",
+      "disclose",
+      "write to file",
+      "place in subprocess argument"
+    ],
+    "remove_unrelated_provider_credentials_from_pilot_subprocess": true,
+    "source_dotenv_or_shell_profiles": false
+  },
+  "declared_non_goals": [
+    "held-out evaluation",
+    "downstream transcript-summary-ledger-human-ledger four-arm experiment",
+    "claim that a ledger improves downstream conversational reasoning",
+    "profile winner selection",
+    "prompt revision during this stage",
+    "schema tuning around a synthetic response",
+    "human adjudication during this task",
+    "independent transcript-first Arm-D gold annotation",
+    "production integration",
+    "production reply generation",
+    "service or timer modification",
+    "deployment"
+  ],
+  "development_stability_policy_version": "frozen-open-prefix-development-exception-v1",
+  "diagnostics": {
+    "per_turn": [
+      "proposition additions and updates",
+      "proposition-group additions and updates",
+      "live and closed issue counts",
+      "participant commitment changes",
+      "conversational obligation changes",
+      "relation additions by type",
+      "answer-target and rejected-target changes",
+      "repair-record changes",
+      "abstentions",
+      "warnings",
+      "unsupported-inference rejections",
+      "ledger canonical byte size",
+      "provider payload byte size",
+      "state-growth delta",
+      "evidence-span count",
+      "evidence coverage of current text",
+      "unresolved-item count",
+      "resolved-item count",
+      "lifecycle transitions",
+      "duplicate semantic objects",
+      "current-turn semantic density"
+    ],
+    "phase1_4_carry_forward": {
+      "inspection_time": "only after the protocol-freeze commit is pushed and immutable",
+      "private_key": "phase1_4_grok_4_3_carry_forward_diagnostic",
+      "prompt_or_schema_change_permitted": false,
+      "recurrence_results": [
+        "phase1_4_failure_pattern_observed_again",
+        "phase1_4_failure_pattern_not_observed",
+        "phase1_4_failure_pattern_not_assessable"
+      ],
+      "recurrence_selects_profile": false,
+      "source_scope": "saved Phase 1.4 Grok 4.3 validation and parsed-response artefacts only"
+    },
+    "semantic_correctness_claimed": false,
+    "structural_signals": [
+      "live proposition retained",
+      "nearby proposition represented separately",
+      "compound components separately represented",
+      "counterfactual remains live",
+      "correction relation represented",
+      "rejected answer target represented",
+      "open question or obligation retained",
+      "no_stable_issue used",
+      "attribution separated from speaker commitment"
+    ]
+  },
+  "environment": {
+    "grpcio": "1.83.1",
+    "jsonschema": "4.26.0",
+    "protobuf": "6.33.6",
+    "pydantic": "2.13.5",
+    "python": "CPython 3.10.12",
+    "xai-sdk": "1.19.0"
+  },
+  "exposed_only_sidecar_required": true,
+  "held_out_seal_policy_version": "substantive-content-and-experimental-exposure-seal-v2",
+  "immutable_after_freeze": [
+    "code",
+    "system prompt",
+    "schemas",
+    "case manifest",
+    "case selection",
+    "case order",
+    "model profiles",
+    "model settings",
+    "validation rules",
+    "review rubric"
+  ],
+  "maximum_open_prefix_exceptions": 1,
+  "mechanical_metrics": {
+    "paired": [
+      "both profiles completed conversation",
+      "only Grok 4.3 completed",
+      "only Grok 4.6 completed",
+      "neither completed",
+      "both reached deepest target",
+      "one reached deepest target",
+      "structural diagnostic disagreements",
+      "ledger-size differences",
+      "token differences",
+      "latency differences"
+    ],
+    "per_profile": [
+      "planned calls",
+      "attempted calls",
+      "definite responses",
+      "provider errors",
+      "uncertain calls",
+      "strict JSON success rate",
+      "provider-schema success rate",
+      "intended-canonical success rate",
+      "evidence-span success rate",
+      "semantic-reference success rate",
+      "materialisation success rate",
+      "persisted-ledger success rate",
+      "complete conversation-chain count",
+      "blocked downstream-turn count",
+      "diagnostic-flag count",
+      "maximum ledger size",
+      "median ledger size",
+      "average state growth per turn",
+      "prompt tokens",
+      "cached prompt tokens",
+      "reasoning tokens",
+      "completion tokens",
+      "total tokens",
+      "raw provider cost field",
+      "latency median",
+      "latency p95",
+      "latency maximum"
+    ],
+    "raw_cost_policy": "preserve cost_in_usd_ticks without currency conversion unless authoritative conversion metadata is retained"
+  },
+  "private_case_manifest": {
+    "contains": [
+      "manifest version",
+      "frozen source hashes",
+      "selection algorithm version",
+      "selection policy version",
+      "development stability policy version",
+      "held-out seal policy version",
+      "exactly eight development case IDs",
+      "private source provenance",
+      "exposure evidence",
+      "reconstruction grade",
+      "conversation stability status",
+      "selected-prefix immutability status",
+      "development-stability exception use, policy and reason",
+      "stressor tags",
+      "source family",
+      "contributor-group pseudonym",
+      "selected target turn",
+      "ordered ancestor-turn identities",
+      "exact private transcript prefix",
+      "withheld-later-turn count",
+      "post-target extension withheld status",
+      "post-cutoff extension withheld status",
+      "withheld-production-outcome status",
+      "unique-turn count",
+      "row and manifest SHA-256 values"
+    ],
+    "mapping_back_to_source_ids": "separate mode-0600 private file",
+    "pilot_local_identifier_patterns": {
+      "conversation": "dev-conversation-...",
+      "participant_account": "participant-account",
+      "participant_contributor": "participant-contributor-...",
+      "turn": "dev-turn-..."
+    },
+    "raw_contributor_ids": false
+  },
+  "protocol_id": "proposition-ledger-phase2a-development-pilot",
+  "protocol_version": "proposition-ledger-phase2a-development-pilot-v1.0.0",
+  "protocol_freeze_requirements": {
+    "aggregate_values": [
+      "selected conversation count",
+      "selected unique-turn count",
+      "planned provider-call count",
+      "maximum provider-call budget",
+      "open-prefix exception count"
+    ],
+    "hashes": [
+      "source commit",
+      "canonical schema",
+      "provider schema",
+      "system prompt",
+      "human-review rubric",
+      "exposed-development sidecar",
+      "held-out content-seal audit",
+      "development case manifest",
+      "call plan",
+      "model-order randomisation seed"
+    ],
+    "policies": [
+      "request-envelope revision",
+      "selection policy version",
+      "development stability policy version",
+      "held-out seal policy version",
+      "protected-metadata administrative-scan permission",
+      "protected-content access prohibition",
+      "exposed-only sidecar requirement",
+      "maximum open-prefix exceptions",
+      "retry policy",
+      "validation order",
+      "declared non-goals"
+    ],
+    "substantive_seal_must_be_unbreached": true
+  },
+  "protected_content_access_forbidden": true,
+  "protected_metadata_administrative_scan_permitted": true,
+  "provider_profiles": [
+    {
+      "model": "grok-4.3",
+      "profile_id": "xai-grok-4.3-low-ledger-v1",
+      "provider": "xAI",
+      "reasoning_effort": "low"
+    },
+    {
+      "model": "grok-4.6",
+      "profile_id": "xai-grok-4.6-low-ledger-v1",
+      "provider": "xAI",
+      "reasoning_effort": "low"
+    }
+  ],
+  "provider_request": {
+    "application_retries": 0,
+    "client_timeout_seconds": 300,
+    "code_execution": false,
+    "fallback_model": null,
+    "grpc_channel_options": [
+      [
+        "grpc.enable_retries",
+        0
+      ],
+      [
+        "grpc.service_config",
+        "{}"
+      ]
+    ],
+    "maximum_visible_output_tokens": 4096,
+    "no_retry_policy": true,
+    "parallel_tool_calls": false,
+    "request_contract_revision": "phase1.4-no-tools-omit-tool-choice-v2",
+    "sampling_controls_set": [],
+    "search_parameters": null,
+    "sdk_grpc_retries": false,
+    "store_messages": false,
+    "streaming": false,
+    "tool_choice": "omitted",
+    "tools": [],
+    "web_search": false,
+    "x_search": false
+  },
+  "provider_request_comparability": {
+    "genesis": "requests are identical except for profile and model identity",
+    "later_turns": "requests are not claimed byte-identical because each profile receives only its own independently materialised prior ledger",
+    "shared_across_profiles": [
+      "system prompt",
+      "provider-facing schema",
+      "current-turn payload format",
+      "maximum visible output tokens",
+      "timeout",
+      "tool and search settings",
+      "validation and materialisation path",
+      "retry policy"
+    ]
+  },
+  "provider_turn_input": {
+    "current_turn_payload_version": "phase2a-current-turn-payload-v1",
+    "exact_text_preserved": true,
+    "fields": [
+      "protocol version and hash",
+      "pilot-local conversation key",
+      "pilot-local current turn ID",
+      "turn index",
+      "pilot-local parent turn ID",
+      "exact current visible text",
+      "trusted current-speaker participant descriptor",
+      "validated same-profile prior persisted ledger or null at genesis"
+    ],
+    "forbidden": [
+      "future turns",
+      "historical reply after selected target",
+      "production reply or no-reply outcome",
+      "audit labels",
+      "stressor labels",
+      "human judgement",
+      "other profile output",
+      "external facts",
+      "production paths",
+      "real X post IDs",
+      "raw contributor IDs"
+    ],
+    "provider_response_schema_delivery": "identical structured-response schema parameter",
+    "serialization": "canonical compact UTF-8 JSON with recursively sorted keys, no insignificant whitespace, and no non-finite numbers"
+  },
+  "response_contract": {
+    "canonical_schema_sha256": "eea15c28f5019cea405bfdd65b924ee18c76dc428f16a1fe502592b5cb953d8a",
+    "canonical_schema_version": "proposition-ledger-semantic-delta-v1.1.0",
+    "materialiser": "tools/proposition_ledger_semantic_delta.py",
+    "persisted_ledger_version": "proposition-ledger-v1.0.0",
+    "provider_schema_sha256": "37423dc87da3a253ee6c3dcc826c764268d094b16ba83bd1d4a9b1e00948bc21",
+    "provider_transformations": {
+      "additionalProperties_true_insertions": 5,
+      "outer_regex_anchor_removals": 14,
+      "total": 19
+    }
+  },
+  "response_validation_order": [
+    {
+      "name": "strict JSON parse",
+      "ordinal": 1,
+      "reject": [
+        "duplicate members",
+        "invalid UTF-8",
+        "NaN or Infinity",
+        "multiple top-level values",
+        "code fences",
+        "leading or trailing prose",
+        "extracted or repaired JSON substrings"
+      ]
+    },
+    {
+      "name": "provider-facing schema validation",
+      "ordinal": 2
+    },
+    {
+      "authority": "unchanged canonical schema plus corrected intended ECMA-consistent pattern layer",
+      "diagnostic_only": "ordinary Python-jsonschema pattern behaviour",
+      "name": "intended canonical validation",
+      "ordinal": 3
+    },
+    {
+      "exact_bindings": [
+        "conversation key",
+        "target turn ID",
+        "turn index",
+        "predecessor reference"
+      ],
+      "name": "binding validation",
+      "ordinal": 4
+    },
+    {
+      "name": "evidence validation",
+      "ordinal": 5,
+      "requirements": [
+        "exact current pilot-local turn",
+        "valid Unicode character offsets",
+        "exact reproduced substring",
+        "within current turn"
+      ]
+    },
+    {
+      "name": "semantic-reference validation",
+      "ordinal": 6,
+      "reject": [
+        "unknown existing IDs",
+        "wrong-namespace references",
+        "duplicate local references",
+        "future references",
+        "provider-created participants",
+        "provider-created permanent IDs",
+        "illegal lifecycle transitions"
+      ]
+    },
+    {
+      "harness_owned": [
+        "participant registration",
+        "permanent IDs",
+        "transition fields",
+        "state patch",
+        "predecessor hash",
+        "ledger hash",
+        "persisted ledger"
+      ],
+      "name": "deterministic materialisation",
+      "ordinal": 7
+    },
+    {
+      "name": "persisted-ledger validation",
+      "ordinal": 8,
+      "path": "existing full or incremental proposition-ledger-v1.0.0 validation"
+    }
+  ],
+  "result_constraints": {
+    "downstream_four_arm_pilot_authorised": false,
+    "held_out_evaluation_authorised": false,
+    "ledger_effectiveness_established": false,
+    "model_profile_selected": false,
+    "production_integration_authorised": false
+  },
+  "review_pack": {
+    "blinded_labels": [
+      "Ledger A",
+      "Ledger B"
+    ],
+    "build_source": "saved transcripts and saved provider results only",
+    "case_inclusion": "deepest target reached by at least one profile",
+    "contents": [
+      "exact transcript prefix",
+      "source reconstruction grade",
+      "turn boundaries",
+      "concise deterministic projection of each available final ledger",
+      "turn-by-turn ledger-change summaries",
+      "validation status",
+      "empty human scoring form"
+    ],
+    "deterministic_order": "per-case bit derived from protocol-freeze hash and pilot-local case key",
+    "forbidden": [
+      "model names",
+      "profile IDs",
+      "provider usage",
+      "cost",
+      "latency",
+      "prior audit labels",
+      "stressor labels",
+      "historical production outcome",
+      "historical reply after target",
+      "call order",
+      "model-specific filenames",
+      "unblinding mapping"
+    ],
+    "human_scores_prefilled": false,
+    "purpose": "exploratory blinded development comparison, not independent transcript-first Arm-D gold annotation",
+    "unblinding": "separate private human-review-pack/unblinding.json"
+  },
+  "sample_planning": {
+    "absolute_difference_scenarios": [
+      0.1,
+      0.15,
+      0.2
+    ],
+    "clustering_sensitivity_unit": "contributor group",
+    "conversation_is_primary_independent_unit": true,
+    "effectiveness_estimate_from_eight_cases": false,
+    "held_out_split_selected": false,
+    "human_review_precedes_profile_selection_or_prompt_revision": true,
+    "outcome_types": [
+      "paired human-adjudicated binary",
+      "paired human-adjudicated ordinal"
+    ],
+    "pilot_attrition_use": "feasible completion-rate scenarios only",
+    "prospective_collection_must_continue": true,
+    "sealed_clean_prefix_use": "aggregate count only",
+    "table_policy": "scenario ranges and assumptions, never a spurious precise effect estimate"
+  },
+  "selection_algorithm_version": "phase2a-development-selection-v2",
+  "selection_policy_version": "phase2a-development-selection-v2",
+  "stage": "bounded development-only paired incremental-ledger construction pilot over already exposed historical conversations",
+  "system_prompt_policy": {
+    "generic_and_model_neutral": true,
+    "phase1_4_raw_grok_4_3_response_used_for_tuning": false,
+    "prompt_file": "incremental-ledger-system-prompt.txt",
+    "stressor_or_expected_answer_disclosed": false
+  },
+  "top_level_dispositions": [
+    "phase2a_development_pilot_completed_review_pending",
+    "phase2a_development_pilot_completed_with_profile_attrition_review_pending",
+    "phase2a_development_pilot_blocked_before_calls",
+    "phase2a_development_pilot_inconclusive_operational_failure",
+    "phase2a_development_pilot_uncertain_after_send"
+  ]
+}

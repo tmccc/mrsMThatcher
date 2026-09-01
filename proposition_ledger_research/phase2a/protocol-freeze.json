@@ -1,0 +1,96 @@
+{
+  "artifact_evidence": "frozen input",
+  "call_plan_sha256": "66309707051ad11551a0366b850b33031f5d63f9891fd1da28aedb64040723bd",
+  "canonical_schema_sha256": "eea15c28f5019cea405bfdd65b924ee18c76dc428f16a1fe502592b5cb953d8a",
+  "client_timeout_seconds": 300.0,
+  "declared_non_goals": [
+    "held-out evaluation",
+    "downstream four-arm experiment",
+    "ledger effectiveness claim",
+    "model profile selection",
+    "production integration",
+    "prompt revision"
+  ],
+  "development_protocol_sha256": "560cc440409a94a2f46a1b29dc4f44167df537a68a250ba04612dfc1e3cfaba3",
+  "development_stability_policy_version": "frozen-open-prefix-development-exception-v1",
+  "diagnostic_definitions": [
+    "existence_availability_vs_security_durability_independence",
+    "valid_distinction_or_nearby_proposition",
+    "live_counterfactual_or_conditional",
+    "compound_allegation",
+    "explicit_correction_or_qualification",
+    "clarification_then_apparent_answer",
+    "rhetorical_expressive_no_stable_issue",
+    "healthy_control"
+  ],
+  "exact_planned_provider_call_count": 62,
+  "execution_freeze_core_sha256": "301606ed2cf09061916be569ae8e90044ccff73991dcd74c9cd598705bd72a6c",
+  "exposed_development_sidecar_required": true,
+  "exposed_development_sidecar_sha256": "47d18afbed683651d007d8c31652acf4c5e616d994fe66b3c325615161d62548",
+  "exposed_only_sidecar_required": true,
+  "held_out_content_seal_audit_sha256": "b532b68a9c814e6600194cc9e5deff581b3dee551504ad1c58b05afff5e225c4",
+  "held_out_seal_policy_version": "substantive-content-and-experimental-exposure-seal-v2",
+  "maximum_open_prefix_exception_count": 1,
+  "maximum_open_prefix_exceptions": 1,
+  "maximum_provider_call_budget": 64,
+  "maximum_visible_output_tokens": 4096,
+  "model_order_counterbalancing_rule": "sha256-parity-bit-of-protocol-hash-and-pilot-conversation-key",
+  "model_order_randomisation_seed_hash": "46b37c7779353fc4536f9affa4a7273172610244ad712c6ca80ed69a3981de32",
+  "private_case_manifest_sha256": "1a89b29e7c0cea9c3f7a44ce5dedae82ed5353f833a0d0779d0905e848a692f6",
+  "protected_administrative_metadata_scan_permitted": true,
+  "protected_content_access_forbidden": true,
+  "protected_metadata_administrative_scan_permitted": true,
+  "protected_substantive_content_forbidden": true,
+  "protocol_freeze_version": "phase2a-protocol-freeze-v1",
+  "protocol_version": "proposition-ledger-phase2a-development-pilot-v1.0.0",
+  "provider_profiles": [
+    {
+      "model": "grok-4.3",
+      "profile_id": "xai-grok-4.3-low-ledger-v1",
+      "provider": "xAI",
+      "reasoning_effort": "low"
+    },
+    {
+      "model": "grok-4.6",
+      "profile_id": "xai-grok-4.6-low-ledger-v1",
+      "provider": "xAI",
+      "reasoning_effort": "low"
+    }
+  ],
+  "provider_schema_sha256": "37423dc87da3a253ee6c3dcc826c764268d094b16ba83bd1d4a9b1e00948bc21",
+  "request_envelope_revision": "phase1.4-no-tools-omit-tool-choice-v2",
+  "retry_policy": {
+    "application_retries": 0,
+    "fallback_calls": 0,
+    "repair_calls": 0,
+    "sdk_grpc_retries": 0
+  },
+  "review_rubric_sha256": "00efb136c2902dfec326c08fa60db0e3b9d9b39def9dddc5994f86353373143f",
+  "sdk_environment": {
+    "grpcio": "1.83.1",
+    "jsonschema": "4.26.0",
+    "protobuf": "6.33.6",
+    "pydantic": "2.13.5",
+    "python": "CPython 3.10.12",
+    "xai-sdk": "1.19.0"
+  },
+  "selected_conversation_count": 8,
+  "selected_open_prefix_exception_count": 1,
+  "selected_unique_turn_count": 31,
+  "selection_algorithm_version": "phase2a-development-selection-v2",
+  "selection_policy_version": "phase2a-development-selection-v2",
+  "source_commit": "79429508e31beedec9a3d6470c67f854b60dbf3a",
+  "system_prompt_sha256": "4d73c4f8a177a2f11293f20284f4baa0ce8385a3b929fab50b99e42afe4b0e7d",
+  "target_prefix_metadata_sha256": "2c3bb5338bda7dc880da8f2e6cc7778beeb8145108dae8ad8b3aa372348ee095",
+  "tracked_wrapper_version": "phase2a-protocol-freeze-wrapper-v2",
+  "validation_sequence": [
+    "strict_json",
+    "provider_facing_schema",
+    "intended_canonical",
+    "binding",
+    "evidence",
+    "semantic_reference",
+    "deterministic_materialisation",
+    "persisted_ledger"
+  ]
+}

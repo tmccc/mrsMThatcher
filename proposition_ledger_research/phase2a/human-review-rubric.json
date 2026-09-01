@@ -1,0 +1,216 @@
+{
+  "artifact_class": "human-review template",
+  "blinding": {
+    "allowed_output_labels": [
+      "Ledger A",
+      "Ledger B"
+    ],
+    "forbidden_context": [
+      "model name",
+      "profile identifier",
+      "provider usage",
+      "cost",
+      "latency",
+      "prior audit label",
+      "stressor label",
+      "historical production outcome",
+      "historical reply after the selected target",
+      "call order",
+      "unblinding mapping"
+    ],
+    "model_identity_visible": false,
+    "unblinding_location": "separate private unblinding artefact"
+  },
+  "dimension_scales": {
+    "accuracy_or_completeness": {
+      "direction": "higher_is_better",
+      "labels": {
+        "0": "unassessable or wholly deficient",
+        "1": "major deficiencies",
+        "2": "material deficiencies",
+        "3": "minor deficiencies",
+        "4": "complete and accurate for the available transcript"
+      },
+      "maximum": 4,
+      "minimum": 0
+    },
+    "defect_severity": {
+      "direction": "lower_is_better",
+      "labels": {
+        "0": "none observed",
+        "1": "minor",
+        "2": "material but bounded",
+        "3": "major",
+        "4": "severe or pervasive"
+      },
+      "maximum": 4,
+      "minimum": 0
+    },
+    "reviewer_confidence": {
+      "direction": "higher_is_more_confident",
+      "labels": {
+        "1": "very low",
+        "2": "low",
+        "3": "moderate",
+        "4": "high",
+        "5": "very high"
+      },
+      "maximum": 5,
+      "minimum": 1
+    }
+  },
+  "dimensions": [
+    {
+      "definition": "Captures every materially supported proposition without requiring unsupported detail.",
+      "dimension_id": "proposition_completeness",
+      "scale": "accuracy_or_completeness"
+    },
+    {
+      "definition": "Contains propositions or semantic content not supported by the exact transcript prefix.",
+      "dimension_id": "invented_or_unsupported_propositions",
+      "scale": "defect_severity"
+    },
+    {
+      "definition": "Correctly separates speaker commitments, quotations, reports, and attributions to others.",
+      "dimension_id": "speaker_and_attribution_accuracy",
+      "scale": "accuracy_or_completeness"
+    },
+    {
+      "definition": "Preserves negation, uncertainty, possibility, necessity, counterfactual force, conditions, and qualifications.",
+      "dimension_id": "polarity_and_modality",
+      "scale": "accuracy_or_completeness"
+    },
+    {
+      "definition": "Records only evidenced participant stances and updates them consistently.",
+      "dimension_id": "participant_commitments",
+      "scale": "accuracy_or_completeness"
+    },
+    {
+      "definition": "Separates materially distinct components while retaining the structure of the compound claim.",
+      "dimension_id": "compound_decomposition",
+      "scale": "accuracy_or_completeness"
+    },
+    {
+      "definition": "Represents live, resolved, rejected, superseded, or otherwise transitioned issues accurately.",
+      "dimension_id": "issue_state_accuracy",
+      "scale": "accuracy_or_completeness"
+    },
+    {
+      "definition": "Preserves questions that remain open and closes them only with transcript support.",
+      "dimension_id": "open_question_accuracy",
+      "scale": "accuracy_or_completeness"
+    },
+    {
+      "definition": "Represents requests, promised follow-ups, clarification duties, and other conversational obligations accurately.",
+      "dimension_id": "conversational_obligations",
+      "scale": "accuracy_or_completeness"
+    },
+    {
+      "definition": "Recognises and carries forward explicit corrections, qualifications, concessions, and their effects.",
+      "dimension_id": "corrections_and_concessions",
+      "scale": "accuracy_or_completeness"
+    },
+    {
+      "definition": "Identifies the proposition or issue a reply appears to answer without conflating nearby targets.",
+      "dimension_id": "answer_target_accuracy",
+      "scale": "accuracy_or_completeness"
+    },
+    {
+      "definition": "Represents an explicitly rejected or corrected answer target and any replacement accurately.",
+      "dimension_id": "rejected_target_accuracy",
+      "scale": "accuracy_or_completeness"
+    },
+    {
+      "definition": "Keeps an unresolved proposition live across later turns unless valid evidence supports a transition.",
+      "dimension_id": "live_proposition_retention",
+      "scale": "accuracy_or_completeness"
+    },
+    {
+      "definition": "Replaces a live proposition with a nearby but materially distinct proposition.",
+      "dimension_id": "proposition_substitution",
+      "scale": "defect_severity"
+    },
+    {
+      "definition": "Fails to represent a valid distinction made in the transcript.",
+      "dimension_id": "ignored_distinctions",
+      "scale": "defect_severity"
+    },
+    {
+      "definition": "Maintains coherent identities, references, evidence, and lifecycle state across incremental turns.",
+      "dimension_id": "incremental_consistency",
+      "scale": "accuracy_or_completeness"
+    }
+  ],
+  "exploratory_status": {
+    "downstream_arm_d_gold_annotation": false,
+    "human_scores_prefilled": false,
+    "purpose": "exploratory blinded comparison of development ledgers",
+    "transcript_first_independent_annotation": false
+  },
+  "instructions": [
+    "Score only from the exact transcript prefix and the two blinded ledger projections supplied in the case pack.",
+    "Do not infer model identity or use outside knowledge to judge whether a proposition is true.",
+    "Judge whether each ledger faithfully represents what was said, by whom, with the expressed polarity, modality, conditions, and conversational state.",
+    "Use null for a dimension that cannot be assessed from the supplied material and explain why in notes.",
+    "Treat the validation status as operational context, not as proof of semantic correctness.",
+    "Leave every field unchanged until a human reviewer performs the exploratory review."
+  ],
+  "overall_preference_options": [
+    "Ledger A",
+    "Ledger B",
+    "tie",
+    "neither",
+    "unassessable"
+  ],
+  "rubric_id": "proposition-ledger-phase2a-human-review-rubric",
+  "rubric_version": "proposition-ledger-phase2a-human-review-rubric-v1.0.0",
+  "scoring_form_template": {
+    "case_label": null,
+    "ledger_scores": {
+      "Ledger A": {
+        "answer_target_accuracy": null,
+        "compound_decomposition": null,
+        "conversational_obligations": null,
+        "corrections_and_concessions": null,
+        "fatal_defect": null,
+        "fatal_defect_explanation": "",
+        "ignored_distinctions": null,
+        "incremental_consistency": null,
+        "invented_or_unsupported_propositions": null,
+        "issue_state_accuracy": null,
+        "live_proposition_retention": null,
+        "open_question_accuracy": null,
+        "participant_commitments": null,
+        "polarity_and_modality": null,
+        "proposition_completeness": null,
+        "proposition_substitution": null,
+        "rejected_target_accuracy": null,
+        "speaker_and_attribution_accuracy": null
+      },
+      "Ledger B": {
+        "answer_target_accuracy": null,
+        "compound_decomposition": null,
+        "conversational_obligations": null,
+        "corrections_and_concessions": null,
+        "fatal_defect": null,
+        "fatal_defect_explanation": "",
+        "ignored_distinctions": null,
+        "incremental_consistency": null,
+        "invented_or_unsupported_propositions": null,
+        "issue_state_accuracy": null,
+        "live_proposition_retention": null,
+        "open_question_accuracy": null,
+        "participant_commitments": null,
+        "polarity_and_modality": null,
+        "proposition_completeness": null,
+        "proposition_substitution": null,
+        "rejected_target_accuracy": null,
+        "speaker_and_attribution_accuracy": null
+      }
+    },
+    "notes": "",
+    "overall_preferred_ledger": null,
+    "reviewer_confidence": null,
+    "reviewer_id": null
+  }
+}
