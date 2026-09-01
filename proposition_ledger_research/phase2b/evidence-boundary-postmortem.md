@@ -9,6 +9,8 @@ remains immutable, and its severe operational attrition remains its real
 experimental outcome:
 `phase2a_development_pilot_completed_with_profile_attrition_review_pending`.
 The diagnostic counts below are not corrected Phase 2A observations.
+The corrected post-mortem output version is
+`proposition-ledger-phase2b-evidence-postmortem-v1.1`.
 
 The Phase 2A prompt referred to a supplied Unicode character-offset convention,
 but the request did not actually supply one. The post-mortem therefore tested a
@@ -21,11 +23,22 @@ literally in the trusted current turn?
 - Attempted responses classified: 21.
 - Strictly parsed responses: 20.
 - Evidence spans examined: 112.
-- Responses uniquely recoverable from literal exact text: 20 (Grok 4.3: 13;
-  Grok 4.6: 7).
+- Evidence resolution not applicable because there were no evidence spans: 7
+  (Grok 4.3: 7; Grok 4.6: 0).
+- Evidence-bearing responses uniquely recoverable from literal exact text: 13
+  (Grok 4.3: 6; Grok 4.6: 7).
 - Responses requiring occurrence disambiguation: 0.
 - Responses with absent exact text: 0.
 - Unparsed responses: 1 (Grok 4.6).
+
+The original Phase 2B commit incorrectly allowed Python's vacuously
+true `all([])` to classify the seven parsed responses with no evidence spans as
+exact-text recoveries. Those seven responses were already-valid evidence-free
+Grok 4.3 abstentions, not evidence-resolution candidates. The corrected
+partition replaces the prior twenty exact-text recoveries and one unparsed
+response with seven responses for which evidence resolution was not
+applicable, thirteen evidence-bearing unique-recovery candidates, and one
+unparsed response.
 
 All 112 parsed evidence strings occurred exactly once in their trusted current
 turn. Among their old spans, 109 had incorrect coordinates, 9 had an end beyond
@@ -44,19 +57,25 @@ the saved completion-token count was 4096. No partial parse or repair was used.
 
 ## Diagnostic counterfactual
 
-For each of the 20 uniquely recoverable responses, deterministic code replaced
-only the old evidence turn binding and coordinates with the sole literal match,
-then reran canonical validation, binding, semantic-reference validation, the
-unchanged materialiser, and persisted-ledger validation. Every output is
-labelled `posthoc_unique_exact_text_resolution` and
-`diagnostic_counterfactual_only`.
+For each of the 13 evidence-bearing uniquely recoverable responses,
+deterministic code replaced only the old evidence turn binding and coordinates
+with the sole literal match, then reran canonical validation, binding,
+semantic-reference validation, the unchanged materialiser, and persisted-ledger
+validation. Every genuine recovered output is labelled
+`posthoc_unique_exact_text_resolution` and
+`diagnostic_counterfactual_only`. No recovery artefact is created for an
+evidence-free response.
 
-Canonical validation passed for 13 of 13 Grok 4.3 responses and 7 of 7 Grok
-4.6 responses. Persisted diagnostic materialisation passed for 13 of 13 Grok
-4.3 responses and 4 of 7 Grok 4.6 responses. The three downstream failures are
-retained as deterministic diagnostic findings. None of these counts revises
-the original seven materialised Phase 2A responses, supports a profile winner,
-or establishes semantic correctness or ledger effectiveness.
+Canonical validation passed for 6 of 6 Grok 4.3 evidence failures and 7 of 7
+Grok 4.6 evidence failures. Persisted diagnostic materialisation newly
+salvaged 6 of 6 Grok 4.3 evidence failures and 4 of 7 Grok 4.6 evidence
+failures, for 10 of 13 combined. The other three Grok 4.6 responses still
+failed downstream materialisation after successful evidence resolution. The
+seven evidence-free responses were originally valid and materialised in Phase
+2A; none was newly recovered. These post hoc counts do not revise the frozen
+Phase 2A result of seven materialised responses, thirteen evidence-validation
+failures, and 41 blocked calls. They do not support a profile winner or
+establish semantic correctness or ledger effectiveness.
 
 ## Original materialised-output audit
 
@@ -88,6 +107,12 @@ payload and remains supplied once through structured `response_format`. Across
 the 21 reconstructed Phase 2A calls, user-payload size fell from 625,491 bytes
 to 44,652 bytes, a total reduction of 580,839 bytes. This is a byte comparison,
 not a counterfactual token or monetary-savings claim.
+
+This accounting correction does not change the deterministic evidence
+transport architecture, schema, prompt, resolver, or materialiser. The Phase
+2B readiness disposition remains
+`phase2b_evidence_transport_ready_for_synthetic_live_probe`. No provider call
+occurred.
 
 The next possible gate is a small synthetic Unicode, repetition, and
 overlapping-match live probe. This phase does not run or authorise that probe.

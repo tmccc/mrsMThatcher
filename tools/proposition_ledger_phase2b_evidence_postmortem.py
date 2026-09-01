@@ -42,11 +42,12 @@ EXPECTED_SOURCE_SUMS_SHA256 = (
 EXPECTED_ATTEMPTED_RESPONSES = 21
 EXPECTED_PARSED_RESPONSES = 20
 EXPECTED_MATERIALISED_RESPONSES = 7
+EXPECTED_EVIDENCE_SPANS = 112
 EXPECTED_CANONICAL_SCHEMA_SHA256 = (
     "eea15c28f5019cea405bfdd65b924ee18c76dc428f16a1fe502592b5cb953d8a"
 )
 CANONICAL_SCHEMA_VERSION = "proposition-ledger-semantic-delta-v1.1.0"
-POSTMORTEM_VERSION = "proposition-ledger-phase2b-evidence-postmortem-v1"
+POSTMORTEM_VERSION = "proposition-ledger-phase2b-evidence-postmortem-v1.1"
 RECOVERY_METHOD = "posthoc_unique_exact_text_resolution"
 RECOVERY_LABEL = "diagnostic_counterfactual_only"
 PHASE2A_RESULT = (
@@ -124,11 +125,16 @@ COORDINATE_SIGNATURES = (
     "no_recognised_coordinate_signature",
 )
 RECOVERABILITY_CLASSES = (
+    "evidence_resolution_not_applicable_no_evidence_spans",
     "uniquely_recoverable_from_exact_text",
     "recoverable_only_with_occurrence_disambiguation",
     "not_recoverable_exact_text_absent",
     "not_recoverable_unparsed",
     "not_recoverable_other",
+)
+RESPONSE_DIAGNOSTIC_CATEGORIES = (
+    "not_assessable_due_to_strict_json_failure",
+    "semantic_content_present_without_evidence_spans",
 )
 STRICT_JSON_FAILURE_CATEGORIES = (
     "invalid_utf8",
@@ -753,6 +759,15 @@ def diagnose_evidence_span(
     }
 
 
+def _semantic_content_requires_evidence(parsed: Mapping[str, Any]) -> bool:
+    """Return whether a bounded semantic-change field contains any records."""
+
+    for field in SEMANTIC_CHANGE_ARRAYS:
+        if parsed.get(field):
+            return True
+    return False
+
+
 def analyse_parsed_evidence(
     parsed: Mapping[str, Any] | None,
     *,
@@ -764,12 +779,14 @@ def analyse_parsed_evidence(
     if parsed is None:
         return {
             "evidence_span_count": 0,
+            "evidence_resolution_applicable": False,
             "evidence_spans": [],
             "response_diagnostic_categories": [
                 "not_assessable_due_to_strict_json_failure"
             ],
             "diagnostic_recovery_status": "not_recoverable_unparsed",
         }
+    spans = list(iter_evidence_spans(parsed))
     diagnostics = [
         diagnose_evidence_span(
             span,
@@ -777,10 +794,27 @@ def analyse_parsed_evidence(
             current_turn_text=current_turn_text,
             pointer=pointer,
         )
-        for pointer, span in iter_evidence_spans(parsed)
+        for pointer, span in spans
     ]
+    if not diagnostics:
+        semantic_content_present = _semantic_content_requires_evidence(parsed)
+        return {
+            "evidence_span_count": 0,
+            "evidence_resolution_applicable": semantic_content_present,
+            "evidence_spans": [],
+            "response_diagnostic_categories": (
+                ["semantic_content_present_without_evidence_spans"]
+                if semantic_content_present
+                else []
+            ),
+            "diagnostic_recovery_status": (
+                "not_recoverable_other"
+                if semantic_content_present
+                else "evidence_resolution_not_applicable_no_evidence_spans"
+            ),
+        }
+
     resolved_groups: dict[tuple[str, int, int, str], list[int]] = {}
-    spans = list(iter_evidence_spans(parsed))
     for index, ((_, span), diagnostic) in enumerate(zip(spans, diagnostics)):
         matches = diagnostic["literal_occurrence_analysis"]["matches"]
         exact_text = span.get("exact_text")
@@ -822,6 +856,7 @@ def analyse_parsed_evidence(
         recovery = "not_recoverable_other"
     return {
         "evidence_span_count": len(diagnostics),
+        "evidence_resolution_applicable": True,
         "evidence_spans": diagnostics,
         "response_diagnostic_categories": [],
         "diagnostic_recovery_status": recovery,
@@ -898,6 +933,12 @@ def build_diagnostic_canonical_delta(
         current_turn_id=current_turn_id,
         current_turn_text=current_turn_text,
     )
+    if analysis["evidence_span_count"] == 0:
+        raise PostmortemError(
+            "evidence resolution is not applicable: response has no evidence spans"
+        )
+    if analysis["evidence_resolution_applicable"] is not True:
+        raise PostmortemError("evidence resolution is not applicable")
     if analysis["diagnostic_recovery_status"] != (
         "uniquely_recoverable_from_exact_text"
     ):
@@ -1733,6 +1774,7 @@ def _render_postmortem_markdown(aggregate: Mapping[str, Any]) -> bytes:
     classifications = aggregate["response_recoverability_counts"]
     categories = aggregate["evidence_failure_category_counts"]
     signatures = aggregate["coordinate_signature_counts"]
+    response_categories = aggregate.get("response_diagnostic_category_counts", {})
     lines = [
         "# Phase 2B evidence-boundary post-mortem",
         "",
@@ -1743,7 +1785,18 @@ def _render_postmortem_markdown(aggregate: Mapping[str, Any]) -> bytes:
         f"- Responses classified: {aggregate['response_count']}",
         f"- Parsed responses: {aggregate['parsed_response_count']}",
         f"- Evidence spans examined: {aggregate['evidence_span_count']}",
+        "- Post-mortem output version: "
+        f"`{aggregate.get('postmortem_version', POSTMORTEM_VERSION)}`",
         f"- Original materialised responses: {aggregate['original_materialised_count']}",
+        "- Originally valid evidence-free responses: "
+        f"{aggregate.get('originally_valid_evidence_free_response_count', 0)}",
+        "- Newly recovered evidence-free responses: 0",
+        "- Evidence-bearing recovery candidates: "
+        f"{aggregate.get('evidence_bearing_recovery_candidate_count', 0)}",
+        "- Newly materialised after evidence resolution: "
+        f"{aggregate.get('newly_materialised_after_evidence_resolution_count', 0)}",
+        "- Downstream failures after evidence resolution: "
+        f"{aggregate.get('downstream_failure_after_evidence_resolution_count', 0)}",
         "- Provider calls: 0",
         "- Model winner inferred: no",
         "",
@@ -1753,6 +1806,11 @@ def _render_postmortem_markdown(aggregate: Mapping[str, Any]) -> bytes:
     lines.extend(
         f"- `{name}`: {classifications.get(name, 0)}"
         for name in RECOVERABILITY_CLASSES
+    )
+    lines.extend(["", "## Response diagnostic categories", ""])
+    lines.extend(
+        f"- `{name}`: {response_categories.get(name, 0)}"
+        for name in RESPONSE_DIAGNOSTIC_CATEGORIES
     )
     lines.extend(["", "## Evidence diagnostic categories", ""])
     lines.extend(
@@ -1770,12 +1828,18 @@ def _render_postmortem_markdown(aggregate: Mapping[str, Any]) -> bytes:
     for profile, findings in aggregate.get(
         "diagnostic_materialisation_by_profile", {}
     ).items():
+        candidates = findings.get("evidence_bearing_recovery_candidate_count", 0)
         lines.extend(
             [
-                f"- `{profile}` canonical validation passed: "
-                f"{findings['canonical_validation_passed']}",
-                f"- `{profile}` diagnostic materialisation passed: "
-                f"{findings['diagnostic_materialisation_passed']}",
+                f"- `{profile}` evidence-bearing recovery candidates: "
+                f"{candidates}",
+                f"- `{profile}` canonical validation after resolution: "
+                f"{findings['canonical_validation_passed']}/{candidates}",
+                f"- `{profile}` newly materialised after evidence resolution: "
+                f"{findings['newly_materialised_after_evidence_resolution_count']}/"
+                f"{candidates}",
+                f"- `{profile}` downstream failures after evidence resolution: "
+                f"{findings['downstream_failure_after_evidence_resolution_count']}",
                 f"- `{profile}` materialiser result statuses: "
                 f"{json.dumps(findings['materialiser_result_status_counts'], sort_keys=True)}",
                 f"- `{profile}` failure reason categories: "
@@ -1869,6 +1933,204 @@ def _materialisation_failure_reason(error: str) -> str:
     return "other_bounded_materialisation_failure"
 
 
+def _response_recovery_accounting(
+    per_calls: Sequence[Mapping[str, Any]],
+) -> dict[str, Any]:
+    """Partition responses and count only newly salvaged evidence failures."""
+
+    calls = [dict(item) for item in per_calls]
+    recovery_counts = Counter(
+        str(item.get("diagnostic_recovery_status")) for item in calls
+    )
+    unknown_statuses = sorted(set(recovery_counts).difference(RECOVERABILITY_CLASSES))
+    if unknown_statuses:
+        raise PostmortemError(
+            f"unbounded diagnostic recovery status: {unknown_statuses}"
+        )
+
+    def is_evidence_bearing_recovery_candidate(item: Mapping[str, Any]) -> bool:
+        span_count = item.get("original_evidence_span_count")
+        return (
+            item.get("evidence_resolution_applicable") is True
+            and type(span_count) is int
+            and span_count > 0
+            and item.get("diagnostic_recovery_status")
+            == "uniquely_recoverable_from_exact_text"
+            and item.get("original_terminal_validation_category")
+            == "evidence_span_failed"
+        )
+
+    def is_originally_valid_evidence_free(item: Mapping[str, Any]) -> bool:
+        return (
+            item.get("diagnostic_recovery_status")
+            == "evidence_resolution_not_applicable_no_evidence_spans"
+            and item.get("evidence_resolution_applicable") is False
+            and item.get("original_evidence_span_count") == 0
+            and item.get("original_terminal_validation_category")
+            == "validated_and_materialised"
+        )
+
+    def scalar_counts(items: Sequence[Mapping[str, Any]]) -> dict[str, int]:
+        candidates = [
+            item for item in items if is_evidence_bearing_recovery_candidate(item)
+        ]
+        canonical_passed = [
+            item
+            for item in candidates
+            if item.get("counterfactual_canonical_validation_status") == "passed"
+        ]
+        return {
+            "attempted_response_count": len(items),
+            "parsed_response_count": sum(
+                item.get("parsed_response_status") == "parsed" for item in items
+            ),
+            "unparsed_response_count": sum(
+                item.get("parsed_response_status") == "unparsed" for item in items
+            ),
+            "originally_valid_evidence_free_response_count": sum(
+                is_originally_valid_evidence_free(item) for item in items
+            ),
+            "evidence_bearing_recovery_candidate_count": len(candidates),
+            "canonical_validation_after_evidence_resolution_passed_count": len(
+                canonical_passed
+            ),
+            "newly_materialised_after_evidence_resolution_count": sum(
+                item.get("counterfactual_materialisation_status") == "passed"
+                for item in canonical_passed
+            ),
+            "downstream_failure_after_evidence_resolution_count": sum(
+                item.get("counterfactual_materialisation_status") == "failed"
+                for item in canonical_passed
+            ),
+        }
+
+    profiles = sorted(
+        {
+            str(item["profile_id"])
+            for item in calls
+            if isinstance(item.get("profile_id"), str)
+        }
+    )
+    response_recoverability_by_profile: dict[str, dict[str, int]] = {}
+    response_accounting_by_profile: dict[str, dict[str, Any]] = {}
+    for profile in profiles:
+        profile_calls = [item for item in calls if item.get("profile_id") == profile]
+        profile_recovery_counts = Counter(
+            str(item["diagnostic_recovery_status"]) for item in profile_calls
+        )
+        partition = {
+            name: profile_recovery_counts.get(name, 0)
+            for name in RECOVERABILITY_CLASSES
+        }
+        response_recoverability_by_profile[profile] = partition
+        response_accounting_by_profile[profile] = {
+            **scalar_counts(profile_calls),
+            "response_recoverability_counts": partition,
+        }
+
+    totals = scalar_counts(calls)
+    return {
+        "response_count": totals.pop("attempted_response_count"),
+        **totals,
+        "response_recoverability_counts": {
+            name: recovery_counts.get(name, 0) for name in RECOVERABILITY_CLASSES
+        },
+        "response_recoverability_by_profile": (
+            response_recoverability_by_profile
+        ),
+        "response_accounting_by_profile": response_accounting_by_profile,
+    }
+
+
+def _assert_expected_source_accounting(
+    accounting: Mapping[str, Any],
+    *,
+    evidence_span_count: int,
+    recovery_artifact_count: int,
+) -> None:
+    """Require the complete corrected partition for the frozen source run."""
+
+    expected_partition = {
+        "evidence_resolution_not_applicable_no_evidence_spans": 7,
+        "uniquely_recoverable_from_exact_text": 13,
+        "recoverable_only_with_occurrence_disambiguation": 0,
+        "not_recoverable_exact_text_absent": 0,
+        "not_recoverable_unparsed": 1,
+        "not_recoverable_other": 0,
+    }
+    expected_totals = {
+        "response_count": EXPECTED_ATTEMPTED_RESPONSES,
+        "parsed_response_count": EXPECTED_PARSED_RESPONSES,
+        "unparsed_response_count": 1,
+        "originally_valid_evidence_free_response_count": 7,
+        "evidence_bearing_recovery_candidate_count": 13,
+        "canonical_validation_after_evidence_resolution_passed_count": 13,
+        "newly_materialised_after_evidence_resolution_count": 10,
+        "downstream_failure_after_evidence_resolution_count": 3,
+    }
+    actual_totals = {name: accounting.get(name) for name in expected_totals}
+    if actual_totals != expected_totals:
+        raise PostmortemError(
+            "corrected response accounting mismatch: "
+            f"expected={expected_totals} actual={actual_totals}"
+        )
+    if accounting.get("response_recoverability_counts") != expected_partition:
+        raise PostmortemError(
+            "corrected response recovery partition mismatch: "
+            f"expected={expected_partition} "
+            f"actual={accounting.get('response_recoverability_counts')}"
+        )
+
+    expected_profiles = {
+        "xai-grok-4.3-low-ledger-v1": {
+            "attempted_response_count": 13,
+            "parsed_response_count": 13,
+            "unparsed_response_count": 0,
+            "originally_valid_evidence_free_response_count": 7,
+            "evidence_bearing_recovery_candidate_count": 6,
+            "canonical_validation_after_evidence_resolution_passed_count": 6,
+            "newly_materialised_after_evidence_resolution_count": 6,
+            "downstream_failure_after_evidence_resolution_count": 0,
+            "response_recoverability_counts": {
+                **{name: 0 for name in RECOVERABILITY_CLASSES},
+                "evidence_resolution_not_applicable_no_evidence_spans": 7,
+                "uniquely_recoverable_from_exact_text": 6,
+            },
+        },
+        "xai-grok-4.6-low-ledger-v1": {
+            "attempted_response_count": 8,
+            "parsed_response_count": 7,
+            "unparsed_response_count": 1,
+            "originally_valid_evidence_free_response_count": 0,
+            "evidence_bearing_recovery_candidate_count": 7,
+            "canonical_validation_after_evidence_resolution_passed_count": 7,
+            "newly_materialised_after_evidence_resolution_count": 4,
+            "downstream_failure_after_evidence_resolution_count": 3,
+            "response_recoverability_counts": {
+                **{name: 0 for name in RECOVERABILITY_CLASSES},
+                "uniquely_recoverable_from_exact_text": 7,
+                "not_recoverable_unparsed": 1,
+            },
+        },
+    }
+    if accounting.get("response_accounting_by_profile") != expected_profiles:
+        raise PostmortemError(
+            "corrected profile accounting mismatch: "
+            f"expected={expected_profiles} "
+            f"actual={accounting.get('response_accounting_by_profile')}"
+        )
+    if evidence_span_count != EXPECTED_EVIDENCE_SPANS:
+        raise PostmortemError(
+            "evidence span count mismatch: "
+            f"expected {EXPECTED_EVIDENCE_SPANS}, found {evidence_span_count}"
+        )
+    if recovery_artifact_count != 13:
+        raise PostmortemError(
+            "diagnostic recovery artifact count mismatch: "
+            f"expected 13, found {recovery_artifact_count}"
+        )
+
+
 def _analyse_source(source_run: str | Path) -> dict[str, Any]:
     source_integrity_before = verify_source_run(source_run)
     source = AUTHORIZED_SOURCE_RUN
@@ -1948,9 +2210,13 @@ def _analyse_source(source_run: str | Path) -> dict[str, Any]:
         )
         reached, terminal = _original_validation_outcome(validation)
         per_call: dict[str, Any] = {
+            "counterfactual_canonical_validation_status": "not_run",
             "counterfactual_materialisation_status": "not_run",
             "counterfactual_materialiser_result_status": "not_run",
             "diagnostic_recovery_status": evidence["diagnostic_recovery_status"],
+            "evidence_resolution_applicable": evidence[
+                "evidence_resolution_applicable"
+            ],
             "evidence_span_diagnostic_details": evidence["evidence_spans"],
             "finish_reason": usage.get("finish_reason"),
             "original_evidence_span_count": evidence["evidence_span_count"],
@@ -1995,8 +2261,12 @@ def _analyse_source(source_run: str | Path) -> dict[str, Any]:
                 ],
             }
             strict_failures.append(strict_record)
-        elif evidence["diagnostic_recovery_status"] == (
-            "uniquely_recoverable_from_exact_text"
+        elif (
+            evidence["evidence_resolution_applicable"] is True
+            and evidence["evidence_span_count"] > 0
+            and evidence["diagnostic_recovery_status"]
+            == "uniquely_recoverable_from_exact_text"
+            and terminal == "evidence_span_failed"
         ):
             recovered = build_diagnostic_canonical_delta(
                 parsed,
@@ -2022,6 +2292,9 @@ def _analyse_source(source_run: str | Path) -> dict[str, Any]:
             per_call["counterfactual_materialisation_status"] = (
                 counterfactual_status
             )
+            per_call["counterfactual_canonical_validation_status"] = replay[
+                "stages"
+            ]["canonical_delta_validation_status"]
             per_call["counterfactual_materialiser_result_status"] = replay[
                 "stages"
             ]["materialiser_result_status"]
@@ -2046,6 +2319,7 @@ def _analyse_source(source_run: str | Path) -> dict[str, Any]:
                 "non_evidence_semantic_fields_preserved": (
                     _mask_evidence(parsed) == _mask_evidence(recovered)
                 ),
+                "original_terminal_validation_category": terminal,
                 "pilot_conversation_id": conversation_id,
                 "pilot_turn_id": entry["pilot_turn_id"],
                 "profile_id": entry["profile_id"],
@@ -2119,6 +2393,13 @@ def _analyse_source(source_run: str | Path) -> dict[str, Any]:
         for call in per_calls
         for category in call["response_diagnostic_categories"]
     )
+    unknown_response_categories = sorted(
+        set(response_category_counts).difference(RESPONSE_DIAGNOSTIC_CATEGORIES)
+    )
+    if unknown_response_categories:
+        raise PostmortemError(
+            f"unbounded response diagnostic category: {unknown_response_categories}"
+        )
     category_counts.update(response_category_counts)
     signature_counts = Counter(
         signature
@@ -2126,21 +2407,9 @@ def _analyse_source(source_run: str | Path) -> dict[str, Any]:
         for span in call["evidence_span_diagnostic_details"]
         for signature in span["coordinate_signatures"]
     )
-    recovery_counts = Counter(
-        str(item["diagnostic_recovery_status"]) for item in per_calls
-    )
-    profile_recovery: dict[str, dict[str, int]] = {}
+    accounting = _response_recovery_accounting(per_calls)
     profile_materialisation: dict[str, dict[str, int]] = {}
     for profile in sorted(PROFILE_MODELS):
-        profile_recovery[profile] = dict(
-            sorted(
-                Counter(
-                    str(item["diagnostic_recovery_status"])
-                    for item in per_calls
-                    if item["profile_id"] == profile
-                ).items()
-            )
-        )
         profile_records = [
             item for item in recoveries if item["profile_id"] == profile
         ]
@@ -2173,6 +2442,7 @@ def _analyse_source(source_run: str | Path) -> dict[str, Any]:
             )
             for item in profile_records
         )
+        profile_accounting = accounting["response_accounting_by_profile"][profile]
         profile_materialisation[profile] = {
             "canonical_validation_passed": sum(
                 item["stages"]["canonical_delta_validation_status"] == "passed"
@@ -2186,12 +2456,33 @@ def _analyse_source(source_run: str | Path) -> dict[str, Any]:
             "materialiser_result_status_counts": dict(
                 sorted(materialiser_status_counts.items())
             ),
+            "evidence_bearing_recovery_candidate_count": profile_accounting[
+                "evidence_bearing_recovery_candidate_count"
+            ],
+            "newly_materialised_after_evidence_resolution_count": (
+                profile_accounting[
+                    "newly_materialised_after_evidence_resolution_count"
+                ]
+            ),
+            "downstream_failure_after_evidence_resolution_count": (
+                profile_accounting[
+                    "downstream_failure_after_evidence_resolution_count"
+                ]
+            ),
             "persisted_ledger_validation_passed": sum(
                 item["stages"]["persisted_ledger_status"] == "passed"
                 for item in profile_records
             ),
             "terminal_stage_counts": dict(sorted(terminal_stage_counts.items())),
         }
+    evidence_span_count = sum(
+        int(item["original_evidence_span_count"]) for item in per_calls
+    )
+    _assert_expected_source_accounting(
+        accounting,
+        evidence_span_count=evidence_span_count,
+        recovery_artifact_count=len(recoveries),
+    )
     aggregate = {
         "artifact_evidence": "deterministic offline reprocessing",
         "canonical_schema_sha256": EXPECTED_CANONICAL_SCHEMA_SHA256,
@@ -2203,23 +2494,44 @@ def _analyse_source(source_run: str | Path) -> dict[str, Any]:
         "evidence_failure_category_counts": {
             name: category_counts.get(name, 0) for name in EVIDENCE_FAILURE_TAXONOMY
         },
-        "evidence_span_count": sum(
-            int(item["original_evidence_span_count"]) for item in per_calls
-        ),
+        "evidence_span_count": evidence_span_count,
+        "evidence_bearing_recovery_candidate_count": accounting[
+            "evidence_bearing_recovery_candidate_count"
+        ],
+        "canonical_validation_after_evidence_resolution_passed_count": accounting[
+            "canonical_validation_after_evidence_resolution_passed_count"
+        ],
+        "newly_materialised_after_evidence_resolution_count": accounting[
+            "newly_materialised_after_evidence_resolution_count"
+        ],
+        "downstream_failure_after_evidence_resolution_count": accounting[
+            "downstream_failure_after_evidence_resolution_count"
+        ],
+        "originally_valid_evidence_free_response_count": accounting[
+            "originally_valid_evidence_free_response_count"
+        ],
         "original_materialised_count": len(materialised_calls),
-        "parsed_response_count": sum(
-            item["parsed_response_status"] == "parsed" for item in per_calls
-        ),
+        "parsed_response_count": accounting["parsed_response_count"],
         "phase2a_result": PHASE2A_RESULT,
         "postmortem_version": POSTMORTEM_VERSION,
         **research_guardrails(),
-        "response_count": len(per_calls),
-        "response_recoverability_by_profile": profile_recovery,
-        "response_recoverability_counts": {
-            name: recovery_counts.get(name, 0) for name in RECOVERABILITY_CLASSES
+        "response_accounting_by_profile": accounting[
+            "response_accounting_by_profile"
+        ],
+        "response_count": accounting["response_count"],
+        "response_diagnostic_category_counts": {
+            name: response_category_counts.get(name, 0)
+            for name in RESPONSE_DIAGNOSTIC_CATEGORIES
         },
+        "response_recoverability_by_profile": accounting[
+            "response_recoverability_by_profile"
+        ],
+        "response_recoverability_counts": accounting[
+            "response_recoverability_counts"
+        ],
         "strict_json_failure_count": len(strict_failures),
         "taxonomy_definitions": _taxonomy_definitions(),
+        "unparsed_response_count": accounting["unparsed_response_count"],
     }
     audit = _audit_materialised_ledgers(materialised_calls)
     payload_sizes = _payload_size_comparison(
@@ -2471,7 +2783,7 @@ def _expected_complete_inventory() -> set[str]:
     root.update(f"per-call-diagnostics/call-{index:03d}.json" for index in range(1, 22))
     root.update(
         f"diagnostic-recovery/recovery-{index:03d}.json"
-        for index in range(1, 21)
+        for index in range(1, 14)
     )
     return root
 
@@ -2744,7 +3056,23 @@ def _build_integrated_result(
         and source.get("source_run_unchanged_after_analysis") is True
         and postmortem.get("response_count") == 21
         and postmortem.get("parsed_response_count") == 20
-        and postmortem.get("evidence_span_count") == 112
+        and postmortem.get("unparsed_response_count") == 1
+        and postmortem.get("evidence_span_count") == EXPECTED_EVIDENCE_SPANS
+        and postmortem.get("postmortem_version") == POSTMORTEM_VERSION
+        and postmortem.get("originally_valid_evidence_free_response_count") == 7
+        and postmortem.get("evidence_bearing_recovery_candidate_count") == 13
+        and postmortem.get(
+            "canonical_validation_after_evidence_resolution_passed_count"
+        )
+        == 13
+        and postmortem.get(
+            "newly_materialised_after_evidence_resolution_count"
+        )
+        == 10
+        and postmortem.get(
+            "downstream_failure_after_evidence_resolution_count"
+        )
+        == 3
         and postmortem.get("saved_responses_reprocessed_twice_byte_identical") is True
         and payload.get("payload_count") == 21
         and payload.get("schema_absent_from_new_user_message") is True
@@ -2775,6 +3103,18 @@ def _build_integrated_result(
             "coordinate_signature_counts"
         ],
         "evidence_span_count": postmortem["evidence_span_count"],
+        "evidence_bearing_recovery_candidate_count": postmortem[
+            "evidence_bearing_recovery_candidate_count"
+        ],
+        "canonical_validation_after_evidence_resolution_passed_count": postmortem[
+            "canonical_validation_after_evidence_resolution_passed_count"
+        ],
+        "newly_materialised_after_evidence_resolution_count": postmortem[
+            "newly_materialised_after_evidence_resolution_count"
+        ],
+        "downstream_failure_after_evidence_resolution_count": postmortem[
+            "downstream_failure_after_evidence_resolution_count"
+        ],
         "evidence_resolver": {
             "source_sha256": transport_source_sha256,
             "version": transport_module.EVIDENCE_RESOLVER_VERSION,
@@ -2795,12 +3135,24 @@ def _build_integrated_result(
         },
         "phase2a_result_unchanged": PHASE2A_RESULT,
         "phase2b_disposition": disposition,
+        "postmortem_version": POSTMORTEM_VERSION,
         "provider_calls": 0,
+        "original_materialised_response_count": postmortem[
+            "original_materialised_count"
+        ],
+        "originally_valid_evidence_free_response_count": postmortem[
+            "originally_valid_evidence_free_response_count"
+        ],
+        "parsed_response_count": postmortem["parsed_response_count"],
         "response_count": postmortem["response_count"],
+        "response_accounting_by_profile": postmortem[
+            "response_accounting_by_profile"
+        ],
         "response_recoverability_by_profile": postmortem[
             "response_recoverability_by_profile"
         ],
         "response_recoverability_counts": recovery,
+        "unparsed_response_count": postmortem["unparsed_response_count"],
         "strict_json_failure": {
             "appears_truncated": strict_row["appears_truncated"],
             "category": strict_row["exact_strict_parser_error_category"],
@@ -2902,21 +3254,43 @@ def _render_phase2b_report(
         "",
         "## Evidence boundary",
         "",
-        f"- Responses: 21; evidence spans: {result['evidence_span_count']}.",
-        "- Unique exact-text recoveries: "
+        f"- Responses: {result['response_count']}; parsed: "
+        f"{result['parsed_response_count']}; unparsed: "
+        f"{result['unparsed_response_count']}; evidence spans: "
+        f"{result['evidence_span_count']}.",
+        f"- Post-mortem output version: `{result['postmortem_version']}`.",
+        "- Evidence resolution not applicable (no evidence spans): "
+        f"{recovery['evidence_resolution_not_applicable_no_evidence_spans']}.",
+        "- Evidence-bearing unique exact-text recovery candidates: "
         f"{recovery['uniquely_recoverable_from_exact_text']}; repeated-text "
         f"ambiguities: {recovery['recoverable_only_with_occurrence_disambiguation']}; "
         f"absent text: {recovery['not_recoverable_exact_text_absent']}.",
+        "- Originally valid evidence-free responses: "
+        f"{result['originally_valid_evidence_free_response_count']}; newly "
+        "recovered evidence-free responses: 0; newly "
+        "materialised after evidence resolution: "
+        f"{result['newly_materialised_after_evidence_resolution_count']}; "
+        "downstream failures after evidence resolution: "
+        f"{result['downstream_failure_after_evidence_resolution_count']}.",
         "- Strict failure: "
         f"`{result['strict_json_failure']['category']}`, finish reason "
-        f"`{result['strict_json_failure']['finish_reason']}`, returned model "
+        f"`{result['strict_json_failure']['finish_reason']}`, completion tokens "
+        f"{result['strict_json_failure']['completion_token_count']}, returned model "
         f"`{result['strict_json_failure']['returned_model']}`.",
         "- Coordinate signatures: "
         f"`{json.dumps(result['coordinate_signature_counts'], sort_keys=True)}`.",
-        "- Diagnostic persisted materialisation: Grok 4.3 "
-        f"{diagnostic['xai-grok-4.3-low-ledger-v1']['persisted_ledger_validation_passed']}/13; "
+        "- Canonical validation after evidence resolution: Grok 4.3 "
+        f"{diagnostic['xai-grok-4.3-low-ledger-v1']['canonical_validation_passed']}/"
+        f"{diagnostic['xai-grok-4.3-low-ledger-v1']['evidence_bearing_recovery_candidate_count']}; "
         "Grok 4.6 "
-        f"{diagnostic['xai-grok-4.6-low-ledger-v1']['persisted_ledger_validation_passed']}/7.",
+        f"{diagnostic['xai-grok-4.6-low-ledger-v1']['canonical_validation_passed']}/"
+        f"{diagnostic['xai-grok-4.6-low-ledger-v1']['evidence_bearing_recovery_candidate_count']}.",
+        "- Newly materialised after evidence resolution: Grok 4.3 "
+        f"{diagnostic['xai-grok-4.3-low-ledger-v1']['newly_materialised_after_evidence_resolution_count']}/"
+        f"{diagnostic['xai-grok-4.3-low-ledger-v1']['evidence_bearing_recovery_candidate_count']}; "
+        "Grok 4.6 "
+        f"{diagnostic['xai-grok-4.6-low-ledger-v1']['newly_materialised_after_evidence_resolution_count']}/"
+        f"{diagnostic['xai-grok-4.6-low-ledger-v1']['evidence_bearing_recovery_candidate_count']}.",
         "- These are diagnostic counterfactuals, not corrected provider observations.",
         "",
         "## Mechanical no_stable_issue audit",
