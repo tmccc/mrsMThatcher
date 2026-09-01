@@ -1,0 +1,561 @@
+{
+  "authority_policy": {
+    "provider_rule_authorities": [
+      "official_xai_documentation",
+      "official_pypi_metadata"
+    ],
+    "user_scope_clarifications_are_provider_provenance": false
+  },
+  "compatibility_implications": {
+    "audit_every_object_node_for_implicit_additional_properties": true,
+    "best_effort_constraints_require_canonical_postvalidation": true,
+    "canonical_json_schema_default_additional_properties": true,
+    "insert_additional_properties_true_when_needed_to_preserve_canonical_openness": true,
+    "multiple_allof_requires_exact_equivalence_proof_or_incompatibility": true,
+    "oneof_must_not_be_silently_rewritten": true,
+    "oneof_requires_structural_pairwise_disjointness_proof": true,
+    "reference_graph_must_be_acyclic": true,
+    "regex_explicit_anchor_semantics_require_exact_proof_or_incompatibility": true
+  },
+  "documentation_resolution": {
+    "documentation_status": "resolved_by_more_specific_official_sources",
+    "generic_reasoning_page_status": "incomplete_for_grok_4_3",
+    "profile_documentation_status": "sufficiently_supported_for_local_preflight",
+    "provider_call_required_for_documentation_resolution": false,
+    "reason": "The Grok 4.3 model page lists low reasoning, and the more specific official retirement guide explicitly identifies grok-4.3 low reasoning effort and all four effort levels.",
+    "resolution_source_ids": [
+      "xai_grok_4_3",
+      "xai_may_15_2026_model_retirement"
+    ]
+  },
+  "integrity_expectations": {
+    "best_effort_rule_count": 5,
+    "constraint_guarantee_rule_count": 4,
+    "enforced_format_count": 8,
+    "regex_semantic_difference_rule_count": 4,
+    "regex_supported_rule_count": 8,
+    "regex_unsupported_rule_count": 7,
+    "rejected_rule_count": 6,
+    "silent_rule_removal_or_weakening_forbidden": true,
+    "stable_rule_ids_required": true,
+    "supported_form_rule_count": 15
+  },
+  "json_schema_subset": {
+    "also_accepted_drafts": [
+      "draft-07"
+    ],
+    "best_effort_constructs": [
+      {
+        "accepted": true,
+        "keywords": [
+          "not"
+        ],
+        "rule_id": "best_effort_not",
+        "structurally_enforced": false
+      },
+      {
+        "accepted": true,
+        "keywords": [
+          "if",
+          "then",
+          "else"
+        ],
+        "rule_id": "best_effort_conditionals",
+        "structurally_enforced": false
+      },
+      {
+        "accepted": true,
+        "construct": "allOf_with_more_than_one_subschema",
+        "rule_id": "best_effort_allof_multiple",
+        "structurally_enforced": false
+      },
+      {
+        "accepted": true,
+        "construct": "format_not_in_enforced_formats",
+        "rule_id": "best_effort_unlisted_format",
+        "structurally_enforced": false
+      },
+      {
+        "accepted": true,
+        "construct": "constraint_exceeding_documented_guarantee_threshold",
+        "rule_id": "best_effort_over_threshold_constraint",
+        "structurally_enforced": false
+      }
+    ],
+    "constraint_guarantees": [
+      {
+        "guaranteed_up_to": null,
+        "keywords": [
+          "minimum",
+          "maximum",
+          "exclusiveMinimum",
+          "exclusiveMaximum"
+        ],
+        "rule_id": "numeric_bounds_unlimited",
+        "threshold_semantics": "no_documented_limit"
+      },
+      {
+        "guaranteed_up_to": 2048,
+        "keywords": [
+          "minLength",
+          "maxLength"
+        ],
+        "rule_id": "string_length_2048"
+      },
+      {
+        "guaranteed_up_to": 256,
+        "keywords": [
+          "minItems",
+          "maxItems"
+        ],
+        "rule_id": "array_items_256"
+      },
+      {
+        "guaranteed_up_to": 64,
+        "keywords": [
+          "minProperties",
+          "maxProperties"
+        ],
+        "rule_id": "object_properties_64"
+      }
+    ],
+    "enforced_formats": [
+      "date",
+      "time",
+      "date-time",
+      "email",
+      "uuid",
+      "ipv4",
+      "ipv6",
+      "uri"
+    ],
+    "guarantee_model": {
+      "best_effort_features_schema_match_guaranteed": false,
+      "over_threshold_conformance_depends_on_model_behavior": true,
+      "supported_features_schema_match_guaranteed": true
+    },
+    "nullability_and_required": [
+      {
+        "construct": "type_array_including_null",
+        "rule_id": "nullable_type_array",
+        "support": "supported"
+      },
+      {
+        "construct": "anyOf_including_null",
+        "rule_id": "nullable_anyof_null_branch",
+        "support": "supported"
+      },
+      {
+        "construct": "property_absent_from_required",
+        "provider_semantics": "optional",
+        "rule_id": "nonrequired_fields_optional"
+      }
+    ],
+    "object_behavior": {
+      "explicit_true_required_for_open_object": true,
+      "provider_default_when_omitted": false,
+      "rule_id": "additional_properties_provider_default_false"
+    },
+    "preferred_draft": "2020-12",
+    "regex_subset": {
+      "dialect": "practical_subset_of_ECMA-262",
+      "provider_semantic_differences": [
+        {
+          "rule_id": "regex_dot_matches_newline",
+          "semantics": "dot_matches_any_unicode_codepoint_including_newlines"
+        },
+        {
+          "rule_id": "regex_implicit_anchors",
+          "explicit_anchor_token_support": "not_explicitly_listed_as_supported_or_rejected",
+          "semantics": "pattern_matches_entire_string",
+          "terminal_line_terminator_equivalence_to_canonical_dollar_anchor": "not_documented"
+        },
+        {
+          "rule_id": "regex_capture_no_semantic_effect",
+          "semantics": "capturing_groups_behave_as_non_capturing_groups"
+        },
+        {
+          "rule_id": "regex_unicode_evaluation",
+          "semantics": "unicode_support_enabled"
+        }
+      ],
+      "supported": [
+        {
+          "constructs": [
+            "literals"
+          ],
+          "rule_id": "regex_supported_literals"
+        },
+        {
+          "constructs": [
+            "positive_character_classes",
+            "ranges",
+            "negated_character_classes"
+          ],
+          "rule_id": "regex_supported_character_classes"
+        },
+        {
+          "constructs": [
+            "dot"
+          ],
+          "rule_id": "regex_supported_dot"
+        },
+        {
+          "constructs": [
+            "alternation"
+          ],
+          "rule_id": "regex_supported_alternation"
+        },
+        {
+          "constructs": [
+            "capturing_groups",
+            "non_capturing_groups"
+          ],
+          "rule_id": "regex_supported_groups"
+        },
+        {
+          "constructs": [
+            "*",
+            "+",
+            "?",
+            "{n}",
+            "{n,}",
+            "{n,m}"
+          ],
+          "rule_id": "regex_supported_quantifiers"
+        },
+        {
+          "constructs": [
+            "\\d",
+            "\\w",
+            "\\s",
+            "\\D",
+            "\\W",
+            "\\S"
+          ],
+          "rule_id": "regex_supported_shorthand_classes"
+        },
+        {
+          "constructs": [
+            "\\n",
+            "\\t",
+            "\\r",
+            "\\f",
+            "\\xHH",
+            "\\uHHHH",
+            "\\u{HHHHHH}"
+          ],
+          "rule_id": "regex_supported_common_escapes"
+        }
+      ],
+      "unsupported": [
+        {
+          "constructs": [
+            "numeric_backreferences",
+            "named_backreferences"
+          ],
+          "rule_id": "regex_rejected_backreferences"
+        },
+        {
+          "constructs": [
+            "unicode_property_escape",
+            "negated_unicode_property_escape"
+          ],
+          "rule_id": "regex_rejected_unicode_properties"
+        },
+        {
+          "constructs": [
+            "\\b",
+            "\\B"
+          ],
+          "rule_id": "regex_rejected_word_boundaries"
+        },
+        {
+          "constructs": [
+            "positive_lookahead",
+            "negative_lookahead"
+          ],
+          "rule_id": "regex_rejected_lookahead"
+        },
+        {
+          "constructs": [
+            "positive_lookbehind",
+            "negative_lookbehind"
+          ],
+          "rule_id": "regex_rejected_lookbehind"
+        },
+        {
+          "constructs": [
+            "inline_modifiers"
+          ],
+          "rule_id": "regex_rejected_inline_modifiers"
+        },
+        {
+          "constructs": [
+            "conditional_expressions",
+            "other_advanced_constructs"
+          ],
+          "rule_id": "regex_rejected_advanced_constructs"
+        }
+      ]
+    },
+    "rejected_constructs": [
+      {
+        "construct": "enum_with_zero_values",
+        "rejected": true,
+        "rule_id": "rejected_empty_enum"
+      },
+      {
+        "construct": "anyOf_with_zero_alternatives",
+        "rejected": true,
+        "rule_id": "rejected_empty_anyof"
+      },
+      {
+        "construct": "property_schema_equal_to_true_or_false",
+        "rejected": true,
+        "rule_id": "rejected_boolean_property_schema"
+      },
+      {
+        "construct": "maxContains",
+        "rejected": true,
+        "rule_id": "rejected_maxcontains"
+      },
+      {
+        "construct": "minContains",
+        "rejected": true,
+        "rule_id": "rejected_mincontains"
+      },
+      {
+        "construct": "items_expressed_as_array",
+        "documented_alternative": "prefixItems",
+        "rejected": true,
+        "rule_id": "rejected_array_items_tuple"
+      }
+    ],
+    "source_id": "xai_structured_outputs",
+    "supported_forms": [
+      {
+        "form": "string",
+        "rule_id": "supported_string",
+        "support": "supported"
+      },
+      {
+        "form": "number",
+        "rule_id": "supported_number",
+        "support": "supported"
+      },
+      {
+        "form": "integer",
+        "rule_id": "supported_integer",
+        "support": "supported"
+      },
+      {
+        "form": "boolean",
+        "rule_id": "supported_boolean",
+        "support": "supported"
+      },
+      {
+        "form": "null",
+        "rule_id": "supported_null",
+        "support": "supported"
+      },
+      {
+        "form": "enum",
+        "rule_id": "supported_enum",
+        "support": "supported"
+      },
+      {
+        "form": "const",
+        "rule_id": "supported_const",
+        "support": "supported"
+      },
+      {
+        "form": "array",
+        "rule_id": "supported_array",
+        "support": "supported"
+      },
+      {
+        "form": "object",
+        "rule_id": "supported_object",
+        "support": "supported"
+      },
+      {
+        "form": "anyOf",
+        "rule_id": "supported_anyof",
+        "support": "supported"
+      },
+      {
+        "form": "oneOf",
+        "provider_semantics": "behaves_identically_to_anyOf",
+        "rule_id": "supported_oneof_as_anyof",
+        "support": "supported_with_semantic_caveat"
+      },
+      {
+        "form": "allOf",
+        "rule_id": "supported_allof_single",
+        "support": "supported_only_with_exactly_one_subschema"
+      },
+      {
+        "form": "$ref",
+        "rule_id": "supported_ref_acyclic",
+        "support": "supported_only_for_non_circular_references"
+      },
+      {
+        "form": "$defs",
+        "rule_id": "supported_defs_acyclic",
+        "support": "supported_only_for_non_circular_references"
+      },
+      {
+        "form": "prefixItems",
+        "rule_id": "supported_prefixitems",
+        "support": "supported_tuple_form"
+      }
+    ]
+  },
+  "manifest_id": "xai-structured-output-rules-v1",
+  "manifest_version": "1.0.0",
+  "model_capability_evidence": [
+    {
+      "model_id": "grok-4.3",
+      "reasoning_effort_levels": [
+        "none",
+        "low",
+        "medium",
+        "high"
+      ],
+      "resolution_source_ids": [
+        "xai_grok_4_3",
+        "xai_may_15_2026_model_retirement"
+      ],
+      "structured_outputs_listed": true
+    },
+    {
+      "model_id": "grok-4.6",
+      "reasoning_effort_levels": [
+        "low",
+        "medium",
+        "high",
+        "xhigh"
+      ],
+      "source_ids": [
+        "xai_grok_4_6",
+        "xai_reasoning"
+      ],
+      "structured_outputs_listed": true
+    }
+  ],
+  "network_safety_record": {
+    "credential_accesses": 0,
+    "model_list_calls_made": 0,
+    "provider_api_pages_retrieved": 0,
+    "provider_calls_made": 0
+  },
+  "official_source_discrepancies": [
+    {
+      "classification": "generic_summary_omission_resolved_by_specific_sources",
+      "discrepancy_id": "grok_4_3_reasoning_effort_docs_omission",
+      "establishes_provider_rejection": false,
+      "generic_source_id": "xai_reasoning",
+      "resolution": "The generic reasoning page is incomplete for grok-4.3; the model and migration pages establish the requested low-effort profile.",
+      "resolution_source_id": "xai_may_15_2026_model_retirement",
+      "resolved_by_official_source": true
+    }
+  ],
+  "preflight_audit_trail": {
+    "first_run_disposition": "halted_before_implementation",
+    "first_run_path": "/disks/disk1/research/private-runs/proposition-ledger-phase1.3-xai-provider-preflight-20260831T215310Z",
+    "first_run_preserved": true,
+    "initial_halt_reason": "The generic reasoning page omission was initially interpreted too cautiously.",
+    "resumed_after_specific_official_source_resolution": true
+  },
+  "sdk_package_metadata": {
+    "described_as_official_python_sdk": true,
+    "package": "xai-sdk",
+    "publisher": "xAI",
+    "requires_python": ">=3.10",
+    "source_id": "pypi_xai_sdk_1_19_0",
+    "transport_description": "gRPC-based",
+    "version": "1.19.0",
+    "wheel": {
+      "filename": "xai_sdk-1.19.0-py3-none-any.whl",
+      "sha256": "4af1a629ad9304d0b05fa052d84ce77b7b61242a6d59d5936b692fec95fb52c1"
+    }
+  },
+  "source_capture": {
+    "complete_document_snapshots_committed": false,
+    "hash_algorithm": "sha256",
+    "hash_material": "decoded_https_response_body_after_content_encoding_decompression",
+    "redirects_followed": false,
+    "sources": [
+      {
+        "authority": "official_xai_documentation",
+        "content_sha256": "6ef0faa73d5cb166a717cf93736e675f079f1786d9df71bc5c52ed7a139a0c03",
+        "retrieved_at_utc": "2026-08-31T21:54:03Z",
+        "source_id": "xai_structured_outputs",
+        "url": "https://docs.x.ai/developers/model-capabilities/text/structured-outputs"
+      },
+      {
+        "authority": "official_xai_documentation",
+        "content_sha256": "da1c527a86a05c868e08d221e90d7282408c173ed5a4ef07799e302cd609d402",
+        "retrieved_at_utc": "2026-08-31T21:54:04Z",
+        "source_id": "xai_reasoning",
+        "url": "https://docs.x.ai/developers/model-capabilities/text/reasoning"
+      },
+      {
+        "authority": "official_xai_documentation",
+        "content_sha256": "0108d9512f173667871a41a21401585b5b786303eb3f43a6ef8758847f3e40b6",
+        "retrieved_at_utc": "2026-08-31T21:54:04Z",
+        "source_id": "xai_grok_4_3",
+        "url": "https://docs.x.ai/developers/models/grok-4.3"
+      },
+      {
+        "authority": "official_xai_documentation",
+        "content_sha256": "7c8444c9ed3c83be879c54eb73b6f9561b0b1f83fa066940985b9b77f1761934",
+        "retrieved_at_utc": "2026-08-31T21:54:05Z",
+        "source_id": "xai_grok_4_6",
+        "url": "https://docs.x.ai/developers/models/grok-4.6"
+      },
+      {
+        "authority": "official_xai_documentation",
+        "content_sha256": "8a90f421cc5fb70664c0f8dac54910d28f2253a7ae16fc3edf069f31596c4dd2",
+        "document_last_updated": "2026-05-20",
+        "relevant_official_evidence": [
+          {
+            "paraphrase": "Listed retired reasoning-model requests are served by grok-4.3 with low reasoning effort.",
+            "rule_id": "grok_4_3_retired_reasoning_redirect_low"
+          },
+          {
+            "paraphrase": "Grok 4.3 supports none, low, medium, and high reasoning effort.",
+            "rule_id": "grok_4_3_four_reasoning_effort_levels"
+          }
+        ],
+        "relevant_rules": [
+          "grok_4_3_retired_reasoning_redirect_low",
+          "grok_4_3_four_reasoning_effort_levels",
+          "grok_4_3_explicit_reasoning_effort_selection"
+        ],
+        "retrieved_at_utc": "2026-09-01T01:36:13Z",
+        "source_id": "xai_may_15_2026_model_retirement",
+        "url": "https://docs.x.ai/developers/migration/may-15-retirement"
+      },
+      {
+        "authority": "official_pypi_metadata",
+        "content_sha256": "b193dd78741e0eab9f67913d41bd2c3bcd91d7348edab8f3a7185b7f26eda44e",
+        "retrieved_at_utc": "2026-08-31T21:54:07Z",
+        "source_id": "pypi_xai_sdk_1_19_0",
+        "url": "https://pypi.org/project/xai-sdk/1.19.0/"
+      }
+    ]
+  },
+  "user_scope_resolution": {
+    "authorizes_development_pilot": false,
+    "authorizes_local_preflight_continuation": true,
+    "authorizes_provider_call": false,
+    "classification": "user_scope_clarification",
+    "date_local": "2026-09-01",
+    "official_provider_provenance": false,
+    "provider_capability_evidence": false,
+    "replaces_official_discrepancy_record": false,
+    "timezone": "Europe/London"
+  }
+}

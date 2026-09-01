@@ -1,0 +1,716 @@
+{
+  "dependency_graph": {
+    "active_edges": {
+      "aiohappyeyeballs": [],
+      "aiohttp": [
+        "aiohappyeyeballs",
+        "aiosignal",
+        "async-timeout",
+        "attrs",
+        "frozenlist",
+        "multidict",
+        "propcache",
+        "typing-extensions",
+        "yarl"
+      ],
+      "aiosignal": [
+        "frozenlist",
+        "typing-extensions"
+      ],
+      "annotated-types": [],
+      "async-timeout": [],
+      "attrs": [],
+      "certifi": [],
+      "charset-normalizer": [],
+      "exceptiongroup": [
+        "typing-extensions"
+      ],
+      "frozenlist": [],
+      "googleapis-common-protos": [
+        "protobuf"
+      ],
+      "grpcio": [
+        "typing-extensions"
+      ],
+      "idna": [],
+      "iniconfig": [],
+      "jsonschema": [
+        "attrs",
+        "jsonschema-specifications",
+        "referencing",
+        "rpds-py"
+      ],
+      "jsonschema-specifications": [
+        "referencing"
+      ],
+      "multidict": [
+        "typing-extensions"
+      ],
+      "opentelemetry-api": [
+        "typing-extensions"
+      ],
+      "opentelemetry-sdk": [
+        "opentelemetry-api",
+        "opentelemetry-semantic-conventions",
+        "typing-extensions"
+      ],
+      "opentelemetry-semantic-conventions": [
+        "opentelemetry-api",
+        "typing-extensions"
+      ],
+      "packaging": [],
+      "pluggy": [],
+      "propcache": [],
+      "protobuf": [],
+      "pydantic": [
+        "annotated-types",
+        "pydantic-core",
+        "typing-extensions",
+        "typing-inspection"
+      ],
+      "pydantic-core": [
+        "typing-extensions"
+      ],
+      "pygments": [],
+      "pytest": [
+        "exceptiongroup",
+        "iniconfig",
+        "packaging",
+        "pluggy",
+        "pygments",
+        "tomli"
+      ],
+      "referencing": [
+        "attrs",
+        "rpds-py",
+        "typing-extensions"
+      ],
+      "requests": [
+        "certifi",
+        "charset-normalizer",
+        "idna",
+        "urllib3"
+      ],
+      "rpds-py": [],
+      "tomli": [],
+      "typing-extensions": [],
+      "typing-inspection": [
+        "typing-extensions"
+      ],
+      "urllib3": [],
+      "xai-sdk": [
+        "aiohttp",
+        "googleapis-common-protos",
+        "grpcio",
+        "opentelemetry-sdk",
+        "packaging",
+        "protobuf",
+        "pydantic",
+        "requests",
+        "typing-extensions"
+      ],
+      "yarl": [
+        "idna",
+        "multidict",
+        "propcache"
+      ]
+    },
+    "active_environment_markers": {
+      "implementation_name": "cpython",
+      "platform_machine": "x86_64",
+      "platform_python_implementation": "CPython",
+      "platform_system": "Linux",
+      "python_full_version": "3.10.12",
+      "python_version": "3.10",
+      "sys_platform": "linux"
+    },
+    "closure_counts": {
+      "provider_runtime": 27,
+      "shared": 3,
+      "union": 37,
+      "validation": 13
+    },
+    "provider_runtime_closure": [
+      "aiohappyeyeballs",
+      "aiohttp",
+      "aiosignal",
+      "annotated-types",
+      "async-timeout",
+      "attrs",
+      "certifi",
+      "charset-normalizer",
+      "frozenlist",
+      "googleapis-common-protos",
+      "grpcio",
+      "idna",
+      "multidict",
+      "opentelemetry-api",
+      "opentelemetry-sdk",
+      "opentelemetry-semantic-conventions",
+      "packaging",
+      "propcache",
+      "protobuf",
+      "pydantic",
+      "pydantic-core",
+      "requests",
+      "typing-extensions",
+      "typing-inspection",
+      "urllib3",
+      "xai-sdk",
+      "yarl"
+    ],
+    "root_requirements": [
+      {
+        "dependency_role": "provider_runtime_root",
+        "name": "xai-sdk",
+        "version": "1.19.0"
+      },
+      {
+        "dependency_role": "validation_root",
+        "name": "jsonschema",
+        "version": "4.26.0"
+      },
+      {
+        "dependency_role": "validation_root",
+        "name": "pytest",
+        "version": "9.1.1"
+      }
+    ],
+    "shared_runtime_validation_dependencies": [
+      "attrs",
+      "packaging",
+      "typing-extensions"
+    ],
+    "validation_closure": [
+      "attrs",
+      "exceptiongroup",
+      "iniconfig",
+      "jsonschema",
+      "jsonschema-specifications",
+      "packaging",
+      "pluggy",
+      "pygments",
+      "pytest",
+      "referencing",
+      "rpds-py",
+      "tomli",
+      "typing-extensions"
+    ]
+  },
+  "environment_bootstrap": {
+    "pip": {
+      "classification": "venv_bootstrap_not_part_of_resolved_wheel_set",
+      "version": "22.0.2"
+    },
+    "setuptools": {
+      "classification": "venv_bootstrap_not_part_of_resolved_wheel_set",
+      "version": "59.6.0"
+    },
+    "virtual_environment": {
+      "creation_mode": "python3 -m venv --copies",
+      "lib64_symlink_removed_when_created_by_venv": true,
+      "symlinks_permitted": false
+    }
+  },
+  "integrity": {
+    "binary_wheels_only": true,
+    "exact_version_count": 37,
+    "official_pypi_only": true,
+    "package_count": 37,
+    "pip_check_status": "passed",
+    "requirements_hash_enforcement_status": "passed",
+    "second_environment_reconstruction_required": true,
+    "source_environment_symlink_count": 0,
+    "wheel_count": 37,
+    "wheel_hash_algorithm": "sha256",
+    "wheel_hash_verification_status": "all_37_passed"
+  },
+  "lock_format": "proposition-ledger-xai-sdk-environment-lock-v1",
+  "official_xai_sdk_distribution": {
+    "downloaded_sha256": "4af1a629ad9304d0b05fa052d84ce77b7b61242a6d59d5936b692fec95fb52c1",
+    "expected_sha256": "4af1a629ad9304d0b05fa052d84ce77b7b61242a6d59d5936b692fec95fb52c1",
+    "hash_matched": true,
+    "package": "xai-sdk",
+    "source_url": "https://pypi.org/project/xai-sdk/1.19.0/",
+    "version": "1.19.0",
+    "wheel_filename": "xai_sdk-1.19.0-py3-none-any.whl"
+  },
+  "packages": [
+    {
+      "dependency_roles": [
+        "provider_runtime_transitive"
+      ],
+      "name": "aiohappyeyeballs",
+      "normalized_name": "aiohappyeyeballs",
+      "version": "2.7.1",
+      "wheel_filename": "aiohappyeyeballs-2.7.1-py3-none-any.whl",
+      "wheel_sha256": "9243213661e29250eb41368e5daa826fc017156c3b8a11440826b2e3ed376472"
+    },
+    {
+      "dependency_roles": [
+        "provider_runtime_direct"
+      ],
+      "name": "aiohttp",
+      "normalized_name": "aiohttp",
+      "version": "3.14.3",
+      "wheel_filename": "aiohttp-3.14.3-cp310-cp310-manylinux2014_x86_64.manylinux_2_17_x86_64.manylinux_2_28_x86_64.whl",
+      "wheel_sha256": "48d67b87db6279c044760787eb01f6413032c2e6f3ba1cafaa492b1c8e578479"
+    },
+    {
+      "dependency_roles": [
+        "provider_runtime_transitive"
+      ],
+      "name": "aiosignal",
+      "normalized_name": "aiosignal",
+      "version": "1.4.0",
+      "wheel_filename": "aiosignal-1.4.0-py3-none-any.whl",
+      "wheel_sha256": "053243f8b92b990551949e63930a839ff0cf0b0ebbe0597b0f3fb19e1a0fe82e"
+    },
+    {
+      "dependency_roles": [
+        "provider_runtime_transitive"
+      ],
+      "name": "annotated-types",
+      "normalized_name": "annotated-types",
+      "version": "0.8.0",
+      "wheel_filename": "annotated_types-0.8.0-py3-none-any.whl",
+      "wheel_sha256": "f072f4d804ea359e4eaf198b1af7a8b0943881a87f31bb764f8bf219bb9419e0"
+    },
+    {
+      "dependency_roles": [
+        "provider_runtime_transitive"
+      ],
+      "name": "async-timeout",
+      "normalized_name": "async-timeout",
+      "version": "5.0.1",
+      "wheel_filename": "async_timeout-5.0.1-py3-none-any.whl",
+      "wheel_sha256": "39e3809566ff85354557ec2398b55e096c8364bacac9405a7a1fa429e77fe76c"
+    },
+    {
+      "dependency_roles": [
+        "provider_runtime_transitive",
+        "validation_direct"
+      ],
+      "name": "attrs",
+      "normalized_name": "attrs",
+      "version": "26.1.0",
+      "wheel_filename": "attrs-26.1.0-py3-none-any.whl",
+      "wheel_sha256": "c647aa4a12dfbad9333ca4e71fe62ddc36f4e63b2d260a37a8b83d2f043ac309"
+    },
+    {
+      "dependency_roles": [
+        "provider_runtime_transitive"
+      ],
+      "name": "certifi",
+      "normalized_name": "certifi",
+      "version": "2026.7.22",
+      "wheel_filename": "certifi-2026.7.22-py3-none-any.whl",
+      "wheel_sha256": "62f22742b58a1a33014a2b6b706588a8d7e2a88ae7bd1a6ebe8c992928483775"
+    },
+    {
+      "dependency_roles": [
+        "provider_runtime_transitive"
+      ],
+      "name": "charset-normalizer",
+      "normalized_name": "charset-normalizer",
+      "version": "3.5.1",
+      "wheel_filename": "charset_normalizer-3.5.1-cp310-cp310-manylinux2014_x86_64.manylinux_2_17_x86_64.manylinux_2_28_x86_64.whl",
+      "wheel_sha256": "96eefc178f8636b9c760c5829345307fd81cfae9ab1e80997dbddeb0f54ee9a3"
+    },
+    {
+      "dependency_roles": [
+        "validation_direct"
+      ],
+      "name": "exceptiongroup",
+      "normalized_name": "exceptiongroup",
+      "version": "1.3.1",
+      "wheel_filename": "exceptiongroup-1.3.1-py3-none-any.whl",
+      "wheel_sha256": "a7a39a3bd276781e98394987d3a5701d0c4edffb633bb7a5144577f82c773598"
+    },
+    {
+      "dependency_roles": [
+        "provider_runtime_transitive"
+      ],
+      "name": "frozenlist",
+      "normalized_name": "frozenlist",
+      "version": "1.8.0",
+      "wheel_filename": "frozenlist-1.8.0-cp310-cp310-manylinux1_x86_64.manylinux_2_28_x86_64.manylinux_2_5_x86_64.whl",
+      "wheel_sha256": "f57fb59d9f385710aa7060e89410aeb5058b99e62f4d16b08b91986b9a2140c2"
+    },
+    {
+      "dependency_roles": [
+        "provider_runtime_direct"
+      ],
+      "name": "googleapis-common-protos",
+      "normalized_name": "googleapis-common-protos",
+      "version": "1.75.2",
+      "wheel_filename": "googleapis_common_protos-1.75.2-py3-none-any.whl",
+      "wheel_sha256": "6b83302f554ea93a0f48409c7fc2050f954bcbcddb7e3a9c76d4a823cb22920e"
+    },
+    {
+      "dependency_roles": [
+        "provider_runtime_direct"
+      ],
+      "name": "grpcio",
+      "normalized_name": "grpcio",
+      "version": "1.83.1",
+      "wheel_filename": "grpcio-1.83.1-cp310-cp310-manylinux2014_x86_64.manylinux_2_17_x86_64.whl",
+      "wheel_sha256": "b59eaaeeb03dde0a2708095fb50f1afa94f11dc1b459bb7790b53bfb8cf95153"
+    },
+    {
+      "dependency_roles": [
+        "provider_runtime_transitive"
+      ],
+      "name": "idna",
+      "normalized_name": "idna",
+      "version": "3.19",
+      "wheel_filename": "idna-3.19-py3-none-any.whl",
+      "wheel_sha256": "815e7be7a7806d54abb586dc943addc79e8b2ee16915059658cbeff4b1b43bf4"
+    },
+    {
+      "dependency_roles": [
+        "validation_direct"
+      ],
+      "name": "iniconfig",
+      "normalized_name": "iniconfig",
+      "version": "2.3.0",
+      "wheel_filename": "iniconfig-2.3.0-py3-none-any.whl",
+      "wheel_sha256": "f631c04d2c48c52b84d0d0549c99ff3859c98df65b3101406327ecc7d53fbf12"
+    },
+    {
+      "dependency_roles": [
+        "validation_root"
+      ],
+      "name": "jsonschema",
+      "normalized_name": "jsonschema",
+      "version": "4.26.0",
+      "wheel_filename": "jsonschema-4.26.0-py3-none-any.whl",
+      "wheel_sha256": "d489f15263b8d200f8387e64b4c3a75f06629559fb73deb8fdfb525f2dab50ce"
+    },
+    {
+      "dependency_roles": [
+        "validation_direct"
+      ],
+      "name": "jsonschema-specifications",
+      "normalized_name": "jsonschema-specifications",
+      "version": "2025.9.1",
+      "wheel_filename": "jsonschema_specifications-2025.9.1-py3-none-any.whl",
+      "wheel_sha256": "98802fee3a11ee76ecaca44429fda8a41bff98b00a0f2838151b113f210cc6fe"
+    },
+    {
+      "dependency_roles": [
+        "provider_runtime_transitive"
+      ],
+      "name": "multidict",
+      "normalized_name": "multidict",
+      "version": "6.7.1",
+      "wheel_filename": "multidict-6.7.1-cp310-cp310-manylinux2014_x86_64.manylinux_2_17_x86_64.manylinux_2_28_x86_64.whl",
+      "wheel_sha256": "9b0d9b91d1aa44db9c1f1ecd0d9d2ae610b2f4f856448664e01a3b35899f3f92"
+    },
+    {
+      "dependency_roles": [
+        "provider_runtime_transitive"
+      ],
+      "name": "opentelemetry-api",
+      "normalized_name": "opentelemetry-api",
+      "version": "1.44.0",
+      "wheel_filename": "opentelemetry_api-1.44.0-py3-none-any.whl",
+      "wheel_sha256": "94b98c893a91b88657eaac1e3ba89618cdb85be6918196705354f34728b2cdef"
+    },
+    {
+      "dependency_roles": [
+        "provider_runtime_direct"
+      ],
+      "name": "opentelemetry-sdk",
+      "normalized_name": "opentelemetry-sdk",
+      "version": "1.44.0",
+      "wheel_filename": "opentelemetry_sdk-1.44.0-py3-none-any.whl",
+      "wheel_sha256": "df081c4c6bcfdb1211e3e86140376792643128a25f8d72d1d27675936e7e96ad"
+    },
+    {
+      "dependency_roles": [
+        "provider_runtime_transitive"
+      ],
+      "name": "opentelemetry-semantic-conventions",
+      "normalized_name": "opentelemetry-semantic-conventions",
+      "version": "0.65b0",
+      "wheel_filename": "opentelemetry_semantic_conventions-0.65b0-py3-none-any.whl",
+      "wheel_sha256": "1cacde7b0ad306f84c5ef08c3dbe1bbaf20165bba6f8bff43b670e555a086bcb"
+    },
+    {
+      "dependency_roles": [
+        "provider_runtime_direct",
+        "validation_direct"
+      ],
+      "name": "packaging",
+      "normalized_name": "packaging",
+      "version": "25.0",
+      "wheel_filename": "packaging-25.0-py3-none-any.whl",
+      "wheel_sha256": "29572ef2b1f17581046b3a2227d5c611fb25ec70ca1ba8554b24b0e69331a484"
+    },
+    {
+      "dependency_roles": [
+        "validation_direct"
+      ],
+      "name": "pluggy",
+      "normalized_name": "pluggy",
+      "version": "1.6.0",
+      "wheel_filename": "pluggy-1.6.0-py3-none-any.whl",
+      "wheel_sha256": "e920276dd6813095e9377c0bc5566d94c932c33b27a3e3945d8389c374dd4746"
+    },
+    {
+      "dependency_roles": [
+        "provider_runtime_transitive"
+      ],
+      "name": "propcache",
+      "normalized_name": "propcache",
+      "version": "0.5.2",
+      "wheel_filename": "propcache-0.5.2-cp310-cp310-manylinux2014_x86_64.manylinux_2_17_x86_64.manylinux_2_28_x86_64.whl",
+      "wheel_sha256": "b96db7141a592cbc968daf1feea83a118e6ab378af4abbc72b248c895414c22d"
+    },
+    {
+      "dependency_roles": [
+        "provider_runtime_direct"
+      ],
+      "name": "protobuf",
+      "normalized_name": "protobuf",
+      "version": "6.33.6",
+      "wheel_filename": "protobuf-6.33.6-cp39-abi3-manylinux2014_x86_64.whl",
+      "wheel_sha256": "e9db7e292e0ab79dd108d7f1a94fe31601ce1ee3f7b79e0692043423020b0593"
+    },
+    {
+      "dependency_roles": [
+        "provider_runtime_direct"
+      ],
+      "name": "pydantic",
+      "normalized_name": "pydantic",
+      "version": "2.13.5",
+      "wheel_filename": "pydantic-2.13.5-py3-none-any.whl",
+      "wheel_sha256": "346a034f080da3755d8e9cb5e00e8b07de1d39e4f6e2c87d8ab7cafa0b269a73"
+    },
+    {
+      "dependency_roles": [
+        "provider_runtime_transitive"
+      ],
+      "name": "pydantic_core",
+      "normalized_name": "pydantic-core",
+      "version": "2.46.5",
+      "wheel_filename": "pydantic_core-2.46.5-cp310-cp310-manylinux_2_17_x86_64.manylinux2014_x86_64.whl",
+      "wheel_sha256": "850a08d167dde16db8702c274f320c7be9d7da6f6dff2b58b18f9e815bd94f5b"
+    },
+    {
+      "dependency_roles": [
+        "validation_direct"
+      ],
+      "name": "Pygments",
+      "normalized_name": "pygments",
+      "version": "2.21.0",
+      "wheel_filename": "pygments-2.21.0-py3-none-any.whl",
+      "wheel_sha256": "2363c69b61c4a97c838da3b130dcd6468f4848992b21a82f2a63ec34377137d9"
+    },
+    {
+      "dependency_roles": [
+        "validation_root"
+      ],
+      "name": "pytest",
+      "normalized_name": "pytest",
+      "version": "9.1.1",
+      "wheel_filename": "pytest-9.1.1-py3-none-any.whl",
+      "wheel_sha256": "37a86b45efb9a47a61a36449063e8e18d0cab3161329fc099eb21783169c4f0c"
+    },
+    {
+      "dependency_roles": [
+        "validation_direct"
+      ],
+      "name": "referencing",
+      "normalized_name": "referencing",
+      "version": "0.37.0",
+      "wheel_filename": "referencing-0.37.0-py3-none-any.whl",
+      "wheel_sha256": "381329a9f99628c9069361716891d34ad94af76e461dcb0335825aecc7692231"
+    },
+    {
+      "dependency_roles": [
+        "provider_runtime_direct"
+      ],
+      "name": "requests",
+      "normalized_name": "requests",
+      "version": "2.34.2",
+      "wheel_filename": "requests-2.34.2-py3-none-any.whl",
+      "wheel_sha256": "2a0d60c172f83ac6ab31e4554906c0f3b3588d37b5cb939b1c061f4907e278e0"
+    },
+    {
+      "dependency_roles": [
+        "validation_direct"
+      ],
+      "name": "rpds-py",
+      "normalized_name": "rpds-py",
+      "version": "0.30.0",
+      "wheel_filename": "rpds_py-0.30.0-cp310-cp310-manylinux_2_17_x86_64.manylinux2014_x86_64.whl",
+      "wheel_sha256": "0c0e95f6819a19965ff420f65578bacb0b00f251fefe2c8b23347c37174271f3"
+    },
+    {
+      "dependency_roles": [
+        "validation_direct"
+      ],
+      "name": "tomli",
+      "normalized_name": "tomli",
+      "version": "2.4.1",
+      "wheel_filename": "tomli-2.4.1-py3-none-any.whl",
+      "wheel_sha256": "0d85819802132122da43cb86656f8d1f8c6587d54ae7dcaf30e90533028b49fe"
+    },
+    {
+      "dependency_roles": [
+        "provider_runtime_direct",
+        "validation_transitive"
+      ],
+      "name": "typing_extensions",
+      "normalized_name": "typing-extensions",
+      "version": "4.16.0",
+      "wheel_filename": "typing_extensions-4.16.0-py3-none-any.whl",
+      "wheel_sha256": "481caa481374e813c1b176ada14e97f1f67a4539ce9cfeb3f350d78d6370c2e8"
+    },
+    {
+      "dependency_roles": [
+        "provider_runtime_transitive"
+      ],
+      "name": "typing-inspection",
+      "normalized_name": "typing-inspection",
+      "version": "0.4.4",
+      "wheel_filename": "typing_inspection-0.4.4-py3-none-any.whl",
+      "wheel_sha256": "65b8397ba37ccbce054456aaccddfc91e6e3083c92824df348d96ca832f3f147"
+    },
+    {
+      "dependency_roles": [
+        "provider_runtime_transitive"
+      ],
+      "name": "urllib3",
+      "normalized_name": "urllib3",
+      "version": "2.7.0",
+      "wheel_filename": "urllib3-2.7.0-py3-none-any.whl",
+      "wheel_sha256": "9fb4c81ebbb1ce9531cce37674bbc6f1360472bc18ca9a553ede278ef7276897"
+    },
+    {
+      "dependency_roles": [
+        "provider_runtime_root"
+      ],
+      "name": "xai-sdk",
+      "normalized_name": "xai-sdk",
+      "version": "1.19.0",
+      "wheel_filename": "xai_sdk-1.19.0-py3-none-any.whl",
+      "wheel_sha256": "4af1a629ad9304d0b05fa052d84ce77b7b61242a6d59d5936b692fec95fb52c1"
+    },
+    {
+      "dependency_roles": [
+        "provider_runtime_transitive"
+      ],
+      "name": "yarl",
+      "normalized_name": "yarl",
+      "version": "1.24.5",
+      "wheel_filename": "yarl-1.24.5-cp310-cp310-manylinux2014_x86_64.manylinux_2_17_x86_64.manylinux_2_28_x86_64.whl",
+      "wheel_sha256": "7fa5e51397466ea7e98de493fa2ff1b8193cfef8a7b0f9b4842f92d342df0dba"
+    }
+  ],
+  "python": {
+    "abi_flags": "",
+    "architecture": "64bit",
+    "binary_format": "ELF",
+    "cache_tag": "cpython-310",
+    "full_version": "3.10.12 (main, Jul 15 2026, 23:40:17) [GCC 11.4.0]",
+    "implementation": "CPython",
+    "implementation_name": "cpython",
+    "kernel_name": "Linux",
+    "kernel_release": "5.15.0-190-generic",
+    "libc_name": "glibc",
+    "libc_version": "2.35",
+    "machine": "x86_64",
+    "platform": "linux-x86_64",
+    "pointer_bits": 64,
+    "soabi": "cpython-310-x86_64-linux-gnu",
+    "version": "3.10.12"
+  },
+  "reconstruction": {
+    "credential_variables_to_unset_before_provider_import": [
+      "ANTHROPIC_API_KEY",
+      "BRAVE_API_KEY",
+      "BRAVE_SEARCH_API_KEY",
+      "COHERE_API_KEY",
+      "GEMINI_API_KEY",
+      "GOOGLE_API_KEY",
+      "GOOGLE_CUSTOM_SEARCH_API_KEY",
+      "GOOGLE_SEARCH_API_KEY",
+      "MISTRAL_API_KEY",
+      "OPENAI_ADMIN_API_KEY",
+      "OPENAI_API_KEY",
+      "XAI_API_KEY",
+      "XAI_MANAGEMENT_KEY",
+      "X_ACCESS_SECRET",
+      "X_ACCESS_TOKEN",
+      "X_BEARER_TOKEN",
+      "X_CONSUMER_KEY",
+      "X_CONSUMER_SECRET"
+    ],
+    "environment_variables": {
+      "PIP_DISABLE_PIP_VERSION_CHECK": "1",
+      "PIP_NO_INPUT": "1",
+      "XAI_SDK_DISABLE_SENSITIVE_TELEMETRY_ATTRIBUTES": "1",
+      "XAI_SDK_DISABLE_TRACING": "1"
+    },
+    "install_source": "hash-verified local wheelhouse only",
+    "interpreter_fingerprint_must_match": true,
+    "lock_materialisation": {
+      "format": "<normalized_name>==<version> --hash=sha256:<wheel_sha256>",
+      "order": "ascending normalized_name",
+      "source": "packages"
+    },
+    "network_policy": {
+      "provider_domains_permitted": false,
+      "provider_import_requires_active_network_denial": true,
+      "resolution_index": "https://pypi.org/simple",
+      "reconstruction_requires_no_index": true
+    },
+    "pip_install_arguments": [
+      "--no-index",
+      "--find-links",
+      "<wheelhouse>",
+      "--require-hashes",
+      "-r",
+      "<materialised-requirements-lock>"
+    ],
+    "post_install_checks": [
+      "python -m pip check",
+      "installed locked versions equal all package versions",
+      "all wheel SHA-256 values match before installation",
+      "environment contains no symlinks",
+      "provider credential variables remain unset",
+      "SDK import and request construction run under network denial"
+    ],
+    "python_requirement": "CPython==3.10.12 with the exact recorded ABI and platform fingerprint",
+    "virtual_environment_command": "python3 -m venv --copies <private-run>/venv",
+    "virtual_environment_requirements": [
+      "remove only a venv-created lib64 symlink if present",
+      "directories mode 0700",
+      "generated non-executable files mode 0600",
+      "no symlinks"
+    ]
+  },
+  "record_id": "proposition-ledger-phase1.3-xai-sdk-environment-v1",
+  "source_digests": {
+    "dependency_graph_sha256": "dead6112dc46010887cd2117a8f9e098be143901c143342cf36515f65c93c66c",
+    "installed_inventory_sha256": "fe634e2fbe54f35326dd52cfbdaf650c84a9da4701d58a11e789f95fa57a7845",
+    "requirements_lock_sha256": "2b85726da91529a78869a8042d80c562e042e541127fbba85704c63d1455701e",
+    "wheel_hash_manifest_sha256": "1c927fda1365c57e5127cb786e7932e08ce2b259bbd2a07e4385924749be28d8",
+    "xai_sdk_client_py_sha256": "b9a99135095e891ced6b8873c33eb354fff0d04f1f15f5fa1a5be5e68d3612f2",
+    "xai_sdk_distribution_metadata_sha256": "18ff0a8b1c144a0d2f8c792a0341f4e1e87eb85f06f9736a8895f4ded133fe2d",
+    "xai_sdk_distribution_record_sha256": "a60285dab8b27d8c97bc087a2799aebb50404fa73911af552534aa1340758302",
+    "xai_sdk_distribution_wheel_metadata_sha256": "ccec20e2307acd7da453dd7437e70c6b08e2bc3ead3bc3445af135da37b56d59",
+    "xai_sdk_installed_source_tree_sha256": "bacca0558f41b76572612869c6323b7acf207779cbc8db99041d7d2241749b91",
+    "xai_sdk_primary_chat_py_sha256": "2802197f8243970935f237178c04ae57f62e3d012ef71e5bdb8789239039dc1b",
+    "xai_sdk_proto_init_py_sha256": "c3c0e657ddf26e47d029f93585177a901f96cf342e2749f8f6ed1db910feda93",
+    "xai_sdk_proto_v6_chat_pb2_grpc_py_sha256": "5a52bb3a013927a5544baec8add1e04b4b2764a7f0a0666078d15d3317a2eabf",
+    "xai_sdk_proto_v6_chat_pb2_py_sha256": "7ea1c2562f0099ddfb4654acff56f3149da780de752e6d4856bb5285fbe77464",
+    "xai_sdk_proto_v6_chat_pb2_pyi_sha256": "60cf4a2fc070f8f7487bb21338ef966f1877654f0ace2f7ac2bd2263d5d9ae08",
+    "xai_sdk_sync_chat_py_sha256": "c648e628e0fe00632836ec348978004360ddf78018c4f28119db01e9bfa8495b",
+    "xai_sdk_sync_client_py_sha256": "cd81e86af94b7af63a8711a0172d35a0a26823b3c4d7fcf73826a88c02ecbddc",
+    "xai_sdk_types_chat_py_sha256": "e39f193b4a4cda64af66a745f2a8f1eae15a7fd201882bb006d8ad4b83ef530c"
+  }
+}

@@ -1,0 +1,53 @@
+{
+  "downstream_reviewer_writer_constraint": {
+    "model": "gpt-5.6-sol",
+    "provider": "OpenAI",
+    "reasoning": "medium",
+    "status": "preserved_unchanged_not_validated_in_phase_1_3"
+  },
+  "manifest_id": "proposition-ledger-xai-provider-profiles-v1",
+  "profile_comparison": {
+    "arm_interpretation": "two_execution_profiles_for_one_machine_ledger_role",
+    "status": "pending_not_run",
+    "winner": null
+  },
+  "profiles": [
+    {
+      "api_surface": "official_xai_python_sdk_structured_output_chat_interface",
+      "canonical_post_validation": "mandatory",
+      "code_execution": false,
+      "model": "grok-4.3",
+      "profile_id": "xai-grok-4.3-low-ledger-v1",
+      "provider": "xAI",
+      "reasoning_effort": "low",
+      "response_form": "strict_structured_json",
+      "retry_failure_policy": "pending_freeze_before_first_provider_call",
+      "sdk_package": "xai-sdk",
+      "sdk_version": "1.19.0",
+      "streaming": false,
+      "tools": [],
+      "web_search": false,
+      "x_search": false
+    },
+    {
+      "api_surface": "official_xai_python_sdk_structured_output_chat_interface",
+      "canonical_post_validation": "mandatory",
+      "code_execution": false,
+      "model": "grok-4.6",
+      "profile_id": "xai-grok-4.6-low-ledger-v1",
+      "provider": "xAI",
+      "reasoning_effort": "low",
+      "response_form": "strict_structured_json",
+      "retry_failure_policy": "pending_freeze_before_first_provider_call",
+      "sdk_package": "xai-sdk",
+      "sdk_version": "1.19.0",
+      "streaming": false,
+      "tools": [],
+      "web_search": false,
+      "x_search": false
+    }
+  ],
+  "development_pilot_authorised": false,
+  "provider_call_authorised": false,
+  "server_acceptance_status": "not_tested"
+}
