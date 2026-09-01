@@ -846,6 +846,54 @@ def test_no_stable_issue_is_schema_valid(
     assert current_turn["turn_id"] == evidence[0]["turn_id"]
 
 
+def test_new_no_stable_issue_materialises_without_explicit_resolved_item(
+    direct_answer_case: tuple[dict[str, Any], dict[str, Any], dict[str, Any]],
+) -> None:
+    prior, current_turn, _ = direct_answer_case
+    delta = _semantic_noop(prior["conversation_key"], current_turn, prior)
+    evidence = {
+        "turn_id": current_turn["turn_id"],
+        "start_char": 0,
+        "end_char": len(current_turn["text"]),
+        "exact_text": current_turn["text"],
+    }
+    delta["new_issue_states"] = [
+        {
+            "local_ref": "new-issue-1",
+            "initiating_speaker": current_turn["speaker_id"],
+            "canonical_question": None,
+            "issue_type": "no_stable_issue",
+            "live_alternatives": [],
+            "addressed_participant": None,
+            "answer_requirements": [],
+            "related_proposition_refs": [],
+            "status": "no_stable_issue",
+            "resolution_type": "no_stable_issue",
+            "confidence": 1.0,
+            "exact_evidence_spans": [evidence],
+        }
+    ]
+
+    schema = _load_json(SEMANTIC_SCHEMA_PATH)
+    assert phase1._jsonschema_errors(delta, schema) == []
+    assert delta["resolved_items"] == []
+
+    result = _materialise_existing(prior, current_turn, delta)
+
+    assert result.status == "ok", result.errors
+    assert result.ledger is not None and result.local_id_map is not None
+    issue_id = result.local_id_map["new-issue-1"]
+    assert any(
+        item == {
+            "item_id": issue_id,
+            "item_type": "issue",
+            "resolution_type": "no_stable_issue",
+            "resolved_at_turn_id": current_turn["turn_id"],
+        }
+        for item in result.ledger["resolved_items"]
+    )
+
+
 def test_behavioral_materialiser_validation_exercises_persisted_boundary() -> None:
     validation = semantic.behavioral_materialiser_validation(PROJECT_DIR)
 

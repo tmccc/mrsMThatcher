@@ -1503,6 +1503,24 @@ def _apply_resolved_items(
                 "resolved_at_turn_id": current_turn_id,
             }
         )
+    for issue in candidate.get("issue_states", []):
+        if (
+            issue.get("initiating_turn_id") == current_turn_id
+            and issue.get("issue_type") == "no_stable_issue"
+            and issue.get("status") == "no_stable_issue"
+            and issue.get("resolution_type") == "no_stable_issue"
+        ):
+            pair = ("issue", str(issue["issue_id"]))
+            if pair not in existing:
+                existing.add(pair)
+                additions.append(
+                    {
+                        "item_id": pair[1],
+                        "item_type": pair[0],
+                        "resolution_type": "no_stable_issue",
+                        "resolved_at_turn_id": current_turn_id,
+                    }
+                )
     candidate["resolved_items"].extend(
         sorted(additions, key=lambda item: (item["item_type"], item["item_id"]))
     )

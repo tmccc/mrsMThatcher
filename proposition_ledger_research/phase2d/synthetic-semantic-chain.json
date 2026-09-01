@@ -1,0 +1,46 @@
+{
+  "format_version": "proposition-ledger-phase2d-synthetic-semantic-chain-v1",
+  "synthetic": true,
+  "conversation_key": "synthetic-semantic-chain",
+  "turns": [
+    {
+      "turn_index": 0,
+      "turn_id": "synthetic-semantic-turn-0",
+      "parent_turn_id": null,
+      "participant": {
+        "participant_id": "participant-contributor",
+        "role": "contributor",
+        "author_key": "synthetic-author-participant-contributor",
+        "identity_confidence": 1.0
+      },
+      "exact_text": "The bridge is closed today.",
+      "exact_text_sha256": "2ce68d867776c3e5e3a9bd587c50fd56bb9d350a200ea45c9bd213428a50510e"
+    },
+    {
+      "turn_index": 1,
+      "turn_id": "synthetic-semantic-turn-1",
+      "parent_turn_id": "synthetic-semantic-turn-0",
+      "participant": {
+        "participant_id": "participant-account",
+        "role": "account",
+        "author_key": "synthetic-author-participant-account",
+        "identity_confidence": 1.0
+      },
+      "exact_text": "No—the bridge is open today, but the east entrance is blocked. Which entrance should pedestrians use?",
+      "exact_text_sha256": "24ff6faa72ba0c9b8882ffe0a1cb8a760c7e74a0cf06b6707de32b264a0d4c89"
+    },
+    {
+      "turn_index": 2,
+      "turn_id": "synthetic-semantic-turn-2",
+      "parent_turn_id": "synthetic-semantic-turn-1",
+      "participant": {
+        "participant_id": "participant-contributor",
+        "role": "contributor",
+        "author_key": "synthetic-author-participant-contributor",
+        "identity_confidence": 1.0
+      },
+      "exact_text": "You're right about the bridge. Pedestrians should use the west entrance, and I withdraw my claim that the bridge is closed.",
+      "exact_text_sha256": "ddbabe8d7cac2c3c7253578d439abf73cd25a3686ba6ddf42a3b113fa7b57ae3"
+    }
+  ]
+}
