@@ -4,6 +4,12 @@
       "official_xai_documentation",
       "official_pypi_metadata"
     ],
+    "regex_contract_authorities": [
+      "official_ecma_262_specification",
+      "official_json_schema_specification",
+      "official_python_documentation",
+      "official_xai_documentation"
+    ],
     "user_scope_clarifications_are_provider_provenance": false
   },
   "compatibility_implications": {
@@ -14,6 +20,8 @@
     "multiple_allof_requires_exact_equivalence_proof_or_incompatibility": true,
     "oneof_must_not_be_silently_rewritten": true,
     "oneof_requires_structural_pairwise_disjointness_proof": true,
+    "ordinary_python_jsonschema_pattern_behavior_is_not_normative_canonical_regex_semantics": true,
+    "proved_simple_outer_anchors_must_be_removed_for_xai_implicit_full_string_matching": true,
     "reference_graph_must_be_acyclic": true,
     "regex_explicit_anchor_semantics_require_exact_proof_or_incompatibility": true
   },
@@ -36,6 +44,13 @@
     "regex_supported_rule_count": 8,
     "regex_unsupported_rule_count": 7,
     "rejected_rule_count": 6,
+    "required_regex_contract_source_ids": [
+      "ecma_262_text_processing",
+      "json_schema_draft_2020_12_validation",
+      "python_3_10_re",
+      "xai_structured_outputs_regex_correction"
+    ],
+    "required_local_validator_source_sha256": "afcfc3aea01f9fa40bc109e65c4820bde89253e51a20bda9da7b8f20d7a57c57",
     "silent_rule_removal_or_weakening_forbidden": true,
     "stable_rule_ids_required": true,
     "supported_form_rule_count": 15
@@ -159,6 +174,14 @@
     "preferred_draft": "2020-12",
     "regex_subset": {
       "dialect": "practical_subset_of_ECMA-262",
+      "normative_regex_contract": {
+        "canonical_dialect": "ECMA-262_as_required_by_JSON_Schema_Draft_2020-12",
+        "canonical_pattern_implicitly_anchored": false,
+        "ecma_non_multiline_dollar_matches_before_final_line_terminator": false,
+        "ordinary_python_jsonschema_role": "local_implementation_observation_not_contract_oracle",
+        "provider_pattern_implicitly_whole_string": true,
+        "restricted_current_pattern_equivalence": "remove_one_proved_outer_caret_dollar_pair"
+      },
       "provider_semantic_differences": [
         {
           "rule_id": "regex_dot_matches_newline",
@@ -168,7 +191,8 @@
           "rule_id": "regex_implicit_anchors",
           "explicit_anchor_token_support": "not_explicitly_listed_as_supported_or_rejected",
           "semantics": "pattern_matches_entire_string",
-          "terminal_line_terminator_equivalence_to_canonical_dollar_anchor": "not_documented"
+          "current_canonical_mapping": "remove_proved_simple_outer_anchor_pair",
+          "terminal_line_terminator_equivalence_to_intended_canonical_ecma_semantics": "exact_for_proved_restricted_current_patterns"
         },
         {
           "rule_id": "regex_capture_no_semantic_effect",
@@ -412,6 +436,15 @@
       }
     ]
   },
+  "local_validator_implementation": {
+    "behavior_classification": "python_jsonschema_regex_engine_divergence",
+    "implementation_behavior": "pattern keyword delegates to Python re.search",
+    "implementation_is_normative_canonical_regex_authority": false,
+    "package": "jsonschema",
+    "source_path_within_distribution": "jsonschema/_keywords.py",
+    "source_sha256": "afcfc3aea01f9fa40bc109e65c4820bde89253e51a20bda9da7b8f20d7a57c57",
+    "version": "4.26.0"
+  },
   "manifest_id": "xai-structured-output-rules-v1",
   "manifest_version": "1.0.0",
   "model_capability_evidence": [
@@ -462,11 +495,15 @@
     }
   ],
   "preflight_audit_trail": {
+    "completed_run_disposition_before_regex_correction": "incompatible_with_documented_xai_schema_subset",
+    "completed_run_preserved": true,
+    "correction_reason": "python_jsonschema_regex_engine_divergence_was_misclassified",
     "first_run_disposition": "halted_before_implementation",
     "first_run_path": "/disks/disk1/research/private-runs/proposition-ledger-phase1.3-xai-provider-preflight-20260831T215310Z",
     "first_run_preserved": true,
     "initial_halt_reason": "The generic reasoning page omission was initially interpreted too cautiously.",
-    "resumed_after_specific_official_source_resolution": true
+    "resumed_after_specific_official_source_resolution": true,
+    "superseded_compatibility_record_commit": "777b40f67793d6140fa3f923186cf737c89042ad"
   },
   "sdk_package_metadata": {
     "described_as_official_python_sdk": true,
@@ -537,6 +574,49 @@
         "retrieved_at_utc": "2026-09-01T01:36:13Z",
         "source_id": "xai_may_15_2026_model_retirement",
         "url": "https://docs.x.ai/developers/migration/may-15-retirement"
+      },
+      {
+        "authority": "official_json_schema_specification",
+        "content_sha256": "2b4849011dab7fef819a93ff3ff77b04a09a687640a6525b5e395f4153144e44",
+        "relevant_rules": [
+          "pattern_uses_ecma_262_dialect",
+          "pattern_is_not_implicitly_anchored"
+        ],
+        "retrieved_at_utc": "2026-09-01T02:52:02Z",
+        "source_id": "json_schema_draft_2020_12_validation",
+        "url": "https://json-schema.org/draft/2020-12/json-schema-validation"
+      },
+      {
+        "authority": "official_ecma_262_specification",
+        "content_sha256": "33d947d1bfd75b568504f2b10ce4f3ca20d1d8f14e54cfe3eb3aa4a0b4ceda7b",
+        "relevant_rules": [
+          "non_multiline_dollar_succeeds_at_actual_end_of_input",
+          "pre_line_terminator_dollar_branch_requires_multiline_true"
+        ],
+        "retrieved_at_utc": "2026-09-01T02:52:02Z",
+        "source_id": "ecma_262_text_processing",
+        "url": "https://tc39.es/ecma262/multipage/text-processing.html"
+      },
+      {
+        "authority": "official_python_documentation",
+        "content_sha256": "efc63d833aa1ccc6db45e1e1a0c2d90851a914a22e05ccc99517051fca1dfc0e",
+        "relevant_rules": [
+          "python_dollar_also_matches_before_final_newline"
+        ],
+        "retrieved_at_utc": "2026-09-01T02:52:02Z",
+        "source_id": "python_3_10_re",
+        "url": "https://docs.python.org/3.10/library/re.html"
+      },
+      {
+        "authority": "official_xai_documentation",
+        "content_sha256": "2cf69f355796c25a491f45e293ce82986d775289ea1852e724e547af109e859f",
+        "relevant_rules": [
+          "regex_practical_ecma_262_subset",
+          "regex_implicit_anchors_full_string"
+        ],
+        "retrieved_at_utc": "2026-09-01T02:52:03Z",
+        "source_id": "xai_structured_outputs_regex_correction",
+        "url": "https://docs.x.ai/developers/model-capabilities/text/structured-outputs"
       },
       {
         "authority": "official_pypi_metadata",

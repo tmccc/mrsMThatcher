@@ -4,7 +4,8 @@
 The module keeps provider imports behind an active network-denial context.  It
 never samples, streams, lists models, or invokes an HTTP/gRPC transport.  The
 canonical schema remains the persistence authority; the provider form is a
-pure copy with only JSON Schema default-preserving changes.
+pure copy with only proved JSON Schema default expansion and restricted
+whole-string regex normalisation.
 """
 
 from __future__ import annotations
@@ -45,7 +46,7 @@ EXPECTED_XAI_WHEEL_SHA256 = (
     "4af1a629ad9304d0b05fa052d84ce77b7b61242a6d59d5936b692fec95fb52c1"
 )
 EXPECTED_RULES_SEMANTIC_SHA256 = (
-    "61723823626c1073cc6c5680e5c820fc05bcab1303c3de5a84951cb4c91582fc"
+    "c8e8b6aceabaaf8aa7e6def0903e4332c956c2bfe8b6cd01ae9c719ae3b641c8"
 )
 EXPECTED_LOCK_SEMANTIC_SHA256 = (
     "950f3ed6b923096a6ace48b9d1fc449828143bbfc6fb0f86a607fa60fa628f2b"
@@ -59,6 +60,14 @@ STATUS_INCOMPATIBLE = "incompatible_with_documented_xai_schema_subset"
 STATUS_SDK_UNAVAILABLE = "sdk_local_compilation_unavailable"
 STATUS_DEPENDENCY_FAILURE = "dependency_environment_not_reproducible"
 STATUS_LOCAL_PROFILE_INCOMPATIBLE = "local_profile_construction_incompatible"
+
+SUPERSEDED_COMPATIBILITY_RECORD_COMMIT = (
+    "777b40f67793d6140fa3f923186cf737c89042ad"
+)
+PRIOR_DISPOSITION = "incompatible_with_documented_xai_schema_subset"
+CORRECTION_REASON = (
+    "python_jsonschema_regex_engine_divergence_was_misclassified"
+)
 
 PROJECT_DIR = Path(__file__).resolve().parents[1]
 if str(PROJECT_DIR) not in sys.path:
@@ -606,6 +615,258 @@ def _has_explicit_outer_anchors(pattern: str) -> bool:
     )
 
 
+class _RestrictedPatternSyntaxError(ValueError):
+    """A stable failure from the deliberately narrow current-pattern parser."""
+
+    def __init__(self, code: str) -> None:
+        super().__init__(code)
+        self.code = code
+
+
+class _RestrictedPatternParser:
+    """Parse only the simple ASCII grammar used by the 14 canonical patterns."""
+
+    _LITERALS = frozenset(
+        "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789_-:"
+    )
+    _CLASS_LITERALS = _LITERALS | frozenset(".")
+
+    def __init__(self, pattern: str) -> None:
+        self.pattern = pattern
+        self.position = 0
+        self.atom_count = 0
+        self.group_count = 0
+        self.character_class_count = 0
+        self.quantifier_count = 0
+
+    def consume(self) -> dict[str, int | str]:
+        if not self.pattern:
+            raise _RestrictedPatternSyntaxError("empty_interior")
+        if not self.pattern.isascii():
+            raise _RestrictedPatternSyntaxError("non_ascii_syntax_unproved")
+        self._parse_sequence(stop=frozenset(), allow_alternation=False)
+        if self.position != len(self.pattern):
+            character = self.pattern[self.position]
+            if character == "|":
+                raise _RestrictedPatternSyntaxError("top_level_alternation")
+            if character == ")":
+                raise _RestrictedPatternSyntaxError("unmatched_closing_group")
+            raise _RestrictedPatternSyntaxError("unparsed_syntax")
+        return {
+            "grammar": "restricted_ascii_identifier_and_language_tag_v1",
+            "atom_count": self.atom_count,
+            "group_count": self.group_count,
+            "character_class_count": self.character_class_count,
+            "quantifier_count": self.quantifier_count,
+        }
+
+    def _parse_sequence(
+        self,
+        *,
+        stop: frozenset[str],
+        allow_alternation: bool,
+    ) -> None:
+        sequence_atoms = 0
+        while self.position < len(self.pattern):
+            character = self.pattern[self.position]
+            if character in stop or character == "|":
+                break
+            self._parse_atom()
+            sequence_atoms += 1
+        if sequence_atoms == 0:
+            raise _RestrictedPatternSyntaxError("empty_sequence_or_alternative")
+        if self.position < len(self.pattern) and self.pattern[self.position] == "|":
+            if not allow_alternation:
+                raise _RestrictedPatternSyntaxError("top_level_alternation")
+            while self.position < len(self.pattern) and self.pattern[self.position] == "|":
+                self.position += 1
+                self._parse_sequence(stop=stop, allow_alternation=False)
+
+    def _parse_atom(self) -> None:
+        character = self.pattern[self.position]
+        if character == "[":
+            self._parse_character_class()
+        elif character == "(":
+            self._parse_group()
+        elif character == "\\":
+            raise _RestrictedPatternSyntaxError("escape_or_shorthand_unproved")
+        elif character == ".":
+            raise _RestrictedPatternSyntaxError("dot_wildcard_unproved")
+        elif character in "^$":
+            raise _RestrictedPatternSyntaxError("interior_anchor")
+        elif character in "*+?{}]":
+            raise _RestrictedPatternSyntaxError("malformed_or_unproved_quantifier")
+        elif character not in self._LITERALS:
+            raise _RestrictedPatternSyntaxError("literal_outside_proved_ascii_set")
+        else:
+            self.position += 1
+        self.atom_count += 1
+        self._parse_optional_quantifier()
+
+    def _parse_group(self) -> None:
+        self.position += 1
+        if self.position >= len(self.pattern):
+            raise _RestrictedPatternSyntaxError("unclosed_group")
+        if self.pattern[self.position] == "?":
+            raise _RestrictedPatternSyntaxError("unsupported_group_extension")
+        self._parse_sequence(stop=frozenset(")"), allow_alternation=True)
+        if self.position >= len(self.pattern) or self.pattern[self.position] != ")":
+            raise _RestrictedPatternSyntaxError("unclosed_group")
+        self.position += 1
+        self.group_count += 1
+
+    def _parse_character_class(self) -> None:
+        self.position += 1
+        start = self.position
+        if self.position < len(self.pattern) and self.pattern[self.position] == "^":
+            raise _RestrictedPatternSyntaxError("negated_character_class_unproved")
+        while self.position < len(self.pattern) and self.pattern[self.position] != "]":
+            character = self.pattern[self.position]
+            if character == "\\":
+                raise _RestrictedPatternSyntaxError("class_escape_unproved")
+            if character in "^$[" or character not in self._CLASS_LITERALS:
+                raise _RestrictedPatternSyntaxError("character_class_syntax_unproved")
+            self.position += 1
+        if self.position >= len(self.pattern):
+            raise _RestrictedPatternSyntaxError("unclosed_character_class")
+        content = self.pattern[start:self.position]
+        if not content:
+            raise _RestrictedPatternSyntaxError("empty_character_class")
+        for index, character in enumerate(content):
+            if character != "-" or index in {0, len(content) - 1}:
+                continue
+            lower = content[index - 1]
+            upper = content[index + 1]
+            if not (lower.isalnum() and upper.isalnum() and ord(lower) <= ord(upper)):
+                raise _RestrictedPatternSyntaxError("character_class_range_unproved")
+        self.position += 1
+        self.character_class_count += 1
+
+    def _parse_optional_quantifier(self) -> None:
+        if self.position >= len(self.pattern):
+            return
+        character = self.pattern[self.position]
+        if character == "*":
+            self.position += 1
+            self.quantifier_count += 1
+        elif character == "{":
+            closing = self.pattern.find("}", self.position + 1)
+            if closing < 0:
+                raise _RestrictedPatternSyntaxError("unclosed_bounded_quantifier")
+            body = self.pattern[self.position + 1:closing]
+            parts = body.split(",")
+            if len(parts) not in {1, 2} or any(not part.isdigit() for part in parts):
+                raise _RestrictedPatternSyntaxError("bounded_quantifier_syntax_unproved")
+            bounds = [int(part) for part in parts]
+            if len(bounds) == 2 and bounds[0] > bounds[1]:
+                raise _RestrictedPatternSyntaxError("bounded_quantifier_range_invalid")
+            self.position = closing + 1
+            self.quantifier_count += 1
+        if self.position < len(self.pattern) and self.pattern[self.position] in "*+?{":
+            raise _RestrictedPatternSyntaxError("repeated_or_unproved_quantifier")
+
+
+def _prove_restricted_xai_provider_pattern(pattern: str) -> dict[str, Any]:
+    """Prove that one unanchored pattern is in the exact current ASCII subset."""
+
+    try:
+        grammar = _RestrictedPatternParser(pattern).consume()
+    except _RestrictedPatternSyntaxError as exc:
+        return {
+            "proved": False,
+            "failure_reason": exc.code,
+            "provider_pattern": pattern,
+        }
+    return {
+        "proved": True,
+        "failure_reason": None,
+        "provider_pattern": pattern,
+        "ascii_only": True,
+        "escape_free": True,
+        "dot_wildcard_absent": True,
+        "interior_anchor_absent": True,
+        "inline_modifier_absent": True,
+        "top_level_alternation_absent": True,
+        **grammar,
+    }
+
+
+def _prove_restricted_xai_outer_anchor_removal(pattern: str) -> dict[str, Any]:
+    """Prove exact outer-anchor removal for the current simple pattern subset."""
+
+    if not pattern.startswith("^"):
+        return {
+            "proved": False,
+            "failure_reason": "missing_leading_outer_anchor",
+            "canonical_pattern": pattern,
+        }
+    if not pattern.endswith("$"):
+        return {
+            "proved": False,
+            "failure_reason": "missing_trailing_outer_anchor",
+            "canonical_pattern": pattern,
+        }
+    preceding_backslashes = 0
+    for character in reversed(pattern[:-1]):
+        if character != "\\":
+            break
+        preceding_backslashes += 1
+    if preceding_backslashes % 2:
+        return {
+            "proved": False,
+            "failure_reason": "escaped_final_dollar_not_outer_anchor",
+            "canonical_pattern": pattern,
+        }
+    interior = pattern[1:-1]
+    provider_proof = _prove_restricted_xai_provider_pattern(interior)
+    if not provider_proof["proved"]:
+        return {
+            "proved": False,
+            "failure_reason": provider_proof["failure_reason"],
+            "canonical_pattern": pattern,
+            "provider_pattern": interior,
+        }
+    return {
+        "proved": True,
+        "failure_reason": None,
+        "canonical_pattern": pattern,
+        "provider_pattern": interior,
+        "first_token_is_unescaped_caret": True,
+        "final_token_is_unescaped_dollar": True,
+        "interior_nonempty": True,
+        "canonical_multiline_mode": False,
+        "provider_implicit_whole_string_match": True,
+        **{
+            key: value
+            for key, value in provider_proof.items()
+            if key not in {"proved", "failure_reason", "provider_pattern"}
+        },
+    }
+
+
+def strip_redundant_xai_outer_anchors(pattern: str) -> str:
+    """Return xAI's implicit-whole-string form, failing closed if unproved."""
+
+    proof = _prove_restricted_xai_outer_anchor_removal(pattern)
+    if not proof["proved"]:
+        raise PreflightError(
+            "unresolved provider pattern incompatibility: "
+            f"{proof['failure_reason']}: {pattern!r}"
+        )
+    return str(proof["provider_pattern"])
+
+
+def _restricted_full_string_match(pattern: str, instance: str) -> bool:
+    """Match one proved provider pattern; this is not a general ECMA interpreter."""
+
+    proof = _prove_restricted_xai_provider_pattern(pattern)
+    if not proof["proved"]:
+        raise PreflightError(
+            f"restricted pattern match requested for unproved syntax: {proof}"
+        )
+    return re.fullmatch(pattern, instance, flags=re.ASCII) is not None
+
+
 def audit_reference_graph(schema: Mapping[str, Any]) -> dict[str, Any]:
     """Build an independently checked local $defs reference graph."""
 
@@ -878,7 +1139,7 @@ def prove_oneof_disjointness(schema: Mapping[str, Any]) -> dict[str, Any]:
 def transform_provider_schema(
     canonical_schema: Mapping[str, Any],
 ) -> tuple[dict[str, Any], list[dict[str, Any]]]:
-    """Expand canonical-open object defaults for xAI's provider default."""
+    """Build the pure, equivalence-proved xAI-facing schema copy."""
 
     provider = copy.deepcopy(dict(canonical_schema))
     ledger: list[dict[str, Any]] = []
@@ -900,7 +1161,46 @@ def transform_provider_schema(
                     "proof_result": "exactly_equivalent",
                 }
             )
-    ledger.sort(key=lambda item: item["canonical_json_pointer"])
+        pattern = node.get("pattern") if isinstance(node, dict) else None
+        if isinstance(pattern, str):
+            proof = _prove_restricted_xai_outer_anchor_removal(pattern)
+            if not proof["proved"]:
+                raise PreflightError(
+                    "unresolved provider pattern incompatibility at "
+                    f"{pointer_join(pointer, 'pattern')}: "
+                    f"{proof['failure_reason']}"
+                )
+            provider_pattern = str(proof["provider_pattern"])
+            node["pattern"] = provider_pattern
+            ledger.append(
+                {
+                    "canonical_json_pointer": pointer_join(pointer, "pattern"),
+                    "canonical_pattern": pattern,
+                    "provider_pattern": provider_pattern,
+                    "transformation_kind": (
+                        "remove_redundant_outer_anchors_for_xai_full_string_pattern"
+                    ),
+                    "xai_rule_id": "regex_implicit_anchors",
+                    "canonical_semantics_source": [
+                        "json_schema_draft_2020_12_validation",
+                        "ecma_262_text_processing",
+                    ],
+                    "provider_semantics_source": "xai_structured_outputs",
+                    "restricted_subset_proof": proof,
+                    "semantic_proof_type": (
+                        "outer_anchor_removal_under_provider_implicit_full_string_semantics"
+                    ),
+                    "proof_result": (
+                        "exactly_equivalent_for_proved_restricted_pattern"
+                    ),
+                }
+            )
+    ledger.sort(
+        key=lambda item: (
+            item["canonical_json_pointer"],
+            item["transformation_kind"],
+        )
+    )
     if not ledger:
         ledger.append(
             {
@@ -1006,32 +1306,61 @@ def audit_provider_keywords(schema: Mapping[str, Any]) -> dict[str, Any]:
             unsupported = _regex_unsupported_features(pattern)
             pattern_pointer = pointer_join(pointer, "pattern")
             explicit_outer_anchors = _has_explicit_outer_anchors(pattern)
+            outer_proof = _prove_restricted_xai_outer_anchor_removal(pattern)
+            provider_pattern = (
+                str(outer_proof["provider_pattern"])
+                if outer_proof["proved"]
+                else pattern
+            )
+            provider_pattern_proof = _prove_restricted_xai_provider_pattern(
+                provider_pattern
+            )
+            intended_equivalence = bool(
+                outer_proof["proved"] and provider_pattern_proof["proved"]
+            )
             pattern_entry = {
                 "pointer": pattern_pointer,
                 "pattern": pattern,
                 "avoids_documented_rejected_features": not unsupported,
                 "explicit_outer_anchors": explicit_outer_anchors,
-                "supported_subset": not unsupported and not explicit_outer_anchors,
-                "unsupported_features": unsupported,
-                "exact_provider_semantics_proved": (
-                    not unsupported and not explicit_outer_anchors
+                "canonical_pattern_has_explicit_outer_anchors": (
+                    explicit_outer_anchors
                 ),
+                "provider_outer_anchor_transformation_required": (
+                    explicit_outer_anchors
+                ),
+                "provider_pattern": provider_pattern,
+                "provider_pattern_supported_subset": bool(
+                    provider_pattern_proof["proved"] and not unsupported
+                ),
+                "supported_subset": bool(
+                    provider_pattern_proof["proved"] and not unsupported
+                ),
+                "unsupported_features": unsupported,
+                "restricted_outer_anchor_proof": outer_proof,
+                "python_jsonschema_regex_engine_divergence": bool(
+                    outer_proof["proved"]
+                ),
+                "intended_canonical_xai_semantics_equivalent": (
+                    intended_equivalence
+                ),
+                "exact_provider_semantics_proved": intended_equivalence,
                 "provider_anchor_documentation": (
-                    "anchors_implicit_full_string_match_explicit_tokens_not_listed"
+                    "outer_anchors_removed_for_implicit_full_string_match"
                     if explicit_outer_anchors
                     else "not_applicable"
                 ),
             }
             pattern_audit.append(pattern_entry)
-            if explicit_outer_anchors and not unsupported:
+            if not intended_equivalence:
                 regex_semantic_uncertainties.append(
                     {
                         "pointer": pattern_pointer,
-                        "kind": "explicit_anchor_under_implicit_full_string_semantics",
+                        "kind": "unresolved_provider_pattern_incompatibility",
+                        "failure_reason": outer_proof["failure_reason"],
                         "reason": (
-                            "xAI documents implicit whole-string matching but does not "
-                            "document explicit anchor-token acceptance or terminal-line-"
-                            "terminator equivalence"
+                            "the canonical pattern is outside the deliberately narrow "
+                            "outer-anchor equivalence proof subset"
                         ),
                     }
                 )
@@ -1137,7 +1466,13 @@ def audit_provider_keywords(schema: Mapping[str, Any]) -> dict[str, Any]:
         ),
         "regex_semantic_uncertainty_count": len(regex_semantic_uncertainties),
         "regex_semantic_uncertainties": regex_semantic_uncertainties,
-        "regex_exact_semantics_compatible": not regex_semantic_uncertainties,
+        "regex_exact_semantics_compatible": (
+            not regex_semantic_uncertainties
+            and all(
+                item["intended_canonical_xai_semantics_equivalent"]
+                for item in pattern_audit
+            )
+        ),
         "format_count": len(format_audit),
         "formats": format_audit,
         "constraints": constraints,
@@ -1325,10 +1660,81 @@ def _validator_class():
 
 
 def validation_errors(schema: Mapping[str, Any], instance: Any) -> tuple[str, ...]:
-    """Return stable validation error summaries for one synthetic instance."""
+    """Return ordinary python-jsonschema observations for one instance."""
 
     validator_class = _validator_class()
     validator = validator_class(schema)
+    errors = sorted(
+        validator.iter_errors(instance),
+        key=lambda error: (list(error.absolute_path), error.message),
+    )
+    return tuple(
+        f"/{'/'.join(_escape_pointer(str(item)) for item in error.absolute_path)}: {error.message}"
+        for error in errors
+    )
+
+
+_RESTRICTED_VALIDATOR_CLASSES: dict[tuple[type[Any], str], type[Any]] = {}
+
+
+def _restricted_validator_class(pattern_mode: str):
+    """Extend jsonschema only for the proved current pattern subset."""
+
+    if pattern_mode not in {"canonical_outer_anchors", "xai_full_string"}:
+        raise PreflightError(f"unknown restricted pattern mode: {pattern_mode}")
+    base = _validator_class()
+    cache_key = (base, pattern_mode)
+    if cache_key in _RESTRICTED_VALIDATOR_CLASSES:
+        return _RESTRICTED_VALIDATOR_CLASSES[cache_key]
+    from jsonschema import validators
+    from jsonschema.exceptions import ValidationError
+
+    def validate_restricted_pattern(
+        validator: Any,
+        pattern: Any,
+        instance: Any,
+        schema: Any,
+    ) -> Iterable[Any]:
+        del validator, schema
+        if not isinstance(instance, str) or not isinstance(pattern, str):
+            return
+        if pattern_mode == "canonical_outer_anchors":
+            proof = _prove_restricted_xai_outer_anchor_removal(pattern)
+            if not proof["proved"]:
+                yield ValidationError(
+                    "canonical pattern is outside the restricted ECMA proof subset: "
+                    f"{proof['failure_reason']}"
+                )
+                return
+            provider_pattern = str(proof["provider_pattern"])
+        else:
+            proof = _prove_restricted_xai_provider_pattern(pattern)
+            if not proof["proved"]:
+                yield ValidationError(
+                    "provider pattern is outside the restricted xAI proof subset: "
+                    f"{proof['failure_reason']}"
+                )
+                return
+            provider_pattern = pattern
+        if not _restricted_full_string_match(provider_pattern, instance):
+            yield ValidationError(
+                f"{instance!r} does not match the proved full-string pattern"
+            )
+
+    result = validators.extend(base, {"pattern": validate_restricted_pattern})
+    _RESTRICTED_VALIDATOR_CLASSES[cache_key] = result
+    return result
+
+
+def intended_validation_errors(
+    schema: Mapping[str, Any],
+    instance: Any,
+    *,
+    pattern_mode: str,
+) -> tuple[str, ...]:
+    """Validate with the narrow intended canonical or xAI pattern semantics."""
+
+    validator = _restricted_validator_class(pattern_mode)(schema)
     errors = sorted(
         validator.iter_errors(instance),
         key=lambda error: (list(error.absolute_path), error.message),
@@ -1350,6 +1756,12 @@ def _subschema_wrapper(root: Mapping[str, Any], subschema: Any) -> dict[str, Any
 
 
 def _pattern_sample(pattern: str, min_length: int) -> str:
+    proof = _prove_restricted_xai_outer_anchor_removal(pattern)
+    if not proof["proved"]:
+        raise PreflightError(
+            f"cannot sample an unproved canonical pattern: {proof}"
+        )
+    provider_pattern = str(proof["provider_pattern"])
     candidates = [
         "a",
         "en",
@@ -1367,9 +1779,12 @@ def _pattern_sample(pattern: str, min_length: int) -> str:
         "new-alternative-1",
     ]
     for candidate in candidates:
-        if len(candidate) >= min_length and re.search(pattern, candidate):
+        if (
+            len(candidate) >= min_length
+            and _restricted_full_string_match(provider_pattern, candidate)
+        ):
             return candidate
-    return "x" * max(1, min_length)
+    raise PreflightError(f"no deterministic sample for canonical pattern: {pattern}")
 
 
 def minimal_instance(
@@ -1680,10 +2095,22 @@ def _agreement_case(
     *,
     expected_valid: bool,
 ) -> dict[str, Any]:
-    canonical_errors = validation_errors(canonical_schema, instance)
-    provider_errors = validation_errors(provider_schema, instance)
+    canonical_errors = intended_validation_errors(
+        canonical_schema,
+        instance,
+        pattern_mode="canonical_outer_anchors",
+    )
+    provider_errors = intended_validation_errors(
+        provider_schema,
+        instance,
+        pattern_mode="xai_full_string",
+    )
+    ordinary_canonical_errors = validation_errors(canonical_schema, instance)
+    ordinary_provider_errors = validation_errors(provider_schema, instance)
     canonical_valid = not canonical_errors
     provider_valid = not provider_errors
+    ordinary_canonical_valid = not ordinary_canonical_errors
+    ordinary_provider_valid = not ordinary_provider_errors
     return {
         "case_id": case_id,
         "expected_valid": expected_valid,
@@ -1693,6 +2120,15 @@ def _agreement_case(
         "expectation_met": canonical_valid == expected_valid and provider_valid == expected_valid,
         "canonical_error_count": len(canonical_errors),
         "provider_error_count": len(provider_errors),
+        "ordinary_python_jsonschema": {
+            "canonical_valid": ordinary_canonical_valid,
+            "provider_valid": ordinary_provider_valid,
+            "validators_agree": (
+                ordinary_canonical_valid == ordinary_provider_valid
+            ),
+            "canonical_error_count": len(ordinary_canonical_errors),
+            "provider_error_count": len(ordinary_provider_errors),
+        },
     }
 
 
@@ -1869,11 +2305,40 @@ def build_semantic_equivalence_audit(
         if isinstance(node.get("pattern"), str):
             provider_node = resolve_pointer(provider_schema, f"#{pointer}" if pointer else "#")
             valid = _pattern_sample(node["pattern"], int(node.get("minLength", 0)))
-            for label, instance, expected in (
+            provider_pattern = provider_node.get("pattern")
+            if not isinstance(provider_pattern, str):
+                raise PreflightError(
+                    f"provider pattern missing at {pointer_join(pointer, 'pattern')}"
+                )
+            canonical_proof = _prove_restricted_xai_outer_anchor_removal(
+                node["pattern"]
+            )
+            provider_proof = _prove_restricted_xai_provider_pattern(
+                provider_pattern
+            )
+            if not canonical_proof["proved"] or not provider_proof["proved"]:
+                raise PreflightError(
+                    f"unproved current pattern at {pointer_join(pointer, 'pattern')}"
+                )
+            witness_cases = (
                 ("valid", valid, True),
-                ("terminal_newline_canonical", valid + "\n", True),
-                ("invalid", "!", False),
-            ):
+                ("invalid_leading_character", "!" + valid, False),
+                ("invalid_trailing_character", valid + "!", False),
+                ("terminal_lf", valid + "\n", False),
+                ("terminal_cr", valid + "\r", False),
+                ("terminal_crlf", valid + "\r\n", False),
+                ("terminal_u2028", valid + "\u2028", False),
+                ("terminal_u2029", valid + "\u2029", False),
+                (
+                    "embedded_newline",
+                    valid[: max(1, len(valid) // 2)]
+                    + "\n"
+                    + valid[max(1, len(valid) // 2):],
+                    False,
+                ),
+            )
+            observations: list[dict[str, Any]] = []
+            for label, instance, expected in witness_cases:
                 boundary_cases.append(
                     _agreement_case(
                         f"pattern:{label}:{pointer}",
@@ -1883,35 +2348,51 @@ def build_semantic_equivalence_audit(
                         expected_valid=expected,
                     )
                 )
-            if _has_explicit_outer_anchors(node["pattern"]):
-                terminal_newline = valid + "\n"
-                canonical_accepts = not validation_errors(
-                    _subschema_wrapper(canonical_schema, node), terminal_newline
+                ordinary_canonical_accepts = not validation_errors(
+                    _subschema_wrapper(canonical_schema, node), instance
                 )
-                provider_json_schema_accepts = not validation_errors(
-                    _subschema_wrapper(provider_schema, provider_node),
-                    terminal_newline,
+                ordinary_provider_accepts = not validation_errors(
+                    _subschema_wrapper(provider_schema, provider_node), instance
                 )
-                documented_full_string_accepts = (
-                    re.fullmatch(node["pattern"], terminal_newline) is not None
+                intended_canonical_accepts = _restricted_full_string_match(
+                    str(canonical_proof["provider_pattern"]), instance
                 )
-                regex_semantic_evidence.append(
+                xai_provider_accepts = _restricted_full_string_match(
+                    provider_pattern, instance
+                )
+                observations.append(
                     {
-                        "pointer": pointer_join(pointer, "pattern"),
-                        "pattern": node["pattern"],
-                        "witness_kind": "valid_value_plus_terminal_newline",
-                        "canonical_validator_accepts": canonical_accepts,
-                        "provider_schema_standard_validator_accepts": (
-                            provider_json_schema_accepts
-                        ),
-                        "documented_xai_full_string_interpretation_accepts": (
-                            documented_full_string_accepts
-                        ),
-                        "exact_semantics_proved": (
-                            canonical_accepts == documented_full_string_accepts
+                        "witness_kind": label,
+                        "expected_acceptance": expected,
+                        "ordinary_python_jsonschema": {
+                            "canonical_accepts": ordinary_canonical_accepts,
+                            "provider_schema_accepts": ordinary_provider_accepts,
+                        },
+                        "intended_canonical_restricted_ecma_semantics": {
+                            "accepts": intended_canonical_accepts,
+                        },
+                        "xai_provider_full_string_semantics": {
+                            "accepts": xai_provider_accepts,
+                        },
+                        "intended_semantics_agree": (
+                            intended_canonical_accepts == xai_provider_accepts
                         ),
                     }
                 )
+            regex_semantic_evidence.append(
+                {
+                    "pointer": pointer_join(pointer, "pattern"),
+                    "canonical_pattern": node["pattern"],
+                    "provider_pattern": provider_pattern,
+                    "restricted_subset_proof": canonical_proof,
+                    "ordinary_python_jsonschema_is_contract_oracle": False,
+                    "intended_canonical_xai_semantics_equivalent": all(
+                        item["intended_semantics_agree"]
+                        for item in observations
+                    ),
+                    "observations": observations,
+                }
+            )
         if is_array_schema(node) and isinstance(node.get("minItems"), int):
             provider_node = resolve_pointer(provider_schema, f"#{pointer}" if pointer else "#")
             minimum = node["minItems"]
@@ -1967,58 +2448,137 @@ def build_semantic_equivalence_audit(
         pointer = entry["canonical_json_pointer"]
         canonical_node = resolve_pointer(canonical_schema, f"#{pointer}" if pointer else "#")
         provider_node = resolve_pointer(provider_schema, f"#{pointer}" if pointer else "#")
-        witness = minimal_instance(canonical_schema, canonical_node)
-        if not isinstance(witness, dict):
-            witness = {}
-        witness["synthetic_unexpected_property"] = True
-        counterfactual = copy.deepcopy(dict(provider_node))
-        counterfactual["additionalProperties"] = False
-        canonical_valid = not validation_errors(
-            _subschema_wrapper(canonical_schema, canonical_node), witness
-        )
-        provider_valid = not validation_errors(
-            _subschema_wrapper(provider_schema, provider_node), witness
-        )
-        counterfactual_valid = not validation_errors(
-            _subschema_wrapper(provider_schema, counterfactual), witness
-        )
-        transformed_location_evidence.append(
-            {
-                "pointer": pointer,
-                "canonical_accepts_open_property": canonical_valid,
-                "provider_accepts_open_property": provider_valid,
-                "counterfactual_provider_default_false_accepts": counterfactual_valid,
-                "transformation_necessary_and_equivalent": (
-                    canonical_valid and provider_valid and not counterfactual_valid
-                ),
-            }
-        )
+        if entry["transformation_kind"] == (
+            "insert_explicit_additional_properties_true"
+        ):
+            witness = minimal_instance(canonical_schema, canonical_node)
+            if not isinstance(witness, dict):
+                witness = {}
+            witness["synthetic_unexpected_property"] = True
+            counterfactual = copy.deepcopy(dict(provider_node))
+            counterfactual["additionalProperties"] = False
+            canonical_valid = not validation_errors(
+                _subschema_wrapper(canonical_schema, canonical_node), witness
+            )
+            provider_valid = not validation_errors(
+                _subschema_wrapper(provider_schema, provider_node), witness
+            )
+            counterfactual_valid = not validation_errors(
+                _subschema_wrapper(provider_schema, counterfactual), witness
+            )
+            transformed_location_evidence.append(
+                {
+                    "pointer": pointer,
+                    "transformation_kind": entry["transformation_kind"],
+                    "canonical_accepts_open_property": canonical_valid,
+                    "provider_accepts_open_property": provider_valid,
+                    "counterfactual_provider_default_false_accepts": counterfactual_valid,
+                    "transformation_necessary_and_equivalent": (
+                        canonical_valid and provider_valid and not counterfactual_valid
+                    ),
+                }
+            )
+        elif entry["transformation_kind"] == (
+            "remove_redundant_outer_anchors_for_xai_full_string_pattern"
+        ):
+            canonical_pattern = str(canonical_node)
+            provider_pattern = str(provider_node)
+            proof = _prove_restricted_xai_outer_anchor_removal(canonical_pattern)
+            transformed_location_evidence.append(
+                {
+                    "pointer": pointer,
+                    "transformation_kind": entry["transformation_kind"],
+                    "canonical_pattern": canonical_pattern,
+                    "provider_pattern": provider_pattern,
+                    "restricted_subset_proof": proof,
+                    "transformation_necessary_and_equivalent": bool(
+                        proof["proved"]
+                        and proof["provider_pattern"] == provider_pattern
+                        and entry.get("canonical_pattern") == canonical_pattern
+                        and entry.get("provider_pattern") == provider_pattern
+                        and entry.get("proof_result")
+                        == "exactly_equivalent_for_proved_restricted_pattern"
+                    ),
+                }
+            )
+        else:
+            raise PreflightError(
+                f"unknown transformation kind in semantic audit: {entry}"
+            )
 
     all_cases = cases + boundary_cases
+    exact_proof_results = {
+        "exactly_equivalent",
+        "exactly_equivalent_for_proved_restricted_pattern",
+    }
     transformations_proved = all(
-        entry.get("proof_result") == "exactly_equivalent"
+        entry.get("proof_result") in exact_proof_results
         for entry in transformation_ledger
     )
     unresolved_regex = [
         {
             "pointer": item["pointer"],
-            "kind": "documented_xai_full_string_regex_semantics_differ",
-            "witness_kind": item["witness_kind"],
+            "kind": "intended_canonical_xai_regex_semantic_mismatch",
         }
         for item in regex_semantic_evidence
-        if not item["exact_semantics_proved"]
+        if not item["intended_canonical_xai_semantics_equivalent"]
     ]
+    implementation_divergences = []
+    for item in regex_semantic_evidence:
+        terminal_lf = next(
+            observation
+            for observation in item["observations"]
+            if observation["witness_kind"] == "terminal_lf"
+        )
+        if (
+            terminal_lf["ordinary_python_jsonschema"]["canonical_accepts"]
+            != terminal_lf["intended_canonical_restricted_ecma_semantics"][
+                "accepts"
+            ]
+        ):
+            implementation_divergences.append(
+                {
+                    "pointer": item["pointer"],
+                    "kind": "python_jsonschema_regex_engine_divergence",
+                    "witness_kind": "valid_value_plus_terminal_lf",
+                    "ordinary_python_jsonschema_accepts": terminal_lf[
+                        "ordinary_python_jsonschema"
+                    ]["canonical_accepts"],
+                    "intended_canonical_restricted_ecma_accepts": terminal_lf[
+                        "intended_canonical_restricted_ecma_semantics"
+                    ]["accepts"],
+                    "provider_incompatibility": False,
+                }
+            )
+    provider_patterns_supported = all(
+        _prove_restricted_xai_provider_pattern(item["provider_pattern"])[
+            "proved"
+        ]
+        for item in regex_semantic_evidence
+    )
     return {
+        "transformation_equivalence_proved": transformations_proved,
         "structurally_proved_transformation_equivalence": transformations_proved,
         "structurally_proved_equivalence": (
             transformations_proved and not unresolved_regex
         ),
         "overall_documented_provider_semantics_equivalent": not unresolved_regex,
         "documented_provider_regex_semantics_compatible": not unresolved_regex,
+        "intended_regex_semantics_equivalent": not unresolved_regex,
+        "ordinary_python_validator_agreement": all(
+            item["ordinary_python_jsonschema"]["validators_agree"]
+            for item in all_cases
+        ),
+        "ordinary_python_validator_is_contract_oracle": False,
+        "python_validator_divergence_count": len(implementation_divergences),
+        "implementation_divergences": implementation_divergences,
+        "provider_schema_supported_subset": provider_patterns_supported,
+        "provider_output_guarantee_complete": False,
+        "canonical_postvalidation_required": True,
         "regex_semantic_evidence": regex_semantic_evidence,
         "regex_semantic_mismatch_count": len(unresolved_regex),
         "transformation_ledger_proofs_complete": all(
-            entry.get("proof_result") == "exactly_equivalent"
+            entry.get("proof_result") in exact_proof_results
             for entry in transformation_ledger
         ),
         "transformed_location_proofs": transformed_location_evidence,
@@ -2435,6 +2995,48 @@ def validate_rules_manifest(rules: Mapping[str, Any]) -> None:
     }
     if any(expectations.get(key) != value for key, value in counts.items()):
         raise PreflightError(f"provider rule manifest integrity mismatch: {counts}")
+    source_ids = {
+        source.get("source_id")
+        for source in rules.get("source_capture", {}).get("sources", [])
+        if isinstance(source, Mapping)
+    }
+    required_regex_sources = set(
+        expectations.get("required_regex_contract_source_ids", [])
+    )
+    if not required_regex_sources or not required_regex_sources <= source_ids:
+        raise PreflightError(
+            "provider rule manifest omits required regex contract provenance"
+        )
+    local_validator = rules.get("local_validator_implementation", {})
+    if (
+        local_validator.get("source_sha256")
+        != expectations.get("required_local_validator_source_sha256")
+        or local_validator.get(
+            "implementation_is_normative_canonical_regex_authority"
+        )
+        is not False
+        or local_validator.get("behavior_classification")
+        != "python_jsonschema_regex_engine_divergence"
+    ):
+        raise PreflightError(
+            "provider rule manifest local validator observation was weakened"
+        )
+    regex_contract = subset.get("regex_subset", {}).get(
+        "normative_regex_contract", {}
+    )
+    if (
+        regex_contract.get("canonical_dialect")
+        != "ECMA-262_as_required_by_JSON_Schema_Draft_2020-12"
+        or regex_contract.get("canonical_pattern_implicitly_anchored") is not False
+        or regex_contract.get(
+            "ecma_non_multiline_dollar_matches_before_final_line_terminator"
+        )
+        is not False
+        or regex_contract.get("provider_pattern_implicitly_whole_string") is not True
+    ):
+        raise PreflightError(
+            "provider rule manifest normative regex contract was weakened"
+        )
     resolution = rules.get("documentation_resolution", {})
     expected_resolution = {
         "documentation_status": "resolved_by_more_specific_official_sources",
@@ -2912,13 +3514,20 @@ def build_artifacts(
         "retry_failure_policy_status": "pending_freeze_before_first_provider_call",
     }
     compatibility = {
-        "record_id": "proposition-ledger-phase1.3-xai-compatibility-v1",
+        "record_id": "proposition-ledger-phase1.3-xai-regex-correction-v1",
         "status": status,
+        "supersedes_compatibility_record_commit": (
+            SUPERSEDED_COMPATIBILITY_RECORD_COMMIT
+        ),
+        "prior_disposition": PRIOR_DISPOSITION,
+        "correction_reason": CORRECTION_REASON,
+        "corrected_disposition": status,
         "provider_request_compatible": status in {STATUS_EXACT, STATUS_POSTVALIDATION},
         "provider_guarantee_incomplete": bool(
             keyword_audit["best_effort_occurrence_count"]
             or keyword_audit["undocumented_guarantee_occurrence_count"]
         ),
+        "provider_output_guarantee_complete": False,
         "provider_schema_locally_serializable": sdk_invariants_passed,
         "overall_documented_provider_semantics_equivalent": semantic[
             "overall_documented_provider_semantics_equivalent"
@@ -2926,6 +3535,18 @@ def build_artifacts(
         "incompatibility_reasons": semantic["unresolved_semantic_uncertainty"],
         "regex_semantic_mismatch_count": semantic[
             "regex_semantic_mismatch_count"
+        ],
+        "python_validator_divergence_count": semantic[
+            "python_validator_divergence_count"
+        ],
+        "intended_regex_semantics_equivalent": semantic[
+            "intended_regex_semantics_equivalent"
+        ],
+        "ordinary_python_validator_agreement": semantic[
+            "ordinary_python_validator_agreement"
+        ],
+        "implementation_divergences": semantic[
+            "implementation_divergences"
         ],
         "canonical_postvalidation_required": True,
         "server_acceptance_status": "not_tested",
@@ -2937,6 +3558,15 @@ def build_artifacts(
         "provider_schema_sha256": value_sha256(provider_schema),
         "transformation_count": sum(
             entry["transformation_kind"] != "identity" for entry in transformation_ledger
+        ),
+        "transformation_count_by_kind": dict(
+            sorted(
+                Counter(
+                    entry["transformation_kind"]
+                    for entry in transformation_ledger
+                    if entry["transformation_kind"] != "identity"
+                ).items()
+            )
         ),
         "oneof_pair_proofs_passed": oneof["all_oneof_pairs_structurally_disjoint"],
         "reference_graph_acyclic": references["acyclic"],
@@ -3026,15 +3656,27 @@ def build_artifacts(
         "source_capture": rules["source_capture"],
         "documentation_resolution": rules["documentation_resolution"],
         "official_source_discrepancies": rules["official_source_discrepancies"],
+        "normative_regex_contract": rules["json_schema_subset"]["regex_subset"][
+            "normative_regex_contract"
+        ],
+        "local_validator_implementation": rules[
+            "local_validator_implementation"
+        ],
         "complete_provider_documentation_snapshots_committed": False,
         "provider_calls": 0,
     }
     run_manifest = {
-        "run_id": "proposition-ledger-phase1.3-xai-provider-preflight-v1",
+        "run_id": "proposition-ledger-phase1.3-xai-regex-correction-v1",
         "generated_at_utc": generated_at_utc,
         "private_run_path": str(output_dir.resolve()),
         "python_executable_path": str(Path(sys.executable).resolve()),
         "git_commit": git_commit,
+        "supersedes_compatibility_record_commit": (
+            SUPERSEDED_COMPATIBILITY_RECORD_COMMIT
+        ),
+        "prior_disposition": PRIOR_DISPOSITION,
+        "correction_reason": CORRECTION_REASON,
+        "corrected_disposition": status,
         "canonical_schema_path": str(CANONICAL_SCHEMA_PATH.relative_to(PROJECT_DIR)),
         "synthetic_only": True,
         "provider_calls": 0,

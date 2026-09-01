@@ -44,8 +44,24 @@ EXPECTED_TRANSFORM_POINTERS = {
     "/allOf/0/if",
     "/allOf/0/then",
 }
+EXPECTED_PATTERN_TRANSFORM_POINTERS = {
+    "/$defs/localAlternativeRef/pattern",
+    "/$defs/localAnswerTargetRef/pattern",
+    "/$defs/localCommitmentRef/pattern",
+    "/$defs/localIssueRef/pattern",
+    "/$defs/localObligationRef/pattern",
+    "/$defs/localPropositionGroupRef/pattern",
+    "/$defs/localPropositionRef/pattern",
+    "/$defs/localRejectedAnswerTargetRef/pattern",
+    "/$defs/localRelationRef/pattern",
+    "/$defs/localRepairRef/pattern",
+    "/$defs/localWarningRef/pattern",
+    "/$defs/newProposition/properties/original_language/pattern",
+    "/$defs/opaqueId/pattern",
+    "/$defs/propositionSemanticProperties/properties/original_language/pattern",
+}
 EXPECTED_PROVIDER_SCHEMA_SHA256 = (
-    "b01fb87d6b4786d6d4866f920ea06a6d1e7257ff6d0c6bd901fa9d8e0099bb3c"
+    "37423dc87da3a253ee6c3dcc826c764268d094b16ba83bd1d4a9b1e00948bc21"
 )
 REAL_SDK_TEST_ENV = "MRS_XAI_PINNED_SDK_TEST"
 
@@ -258,9 +274,9 @@ def _install_fake_sdk(monkeypatch: pytest.MonkeyPatch) -> None:
 
     versions = {
         "xai-sdk": "1.19.0",
-        "pydantic": "2.12.5",
-        "protobuf": "6.33.5",
-        "grpcio": "1.78.0",
+        "pydantic": "2.13.5",
+        "protobuf": "6.33.6",
+        "grpcio": "1.83.1",
     }
     monkeypatch.setattr(
         xai_preflight,
@@ -360,11 +376,39 @@ def test_provider_transformation_is_pure_and_does_not_mutate_canonical(
     assert xai_preflight.value_sha256(provider_schema) == (
         EXPECTED_PROVIDER_SCHEMA_SHA256
     )
-    assert len(ledger) == 5
-    assert {entry["canonical_json_pointer"] for entry in ledger} == (
+    assert len(ledger) == 19
+    object_entries = [
+        entry
+        for entry in ledger
+        if entry["transformation_kind"]
+        == "insert_explicit_additional_properties_true"
+    ]
+    pattern_entries = [
+        entry
+        for entry in ledger
+        if entry["transformation_kind"]
+        == "remove_redundant_outer_anchors_for_xai_full_string_pattern"
+    ]
+    assert len(object_entries) == 5
+    assert {entry["canonical_json_pointer"] for entry in object_entries} == (
         EXPECTED_TRANSFORM_POINTERS
     )
-    assert all(entry["proof_result"] == "exactly_equivalent" for entry in ledger)
+    assert all(
+        entry["proof_result"] == "exactly_equivalent"
+        for entry in object_entries
+    )
+    assert len(pattern_entries) == 14
+    assert {entry["canonical_json_pointer"] for entry in pattern_entries} == (
+        EXPECTED_PATTERN_TRANSFORM_POINTERS
+    )
+    assert all(
+        entry["canonical_pattern"]
+        == "^" + entry["provider_pattern"] + "$"
+        and entry["proof_result"]
+        == "exactly_equivalent_for_proved_restricted_pattern"
+        and entry["restricted_subset_proof"]["proved"] is True
+        for entry in pattern_entries
+    )
 
 
 def test_implicit_additional_properties_is_expanded_to_preserve_openness() -> None:
@@ -726,17 +770,10 @@ def test_allof_single_is_supported_and_multiple_is_best_effort() -> None:
 
 
 def test_regex_supported_subset_and_rejected_advanced_constructs() -> None:
-    supported_unanchored_patterns = [
-        r"[A-Za-z0-9_.:-]{1,8}",
-        r"(foo|bar).+\d\s?",
-        r"(?:foo){1,2}",
-        r"\n\t\r\f\x41\u0042",
-    ]
     anchored_patterns = [
         r"^[A-Za-z0-9_.:-]{1,8}$",
-        r"^(foo|bar).+\d\s?$",
-        r"^(?:foo){1,2}$",
-        r"^\n\t\r\f\x41\u0042$",
+        r"^(foo|bar)$",
+        r"^foo{1,2}$",
     ]
     rejected_patterns = [
         r"^(a)\1$",
@@ -747,13 +784,6 @@ def test_regex_supported_subset_and_rejected_advanced_constructs() -> None:
         r"(?i)^abc$",
         r"^(?(1)a|b)$",
     ]
-    supported_unanchored_schema = {
-        "type": "object",
-        "properties": {
-            f"p{index}": {"type": "string", "pattern": pattern}
-            for index, pattern in enumerate(supported_unanchored_patterns)
-        },
-    }
     anchored_schema = {
         "type": "object",
         "properties": {
@@ -769,21 +799,23 @@ def test_regex_supported_subset_and_rejected_advanced_constructs() -> None:
         },
     }
 
-    supported = xai_preflight.audit_provider_keywords(supported_unanchored_schema)
     anchored = xai_preflight.audit_provider_keywords(anchored_schema)
     rejected = xai_preflight.audit_provider_keywords(rejected_schema)
 
-    assert supported["pattern_count"] == len(supported_unanchored_patterns)
-    assert supported["all_patterns_in_supported_subset"] is True
-    assert supported["regex_exact_semantics_compatible"] is True
-    assert supported["rejected_construct_count"] == 0
     assert anchored["pattern_count"] == len(anchored_patterns)
     assert anchored["all_patterns_avoid_documented_rejections"] is True
-    assert anchored["all_patterns_in_supported_subset"] is False
-    assert anchored["regex_exact_semantics_compatible"] is False
-    assert anchored["regex_semantic_uncertainty_count"] == len(anchored_patterns)
+    assert anchored["all_patterns_in_supported_subset"] is True
+    assert anchored["regex_exact_semantics_compatible"] is True
+    assert anchored["regex_semantic_uncertainty_count"] == 0
     assert anchored["rejected_construct_count"] == 0
-    assert all(item["explicit_outer_anchors"] for item in anchored["patterns"])
+    assert all(
+        item["canonical_pattern_has_explicit_outer_anchors"]
+        and item["provider_outer_anchor_transformation_required"]
+        and item["provider_pattern_supported_subset"]
+        and item["python_jsonschema_regex_engine_divergence"]
+        and item["intended_canonical_xai_semantics_equivalent"]
+        for item in anchored["patterns"]
+    )
     assert rejected["pattern_count"] == len(rejected_patterns)
     assert rejected["all_patterns_avoid_documented_rejections"] is False
     assert rejected["all_patterns_in_supported_subset"] is False
@@ -796,6 +828,136 @@ def test_regex_supported_subset_and_rejected_advanced_constructs() -> None:
         "unsupported_regex_unicode_property_escape",
         "unsupported_regex_word_boundary",
     }
+
+
+@pytest.mark.parametrize(
+    ("pattern", "failure_reason"),
+    [
+        (r"^foo\$", "escaped_final_dollar_not_outer_anchor"),
+        (r"^foo$bar$", "interior_anchor"),
+        (r"^foo|bar$", "top_level_alternation"),
+        (r"^a.b$", "dot_wildcard_unproved"),
+        (r"^a(?=b)b$", "unsupported_group_extension"),
+        (r"^(a)\1$", "escape_or_shorthand_unproved"),
+        (r"(?i)^abc$", "missing_leading_outer_anchor"),
+    ],
+)
+def test_outer_anchor_transform_fails_closed_for_unproved_syntax(
+    pattern: str,
+    failure_reason: str,
+) -> None:
+    proof = xai_preflight._prove_restricted_xai_outer_anchor_removal(pattern)
+
+    assert proof["proved"] is False
+    assert proof["failure_reason"] == failure_reason
+    with pytest.raises(
+        xai_preflight.PreflightError,
+        match="unresolved provider pattern incompatibility",
+    ):
+        xai_preflight.strip_redundant_xai_outer_anchors(pattern)
+
+
+def test_grouped_whole_expression_is_safely_transformed() -> None:
+    pattern = r"^(foo|bar)$"
+
+    assert xai_preflight.strip_redundant_xai_outer_anchors(pattern) == (
+        r"(foo|bar)"
+    )
+    proof = xai_preflight._prove_restricted_xai_outer_anchor_removal(pattern)
+    assert proof["proved"] is True
+    assert proof["group_count"] == 1
+
+
+def test_all_current_provider_patterns_preserve_the_complete_interior(
+    canonical_schema: dict[str, Any],
+    transformed_schema: tuple[dict[str, Any], list[dict[str, Any]]],
+) -> None:
+    provider_schema, _ = transformed_schema
+    occurrences = [
+        (pointer, node)
+        for pointer, node, _ in xai_preflight.iter_schema_nodes(canonical_schema)
+        if isinstance(node, Mapping) and isinstance(node.get("pattern"), str)
+    ]
+
+    assert len(occurrences) == 14
+    for pointer, canonical_node in occurrences:
+        provider_node = xai_preflight.resolve_pointer(
+            provider_schema,
+            f"#{pointer}" if pointer else "#",
+        )
+        canonical_pattern = canonical_node["pattern"]
+        provider_pattern = provider_node["pattern"]
+        assert canonical_pattern == "^" + provider_pattern + "$"
+        assert not provider_pattern.startswith("^")
+        assert not provider_pattern.endswith("$")
+        assert xai_preflight._prove_restricted_xai_provider_pattern(
+            provider_pattern
+        )["proved"] is True
+
+
+def test_all_current_patterns_use_equal_intended_full_string_semantics(
+    canonical_schema: dict[str, Any],
+    transformed_schema: tuple[dict[str, Any], list[dict[str, Any]]],
+) -> None:
+    provider_schema, _ = transformed_schema
+    occurrences = [
+        (pointer, node)
+        for pointer, node, _ in xai_preflight.iter_schema_nodes(canonical_schema)
+        if isinstance(node, Mapping) and isinstance(node.get("pattern"), str)
+    ]
+
+    for pointer, canonical_node in occurrences:
+        provider_node = xai_preflight.resolve_pointer(
+            provider_schema,
+            f"#{pointer}" if pointer else "#",
+        )
+        valid = xai_preflight._pattern_sample(
+            canonical_node["pattern"],
+            int(canonical_node.get("minLength", 0)),
+        )
+        canonical_wrapper = xai_preflight._subschema_wrapper(
+            canonical_schema, canonical_node
+        )
+        provider_wrapper = xai_preflight._subschema_wrapper(
+            provider_schema, provider_node
+        )
+        assert not xai_preflight.intended_validation_errors(
+            canonical_wrapper,
+            valid,
+            pattern_mode="canonical_outer_anchors",
+        )
+        assert not xai_preflight.intended_validation_errors(
+            provider_wrapper,
+            valid,
+            pattern_mode="xai_full_string",
+        )
+        invalid_values = (
+            "!" + valid,
+            valid + "!",
+            valid + "\n",
+            valid + "\r",
+            valid + "\r\n",
+            valid + "\u2028",
+            valid + "\u2029",
+            valid[: max(1, len(valid) // 2)]
+            + "\n"
+            + valid[max(1, len(valid) // 2):],
+        )
+        for invalid in invalid_values:
+            assert xai_preflight.intended_validation_errors(
+                canonical_wrapper,
+                invalid,
+                pattern_mode="canonical_outer_anchors",
+            )
+            assert xai_preflight.intended_validation_errors(
+                provider_wrapper,
+                invalid,
+                pattern_mode="xai_full_string",
+            )
+        assert not xai_preflight.validation_errors(
+            canonical_wrapper,
+            valid + "\n",
+        )
 
 
 def test_supported_and_unlisted_formats_are_distinguished_without_removal() -> None:
@@ -886,13 +1048,19 @@ def test_canonical_keyword_audit_has_only_documented_incompleteness(
     assert audit["prefix_items_occurrence_count"] == 0
     assert audit["pattern_count"] == 14
     assert audit["all_patterns_avoid_documented_rejections"] is True
-    assert audit["all_patterns_in_supported_subset"] is False
-    assert audit["regex_exact_semantics_compatible"] is False
-    assert audit["regex_semantic_uncertainty_count"] == 14
-    assert {
-        item["pointer"] for item in audit["regex_semantic_uncertainties"]
-    } == {item["pointer"] for item in audit["patterns"]}
-    assert all(item["explicit_outer_anchors"] for item in audit["patterns"])
+    assert audit["all_patterns_in_supported_subset"] is True
+    assert audit["regex_exact_semantics_compatible"] is True
+    assert audit["regex_semantic_uncertainty_count"] == 0
+    assert audit["regex_semantic_uncertainties"] == []
+    assert all(
+        item["canonical_pattern_has_explicit_outer_anchors"]
+        and item["provider_outer_anchor_transformation_required"]
+        and item["provider_pattern_supported_subset"]
+        and item["python_jsonschema_regex_engine_divergence"]
+        and item["intended_canonical_xai_semantics_equivalent"]
+        and item["restricted_outer_anchor_proof"]["proved"]
+        for item in audit["patterns"]
+    )
     assert audit["format_count"] == 0
 
 
@@ -910,11 +1078,26 @@ def test_canonical_and_provider_fixture_corpus_agrees_exactly(
 
     assert audit["structurally_proved_transformation_equivalence"] is True
     assert audit["transformation_ledger_proofs_complete"] is True
-    assert audit["structurally_proved_equivalence"] is False
-    assert audit["overall_documented_provider_semantics_equivalent"] is False
-    assert audit["documented_provider_regex_semantics_compatible"] is False
+    assert audit["transformation_equivalence_proved"] is True
+    assert audit["structurally_proved_equivalence"] is True
+    assert audit["overall_documented_provider_semantics_equivalent"] is True
+    assert audit["documented_provider_regex_semantics_compatible"] is True
+    assert audit["intended_regex_semantics_equivalent"] is True
+    assert audit["provider_schema_supported_subset"] is True
+    assert audit["provider_output_guarantee_complete"] is False
+    assert audit["canonical_postvalidation_required"] is True
     assert audit["all_transformed_locations_proved"] is True
-    assert len(audit["transformed_location_proofs"]) == 5
+    assert len(audit["transformed_location_proofs"]) == 19
+    assert sum(
+        item["transformation_kind"]
+        == "insert_explicit_additional_properties_true"
+        for item in audit["transformed_location_proofs"]
+    ) == 5
+    assert sum(
+        item["transformation_kind"]
+        == "remove_redundant_outer_anchors_for_xai_full_string_pattern"
+        for item in audit["transformed_location_proofs"]
+    ) == 14
     assert audit["existing_wholly_synthetic_semantic_delta_fixture_count"] == 6
     assert audit["existing_wholly_synthetic_semantic_delta_fixture_ids"] == [
         "semantic_module_behavioral",
@@ -952,27 +1135,32 @@ def test_canonical_and_provider_fixture_corpus_agrees_exactly(
         assert case["expected_valid"] is expected_valid
         assert case["canonical_valid"] is expected_valid
         assert case["provider_valid"] is expected_valid
-    terminal_newline_cases = [
+    terminal_lf_cases = [
         item
         for item in audit["cases"]
-        if item["case_id"].startswith("pattern:terminal_newline_canonical:")
+        if item["case_id"].startswith("pattern:terminal_lf:")
     ]
-    assert len(terminal_newline_cases) == 14
-    assert all(item["canonical_valid"] for item in terminal_newline_cases)
-    assert all(item["provider_valid"] for item in terminal_newline_cases)
-    assert audit["regex_semantic_mismatch_count"] == 14
+    assert len(terminal_lf_cases) == 14
+    assert all(not item["canonical_valid"] for item in terminal_lf_cases)
+    assert all(not item["provider_valid"] for item in terminal_lf_cases)
+    assert audit["regex_semantic_mismatch_count"] == 0
     assert len(audit["regex_semantic_evidence"]) == 14
     assert all(
-        item["canonical_validator_accepts"]
-        and item["provider_schema_standard_validator_accepts"]
-        and not item["documented_xai_full_string_interpretation_accepts"]
-        and not item["exact_semantics_proved"]
+        item["intended_canonical_xai_semantics_equivalent"]
         for item in audit["regex_semantic_evidence"]
     )
-    assert len(audit["unresolved_semantic_uncertainty"]) == 14
+    assert audit["python_validator_divergence_count"] == 14
+    assert len(audit["implementation_divergences"]) == 14
     assert {
-        item["kind"] for item in audit["unresolved_semantic_uncertainty"]
-    } == {"documented_xai_full_string_regex_semantics_differ"}
+        item["kind"] for item in audit["implementation_divergences"]
+    } == {"python_jsonschema_regex_engine_divergence"}
+    assert all(
+        item["provider_incompatibility"] is False
+        for item in audit["implementation_divergences"]
+    )
+    assert audit["unresolved_semantic_uncertainty"] == []
+    assert audit["ordinary_python_validator_agreement"] is False
+    assert audit["ordinary_python_validator_is_contract_oracle"] is False
 
 
 def test_provider_rule_manifest_has_exact_nonweakened_rule_sets() -> None:
@@ -1021,9 +1209,34 @@ def test_provider_rule_manifest_has_exact_nonweakened_rule_sets() -> None:
     assert all(
         len(source["content_sha256"]) == 64
         and source["authority"]
-        in {"official_xai_documentation", "official_pypi_metadata"}
+        in {
+            "official_ecma_262_specification",
+            "official_json_schema_specification",
+            "official_pypi_metadata",
+            "official_python_documentation",
+            "official_xai_documentation",
+        }
         for source in rules["source_capture"]["sources"]
     )
+    sources = {
+        source["source_id"]: source
+        for source in rules["source_capture"]["sources"]
+    }
+    assert set(
+        rules["integrity_expectations"]["required_regex_contract_source_ids"]
+    ) <= set(sources)
+    local_validator = rules["local_validator_implementation"]
+    assert local_validator == {
+        "behavior_classification": "python_jsonschema_regex_engine_divergence",
+        "implementation_behavior": "pattern keyword delegates to Python re.search",
+        "implementation_is_normative_canonical_regex_authority": False,
+        "package": "jsonschema",
+        "source_path_within_distribution": "jsonschema/_keywords.py",
+        "source_sha256": (
+            "afcfc3aea01f9fa40bc109e65c4820bde89253e51a20bda9da7b8f20d7a57c57"
+        ),
+        "version": "4.26.0",
+    }
 
 
 def test_rule_manifest_removal_is_detected() -> None:
@@ -1390,6 +1603,50 @@ def test_all_emittable_status_constants_use_the_frozen_vocabulary() -> None:
     }
 
     assert defined <= allowed
+
+
+def test_complete_synthetic_preflight_emits_corrected_postvalidation_status(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _install_fake_sdk(monkeypatch)
+    monkeypatch.setattr(
+        xai_preflight,
+        "_environment_record",
+        lambda lock, output_dir: {"lock_matches_environment": True},
+    )
+
+    artifacts = xai_preflight.build_artifacts(
+        output_dir=tmp_path,
+        generated_at_utc="2026-01-01T00:00:00Z",
+        git_commit="a" * 40,
+    )
+    compatibility = artifacts["compatibility-record.json"]
+    validation = artifacts["validation.json"]
+    semantic = artifacts["semantic-equivalence-audit.json"]
+
+    assert compatibility["status"] == (
+        "locally_compatible_with_mandatory_canonical_postvalidation"
+    )
+    assert compatibility["corrected_disposition"] == compatibility["status"]
+    assert compatibility["prior_disposition"] == (
+        "incompatible_with_documented_xai_schema_subset"
+    )
+    assert compatibility["correction_reason"] == (
+        "python_jsonschema_regex_engine_divergence_was_misclassified"
+    )
+    assert compatibility["provider_request_compatible"] is True
+    assert compatibility["provider_guarantee_incomplete"] is True
+    assert compatibility["provider_schema_locally_serializable"] is True
+    assert compatibility["canonical_postvalidation_required"] is True
+    assert compatibility["server_acceptance_status"] == "not_tested"
+    assert compatibility["provider_call_authorised"] is False
+    assert compatibility["development_pilot_authorised"] is False
+    assert compatibility["provider_calls"] == 0
+    assert semantic["regex_semantic_mismatch_count"] == 0
+    assert semantic["python_validator_divergence_count"] == 14
+    assert validation["compatibility_passed"] is True
+    assert validation["passed"] is True
 
 
 def test_local_sdk_profile_rejection_emits_distinct_incompatible_record(

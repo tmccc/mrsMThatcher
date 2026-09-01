@@ -2,25 +2,22 @@
 
 ## Disposition
 
-Phase 1.3 is `incompatible_with_documented_xai_schema_subset`.
+The corrected Phase 1.3 disposition is
+`locally_compatible_with_mandatory_canonical_postvalidation`.
 
 The official `xai-sdk==1.19.0` can construct and deterministically serialise
 both intended requests locally, without transport, and preserves the raw
-provider-facing schema. The five required `additionalProperties: true`
-insertions are also exact. The incompatibility arises elsewhere: all 14
-canonical patterns contain explicit `^` and `$` anchors, while xAI documents
-that its regular expressions are implicitly anchored and always match the
-entire string. It does not document explicit anchor-token semantics or their
-equivalence to canonical terminal-line-terminator behavior.
+provider-facing schema. Five required `additionalProperties: true` insertions
+and 14 restricted outer-anchor removals are exact.
 
-The canonical Draft 2020-12 validator accepts a concrete terminal-newline
-witness at every one of the 14 pattern locations because `$` can match before
-that final newline. The documented xAI whole-string rule would reject the same
-witness. No transformation permitted in Phase 1.3 can remove this difference.
-The provider form is therefore locally serialisable, but its documented
-accepted instance set is not proved equal to the canonical contract.
-Mandatory canonical post-validation cannot repair a provider request that is
-stricter than the canonical schema.
+Commit `777b40f67793d6140fa3f923186cf737c89042ad` incorrectly treated ordinary
+Python `re` behavior as the canonical regex oracle. Python permits `$` to
+match immediately before a final LF. Draft 2020-12 instead specifies the
+ECMA-262 dialect; under non-multiline ECMA-262 semantics, `$` succeeds at the
+actual end of input. Both the intended canonical `^INNER$` constraint and
+xAI's implicitly whole-string `INNER` constraint therefore reject the
+terminal-LF witness. The 14 Python observations remain recorded as
+`python_jsonschema_regex_engine_divergence`, not provider incompatibilities.
 
 This is not evidence of live-server rejection or acceptance. The frozen
 statuses remain:
@@ -59,9 +56,10 @@ validate that role, or change its prompt, behavior, or A/B/C/D design.
 
 ## Documentation provenance and resolved profile-page omission
 
-Only official xAI documentation and official PyPI metadata were used. Hashes
-cover each decoded HTTPS response body after content-encoding decompression;
-complete documentation snapshots are not committed.
+Provider rules use official xAI documentation and official PyPI metadata. The
+regex correction additionally uses only the named official JSON Schema,
+ECMA-262, and Python sources. Hashes cover each decoded HTTPS response body
+after content-encoding decompression; complete snapshots are not committed.
 
 | Source | Retrieved UTC | SHA-256 |
 |---|---|---|
@@ -71,6 +69,20 @@ complete documentation snapshots are not committed.
 | [Grok 4.6](https://docs.x.ai/developers/models/grok-4.6) | 2026-08-31 21:54:05 | `7c8444c9ed3c83be879c54eb73b6f9561b0b1f83fa066940985b9b77f1761934` |
 | [May 15 model retirement](https://docs.x.ai/developers/migration/may-15-retirement) | 2026-09-01 01:36:13 | `8a90f421cc5fb70664c0f8dac54910d28f2253a7ae16fc3edf069f31596c4dd2` |
 | [PyPI: xai-sdk 1.19.0](https://pypi.org/project/xai-sdk/1.19.0/) | 2026-08-31 21:54:07 | `b193dd78741e0eab9f67913d41bd2c3bcd91d7348edab8f3a7185b7f26eda44e` |
+
+The regex correction adds the following authoritative provenance:
+
+| Source | Retrieved UTC | SHA-256 |
+|---|---|---|
+| [JSON Schema Draft 2020-12 validation](https://json-schema.org/draft/2020-12/json-schema-validation) | 2026-09-01 02:52:02 | `2b4849011dab7fef819a93ff3ff77b04a09a687640a6525b5e395f4153144e44` |
+| [ECMA-262 text processing](https://tc39.es/ecma262/multipage/text-processing.html) | 2026-09-01 02:52:02 | `33d947d1bfd75b568504f2b10ce4f3ca20d1d8f14e54cfe3eb3aa4a0b4ceda7b` |
+| [Python 3.10 `re`](https://docs.python.org/3.10/library/re.html) | 2026-09-01 02:52:02 | `efc63d833aa1ccc6db45e1e1a0c2d90851a914a22e05ccc99517051fca1dfc0e` |
+| [xAI structured outputs, correction capture](https://docs.x.ai/developers/model-capabilities/text/structured-outputs) | 2026-09-01 02:52:03 | `2cf69f355796c25a491f45e293ce82986d775289ea1852e724e547af109e859f` |
+
+Pinned `jsonschema==4.26.0` delegates `pattern` to `re.search` in
+`jsonschema/_keywords.py`; that installed source hashes to
+`afcfc3aea01f9fa40bc109e65c4820bde89253e51a20bda9da7b8f20d7a57c57`.
+This records local validator behavior, not normative canonical semantics.
 
 The first attempt halted because the generic reasoning page's omission of
 Grok 4.3 was interpreted too cautiously. The dedicated Grok 4.3 page lists
@@ -86,9 +98,9 @@ generic_reasoning_page_status: incomplete_for_grok_4_3
 profile_documentation_status: sufficiently_supported_for_local_preflight
 ```
 
-That profile-documentation resolution is independent of the later schema
-incompatibility. The halted private run remains unchanged as audit evidence
-and was not converted into the completed run.
+That profile-documentation resolution is independent of this regex
+correction. The halted and completed prior private runs remain unchanged as
+audit evidence.
 
 ## Pinned environment
 
@@ -135,16 +147,18 @@ The independent audit exactly reconciles the prior provider-neutral inventory.
 The reference graph is local, fully resolved, and acyclic; its longest logical
 definition chain is five edges. The single `allOf` has exactly one subschema.
 
-The 14 patterns avoid every explicitly rejected regex feature. Nevertheless,
-their explicit anchors and canonical terminal-newline behavior are not proved
-equivalent to xAI's documented implicit whole-string semantics. This is an
-exact-semantics incompatibility, not a rejected-keyword count.
+The 14 patterns avoid every explicitly rejected regex feature and fit a
+deliberately narrow ASCII grammar: literals, positive ASCII classes/ranges,
+ordinary capturing groups, `*`, and bounded repetition. Every pattern has one
+unescaped outer `^...$` pair, no interior anchor, no top-level alternation, no
+inline modifier, no dot wildcard, and no unproved escape syntax. This
+structural proof is the basis for exact outer-anchor removal.
 
 ## Provider-facing transformation
 
 The canonical schema was never modified. Its provider-facing copy has
 canonical semantic SHA-256
-`b01fb87d6b4786d6d4866f920ea06a6d1e7257ff6d0c6bd901fa9d8e0099bb3c`.
+`37423dc87da3a253ee6c3dcc826c764268d094b16ba83bd1d4a9b1e00948bc21`.
 
 xAI defaults omitted `additionalProperties` to false, while canonical JSON
 Schema defaults it to true. Exactly five object-applicator nodes omit the
@@ -156,12 +170,20 @@ keyword, so the pure transformation inserts `additionalProperties: true` at:
 - `/allOf/0/then`
 - `/allOf/0/else`
 
-Each ledger entry proves the same rule: canonical omission equals true, and
+Each object ledger entry proves the same rule: canonical omission equals true, and
 making the provider default explicit preserves the accepted instance set.
 Counterfactual negative witnesses show that false would reject
-canonical-valid objects at every location. No property, type, required list,
-enum, const, constraint, annotation, alternative, reference, or pattern was
-changed.
+canonical-valid objects at every location.
+
+At each of the 14 pattern locations, the provider copy changes `^INNER$` to
+`INNER`. A fail-closed structural helper proves the exact outer pair and the
+restricted interior grammar before making the change. It rejects escaped or
+interior anchors, top-level alternation, lookaround, backreferences, inline
+modifiers, dot wildcards, unproved shorthand/Unicode syntax, and malformed
+groups/classes/quantifiers. Thus the ledger contains 19 transformations: five
+object-default expansions and 14 exact regex normalisations. No property,
+type, required list, enum, const, data constraint, annotation, alternative,
+or reference changed.
 
 ## `oneOf`, references, and semantic-equivalence evidence
 
@@ -179,22 +201,25 @@ All six alternative pairs are structurally disjoint:
 Thus xAI's documented anyOf-like handling of `oneOf` cannot weaken exclusivity
 for this schema. No `oneOf` was rewritten.
 
-Structural proofs cover all five transformations. Independent canonical and
-provider-facing Draft 2020-12 validators agree on all 296 wholly synthetic
+Structural proofs cover all 19 transformations. Independent intended-canonical
+and xAI-full-string validation paths agree on all 380 wholly synthetic
 positive, negative, boundary, combinator, existing-fixture, enum, const,
 nullable, optional-field, pattern, array, and counterfactual cases. Six of
 those are existing wholly synthetic semantic-delta fixtures. This bounded
 agreement is reported separately from structural proof.
 
-The provider-semantics audit additionally supplies 14 concrete
-terminal-newline witnesses, one per pattern. Each is canonical-valid and
-provider-facing-schema-valid under ordinary Draft 2020-12 validation, but is
-incompatible with the documented xAI whole-string matching rule. Accordingly:
+The audit separately retains ordinary `python-jsonschema` observations. Its
+Python regex engine accepts each valid sample plus final LF under canonical
+`^...$`; the restricted intended-canonical and xAI full-string paths both
+reject all 14 witnesses. They also agree on terminal CR, CRLF, U+2028, U+2029,
+embedded newline, and invalid leading/trailing characters. Accordingly:
 
 - structurally proved transformation equivalence: yes
-- bounded canonical/provider-schema validator agreement: 296/296
-- unresolved/documented semantic differences: 14
-- overall documented provider semantics equivalent: no
+- bounded intended canonical/xAI agreement: 380/380
+- Python-validator implementation divergences: 14
+- intended canonical/xAI regex mismatches: 0
+- unresolved semantic uncertainty: 0
+- overall documented provider semantics equivalent: yes
 
 ## Guarantees and mandatory canonical post-validation
 
@@ -205,11 +230,11 @@ constraint is 2, below 256; and the largest object has 22 properties, below
 
 One conditional construct (`if` / `then` / `else`, three keyword occurrences)
 is only best-effort. In addition, xAI's documented subset does not state a
-guarantee for 17 `uniqueItems` occurrences. These are distinct from the 14
-regex semantic mismatches that make this phase incompatible.
+guarantee for 17 `uniqueItems` occurrences. These guarantee gaps prevent
+`locally_compatible_exact` and make unchanged canonical post-validation
+mandatory.
 
-If provider use is ever separately authorised after this incompatibility is
-resolved, every response must still:
+If provider use is ever separately authorised, every response must still:
 
 1. parse as strict JSON without coercion or repair;
 2. validate against the unchanged canonical semantic-delta schema;
@@ -234,14 +259,13 @@ revalidated for any future SDK pin.
 
 | Profile | Schema SHA-256 | Request SHA-256 | Bytes | Result |
 |---|---|---|---:|---|
-| `grok-4.3` low | `b01fb87d6b4786d6d4866f920ea06a6d1e7257ff6d0c6bd901fa9d8e0099bb3c` | `930fcb60bd4bd9fcbf713e3b3ebc7d5f93ed08eaf3da5ec63d7b421bb470310f` | 28,338 | succeeded without transport |
-| `grok-4.6` low | `b01fb87d6b4786d6d4866f920ea06a6d1e7257ff6d0c6bd901fa9d8e0099bb3c` | `d1622fad92da2855ccecf65817219fecacca6b2adac5c74814cc2c39539ae1b2` | 28,338 | succeeded without transport |
+| `grok-4.3` low | `37423dc87da3a253ee6c3dcc826c764268d094b16ba83bd1d4a9b1e00948bc21` | `449d28a88dadb3acea0c22c37a829877bf7cdb7746ec973192fb5d41062719fb` | 28,310 | succeeded without transport |
+| `grok-4.6` low | `37423dc87da3a253ee6c3dcc826c764268d094b16ba83bd1d4a9b1e00948bc21` | `b88a5eecbd195a3e25c8f83b2c1ded6ddfc255aca993c3012b3cdd7579096c82` | 28,310 | succeeded without transport |
 
 After normalising only the model field, the deterministic protobuf bytes are
 identical. Both contain low effort, zero tools, no search parameters, no code
 execution, no streaming, and only synthetic placeholder messages. Local SDK
-serialisation does not establish xAI server acceptance or repair the schema
-semantic mismatch.
+serialisation does not establish xAI server acceptance.
 
 Before importing the SDK, credential variable names were removed without
 reading their values and xAI tracing controls were disabled. The active guard
