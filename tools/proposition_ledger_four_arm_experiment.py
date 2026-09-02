@@ -29,7 +29,7 @@ from tools import proposition_ledger_xai_transport_live_probe as private_io
 
 PROJECT_DIR = Path(__file__).resolve().parents[1]
 DEFAULT_FREEZE = (
-    PROJECT_DIR / "proposition_ledger_research/phase2_experiment/experiment-freeze.json"
+    PROJECT_DIR / "proposition_ledger_research/phase2_experiment/experiment-freeze-v2.json"
 )
 CASE_SLUG = "market-planning-live-20260901"
 ALIASES = ("evaluation-01", "evaluation-02", "evaluation-03")
@@ -69,16 +69,24 @@ CASE_FILES = {
 ALLOWED_CASE_EXTRAS = {
     "source-records", "arm-inputs", "post-adjudication", "README.md", "validate.sh"
 }
-RATER_HIDDEN = {
-    "machine_ledger",
-    "other_rater_annotation",
-    "production_pipeline_decision",
-    "evaluated_published_replies",
-    "arm_identity",
-    "provider_or_model_identity",
-}
-ADJUDICATOR_HIDDEN = RATER_HIDDEN - {"other_rater_annotation"}
 MODEL_ACTORS = ("model", "codex", "assistant", "agent", "gpt", "grok", "claude")
+ARM_D_GATE = {
+    "arm_d_reference_type": "single_human_reference",
+    "consensus_gold": False,
+    "machine_authorship": "forbidden",
+    "machine_output_revealed_before_lock": False,
+    "pre_reveal_reference_lock": "required",
+    "human_annotator_count": 1,
+    "deterministic_materialisation_required": True,
+    "deterministic_selector_resolution_required": True,
+    "provenance_receipt_required": True,
+    "transcript_first": True,
+}
+HUMAN_AWARENESS_FIELDS = (
+    "knew_working_hypothesis",
+    "previously_seen_published_replies",
+    "was_investigator",
+)
 FORBIDDEN_BLIND_KEYS = {
     "suspected_failure_class",
     "suspected_failure",
@@ -229,10 +237,14 @@ def validate_freeze(path: str | Path = DEFAULT_FREEZE) -> dict[str, Any]:
         "profiles", "arms", "accepted_evaluation_aliases", "observed_context_policy",
         "leakage_policy", "arm_d_gate", "provider_policy", "private_case_freeze_sha256",
         "original_results_untouched", "source_completeness", "source_completeness_sha256",
+        "protocol_amendment", "supersedes_freeze",
     }
     if not required <= set(freeze):
         raise FourArmError("experiment freeze is incomplete")
-    if freeze["protocol_status"] not in {"frozen", "frozen_post_specification"}:
+    if (
+        freeze["freeze_version"] != "four-arm-supplemental-freeze-v2"
+        or freeze["protocol_status"] != "frozen_post_specification_amendment"
+    ):
         raise FourArmError("experiment protocol is not frozen")
     if not re.fullmatch(r"[0-9a-f]{40}", str(freeze["source_commit"])):
         raise FourArmError("frozen source commit is invalid")
@@ -263,6 +275,11 @@ def validate_freeze(path: str | Path = DEFAULT_FREEZE) -> dict[str, Any]:
         _tracked(contracts.get(name), name, version)
     for name in ("evidence_transport", "materialiser", "ledger_prompt"):
         _tracked(contracts.get(name), name)
+    _tracked(freeze["protocol_amendment"], "single-human protocol amendment")
+    _tracked(
+        freeze["supersedes_freeze"], "superseded experiment freeze",
+        "four-arm-supplemental-freeze-v1",
+    )
     profiles = freeze["profiles"]
     if not isinstance(profiles, Mapping) or set(profiles) != {
         "arm_b_summary", "arm_c_ledger", "downstream"
@@ -325,8 +342,18 @@ def validate_freeze(path: str | Path = DEFAULT_FREEZE) -> dict[str, Any]:
         policy.get("live_adapter_status"), str
     ) or not isinstance(policy.get("live_verification_performed"), bool):
         raise FourArmError("live adapter gate is not explicit")
-    if not isinstance(freeze["arm_d_gate"], Mapping):
-        raise FourArmError("Arm D human gate is absent")
+    gate = freeze["arm_d_gate"]
+    expected_gate_keys = {*ARM_D_GATE, "awareness_fields_required", "status"}
+    if (
+        not isinstance(gate, Mapping)
+        or set(gate) != expected_gate_keys
+        or any(gate.get(key) != value for key, value in ARM_D_GATE.items())
+        or gate.get("status") != "pending_single_human_reference"
+        or gate.get("awareness_fields_required") != [
+            *HUMAN_AWARENESS_FIELDS, "independent_of_machine_ledger"
+        ]
+    ):
+        raise FourArmError("Arm D single-human reference gate differs")
     if not re.fullmatch(r"[0-9a-f]{64}", str(freeze["private_case_freeze_sha256"])):
         raise FourArmError("private case freeze hash is invalid")
     return freeze
@@ -703,41 +730,36 @@ def _pack_turns(snapshot: Mapping[str, Any], transcript: Mapping[str, Any]) -> l
     return result
 
 
-def _prepared_human_readme() -> bytes:
+def _prepared_human_readme(output: Path) -> bytes:
     return (
-        "# Independent transcript-first annotation workflow\n\n"
-        "Only the files named below are human submission records. Files under "
-        "`frozen-guidance/`, each `pack.json`, and each "
-        "`semantic-delta-chain-template.json` are immutable reference material; do not edit them.\n\n"
-        "For each snapshot, rater 1 edits only `snapshot-NN/rater-1.json` and rater 2 "
-        "edits only `snapshot-NN/rater-2.json`, independently. Copy the array from the snapshot's "
-        "`semantic-delta-chain-template.json` into `semantic_delta_chain`, complete every "
-        "delta using only `pack.json`, and set `status` to `completed_human_annotation`, "
-        "`actor_type` to `human`, a non-empty unique `rater_id`, `independently_authored` "
-        "to true, the required concealment attestation, `completed_at_utc`, and `not_gold` "
-        "to false. Do not inspect the other rater's file. Leave the exact "
+        "# Single-human transcript-first reference workflow\n\n"
+        "Complete only `provenance.json` and each `snapshot-NN/reference.json`. Files "
+        "under `frozen-guidance/`, each `reference-pack.json`, each "
+        "`semantic-delta-chain-template.json`, and `index.json` are immutable reference "
+        "material; do not edit them. Complete snapshot 01 before opening snapshot 02.\n\n"
+        "In `provenance.json`, identify the human annotator and answer each awareness "
+        "boolean honestly. Prior knowledge of the hypothesis, prior exposure to historical "
+        "published replies, and investigator status are recorded, not disqualifying. The "
+        "semantic judgements must remain independent of the experiment's machine ledger.\n\n"
+        "For each snapshot, copy the array from its `semantic-delta-chain-template.json` "
+        "into that snapshot's `reference.json:semantic_delta_chain`. The human chooses the propositions, issues, "
+        "commitments, obligations, relations, and supporting evidence. For each evidence "
+        "selector, enter the exact text from that turn and its zero-based "
+        "`occurrence_index`. Leave the exact "
         "`FILL_WITH_PREVIOUS_MATERIALISED_LEDGER_ID` value in non-genesis template deltas; "
-        "the offline validator deterministically replaces only that sentinel with the actual "
-        "immediately preceding materialised ledger ID without changing the submitted file.\n\n"
-        "Only after both rater files are complete, the separate blinded adjudicator edits "
-        "`adjudication.json`: put the final chain in `semantic_delta_chain`, record the two "
-        "rater file SHA-256 values in order, set the completed human identity, concealment, "
-        "timestamp and `not_gold: false` fields. Then complete `gold-lock.json` with both "
-        "rater hashes, the adjudication-file hash, the deterministically materialised final "
-        "ledger hash, a lock timestamp, both before-reveal/before-scoring flags true, and "
-        "`external_call_count_at_lock: 0`.\n\n"
-        "After both snapshots' raters, adjudications and gold locks are complete, and before "
-        "any machine ledger or score is revealed, create the immutable receipt from inside "
-        "`human-ledger-pack`:\n\n"
+        "the command below resolves it deterministically. Set the human identity, completion "
+        "status and timestamp fields shown in each form. Do not enter hashes, permanent IDs, "
+        "character offsets, or materialised ledgers; the command derives them. After "
+        "completing snapshot 01, copy its completed `semantic_delta_chain` unchanged into "
+        "the shared prefix of snapshot 02, then make new judgements only for snapshot 02's "
+        "additional turn or turns. The validator rejects any retroactive prefix rewrite.\n\n"
+        "Before opening any experiment-generated machine output, validate, materialise and "
+        "hash-lock the completed reference from the experiment worktree with this one command:\n\n"
         "```sh\n"
-        "find . -type f ! -name LOCKED-SHA256SUMS -printf '%P\\0' | sort -z | "
-        "xargs -0 sha256sum > LOCKED-SHA256SUMS\n"
-        "chmod 600 LOCKED-SHA256SUMS\n"
+        "python3 -m tools.proposition_ledger_four_arm_experiment --verify "
+        f"--lock-human-reference --output {output}\n"
         "```\n\n"
-        "Finally, from the experiment worktree, validate the exact sealed run offline with no external calls:\n\n"
-        "```sh\n"
-        "python -m tools.proposition_ledger_four_arm_experiment --verify --output <private-run>\n"
-        "```\n"
+        "No machine output may be opened before that command reports a successful lock.\n"
     ).encode("utf-8")
 
 
@@ -768,29 +790,48 @@ def _write_human_packs(
     guidance_root = root / "frozen-guidance"
     private_io._ensure_private_directory(guidance_root)
     guide = guidance_root / "annotation-guide.json"
-    private_io._write_private_bytes(
-        guide, private_io._read_regular_bytes(
-            source_pack / "annotation-guide.json", "frozen annotation guide"
-        )
-    )
+    _json(source_pack / "annotation-guide.json", "frozen annotation guide")
+    private_io._write_private_json(guide, {
+        "guide_version": "single-human-transcript-first-guide-v1",
+        "reference_only": True,
+        "human_judgement_sections": [
+            "new_propositions", "new_issue_states", "commitment_changes",
+            "obligation_changes", "new_relations",
+        ],
+        "evidence_selector_fields": ["exact_text", "occurrence_index"],
+        "deterministic_fields_are_derived": True,
+        "incremental_rule": (
+            "Complete snapshot 01 first; copy its semantic chain byte-identically into "
+            "snapshot 02's shared prefix and annotate only additional turns."
+        ),
+    })
     reference_notice = guidance_root / "REFERENCE-ONLY.txt"
     private_io._write_private_bytes(
         reference_notice,
-        b"Immutable reference material only. Edit the snapshot rater/adjudication/gold files named in ../README.md.\n",
+        b"Immutable reference material only. Complete only the files named in ../README.md.\n",
     )
     readme = root / "README.md"
-    private_io._write_private_bytes(readme, _prepared_human_readme())
+    private_io._write_private_bytes(readme, _prepared_human_readme(output))
     immutable.extend((guide, reference_notice, readme))
-    for snapshot in plan["representation_snapshots"]:
+    snapshots = list(plan["representation_snapshots"])
+    longest = max(snapshots, key=lambda item: len(item["turn_ids"]))
+    if any(longest["turn_ids"][: len(item["turn_ids"])] != item["turn_ids"] for item in snapshots):
+        raise FourArmError("human reference snapshots are not one incremental prefix chain")
+    pack_hashes: dict[str, str] = {}
+    for snapshot in snapshots:
         directory = root / snapshot["snapshot_id"]
         private_io._ensure_private_directory(directory)
-        transcript_value = {"conversation_key": transcript["conversation_key"], "turns": _pack_turns(snapshot, transcript)}
+        transcript_value = {
+            "conversation_key": transcript["conversation_key"],
+            "turns": _pack_turns(snapshot, transcript),
+        }
         transcript_hash = _sha(private_io.canonical_json_bytes(transcript_value))
         pack = {
-            "pack_version": "transcript-first-blinded-pack-v1", "case_slug": CASE_SLUG,
-            "snapshot_id": snapshot["snapshot_id"], "status": "pending_human_annotation",
-            "evaluation_aliases": snapshot["evaluation_aliases"], "transcript_sha256": transcript_hash,
-            "transcript": transcript_value,
+            "pack_version": "single-human-transcript-first-pack-v1", "case_slug": CASE_SLUG,
+            "snapshot_id": snapshot["snapshot_id"], "status": "pending_human_reference",
+            "reference_type": "single_human_reference", "consensus_gold": False,
+            "evaluation_aliases": snapshot["evaluation_aliases"],
+            "transcript_sha256": transcript_hash, "transcript": transcript_value,
             "annotation_contract": {
                 "input_schema_version": HUMAN_SELECTOR_VERSION,
                 "canonical_target_schema_version": VERSIONS["canonical_semantic_delta"],
@@ -806,9 +847,8 @@ def _write_human_packs(
                 "rule": "At validation, replace only the exact non-genesis sentinel with the immediately preceding deterministically materialised ledger_id and as_of_turn_index.",
                 "submitted_artifact_mutated": False,
             },
-            "not_gold": True,
             "annotation_guidance": {
-                "required_sections": [
+                "human_judgement_sections": [
                     "new_propositions", "new_issue_states", "commitment_changes",
                     "obligation_changes", "new_relations",
                 ],
@@ -818,9 +858,16 @@ def _write_human_packs(
                     "supersedes", "repeats", "changes_topic", "presupposes",
                     "substitutes_for", "fails_to_address",
                 ],
-                "validation_command": (
-                    "python -m tools.proposition_ledger_four_arm_experiment "
-                    "--verify --output <private-run>"
+                "deterministically_derived": [
+                    "character_offsets", "permanent_ids", "ledger_ids", "ledger_hashes",
+                ],
+                "incremental_rule": (
+                    "Snapshot 02 must preserve snapshot 01's completed semantic-delta "
+                    "chain byte-identically as its shared prefix."
+                ),
+                "validation_and_lock_command": (
+                    "python3 -m tools.proposition_ledger_four_arm_experiment --verify "
+                    f"--lock-human-reference --output {output}"
                 ),
             },
             "blank_semantic_delta_sections": {
@@ -828,9 +875,11 @@ def _write_human_packs(
                 "obligation_changes": [], "new_relations": [],
             },
         }
-        pack_path = directory / "pack.json"
+        pack_path = directory / "reference-pack.json"
         private_io._write_private_json(pack_path, pack)
         immutable.append(pack_path)
+        pack_hash = _sha(private_io._read_regular_bytes(pack_path, "human reference pack"))
+        pack_hashes[snapshot["snapshot_id"]] = pack_hash
         source_template = _json(
             source_pack / snapshot["snapshot_id"] / "blank-semantic-delta-chain.json",
             "frozen semantic-delta template",
@@ -844,9 +893,8 @@ def _write_human_packs(
             raise FourArmError("frozen human semantic-delta template differs from snapshot")
         template_path = directory / "semantic-delta-chain-template.json"
         private_io._write_private_json(template_path, {
-            "template_version": "prepared-human-selector-chain-template-v1",
-            "reference_only": True,
-            "copy_target": f"{snapshot['snapshot_id']}/rater-N.json:semantic_delta_chain",
+            "template_version": "single-human-selector-chain-template-v1",
+            "reference_only": True, "copy_target": "reference.json:semantic_delta_chain",
             "semantic_delta_chain": [dict(
                 copy.deepcopy(item["semantic_delta_template"]),
                 schema_version=HUMAN_SELECTOR_VERSION,
@@ -854,37 +902,37 @@ def _write_human_packs(
             ) for item in source_template],
         })
         immutable.append(template_path)
-        for number in (1, 2):
-            private_io._write_private_json(directory / f"rater-{number}.json", {
-                "artifact_version": "human-selector-chain-v1", "snapshot_id": snapshot["snapshot_id"],
-                "transcript_sha256": transcript_hash, "status": "pending_human_annotation",
-                "actor_type": None, "rater_id": None, "independently_authored": None,
-                "hidden_information_attestation": None, "semantic_delta_chain": [],
-                "completed_at_utc": None, "not_gold": True,
-            })
-        private_io._write_private_json(directory / "adjudication.json", {
-            "artifact_version": "human-adjudication-v1", "snapshot_id": snapshot["snapshot_id"],
-            "transcript_sha256": transcript_hash, "status": "pending_human_adjudication",
-            "actor_type": None, "adjudicator_id": None, "rater_file_sha256": [],
-            "hidden_information_attestation": None, "semantic_delta_chain": [],
-            "completed_at_utc": None, "not_gold": True,
-        })
-        private_io._write_private_json(directory / "gold-lock.json", {
-            "artifact_version": "human-gold-lock-v1", "snapshot_id": snapshot["snapshot_id"],
-            "transcript_sha256": transcript_hash, "status": "pending_human_adjudication",
-            "rater_file_sha256": [], "adjudication_file_sha256": None,
-            "final_ledger_sha256": None, "locked_at_utc": None,
-            "locked_before_machine_ledger_reveal": None, "locked_before_machine_scoring": None,
-            "external_call_count_at_lock": None,
+        private_io._write_private_json(directory / "reference.json", {
+            "artifact_version": "single-human-selector-reference-v1",
+            "snapshot_id": snapshot["snapshot_id"], "reference_pack_sha256": pack_hash,
+            "status": "pending_human_reference", "actor_type": None,
+            "annotator_id": None, "semantic_judgements_authored_by_human": None,
+            "semantic_delta_chain": [], "completed_at_utc": None,
+            "reference_type": "single_human_reference", "consensus_gold": False,
+            "machine_authorship": "forbidden",
         })
         index_rows.append({
             "snapshot_id": snapshot["snapshot_id"], "transcript_sha256": transcript_hash,
-            "evaluation_aliases": snapshot["evaluation_aliases"], "status": "pending_human_adjudication",
+            "reference_pack_sha256": pack_hash, "evaluation_aliases": snapshot["evaluation_aliases"],
         })
+    private_io._write_private_json(root / "provenance.json", {
+        "artifact_version": "single-human-provenance-v1",
+        "reference_pack_sha256s": pack_hashes,
+        "status": "pending_human_provenance", "actor_type": None,
+        "annotator_id": None,
+        "knew_working_hypothesis": None,
+        "previously_seen_published_replies": None,
+        "was_investigator": None,
+        "independent_of_machine_ledger": None,
+        "machine_authorship": "forbidden",
+        "machine_output_revealed_before_lock": None,
+        "completed_at_utc": None,
+    })
     index_path = root / "index.json"
     private_io._write_private_json(index_path, {
-        "pack_index_version": "human-pack-index-v1", "case_slug": CASE_SLUG,
-        "status": "pending_human_adjudication", "not_gold": True, "snapshots": index_rows,
+        "pack_index_version": "single-human-reference-index-v1", "case_slug": CASE_SLUG,
+        "status": "pending_human_reference", "reference_type": "single_human_reference",
+        "consensus_gold": False, "snapshots": index_rows,
     })
     _audit_prepared_human_pack(root)
     return [*immutable, index_path]
@@ -974,7 +1022,7 @@ def _call_plan(replays: Mapping[str, Any], freeze: Mapping[str, Any], freeze_has
             dependencies = {
                 "A": [], "B": [summary[snapshot["snapshot_id"]]],
                 "C": [ledger[snapshot["turn_ids"][-1]]],
-                "D": [f"human-gold:{snapshot['snapshot_id']}"],
+                "D": [f"human-reference:{snapshot['snapshot_id']}"],
             }[arm]
             add("downstream_arm_evaluation", f"{replay['evaluation_alias']}-arm-{arm}", dependencies)
     if len(rows) != len(longest["turn_ids"]) + 2 + 12:
@@ -1060,11 +1108,11 @@ def prepare_run(case: str | Path, output: str | Path, *, experiment_freeze: str 
     immutable.append(plan_path)
     private_io._write_private_json(output_path / "call-ledger.json", _call_ledger(plan))
     result = {
-        "status": "prepared_pending_human_adjudication", "provider_calls": 0,
+        "status": "prepared_pending_human_reference", "provider_calls": 0,
         "case_slug": CASE_SLUG, "accepted_evaluation_aliases": list(ALIASES),
         "unique_runnable_replay_inputs": 3, "unique_representation_snapshots": 2,
         "unique_arm_evaluations": 12, "planned_provider_calls": plan["planned_provider_call_count"],
-        "arm_d_status": "pending_human_adjudication",
+        "arm_d_status": "pending_human_reference",
     }
     result_path = output_path / "prepare-result.json"
     private_io._write_private_json(result_path, result)
@@ -1186,142 +1234,269 @@ def _materialise(
     )["ledger_sha256"])
 
 
-def _completed_rater_identity(item: Mapping[str, Any]) -> str:
-    raw_identity = item.get("rater_id")
-    identity = raw_identity.strip().casefold() if isinstance(raw_identity, str) else ""
-    if (
-        item.get("status") != "completed_human_annotation"
-        or item.get("actor_type") != "human"
-        or not item.get("independently_authored")
-        or item.get("not_gold") is not False
-        or not identity
-        or any(marker in identity for marker in MODEL_ACTORS)
-    ):
-        raise FourArmError("Arm D lacks two independently authored human annotations")
+def _human_identity(value: Any) -> str:
+    identity = value.strip().casefold() if isinstance(value, str) else ""
+    if not identity or any(marker in identity for marker in MODEL_ACTORS):
+        raise FourArmError("Arm D reference lacks genuine human authorship")
     return identity
 
 
-def _completed_rater_identities(raters: Sequence[Mapping[str, Any]]) -> list[str]:
-    identities = [_completed_rater_identity(item) for item in raters]
-    if len(identities) != 2 or len(set(identities)) != 2:
-        raise FourArmError("Arm D lacks two independently authored human annotations")
-    return identities
-
-
-def _completed_adjudicator_identity(
-    adjudication: Mapping[str, Any], identities: Sequence[str]
-) -> str:
-    raw_adjudicator = adjudication.get("adjudicator_id")
-    adjudicator = raw_adjudicator.strip().casefold() if isinstance(raw_adjudicator, str) else ""
+def _human_submission(output: Path) -> dict[str, Any]:
+    human_root = output / PREPARED_HUMAN_DIR
+    freeze = validate_freeze(output / "experiment-freeze.json")
+    transport_binding = freeze["contracts"]["xai_transport"]
+    index = _json(human_root / "index.json", "human reference index")
+    rows = index.get("snapshots")
+    expected_rows = _json(output / "replay-plan.json", "replay plan").get(
+        "representation_snapshots"
+    )
     if (
-        adjudication.get("status") != "completed_human_adjudication"
-        or adjudication.get("actor_type") != "human"
-        or adjudication.get("not_gold") is not False
-        or not adjudicator
-        or adjudicator in identities
-        or any(marker in adjudicator for marker in MODEL_ACTORS)
+        index.get("pack_index_version") != "single-human-reference-index-v1"
+        or index.get("status") != "pending_human_reference"
+        or index.get("reference_type") != "single_human_reference"
+        or index.get("consensus_gold") is not False
+        or not isinstance(rows, list) or len(rows) != 2
+        or not isinstance(expected_rows, list) or len(expected_rows) != 2
+        or [row.get("snapshot_id") for row in rows]
+        != [row.get("snapshot_id") for row in expected_rows]
     ):
-        raise FourArmError("Arm D lacks a blinded independent human adjudicator")
-    return adjudicator
+        raise FourArmError("human reference index differs from the two frozen snapshots")
+    provenance = _json(human_root / "provenance.json", "human provenance")
+    statuses: list[str] = []
+    records: list[dict[str, Any]] = []
+    pack_hashes: dict[str, str] = {}
+    for row, expected in zip(rows, expected_rows):
+        snapshot_id = str(row.get("snapshot_id"))
+        directory = human_root / snapshot_id
+        pack_path = directory / "reference-pack.json"
+        pack = _json(pack_path, "human reference pack")
+        pack_hash = _sha(private_io._read_regular_bytes(pack_path, "human reference pack"))
+        reference_path = directory / "reference.json"
+        reference = _json(reference_path, "human reference")
+        if (
+            pack.get("pack_version") != "single-human-transcript-first-pack-v1"
+            or pack.get("status") != "pending_human_reference"
+            or pack.get("snapshot_id") != snapshot_id
+            or pack.get("transcript_sha256") != row.get("transcript_sha256")
+            or pack_hash != row.get("reference_pack_sha256")
+            or pack.get("evaluation_aliases") != expected.get("evaluation_aliases")
+            or [turn.get("turn_id") for turn in pack.get("transcript", {}).get("turns", [])]
+            != expected.get("turn_ids")
+            or pack.get("reference_type") != "single_human_reference"
+            or pack.get("consensus_gold") is not False
+        ):
+            raise FourArmError("human reference pack differs from the frozen snapshot")
+        if (
+            reference.get("artifact_version") != "single-human-selector-reference-v1"
+            or reference.get("snapshot_id") != snapshot_id
+            or reference.get("reference_pack_sha256") != pack_hash
+            or reference.get("reference_type") != "single_human_reference"
+            or reference.get("consensus_gold") is not False
+            or reference.get("machine_authorship") != "forbidden"
+        ):
+            raise FourArmError("human reference binding or classification differs")
+        status = reference.get("status")
+        if status not in {"pending_human_reference", "completed_human_reference"}:
+            raise FourArmError("human reference status is invalid")
+        if status == "pending_human_reference" and reference.get("actor_type") not in (None, "human"):
+            raise FourArmError("pending Arm D reference names a model/non-human actor")
+        statuses.append(str(status))
+        pack_hashes[snapshot_id] = pack_hash
+        records.append({
+            "snapshot_id": snapshot_id, "directory": directory, "pack": pack,
+            "pack_hash": pack_hash, "reference": reference,
+            "reference_path": reference_path,
+        })
+    provenance_status = provenance.get("status")
+    if (
+        provenance.get("artifact_version") != "single-human-provenance-v1"
+        or provenance.get("machine_authorship") != "forbidden"
+    ):
+        raise FourArmError("human provenance classification differs")
+    if provenance_status not in {"pending_human_provenance", "completed_human_provenance"}:
+        raise FourArmError("human provenance status is invalid")
+    if provenance.get("reference_pack_sha256s") != pack_hashes:
+        raise FourArmError("human provenance pack binding differs")
+    if provenance_status == "pending_human_provenance" and provenance.get("actor_type") not in (None, "human"):
+        raise FourArmError("pending Arm D provenance names a model/non-human actor")
+    all_pending = provenance_status == "pending_human_provenance" and all(
+        status == "pending_human_reference" for status in statuses
+    )
+    all_completed = provenance_status == "completed_human_provenance" and all(
+        status == "completed_human_reference" for status in statuses
+    )
+    if all_pending:
+        return {"status": "pending_human_reference", "records": records}
+    if not all_completed:
+        raise FourArmError("Arm D human reference or provenance is incomplete")
+    first_chain = records[0]["reference"].get("semantic_delta_chain")
+    second_chain = records[1]["reference"].get("semantic_delta_chain")
+    if (
+        not isinstance(first_chain, list)
+        or not isinstance(second_chain, list)
+        or len(second_chain) < len(first_chain)
+        or private_io.canonical_json_bytes(second_chain[: len(first_chain)])
+        != private_io.canonical_json_bytes(first_chain)
+    ):
+        raise FourArmError(
+            "snapshot 02 shared semantic-delta prefix differs from completed snapshot 01"
+        )
+    identity = _human_identity(provenance.get("annotator_id"))
+    if (
+        provenance.get("actor_type") != "human"
+        or provenance.get("machine_authorship") != "forbidden"
+        or provenance.get("independent_of_machine_ledger") is not True
+        or provenance.get("machine_output_revealed_before_lock") is not False
+        or any(type(provenance.get(field)) is not bool for field in HUMAN_AWARENESS_FIELDS)
+    ):
+        raise FourArmError("Arm D human provenance is invalid or conceals awareness")
+    completion_times = [_utc(provenance.get("completed_at_utc"), "provenance completion")]
+    for record in records:
+        reference = record["reference"]
+        if (
+            _human_identity(reference.get("annotator_id")) != identity
+            or reference.get("actor_type") != "human"
+            or reference.get("semantic_judgements_authored_by_human") is not True
+        ):
+            raise FourArmError("Arm D reference is not authored by the provenance human")
+        record["ledger"] = _materialised_ledger(
+            record["pack"], reference.get("semantic_delta_chain"),
+            transport_binding=transport_binding,
+        )
+        record["reference_sha256"] = _sha(private_io._read_regular_bytes(
+            record["reference_path"], "human reference"
+        ))
+        completion_times.append(_utc(reference.get("completed_at_utc"), "reference completion"))
+    if completion_times[1] > completion_times[2]:
+        raise FourArmError("snapshot 01 human reference was not completed before snapshot 02")
+    return {
+        "status": "completed_unlocked", "records": records,
+        "provenance": provenance, "annotator_identity": identity,
+        "provenance_sha256": _sha(private_io._read_regular_bytes(
+            human_root / "provenance.json", "human provenance"
+        )),
+        "latest_completion": max(completion_times),
+    }
 
 
-def _completed_human_identities(
-    raters: Sequence[Mapping[str, Any]], adjudication: Mapping[str, Any]
-) -> tuple[list[str], str]:
-    identities = _completed_rater_identities(raters)
-    adjudicator = _completed_adjudicator_identity(adjudication, identities)
-    return identities, adjudicator
+def _materialised_reference_artifact(submission: Mapping[str, Any]) -> dict[str, Any]:
+    return {
+        "artifact_version": "single-human-materialised-reference-v1",
+        "reference_type": "single_human_reference", "consensus_gold": False,
+        "provenance_file_sha256": submission["provenance_sha256"],
+        "snapshot_ledgers": [{
+            "snapshot_id": record["snapshot_id"],
+            "reference_pack_sha256": record["pack_hash"],
+            "reference_file_sha256": record["reference_sha256"],
+            "ledger": record["ledger"],
+        } for record in submission["records"]],
+    }
+
+
+def _locked_sums(human_root: Path) -> bytes:
+    return "".join(
+        f"{_sha(private_io._read_regular_bytes(path, 'human lock input'))}  "
+        f"{path.relative_to(human_root).as_posix()}\n"
+        for path in sorted(human_root.rglob("*"))
+        if path.is_file() and path.name != "LOCKED-SHA256SUMS"
+    ).encode("utf-8")
+
+
+def lock_human_reference(output: str | Path) -> dict[str, Any]:
+    """Validate, materialise and seal one human reference without provider access."""
+
+    prepared = _prepared(output)
+    if prepared["ledger"].get("provider_call_count") != 0 or any(
+        row.get("state") != "planned" for row in prepared["ledger"].get("entries", [])
+    ):
+        raise FourArmError("human reference must lock before any experiment machine output")
+    if any(os.path.lexists(prepared["root"] / name) for name in (
+        "requests", "responses", "validations", "products",
+    )):
+        raise FourArmError("human reference must lock before any experiment machine output")
+    human_root = prepared["root"] / PREPARED_HUMAN_DIR
+    generated = [
+        human_root / "materialised-reference.json",
+        human_root / "reference-lock.json",
+        human_root / "LOCKED-SHA256SUMS",
+    ]
+    if any(os.path.lexists(path) for path in generated):
+        raise FourArmError("human reference lock artifacts already exist")
+    submission = _human_submission(prepared["root"])
+    if submission["status"] != "completed_unlocked":
+        raise FourArmError("Arm D remains at the genuine human single-reference gate")
+    materialised = _materialised_reference_artifact(submission)
+    materialised_raw = private_io.pretty_json_bytes(materialised)
+    materialised_hash = _sha(materialised_raw)
+    locked_at = _now()
+    if submission["latest_completion"] > _utc(locked_at, "reference lock"):
+        raise FourArmError("human reference completion is later than its lock")
+    reference_hashes = {
+        record["snapshot_id"]: record["reference_sha256"] for record in submission["records"]
+    }
+    lock = {
+        "artifact_version": "single-human-reference-lock-v1", "status": "locked",
+        **ARM_D_GATE,
+        "provenance_file_sha256": submission["provenance_sha256"],
+        "reference_files_sha256": reference_hashes,
+        "materialised_reference_sha256": materialised_hash,
+        "locked_at_utc": locked_at, "external_call_count_at_lock": 0,
+    }
+    private_io._write_private_bytes(generated[0], materialised_raw)
+    private_io._write_private_json(generated[1], lock)
+    seal_source = _locked_sums(human_root)
+    private_io._write_private_bytes(generated[2], seal_source)
+    verified = _human_gate(prepared["root"], require_locked=True)
+    return {**verified, "provider_calls": 0, "materialised_reference_sha256": materialised_hash}
 
 
 def _human_gate(output: Path, *, require_locked: bool) -> dict[str, Any]:
     human_root = output / PREPARED_HUMAN_DIR
-    freeze = validate_freeze(output / "experiment-freeze.json")
-    transport_binding = freeze["contracts"]["xai_transport"]
-    rows = _json(human_root / "index.json", "human pack index").get("snapshots")
-    if not isinstance(rows, list) or len(rows) != 2:
-        raise FourArmError("human gate must cover two snapshots")
-    pending, locked = False, 0
-    for row in rows:
-        directory = human_root / str(row.get("snapshot_id"))
-        pack = _json(directory / "pack.json", "human pack")
-        raters = [_json(directory / f"rater-{number}.json", "human rater") for number in (1, 2)]
-        adjudication = _json(directory / "adjudication.json", "human adjudication")
-        gold = _json(directory / "gold-lock.json", "human gold lock")
-        rater_statuses = [item.get("status") for item in raters]
-        if any(status not in {"pending_human_annotation", "completed_human_annotation"} for status in rater_statuses):
-            raise FourArmError("human rater status is invalid")
-        for item in raters:
-            if item.get("status") == "pending_human_annotation":
-                if item.get("actor_type") not in (None, "human"):
-                    raise FourArmError("pending Arm D artifact names a model/non-human actor")
-                continue
-            _completed_rater_identity(item)
-            if item.get("snapshot_id") != pack.get("snapshot_id") or item.get("transcript_sha256") != pack.get("transcript_sha256"):
-                raise FourArmError("human annotation snapshot/transcript binding differs")
-            if set(item.get("hidden_information_attestation", [])) != RATER_HIDDEN:
-                raise FourArmError("human rater blinding attestation differs")
-            _materialise(
-                pack, item.get("semantic_delta_chain"),
-                transport_binding=transport_binding,
-            )
-            _utc(item.get("completed_at_utc"), "rater completion")
-        if any(status == "pending_human_annotation" for status in rater_statuses):
-            if adjudication.get("status") != "pending_human_adjudication" or gold.get("status") != "pending_human_adjudication":
-                raise FourArmError("Arm D adjudication or lock precedes both raters")
-            pending = True
-            continue
-        identities = _completed_rater_identities(raters)
-        if adjudication.get("status") == "pending_human_adjudication":
-            if adjudication.get("actor_type") not in (None, "human") or gold.get("status") != "pending_human_adjudication":
-                raise FourArmError("pending Arm D artifact names a model/non-human actor")
-            pending = True
-            continue
-        adjudicator = _completed_adjudicator_identity(adjudication, identities)
-        rater_hashes = [_sha(private_io._read_regular_bytes(directory / f"rater-{number}.json", "rater")) for number in (1, 2)]
-        if set(adjudication.get("hidden_information_attestation", [])) != ADJUDICATOR_HIDDEN or adjudication.get("rater_file_sha256") != rater_hashes or adjudication.get("snapshot_id") != pack.get("snapshot_id") or adjudication.get("transcript_sha256") != pack.get("transcript_sha256"):
-            raise FourArmError("Arm D lacks a blinded independent human adjudicator")
-        final_hash = _materialise(
-            pack, adjudication.get("semantic_delta_chain"),
-            transport_binding=transport_binding,
-        )
-        adjudication_hash = _sha(private_io._read_regular_bytes(directory / "adjudication.json", "adjudication"))
-        rater_times = [_utc(item.get("completed_at_utc"), "rater completion") for item in raters]
-        adjudication_time = _utc(adjudication.get("completed_at_utc"), "adjudication completion")
-        if max(rater_times) > adjudication_time:
-            raise FourArmError("human annotation/adjudication ordering differs")
-        if gold.get("status") == "pending_human_adjudication":
-            pending = True
-            continue
-        if gold.get("status") != "locked" or gold.get("rater_file_sha256") != rater_hashes or gold.get("adjudication_file_sha256") != adjudication_hash or gold.get("final_ledger_sha256") != final_hash or gold.get("locked_before_machine_ledger_reveal") is not True or gold.get("locked_before_machine_scoring") is not True or gold.get("external_call_count_at_lock") != 0:
-            raise FourArmError("Arm D gold lock is incomplete or post-reveal")
-        lock_time = _utc(gold.get("locked_at_utc"), "gold lock")
-        if adjudication_time > lock_time:
-            raise FourArmError("human annotation/adjudication/lock ordering differs")
-        locked += 1
-    if pending and require_locked:
-        raise FourArmError("Arm D remains at the genuine human adjudication gate")
-    if pending and locked:
-        raise FourArmError("Arm D is only partly locked")
-    seal_hash = None
-    if locked == 2:
-        seal_path = human_root / "LOCKED-SHA256SUMS"
-        seal_source = private_io._read_regular_bytes(seal_path, "human gold seal")
-        declared = _checksum_lines(seal_source)
-        actual = {
-            path.relative_to(human_root).as_posix()
-            for path in human_root.rglob("*")
-            if path.is_file() and path.name != "LOCKED-SHA256SUMS"
-        }
-        if set(declared) != actual or any(
-            _sha(private_io._read_regular_bytes(human_root / relative, relative)) != digest
-            for relative, digest in declared.items()
-        ):
-            raise FourArmError("post-human immutable lock receipt differs")
-        seal_hash = _sha(seal_source)
-    return {
-        "status": "locked" if locked == 2 else "pending_human_adjudication",
-        "seal_sha256": seal_hash,
+    submission = _human_submission(output)
+    generated = [
+        human_root / "materialised-reference.json",
+        human_root / "reference-lock.json",
+        human_root / "LOCKED-SHA256SUMS",
+    ]
+    present = [os.path.lexists(path) for path in generated]
+    if not any(present):
+        if require_locked:
+            raise FourArmError("Arm D remains at the genuine human single-reference gate")
+        return {"status": submission["status"], "seal_sha256": None}
+    if not all(present) or submission["status"] != "completed_unlocked":
+        raise FourArmError("Arm D reference lock is partial or precedes completed human input")
+    materialised_raw = private_io._read_regular_bytes(generated[0], "materialised human reference")
+    expected_raw = private_io.pretty_json_bytes(_materialised_reference_artifact(submission))
+    if materialised_raw != expected_raw:
+        raise FourArmError("materialised human reference differs from deterministic output")
+    lock = _json(generated[1], "human reference lock")
+    expected_reference_hashes = {
+        record["snapshot_id"]: record["reference_sha256"] for record in submission["records"]
     }
+    if (
+        lock.get("status") != "locked"
+        or any(lock.get(key) != value for key, value in ARM_D_GATE.items())
+        or lock.get("provenance_file_sha256") != submission["provenance_sha256"]
+        or lock.get("reference_files_sha256") != expected_reference_hashes
+        or lock.get("materialised_reference_sha256") != _sha(materialised_raw)
+        or lock.get("external_call_count_at_lock") != 0
+    ):
+        raise FourArmError("single-human reference lock is incomplete or post-reveal")
+    if submission["latest_completion"] > _utc(lock.get("locked_at_utc"), "reference lock"):
+        raise FourArmError("human reference completion is later than its lock")
+    seal_source = private_io._read_regular_bytes(generated[2], "human reference seal")
+    declared = _checksum_lines(seal_source)
+    actual = {
+        path.relative_to(human_root).as_posix()
+        for path in human_root.rglob("*")
+        if path.is_file() and path.name != "LOCKED-SHA256SUMS"
+    }
+    if set(declared) != actual or any(
+        _sha(private_io._read_regular_bytes(human_root / relative, relative)) != digest
+        for relative, digest in declared.items()
+    ):
+        raise FourArmError("post-human immutable lock receipt differs")
+    return {"status": "locked", "seal_sha256": _sha(seal_source)}
 
 
 def _prepared(output: str | Path) -> dict[str, Any]:
@@ -1403,19 +1578,11 @@ def _transition(root: Path, call_id: str, state: str, **updates: Any) -> dict[st
 
 def _human_ledgers(root: Path) -> dict[str, dict[str, Any]]:
     human_root = root / PREPARED_HUMAN_DIR
-    transport_binding = validate_freeze(root / "experiment-freeze.json")["contracts"]["xai_transport"]
-    index = _json(human_root / "index.json", "human pack index")
-    result = {}
-    for row in index["snapshots"]:
-        snapshot_id = str(row["snapshot_id"])
-        directory = human_root / snapshot_id
-        pack = _json(directory / "pack.json", "human pack")
-        adjudication = _json(directory / "adjudication.json", "human adjudication")
-        result[snapshot_id] = _materialised_ledger(
-            pack, adjudication["semantic_delta_chain"],
-            transport_binding=transport_binding,
-        )
-    return result
+    artifact = _json(human_root / "materialised-reference.json", "materialised human reference")
+    rows = artifact.get("snapshot_ledgers")
+    if not isinstance(rows, list) or len(rows) != 2:
+        raise FourArmError("materialised human reference does not cover two snapshots")
+    return {str(row["snapshot_id"]): copy.deepcopy(row["ledger"]) for row in rows}
 
 
 def _provider_safe(value: Any, key: str = "") -> None:
@@ -1698,7 +1865,10 @@ def _execute_plan(prepared: Mapping[str, Any], adapter: Any) -> dict[str, Any]:
         call_id = str(frozen["call_id"])
         current = _json(root / "call-ledger.json", "call ledger")
         state_by_id = {row["call_id"]: row["state"] for row in current["entries"]}
-        dependencies = [item for item in frozen["dependency_call_ids"] if not item.startswith("human-gold:")]
+        dependencies = [
+            item for item in frozen["dependency_call_ids"]
+            if not item.startswith("human-reference:")
+        ]
         if any(state_by_id.get(item) not in successful for item in dependencies):
             _transition(root, call_id, "blocked_dependency", provider_call_count=0,
                         attempt_number=0, completed_at_utc=_now(), reason="dependency_not_validated")
@@ -1905,6 +2075,10 @@ def _parser() -> argparse.ArgumentParser:
     parser.add_argument("--experiment-freeze", type=Path, default=DEFAULT_FREEZE)
     parser.add_argument("--confirm-arm-evaluations", type=int)
     parser.add_argument("--confirm-provider-call-budget", type=int)
+    parser.add_argument(
+        "--lock-human-reference", action="store_true",
+        help="with --verify, validate, materialise and pre-reveal lock the human reference",
+    )
     return parser
 
 
@@ -1914,16 +2088,16 @@ def main(argv: Sequence[str] | None = None) -> int:
     args = _parser().parse_args(argv)
     try:
         if args.validate_case:
-            if args.case is None or args.output is not None:
+            if args.case is None or args.output is not None or args.lock_human_reference:
                 raise FourArmError("--validate-case requires only --case")
             result = validate_case(args.case, experiment_freeze=args.experiment_freeze)
             result.pop("replay_plan")
         elif args.prepare_run:
-            if args.case is None or args.output is None:
+            if args.case is None or args.output is None or args.lock_human_reference:
                 raise FourArmError("--prepare-run requires --case and --output")
             result = prepare_run(args.case, args.output, experiment_freeze=args.experiment_freeze)
         elif args.run:
-            if args.case is not None or args.output is None:
+            if args.case is not None or args.output is None or args.lock_human_reference:
                 raise FourArmError("--run requires only --output")
             result = run_experiment(
                 args.output, confirm_arm_evaluations=args.confirm_arm_evaluations,
@@ -1932,7 +2106,11 @@ def main(argv: Sequence[str] | None = None) -> int:
         else:
             if args.case is not None or args.output is None or args.confirm_arm_evaluations is not None or args.confirm_provider_call_budget is not None:
                 raise FourArmError("--verify accepts only --output")
-            result = verify_run(args.output)
+            result = (
+                lock_human_reference(args.output)
+                if args.lock_human_reference
+                else verify_run(args.output)
+            )
     except (FourArmError, private_io.ProbeError) as exc:
         print(f"four_arm_experiment_error: {exc}", file=sys.stderr)
         return 2

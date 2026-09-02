@@ -1,0 +1,165 @@
+{
+  "accepted_evaluation_aliases": [
+    "evaluation-01",
+    "evaluation-02",
+    "evaluation-03"
+  ],
+  "arm_d_gate": {
+    "arm_d_reference_type": "single_human_reference",
+    "awareness_fields_required": [
+      "knew_working_hypothesis",
+      "previously_seen_published_replies",
+      "was_investigator",
+      "independent_of_machine_ledger"
+    ],
+    "consensus_gold": false,
+    "deterministic_materialisation_required": true,
+    "deterministic_selector_resolution_required": true,
+    "human_annotator_count": 1,
+    "machine_authorship": "forbidden",
+    "machine_output_revealed_before_lock": false,
+    "pre_reveal_reference_lock": "required",
+    "provenance_receipt_required": true,
+    "status": "pending_single_human_reference",
+    "transcript_first": true
+  },
+  "arms": [
+    {
+      "arm_id": "A",
+      "context_representation": "none"
+    },
+    {
+      "arm_id": "B",
+      "context_representation": "ordinary_prose_summary"
+    },
+    {
+      "arm_id": "C",
+      "context_representation": "machine_incremental_proposition_ledger"
+    },
+    {
+      "arm_id": "D",
+      "context_representation": "single_human_reference_proposition_ledger"
+    }
+  ],
+  "branch": "research/proposition-ledger-experiment",
+  "contracts": {
+    "canonical_semantic_delta": {
+      "path": "proposition_ledger_research/schema/proposition-ledger-semantic-delta-v1.schema.json",
+      "sha256": "986500bcf237b25c4fd7f9828060fd1879c2ed8b2746bb6154fc3d3ecd315bad",
+      "version": "proposition-ledger-semantic-delta-v1.1.1"
+    },
+    "evidence_transport": {
+      "path": "tools/proposition_ledger_evidence_transport.py",
+      "sha256": "c86e499542548be647cb73a9f99706b422fdaed34ca365dc133cd760aba4bb30"
+    },
+    "ledger_prompt": {
+      "path": "proposition_ledger_research/phase2e/incremental-ledger-system-prompt-v4.txt",
+      "sha256": "22e17d79be9a5557436065bac5df20268e3aedab228366ed35bcd97397da2c2a"
+    },
+    "materialiser": {
+      "path": "tools/proposition_ledger_semantic_delta.py",
+      "sha256": "8e2e57fdb7d228959db8cfb47c710bf93dd6c60500f11c3a15097725a0ae9373"
+    },
+    "persisted_ledger": {
+      "path": "proposition_ledger_research/schema/proposition-ledger-v1.schema.json",
+      "sha256": "6913ec201fab0bc971025584fd22574587d2b6951baacaef27a9228fe8bde338",
+      "version": "proposition-ledger-v1.0.0"
+    },
+    "xai_transport": {
+      "path": "proposition_ledger_research/schema/proposition-ledger-xai-transport-delta-v2.schema.json",
+      "sha256": "36076c48150e6bb8d6368736a75b977fb22197de6f57c78e65e8a09b56745bf9",
+      "version": "proposition-ledger-xai-transport-delta-v2.0.1"
+    }
+  },
+  "freeze_version": "four-arm-supplemental-freeze-v2",
+  "leakage_policy": {
+    "annotator_hypothesis_awareness_recorded": true,
+    "future_turns_forbidden": true,
+    "later_model_outputs_forbidden": true,
+    "machine_outputs_hidden_until_reference_lock": true,
+    "working_diagnosis_omitted_from_transcript_first_pack": true
+  },
+  "observed_context_policy": {
+    "ancestry_proxy_is_exact_payload": false,
+    "exact_payload_status": "not_retained",
+    "replay_disposition": "blocked_nonrunnable"
+  },
+  "original_results_untouched": true,
+  "private_case_freeze_sha256": "a6d58c0ab93175d6811076b497bbdbc99e3af8a20c4c695fe81ba743540a1072",
+  "profiles": {
+    "arm_b_summary": {
+      "max_output_tokens": 8192,
+      "model": "grok-4.6",
+      "prompt_path": "proposition_ledger_research/phase2_experiment/ordinary-summary-system-prompt.txt",
+      "prompt_sha256": "6a19260ee99b5e394920edb741892a12b89800a98911eb3e1273a2f987dc39c8",
+      "provider": "xAI",
+      "reasoning_effort": "low",
+      "response_schema_path": "proposition_ledger_research/phase2_experiment/ordinary-summary-schema.json",
+      "response_schema_sha256": "e55bdb9e74dc499e243df440069fe47808e90c486af766b29b17aa63b36bc4b9",
+      "tools": []
+    },
+    "arm_c_ledger": {
+      "max_output_tokens": 8192,
+      "model": "grok-4.6",
+      "prompt_path": "proposition_ledger_research/phase2e/incremental-ledger-system-prompt-v4.txt",
+      "prompt_sha256": "22e17d79be9a5557436065bac5df20268e3aedab228366ed35bcd97397da2c2a",
+      "provider": "xAI",
+      "provider_response_schema_sha256": "5d0fb9d22e0d51885ec16af630268fea09a3b62a1d1efc1ac1f333b587f06a41",
+      "reasoning_effort": "low",
+      "response_schema_path": "proposition_ledger_research/schema/proposition-ledger-xai-transport-delta-v2.schema.json",
+      "response_schema_sha256": "36076c48150e6bb8d6368736a75b977fb22197de6f57c78e65e8a09b56745bf9",
+      "tools": []
+    },
+    "downstream": {
+      "max_output_tokens": 900,
+      "model": "gpt-5.6-sol",
+      "postvalidator": "downstream-reply-contract-v1",
+      "prompt_path": "proposition_ledger_research/phase2_experiment/downstream-reply-system-prompt.txt",
+      "prompt_sha256": "6ab6888e3c009656766bdefff4e880d27e263828fa0f49b37f3df8db411176cb",
+      "provider": "OpenAI",
+      "reasoning_effort": "medium",
+      "response_schema_path": "proposition_ledger_research/phase2_experiment/downstream-reply-schema.json",
+      "response_schema_sha256": "6818d6f3faa9bb17a752359a708ab828be7dd8ad549696ddad62f2dc51ab95d1",
+      "retries": 0,
+      "store": false,
+      "stream": false,
+      "temperature": 1,
+      "timeout_seconds": 180,
+      "tools": []
+    }
+  },
+  "protocol_amendment": {
+    "path": "proposition_ledger_research/phase2_experiment/protocol-amendment-single-human-reference-v2.md",
+    "sha256": "6414a31b95448862666595c81b6f3fbd2a381cf1aecc390b7e3dbed2552d1adf"
+  },
+  "protocol_status": "frozen_post_specification_amendment",
+  "provider_policy": {
+    "at_most_once": true,
+    "fallback_calls": 0,
+    "live_adapter_status": "implemented_offline_reviewed_not_live_verified",
+    "live_execution_enabled": true,
+    "live_verification_performed": false,
+    "preflight_calls": 0,
+    "repair_calls": 0,
+    "retries": 0
+  },
+  "source_commit": "7c6cdd6d4db71c96789a120ed39420e9714e5236",
+  "source_completeness": {
+    "account_publication_confirmed": true,
+    "chronology_complete": true,
+    "complete_prefix_through_turn": true,
+    "exact_text_complete": true,
+    "limitations": [
+      "Direct parents are unavailable for T011, T012, T013 and T016 in the replay chain.",
+      "Referenced-tweet payloads were not retained for the selected mention turns."
+    ],
+    "parent_graph_complete": false,
+    "reconstruction_grade": "B"
+  },
+  "source_completeness_sha256": "89999e7ccbbf4d167fa91729fe9463e74a2d412631da9e33f14d9ec4e3eb72c9",
+  "supersedes_freeze": {
+    "path": "proposition_ledger_research/phase2_experiment/experiment-freeze.json",
+    "sha256": "495a51d1d32a6f6d4eafd91db16cbe065bea012a7c7ba047a539706fd989e53b",
+    "version": "four-arm-supplemental-freeze-v1"
+  }
+}

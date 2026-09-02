@@ -61,8 +61,8 @@ def _freeze(case_hash: str) -> dict[str, Any]:
         ],
     }
     return {
-        "freeze_version": "four-arm-supplemental-freeze-v1",
-        "protocol_status": "frozen_post_specification",
+        "freeze_version": "four-arm-supplemental-freeze-v2",
+        "protocol_status": "frozen_post_specification_amendment",
         "source_commit": "7c6cdd6d4db71c96789a120ed39420e9714e5236",
         "branch": "research/proposition-ledger-experiment",
         "contracts": {
@@ -134,7 +134,13 @@ def _freeze(case_hash: str) -> dict[str, Any]:
             "diagnosis_hidden": True,
             "later_model_outputs_forbidden": True,
         },
-        "arm_d_gate": {"status": "pending_human_adjudication", "human_raters": 2},
+        "arm_d_gate": {
+            **runner.ARM_D_GATE,
+            "status": "pending_single_human_reference",
+            "awareness_fields_required": [
+                *runner.HUMAN_AWARENESS_FIELDS, "independent_of_machine_ledger",
+            ],
+        },
         "provider_policy": {
             "at_most_once": True,
             "retries": 0,
@@ -151,6 +157,14 @@ def _freeze(case_hash: str) -> dict[str, Any]:
             runner.private_io.canonical_json_bytes(completeness)
         ).hexdigest(),
         "original_results_untouched": True,
+        "protocol_amendment": _tracked(
+            "proposition_ledger_research/phase2_experiment/"
+            "protocol-amendment-single-human-reference-v2.md"
+        ),
+        "supersedes_freeze": _tracked(
+            "proposition_ledger_research/phase2_experiment/experiment-freeze.json",
+            "four-arm-supplemental-freeze-v1",
+        ),
     }
 
 
@@ -479,6 +493,45 @@ def _fake_response(request: dict[str, Any]) -> dict[str, Any]:
     }
 
 
+def _complete_single_human_reference(
+    output: Path, *, annotator_id: str = "investigator-user",
+    knew_working_hypothesis: bool = True,
+    previously_seen_published_replies: bool = True,
+    was_investigator: bool = True,
+    independent_of_machine_ledger: bool = True,
+    machine_output_revealed_before_lock: bool = False,
+) -> None:
+    human_root = output / runner.PREPARED_HUMAN_DIR
+    provenance_path = human_root / "provenance.json"
+    provenance = json.loads(provenance_path.read_text("utf-8"))
+    provenance.update({
+        "status": "completed_human_provenance", "actor_type": "human",
+        "annotator_id": annotator_id,
+        "knew_working_hypothesis": knew_working_hypothesis,
+        "previously_seen_published_replies": previously_seen_published_replies,
+        "was_investigator": was_investigator,
+        "independent_of_machine_ledger": independent_of_machine_ledger,
+        "machine_output_revealed_before_lock": machine_output_revealed_before_lock,
+        "completed_at_utc": "2020-01-01T00:02:00Z",
+    })
+    _write_json(provenance_path, provenance)
+    for number, snapshot_id in enumerate(("snapshot-01", "snapshot-02"), start=1):
+        directory = human_root / snapshot_id
+        chain = json.loads(
+            (directory / "semantic-delta-chain-template.json").read_text("utf-8")
+        )["semantic_delta_chain"]
+        reference_path = directory / "reference.json"
+        reference = json.loads(reference_path.read_text("utf-8"))
+        reference.update({
+            "status": "completed_human_reference", "actor_type": "human",
+            "annotator_id": annotator_id,
+            "semantic_judgements_authored_by_human": True,
+            "semantic_delta_chain": chain,
+            "completed_at_utc": f"2020-01-01T00:0{number - 1}:00Z",
+        })
+        _write_json(reference_path, reference)
+
+
 def test_validate_prepare_verify_are_offline_and_deduplicated(
     frozen_case: tuple[Path, Path], tmp_path: Path
 ) -> None:
@@ -493,7 +546,18 @@ def test_validate_prepare_verify_are_offline_and_deduplicated(
     assert prepared["planned_provider_calls"] == 18  # four C turns + two B + 12 downstream
     verified = runner.verify_run(output)
     assert verified["provider_calls"] == 0
-    assert verified["arm_d_status"] == "pending_human_adjudication"
+    assert verified["arm_d_status"] == "pending_human_reference"
+
+
+def test_freeze_rejects_obsolete_multi_human_gate_fields(
+    frozen_case: tuple[Path, Path]
+) -> None:
+    _, freeze = frozen_case
+    value = json.loads(freeze.read_text("utf-8"))
+    value["arm_d_gate"]["human_rater_count"] = 2
+    _write_json(freeze, value)
+    with pytest.raises(runner.FourArmError, match="single-human reference gate differs"):
+        runner.validate_freeze(freeze)
 
 
 def test_observed_payload_is_never_invented(
@@ -683,6 +747,52 @@ def test_fixed_three_evaluations_arm_isolation_and_incremental_reuse(
         assert "human_ledger_snapshot" in replay["arm_inputs"]["D"]
 
 
+def test_tracked_sanitized_case_shape_preserves_the_29_call_plan() -> None:
+    context_path = (
+        PROJECT / "proposition_ledger_research/phase2_experiment/cases/"
+        "market-planning-live-20260901/chronology-aware-contexts.json"
+    )
+    contexts = json.loads(context_path.read_text("utf-8"))["contexts"]
+    snapshots: dict[str, dict[str, Any]] = {}
+    for context in contexts:
+        snapshot_id = context["representation_snapshot_id"]
+        snapshot = snapshots.setdefault(snapshot_id, {
+            "snapshot_id": snapshot_id,
+            "turn_ids": context["turn_ids"],
+            "evaluation_aliases": [],
+        })
+        assert snapshot["turn_ids"] == context["turn_ids"]
+        snapshot["evaluation_aliases"].append(context["evaluation_alias"])
+    replay_shape = {
+        "representation_snapshots": list(snapshots.values()),
+        "runnable_replays": [{
+            "evaluation_alias": context["evaluation_alias"],
+            "representation_snapshot_id": context["representation_snapshot_id"],
+        } for context in contexts],
+    }
+    freeze_raw = runner.DEFAULT_FREEZE.read_bytes()
+    plan = runner._call_plan(
+        replay_shape, runner.validate_freeze(), hashlib.sha256(freeze_raw).hexdigest()
+    )
+    operations = [row["operation"] for row in plan["entries"]]
+    assert operations == (
+        ["arm_c_incremental_delta"] * 15
+        + ["arm_b_ordinary_summary"] * 2
+        + ["downstream_arm_evaluation"] * 12
+    )
+    assert plan["planned_provider_call_count"] == 29
+    assert plan["incremental_arm_c_call_count"] == 15
+    assert plan["arm_b_summary_call_count"] == 2
+    assert plan["unique_arm_evaluations"] == 12
+    assert [
+        row["identity"] for row in plan["entries"] if row["operation"] == "downstream_arm_evaluation"
+    ] == [f"{alias}-arm-{arm}" for alias in runner.ALIASES for arm in runner.ARMS]
+    ledger = runner._call_ledger(plan)
+    assert ledger["provider_call_count"] == 0
+    assert {row["state"] for row in ledger["entries"]} == {"planned"}
+    assert {row["provider_call_count"] for row in ledger["entries"]} == {0}
+
+
 def test_call_state_cannot_claim_sending_without_recorded_call(
     frozen_case: tuple[Path, Path], tmp_path: Path
 ) -> None:
@@ -830,75 +940,196 @@ def test_failed_c_blocks_only_its_dependants(
     }
 
 
-def test_human_pack_is_usable_and_model_provenance_is_rejected(
+def test_single_human_pack_is_brief_separate_by_snapshot_and_blind_to_machine_outputs(
     frozen_case: tuple[Path, Path], tmp_path: Path
 ) -> None:
     case, freeze = frozen_case
     output = tmp_path / "prepared-run"
     runner.prepare_run(case, output, experiment_freeze=freeze)
+    human_root = output / runner.PREPARED_HUMAN_DIR
     pack = json.loads(
-        (output / "human-ledger-pack/snapshot-01/pack.json").read_text("utf-8")
+        (human_root / "snapshot-01/reference-pack.json").read_text("utf-8")
     )
     assert set(pack["blank_semantic_delta_sections"]) == {
         "new_propositions", "new_issue_states", "commitment_changes",
         "obligation_changes", "new_relations",
     }
-    assert pack["annotation_guidance"]["validation_command"].startswith("python -m tools.")
-    assert "--verify" in pack["annotation_guidance"]["validation_command"]
+    command = pack["annotation_guidance"]["validation_and_lock_command"]
+    assert command == (
+        "python3 -m tools.proposition_ledger_four_arm_experiment --verify "
+        f"--lock-human-reference --output {output}"
+    )
     assert pack["source_completeness"]["reconstruction_grade"] == "B"
     assert pack["source_completeness"]["parent_graph_complete"] is False
-    human_root = output / runner.PREPARED_HUMAN_DIR
     readme = (human_root / "README.md").read_text("utf-8")
-    assert "snapshot-NN/rater-1.json" in readme
-    assert "`semantic_delta_chain`" in readme
-    assert "adjudication.json" in readme and "gold-lock.json" in readme
-    assert "find . -type f ! -name LOCKED-SHA256SUMS -printf '%P\\0'" in readme
-    assert "python -m tools.proposition_ledger_four_arm_experiment --verify" in readme
+    assert "provenance.json" in readme and "snapshot-NN/reference.json" in readme
+    assert "exact text" in readme and "zero-based" in readme
+    assert "--verify --lock-human-reference" in readme
+    assert "No machine output may be opened before" in readme
+    assert "copy its completed `semantic_delta_chain` unchanged" in readme
+    assert "rejects any retroactive prefix rewrite" in readme
+    assert "rater-2" not in readme and "adjudication" not in readme and "gold" not in readme
     assert {path.name for path in (human_root / "frozen-guidance").iterdir()} == {
         "annotation-guide.json", "REFERENCE-ONLY.txt",
     }
-    template = json.loads(
-        (human_root / "snapshot-01/semantic-delta-chain-template.json").read_text("utf-8")
+    guide = json.loads(
+        (human_root / "frozen-guidance/annotation-guide.json").read_text("utf-8")
     )
-    assert template["reference_only"] is True
-    assert len(template["semantic_delta_chain"]) == len(pack["transcript"]["turns"])
+    assert guide["guide_version"] == "single-human-transcript-first-guide-v1"
+    assert "shared prefix" in guide["incremental_rule"]
+    snapshot_one = json.loads(
+        (human_root / "snapshot-01/semantic-delta-chain-template.json").read_text("utf-8")
+    )["semantic_delta_chain"]
+    snapshot_two = json.loads(
+        (human_root / "snapshot-02/semantic-delta-chain-template.json").read_text("utf-8")
+    )["semantic_delta_chain"]
+    assert len(snapshot_one) < len(snapshot_two)
+    assert snapshot_two[: len(snapshot_one)] == snapshot_one
     visible = "\n".join(
         f"{path.relative_to(human_root).as_posix()}\n{path.read_text('utf-8')}"
         for path in sorted(human_root.rglob("*")) if path.is_file()
     )
     assert runner.HUMAN_VISIBLE_FORBIDDEN.search(visible) is None
-    assert "Arm D" not in visible
-    for hidden_label in (
-        "xAI", "grok", "OpenAI", "provider", "model", "Arm D", "arm-a",
-        "diagnosis", "P1",
-    ):
-        assert runner.HUMAN_VISIBLE_FORBIDDEN.search(hidden_label)
-    rater = human_root / "snapshot-01/rater-1.json"
-    value = json.loads(rater.read_text("utf-8"))
-    value["actor_type"] = "model"
-    _write_json(rater, value)
-    with pytest.raises(runner.FourArmError, match="model/non-human"):
-        runner.verify_run(output)
 
 
-def test_completed_rater_is_validated_while_other_human_artifacts_remain_pending(
+def test_pending_model_authorship_and_partial_human_input_fail_closed(
     frozen_case: tuple[Path, Path], tmp_path: Path
 ) -> None:
     case, freeze = frozen_case
     output = tmp_path / "prepared-run"
     runner.prepare_run(case, output, experiment_freeze=freeze)
-    path = output / runner.PREPARED_HUMAN_DIR / "snapshot-01/rater-1.json"
-    rater = json.loads(path.read_text("utf-8"))
-    rater.update({
-        "status": "completed_human_annotation", "actor_type": "human",
-        "rater_id": "synthetic-rater-one", "independently_authored": True,
-        "hidden_information_attestation": sorted(runner.RATER_HIDDEN),
-        "semantic_delta_chain": [], "completed_at_utc": "2026-09-02T00:00:00Z",
-        "not_gold": False,
-    })
-    _write_json(path, rater)
-    with pytest.raises(runner.FourArmError, match="does not cover the exact prefix"):
+    path = output / runner.PREPARED_HUMAN_DIR / "snapshot-01/reference.json"
+    reference = json.loads(path.read_text("utf-8"))
+    reference["actor_type"] = "model"
+    _write_json(path, reference)
+    with pytest.raises(runner.FourArmError, match="model/non-human"):
         runner.verify_run(output)
+
+    reference["actor_type"] = "human"
+    reference["status"] = "completed_human_reference"
+    _write_json(path, reference)
+    with pytest.raises(runner.FourArmError, match="incomplete"):
+        runner.verify_run(output)
+
+
+def test_one_investigator_human_can_lock_both_snapshot_references_offline(
+    frozen_case: tuple[Path, Path], tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    case, freeze = frozen_case
+    output = tmp_path / "prepared-run"
+    prepared = runner.prepare_run(case, output, experiment_freeze=freeze)
+    original_plan = (output / "call-plan.json").read_bytes()
+    _complete_single_human_reference(output)
+    submitted = {
+        path: hashlib.sha256(path.read_bytes()).hexdigest()
+        for path in [
+            output / runner.PREPARED_HUMAN_DIR / "provenance.json",
+            output / runner.PREPARED_HUMAN_DIR / "snapshot-01/reference.json",
+            output / runner.PREPARED_HUMAN_DIR / "snapshot-02/reference.json",
+        ]
+    }
+    monkeypatch.setattr(
+        runner, "ReviewedProviderAdapter",
+        lambda: (_ for _ in ()).throw(AssertionError("provider constructed")),
+    )
+    assert runner.main([
+        "--verify", "--lock-human-reference", "--output", str(output),
+        "--experiment-freeze", str(freeze),
+    ]) == 0
+    verified = runner.verify_run(output)
+    assert verified["arm_d_status"] == "locked"
+    assert verified["provider_calls"] == 0
+    assert prepared["planned_provider_calls"] == 18
+    assert (output / "call-plan.json").read_bytes() == original_plan
+    assert all(hashlib.sha256(path.read_bytes()).hexdigest() == digest for path, digest in submitted.items())
+    materialised = json.loads(
+        (output / runner.PREPARED_HUMAN_DIR / "materialised-reference.json").read_text("utf-8")
+    )
+    assert [row["snapshot_id"] for row in materialised["snapshot_ledgers"]] == [
+        "snapshot-01", "snapshot-02",
+    ]
+    provenance = json.loads(
+        (output / runner.PREPARED_HUMAN_DIR / "provenance.json").read_text("utf-8")
+    )
+    assert provenance["knew_working_hypothesis"] is True
+    assert provenance["previously_seen_published_replies"] is True
+    assert provenance["was_investigator"] is True
+    assert provenance["independent_of_machine_ledger"] is True
+
+
+def test_snapshot_two_cannot_retroactively_rewrite_completed_shared_prefix(
+    frozen_case: tuple[Path, Path], tmp_path: Path
+) -> None:
+    case, freeze = frozen_case
+    output = tmp_path / "prepared-run"
+    runner.prepare_run(case, output, experiment_freeze=freeze)
+    _complete_single_human_reference(output)
+    path = output / runner.PREPARED_HUMAN_DIR / "snapshot-02/reference.json"
+    reference = json.loads(path.read_text("utf-8"))
+    reference["semantic_delta_chain"][0]["warnings"] = ["retroactive rewrite"]
+    _write_json(path, reference)
+    with pytest.raises(runner.FourArmError, match="shared semantic-delta prefix differs"):
+        runner.lock_human_reference(output)
+    human_root = output / runner.PREPARED_HUMAN_DIR
+    assert not (human_root / "materialised-reference.json").exists()
+    assert not (human_root / "reference-lock.json").exists()
+
+
+@pytest.mark.parametrize(
+    ("defect", "message"),
+    [
+        ("machine_reveal", "invalid or conceals awareness"),
+        ("machine_actor", "not authored by the provenance human"),
+        ("codex_identity", "genuine human authorship"),
+        ("missing_awareness", "invalid or conceals awareness"),
+        ("machine_ledger_dependence", "invalid or conceals awareness"),
+    ],
+)
+def test_invalid_human_provenance_cannot_lock(
+    frozen_case: tuple[Path, Path], tmp_path: Path, defect: str, message: str
+) -> None:
+    case, freeze = frozen_case
+    output = tmp_path / "prepared-run"
+    runner.prepare_run(case, output, experiment_freeze=freeze)
+    _complete_single_human_reference(output)
+    human_root = output / runner.PREPARED_HUMAN_DIR
+    provenance_path = human_root / "provenance.json"
+    provenance = json.loads(provenance_path.read_text("utf-8"))
+    if defect == "machine_reveal":
+        provenance["machine_output_revealed_before_lock"] = True
+    elif defect == "codex_identity":
+        provenance["annotator_id"] = "Codex"
+    elif defect == "missing_awareness":
+        provenance["knew_working_hypothesis"] = None
+    elif defect == "machine_ledger_dependence":
+        provenance["independent_of_machine_ledger"] = False
+    else:
+        reference_path = human_root / "snapshot-01/reference.json"
+        reference = json.loads(reference_path.read_text("utf-8"))
+        reference["actor_type"] = "model"
+        _write_json(reference_path, reference)
+    _write_json(provenance_path, provenance)
+    with pytest.raises(runner.FourArmError, match=message):
+        runner.lock_human_reference(output)
+    assert not (human_root / "materialised-reference.json").exists()
+    assert not (human_root / "reference-lock.json").exists()
+
+
+def test_existing_machine_artifact_prevents_reference_lock(
+    frozen_case: tuple[Path, Path], tmp_path: Path
+) -> None:
+    case, freeze = frozen_case
+    output = tmp_path / "prepared-run"
+    runner.prepare_run(case, output, experiment_freeze=freeze)
+    _complete_single_human_reference(output)
+    products = output / "products"
+    products.mkdir(mode=0o700)
+    artifact = products / "machine-output.json"
+    artifact.write_bytes(b"{}")
+    artifact.chmod(0o600)
+    with pytest.raises(runner.FourArmError, match="before any experiment machine output"):
+        runner.lock_human_reference(output)
+    assert not (output / runner.PREPARED_HUMAN_DIR / "reference-lock.json").exists()
 
 
 def test_template_chain_prior_sentinel_is_resolved_without_mutating_submission(
@@ -907,23 +1138,14 @@ def test_template_chain_prior_sentinel_is_resolved_without_mutating_submission(
     case, freeze = frozen_case
     output = tmp_path / "prepared-run"
     runner.prepare_run(case, output, experiment_freeze=freeze)
+    _complete_single_human_reference(output)
     snapshot = output / runner.PREPARED_HUMAN_DIR / "snapshot-01"
-    template = json.loads((snapshot / "semantic-delta-chain-template.json").read_text("utf-8"))
-    chain = template["semantic_delta_chain"]
+    path = snapshot / "reference.json"
+    reference = json.loads(path.read_text("utf-8"))
+    chain = reference["semantic_delta_chain"]
     assert chain[1]["prior_ledger_reference"]["ledger_id"] == runner.PRIOR_LEDGER_SENTINEL
-    path = snapshot / "rater-1.json"
-    rater = json.loads(path.read_text("utf-8"))
-    rater.update({
-        "status": "completed_human_annotation", "actor_type": "human",
-        "rater_id": "synthetic-rater-one", "independently_authored": True,
-        "hidden_information_attestation": sorted(runner.RATER_HIDDEN),
-        "semantic_delta_chain": chain, "completed_at_utc": "2026-09-02T00:00:00Z",
-        "not_gold": False,
-    })
-    _write_json(path, rater)
     submitted_sha = hashlib.sha256(path.read_bytes()).hexdigest()
-    verified = runner.verify_run(output)
-    assert verified["arm_d_status"] == "pending_human_adjudication"
+    runner.lock_human_reference(output)
     assert hashlib.sha256(path.read_bytes()).hexdigest() == submitted_sha
 
 
@@ -934,7 +1156,7 @@ def test_human_transport_selector_resolves_before_canonical_materialisation(
     output = tmp_path / "prepared-run"
     runner.prepare_run(case, output, experiment_freeze=freeze)
     snapshot = output / runner.PREPARED_HUMAN_DIR / "snapshot-01"
-    pack = json.loads((snapshot / "pack.json").read_text("utf-8"))
+    pack = json.loads((snapshot / "reference-pack.json").read_text("utf-8"))
     template = json.loads((snapshot / "semantic-delta-chain-template.json").read_text("utf-8"))
     chain = template["semantic_delta_chain"]
     assert pack["annotation_contract"]["input_schema_version"] == runner.HUMAN_SELECTOR_VERSION
@@ -944,7 +1166,10 @@ def test_human_transport_selector_resolves_before_canonical_materialisation(
     assert "transport_schema" not in pack["annotation_contract"]
     assert chain[0]["schema_version"] == runner.HUMAN_SELECTOR_VERSION
     _add_transport_evidence(chain[0], {"exact_text": "north gate", "occurrence_index": 0})
-    ledger = runner._materialised_ledger(pack, chain)
+    ledger = runner._materialised_ledger(
+        pack, chain,
+        transport_binding=runner.validate_freeze(freeze)["contracts"]["xai_transport"],
+    )
     span = ledger["propositions"][0]["exact_evidence_spans"][0]
     assert span == {
         "turn_id": "turn-root", "start_char": 4, "end_char": 14,
@@ -968,45 +1193,13 @@ def test_human_transport_selector_rejects_unresolved_evidence(
     output = tmp_path / "prepared-run"
     runner.prepare_run(case, output, experiment_freeze=freeze)
     snapshot = output / runner.PREPARED_HUMAN_DIR / "snapshot-01"
-    pack = json.loads((snapshot / "pack.json").read_text("utf-8"))
+    pack = json.loads((snapshot / "reference-pack.json").read_text("utf-8"))
     chain = json.loads(
         (snapshot / "semantic-delta-chain-template.json").read_text("utf-8")
     )["semantic_delta_chain"]
     _add_transport_evidence(chain[0], selector)
     with pytest.raises(runner.FourArmError, match=status):
-        runner._materialised_ledger(pack, chain)
-
-
-def test_completed_human_identities_are_nonempty_distinct_and_explicitly_gold() -> None:
-    raters = [
-        {
-            "status": "completed_human_annotation", "actor_type": "human",
-            "rater_id": "Alice", "independently_authored": True, "not_gold": False,
-        },
-        {
-            "status": "completed_human_annotation", "actor_type": "human",
-            "rater_id": "Bob", "independently_authored": True, "not_gold": False,
-        },
-    ]
-    adjudication = {
-        "status": "completed_human_adjudication", "actor_type": "human",
-        "adjudicator_id": "Carol", "not_gold": False,
-    }
-    assert runner._completed_human_identities(raters, adjudication) == (
-        ["alice", "bob"], "carol"
-    )
-    invalid = copy.deepcopy(raters)
-    invalid[0]["rater_id"] = "   "
-    with pytest.raises(runner.FourArmError, match="two independently"):
-        runner._completed_human_identities(invalid, adjudication)
-    invalid = copy.deepcopy(raters)
-    invalid[1]["rater_id"] = " alice "
-    with pytest.raises(runner.FourArmError, match="two independently"):
-        runner._completed_human_identities(invalid, adjudication)
-    invalid_adjudication = {**adjudication, "adjudicator_id": " BOB "}
-    with pytest.raises(runner.FourArmError, match="independent human adjudicator"):
-        runner._completed_human_identities(raters, invalid_adjudication)
-    invalid = copy.deepcopy(raters)
-    invalid[0]["not_gold"] = None
-    with pytest.raises(runner.FourArmError, match="two independently"):
-        runner._completed_human_identities(invalid, adjudication)
+        runner._materialised_ledger(
+            pack, chain,
+            transport_binding=runner.validate_freeze(freeze)["contracts"]["xai_transport"],
+        )
