@@ -22,14 +22,14 @@ from pathlib import Path
 from typing import Any
 
 
-TRANSPORT_SCHEMA_VERSION = "proposition-ledger-xai-transport-delta-v2.0.1"
-CANONICAL_SCHEMA_VERSION = "proposition-ledger-semantic-delta-v1.1.1"
+TRANSPORT_SCHEMA_VERSION = "proposition-ledger-xai-transport-delta-v2.0.2"
+CANONICAL_SCHEMA_VERSION = "proposition-ledger-semantic-delta-v1.1.2"
 CANONICAL_SCHEMA_FILE_SHA256 = (
-    "986500bcf237b25c4fd7f9828060fd1879c2ed8b2746bb6154fc3d3ecd315bad"
+    "980d41611d0d4d184129037d5be65d4e4d47840cbce7daa69168b72d94187f41"
 )
 EVIDENCE_SELECTOR_CONTRACT_VERSION = "exact-evidence-selector-v1"
 REQUEST_CONTRACT_REVISION = "phase2b-exact-evidence-selector-v1"
-EVIDENCE_RESOLVER_VERSION = "proposition-ledger-evidence-transport-v1"
+EVIDENCE_RESOLVER_VERSION = "proposition-ledger-evidence-transport-v1.0.1"
 
 SUCCESS_STATUS = "ok"
 FAILURE_STATUSES = frozenset(

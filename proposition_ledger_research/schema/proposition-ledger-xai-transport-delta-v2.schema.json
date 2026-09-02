@@ -32,10 +32,10 @@
   ],
   "properties": {
     "schema_version": {
-      "const": "proposition-ledger-xai-transport-delta-v2.0.1"
+      "const": "proposition-ledger-xai-transport-delta-v2.0.2"
     },
     "canonical_schema_version": {
-      "const": "proposition-ledger-semantic-delta-v1.1.1"
+      "const": "proposition-ledger-semantic-delta-v1.1.2"
     },
     "conversation_key": {
       "type": "string",
@@ -1561,7 +1561,15 @@
           ]
         },
         "asserted_or_analysed_by": {
-          "$ref": "#/$defs/opaqueId"
+          "description": "Registered participant for transcript-derived or speaker-explicit relations; null only for evaluator diagnoses recorded as human annotation or machine diagnostic provenance.",
+          "oneOf": [
+            {
+              "$ref": "#/$defs/opaqueId"
+            },
+            {
+              "type": "null"
+            }
+          ]
         },
         "exact_evidence_spans": {
           "$ref": "#/$defs/evidenceSpans"
@@ -1588,7 +1596,42 @@
             "human_correction"
           ]
         }
-      }
+      },
+      "allOf": [
+        {
+          "if": {
+            "properties": {
+              "provenance_kind": {
+                "enum": [
+                  "human_annotation",
+                  "machine_diagnostic"
+                ]
+              },
+              "analysis_basis": {
+                "const": "evaluator_diagnosis"
+              }
+            },
+            "required": [
+              "provenance_kind",
+              "analysis_basis"
+            ]
+          },
+          "then": {
+            "properties": {
+              "asserted_or_analysed_by": {
+                "type": "null"
+              }
+            }
+          },
+          "else": {
+            "properties": {
+              "asserted_or_analysed_by": {
+                "$ref": "#/$defs/opaqueId"
+              }
+            }
+          }
+        }
+      ]
     },
     "answerTargetChangesPayload": {
       "type": "object",

@@ -33,7 +33,7 @@
     "warnings"
   ],
   "properties": {
-    "schema_version": {"const": "proposition-ledger-v1.0.0"},
+    "schema_version": {"const": "proposition-ledger-v1.0.1"},
     "ledger_id": {"$ref": "#/$defs/opaqueId"},
     "conversation_key": {"type": "string", "minLength": 1},
     "root_post_id": {"type": ["string", "null"], "minLength": 1},
@@ -574,7 +574,13 @@
         "source_proposition_ids": {"type": "array", "items": {"$ref": "#/$defs/opaqueId"}, "minItems": 1, "uniqueItems": true},
         "target_proposition_ids": {"type": "array", "items": {"$ref": "#/$defs/opaqueId"}, "minItems": 1, "uniqueItems": true},
         "relation_type": {"enum": ["answers", "partially_answers", "fails_to_answer", "supports", "contradicts", "qualifies", "narrows", "broadens", "provides_exception", "distinguishes", "clarifies", "corrects", "concedes", "retracts", "supersedes", "repeats", "rephrases", "presupposes", "challenges", "changes_topic", "targets", "rejects_answer_target", "substitutes_for", "fails_to_address"]},
-        "asserted_or_analysed_by": {"$ref": "#/$defs/opaqueId"},
+        "asserted_or_analysed_by": {
+          "description": "Registered participant for transcript-derived or speaker-explicit relations; null only for evaluator diagnoses recorded as human annotation or machine diagnostic provenance.",
+          "oneOf": [
+            {"$ref": "#/$defs/opaqueId"},
+            {"type": "null"}
+          ]
+        },
         "introduced_at_turn_id": {"$ref": "#/$defs/opaqueId"},
         "exact_evidence_spans": {"type": "array", "items": {"$ref": "#/$defs/evidenceSpan"}, "minItems": 1, "uniqueItems": true},
         "confidence": {"$ref": "#/$defs/confidence"},
@@ -586,6 +592,17 @@
         }
       },
       "allOf": [
+        {
+          "if": {
+            "properties": {
+              "provenance_kind": {"enum": ["human_annotation", "machine_diagnostic"]},
+              "analysis_basis": {"const": "evaluator_diagnosis"}
+            },
+            "required": ["provenance_kind", "analysis_basis"]
+          },
+          "then": {"properties": {"asserted_or_analysed_by": {"type": "null"}}},
+          "else": {"properties": {"asserted_or_analysed_by": {"$ref": "#/$defs/opaqueId"}}}
+        },
         {
           "if": {
             "properties": {"provenance_kind": {"const": "transcript_extraction"}},

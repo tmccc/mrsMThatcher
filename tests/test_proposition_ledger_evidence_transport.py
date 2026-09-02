@@ -24,6 +24,10 @@ MODULE_PATH = PROJECT_DIR / "tools/proposition_ledger_evidence_transport.py"
 GENERATOR_PATH = (
     PROJECT_DIR / "tools/generate_proposition_ledger_phase2b_transport_schema.py"
 )
+CONTRACT_MANIFEST_PATH = (
+    PROJECT_DIR
+    / "proposition_ledger_research/phase2b/transport-contract-manifest.json"
+)
 
 
 @pytest.fixture(scope="module")
@@ -85,6 +89,28 @@ def _with_evidence(
     return delta
 
 
+def _relation_delta(
+    transport_schema: Mapping[str, Any],
+    *,
+    asserted_or_analysed_by: str | None,
+    provenance_kind: str,
+    analysis_basis: str,
+) -> dict[str, Any]:
+    delta = _empty_delta()
+    relation = _minimal_record(
+        transport_schema,
+        "new_relations",
+        [{"exact_text": "evidence", "occurrence_index": 0}],
+    )
+    relation.update(
+        asserted_or_analysed_by=asserted_or_analysed_by,
+        provenance_kind=provenance_kind,
+        analysis_basis=analysis_basis,
+    )
+    delta["new_relations"] = [relation]
+    return delta
+
+
 def _resolve(
     delta: Mapping[str, Any],
     text: str,
@@ -117,7 +143,11 @@ def test_canonical_schema_hash_and_version_are_frozen(
     source = evidence.DEFAULT_CANONICAL_SCHEMA_PATH.read_bytes()
     assert (
         evidence.CANONICAL_SCHEMA_VERSION
-        == "proposition-ledger-semantic-delta-v1.1.1"
+        == "proposition-ledger-semantic-delta-v1.1.2"
+    )
+    assert (
+        evidence.EVIDENCE_RESOLVER_VERSION
+        == "proposition-ledger-evidence-transport-v1.0.1"
     )
     assert hashlib.sha256(source).hexdigest() == evidence.CANONICAL_SCHEMA_FILE_SHA256
     assert (
@@ -132,7 +162,7 @@ def test_transport_schema_is_exact_deterministic_derivation(
     canonical, tracked = schemas
     assert (
         evidence.TRANSPORT_SCHEMA_VERSION
-        == "proposition-ledger-xai-transport-delta-v2.0.1"
+        == "proposition-ledger-xai-transport-delta-v2.0.2"
     )
     first, first_ledger = evidence.derive_transport_schema(canonical)
     second, second_ledger = evidence.derive_transport_schema(canonical)
@@ -151,6 +181,82 @@ def test_transport_schema_is_exact_deterministic_derivation(
     serialized_selector = evidence.canonical_json_bytes(selector)
     for forbidden in (b'"turn_id"', b'"start_char"', b'"end_char"'):
         assert forbidden not in serialized_selector
+
+
+def test_tracked_transport_contract_manifest_matches_generated_contract(
+    schemas: tuple[dict[str, Any], dict[str, Any]],
+) -> None:
+    _, transport_schema = schemas
+    provider_schema, _ = established.transform_provider_schema(transport_schema)
+    expected = evidence.build_response_contract_manifest(
+        transport_schema=transport_schema,
+        xai_provider_schema=provider_schema,
+    )
+    tracked = json.loads(CONTRACT_MANIFEST_PATH.read_text("utf-8"))
+
+    assert tracked == expected
+
+
+@pytest.mark.parametrize(
+    (
+        "asserted_or_analysed_by",
+        "provenance_kind",
+        "analysis_basis",
+        "valid",
+    ),
+    [
+        (None, "machine_diagnostic", "evaluator_diagnosis", True),
+        (None, "human_annotation", "evaluator_diagnosis", True),
+        ("account", "transcript_extraction", "direct_semantic_content", True),
+        (
+            "account",
+            "transcript_extraction",
+            "speaker_explicit_metadiscourse",
+            True,
+        ),
+        ("account", "human_correction", "human_correction", True),
+        ("account", "human_annotation", "direct_semantic_content", True),
+        ("account", "machine_diagnostic", "evaluator_diagnosis", False),
+        ("account", "human_annotation", "evaluator_diagnosis", False),
+        (None, "transcript_extraction", "direct_semantic_content", False),
+        (None, "transcript_extraction", "speaker_explicit_metadiscourse", False),
+        (None, "human_correction", "human_correction", False),
+        (None, "human_annotation", "direct_semantic_content", False),
+    ],
+)
+def test_evaluator_relation_attribution_contract_is_preserved_by_transport(
+    schemas: tuple[dict[str, Any], dict[str, Any]],
+    asserted_or_analysed_by: str | None,
+    provenance_kind: str,
+    analysis_basis: str,
+    valid: bool,
+) -> None:
+    canonical_schema, transport_schema = schemas
+    delta = _relation_delta(
+        transport_schema,
+        asserted_or_analysed_by=asserted_or_analysed_by,
+        provenance_kind=provenance_kind,
+        analysis_basis=analysis_basis,
+    )
+    transport_errors = evidence.intended_validation_errors(transport_schema, delta)
+    result = _resolve(delta, "quoted evidence", schemas)
+
+    assert bool(transport_errors) is not valid
+    if valid:
+        assert result.succeeded, result.errors
+        assert result.canonical_delta is not None
+        assert not evidence.intended_validation_errors(
+            canonical_schema, result.canonical_delta
+        )
+        assert (
+            result.canonical_delta["new_relations"][0][
+                "asserted_or_analysed_by"
+            ]
+            == asserted_or_analysed_by
+        )
+    else:
+        assert result.status == "transport_schema_invalid"
+        assert result.canonical_delta is None
 
 
 def test_schema_generator_check_and_verify_only_are_read_only() -> None:
@@ -175,12 +281,12 @@ def test_established_xai_transform_is_deterministic_and_bounded(
     second, second_ledger = established.transform_provider_schema(transport_schema)
     assert evidence.canonical_json_bytes(first) == evidence.canonical_json_bytes(second)
     assert first_ledger == second_ledger
-    assert len(first_ledger) == 23
+    assert len(first_ledger) == 26
     assert sum(
         row["transformation_kind"]
         == "insert_explicit_additional_properties_true"
         for row in first_ledger
-    ) == 9
+    ) == 12
     assert sum(
         row["transformation_kind"]
         == "remove_redundant_outer_anchors_for_xai_full_string_pattern"

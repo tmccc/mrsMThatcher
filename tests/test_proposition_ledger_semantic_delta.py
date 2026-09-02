@@ -30,10 +30,18 @@ def _load_json(path: Path) -> dict[str, Any]:
     return value
 
 
+def _rebind_persisted_schema_version(ledger: dict[str, Any]) -> None:
+    """Patch only the historical synthetic envelope for current-contract tests."""
+
+    ledger["schema_version"] = semantic.PERSISTED_LEDGER_SCHEMA_VERSION
+    ledger["ledger_sha256"] = phase1.ledger_sha256(ledger)
+
+
 @pytest.fixture()
 def direct_answer_case() -> tuple[dict[str, Any], dict[str, Any], dict[str, Any]]:
     transcript = _load_json(FIXTURE_DIR / "transcript.json")
     prior = copy.deepcopy(transcript["ledger_history"][-1])
+    _rebind_persisted_schema_version(prior)
     current_turn = copy.deepcopy(transcript["turns"][-1])
     evidence = {
         "turn_id": current_turn["turn_id"],
@@ -565,6 +573,126 @@ def test_exact_first_seen_current_speaker_may_be_referenced_semantically(
     assert result.status == "ok", result.errors
     assert result.ledger is not None
     assert result.ledger["participants"][-1] == newcomer
+
+
+@pytest.mark.parametrize("provenance_kind", ["machine_diagnostic", "human_annotation"])
+def test_evaluator_relation_materialises_with_null_analyst(
+    direct_answer_case: tuple[dict[str, Any], dict[str, Any], dict[str, Any]],
+    provenance_kind: str,
+) -> None:
+    prior, current_turn, delta = direct_answer_case
+    relation = delta["new_relations"][0]
+    relation.update(
+        asserted_or_analysed_by=None,
+        provenance_kind=provenance_kind,
+        analysis_basis="evaluator_diagnosis",
+    )
+
+    result = _materialise_existing(prior, current_turn, delta)
+
+    assert result.status == "ok", result.errors
+    assert result.ledger is not None
+    assert result.ledger["proposition_relations"][-1][
+        "asserted_or_analysed_by"
+    ] is None
+
+
+@pytest.mark.parametrize(
+    ("asserted_or_analysed_by", "provenance_kind", "analysis_basis"),
+    [
+        ("account", "machine_diagnostic", "evaluator_diagnosis"),
+        ("account", "human_annotation", "evaluator_diagnosis"),
+        (None, "transcript_extraction", "direct_semantic_content"),
+        (None, "transcript_extraction", "speaker_explicit_metadiscourse"),
+        (None, "human_correction", "human_correction"),
+        (None, "human_annotation", "direct_semantic_content"),
+    ],
+)
+def test_relation_attribution_nullability_mismatch_is_schema_invalid(
+    direct_answer_case: tuple[dict[str, Any], dict[str, Any], dict[str, Any]],
+    asserted_or_analysed_by: str | None,
+    provenance_kind: str,
+    analysis_basis: str,
+) -> None:
+    prior, current_turn, delta = direct_answer_case
+    delta["new_relations"][0].update(
+        asserted_or_analysed_by=asserted_or_analysed_by,
+        provenance_kind=provenance_kind,
+        analysis_basis=analysis_basis,
+    )
+
+    result = _materialise_existing(prior, current_turn, delta)
+
+    assert result.status == "semantic_delta_schema_invalid"
+
+
+@pytest.mark.parametrize(
+    ("provenance_kind", "analysis_basis"),
+    [
+        ("transcript_extraction", "direct_semantic_content"),
+        ("transcript_extraction", "speaker_explicit_metadiscourse"),
+        ("human_annotation", "direct_semantic_content"),
+        ("human_correction", "human_correction"),
+    ],
+)
+def test_non_evaluator_relation_requires_registered_participant(
+    direct_answer_case: tuple[dict[str, Any], dict[str, Any], dict[str, Any]],
+    provenance_kind: str,
+    analysis_basis: str,
+) -> None:
+    prior, current_turn, delta = direct_answer_case
+    delta["new_relations"][0].update(
+        asserted_or_analysed_by="unregistered-evaluator",
+        provenance_kind=provenance_kind,
+        analysis_basis=analysis_basis,
+    )
+
+    result = _materialise_existing(prior, current_turn, delta)
+
+    assert result.status == "semantic_reference_invalid"
+    assert any("unknown_participant_reference" in error for error in result.errors)
+
+
+def test_persisted_relation_schema_has_the_same_evaluator_null_contract(
+    direct_answer_case: tuple[dict[str, Any], dict[str, Any], dict[str, Any]],
+) -> None:
+    result = _materialise(direct_answer_case)
+    assert result.status == "ok" and result.ledger is not None
+    persisted_schema = _load_json(semantic.DEFAULT_LEDGER_SCHEMA_PATH)
+    relation_schema = {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "$ref": "#/$defs/relation",
+        "$defs": persisted_schema["$defs"],
+    }
+    base = copy.deepcopy(result.ledger["proposition_relations"][-1])
+    cases = [
+        (None, "machine_diagnostic", "evaluator_diagnosis", True),
+        (None, "human_annotation", "evaluator_diagnosis", True),
+        ("account", "transcript_extraction", "direct_semantic_content", True),
+        ("account", "machine_diagnostic", "evaluator_diagnosis", False),
+        (None, "transcript_extraction", "direct_semantic_content", False),
+        (None, "human_annotation", "direct_semantic_content", False),
+    ]
+    for analyst, provenance, basis, valid in cases:
+        relation = copy.deepcopy(base)
+        relation.update(
+            asserted_or_analysed_by=analyst,
+            provenance_kind=provenance,
+            analysis_basis=basis,
+        )
+        assert bool(phase1._jsonschema_errors(relation, relation_schema)) is not valid
+
+
+def test_current_relation_contract_versions_are_explicit() -> None:
+    assert (
+        semantic.SEMANTIC_DELTA_SCHEMA_VERSION
+        == "proposition-ledger-semantic-delta-v1.1.2"
+    )
+    assert semantic.PERSISTED_LEDGER_SCHEMA_VERSION == "proposition-ledger-v1.0.1"
+    assert (
+        semantic.MATERIALISER_VERSION
+        == "proposition-ledger-semantic-delta-materialiser-v2.0.1"
+    )
 
 
 @pytest.mark.parametrize("field", ["participants", "participant_id"])

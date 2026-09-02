@@ -29,7 +29,7 @@ from tools import proposition_ledger_xai_transport_live_probe as private_io
 
 PROJECT_DIR = Path(__file__).resolve().parents[1]
 DEFAULT_FREEZE = (
-    PROJECT_DIR / "proposition_ledger_research/phase2_experiment/experiment-freeze-v2.json"
+    PROJECT_DIR / "proposition_ledger_research/phase2_experiment/experiment-freeze-v3.json"
 )
 CASE_SLUG = "market-planning-live-20260901"
 ALIASES = ("evaluation-01", "evaluation-02", "evaluation-03")
@@ -41,14 +41,61 @@ STATUS_LABELS = {
     "excluded_from_prespecified_counts",
 }
 VERSIONS = {
-    "canonical_semantic_delta": "proposition-ledger-semantic-delta-v1.1.1",
-    "xai_transport": "proposition-ledger-xai-transport-delta-v2.0.1",
-    "persisted_ledger": "proposition-ledger-v1.0.0",
+    "canonical_semantic_delta": "proposition-ledger-semantic-delta-v1.1.2",
+    "xai_transport": "proposition-ledger-xai-transport-delta-v2.0.2",
+    "persisted_ledger": "proposition-ledger-v1.0.1",
 }
-XAI_PROVIDER_SCHEMA_SHA256 = "5d0fb9d22e0d51885ec16af630268fea09a3b62a1d1efc1ac1f333b587f06a41"
+XAI_PROVIDER_SCHEMA_SHA256 = "b9be2d529245f6e8ebba8a9262223324efba304622399629e9b34e0215af7d87"
 PRIOR_LEDGER_SENTINEL = "FILL_WITH_PREVIOUS_MATERIALISED_LEDGER_ID"
-HUMAN_SELECTOR_VERSION = "proposition-ledger-human-selector-delta-v1.0.0"
+HUMAN_SELECTOR_VERSION = "proposition-ledger-human-selector-delta-v1.1.0"
 PREPARED_HUMAN_DIR = "human-ledger-pack"
+HUMAN_REFERENCE_CHAIN_FILE = "reference-chain.json"
+HUMAN_REFERENCE_PACK_FILE = "reference-pack.json"
+HUMAN_DETERMINISTIC_DELTA_FIELDS = {
+    "schema_version", "canonical_schema_version", "conversation_key",
+    "target_turn_id", "as_of_turn_index", "prior_ledger_reference",
+}
+PRIOR_SEMANTIC_OBJECT_FIELDS = (
+    "propositions", "issue_states", "participant_commitments",
+    "conversational_obligations", "proposition_groups", "answer_targets",
+)
+HUMAN_HELP_FIELD_ALIASES = {
+    "new_proposition": "new_propositions",
+    "proposition_update": "proposition_updates",
+    "new_proposition_group": "new_proposition_groups",
+    "proposition_group_update": "proposition_group_updates",
+    "new_issue_state": "new_issue_states",
+    "issue_state_update": "issue_state_updates",
+    "commitment_change": "commitment_changes",
+    "obligation_change": "obligation_changes",
+    "new_relation": "new_relations",
+    "answer_target": "answer_target_changes",
+    "rejected_answer_target": "rejected_answer_target_changes",
+    "repair_record": "repair_records",
+    "resolved_item": "resolved_items",
+    "abstention": "abstentions",
+    "warning": "warnings",
+}
+HUMAN_LOCAL_REF_SPECS = (
+    ("new_propositions", "new-proposition", None),
+    ("new_proposition_groups", "new-proposition-group", None),
+    ("new_issue_states", "new-issue", None),
+    ("commitment_changes", "new-commitment", "add"),
+    ("obligation_changes", "new-obligation", "add"),
+    ("new_relations", "new-relation", None),
+    ("answer_target_changes", "new-answer-target", "add"),
+    ("rejected_answer_target_changes", "new-rejected-answer-target", "add"),
+    ("repair_records", "new-repair", "add"),
+    ("warnings", "new-warning", None),
+)
+HUMAN_LOCAL_REF_FORMATS = {
+    **{
+        field: f"{prefix}-N in collection order"
+        + (f" for operation={operation}" if operation is not None else "")
+        for field, prefix, operation in HUMAN_LOCAL_REF_SPECS
+    },
+    "issue_live_alternatives": "new-alternative-N in current-turn traversal order",
+}
 HUMAN_VISIBLE_FORBIDDEN = re.compile(
     r"(?i)(?:\bxai\b|\bgrok\b|\bopenai\b|\bprovider\b|\bmodel\b|"
     r"\barm(?:[-_ ]?[a-d])\b|\bdiagnos(?:is|tic)\b|\bp[1-7]\b)"
@@ -81,6 +128,15 @@ ARM_D_GATE = {
     "deterministic_selector_resolution_required": True,
     "provenance_receipt_required": True,
     "transcript_first": True,
+}
+HUMAN_REFERENCE_WORKFLOW = {
+    "reference_chain_artifact": "single-human-reference-chain-v2",
+    "provenance_artifact": "single-human-provenance-v2",
+    "reference_pack_artifact": "single-human-transcript-first-chain-pack-v2",
+    "one_incremental_chain": True,
+    "snapshot_derivation": "frozen_representation_prefixes",
+    "offline_turn_annotation_required": True,
+    "future_turn_display_forbidden": True,
 }
 HUMAN_AWARENESS_FIELDS = (
     "knew_working_hypothesis",
@@ -237,12 +293,12 @@ def validate_freeze(path: str | Path = DEFAULT_FREEZE) -> dict[str, Any]:
         "profiles", "arms", "accepted_evaluation_aliases", "observed_context_policy",
         "leakage_policy", "arm_d_gate", "provider_policy", "private_case_freeze_sha256",
         "original_results_untouched", "source_completeness", "source_completeness_sha256",
-        "protocol_amendment", "supersedes_freeze",
+        "protocol_amendment", "supersedes_freeze", "human_reference_workflow",
     }
     if not required <= set(freeze):
         raise FourArmError("experiment freeze is incomplete")
     if (
-        freeze["freeze_version"] != "four-arm-supplemental-freeze-v2"
+        freeze["freeze_version"] != "four-arm-supplemental-freeze-v3"
         or freeze["protocol_status"] != "frozen_post_specification_amendment"
     ):
         raise FourArmError("experiment protocol is not frozen")
@@ -278,8 +334,11 @@ def validate_freeze(path: str | Path = DEFAULT_FREEZE) -> dict[str, Any]:
     _tracked(freeze["protocol_amendment"], "single-human protocol amendment")
     _tracked(
         freeze["supersedes_freeze"], "superseded experiment freeze",
-        "four-arm-supplemental-freeze-v1",
+        "four-arm-supplemental-freeze-v2",
     )
+    workflow = freeze["human_reference_workflow"]
+    if not isinstance(workflow, Mapping) or dict(workflow) != HUMAN_REFERENCE_WORKFLOW:
+        raise FourArmError("single-chain human reference workflow differs")
     profiles = freeze["profiles"]
     if not isinstance(profiles, Mapping) or set(profiles) != {
         "arm_b_summary", "arm_c_ledger", "downstream"
@@ -732,34 +791,34 @@ def _pack_turns(snapshot: Mapping[str, Any], transcript: Mapping[str, Any]) -> l
 
 def _prepared_human_readme(output: Path) -> bytes:
     return (
-        "# Single-human transcript-first reference workflow\n\n"
-        "Complete only `provenance.json` and each `snapshot-NN/reference.json`. Files "
-        "under `frozen-guidance/`, each `reference-pack.json`, each "
-        "`semantic-delta-chain-template.json`, and `index.json` are immutable reference "
-        "material; do not edit them. Complete snapshot 01 before opening snapshot 02.\n\n"
-        "In `provenance.json`, identify the human annotator and answer each awareness "
-        "boolean honestly. Prior knowledge of the hypothesis, prior exposure to historical "
-        "published replies, and investigator status are recorded, not disqualifying. The "
-        "semantic judgements must remain independent of the experiment's machine ledger.\n\n"
-        "For each snapshot, copy the array from its `semantic-delta-chain-template.json` "
-        "into that snapshot's `reference.json:semantic_delta_chain`. The human chooses the propositions, issues, "
-        "commitments, obligations, relations, and supporting evidence. For each evidence "
-        "selector, enter the exact text from that turn and its zero-based "
-        "`occurrence_index`. Leave the exact "
-        "`FILL_WITH_PREVIOUS_MATERIALISED_LEDGER_ID` value in non-genesis template deltas; "
-        "the command below resolves it deterministically. Set the human identity, completion "
-        "status and timestamp fields shown in each form. Do not enter hashes, permanent IDs, "
-        "character offsets, or materialised ledgers; the command derives them. After "
-        "completing snapshot 01, copy its completed `semantic_delta_chain` unchanged into "
-        "the shared prefix of snapshot 02, then make new judgements only for snapshot 02's "
-        "additional turn or turns. The validator rejects any retroactive prefix rewrite.\n\n"
-        "Before opening any experiment-generated machine output, validate, materialise and "
-        "hash-lock the completed reference from the experiment worktree with this one command:\n\n"
+        "# Single-human incremental reference workflow\n\n"
+        "Edit `provenance.json` honestly. Build `reference-chain.json` one turn at a time "
+        "with the offline command below; do not edit immutable files under "
+        "`frozen-guidance/`. Prior knowledge of the hypothesis, prior exposure to historical "
+        "published replies, and investigator status are recorded rather than treated as "
+        "disqualifying. Semantic judgements must be independent of the experiment's machine "
+        "ledger.\n\n"
+        "```sh\n"
+        "python3 -m tools.proposition_ledger_four_arm_experiment "
+        f"--annotate-human-reference --output {output}\n"
+        "```\n\n"
+        "The command shows exactly one current turn and the semantic objects materialised "
+        "from already approved turns. Enter one JSON object containing every authorised "
+        "semantic field, using empty arrays where the human judges that no item applies. "
+        "Do not enter `local_ref`; the runner numbers local objects from collection order. "
+        "Evidence uses exact current-turn text. Omit `occurrence_index` when that text occurs "
+        "once; when it repeats, enter the intended zero-based occurrence. For "
+        "contract-derived shapes and enums, run `--help-field new_propositions` (or, for "
+        "example, `new_relations`, `commitment_changes`, or `issue_state_updates`). The "
+        "runner derives metadata, character offsets, permanent IDs, hashes and both frozen "
+        "snapshot ledgers.\n\n"
+        "After all turns and `provenance.json` are complete, validate, materialise and "
+        "pre-reveal hash-lock the reference with this one command:\n\n"
         "```sh\n"
         "python3 -m tools.proposition_ledger_four_arm_experiment --verify "
         f"--lock-human-reference --output {output}\n"
         "```\n\n"
-        "No machine output may be opened before that command reports a successful lock.\n"
+        "Do not open any experiment-generated machine output before the lock succeeds.\n"
     ).encode("utf-8")
 
 
@@ -780,29 +839,53 @@ def _audit_prepared_human_pack(root: Path) -> None:
                 raise FourArmError(f"human annotation pack content leaks hidden information: {relative}")
 
 
+def _human_input_schema(binding: Mapping[str, Any]) -> dict[str, Any]:
+    _tracked(binding, "human selector contract", VERSIONS["xai_transport"])
+    return _json(PROJECT_DIR / str(binding["path"]), "human selector contract")
+
+
+def _human_editable_fields(schema: Mapping[str, Any]) -> tuple[str, ...]:
+    properties, required = schema.get("properties"), schema.get("required")
+    if not isinstance(properties, Mapping) or not isinstance(required, list):
+        raise FourArmError("human selector contract root is malformed")
+    editable = tuple(name for name in required if name not in HUMAN_DETERMINISTIC_DELTA_FIELDS)
+    if (
+        not editable
+        or set(properties) != set(required)
+        or set(editable) != set(properties) - HUMAN_DETERMINISTIC_DELTA_FIELDS
+    ):
+        raise FourArmError("human selector contract does not expose one complete required surface")
+    return editable
+
+
 def _write_human_packs(
     output: Path, plan: Mapping[str, Any], transcript: Mapping[str, Any], source_pack: Path,
     source_completeness: Mapping[str, Any], contract_bindings: Mapping[str, Any],
 ) -> list[Path]:
     root = output / PREPARED_HUMAN_DIR
     private_io._ensure_private_directory(root)
-    immutable, index_rows = [], []
+    immutable: list[Path] = []
     guidance_root = root / "frozen-guidance"
     private_io._ensure_private_directory(guidance_root)
+    selector_schema = _human_input_schema(contract_bindings["xai_transport"])
+    editable_fields = _human_editable_fields(selector_schema)
     guide = guidance_root / "annotation-guide.json"
     _json(source_pack / "annotation-guide.json", "frozen annotation guide")
     private_io._write_private_json(guide, {
-        "guide_version": "single-human-transcript-first-guide-v1",
+        "guide_version": "single-human-incremental-guide-v2",
         "reference_only": True,
-        "human_judgement_sections": [
-            "new_propositions", "new_issue_states", "commitment_changes",
-            "obligation_changes", "new_relations",
-        ],
+        "human_judgement_fields": list(editable_fields),
         "evidence_selector_fields": ["exact_text", "occurrence_index"],
+        "occurrence_index_rule": (
+            "Omit only for uniquely occurring exact_text; choose the zero-based index "
+            "when the text repeats."
+        ),
         "deterministic_fields_are_derived": True,
-        "incremental_rule": (
-            "Complete snapshot 01 first; copy its semantic chain byte-identically into "
-            "snapshot 02's shared prefix and annotate only additional turns."
+        "derived_local_ref_formats": HUMAN_LOCAL_REF_FORMATS,
+        "incremental_rule": "Approve exactly the next turn; frozen snapshots are derived prefixes.",
+        "help_command": (
+            "python3 -m tools.proposition_ledger_four_arm_experiment "
+            "--help-field FIELD"
         ),
     })
     reference_notice = guidance_root / "REFERENCE-ONLY.txt"
@@ -817,69 +900,8 @@ def _write_human_packs(
     longest = max(snapshots, key=lambda item: len(item["turn_ids"]))
     if any(longest["turn_ids"][: len(item["turn_ids"])] != item["turn_ids"] for item in snapshots):
         raise FourArmError("human reference snapshots are not one incremental prefix chain")
-    pack_hashes: dict[str, str] = {}
+    snapshot_rows: list[dict[str, Any]] = []
     for snapshot in snapshots:
-        directory = root / snapshot["snapshot_id"]
-        private_io._ensure_private_directory(directory)
-        transcript_value = {
-            "conversation_key": transcript["conversation_key"],
-            "turns": _pack_turns(snapshot, transcript),
-        }
-        transcript_hash = _sha(private_io.canonical_json_bytes(transcript_value))
-        pack = {
-            "pack_version": "single-human-transcript-first-pack-v1", "case_slug": CASE_SLUG,
-            "snapshot_id": snapshot["snapshot_id"], "status": "pending_human_reference",
-            "reference_type": "single_human_reference", "consensus_gold": False,
-            "evaluation_aliases": snapshot["evaluation_aliases"],
-            "transcript_sha256": transcript_hash, "transcript": transcript_value,
-            "annotation_contract": {
-                "input_schema_version": HUMAN_SELECTOR_VERSION,
-                "canonical_target_schema_version": VERSIONS["canonical_semantic_delta"],
-                "canonical_schema": copy.deepcopy(contract_bindings["canonical_semantic_delta"]),
-                "persisted_ledger_schema": copy.deepcopy(contract_bindings["persisted_ledger"]),
-                "evidence_selector_contract_version": "exact-text-occurrence-index-v2.0.1",
-                "evidence_selector_fields": ["exact_text", "occurrence_index"],
-                "resolution": "frozen deterministic evidence resolver before canonical materialisation",
-            },
-            "source_completeness": copy.deepcopy(dict(source_completeness)),
-            "prior_reference_resolution": {
-                "sentinel": PRIOR_LEDGER_SENTINEL,
-                "rule": "At validation, replace only the exact non-genesis sentinel with the immediately preceding deterministically materialised ledger_id and as_of_turn_index.",
-                "submitted_artifact_mutated": False,
-            },
-            "annotation_guidance": {
-                "human_judgement_sections": [
-                    "new_propositions", "new_issue_states", "commitment_changes",
-                    "obligation_changes", "new_relations",
-                ],
-                "evidence": "Use exact current-turn text plus zero-based occurrence index; do not cite future turns.",
-                "relation_vocabulary": [
-                    "answers", "clarifies", "narrows", "supports", "contradicts",
-                    "supersedes", "repeats", "changes_topic", "presupposes",
-                    "substitutes_for", "fails_to_address",
-                ],
-                "deterministically_derived": [
-                    "character_offsets", "permanent_ids", "ledger_ids", "ledger_hashes",
-                ],
-                "incremental_rule": (
-                    "Snapshot 02 must preserve snapshot 01's completed semantic-delta "
-                    "chain byte-identically as its shared prefix."
-                ),
-                "validation_and_lock_command": (
-                    "python3 -m tools.proposition_ledger_four_arm_experiment --verify "
-                    f"--lock-human-reference --output {output}"
-                ),
-            },
-            "blank_semantic_delta_sections": {
-                "new_propositions": [], "new_issue_states": [], "commitment_changes": [],
-                "obligation_changes": [], "new_relations": [],
-            },
-        }
-        pack_path = directory / "reference-pack.json"
-        private_io._write_private_json(pack_path, pack)
-        immutable.append(pack_path)
-        pack_hash = _sha(private_io._read_regular_bytes(pack_path, "human reference pack"))
-        pack_hashes[snapshot["snapshot_id"]] = pack_hash
         source_template = _json(
             source_pack / snapshot["snapshot_id"] / "blank-semantic-delta-chain.json",
             "frozen semantic-delta template",
@@ -891,33 +913,62 @@ def _write_human_packs(
             for item in source_template
         ):
             raise FourArmError("frozen human semantic-delta template differs from snapshot")
-        template_path = directory / "semantic-delta-chain-template.json"
-        private_io._write_private_json(template_path, {
-            "template_version": "single-human-selector-chain-template-v1",
-            "reference_only": True, "copy_target": "reference.json:semantic_delta_chain",
-            "semantic_delta_chain": [dict(
-                copy.deepcopy(item["semantic_delta_template"]),
-                schema_version=HUMAN_SELECTOR_VERSION,
-                canonical_schema_version=VERSIONS["canonical_semantic_delta"],
-            ) for item in source_template],
+        prefix_transcript = {
+            "conversation_key": transcript["conversation_key"],
+            "turns": _pack_turns(snapshot, transcript),
+        }
+        snapshot_rows.append({
+            "snapshot_id": snapshot["snapshot_id"],
+            "terminal_turn_id": snapshot["turn_ids"][-1],
+            "prefix_length": len(snapshot["turn_ids"]),
+            "transcript_prefix_sha256": _sha(private_io.canonical_json_bytes(prefix_transcript)),
+            "evaluation_aliases": snapshot["evaluation_aliases"],
         })
-        immutable.append(template_path)
-        private_io._write_private_json(directory / "reference.json", {
-            "artifact_version": "single-human-selector-reference-v1",
-            "snapshot_id": snapshot["snapshot_id"], "reference_pack_sha256": pack_hash,
-            "status": "pending_human_reference", "actor_type": None,
-            "annotator_id": None, "semantic_judgements_authored_by_human": None,
-            "semantic_delta_chain": [], "completed_at_utc": None,
-            "reference_type": "single_human_reference", "consensus_gold": False,
-            "machine_authorship": "forbidden",
-        })
-        index_rows.append({
-            "snapshot_id": snapshot["snapshot_id"], "transcript_sha256": transcript_hash,
-            "reference_pack_sha256": pack_hash, "evaluation_aliases": snapshot["evaluation_aliases"],
-        })
+    transcript_value = {
+        "conversation_key": transcript["conversation_key"],
+        "turns": _pack_turns(longest, transcript),
+    }
+    pack = {
+        "pack_version": HUMAN_REFERENCE_WORKFLOW["reference_pack_artifact"],
+        "case_slug": CASE_SLUG, "status": "pending_human_reference",
+        "reference_type": "single_human_reference", "consensus_gold": False,
+        "transcript_sha256": _sha(private_io.canonical_json_bytes(transcript_value)),
+        "transcript": transcript_value, "snapshot_bindings": snapshot_rows,
+        "annotation_contract": {
+            "human_selector_version": HUMAN_SELECTOR_VERSION,
+            "selector_contract_sha256": contract_bindings["xai_transport"]["sha256"],
+            "canonical_target_schema_version": VERSIONS["canonical_semantic_delta"],
+            "canonical_schema": copy.deepcopy(contract_bindings["canonical_semantic_delta"]),
+            "persisted_ledger_schema": copy.deepcopy(contract_bindings["persisted_ledger"]),
+            "evidence_selector_contract_version": "exact-text-occurrence-index-v2.0.2",
+            "evidence_selector_fields": ["exact_text", "occurrence_index"],
+            "editable_semantic_fields": list(editable_fields),
+            "resolution": "frozen deterministic evidence resolution before canonical materialisation",
+        },
+        "source_completeness": copy.deepcopy(dict(source_completeness)),
+        "prior_reference_resolution": {
+            "sentinel": PRIOR_LEDGER_SENTINEL,
+            "rule": "Resolve the exact non-genesis sentinel to the immediately prior materialised ledger.",
+            "submitted_artifact_mutated": False,
+        },
+    }
+    pack_path = guidance_root / HUMAN_REFERENCE_PACK_FILE
+    private_io._write_private_json(pack_path, pack)
+    immutable.append(pack_path)
+    pack_hash = _sha(private_io._read_regular_bytes(pack_path, "human reference pack"))
+    private_io._write_private_json(root / HUMAN_REFERENCE_CHAIN_FILE, {
+        "artifact_version": HUMAN_REFERENCE_WORKFLOW["reference_chain_artifact"],
+        "reference_pack_sha256": pack_hash,
+        "status": "pending_human_reference",
+        "semantic_judgements_authored_by_human": None,
+        "semantic_delta_chain": [],
+        "completed_at_utc": None,
+        "reference_type": "single_human_reference", "consensus_gold": False,
+        "machine_authorship": "forbidden",
+    })
     private_io._write_private_json(root / "provenance.json", {
-        "artifact_version": "single-human-provenance-v1",
-        "reference_pack_sha256s": pack_hashes,
+        "artifact_version": HUMAN_REFERENCE_WORKFLOW["provenance_artifact"],
+        "reference_pack_sha256": pack_hash,
         "status": "pending_human_provenance", "actor_type": None,
         "annotator_id": None,
         "knew_working_hypothesis": None,
@@ -930,9 +981,11 @@ def _write_human_packs(
     })
     index_path = root / "index.json"
     private_io._write_private_json(index_path, {
-        "pack_index_version": "single-human-reference-index-v1", "case_slug": CASE_SLUG,
+        "pack_index_version": "single-human-reference-chain-index-v2", "case_slug": CASE_SLUG,
         "status": "pending_human_reference", "reference_type": "single_human_reference",
-        "consensus_gold": False, "snapshots": index_rows,
+        "consensus_gold": False, "reference_pack_sha256": pack_hash,
+        "reference_chain_file": HUMAN_REFERENCE_CHAIN_FILE,
+        "snapshot_bindings": snapshot_rows,
     })
     _audit_prepared_human_pack(root)
     return [*immutable, index_path]
@@ -1155,23 +1208,33 @@ def _validate_ledger(plan: Mapping[str, Any], ledger: Mapping[str, Any]) -> None
         raise FourArmError("provider-call total differs")
 
 
-def _materialised_ledger(
+def _materialised_ledgers(
     pack: Mapping[str, Any], chain: Any, *, transport_binding: Mapping[str, Any] | None = None,
-) -> dict[str, Any]:
-    if not isinstance(chain, list) or len(chain) != len(pack["transcript"]["turns"]):
-        raise FourArmError("human semantic chain does not cover the exact prefix")
+    require_complete: bool = True,
+) -> list[dict[str, Any]]:
+    turns = pack.get("transcript", {}).get("turns", [])
+    if (
+        not isinstance(turns, list)
+        or not isinstance(chain, list)
+        or len(chain) > len(turns)
+        or (require_complete and len(chain) != len(turns))
+    ):
+        raise FourArmError(
+            "/semantic_delta_chain: chain does not cover the required incremental prefix"
+        )
     contract = pack.get("annotation_contract")
     if (
         not isinstance(contract, Mapping)
-        or contract.get("input_schema_version") != HUMAN_SELECTOR_VERSION
+        or contract.get("human_selector_version") != HUMAN_SELECTOR_VERSION
         or contract.get("canonical_target_schema_version") != VERSIONS["canonical_semantic_delta"]
-        or contract.get("evidence_selector_contract_version") != "exact-text-occurrence-index-v2.0.1"
+        or contract.get("evidence_selector_contract_version") != "exact-text-occurrence-index-v2.0.2"
         or contract.get("evidence_selector_fields") != ["exact_text", "occurrence_index"]
-        or "transport_schema" in contract
     ):
         raise FourArmError("human evidence-resolution contract differs")
     if transport_binding is None:
         transport_binding = validate_freeze(DEFAULT_FREEZE)["contracts"]["xai_transport"]
+    if contract.get("selector_contract_sha256") != transport_binding.get("sha256"):
+        raise FourArmError("human selector contract hash differs")
     canonical_binding = contract.get("canonical_schema")
     ledger_binding = contract.get("persisted_ledger_schema")
     _tracked(transport_binding, "internal evidence transport schema", VERSIONS["xai_transport"])
@@ -1185,15 +1248,30 @@ def _materialised_ledger(
     from tools import proposition_ledger_evidence_transport as evidence
     from tools import proposition_ledger_semantic_delta as semantic
     prior = None
-    for index, (turn, delta) in enumerate(zip(pack["transcript"]["turns"], chain)):
+    results: list[dict[str, Any]] = []
+    for index, (turn, delta) in enumerate(zip(turns, chain)):
+        pointer = f"/semantic_delta_chain/{index}"
         if not isinstance(delta, Mapping):
-            raise FourArmError("human selector chain contains a non-object delta")
+            raise FourArmError(f"{pointer}: human selector delta must be an object")
         delta = copy.deepcopy(delta)
-        if (
-            delta.get("schema_version") != HUMAN_SELECTOR_VERSION
-            or delta.get("canonical_schema_version") != VERSIONS["canonical_semantic_delta"]
+        for field, expected in (
+            ("schema_version", HUMAN_SELECTOR_VERSION),
+            ("canonical_schema_version", VERSIONS["canonical_semantic_delta"]),
         ):
-            raise FourArmError("human selector delta identity differs")
+            if delta.get(field) != expected:
+                raise FourArmError(f"{pointer}/{field}: human selector identity differs")
+        expected_metadata = {
+            "conversation_key": pack["transcript"]["conversation_key"],
+            "target_turn_id": turn["turn_id"], "as_of_turn_index": index,
+            "prior_ledger_reference": None if index == 0 else {
+                "ledger_id": PRIOR_LEDGER_SENTINEL, "as_of_turn_index": index - 1,
+            },
+        }
+        for field, expected in expected_metadata.items():
+            if delta.get(field) != expected:
+                raise FourArmError(
+                    f"{pointer}/{field}: deterministic current-turn binding differs"
+                )
         delta["schema_version"] = VERSIONS["xai_transport"]
         if prior is not None and delta.get("prior_ledger_reference") == {
             "ledger_id": PRIOR_LEDGER_SENTINEL, "as_of_turn_index": index - 1,
@@ -1212,18 +1290,34 @@ def _materialised_ledger(
             transport_schema=transport_schema, canonical_schema=canonical_schema,
         )
         if not resolution.succeeded or resolution.canonical_delta is None:
-            raise FourArmError(f"human evidence resolution failed: {resolution.status}")
+            details = " | ".join(str(error) for error in resolution.errors[:4])
+            raise FourArmError(
+                f"{pointer} turn {turn['turn_id']}: human evidence resolution failed: "
+                f"{resolution.status}: {details}; rule=transport schema and exact evidence"
+            )
         result = semantic.materialise_semantic_delta(
             prior, turn, resolution.canonical_delta,
             current_participant=turn["participant"], genesis_context=genesis,
             semantic_schema=canonical_schema, ledger_schema=ledger_schema,
         )
         if result.status != "ok" or result.ledger is None:
-            raise FourArmError(f"human semantic chain is invalid: {result.status}")
+            details = " | ".join(str(error) for error in result.errors[:4])
+            raise FourArmError(
+                f"{pointer} turn {turn['turn_id']}: human semantic consistency failed: "
+                f"{result.status}: {details}; rule=canonical cross-record consistency"
+            )
         prior = result.ledger
-    if not isinstance(prior, dict):
+        results.append(prior)
+    return results
+
+
+def _materialised_ledger(
+    pack: Mapping[str, Any], chain: Any, *, transport_binding: Mapping[str, Any] | None = None,
+) -> dict[str, Any]:
+    ledgers = _materialised_ledgers(pack, chain, transport_binding=transport_binding)
+    if not ledgers:
         raise FourArmError("human semantic chain did not produce a ledger")
-    return prior
+    return ledgers[-1]
 
 
 def _materialise(
@@ -1246,136 +1340,130 @@ def _human_submission(output: Path) -> dict[str, Any]:
     freeze = validate_freeze(output / "experiment-freeze.json")
     transport_binding = freeze["contracts"]["xai_transport"]
     index = _json(human_root / "index.json", "human reference index")
-    rows = index.get("snapshots")
     expected_rows = _json(output / "replay-plan.json", "replay plan").get(
         "representation_snapshots"
     )
     if (
-        index.get("pack_index_version") != "single-human-reference-index-v1"
+        index.get("pack_index_version") != "single-human-reference-chain-index-v2"
         or index.get("status") != "pending_human_reference"
         or index.get("reference_type") != "single_human_reference"
         or index.get("consensus_gold") is not False
-        or not isinstance(rows, list) or len(rows) != 2
         or not isinstance(expected_rows, list) or len(expected_rows) != 2
-        or [row.get("snapshot_id") for row in rows]
-        != [row.get("snapshot_id") for row in expected_rows]
+        or index.get("reference_chain_file") != HUMAN_REFERENCE_CHAIN_FILE
     ):
-        raise FourArmError("human reference index differs from the two frozen snapshots")
-    provenance = _json(human_root / "provenance.json", "human provenance")
-    statuses: list[str] = []
-    records: list[dict[str, Any]] = []
-    pack_hashes: dict[str, str] = {}
-    for row, expected in zip(rows, expected_rows):
-        snapshot_id = str(row.get("snapshot_id"))
-        directory = human_root / snapshot_id
-        pack_path = directory / "reference-pack.json"
-        pack = _json(pack_path, "human reference pack")
-        pack_hash = _sha(private_io._read_regular_bytes(pack_path, "human reference pack"))
-        reference_path = directory / "reference.json"
-        reference = _json(reference_path, "human reference")
-        if (
-            pack.get("pack_version") != "single-human-transcript-first-pack-v1"
-            or pack.get("status") != "pending_human_reference"
-            or pack.get("snapshot_id") != snapshot_id
-            or pack.get("transcript_sha256") != row.get("transcript_sha256")
-            or pack_hash != row.get("reference_pack_sha256")
-            or pack.get("evaluation_aliases") != expected.get("evaluation_aliases")
-            or [turn.get("turn_id") for turn in pack.get("transcript", {}).get("turns", [])]
-            != expected.get("turn_ids")
-            or pack.get("reference_type") != "single_human_reference"
-            or pack.get("consensus_gold") is not False
-        ):
-            raise FourArmError("human reference pack differs from the frozen snapshot")
-        if (
-            reference.get("artifact_version") != "single-human-selector-reference-v1"
-            or reference.get("snapshot_id") != snapshot_id
-            or reference.get("reference_pack_sha256") != pack_hash
-            or reference.get("reference_type") != "single_human_reference"
-            or reference.get("consensus_gold") is not False
-            or reference.get("machine_authorship") != "forbidden"
-        ):
-            raise FourArmError("human reference binding or classification differs")
-        status = reference.get("status")
-        if status not in {"pending_human_reference", "completed_human_reference"}:
-            raise FourArmError("human reference status is invalid")
-        if status == "pending_human_reference" and reference.get("actor_type") not in (None, "human"):
-            raise FourArmError("pending Arm D reference names a model/non-human actor")
-        statuses.append(str(status))
-        pack_hashes[snapshot_id] = pack_hash
-        records.append({
-            "snapshot_id": snapshot_id, "directory": directory, "pack": pack,
-            "pack_hash": pack_hash, "reference": reference,
-            "reference_path": reference_path,
+        raise FourArmError("human reference index differs from the frozen incremental chain")
+    pack_path = human_root / "frozen-guidance" / HUMAN_REFERENCE_PACK_FILE
+    pack = _json(pack_path, "human reference pack")
+    pack_hash = _sha(private_io._read_regular_bytes(pack_path, "human reference pack"))
+    transcript = pack.get("transcript")
+    if not isinstance(transcript, Mapping) or not isinstance(transcript.get("turns"), list):
+        raise FourArmError("human reference pack transcript is malformed")
+    transcript_turns = transcript["turns"]
+    longest = max(expected_rows, key=lambda row: len(row["turn_ids"]))
+    expected_bindings = []
+    for row in expected_rows:
+        prefix = {"conversation_key": transcript.get("conversation_key"), "turns": [
+            turn for turn in transcript_turns[: len(row["turn_ids"])]
+        ]}
+        expected_bindings.append({
+            "snapshot_id": row["snapshot_id"], "terminal_turn_id": row["turn_ids"][-1],
+            "prefix_length": len(row["turn_ids"]),
+            "transcript_prefix_sha256": _sha(private_io.canonical_json_bytes(prefix)),
+            "evaluation_aliases": row["evaluation_aliases"],
         })
+    if (
+        pack.get("pack_version") != HUMAN_REFERENCE_WORKFLOW["reference_pack_artifact"]
+        or pack.get("status") != "pending_human_reference"
+        or pack.get("reference_type") != "single_human_reference"
+        or pack.get("consensus_gold") is not False
+        or [turn.get("turn_id") for turn in transcript_turns] != longest["turn_ids"]
+        or pack.get("transcript_sha256") != _sha(private_io.canonical_json_bytes(transcript))
+        or pack.get("snapshot_bindings") != expected_bindings
+        or index.get("snapshot_bindings") != expected_bindings
+        or index.get("reference_pack_sha256") != pack_hash
+    ):
+        raise FourArmError("human reference pack differs from the frozen incremental chain")
+    selector_schema = _human_input_schema(transport_binding)
+    if pack.get("annotation_contract", {}).get("editable_semantic_fields") != list(
+        _human_editable_fields(selector_schema)
+    ):
+        raise FourArmError("human reference editable surface differs from the frozen contract")
+    provenance = _json(human_root / "provenance.json", "human provenance")
+    reference_path = human_root / HUMAN_REFERENCE_CHAIN_FILE
+    reference = _json(reference_path, "human reference chain")
+    chain = reference.get("semantic_delta_chain")
+    if not isinstance(chain, list) or len(chain) > len(longest["turn_ids"]):
+        raise FourArmError("human reference chain length is invalid")
+    expected_status = (
+        "pending_human_reference" if not chain else
+        "completed_human_reference" if len(chain) == len(longest["turn_ids"]) else
+        "in_progress_human_reference"
+    )
+    if (
+        reference.get("artifact_version") != HUMAN_REFERENCE_WORKFLOW["reference_chain_artifact"]
+        or reference.get("reference_pack_sha256") != pack_hash
+        or reference.get("status") != expected_status
+        or reference.get("reference_type") != "single_human_reference"
+        or reference.get("consensus_gold") is not False
+        or reference.get("machine_authorship") != "forbidden"
+        or (bool(chain) and reference.get("semantic_judgements_authored_by_human") is not True)
+        or (not chain and reference.get("semantic_judgements_authored_by_human") is not None)
+        or (
+            not isinstance(reference.get("completed_at_utc"), str)
+            if expected_status == "completed_human_reference"
+            else reference.get("completed_at_utc") is not None
+        )
+    ):
+        raise FourArmError("human reference chain binding, status or classification differs")
+    ledgers = _materialised_ledgers(
+        pack, chain, transport_binding=transport_binding, require_complete=False,
+    )
     provenance_status = provenance.get("status")
     if (
-        provenance.get("artifact_version") != "single-human-provenance-v1"
+        provenance.get("artifact_version") != HUMAN_REFERENCE_WORKFLOW["provenance_artifact"]
+        or provenance.get("reference_pack_sha256") != pack_hash
         or provenance.get("machine_authorship") != "forbidden"
     ):
         raise FourArmError("human provenance classification differs")
     if provenance_status not in {"pending_human_provenance", "completed_human_provenance"}:
         raise FourArmError("human provenance status is invalid")
-    if provenance.get("reference_pack_sha256s") != pack_hashes:
-        raise FourArmError("human provenance pack binding differs")
     if provenance_status == "pending_human_provenance" and provenance.get("actor_type") not in (None, "human"):
         raise FourArmError("pending Arm D provenance names a model/non-human actor")
-    all_pending = provenance_status == "pending_human_provenance" and all(
-        status == "pending_human_reference" for status in statuses
-    )
-    all_completed = provenance_status == "completed_human_provenance" and all(
-        status == "completed_human_reference" for status in statuses
-    )
-    if all_pending:
-        return {"status": "pending_human_reference", "records": records}
-    if not all_completed:
-        raise FourArmError("Arm D human reference or provenance is incomplete")
-    first_chain = records[0]["reference"].get("semantic_delta_chain")
-    second_chain = records[1]["reference"].get("semantic_delta_chain")
-    if (
-        not isinstance(first_chain, list)
-        or not isinstance(second_chain, list)
-        or len(second_chain) < len(first_chain)
-        or private_io.canonical_json_bytes(second_chain[: len(first_chain)])
-        != private_io.canonical_json_bytes(first_chain)
-    ):
-        raise FourArmError(
-            "snapshot 02 shared semantic-delta prefix differs from completed snapshot 01"
-        )
-    identity = _human_identity(provenance.get("annotator_id"))
-    if (
-        provenance.get("actor_type") != "human"
-        or provenance.get("machine_authorship") != "forbidden"
-        or provenance.get("independent_of_machine_ledger") is not True
-        or provenance.get("machine_output_revealed_before_lock") is not False
-        or any(type(provenance.get(field)) is not bool for field in HUMAN_AWARENESS_FIELDS)
-    ):
-        raise FourArmError("Arm D human provenance is invalid or conceals awareness")
-    completion_times = [_utc(provenance.get("completed_at_utc"), "provenance completion")]
-    for record in records:
-        reference = record["reference"]
+    identity = None
+    if provenance_status == "completed_human_provenance":
+        identity = _human_identity(provenance.get("annotator_id"))
         if (
-            _human_identity(reference.get("annotator_id")) != identity
-            or reference.get("actor_type") != "human"
-            or reference.get("semantic_judgements_authored_by_human") is not True
+            provenance.get("actor_type") != "human"
+            or provenance.get("machine_authorship") != "forbidden"
+            or provenance.get("independent_of_machine_ledger") is not True
+            or provenance.get("machine_output_revealed_before_lock") is not False
+            or any(type(provenance.get(field)) is not bool for field in HUMAN_AWARENESS_FIELDS)
         ):
-            raise FourArmError("Arm D reference is not authored by the provenance human")
-        record["ledger"] = _materialised_ledger(
-            record["pack"], reference.get("semantic_delta_chain"),
-            transport_binding=transport_binding,
-        )
-        record["reference_sha256"] = _sha(private_io._read_regular_bytes(
-            record["reference_path"], "human reference"
-        ))
-        completion_times.append(_utc(reference.get("completed_at_utc"), "reference completion"))
-    if completion_times[1] > completion_times[2]:
-        raise FourArmError("snapshot 01 human reference was not completed before snapshot 02")
+            raise FourArmError("Arm D human provenance is invalid or conceals awareness")
+    if provenance_status != "completed_human_provenance" or expected_status != "completed_human_reference":
+        return {
+            "status": expected_status, "pack": pack, "reference": reference,
+            "ledgers": ledgers,
+        }
+    completion_times = [
+        _utc(provenance.get("completed_at_utc"), "provenance completion"),
+        _utc(reference.get("completed_at_utc"), "reference completion"),
+    ]
+    records = [{
+        "snapshot_id": binding["snapshot_id"], "reference_pack_sha256": pack_hash,
+        "transcript_prefix_sha256": binding["transcript_prefix_sha256"],
+        "ledger": ledgers[binding["prefix_length"] - 1],
+    } for binding in expected_bindings]
     return {
         "status": "completed_unlocked", "records": records,
         "provenance": provenance, "annotator_identity": identity,
         "provenance_sha256": _sha(private_io._read_regular_bytes(
             human_root / "provenance.json", "human provenance"
         )),
-        "latest_completion": max(completion_times),
+        "reference_sha256": _sha(private_io._read_regular_bytes(
+            reference_path, "human reference chain"
+        )),
+        "pack_sha256": pack_hash, "latest_completion": max(completion_times),
     }
 
 
@@ -1384,12 +1472,312 @@ def _materialised_reference_artifact(submission: Mapping[str, Any]) -> dict[str,
         "artifact_version": "single-human-materialised-reference-v1",
         "reference_type": "single_human_reference", "consensus_gold": False,
         "provenance_file_sha256": submission["provenance_sha256"],
+        "reference_chain_sha256": submission["reference_sha256"],
         "snapshot_ledgers": [{
             "snapshot_id": record["snapshot_id"],
-            "reference_pack_sha256": record["pack_hash"],
-            "reference_file_sha256": record["reference_sha256"],
+            "reference_pack_sha256": record["reference_pack_sha256"],
+            "transcript_prefix_sha256": record["transcript_prefix_sha256"],
             "ledger": record["ledger"],
         } for record in submission["records"]],
+    }
+
+
+def _schema_ref(schema: Mapping[str, Any], reference: str) -> Mapping[str, Any]:
+    if not reference.startswith("#/"):
+        raise FourArmError("human help contract contains an external schema reference")
+    value: Any = schema
+    for raw in reference[2:].split("/"):
+        part = raw.replace("~1", "/").replace("~0", "~")
+        if not isinstance(value, Mapping) or part not in value:
+            raise FourArmError("human help contract contains an unresolved schema reference")
+        value = value[part]
+    if not isinstance(value, Mapping):
+        raise FourArmError("human help schema reference is not an object")
+    return value
+
+
+def _schema_outline(
+    schema: Mapping[str, Any], node: Mapping[str, Any], *, active_refs: tuple[str, ...] = (),
+) -> dict[str, Any]:
+    if "$ref" in node:
+        reference = node["$ref"]
+        if not isinstance(reference, str) or reference in active_refs:
+            return {"contract_ref": reference, "recursive": True}
+        resolved = _schema_outline(
+            schema, _schema_ref(schema, reference), active_refs=(*active_refs, reference),
+        )
+        return {"contract_ref": reference, **resolved}
+    result = {
+        key: copy.deepcopy(node[key]) for key in (
+            "type", "description", "const", "enum", "minimum", "maximum", "minLength",
+            "maxLength", "pattern", "minItems", "maxItems", "minProperties", "maxProperties", "uniqueItems",
+            "additionalProperties",
+        ) if key in node
+    }
+    required = node.get("required")
+    if isinstance(required, list):
+        result["required"] = copy.deepcopy(required)
+    properties = node.get("properties")
+    if isinstance(properties, Mapping):
+        result["properties"] = {
+            str(name): _schema_outline(schema, child, active_refs=active_refs)
+            for name, child in properties.items() if isinstance(child, Mapping)
+        }
+    items = node.get("items")
+    if isinstance(items, Mapping):
+        result["items"] = _schema_outline(schema, items, active_refs=active_refs)
+    for keyword in ("oneOf", "anyOf", "allOf"):
+        alternatives = node.get(keyword)
+        if isinstance(alternatives, list):
+            result[keyword] = [
+                _schema_outline(schema, child, active_refs=active_refs)
+                for child in alternatives if isinstance(child, Mapping)
+            ]
+    for keyword in ("if", "then", "else", "not"):
+        condition = node.get(keyword)
+        if isinstance(condition, Mapping):
+            result[keyword] = _schema_outline(schema, condition, active_refs=active_refs)
+    return result
+
+
+def _humanise_schema_outline(value: Any) -> Any:
+    """Remove only fields that the runner derives mechanically from the contract shape."""
+
+    if isinstance(value, list):
+        return [_humanise_schema_outline(item) for item in value]
+    if not isinstance(value, Mapping):
+        return copy.deepcopy(value)
+    result = {key: _humanise_schema_outline(child) for key, child in value.items()}
+    properties = result.get("properties")
+    if isinstance(properties, dict) and "local_ref" in properties:
+        properties.pop("local_ref")
+        if isinstance(result.get("required"), list):
+            result["required"] = [name for name in result["required"] if name != "local_ref"]
+        result["local_ref"] = "derived from collection order; do not enter"
+    if isinstance(properties, dict) and {"exact_text", "occurrence_index"} <= set(properties):
+        if isinstance(result.get("required"), list):
+            result["required"] = [
+                name for name in result["required"] if name != "occurrence_index"
+            ]
+        properties["occurrence_index"]["human_input_rule"] = (
+            "May be omitted only when exact_text occurs once; required to disambiguate repetitions."
+        )
+    return result
+
+
+def human_field_help(
+    field: str, *, experiment_freeze: str | Path = DEFAULT_FREEZE,
+) -> dict[str, Any]:
+    """Return contract-derived field shape and enums without loading a case or provider."""
+
+    freeze = validate_freeze(experiment_freeze)
+    schema = _human_input_schema(freeze["contracts"]["xai_transport"])
+    fields = _human_editable_fields(schema)
+    if field == "all":
+        return {
+            "status": "contract_help", "provider_calls": 0,
+            "human_selector_version": HUMAN_SELECTOR_VERSION,
+            "contract_sha256": freeze["contracts"]["xai_transport"]["sha256"],
+            "editable_fields": list(fields),
+        }
+    requested = field
+    field = HUMAN_HELP_FIELD_ALIASES.get(field, field)
+    if field not in fields:
+        raise FourArmError(
+            f"unknown or deterministic human field: {requested}; choose one of {', '.join(fields)}"
+        )
+    return {
+        "status": "contract_help", "provider_calls": 0,
+        "human_selector_version": HUMAN_SELECTOR_VERSION,
+        "contract_sha256": freeze["contracts"]["xai_transport"]["sha256"],
+        "requested_field": requested,
+        "field": field,
+        "shape": _humanise_schema_outline(
+            _schema_outline(schema, schema["properties"][field])
+        ),
+        "mechanical_derivations": [
+            "local_ref values are assigned from collection order",
+            "occurrence_index is derived only for a uniquely occurring exact_text",
+        ],
+        "local_ref_formats": HUMAN_LOCAL_REF_FORMATS,
+    }
+
+
+def _inject_local_refs(value: dict[str, Any]) -> None:
+    if "local_ref" in _walk_keys(value):
+        raise FourArmError(
+            "/human_semantic_fields: local_ref is deterministic; the human must not enter it"
+        )
+    for field, prefix, operation in HUMAN_LOCAL_REF_SPECS:
+        rows = value.get(field)
+        if not isinstance(rows, list):
+            continue
+        ordinal = 0
+        for row in rows:
+            if not isinstance(row, dict) or (operation is not None and row.get("operation") != operation):
+                continue
+            ordinal += 1
+            row["local_ref"] = f"{prefix}-{ordinal}"
+    alternative_lists = [
+        issue.get("live_alternatives")
+        for issue in value.get("new_issue_states", []) if isinstance(issue, dict)
+    ]
+    alternative_lists.extend(
+        update.get("changes", {}).get("live_alternatives")
+        for update in value.get("issue_state_updates", []) if isinstance(update, dict)
+    )
+    alternative_ordinal = 0
+    for alternatives in alternative_lists:
+        if not isinstance(alternatives, list):
+            continue
+        for alternative in alternatives:
+            if isinstance(alternative, dict):
+                alternative_ordinal += 1
+                alternative["local_ref"] = f"new-alternative-{alternative_ordinal}"
+
+
+def _derive_occurrence_indexes(value: Any, exact_text: str, pointer: str = "") -> None:
+    if isinstance(value, list):
+        for index, child in enumerate(value):
+            _derive_occurrence_indexes(child, exact_text, f"{pointer}/{index}")
+        return
+    if not isinstance(value, dict):
+        return
+    if "exact_text" in value and "occurrence_index" not in value:
+        needle = value["exact_text"]
+        if isinstance(needle, str) and needle:
+            starts, start = [], 0
+            while True:
+                start = exact_text.find(needle, start)
+                if start < 0:
+                    break
+                starts.append(start)
+                start += 1
+            if len(starts) == 1:
+                value["occurrence_index"] = 0
+            elif len(starts) > 1:
+                raise FourArmError(
+                    f"{pointer or '/'}: repeated exact_text requires human occurrence_index"
+                )
+    for key, child in list(value.items()):
+        _derive_occurrence_indexes(child, exact_text, f"{pointer}/{key}")
+
+
+def _human_delta(
+    pack: Mapping[str, Any], index: int, judgements: Any,
+) -> dict[str, Any]:
+    fields = pack.get("annotation_contract", {}).get("editable_semantic_fields")
+    turns = pack.get("transcript", {}).get("turns")
+    if not isinstance(fields, list) or not isinstance(turns, list) or index >= len(turns):
+        raise FourArmError("human annotation pack cannot identify the next turn")
+    if not isinstance(judgements, Mapping):
+        raise FourArmError(
+            f"/semantic_delta_chain/{index}: human annotation input must be one JSON object"
+        )
+    missing, extra = set(fields) - set(judgements), set(judgements) - set(fields)
+    if missing or extra:
+        detail = []
+        if missing:
+            detail.append(f"missing: {', '.join(sorted(missing))}")
+        if extra:
+            detail.append(f"not human-editable: {', '.join(sorted(extra))}")
+        raise FourArmError(
+            f"/semantic_delta_chain/{index}: human annotation fields differ ("
+            + "; ".join(detail) + ")"
+        )
+    turn = turns[index]
+    semantic_values = copy.deepcopy(dict(judgements))
+    _inject_local_refs(semantic_values)
+    _derive_occurrence_indexes(semantic_values, turn["text"])
+    return {
+        "schema_version": HUMAN_SELECTOR_VERSION,
+        "canonical_schema_version": VERSIONS["canonical_semantic_delta"],
+        "conversation_key": pack["transcript"]["conversation_key"],
+        "target_turn_id": turn["turn_id"], "as_of_turn_index": index,
+        "prior_ledger_reference": None if index == 0 else {
+            "ledger_id": PRIOR_LEDGER_SENTINEL, "as_of_turn_index": index - 1,
+        },
+        **semantic_values,
+    }
+
+
+def _pre_reveal_gate(prepared: Mapping[str, Any]) -> None:
+    if prepared["ledger"].get("provider_call_count") != 0 or any(
+        row.get("state") != "planned" for row in prepared["ledger"].get("entries", [])
+    ):
+        raise FourArmError("human reference must be completed before any experiment machine output")
+    if any(os.path.lexists(prepared["root"] / name) for name in (
+        "requests", "responses", "validations", "products",
+    )):
+        raise FourArmError("human reference must be completed before any experiment machine output")
+
+
+def annotate_human_reference(
+    output: str | Path, *, turn_id: str | None = None,
+    input_fn: Callable[[str], str] | None = None,
+) -> dict[str, Any]:
+    """Interactively validate and append exactly one human-authored current-turn delta."""
+
+    prompt = input if input_fn is None else input_fn
+    prepared = _prepared(output)
+    _pre_reveal_gate(prepared)
+    human_root = prepared["root"] / PREPARED_HUMAN_DIR
+    if any(os.path.lexists(human_root / name) for name in (
+        "materialised-reference.json", "reference-lock.json", "LOCKED-SHA256SUMS",
+    )):
+        raise FourArmError("the human reference is already locked")
+    submission = _human_submission(prepared["root"])
+    reference, pack = submission["reference"], submission["pack"]
+    chain = copy.deepcopy(reference["semantic_delta_chain"])
+    turns = pack["transcript"]["turns"]
+    index = len(chain)
+    if index >= len(turns):
+        raise FourArmError("the human reference chain is already complete")
+    turn = turns[index]
+    if turn_id is not None and turn_id != turn["turn_id"]:
+        raise FourArmError("--turn-id must identify the next uncompleted turn")
+    prior = submission["ledgers"][-1] if submission["ledgers"] else None
+    display = {
+        "current_turn_id": turn["turn_id"], "speaker": turn["speaker_id"],
+        "exact_text": turn["text"],
+        "prior_materialised_semantic_objects": None if prior is None else {
+            field: copy.deepcopy(prior[field]) for field in PRIOR_SEMANTIC_OBJECT_FIELDS
+        },
+    }
+    print(json.dumps(display, ensure_ascii=False, sort_keys=True, indent=2, allow_nan=False))
+    try:
+        source = prompt(
+            "Enter every human semantic field as one JSON object "
+            "(use --help-field separately for contract help): "
+        )
+    except EOFError as exc:
+        raise FourArmError("human annotation input ended before a JSON object") from exc
+    judgements = private_io.strict_json_loads(source.encode("utf-8"))
+    delta = _human_delta(pack, index, judgements)
+    proposed = [*chain, delta]
+    _materialised_ledgers(
+        pack, proposed, transport_binding=prepared["freeze"]["contracts"]["xai_transport"],
+        require_complete=False,
+    )
+    print(json.dumps(delta, ensure_ascii=False, sort_keys=True, indent=2, allow_nan=False))
+    try:
+        approval = prompt("Type APPROVE to append this exact delta: ")
+    except EOFError as exc:
+        raise FourArmError("human annotation input ended before literal approval") from exc
+    if approval != "APPROVE":
+        raise FourArmError("human annotation was not literally approved; reference unchanged")
+    completed = len(proposed) == len(turns)
+    updated = {
+        **reference, "semantic_delta_chain": proposed,
+        "semantic_judgements_authored_by_human": True,
+        "status": "completed_human_reference" if completed else "in_progress_human_reference",
+        "completed_at_utc": _now() if completed else None,
+    }
+    private_io._write_private_json(human_root / HUMAN_REFERENCE_CHAIN_FILE, updated)
+    return {
+        "status": updated["status"], "provider_calls": 0,
+        "approved_turn_id": turn["turn_id"], "approved_turn_index": index,
+        "completed_turn_count": len(proposed), "total_turn_count": len(turns),
     }
 
 
@@ -1406,14 +1794,7 @@ def lock_human_reference(output: str | Path) -> dict[str, Any]:
     """Validate, materialise and seal one human reference without provider access."""
 
     prepared = _prepared(output)
-    if prepared["ledger"].get("provider_call_count") != 0 or any(
-        row.get("state") != "planned" for row in prepared["ledger"].get("entries", [])
-    ):
-        raise FourArmError("human reference must lock before any experiment machine output")
-    if any(os.path.lexists(prepared["root"] / name) for name in (
-        "requests", "responses", "validations", "products",
-    )):
-        raise FourArmError("human reference must lock before any experiment machine output")
+    _pre_reveal_gate(prepared)
     human_root = prepared["root"] / PREPARED_HUMAN_DIR
     generated = [
         human_root / "materialised-reference.json",
@@ -1431,14 +1812,12 @@ def lock_human_reference(output: str | Path) -> dict[str, Any]:
     locked_at = _now()
     if submission["latest_completion"] > _utc(locked_at, "reference lock"):
         raise FourArmError("human reference completion is later than its lock")
-    reference_hashes = {
-        record["snapshot_id"]: record["reference_sha256"] for record in submission["records"]
-    }
     lock = {
-        "artifact_version": "single-human-reference-lock-v1", "status": "locked",
+        "artifact_version": "single-human-reference-lock-v2", "status": "locked",
         **ARM_D_GATE,
         "provenance_file_sha256": submission["provenance_sha256"],
-        "reference_files_sha256": reference_hashes,
+        "reference_chain_sha256": submission["reference_sha256"],
+        "reference_pack_sha256": submission["pack_sha256"],
         "materialised_reference_sha256": materialised_hash,
         "locked_at_utc": locked_at, "external_call_count_at_lock": 0,
     }
@@ -1470,14 +1849,13 @@ def _human_gate(output: Path, *, require_locked: bool) -> dict[str, Any]:
     if materialised_raw != expected_raw:
         raise FourArmError("materialised human reference differs from deterministic output")
     lock = _json(generated[1], "human reference lock")
-    expected_reference_hashes = {
-        record["snapshot_id"]: record["reference_sha256"] for record in submission["records"]
-    }
     if (
         lock.get("status") != "locked"
+        or lock.get("artifact_version") != "single-human-reference-lock-v2"
         or any(lock.get(key) != value for key, value in ARM_D_GATE.items())
         or lock.get("provenance_file_sha256") != submission["provenance_sha256"]
-        or lock.get("reference_files_sha256") != expected_reference_hashes
+        or lock.get("reference_chain_sha256") != submission["reference_sha256"]
+        or lock.get("reference_pack_sha256") != submission["pack_sha256"]
         or lock.get("materialised_reference_sha256") != _sha(materialised_raw)
         or lock.get("external_call_count_at_lock") != 0
     ):
@@ -2070,11 +2448,21 @@ def _parser() -> argparse.ArgumentParser:
     modes = parser.add_mutually_exclusive_group(required=True)
     for flag in ("validate-case", "prepare-run", "run", "verify"):
         modes.add_argument(f"--{flag}", action="store_true")
+    modes.add_argument(
+        "--annotate-human-reference", action="store_true",
+        help="offline: show and append exactly the next human-annotated turn",
+    )
+    modes.add_argument(
+        "--help-field", metavar="FIELD",
+        help=("offline contract help; e.g. new_proposition, issue_state_update, "
+              "answer_target, or all"),
+    )
     parser.add_argument("--case", type=Path)
     parser.add_argument("--output", type=Path)
     parser.add_argument("--experiment-freeze", type=Path, default=DEFAULT_FREEZE)
     parser.add_argument("--confirm-arm-evaluations", type=int)
     parser.add_argument("--confirm-provider-call-budget", type=int)
+    parser.add_argument("--turn-id", help="optional next-turn guard for human annotation")
     parser.add_argument(
         "--lock-human-reference", action="store_true",
         help="with --verify, validate, materialise and pre-reveal lock the human reference",
@@ -2087,24 +2475,58 @@ def main(argv: Sequence[str] | None = None) -> int:
 
     args = _parser().parse_args(argv)
     try:
-        if args.validate_case:
-            if args.case is None or args.output is not None or args.lock_human_reference:
+        if args.help_field is not None:
+            if (
+                args.case is not None or args.output is not None or args.lock_human_reference
+                or args.turn_id is not None or args.confirm_arm_evaluations is not None
+                or args.confirm_provider_call_budget is not None
+            ):
+                raise FourArmError("--help-field accepts only --experiment-freeze")
+            result = human_field_help(
+                args.help_field, experiment_freeze=args.experiment_freeze,
+            )
+        elif args.annotate_human_reference:
+            if (
+                args.case is not None or args.output is None or args.lock_human_reference
+                or args.confirm_arm_evaluations is not None
+                or args.confirm_provider_call_budget is not None
+            ):
+                raise FourArmError(
+                    "--annotate-human-reference requires --output and optional --turn-id"
+                )
+            result = annotate_human_reference(args.output, turn_id=args.turn_id)
+        elif args.validate_case:
+            if (
+                args.case is None or args.output is not None or args.lock_human_reference
+                or args.turn_id is not None
+            ):
                 raise FourArmError("--validate-case requires only --case")
             result = validate_case(args.case, experiment_freeze=args.experiment_freeze)
             result.pop("replay_plan")
         elif args.prepare_run:
-            if args.case is None or args.output is None or args.lock_human_reference:
+            if (
+                args.case is None or args.output is None or args.lock_human_reference
+                or args.turn_id is not None
+            ):
                 raise FourArmError("--prepare-run requires --case and --output")
             result = prepare_run(args.case, args.output, experiment_freeze=args.experiment_freeze)
         elif args.run:
-            if args.case is not None or args.output is None or args.lock_human_reference:
+            if (
+                args.case is not None or args.output is None or args.lock_human_reference
+                or args.turn_id is not None
+            ):
                 raise FourArmError("--run requires only --output")
             result = run_experiment(
                 args.output, confirm_arm_evaluations=args.confirm_arm_evaluations,
                 confirm_provider_call_budget=args.confirm_provider_call_budget,
             )
         else:
-            if args.case is not None or args.output is None or args.confirm_arm_evaluations is not None or args.confirm_provider_call_budget is not None:
+            if (
+                args.case is not None or args.output is None
+                or args.confirm_arm_evaluations is not None
+                or args.confirm_provider_call_budget is not None
+                or args.turn_id is not None
+            ):
                 raise FourArmError("--verify accepts only --output")
             result = (
                 lock_human_reference(args.output)

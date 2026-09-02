@@ -17,9 +17,9 @@ from typing import Any, Iterable, Mapping, Sequence
 from tools import build_proposition_ledger_phase1 as phase1
 
 
-SEMANTIC_DELTA_SCHEMA_VERSION = "proposition-ledger-semantic-delta-v1.1.1"
-MATERIALISER_VERSION = "proposition-ledger-semantic-delta-materialiser-v2"
-PERSISTED_LEDGER_SCHEMA_VERSION = "proposition-ledger-v1.0.0"
+SEMANTIC_DELTA_SCHEMA_VERSION = "proposition-ledger-semantic-delta-v1.1.2"
+MATERIALISER_VERSION = "proposition-ledger-semantic-delta-materialiser-v2.0.1"
+PERSISTED_LEDGER_SCHEMA_VERSION = "proposition-ledger-v1.0.1"
 SUCCESS_STATUS = "ok"
 FAILURE_STATUSES = {
     "semantic_delta_schema_invalid",
@@ -1217,12 +1217,24 @@ def _apply_relations(
     additions: list[dict[str, Any]] = []
     for item in delta.get("new_relations", []):
         local_ref = str(item["local_ref"])
+        evaluator_diagnosis = (
+            item.get("provenance_kind")
+            in {"human_annotation", "machine_diagnostic"}
+            and item.get("analysis_basis") == "evaluator_diagnosis"
+        )
+        asserted_or_analysed_by = item.get("asserted_or_analysed_by")
+        if (asserted_or_analysed_by is None) != evaluator_diagnosis:
+            _raise(
+                "semantic_reference_invalid",
+                f"relation_evaluator_attribution_mismatch:new_relations.{local_ref}",
+            )
         additions.append(
             {
                 "analysis_basis": item["analysis_basis"],
                 "asserted_or_analysed_by": resolver.participant(
-                    item["asserted_or_analysed_by"],
+                    asserted_or_analysed_by,
                     f"new_relations.{local_ref}.asserted_or_analysed_by",
+                    nullable=evaluator_diagnosis,
                 ),
                 "confidence": item["confidence"],
                 "exact_evidence_spans": copy.deepcopy(item["exact_evidence_spans"]),
@@ -2058,6 +2070,8 @@ def _synthetic_behavioral_validation_case(
     prior = phase1._read_json(fixture_dir / "expected-ledger.json")
     if not isinstance(prior, dict):
         raise phase1.Phase1Error("synthetic behavioral predecessor is not an object")
+    prior["schema_version"] = PERSISTED_LEDGER_SCHEMA_VERSION
+    prior["ledger_sha256"] = phase1.ledger_sha256(prior)
     current_text = "The village bridge remains open today."
     current_turn = {
         "language": "en",
