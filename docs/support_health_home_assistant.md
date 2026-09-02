@@ -40,6 +40,10 @@ Timer-triggered `Type=oneshot` services are normally `inactive/dead` between
 runs. That state alone is healthy. The monitor instead checks the timer's
 loaded, enabled and active state; its last and next elapse; the latest service
 result and exit status; current runtime; and the last observed success.
+The bounded observation history is stored privately at
+`${XDG_STATE_HOME:-~/.local/state}/mrsMThatcher/support-health-monitor/`
+so successful outcomes remain known after a host or user-manager restart;
+systemd's completed-service metadata does not survive those restarts.
 After runtime overruns, prior failed outcomes, and timer-overdue conditions have
 been checked, a current invocation at or below its configured runtime limit is
 not degraded merely because the preceding success has become stale. Recorded
@@ -74,6 +78,11 @@ MRS_SUPPORT_HEALTH_OUTPUT=/HOST/HOME-ASSISTANT/CONFIG/.runtime/mrs_m_thatcher_su
 ```
 
 No API credential belongs in either file.
+
+The monitor's persistent state file is mode `0600` and contains only bounded
+unit/container identifiers, timestamps, outcomes, and restart observations.
+Malformed or obsolete state resets safely and is rebuilt from subsequent
+observations.
 
 ## Downloader contract
 
@@ -119,8 +128,8 @@ progress age starts at `last_progress_epoch` when present and otherwise at
 `cycle_started_epoch`, so a hang before the first validated item still reaches
 the configured progress deadline.
 
-Transient state counts same-container Docker restart deltas separately from
-distinct container IDs. One planned replacement is allowed; reaching the
+Persistent monitor state counts same-container Docker restart deltas separately
+from distinct container IDs. One planned replacement is allowed; reaching the
 configured generation threshold within the restart window reports
 `rapid_container_replacements`. Old generations are pruned and repeated polls
 of one ID do not increase the count.

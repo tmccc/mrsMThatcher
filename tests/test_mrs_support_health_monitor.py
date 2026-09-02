@@ -1344,6 +1344,47 @@ def test_malformed_transient_state_resets_safely(tmp_path: Path) -> None:
     assert monitor.read_transient_state(path) == monitor.empty_transient_state()
 
 
+def test_monitor_history_survives_runtime_directory_change(
+    tmp_path: Path, monkeypatch
+) -> None:
+    state_root = tmp_path / "state"
+    output = tmp_path / "output.json"
+    monkeypatch.setenv("MRS_SUPPORT_HEALTH_CONFIG", str(tmp_path / "config.json"))
+    monkeypatch.setenv("MRS_SUPPORT_HEALTH_OUTPUT", str(output))
+    monkeypatch.setenv("XDG_STATE_HOME", str(state_root))
+    monkeypatch.setenv("XDG_RUNTIME_DIR", str(tmp_path / "runtime-one"))
+    monkeypatch.setattr(monitor, "load_config", lambda _path: object())
+
+    observed_states: list[dict] = []
+
+    def evaluate(_config: object, *, state: dict, **_kwargs: object) -> tuple[dict, dict]:
+        observed_states.append(copy.deepcopy(state))
+        next_state = monitor.empty_transient_state()
+        next_state["systemd"]["daily_job"] = {
+            "last_success_epoch": NOW,
+            "last_completed_invocation_id": "prior-boot-success",
+            "last_completed_outcome": "success",
+        }
+        return {"schema_version": 1}, next_state
+
+    monkeypatch.setattr(monitor, "evaluate_monitor", evaluate)
+
+    assert monitor.main() == 0
+    monkeypatch.setenv("XDG_RUNTIME_DIR", str(tmp_path / "runtime-two"))
+    assert monitor.main() == 0
+
+    state_path = (
+        state_root
+        / "mrsMThatcher"
+        / "support-health-monitor"
+        / "support-health-state.json"
+    )
+    assert observed_states[0] == monitor.empty_transient_state()
+    assert observed_states[1]["systemd"]["daily_job"]["last_success_epoch"] == NOW
+    assert stat.S_IMODE(state_path.parent.stat().st_mode) == 0o700
+    assert stat.S_IMODE(state_path.stat().st_mode) == 0o600
+
+
 def test_problem_signature_is_deterministic() -> None:
     left = {
         "b": {"status": "failed", "reason": "missing"},

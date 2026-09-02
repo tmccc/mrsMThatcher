@@ -1271,13 +1271,13 @@ def evaluate_downloader(
 
 
 def empty_transient_state() -> dict[str, Any]:
-    """Return a fresh bounded transient monitor state."""
+    """Return a fresh bounded monitor state."""
 
     return {"schema_version": STATE_SCHEMA_VERSION, "systemd": {}, "docker": {}}
 
 
 def read_transient_state(path: Path) -> dict[str, Any]:
-    """Read transient state, safely resetting malformed or old data."""
+    """Read monitor state, safely resetting malformed or old data."""
 
     if not path.exists():
         return empty_transient_state()
@@ -1499,8 +1499,15 @@ def main() -> int:
             str(Path.home() / ".config/mrsMThatcher/support-health-monitor.json"),
         )
         output_path = _required_absolute_environment_path("MRS_SUPPORT_HEALTH_OUTPUT")
-        runtime_root = _required_absolute_environment_path("XDG_RUNTIME_DIR")
-        state_dir = runtime_root / "mrsMThatcher"
+        # systemctl --user and busctl --user rely on the inherited runtime
+        # directory, but the last observed oneshot outcomes must survive a
+        # user-manager or host restart.  systemd does not retain completed
+        # service metadata across that boundary.
+        _required_absolute_environment_path("XDG_RUNTIME_DIR")
+        state_root = _required_absolute_environment_path(
+            "XDG_STATE_HOME", str(Path.home() / ".local/state")
+        )
+        state_dir = state_root / "mrsMThatcher/support-health-monitor"
         state_dir.mkdir(mode=0o700, parents=True, exist_ok=True)
         os.chmod(state_dir, 0o700)
         state_path = state_dir / "support-health-state.json"
