@@ -29,7 +29,7 @@ from tools import proposition_ledger_xai_transport_live_probe as private_io
 
 PROJECT_DIR = Path(__file__).resolve().parents[1]
 DEFAULT_FREEZE = (
-    PROJECT_DIR / "proposition_ledger_research/phase2_experiment/experiment-freeze-v3.json"
+    PROJECT_DIR / "proposition_ledger_research/phase2_experiment/experiment-freeze-v4.json"
 )
 CASE_SLUG = "market-planning-live-20260901"
 ALIASES = ("evaluation-01", "evaluation-02", "evaluation-03")
@@ -42,6 +42,7 @@ STATUS_LABELS = {
 }
 VERSIONS = {
     "canonical_semantic_delta": "proposition-ledger-semantic-delta-v1.1.2",
+    "materialiser": "proposition-ledger-semantic-delta-materialiser-v2.0.2",
     "xai_transport": "proposition-ledger-xai-transport-delta-v2.0.2",
     "persisted_ledger": "proposition-ledger-v1.0.1",
 }
@@ -298,7 +299,7 @@ def validate_freeze(path: str | Path = DEFAULT_FREEZE) -> dict[str, Any]:
     if not required <= set(freeze):
         raise FourArmError("experiment freeze is incomplete")
     if (
-        freeze["freeze_version"] != "four-arm-supplemental-freeze-v3"
+        freeze["freeze_version"] != "four-arm-supplemental-freeze-v4"
         or freeze["protocol_status"] != "frozen_post_specification_amendment"
     ):
         raise FourArmError("experiment protocol is not frozen")
@@ -329,12 +330,12 @@ def validate_freeze(path: str | Path = DEFAULT_FREEZE) -> dict[str, Any]:
         raise FourArmError("contract freeze is absent")
     for name, version in VERSIONS.items():
         _tracked(contracts.get(name), name, version)
-    for name in ("evidence_transport", "materialiser", "ledger_prompt"):
+    for name in ("evidence_transport", "ledger_prompt"):
         _tracked(contracts.get(name), name)
     _tracked(freeze["protocol_amendment"], "single-human protocol amendment")
     _tracked(
         freeze["supersedes_freeze"], "superseded experiment freeze",
-        "four-arm-supplemental-freeze-v2",
+        "four-arm-supplemental-freeze-v3",
     )
     workflow = freeze["human_reference_workflow"]
     if not isinstance(workflow, Mapping) or dict(workflow) != HUMAN_REFERENCE_WORKFLOW:

@@ -61,7 +61,7 @@ def _freeze(case_hash: str) -> dict[str, Any]:
         ],
     }
     return {
-        "freeze_version": "four-arm-supplemental-freeze-v3",
+        "freeze_version": "four-arm-supplemental-freeze-v4",
         "protocol_status": "frozen_post_specification_amendment",
         "source_commit": "7c6cdd6d4db71c96789a120ed39420e9714e5236",
         "branch": "research/proposition-ledger-experiment",
@@ -78,7 +78,10 @@ def _freeze(case_hash: str) -> dict[str, Any]:
                 runner.VERSIONS["persisted_ledger"],
             ),
             "evidence_transport": _tracked("tools/proposition_ledger_evidence_transport.py"),
-            "materialiser": _tracked("tools/proposition_ledger_semantic_delta.py"),
+            "materialiser": _tracked(
+                "tools/proposition_ledger_semantic_delta.py",
+                runner.VERSIONS["materialiser"],
+            ),
             "ledger_prompt": _tracked(ledger_prompt),
         },
         "profiles": {
@@ -163,8 +166,8 @@ def _freeze(case_hash: str) -> dict[str, Any]:
             "protocol-amendment-complete-human-reference-v3.md"
         ),
         "supersedes_freeze": _tracked(
-            "proposition_ledger_research/phase2_experiment/experiment-freeze-v2.json",
-            "four-arm-supplemental-freeze-v2",
+            "proposition_ledger_research/phase2_experiment/experiment-freeze-v3.json",
+            "four-arm-supplemental-freeze-v3",
         ),
     }
 
@@ -1102,6 +1105,62 @@ def test_one_investigator_human_chain_locks_two_derived_snapshots_offline(
     assert provenance["previously_seen_published_replies"] is True
     assert provenance["was_investigator"] is True
     assert provenance["independent_of_machine_ledger"] is True
+
+
+def test_human_chain_materialises_actual_parent_unavailable_suffix_pattern(
+    frozen_case: tuple[Path, Path], tmp_path: Path
+) -> None:
+    case, freeze = frozen_case
+    output = tmp_path / "prepared-run"
+    runner.prepare_run(case, output, experiment_freeze=freeze)
+    _, pack = _prepared_human_pack(output)
+    parent_pattern = [
+        ("T000", None),
+        ("T001", "T000"),
+        ("T002", "T000"),
+        ("T003", "T002"),
+        ("T004", "T003"),
+        ("T005", "T004"),
+        ("T006", "T005"),
+        ("T007", "T006"),
+        ("T008", "T007"),
+        ("T009", "T007"),
+        ("T010", "T007"),
+        ("T011", None),
+        ("T012", None),
+        ("T013", None),
+        ("T016", None),
+    ]
+    participant = copy.deepcopy(pack["transcript"]["turns"][0]["participant"])
+    pack["transcript"]["turns"] = [
+        {
+            "conversation_key": pack["transcript"]["conversation_key"],
+            "turn_id": turn_id,
+            "turn_index": index,
+            "post_id": f"local-post:{turn_id}",
+            "speaker_id": participant["participant_id"],
+            "parent_turn_id": parent_turn_id,
+            "text": f"Wholly invented materialisation turn {turn_id}.",
+            "participant": copy.deepcopy(participant),
+        }
+        for index, (turn_id, parent_turn_id) in enumerate(parent_pattern)
+    ]
+    chain = [
+        runner._human_delta(pack, index, _empty_human_judgements(pack))
+        for index in range(len(parent_pattern))
+    ]
+
+    ledgers = runner._materialised_ledgers(
+        pack,
+        chain,
+        transport_binding=runner.validate_freeze(freeze)["contracts"]["xai_transport"],
+    )
+
+    assert len(ledgers) == len(parent_pattern)
+    assert [
+        (turn["turn_id"], turn["parent_turn_id"])
+        for turn in ledgers[-1]["turn_refs"]
+    ] == parent_pattern
 
 
 def test_two_snapshot_prefixes_have_no_independent_editable_copy(

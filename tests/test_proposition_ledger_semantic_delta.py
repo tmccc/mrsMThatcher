@@ -433,6 +433,125 @@ def test_complete_three_and_four_turn_chains_preserve_seen_participants_only() -
     )
 
 
+def test_non_genesis_turn_with_null_parent_materialises(
+    direct_answer_case: tuple[dict[str, Any], dict[str, Any], dict[str, Any]],
+) -> None:
+    prior, current_turn, delta = direct_answer_case
+    current_turn["parent_turn_id"] = None
+
+    result = _materialise_existing(prior, current_turn, delta)
+
+    assert result.status == "ok" and result.ledger is not None
+    assert result.ledger["turn_refs"][-1]["parent_turn_id"] is None
+
+
+def test_non_genesis_turn_with_known_backward_parent_materialises(
+    direct_answer_case: tuple[dict[str, Any], dict[str, Any], dict[str, Any]],
+) -> None:
+    prior, current_turn, delta = direct_answer_case
+
+    result = _materialise_existing(prior, current_turn, delta)
+
+    assert result.status == "ok" and result.ledger is not None
+    assert result.ledger["turn_refs"][-1]["parent_turn_id"] == "t0"
+
+
+def test_non_genesis_turn_with_unknown_non_null_parent_fails(
+    direct_answer_case: tuple[dict[str, Any], dict[str, Any], dict[str, Any]],
+) -> None:
+    prior, current_turn, delta = direct_answer_case
+    current_turn["parent_turn_id"] = "missing-parent"
+
+    result = _materialise_existing(prior, current_turn, delta)
+
+    assert result.status == "semantic_reference_invalid"
+    assert "current_parent_not_in_prior_prefix" in result.errors
+
+
+@pytest.mark.parametrize("parent_turn_id", ["t1", "t2"])
+def test_non_genesis_turn_with_current_or_future_parent_fails(
+    direct_answer_case: tuple[dict[str, Any], dict[str, Any], dict[str, Any]],
+    parent_turn_id: str,
+) -> None:
+    prior, current_turn, delta = direct_answer_case
+    current_turn["parent_turn_id"] = parent_turn_id
+
+    result = _materialise_existing(prior, current_turn, delta)
+
+    assert result.status == "semantic_reference_invalid"
+    assert "current_parent_not_in_prior_prefix" in result.errors
+
+
+def test_genesis_still_requires_null_parent() -> None:
+    participant = _synthetic_participant("account", "account")
+    turn = {
+        "conversation_key": "synthetic:genesis-parent",
+        "parent_turn_id": "synthetic-genesis-parent-t0",
+        "post_id": "synthetic-genesis-parent-post-0",
+        "speaker_id": "account",
+        "text": "Wholly invented root with an invalid parent.",
+        "turn_id": "synthetic-genesis-parent-t0",
+        "turn_index": 0,
+    }
+    context = {
+        "conversation_key": turn["conversation_key"],
+        "current_participant": participant,
+        "root_post_id": turn["post_id"],
+        "source_completeness": {
+            "account_publication_confirmed": True,
+            "chronology_complete": True,
+            "complete_prefix_through_turn": True,
+            "exact_text_complete": True,
+            "limitations": ["Wholly invented unit-test root."],
+            "parent_graph_complete": True,
+            "reconstruction_grade": "A",
+        },
+    }
+
+    result = semantic.materialise_semantic_delta(
+        None,
+        turn,
+        _semantic_noop(turn["conversation_key"], turn, None),
+        current_participant=participant,
+        genesis_context=context,
+    )
+
+    assert result.status == "semantic_reference_invalid"
+    assert "genesis_parent_not_null" in result.errors
+
+
+def test_non_genesis_turn_requires_the_immediate_prior_ledger_reference() -> None:
+    snapshots, results = _run_synthetic_chain(
+        [("account", "account"), ("account", "account")]
+    )
+    assert [result.status for result in results] == ["ok", "ok"]
+    prior = snapshots[-1]
+    turn = {
+        "conversation_key": prior["conversation_key"],
+        "parent_turn_id": "synthetic-chain-t1",
+        "post_id": "synthetic-immediate-prior-post-2",
+        "speaker_id": "account",
+        "text": "Wholly invented turn with a stale predecessor binding.",
+        "turn_id": "synthetic-immediate-prior-t2",
+        "turn_index": 2,
+    }
+    delta = _semantic_noop(prior["conversation_key"], turn, prior)
+    delta["prior_ledger_reference"] = {
+        "ledger_id": snapshots[0]["ledger_id"],
+        "as_of_turn_index": snapshots[0]["as_of_turn_index"],
+    }
+
+    result = semantic.materialise_semantic_delta(
+        prior,
+        turn,
+        delta,
+        current_participant=_synthetic_participant("account", "account"),
+    )
+
+    assert result.status == "semantic_reference_invalid"
+    assert "prior_ledger_reference_mismatch" in result.errors
+
+
 def test_genesis_rejects_future_participant_preseeding() -> None:
     participant = _synthetic_participant("account", "account")
     turn = {
@@ -691,7 +810,7 @@ def test_current_relation_contract_versions_are_explicit() -> None:
     assert semantic.PERSISTED_LEDGER_SCHEMA_VERSION == "proposition-ledger-v1.0.1"
     assert (
         semantic.MATERIALISER_VERSION
-        == "proposition-ledger-semantic-delta-materialiser-v2.0.1"
+        == "proposition-ledger-semantic-delta-materialiser-v2.0.2"
     )
 
 

@@ -18,7 +18,7 @@ from tools import build_proposition_ledger_phase1 as phase1
 
 
 SEMANTIC_DELTA_SCHEMA_VERSION = "proposition-ledger-semantic-delta-v1.1.2"
-MATERIALISER_VERSION = "proposition-ledger-semantic-delta-materialiser-v2.0.1"
+MATERIALISER_VERSION = "proposition-ledger-semantic-delta-materialiser-v2.0.2"
 PERSISTED_LEDGER_SCHEMA_VERSION = "proposition-ledger-v1.0.1"
 SUCCESS_STATUS = "ok"
 FAILURE_STATUSES = {
@@ -470,10 +470,11 @@ def _validate_prior_and_bindings(
     }
     if turn_id in prior_turns:
         _raise("semantic_reference_invalid", "duplicate_current_turn_id")
-    if parent_turn_id is None or parent_turn_id not in prior_turns:
-        _raise("semantic_reference_invalid", "current_parent_not_in_prior_prefix")
-    if prior_turns[parent_turn_id].get("turn_index", turn_index) >= turn_index:
-        _raise("semantic_reference_invalid", "current_parent_not_backward")
+    if parent_turn_id is not None:
+        if parent_turn_id not in prior_turns:
+            _raise("semantic_reference_invalid", "current_parent_not_in_prior_prefix")
+        if prior_turns[parent_turn_id].get("turn_index", turn_index) >= turn_index:
+            _raise("semantic_reference_invalid", "current_parent_not_backward")
 
 
 def _ledger_base_with_current_participant(
