@@ -1,0 +1,46 @@
+{
+  "case_slug": "market-planning-live-20260901",
+  "context_kind": "chronology_aware",
+  "contexts": [
+    {
+      "canonical_input_sha256": "008fb91eddccac3fd81377b0f8a0b8a930449eb5816cae61f00b4bc39e38571e",
+      "context_cutoff_utc": "2026-09-01T10:11:47Z",
+      "evaluation_alias": "evaluation-01",
+      "included_nonancestor_turn_ids": ["T001", "T009", "T010", "T011", "T012", "T013"],
+      "ledger_as_of_turn_id": "T013",
+      "max_included_creation_at_utc": "2026-09-01T10:07:18.186000Z",
+      "no_future_validation": "passed",
+      "replay_input_id": "chronology-aware-evaluation-01",
+      "representation_snapshot_id": "snapshot-01",
+      "representation_snapshot_sha256": "69b84e23a956e70459dbd6752611b978588c1643a8f317f622bfb021bb8bd8c3",
+      "turn_ids": ["T000", "T001", "T002", "T003", "T004", "T005", "T006", "T007", "T008", "T009", "T010", "T011", "T012", "T013"]
+    },
+    {
+      "canonical_input_sha256": "7d5b44a2a6efc276d5a0af5de908af19a75a8ad89a46b7e94281397beb9c11d9",
+      "context_cutoff_utc": "2026-09-01T10:27:02Z",
+      "evaluation_alias": "evaluation-02",
+      "included_nonancestor_turn_ids": ["T001", "T008", "T010", "T011", "T012", "T013"],
+      "ledger_as_of_turn_id": "T013",
+      "max_included_creation_at_utc": "2026-09-01T10:07:18.186000Z",
+      "no_future_validation": "passed",
+      "replay_input_id": "chronology-aware-evaluation-02",
+      "representation_snapshot_id": "snapshot-01",
+      "representation_snapshot_sha256": "69b84e23a956e70459dbd6752611b978588c1643a8f317f622bfb021bb8bd8c3",
+      "turn_ids": ["T000", "T001", "T002", "T003", "T004", "T005", "T006", "T007", "T008", "T009", "T010", "T011", "T012", "T013"]
+    },
+    {
+      "canonical_input_sha256": "d48dcca5faceefbbf85ae2e35c9d9415360d4100f405675966ecba3cf008a7f0",
+      "context_cutoff_utc": "2026-09-01T10:42:18Z",
+      "evaluation_alias": "evaluation-03",
+      "included_nonancestor_turn_ids": ["T001", "T008", "T009", "T011", "T012", "T013", "T016"],
+      "ledger_as_of_turn_id": "T016",
+      "max_included_creation_at_utc": "2026-09-01T10:40:36.094000Z",
+      "no_future_validation": "passed",
+      "replay_input_id": "chronology-aware-evaluation-03",
+      "representation_snapshot_id": "snapshot-02",
+      "representation_snapshot_sha256": "4292ee6b7867f0960e43c097a343f40ad7272830ff51c21d11c323a75b7b8731",
+      "turn_ids": ["T000", "T001", "T002", "T003", "T004", "T005", "T006", "T007", "T008", "T009", "T010", "T011", "T012", "T013", "T016"]
+    }
+  ],
+  "contexts_version": "market-planning-live-sanitized-chronology-contexts-v1"
+}

@@ -1,0 +1,60 @@
+{
+  "case_slug": "market-planning-live-20260901",
+  "chronology_version": "market-planning-live-sanitized-chronology-v1",
+  "daily_cap_events": [
+    {"at_utc": "2026-09-01T10:57:33Z", "outcome": "author_daily_cap", "turn_ids": ["T011", "T012", "T013"]},
+    {"at_utc": "2026-09-01T11:12:42Z", "outcome": "author_daily_cap", "turn_ids": ["T016"]},
+    {"at_utc": "2026-09-01T15:44:10Z", "outcome": "author_daily_cap", "scope": "separate_topic", "turn_ids": ["T018"]}
+  ],
+  "evaluation_cycles": [
+    {
+      "candidate_consideration_at_utc": "2026-09-01T10:11:47Z",
+      "evaluation_alias": "evaluation-01",
+      "first_generation_stage": ["2026-09-01T10:11:47Z", "2026-09-01T10:11:50Z"],
+      "generated_text_observed_at_utc": "2026-09-01T10:11:57Z",
+      "pipeline_approved_at_utc": "2026-09-01T10:11:56Z",
+      "publication_at_utc": "2026-09-01T10:11:58.017000Z",
+      "writer_stage": ["2026-09-01T10:11:50Z", "2026-09-01T10:11:56Z"]
+    },
+    {
+      "candidate_consideration_at_utc": "2026-09-01T10:27:02Z",
+      "evaluation_alias": "evaluation-02",
+      "first_generation_stage": ["2026-09-01T10:27:02Z", "2026-09-01T10:27:07Z"],
+      "generated_text_observed_at_utc": "2026-09-01T10:27:13Z",
+      "pipeline_approved_at_utc": "2026-09-01T10:27:12Z",
+      "publication_at_utc": "2026-09-01T10:27:13.684000Z",
+      "writer_stage": ["2026-09-01T10:27:07Z", "2026-09-01T10:27:12Z"]
+    },
+    {
+      "candidate_consideration_at_utc": "2026-09-01T10:42:18Z",
+      "evaluation_alias": "evaluation-03",
+      "first_generation_stage": ["2026-09-01T10:42:18Z", "2026-09-01T10:42:22Z"],
+      "generated_text_observed_at_utc": "2026-09-01T10:42:28Z",
+      "pipeline_approved_at_utc": "2026-09-01T10:42:27Z",
+      "publication_at_utc": "2026-09-01T10:42:28.507000Z",
+      "writer_stage": ["2026-09-01T10:42:22Z", "2026-09-01T10:42:27Z"]
+    }
+  ],
+  "time_basis": "UTC",
+  "turn_creation": [
+    {"at_utc": "2026-09-01T06:25:36.198000Z", "turn_id": "T000"},
+    {"at_utc": "2026-09-01T06:25:37.123000Z", "turn_id": "T001"},
+    {"at_utc": "2026-09-01T09:21:38.906000Z", "turn_id": "T002"},
+    {"at_utc": "2026-09-01T09:25:57.138000Z", "turn_id": "T003"},
+    {"at_utc": "2026-09-01T09:27:48.418000Z", "turn_id": "T004"},
+    {"at_utc": "2026-09-01T09:41:14.116000Z", "turn_id": "T005"},
+    {"at_utc": "2026-09-01T09:50:06.287000Z", "turn_id": "T006"},
+    {"at_utc": "2026-09-01T09:56:41.218000Z", "turn_id": "T007"},
+    {"at_utc": "2026-09-01T09:58:43.756000Z", "turn_id": "T008"},
+    {"at_utc": "2026-09-01T09:59:46.692000Z", "turn_id": "T009"},
+    {"at_utc": "2026-09-01T10:02:48.317000Z", "turn_id": "T010"},
+    {"at_utc": "2026-09-01T10:03:43.568000Z", "turn_id": "T011"},
+    {"at_utc": "2026-09-01T10:05:37.693000Z", "turn_id": "T012"},
+    {"at_utc": "2026-09-01T10:07:18.186000Z", "turn_id": "T013"},
+    {"at_utc": "2026-09-01T10:11:58.017000Z", "turn_id": "T014"},
+    {"at_utc": "2026-09-01T10:27:13.684000Z", "turn_id": "T015"},
+    {"at_utc": "2026-09-01T10:40:36.094000Z", "turn_id": "T016"},
+    {"at_utc": "2026-09-01T10:42:28.507000Z", "turn_id": "T017"},
+    {"at_utc": "2026-09-01T15:43:10.041000Z", "turn_id": "T018"}
+  ]
+}

@@ -1,0 +1,64 @@
+{
+  "case_slug": "market-planning-live-20260901",
+  "digest_cross_check": {
+    "available": true,
+    "canonical_transcript_authority": false,
+    "sha256": "7524c34f25d607834172296c244e1a464562c63ccc3acc7ab502268e1c672683",
+    "use": "operational_timing_and_daily_cap_only"
+  },
+  "evidence_gaps": [
+    "exact production prompt and payload bytes were not retained",
+    "referenced-tweet payloads were not retained for the selected mention turns",
+    "direct parents are unavailable for T011, T012, T013, T016 and T018",
+    "observed-production no-future validation is impossible without the exact payload"
+  ],
+  "manifest_version": "market-planning-live-sanitized-source-manifest-v1",
+  "private_freeze": {
+    "content_file_count": 33,
+    "inventory_sha256": "a6d58c0ab93175d6811076b497bbdbc99e3af8a20c4c695fe81ba743540a1072",
+    "mechanism": "external_private_checksummed_review_pack",
+    "selected_component_sha256": {
+      "chronology": "d9d9cd1c3ba90b7131c41ea470d55fa2c34e2e304e25d704cf09bf83e3290904",
+      "chronology_aware_contexts": "2a6915a17a7d90c1d6e01f11d402aca5afd2acb03176e54eb8ea7175f96c8b43",
+      "evaluation_points": "c29b4f744cf745903e8058bf620e2ae479b7cf51664e6126962573b3101793a4",
+      "human_annotation_guide": "1cc7d32009627959c1a23093999393a8fa423cb2011877660114e29a854cc16d",
+      "human_pack_index": "f9e7c519ba7a27a1d942d8226603f225eb9d44e5cd007e9d2d18c1a40f351269",
+      "observed_production_contexts": "06d7fe5809f96100529f087f4b114bed3c8aa538fc9beb7e95f7e13f8405a07f",
+      "post_annotation_adjudication": "9062004916f92c9538bb14697ba10169b0df3647e3e9b1cb7c72041c054e86ff",
+      "relationship_graph": "224ab77fad1547fa972b1fd3367d6615db5cc6464df0bb5504bcf6afee57d924",
+      "replay_manifest": "562e1973c71059bd9f179003d65a523ae4fad8a3866eedda73eb627a86b2ba98",
+      "source_manifest": "8c6a2474a41bb6d4323b736357e924dee5e182ec5ce4f2c580578805939b404a",
+      "transcript": "d019e05e311f84c37dbe107c87772b52f8c59f5138389ecfda951c1ad7e93237"
+    }
+  },
+  "prospective_snapshot": {
+    "canonical_snapshot_sha256": "c471934ada943ecb25a9bc6b20c59bc68354f3c91b7bbe40d5dbacb01158c446",
+    "current_pointer_verified": true,
+    "files": {
+      "canonical_posts": "0a2c629457e936479b3dd22ced300a9f34f8e5aa198bb1e260687388a4546932",
+      "conversations": "efe39d6140e1829d75cf196be3f8a0154d0e73312568077ccb7aa7aa8395f0e3",
+      "extraction_report": "ae5b880619efb3fde84e04fee01eea0b81265ddb47d9058d96795873b4d04a45",
+      "manifest": "eb3b1954fa7ac71055cfefa4f3cf118e6e9dff71d8dfb31f3c18d1b97e9340ed",
+      "review_candidates": "cabbac0c75d47c5e13905854315a7244767133e8994c44ac1cb8a6c5d2026570",
+      "source_manifest": "6f6357499a5b843a0e9c6da2408194cd0a54cf469e585e82425d265c0ecc5650"
+    },
+    "snapshot_alias": "prospective-batch-20260901T230036Z"
+  },
+  "review_pack_search": {
+    "existing_pack_match_count": 0,
+    "searched_by_exact_target_identifiers": true
+  },
+  "source_record_coverage": {
+    "accepted_evaluation_targets": 3,
+    "core_target_posts": 6,
+    "evaluated_published_replies": 3,
+    "later_market_cap_events": 4,
+    "separate_topic_cap_events": 1
+  },
+  "status_labels": [
+    "supplemental",
+    "post_specification",
+    "live_challenge",
+    "excluded_from_prespecified_counts"
+  ]
+}

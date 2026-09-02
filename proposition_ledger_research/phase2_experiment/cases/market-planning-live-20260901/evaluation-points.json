@@ -1,0 +1,35 @@
+{
+  "accepted_before_blind_run": true,
+  "case_slug": "market-planning-live-20260901",
+  "evaluation_points": [
+    {
+      "chronology_aware_context_id": "chronology-aware-evaluation-01",
+      "context_cutoff_utc": "2026-09-01T10:11:47Z",
+      "evaluation_alias": "evaluation-01",
+      "ledger_as_of_turn_id": "T013",
+      "observed_context_id": "observed-production-evaluation-01",
+      "published_reply_turn_id": "T014",
+      "reply_target_turn_id": "T008"
+    },
+    {
+      "chronology_aware_context_id": "chronology-aware-evaluation-02",
+      "context_cutoff_utc": "2026-09-01T10:27:02Z",
+      "evaluation_alias": "evaluation-02",
+      "ledger_as_of_turn_id": "T013",
+      "observed_context_id": "observed-production-evaluation-02",
+      "published_reply_turn_id": "T015",
+      "reply_target_turn_id": "T009"
+    },
+    {
+      "chronology_aware_context_id": "chronology-aware-evaluation-03",
+      "context_cutoff_utc": "2026-09-01T10:42:18Z",
+      "evaluation_alias": "evaluation-03",
+      "ledger_as_of_turn_id": "T016",
+      "observed_context_id": "observed-production-evaluation-03",
+      "published_reply_turn_id": "T017",
+      "reply_target_turn_id": "T010"
+    }
+  ],
+  "selection_version": "market-planning-live-evaluation-points-v1",
+  "working_diagnosis_disclosed_to_replay_models": false
+}

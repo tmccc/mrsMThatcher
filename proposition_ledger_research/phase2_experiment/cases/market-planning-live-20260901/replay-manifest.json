@@ -1,0 +1,39 @@
+{
+  "accepted_evaluation_aliases": ["evaluation-01", "evaluation-02", "evaluation-03"],
+  "arm_d_status": "pending_two_independent_human_annotations_and_blinded_adjudication",
+  "arms": {
+    "A": "exact_transcript_only",
+    "B": "exact_transcript_plus_ordinary_summary",
+    "C": "exact_transcript_plus_machine_incremental_ledger",
+    "D": "exact_transcript_plus_independent_human_adjudicated_ledger"
+  },
+  "bindings": [
+    {"chronology_aware_context_id": "chronology-aware-evaluation-01", "evaluation_alias": "evaluation-01", "observed_context_id": "observed-production-evaluation-01"},
+    {"chronology_aware_context_id": "chronology-aware-evaluation-02", "evaluation_alias": "evaluation-02", "observed_context_id": "observed-production-evaluation-02"},
+    {"chronology_aware_context_id": "chronology-aware-evaluation-03", "evaluation_alias": "evaluation-03", "observed_context_id": "observed-production-evaluation-03"}
+  ],
+  "case_slug": "market-planning-live-20260901",
+  "counts": {
+    "prospective_downstream_arm_evaluations": 12,
+    "setup_provider_calls": 0,
+    "unique_chronology_replay_inputs": 3,
+    "unique_observed_replay_inputs": 0,
+    "unique_representation_snapshots": 2
+  },
+  "deduplication": {
+    "snapshot-01": ["evaluation-01", "evaluation-02"],
+    "snapshot-02": ["evaluation-03"]
+  },
+  "observed_context_policy": "blocked_exact_payload_not_retained",
+  "original_prespecified_results_untouched": true,
+  "private_case_freeze_sha256": "a6d58c0ab93175d6811076b497bbdbc99e3af8a20c4c695fe81ba743540a1072",
+  "production_untouched": true,
+  "replay_manifest_version": "market-planning-live-sanitized-replay-manifest-v1",
+  "status_labels": [
+    "supplemental",
+    "post_specification",
+    "live_challenge",
+    "excluded_from_prespecified_counts"
+  ],
+  "working_diagnosis_sealed_from_blind_inputs": true
+}

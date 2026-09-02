@@ -1,0 +1,57 @@
+{
+  "case_slug": "market-planning-live-20260901",
+  "edges": [
+    {"basis": "retained_parent", "relationship_type": "direct_parent", "source_turn_id": "T001", "target_turn_id": "T000"},
+    {"basis": "retained_parent", "relationship_type": "direct_parent", "source_turn_id": "T002", "target_turn_id": "T000"},
+    {"basis": "retained_parent", "relationship_type": "direct_parent", "source_turn_id": "T003", "target_turn_id": "T002"},
+    {"basis": "retained_parent", "relationship_type": "direct_parent", "source_turn_id": "T004", "target_turn_id": "T003"},
+    {"basis": "retained_parent", "relationship_type": "direct_parent", "source_turn_id": "T005", "target_turn_id": "T004"},
+    {"basis": "retained_parent", "relationship_type": "direct_parent", "source_turn_id": "T006", "target_turn_id": "T005"},
+    {"basis": "retained_parent", "relationship_type": "direct_parent", "source_turn_id": "T007", "target_turn_id": "T006"},
+    {"basis": "retained_parent", "relationship_type": "direct_parent", "source_turn_id": "T008", "target_turn_id": "T007"},
+    {"basis": "retained_parent", "relationship_type": "direct_parent", "source_turn_id": "T009", "target_turn_id": "T007"},
+    {"basis": "retained_parent", "relationship_type": "direct_parent", "source_turn_id": "T010", "target_turn_id": "T007"},
+    {"basis": "retained_parent", "relationship_type": "direct_parent", "source_turn_id": "T014", "target_turn_id": "T008"},
+    {"basis": "retained_parent", "relationship_type": "direct_parent", "source_turn_id": "T015", "target_turn_id": "T009"},
+    {"basis": "retained_parent", "relationship_type": "direct_parent", "source_turn_id": "T017", "target_turn_id": "T010"},
+    {"basis": "same_author_chronology_and_semantic_continuation_not_parentage", "relationship_type": "multipart_sequence_inference", "source_turn_id": "T009", "target_turn_id": "T010"},
+    {"basis": "same_author_chronology_and_semantic_continuation_not_parentage", "relationship_type": "multipart_sequence_inference", "source_turn_id": "T010", "target_turn_id": "T011"},
+    {"basis": "same_author_chronology_and_semantic_continuation_not_parentage", "relationship_type": "multipart_sequence_inference", "source_turn_id": "T011", "target_turn_id": "T012"},
+    {"basis": "same_author_chronology_and_semantic_continuation_not_parentage", "relationship_type": "multipart_sequence_inference", "source_turn_id": "T012", "target_turn_id": "T013"},
+    {"basis": "cross_speaker_thematic_and_chronological_evidence_not_parentage", "relationship_type": "thematic_chronological_relation", "source_turn_id": "T015", "target_turn_id": "T016"}
+  ],
+  "graph_version": "market-planning-live-sanitized-relationship-graph-v1",
+  "nodes": [
+    {"scope": "conversation_context", "turn_id": "T000"},
+    {"scope": "historical_context_reply", "turn_id": "T001"},
+    {"scope": "core_market_planning", "turn_id": "T002"},
+    {"scope": "core_market_planning", "turn_id": "T003"},
+    {"scope": "core_market_planning", "turn_id": "T004"},
+    {"scope": "core_market_planning", "turn_id": "T005"},
+    {"scope": "core_market_planning", "turn_id": "T006"},
+    {"scope": "core_market_planning", "turn_id": "T007"},
+    {"scope": "accepted_evaluation_target", "turn_id": "T008"},
+    {"scope": "accepted_evaluation_target", "turn_id": "T009"},
+    {"scope": "accepted_evaluation_target", "turn_id": "T010"},
+    {"scope": "multipart_market_cap_side_effect", "turn_id": "T011"},
+    {"scope": "multipart_market_cap_side_effect", "turn_id": "T012"},
+    {"scope": "multipart_market_cap_side_effect", "turn_id": "T013"},
+    {"scope": "evaluated_published_reply", "turn_id": "T014"},
+    {"scope": "evaluated_published_reply", "turn_id": "T015"},
+    {"scope": "later_market_cap_side_effect", "turn_id": "T016"},
+    {"scope": "evaluated_published_reply", "turn_id": "T017"},
+    {"scope": "separate_operational_cap_side_effect", "turn_id": "T018"}
+  ],
+  "partitions": {
+    "chronology_aware_replay_turn_ids": ["T000", "T001", "T002", "T003", "T004", "T005", "T006", "T007", "T008", "T009", "T010", "T011", "T012", "T013", "T016"],
+    "evaluated_published_reply_turn_ids": ["T014", "T015", "T017"],
+    "market_cap_evidence_turn_ids": ["T011", "T012", "T013", "T016"],
+    "operational_only_turn_ids": ["T018"]
+  },
+  "sibling_set": {
+    "child_turn_ids": ["T008", "T009", "T010"],
+    "constraint": "do_not_linearize_as_reply_chain",
+    "parent_turn_id": "T007"
+  },
+  "unresolved_parent_turn_ids": ["T011", "T012", "T013", "T016", "T018"]
+}

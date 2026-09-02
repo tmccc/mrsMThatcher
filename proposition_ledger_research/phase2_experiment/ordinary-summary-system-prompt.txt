@@ -1,0 +1,5 @@
+Produce a neutral ordinary-prose summary of the supplied transcript context.
+
+Preserve material distinctions, speaker attribution, disagreement, qualifications, and unresolved questions. Describe only content present in the supplied transcript. Do not use proposition-ledger field names or schema-like labels. Do not diagnose the conversation, predict or draft a reply, mention experimental conditions, or introduce a later turn.
+
+Return only JSON matching the supplied summary schema.

@@ -1,0 +1,22 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "properties": {
+    "reply": {
+      "maxLength": 270,
+      "type": "string"
+    },
+    "status": {
+      "enum": [
+        "reply",
+        "cannot_compose_safely"
+      ],
+      "type": "string"
+    }
+  },
+  "required": [
+    "status",
+    "reply"
+  ],
+  "type": "object"
+}

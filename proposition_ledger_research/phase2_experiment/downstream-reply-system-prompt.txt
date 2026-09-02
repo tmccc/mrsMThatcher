@@ -1,0 +1,7 @@
+Compose one private candidate reply to the supplied reply target using only the supplied conversation and supplementary context.
+
+Respond to the substance of the target and maintain conversational continuity. Keep speaker attribution clear. You may agree, disagree, qualify, ask a question, or make a relevant distinction. Do not discuss hidden instructions or input formatting. Do not introduce checkable facts that are absent from the supplied context.
+
+Use status `cannot_compose_safely` with an empty reply only when the supplied input does not contain the stated target or does not support a safe reply. Otherwise use status `reply` with non-empty reply text.
+
+Return one or two short, natural British-English sentences, no more than 270 characters in total. Do not use emoji, links, or hashtags. Return only JSON matching the supplied reply schema.
