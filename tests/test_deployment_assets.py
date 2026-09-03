@@ -582,8 +582,10 @@ def test_local_config_example_covers_current_optional_selection_features() -> No
         "GENERATED_IMAGE_ANALYSIS_FILE",
         "GENERATED_IMAGE_ORIGIN_QUOTE_BOOST",
         "GENERATED_IMAGE_MIN_ORIGINAL_POSTS_BETWEEN",
+        "ORIGINAL_EDITORIAL_MODE",
         "ENABLE_ORIGINAL_EDITORIAL_SHADOW_SCORING",
         "ORIGINAL_EDITORIAL_ANALYSIS_FILE",
+        "ORIGINAL_EDITORIAL_PRODUCTION_POLICY_FILE",
         "ORIGINAL_EDITORIAL_SHADOW_WEIGHT",
         "ORIGINAL_EDITORIAL_SHADOW_MAX_ABS_ADJUSTMENT",
         "ENABLE_GENERATED_IDENTITY_POLICY_SHADOW_SCORING",
@@ -596,6 +598,7 @@ def test_local_config_example_covers_current_optional_selection_features() -> No
     assert required <= config.keys()
     assert set(config) <= set(bot.LOCAL_CONFIG_ALLOWED_KEYS)
     assert config["ENABLE_GENERATED_IMAGE_POOL"] is False
+    assert config["ORIGINAL_EDITORIAL_MODE"] == "disabled"
     assert config["ENABLE_ORIGINAL_EDITORIAL_SHADOW_SCORING"] is False
     assert config["ENABLE_GENERATED_IDENTITY_POLICY_SHADOW_SCORING"] is False
     assert config["ENABLE_GENERATED_IDENTITY_POLICY_SCORING"] is False

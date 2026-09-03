@@ -75,8 +75,36 @@ def _editorial_analysis(**overrides: object) -> dict:
 def test_shadow_disabled_does_not_require_experimental_file(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr(bot, "ENABLE_ORIGINAL_EDITORIAL_SHADOW_SCORING", False)
     monkeypatch.setattr(bot, "ORIGINAL_EDITORIAL_ANALYSIS_FILE", "/definitely/missing.json")
+    monkeypatch.setattr(
+        bot,
+        "load_validated_editorial_policy",
+        lambda *_args, **_kwargs: pytest.fail(
+            "disabled mode must not load a production policy"
+        ),
+    )
 
     bot.validate_original_editorial_shadow_startup()
+
+
+def test_shadow_mode_does_not_load_production_policy(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(bot, "_ORIGINAL_EDITORIAL_RESOLVED_MODE", "shadow")
+    monkeypatch.setattr(bot, "_ORIGINAL_EDITORIAL_MODE_SOURCE", "canonical")
+    monkeypatch.setattr(bot, "_ORIGINAL_EDITORIAL_MODE_RESOLUTION_LOCKED", True)
+    monkeypatch.setattr(bot, "load_original_editorial_analysis", lambda: {})
+    monkeypatch.setattr(
+        bot,
+        "load_validated_editorial_policy",
+        lambda *_args, **_kwargs: pytest.fail(
+            "shadow mode must not load a production policy"
+        ),
+    )
+
+    bot.validate_original_editorial_shadow_startup()
+
+    assert bot.ORIGINAL_EDITORIAL_CIRCUIT_BREAKER.is_open is False
+    assert bot.ORIGINAL_EDITORIAL_CIRCUIT_BREAKER.resolved_mode == "shadow"
 
 
 def test_original_editorial_metadata_validation_rejects_bad_inputs(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:

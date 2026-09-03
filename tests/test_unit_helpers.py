@@ -3638,6 +3638,7 @@ def test_regular_hard_death_after_remote_acceptance_leaves_restart_barrier(
         "source_line_number": 1,
         "image_basename": "t01.jpg",
         "image_no": 0,
+        "image_sha256": hashlib.sha256(b"fake").hexdigest(),
     }
     assert attempt["recovery_plan"]["quote_delay_seconds"] in range(
         bot.POST_SLEEP_MIN,
@@ -3879,6 +3880,14 @@ def test_main_post_hard_death_boundaries_never_recreate_remote_post(
         else bot.load_meme_post_receipt()
     )
     assert receipt is not None
+    if lane == "quote_image":
+        selection_pin = bot.editorial_selection_pin_from_receipt(receipt)
+        assert selection_pin is not None
+        assert bot.original_editorial_selection_pin_is_semantically_valid(
+            selection_pin
+        )
+        assert selection_pin["authoritative_selected_basename"] == "t01.jpg"
+        assert selection_pin["selected_identity"]["image_basename"] == "t01.jpg"
     if boundary == "pre_request":
         assert not remote_acceptance.exists()
         assert status == "sending"
@@ -3904,12 +3913,17 @@ def test_main_post_hard_death_boundaries_never_recreate_remote_post(
         raise AssertionError("restart must not recreate a remote post")
 
     monkeypatch.setattr(bot, "create_post", forbidden_recreate)
+    reconciled_lines: set[str] = set()
+    reconciled_images: set[str] = set()
+    reconciled_state: dict = {}
     if status == "sending":
         assert bot.ambiguous_remote_post_is_blocking() is True
         if lane == "quote_image":
-            assert bot.reconcile_regular_post_receipt(set(), set(), {}) is False
+            assert bot.reconcile_regular_post_receipt(
+                reconciled_lines, reconciled_images, reconciled_state
+            ) is False
         else:
-            assert bot.reconcile_meme_post_receipt({}) is False
+            assert bot.reconcile_meme_post_receipt(reconciled_state) is False
     else:
         if lane == "quote_image":
             monkeypatch.setattr(
@@ -3922,7 +3936,9 @@ def test_main_post_hard_death_boundaries_never_recreate_remote_post(
                 "remove_regular_post_receipt",
                 original_remove,
             )
-            assert bot.reconcile_regular_post_receipt(set(), set(), {}) is True
+            assert bot.reconcile_regular_post_receipt(
+                reconciled_lines, reconciled_images, reconciled_state
+            ) is True
         else:
             monkeypatch.setattr(
                 bot,
@@ -3936,6 +3952,18 @@ def test_main_post_hard_death_boundaries_never_recreate_remote_post(
             )
             assert bot.reconcile_meme_post_receipt({}) is True
         assert not receipt_path.exists()
+        if lane == "quote_image":
+            assert reconciled_images == {"t01.jpg"}
+            assert reconciled_state["last_regular_image_filename"] == "t01.jpg"
+            assert len(
+                reconciled_state["recent_confirmed_regular_images"]
+            ) == 1
+            assert (
+                reconciled_state["recent_confirmed_regular_images"][0][
+                    "post_id"
+                ]
+                == confirmed_post_id
+            )
     assert remote_recreates == 0
 
 
@@ -6150,7 +6178,7 @@ def test_delayed_schedule_followed_by_regular_quote_produces_self_validating_rec
     bot.post_random_quote(lines_used, images_used, state)
 
     assert receipts
-    assert receipts[0]["schema_version"] == 3
+    assert receipts[0]["schema_version"] == 5
     assert receipts[0]["quote_history_after"] == [
         bot.quote_text_hash("Good quote.")
     ]
@@ -8374,10 +8402,22 @@ def test_pre_confirmation_failures_restore_histories_after_quote_cycle_reset(
     elif failure == "unexpected_image":
         monkeypatch.setattr(bot, "choose_matched_unused_image", lambda *args, **kwargs: (_ for _ in ()).throw(ValueError("scoring failed")))
     else:
+        image_dir = tmp_path / "images"
+        image_dir.mkdir()
+        image_path = image_dir / "image.jpg"
+        image_path.write_bytes(b"image fixture")
+        monkeypatch.setattr(bot, "IMAGE_GLOB", str(image_dir / "t*"))
         monkeypatch.setattr(
             bot,
             "choose_matched_unused_image",
-            lambda *args, **kwargs: {"image_no": 0, "path": "image.jpg", "basename": "image.jpg", "score": 1.0},
+            lambda *args, **kwargs: {
+                "image_no": 0,
+                "path": str(image_path),
+                "basename": image_path.name,
+                "image_hash": hashlib.sha256(b"image fixture").hexdigest(),
+                "image_source": "original",
+                "score": 1.0,
+            },
         )
         if failure == "upload":
             monkeypatch.setattr(bot, "upload_media", lambda path, **_kwargs: (_ for _ in ()).throw(OSError("upload failed")))
@@ -17802,6 +17842,74 @@ def apply_local_config_for_test(
     else:
         bot.apply_local_config()
     return before
+
+
+@pytest.mark.parametrize(
+    ("config", "expected_mode", "expected_source"),
+    (
+        ({"ENABLE_ORIGINAL_EDITORIAL_SHADOW_SCORING": False}, "disabled", "legacy"),
+        ({"ENABLE_ORIGINAL_EDITORIAL_SHADOW_SCORING": True}, "shadow", "legacy"),
+        ({"ORIGINAL_EDITORIAL_MODE": "disabled"}, "disabled", "canonical"),
+        ({"ORIGINAL_EDITORIAL_MODE": "shadow"}, "shadow", "canonical"),
+        ({"ORIGINAL_EDITORIAL_MODE": "production"}, "production", "canonical"),
+    ),
+)
+def test_local_config_resolves_original_editorial_mode_and_source(
+    config: dict[str, object],
+    expected_mode: str,
+    expected_source: str,
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(bot, "_ORIGINAL_EDITORIAL_RESOLVED_MODE", "disabled")
+    monkeypatch.setattr(bot, "_ORIGINAL_EDITORIAL_MODE_SOURCE", "default")
+    monkeypatch.setattr(bot, "_ORIGINAL_EDITORIAL_MODE_RESOLUTION_LOCKED", False)
+
+    apply_local_config_for_test(tmp_path, monkeypatch, config)
+
+    assert bot.resolved_original_editorial_mode() == (
+        expected_mode,
+        expected_source,
+    )
+
+
+@pytest.mark.parametrize(
+    "config",
+    (
+        {"ORIGINAL_EDITORIAL_MODE": "canary"},
+        {
+            "ORIGINAL_EDITORIAL_MODE": "production",
+            "ENABLE_ORIGINAL_EDITORIAL_SHADOW_SCORING": False,
+        },
+        {
+            "ORIGINAL_EDITORIAL_MODE": "disabled",
+            "ENABLE_ORIGINAL_EDITORIAL_SHADOW_SCORING": True,
+        },
+    ),
+)
+def test_local_config_rejects_invalid_or_contradictory_editorial_modes_atomically(
+    config: dict[str, object],
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(bot, "_ORIGINAL_EDITORIAL_RESOLVED_MODE", "disabled")
+    monkeypatch.setattr(bot, "_ORIGINAL_EDITORIAL_MODE_SOURCE", "default")
+    monkeypatch.setattr(bot, "_ORIGINAL_EDITORIAL_MODE_RESOLUTION_LOCKED", False)
+
+    apply_local_config_for_test(
+        tmp_path,
+        monkeypatch,
+        config,
+        initial={
+            "ORIGINAL_EDITORIAL_MODE": "disabled",
+            "ENABLE_ORIGINAL_EDITORIAL_SHADOW_SCORING": False,
+        },
+        expect_error=True,
+    )
+
+    assert bot.ORIGINAL_EDITORIAL_MODE == "disabled"
+    assert bot.ENABLE_ORIGINAL_EDITORIAL_SHADOW_SCORING is False
+    assert bot.resolved_original_editorial_mode() == ("disabled", "default")
 
 
 def test_local_config_interacting_invalid_overrides_are_atomic(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:

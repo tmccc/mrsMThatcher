@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import copy
+import hashlib
 import json
 import os
 from pathlib import Path
@@ -241,6 +242,7 @@ def test_failed_pretransport_revalidation_aborts_without_upload(
 
 @pytest.mark.parametrize("failure_revalidation", [2, 3])
 def test_safe_handoff_authority_change_never_reaches_root_create(
+    tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
     failure_revalidation: int,
 ) -> None:
@@ -263,10 +265,27 @@ def test_safe_handoff_authority_change_never_reaches_root_create(
         ],
     }
     plan = {"plan_sha256": envelope["binding"]["plan_sha256"]}
+    image_path = tmp_path / "trial.png"
+    image_path.write_bytes(b"synthetic image bytes")
+    monkeypatch.setattr(bot, "IMAGE_GLOB", str(tmp_path / "t*"))
+    monkeypatch.setattr(
+        bot, "REGULAR_POST_RECEIPT_FILE", tmp_path / "regular-post.json"
+    )
+    monkeypatch.setattr(bot, "MEME_POST_RECEIPT_FILE", tmp_path / "meme-post.json")
+    monkeypatch.setattr(
+        bot, "CONFIRMED_REPLY_RECEIPT_FILE", tmp_path / "reply-post.json"
+    )
+    monkeypatch.setattr(
+        bot,
+        "HISTORICAL_CONTEXT_REPLY_RECEIPT_FILE",
+        tmp_path / "context-post.json",
+    )
+    monkeypatch.setattr(bot, "remote_receipt_retirement_is_blocking", lambda: False)
     image_choice = {
         "image_no": 0,
-        "path": "/isolated/trial.png",
-        "basename": "trial.png",
+        "path": str(image_path),
+        "basename": image_path.name,
+        "image_hash": hashlib.sha256(b"synthetic image bytes").hexdigest(),
         "image_source": "original",
         "score": 10.0,
     }

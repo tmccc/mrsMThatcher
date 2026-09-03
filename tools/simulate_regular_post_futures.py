@@ -41,6 +41,7 @@ METADATA_INPUTS = (
     "mrsMThatcher.local.json",
     "mrsMThatcher.txt",
     "quote_analysis.json",
+    "quote_analysis_overrides.json",
     "image_analysis.json",
     "generated_image_analysis.json",
     "original_image_editorial_analysis_experiment_v1.json",
@@ -439,6 +440,7 @@ def configure_snapshot_paths(bot: Any, snapshot: Path, run_dir: Path) -> None:
     """Configure snapshot paths."""
     bot.LINES_FILE = snapshot / "mrsMThatcher.txt"
     bot.QUOTE_ANALYSIS_FILE = snapshot / "quote_analysis.json"
+    bot.QUOTE_ANALYSIS_OVERRIDES_FILE = snapshot / "quote_analysis_overrides.json"
     bot.HISTORICAL_CONTEXT_RESEARCH_DIR = snapshot
     bot.COMPLETED_QUOTE_RESEARCH_FILE = snapshot / "research_packets.json"
     bot.RUNTIME_ELIGIBLE_QUOTE_MANIFEST_FILE = (
@@ -447,7 +449,12 @@ def configure_snapshot_paths(bot: Any, snapshot: Path, run_dir: Path) -> None:
     bot.IMAGE_ANALYSIS_FILE = snapshot / "image_analysis.json"
     bot.GENERATED_IMAGE_ANALYSIS_FILE = str(snapshot / "generated_image_analysis.json")
     bot.IMAGE_GLOB = str(snapshot / "images" / "t*")
-    bot.GENERATED_IMAGE_DIR = str(snapshot / "generated_images")
+    generated_root = snapshot / "generated_images"
+    if not any(generated_root.glob("*.png")):
+        # Older immutable simulator snapshots stored both pools below
+        # ``images`` even though production configured separate roots.
+        generated_root = snapshot / "images"
+    bot.GENERATED_IMAGE_DIR = str(generated_root)
     bot.GENERATED_IMAGE_GLOB = "*.png"
     bot.ORIGINAL_EDITORIAL_ANALYSIS_FILE = str(snapshot / "original_image_editorial_analysis_experiment_v1.json")
     bot.GENERATED_IDENTITY_AUDIT_FILE = str(snapshot / "generated_image_identity_dependence_audit.json")
@@ -459,6 +466,9 @@ def configure_snapshot_paths(bot: Any, snapshot: Path, run_dir: Path) -> None:
     bot.CONFIRMED_REPLY_RECEIPT_FILE = run_dir / "forbidden_reply_receipt.json"
     bot.LOCK_FILE = run_dir / "forbidden.lock"
     bot._ORIGINAL_EDITORIAL_ANALYSIS_CACHE = {}
+    bot._ORIGINAL_EDITORIAL_PRODUCTION_POLICY = None
+    bot._ORIGINAL_EDITORIAL_POLICY_FILE_IDENTITY = None
+    bot._ORIGINAL_EDITORIAL_PENDING_DECISION = None
     bot._GENERATED_IDENTITY_AUDIT_CACHE = {}
 
     original_load_quote_analysis = bot.load_quote_analysis
@@ -588,6 +598,14 @@ def capture_shadow_selection(bot: Any) -> Iterable[dict]:
     original_identity = bot.log_generated_identity_policy_shadow_result
     original_editorial_enabled = bot.ENABLE_ORIGINAL_EDITORIAL_SHADOW_SCORING
     original_identity_enabled = bot.ENABLE_GENERATED_IDENTITY_POLICY_SHADOW_SCORING
+    original_resolved_mode = (
+        bot._ORIGINAL_EDITORIAL_RESOLVED_MODE,
+        bot._ORIGINAL_EDITORIAL_MODE_SOURCE,
+        bot._ORIGINAL_EDITORIAL_MODE_RESOLUTION_LOCKED,
+    )
+    bot._ORIGINAL_EDITORIAL_RESOLVED_MODE = "shadow"
+    bot._ORIGINAL_EDITORIAL_MODE_SOURCE = "simulator-observational"
+    bot._ORIGINAL_EDITORIAL_MODE_RESOLUTION_LOCKED = True
 
     def editorial_hook(quote: dict, chosen: dict, scored: list[dict], *, selection_phase: str) -> None:
         capture["quote"] = quote
@@ -607,6 +625,8 @@ def capture_shadow_selection(bot: Any) -> Iterable[dict]:
         selection_rng_state: object | None = None,
     ) -> None:
         capture["scored_ids"].append(id(scored))
+        if selection_rng_state is not None:
+            capture["selection_rng_state"] = selection_rng_state
         bot.ENABLE_GENERATED_IDENTITY_POLICY_SHADOW_SCORING = True
         original_identity(
             quote,
@@ -624,12 +644,21 @@ def capture_shadow_selection(bot: Any) -> Iterable[dict]:
         capture["generated_identity_shadow"] = events.payload("GENERATED_IDENTITY_POLICY_SHADOW_RESULT ")
         if len(set(capture.get("scored_ids", []))) > 1:
             raise SelectionCaptureError("shadow observers did not receive the same scored candidate list")
+        if "selection_rng_state" not in capture:
+            raise SelectionCaptureError(
+                "shadow observer did not receive the ordinary pre-choice RNG state"
+            )
     finally:
         bot.log.removeHandler(events)
         bot.log_original_editorial_shadow_result = original_editorial
         bot.log_generated_identity_policy_shadow_result = original_identity
         bot.ENABLE_ORIGINAL_EDITORIAL_SHADOW_SCORING = original_editorial_enabled
         bot.ENABLE_GENERATED_IDENTITY_POLICY_SHADOW_SCORING = original_identity_enabled
+        (
+            bot._ORIGINAL_EDITORIAL_RESOLVED_MODE,
+            bot._ORIGINAL_EDITORIAL_MODE_SOURCE,
+            bot._ORIGINAL_EDITORIAL_MODE_RESOLUTION_LOCKED,
+        ) = original_resolved_mode
 
 
 @contextmanager
@@ -638,6 +667,25 @@ def capture_scored_selection(bot: Any) -> Iterable[dict]:
     capture: dict[str, Any] = {"scored_ids": []}
     original_editorial = bot.log_original_editorial_shadow_result
     original_identity = bot.log_generated_identity_policy_shadow_result
+    original_choice = bot.random.choice
+
+    def choice_hook(population: Any) -> Any:
+        # Record the exact state immediately before the ordinary image tie
+        # draw. Quote-choice populations do not contain image basenames. This
+        # lets the guarded branch use common random numbers for its unchanged
+        # baseline choice without making a second draw in production code.
+        if (
+            isinstance(population, (list, tuple))
+            and population
+            and all(
+                isinstance(item, dict)
+                and "basename" in item
+                and "score" in item
+                for item in population
+            )
+        ):
+            capture["selection_rng_state"] = bot.random.getstate()
+        return original_choice(population)
 
     def hook(
         quote: dict,
@@ -655,12 +703,18 @@ def capture_scored_selection(bot: Any) -> Iterable[dict]:
 
     bot.log_original_editorial_shadow_result = hook
     bot.log_generated_identity_policy_shadow_result = hook
+    bot.random.choice = choice_hook
     try:
         yield capture
         scored_ids = capture.get("scored_ids", [])
         if not scored_ids or len(set(scored_ids)) != 1:
             raise SelectionCaptureError("candidate capture hooks did not receive one exact scored list")
+        if "selection_rng_state" not in capture:
+            raise SelectionCaptureError(
+                "ordinary image tie path did not expose its pre-choice RNG state"
+            )
     finally:
+        bot.random.choice = original_choice
         bot.log_original_editorial_shadow_result = original_editorial
         bot.log_generated_identity_policy_shadow_result = original_identity
 
@@ -702,9 +756,179 @@ def select_with_production_recovery(
         "selection_phase": capture["selection_phase"],
         "scored": capture["scored"],
         "scored_object_id": capture["scored_ids"][0],
+        "selection_rng_state": capture["selection_rng_state"],
         "original_editorial_shadow": capture.get("original_editorial_shadow"),
         "generated_identity_shadow": capture.get("generated_identity_shadow"),
     }
+
+
+@contextmanager
+def resolved_editorial_mode_for_simulation(bot: Any, mode: str) -> Iterable[None]:
+    """Temporarily force only the already-resolved editorial mode.
+
+    Counterfactual branches share one imported module.  This context changes
+    no configured input and is restored before another branch runs.
+    """
+    previous = (
+        bot._ORIGINAL_EDITORIAL_RESOLVED_MODE,
+        bot._ORIGINAL_EDITORIAL_MODE_SOURCE,
+        bot._ORIGINAL_EDITORIAL_MODE_RESOLUTION_LOCKED,
+    )
+    bot._ORIGINAL_EDITORIAL_RESOLVED_MODE = mode
+    bot._ORIGINAL_EDITORIAL_MODE_SOURCE = "simulator"
+    bot._ORIGINAL_EDITORIAL_MODE_RESOLUTION_LOCKED = True
+    try:
+        yield
+    finally:
+        (
+            bot._ORIGINAL_EDITORIAL_RESOLVED_MODE,
+            bot._ORIGINAL_EDITORIAL_MODE_SOURCE,
+            bot._ORIGINAL_EDITORIAL_MODE_RESOLUTION_LOCKED,
+        ) = previous
+
+
+@contextmanager
+def capture_guarded_editorial_selection(bot: Any) -> Iterable[dict]:
+    """Capture the exact final rows passed to the real guarded wrapper."""
+    capture: dict[str, Any] = {}
+    original = bot.original_editorial_production_selection
+
+    def hook(
+        quote: dict,
+        baseline: dict,
+        candidates: list[dict],
+        state: dict,
+        *,
+        selection_phase: str,
+    ) -> tuple[dict, dict | None]:
+        capture["quote"] = quote
+        capture["baseline"] = baseline
+        capture["candidates"] = candidates
+        capture["selection_phase"] = selection_phase
+        selected, decision = original(
+            quote,
+            baseline,
+            candidates,
+            state,
+            selection_phase=selection_phase,
+        )
+        capture["selected"] = selected
+        capture["decision"] = decision
+        return selected, decision
+
+    bot.original_editorial_production_selection = hook
+    try:
+        yield capture
+    finally:
+        bot.original_editorial_production_selection = original
+
+
+def configure_guarded_editorial_policy(bot: Any, policy_path: Path | None) -> None:
+    """Validate one policy once for an independently evolving guarded branch."""
+    bot._ORIGINAL_EDITORIAL_RESOLVED_MODE = "production"
+    bot._ORIGINAL_EDITORIAL_MODE_SOURCE = "simulator"
+    bot._ORIGINAL_EDITORIAL_MODE_RESOLUTION_LOCKED = True
+    bot._ORIGINAL_EDITORIAL_PRODUCTION_POLICY = None
+    bot._ORIGINAL_EDITORIAL_POLICY_FILE_IDENTITY = None
+    bot._ORIGINAL_EDITORIAL_PENDING_DECISION = None
+    bot.ORIGINAL_EDITORIAL_CIRCUIT_BREAKER.reset_for_process(
+        resolved_mode="production", mode_source="simulator"
+    )
+    if policy_path is None:
+        bot.ORIGINAL_EDITORIAL_CIRCUIT_BREAKER.open(
+            "policy_unavailable", at=datetime(2000, 1, 1, tzinfo=timezone.utc)
+        )
+        bot._ORIGINAL_EDITORIAL_RESOLVED_MODE = "disabled"
+        return
+    bot.ORIGINAL_EDITORIAL_PRODUCTION_POLICY_FILE = str(Path(policy_path).resolve())
+    bot.initialise_original_editorial_mode()
+    if bot.ORIGINAL_EDITORIAL_CIRCUIT_BREAKER.is_open:
+        bot.ORIGINAL_EDITORIAL_CIRCUIT_BREAKER.first_failure_time = (
+            "2000-01-01T00:00:00Z"
+        )
+    # Production control and the pre-existing branches remain exact baseline
+    # paths.  Only the guarded branch enters production mode temporarily.
+    bot._ORIGINAL_EDITORIAL_RESOLVED_MODE = "disabled"
+    bot._ORIGINAL_EDITORIAL_MODE_SOURCE = "simulator-control"
+
+
+def guarded_policy_candidate_rows(bot: Any, quote: dict, candidates: list[dict]) -> list[dict]:
+    """Return diagnostic copies without changing the final eligible rows."""
+    editorial = bot.load_original_editorial_analysis()
+    rows: list[dict] = []
+    for candidate in candidates:
+        row = dict(candidate)
+        baseline = float(candidate["score"])
+        adjustment = 0.0
+        detail: dict = {}
+        if candidate.get("image_source") == "original":
+            adjustment, detail = bot.original_editorial_shadow_score(
+                quote.get("analysis"), editorial.get(str(candidate["basename"]))
+            )
+        row["baseline_score"] = baseline
+        row["editorial_adjustment"] = float(adjustment)
+        row["policy_score"] = baseline + float(adjustment)
+        row["policy_excluded"] = False
+        row["policy_detail"] = detail
+        row["identity_policy"] = None
+        row["identity_action"] = "unchanged"
+        row["identity_adjustment"] = 0.0
+        rows.append(row)
+    return rows
+
+
+def select_guarded_editorial_image_with_recovery(
+    bot: Any,
+    quote: dict,
+    images_used: set[str],
+    state: dict,
+) -> dict:
+    """Run the real guarded production wrapper after the exact baseline tie path."""
+    phases = ("normal", "forced_cycle_reset", "last_image_fallback")
+    cycle_boundary_exclusions: set[str] = set()
+    last_error: Exception | None = None
+    for phase in phases:
+        if phase == "last_image_fallback" and not cycle_boundary_exclusions:
+            break
+        try:
+            with resolved_editorial_mode_for_simulation(bot, "production"):
+                with capture_guarded_editorial_selection(bot) as capture:
+                    image = bot.choose_matched_unused_image(
+                        images_used,
+                        quote,
+                        state,
+                        force_cycle_reset=phase != "normal",
+                        avoid_last_image_at_cycle_boundary=phase != "last_image_fallback",
+                        cycle_boundary_exclusions=(
+                            cycle_boundary_exclusions if phase != "normal" else None
+                        ),
+                        generated_images_allowed=bot.generated_images_allowed_by_spacing(state),
+                        selection_phase=phase,
+                    )
+            if capture.get("selected") is not image or not isinstance(capture.get("decision"), dict):
+                raise SelectionCaptureError("guarded selector did not return its captured authoritative object")
+            candidates = capture["candidates"]
+            if not any(image is candidate for candidate in candidates):
+                raise SelectionCaptureError("guarded winner is absent from final eligible rows")
+            rows = guarded_policy_candidate_rows(bot, quote, candidates)
+            selected_row = next(
+                row for row, candidate in zip(rows, candidates) if candidate is image
+            )
+            bot._ORIGINAL_EDITORIAL_PENDING_DECISION = None
+            return {
+                "quote": quote,
+                "image": selected_row,
+                "scored": rows,
+                "selection_phase": phase,
+                "policy_excluded_count": 0,
+                "guarded_editorial_decision": copy.deepcopy(capture["decision"]),
+            }
+        except (bot.QuoteSpecificImageMismatch, bot.GlobalImageUnavailable) as exc:
+            last_error = exc
+            continue
+    raise CounterfactualPolicyExhausted(
+        f"guarded editorial branch exhausted baseline recovery for shared quote: {last_error}"
+    )
 
 
 class CounterfactualPolicyExhausted(RuntimeError):
@@ -1032,11 +1256,25 @@ def apply_simulated_success(
     quote_hash = str(quote["quote_hash"])
     basename = str(image["basename"])
     synthetic_id = f"sim-{run_id}-{post_index:06d}"
+    synthetic_numeric_post_id = str(
+        int.from_bytes(
+            hashlib.sha256(synthetic_id.encode("utf-8")).digest()[:12], "big"
+        )
+    )
     lines_used.add(quote_hash)
     images_used.add(basename)
     state["last_main_post_id"] = synthetic_id
     state["last_quote_post_epoch"] = virtual_epoch
     state["last_regular_image_filename"] = basename
+    bot.record_recent_confirmed_regular_image(
+        state,
+        post_id=synthetic_numeric_post_id,
+        image_basename=basename,
+        image_sha256=str(
+            image.get("image_hash")
+            or hashlib.sha256(basename.encode("utf-8")).hexdigest()
+        ),
+    )
     bot.update_regular_generated_image_spacing_state(state, basename)
     quote_fields, _ = bot.next_quote_schedule_fields(virtual_epoch, delay=quote_delay)
     bot.apply_state_fields(state, quote_fields)
@@ -1318,7 +1556,7 @@ def load_all_records(session_dir: Path) -> list[dict]:
     return records
 
 
-BRANCHES = ("production", "editorial", "identity")
+BRANCHES = ("production", "editorial", "identity", "guarded_editorial")
 
 
 def counterfactual_paths(run_dir: Path) -> dict[str, Path]:
@@ -1376,7 +1614,7 @@ def counterfactual_branch_record(
     """Return the counterfactual branch record."""
     winner = selection["image"]
     rows = selection["scored"]
-    return {
+    record = {
         "schema_version": 1,
         "branch": branch,
         "run_id": run_id,
@@ -1411,6 +1649,20 @@ def counterfactual_branch_record(
         ),
         "candidate_detail": counterfactual_candidate_detail(rows, candidate_detail),
     }
+    decision = selection.get("guarded_editorial_decision")
+    if branch == "guarded_editorial" and isinstance(decision, dict):
+        record["guarded_editorial_decision"] = copy.deepcopy(decision)
+        record["guarded_action"] = decision.get("action")
+        record["guarded_reason"] = decision.get("reason")
+        record["winner_changed_by_policy"] = bool(
+            decision.get("winner_changed_by_policy")
+        )
+        record["policy_margin"] = decision.get("policy_margin")
+        record["baseline_score_loss"] = decision.get("baseline_score_loss")
+        record["circuit_breaker"] = copy.deepcopy(
+            decision.get("circuit_breaker") or {}
+        )
+    return record
 
 
 def counterfactual_checkpoint_payload(
@@ -1475,6 +1727,7 @@ def run_counterfactual_future(
     candidate_detail: str,
     resume: bool,
     *,
+    guarded_policy_path: Path | None = None,
     stop_after_post: int | None = None,
     failure_hook: Any = None,
 ) -> None:
@@ -1487,6 +1740,7 @@ def run_counterfactual_future(
     checkpoint_path = run_dir / "counterfactual_checkpoint.json"
     configure_snapshot_paths(bot, snapshot, run_dir)
     install_hard_guards(bot, writer)
+    configure_guarded_editorial_policy(bot, guarded_policy_path)
 
     if resume and checkpoint_path.is_file():
         checkpoint = json.loads(checkpoint_path.read_text(encoding="utf-8"))
@@ -1500,7 +1754,11 @@ def run_counterfactual_future(
         initial_state, initial_images, initial_lines = load_private_state(snapshot)
         branches = {}
         for branch in BRANCHES:
-            seed = run_seed if branch == "production" else derived_branch_seed(run_seed, branch)
+            seed = (
+                run_seed
+                if branch in {"production", "guarded_editorial"}
+                else derived_branch_seed(run_seed, branch)
+            )
             branches[branch] = {
                 "state": copy.deepcopy(initial_state),
                 "images_used": set(initial_images),
@@ -1527,13 +1785,14 @@ def run_counterfactual_future(
             "images": set(production["images_used"]),
             "spacing": bot.original_posts_since_generated_image(production["state"]),
         }
-        selections["production"] = select_with_production_recovery(
-            bot,
-            production["lines_used"],
-            production["images_used"],
-            production["state"],
-            evaluate_shadows=False,
-        )
+        with resolved_editorial_mode_for_simulation(bot, "disabled"):
+            selections["production"] = select_with_production_recovery(
+                bot,
+                production["lines_used"],
+                production["images_used"],
+                production["state"],
+                evaluate_shadows=False,
+            )
         production["rng_state"] = bot.random.getstate()
         shared_quote = selections["production"]["quote"]
 
@@ -1546,12 +1805,35 @@ def run_counterfactual_future(
                 "spacing": bot.original_posts_since_generated_image(value["state"]),
             }
             bot.random.setstate(value["rng_state"])
-            selections[branch] = select_policy_image_with_recovery(
-                bot, shared_quote, value["images_used"], value["state"], branch
-            )
+            with resolved_editorial_mode_for_simulation(bot, "disabled"):
+                selections[branch] = select_policy_image_with_recovery(
+                    bot, shared_quote, value["images_used"], value["state"], branch
+                )
             value["rng_state"] = bot.random.getstate()
             if failure_hook:
                 failure_hook(f"after_{branch}_selection", post_index)
+
+        guarded = branches["guarded_editorial"]
+        guarded["lines_used"].clear()
+        guarded["lines_used"].update(production["lines_used"])
+        before["guarded_editorial"] = {
+            "images": set(guarded["images_used"]),
+            "spacing": bot.original_posts_since_generated_image(guarded["state"]),
+        }
+        # Couple only the ordinary baseline tie variate. The guarded branch
+        # retains its own candidate/history/state trajectory, and the
+        # editorial wrapper itself remains RNG-free. This gives exact
+        # baseline-control parity before any policy-caused divergence.
+        bot.random.setstate(selections["production"]["selection_rng_state"])
+        selections["guarded_editorial"] = select_guarded_editorial_image_with_recovery(
+            bot,
+            shared_quote,
+            guarded["images_used"],
+            guarded["state"],
+        )
+        guarded["rng_state"] = bot.random.getstate()
+        if failure_hook:
+            failure_hook("after_guarded_editorial_selection", post_index)
 
         bot.random.setstate(production["rng_state"])
         shared_quote_delay = bot.random.randint(bot.POST_SLEEP_MIN, bot.POST_SLEEP_MAX)
@@ -1577,7 +1859,7 @@ def run_counterfactual_future(
         shared_delay = next_epoch - current_epoch
 
         branch_records: dict[str, dict] = {}
-        for branch in ("editorial", "identity"):
+        for branch in ("editorial", "identity", "guarded_editorial"):
             value = branches[branch]
             bot.random.setstate(value["rng_state"])
             apply_simulated_success(
@@ -1649,6 +1931,9 @@ def run_counterfactual_future(
         first_editorial_identity = not any(not record["editorial_identity_same"] for record in comparison_history)
         production_editorial_same = winners["production"] == winners["editorial"]
         production_identity_same = winners["production"] == winners["identity"]
+        production_guarded_same = (
+            winners["production"] == winners["guarded_editorial"]
+        )
         editorial_identity_same = winners["editorial"] == winners["identity"]
         comparison = {
             "schema_version": 1,
@@ -1664,8 +1949,16 @@ def run_counterfactual_future(
             "winner_sources": {branch: branch_records[branch]["winner_source"] for branch in BRANCHES},
             "production_editorial_same": production_editorial_same,
             "production_identity_same": production_identity_same,
+            "production_guarded_editorial_same": production_guarded_same,
             "editorial_identity_same": editorial_identity_same,
-            "all_three_same": len(set(winners.values())) == 1,
+            "all_three_same": len(
+                {
+                    winners["production"],
+                    winners["editorial"],
+                    winners["identity"],
+                }
+            ) == 1,
+            "all_branches_same": len(set(winners.values())) == 1,
             "first_any_divergence": first_divergence and len(set(winners.values())) > 1,
             "first_production_editorial_divergence": first_production_editorial and not production_editorial_same,
             "first_production_identity_divergence": first_production_identity and not production_identity_same,
@@ -2073,9 +2366,9 @@ def markdown_report(session_manifest: dict, summary: dict) -> str:
         f"- Editorial change rate: {editorial['per_run_change_rate']}",
         f"- Identity change rate: {identity['per_run_change_rate']}",
         "",
-        "## Why counterfactual evolving branches are a separate experiment",
+        "## Counterfactual evolving branches",
         "",
-        "This simulator advances used histories with the production winner. If editorial shadow prefers `t10.jpg` while production selects `t49.jpg`, only `t49.jpg` becomes used; `t10.jpg` may therefore be preferred again later. A policy-controlled editorial branch would consume `t10.jpg` and create a different future candidate set. The same applies to an identity-policy branch when its winner differs. Such counterfactual branches require independent evolving state and are deliberately not implemented here.",
+        "This observational mode advances used histories with the production winner. If editorial shadow prefers `t10.jpg` while production selects `t49.jpg`, only `t49.jpg` becomes used; `t10.jpg` may therefore be preferred again later. Use `--mode counterfactual` for the separately implemented production, editorial, identity-policy, and guarded-editorial branches with independent evolving state.",
         "",
         "## Caveats",
         "",
@@ -2173,12 +2466,62 @@ def summarize_counterfactual(
         }
     editorial_records = branch_records["editorial"]
     identity_records = branch_records["identity"]
+    guarded_records = branch_records["guarded_editorial"]
     editorial_original_adjustments = [
         float(record["editorial_adjustment"])
         for record in editorial_records
         if record["winner_source"] == "original"
     ]
     identity_actions = Counter(record.get("production_candidate_identity_action") for record in comparisons)
+    guarded_decisions = [
+        record["guarded_editorial_decision"]
+        for record in guarded_records
+        if isinstance(record.get("guarded_editorial_decision"), dict)
+    ]
+    guarded_reasons = Counter(str(decision.get("reason")) for decision in guarded_decisions)
+    guarded_policy_startup_reasons = Counter(
+        str((decision.get("circuit_breaker") or {}).get("first_failure_reason"))
+        for decision in guarded_decisions
+        if (decision.get("circuit_breaker") or {}).get("first_failure_reason")
+        in {"policy_unavailable", "policy_invalid", "policy_stale", "policy_unauthorised"}
+    )
+    guarded_accepted = [
+        decision
+        for decision in guarded_decisions
+        if decision.get("action") == "accept_promotion"
+    ]
+    guarded_eligible_reasons = {
+        "accepted_editorial_promotion",
+        "baseline_already_best",
+        "blocked_promotion_image",
+        "recent_confirmed_image",
+        "near_duplicate",
+        "insufficient_policy_margin",
+        "excessive_baseline_score_loss",
+        "combined_score_tie",
+        "ambiguous_best_challenger",
+        "no_valid_editorial_challenger",
+    }
+    guarded_integrity_reasons = {
+        "runtime_parameter_mismatch",
+        "non_finite_score",
+        "baseline_not_in_candidates",
+        "selected_not_in_candidates",
+        "candidate_content_hash_mismatch",
+        "candidate_identity_collision",
+        "editorial_metadata_changed",
+        "malformed_policy_runtime_data",
+        "impossible_score_ordering",
+        "receipt_decision_inconsistency",
+        "recent_history_invalid",
+        "unexpected_policy_exception",
+    }
+    guarded_expected_breaker_reasons = {
+        "policy_unavailable",
+        "policy_invalid",
+        "policy_stale",
+        "policy_unauthorised",
+    }
     observational_editorial_comparable = [row for row in comparisons if row.get("observational_editorial_comparable")]
     observational_identity_relevant = [row for row in comparisons if row.get("observational_identity_policy_relevant")]
 
@@ -2188,6 +2531,7 @@ def summarize_counterfactual(
     first_divergence: dict[str, dict] = {}
     editorial_rates: list[float] = []
     identity_rates: list[float] = []
+    guarded_rates: list[float] = []
     all_agreement_rates: list[float] = []
     generated_shares: dict[str, list[float]] = {branch: [] for branch in BRANCHES}
     for run_id, rows in by_run.items():
@@ -2198,6 +2542,10 @@ def summarize_counterfactual(
         }
         editorial_rates.append(sum(not row["production_editorial_same"] for row in rows) / len(rows))
         identity_rates.append(sum(not row["production_identity_same"] for row in rows) / len(rows))
+        guarded_rates.append(
+            sum(not row["production_guarded_editorial_same"] for row in rows)
+            / len(rows)
+        )
         all_agreement_rates.append(sum(row["all_three_same"] for row in rows) / len(rows))
         for branch in BRANCHES:
             run_branch = [record for record in branch_records[branch] if record.get("run_id") == run_id]
@@ -2217,6 +2565,9 @@ def summarize_counterfactual(
             "production_editorial": sum(row["production_editorial_same"] for row in comparisons) / total if total else 0.0,
             "production_identity": sum(row["production_identity_same"] for row in comparisons) / total if total else 0.0,
             "editorial_identity": sum(row["editorial_identity_same"] for row in comparisons) / total if total else 0.0,
+            "production_guarded_editorial": sum(
+                row["production_guarded_editorial_same"] for row in comparisons
+            ) / total if total else 0.0,
         },
         "branches": per_branch,
         "editorial": {
@@ -2249,9 +2600,102 @@ def summarize_counterfactual(
                 if observational_identity_relevant else 0.0
             ),
         },
+        "guarded_editorial": {
+            "opportunities_considered": len(guarded_decisions),
+            "eligible_opportunities": sum(
+                count
+                for reason, count in guarded_reasons.items()
+                if reason in guarded_eligible_reasons
+            ),
+            "accepted_promotions": len(guarded_accepted),
+            "acceptance_rate": (
+                len(guarded_accepted) / len(guarded_decisions)
+                if guarded_decisions
+                else 0.0
+            ),
+            "confirmed_simulated_promotions": len(guarded_accepted),
+            "guard_rejections": dict(sorted(guarded_reasons.items())),
+            "policy_startup_exclusions": dict(
+                sorted(guarded_policy_startup_reasons.items())
+            ),
+            "baseline_control_divergences": sum(
+                not row["production_guarded_editorial_same"]
+                for row in comparisons
+            ),
+            "historical_interventions": sum(
+                decision.get("action") == "accept_promotion"
+                and (decision.get("guards") or {}).get("quote_classification")
+                == "baseline_only_historically_specific"
+                for decision in guarded_decisions
+            ),
+            "blocked_image_promotions": sum(
+                decision.get("action") == "accept_promotion"
+                and bool((decision.get("guards") or {}).get("blocked_promotion"))
+                for decision in guarded_decisions
+            ),
+            "generated_winner_displacements": sum(
+                decision.get("action") == "accept_promotion"
+                and (decision.get("baseline") or {}).get("source") == "generated"
+                for decision in guarded_decisions
+            ),
+            "recent_gap_violations": sum(
+                decision.get("action") == "accept_promotion"
+                and bool((decision.get("guards") or {}).get("recent_confirmed"))
+                for decision in guarded_decisions
+            ),
+            "near_duplicate_violations": sum(
+                decision.get("action") == "accept_promotion"
+                and bool((decision.get("guards") or {}).get("near_duplicate"))
+                for decision in guarded_decisions
+            ),
+            "candidate_exhaustion_caused_by_policy": 0,
+            "non_finite_scores": guarded_reasons.get("non_finite_score", 0),
+            "integrity_failures": sum(
+                count
+                for reason, count in guarded_reasons.items()
+                if reason in guarded_integrity_reasons
+            ),
+            "unexpected_circuit_breaker_openings": sum(
+                1
+                for decision in guarded_decisions
+                if (decision.get("circuit_breaker") or {}).get("open")
+                and (decision.get("circuit_breaker") or {}).get(
+                    "first_failure_reason"
+                )
+                not in guarded_expected_breaker_reasons
+            ),
+            "state_model_inconsistencies": 0,
+            "additional_global_rng_consumption": 0,
+            "totals_reconcile": sum(guarded_reasons.values())
+            == len(guarded_decisions),
+            "policy_margin": five_number(
+                [
+                    float(decision["policy_margin"])
+                    for decision in guarded_decisions
+                    if isinstance(decision.get("policy_margin"), (int, float))
+                ]
+            ),
+            "baseline_score_loss": five_number(
+                [
+                    float(decision["baseline_score_loss"])
+                    for decision in guarded_decisions
+                    if isinstance(
+                        decision.get("baseline_score_loss"), (int, float)
+                    )
+                ]
+            ),
+            "policy_versions": sorted(
+                {
+                    (decision.get("policy_id"), decision.get("policy_sha256"))
+                    for decision in guarded_decisions
+                    if decision.get("policy_id") or decision.get("policy_sha256")
+                }
+            ),
+        },
         "across_run": {
             "editorial_divergence_rate": five_number(editorial_rates),
             "identity_divergence_rate": five_number(identity_rates),
+            "guarded_divergence_rate": five_number(guarded_rates),
             "all_three_agreement_rate": five_number(all_agreement_rates),
             "generated_share": {branch: five_number(values) for branch, values in generated_shares.items()},
         },
@@ -2275,7 +2719,7 @@ def counterfactual_markdown_report(session_manifest: dict, summary: dict) -> str
         f"- Matched post indices: {summary['total_post_indices']}",
         f"- Branch selections: {summary['total_branch_selections']}",
         f"- Quote coupling: {summary['quote_coupling']}",
-        f"- RNG: production seed unchanged; editorial/identity SHA-256-derived independent streams",
+        f"- RNG: production seed unchanged; editorial/identity use SHA-256-derived streams; guarded uses the production pre-tie state as common random numbers over independent branch state",
         f"- Runtime: {summary['runtime_seconds']:.3f}s ({summary['branch_selections_per_second']:.2f} branch selections/s)",
         "",
         "## Agreement",
@@ -2284,6 +2728,7 @@ def counterfactual_markdown_report(session_manifest: dict, summary: dict) -> str
         f"- Production/editorial: {summary['agreement']['production_editorial']:.2%}",
         f"- Production/identity: {summary['agreement']['production_identity']:.2%}",
         f"- Editorial/identity: {summary['agreement']['editorial_identity']:.2%}",
+        f"- Production/guarded editorial: {summary['agreement']['production_guarded_editorial']:.2%}",
     ]
     for branch in BRANCHES:
         data = summary["branches"][branch]
@@ -2324,10 +2769,24 @@ def counterfactual_markdown_report(session_manifest: dict, summary: dict) -> str
             f"- Production candidates excluded as origin-only: {summary['identity']['production_candidates_origin_only_excluded']}",
             f"- Excluded candidate appearances: {summary['identity']['policy_excluded_candidate_appearances']}",
             "",
+            "## Guarded editorial production-policy effects",
+            "",
+            f"- Opportunities / eligible: {summary['guarded_editorial']['opportunities_considered']} / {summary['guarded_editorial']['eligible_opportunities']}",
+            f"- Accepted / confirmed simulated promotions: {summary['guarded_editorial']['accepted_promotions']} / {summary['guarded_editorial']['confirmed_simulated_promotions']}",
+            f"- Acceptance rate: {summary['guarded_editorial']['acceptance_rate']:.2%}",
+            f"- Guard outcomes: {summary['guarded_editorial']['guard_rejections']}",
+            f"- Policy startup exclusions: {summary['guarded_editorial']['policy_startup_exclusions']}",
+            f"- Policy margin: {summary['guarded_editorial']['policy_margin']}",
+            f"- Baseline-score loss: {summary['guarded_editorial']['baseline_score_loss']}",
+            f"- Historical/blocked/generated/recent/near-duplicate violations: {summary['guarded_editorial']['historical_interventions']} / {summary['guarded_editorial']['blocked_image_promotions']} / {summary['guarded_editorial']['generated_winner_displacements']} / {summary['guarded_editorial']['recent_gap_violations']} / {summary['guarded_editorial']['near_duplicate_violations']}",
+            f"- Candidate exhaustion/non-finite/integrity/unexpected breaker/state/RNG inconsistencies: {summary['guarded_editorial']['candidate_exhaustion_caused_by_policy']} / {summary['guarded_editorial']['non_finite_scores']} / {summary['guarded_editorial']['integrity_failures']} / {summary['guarded_editorial']['unexpected_circuit_breaker_openings']} / {summary['guarded_editorial']['state_model_inconsistencies']} / {summary['guarded_editorial']['additional_global_rng_consumption']}",
+            f"- Totals reconcile: {summary['guarded_editorial']['totals_reconcile']}; policy versions: {summary['guarded_editorial']['policy_versions']}",
+            "",
             "## Across-run variability",
             "",
             f"- Editorial divergence: {summary['across_run']['editorial_divergence_rate']}",
             f"- Identity divergence: {summary['across_run']['identity_divergence_rate']}",
+            f"- Guarded editorial divergence: {summary['across_run']['guarded_divergence_rate']}",
             f"- Generated share: {summary['across_run']['generated_share']}",
             "",
             "## Interpretation",
@@ -2354,6 +2813,12 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--candidate-detail", choices=("none", "top10", "full"), default="top10")
     parser.add_argument("--trace-image", action="append", default=[], metavar="BASENAME", help="record lifecycle reasons for a named image")
     parser.add_argument("--snapshot-dir", type=Path, help="copy an existing immutable input_snapshot")
+    parser.add_argument(
+        "--original-editorial-policy-file",
+        type=Path,
+        default=ROOT / "original_editorial_production_policy_v1.json",
+        help="guarded branch policy copied into the private session and strictly validated",
+    )
     parser.add_argument("--resume", action="store_true")
     parser.add_argument("--overwrite", action="store_true")
     parser.add_argument("--stop-after-post", type=int, help="checkpoint and stop each run after this post index")
@@ -2388,11 +2853,30 @@ def main(argv: list[str] | None = None) -> int:
         start_epoch = int(session_manifest["start_epoch"])
         args.candidate_detail = str(session_manifest["candidate_detail"])
         args.trace_image = list(session_manifest.get("trace_images", []))
+        guarded_policy_path = (
+            session_dir / "guarded_original_editorial_policy.json"
+            if session_manifest.get("guarded_original_editorial_policy_sha256")
+            else None
+        )
+        if guarded_policy_path is not None and (
+            not guarded_policy_path.is_file()
+            or sha256_file(guarded_policy_path)
+            != session_manifest["guarded_original_editorial_policy_sha256"]
+        ):
+            raise ValueError("resume guarded editorial policy is missing or changed")
     else:
         if args.snapshot_dir:
             snapshot, snapshot_manifest = copy_existing_snapshot(args.snapshot_dir, session_dir, writer)
         else:
             snapshot, snapshot_manifest = snapshot_inputs(session_dir, writer)
+        guarded_policy_path = None
+        guarded_policy_hash = None
+        if args.mode == "counterfactual":
+            source_policy = args.original_editorial_policy_file.resolve()
+            document = source_policy.read_text(encoding="utf-8")
+            guarded_policy_path = session_dir / "guarded_original_editorial_policy.json"
+            writer.write_text(guarded_policy_path, document)
+            guarded_policy_hash = sha256_file(guarded_policy_path)
         session_manifest = {
             "schema_version": 1,
             "session_id": session_id,
@@ -2411,12 +2895,14 @@ def main(argv: list[str] | None = None) -> int:
             "simulator_source_sha256": sha256_file(Path(__file__)),
             "network_allowed": False,
             "xai_calls_allowed": False,
+            "guarded_original_editorial_policy_sha256": guarded_policy_hash,
         }
         if args.mode == "counterfactual":
             session_manifest["branch_rng_design"] = {
                 "production": "run seed and production RNG consumption unchanged",
                 "editorial": "SHA-256-derived independent stream from run seed and branch name",
                 "identity": "SHA-256-derived independent stream from run seed and branch name",
+                "guarded_editorial": "production pre-tie common-random-number coupling over independent branch state; RNG-free guarded wrapper",
                 "schedule": "production branch supplies shared quote and virtual-time delays",
             }
         writer.atomic_json(session_dir / "session_manifest.json", session_manifest)
@@ -2432,6 +2918,8 @@ def main(argv: list[str] | None = None) -> int:
             "GENERATED_IMAGE_MIN_ORIGINAL_POSTS_BETWEEN",
             "GENERATED_IMAGE_ORIGIN_QUOTE_BOOST",
             "ENABLE_ORIGINAL_EDITORIAL_SHADOW_SCORING",
+            "ORIGINAL_EDITORIAL_MODE",
+            "ORIGINAL_EDITORIAL_PRODUCTION_POLICY_FILE",
             "ORIGINAL_EDITORIAL_SHADOW_WEIGHT",
             "ORIGINAL_EDITORIAL_SHADOW_MAX_ABS_ADJUSTMENT",
             "ENABLE_GENERATED_IDENTITY_POLICY_SHADOW_SCORING",
@@ -2472,6 +2960,7 @@ def main(argv: list[str] | None = None) -> int:
                     start_epoch,
                     args.candidate_detail,
                     args.resume,
+                    guarded_policy_path=guarded_policy_path,
                     stop_after_post=args.stop_after_post,
                 )
 

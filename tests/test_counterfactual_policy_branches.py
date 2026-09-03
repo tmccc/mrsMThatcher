@@ -276,7 +276,15 @@ def test_counterfactual_candidate_detail_modes_do_not_change_future(
     assert outputs["none"] == outputs["top10"] == outputs["full"]
 
 
-@pytest.mark.parametrize("stage", ["after_editorial_selection", "after_comparison_append", "after_counterfactual_checkpoint"])
+@pytest.mark.parametrize(
+    "stage",
+    [
+        "after_editorial_selection",
+        "after_guarded_editorial_selection",
+        "after_comparison_append",
+        "after_counterfactual_checkpoint",
+    ],
+)
 def test_counterfactual_resume_matches_uninterrupted(
     stage: str,
     tmp_path: Path,
@@ -317,10 +325,37 @@ def test_counterfactual_summary_uses_actual_branch_winners(
     branch_records, comparisons = sim.load_counterfactual_records(tmp_path / "counter")
     summary = sim.summarize_counterfactual(branch_records, comparisons, 1.0)
     assert summary["total_post_indices"] == 20
-    assert summary["total_branch_selections"] == 60
+    assert summary["total_branch_selections"] == 80
     assert summary["editorial"]["divergences_from_production"] == sum(
         not row["production_editorial_same"] for row in comparisons
     )
     assert summary["branches"]["editorial"]["diversity"]["unique_images"] == len({
         row["winner"] for row in branch_records["editorial"]
     })
+    guarded = summary["guarded_editorial"]
+    assert guarded["opportunities_considered"] == 20
+    assert guarded["accepted_promotions"] == 0
+    assert guarded["confirmed_simulated_promotions"] == 0
+    assert guarded["guard_rejections"] == {"circuit_breaker_open": 20}
+    assert guarded["policy_startup_exclusions"] == {"policy_unavailable": 20}
+    assert guarded["baseline_control_divergences"] == 0
+    assert summary["agreement"]["production_guarded_editorial"] == 1.0
+    assert guarded["candidate_exhaustion_caused_by_policy"] == 0
+    assert guarded["historical_interventions"] == 0
+    assert guarded["blocked_image_promotions"] == 0
+    assert guarded["generated_winner_displacements"] == 0
+    assert guarded["recent_gap_violations"] == 0
+    assert guarded["near_duplicate_violations"] == 0
+    assert guarded["non_finite_scores"] == 0
+    assert guarded["integrity_failures"] == 0
+    assert guarded["unexpected_circuit_breaker_openings"] == 0
+    assert guarded["state_model_inconsistencies"] == 0
+    assert guarded["additional_global_rng_consumption"] == 0
+    assert guarded["totals_reconcile"] is True
+    for record in branch_records["guarded_editorial"]:
+        decision = record["guarded_editorial_decision"]
+        assert decision["authoritative"]["basename"] == record["winner"]
+        assert decision["winner_changed_by_policy"] is False
+    assert all(
+        row["production_guarded_editorial_same"] for row in comparisons
+    )

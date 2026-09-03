@@ -219,6 +219,23 @@ from urllib3.util import Timeout
 
 import engagement_question_experiment as engagement_question_trial
 
+from original_editorial_production import (
+    EditorialCircuitBreaker,
+    EditorialDecisionIntegrityError,
+    EditorialPolicyError,
+    DECISION_ACTIONS as ORIGINAL_EDITORIAL_DECISION_ACTIONS,
+    DECISION_REASONS as ORIGINAL_EDITORIAL_DECISION_REASONS,
+    INTEGRITY_REASONS as ORIGINAL_EDITORIAL_INTEGRITY_REASONS,
+    MODES as ORIGINAL_EDITORIAL_MODES,
+    REQUIRED_INPUT_SHA256_KEYS as ORIGINAL_EDITORIAL_REQUIRED_INPUT_SHA256_KEYS,
+    ValidatedEditorialPolicy,
+    decision_integrity_fallback as original_editorial_integrity_fallback,
+    file_sha256 as editorial_file_sha256,
+    guarded_editorial_decision,
+    load_validated_policy as load_validated_editorial_policy,
+    resolve_mode as resolve_original_editorial_mode_settings,
+)
+
 from mrs_bot_health import (
     BotHealthReporter,
     HealthLoggingObserver,
@@ -534,7 +551,11 @@ QUOTE_ANALYSIS_FILE = BASE_DIR / "quote_analysis.json"
 IMAGE_ANALYSIS_FILE = BASE_DIR / "image_analysis.json"
 GENERATED_IMAGE_ANALYSIS_FILE = str(BASE_DIR / "generated_image_analysis.json")
 ENABLE_ORIGINAL_EDITORIAL_SHADOW_SCORING = False
+ORIGINAL_EDITORIAL_MODE = "disabled"
 ORIGINAL_EDITORIAL_ANALYSIS_FILE = str(BASE_DIR / "original_image_editorial_analysis_experiment_v1.json")
+ORIGINAL_EDITORIAL_PRODUCTION_POLICY_FILE = str(
+    BASE_DIR / "original_editorial_production_policy_v1.json"
+)
 ORIGINAL_EDITORIAL_SHADOW_WEIGHT = 0.32
 ORIGINAL_EDITORIAL_SHADOW_MAX_ABS_ADJUSTMENT = 4.0
 ENABLE_GENERATED_IDENTITY_POLICY_SHADOW_SCORING = False
@@ -653,6 +674,7 @@ LOCAL_CONFIG_MAX_BYTES = 64 * 1024
 CONTROL_FILE = BASE_DIR / "mrsMThatcher.control.json"
 LOCK_FILE = BASE_DIR / "mrsMThatcher.lock"
 STATE_BACKUP_COUNT = 5
+RECENT_CONFIRMED_REGULAR_IMAGES_MAX = 64
 STATE_READER_VERSION = 3
 STATE_MINIMUM_READER_VERSION = 2
 ENGAGEMENT_QUESTION_EXPERIMENT_STATE_MINIMUM_READER_VERSION = 3
@@ -1657,7 +1679,9 @@ LOCAL_CONFIG_ALLOWED_KEYS = {
     "GENERATED_IMAGE_ORIGIN_QUOTE_BOOST",
     "GENERATED_IMAGE_MIN_ORIGINAL_POSTS_BETWEEN",
     "ENABLE_ORIGINAL_EDITORIAL_SHADOW_SCORING",
+    "ORIGINAL_EDITORIAL_MODE",
     "ORIGINAL_EDITORIAL_ANALYSIS_FILE",
+    "ORIGINAL_EDITORIAL_PRODUCTION_POLICY_FILE",
     "ORIGINAL_EDITORIAL_SHADOW_WEIGHT",
     "ORIGINAL_EDITORIAL_SHADOW_MAX_ABS_ADJUSTMENT",
     "ENABLE_GENERATED_IDENTITY_POLICY_SHADOW_SCORING",
@@ -1826,6 +1850,9 @@ _HISTORICAL_CONTEXT_RUNTIME_UNAVAILABLE_REASON: str | None = None
 _HISTORICAL_CONTEXT_OUTBOX_UNAVAILABLE_REASON: str | None = None
 _REPLY_EVIDENCE_REPOSITORY: object | None = None
 _REPLY_EVIDENCE_LOAD_ERROR: str | None = None
+_ORIGINAL_EDITORIAL_RESOLVED_MODE = "disabled"
+_ORIGINAL_EDITORIAL_MODE_SOURCE = "default"
+_ORIGINAL_EDITORIAL_MODE_RESOLUTION_LOCKED = False
 
 
 def _coerce_local_config_value(key: str, value: object, current_value: object) -> object:
@@ -1891,6 +1918,27 @@ def validate_runtime_config_values(values: dict[str, object]) -> list[str]:
     expected to pass, and invalid local override sets are rejected atomically.
     """
     errors: list[str] = []
+
+    editorial_mode = values.get(
+        "ORIGINAL_EDITORIAL_MODE", globals().get("ORIGINAL_EDITORIAL_MODE")
+    )
+    if type(editorial_mode) is not str or editorial_mode not in ORIGINAL_EDITORIAL_MODES:
+        errors.append(
+            "ORIGINAL_EDITORIAL_MODE must be disabled, shadow, or production"
+        )
+    policy_path = values.get(
+        "ORIGINAL_EDITORIAL_PRODUCTION_POLICY_FILE",
+        globals().get("ORIGINAL_EDITORIAL_PRODUCTION_POLICY_FILE"),
+    )
+    if (
+        type(policy_path) is not str
+        or not policy_path
+        or policy_path != policy_path.strip()
+        or any(ord(character) < 32 for character in policy_path)
+    ):
+        errors.append(
+            "ORIGINAL_EDITORIAL_PRODUCTION_POLICY_FILE must be a non-empty clean path"
+        )
 
     experiment_enabled = values.get(
         "engagement_question_experiment_enabled",
@@ -2270,6 +2318,18 @@ def load_validated_local_config_overrides() -> dict[str, object] | None:
             f"Invalid local config {LOCAL_CONFIG_FILE}: " + "; ".join(coercion_errors)
         )
 
+    try:
+        resolve_original_editorial_mode_settings(
+            canonical_present="ORIGINAL_EDITORIAL_MODE" in proposed,
+            canonical_value=proposed.get("ORIGINAL_EDITORIAL_MODE"),
+            legacy_present="ENABLE_ORIGINAL_EDITORIAL_SHADOW_SCORING" in proposed,
+            legacy_value=proposed.get("ENABLE_ORIGINAL_EDITORIAL_SHADOW_SCORING"),
+        )
+    except ValueError as exc:
+        raise LocalConfigError(
+            f"Invalid local config {LOCAL_CONFIG_FILE}: {exc}"
+        ) from exc
+
     if proposed:
         candidate = copy.deepcopy(SOURCE_DEFAULT_CONFIG_VALUES)
         candidate.update(proposed)
@@ -2284,9 +2344,20 @@ def load_validated_local_config_overrides() -> dict[str, object] | None:
 
 def apply_local_config() -> None:
     """Apply optional local JSON config overrides without editing the bot script."""
+    global _ORIGINAL_EDITORIAL_MODE_RESOLUTION_LOCKED
+    global _ORIGINAL_EDITORIAL_MODE_SOURCE
+    global _ORIGINAL_EDITORIAL_RESOLVED_MODE
     proposed = load_validated_local_config_overrides()
     if proposed is None:
+        _ORIGINAL_EDITORIAL_RESOLVED_MODE = "disabled"
+        _ORIGINAL_EDITORIAL_MODE_SOURCE = "default"
+        _ORIGINAL_EDITORIAL_MODE_RESOLUTION_LOCKED = True
         log.info("Local config file not present; using script defaults. path=%s", LOCAL_CONFIG_FILE)
+        log.info(
+            "Original editorial mode resolved mode=%s source=%s",
+            _ORIGINAL_EDITORIAL_RESOLVED_MODE,
+            _ORIGINAL_EDITORIAL_MODE_SOURCE,
+        )
         return
 
     if proposed:
@@ -2296,6 +2367,31 @@ def apply_local_config() -> None:
         log_json_debug("Local config overrides applied", proposed)
     else:
         log.info("Local config file present but no valid overrides applied: %s", LOCAL_CONFIG_FILE)
+    _ORIGINAL_EDITORIAL_RESOLVED_MODE, _ORIGINAL_EDITORIAL_MODE_SOURCE = (
+        resolve_original_editorial_mode_settings(
+            canonical_present="ORIGINAL_EDITORIAL_MODE" in proposed,
+            canonical_value=proposed.get("ORIGINAL_EDITORIAL_MODE"),
+            legacy_present="ENABLE_ORIGINAL_EDITORIAL_SHADOW_SCORING" in proposed,
+            legacy_value=proposed.get("ENABLE_ORIGINAL_EDITORIAL_SHADOW_SCORING"),
+        )
+    )
+    _ORIGINAL_EDITORIAL_MODE_RESOLUTION_LOCKED = True
+    log.info(
+        "Original editorial mode resolved mode=%s source=%s",
+        _ORIGINAL_EDITORIAL_RESOLVED_MODE,
+        _ORIGINAL_EDITORIAL_MODE_SOURCE,
+    )
+
+
+def resolved_original_editorial_mode() -> tuple[str, str]:
+    """Return effective mode and provenance, including legacy test overrides."""
+    if _ORIGINAL_EDITORIAL_MODE_RESOLUTION_LOCKED:
+        return _ORIGINAL_EDITORIAL_RESOLVED_MODE, _ORIGINAL_EDITORIAL_MODE_SOURCE
+    if ORIGINAL_EDITORIAL_MODE != "disabled":
+        return str(ORIGINAL_EDITORIAL_MODE), "canonical"
+    if ENABLE_ORIGINAL_EDITORIAL_SHADOW_SCORING:
+        return "shadow", "legacy"
+    return "disabled", "default"
 
 
 SOURCE_DEFAULT_CONFIG_ERRORS = validate_runtime_config_values(
@@ -3843,6 +3939,7 @@ def require_remote_operation_unpaused(
     operation: str,
     *,
     transaction_authorization: object | None = None,
+    prepared_original_editorial_selection_pin: dict | None = None,
 ) -> None:
     """Fail before a remote boundary while a global pause is active."""
     require_instance_lock_for_remote_write(operation)
@@ -3869,7 +3966,14 @@ def require_remote_operation_unpaused(
     else:
         # Direct transport/provider calls have no prepared-receipt authority.
         # Every unresolved transaction lane must therefore block them.
-        block_if_ambiguous_remote_post()
+        if prepared_original_editorial_selection_pin is None:
+            block_if_ambiguous_remote_post()
+        else:
+            block_if_ambiguous_remote_post(
+                prepared_original_editorial_selection_pin=(
+                    prepared_original_editorial_selection_pin
+                )
+            )
     if not global_remote_writes_paused():
         return
     log.warning(
@@ -4134,6 +4238,7 @@ def default_state() -> dict:
         "next_reply_lane_priority": "normal",
         "last_main_post_id": None,
         "last_regular_image_filename": None,
+        "recent_confirmed_regular_images": [],
         "original_regular_posts_since_generated_image": GENERATED_IMAGE_MIN_ORIGINAL_POSTS_BETWEEN,
         "last_quote_post_epoch": 0,
         "next_quote_post_epoch": 0,
@@ -4229,6 +4334,92 @@ def normalise_string_list(value: object, *, key: str, path: Path) -> list[str] |
         log.error("State candidate %s has invalid %s type %s; ignoring", path, key, type(value).__name__)
         return None
     return [str(item) for item in value if item is not None]
+
+
+def normalise_recent_confirmed_regular_images(
+    value: object, *, path: Path
+) -> list[dict[str, str]] | None:
+    """Validate the bounded, ordered confirmed regular-image history."""
+    if not isinstance(value, list) or len(value) > RECENT_CONFIRMED_REGULAR_IMAGES_MAX:
+        log.error(
+            "State candidate %s has invalid recent confirmed-image history; ignoring",
+            path,
+        )
+        return None
+    result: list[dict[str, str]] = []
+    post_ids: set[str] = set()
+    for item in value:
+        if not isinstance(item, dict) or set(item) != {
+            "post_id",
+            "image_basename",
+            "image_sha256",
+        }:
+            log.error(
+                "State candidate %s has malformed recent confirmed-image record; ignoring",
+                path,
+            )
+            return None
+        post_id = item.get("post_id")
+        basename = item.get("image_basename")
+        image_hash = item.get("image_sha256")
+        if (
+            type(post_id) is not str
+            or re.fullmatch(r"\d{1,30}", post_id) is None
+            or post_id in post_ids
+            or not valid_receipt_basename(basename)
+            or type(image_hash) is not str
+            or re.fullmatch(r"[0-9a-f]{64}", image_hash) is None
+        ):
+            log.error(
+                "State candidate %s has impossible recent confirmed-image identity; ignoring",
+                path,
+            )
+            return None
+        post_ids.add(post_id)
+        result.append(
+            {
+                "post_id": post_id,
+                "image_basename": str(basename),
+                "image_sha256": image_hash,
+            }
+        )
+    return result
+
+
+def record_recent_confirmed_regular_image(
+    state: dict,
+    *,
+    post_id: object,
+    image_basename: object,
+    image_sha256: object,
+) -> bool:
+    """Append one confirmed post exactly once and keep only 64 records."""
+    candidate = {
+        "post_id": str(post_id or ""),
+        "image_basename": str(image_basename or ""),
+        "image_sha256": str(image_sha256 or ""),
+    }
+    current = state.get("recent_confirmed_regular_images", [])
+    validated = normalise_recent_confirmed_regular_images(current, path=STATE_FILE)
+    if validated is None:
+        open_original_editorial_circuit_breaker("recent_history_invalid")
+        raise RuntimeError("Recent confirmed regular-image state is corrupt")
+    matching = [item for item in validated if item["post_id"] == candidate["post_id"]]
+    if matching:
+        if matching[0] != candidate:
+            open_original_editorial_circuit_breaker("recent_history_invalid")
+            raise RuntimeError("Confirmed post identity conflicts with recent-image state")
+        return False
+    validated_candidate = normalise_recent_confirmed_regular_images(
+        [candidate], path=STATE_FILE
+    )
+    if validated_candidate is None:
+        open_original_editorial_circuit_breaker("recent_history_invalid")
+        raise RuntimeError("Cannot record impossible confirmed regular-image identity")
+    state["recent_confirmed_regular_images"] = (
+        validated + validated_candidate
+    )[-RECENT_CONFIRMED_REGULAR_IMAGES_MAX:]
+    return True
 
 
 def normalise_int_list(value: object, *, key: str, path: Path) -> list[int] | None:
@@ -5658,6 +5849,20 @@ def normalise_state_candidate(
             if value is None:
                 return None
             normalised[key] = value
+    if "recent_confirmed_regular_images" in state:
+        recent_images = normalise_recent_confirmed_regular_images(
+            state["recent_confirmed_regular_images"], path=path
+        )
+        if recent_images is None:
+            normalised["recent_confirmed_regular_images"] = []
+            open_original_editorial_circuit_breaker("recent_history_invalid")
+            log.critical(
+                "Discarded corrupt editorial recent-image guard state from %s; "
+                "ordinary posting remains available with editorial production disabled",
+                path,
+            )
+        else:
+            normalised["recent_confirmed_regular_images"] = recent_images
     for key in epoch_list_keys:
         if key in state:
             value = normalise_epoch_list(state[key], key=key, path=path)
@@ -7264,7 +7469,15 @@ def x_request(
                 request_path=path,
             ) from exc
         try:
-            block_if_unrelated_receipt_appeared_for_media_transport()
+            editorial_selection = receipt_payload_metadata.get(
+                "original_editorial_selection"
+            )
+            if editorial_selection is None:
+                block_if_unrelated_receipt_appeared_for_media_transport()
+            else:
+                block_if_unrelated_receipt_appeared_for_media_transport(
+                    original_editorial_selection=editorial_selection
+                )
             consume_media_upload_authority(
                 MEDIA_UPLOAD_RECEIPT_FILE,
                 _remote_write_authorization,
@@ -9501,9 +9714,14 @@ def validate_media_upload_payload_metadata(
     }
     if not isinstance(value, dict):
         raise TypeError("media receipt payload metadata is not an object")
-    allowed_fields = {*base, "engagement_question_experiment"}
+    optional_fields = {
+        "engagement_question_experiment",
+        "original_editorial_selection",
+    }
     observed_fields = set(value)
-    if observed_fields != set(base) and observed_fields != allowed_fields:
+    if not set(base).issubset(observed_fields) or not observed_fields.issubset(
+        set(base) | optional_fields
+    ):
         raise ValueError("media receipt payload metadata fields are invalid")
     if any(value.get(field) != expected for field, expected in base.items()):
         raise ValueError("media receipt payload metadata changed its remote form")
@@ -9534,13 +9752,37 @@ def validate_media_upload_payload_metadata(
             quote_hash=binding.get("canonical_quote_sha256"),
         ):
             raise ValueError("media receipt experiment authority is inconsistent")
+    selection = value.get("original_editorial_selection")
+    if selection is not None and (
+        not isinstance(selection, dict)
+        or set(selection)
+        != {"attempt_id", "selection_receipt_sha256", "image_sha256"}
+        or not _valid_sha256(selection.get("attempt_id"))
+        or not _valid_sha256(selection.get("selection_receipt_sha256"))
+        or not _valid_sha256(selection.get("image_sha256"))
+    ):
+        raise ValueError("media receipt editorial selection authority is invalid")
     return copy.deepcopy(value)
+
+
+def original_editorial_selection_media_binding(pin: dict) -> dict[str, str]:
+    """Bind one media generation to exact durable selection-pin bytes."""
+    if not original_editorial_selection_pin_is_semantically_valid(pin):
+        raise ValueError("cannot bind media to an invalid selection pin")
+    return {
+        "attempt_id": str(pin["attempt_id"]),
+        "selection_receipt_sha256": hashlib.sha256(
+            canonical_atomic_json_bytes(pin)
+        ).hexdigest(),
+        "image_sha256": str(pin["authoritative_selected_content_sha256"]),
+    }
 
 
 def media_upload_payload_metadata(
     form: dict[str, object],
     *,
     engagement_experiment: dict | None = None,
+    original_editorial_selection: dict | None = None,
 ) -> dict[str, object]:
     """Bind the durable media receipt to its remote form and optional trial."""
 
@@ -9552,6 +9794,10 @@ def media_upload_payload_metadata(
     if engagement_experiment is not None:
         metadata["engagement_question_experiment"] = copy.deepcopy(
             engagement_experiment
+        )
+    if original_editorial_selection is not None:
+        metadata["original_editorial_selection"] = copy.deepcopy(
+            original_editorial_selection
         )
     return validate_media_upload_payload_metadata(metadata, form=form)
 
@@ -9636,6 +9882,7 @@ def upload_media(
     lane: str,
     engagement_experiment: dict | None = None,
     pre_transport_validation: Callable[[], None] | None = None,
+    original_editorial_selection_pin: dict | None = None,
 ) -> str:
     """Upload once under a restart-visible, image-bound sending receipt."""
     if (engagement_experiment is None) != (pre_transport_validation is None):
@@ -9643,8 +9890,28 @@ def upload_media(
             "experimental media authority and pre-transport validation must "
             "be supplied together"
         )
-    require_remote_operation_unpaused("X media upload")
-    block_if_ambiguous_remote_post()
+    if original_editorial_selection_pin is not None and (
+        lane != "quote_image"
+        or not original_editorial_selection_pin_is_semantically_valid(
+            original_editorial_selection_pin
+        )
+    ):
+        raise ValueError("media upload selection pin is invalid")
+    if original_editorial_selection_pin is None:
+        require_remote_operation_unpaused("X media upload")
+        block_if_ambiguous_remote_post()
+    else:
+        require_remote_operation_unpaused(
+            "X media upload",
+            prepared_original_editorial_selection_pin=(
+                original_editorial_selection_pin
+            ),
+        )
+        block_if_ambiguous_remote_post(
+            prepared_original_editorial_selection_pin=(
+                original_editorial_selection_pin
+            )
+        )
     mime_type, _ = mimetypes.guess_type(image_path)
     if not mime_type:
         mime_type = "image/jpeg"
@@ -9655,6 +9922,13 @@ def upload_media(
     payload_metadata = media_upload_payload_metadata(
         form,
         engagement_experiment=engagement_experiment,
+        original_editorial_selection=(
+            original_editorial_selection_media_binding(
+                original_editorial_selection_pin
+            )
+            if original_editorial_selection_pin is not None
+            else None
+        ),
     )
     try:
         authority = begin_media_upload(
@@ -9706,7 +9980,10 @@ def upload_media(
     media_sigint_guard = begin_confirmed_post_sigint_deferral()
     try:
         try:
-            if engagement_experiment is None:
+            if (
+                engagement_experiment is None
+                and original_editorial_selection_pin is None
+            ):
                 media_id = upload_media_v2(
                     authority=authority,
                     payload=bound_payload,
@@ -10250,7 +10527,10 @@ def block_if_unrelated_receipt_appeared_for_tweet_transport(
         )
 
 
-def block_if_unrelated_receipt_appeared_for_media_transport() -> None:
+def block_if_unrelated_receipt_appeared_for_media_transport(
+    *,
+    original_editorial_selection: dict | None = None,
+) -> None:
     """Reject media transport if any other transaction owns remote writes."""
 
     if remote_receipt_retirement_is_blocking():
@@ -10275,6 +10555,15 @@ def block_if_unrelated_receipt_appeared_for_media_transport() -> None:
                 "an unrelated receipt namespace could not be inspected "
                 "before media upload"
             ) from exc
+        if receipt_present and path == REGULAR_POST_RECEIPT_FILE:
+            status, receipt = load_regular_post_receipt()
+            if (
+                status == "selection_pinned"
+                and receipt is not None
+                and original_editorial_selection
+                == original_editorial_selection_media_binding(receipt)
+            ):
+                continue
         if receipt_present:
             raise MediaUploadReceiptError(
                 "an unrelated durable receipt appeared before media upload"
@@ -11018,6 +11307,7 @@ def block_if_ambiguous_remote_post(
     prepared_conversational_reply_receipt: dict | None = None,
     prepared_historical_context_reply_receipt: dict | None = None,
     prepared_main_post_attempt: dict | None = None,
+    prepared_original_editorial_selection_pin: dict | None = None,
     allow_confirmed_pending_schedule_reconciliation: bool = False,
     allow_historical_context_receipt_reconciliation: bool = False,
     allow_historical_context_outbox_reconciliation_parent_id: str | None = None,
@@ -11030,6 +11320,7 @@ def block_if_ambiguous_remote_post(
             prepared_conversational_reply_receipt,
             prepared_historical_context_reply_receipt,
             prepared_main_post_attempt,
+            prepared_original_editorial_selection_pin,
         )
     )
     if prepared_receipt_count > 1:
@@ -11084,7 +11375,14 @@ def block_if_ambiguous_remote_post(
                 "Prepared tweet authority is not the sole exact transport barrier",
                 service="x",
             )
-    block_if_remote_media_upload_receipt_exists()
+    if remote_media_upload_receipt_is_blocking():
+        if not (
+            prepared_original_editorial_selection_pin is not None
+            and confirmed_media_upload_matches_selection_pin(
+                prepared_original_editorial_selection_pin
+            )
+        ):
+            block_if_remote_media_upload_receipt_exists()
 
     regular_status, regular_receipt = load_regular_post_receipt()
     meme_status, meme_receipt = load_meme_post_receipt()
@@ -11095,6 +11393,14 @@ def block_if_ambiguous_remote_post(
     ]
     for lane_name, status, receipt in blocking_main_receipts:
         if status == "absent":
+            continue
+        if (
+            lane_name == "regular"
+            and status == "selection_pinned"
+            and prepared_original_editorial_selection_pin is not None
+            and receipt == prepared_original_editorial_selection_pin
+            and original_editorial_selection_pin_is_semantically_valid(receipt)
+        ):
             continue
         if (
             status in {"pending_schedule", "valid"}
@@ -11131,7 +11437,7 @@ def block_if_ambiguous_remote_post(
             prepared_main_authorized = True
             continue
         raise AmbiguousRemotePostOutcome(
-            "An unresolved main-post sending, confirmed pending-schedule, or "
+            "An unresolved main-post selection, sending, confirmed pending-schedule, or "
             "invalid receipt blocks further posting",
             service="x",
         )
@@ -13150,6 +13456,828 @@ def valid_receipt_basename(value: object) -> bool:
     return bool(basename) and Path(basename).name == basename and basename not in {".", ".."}
 
 
+ORIGINAL_EDITORIAL_SELECTION_PIN_SCHEMA_VERSION = 1
+ORIGINAL_EDITORIAL_SELECTION_PIN_NULLABLE_NUMERIC_FIELDS = {
+    "baseline_raw_score",
+    "baseline_editorial_adjustment",
+    "baseline_combined_score",
+    "challenger_raw_score",
+    "challenger_editorial_adjustment",
+    "challenger_combined_score",
+    "policy_margin",
+    "baseline_score_loss",
+}
+ORIGINAL_EDITORIAL_SELECTION_PIN_HASH_FIELDS = {
+    "baseline_winner_content_sha256",
+    "authoritative_selected_content_sha256",
+}
+
+
+def _valid_nullable_receipt_number(value: object) -> bool:
+    return value is None or bool(
+        not isinstance(value, bool)
+        and isinstance(value, (int, float))
+        and math.isfinite(float(value))
+    )
+
+
+def original_editorial_selection_pin_is_semantically_valid(
+    data: object,
+) -> bool:
+    """Validate the exact durable pre-upload selection document."""
+    if not isinstance(data, dict):
+        return False
+    required = {
+        "schema_version",
+        "receipt_type",
+        "lifecycle_state",
+        "lane",
+        "attempt_id",
+        "attempt_epoch",
+        "text",
+        "text_sha256",
+        "made_with_ai",
+        "selected_identity",
+        "recovery_plan",
+        "selection_phase",
+        "baseline_winner_basename",
+        "baseline_winner_source",
+        "baseline_winner_content_sha256",
+        "baseline_raw_score",
+        "baseline_editorial_adjustment",
+        "baseline_combined_score",
+        "editorial_challenger_basename",
+        "editorial_challenger_source",
+        "editorial_challenger_content_sha256",
+        "challenger_raw_score",
+        "challenger_editorial_adjustment",
+        "challenger_combined_score",
+        "policy_margin",
+        "baseline_score_loss",
+        "authoritative_selected_basename",
+        "authoritative_selected_source",
+        "authoritative_selected_content_sha256",
+        "resolved_editorial_mode",
+        "decision_action",
+        "decision_reason",
+        "winner_changed_by_policy",
+        "policy_id",
+        "policy_sha256",
+        "editorial_metadata_sha256",
+        "input_sha256",
+        "guards",
+        "circuit_breaker",
+    }
+    allowed = required | {"engagement_question_experiment"}
+    if set(data) != required and set(data) != allowed:
+        return False
+    if (
+        data.get("schema_version")
+        != ORIGINAL_EDITORIAL_SELECTION_PIN_SCHEMA_VERSION
+        or data.get("receipt_type") != "selection_pinned"
+        or data.get("lifecycle_state") != "selection_pinned"
+        or data.get("lane") != "quote_image"
+        or type(data.get("attempt_id")) is not str
+        or re.fullmatch(r"[0-9a-f]{64}", data["attempt_id"]) is None
+    ):
+        return False
+    attempt_epoch = receipt_int(data.get("attempt_epoch"))
+    if attempt_epoch is None or not valid_receipt_epoch(attempt_epoch):
+        return False
+    text = data.get("text")
+    if (
+        type(text) is not str
+        or not text
+        or type(data.get("text_sha256")) is not str
+        or hashlib.sha256(text.encode("utf-8")).hexdigest()
+        != data["text_sha256"]
+        or type(data.get("made_with_ai")) is not bool
+    ):
+        return False
+    selected = data.get("selected_identity")
+    if not isinstance(selected, dict) or set(selected) != {
+        "quote_hash",
+        "line_no",
+        "source_line_number",
+        "image_basename",
+        "image_no",
+        "image_sha256",
+    }:
+        return False
+    quote_hash = selected.get("quote_hash")
+    envelope = data.get("engagement_question_experiment")
+    canonical_text = (
+        envelope.get("canonical_quote_text")
+        if isinstance(envelope, dict)
+        else text
+    )
+    if (
+        type(quote_hash) is not str
+        or re.fullmatch(r"[0-9a-f]{64}", quote_hash) is None
+        or quote_text_hash(canonical_text) != quote_hash
+        or not valid_receipt_basename(selected.get("image_basename"))
+        or type(selected.get("image_sha256")) is not str
+        or re.fullmatch(r"[0-9a-f]{64}", selected["image_sha256"]) is None
+        or type(selected.get("line_no")) is not int
+        or int(selected["line_no"]) < 0
+        or selected.get("source_line_number") != int(selected["line_no"]) + 1
+        or type(selected.get("image_no")) is not int
+        or int(selected["image_no"]) < 0
+    ):
+        return False
+    if (envelope is not None) != ("engagement_question_experiment" in data):
+        return False
+    if envelope is not None and not engagement_experiment_attempt_envelope_is_valid(
+        envelope,
+        public_text=text,
+        quote_hash=quote_hash,
+    ):
+        return False
+    plan = data.get("recovery_plan")
+    if not isinstance(plan, dict) or set(plan) != {
+        "quote_delay_seconds",
+        "meme_delay_seconds",
+        "meme_scheduling_enabled",
+        "meme_trigger_after_hour",
+        "meme_schedule_version",
+        "schedule_timezone",
+        "meme_schedule_before",
+        "quote_history_after",
+        "image_history_after",
+    }:
+        return False
+    quote_delay = plan.get("quote_delay_seconds")
+    meme_delay = plan.get("meme_delay_seconds")
+    if (
+        type(quote_delay) is not int
+        or not 0 < quote_delay <= MAIN_POST_ATTEMPT_MAX_BOUND_DELAY_SECONDS
+        or (
+            meme_delay is not None
+            and (
+                type(meme_delay) is not int
+                or not 0 < meme_delay <= MAIN_POST_ATTEMPT_MAX_BOUND_DELAY_SECONDS
+            )
+        )
+        or type(plan.get("meme_scheduling_enabled")) is not bool
+        or (bool(plan["meme_scheduling_enabled"]) != (meme_delay is not None))
+        or type(plan.get("meme_trigger_after_hour")) is not int
+        or not 0 <= int(plan["meme_trigger_after_hour"]) <= 23
+        or type(plan.get("meme_schedule_version")) is not int
+        or not 1 <= int(plan["meme_schedule_version"]) <= MEME_SCHEDULE_VERSION
+        or plan.get("schedule_timezone") != MAIN_POST_SCHEDULE_TIMEZONE
+        or not bound_meme_schedule_state_is_valid(
+            plan.get("meme_schedule_before"),
+            schedule_timezone=plan.get("schedule_timezone"),
+        )
+        or safe_bound_schedule_date_str(
+            attempt_epoch, plan.get("schedule_timezone")
+        )
+        is None
+    ):
+        return False
+    quote_history = plan.get("quote_history_after")
+    image_history = plan.get("image_history_after")
+    if (
+        not isinstance(quote_history, list)
+        or len(quote_history) > 10_000
+        or quote_history != sorted(set(quote_history))
+        or quote_hash not in quote_history
+        or any(not _valid_sha256(value) for value in quote_history)
+        or not isinstance(image_history, list)
+        or len(image_history) > 10_000
+        or image_history != sorted(set(image_history))
+        or selected["image_basename"] not in image_history
+        or any(not valid_receipt_basename(value) for value in image_history)
+    ):
+        return False
+    if not valid_receipt_basename(data.get("baseline_winner_basename")):
+        return False
+    if data.get("baseline_winner_source") not in {"original", "generated"}:
+        return False
+    if any(
+        type(data.get(key)) is not str
+        or re.fullmatch(r"[0-9a-f]{64}", data[key]) is None
+        for key in ORIGINAL_EDITORIAL_SELECTION_PIN_HASH_FIELDS
+    ):
+        return False
+    if data["authoritative_selected_basename"] != selected["image_basename"] or (
+        data["authoritative_selected_content_sha256"]
+        != selected["image_sha256"]
+    ):
+        return False
+    challenger_name = data.get("editorial_challenger_basename")
+    challenger_source = data.get("editorial_challenger_source")
+    challenger_hash = data.get("editorial_challenger_content_sha256")
+    if not (
+        (challenger_name is None and challenger_hash is None and challenger_source is None)
+        or (
+            challenger_name is not None
+            and challenger_hash is not None
+            and challenger_source == "original"
+        )
+    ):
+        return False
+    if challenger_name is not None and (
+        not valid_receipt_basename(challenger_name)
+        or type(challenger_hash) is not str
+        or re.fullmatch(r"[0-9a-f]{64}", challenger_hash) is None
+    ):
+        return False
+    expected_authoritative_source = "generated" if data["made_with_ai"] else "original"
+    if data.get("authoritative_selected_source") != expected_authoritative_source:
+        return False
+    if any(
+        not _valid_nullable_receipt_number(data.get(key))
+        for key in ORIGINAL_EDITORIAL_SELECTION_PIN_NULLABLE_NUMERIC_FIELDS
+    ):
+        return False
+    baseline_raw = data.get("baseline_raw_score")
+    baseline_combined = data.get("baseline_combined_score")
+    challenger_raw = data.get("challenger_raw_score")
+    challenger_adjustment = data.get("challenger_editorial_adjustment")
+    challenger_combined = data.get("challenger_combined_score")
+    policy_margin = data.get("policy_margin")
+    baseline_score_loss = data.get("baseline_score_loss")
+    if challenger_name is None:
+        if any(
+            value is not None
+            for value in (
+                challenger_raw,
+                challenger_adjustment,
+                challenger_combined,
+                policy_margin,
+                baseline_score_loss,
+            )
+        ):
+            return False
+    elif any(
+        value is None
+        for value in (
+            challenger_raw,
+            challenger_adjustment,
+            challenger_combined,
+            baseline_raw,
+            baseline_combined,
+            policy_margin,
+            baseline_score_loss,
+        )
+    ):
+        return False
+    if policy_margin is not None and not math.isclose(
+        float(policy_margin),
+        float(challenger_combined) - float(baseline_combined),
+        rel_tol=0.0,
+        abs_tol=1e-9,
+    ):
+        return False
+    if baseline_score_loss is not None and not math.isclose(
+        float(baseline_score_loss),
+        float(baseline_raw) - float(challenger_raw),
+        rel_tol=0.0,
+        abs_tol=1e-9,
+    ):
+        return False
+    if data.get("selection_phase") not in {
+        "normal",
+        "forced_cycle_reset",
+        "last_image_fallback",
+    }:
+        return False
+    if data.get("resolved_editorial_mode") not in ORIGINAL_EDITORIAL_MODES:
+        return False
+    if data.get("decision_action") not in ORIGINAL_EDITORIAL_DECISION_ACTIONS:
+        return False
+    if data.get("decision_reason") not in ORIGINAL_EDITORIAL_DECISION_REASONS:
+        return False
+    if type(data.get("winner_changed_by_policy")) is not bool:
+        return False
+    if data["winner_changed_by_policy"] != (
+        data["decision_action"] == "accept_promotion"
+        and data["baseline_winner_content_sha256"]
+        != data["authoritative_selected_content_sha256"]
+    ):
+        return False
+    if data["decision_action"] == "accept_promotion":
+        if (
+            data["decision_reason"] != "accepted_editorial_promotion"
+            or challenger_name != data["authoritative_selected_basename"]
+            or challenger_hash != data["authoritative_selected_content_sha256"]
+            or challenger_source != data["authoritative_selected_source"]
+            or data["baseline_winner_source"] != "original"
+        ):
+            return False
+    elif (
+        data["decision_reason"] == "accepted_editorial_promotion"
+        or data["authoritative_selected_basename"]
+        != data["baseline_winner_basename"]
+        or data["authoritative_selected_content_sha256"]
+        != data["baseline_winner_content_sha256"]
+        or data["authoritative_selected_source"]
+        != data["baseline_winner_source"]
+    ):
+        return False
+    for prefix in ("baseline", "challenger"):
+        raw = data.get(f"{prefix}_raw_score")
+        adjustment = data.get(f"{prefix}_editorial_adjustment")
+        combined = data.get(f"{prefix}_combined_score")
+        if raw is not None and adjustment is not None:
+            if combined is None or not math.isclose(
+                float(combined),
+                float(raw) + float(adjustment),
+                rel_tol=0.0,
+                abs_tol=1e-9,
+            ):
+                return False
+        elif combined is not None:
+            return False
+    for key in ("policy_id", "policy_sha256", "editorial_metadata_sha256"):
+        value = data.get(key)
+        if value is not None and (
+            type(value) is not str
+            or (
+                key != "policy_id"
+                and re.fullmatch(r"[0-9a-f]{64}", value) is None
+            )
+        ):
+            return False
+    if (data.get("policy_id") is None) != (data.get("policy_sha256") is None):
+        return False
+    if data.get("policy_id") is not None and re.fullmatch(
+        r"[a-z0-9][a-z0-9._-]{2,79}", data["policy_id"]
+    ) is None:
+        return False
+    input_hashes = data.get("input_sha256")
+    if not isinstance(input_hashes, dict) or any(
+        type(key) is not str or not _valid_sha256(value)
+        for key, value in input_hashes.items()
+    ):
+        return False
+    if input_hashes and set(input_hashes) != set(
+        ORIGINAL_EDITORIAL_REQUIRED_INPUT_SHA256_KEYS
+    ):
+        return False
+    guards = data.get("guards")
+    if (
+        not isinstance(guards, dict)
+        or set(guards)
+        != {
+            "quote_classification",
+            "blocked_promotion",
+            "recent_confirmed",
+            "near_duplicate",
+            "minimum_margin",
+            "maximum_baseline_loss",
+        }
+        or guards.get("quote_classification")
+        not in {None, "editorial_eligible", "baseline_only_historically_specific", "baseline_only_unreviewed"}
+        or any(
+            type(guards.get(key)) is not bool
+            for key in (
+                "blocked_promotion",
+                "recent_confirmed",
+                "near_duplicate",
+                "minimum_margin",
+                "maximum_baseline_loss",
+            )
+        )
+    ):
+        return False
+    breaker = data.get("circuit_breaker")
+    if (
+        not isinstance(breaker, dict)
+        or set(breaker)
+        != {
+            "open",
+            "first_failure_reason",
+            "first_failure_time",
+            "failure_count",
+            "resolved_mode",
+            "mode_source",
+            "policy_id",
+            "policy_sha256",
+        }
+        or type(breaker.get("open")) is not bool
+        or type(breaker.get("failure_count")) is not int
+        or breaker["failure_count"] < 0
+        or breaker.get("resolved_mode") not in ORIGINAL_EDITORIAL_MODES
+        or type(breaker.get("mode_source")) is not str
+        or not breaker["mode_source"]
+        or breaker.get("first_failure_reason")
+        not in ({None} | ORIGINAL_EDITORIAL_INTEGRITY_REASONS | {
+            "policy_unavailable",
+            "policy_invalid",
+            "policy_stale",
+            "policy_unauthorised",
+        })
+        or (
+            breaker.get("first_failure_time") is not None
+            and (
+                type(breaker.get("first_failure_time")) is not str
+                or len(breaker["first_failure_time"]) > 64
+            )
+        )
+        or (
+            breaker["open"]
+            != bool(
+                breaker["failure_count"]
+                and breaker.get("first_failure_reason")
+                and breaker.get("first_failure_time")
+            )
+        )
+        or (
+            (breaker.get("policy_id") is None)
+            != (breaker.get("policy_sha256") is None)
+        )
+        or (
+            breaker.get("policy_id") is not None
+            and (type(breaker.get("policy_id")) is not str or not breaker["policy_id"])
+        )
+        or (
+            breaker.get("policy_sha256") is not None
+            and not _valid_sha256(breaker.get("policy_sha256"))
+        )
+    ):
+        return False
+    return True
+
+
+def _valid_sha256(value: object) -> bool:
+    return type(value) is str and re.fullmatch(r"[0-9a-f]{64}", value) is not None
+
+
+def baseline_editorial_receipt_decision(
+    quote_choice: dict, image_choice: dict, *, selection_phase: str
+) -> dict:
+    """Describe a non-production authoritative baseline without loading policy."""
+    mode, _source = resolved_original_editorial_mode()
+    score = image_choice.get("score")
+    raw_score = (
+        float(score)
+        if not isinstance(score, bool)
+        and isinstance(score, (int, float))
+        and math.isfinite(float(score))
+        else None
+    )
+    adjustment: float | None = None
+    if mode == "shadow" and image_choice.get("image_source") == "original":
+        try:
+            editorial = load_original_editorial_analysis().get(
+                str(image_choice.get("basename") or "")
+            )
+            if editorial is not None:
+                adjustment, _detail = original_editorial_shadow_score(
+                    quote_choice.get("analysis"), editorial
+                )
+        except Exception:
+            # Shadow telemetry is observational. The durable baseline identity
+            # must remain available even if optional shadow metadata changes.
+            adjustment = None
+    combined = (
+        raw_score + adjustment
+        if raw_score is not None and adjustment is not None
+        else None
+    )
+    reason = "mode_shadow" if mode == "shadow" else "mode_disabled"
+    return {
+        "quote_hash": str(quote_choice.get("quote_hash") or ""),
+        "selection_phase": selection_phase,
+        "resolved_mode": mode,
+        "action": "retain_baseline",
+        "reason": reason,
+        "winner_changed_by_policy": False,
+        "baseline": {
+            "basename": str(image_choice.get("basename") or ""),
+            "source": str(image_choice.get("image_source") or ""),
+            "content_sha256": str(image_choice.get("image_hash") or ""),
+            "raw_score": raw_score,
+            "editorial_adjustment": adjustment,
+            "combined_score": combined,
+        },
+        "challenger": {
+            "basename": None,
+            "source": None,
+            "content_sha256": None,
+            "raw_score": None,
+            "editorial_adjustment": None,
+            "combined_score": None,
+        },
+        "authoritative": {
+            "basename": str(image_choice.get("basename") or ""),
+            "source": str(image_choice.get("image_source") or ""),
+            "content_sha256": str(image_choice.get("image_hash") or ""),
+        },
+        "policy_margin": None,
+        "baseline_score_loss": None,
+        "policy_id": None,
+        "policy_sha256": None,
+        "editorial_metadata_sha256": None,
+        "input_sha256": {},
+        "guards": {
+            "quote_classification": None,
+            "blocked_promotion": False,
+            "recent_confirmed": False,
+            "near_duplicate": False,
+            "minimum_margin": False,
+            "maximum_baseline_loss": False,
+        },
+        "circuit_breaker": ORIGINAL_EDITORIAL_CIRCUIT_BREAKER.snapshot(),
+    }
+
+
+def build_original_editorial_selection_pin(
+    *,
+    quote_choice: dict,
+    image_choice: dict,
+    decision: dict,
+    text: str,
+    recovery_plan: dict,
+    attempt_epoch: int,
+    selection_phase: str,
+    engagement_experiment: dict | None = None,
+) -> dict:
+    """Build the exact current selection receipt before media upload."""
+    baseline = decision.get("baseline")
+    challenger = decision.get("challenger")
+    authoritative = decision.get("authoritative")
+    if not all(isinstance(value, dict) for value in (baseline, challenger, authoritative)):
+        raise RuntimeError("Editorial decision payload is incomplete")
+    attempt_id = hashlib.sha256(os.urandom(32)).hexdigest()
+    pin = {
+        "schema_version": ORIGINAL_EDITORIAL_SELECTION_PIN_SCHEMA_VERSION,
+        "receipt_type": "selection_pinned",
+        "lifecycle_state": "selection_pinned",
+        "lane": "quote_image",
+        "attempt_id": attempt_id,
+        "attempt_epoch": int(attempt_epoch),
+        "text": str(text),
+        "text_sha256": hashlib.sha256(str(text).encode("utf-8")).hexdigest(),
+        "made_with_ai": image_choice.get("image_source") == "generated",
+        "selected_identity": {
+            "quote_hash": str(quote_choice["quote_hash"]),
+            "line_no": int(quote_choice["line_no"]),
+            "source_line_number": int(quote_choice["line_no"]) + 1,
+            "image_basename": str(image_choice["basename"]),
+            "image_no": int(image_choice["image_no"]),
+            "image_sha256": str(image_choice["image_hash"]),
+        },
+        "recovery_plan": copy.deepcopy(recovery_plan),
+        "selection_phase": str(selection_phase),
+        "baseline_winner_basename": baseline.get("basename"),
+        "baseline_winner_source": baseline.get("source"),
+        "baseline_winner_content_sha256": baseline.get("content_sha256"),
+        "baseline_raw_score": baseline.get("raw_score"),
+        "baseline_editorial_adjustment": baseline.get("editorial_adjustment"),
+        "baseline_combined_score": baseline.get("combined_score"),
+        "editorial_challenger_basename": challenger.get("basename"),
+        "editorial_challenger_source": challenger.get("source"),
+        "editorial_challenger_content_sha256": challenger.get(
+            "content_sha256"
+        ),
+        "challenger_raw_score": challenger.get("raw_score"),
+        "challenger_editorial_adjustment": challenger.get(
+            "editorial_adjustment"
+        ),
+        "challenger_combined_score": challenger.get("combined_score"),
+        "policy_margin": decision.get("policy_margin"),
+        "baseline_score_loss": decision.get("baseline_score_loss"),
+        "authoritative_selected_basename": authoritative.get("basename"),
+        "authoritative_selected_source": authoritative.get("source"),
+        "authoritative_selected_content_sha256": authoritative.get(
+            "content_sha256"
+        ),
+        "resolved_editorial_mode": decision.get("resolved_mode"),
+        "decision_action": decision.get("action"),
+        "decision_reason": decision.get("reason"),
+        "winner_changed_by_policy": decision.get("winner_changed_by_policy"),
+        "policy_id": decision.get("policy_id"),
+        "policy_sha256": decision.get("policy_sha256"),
+        "editorial_metadata_sha256": decision.get(
+            "editorial_metadata_sha256"
+        ),
+        "input_sha256": copy.deepcopy(decision.get("input_sha256") or {}),
+        "guards": copy.deepcopy(decision.get("guards") or {}),
+        "circuit_breaker": copy.deepcopy(
+            decision.get("circuit_breaker")
+            or ORIGINAL_EDITORIAL_CIRCUIT_BREAKER.snapshot()
+        ),
+    }
+    if engagement_experiment is not None:
+        pin["engagement_question_experiment"] = copy.deepcopy(
+            engagement_experiment
+        )
+    if not original_editorial_selection_pin_is_semantically_valid(pin):
+        raise RuntimeError("Internal error: generated selection pin is invalid")
+    return pin
+
+
+def write_original_editorial_selection_pin(pin: dict) -> None:
+    """Create, never overwrite, the pre-upload regular receipt generation."""
+    if not original_editorial_selection_pin_is_semantically_valid(pin):
+        raise RuntimeError("Refusing an invalid original editorial selection pin")
+    if remote_receipt_retirement_is_blocking():
+        raise UnresolvedRegularPostReceipt(
+            "Refusing selection pin while source-receipt retirement is incomplete"
+        )
+    if any(
+        receipt_namespace_entry_exists(path)
+        for path in (
+            REGULAR_POST_RECEIPT_FILE,
+            MEME_POST_RECEIPT_FILE,
+            CONFIRMED_REPLY_RECEIPT_FILE,
+        )
+    ):
+        raise UnresolvedRegularPostReceipt(
+            "Refusing to overwrite an unresolved receipt with a selection pin"
+        )
+    try:
+        durable_create_receipt_json(REGULAR_POST_RECEIPT_FILE, pin)
+    except FileExistsError as exc:
+        raise UnresolvedRegularPostReceipt(
+            "A regular receipt appeared while the selection pin was published"
+        ) from exc
+    log.warning(
+        "ORIGINAL_EDITORIAL_SELECTION_PINNED attempt_id=%s image=%s hash=%s path=%s",
+        pin["attempt_id"],
+        pin["authoritative_selected_basename"],
+        pin["authoritative_selected_content_sha256"],
+        REGULAR_POST_RECEIPT_FILE,
+    )
+
+
+def editorial_selection_pin_from_attempt(attempt: object) -> dict | None:
+    """Return a validated selection lineage from current quote schemas."""
+    if (
+        isinstance(attempt, dict)
+        and attempt.get("lane") == "quote_image"
+        and attempt.get("schema_version") in {7, 8}
+        and original_editorial_selection_pin_is_semantically_valid(
+            attempt.get("selection_pin")
+        )
+    ):
+        return attempt["selection_pin"]
+    return None
+
+
+def editorial_selection_pin_from_receipt(receipt: object) -> dict | None:
+    """Return current selection lineage without re-running the selector."""
+    if original_editorial_selection_pin_is_semantically_valid(receipt):
+        return receipt
+    pin = editorial_selection_pin_from_attempt(receipt)
+    if pin is not None:
+        return pin
+    if isinstance(receipt, dict):
+        return editorial_selection_pin_from_attempt(receipt.get("source_attempt"))
+    return None
+
+
+def log_original_editorial_production_decision(pin: dict) -> None:
+    """Emit the bounded authoritative event only after durable pinning."""
+    if pin.get("resolved_editorial_mode") != "production":
+        return
+    selected = pin["selected_identity"]
+    payload = {
+        "schema_version": 1,
+        "decision_id": pin["attempt_id"],
+        "attempt_id": pin["attempt_id"],
+        "quote_hash": selected["quote_hash"],
+        "selection_phase": pin["selection_phase"],
+        "resolved_mode": pin["resolved_editorial_mode"],
+        "baseline": {
+            "basename": pin["baseline_winner_basename"],
+            "source": pin["baseline_winner_source"],
+            "content_sha256": pin["baseline_winner_content_sha256"],
+            "raw_score": pin["baseline_raw_score"],
+            "editorial_adjustment": pin["baseline_editorial_adjustment"],
+            "combined_score": pin["baseline_combined_score"],
+        },
+        "challenger": {
+            "basename": pin["editorial_challenger_basename"],
+            "source": pin["editorial_challenger_source"],
+            "content_sha256": pin["editorial_challenger_content_sha256"],
+            "raw_score": pin["challenger_raw_score"],
+            "editorial_adjustment": pin["challenger_editorial_adjustment"],
+            "combined_score": pin["challenger_combined_score"],
+        },
+        "authoritative": {
+            "basename": pin["authoritative_selected_basename"],
+            "content_sha256": pin[
+                "authoritative_selected_content_sha256"
+            ],
+            "source": pin["authoritative_selected_source"],
+        },
+        "winner_changed_by_policy": pin["winner_changed_by_policy"],
+        "policy_margin": pin["policy_margin"],
+        "baseline_score_loss": pin["baseline_score_loss"],
+        "action": pin["decision_action"],
+        "reason": pin["decision_reason"],
+        "policy_id": pin["policy_id"],
+        "policy_sha256": pin["policy_sha256"],
+        "editorial_metadata_sha256": pin["editorial_metadata_sha256"],
+        "input_sha256": pin["input_sha256"],
+        "guards": pin["guards"],
+        "circuit_breaker": pin["circuit_breaker"],
+        "receipt_pinned": True,
+    }
+    log.info(
+        "ORIGINAL_EDITORIAL_PRODUCTION_DECISION %s",
+        json.dumps(payload, sort_keys=True, separators=(",", ":")),
+    )
+
+
+def log_original_editorial_production_confirmation(
+    receipt: dict,
+    *,
+    history_updated: bool,
+    receipt_retired: bool,
+) -> None:
+    """Correlate one confirmed post to its exact authoritative decision."""
+    pin = editorial_selection_pin_from_receipt(receipt)
+    if pin is None or pin.get("resolved_editorial_mode") != "production":
+        return
+    media_ids = receipt.get("media_ids")
+    media_id = (
+        str(media_ids[0])
+        if isinstance(media_ids, list) and len(media_ids) == 1
+        else None
+    )
+    payload = {
+        "schema_version": 1,
+        "decision_id": pin["attempt_id"],
+        "attempt_id": pin["attempt_id"],
+        "post_id": str(receipt.get("post_id") or ""),
+        "quote_hash": pin["selected_identity"]["quote_hash"],
+        "actual_image_basename": str(receipt.get("image_basename") or ""),
+        "actual_image_content_sha256": pin[
+            "authoritative_selected_content_sha256"
+        ],
+        "media_id": media_id,
+        "media_handoff_confirmed": media_id is not None,
+        "winner_changed_by_policy": pin["winner_changed_by_policy"],
+        "policy_id": pin["policy_id"],
+        "policy_sha256": pin["policy_sha256"],
+        "history_updated": bool(history_updated),
+        "receipt_retired": bool(receipt_retired),
+    }
+    log.info(
+        "ORIGINAL_EDITORIAL_PRODUCTION_CONFIRMED %s",
+        json.dumps(payload, sort_keys=True, separators=(",", ":")),
+    )
+
+
+def resolve_pinned_regular_image(pin: dict) -> dict:
+    """Resolve and verify the exact pinned file through its configured root."""
+    if not original_editorial_selection_pin_is_semantically_valid(pin):
+        open_original_editorial_circuit_breaker("receipt_decision_inconsistency")
+        raise InvalidRegularPostReceipt("Editorial selection pin is invalid")
+    selected = pin["selected_identity"]
+    basename = str(selected["image_basename"])
+    configured_root = (
+        Path(str(GENERATED_IMAGE_DIR)).expanduser()
+        if pin["made_with_ai"]
+        else Path(IMAGE_GLOB).expanduser().parent
+    )
+    candidate = configured_root / basename
+    try:
+        resolved_root = configured_root.resolve(strict=True)
+        resolved_candidate = candidate.resolve(strict=True)
+        if (
+            resolved_candidate.parent != resolved_root
+            or not resolved_candidate.is_file()
+            or resolved_candidate.name != basename
+        ):
+            raise ValueError("pinned image escaped its configured root")
+        actual_hash = file_sha256(resolved_candidate)
+    except Exception as exc:
+        open_original_editorial_circuit_breaker("candidate_content_hash_mismatch")
+        raise InvalidRegularPostReceipt(
+            "Pinned regular image is missing or unsafe; no substitution permitted"
+        ) from exc
+    expected_hash = str(pin["authoritative_selected_content_sha256"])
+    if actual_hash != expected_hash or selected["image_sha256"] != expected_hash:
+        open_original_editorial_circuit_breaker("candidate_content_hash_mismatch")
+        raise InvalidRegularPostReceipt(
+            "Pinned regular image content changed; no substitution permitted"
+        )
+    selected_score = (
+        pin["challenger_raw_score"]
+        if pin["winner_changed_by_policy"]
+        else pin["baseline_raw_score"]
+    )
+    return {
+        "image_no": int(selected["image_no"]),
+        "path": str(resolved_candidate),
+        "basename": basename,
+        "image_hash": expected_hash,
+        "score": selected_score,
+        "components": {},
+        "cycle_reset": pin["selection_phase"] != "normal",
+        "image_source": "generated" if pin["made_with_ai"] else "original",
+        "origin_quote_hash": generated_image_origin_quote_hash(basename),
+        "origin_quote_match": False,
+        "origin_quote_boost": 0.0,
+    }
+
+
 def canonical_remote_post_payload_sha256(payload: dict) -> str:
     """Return the stable identity of one exact X create payload."""
     encoded = json.dumps(
@@ -13369,12 +14497,12 @@ def engagement_experiment_attempt_envelope_is_valid(
 def engagement_experiment_envelope_from_attempt(
     attempt: object,
 ) -> dict | None:
-    """Return one validated-looking envelope only for schema-v6 quote attempts."""
+    """Return one validated-looking envelope from experiment quote attempts."""
 
     if (
         isinstance(attempt, dict)
         and attempt.get("lane") == "quote_image"
-        and attempt.get("schema_version") == 6
+        and attempt.get("schema_version") in {6, 8}
         and isinstance(attempt.get("engagement_question_experiment"), dict)
     ):
         return attempt["engagement_question_experiment"]
@@ -13389,7 +14517,7 @@ def main_post_attempt_is_semantically_valid(data: object) -> bool:
     if type(lane) is not str:
         return False
     supported_schemas = {
-        "quote_image": {3, 4, 5, 6},
+        "quote_image": {3, 4, 5, 6, 7, 8},
         "daily_meme": {2, 3, 4, 5},
     }.get(lane)
     schema_version = data.get("schema_version")
@@ -13442,15 +14570,18 @@ def main_post_attempt_is_semantically_valid(data: object) -> bool:
         return False
     if lane == "quote_image":
         experiment_envelope = data.get("engagement_question_experiment")
-        if (schema_version == 6) != (experiment_envelope is not None):
+        if (schema_version in {6, 8}) != (experiment_envelope is not None):
             return False
-        if set(selected) != {
+        expected_selected_keys = {
             "quote_hash",
             "line_no",
             "source_line_number",
             "image_basename",
             "image_no",
-        }:
+        }
+        if schema_version in {7, 8}:
+            expected_selected_keys.add("image_sha256")
+        if set(selected) != expected_selected_keys:
             return False
         quote_hash = selected.get("quote_hash")
         canonical_identity_text = (
@@ -13463,7 +14594,7 @@ def main_post_attempt_is_semantically_valid(data: object) -> bool:
             or re.fullmatch(r"[0-9a-f]{64}", quote_hash) is None
             or quote_text_hash(canonical_identity_text) != quote_hash
             or (
-                schema_version == 6
+                schema_version in {6, 8}
                 and not engagement_experiment_attempt_envelope_is_valid(
                     experiment_envelope,
                     public_text=text,
@@ -13477,6 +14608,10 @@ def main_post_attempt_is_semantically_valid(data: object) -> bool:
             or selected.get("source_line_number") != int(selected["line_no"]) + 1
             or type(selected.get("image_no")) is not int
             or int(selected["image_no"]) < 0
+            or (
+                schema_version in {7, 8}
+                and not _valid_sha256(selected.get("image_sha256"))
+            )
         ):
             return False
         expected_recovery_keys = {
@@ -13485,14 +14620,14 @@ def main_post_attempt_is_semantically_valid(data: object) -> bool:
             "quote_history_after",
             "image_history_after",
         }
-        if schema_version in {4, 5, 6}:
+        if schema_version in {4, 5, 6, 7, 8}:
             expected_recovery_keys |= {
                 "meme_scheduling_enabled",
                 "meme_trigger_after_hour",
                 "meme_schedule_version",
                 "meme_schedule_before",
             }
-        if schema_version in {5, 6}:
+        if schema_version in {5, 6, 7, 8}:
             expected_recovery_keys.add("schedule_timezone")
         if set(recovery_plan) != expected_recovery_keys:
             return False
@@ -13534,7 +14669,7 @@ def main_post_attempt_is_semantically_valid(data: object) -> bool:
             )
         ):
             return False
-        if schema_version in {4, 5, 6} and (
+        if schema_version in {4, 5, 6, 7, 8} and (
             type(recovery_plan.get("meme_scheduling_enabled")) is not bool
             or type(recovery_plan.get("meme_trigger_after_hour")) is not int
             or not 0 <= int(recovery_plan["meme_trigger_after_hour"]) <= 23
@@ -13546,12 +14681,12 @@ def main_post_attempt_is_semantically_valid(data: object) -> bool:
                 recovery_plan.get("meme_schedule_before"),
                 schedule_timezone=(
                     recovery_plan.get("schedule_timezone")
-                    if schema_version in {5, 6}
+                    if schema_version in {5, 6, 7, 8}
                     else None
                 ),
             )
             or (
-                schema_version in {5, 6}
+                schema_version in {5, 6, 7, 8}
                 and (
                     type(recovery_plan.get("schedule_timezone")) is not str
                     or recovery_plan["schedule_timezone"]
@@ -13573,6 +14708,24 @@ def main_post_attempt_is_semantically_valid(data: object) -> bool:
             )
         ):
             return False
+        selection_pin = data.get("selection_pin")
+        if (schema_version in {7, 8}) != (selection_pin is not None):
+            return False
+        if schema_version in {7, 8}:
+            if (
+                not original_editorial_selection_pin_is_semantically_valid(
+                    selection_pin
+                )
+                or selection_pin["attempt_id"] != data["attempt_id"]
+                or selection_pin["attempt_epoch"] != data["attempt_epoch"]
+                or selection_pin["text"] != data["text"]
+                or selection_pin["made_with_ai"] != data["made_with_ai"]
+                or selection_pin["selected_identity"] != data["selected_identity"]
+                or selection_pin["recovery_plan"] != data["recovery_plan"]
+                or selection_pin.get("engagement_question_experiment")
+                != data.get("engagement_question_experiment")
+            ):
+                return False
     else:
         expected_meme_keys = {"next_schedule_mode"}
         if schema_version in {3, 4, 5}:
@@ -13651,7 +14804,7 @@ def current_main_post_attempt_is_semantically_valid(data: object) -> bool:
     return bool(
         main_post_attempt_is_semantically_valid(data)
         and isinstance(data, dict)
-        and data.get("schema_version") in {5, 6}
+        and data.get("schema_version") in {5, 6, 7, 8}
     )
 
 
@@ -13665,6 +14818,7 @@ def build_main_post_attempt(
     recovery_plan: dict,
     attempt_epoch: int | None = None,
     engagement_experiment: dict | None = None,
+    selection_pin: dict | None = None,
 ) -> dict:
     """Build a durable pre-send identity for one main-post transaction."""
     if lane not in {"quote_image", "daily_meme"}:
@@ -13684,12 +14838,37 @@ def build_main_post_attempt(
         )
     if engagement_experiment is not None and lane != "quote_image":
         raise ValueError("experiment metadata is valid only for quote/image posts")
+    if selection_pin is not None and (
+        lane != "quote_image"
+        or not original_editorial_selection_pin_is_semantically_valid(
+            selection_pin
+        )
+    ):
+        raise ValueError("selection_pin must be a valid quote/image selection")
     attempt = {
-        "schema_version": 6 if engagement_experiment is not None else 5,
+        "schema_version": (
+            8
+            if selection_pin is not None and engagement_experiment is not None
+            else 7
+            if selection_pin is not None
+            else 6
+            if engagement_experiment is not None
+            else 5
+        ),
         "lifecycle_state": "sending",
         "lane": lane,
-        "attempt_id": hashlib.sha256(os.urandom(32)).hexdigest(),
-        "attempt_epoch": now_epoch() if attempt_epoch is None else int(attempt_epoch),
+        "attempt_id": (
+            str(selection_pin["attempt_id"])
+            if selection_pin is not None
+            else hashlib.sha256(os.urandom(32)).hexdigest()
+        ),
+        "attempt_epoch": (
+            int(selection_pin["attempt_epoch"])
+            if selection_pin is not None
+            else now_epoch()
+            if attempt_epoch is None
+            else int(attempt_epoch)
+        ),
         "payload_revision": 1,
         "payload_sha256": canonical_remote_post_payload_sha256(payload),
         "text": str(text),
@@ -13704,6 +14883,8 @@ def build_main_post_attempt(
         attempt["engagement_question_experiment"] = copy.deepcopy(
             engagement_experiment
         )
+    if selection_pin is not None:
+        attempt["selection_pin"] = copy.deepcopy(selection_pin)
     if not current_main_post_attempt_is_semantically_valid(attempt):
         raise RuntimeError("Internal error: generated main-post attempt is invalid")
     return attempt
@@ -13733,6 +14914,35 @@ def write_main_post_attempt(attempt: dict) -> None:
         raise UnresolvedRegularPostReceipt(
             "Refusing a main-post attempt while source-receipt retirement is incomplete"
         )
+    selection_pin = editorial_selection_pin_from_attempt(attempt)
+    if selection_pin is not None:
+        status, current = load_regular_post_receipt()
+        if (
+            status != "selection_pinned"
+            or current != selection_pin
+            or receipt_namespace_entry_exists(MEME_POST_RECEIPT_FILE)
+        ):
+            raise UnresolvedRegularPostReceipt(
+                "Refusing to promote a changed or unowned selection pin"
+            )
+        if receipt_namespace_entry_exists(CONFIRMED_REPLY_RECEIPT_FILE):
+            raise InvalidConfirmedReplyReceipt(
+                "Refusing selection-pin promotion while a reply receipt exists"
+            )
+        replace_exact_source_receipt_document(
+            REGULAR_POST_RECEIPT_FILE,
+            expected_bytes=canonical_atomic_json_bytes(selection_pin),
+            replacement_bytes=canonical_atomic_json_bytes(attempt),
+            mutation_authority=transaction_mutation_authority(
+                "selection-pinned to main-post sending receipt promotion"
+            ),
+        )
+        log.warning(
+            "Promoted selection pin to main-post sending receipt attempt_id=%s path=%s",
+            attempt["attempt_id"],
+            REGULAR_POST_RECEIPT_FILE,
+        )
+        return
     if receipt_namespace_entry_exists(
         REGULAR_POST_RECEIPT_FILE
     ) or receipt_namespace_entry_exists(MEME_POST_RECEIPT_FILE):
@@ -13794,10 +15004,10 @@ def prepare_main_tweet_transport(
     return attempt, source, authority
 
 
-def confirmed_media_upload_experiment_envelope(
+def confirmed_media_upload_payload_metadata(
     confirmation: ConfirmedMediaUpload,
-) -> dict | None:
-    """Return trial authority from the exact confirmed media generation."""
+) -> dict:
+    """Return validated authority from the exact confirmed media generation."""
 
     if not isinstance(confirmation, ConfirmedMediaUpload):
         raise MediaUploadReceiptError("confirmed media identity is invalid")
@@ -13825,8 +15035,32 @@ def confirmed_media_upload_experiment_envelope(
         raise MediaUploadReceiptError(
             "confirmed media receipt payload authority is invalid"
         ) from exc
+    return validated
+
+
+def confirmed_media_upload_experiment_envelope(
+    confirmation: ConfirmedMediaUpload,
+) -> dict | None:
+    """Return trial authority from the exact confirmed media generation."""
+    validated = confirmed_media_upload_payload_metadata(confirmation)
     envelope = validated.get("engagement_question_experiment")
     return copy.deepcopy(envelope) if isinstance(envelope, dict) else None
+
+
+def confirmed_media_upload_matches_selection_pin(pin: dict) -> bool:
+    """Return whether the sole confirmed media generation belongs to ``pin``."""
+    try:
+        if not original_editorial_selection_pin_is_semantically_valid(pin):
+            return False
+        confirmation = load_confirmed_media_upload(MEDIA_UPLOAD_RECEIPT_FILE)
+        if confirmation is None or confirmation.lane != "quote_image":
+            return False
+        metadata = confirmed_media_upload_payload_metadata(confirmation)
+        return metadata.get("original_editorial_selection") == (
+            original_editorial_selection_media_binding(pin)
+        )
+    except (MediaUploadReceiptError, OSError, TypeError, ValueError):
+        return False
 
 
 def handoff_confirmed_media_upload_to_main_attempt(
@@ -13845,6 +15079,19 @@ def handoff_confirmed_media_upload_to_main_attempt(
     if media_experiment != attempt_experiment:
         raise MediaUploadReceiptError(
             "confirmed media experiment authority does not match main-post attempt"
+        )
+    selection_pin = editorial_selection_pin_from_attempt(attempt)
+    media_selection = confirmed_media_upload_payload_metadata(confirmation).get(
+        "original_editorial_selection"
+    )
+    expected_selection = (
+        original_editorial_selection_media_binding(selection_pin)
+        if selection_pin is not None
+        else None
+    )
+    if media_selection != expected_selection:
+        raise MediaUploadReceiptError(
+            "confirmed media selection authority does not match main-post attempt"
         )
     path = main_post_attempt_path(attempt)
     handoff = bind_media_handoff_to_transport(
@@ -14026,7 +15273,7 @@ def confirmed_pending_schedule_receipt_is_semantically_valid(
         # Older attempts remain readable as conservative restart barriers,
         # but their bytes did not bind a calendar zone.  They therefore cannot
         # authorise post-confirmation schedule materialisation.
-        or attempt.get("schema_version") not in {5, 6}
+        or attempt.get("schema_version") not in {5, 6, 7, 8}
         or confirmation_epoch < int(attempt["attempt_epoch"])
     ):
         return False
@@ -14292,8 +15539,17 @@ def materialize_bound_regular_schedule_receipt(
             meme_schedule_changed_by_quote = True
 
     experiment_envelope = engagement_experiment_envelope_from_attempt(attempt)
+    selection_pin = editorial_selection_pin_from_attempt(attempt)
     receipt = {
-        "schema_version": 4 if experiment_envelope is not None else 3,
+        "schema_version": (
+            6
+            if selection_pin is not None and experiment_envelope is not None
+            else 5
+            if selection_pin is not None
+            else 4
+            if experiment_envelope is not None
+            else 3
+        ),
         "post_id": str(pending["post_id"]),
         "quote_hash": str(selected["quote_hash"]),
         "line_no": int(selected["line_no"]),
@@ -14469,7 +15725,7 @@ def write_regular_post_receipt(receipt: dict) -> None:
         if (
             status == "sending"
             and isinstance(attempt, dict)
-            and attempt.get("schema_version") in {4, 5, 6}
+            and attempt.get("schema_version") in {4, 5, 6, 7, 8}
         ):
             raise UnresolvedRegularPostReceipt(
                 "Current-schema regular attempts must be promoted through the "
@@ -14506,7 +15762,7 @@ def write_regular_post_receipt(receipt: dict) -> None:
 def regular_post_receipt_is_semantically_valid(data: dict) -> bool:
     """Return whether a regular-post receipt is internally consistent."""
     schema_version = data.get("schema_version")
-    if type(schema_version) is not int or schema_version not in {1, 2, 3, 4}:
+    if type(schema_version) is not int or schema_version not in {1, 2, 3, 4, 5, 6}:
         return False
     post_id = data.get("post_id")
     quote_hash = data.get("quote_hash")
@@ -14518,7 +15774,7 @@ def regular_post_receipt_is_semantically_valid(data: dict) -> bool:
     bound_timezone = MAIN_POST_SCHEDULE_TIMEZONE
     if (
         isinstance(lineage_attempt, dict)
-        and lineage_attempt.get("schema_version") in {5, 6}
+        and lineage_attempt.get("schema_version") in {5, 6, 7, 8}
         and isinstance(lineage_attempt.get("recovery_plan"), dict)
     ):
         bound_timezone = lineage_attempt["recovery_plan"].get(
@@ -14543,9 +15799,10 @@ def regular_post_receipt_is_semantically_valid(data: dict) -> bool:
     if not isinstance(text, str) or not text.strip():
         return False
     experiment_envelope = data.get("engagement_question_experiment")
-    quote_text = data.get("quote_text") if schema_version == 4 else text
+    is_experiment = schema_version in {4, 6}
+    quote_text = data.get("quote_text") if is_experiment else text
     if (
-        (schema_version == 4)
+        is_experiment
         != (
             "engagement_question_experiment" in data
             and "quote_text" in data
@@ -14553,7 +15810,7 @@ def regular_post_receipt_is_semantically_valid(data: dict) -> bool:
         or type(quote_text) is not str
         or quote_text_hash(quote_text) != quote_hash
         or (
-            schema_version == 4
+            is_experiment
             and not engagement_experiment_attempt_envelope_is_valid(
                 experiment_envelope,
                 public_text=text,
@@ -14561,12 +15818,12 @@ def regular_post_receipt_is_semantically_valid(data: dict) -> bool:
             )
         )
         or (
-            schema_version == 4
+            is_experiment
             and quote_text != experiment_envelope.get("canonical_quote_text")
         )
     ):
         return False
-    if schema_version in {2, 3, 4}:
+    if schema_version in {2, 3, 4, 5, 6}:
         quote_history = data.get("quote_history_after")
         image_history = data.get("image_history_after")
         if (
@@ -14594,7 +15851,7 @@ def regular_post_receipt_is_semantically_valid(data: dict) -> bool:
     if next_meme_epoch is None:
         return False
     schedule_version = data.get("meme_schedule_version")
-    if schema_version in {3, 4} and (
+    if schema_version in {3, 4, 5, 6} and (
         type(schedule_version) is not int
         or schedule_version < 0
         or schedule_version > MEME_SCHEDULE_VERSION
@@ -14607,7 +15864,7 @@ def regular_post_receipt_is_semantically_valid(data: dict) -> bool:
     ):
         return False
     if next_meme_epoch:
-        if schema_version in {3, 4} and schedule_version < 1:
+        if schema_version in {3, 4, 5, 6} and schedule_version < 1:
             return False
         if not valid_receipt_epoch(next_meme_epoch):
             return False
@@ -14657,13 +15914,13 @@ def regular_post_receipt_is_semantically_valid(data: dict) -> bool:
         source_sha256 = data.get("source_attempt_sha256")
         if (
             present_lineage_fields != lineage_fields
-            or schema_version not in {3, 4}
+            or schema_version not in {3, 4, 5, 6}
             or type(data.get("line_no")) is not int
             or type(data.get("source_line_number")) is not int
             or type(data.get("image_no")) is not int
             or not isinstance(source_attempt, dict)
             or source_attempt.get("schema_version")
-            != (6 if schema_version == 4 else 5)
+            != {3: 5, 4: 6, 5: 7, 6: 8}[schema_version]
             or source_attempt.get("lifecycle_state") != "attempting"
             or source_attempt.get("lane") != "quote_image"
             or not main_post_attempt_is_semantically_valid(source_attempt)
@@ -14707,6 +15964,8 @@ def load_regular_post_receipt() -> tuple[str, dict | None]:
         return "invalid", None
     if not present:
         return "absent", None
+    if original_editorial_selection_pin_is_semantically_valid(data):
+        return "selection_pinned", data
     if isinstance(data, dict) and main_post_attempt_is_semantically_valid(data):
         if data.get("lane") == "quote_image":
             return "sending", data
@@ -14723,7 +15982,7 @@ def load_regular_post_receipt() -> tuple[str, dict | None]:
     if (
         not isinstance(data, dict)
         or type(data.get("schema_version")) is not int
-        or data.get("schema_version") not in {1, 2, 3, 4}
+        or data.get("schema_version") not in {1, 2, 3, 4, 5, 6}
     ):
         log.critical("Invalid regular-post receipt blocks main posting until repaired: %s", REGULAR_POST_RECEIPT_FILE)
         return "invalid", None
@@ -15113,7 +16372,10 @@ def engagement_experiment_envelope_from_receipt(
 ) -> dict | None:
     """Return the experiment envelope from one validated regular receipt."""
 
-    if not isinstance(receipt, dict) or receipt.get("schema_version") != 4:
+    if (
+        not isinstance(receipt, dict)
+        or receipt.get("schema_version") not in {4, 6}
+    ):
         return None
     value = receipt.get("engagement_question_experiment")
     return value if isinstance(value, dict) else None
@@ -15208,7 +16470,7 @@ def log_confirmed_engagement_experiment_receipt(receipt: dict) -> None:
         )
 
 
-def apply_regular_post_receipt(receipt: dict, lines_used: set, images_used: set, state: dict) -> None:
+def apply_regular_post_receipt(receipt: dict, lines_used: set, images_used: set, state: dict) -> bool:
     """Apply regular post receipt."""
     post_id = str(receipt["post_id"])
     quote_hash = str(receipt["quote_hash"])
@@ -15218,7 +16480,7 @@ def apply_regular_post_receipt(receipt: dict, lines_used: set, images_used: set,
     text = str(receipt.get("text") or "")
 
     last_quote_epoch = int(state.get("last_quote_post_epoch", 0) or 0)
-    if receipt.get("schema_version") in {2, 3, 4} and quote_post_epoch > last_quote_epoch:
+    if receipt.get("schema_version") in {2, 3, 4, 5, 6} and quote_post_epoch > last_quote_epoch:
         # Only a strictly newer receipt may install its exact post-cycle
         # snapshot.  Replaying an older snapshot after newer local state would
         # erase duplicate-suppression identities and could permit reuse.
@@ -15226,7 +16488,7 @@ def apply_regular_post_receipt(receipt: dict, lines_used: set, images_used: set,
         lines_used.update(str(value) for value in receipt["quote_history_after"])
         images_used.clear()
         images_used.update(str(value) for value in receipt["image_history_after"])
-    elif receipt.get("schema_version") in {2, 3, 4}:
+    elif receipt.get("schema_version") in {2, 3, 4, 5, 6}:
         # Equal or stale replay is monotonic.  Unioning the receipt's identities
         # can conservatively delay reuse, but can never discard newer evidence.
         lines_used.update(str(value) for value in receipt["quote_history_after"])
@@ -15280,7 +16542,7 @@ def apply_regular_post_receipt(receipt: dict, lines_used: set, images_used: set,
         if not spacing_already_reflected:
             update_regular_generated_image_spacing_state(state, image_basename)
     if receipt_is_newest_main:
-        if receipt.get("schema_version") in {2, 3, 4}:
+        if receipt.get("schema_version") in {2, 3, 4, 5, 6}:
             # Current schema-v3 receipts carry the exact bound schedule and
             # its policy version. Schema v2 retains the earlier exact-time
             # interpretation with a backward-compatible version fallback.
@@ -15292,7 +16554,7 @@ def apply_regular_post_receipt(receipt: dict, lines_used: set, images_used: set,
             )
             state["meme_schedule_version"] = (
                 int(receipt["meme_schedule_version"])
-                if receipt.get("schema_version") in {3, 4}
+                if receipt.get("schema_version") in {3, 4, 5, 6}
                 else int(
                     receipt.get("meme_schedule_version")
                     or MEME_SCHEDULE_VERSION
@@ -15333,6 +16595,29 @@ def apply_regular_post_receipt(receipt: dict, lines_used: set, images_used: set,
     if receipt_is_newest_main:
         record_recent_own_post(state, post_id)
     apply_confirmed_engagement_experiment_receipt(receipt, state)
+    selection_pin = editorial_selection_pin_from_receipt(receipt)
+    recent_history_updated = False
+    if selection_pin is not None:
+        if (
+            selection_pin["authoritative_selected_basename"] != image_basename
+            or selection_pin["selected_identity"]["image_basename"]
+            != image_basename
+        ):
+            open_original_editorial_circuit_breaker(
+                "receipt_decision_inconsistency"
+            )
+            raise RuntimeError(
+                "Confirmed receipt image differs from its editorial selection pin"
+            )
+        recent_history_updated = record_recent_confirmed_regular_image(
+            state,
+            post_id=post_id,
+            image_basename=image_basename,
+            image_sha256=selection_pin[
+                "authoritative_selected_content_sha256"
+            ],
+        )
+    return recent_history_updated
 
 
 def save_regular_post_protected_state(lines_used: set, images_used: set, state: dict, *, durable: bool) -> None:
@@ -15426,6 +16711,23 @@ def confirmed_regular_emergency_representation_is_complete(
                 if isinstance(row, dict)
             )
         )
+    selection_pin = editorial_selection_pin_from_attempt(main_post_attempt)
+    recent_history_complete = True
+    if selection_pin is not None:
+        recent_history = normalise_recent_confirmed_regular_images(
+            state.get("recent_confirmed_regular_images", []),
+            path=STATE_FILE,
+        )
+        recent_history_complete = bool(
+            recent_history is not None
+            and any(
+                item["post_id"] == str(post_id)
+                and item["image_basename"] == image_basename
+                and item["image_sha256"]
+                == selection_pin["authoritative_selected_content_sha256"]
+                for item in recent_history
+            )
+        )
     return bool(
         valid_post_id(post_id)
         and post_epoch is not None
@@ -15436,6 +16738,7 @@ def confirmed_regular_emergency_representation_is_complete(
         and quote_hash in lines_used
         and image_basename in images_used
         and experiment_complete
+        and recent_history_complete
         and state_post_epoch == post_epoch
         and receipt_int(state.get("next_quote_post_epoch"))
         == int(expected["next_quote_post_epoch"])
@@ -17091,6 +18394,12 @@ def reconcile_regular_post_receipt(
     status, receipt = load_regular_post_receipt()
     if status == "absent":
         return False
+    if status == "selection_pinned":
+        log.warning(
+            "A regular selection is durably pinned before media hand-off; "
+            "the quote/image lane will resume it without re-selection"
+        )
+        return False
     if status == "sending":
         log.critical(
             "A regular post was interrupted with an uncertain remote outcome; "
@@ -17119,7 +18428,9 @@ def reconcile_regular_post_receipt(
         receipt.get("quote_hash"),
         receipt.get("image_basename"),
     )
-    apply_regular_post_receipt(receipt, lines_used, images_used, state)
+    recent_history_updated = apply_regular_post_receipt(
+        receipt, lines_used, images_used, state
+    )
     if minimum_next_quote_epoch is not None:
         ensure_reconciled_regular_receipt_schedule_is_future(
             receipt,
@@ -17150,6 +18461,11 @@ def reconcile_regular_post_receipt(
         post_id=str(receipt["post_id"]),
     )
     remove_regular_post_receipt(receipt)
+    log_original_editorial_production_confirmation(
+        receipt,
+        history_updated=recent_history_updated,
+        receipt_retired=True,
+    )
     publish_pending_engagement_question_notification(state)
     emit_account_root_posted(
         lane="quote_image",
@@ -18111,6 +19427,10 @@ _ORIGINAL_EDITORIAL_SYNONYM_TO_CONCEPT = {
     for value in values | {concept}
 }
 _ORIGINAL_EDITORIAL_ANALYSIS_CACHE: dict[str, dict] = {}
+_ORIGINAL_EDITORIAL_PRODUCTION_POLICY: ValidatedEditorialPolicy | None = None
+_ORIGINAL_EDITORIAL_POLICY_FILE_IDENTITY: tuple[int, int, int, int] | None = None
+_ORIGINAL_EDITORIAL_PENDING_DECISION: dict[str, object] | None = None
+ORIGINAL_EDITORIAL_CIRCUIT_BREAKER = EditorialCircuitBreaker()
 GENERATED_IDENTITY_AUDIT_KIND = "generated_image_identity_dependence_audit"
 GENERATED_IDENTITY_AUDIT_SCHEMA_VERSION = 1
 GENERATED_IDENTITY_POLICIES = {"unrestricted", "small_penalty", "strong_penalty", "origin_quote_only"}
@@ -18315,18 +19635,173 @@ def load_original_editorial_analysis() -> dict[str, dict]:
     return result
 
 
-def validate_original_editorial_shadow_startup() -> None:
-    """Validate original editorial shadow startup."""
-    if not ENABLE_ORIGINAL_EDITORIAL_SHADOW_SCORING:
-        return
-    count = len(load_original_editorial_analysis())
-    log.info(
-        "Original editorial shadow scoring enabled. analysis_file=%s original_items=%d weight=%s max_abs_adjustment=%s",
-        ORIGINAL_EDITORIAL_ANALYSIS_FILE,
-        count,
-        ORIGINAL_EDITORIAL_SHADOW_WEIGHT,
-        ORIGINAL_EDITORIAL_SHADOW_MAX_ABS_ADJUSTMENT,
+def original_editorial_runtime_input_sha256() -> dict[str, str]:
+    """Hash the exact local inputs whose content authorises production."""
+    return {
+        "quotation_corpus": editorial_file_sha256(LINES_FILE),
+        "quote_analysis": editorial_file_sha256(QUOTE_ANALYSIS_FILE),
+        "quote_analysis_overrides": editorial_file_sha256(
+            QUOTE_ANALYSIS_OVERRIDES_FILE
+        ),
+        "image_analysis": editorial_file_sha256(IMAGE_ANALYSIS_FILE),
+        "original_editorial_analysis": editorial_file_sha256(
+            Path(str(ORIGINAL_EDITORIAL_ANALYSIS_FILE)).expanduser()
+        ),
+    }
+
+
+def current_original_editorial_quote_hashes() -> list[str]:
+    """Return every distinct non-empty current quotation content identity."""
+    with LINES_FILE.open("r", encoding="utf-8") as handle:
+        hashes = {
+            quote_text_hash(line.rstrip("\n"))
+            for line in handle
+            if line.strip()
+        }
+    if not hashes:
+        raise RuntimeError("Current quotation corpus is empty")
+    return sorted(hashes)
+
+
+def current_original_image_sha256_by_basename() -> dict[str, str]:
+    """Hash each current original once while validating a policy snapshot."""
+    result: dict[str, str] = {}
+    for path_text in current_image_paths():
+        basename = Path(path_text).name
+        if generated_image_origin_quote_hash(basename):
+            continue
+        image_hash = current_image_sha256(path_text)
+        if basename in result or image_hash in result.values():
+            raise RuntimeError(
+                f"Current original image identity collision: {basename}"
+            )
+        result[basename] = image_hash
+    if not result:
+        raise RuntimeError("No current original images are available")
+    return result
+
+
+def original_editorial_policy_file_identity() -> tuple[int, int, int, int]:
+    """Return a bounded identity for change detection after validation."""
+    path = Path(str(ORIGINAL_EDITORIAL_PRODUCTION_POLICY_FILE)).expanduser()
+    observed = path.stat()
+    if not stat.S_ISREG(observed.st_mode):
+        raise RuntimeError(f"Editorial production policy is not a regular file: {path}")
+    return (
+        int(observed.st_dev),
+        int(observed.st_ino),
+        int(observed.st_size),
+        int(observed.st_mtime_ns),
     )
+
+
+def log_original_editorial_breaker_open(reason: str, *, first: bool) -> None:
+    """Emit one prominent first failure and bounded subsequent observations."""
+    snapshot = ORIGINAL_EDITORIAL_CIRCUIT_BREAKER.snapshot()
+    if first:
+        log.critical(
+            "ORIGINAL EDITORIAL CIRCUIT BREAKER OPEN: reason=%s; all editorial "
+            "production decisions in this process will retain the ordinary baseline",
+            reason,
+        )
+    else:
+        log.warning(
+            "Original editorial circuit breaker remains open reason=%s failures=%s",
+            snapshot.get("first_failure_reason"),
+            snapshot.get("failure_count"),
+        )
+    log.info(
+        "ORIGINAL_EDITORIAL_CIRCUIT_BREAKER %s",
+        json.dumps(snapshot, sort_keys=True, separators=(",", ":")),
+    )
+
+
+def open_original_editorial_circuit_breaker(reason: str) -> None:
+    """Open the feature-only breaker without interrupting ordinary posting."""
+    first = ORIGINAL_EDITORIAL_CIRCUIT_BREAKER.open(reason)
+    # Do not flood normal logs once the first failure has been recorded.
+    if first or ORIGINAL_EDITORIAL_CIRCUIT_BREAKER.failure_count <= 3:
+        log_original_editorial_breaker_open(reason, first=first)
+
+
+def initialise_original_editorial_mode() -> None:
+    """Resolve mode and validate only the resources that mode requires."""
+    global _ORIGINAL_EDITORIAL_PRODUCTION_POLICY
+    global _ORIGINAL_EDITORIAL_POLICY_FILE_IDENTITY
+    mode, source = resolved_original_editorial_mode()
+    _ORIGINAL_EDITORIAL_PRODUCTION_POLICY = None
+    _ORIGINAL_EDITORIAL_POLICY_FILE_IDENTITY = None
+    ORIGINAL_EDITORIAL_CIRCUIT_BREAKER.reset_for_process(
+        resolved_mode=mode,
+        mode_source=source,
+    )
+    log.info("Original editorial resolved mode=%s source=%s", mode, source)
+    if mode == "disabled":
+        return
+    if mode == "shadow":
+        count = len(load_original_editorial_analysis())
+        log.info(
+            "Original editorial shadow scoring enabled. analysis_file=%s "
+            "original_items=%d weight=%s max_abs_adjustment=%s",
+            ORIGINAL_EDITORIAL_ANALYSIS_FILE,
+            count,
+            ORIGINAL_EDITORIAL_SHADOW_WEIGHT,
+            ORIGINAL_EDITORIAL_SHADOW_MAX_ABS_ADJUSTMENT,
+        )
+        return
+    try:
+        editorial_items = load_original_editorial_analysis()
+        policy = load_validated_editorial_policy(
+            Path(str(ORIGINAL_EDITORIAL_PRODUCTION_POLICY_FILE)).expanduser(),
+            runtime_weight=float(ORIGINAL_EDITORIAL_SHADOW_WEIGHT),
+            runtime_maximum_abs_adjustment=float(
+                ORIGINAL_EDITORIAL_SHADOW_MAX_ABS_ADJUSTMENT
+            ),
+            runtime_input_sha256=original_editorial_runtime_input_sha256(),
+            current_original_sha256_by_basename=(
+                current_original_image_sha256_by_basename()
+            ),
+            current_quote_hashes=current_original_editorial_quote_hashes(),
+        )
+        file_identity = original_editorial_policy_file_identity()
+    except EditorialPolicyError as exc:
+        if exc.policy_id is not None:
+            ORIGINAL_EDITORIAL_CIRCUIT_BREAKER.policy_id = exc.policy_id
+        if exc.policy_sha256 is not None:
+            ORIGINAL_EDITORIAL_CIRCUIT_BREAKER.policy_sha256 = exc.policy_sha256
+        open_original_editorial_circuit_breaker(exc.reason)
+        log.error(
+            "Original editorial production policy unavailable; ordinary selector "
+            "remains authoritative: %s",
+            exc,
+        )
+        return
+    except Exception:
+        open_original_editorial_circuit_breaker("policy_invalid")
+        log.exception(
+            "Original editorial production inputs failed validation; ordinary "
+            "selector remains authoritative"
+        )
+        return
+    _ORIGINAL_EDITORIAL_PRODUCTION_POLICY = policy
+    _ORIGINAL_EDITORIAL_POLICY_FILE_IDENTITY = file_identity
+    ORIGINAL_EDITORIAL_CIRCUIT_BREAKER.policy_id = policy.policy_id
+    ORIGINAL_EDITORIAL_CIRCUIT_BREAKER.policy_sha256 = policy.policy_sha256
+    log.info(
+        "Original editorial production policy ready policy_id=%s policy_sha256=%s "
+        "items=%d minimum_margin=%s maximum_baseline_loss=%s confirmed_gap=%s",
+        policy.policy_id,
+        policy.policy_sha256,
+        len(editorial_items),
+        policy.minimum_policy_margin,
+        policy.maximum_baseline_score_loss,
+        policy.minimum_confirmed_post_gap,
+    )
+
+
+def validate_original_editorial_shadow_startup() -> None:
+    """Compatibility entry point for startup validation of all three modes."""
+    initialise_original_editorial_mode()
 
 
 def generated_identity_numeric(value: object, *, key: str, maximum: float = 10.0) -> float:
@@ -18848,7 +20323,7 @@ def log_original_editorial_shadow_result(
     selection_phase: str,
 ) -> None:
     """Log original editorial shadow result."""
-    if not ENABLE_ORIGINAL_EDITORIAL_SHADOW_SCORING:
+    if resolved_original_editorial_mode()[0] != "shadow":
         return
     editorial_by_basename = load_original_editorial_analysis()
     original_rows: list[dict] = []
@@ -18903,6 +20378,168 @@ def log_original_editorial_shadow_result(
         "penalties": shadow_winner["detail"].get("penalties", [])[:8],
     }
     log.info("ORIGINAL_EDITORIAL_SHADOW_RESULT %s", json.dumps(payload, sort_keys=True, separators=(",", ":")))
+
+
+def reset_original_editorial_runtime_for_tests() -> None:
+    """Clear bounded feature-only process state for isolated tests."""
+    global _ORIGINAL_EDITORIAL_PRODUCTION_POLICY
+    global _ORIGINAL_EDITORIAL_POLICY_FILE_IDENTITY
+    global _ORIGINAL_EDITORIAL_PENDING_DECISION
+    _ORIGINAL_EDITORIAL_PRODUCTION_POLICY = None
+    _ORIGINAL_EDITORIAL_POLICY_FILE_IDENTITY = None
+    _ORIGINAL_EDITORIAL_PENDING_DECISION = None
+    mode, source = resolved_original_editorial_mode()
+    ORIGINAL_EDITORIAL_CIRCUIT_BREAKER.reset_for_process(
+        resolved_mode=mode,
+        mode_source=source,
+    )
+
+
+def original_editorial_production_selection(
+    quote_choice: dict,
+    baseline_choice: dict,
+    final_candidate_rows: list[dict],
+    state: dict,
+    *,
+    selection_phase: str,
+) -> tuple[dict, dict | None]:
+    """Apply the guarded layer after the exact ordinary selection is final."""
+    global _ORIGINAL_EDITORIAL_PENDING_DECISION
+    mode, source = resolved_original_editorial_mode()
+    if mode != "production":
+        _ORIGINAL_EDITORIAL_PENDING_DECISION = None
+        return baseline_choice, None
+    ORIGINAL_EDITORIAL_CIRCUIT_BREAKER.resolved_mode = mode
+    ORIGINAL_EDITORIAL_CIRCUIT_BREAKER.mode_source = source
+    policy = _ORIGINAL_EDITORIAL_PRODUCTION_POLICY
+    editorial_hash: str | None = None
+    rng_before = random.getstate()
+    try:
+        if policy is None and not ORIGINAL_EDITORIAL_CIRCUIT_BREAKER.is_open:
+            open_original_editorial_circuit_breaker("policy_unavailable")
+        if (
+            policy is not None
+            and _ORIGINAL_EDITORIAL_POLICY_FILE_IDENTITY is not None
+            and original_editorial_policy_file_identity()
+            != _ORIGINAL_EDITORIAL_POLICY_FILE_IDENTITY
+        ):
+            raise EditorialDecisionIntegrityError(
+                "malformed_policy_runtime_data",
+                "production policy file identity changed after validation",
+            )
+        if policy is not None:
+            editorial_path = Path(
+                str(ORIGINAL_EDITORIAL_ANALYSIS_FILE)
+            ).expanduser()
+            editorial_hash = editorial_file_sha256(editorial_path)
+            editorial_by_basename = load_original_editorial_analysis()
+        else:
+            editorial_by_basename = {}
+        selected, decision = guarded_editorial_decision(
+            quote=quote_choice,
+            candidate_rows=final_candidate_rows,
+            baseline_winner=baseline_choice,
+            editorial_by_basename=editorial_by_basename,
+            score_adjustment=original_editorial_shadow_score,
+            policy=policy,
+            recent_confirmed_images=(
+                state.get("recent_confirmed_regular_images", [])
+                if isinstance(state, dict)
+                else []
+            ),
+            resolved_mode=mode,
+            circuit_breaker_open=ORIGINAL_EDITORIAL_CIRCUIT_BREAKER.is_open,
+            editorial_metadata_sha256=editorial_hash,
+            runtime_weight=float(ORIGINAL_EDITORIAL_SHADOW_WEIGHT),
+            runtime_maximum_abs_adjustment=float(
+                ORIGINAL_EDITORIAL_SHADOW_MAX_ABS_ADJUSTMENT
+            ),
+            selection_phase=selection_phase,
+        )
+    except EditorialDecisionIntegrityError as exc:
+        open_original_editorial_circuit_breaker(exc.reason)
+        selected, decision = original_editorial_integrity_fallback(
+            baseline_winner=baseline_choice,
+            quote_hash=quote_choice.get("quote_hash"),
+            selection_phase=selection_phase,
+            resolved_mode=mode,
+            reason=exc.reason,
+            policy=policy,
+            editorial_metadata_sha256=editorial_hash,
+            breaker_snapshot=ORIGINAL_EDITORIAL_CIRCUIT_BREAKER.snapshot(),
+        )
+    except Exception:
+        open_original_editorial_circuit_breaker("unexpected_policy_exception")
+        log.exception(
+            "Unexpected original editorial production evaluation failure; "
+            "ordinary baseline retained"
+        )
+        selected, decision = original_editorial_integrity_fallback(
+            baseline_winner=baseline_choice,
+            quote_hash=quote_choice.get("quote_hash"),
+            selection_phase=selection_phase,
+            resolved_mode=mode,
+            reason="unexpected_policy_exception",
+            policy=policy,
+            editorial_metadata_sha256=editorial_hash,
+            breaker_snapshot=ORIGINAL_EDITORIAL_CIRCUIT_BREAKER.snapshot(),
+        )
+    if random.getstate() != rng_before:
+        random.setstate(rng_before)
+        open_original_editorial_circuit_breaker("unexpected_policy_exception")
+        selected, decision = original_editorial_integrity_fallback(
+            baseline_winner=baseline_choice,
+            quote_hash=quote_choice.get("quote_hash"),
+            selection_phase=selection_phase,
+            resolved_mode=mode,
+            reason="unexpected_policy_exception",
+            policy=policy,
+            editorial_metadata_sha256=editorial_hash,
+            breaker_snapshot=ORIGINAL_EDITORIAL_CIRCUIT_BREAKER.snapshot(),
+        )
+    if not any(selected is candidate for candidate in final_candidate_rows):
+        open_original_editorial_circuit_breaker("selected_not_in_candidates")
+        selected, decision = original_editorial_integrity_fallback(
+            baseline_winner=baseline_choice,
+            quote_hash=quote_choice.get("quote_hash"),
+            selection_phase=selection_phase,
+            resolved_mode=mode,
+            reason="selected_not_in_candidates",
+            policy=policy,
+            editorial_metadata_sha256=editorial_hash,
+            breaker_snapshot=ORIGINAL_EDITORIAL_CIRCUIT_BREAKER.snapshot(),
+        )
+    decision["circuit_breaker"] = (
+        ORIGINAL_EDITORIAL_CIRCUIT_BREAKER.snapshot()
+    )
+    if decision.get("policy_id") is None:
+        decision["policy_id"] = ORIGINAL_EDITORIAL_CIRCUIT_BREAKER.policy_id
+    if decision.get("policy_sha256") is None:
+        decision["policy_sha256"] = (
+            ORIGINAL_EDITORIAL_CIRCUIT_BREAKER.policy_sha256
+        )
+    _ORIGINAL_EDITORIAL_PENDING_DECISION = copy.deepcopy(decision)
+    return selected, copy.deepcopy(decision)
+
+
+def take_original_editorial_pending_decision(
+    *, quote_hash: str, image_basename: str
+) -> dict | None:
+    """Consume the one bounded decision only when it matches the final pair."""
+    global _ORIGINAL_EDITORIAL_PENDING_DECISION
+    decision = _ORIGINAL_EDITORIAL_PENDING_DECISION
+    _ORIGINAL_EDITORIAL_PENDING_DECISION = None
+    if not isinstance(decision, dict):
+        return None
+    authoritative = decision.get("authoritative")
+    if (
+        decision.get("quote_hash") != quote_hash
+        or not isinstance(authoritative, dict)
+        or authoritative.get("basename") != image_basename
+    ):
+        open_original_editorial_circuit_breaker("receipt_decision_inconsistency")
+        return None
+    return copy.deepcopy(decision)
 
 
 def concise_components(components: dict[str, float]) -> str:
@@ -20311,23 +21948,31 @@ def choose_matched_unused_image(
         best_score = baseline_best_score
         tied = baseline_tied
     selection_rng_state = random.getstate()
-    chosen = random.choice(tied)
+    baseline_chosen = random.choice(tied)
 
-    log.info(
-        "Selected matched image basename=%s image_no=%d score=%.2f components=%s",
-        chosen["basename"],
-        chosen["image_no"],
-        chosen["score"],
-        concise_components(chosen["components"]),
+    editorial_mode = resolved_original_editorial_mode()[0]
+    if editorial_mode != "production":
+        log.info(
+            "Selected matched image basename=%s image_no=%d score=%.2f components=%s",
+            baseline_chosen["basename"],
+            baseline_chosen["image_no"],
+            baseline_chosen["score"],
+            concise_components(baseline_chosen["components"]),
+        )
+        log_regular_image_selection(baseline_chosen)
+
+    log_original_editorial_shadow_result(
+        quote_choice,
+        baseline_chosen,
+        scored,
+        selection_phase=selection_phase,
     )
-    log_regular_image_selection(chosen)
-    log_original_editorial_shadow_result(quote_choice, chosen, scored, selection_phase=selection_phase)
     if generated_identity_policy_scoring_active():
         assert policy_rows is not None
         log_generated_identity_policy_applied_result(
             generated_identity_policy_applied_result(
                 quote_choice,
-                chosen,
+                baseline_chosen,
                 scored,
                 policy_rows,
                 len(tied),
@@ -20338,11 +21983,27 @@ def choose_matched_unused_image(
     else:
         log_generated_identity_policy_shadow_result(
             quote_choice,
-            chosen,
+            baseline_chosen,
             scored,
             selection_phase=selection_phase,
             selection_rng_state=selection_rng_state,
         )
+    chosen, _editorial_decision = original_editorial_production_selection(
+        quote_choice,
+        baseline_chosen,
+        production_candidates,
+        state,
+        selection_phase=selection_phase,
+    )
+    if editorial_mode == "production":
+        log.info(
+            "Selected matched image basename=%s image_no=%d score=%.2f components=%s",
+            chosen["basename"],
+            chosen["image_no"],
+            chosen["score"],
+            concise_components(chosen["components"]),
+        )
+        log_regular_image_selection(chosen)
     log_quote_image_semantic_veto_shadow(
         quote_choice,
         chosen,
@@ -20462,16 +22123,30 @@ def choose_engagement_question_image(
 def post_random_quote(lines_used: set, images_used: set, state: dict) -> None:
     """Select and post one quotation-image pair transactionally."""
     log.info("Starting quote/image post cycle")
+    initial_receipt_status, initial_receipt = load_regular_post_receipt()
+    selection_pin = (
+        initial_receipt
+        if initial_receipt_status == "selection_pinned"
+        and original_editorial_selection_pin_is_semantically_valid(
+            initial_receipt
+        )
+        else None
+    )
     block_if_ambiguous_remote_post(
-        allow_confirmed_pending_schedule_reconciliation=True
+        allow_confirmed_pending_schedule_reconciliation=True,
+        prepared_original_editorial_selection_pin=selection_pin,
     )
 
     transaction_preflight_epoch = now_epoch()
-    receipt_status = reconcile_main_post_receipts(
-        lines_used,
-        images_used,
-        state,
-        minimum_next_quote_epoch=transaction_preflight_epoch,
+    receipt_status = (
+        {"regular": False, "meme": False}
+        if selection_pin is not None
+        else reconcile_main_post_receipts(
+            lines_used,
+            images_used,
+            state,
+            minimum_next_quote_epoch=transaction_preflight_epoch,
+        )
     )
     if receipt_status.get("regular"):
         log.warning("Reconciled regular quote/image receipt; not creating a second regular post in the same call")
@@ -20487,16 +22162,50 @@ def post_random_quote(lines_used: set, images_used: set, state: dict) -> None:
                 "Quote used-history still contains legacy integer entries; refusing regular quote posting until source-verified migration is possible"
             )
 
-        experiment_plan, experiment_member, reserved_quote_hashes = (
-            engagement_question_opportunity(
-                state,
-                current_epoch=transaction_preflight_epoch,
+        if selection_pin is not None:
+            experiment_plan = None
+            experiment_member = None
+            reserved_quote_hashes: set[str] = set()
+            engagement_experiment_envelope = copy.deepcopy(
+                selection_pin.get("engagement_question_experiment")
             )
-        )
-        engagement_experiment_envelope: dict | None = None
-        experimental_public_text: str | None = None
-        quote_choice: dict | None = None
-        image_choice: dict | None = None
+            canonical_pinned_text = (
+                engagement_experiment_envelope["canonical_quote_text"]
+                if isinstance(engagement_experiment_envelope, dict)
+                else selection_pin["text"]
+            )
+            selected_identity = selection_pin["selected_identity"]
+            quote_choice = {
+                "line_no": int(selected_identity["line_no"]),
+                "text": str(canonical_pinned_text),
+                "quote_hash": str(selected_identity["quote_hash"]),
+                "analysis": None,
+            }
+            image_choice = resolve_pinned_regular_image(selection_pin)
+            experimental_public_text = (
+                str(selection_pin["text"])
+                if engagement_experiment_envelope is not None
+                else None
+            )
+            selection_phase = str(selection_pin["selection_phase"])
+            transaction_preflight_epoch = int(selection_pin["attempt_epoch"])
+            log.warning(
+                "Resuming exact pinned regular selection attempt_id=%s image=%s",
+                selection_pin["attempt_id"],
+                selection_pin["authoritative_selected_basename"],
+            )
+        else:
+            experiment_plan, experiment_member, reserved_quote_hashes = (
+                engagement_question_opportunity(
+                    state,
+                    current_epoch=transaction_preflight_epoch,
+                )
+            )
+            engagement_experiment_envelope: dict | None = None
+            experimental_public_text: str | None = None
+            quote_choice: dict | None = None
+            image_choice: dict | None = None
+            selection_phase = "normal"
 
         if experiment_member is not None and experiment_plan is not None:
             try:
@@ -20607,6 +22316,7 @@ def post_random_quote(lines_used: set, images_used: set, state: dict) -> None:
                     exc.attempts,
                 )
                 try:
+                    selection_phase = "forced_cycle_reset"
                     quote_choice, image_choice, attempts = choose_regular_quote_image_pair(
                         lines_used,
                         images_used,
@@ -20624,6 +22334,7 @@ def post_random_quote(lines_used: set, images_used: set, state: dict) -> None:
                         reset_exc.excluded_last_image,
                     )
                     try:
+                        selection_phase = "last_image_fallback"
                         quote_choice, image_choice, attempts = choose_regular_quote_image_pair(
                             lines_used,
                             images_used,
@@ -20656,12 +22367,74 @@ def post_random_quote(lines_used: set, images_used: set, state: dict) -> None:
         image = str(image_choice["path"])
         image_basename = str(image_choice["basename"])
         image_made_with_ai = image_choice.get("image_source") == "generated"
-        quote_delay = random.randint(POST_SLEEP_MIN, POST_SLEEP_MAX)
-        meme_delay = (
-            random.randint(MEME_DELAY_AFTER_MAIN_POST_MIN_SECONDS, MEME_DELAY_AFTER_MAIN_POST_MAX_SECONDS)
-            if ENABLE_DAILY_MEME_POSTS
-            else None
-        )
+        if selection_pin is None:
+            quote_delay = random.randint(POST_SLEEP_MIN, POST_SLEEP_MAX)
+            meme_delay = (
+                random.randint(MEME_DELAY_AFTER_MAIN_POST_MIN_SECONDS, MEME_DELAY_AFTER_MAIN_POST_MAX_SECONDS)
+                if ENABLE_DAILY_MEME_POSTS
+                else None
+            )
+            recovery_plan = {
+                "quote_delay_seconds": quote_delay,
+                "meme_delay_seconds": meme_delay,
+                "meme_scheduling_enabled": bool(ENABLE_DAILY_MEME_POSTS),
+                "meme_trigger_after_hour": int(MEME_TRIGGER_AFTER_HOUR),
+                "meme_schedule_version": int(MEME_SCHEDULE_VERSION),
+                "schedule_timezone": MAIN_POST_SCHEDULE_TIMEZONE,
+                "meme_schedule_before": bound_meme_schedule_state(
+                    state,
+                    schedule_timezone=MAIN_POST_SCHEDULE_TIMEZONE,
+                ),
+                "quote_history_after": sorted(set(lines_used) | {quote_hash}),
+                "image_history_after": sorted(
+                    set(images_used) | {image_basename}
+                ),
+            }
+            mode, _mode_source = resolved_original_editorial_mode()
+            decision = take_original_editorial_pending_decision(
+                quote_hash=quote_hash,
+                image_basename=image_basename,
+            )
+            if decision is None and mode == "production":
+                open_original_editorial_circuit_breaker(
+                    "receipt_decision_inconsistency"
+                )
+                raise RuntimeError(
+                    "Original editorial decision disappeared before durable "
+                    "selection pin; aborting before media upload so the open "
+                    "breaker can select the ordinary baseline on retry"
+                )
+            elif decision is None:
+                decision = baseline_editorial_receipt_decision(
+                    quote_choice,
+                    image_choice,
+                    selection_phase=selection_phase,
+                )
+            selection_pin = build_original_editorial_selection_pin(
+                quote_choice=quote_choice,
+                image_choice=image_choice,
+                decision=decision,
+                text=tweet,
+                recovery_plan=recovery_plan,
+                attempt_epoch=transaction_preflight_epoch,
+                selection_phase=selection_phase,
+                engagement_experiment=engagement_experiment_envelope,
+            )
+            write_original_editorial_selection_pin(selection_pin)
+            log_original_editorial_production_decision(selection_pin)
+        else:
+            recovery_plan = copy.deepcopy(selection_pin["recovery_plan"])
+            quote_delay = int(recovery_plan["quote_delay_seconds"])
+            meme_delay = recovery_plan["meme_delay_seconds"]
+
+        # The receipt, not mutable current policy/configuration, is now the
+        # authority. Re-resolve its exact path and verify bytes at the upload
+        # boundary; disappearance or mutation cannot fall back to another image.
+        image_choice = resolve_pinned_regular_image(selection_pin)
+        image_no = int(image_choice["image_no"])
+        image = str(image_choice["path"])
+        image_basename = str(image_choice["basename"])
+        image_made_with_ai = bool(selection_pin["made_with_ai"])
 
         log.info(
             "Posting quote/image. line_no=%d quote_hash=%s image_no=%d image=%s image_score=%s",
@@ -20673,9 +22446,21 @@ def post_random_quote(lines_used: set, images_used: set, state: dict) -> None:
         )
         log.debug("Quote text=%r", tweet)
 
-        if engagement_experiment_envelope is None:
-            # Keep the ordinary path's call shape and receipt bytes unchanged.
-            media_id = upload_media(image, lane="quote_image")
+        confirmed_media = load_confirmed_media_upload(MEDIA_UPLOAD_RECEIPT_FILE)
+        if confirmed_media_upload_matches_selection_pin(selection_pin):
+            assert confirmed_media is not None
+            media_id = str(confirmed_media.media_id)
+            log.warning(
+                "Reusing confirmed pinned media hand-off attempt_id=%s media_id=%s",
+                selection_pin["attempt_id"],
+                media_id,
+            )
+        elif engagement_experiment_envelope is None:
+            media_id = upload_media(
+                image,
+                lane="quote_image",
+                original_editorial_selection_pin=selection_pin,
+            )
         else:
             def revalidate_experimental_root() -> None:
                 revalidate_or_invalidate_engagement_question_publication(
@@ -20691,6 +22476,7 @@ def post_random_quote(lines_used: set, images_used: set, state: dict) -> None:
                 lane="quote_image",
                 engagement_experiment=engagement_experiment_envelope,
                 pre_transport_validation=revalidate_experimental_root,
+                original_editorial_selection_pin=selection_pin,
             )
             # The media receipt remains the durable barrier if an immutable
             # input changes after upload; no root transport is then prepared.
@@ -20706,25 +22492,12 @@ def post_random_quote(lines_used: set, images_used: set, state: dict) -> None:
                 "source_line_number": line_no + 1,
                 "image_basename": image_basename,
                 "image_no": image_no,
+                "image_sha256": str(image_choice["image_hash"]),
             },
-            recovery_plan={
-                "quote_delay_seconds": quote_delay,
-                "meme_delay_seconds": meme_delay,
-                "meme_scheduling_enabled": bool(ENABLE_DAILY_MEME_POSTS),
-                "meme_trigger_after_hour": int(MEME_TRIGGER_AFTER_HOUR),
-                "meme_schedule_version": int(MEME_SCHEDULE_VERSION),
-                "schedule_timezone": MAIN_POST_SCHEDULE_TIMEZONE,
-                "meme_schedule_before": bound_meme_schedule_state(
-                    state,
-                    schedule_timezone=MAIN_POST_SCHEDULE_TIMEZONE,
-                ),
-                "quote_history_after": sorted(set(lines_used) | {quote_hash}),
-                "image_history_after": sorted(
-                    set(images_used) | {image_basename}
-                ),
-            },
+            recovery_plan=recovery_plan,
             attempt_epoch=transaction_preflight_epoch,
             engagement_experiment=engagement_experiment_envelope,
+            selection_pin=selection_pin,
         )
         write_main_post_attempt(main_post_attempt)
         if engagement_experiment_envelope is not None:
@@ -20927,6 +22700,14 @@ def post_random_quote(lines_used: set, images_used: set, state: dict) -> None:
                     fallback_receipt,
                     state,
                 )
+            recent_history_updated = record_recent_confirmed_regular_image(
+                state,
+                post_id=str(posted_id),
+                image_basename=image_basename,
+                image_sha256=selection_pin[
+                    "authoritative_selected_content_sha256"
+                ],
+            )
         except Exception:
             fallback_failures.append("in_memory_regular_post_state")
             log.critical(
@@ -21062,6 +22843,12 @@ def post_random_quote(lines_used: set, images_used: set, state: dict) -> None:
                 main_post_attempt,
                 sending_disposition="confirmed_state_fallback",
             )
+            if "fallback_receipt" in locals():
+                log_original_editorial_production_confirmation(
+                    fallback_receipt,
+                    history_updated=recent_history_updated,
+                    receipt_retired=True,
+                )
             if (
                 "fallback_receipt" in locals()
                 and engagement_experiment_envelope_from_receipt(
@@ -21113,6 +22900,14 @@ def post_random_quote(lines_used: set, images_used: set, state: dict) -> None:
         )
         record_recent_own_post(state, str(posted_id))
         apply_confirmed_engagement_experiment_receipt(receipt, state)
+        recent_history_updated = record_recent_confirmed_regular_image(
+            state,
+            post_id=str(posted_id),
+            image_basename=image_basename,
+            image_sha256=selection_pin[
+                "authoritative_selected_content_sha256"
+            ],
+        )
         save_regular_post_protected_state(lines_used, images_used, state, durable=True)
         log_confirmed_engagement_experiment_receipt(receipt)
         if engagement_experiment_envelope_from_receipt(receipt) is not None:
@@ -21138,6 +22933,11 @@ def post_random_quote(lines_used: set, images_used: set, state: dict) -> None:
             post_id=str(posted_id),
         )
         remove_regular_post_receipt(receipt)
+        log_original_editorial_production_confirmation(
+            receipt,
+            history_updated=recent_history_updated,
+            receipt_retired=True,
+        )
         publish_pending_engagement_question_notification(state)
     except Exception as exc:
         log.critical("Confirmed regular quote/image post_id=%s but protected local persistence failed", posted_id, exc_info=True)

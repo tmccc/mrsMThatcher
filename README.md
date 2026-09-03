@@ -245,6 +245,104 @@ a minimum spacing rule: after a generated regular image is selected, two
 original-image posts must be completed before another generated image is
 eligible. The generated pool remains disabled by source default.
 
+## Guarded Original-Editorial Image Mode
+
+`ORIGINAL_EDITORIAL_MODE` is the canonical mode for the existing original-image
+editorial scorer:
+
+- `disabled` runs the ordinary selector without loading editorial production
+  policy data and preserves its random-number path exactly;
+- `shadow` preserves the observational `ORIGINAL_EDITORIAL_SHADOW_RESULT`
+  implementation and never changes the selected image;
+- `production` evaluates every qualifying opportunity through permanent
+  acceptance guards. It has no percentage canary, treatment allocation,
+  intervention quota, first-N limit, or expiry.
+
+The legacy `ENABLE_ORIGINAL_EDITORIAL_SHADOW_SCORING` key remains accepted only
+when the canonical key is absent: `true` maps to `shadow` and `false` maps to
+`disabled`. It can never enable production. When both keys are present they
+must agree on disabled/shadow semantics; any explicit production value paired
+with the legacy key is rejected. Startup logs the resolved mode and whether it
+came from the canonical, legacy, or default setting.
+
+Production mode loads the narrow policy at
+`ORIGINAL_EDITORIAL_PRODUCTION_POLICY_FILE`. The tracked example stays in
+`disabled`, and the tracked v1 policy is not production-authorised: no grid
+pair passed every training/grouped-CV floor, and the diagnostic frozen hold-out
+also failed the direct-mirrored-conflict gate. Missing, malformed, stale, or
+unauthorised policy data opens an in-memory feature circuit breaker and leaves
+the ordinary selector authoritative; it does not stop ordinary posts or
+replies. An unexpected runtime integrity failure has the same fail-to-baseline
+effect for the remainder of that process. Normal guard rejections do not open
+the breaker.
+
+The wrapper runs only after the ordinary phase-specific eligibility and score
+path, including stale/seasonal and visual-mismatch filtering, image-cycle
+handling, generated spacing/origin handling, and any enabled generated-identity
+policy. A generated baseline winner is final. For an original baseline, a
+different eligible original may be promoted only when its unchanged baseline
+score plus the existing editorial adjustment clears all of these guards:
+
+- explicit `editorial_eligible` quote classification and matching quote hash;
+- not in the blocked-promotion SHA-256 set;
+- not used within the configured confirmed-regular-post gap;
+- not in the baseline image's conservative SHA-256 near-duplicate cluster;
+- calibrated minimum policy margin and maximum baseline-score loss;
+- one unambiguous best challenger outside the documented epsilon.
+
+Blocked images remain in the ordinary pool and may still win there; only an
+editorial promotion is prohibited. New or changed quotes and images remain
+baseline-only until an offline policy regeneration validates and pins them.
+The scorer remains `original-editorial-scorer-v1` with weight `0.32` and
+maximum absolute adjustment `4.0`.
+
+Before the first recoverable media-upload side effect, a regular-post receipt
+pins the exact quote, baseline, challenger, authoritative image, input hashes,
+policy identity, breaker state, and decision identity. Upload resolves that
+exact image under the configured original/generated roots and verifies its
+content SHA-256. Restart recovery never reruns the policy or substitutes a
+different image because configuration, thresholds, metadata, policy, RNG, or
+history changed. Legacy receipts retain their prior recovery semantics.
+
+Regenerate calibration outputs offline with explicit frozen inputs (the tool
+does not call a model, provider, or network):
+
+```bash
+MRS_TEST_MODE=1 python3 tools/calibrate_original_editorial_production.py \
+  --case-corpus PATH/complete-mirrored-results.jsonl \
+  --unblinding PATH/unblinding.json \
+  --gpt-results PATH/frozen-gpt-results.jsonl \
+  --grok-results PATH/frozen-grok-results.jsonl \
+  --historical-safety-results PATH/historical-safety-results.json \
+  --quotation-corpus mrsMThatcher.txt \
+  --quote-analysis quote_analysis.json \
+  --quote-analysis-overrides quote_analysis_overrides.json \
+  --image-analysis image_analysis.json \
+  --editorial-analysis original_image_editorial_analysis_experiment_v1.json \
+  --output-policy original_editorial_production_policy_v1.json \
+  --output-report-json original_editorial_production_calibration_v1.json \
+  --output-summary original_editorial_production_calibration_v1.md \
+  --output-regression tests/fixtures/original_editorial_production_regression_v1.json \
+  --generated-at 2026-09-03T00:00:00Z
+```
+
+Exercise the exact guarded branch with independently evolving history using:
+
+```bash
+MRS_TEST_MODE=1 python3 tools/simulate_regular_post_futures.py \
+  --mode counterfactual --runs 20 --posts-per-run 250 \
+  --seed-base 46000 --start-time 2026-09-03T12:00:00+01:00 \
+  --candidate-detail none --snapshot-dir PATH/input_snapshot \
+  --original-editorial-policy-file original_editorial_production_policy_v1.json \
+  --output-dir simulation_runs/original-editorial-production-v1
+```
+
+`mrs_log_digest.py` extends its existing original-editorial and health sections
+with authoritative opportunities, attempted and confirmed promotions, bounded
+guard/integrity reasons, breaker status, and mixed policy-version strata. It
+correlates decisions, receipt/media hand-off, and confirmation by stable
+attempt/post identities; a shadow preference is never described as posted.
+
 ## Historical Context Replies
 
 The optional historical-context stage posts a neutral, corpus-backed threaded reply only
@@ -361,7 +459,10 @@ Generated-image identity-policy processing is `suspended` while the generated
 pool is disabled. Re-enabling its shadow requires both the generated pool and
 `ENABLE_GENERATED_IDENTITY_POLICY_SHADOW_SCORING`; enabling the latter alone
 does no audit loading, scoring or telemetry work. The semantic-veto and
-original-editorial features remain non-enforcing active shadows.
+original-editorial shadow features remain observational. The canonical
+original-editorial mode is source-default `disabled`; guarded production code
+exists but the tracked v1 policy is unauthorised and no live configuration is
+changed by this repository state.
 
 ## Historical Context Reply Persistence
 

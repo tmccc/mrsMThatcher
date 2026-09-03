@@ -939,6 +939,20 @@ def test_real_plan_change_in_post_random_quote_never_reaches_x_write(
     images_used: set[str] = set()
     image = tmp_path / "trial.png"
     image.write_bytes(b"synthetic image bytes")
+    monkeypatch.setattr(bot, "IMAGE_GLOB", str(tmp_path / "t*"))
+    monkeypatch.setattr(
+        bot, "REGULAR_POST_RECEIPT_FILE", tmp_path / "regular-post.json"
+    )
+    monkeypatch.setattr(bot, "MEME_POST_RECEIPT_FILE", tmp_path / "meme-post.json")
+    monkeypatch.setattr(
+        bot, "CONFIRMED_REPLY_RECEIPT_FILE", tmp_path / "reply-post.json"
+    )
+    monkeypatch.setattr(
+        bot,
+        "HISTORICAL_CONTEXT_REPLY_RECEIPT_FILE",
+        tmp_path / "context-post.json",
+    )
+    monkeypatch.setattr(bot, "remote_receipt_retirement_is_blocking", lambda: False)
     receipt_path = tmp_path / "media-upload.json"
     events: list[tuple[str, dict]] = []
 
@@ -996,6 +1010,7 @@ def test_real_plan_change_in_post_random_quote_never_reaches_x_write(
             "image_no": 0,
             "path": str(image),
             "basename": image.name,
+            "image_hash": hashlib.sha256(b"synthetic image bytes").hexdigest(),
             "image_source": "original",
             "score": 10.0,
         }

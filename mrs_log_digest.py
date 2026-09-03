@@ -39,7 +39,7 @@ import statistics
 import subprocess
 import sys
 import tempfile
-from collections import Counter
+from collections import Counter, defaultdict
 from contextlib import ExitStack, contextmanager
 from dataclasses import dataclass
 from datetime import datetime, time, timedelta, timezone
@@ -62,6 +62,30 @@ GENERATED_ANALYSIS_SCHEMA_VERSION = 3
 GENERATED_ANALYSIS_KIND = "images"
 GENERATED_AUDIT_SCHEMA_VERSION = 1
 GENERATED_AUDIT_KIND = "generated_image_identity_dependence_audit"
+ORIGINAL_EDITORIAL_PRODUCTION_INTEGRITY_REASONS = frozenset(
+    {
+        "runtime_parameter_mismatch",
+        "non_finite_score",
+        "baseline_not_in_candidates",
+        "selected_not_in_candidates",
+        "candidate_content_hash_mismatch",
+        "candidate_identity_collision",
+        "editorial_metadata_changed",
+        "malformed_policy_runtime_data",
+        "impossible_score_ordering",
+        "receipt_decision_inconsistency",
+        "recent_history_invalid",
+        "unexpected_policy_exception",
+    }
+)
+ORIGINAL_EDITORIAL_PRODUCTION_POLICY_FAILURE_REASONS = frozenset(
+    {
+        "policy_unavailable",
+        "policy_invalid",
+        "policy_stale",
+        "policy_unauthorised",
+    }
+)
 # Version 1 is an additive compatibility contract. Increment this integer before
 # removing or renaming a JSON field, changing an established field's type or
 # meaning, or otherwise making a consumer-visible incompatible change. Purely
@@ -8834,6 +8858,229 @@ def original_editorial_shadow_summary(events: List[Dict[str, Any]]) -> Dict[str,
     }
 
 
+def original_editorial_production_summary(
+    decisions: List[Dict[str, Any]],
+    confirmations: List[Dict[str, Any]],
+    breaker_events: List[Dict[str, Any]] | None = None,
+) -> Dict[str, Any]:
+    """Reconcile authoritative decisions and confirmations by stable identity."""
+    unique_decisions: Dict[str, Dict[str, Any]] = {}
+    conflicting_decision_ids: set[str] = set()
+    for item in decisions:
+        identity = str(item.get("decision_id") or item.get("attempt_id") or "")
+        if not identity:
+            continue
+        existing = unique_decisions.get(identity)
+        comparable = {key: value for key, value in item.items() if key != "time"}
+        if existing is not None:
+            existing_comparable = {
+                key: value for key, value in existing.items() if key != "time"
+            }
+            if comparable != existing_comparable:
+                conflicting_decision_ids.add(identity)
+            continue
+        unique_decisions[identity] = item
+
+    unique_confirmations: Dict[Tuple[str, str], Dict[str, Any]] = {}
+    conflicting_confirmations: set[Tuple[str, str]] = set()
+    for item in confirmations:
+        decision_id = str(item.get("decision_id") or item.get("attempt_id") or "")
+        post_id = str(item.get("post_id") or "")
+        if not decision_id or not post_id:
+            continue
+        identity = (decision_id, post_id)
+        existing = unique_confirmations.get(identity)
+        comparable = {key: value for key, value in item.items() if key != "time"}
+        if existing is not None:
+            existing_comparable = {
+                key: value for key, value in existing.items() if key != "time"
+            }
+            if comparable != existing_comparable:
+                conflicting_confirmations.add(identity)
+            continue
+        unique_confirmations[identity] = item
+
+    reason_counts = Counter(
+        str(item.get("reason") or "unknown")
+        for item in unique_decisions.values()
+    )
+    accepted_ids = {
+        identity
+        for identity, item in unique_decisions.items()
+        if item.get("action") == "accept_promotion"
+        and item.get("winner_changed_by_policy") is True
+    }
+    confirmation_posts: Dict[str, set[str]] = defaultdict(set)
+    for decision_id, post_id in unique_confirmations:
+        confirmation_posts[decision_id].add(post_id)
+    for identity, item in unique_confirmations.items():
+        decision_id, _post_id = identity
+        decision = unique_decisions.get(decision_id)
+        if decision is None:
+            # A rotated-window confirmation can legitimately outlive its
+            # decision event. It cannot prove an intervention in this window.
+            continue
+        authoritative = decision.get("authoritative")
+        if (
+            len(confirmation_posts[decision_id]) != 1
+            or not isinstance(authoritative, dict)
+            or item.get("quote_hash") != decision.get("quote_hash")
+            or item.get("actual_image_basename")
+            != authoritative.get("basename")
+            or item.get("actual_image_content_sha256")
+            != authoritative.get("content_sha256")
+            or item.get("winner_changed_by_policy")
+            != decision.get("winner_changed_by_policy")
+            or item.get("policy_id") != decision.get("policy_id")
+            or item.get("policy_sha256") != decision.get("policy_sha256")
+            or item.get("media_handoff_confirmed") is not True
+        ):
+            conflicting_confirmations.add(identity)
+    confirmed_ids = {
+        decision_id
+        for decision_id, post_id in unique_confirmations
+        if decision_id in accepted_ids
+        and (decision_id, post_id) not in conflicting_confirmations
+    }
+    # Count the decision where an integrity invariant actually failed.  A
+    # later ``circuit_breaker_open`` decision is a safe consequence of that
+    # first failure, not another integrity failure.
+    integrity = [
+        item
+        for item in unique_decisions.values()
+        if item.get("reason") in ORIGINAL_EDITORIAL_PRODUCTION_INTEGRITY_REASONS
+    ]
+    latest_breaker: Dict[str, Any] = {}
+    combined_breakers = list(breaker_events or []) + [
+        {**item["circuit_breaker"], "time": item.get("time")}
+        for item in unique_decisions.values()
+        if isinstance(item.get("circuit_breaker"), dict)
+    ]
+    if combined_breakers:
+        latest_breaker = max(
+            enumerate(combined_breakers),
+            key=lambda pair: (str(pair[1].get("time") or ""), pair[0]),
+        )[1]
+
+    ordered_decisions = sorted(
+        enumerate(unique_decisions.values()),
+        key=lambda pair: (str(pair[1].get("time") or ""), pair[0]),
+    )
+    current_decision = ordered_decisions[-1][1] if ordered_decisions else None
+
+    policy_versions = Counter()
+    for item in unique_decisions.values():
+        policy_id = item.get("policy_id")
+        policy_hash = item.get("policy_sha256")
+        if policy_id or policy_hash:
+            policy_versions[(str(policy_id or ""), str(policy_hash or ""))] += 1
+
+    accepted = len(accepted_ids)
+    total = len(unique_decisions)
+    unchanged = reason_counts.get("baseline_already_best", 0)
+    excluded = total - accepted - unchanged
+    reason_fields = {
+        "baseline_already_best": "baseline_already_best",
+        "generated_baseline_exclusions": "generated_baseline",
+        "historical_exclusions": "historically_specific_quote",
+        "unreviewed_or_missing_quote_exclusions": "unreviewed_quote",
+        "changed_quote_exclusions": "quote_hash_mismatch",
+        "blocked_image_exclusions": "blocked_promotion_image",
+        "recent_image_exclusions": "recent_confirmed_image",
+        "near_duplicate_exclusions": "near_duplicate",
+        "insufficient_margin_exclusions": "insufficient_policy_margin",
+        "excessive_baseline_loss_exclusions": "excessive_baseline_score_loss",
+        "tie_or_ambiguity_exclusions": None,
+        "policy_unavailable_stale_unauthorised_exclusions": None,
+    }
+    first_integrity: Dict[str, Any] | None = None
+    if integrity:
+        first_integrity = min(
+            enumerate(integrity),
+            key=lambda pair: (str(pair[1].get("time") or ""), pair[0]),
+        )[1]
+    elif conflicting_decision_ids:
+        identity = sorted(conflicting_decision_ids)[0]
+        first_integrity = {
+            "reason": "conflicting_decision_event",
+            "decision_id": identity,
+            "time": unique_decisions[identity].get("time"),
+        }
+    elif conflicting_confirmations:
+        identity = sorted(conflicting_confirmations)[0]
+        first_integrity = {
+            "reason": "conflicting_confirmation_event",
+            "decision_id": identity[0],
+            "post_id": identity[1],
+            "time": unique_confirmations[identity].get("time"),
+        }
+
+    summary: Dict[str, Any] = {
+        "opportunities_considered": total,
+        "accepted_promotions": accepted,
+        "accepted_promotion_percent": (accepted / total * 100.0) if total else 0.0,
+        "confirmed_promotions": len(confirmed_ids),
+        "attempted_promotions": accepted,
+        "unchanged": unchanged,
+        "excluded": excluded,
+        "reconciles": accepted + unchanged + excluded == total,
+        "decision_reason_counts": dict(sorted(reason_counts.items())),
+        "integrity_failure_count": len(integrity) + len(conflicting_decision_ids) + len(conflicting_confirmations),
+        "first_integrity_failure": first_integrity,
+        "circuit_breaker": latest_breaker,
+        "current_policy_id": (
+            current_decision.get("policy_id")
+            if current_decision is not None
+            and current_decision.get("policy_id") is not None
+            else latest_breaker.get("policy_id")
+        ),
+        "current_policy_sha256": (
+            current_decision.get("policy_sha256")
+            if current_decision is not None
+            and current_decision.get("policy_sha256") is not None
+            else latest_breaker.get("policy_sha256")
+        ),
+        "policy_version_strata": [
+            {"policy_id": key[0], "policy_sha256": key[1], "decisions": count}
+            for key, count in sorted(policy_versions.items())
+        ],
+        "mixed_policy_versions": len(policy_versions) > 1,
+        "conflicting_decision_ids": sorted(conflicting_decision_ids)[:8],
+        "conflicting_confirmation_ids": [
+            {"decision_id": key[0], "post_id": key[1]}
+            for key in sorted(conflicting_confirmations)[:8]
+        ],
+        "accepted_examples": [
+            item
+            for identity, item in unique_decisions.items()
+            if identity in accepted_ids
+        ][:8],
+        "confirmation_examples": list(unique_confirmations.values())[:8],
+    }
+    for field, reason in reason_fields.items():
+        if field == "tie_or_ambiguity_exclusions":
+            summary[field] = sum(
+                reason_counts.get(value, 0)
+                for value in ("combined_score_tie", "ambiguous_best_challenger")
+            )
+        elif field == "policy_unavailable_stale_unauthorised_exclusions":
+            summary[field] = sum(
+                1
+                for item in unique_decisions.values()
+                if item.get("reason")
+                in ORIGINAL_EDITORIAL_PRODUCTION_POLICY_FAILURE_REASONS
+                or (
+                    item.get("reason") == "circuit_breaker_open"
+                    and isinstance(item.get("circuit_breaker"), dict)
+                    and item["circuit_breaker"].get("first_failure_reason")
+                    in ORIGINAL_EDITORIAL_PRODUCTION_POLICY_FAILURE_REASONS
+                )
+            )
+        else:
+            summary[field] = reason_counts.get(str(reason), 0)
+    return summary
+
+
 def generated_identity_shadow_summary(events: List[Dict[str, Any]]) -> Dict[str, Any]:
     """Return the generated identity shadow summary."""
     def relevant(item: Dict[str, Any]) -> bool:
@@ -12503,6 +12750,9 @@ def analyse(
     xai_usage_parse_errors: List[Dict[str, Any]] = []
     regular_image_usage_events: List[Dict[str, Any]] = []
     original_editorial_shadow_events: List[Dict[str, Any]] = []
+    original_editorial_production_decisions: List[Dict[str, Any]] = []
+    original_editorial_production_confirmations: List[Dict[str, Any]] = []
+    original_editorial_breaker_events: List[Dict[str, Any]] = []
     generated_identity_shadow_events: List[Dict[str, Any]] = []
     generated_identity_policy_events: List[Dict[str, Any]] = []
     generated_image_spacing_events: List[Dict[str, Any]] = []
@@ -15355,6 +15605,51 @@ def analyse(
             )
             continue
 
+        editorial_structured_event = next(
+            (
+                (name, destination)
+                for name, destination in (
+                    (
+                        "ORIGINAL_EDITORIAL_PRODUCTION_DECISION",
+                        original_editorial_production_decisions,
+                    ),
+                    (
+                        "ORIGINAL_EDITORIAL_PRODUCTION_CONFIRMED",
+                        original_editorial_production_confirmations,
+                    ),
+                    (
+                        "ORIGINAL_EDITORIAL_CIRCUIT_BREAKER",
+                        original_editorial_breaker_events,
+                    ),
+                )
+                if f"{name} " in msg
+            ),
+            None,
+        )
+        if editorial_structured_event is not None:
+            event_name, destination = editorial_structured_event
+            raw = msg.split(f"{event_name} ", 1)[1].strip()
+            try:
+                parsed = _strict_native_json_object(
+                    raw.encode("utf-8"),
+                    label=event_name,
+                )
+            except Exception as exc:
+                errors.append(
+                    {
+                        "time": r.ts.strftime("%Y-%m-%d %H:%M:%S"),
+                        "level": r.level,
+                        "message": f"Malformed {event_name}: {exc}: {short(raw, 240)}",
+                        "source_refs": [record_source_ref(r, input_file_indexes)],
+                    }
+                )
+                stats["original_editorial_production_parse_errors"] += 1
+                continue
+            parsed["time"] = r.ts.strftime("%Y-%m-%d %H:%M:%S")
+            destination.append(parsed)
+            stats["original_editorial_production_structured_events"] += 1
+            continue
+
         if "ORIGINAL_EDITORIAL_SHADOW_RESULT " in msg:
             raw = msg.split("ORIGINAL_EDITORIAL_SHADOW_RESULT ", 1)[1].strip()
             try:
@@ -17734,6 +18029,16 @@ def analyse(
             "events": original_editorial_shadow_events,
             "summary": original_editorial_shadow_summary(original_editorial_shadow_events),
         },
+        "original_editorial_production": {
+            "decisions": original_editorial_production_decisions,
+            "confirmations": original_editorial_production_confirmations,
+            "breaker_events": original_editorial_breaker_events,
+            "summary": original_editorial_production_summary(
+                original_editorial_production_decisions,
+                original_editorial_production_confirmations,
+                original_editorial_breaker_events,
+            ),
+        },
         "generated_identity_shadow": {
             "events": generated_identity_shadow_events,
             "summary": generated_identity_shadow_summary(generated_identity_shadow_events),
@@ -19813,6 +20118,63 @@ def render_markdown(report: Dict[str, Any]) -> str:
             out.append("")
         else:
             out.append("No changed-winner observations in this window.")
+            out.append("")
+
+    editorial_production = report.get("original_editorial_production") or {}
+    editorial_production_summary = editorial_production.get("summary") or {}
+    if (
+        editorial_production.get("decisions")
+        or editorial_production.get("confirmations")
+        or editorial_production.get("breaker_events")
+    ):
+        breaker = editorial_production_summary.get("circuit_breaker") or {}
+        out.append("## Original editorial authoritative production decisions")
+        out.append(
+            "Counts are deduplicated and decision/confirmation correlation uses "
+            "the durable attempt identity, never log adjacency."
+        )
+        out.append("")
+        out.append("```text")
+        out.append(f"opportunities_considered       = {editorial_production_summary.get('opportunities_considered', 0)}")
+        out.append(f"accepted_promotions            = {editorial_production_summary.get('accepted_promotions', 0)} ({float(editorial_production_summary.get('accepted_promotion_percent', 0.0)):.1f}%)")
+        out.append(f"attempted_promotions           = {editorial_production_summary.get('attempted_promotions', 0)}")
+        out.append(f"confirmed_promotions           = {editorial_production_summary.get('confirmed_promotions', 0)}")
+        out.append(f"baseline_already_best          = {editorial_production_summary.get('baseline_already_best', 0)}")
+        out.append(f"generated_baseline_exclusions  = {editorial_production_summary.get('generated_baseline_exclusions', 0)}")
+        out.append(f"historical_exclusions          = {editorial_production_summary.get('historical_exclusions', 0)}")
+        out.append(f"unreviewed_quote_exclusions    = {editorial_production_summary.get('unreviewed_or_missing_quote_exclusions', 0)}")
+        out.append(f"blocked_image_exclusions       = {editorial_production_summary.get('blocked_image_exclusions', 0)}")
+        out.append(f"recent_image_exclusions        = {editorial_production_summary.get('recent_image_exclusions', 0)}")
+        out.append(f"near_duplicate_exclusions      = {editorial_production_summary.get('near_duplicate_exclusions', 0)}")
+        out.append(f"insufficient_margin_exclusions = {editorial_production_summary.get('insufficient_margin_exclusions', 0)}")
+        out.append(f"excessive_loss_exclusions      = {editorial_production_summary.get('excessive_baseline_loss_exclusions', 0)}")
+        out.append(f"tie_or_ambiguity_exclusions    = {editorial_production_summary.get('tie_or_ambiguity_exclusions', 0)}")
+        out.append(f"policy_unavailable_exclusions  = {editorial_production_summary.get('policy_unavailable_stale_unauthorised_exclusions', 0)}")
+        out.append(f"integrity_failures             = {editorial_production_summary.get('integrity_failure_count', 0)}")
+        out.append(f"circuit_breaker_open           = {str(breaker.get('open') is True).lower()}")
+        out.append(f"circuit_breaker_first_reason   = {breaker.get('first_failure_reason') or ''}")
+        out.append(f"current_policy_id              = {editorial_production_summary.get('current_policy_id') or ''}")
+        out.append(f"current_policy_sha256          = {editorial_production_summary.get('current_policy_sha256') or ''}")
+        out.append(f"mixed_policy_versions          = {str(editorial_production_summary.get('mixed_policy_versions') is True).lower()}")
+        out.append(f"totals_reconcile               = {str(editorial_production_summary.get('reconciles') is True).lower()}")
+        out.append("```")
+        if editorial_production_summary.get("first_integrity_failure"):
+            first = editorial_production_summary["first_integrity_failure"]
+            out.append(
+                "First integrity failure: `"
+                + str(first.get("reason") or "unknown")
+                + "` at `"
+                + str(first.get("time") or "unknown")
+                + "`."
+            )
+            out.append("")
+        strata = editorial_production_summary.get("policy_version_strata") or []
+        if len(strata) > 1:
+            out.append("Policy-version strata:")
+            out.append(md_table_row(["policy", "SHA-256", "decisions"]))
+            out.append(md_table_row(["---"] * 3))
+            for item in strata:
+                out.append(md_table_row([item.get("policy_id", ""), item.get("policy_sha256", ""), item.get("decisions", 0)]))
             out.append("")
 
     identity_policy = report.get("generated_identity_policy") or {}
