@@ -18,7 +18,7 @@ files. It stores its resume timestamp in .mrs_log_digest_state.json.
 
 No third-party dependencies.
 
-Enhanced v10: keeps the v9 retention and configured-manifest checks, adds a
+Enhanced v10: keeps the v9 retention checks, adds a
 strict read-only snapshot of the active remote-write protocol, correlates X
 errors with their exact request endpoints, understands the receipt/media/
 transport lifecycle, and resolves historical ambiguity incidents only from
@@ -62,11 +62,11 @@ GENERATED_ANALYSIS_SCHEMA_VERSION = 3
 GENERATED_ANALYSIS_KIND = "images"
 GENERATED_AUDIT_SCHEMA_VERSION = 1
 GENERATED_AUDIT_KIND = "generated_image_identity_dependence_audit"
-# Version 1 is an additive compatibility contract. Increment this integer before
-# removing or renaming a JSON field, changing an established field's type or
-# meaning, or otherwise making a consumer-visible incompatible change. Purely
-# additive fields do not require an increment under this policy.
-DIGEST_JSON_SCHEMA_VERSION = 1
+# Version 2 is a major-versioned compatibility contract. Increment this integer
+# before removing or renaming a JSON field, changing an established field's type
+# or meaning, or otherwise making a consumer-visible incompatible change. Purely
+# additive fields do not require an increment within a major version.
+DIGEST_JSON_SCHEMA_VERSION = 2
 DIGEST_JSON_OUTPUT_KIND = "mrs_log_digest"
 DIGEST_SOURCE_MAX_BYTES = 4 * 1024 * 1024
 CURRENT_RUNTIME_STATE_MAX_BYTES = 64 * 1024 * 1024
@@ -120,9 +120,6 @@ OPENAI_COST_CACHE_PATH = (
 OPENAI_COST_CACHE_MAX_BYTES = 16 * 1024 * 1024
 OPENAI_COST_CACHE_STALE_AFTER_SECONDS = 2 * 60 * 60
 OPENAI_COST_SAMPLE_BOUNDARY_MAX_GAP_SECONDS = 2 * 60 * 60
-SEMANTIC_VETO_NAMED_COVERAGE_QUOTE_ID = (
-    "0a67f403a7ac02347e43791d2daf3057aabdcfd64b62edbe1b3484a3a4b66729"
-)
 REMOTE_WRITE_MARKER_BASENAMES = (
     "ambiguous_post_outcome.json",
     "ambiguous_post_outcome.restart_barrier.json",
@@ -524,7 +521,7 @@ def repository_head_sha(source_path: Path) -> Optional[str]:
 
 
 def build_digest_contract(source_path: Optional[Path] = None) -> Dict[str, Any]:
-    """Build the explicit additive identity for this JSON producer."""
+    """Build the explicit versioned identity for this JSON producer."""
 
     resolved_source = Path(source_path or __file__).resolve()
     source_hash: Optional[str] = None
@@ -544,7 +541,7 @@ def build_digest_contract(source_path: Optional[Path] = None) -> Dict[str, Any]:
         "schema_version": DIGEST_JSON_SCHEMA_VERSION,
         "output_kind": DIGEST_JSON_OUTPUT_KIND,
         "producer": "mrs_log_digest.py",
-        "compatibility_policy": "additive",
+        "compatibility_policy": "major-versioned",
         "producer_source_sha256": source_hash,
         "producer_source_status": source_status,
         "repository_head_sha": repository_head_sha(resolved_source),
@@ -2101,394 +2098,6 @@ def annotate_remote_write_snapshot_window(
     for blocker in safety.get("snapshot_incident_evidence") or []:
         if isinstance(blocker, dict):
             annotate(blocker)
-
-
-def configured_quote_image_semantic_veto_snapshot(project_dir: Path) -> Dict[str, Any]:
-    """Validate the configured semantic-veto manifest without changing runtime state."""
-    config_path = project_dir / "mrsMThatcher.local.json"
-    try:
-        local_config = _strict_native_json_object(
-            config_path.read_bytes(), label="mrsMThatcher.local.json"
-        )
-    except FileNotFoundError:
-        return {"present": False}
-    except Exception as exc:
-        return {
-            "present": True,
-            "available": False,
-            "status": "config_unavailable",
-            "reason": f"local config unavailable: {type(exc).__name__}",
-        }
-
-    config = local_config.get("quote_image_semantic_veto")
-    if not isinstance(config, dict):
-        return {"present": False}
-    result: Dict[str, Any] = {
-        "present": True,
-        "available": False,
-        "enabled": config.get("enabled") is True,
-        "mode": str(config.get("mode") or "unavailable"),
-        "status": "disabled",
-        "reason": "",
-    }
-    if config.get("enabled") is not True:
-        result["reason"] = "semantic-veto shadow is disabled in local config"
-        return result
-
-    configured_path = Path(str(config.get("manifest_path") or ""))
-    if not configured_path.is_absolute():
-        configured_path = project_dir / configured_path
-    try:
-        from semantic_alignment.quote_image_semantic_veto import (
-            manifest_source_hash_mismatches,
-            validate_compiled_manifest,
-            validate_shadow_config,
-        )
-
-        config_errors = validate_shadow_config(config)
-        if config_errors:
-            raise ValueError("; ".join(config_errors))
-        manifest = _strict_native_json_object(
-            configured_path.read_bytes(), label="semantic-veto manifest"
-        )
-        audit = validate_compiled_manifest(manifest)
-        stale = manifest_source_hash_mismatches(project_dir, manifest)
-        manifest_hash = file_sha256(configured_path)
-        quote_count = audit.get("quote_count", manifest.get("quote_count"))
-        image_count = audit.get("image_count", manifest.get("image_count"))
-        total_authorised = manifest.get("total_authorised_pair_count")
-        if type(total_authorised) is not int and type(quote_count) is int and type(image_count) is int:
-            total_authorised = quote_count * image_count
-        coverage = manifest.get("quote_pair_coverage")
-        quote_text = manifest.get("quote_text")
-        fully_unadjudicated: List[Dict[str, Any]] = []
-        named_coverage: Optional[Dict[str, Any]] = None
-        if isinstance(coverage, dict):
-            for quote_id, row in sorted(coverage.items()):
-                if not isinstance(row, dict):
-                    continue
-                authorised = row.get("authorised_image_count")
-                not_adjudicated = row.get("not_adjudicated_count")
-                if (
-                    type(authorised) is int
-                    and authorised > 0
-                    and not_adjudicated == authorised
-                ):
-                    fully_unadjudicated.append(
-                        {
-                            "quote_id": str(quote_id),
-                            "quote_preview": short(
-                                quote_text.get(quote_id, "")
-                                if isinstance(quote_text, dict)
-                                else "",
-                                120,
-                            ),
-                            "authorised_image_count": authorised,
-                            "resolved_pair_count": int(row.get("resolved_pair_count", 0) or 0),
-                            "adjudicated_unknown_count": int(
-                                row.get("adjudicated_unknown_count", 0) or 0
-                            ),
-                            "not_adjudicated_count": not_adjudicated,
-                        }
-                    )
-                if str(quote_id) == SEMANTIC_VETO_NAMED_COVERAGE_QUOTE_ID:
-                    named_coverage = {
-                        "quote_id": str(quote_id),
-                        "authorised_image_count": int(authorised or 0),
-                        "allow_count": int(row.get("allow_count", 0) or 0),
-                        "veto_count": int(row.get("veto_count", 0) or 0),
-                        "adjudicated_unknown_count": int(
-                            row.get("adjudicated_unknown_count", 0) or 0
-                        ),
-                        "not_adjudicated_count": int(not_adjudicated or 0),
-                        "complete": row.get("complete_pair_coverage") is True
-                        and int(not_adjudicated or 0) == 0,
-                    }
-        allow_count = manifest.get("allow_count")
-        veto_count = manifest.get("veto_count")
-        unknown_count = manifest.get("adjudicated_unknown_pair_count")
-        not_adjudicated_count = manifest.get("not_adjudicated_pair_count")
-        if not all(type(value) is int for value in (
-            allow_count, veto_count, unknown_count, not_adjudicated_count
-        )):
-            raise ValueError("manifest does not expose separate allow/veto/unknown/not-adjudicated counts")
-        if type(total_authorised) is int and (
-            allow_count + veto_count + unknown_count + not_adjudicated_count
-            != total_authorised
-        ):
-            raise ValueError("manifest pair-state counts do not equal authorised pair universe")
-        result.update(
-            {
-                "manifest_path": str(configured_path),
-                "manifest_policy_version": str(manifest.get("policy_version") or "unavailable"),
-                "manifest_sha256": manifest_hash,
-                "quote_count": quote_count,
-                "image_count": image_count,
-                "pair_count": audit.get("pair_count", manifest.get("pair_count")),
-                "total_authorised_pair_count": total_authorised,
-                "resolved_pair_count": manifest.get(
-                    "resolved_pair_count",
-                    audit.get("pair_count", manifest.get("pair_count")),
-                ),
-                "allow_pair_count": allow_count,
-                "veto_pair_count": veto_count,
-                "adjudicated_unknown_pair_count": manifest.get(
-                    "adjudicated_unknown_pair_count",
-                    audit.get("adjudicated_unknown_pair_count", 0),
-                ),
-                "not_adjudicated_pair_count": manifest.get(
-                    "not_adjudicated_pair_count",
-                    audit.get("not_adjudicated_pair_count", 0),
-                ),
-                "fully_unadjudicated_quote_count": len(fully_unadjudicated),
-                "fully_unadjudicated_quotes": fully_unadjudicated,
-                "named_quote_coverage": named_coverage,
-            }
-        )
-        if stale:
-            result.update(
-                {
-                    "status": "manifest_stale",
-                    "reason": f"source hash mismatch: {Path(stale[0]).name}",
-                }
-            )
-            return result
-        result.update({"available": True, "status": "loaded"})
-        return result
-    except FileNotFoundError:
-        result.update(
-            {
-                "status": "manifest_unavailable",
-                "reason": f"configured manifest is missing: {configured_path.name}",
-            }
-        )
-    except Exception as exc:
-        result.update(
-            {
-                "status": "manifest_invalid",
-                "reason": f"configured manifest invalid: {type(exc).__name__}: {exc}",
-            }
-        )
-    return result
-
-
-def _add_configured_veto_health(
-    runtime: Dict[str, Any],
-    configured: Dict[str, Any],
-) -> Dict[str, Any]:
-    """Attach current configured-manifest health to a retained runtime snapshot."""
-    if not configured.get("present"):
-        return runtime
-    result = dict(runtime)
-    result.update(
-        {
-            "configured_manifest_present": True,
-            "configured_manifest_available": configured.get("available") is True,
-            "configured_manifest_enabled": configured.get("enabled"),
-            "configured_manifest_mode": configured.get("mode"),
-            "configured_manifest_status": configured.get("status"),
-            "configured_manifest_reason": configured.get("reason") or "",
-            "configured_manifest_path": configured.get("manifest_path"),
-            "configured_manifest_policy_version": configured.get("manifest_policy_version"),
-            "configured_manifest_sha256": configured.get("manifest_sha256"),
-            "configured_manifest_quote_count": configured.get("quote_count"),
-            "configured_manifest_image_count": configured.get("image_count"),
-            "configured_manifest_pair_count": configured.get("pair_count"),
-            "configured_manifest_total_authorised_pair_count": configured.get(
-                "total_authorised_pair_count"
-            ),
-            "configured_manifest_resolved_pair_count": configured.get(
-                "resolved_pair_count"
-            ),
-            "configured_manifest_allow_pair_count": configured.get(
-                "allow_pair_count"
-            ),
-            "configured_manifest_veto_pair_count": configured.get(
-                "veto_pair_count"
-            ),
-            "configured_manifest_adjudicated_unknown_pair_count": configured.get(
-                "adjudicated_unknown_pair_count"
-            ),
-            "configured_manifest_not_adjudicated_pair_count": configured.get(
-                "not_adjudicated_pair_count"
-            ),
-            "configured_manifest_fully_unadjudicated_quote_count": configured.get(
-                "fully_unadjudicated_quote_count"
-            ),
-            "configured_manifest_fully_unadjudicated_quotes": configured.get(
-                "fully_unadjudicated_quotes"
-            )
-            or [],
-            "configured_manifest_named_quote_coverage": configured.get(
-                "named_quote_coverage"
-            ),
-        }
-    )
-    if runtime.get("available") and configured.get("available"):
-        result["runtime_status_matches_configured_manifest"] = bool(
-            runtime.get("manifest_policy_version")
-            == configured.get("manifest_policy_version")
-            and runtime.get("manifest_sha256") == configured.get("manifest_sha256")
-        )
-    else:
-        result["runtime_status_matches_configured_manifest"] = None
-    return result
-
-
-def quote_image_semantic_veto_shadow_snapshot(project_dir: Path) -> Dict[str, Any]:
-    """Read the local material-veto shadow status without any provider access."""
-    configured = configured_quote_image_semantic_veto_snapshot(project_dir)
-    path = project_dir / "quote_image_semantic_veto_runtime" / "shadow_status.json"
-    try:
-        value = _strict_native_json_object(
-            path.read_bytes(), label="semantic-veto shadow status"
-        )
-        if "mixed_manifest_versions" not in value:
-            history_path = path.with_name("shadow_history.jsonl")
-            history_rows: List[Dict[str, Any]] = []
-            if history_path.is_file():
-                for line in history_path.read_text(encoding="utf-8", errors="replace").splitlines()[-10_000:]:
-                    try:
-                        row = _strict_native_json_object(
-                            line.encode("utf-8"),
-                            label="semantic-veto shadow history row",
-                        )
-                    except (UnicodeEncodeError, ValueError):
-                        continue
-                    history_rows.append(row)
-            if history_rows:
-                reconstructed = quote_image_semantic_veto_summary(history_rows)
-                value = {
-                    **value,
-                    "events": reconstructed.get("selection_time_observations", 0),
-                    "allowed": reconstructed.get("allowed_production_winners", 0),
-                    "vetoed": reconstructed.get("vetoed_production_winners", 0),
-                    "unknown": reconstructed.get("unknown_unjudged", 0),
-                    "generated_out_of_scope": reconstructed.get("generated_out_of_scope", 0),
-                    "vetoed_with_alternative": reconstructed.get("vetoed_with_allowed_alternative", 0),
-                    "vetoed_without_alternative": reconstructed.get("vetoed_without_allowed_alternative", 0),
-                    "selection_error_candidate_available": reconstructed.get(
-                        "selection_error_candidate_available", 0
-                    ),
-                    "coverage_gap_no_safe_image": reconstructed.get("coverage_gap_no_safe_image", 0),
-                    "quotes_with_no_globally_allowed_candidate": reconstructed.get(
-                        "quotes_with_no_globally_allowed_candidate", 0
-                    ),
-                    "veto_reason_counts": reconstructed.get("veto_reason_counts", {}),
-                    "alternative_score_delta_median": reconstructed.get("median_alternative_score_delta"),
-                    "manifest_policy_version": reconstructed.get("manifest_policy_version", "unavailable"),
-                    "manifest_sha256": reconstructed.get("manifest_sha256", ""),
-                    "production_selection_change_failures": reconstructed.get(
-                        "production_selection_change_failures", 0
-                    ),
-                    "history_events_all_manifests": reconstructed.get("window_event_count_all_manifests", 0),
-                    "events_excluded_from_current_manifest_summary": reconstructed.get(
-                        "events_excluded_from_current_manifest_summary", 0
-                    ),
-                    "mixed_manifest_versions": reconstructed.get("mixed_manifest_versions", False),
-                    "manifest_strata": reconstructed.get("manifest_strata", []),
-                }
-        counts = {
-            key: int(value.get(key, 0) or 0)
-            for key in (
-                "events", "allowed", "vetoed", "unknown", "generated_out_of_scope",
-                "manifest_unavailable", "manifest_stale", "vetoed_with_alternative",
-                "vetoed_without_alternative", "coverage_gap_no_safe_image",
-                "quotes_with_no_globally_allowed_candidate",
-                "production_selection_change_failures",
-            )
-        }
-        measurements = {
-            key: None if value.get(key) is None else float(value[key])
-            for key in (
-                "alternative_score_delta_median", "lookup_latency_p50_ms",
-                "lookup_latency_p95_ms", "lookup_latency_max_ms",
-            )
-        }
-        selection_error = int(
-            value.get("selection_error_candidate_available", value.get("vetoed_with_alternative", 0)) or 0
-        )
-        history_events_all_manifests = int(
-            value.get("history_events_all_manifests", value.get("events", 0)) or 0
-        )
-        events_excluded = int(value.get("events_excluded_from_current_manifest_summary", 0) or 0)
-        mixed_manifest_versions = value.get("mixed_manifest_versions", False)
-        if type(mixed_manifest_versions) is not bool:
-            raise ValueError("mixed_manifest_versions must be boolean")
-        manifest_strata = value.get("manifest_strata", [])
-        if not isinstance(manifest_strata, list) or not all(isinstance(item, dict) for item in manifest_strata):
-            raise ValueError("manifest_strata must be a list of objects")
-    except FileNotFoundError:
-        return _add_configured_veto_health(
-            {"available": False, "reason": "shadow mode disabled or no events observed"},
-            configured,
-        )
-    except Exception as exc:
-        return _add_configured_veto_health(
-            {"available": False, "reason": f"shadow status unavailable: {type(exc).__name__}"},
-            configured,
-        )
-    return _add_configured_veto_health({
-        "available": True,
-        **counts,
-        **measurements,
-        "selection_error_candidate_available": selection_error,
-        "history_events_all_manifests": history_events_all_manifests,
-        "events_excluded_from_current_manifest_summary": events_excluded,
-        "mixed_manifest_versions": mixed_manifest_versions,
-        "manifest_strata": manifest_strata,
-        "veto_reason_counts": value.get("veto_reason_counts") if isinstance(value.get("veto_reason_counts"), dict) else {},
-        "manifest_policy_version": str(value.get("manifest_policy_version") or "unavailable"),
-        "manifest_sha256": str(value.get("manifest_sha256") or ""),
-        "updated_at": value.get("updated_at"),
-    }, configured)
-
-
-def semantic_veto_load_lifecycle(records: List["Record"]) -> Dict[str, Any]:
-    """Correlate semantic-veto startup warnings with later successful loads."""
-    stale: List[Dict[str, Any]] = []
-    loads: List[Dict[str, Any]] = []
-    for record in records:
-        message = record.msg
-        if "Quote/image semantic-veto shadow unavailable" in message:
-            stale.append({
-                "time": record.ts.strftime("%Y-%m-%d %H:%M:%S"),
-                "timestamp": record.ts,
-                "message": message,
-            })
-        elif "Quote/image semantic-veto shadow manifest loaded" in message:
-            policy_match = re.search(r"\bpolicy=(\S+)", message)
-            hash_match = re.search(r"\bsha256=([0-9a-f]{64})", message)
-            loads.append({
-                "time": record.ts.strftime("%Y-%m-%d %H:%M:%S"),
-                "timestamp": record.ts,
-                "policy": policy_match.group(1) if policy_match else "unavailable",
-                "manifest_sha256": hash_match.group(1) if hash_match else "",
-            })
-    resolved = []
-    unresolved = []
-    for warning in stale:
-        later = next(
-            (load for load in loads if load["timestamp"] > warning["timestamp"]),
-            None,
-        )
-        public = {key: value for key, value in warning.items() if key != "timestamp"}
-        if later:
-            public["resolved_at"] = later["time"]
-            public["resolved_by_manifest_sha256"] = later["manifest_sha256"]
-            resolved.append(public)
-        else:
-            unresolved.append(public)
-    return {
-        "resolved_warning_count": len(resolved),
-        "unresolved_warning_count": len(unresolved),
-        "resolved_warnings": resolved,
-        "unresolved_warnings": unresolved,
-        "successful_loads": [
-            {key: value for key, value in load.items() if key != "timestamp"}
-            for load in loads
-        ],
-    }
 
 
 def historical_context_corpus_snapshot(project_dir: Path) -> Dict[str, Any]:
@@ -12349,135 +11958,6 @@ def reply_strategy_summary(events: List[Dict[str, Any]]) -> Dict[str, Any]:
     }
 
 
-def quote_image_semantic_veto_category(event: Dict[str, Any]) -> Optional[str]:
-    """Return a category for new events and infer one from compatible legacy fields."""
-    if event.get("shadow_status") != "veto":
-        return None
-    category = event.get("veto_category")
-    if category == "selection_error_candidate_available":
-        return str(category)
-    if (
-        category == "coverage_gap_no_safe_image"
-        and event.get("quote_pair_fully_resolved") is True
-    ):
-        return str(category)
-    if event.get("alternative_available") is True:
-        return "selection_error_candidate_available"
-    if (
-        event.get("quote_has_no_allowed_candidate_globally") is True
-        and event.get("quote_pair_fully_resolved") is True
-    ):
-        return "coverage_gap_no_safe_image"
-    return None
-
-
-def _quote_image_semantic_veto_manifest_key(event: Dict[str, Any]) -> tuple[str, str]:
-    return (
-        str(event.get("manifest_policy_version") or "unavailable"),
-        str(event.get("manifest_sha256") or ""),
-    )
-
-
-def _quote_image_semantic_veto_summary_subset(events: List[Dict[str, Any]]) -> Dict[str, Any]:
-    statuses = Counter(str(event.get("shadow_status") or "unknown") for event in events)
-    vetoed = [event for event in events if event.get("shadow_status") == "veto"]
-    deltas = [
-        float(event["score_delta_from_production_winner"])
-        for event in vetoed
-        if isinstance(event.get("score_delta_from_production_winner"), (int, float))
-    ]
-    reasons = Counter(code for event in vetoed for code in (event.get("veto_reason_codes") or []))
-    categories = Counter(quote_image_semantic_veto_category(event) for event in vetoed)
-    no_safe_quote_ids = {
-        str(event.get("quote_id"))
-        for event in events
-        if event.get("quote_has_no_allowed_candidate_globally") is True
-        and event.get("quote_pair_fully_resolved") is True
-        and event.get("quote_id")
-    }
-    incomplete_quote_ids = {
-        str(event.get("quote_id"))
-        for event in events
-        if event.get("quote_has_incomplete_pair_coverage") is True
-        and event.get("quote_id")
-    }
-    examples = []
-    for event in vetoed[:5]:
-        examples.append({
-            "quote_preview": event.get("quote_preview") or event.get("quote_id") or "",
-            "production_image": event.get("selected_image_basename") or "",
-            "veto_category": quote_image_semantic_veto_category(event),
-            "veto_reason": ", ".join(event.get("veto_reason_codes") or []) or event.get("veto_explanation") or "",
-            "alternative": event.get("alternative_image_basename") or "none",
-            "score_delta": event.get("score_delta_from_production_winner"),
-            "confirmed_post": event.get("confirmed_post") is True,
-        })
-    return {
-        "available": bool(events),
-        "selection_time_observations": len(events),
-        "confirmed_successful_posts": sum(event.get("confirmed_post") is True for event in events),
-        "in_scope_historical_selections": statuses["allow"] + statuses["veto"] + statuses["unknown_unjudged"],
-        "allowed_production_winners": statuses["allow"],
-        "vetoed_production_winners": statuses["veto"],
-        "unknown_unjudged": statuses["unknown_unjudged"],
-        "generated_out_of_scope": statuses["out_of_scope_generated"],
-        "vetoed_with_allowed_alternative": sum(event.get("alternative_available") is True for event in vetoed),
-        "vetoed_without_allowed_alternative": sum(event.get("alternative_available") is not True for event in vetoed),
-        "selection_error_candidate_available": categories["selection_error_candidate_available"],
-        "coverage_gap_no_safe_image": categories["coverage_gap_no_safe_image"],
-        "quotes_with_no_globally_allowed_candidate": len(no_safe_quote_ids),
-        "quotes_with_incomplete_pair_coverage": len(incomplete_quote_ids),
-        "adjudicated_unknown_selections": sum(
-            event.get("selected_pair_adjudication_status") == "adjudicated_unknown"
-            for event in events
-        ),
-        "not_adjudicated_selections": sum(
-            event.get("selected_pair_adjudication_status") == "not_adjudicated_missing"
-            for event in events
-        ),
-        "median_alternative_score_delta": statistics.median(deltas) if deltas else None,
-        "manifest_policy_version": next((event.get("manifest_policy_version") for event in reversed(events) if event.get("manifest_policy_version")), "unavailable"),
-        "manifest_sha256": next((event.get("manifest_sha256") for event in reversed(events) if event.get("manifest_sha256")), ""),
-        "lookup_failures": statuses["manifest_unavailable"] + statuses["manifest_stale"],
-        "production_selection_change_failures": sum(event.get("production_selection_changed") is not False for event in events),
-        "veto_reason_counts": dict(reasons.most_common()),
-        "examples": examples,
-    }
-
-
-def quote_image_semantic_veto_summary(events: List[Dict[str, Any]]) -> Dict[str, Any]:
-    """Return the quote image semantic veto summary."""
-    grouped: Dict[tuple[str, str], List[Dict[str, Any]]] = {}
-    for event in events:
-        grouped.setdefault(_quote_image_semantic_veto_manifest_key(event), []).append(event)
-    current_key = (
-        _quote_image_semantic_veto_manifest_key(events[-1])
-        if events else
-        ("unavailable", "")
-    )
-    current_events = grouped.get(current_key, [])
-    summary = _quote_image_semantic_veto_summary_subset(current_events)
-    summary["manifest_policy_version"] = current_key[0]
-    summary["manifest_sha256"] = current_key[1]
-    summary.update({
-        "window_event_count_all_manifests": len(events),
-        "events_excluded_from_current_manifest_summary": len(events) - len(current_events),
-        "mixed_manifest_versions": len(grouped) > 1,
-        "manifest_strata": [
-            {
-                "manifest_policy_version": key[0],
-                "manifest_sha256": key[1],
-                "selection_time_observations": len(rows),
-                "status_counts": dict(Counter(
-                    str(row.get("shadow_status") or "unknown") for row in rows
-                )),
-            }
-            for key, rows in grouped.items()
-        ],
-    })
-    return summary
-
-
 def analyse(
     records: List[Record],
     max_text: int = 280,
@@ -12533,7 +12013,6 @@ def analyse(
     generated_identity_shadow_events: List[Dict[str, Any]] = []
     generated_identity_policy_events: List[Dict[str, Any]] = []
     generated_image_spacing_events: List[Dict[str, Any]] = []
-    quote_image_semantic_veto_events: List[Dict[str, Any]] = []
     latest_generated_image_spacing: Dict[str, Any] = {}
     cooldown_active: List[Dict[str, Any]] = []
     lifecycle: List[Dict[str, Any]] = []
@@ -12569,8 +12048,6 @@ def analyse(
     production_active_xai_call_attempt_index = active_xai_call_attempt_index
     selftest_active_xai_call_attempt_index: Optional[int] = None
     last_created_post: Dict[str, Any] = {}
-    pending_semantic_veto_event: Optional[Dict[str, Any]] = None
-    pending_semantic_veto_ts: Optional[datetime] = None
     production_pending_quote = pending_quote
     production_pending_meme = pending_meme
     production_pending_mention = pending_mention
@@ -12578,8 +12055,6 @@ def analyse(
     production_pending_confirmed_reply_receipt = pending_confirmed_reply_receipt
     production_last_created_post = last_created_post
     production_active_xai_context = active_xai_context
-    production_pending_semantic_veto_event = pending_semantic_veto_event
-    production_pending_semantic_veto_ts = pending_semantic_veto_ts
     selftest_pending_quote: Dict[str, Any] = {}
     selftest_pending_meme: Dict[str, Any] = {}
     selftest_pending_mention: Dict[str, Any] = {}
@@ -12587,8 +12062,6 @@ def analyse(
     selftest_pending_confirmed_reply_receipt: Dict[str, Any] = {}
     selftest_last_created_post: Dict[str, Any] = {}
     selftest_active_xai_context: Optional[Dict[str, Any]] = None
-    selftest_pending_semantic_veto_event: Optional[Dict[str, Any]] = None
-    selftest_pending_semantic_veto_ts: Optional[datetime] = None
     previous_record_production = True
     structured_reply_confirmations: List[Dict[str, Any]] = []
     historical_reply_text_evidence: List[Dict[str, Any]] = list(
@@ -12596,27 +12069,6 @@ def analyse(
     )
     current_source_record: Optional[Record] = None
     production_event_object_ids: set[int] = set()
-
-    def semantic_veto_matches_post(
-        shadow_event: Dict[str, Any],
-        shadow_ts: datetime,
-        posted_event: Dict[str, Any],
-        posted_ts: datetime,
-    ) -> bool:
-        elapsed = (posted_ts - shadow_ts).total_seconds()
-        if elapsed < 0 or elapsed > 30 * 60:
-            return False
-        comparisons: List[bool] = []
-        for shadow_field, posted_field in (
-            ("quote_hash", "quote_hash"),
-            ("selected_image_hash", "image_hash"),
-            ("selected_image_basename", "image_basename"),
-        ):
-            shadow_value = str(shadow_event.get(shadow_field) or "")
-            posted_value = str(posted_event.get(posted_field) or "")
-            if shadow_value and posted_value:
-                comparisons.append(shadow_value == posted_value)
-        return bool(comparisons) and all(comparisons)
 
     def add_event(kind: str, ts: datetime, **kwargs: Any) -> Dict[str, Any]:
         ev = {"time": ts.strftime("%Y-%m-%d %H:%M:%S"), "kind": kind}
@@ -12988,10 +12440,6 @@ def analyse(
             production_active_xai_call_attempt_index = (
                 active_xai_call_attempt_index
             )
-            production_pending_semantic_veto_event = (
-                pending_semantic_veto_event
-            )
-            production_pending_semantic_veto_ts = pending_semantic_veto_ts
         else:
             selftest_pending_quote = pending_quote
             selftest_pending_meme = pending_meme
@@ -13005,8 +12453,6 @@ def analyse(
             selftest_active_xai_call_attempt_index = (
                 active_xai_call_attempt_index
             )
-            selftest_pending_semantic_veto_event = pending_semantic_veto_event
-            selftest_pending_semantic_veto_ts = pending_semantic_veto_ts
         if production_record:
             pending_quote = production_pending_quote
             pending_meme = production_pending_meme
@@ -13020,10 +12466,6 @@ def analyse(
             active_xai_call_attempt_index = (
                 production_active_xai_call_attempt_index
             )
-            pending_semantic_veto_event = (
-                production_pending_semantic_veto_event
-            )
-            pending_semantic_veto_ts = production_pending_semantic_veto_ts
         else:
             pending_quote = selftest_pending_quote
             pending_meme = selftest_pending_meme
@@ -13037,8 +12479,6 @@ def analyse(
             active_xai_call_attempt_index = (
                 selftest_active_xai_call_attempt_index
             )
-            pending_semantic_veto_event = selftest_pending_semantic_veto_event
-            pending_semantic_veto_ts = selftest_pending_semantic_veto_ts
         previous_record_production = production_record
         compatibility_event_obj = (
             try_parse_json_object_from_msg(msg)
@@ -13510,22 +12950,7 @@ def analyse(
                         "main_post_posted",
                         r.ts.strftime("%Y-%m-%d %H:%M:%S"),
                     )
-                if event_obj.get("lane") == "quote_image":
-                    if (
-                        pending_semantic_veto_event is not None
-                        and pending_semantic_veto_ts is not None
-                        and semantic_veto_matches_post(
-                            pending_semantic_veto_event,
-                            pending_semantic_veto_ts,
-                            event_obj,
-                            r.ts,
-                        )
-                    ):
-                        pending_semantic_veto_event["confirmed_post"] = True
-                        pending_semantic_veto_event["post_id"] = event_obj.get("post_id") or ""
-                    pending_semantic_veto_event = None
-                    pending_semantic_veto_ts = None
-                elif event_obj.get("lane") == "daily_meme":
+                if event_obj.get("lane") == "daily_meme":
                     pending_meme.update({
                         "post_id": event_obj.get("post_id"),
                         "file": event_obj.get("filename"),
@@ -13729,124 +13154,6 @@ def analyse(
                     ),
                 }
                 engagement_trial_outcomes.append(outcome)
-            elif event_obj and event_obj.get("event") == "quote_image_semantic_veto_shadow":
-                pending_semantic_veto_event = add_event(
-                    "quote_image_semantic_veto_shadow",
-                    r.ts,
-                    quote_id=(
-                        event_obj.get("quote_id")
-                        if isinstance(event_obj.get("quote_id"), str)
-                        and SHA256_LOWER_RE.fullmatch(event_obj["quote_id"])
-                        else ""
-                    ),
-                    quote_hash=(
-                        event_obj.get("quote_hash")
-                        if isinstance(event_obj.get("quote_hash"), str)
-                        and SHA256_LOWER_RE.fullmatch(event_obj["quote_hash"])
-                        else ""
-                    ),
-                    quote_preview=bounded_event_text(
-                        event_obj.get("quote_preview"),
-                        default="",
-                        max_characters=1000,
-                    ),
-                    selected_image_hash=(
-                        event_obj.get("selected_image_hash")
-                        if isinstance(event_obj.get("selected_image_hash"), str)
-                        and SHA256_LOWER_RE.fullmatch(
-                            event_obj["selected_image_hash"]
-                        )
-                        else ""
-                    ),
-                    selected_image_basename=bounded_event_text(
-                        event_obj.get("selected_image_basename"),
-                        default="",
-                        max_characters=500,
-                    ),
-                    selected_image_source=bounded_event_text(
-                        event_obj.get("selected_image_source"),
-                        default="other",
-                        max_characters=100,
-                    ),
-                    selected_score=bounded_event_finite_number(
-                        event_obj.get("selected_score")
-                    ),
-                    shadow_status=bounded_event_text(
-                        event_obj.get("shadow_status"),
-                        default="unknown",
-                        max_characters=100,
-                    ),
-                    would_veto_production_winner=bounded_event_boolean(
-                        event_obj.get("would_veto_production_winner")
-                    ),
-                    veto_category=bounded_event_text(
-                        event_obj.get("veto_category"), max_characters=100
-                    ),
-                    veto_reason_codes=bounded_event_string_list(
-                        event_obj.get("veto_reason_codes")
-                    ),
-                    veto_explanation=bounded_event_text(
-                        event_obj.get("veto_explanation"),
-                        default="",
-                        max_characters=1000,
-                    ),
-                    alternative_available=bounded_event_boolean(
-                        event_obj.get("alternative_available")
-                    ),
-                    alternative_image_basename=bounded_event_text(
-                        event_obj.get("alternative_image_basename"),
-                        max_characters=500,
-                    ),
-                    alternative_score=bounded_event_finite_number(
-                        event_obj.get("alternative_score")
-                    ),
-                    score_delta_from_production_winner=bounded_event_finite_number(
-                        event_obj.get("score_delta_from_production_winner")
-                    ),
-                    quote_has_no_allowed_candidate_globally=bounded_event_boolean(
-                        event_obj.get("quote_has_no_allowed_candidate_globally")
-                    ),
-                    quote_has_incomplete_pair_coverage=bounded_event_boolean(
-                        event_obj.get("quote_has_incomplete_pair_coverage")
-                    ),
-                    quote_pair_fully_resolved=bounded_event_boolean(
-                        event_obj.get("quote_pair_fully_resolved")
-                    ),
-                    selected_pair_adjudication_status=bounded_event_text(
-                        event_obj.get("selected_pair_adjudication_status"),
-                        max_characters=100,
-                    ),
-                    quote_pair_adjudicated_unknown_count=bounded_event_nonnegative_integer(
-                        event_obj.get("quote_pair_adjudicated_unknown_count"),
-                        maximum=1_000_000,
-                    ),
-                    quote_pair_not_adjudicated_count=bounded_event_nonnegative_integer(
-                        event_obj.get("quote_pair_not_adjudicated_count"),
-                        maximum=1_000_000,
-                    ),
-                    manifest_policy_version=bounded_event_text(
-                        event_obj.get("manifest_policy_version"),
-                        default="unavailable",
-                        max_characters=200,
-                    ),
-                    manifest_sha256=(
-                        event_obj.get("manifest_sha256")
-                        if isinstance(event_obj.get("manifest_sha256"), str)
-                        and SHA256_LOWER_RE.fullmatch(
-                            event_obj["manifest_sha256"]
-                        )
-                        else ""
-                    ),
-                    lookup_latency_ms=bounded_event_finite_number(
-                        event_obj.get("lookup_latency_ms")
-                    ),
-                    production_selection_changed=bounded_event_boolean(
-                        event_obj.get("production_selection_changed")
-                    ),
-                    confirmed_post=False,
-                )
-                quote_image_semantic_veto_events.append(pending_semantic_veto_event)
-                pending_semantic_veto_ts = r.ts
             elif event_obj and event_obj.get("event") == "historical_context_semantic_gate":
                 add_event(
                     "historical_context_semantic_gate",
@@ -15897,8 +15204,6 @@ def analyse(
         production_active_xai_call_attempt_index = (
             active_xai_call_attempt_index
         )
-        production_pending_semantic_veto_event = pending_semantic_veto_event
-        production_pending_semantic_veto_ts = pending_semantic_veto_ts
     pending_quote = production_pending_quote
     pending_meme = production_pending_meme
     pending_mention = production_pending_mention
@@ -15909,8 +15214,6 @@ def analyse(
     last_created_post = production_last_created_post
     active_xai_context = production_active_xai_context
     active_xai_call_attempt_index = production_active_xai_call_attempt_index
-    pending_semantic_veto_event = production_pending_semantic_veto_event
-    pending_semantic_veto_ts = production_pending_semantic_veto_ts
     current_source_record = None
 
     def correlated_quote_post_fields(
@@ -17774,7 +17077,6 @@ def analyse(
         "historical_context_quality": context_quality,
         "reply_strategy": strategy_quality,
         "reply_pipeline_stages": pipeline_stage_quality,
-        "semantic_veto_load_lifecycle": semantic_veto_load_lifecycle(records),
         "reply_media_context": reply_media_context,
         "reply_visual_context_summary": reply_visual_context_summary,
         "reply_visual_context_targets": reply_visual_context_targets,
@@ -17800,10 +17102,6 @@ def analyse(
         "generated_identity_policy": {
             "events": generated_identity_policy_events,
             "summary": generated_identity_policy_summary(generated_identity_policy_events),
-        },
-        "quote_image_semantic_veto_shadow": {
-            "events": quote_image_semantic_veto_events,
-            "summary": quote_image_semantic_veto_summary(quote_image_semantic_veto_events),
         },
         "generated_image_spacing": {
             "latest": latest_generated_image_spacing,
@@ -20248,258 +19546,6 @@ def render_markdown(report: Dict[str, Any]) -> str:
         out.append("All associations are observational; the digest does not attribute causation.")
     out.append("")
 
-    veto_section = report.get("quote_image_semantic_veto_shadow") or {}
-    veto_window = veto_section.get("summary") or {}
-    veto_runtime = veto_section.get("runtime_summary") or {}
-    veto_load_lifecycle = report.get("semantic_veto_load_lifecycle") or {}
-    out.append("## Quote/image semantic veto shadow")
-    if veto_load_lifecycle.get("resolved_warning_count"):
-        latest_resolution = (veto_load_lifecycle.get("resolved_warnings") or [])[-1]
-        out.append(
-            f"Startup lifecycle: **{veto_load_lifecycle.get('resolved_warning_count')} stale/unavailable "
-            "manifest warning(s) resolved by a later successful load**"
-            f" (latest resolution `{latest_resolution.get('resolved_at')}`)."
-        )
-    if veto_load_lifecycle.get("unresolved_warning_count"):
-        out.append(
-            f"Startup lifecycle: **{veto_load_lifecycle.get('unresolved_warning_count')} "
-            "unresolved manifest load warning(s)**."
-        )
-    configured_available = veto_runtime.get("configured_manifest_available") is True
-    if veto_runtime.get("configured_manifest_present"):
-        configured_mode = veto_runtime.get("configured_manifest_mode") or "unavailable"
-        enforcement = (
-            "disabled; observations are advisory and production selection is unchanged"
-            if configured_mode == "shadow"
-            else "disabled"
-            if configured_mode == "disabled"
-            else "unavailable"
-        )
-        out.append(
-            f"Mode: **{configured_mode}**; active enforcement: **{enforcement}**."
-        )
-        out.append(
-            "Loaded configured manifest: "
-            f"**{veto_runtime.get('configured_manifest_status') or 'unavailable'}**; "
-            f"policy **{veto_runtime.get('configured_manifest_policy_version') or 'unavailable'}**; "
-            f"hash `{str(veto_runtime.get('configured_manifest_sha256') or '')[:16] or 'unavailable'}`."
-        )
-        configured_quote_count = veto_runtime.get("configured_manifest_quote_count")
-        configured_image_count = veto_runtime.get("configured_manifest_image_count")
-        out.append(
-            "Authorised pair universe: "
-            f"**{configured_quote_count if configured_quote_count is not None else 'unavailable'} "
-            f"quotations × {configured_image_count if configured_image_count is not None else 'unavailable'} images "
-            f"= {veto_runtime.get('configured_manifest_total_authorised_pair_count', 'unavailable')} pairs**."
-        )
-        out.append(
-            "Pair adjudication state: "
-            f"**allow {veto_runtime.get('configured_manifest_allow_pair_count', 'unavailable')}; "
-            f"veto {veto_runtime.get('configured_manifest_veto_pair_count', 'unavailable')}; "
-            f"{veto_runtime.get('configured_manifest_adjudicated_unknown_pair_count', 'unavailable')} "
-            "adjudicated unknown; "
-            f"{veto_runtime.get('configured_manifest_not_adjudicated_pair_count', 'unavailable')} "
-            "authorised but not yet adjudicated**."
-        )
-        if veto_runtime.get("configured_manifest_reason"):
-            out.append(
-                f"Configured manifest warning: **{veto_runtime.get('configured_manifest_reason')}**."
-            )
-        configured_hash = str(veto_runtime.get("configured_manifest_sha256") or "")
-        observed_hashes = {
-            str(item.get("manifest_sha256") or "")
-            for item in (veto_window.get("manifest_strata") or [])
-        }
-        if str(veto_window.get("manifest_sha256") or ""):
-            observed_hashes.add(str(veto_window.get("manifest_sha256")))
-        configured_observed = bool(configured_hash and configured_hash in observed_hashes)
-        out.append(
-            "Retained runtime-status manifest: "
-            f"policy **{veto_runtime.get('manifest_policy_version') or 'unavailable'}**; "
-            f"hash `{str(veto_runtime.get('manifest_sha256') or '')[:16] or 'unavailable'}`."
-        )
-        if configured_observed:
-            out.append(
-                "Selection observation state: **configured manifest observed active; "
-                "any earlier retained-manifest mismatch is resolved**."
-            )
-        elif veto_runtime.get("runtime_status_matches_configured_manifest") is False:
-            out.append(
-                "Selection observation state: **awaiting first selection observation under "
-                "configured manifest**. The retained runtime-status manifest is older; this "
-                "is a lifecycle state, not an unresolved production fault."
-            )
-    if (
-        not veto_window.get("available")
-        and not veto_runtime.get("available")
-        and not configured_available
-    ):
-        out.append(f"Unavailable: **{veto_runtime.get('reason') or 'shadow mode disabled'}**.")
-    else:
-        if veto_window.get("available"):
-            summary = veto_window
-            out.append(
-                f"Selection-time observations: **{summary.get('selection_time_observations', 0)}**; "
-                f"confirmed successful posts: **{summary.get('confirmed_successful_posts', 0)}**. "
-                "Unconfirmed observations are not counted as posted outcomes."
-            )
-            if summary.get("mixed_manifest_versions"):
-                out.append(
-                    f"The window contains **{summary.get('window_event_count_all_manifests', 0)}** observations "
-                    f"across **{len(summary.get('manifest_strata') or [])}** manifest versions; headline figures "
-                    f"use the latest manifest only and exclude "
-                    f"**{summary.get('events_excluded_from_current_manifest_summary', 0)}** older-manifest observations."
-                )
-            allowed = summary.get("allowed_production_winners", 0)
-            vetoed = summary.get("vetoed_production_winners", 0)
-            unknown = summary.get("unknown_unjudged", 0)
-            generated = summary.get("generated_out_of_scope", 0)
-            in_scope = summary.get("in_scope_historical_selections", 0)
-            with_alternative = summary.get("vetoed_with_allowed_alternative", 0)
-            without_alternative = summary.get("vetoed_without_allowed_alternative", 0)
-            selection_error = summary.get("selection_error_candidate_available", 0)
-            coverage_gap = summary.get("coverage_gap_no_safe_image", 0)
-            no_global = summary.get("quotes_with_no_globally_allowed_candidate", 0)
-            incomplete_global = summary.get("quotes_with_incomplete_pair_coverage", 0)
-            adjudicated_unknown = summary.get("adjudicated_unknown_selections", 0)
-            not_adjudicated = summary.get("not_adjudicated_selections", 0)
-            median_delta = summary.get("median_alternative_score_delta")
-            version = summary.get("manifest_policy_version") or (
-                veto_runtime.get("configured_manifest_policy_version") or "unavailable"
-            )
-            manifest_hash = summary.get("manifest_sha256") or (
-                veto_runtime.get("configured_manifest_sha256") or ""
-            )
-            failures = summary.get("lookup_failures", 0)
-        else:
-            summary = veto_runtime
-            out.append(f"Runtime observations retained: **{summary.get('events', 0)}**.")
-            if summary.get("mixed_manifest_versions"):
-                out.append(
-                    f"Runtime history contains **{summary.get('history_events_all_manifests', 0)}** observations; "
-                    f"the displayed counts exclude **{summary.get('events_excluded_from_current_manifest_summary', 0)}** "
-                    "observations from other manifests."
-                )
-            allowed = summary.get("allowed", 0)
-            vetoed = summary.get("vetoed", 0)
-            unknown = summary.get("unknown", 0)
-            generated = summary.get("generated_out_of_scope", 0)
-            in_scope = int(allowed or 0) + int(vetoed or 0) + int(unknown or 0)
-            with_alternative = summary.get("vetoed_with_alternative", 0)
-            without_alternative = summary.get("vetoed_without_alternative", 0)
-            selection_error = summary.get("selection_error_candidate_available", with_alternative)
-            coverage_gap = summary.get("coverage_gap_no_safe_image", 0)
-            no_global = summary.get("quotes_with_no_globally_allowed_candidate", 0)
-            incomplete_global = summary.get("quotes_with_incomplete_pair_coverage", 0)
-            adjudicated_unknown = summary.get("adjudicated_unknown_selections", 0)
-            not_adjudicated = summary.get("not_adjudicated_selections", 0)
-            median_delta = summary.get("alternative_score_delta_median")
-            version = summary.get("manifest_policy_version") or (
-                summary.get("configured_manifest_policy_version") or "unavailable"
-            )
-            manifest_hash = summary.get("manifest_sha256") or (
-                summary.get("configured_manifest_sha256") or ""
-            )
-            failures = int(summary.get("manifest_unavailable", 0) or 0) + int(summary.get("manifest_stale", 0) or 0)
-        strata = summary.get("manifest_strata") or []
-        if strata:
-            out.append("Manifest-version strata:")
-            out.append(md_table_row(["policy", "manifest hash", "observations", "status counts"]))
-            out.append(md_table_row(["---", "---", "---", "---"]))
-            for item in strata:
-                observations = item.get(
-                    "selection_time_observations",
-                    item.get("events", 0),
-                )
-                out.append(
-                    md_table_row(
-                        [
-                            item.get("manifest_policy_version") or "unavailable",
-                            str(item.get("manifest_sha256") or "")[:16] or "unavailable",
-                            observations,
-                            compact_counts(item.get("status_counts") or {}),
-                        ]
-                    )
-                )
-            out.append("")
-        out.append("Selections:")
-        out.append(f"- Allowed: **{allowed}**")
-        out.append(f"- Vetoed: **{vetoed}**")
-        out.append(f"  - alternative available: **{selection_error}**")
-        out.append(f"  - no safe image exists: **{coverage_gap}**")
-        out.append(f"- Unknown: **{unknown}**")
-        out.append(
-            f"  - adjudicated unknown: **{adjudicated_unknown}**; "
-            f"not adjudicated/missing: **{not_adjudicated}**"
-        )
-        out.append(f"- Generated out of scope: **{generated}**")
-        out.append(
-            f"In-scope historical selections: **{in_scope}**; vetoed with/without an allowed "
-            f"candidate in the current set: **{with_alternative} / {without_alternative}**; "
-            f"median alternative score delta: "
-            f"**{f'{float(median_delta):.2f}' if median_delta is not None else 'unavailable'}**."
-        )
-        out.append(
-            f"Observation stratum manifest: **{version}** "
-            f"(`{str(manifest_hash)[:16] or 'unavailable'}`); "
-            f"lookup failures: **{failures}**."
-        )
-        reason_counts = summary.get("veto_reason_counts") or {}
-        if reason_counts:
-            out.append("Veto reasons:")
-            for reason, count in sorted(reason_counts.items(), key=lambda item: (-item[1], item[0])):
-                out.append(f"- {reason}: **{count}**")
-        out.append("")
-        out.append("Coverage state:")
-        out.append(f"- quotations with no safe historical image: **{no_global}**")
-        out.append(
-            "- selected quotations whose full image matrices remain unadjudicated: "
-            f"**{incomplete_global}**"
-        )
-        fully_unadjudicated = (
-            veto_runtime.get("configured_manifest_fully_unadjudicated_quotes") or []
-        )
-        if fully_unadjudicated:
-            out.append(
-                "- fully unadjudicated quotation matrices in the configured manifest "
-                f"(coverage state, not a runtime error): **{len(fully_unadjudicated)}**"
-            )
-            for item in fully_unadjudicated[:3]:
-                preview = item.get("quote_preview") or "text unavailable"
-                out.append(
-                    f"  - `{item.get('quote_id')}` — {preview}; "
-                    f"resolved **{item.get('resolved_pair_count', 0)}**, "
-                    f"adjudicated unknown **{item.get('adjudicated_unknown_count', 0)}**, "
-                    f"not adjudicated **{item.get('not_adjudicated_count', 0)} / "
-                    f"{item.get('authorised_image_count', 0)}**"
-                )
-        named = veto_runtime.get("configured_manifest_named_quote_coverage")
-        if isinstance(named, dict):
-            out.append(
-                f"- named quotation `{named.get('quote_id')}`: "
-                f"allow **{named.get('allow_count', 0)}**; "
-                f"veto **{named.get('veto_count', 0)}**; "
-                f"adjudicated unknown **{named.get('adjudicated_unknown_count', 0)}**; "
-                f"not adjudicated **{named.get('not_adjudicated_count', 0)}**; "
-                f"row complete: **{'yes' if named.get('complete') else 'no'}**"
-            )
-        examples = veto_window.get("examples") or []
-        if examples:
-            out.append("")
-            out.append("| Quote | Production image | Category | Reason | Alternative | Score difference | Posted |")
-            out.append("|---|---|---|---|---|---:|---|")
-            for item in examples[:5]:
-                out.append(md_table_row([
-                    item.get("quote_preview") or "",
-                    item.get("production_image") or "",
-                    item.get("veto_category") or "unclassified",
-                    item.get("veto_reason") or "",
-                    item.get("alternative") or "none",
-                    item.get("score_delta") if item.get("score_delta") is not None else "unavailable",
-                    "yes" if item.get("confirmed_post") else "no",
-                ]))
-    out.append("")
-
     lifecycle = report.get("shadow_feature_lifecycle") or {}
     out.append("## Shadow feature lifecycle")
     if not lifecycle.get("available"):
@@ -22329,20 +21375,10 @@ def render_markdown(report: Dict[str, Any]) -> str:
             )
     out.append("")
 
-    resolved_semantic_warning_times = {
-        item.get("time")
-        for item in (report.get("semantic_veto_load_lifecycle") or {}).get(
-            "resolved_warnings", []
-        )
-    }
     warnings = [
         item
         for item in report.get("errors_and_warnings") or []
         if item.get("level") == "WARNING"
-        and not (
-            item.get("time") in resolved_semantic_warning_times
-            and "Quote/image semantic-veto shadow unavailable" in str(item.get("message") or "")
-        )
     ]
     out.append("## Other warnings")
     if not warnings:
@@ -22754,8 +21790,6 @@ def run_digest(args: argparse.Namespace, *, project_dir: Path, state_file: Path)
             "tracked_post_pairs": 0,
         }
     report["shadow_feature_lifecycle"] = shadow_lifecycle_snapshot(project_dir)
-    veto_section = report.setdefault("quote_image_semantic_veto_shadow", {"events": [], "summary": {}})
-    veto_section["runtime_summary"] = quote_image_semantic_veto_shadow_snapshot(project_dir)
 
     # v5: if this incremental window has no startup Config lines, scan earlier
     # records in the same log files for the most recent Config values before

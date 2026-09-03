@@ -4649,7 +4649,6 @@ def test_bootstrap_refuses_ambiguous_context_sending_receipt(
         "load_completed_research_quote_hashes",
         lambda: {"3" * 64},
     )
-    monkeypatch.setattr(bot, "initialise_quote_image_semantic_veto_shadow", lambda: None)
     monkeypatch.setattr(bot, "validate_production_credentials", lambda: None)
     monkeypatch.setattr(
         bot,

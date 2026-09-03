@@ -20,15 +20,6 @@
       "maximum_runtime_seconds": 150
     },
     {
-      "id": "semantic_veto_shadow_health",
-      "timer": "mrs-semantic-veto-shadow-health.timer",
-      "service": "mrs-semantic-veto-shadow-health.service",
-      "expected": true,
-      "expected_interval_seconds": 86400,
-      "overdue_grace_seconds": 1800,
-      "maximum_runtime_seconds": 180
-    },
-    {
       "id": "prospective_conversations",
       "timer": "mrs-prospective-conversations.timer",
       "service": "mrs-prospective-conversations.service",

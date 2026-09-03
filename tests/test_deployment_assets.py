@@ -244,8 +244,6 @@ def test_canonical_user_units_cover_live_services_without_secrets() -> None:
     main = (SYSTEMD_DIR / "mrsMThatcher.service").read_text(encoding="utf-8")
     analytics = (SYSTEMD_DIR / "mrs-engagement-analytics.service").read_text(encoding="utf-8")
     timer = (SYSTEMD_DIR / "mrs-engagement-analytics.timer").read_text(encoding="utf-8")
-    shadow_health = (SYSTEMD_DIR / "mrs-semantic-veto-shadow-health.service").read_text(encoding="utf-8")
-    shadow_timer = (SYSTEMD_DIR / "mrs-semantic-veto-shadow-health.timer").read_text(encoding="utf-8")
     openai_cost = (SYSTEMD_DIR / "mrs-openai-cost-cache.service").read_text(encoding="utf-8")
     openai_timer = (SYSTEMD_DIR / "mrs-openai-cost-cache.timer").read_text(encoding="utf-8")
     prospective = (SYSTEMD_DIR / "mrs-prospective-conversations.service").read_text(
@@ -268,15 +266,6 @@ def test_canonical_user_units_cover_live_services_without_secrets() -> None:
     assert "ReadWritePaths=/disks/disk1/etc/mrsMThatcher/engagement_analytics" in analytics
     assert "ProtectSystem=strict" in analytics
     assert "OnCalendar=*:0/15" in timer
-
-    assert "semantic_veto_shadow_health.py" in shadow_health
-    assert "Semantic-veto health inputs unavailable after 120 seconds" in shadow_health
-    assert "RestrictAddressFamilies=AF_UNIX" in shadow_health
-    assert "--output-dir %h/.local/state/mrsMThatcher/semantic-veto-health" in shadow_health
-    assert "ReadWritePaths=%h/.local/state/mrsMThatcher/semantic-veto-health" in shadow_health
-    assert "OnCalendar=*-*-* 23:35:00 Europe/London" in shadow_timer
-    assert "Persistent=true" in shadow_timer
-    assert "AccuracySec=1s" in shadow_timer
 
     assert "GET" not in openai_cost
     assert "source /disks/disk1/etc/mrsMThatcher/mrsMThatcher.env" in openai_cost
@@ -330,8 +319,6 @@ def test_canonical_user_units_cover_live_services_without_secrets() -> None:
         main
         + analytics
         + timer
-        + shadow_health
-        + shadow_timer
         + openai_cost
         + openai_timer
         + prospective
@@ -349,9 +336,7 @@ def test_user_unit_installer_prepares_and_gates_scheduled_tasks() -> None:
     assert "ln -s" not in installer
     assert "SOURCE_PROJECT_DIR=" in installer
     assert 'RUNTIME_PROJECT_DIR="${MRS_RUNTIME_PROJECT_DIR:-/disks/disk1/etc/mrsMThatcher}"' in installer
-    assert '"${SHADOW_HEALTH_DIR}/history"' in installer
     assert '"${OPENAI_COST_DIR}"' in installer
-    assert 'SHADOW_HEALTH_DIR="${HOME}/.local/state/mrsMThatcher/semantic-veto-health"' in installer
     assert 'OPENAI_COST_DIR="${HOME}/.local/state/mrsMThatcher/openai-costs"' in installer
     assert (
         'PROSPECTIVE_CONVERSATION_DIR="${MRS_PROSPECTIVE_CONVERSATION_DIR:-'
@@ -365,7 +350,6 @@ def test_user_unit_installer_prepares_and_gates_scheduled_tasks() -> None:
     assert '"${PROSPECTIVE_CONVERSATION_DIR}/state"' in installer
     assert '"${PROSPECTIVE_CONVERSATION_DIR}/batches"' in installer
     assert '"${PROSPECTIVE_CONVERSATION_DIR}/review-packs"' in installer
-    assert "MRS_SEMANTIC_VETO_HEALTH_DIR" not in installer
     assert '"${ANALYTICS_PROGRAM}" status --project-dir "${RUNTIME_PROJECT_DIR}"' in installer
     assert "initialise --project-dir %q" in installer
     assert installer.index("systemctl --user daemon-reload") < installer.index(
@@ -379,7 +363,6 @@ def test_user_unit_installer_prepares_and_gates_scheduled_tasks() -> None:
     assert systemctl_invocations == ["systemctl --user daemon-reload"]
     for unit in (
         "mrsMThatcher.service",
-        "mrs-semantic-veto-shadow-health.timer",
         "mrs-engagement-analytics.timer",
     ):
         assert f"systemctl --user enable {unit}" in installer
@@ -481,13 +464,8 @@ def test_user_unit_installer_reports_runtime_readiness_without_activating_units(
         "mrs-openai-cost-cache.timer",
         "mrs-prospective-conversations.service",
         "mrs-prospective-conversations.timer",
-        "mrs-semantic-veto-shadow-health.service",
-        "mrs-semantic-veto-shadow-health.timer",
     ):
         assert (target_dir / unit).read_bytes() == (deployed / unit).read_bytes()
-    health_dir = tmp_path / "home" / ".local" / "state" / "mrsMThatcher" / "semantic-veto-health"
-    assert health_dir.stat().st_mode & 0o777 == 0o700
-    assert (health_dir / "history").stat().st_mode & 0o777 == 0o700
     cost_dir = tmp_path / "home" / ".local" / "state" / "mrsMThatcher" / "openai-costs"
     assert cost_dir.stat().st_mode & 0o777 == 0o700
     assert not prospective_dir.exists()
@@ -599,8 +577,6 @@ def test_local_config_example_covers_current_optional_selection_features() -> No
     assert config["ENABLE_ORIGINAL_EDITORIAL_SHADOW_SCORING"] is False
     assert config["ENABLE_GENERATED_IDENTITY_POLICY_SHADOW_SCORING"] is False
     assert config["ENABLE_GENERATED_IDENTITY_POLICY_SCORING"] is False
-    assert config["quote_image_semantic_veto"]["enabled"] is False
-    assert "material_veto_v3_shadow_manifest.json" in config["quote_image_semantic_veto"]["manifest_path"]
 
 
 def test_local_config_example_is_accepted_as_one_atomic_override(monkeypatch) -> None:

@@ -882,7 +882,6 @@ def load_context(run_dir: Path) -> HarnessContext:
     install_immutable_score_caches(bot)
     bot.LINES_FILE = snapshot / "eligible_quotes.txt"
     bot.QUOTE_ANALYSIS_OVERRIDES_FILE = snapshot / "quote_analysis_overrides.json"
-    bot._QUOTE_IMAGE_SEMANTIC_VETO_SHADOW = None
     production_sim.install_hard_guards(bot, production_sim.PrivateWriter(run_dir))
     config = {
         "enabled": True,

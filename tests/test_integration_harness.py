@@ -8871,7 +8871,7 @@ def test_digest_new_request_beats_carried_pending_xai_candidate(tmp_path: Path) 
     assert f"| 2026-07-08 06:40:01 | quote-tweet | {old_quote} |" not in second_digest.stdout
 
 
-def test_digest_json_contract_identifies_the_additive_schema_and_preserves_legacy_roots(
+def test_digest_json_contract_identifies_the_major_versioned_schema_and_retained_roots(
     tmp_path: Path,
 ) -> None:
     base = tmp_path / "digest-json-contract"
@@ -8885,10 +8885,10 @@ def test_digest_json_contract_identifies_the_additive_schema_and_preserves_legac
     assert result.returncode == 0, result.stderr
     payload = json.loads(result.stdout)
     contract = payload["digest_contract"]
-    assert contract["schema_version"] == 1
+    assert contract["schema_version"] == 2
     assert contract["output_kind"] == "mrs_log_digest"
     assert contract["producer"] == "mrs_log_digest.py"
-    assert contract["compatibility_policy"] == "additive"
+    assert contract["compatibility_policy"] == "major-versioned"
     source_hash = contract["producer_source_sha256"]
     assert source_hash == hashlib.sha256(DIGEST.read_bytes()).hexdigest()
     assert len(source_hash) == 64
@@ -8929,7 +8929,6 @@ def test_digest_json_contract_identifies_the_additive_schema_and_preserves_legac
         "historical_context_quality",
         "reply_strategy",
         "reply_pipeline_stages",
-        "semantic_veto_load_lifecycle",
         "reply_media_context",
         "reply_visual_context_summary",
         "reply_visual_context_targets",
@@ -8939,7 +8938,6 @@ def test_digest_json_contract_identifies_the_additive_schema_and_preserves_legac
         "original_editorial_shadow",
         "generated_identity_shadow",
         "generated_identity_policy",
-        "quote_image_semantic_veto_shadow",
         "generated_image_spacing",
         "provider_usage",
         "xai_usage",
@@ -9034,7 +9032,7 @@ def test_copied_digest_without_git_still_emits_valid_contract_json(
     assert "generator" + "_git_sha" not in contract
 
 
-def test_digest_json_is_a_recursive_superset_of_verified_base_and_markdown_is_unchanged(
+def test_digest_json_v2_removes_only_the_retired_observer_roots_from_verified_base(
     tmp_path: Path,
 ) -> None:
     base_sha = "0097657357c0ffb0dd87e860073d947c2ecb032e"
@@ -9194,14 +9192,23 @@ def test_digest_json_is_a_recursive_superset_of_verified_base_and_markdown_is_un
         "$.openai_published_cost.age",
         "$.openai_published_cost.age_seconds",
     }
+    retired_roots = {
+        "_".join(("semantic", "veto", "load", "lifecycle")),
+        "_".join(("quote", "image", "semantic", "veto", "shadow")),
+    }
 
     def assert_recursive_superset(before: object, after: object, path: str) -> None:
         if path in ignored_dynamic_paths:
             return
         assert type(after) is type(before), path
         if isinstance(before, dict):
-            assert set(before) <= set(after), path
+            expected_keys = set(before)
+            if path == "$":
+                expected_keys -= retired_roots
+            assert expected_keys <= set(after), path
             for key, value in before.items():
+                if path == "$" and key not in expected_keys:
+                    continue
                 assert_recursive_superset(value, after[key], f"{path}.{key}")
         elif isinstance(before, list):
             assert len(after) == len(before), path
@@ -9216,13 +9223,16 @@ def test_digest_json_is_a_recursive_superset_of_verified_base_and_markdown_is_un
 
     assert_recursive_superset(old_payload, new_payload, "$")
     assert "digest_contract" not in old_payload
-    assert new_payload["digest_contract"]["schema_version"] == 1
+    assert new_payload["digest_contract"]["schema_version"] == 2
+    assert retired_roots.isdisjoint(new_payload)
 
     old_markdown = invoke(base_script, as_json=False)
     new_markdown = invoke(DIGEST, as_json=False)
     assert old_markdown.returncode == 0, old_markdown.stderr
     assert new_markdown.returncode == 0, new_markdown.stderr
-    assert new_markdown.stdout == old_markdown.stdout
+    retired_heading = "## Quote/image " + "semantic veto shadow"
+    assert retired_heading in old_markdown.stdout
+    assert retired_heading not in new_markdown.stdout
 
 
 def test_digest_historical_context_reply_uses_exact_confirmed_text_and_bounded_provenance(
@@ -12251,70 +12261,6 @@ def test_digest_selftest_quote_and_meme_pending_state_is_source_isolated(
     assert memes["89962"]["image"] == "/selftest/meme.jpg"
 
 
-def test_digest_selftest_semantic_veto_cannot_confirm_across_source_class(
-    tmp_path: Path,
-) -> None:
-    base = tmp_path / "selftest-semantic-veto-pending-state"
-    base.mkdir()
-    production_log = base / "application.log"
-    selftest_log = base / "application.selftest.log"
-    production_hash = "3" * 64
-    selftest_hash = "4" * 64
-    production_log.write_text(
-        "\n".join(
-            [
-                digest_event_line(
-                    "2026-08-30 21:46:01",
-                    "quote_image_semantic_veto_shadow",
-                    quote_hash=production_hash,
-                    shadow_status="would_veto",
-                ),
-                digest_event_line(
-                    "2026-08-30 21:46:04",
-                    "main_post_posted",
-                    lane="quote_image",
-                    post_id="99964",
-                    quote_hash=selftest_hash,
-                ),
-            ]
-        )
-        + "\n",
-        encoding="utf-8",
-    )
-    selftest_log.write_text(
-        "\n".join(
-            [
-                digest_event_line(
-                    "2026-08-30 21:46:02",
-                    "main_post_posted",
-                    lane="quote_image",
-                    post_id="89963",
-                    quote_hash=production_hash,
-                ),
-                digest_event_line(
-                    "2026-08-30 21:46:03",
-                    "quote_image_semantic_veto_shadow",
-                    quote_hash=selftest_hash,
-                    shadow_status="would_veto",
-                ),
-            ]
-        )
-        + "\n",
-        encoding="utf-8",
-    )
-
-    result = run_digest_inputs(base, [production_log, selftest_log])
-
-    assert result.returncode == 0, result.stderr
-    shadows = {
-        event["quote_hash"]: event
-        for event in json.loads(result.stdout)["events"]
-        if event.get("kind") == "quote_image_semantic_veto_shadow"
-    }
-    assert shadows[production_hash]["confirmed_post"] is False
-    assert shadows[selftest_hash]["confirmed_post"] is False
-
-
 @pytest.mark.parametrize(
     "anchor_fragment",
     (
@@ -12485,14 +12431,6 @@ def test_digest_bounds_producer_invalid_nested_structured_display_values(
                 member_position=nested,
             ),
             digest_event_line(
-                "2026-08-30 21:46:35",
-                "quote_image_semantic_veto_shadow",
-                quote_hash="3" * 64,
-                selected_score=nested,
-                veto_reason_codes=[nested, "bounded_code"],
-                veto_explanation=nested,
-            ),
-            digest_event_line(
                 "2026-08-30 21:46:36",
                 "historical_context_semantic_gate",
                 status=nested,
@@ -12611,14 +12549,6 @@ def test_digest_bounds_producer_invalid_nested_structured_display_values(
     outcome = payload["engagement_question_trial"]["outcomes"][0]
     assert outcome["reason"] is None
     assert outcome["member_position"] is None
-    veto = next(
-        event
-        for event in events
-        if event.get("kind") == "quote_image_semantic_veto_shadow"
-    )
-    assert veto["selected_score"] is None
-    assert veto["veto_reason_codes"] == ["bounded_code"]
-    assert veto["veto_explanation"] == ""
     gate = next(
         event
         for event in events

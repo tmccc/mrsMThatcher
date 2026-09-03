@@ -14,7 +14,6 @@ if [[ -n "${MRS_PROSPECTIVE_CONVERSATION_DIR:-}" && "${INHERITED_TEST_MODE}" != 
 fi
 readonly RUNTIME_PROJECT_DIR="${MRS_RUNTIME_PROJECT_DIR:-/disks/disk1/etc/mrsMThatcher}"
 readonly TARGET_DIR="${XDG_CONFIG_HOME:-${HOME}/.config}/systemd/user"
-readonly SHADOW_HEALTH_DIR="${HOME}/.local/state/mrsMThatcher/semantic-veto-health"
 readonly OPENAI_COST_DIR="${HOME}/.local/state/mrsMThatcher/openai-costs"
 readonly PROSPECTIVE_CONVERSATION_DIR="${MRS_PROSPECTIVE_CONVERSATION_DIR:-/disks/disk1/research/mrsMThatcher-prospective-conversations-v4}"
 readonly ANALYTICS_PROGRAM="${RUNTIME_PROJECT_DIR}/mrs_engagement_analytics.py"
@@ -30,8 +29,6 @@ readonly UNITS=(
   mrs-prospective-conversations.timer
   mrs-support-health-monitor.service
   mrs-support-health-monitor.timer
-  mrs-semantic-veto-shadow-health.service
-  mrs-semantic-veto-shadow-health.timer
 )
 
 usage() {
@@ -105,7 +102,6 @@ print_enable_commands() {
     'enable each desired unit separately:' \
     '  systemctl --user enable mrsMThatcher.service' \
     '  systemctl --user enable --now mrs-bot-health-monitor.timer' \
-    '  systemctl --user enable mrs-semantic-veto-shadow-health.timer' \
     '  systemctl --user enable mrs-engagement-analytics.timer' \
     '  systemctl --user enable --now mrs-openai-cost-cache.timer' \
     '  systemctl --user enable --now mrs-support-health-monitor.timer' \
@@ -113,11 +109,7 @@ print_enable_commands() {
 }
 
 prepare_scheduled_task_state() {
-  install -d -m 0700 -- \
-    "${SHADOW_HEALTH_DIR}" \
-    "${SHADOW_HEALTH_DIR}/history" \
-    "${OPENAI_COST_DIR}"
-  printf 'prepared private semantic-veto health state: %s\n' "${SHADOW_HEALTH_DIR}"
+  install -d -m 0700 -- "${OPENAI_COST_DIR}"
   printf 'prepared private OpenAI cost state: %s\n' "${OPENAI_COST_DIR}"
   if [[ -L "${PROSPECTIVE_CONVERSATION_DIR}" ]]; then
     printf 'prospective conversation root must not be a symlink: %s\n' \

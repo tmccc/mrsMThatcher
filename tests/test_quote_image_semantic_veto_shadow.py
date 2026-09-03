@@ -3,17 +3,14 @@ from __future__ import annotations
 import copy
 import json
 import random
-from datetime import datetime
 from pathlib import Path
 
 import pytest
 
-import mrs_log_digest as digest
 import semantic_alignment.quote_image_semantic_veto as semantic_veto
 from semantic_alignment.io import sha256_file
 from semantic_alignment.quote_image_semantic_veto import (
     ATTRIBUTION_CLEANED_V3_POLICY_VERSION,
-    POLICY_VERSION,
     ShadowManifestError,
     ShadowHistoryWriter,
     ShadowRuntime,
@@ -27,7 +24,6 @@ from semantic_alignment.quote_image_semantic_veto import (
     validate_compiled_manifest,
     validate_shadow_config,
 )
-from tests.test_unit_helpers import bot, image_analysis_for_paths
 
 
 PROJECT = Path(__file__).resolve().parents[1]
@@ -314,30 +310,6 @@ def test_only_disabled_and_shadow_modes_are_accepted(mode: str) -> None:
     assert any("disabled or shadow" in error for error in validate_shadow_config(config))
 
 
-def test_source_default_is_disabled_and_fail_open() -> None:
-    assert bot.quote_image_semantic_veto["enabled"] is False
-    assert bot.quote_image_semantic_veto["mode"] == "shadow"
-    assert bot.quote_image_semantic_veto["fail_open"] is True
-    assert "quote_image_semantic_veto" in bot.LOCAL_CONFIG_ALLOWED_KEYS
-
-
-def test_startup_loader_is_idempotent(monkeypatch: pytest.MonkeyPatch) -> None:
-    import semantic_alignment.quote_image_semantic_veto as module
-
-    calls = []
-    runtime = type("Runtime", (), {
-        "available": True, "policy_version": POLICY_VERSION, "manifest_sha256": "a" * 64,
-        "pairs": {}, "load_time_ms": 1.0, "memory_bytes": 1,
-    })()
-    monkeypatch.setattr(bot, "quote_image_semantic_veto", enabled_config())
-    monkeypatch.setattr(bot, "_QUOTE_IMAGE_SEMANTIC_VETO_SHADOW", None)
-    monkeypatch.setattr(bot, "completed_research_quote_hashes", lambda: {"c" * 64})
-    monkeypatch.setattr(module.ShadowRuntime, "load", lambda *args, **kwargs: calls.append(1) or runtime)
-    bot.initialise_quote_image_semantic_veto_shadow()
-    bot.initialise_quote_image_semantic_veto_shadow()
-    assert len(calls) == 1
-
-
 def test_missing_corrupt_and_stale_manifests_fail_open(tmp_path: Path) -> None:
     missing = ShadowRuntime.load(tmp_path, enabled_config(tmp_path / "missing.json"), enable_history=False)
     assert not missing.available and missing.status == "manifest_unavailable"
@@ -374,214 +346,6 @@ def test_preflight_and_replay_do_not_create_runtime_history(tmp_path: Path) -> N
     assert replay["network_calls"] == 0
     assert replay["production_selection_change_failures"] == 0
     assert not (tmp_path / "quote_image_semantic_veto_runtime").exists()
-
-
-class FakeRuntime:
-    def __init__(self, *, consume_rng: bool = False):
-        self.consume_rng = consume_rng
-
-    def evaluate(self, **kwargs):
-        if self.consume_rng:
-            random.random()
-        return {
-            "event": "quote_image_semantic_veto_shadow",
-            "timestamp": "2026-07-16T00:00:00Z",
-            "quote_id": kwargs["quote_hash"],
-            "quote_hash": kwargs["quote_hash"],
-            "shadow_status": "allow",
-            "production_selection_changed": False,
-        }
-
-
-def test_bot_hook_preserves_candidates_rng_and_logs_structured_event(monkeypatch: pytest.MonkeyPatch) -> None:
-    config = enabled_config()
-    monkeypatch.setattr(bot, "quote_image_semantic_veto", config)
-    monkeypatch.setattr(bot, "_QUOTE_IMAGE_SEMANTIC_VETO_SHADOW", FakeRuntime())
-    logged = []
-    monkeypatch.setattr(bot, "log_event", lambda event, **fields: logged.append((event, fields)))
-    selected = {"basename": "t01.jpg", "image_hash": "a" * 64, "score": 5.0, "image_source": "original"}
-    candidates = [selected, {"basename": "t02.jpg", "image_hash": "b" * 64, "score": 4.0, "image_source": "original"}]
-    before = copy.deepcopy(candidates)
-    rng = random.getstate()
-    bot.log_quote_image_semantic_veto_shadow({"quote_hash": "c" * 64, "text": "quote"}, selected, candidates)
-    assert candidates == before
-    assert random.getstate() == rng
-    assert logged[0][0] == "quote_image_semantic_veto_shadow"
-    assert logged[0][1]["production_selection_changed"] is False
-
-
-def test_bot_hook_restores_rng_after_observer_bug(monkeypatch: pytest.MonkeyPatch) -> None:
-    monkeypatch.setattr(bot, "quote_image_semantic_veto", enabled_config())
-    monkeypatch.setattr(bot, "_QUOTE_IMAGE_SEMANTIC_VETO_SHADOW", FakeRuntime(consume_rng=True))
-    selected = {"basename": "t01.jpg", "image_hash": "a" * 64, "score": 5.0, "image_source": "original"}
-    rng = random.getstate()
-    bot.log_quote_image_semantic_veto_shadow({"quote_hash": "c" * 64}, selected, [selected])
-    assert random.getstate() == rng
-
-
-def test_selected_image_identical_with_shadow_on_and_off(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
-    images = tmp_path / "images"
-    images.mkdir()
-    paths = [images / "t01.jpg", images / "t02.jpg"]
-    for index, path in enumerate(paths):
-        path.write_bytes(f"image-{index}".encode())
-    metadata = image_analysis_for_paths(paths, {
-        path.name: {"description": path.name, "seasonality": {"avoid_outside_season_or_occasion": False}}
-        for path in paths
-    })
-    monkeypatch.setattr(bot, "IMAGE_GLOB", str(images / "t*"))
-    monkeypatch.setattr(bot, "ENABLE_GENERATED_IMAGE_POOL", False)
-    monkeypatch.setattr(bot, "ENABLE_GENERATED_IDENTITY_POLICY_SCORING", False)
-    monkeypatch.setattr(bot, "load_image_analysis", lambda: metadata)
-    monkeypatch.setattr(bot, "score_image_for_quote", lambda *_: (10.0, {"topics": 10.0}, True))
-    monkeypatch.setattr(bot, "current_datetime", lambda: datetime(2026, 7, 16))
-    monkeypatch.setattr(bot, "log_original_editorial_shadow_result", lambda *args, **kwargs: None)
-    monkeypatch.setattr(bot, "log_generated_identity_policy_shadow_result", lambda *args, **kwargs: None)
-
-    monkeypatch.setattr(bot, "quote_image_semantic_veto", {**enabled_config(), "enabled": False})
-    random.seed(4815)
-    disabled = bot.choose_matched_unused_image(set(), {"quote_hash": "c" * 64, "analysis": {}}, {})
-    state_after_disabled = random.getstate()
-    monkeypatch.setattr(bot, "quote_image_semantic_veto", enabled_config())
-    monkeypatch.setattr(bot, "_QUOTE_IMAGE_SEMANTIC_VETO_SHADOW", FakeRuntime())
-    monkeypatch.setattr(bot, "log_event", lambda *args, **kwargs: None)
-    random.seed(4815)
-    enabled = bot.choose_matched_unused_image(set(), {"quote_hash": "c" * 64, "analysis": {}}, {})
-    assert enabled["basename"] == disabled["basename"]
-    assert enabled["score"] == disabled["score"]
-    assert random.getstate() == state_after_disabled
-
-
-def test_digest_aggregates_selection_and_confirmed_post() -> None:
-    event = {
-        "event": "quote_image_semantic_veto_shadow", "quote_id": "a" * 64, "quote_hash": "a" * 64,
-        "quote_preview": "Turning enemies into friends.", "selected_image_hash": "b" * 64,
-        "selected_image_basename": "t01.jpg", "selected_image_source": "original", "selected_score": 10.0,
-        "shadow_status": "veto", "would_veto_production_winner": True,
-        "veto_reason_codes": ["ally_adversary_confusion"], "veto_explanation": "established ally",
-        "alternative_available": True, "alternative_image_basename": "t02.jpg", "alternative_score": 8.0,
-        "score_delta_from_production_winner": -2.0, "quote_has_no_allowed_candidate_globally": False,
-        "manifest_policy_version": POLICY_VERSION, "manifest_sha256": "c" * 64,
-        "lookup_latency_ms": 0.2, "production_selection_changed": False,
-    }
-    posted = {
-        "event": "main_post_posted", "lane": "quote_image", "post_id": "123",
-        "quote_hash": "a" * 64, "image_hash": "b" * 64, "image_basename": "t01.jpg",
-    }
-    records = [
-        digest.Record(datetime(2026, 7, 16, 12, 0, 0), "INFO", "test", 1, "EVENT " + json.dumps(event), "test.log", 1),
-        digest.Record(datetime(2026, 7, 16, 12, 0, 1), "INFO", "test", 2, "EVENT " + json.dumps(posted), "test.log", 2),
-    ]
-    report = digest.analyse(records)
-    summary = report["quote_image_semantic_veto_shadow"]["summary"]
-    assert summary["selection_time_observations"] == 1
-    assert summary["confirmed_successful_posts"] == 1
-    assert summary["vetoed_production_winners"] == 1
-    assert summary["vetoed_with_allowed_alternative"] == 1
-    assert summary["selection_error_candidate_available"] == 1
-    assert summary["coverage_gap_no_safe_image"] == 0
-    assert summary["examples"][0]["veto_category"] == "selection_error_candidate_available"
-    rendered = digest.render_markdown(report)
-    assert "## Quote/image semantic veto shadow" in rendered
-    assert "Selection-time observations" in rendered
-    assert "ally_adversary_confusion" in rendered
-    assert "alternative available" in rendered
-
-
-def test_digest_does_not_confirm_semantic_veto_event_against_a_different_post() -> None:
-    shadow = {
-        "event": "quote_image_semantic_veto_shadow",
-        "quote_id": "a" * 64,
-        "quote_hash": "a" * 64,
-        "selected_image_hash": "b" * 64,
-        "selected_image_basename": "t01.jpg",
-        "shadow_status": "veto",
-        "would_veto_production_winner": True,
-        "veto_reason_codes": ["wrong_event"],
-        "manifest_policy_version": POLICY_VERSION,
-        "manifest_sha256": "c" * 64,
-        "production_selection_changed": False,
-    }
-    unrelated_post = {
-        "event": "main_post_posted",
-        "lane": "quote_image",
-        "post_id": "123",
-        "quote_hash": "d" * 64,
-        "image_hash": "e" * 64,
-        "image_basename": "t02.jpg",
-    }
-    later_matching_post = {
-        "event": "main_post_posted",
-        "lane": "quote_image",
-        "post_id": "124",
-        "quote_hash": "a" * 64,
-        "image_hash": "b" * 64,
-        "image_basename": "t01.jpg",
-    }
-    records = [
-        digest.Record(datetime(2026, 7, 16, 12, 0), "INFO", "test", 1, "EVENT " + json.dumps(shadow), "test.log", 1),
-        digest.Record(datetime(2026, 7, 16, 12, 1), "INFO", "test", 2, "EVENT " + json.dumps(unrelated_post), "test.log", 2),
-        digest.Record(datetime(2026, 7, 16, 12, 2), "INFO", "test", 3, "EVENT " + json.dumps(later_matching_post), "test.log", 3),
-    ]
-
-    report = digest.analyse(records)
-
-    event = report["quote_image_semantic_veto_shadow"]["events"][0]
-    assert event.get("confirmed_post") is not True
-    assert not event.get("post_id")
-    assert report["quote_image_semantic_veto_shadow"]["summary"]["confirmed_successful_posts"] == 0
-
-
-@pytest.mark.parametrize(("elapsed_minutes", "confirmed"), [(29, True), (31, False)])
-def test_digest_bounds_basename_correlation_for_older_logs(
-    elapsed_minutes: int,
-    confirmed: bool,
-) -> None:
-    shadow = {
-        "event": "quote_image_semantic_veto_shadow",
-        "quote_hash": "a" * 64,
-        "selected_image_basename": "t01.jpg",
-        "shadow_status": "allow",
-        "manifest_policy_version": POLICY_VERSION,
-        "manifest_sha256": "c" * 64,
-        "production_selection_changed": False,
-    }
-    posted = {
-        "event": "main_post_posted",
-        "lane": "quote_image",
-        "post_id": "123",
-        "image_basename": "t01.jpg",
-    }
-    records = [
-        digest.Record(datetime(2026, 7, 16, 12, 0), "INFO", "test", 1, "EVENT " + json.dumps(shadow), "test.log", 1),
-        digest.Record(
-            datetime(2026, 7, 16, 12, elapsed_minutes),
-            "INFO", "test", 2, "EVENT " + json.dumps(posted), "test.log", 2,
-        ),
-    ]
-
-    report = digest.analyse(records)
-
-    event = report["quote_image_semantic_veto_shadow"]["events"][0]
-    assert event["confirmed_post"] is confirmed
-    assert event.get("post_id") == ("123" if confirmed else None)
-
-
-def test_digest_does_not_treat_unproven_legacy_no_safe_flag_as_coverage_gap() -> None:
-    legacy_event = {
-        "quote_id": "a" * 64,
-        "shadow_status": "veto",
-        "alternative_available": False,
-        "quote_has_no_allowed_candidate_globally": True,
-        "veto_reason_codes": ["wrong_event"],
-        "selected_image_basename": "t03.jpg",
-        "production_selection_changed": False,
-    }
-    summary = digest.quote_image_semantic_veto_summary([legacy_event, dict(legacy_event)])
-    assert summary["selection_error_candidate_available"] == 0
-    assert summary["coverage_gap_no_safe_image"] == 0
-    assert summary["quotes_with_no_globally_allowed_candidate"] == 0
-    assert summary["examples"][0]["veto_category"] is None
 
 
 def test_runtime_summary_does_not_mix_manifest_versions() -> None:
@@ -670,126 +434,3 @@ def test_shadow_status_rejects_manifest_with_missing_recorded_sources(tmp_path: 
     assert status["manifest"]["valid"] is False
     assert "source hash mismatch" in status["manifest"]["reason"]
     assert status["manifest"]["sha256"] == sha256_file(manifest)
-
-
-def test_digest_reports_latest_manifest_without_inheriting_old_vetoes() -> None:
-    old = {
-        "shadow_status": "veto",
-        "manifest_policy_version": "old-policy",
-        "manifest_sha256": "a" * 64,
-        "alternative_available": True,
-        "production_selection_changed": False,
-    }
-    current = {
-        "shadow_status": "allow",
-        "manifest_policy_version": "current-policy",
-        "manifest_sha256": "b" * 64,
-        "production_selection_changed": False,
-    }
-
-    summary = digest.quote_image_semantic_veto_summary([old, current])
-
-    assert summary["selection_time_observations"] == 1
-    assert summary["allowed_production_winners"] == 1
-    assert summary["vetoed_production_winners"] == 0
-    assert summary["window_event_count_all_manifests"] == 2
-    assert summary["events_excluded_from_current_manifest_summary"] == 1
-    assert summary["mixed_manifest_versions"] is True
-
-
-def test_digest_old_logs_and_missing_runtime_remain_compatible(tmp_path: Path) -> None:
-    report = digest.analyse([])
-    report["quote_image_semantic_veto_shadow"]["runtime_summary"] = digest.quote_image_semantic_veto_shadow_snapshot(tmp_path)
-    assert report["quote_image_semantic_veto_shadow"]["runtime_summary"]["available"] is False
-    assert "Unavailable" in digest.render_markdown(report)
-
-
-def test_digest_malformed_runtime_numeric_fields_are_nonfatal(tmp_path: Path) -> None:
-    runtime = tmp_path / "quote_image_semantic_veto_runtime"
-    runtime.mkdir()
-    (runtime / "shadow_status.json").write_text(
-        json.dumps({"events": "not-an-integer"}),
-        encoding="utf-8",
-    )
-
-    summary = digest.quote_image_semantic_veto_shadow_snapshot(tmp_path)
-
-    assert summary == {
-        "available": False,
-        "reason": "shadow status unavailable: ValueError",
-    }
-
-
-def test_digest_runtime_fallback_preserves_manifest_stratification(tmp_path: Path) -> None:
-    runtime = tmp_path / "quote_image_semantic_veto_runtime"
-    runtime.mkdir()
-    (runtime / "shadow_status.json").write_text(
-        json.dumps({
-            "events": 1,
-            "allowed": 1,
-            "history_events_all_manifests": 3,
-            "events_excluded_from_current_manifest_summary": 2,
-            "mixed_manifest_versions": True,
-            "manifest_strata": [
-                {"manifest_policy_version": "old", "events": 2},
-                {"manifest_policy_version": "current", "events": 1},
-            ],
-            "manifest_policy_version": "current",
-            "manifest_sha256": "a" * 64,
-        }),
-        encoding="utf-8",
-    )
-
-    summary = digest.quote_image_semantic_veto_shadow_snapshot(tmp_path)
-    report = digest.analyse([])
-    report["quote_image_semantic_veto_shadow"]["runtime_summary"] = summary
-    rendered = digest.render_markdown(report)
-
-    assert summary["mixed_manifest_versions"] is True
-    assert summary["history_events_all_manifests"] == 3
-    assert summary["events_excluded_from_current_manifest_summary"] == 2
-    assert len(summary["manifest_strata"]) == 2
-    assert "Runtime history contains **3** observations" in rendered
-    assert "displayed counts exclude **2** observations" in rendered
-
-
-def test_digest_reconstructs_stratification_for_legacy_runtime_status(tmp_path: Path) -> None:
-    runtime = tmp_path / "quote_image_semantic_veto_runtime"
-    runtime.mkdir()
-    (runtime / "shadow_status.json").write_text(
-        json.dumps({
-            "events": 2,
-            "allowed": 1,
-            "vetoed": 1,
-            "manifest_policy_version": "current",
-            "manifest_sha256": "b" * 64,
-        }),
-        encoding="utf-8",
-    )
-    history = [
-        {
-            "shadow_status": "veto",
-            "manifest_policy_version": "old",
-            "manifest_sha256": "a" * 64,
-            "production_selection_changed": False,
-        },
-        {
-            "shadow_status": "allow",
-            "manifest_policy_version": "current",
-            "manifest_sha256": "b" * 64,
-            "production_selection_changed": False,
-        },
-    ]
-    (runtime / "shadow_history.jsonl").write_text(
-        "".join(json.dumps(row) + "\n" for row in history),
-        encoding="utf-8",
-    )
-
-    summary = digest.quote_image_semantic_veto_shadow_snapshot(tmp_path)
-
-    assert summary["events"] == 1
-    assert summary["allowed"] == 1
-    assert summary["vetoed"] == 0
-    assert summary["history_events_all_manifests"] == 2
-    assert summary["events_excluded_from_current_manifest_summary"] == 1
-    assert summary["mixed_manifest_versions"] is True

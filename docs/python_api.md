@@ -32,8 +32,6 @@ and AppleDouble files.
 | `shadow_lifecycle.py` | Strict validation for the versioned shadow-feature lifecycle register | Local file reads only |
 | `mrs_log_digest.py` | Structured/legacy log parsing, aggregation and Markdown/JSON reports | Local log and resume-state reads/writes; no provider calls |
 | `mrs_engagement_analytics.py` | Read-only X metrics collection and isolated SQLite reporting | X reads only with explicit flags; writes only under `engagement_analytics/` |
-| `semantic_quote_image_veto.py` | CLI for compiling, validating, replaying and inspecting semantic-veto shadow data | Local files only |
-| `semantic_alignment/quote_image_semantic_veto.py` | Read-only in-memory shadow lookup used after production selection | Bounded local shadow history; never filters production candidates |
 | `hybrid_reply_retrieval.py` | CLI for local hybrid retrieval experiments and review artefacts | Offline by default; provider-review commands require explicit execution and budgets |
 | `semantic_alignment/hybrid_reply_retrieval.py` | Local E5 indexing, lexical-versus-hybrid evaluation and historical replay | Offline research files only; it is not imported by the production bot |
 
@@ -66,8 +64,7 @@ unless attribution eligibility is exactly 611.
 - Generated images are disabled by source default and, when enabled locally,
   obey the configured original-post spacing rule.
 - Hybrid retrieval is an offline-only benchmark and is absent from the
-  production reply path. Semantic veto remains a non-enforcing production
-  shadow and cannot change selection or posting.
+  production reply path.
 - Generated-image identity-policy work is suspended whenever the generated
   pool is disabled. The original-editorial selector remains observational.
 - Research/provider CLIs require explicit execution flags and bounded spend;
@@ -87,3 +84,8 @@ README files define mutable-data boundaries.
 Historical reports and paid raw responses are evidence, not runtime APIs. Do
 not rewrite them to match newer terminology; new reports should link back to
 their source hashes and state the policy/schema version they observed.
+
+`semantic_quote_image_veto.py` and
+`semantic_alignment/quote_image_semantic_veto.py` are retained solely for
+offline replay and historical research. They are not production dependencies
+and are not loaded by the bot, digest or support monitor.

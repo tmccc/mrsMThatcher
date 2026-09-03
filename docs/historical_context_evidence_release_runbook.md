@@ -279,21 +279,8 @@ Verify that:
 
 - historical-context gate loading is reported accurately;
 - source-role compatibility failures remain visible;
-- semantic-veto shadow mode is not presented as enforcement;
 - generated-pool `allowed` and `enabled` states remain distinct;
 - resolved legacy incidents are not presented as current failures.
-
-For semantic-veto validation, use the manifest's actual field names and keep
-three quantities distinct:
-
-- the authorised universe (`quote_count × image_count`, currently
-  `611 × 91 = 55,601`);
-- resolved or adjudicated matrix entries;
-- runtime lookup entries loaded for shadow observation.
-
-`live_production_enabled: false` is the fail-closed enforcement fact in the
-current manifest. A smaller resolved/runtime pair count is not a malformed
-55,601-pair universe.
 
 After an unpaused idle cycle, scheduler state and analytics may legitimately
 change because of natural read-only checks. Compare immutable posting evidence

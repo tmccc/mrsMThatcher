@@ -172,10 +172,8 @@ deployed as a coherent set:
 - `historical_context_reply_schema.json`
 - `shadow_lifecycle.py`
 - `shadow_feature_lifecycle.json`
-- `semantic_quote_image_veto.py`
 - `semantic_alignment/__init__.py`
 - `semantic_alignment/io.py`
-- `semantic_alignment/quote_image_semantic_veto.py`
 - `semantic_alignment/quote_research_schema.py`
 - `semantic_alignment_research/quote_research_full_001/corpus_manifest.json`
 - `semantic_alignment_research/quote_research_full_001/research_packets.json`
@@ -196,8 +194,6 @@ deployed as a coherent set:
 - `deploy/systemd-user/mrs-openai-cost-cache.timer`
 - `deploy/systemd-user/mrs-prospective-conversations.service`
 - `deploy/systemd-user/mrs-prospective-conversations.timer`
-- `deploy/systemd-user/mrs-semantic-veto-shadow-health.service`
-- `deploy/systemd-user/mrs-semantic-veto-shadow-health.timer`
 - `mrsMThatcher.env.example`
 
 The offline research and benchmark implementation remains versioned with the
@@ -205,6 +201,8 @@ project, but is not a production runtime dependency:
 
 - `semantic_alignment/quote_research_gemini.py`
 - `semantic_alignment/hybrid_reply_retrieval.py`
+- `semantic_quote_image_veto.py`
+- `semantic_alignment/quote_image_semantic_veto.py`
 - `tests/test_integration_harness.py`
 - `tests/fake_api_server.py`
 - `tests/fixtures/scenarios/*.json`
@@ -221,6 +219,11 @@ project, but is not a production runtime dependency:
 - `images/t*.jpg`
 - `final_posting_queue_top90_as_is/images/*`
 - `final_posting_queue_top90_as_is/renamed_png_v3_top90_posting_queue.json`
+
+The rejected quotation/image semantic-veto implementation, manifests and
+adjudications remain versioned only as offline research evidence. The
+production bot, digest and scheduled operational services do not import or
+load them.
 
 `mrs_log_digest.py` is included because the digest golden tests run the actual
 digest script against generated test logs.
@@ -360,8 +363,8 @@ deterministic index, replay and evaluation tools remain available. See
 Generated-image identity-policy processing is `suspended` while the generated
 pool is disabled. Re-enabling its shadow requires both the generated pool and
 `ENABLE_GENERATED_IDENTITY_POLICY_SHADOW_SCORING`; enabling the latter alone
-does no audit loading, scoring or telemetry work. The semantic veto remains a
-non-enforcing shadow. When `ENABLE_ORIGINAL_EDITORIAL_SHADOW_SCORING` is true,
+does no audit loading, scoring or telemetry work. When
+`ENABLE_ORIGINAL_EDITORIAL_SHADOW_SCORING` is true,
 the existing original-editorial winner now replaces the ordinary winner for an
 original-image selection.
 
@@ -809,7 +812,6 @@ the analytics timer only after its database is ready):
 ```bash
 systemctl --user enable mrsMThatcher.service
 systemctl --user enable --now mrs-bot-health-monitor.timer
-systemctl --user enable mrs-semantic-veto-shadow-health.timer
 systemctl --user enable mrs-engagement-analytics.timer
 systemctl --user enable --now mrs-openai-cost-cache.timer
 ```
@@ -817,21 +819,6 @@ systemctl --user enable --now mrs-openai-cost-cache.timer
 The OpenAI published-cost user timer runs every 30 minutes with up to 60 seconds
 of randomized delay. Its oneshot service sources the existing private
 `mrsMThatcher.env`; the Admin key is never copied into a unit or the cache.
-
-The semantic-veto health timer runs daily at 23:35 Europe/London. It validates
-the configured shadow manifest and source hashes, records cumulative shadow
-status, and makes no network call. Durable snapshots are written to:
-
-```text
-~/.local/state/mrsMThatcher/semantic-veto-health/latest.json
-~/.local/state/mrsMThatcher/semantic-veto-health/history/YYYY-MM-DD.json
-```
-
-Its JSON output is also retained by the user journal:
-
-```bash
-journalctl --user -u mrs-semantic-veto-shadow-health.service
-```
 
 Systemd supports linked unit files, but the repository is on
 `/disks/disk1`, a separately mounted ZFS dataset. A lingering user manager may

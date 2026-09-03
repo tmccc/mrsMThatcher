@@ -28,7 +28,6 @@ engagement_analytics/reports/
 engagement_analytics/backups/
 engagement_question_experiment/active_plan.json
 hybrid_reply_retrieval_runtime/
-quote_image_semantic_veto_runtime/
 production_state_recovery_*/
 semantic_alignment_research/hybrid_reply_retrieval_*/index_history/
 semantic_alignment_research/hybrid_reply_retrieval_*/manual_review/backups/

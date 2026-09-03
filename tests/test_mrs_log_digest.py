@@ -1,7 +1,9 @@
 from __future__ import annotations
 
+import builtins
 import json
 from datetime import datetime, timedelta
+from pathlib import Path
 
 import pytest
 
@@ -763,149 +765,120 @@ def test_deleted_or_inaccessible_tweet_403_is_handled_separately():
     assert "deleted or inaccessible tweet" in rendered
 
 
-def semantic_veto_report() -> dict:
-    report = digest.analyse([])
-    report["quote_image_semantic_veto_shadow"] = {
-        "summary": {
-            "available": True,
-            "selection_time_observations": 3,
-            "confirmed_successful_posts": 2,
-            "mixed_manifest_versions": True,
-            "window_event_count_all_manifests": 3,
-            "events_excluded_from_current_manifest_summary": 1,
-            "allowed_production_winners": 1,
-            "vetoed_production_winners": 0,
-            "unknown_unjudged": 1,
-            "generated_out_of_scope": 0,
-            "in_scope_historical_selections": 2,
-            "vetoed_with_allowed_alternative": 0,
-            "vetoed_without_allowed_alternative": 0,
-            "selection_error_candidate_available": 0,
-            "coverage_gap_no_safe_image": 0,
-            "quotes_with_no_globally_allowed_candidate": 0,
-            "quotes_with_incomplete_pair_coverage": 1,
-            "adjudicated_unknown_selections": 0,
-            "not_adjudicated_selections": 1,
-            "median_alternative_score_delta": None,
-            "manifest_policy_version": "obsolete-policy",
-            "manifest_sha256": "a" * 64,
-            "lookup_failures": 0,
-            "manifest_strata": [
-                {
-                    "manifest_policy_version": "obsolete-policy",
-                    "manifest_sha256": "a" * 64,
-                    "selection_time_observations": 1,
-                    "status_counts": {"allowed": 1},
-                },
-            ],
-        },
-        "runtime_summary": {
-            "available": True,
-            "configured_manifest_present": True,
-            "configured_manifest_available": True,
-            "configured_manifest_status": "loaded",
-            "configured_manifest_mode": "shadow",
-            "configured_manifest_policy_version": "current-policy",
-            "configured_manifest_sha256": "c" * 64,
-            "configured_manifest_quote_count": 611,
-            "configured_manifest_image_count": 91,
-            "configured_manifest_total_authorised_pair_count": 55601,
-            "configured_manifest_resolved_pair_count": 22157,
-            "configured_manifest_allow_pair_count": 22029,
-            "configured_manifest_veto_pair_count": 128,
-            "configured_manifest_adjudicated_unknown_pair_count": 167,
-            "configured_manifest_not_adjudicated_pair_count": 33277,
-            "manifest_policy_version": "older-policy",
-            "manifest_sha256": "b" * 64,
-            "runtime_status_matches_configured_manifest": False,
-            "configured_manifest_named_quote_coverage": {
-                "quote_id": digest.SEMANTIC_VETO_NAMED_COVERAGE_QUOTE_ID,
-                "authorised_image_count": 91,
-                "allow_count": 91,
-                "veto_count": 0,
-                "adjudicated_unknown_count": 0,
-                "not_adjudicated_count": 0,
-                "complete": True,
-            },
-            "configured_manifest_fully_unadjudicated_quotes": [
-                {
-                    "quote_id": "new-quotation",
-                    "quote_preview": "New quotation",
-                    "authorised_image_count": 91,
-                    "resolved_pair_count": 0,
-                    "adjudicated_unknown_count": 0,
-                    "not_adjudicated_count": 91,
-                }
-            ],
-        },
-    }
-    return report
+def _retired_observer_event_name() -> str:
+    return "_".join(("quote", "image", "semantic", "veto", "shadow"))
 
 
-def test_semantic_veto_reports_authorised_universe_strata_and_new_quote():
-    rendered = digest.render_markdown(semantic_veto_report())
+def _retired_load_lifecycle_field() -> str:
+    return "_".join(("semantic", "veto", "load", "lifecycle"))
 
-    assert "Mode: **shadow**" in rendered
-    assert "active enforcement: **disabled" in rendered
-    assert "611 quotations × 91 images = 55601 pairs" in rendered
-    assert "allow 22029; veto 128" in rendered
-    assert "Manifest-version strata" in rendered
-    assert "obsolete-policy" in rendered
-    assert "current-policy" in rendered
-    assert (
-        "selected quotations whose full image matrices remain unadjudicated"
-        in rendered
+
+def _normal_main_post_record() -> digest.Record:
+    return record(
+        0,
+        "INFO",
+        "log_event",
+        "EVENT "
+        + json.dumps(
+            {
+                "event": "main_post_posted",
+                "lane": "quote_image",
+                "post_id": "123",
+                "quote_hash": "a" * 64,
+                "image_hash": "b" * 64,
+                "image_basename": "t01.jpg",
+            }
+        ),
     )
-    assert "`new-quotation`" in rendered
-    assert "not adjudicated **91 / 91**" in rendered
-    assert "coverage state, not a runtime error" in rendered
-    assert digest.SEMANTIC_VETO_NAMED_COVERAGE_QUOTE_ID in rendered
-    assert "allow **91**; veto **0**" in rendered
-    assert "row complete: **yes**" in rendered
-    assert "awaiting first selection observation under configured manifest" in rendered
 
 
-def test_semantic_veto_configured_observation_resolves_older_runtime_status():
-    report = semantic_veto_report()
-    report["quote_image_semantic_veto_shadow"]["summary"]["manifest_sha256"] = "c" * 64
-    report["quote_image_semantic_veto_shadow"]["summary"]["manifest_strata"].append({
-        "manifest_policy_version": "current-policy",
-        "manifest_sha256": "c" * 64,
-        "selection_time_observations": 1,
-        "status_counts": {"allowed": 1},
-    })
+def test_normal_main_post_analysis_has_no_retired_observer_output() -> None:
+    report = digest.analyse([_normal_main_post_record()])
+
+    assert report["summary"]["record_count"] == 1
+    assert _retired_observer_event_name() not in report
+    assert _retired_load_lifecycle_field() not in report
     rendered = digest.render_markdown(report)
-
-    assert "configured manifest observed active" in rendered
-    assert "earlier retained-manifest mismatch is resolved" in rendered
-    assert "awaiting first selection observation" not in rendered
+    retired_heading = "## Quote/image " + "semantic veto shadow"
+    assert retired_heading not in rendered
 
 
-def test_semantic_veto_startup_warning_is_resolved_by_later_load():
-    records = [
-        record(
-            0,
-            "WARNING",
-            "initialise_quote_image_semantic_veto_shadow",
-            "Quote/image semantic-veto shadow unavailable; production selection "
-            "remains unchanged. status=manifest_stale reason=source hash mismatch",
-        ),
-        record(
-            10,
-            "INFO",
-            "initialise_quote_image_semantic_veto_shadow",
-            "Quote/image semantic-veto shadow manifest loaded. policy=policy-v3 "
-            f"sha256={'d' * 64} pairs=22157 active_enforcement=false",
-        ),
-    ]
-    lifecycle = digest.semantic_veto_load_lifecycle(records)
-    assert lifecycle["resolved_warning_count"] == 1
-    assert lifecycle["unresolved_warning_count"] == 0
-    report = digest.analyse(records)
-    rendered = digest.render_markdown(report)
-    assert "warning(s) resolved by a later successful load" in rendered
-    other_warnings = rendered.split("## Other warnings", 1)[1]
-    assert "semantic-veto shadow unavailable" not in other_warnings
+def test_old_retired_observer_event_is_ignored_safely() -> None:
+    historical = {
+        "event": _retired_observer_event_name(),
+        "quote_hash": "a" * 64,
+        "selected_image_hash": "b" * 64,
+        "selected_image_basename": "t01.jpg",
+        "shadow_status": "veto",
+        "would_" + "veto_production_winner": True,
+    }
+    report = digest.analyse(
+        [
+            record(0, "INFO", "log_event", "EVENT " + json.dumps(historical)),
+            record(1, "INFO", "log_event", _normal_main_post_record().msg),
+        ]
+    )
+
+    assert report["summary"]["record_count"] == 2
+    assert all(
+        event.get("kind") != _retired_observer_event_name()
+        for event in report["events"]
+    )
+    assert _retired_observer_event_name() not in report
+    assert _retired_load_lifecycle_field() not in report
+
+
+def test_digest_does_not_load_retired_observer_code_or_runtime_state(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    module_name = ".".join(
+        ("semantic_alignment", "_".join(("quote", "image", "semantic", "veto")))
+    )
+    runtime_name = "_".join(("quote", "image", "semantic", "veto", "runtime"))
+    runtime_dir = tmp_path / runtime_name
+    runtime_dir.mkdir()
+    (runtime_dir / "shadow_status.json").write_text("{invalid", encoding="utf-8")
+    log_path = tmp_path / "fixture.log"
+    log_path.write_text(
+        "2026-07-25 09:00:00 INFO main:1 - Main loop tick\n",
+        encoding="utf-8",
+    )
+    imported: list[str] = []
+    read_paths: list[Path] = []
+    original_import = builtins.__import__
+    original_read_bytes = Path.read_bytes
+
+    def guarded_import(name, *args, **kwargs):
+        imported.append(str(name))
+        if name == module_name:
+            raise AssertionError("retired observer module import attempted")
+        return original_import(name, *args, **kwargs)
+
+    def tracked_read_bytes(path: Path) -> bytes:
+        read_paths.append(path)
+        return original_read_bytes(path)
+
+    monkeypatch.setattr(builtins, "__import__", guarded_import)
+    monkeypatch.setattr(Path, "read_bytes", tracked_read_bytes)
+
+    result = digest.main(
+        [
+            "--project-dir",
+            str(tmp_path),
+            "--no-state",
+            "--json",
+            str(log_path),
+        ]
+    )
+    payload = json.loads(capsys.readouterr().out)
+
+    assert result == 0
+    assert module_name not in imported
+    assert not any(runtime_name in path.parts for path in read_paths)
+    assert _retired_observer_event_name() not in payload
+    assert _retired_load_lifecycle_field() not in payload
 
 
 def test_reply_summary_classifies_declines_duplicates_and_posted_modes():
@@ -3102,6 +3075,7 @@ def test_singular_and_plural_wording_is_deterministic():
 
 
 def test_repeated_output_is_byte_identical():
-    report = semantic_veto_report()
+    report = digest.analyse([_normal_main_post_record()])
 
     assert digest.render_markdown(report).encode() == digest.render_markdown(report).encode()
+    assert json.dumps(report, sort_keys=True) == json.dumps(report, sort_keys=True)

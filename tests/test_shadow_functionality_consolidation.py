@@ -46,7 +46,7 @@ def _configure_runtime_eligibility_assets(
     )
 
 
-def test_lifecycle_register_has_the_four_evidence_led_states() -> None:
+def test_lifecycle_register_has_the_three_evidence_led_states() -> None:
     value = load_lifecycle_register(ROOT / "shadow_feature_lifecycle.json")
     states = {
         feature["feature_name"]: feature["current_state"]
@@ -56,7 +56,6 @@ def test_lifecycle_register_has_the_four_evidence_led_states() -> None:
         "generated_image_identity_policy": "suspended",
         "hybrid_reply_retrieval": "offline_only",
         "original_editorial_selector": "promoted",
-        "quote_image_semantic_veto": "active_shadow",
     }
 
 
@@ -279,15 +278,3 @@ def test_no_allowed_image_quote_is_incomplete_manifest_coverage_not_91_vetoes() 
     pair_key = f"{quote_id}:{image_hash}"
     assert pair_key not in manifest["pairs"]
     assert pair_key not in manifest["adjudicated_unknown_pairs"]
-
-
-def test_semantic_veto_remains_observational_while_editorial_selection_is_promoted() -> None:
-    lifecycle = load_lifecycle_register(ROOT / "shadow_feature_lifecycle.json")
-    states = {row["feature_name"]: row["current_state"] for row in lifecycle["features"]}
-    assert states["quote_image_semantic_veto"] == "active_shadow"
-    assert states["original_editorial_selector"] == "promoted"
-    assert bot.quote_image_semantic_veto["mode"] == "shadow"
-    assert "active" not in bot.quote_image_semantic_veto.values()
-    source = (ROOT / "mrsMThatcher2.py").read_text(encoding="utf-8")
-    assert "apply_original_editorial_selection(" in source
-    assert "log_quote_image_semantic_veto_shadow(" in source

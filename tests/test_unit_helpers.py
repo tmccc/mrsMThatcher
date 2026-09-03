@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import builtins
 import copy
 import io
 import json
@@ -17864,6 +17865,116 @@ def test_local_config_unknown_key_rejects_whole_transaction(
     assert bot.ENABLE_AUTO_REPLIES is before["ENABLE_AUTO_REPLIES"] is True
     assert bot.POST_SLEEP_MIN == before["POST_SLEEP_MIN"] == 7200
     assert bot.POST_SLEEP_MAX == before["POST_SLEEP_MAX"] == 9000
+
+
+def test_removed_quote_image_observer_key_is_an_unknown_configuration_key(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    retired_key = "_".join(("quote", "image", "semantic", "veto"))
+    before = apply_local_config_for_test(
+        tmp_path,
+        monkeypatch,
+        {
+            retired_key: {"enabled": False},
+            "POST_SLEEP_MIN": 8000,
+            "POST_SLEEP_MAX": 8200,
+        },
+        initial={"POST_SLEEP_MIN": 7200, "POST_SLEEP_MAX": 9000},
+        expect_error=True,
+    )
+
+    assert retired_key not in bot.LOCAL_CONFIG_ALLOWED_KEYS
+    assert bot.POST_SLEEP_MIN == before["POST_SLEEP_MIN"] == 7200
+    assert bot.POST_SLEEP_MAX == before["POST_SLEEP_MAX"] == 9000
+
+
+def test_bootstrap_and_regular_selection_do_not_load_removed_observer(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    module_name = ".".join(
+        ("semantic_alignment", "_".join(("quote", "image", "semantic", "veto")))
+    )
+    event_name = "_".join(("quote", "image", "semantic", "veto", "shadow"))
+    imported: list[str] = []
+    emitted: list[str] = []
+    original_import = builtins.__import__
+
+    def guarded_import(name, *args, **kwargs):
+        imported.append(str(name))
+        if name == module_name:
+            raise AssertionError("retired observer module import attempted")
+        return original_import(name, *args, **kwargs)
+
+    monkeypatch.setattr(builtins, "__import__", guarded_import)
+    monkeypatch.setattr(bot, "TEST_MODE", False)
+    monkeypatch.setattr(bot, "SELF_TEST_REQUESTED", False)
+    monkeypatch.setattr(bot, "INITIALISE_REQUESTED", False)
+    monkeypatch.setattr(bot, "_PRODUCTION_BOOTSTRAPPED", False)
+    monkeypatch.setattr(bot, "_HISTORICAL_CONTEXT_RUNTIME_UNAVAILABLE_REASON", None)
+    monkeypatch.setattr(bot, "setup_logging", lambda **_kwargs: bot.log)
+    monkeypatch.setattr(bot, "initialise_bot_health_reporting", lambda: None)
+    monkeypatch.setattr(bot, "apply_local_config", lambda: None)
+    monkeypatch.setattr(bot, "validate_runtime_config_values", lambda _values: [])
+    monkeypatch.setattr(bot, "load_completed_research_quote_hashes", lambda: {"a" * 64})
+    monkeypatch.setattr(
+        bot,
+        "historical_context_reply_store",
+        lambda: SimpleNamespace(history=lambda: {}),
+    )
+    monkeypatch.setattr(
+        bot,
+        "historical_context_reply",
+        {**bot.historical_context_reply, "enabled": False},
+    )
+    monkeypatch.setattr(bot, "validate_production_credentials", lambda: None)
+    monkeypatch.setattr(
+        bot,
+        "log_event",
+        lambda event, **_fields: emitted.append(str(event)),
+    )
+
+    bot.production_bootstrap(configure_file_logging=False)
+
+    images = tmp_path / "images"
+    images.mkdir()
+    paths = [images / "t01.jpg", images / "t02.jpg"]
+    for index, path in enumerate(paths):
+        path.write_bytes(f"image-{index}".encode())
+    metadata = image_analysis_for_paths(
+        paths,
+        {
+            path.name: {
+                "description": path.name,
+                "seasonality": {"avoid_outside_season_or_occasion": False},
+            }
+            for path in paths
+        },
+    )
+    monkeypatch.setattr(bot, "IMAGE_GLOB", str(images / "t*"))
+    monkeypatch.setattr(bot, "ENABLE_GENERATED_IMAGE_POOL", False)
+    monkeypatch.setattr(bot, "ENABLE_GENERATED_IDENTITY_POLICY_SCORING", False)
+    monkeypatch.setattr(bot, "ENABLE_GENERATED_IDENTITY_POLICY_SHADOW_SCORING", False)
+    monkeypatch.setattr(bot, "ENABLE_ORIGINAL_EDITORIAL_SHADOW_SCORING", False)
+    monkeypatch.setattr(bot, "load_image_analysis", lambda: metadata)
+    monkeypatch.setattr(
+        bot,
+        "score_image_for_quote",
+        lambda *_args: (10.0, {"topics": 10.0}, True),
+    )
+    monkeypatch.setattr(bot, "current_datetime", lambda: datetime(2026, 9, 3))
+    bot.random.seed(4815)
+
+    selected = bot.choose_matched_unused_image(
+        set(),
+        {"quote_hash": "c" * 64, "analysis": {}},
+        {},
+    )
+
+    assert selected["basename"] in {"t01.jpg", "t02.jpg"}
+    assert module_name not in imported
+    assert event_name not in emitted
 
 
 def test_local_config_coercion_failure_rejects_whole_transaction(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:

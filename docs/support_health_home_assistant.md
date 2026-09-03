@@ -32,7 +32,6 @@ The deployed host currently considers these support pairs:
 
 - engagement analytics, every 15 minutes;
 - OpenAI published-cost cache, every 30 minutes;
-- semantic-veto shadow health, daily at 23:35 Europe/London;
 - prospective-conversation extraction, hourly only when its separate rebuild
   and validation has deliberately activated it.
 
@@ -222,7 +221,6 @@ Inspect last/next timer elapses and the latest service result:
 systemctl --user list-timers --all \
   mrs-engagement-analytics.timer \
   mrs-openai-cost-cache.timer \
-  mrs-semantic-veto-shadow-health.timer \
   mrs-prospective-conversations.timer
 systemctl --user show TIMER.timer --property=LastTriggerUSec,NextElapseUSecRealtime
 systemctl --user show SERVICE.service \

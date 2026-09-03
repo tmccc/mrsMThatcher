@@ -26,18 +26,6 @@
       "reason_for_current_state": "The generated-image pool is disabled, so routine identity-policy shadow scoring cannot produce decision-relevant observations."
     },
     {
-      "feature_name": "quote_image_semantic_veto",
-      "purpose": "Observe materially misleading historical quotation-image relationships without changing production selection.",
-      "current_state": "active_shadow",
-      "start_date": "2026-07-16",
-      "evidence_metric": "Judged production winners, veto reasons, safe alternatives and production-selection invariant failures.",
-      "target_observation_count": 200,
-      "promotion_criteria": "Separately authorised evaluation retains strict safety and coverage gates with zero production-selection invariant failures.",
-      "retirement_criteria": "The manifest becomes stale, coverage falls below its gates or a validated successor replaces it.",
-      "next_decision_date": "2026-08-01",
-      "reason_for_current_state": "The corrected v3 manifest is loaded in non-enforcing shadow mode and continues to collect production-relevant relationship evidence."
-    },
-    {
       "feature_name": "original_editorial_selector",
       "purpose": "Apply original-image editorial metadata adjustments to the production image winner.",
       "current_state": "promoted",

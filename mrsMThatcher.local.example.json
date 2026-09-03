@@ -70,14 +70,6 @@
     "research_corpus_path": "semantic_alignment_research/quote_research_full_001",
     "fail_closed": true
   },
-  "quote_image_semantic_veto": {
-    "enabled": false,
-    "mode": "shadow",
-    "manifest_path": "semantic_alignment_research/quote_attribution_cleanup_001/deployment_candidate/material_veto_v3_shadow_manifest.json",
-    "fail_open": true,
-    "record_best_allowed_alternative": true,
-    "maximum_shadow_history": 10000
-  },
   "MAX_AUTO_REPLIES_PER_DAY": 48,
   "MAX_REPLIES_PER_AUTHOR_PER_DAY": 6,
   "MAX_QUOTE_REPLIES_PER_DAY": 12,
