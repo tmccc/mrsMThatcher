@@ -558,29 +558,33 @@ that audit and then invoke the normal marker-reconciliation mode as a separate
 offline operation. Any other incident shape remains unsupported and blocked.
 
 A separate stopped recovery exists when authenticated read-only X evidence has
-already proved that an ambiguous conversational reply was published, but the
-local transport still contains an `attempting_pair`. The operator, not the
-tool, must first review the remote result and retain a credential-free evidence
-file. Stop the service and wait for the wrapper and Python child to exit, then
-run `tools/reconcile_remote_write_safety_marker.py
---adopt-externally-confirmed-reply --check-only` before any applying run. The
-evidence must be a current-user-owned regular file which is not group/world
+already proved that an ambiguous conversational reply or quote/image main post
+was published, but the local transport still contains an `attempting_pair`.
+The operator, not the tool, must first review the remote result and retain a
+credential-free evidence file. Stop the service and wait for the wrapper and
+Python child to exit, then run
+`tools/reconcile_remote_write_safety_marker.py` with either
+`--adopt-externally-confirmed-reply --check-only` or
+`--adopt-externally-confirmed-main-post --check-only` before any applying run.
+The evidence must be a current-user-owned regular file which is not group/world
 writable. The check acquires the same complete offline lock boundary as apply,
 performs no network request, creates no archive, and changes no file identity,
 bytes or timestamps.
 
-The command requires exact operator-recorded marker, sending
-`confirmed_reply_receipt.json`, transport journal and fence hashes, devices,
-inodes, ctimes and sizes. It also requires the receipt candidate lane, target
-and text hash; the transport transaction, lane and canonical-payload hash; the
-numeric published post ID and confirmation epoch; and the evidence pathname
-and SHA-256. Apply mode additionally requires both
+The command requires exact operator-recorded marker, source receipt, transport
+journal and fence hashes, devices, inodes, ctimes and sizes. It also requires
+the receipt candidate lane, target and text hash; the transport transaction,
+lane and canonical-payload hash; the numeric published post ID and confirmation
+epoch; and the evidence pathname and SHA-256. Apply mode additionally requires
+both
 `--confirm-external-publication-reviewed` and
 `--confirm-offline-reconciliation-complete`; check-only still requires the
 publication-review acknowledgement because it validates a specifically
 attested published outcome. This mode accepts only a sending conversational
-source from `mention`, `hot_post_reply` or `quote_tweet` and never handles media,
-ordinary posts or a not-published disposition.
+source from `mention`, `hot_post_reply` or `quote_tweet`, or an attempting
+`regular_post_receipt.json` whose lane is exactly `quote_image`, root target is
+empty, and media IDs match the ambiguity marker. It does not accept daily memes,
+other ordinary posts or a not-published disposition.
 
 Under one continuously held lock set, apply archives the exact evidence,
 publishes a prepared audit, transforms the exact attempting journal/fence into
@@ -592,18 +596,18 @@ exact staging generation left by process loss immediately before or after the
 journal `RENAME_EXCHANGE`: check-only reports the precise side of the exchange,
 and apply either completes the exchange or retires only the proved displaced
 attempting inode. Any extra or conflicting staging generation, post, evidence,
-payload or source identity refuses. External-reply flags, including
+payload or source identity refuses. External-adoption flags, including
 `--check-only`, are invalid with the separate unattached-media mode. A
-successful return leaves the marker names absent, the exact sending reply
-receipt present, and the confirmed transport pair bound to the reviewed post.
-It deliberately does not retire the receipt or transport.
+successful return leaves the marker names absent, the exact sending/attempting
+source receipt present, and the confirmed transport pair bound to the reviewed
+post. It deliberately does not retire the receipt or transport.
 
 Restart and read-only digest verification are a separate reviewed operational
-step. Normal startup binds the confirmed transport to the exact sending source,
-promotes the receipt, records the already-published reply, and retires both
-through their ordinary lane-owned path without another X create request. Never
-manually edit, replace, rename or delete a marker, receipt, journal, fence or
-adoption audit to imitate or complete this recovery.
+step. Normal startup binds the confirmed transport to the exact source,
+promotes the receipt, records the already-published reply or main post, and
+retires both through their ordinary lane-owned path without another X create
+request. Never manually edit, replace, rename or delete a marker, receipt,
+journal, fence or adoption audit to imitate or complete this recovery.
 
 Destructive journal, media and source-retirement helpers do not trust their
 caller. Each call requires a narrow `TransactionMutationAuthority` issued from

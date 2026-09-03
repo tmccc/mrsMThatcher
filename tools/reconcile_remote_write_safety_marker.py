@@ -9,9 +9,10 @@ media-only, pre-tweet incident: it proves that no local tweet-create authority
 exists, archives one externally bound sending receipt/fence pair, and retires
 that pair while deliberately preserving the ambiguity marker.  The default
 marker operation must then be run separately.  The mutually exclusive
-``--adopt-externally-confirmed-reply`` operation accepts exact operator-reviewed
-evidence that one conversational reply was published, durably adopts its
-attempting transport as the ordinary confirmed pair, and archives the marker
+``--adopt-externally-confirmed-reply`` and
+``--adopt-externally-confirmed-main-post`` operations accept exact
+operator-reviewed evidence that one tweet was published, durably adopt its
+attempting transport as the ordinary confirmed pair, and archive the marker
 under the same continuously held stopped-daemon lock set.
 
 All mutating operations prove that the bot's process-lifetime lock is available
@@ -87,12 +88,17 @@ TWEET_AUTHORITY_PREFIXES = (
     ".remote_write_transport_journal.json.retirement-guard.",
 )
 CONFIRMED_REPLY_RECEIPT_BASENAME = "confirmed_reply_receipt.json"
+REGULAR_POST_RECEIPT_BASENAME = "regular_post_receipt.json"
 TRANSPORT_JOURNAL_BASENAME = transport_journal.JOURNAL_BASENAME
 TRANSPORT_FENCE_BASENAME = transport_journal.FENCE_BASENAME
 EXTERNAL_ADOPTION_SCHEMA_VERSION = 1
 EXTERNAL_ADOPTION_OPERATION = "offline_external_confirmed_reply_adoption"
 EXTERNAL_ADOPTION_AUDIT_KIND = (
     "mrsMThatcher_external_confirmed_reply_adoption_audit"
+)
+EXTERNAL_MAIN_ADOPTION_OPERATION = "offline_external_confirmed_main_post_adoption"
+EXTERNAL_MAIN_ADOPTION_AUDIT_KIND = (
+    "mrsMThatcher_external_confirmed_main_post_adoption_audit"
 )
 EXTERNAL_EVIDENCE_MAX_BYTES = 1024 * 1024
 EXTERNAL_AUDIT_MAX_BYTES = 256 * 1024
@@ -134,7 +140,7 @@ class UnattachedMediaReconciliationError(MarkerReconciliationError):
 
 
 class ExternalReplyAdoptionError(MarkerReconciliationError):
-    """The published conversational reply cannot be adopted exactly."""
+    """The externally proven publication cannot be adopted exactly."""
 
 
 @dataclass(frozen=True)
@@ -220,7 +226,7 @@ class UnattachedMediaArchiveResult:
 
 @dataclass(frozen=True)
 class ExternalReplyAdoptionResult:
-    """Describe one checked or completed external reply adoption."""
+    """Describe one checked or completed external publication adoption."""
 
     schema_version: int
     operation: str
@@ -1735,6 +1741,166 @@ def _require_external_reply_source_semantics(
     return receipt, text
 
 
+def _require_external_quote_image_source_semantics(
+    receipt_bytes: bytes,
+    *,
+    text_sha256: str,
+) -> tuple[dict[str, Any], str, dict[str, Any]]:
+    """Validate one current schema-v5 attempting quote/image source directly."""
+
+    receipt = _canonical_json_object_bytes(
+        receipt_bytes,
+        label="regular quote/image source receipt",
+    )
+    text_hash = _normalise_sha256(text_sha256)
+    text = receipt.get("text")
+    media_ids = receipt.get("media_ids")
+    selected = receipt.get("selected_identity")
+    recovery = receipt.get("recovery_plan")
+    expected_keys = {
+        "schema_version",
+        "lifecycle_state",
+        "lane",
+        "attempt_id",
+        "attempt_epoch",
+        "payload_revision",
+        "payload_sha256",
+        "text",
+        "text_sha256",
+        "media_ids",
+        "reply_to_id",
+        "made_with_ai",
+        "selected_identity",
+        "recovery_plan",
+    }
+    expected_selected_keys = {
+        "quote_hash",
+        "line_no",
+        "source_line_number",
+        "image_basename",
+        "image_no",
+    }
+    expected_recovery_keys = {
+        "quote_delay_seconds",
+        "meme_delay_seconds",
+        "quote_history_after",
+        "image_history_after",
+        "meme_scheduling_enabled",
+        "meme_trigger_after_hour",
+        "meme_schedule_version",
+        "meme_schedule_before",
+        "schedule_timezone",
+    }
+    if (
+        set(receipt) != expected_keys
+        or receipt.get("schema_version") != 5
+        or receipt.get("lifecycle_state") != "attempting"
+        or receipt.get("lane") != "quote_image"
+        or type(receipt.get("attempt_id")) is not str
+        or not SHA256_RE.fullmatch(receipt["attempt_id"])
+        or type(receipt.get("attempt_epoch")) is not int
+        or not transport_journal.MIN_CONFIRMATION_EPOCH
+        <= receipt["attempt_epoch"]
+        <= transport_journal.MAX_CONFIRMATION_EPOCH
+        or receipt.get("payload_revision") != 1
+        or type(text) is not str
+        or not text
+        or hashlib.sha256(text.encode("utf-8")).hexdigest() != text_hash
+        or receipt.get("text_sha256") != text_hash
+        or not isinstance(media_ids, list)
+        or not 1 <= len(media_ids) <= 4
+        or any(
+            type(media_id) is not str
+            or re.fullmatch(r"[0-9]{1,30}", media_id) is None
+            for media_id in media_ids
+        )
+        or len(set(media_ids)) != len(media_ids)
+        or receipt.get("reply_to_id") != ""
+        or type(receipt.get("made_with_ai")) is not bool
+        or not isinstance(selected, dict)
+        or set(selected) != expected_selected_keys
+        or type(selected.get("quote_hash")) is not str
+        or not SHA256_RE.fullmatch(selected["quote_hash"])
+        or hashlib.sha256(" ".join(text.split()).encode("utf-8")).hexdigest()
+        != selected["quote_hash"]
+        or type(selected.get("line_no")) is not int
+        or selected["line_no"] < 0
+        or selected.get("source_line_number") != selected["line_no"] + 1
+        or type(selected.get("image_no")) is not int
+        or selected["image_no"] < 0
+        or type(selected.get("image_basename")) is not str
+        or not SAFE_BASENAME_RE.fullmatch(selected["image_basename"])
+        or not isinstance(recovery, dict)
+        or set(recovery) != expected_recovery_keys
+        or type(recovery.get("quote_delay_seconds")) is not int
+        or recovery["quote_delay_seconds"] <= 0
+        or (
+            recovery.get("meme_delay_seconds") is not None
+            and (
+                type(recovery["meme_delay_seconds"]) is not int
+                or recovery["meme_delay_seconds"] <= 0
+            )
+        )
+        or type(recovery.get("meme_scheduling_enabled")) is not bool
+        or type(recovery.get("meme_trigger_after_hour")) is not int
+        or not 0 <= recovery["meme_trigger_after_hour"] <= 23
+        or type(recovery.get("meme_schedule_version")) is not int
+        or recovery["meme_schedule_version"] < 1
+        or not isinstance(recovery.get("meme_schedule_before"), dict)
+        or recovery.get("schedule_timezone") != "Europe/London"
+    ):
+        raise ExternalReplyAdoptionError(
+            "regular quote/image source is not the exact supported attempting receipt"
+        )
+    quote_history = recovery.get("quote_history_after")
+    image_history = recovery.get("image_history_after")
+    if (
+        not isinstance(quote_history, list)
+        or any(
+            type(value) is not str or not SHA256_RE.fullmatch(value)
+            for value in quote_history
+        )
+        or not isinstance(image_history, list)
+        or any(
+            type(value) is not str or not SAFE_BASENAME_RE.fullmatch(value)
+            for value in image_history
+        )
+    ):
+        raise ExternalReplyAdoptionError(
+            "regular quote/image recovery histories contain invalid identities"
+        )
+    if (
+        quote_history != sorted(set(quote_history))
+        or selected["quote_hash"] not in quote_history
+        or image_history != sorted(set(image_history))
+        or selected["image_basename"] not in image_history
+    ):
+        raise ExternalReplyAdoptionError(
+            "regular quote/image recovery histories are not exact sorted identities"
+        )
+    payload: dict[str, Any] = {
+        "text": text,
+        "media": {"media_ids": list(media_ids)},
+    }
+    if receipt["made_with_ai"]:
+        payload["made_with_ai"] = True
+    compact_payload = json.dumps(
+        payload,
+        ensure_ascii=False,
+        separators=(",", ":"),
+        sort_keys=True,
+    ).encode("utf-8")
+    if (
+        type(receipt.get("payload_sha256")) is not str
+        or hashlib.sha256(compact_payload).hexdigest()
+        != receipt["payload_sha256"]
+    ):
+        raise ExternalReplyAdoptionError(
+            "regular quote/image source does not bind its canonical payload"
+        )
+    return receipt, text, payload
+
+
 def _open_existing_archive_directory(
     project_fd: int,
     archive_basename: str,
@@ -1941,6 +2107,8 @@ def _external_adoption_archive_names(
 
 def _external_prepared_audit_without_epoch(
     *,
+    adoption_operation: str,
+    audit_kind: str,
     locks: _OfflineInstanceLocks,
     transaction_id: str,
     transport_lane: str,
@@ -1964,8 +2132,8 @@ def _external_prepared_audit_without_epoch(
     return {
         "schema_version": EXTERNAL_ADOPTION_SCHEMA_VERSION,
         "operation_version": EXTERNAL_ADOPTION_SCHEMA_VERSION,
-        "document_kind": EXTERNAL_ADOPTION_AUDIT_KIND,
-        "operation": EXTERNAL_ADOPTION_OPERATION,
+        "document_kind": audit_kind,
+        "operation": adoption_operation,
         "state": "prepared",
         "project_root": str(locks.project),
         "project_device": int(locks.project_identity.st_dev),
@@ -2006,6 +2174,8 @@ def _external_prepared_audit_without_epoch(
 
 def _external_completion_audit_without_epoch(
     *,
+    adoption_operation: str,
+    audit_kind: str,
     prepared_audit_path: str,
     prepared_audit_sha256: str,
     transaction_id: str,
@@ -2022,8 +2192,8 @@ def _external_completion_audit_without_epoch(
     return {
         "schema_version": EXTERNAL_ADOPTION_SCHEMA_VERSION,
         "operation_version": EXTERNAL_ADOPTION_SCHEMA_VERSION,
-        "document_kind": EXTERNAL_ADOPTION_AUDIT_KIND,
-        "operation": EXTERNAL_ADOPTION_OPERATION,
+        "document_kind": audit_kind,
+        "operation": adoption_operation,
         "state": "completed",
         "prepared_audit_path": prepared_audit_path,
         "prepared_audit_sha256": prepared_audit_sha256,
@@ -2083,16 +2253,41 @@ def adopt_externally_confirmed_reply_offline(
     archive_basename: str = DEFAULT_ARCHIVE_BASENAME,
     now: Callable[[], int] | None = None,
     _fault_injector: Callable[[str], None] | None = None,
+    source_kind: str = "reply",
 ) -> ExternalReplyAdoptionResult:
-    """Check or adopt one externally established published reply, network-free."""
+    """Check or adopt one externally established publication, network-free."""
+
+    if source_kind not in {"reply", "quote_image"}:
+        raise ExternalReplyAdoptionError("external publication kind is unsupported")
+    is_quote_image = source_kind == "quote_image"
+    source_basename = (
+        REGULAR_POST_RECEIPT_BASENAME
+        if is_quote_image
+        else CONFIRMED_REPLY_RECEIPT_BASENAME
+    )
+    source_label = (
+        "regular quote/image source receipt"
+        if is_quote_image
+        else "confirmed reply source receipt"
+    )
+    adoption_operation = (
+        EXTERNAL_MAIN_ADOPTION_OPERATION
+        if is_quote_image
+        else EXTERNAL_ADOPTION_OPERATION
+    )
+    audit_kind = (
+        EXTERNAL_MAIN_ADOPTION_AUDIT_KIND
+        if is_quote_image
+        else EXTERNAL_ADOPTION_AUDIT_KIND
+    )
 
     if confirm_external_publication_reviewed is not True:
         raise ExternalReplyAdoptionError(
-            "external reply adoption requires explicit publication review"
+            "external publication adoption requires explicit publication review"
         )
     if not check_only and confirm_offline_reconciliation_complete is not True:
         raise ExternalReplyAdoptionError(
-            "mutating external reply adoption requires offline reconciliation acknowledgement"
+            "mutating external publication adoption requires offline reconciliation acknowledgement"
         )
     if type(check_only) is not bool:
         raise ExternalReplyAdoptionError("check-only selection is invalid")
@@ -2108,17 +2303,34 @@ def adopt_externally_confirmed_reply_offline(
         raise ExternalReplyAdoptionError(
             "transport transaction ID must be 64 lowercase hex digits"
         )
-    if (
-        expected_source_receipt_basename != CONFIRMED_REPLY_RECEIPT_BASENAME
-        or expected_source_lifecycle != "sending"
-        or expected_transport_lane != "conversational_reply"
-        or expected_candidate_lane not in SUPPORTED_REPLY_CANDIDATE_LANES
-    ):
-        raise ExternalReplyAdoptionError(
-            "external adoption is limited to one sending conversational reply receipt"
-        )
-    target_id = _normalise_post_id(expected_target_id, label="reply target")
-    post_id = _normalise_post_id(confirmed_post_id, label="confirmed reply")
+    if is_quote_image:
+        if (
+            expected_source_receipt_basename != source_basename
+            or expected_source_lifecycle != "attempting"
+            or expected_transport_lane != "quote_image"
+            or expected_candidate_lane != "quote_image"
+            or expected_target_id != ""
+        ):
+            raise ExternalReplyAdoptionError(
+                "external main-post adoption is limited to one attempting "
+                "quote/image receipt"
+            )
+        target_id = ""
+    else:
+        if (
+            expected_source_receipt_basename != source_basename
+            or expected_source_lifecycle != "sending"
+            or expected_transport_lane != "conversational_reply"
+            or expected_candidate_lane not in SUPPORTED_REPLY_CANDIDATE_LANES
+        ):
+            raise ExternalReplyAdoptionError(
+                "external adoption is limited to one sending conversational reply receipt"
+            )
+        target_id = _normalise_post_id(expected_target_id, label="reply target")
+    post_id = _normalise_post_id(
+        confirmed_post_id,
+        label="confirmed main post" if is_quote_image else "confirmed reply",
+    )
     confirmed_epoch = _normalise_confirmation_epoch(confirmation_epoch)
     reference = _normalise_reference(reconciliation_reference)
     archive_basename = _validate_basename(
@@ -2189,7 +2401,7 @@ def adopt_externally_confirmed_reply_offline(
             RESTART_BARRIER_BASENAME,
         ):
             raise ExternalReplyAdoptionError(
-                "external reply adoption requires the exact paired ambiguity marker"
+                "external publication adoption requires the exact paired ambiguity marker"
             )
         marker_data = _read_all(
             active_barriers.descriptor,
@@ -2220,16 +2432,19 @@ def adopt_externally_confirmed_reply_offline(
             or marker_document.get("outcome") != "ambiguous_remote_post"
             or marker_document.get("reply_to_id") != target_id
             or marker_document.get("text_sha256") != text_hash
-            or marker_document.get("media_ids") != []
+            or (
+                not is_quote_image
+                and marker_document.get("media_ids") != []
+            )
         ):
             raise ExternalReplyAdoptionError(
-                "ambiguity marker does not bind the reviewed reply target and text"
+                "ambiguity marker does not bind the reviewed publication"
             )
 
         source = _read_opened_stable_file(
             locks.project_fd,
-            CONFIRMED_REPLY_RECEIPT_BASENAME,
-            label="confirmed reply source receipt",
+            source_basename,
+            label=source_label,
             maximum=transport_journal.JOURNAL_MAX_BYTES,
             expected_mode=transport_journal.JOURNAL_MODE,
             expected_links=1,
@@ -2241,14 +2456,33 @@ def adopt_externally_confirmed_reply_offline(
             expected_inode=expected_source_receipt_inode,
             expected_ctime_ns=expected_source_receipt_ctime_ns,
             expected_size=expected_source_receipt_size,
-            label="confirmed reply source receipt",
+            label=source_label,
         )
-        source_document, reply_text = _require_external_reply_source_semantics(
-            source.data,
-            candidate_lane=expected_candidate_lane,
-            target_id=target_id,
-            text_sha256=text_hash,
-        )
+        if is_quote_image:
+            source_document, publication_text, source_payload = (
+                _require_external_quote_image_source_semantics(
+                    source.data,
+                    text_sha256=text_hash,
+                )
+            )
+            if (
+                marker_document.get("media_ids")
+                != source_document.get("media_ids")
+                or confirmed_epoch < source_document["attempt_epoch"]
+            ):
+                raise ExternalReplyAdoptionError(
+                    "published quote/image evidence conflicts with its source attempt"
+                )
+        else:
+            source_document, publication_text = (
+                _require_external_reply_source_semantics(
+                    source.data,
+                    candidate_lane=expected_candidate_lane,
+                    target_id=target_id,
+                    text_sha256=text_hash,
+                )
+            )
+            source_payload = None
 
         current_journal_file = _read_opened_stable_file(
             locks.project_fd,
@@ -2328,8 +2562,12 @@ def adopt_externally_confirmed_reply_offline(
         if not isinstance(payload, dict):
             raise ExternalReplyAdoptionError("transport payload is not an object")
         payload_bytes = transport_journal.canonical_json_bytes(payload)
-        expected_payload_keys = {"text", "reply"}
-        if payload.get("made_with_ai") is True:
+        expected_payload_keys = (
+            set(source_payload)
+            if source_payload is not None
+            else {"text", "reply"}
+        )
+        if source_payload is None and payload.get("made_with_ai") is True:
             expected_payload_keys.add("made_with_ai")
         for document in (journal_document, fence_document):
             bound_source = document.get("source_receipt")
@@ -2341,7 +2579,7 @@ def adopt_externally_confirmed_reply_offline(
                 or document.get("remote_payload_sha256") != payload_hash
                 or not isinstance(bound_source, dict)
                 or bound_source.get("basename")
-                != CONFIRMED_REPLY_RECEIPT_BASENAME
+                != source_basename
                 or bound_source.get("sha256") != source_hash
                 or bound_source.get("device")
                 != int(source.metadata.st_dev)
@@ -2362,13 +2600,20 @@ def adopt_externally_confirmed_reply_offline(
         if (
             fence_document.get("lifecycle_state") != "prepared"
             or set(payload) != expected_payload_keys
-            or payload.get("text") != reply_text
-            or payload.get("reply")
-            != {"in_reply_to_tweet_id": target_id}
+            or payload.get("text") != publication_text
+            or (
+                source_payload is not None
+                and payload != source_payload
+            )
+            or (
+                source_payload is None
+                and payload.get("reply")
+                != {"in_reply_to_tweet_id": target_id}
+            )
             or hashlib.sha256(payload_bytes).hexdigest() != payload_hash
         ):
             raise ExternalReplyAdoptionError(
-                "canonical transport payload differs from the reviewed reply"
+                "canonical transport payload differs from the reviewed publication"
             )
         if transport_state.journal.document.get("lifecycle_state") == "confirmed" and (
             journal_document.get("lifecycle_state") != "confirmed"
@@ -2472,6 +2717,8 @@ def adopt_externally_confirmed_reply_offline(
             )
 
         prepared_without_epoch = _external_prepared_audit_without_epoch(
+            adoption_operation=adoption_operation,
+            audit_kind=audit_kind,
             locks=locks,
             transaction_id=transaction_id,
             transport_lane=expected_transport_lane,
@@ -2588,6 +2835,8 @@ def adopt_externally_confirmed_reply_offline(
                     "completion audit conflicts with an unconfirmed transport pair"
                 )
             completed_without_epoch = _external_completion_audit_without_epoch(
+                adoption_operation=adoption_operation,
+                audit_kind=audit_kind,
                 prepared_audit_path=prepared_audit_path,
                 prepared_audit_sha256=prepared_sha256,
                 transaction_id=transaction_id,
@@ -2649,7 +2898,7 @@ def adopt_externally_confirmed_reply_offline(
         ) -> ExternalReplyAdoptionResult:
             return ExternalReplyAdoptionResult(
                 schema_version=EXTERNAL_ADOPTION_SCHEMA_VERSION,
-                operation=EXTERNAL_ADOPTION_OPERATION,
+                operation=adoption_operation,
                 execution=execution,
                 adoption_state=state_name,
                 project_root=str(locks.project),
@@ -2721,7 +2970,7 @@ def adopt_externally_confirmed_reply_offline(
                 final_transport_classification=final_state.classification,
                 final_source_receipt_present=not _entry_absent(
                     locks.project_fd,
-                    CONFIRMED_REPLY_RECEIPT_BASENAME,
+                    source_basename,
                 ),
                 planned_transport_classification="confirmed_pair",
                 no_network_request_performed=True,
@@ -2740,7 +2989,7 @@ def adopt_externally_confirmed_reply_offline(
             _revalidate_opened_stable_file(
                 locks.project_fd,
                 source,
-                label="confirmed reply source receipt",
+                label=source_label,
                 maximum=transport_journal.JOURNAL_MAX_BYTES,
             )
             _revalidate_opened_stable_file(
@@ -2918,7 +3167,7 @@ def adopt_externally_confirmed_reply_offline(
             _revalidate_opened_stable_file(
                 locks.project_fd,
                 source,
-                label="confirmed reply source receipt",
+                label=source_label,
                 maximum=transport_journal.JOURNAL_MAX_BYTES,
             )
             _revalidate_opened_stable_file(
@@ -3002,11 +3251,11 @@ def adopt_externally_confirmed_reply_offline(
 
         mutation_authority = issue_transaction_mutation_authority(
             revalidate_pre_transition,
-            operation="offline external reply adoption",
+            operation=f"offline external {source_kind} adoption",
         )
         adoption = transport_journal.adopt_externally_confirmed_transport_transaction(
             path=journal_path,
-            receipt_path=locks.project / CONFIRMED_REPLY_RECEIPT_BASENAME,
+            receipt_path=locks.project / source_basename,
             mutation_authority=mutation_authority,
             expected_transaction_id=transaction_id,
             expected_lane=expected_transport_lane,
@@ -3058,10 +3307,12 @@ def adopt_externally_confirmed_reply_offline(
         _revalidate_opened_stable_file(
             locks.project_fd,
             source,
-            label="confirmed reply source receipt",
+            label=source_label,
             maximum=transport_journal.JOURNAL_MAX_BYTES,
         )
         completed_without_epoch = _external_completion_audit_without_epoch(
+            adoption_operation=adoption_operation,
+            audit_kind=audit_kind,
             prepared_audit_path=prepared_audit_path,
             prepared_audit_sha256=prepared_sha256,
             transaction_id=transaction_id,
@@ -3114,7 +3365,7 @@ def adopt_externally_confirmed_reply_offline(
         _revalidate_opened_stable_file(
             locks.project_fd,
             source,
-            label="confirmed reply source receipt",
+            label=source_label,
             maximum=transport_journal.JOURNAL_MAX_BYTES,
         )
         marker_reference = (
@@ -3140,11 +3391,11 @@ def adopt_externally_confirmed_reply_offline(
             or final_transport.fence is None
             or _entry_absent(
                 locks.project_fd,
-                CONFIRMED_REPLY_RECEIPT_BASENAME,
+                source_basename,
             )
         ):
             raise ExternalReplyAdoptionError(
-                "external reply adoption final verification failed"
+                "external publication adoption final verification failed"
             )
         return build_result(
             execution="applied",
@@ -4384,6 +4635,14 @@ def build_parser() -> argparse.ArgumentParser:
             "the ordinary confirmed transport pair before marker archival."
         ),
     )
+    mode.add_argument(
+        "--adopt-externally-confirmed-main-post",
+        action="store_true",
+        help=(
+            "Adopt one operator-reviewed published quote/image main post into "
+            "the ordinary confirmed transport pair before marker archival."
+        ),
+    )
     parser.add_argument("--expected-media-receipt-sha256")
     parser.add_argument("--expected-media-fence-sha256")
     parser.add_argument("--expected-media-transaction-id")
@@ -4429,7 +4688,7 @@ def build_parser() -> argparse.ArgumentParser:
         action="store_true",
         help=(
             "Attest that authenticated read-only evidence conclusively proves "
-            "the exact reply was published."
+            "the exact tweet was published."
         ),
     )
     parser.add_argument(
@@ -4526,34 +4785,43 @@ def main(argv: Sequence[str] | None = None) -> int:
             args.expected_external_evidence_sha256
         ),
     }
-    if args.adopt_externally_confirmed_reply:
+    external_adoption_requested = bool(
+        args.adopt_externally_confirmed_reply
+        or args.adopt_externally_confirmed_main_post
+    )
+    if external_adoption_requested:
+        source_kind = (
+            "quote_image"
+            if args.adopt_externally_confirmed_main_post
+            else "reply"
+        )
         if any(value is not None for value in media_values.values()) or (
             args.confirm_no_tweet_create_attempted
             or args.confirm_unattached_media_abandoned
         ):
             print(
-                "refusing media-specific options during external reply adoption",
+                "refusing media-specific options during external publication adoption",
                 file=sys.stderr,
             )
             return 2
         missing = [name for name, value in external_values.items() if value is None]
         if missing:
             print(
-                "refusing external reply adoption without: "
+                "refusing external publication adoption without: "
                 + ", ".join(missing),
                 file=sys.stderr,
             )
             return 2
         if not args.confirm_external_publication_reviewed:
             print(
-                "refusing external reply adoption without "
+                "refusing external publication adoption without "
                 "--confirm-external-publication-reviewed",
                 file=sys.stderr,
             )
             return 2
         if not args.check_only and not args.confirm_offline_reconciliation_complete:
             print(
-                "refusing mutating external reply adoption without "
+                "refusing mutating external publication adoption without "
                 "--confirm-offline-reconciliation-complete",
                 file=sys.stderr,
             )
@@ -4614,9 +4882,13 @@ def main(argv: Sequence[str] | None = None) -> int:
                 ),
                 check_only=args.check_only,
                 archive_basename=args.archive_directory_name,
+                source_kind=source_kind,
             )
         except MarkerReconciliationError as exc:
-            print(f"external reply adoption refused: {exc}", file=sys.stderr)
+            print(
+                f"external publication adoption refused: {exc}",
+                file=sys.stderr,
+            )
             return 2
         sys.stdout.buffer.write(_canonical_json_bytes(external_result.to_dict()))
         return 0
@@ -4702,8 +4974,7 @@ def main(argv: Sequence[str] | None = None) -> int:
         args.confirm_external_publication_reviewed or args.check_only
     ):
         print(
-            "refusing external-reply options without "
-            "--adopt-externally-confirmed-reply",
+            "refusing external-publication options without an external-adoption mode",
             file=sys.stderr,
         )
         return 2

@@ -3185,14 +3185,14 @@ def adopt_externally_confirmed_transport_transaction(
     evidence_archive_basename: str,
     evidence_sha256: str,
 ) -> ExternallyConfirmedTransportAdoption:
-    """Adopt one operator-reviewed published conversational reply offline.
+    """Adopt one operator-reviewed published tweet offline.
 
     This low-level transition deliberately has no X response or network input.
-    It accepts only the fixed conversational source receipt and either the exact
-    reviewed ``attempting_pair`` or an externally-provenanced ``confirmed_pair``
-    produced by an identical earlier call.  The optional provenance carried by
-    the confirmed journal makes a crash after the journal transition safely
-    distinguishable from an unrelated ordinary live confirmation.
+    It accepts only the fixed conversational-reply or quote/image source receipt
+    and either the exact reviewed ``attempting_pair`` or an externally-provenanced
+    ``confirmed_pair`` produced by an identical earlier call.  The optional
+    provenance carried by the confirmed journal makes a crash after the journal
+    transition safely distinguishable from an unrelated ordinary confirmation.
     """
 
     require_transaction_mutation_authority(
@@ -3205,13 +3205,20 @@ def adopt_externally_confirmed_transport_transaction(
         raise TransportJournalError(
             "external confirmation journal path is not the source sibling"
         )
-    if (
-        receipt_path.name != "confirmed_reply_receipt.json"
-        or expected_lane != "conversational_reply"
-        or expected_source_validator_id != LANE_SOURCE_VALIDATOR_ID
+    is_reply = (
+        receipt_path.name == "confirmed_reply_receipt.json"
+        and expected_lane == "conversational_reply"
+    )
+    is_quote_image = (
+        receipt_path.name == "regular_post_receipt.json"
+        and expected_lane == "quote_image"
+    )
+    if not (is_reply or is_quote_image) or (
+        expected_source_validator_id != LANE_SOURCE_VALIDATOR_ID
     ):
         raise TransportJournalError(
-            "external confirmation is limited to the conversational reply source"
+            "external confirmation is limited to the conversational-reply or "
+            "quote/image source"
         )
     if (
         type(expected_transaction_id) is not str
@@ -3265,16 +3272,25 @@ def adopt_externally_confirmed_transport_transaction(
         raise TransportJournalError(
             "external confirmation payload is not a supported tweet request"
         ) from exc
+    reply_target_matches = bool(
+        is_reply
+        and type(expected_reply_target_id) is str
+        and _POST_ID_RE.fullmatch(expected_reply_target_id)
+        and payload.get("reply")
+        == {"in_reply_to_tweet_id": expected_reply_target_id}
+    )
+    root_post_matches = bool(
+        is_quote_image
+        and expected_reply_target_id == ""
+        and "reply" not in payload
+    )
     if (
         frozen_payload.payload_bytes != expected_payload_bytes
         or frozen_payload.payload_sha256 != expected_payload_sha256
-        or type(expected_reply_target_id) is not str
-        or not _POST_ID_RE.fullmatch(expected_reply_target_id)
-        or payload.get("reply")
-        != {"in_reply_to_tweet_id": expected_reply_target_id}
+        or not (reply_target_matches or root_post_matches)
     ):
         raise TransportJournalError(
-            "external confirmation payload does not bind the expected reply target"
+            "external confirmation payload does not match the expected tweet kind"
         )
     if not _POST_ID_RE.fullmatch(str(confirmed_post_id or "")):
         raise TransportJournalError("external confirmation has no valid post ID")
