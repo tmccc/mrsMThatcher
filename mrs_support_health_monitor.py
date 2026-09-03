@@ -33,6 +33,7 @@ COMMAND_TIMEOUT_SECONDS = 8
 SYSTEMCTL = "/usr/bin/systemctl"
 BUSCTL = "/usr/bin/busctl"
 DOCKER = "/usr/bin/docker"
+SYSTEMD_USEC_INFINITY = (1 << 64) - 1
 
 ID_RE = re.compile(r"^[a-z][a-z0-9_]{0,63}$")
 TIMER_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9_.@:-]{0,199}[.]timer$")
@@ -555,7 +556,7 @@ def _legacy_systemd_timestamps(
         if match is None:
             raise ObservationError("systemd D-Bus returned an invalid timestamp")
         microseconds = int(match.group(1))
-        if microseconds == 0:
+        if microseconds in {0, SYSTEMD_USEC_INFINITY}:
             parsed[name] = "0"
         else:
             seconds, remainder = divmod(microseconds, 1_000_000)

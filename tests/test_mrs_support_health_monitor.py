@@ -542,6 +542,32 @@ def test_systemd_249_fallback_reads_raw_dbus_microseconds() -> None:
     assert any(call[0] == monitor.BUSCTL for call in calls)
 
 
+def test_systemd_249_fallback_treats_usec_infinity_as_unavailable() -> None:
+    def runner(
+        arguments: list[str], **_kwargs: object
+    ) -> subprocess.CompletedProcess[str]:
+        if "--timestamp=unix" in arguments:
+            return completed(returncode=1, stderr="Invalid value: unix.\n")
+        if arguments[0] == monitor.SYSTEMCTL:
+            return completed(
+                timer_show_output(
+                    last="Thu 2026-08-27 20:00:00 BST",
+                    next_value="",
+                )
+            )
+        if "GetUnit" in arguments:
+            return completed('o "/org/freedesktop/systemd1/unit/mrs_2djob_2etimer"\n')
+        return completed(
+            f"t {(NOW - 600) * 1_000_000}\n"
+            f"t {monitor.SYSTEMD_USEC_INFINITY}\n"
+        )
+
+    inspected = monitor.inspect_timer("mrs-job.timer", runner=runner)
+
+    assert inspected.last_trigger_epoch == NOW - 600
+    assert inspected.next_trigger_epoch is None
+
+
 def test_systemd_249_fallback_preserves_missing_unit_classification() -> None:
     calls: list[list[str]] = []
 
