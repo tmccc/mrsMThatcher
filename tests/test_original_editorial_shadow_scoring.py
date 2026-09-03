@@ -312,7 +312,7 @@ def test_shadow_scoring_scale_affinity_cap_and_determinism(monkeypatch: pytest.M
     assert bot.original_editorial_quote_dimension_profile({"primary_topics": ["government"], "tone": [], "visual_energy": "medium"})["leadership"] == 0
 
 
-def test_shadow_result_uses_actual_original_candidate_set_and_does_not_change_production_winner(
+def test_shadow_result_uses_actual_original_candidate_set_and_replaces_production_winner(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
     caplog: pytest.LogCaptureFixture,
@@ -367,13 +367,17 @@ def test_shadow_result_uses_actual_original_candidate_set_and_does_not_change_pr
 
     chosen = bot.choose_matched_unused_image(images_used, _basic_quote(), state)
 
-    assert chosen["basename"] == "t01.jpg"
+    assert chosen["basename"] == "t02.jpg"
+    assert chosen["score"] > 9.0
+    assert chosen["original_editorial_adjustment"] > 0.0
     assert images_used == {generated.name}
-    assert "ORIGINAL_EDITORIAL_SHADOW_RESULT" in caplog.text
-    payload = json.loads(caplog.text.split("ORIGINAL_EDITORIAL_SHADOW_RESULT ", 1)[1].splitlines()[0])
+    assert "ORIGINAL_EDITORIAL_SELECTION_RESULT" in caplog.text
+    payload = json.loads(caplog.text.split("ORIGINAL_EDITORIAL_SELECTION_RESULT ", 1)[1].splitlines()[0])
     assert payload["production_winner"] == "t01.jpg"
     assert payload["shadow_original_winner"] == "t02.jpg"
     assert payload["winner_changed"] is True
+    assert payload["selection_applied"] is True
+    assert payload["selected_winner"] == "t02.jpg"
     assert payload["eligible_original_count"] == 2
 
 
@@ -425,13 +429,15 @@ def test_shadow_result_handles_generated_production_winner_without_treating_it_a
     chosen = bot.choose_matched_unused_image(set(), _basic_quote(), {"original_regular_posts_since_generated_image": 2})
 
     assert chosen["basename"] == generated.name
-    payload = json.loads(caplog.text.split("ORIGINAL_EDITORIAL_SHADOW_RESULT ", 1)[1].splitlines()[0])
+    payload = json.loads(caplog.text.split("ORIGINAL_EDITORIAL_SELECTION_RESULT ", 1)[1].splitlines()[0])
     assert payload["production_source"] == "generated"
     assert payload["production_winner"] == generated.name
     assert payload["production_editorial_adjustment"] is None
     assert payload["production_shadow_rank"] is None
     assert payload["shadow_original_winner"] == "t01.jpg"
     assert payload["winner_changed"] is False
+    assert payload["selection_applied"] is False
+    assert payload["selected_winner"] == generated.name
 
 
 def test_shadow_digest_parses_and_renders_changed_winner() -> None:
@@ -524,7 +530,43 @@ def test_shadow_logger_does_not_mutate_or_reorder_candidates(monkeypatch: pytest
     assert candidates == before
 
 
-def test_production_tie_uses_same_random_winner_with_shadow_enabled_or_disabled(
+def test_editorial_selection_keeps_adjusted_score_when_winner_is_unchanged(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    baseline = {
+        "basename": "t01.jpg",
+        "image_source": "original",
+        "score": 10.0,
+        "components": {"topics": 10.0},
+    }
+    winner = {
+        "basename": "t01.jpg",
+        "baseline_score": 10.0,
+        "editorial_adjustment": 1.25,
+        "shadow_score": 11.25,
+    }
+    payload = {
+        "production_source": "original",
+        "winner_changed": False,
+    }
+    monkeypatch.setattr(bot, "ENABLE_ORIGINAL_EDITORIAL_SHADOW_SCORING", True)
+    monkeypatch.setattr(
+        bot,
+        "original_editorial_shadow_result",
+        lambda *_args, **_kwargs: (payload, winner),
+    )
+
+    selected = bot.apply_original_editorial_selection(
+        _basic_quote(), baseline, [baseline], selection_phase="normal"
+    )
+
+    assert selected["basename"] == "t01.jpg"
+    assert selected["score"] == 11.25
+    assert selected["components"]["original_editorial"] == 1.25
+    assert payload["selection_applied"] is True
+
+
+def test_editorial_selection_uses_stable_basename_tie_break_when_enabled(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -551,5 +593,6 @@ def test_production_tie_uses_same_random_winner_with_shadow_enabled_or_disabled(
     monkeypatch.setattr(bot, "ENABLE_ORIGINAL_EDITORIAL_SHADOW_SCORING", True)
     with_shadow = bot.choose_matched_unused_image(set(), _basic_quote(), copy.deepcopy(state))
 
-    assert with_shadow["basename"] == without_shadow["basename"]
-    assert with_shadow["score"] == without_shadow["score"] == 10.0
+    assert with_shadow["basename"] == "t01.jpg"
+    assert with_shadow["score"] == pytest.approx(9.028)
+    assert without_shadow["score"] == 10.0

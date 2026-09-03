@@ -360,8 +360,10 @@ deterministic index, replay and evaluation tools remain available. See
 Generated-image identity-policy processing is `suspended` while the generated
 pool is disabled. Re-enabling its shadow requires both the generated pool and
 `ENABLE_GENERATED_IDENTITY_POLICY_SHADOW_SCORING`; enabling the latter alone
-does no audit loading, scoring or telemetry work. The semantic-veto and
-original-editorial features remain non-enforcing active shadows.
+does no audit loading, scoring or telemetry work. The semantic veto remains a
+non-enforcing shadow. When `ENABLE_ORIGINAL_EDITORIAL_SHADOW_SCORING` is true,
+the existing original-editorial winner now replaces the ordinary winner for an
+original-image selection.
 
 ## Historical Context Reply Persistence
 

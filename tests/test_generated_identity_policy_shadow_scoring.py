@@ -284,7 +284,7 @@ def test_phase_and_exact_scored_candidate_counts_are_reported() -> None:
         assert result["eligible_original_count"] == 1
 
 
-def test_selector_production_tie_is_identical_with_both_shadows_enabled(
+def test_editorial_selector_wins_tie_while_identity_shadow_stays_observational(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -316,7 +316,8 @@ def test_selector_production_tie_is_identical_with_both_shadows_enabled(
     monkeypatch.setattr(bot, "ENABLE_GENERATED_IDENTITY_POLICY_SHADOW_SCORING", True)
     enabled = bot.choose_matched_unused_image(set(), quote(), copy.deepcopy(state))
 
-    assert enabled["basename"] == disabled["basename"]
+    assert enabled["basename"] == "t01.jpg"
+    assert disabled["basename"] == "t02.jpg"
     assert enabled["score"] == disabled["score"] == 10.0
 
 

@@ -39,15 +39,15 @@
     },
     {
       "feature_name": "original_editorial_selector",
-      "purpose": "Compare original-image editorial metadata adjustments with the production image winner.",
-      "current_state": "active_shadow",
+      "purpose": "Apply original-image editorial metadata adjustments to the production image winner.",
+      "current_state": "promoted",
       "start_date": "2026-07-10",
       "evidence_metric": "Shadow winner disagreements, score adjustments and editorial mismatch reasons.",
       "target_observation_count": 200,
       "promotion_criteria": "A separately reviewed sample demonstrates consistent editorial improvement without selection or state side effects.",
       "retirement_criteria": "The scorer provides no useful disagreements or is replaced by a validated selector revision.",
       "next_decision_date": "2026-08-01",
-      "reason_for_current_state": "The scorer remains observational and has produced useful comparative ranking evidence without affecting production."
+      "reason_for_current_state": "The existing shadow scorer is now the authoritative selector when the ordinary winner is an original image."
     }
   ]
 }

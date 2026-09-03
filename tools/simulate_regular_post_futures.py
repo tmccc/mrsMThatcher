@@ -588,6 +588,10 @@ def capture_shadow_selection(bot: Any) -> Iterable[dict]:
     original_identity = bot.log_generated_identity_policy_shadow_result
     original_editorial_enabled = bot.ENABLE_ORIGINAL_EDITORIAL_SHADOW_SCORING
     original_identity_enabled = bot.ENABLE_GENERATED_IDENTITY_POLICY_SHADOW_SCORING
+    # This context measures the legacy observational controls. Production now
+    # applies the editorial scorer when its flag is enabled, so hold that flag
+    # off until the capture hook evaluates the same candidate set.
+    bot.ENABLE_ORIGINAL_EDITORIAL_SHADOW_SCORING = False
 
     def editorial_hook(quote: dict, chosen: dict, scored: list[dict], *, selection_phase: str) -> None:
         capture["quote"] = quote
@@ -596,7 +600,10 @@ def capture_shadow_selection(bot: Any) -> Iterable[dict]:
         capture["selection_phase"] = selection_phase
         capture["scored_ids"].append(id(scored))
         bot.ENABLE_ORIGINAL_EDITORIAL_SHADOW_SCORING = True
-        original_editorial(quote, chosen, scored, selection_phase=selection_phase)
+        try:
+            original_editorial(quote, chosen, scored, selection_phase=selection_phase)
+        finally:
+            bot.ENABLE_ORIGINAL_EDITORIAL_SHADOW_SCORING = False
 
     def identity_hook(
         quote: dict,
@@ -638,6 +645,8 @@ def capture_scored_selection(bot: Any) -> Iterable[dict]:
     capture: dict[str, Any] = {"scored_ids": []}
     original_editorial = bot.log_original_editorial_shadow_result
     original_identity = bot.log_generated_identity_policy_shadow_result
+    original_editorial_enabled = bot.ENABLE_ORIGINAL_EDITORIAL_SHADOW_SCORING
+    bot.ENABLE_ORIGINAL_EDITORIAL_SHADOW_SCORING = False
 
     def hook(
         quote: dict,
@@ -663,6 +672,7 @@ def capture_scored_selection(bot: Any) -> Iterable[dict]:
     finally:
         bot.log_original_editorial_shadow_result = original_editorial
         bot.log_generated_identity_policy_shadow_result = original_identity
+        bot.ENABLE_ORIGINAL_EDITORIAL_SHADOW_SCORING = original_editorial_enabled
 
 
 def select_with_production_recovery(

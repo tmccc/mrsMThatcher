@@ -18321,7 +18321,7 @@ def validate_original_editorial_shadow_startup() -> None:
         return
     count = len(load_original_editorial_analysis())
     log.info(
-        "Original editorial shadow scoring enabled. analysis_file=%s original_items=%d weight=%s max_abs_adjustment=%s",
+        "Original editorial selection enabled. analysis_file=%s original_items=%d weight=%s max_abs_adjustment=%s",
         ORIGINAL_EDITORIAL_ANALYSIS_FILE,
         count,
         ORIGINAL_EDITORIAL_SHADOW_WEIGHT,
@@ -18840,16 +18840,14 @@ def original_editorial_shadow_score(
     }
 
 
-def log_original_editorial_shadow_result(
+def original_editorial_shadow_result(
     quote_choice: dict,
     production_choice: dict,
     scored_candidates: list[dict],
     *,
     selection_phase: str,
-) -> None:
-    """Log original editorial shadow result."""
-    if not ENABLE_ORIGINAL_EDITORIAL_SHADOW_SCORING:
-        return
+) -> tuple[dict | None, dict | None]:
+    """Return the existing editorial comparison and its preferred original."""
     editorial_by_basename = load_original_editorial_analysis()
     original_rows: list[dict] = []
     for candidate in scored_candidates:
@@ -18871,7 +18869,7 @@ def log_original_editorial_shadow_result(
             }
         )
     if not original_rows:
-        return
+        return None, None
     original_rows.sort(key=lambda row: (-float(row["shadow_score"]), row["basename"]))
     for idx, row in enumerate(original_rows, 1):
         row["shadow_rank"] = idx
@@ -18902,7 +18900,78 @@ def log_original_editorial_shadow_result(
         "affinity_matches": shadow_winner["detail"].get("affinity_matches", [])[:8],
         "penalties": shadow_winner["detail"].get("penalties", [])[:8],
     }
-    log.info("ORIGINAL_EDITORIAL_SHADOW_RESULT %s", json.dumps(payload, sort_keys=True, separators=(",", ":")))
+    return payload, shadow_winner
+
+
+def log_original_editorial_shadow_result(
+    quote_choice: dict,
+    production_choice: dict,
+    scored_candidates: list[dict],
+    *,
+    selection_phase: str,
+) -> None:
+    """Log an original-editorial comparison without mutating candidates."""
+    if not ENABLE_ORIGINAL_EDITORIAL_SHADOW_SCORING:
+        return
+    payload, _ = original_editorial_shadow_result(
+        quote_choice,
+        production_choice,
+        scored_candidates,
+        selection_phase=selection_phase,
+    )
+    if payload is not None:
+        log.info("ORIGINAL_EDITORIAL_SHADOW_RESULT %s", json.dumps(payload, sort_keys=True, separators=(",", ":")))
+
+
+def apply_original_editorial_selection(
+    quote_choice: dict,
+    baseline_choice: dict,
+    scored_candidates: list[dict],
+    *,
+    selection_phase: str,
+) -> dict:
+    """Replace an original baseline winner with the existing editorial winner."""
+    if not ENABLE_ORIGINAL_EDITORIAL_SHADOW_SCORING:
+        return baseline_choice
+    payload, editorial_winner = original_editorial_shadow_result(
+        quote_choice,
+        baseline_choice,
+        scored_candidates,
+        selection_phase=selection_phase,
+    )
+    if payload is None or editorial_winner is None:
+        return baseline_choice
+
+    selection_applied = payload["production_source"] == "original"
+    payload["selection_applied"] = selection_applied
+    payload["selected_winner"] = (
+        editorial_winner["basename"]
+        if selection_applied
+        else baseline_choice.get("basename")
+    )
+    log.info(
+        "ORIGINAL_EDITORIAL_SELECTION_RESULT %s",
+        json.dumps(payload, sort_keys=True, separators=(",", ":")),
+    )
+    if not selection_applied:
+        return baseline_choice
+
+    replacement = next(
+        candidate
+        for candidate in scored_candidates
+        if candidate.get("basename") == editorial_winner["basename"]
+    )
+    selected = dict(replacement)
+    selected["baseline_score"] = float(editorial_winner["baseline_score"])
+    selected["original_editorial_adjustment"] = float(
+        editorial_winner["editorial_adjustment"]
+    )
+    selected["score"] = float(editorial_winner["shadow_score"])
+    selected["components"] = dict(selected.get("components") or {})
+    selected["components"]["original_editorial"] = float(
+        editorial_winner["editorial_adjustment"]
+    )
+    return selected
 
 
 def concise_components(components: dict[str, float]) -> str:
@@ -20311,7 +20380,13 @@ def choose_matched_unused_image(
         best_score = baseline_best_score
         tied = baseline_tied
     selection_rng_state = random.getstate()
-    chosen = random.choice(tied)
+    baseline_choice = random.choice(tied)
+    chosen = apply_original_editorial_selection(
+        quote_choice,
+        baseline_choice,
+        production_candidates,
+        selection_phase=selection_phase,
+    )
 
     log.info(
         "Selected matched image basename=%s image_no=%d score=%.2f components=%s",
@@ -20321,13 +20396,18 @@ def choose_matched_unused_image(
         concise_components(chosen["components"]),
     )
     log_regular_image_selection(chosen)
-    log_original_editorial_shadow_result(quote_choice, chosen, scored, selection_phase=selection_phase)
+    log_original_editorial_shadow_result(
+        quote_choice,
+        baseline_choice,
+        scored,
+        selection_phase=selection_phase,
+    )
     if generated_identity_policy_scoring_active():
         assert policy_rows is not None
         log_generated_identity_policy_applied_result(
             generated_identity_policy_applied_result(
                 quote_choice,
-                chosen,
+                baseline_choice,
                 scored,
                 policy_rows,
                 len(tied),
