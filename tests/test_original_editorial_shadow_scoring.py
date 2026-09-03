@@ -488,6 +488,95 @@ def test_shadow_digest_parses_and_renders_changed_winner() -> None:
     assert "Most frequent positive shadow-winner dimensions:" in rendered
 
 
+def test_digest_prefers_active_selection_result_over_legacy_shadow_companion() -> None:
+    payload = {
+        "quote_hash": "a" * 64,
+        "line_no": 12,
+        "selection_phase": "normal",
+        "production_source": "original",
+        "production_winner": "t01.jpg",
+        "production_baseline_score": 10.0,
+        "production_editorial_adjustment": 0.0,
+        "production_shadow_score": 10.0,
+        "production_shadow_rank": 2,
+        "shadow_original_winner": "t02.jpg",
+        "shadow_winner_baseline_score": 9.0,
+        "shadow_winner_editorial_adjustment": 2.5,
+        "shadow_winner_score": 11.5,
+        "winner_changed": True,
+        "eligible_original_count": 2,
+        "weight": 0.32,
+        "max_abs_adjustment": 4.0,
+        "cap_hit": False,
+        "dimension_matches": ["conviction"],
+        "affinity_matches": ["freedom"],
+        "penalties": [],
+        "selection_applied": True,
+        "selected_winner": "t02.jpg",
+    }
+    records = [
+        digest.Record(
+            ts=datetime(2026, 7, 10, 12, 0, 0),
+            level="INFO",
+            src="mrs",
+            line=1,
+            msg="ORIGINAL_EDITORIAL_SELECTION_RESULT " + json.dumps(payload, separators=(",", ":")),
+            path="test.log",
+            ordinal=1,
+        ),
+        digest.Record(
+            ts=datetime(2026, 7, 10, 12, 0, 0),
+            level="INFO",
+            src="mrs",
+            line=2,
+            msg="ORIGINAL_EDITORIAL_SHADOW_RESULT " + json.dumps(
+                {key: value for key, value in payload.items() if key not in {"selection_applied", "selected_winner"}},
+                separators=(",", ":"),
+            ),
+            path="test.log",
+            ordinal=2,
+        ),
+    ]
+
+    report = digest.analyse(records)
+    editorial = report["original_editorial_shadow"]
+    rendered = digest.render_markdown(report)
+
+    assert len(editorial["events"]) == 1
+    assert editorial["events"][0]["event_mode"] == "selection"
+    assert editorial["events"][0]["selected_winner"] == "t02.jpg"
+    assert editorial["summary"]["active_selection_observations"] == 1
+    assert editorial["summary"]["legacy_shadow_observations"] == 0
+    assert editorial["summary"]["selector_applied_observations"] == 1
+    assert editorial["summary"]["selected_winner_changes"] == 1
+    assert "## Original editorial image selection" in rendered
+    assert "the image actually selected" in rendered
+    assert "selector_applied                       = 1" in rendered
+    assert "| active | 12 | t01.jpg (original) | t02.jpg | t02.jpg |" in rendered
+    assert "This section is shadow-only" not in rendered
+
+
+def test_digest_reports_when_active_editorial_selector_is_not_applied() -> None:
+    summary = digest.original_editorial_shadow_summary(
+        [
+            {
+                "event_mode": "selection",
+                "production_source": "generated",
+                "production_winner": "tg_fixture.png",
+                "shadow_original_winner": "t01.jpg",
+                "selected_winner": "tg_fixture.png",
+                "selection_applied": False,
+                "winner_changed": False,
+            }
+        ]
+    )
+
+    assert summary["active_selection_observations"] == 1
+    assert summary["selector_applied_observations"] == 0
+    assert summary["selector_not_applied_observations"] == 1
+    assert summary["selected_winner_changes"] == 0
+
+
 def test_shadow_digest_winner_change_percentage_uses_comparable_original_observations() -> None:
     original = [{"production_source": "original", "winner_changed": index < 2} for index in range(5)]
     generated = [{"production_source": "generated", "winner_changed": False} for _ in range(5)]

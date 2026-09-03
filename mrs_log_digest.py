@@ -8781,9 +8781,30 @@ def regular_image_usage_summary(events: List[Dict[str, Any]]) -> Dict[str, Any]:
     }
 
 
+def original_editorial_comparison_key(item: Dict[str, Any]) -> Tuple[Any, ...]:
+    """Return the fields shared by an active result and its shadow companion."""
+    return (
+        item.get("quote_hash"),
+        item.get("line_no"),
+        item.get("selection_phase"),
+        item.get("production_source"),
+        item.get("production_winner"),
+        item.get("shadow_original_winner"),
+    )
+
+
 def original_editorial_shadow_summary(events: List[Dict[str, Any]]) -> Dict[str, Any]:
-    """Return the original editorial shadow summary."""
+    """Return the active and legacy original-editorial summary."""
     total = len(events)
+    selection_events = [item for item in events if item.get("event_mode") == "selection"]
+    legacy_shadow_events = [item for item in events if item.get("event_mode") != "selection"]
+    selection_applied = [item for item in selection_events if item.get("selection_applied") is True]
+    selection_not_applied = [item for item in selection_events if item.get("selection_applied") is not True]
+    selected_winner_changes = [
+        item
+        for item in selection_applied
+        if str(item.get("selected_winner") or "") != str(item.get("production_winner") or "")
+    ]
     comparable_originals = [item for item in events if item.get("production_source") == "original"]
     production_original = len(comparable_originals)
     production_generated = sum(1 for item in events if item.get("production_source") == "generated")
@@ -8808,6 +8829,11 @@ def original_editorial_shadow_summary(events: List[Dict[str, Any]]) -> Dict[str,
         dimensions.update(str(value) for value in item.get("dimension_matches") or [])
     return {
         "observations": total,
+        "active_selection_observations": len(selection_events),
+        "legacy_shadow_observations": len(legacy_shadow_events),
+        "selector_applied_observations": len(selection_applied),
+        "selector_not_applied_observations": len(selection_not_applied),
+        "selected_winner_changes": len(selected_winner_changes),
         "production_original": production_original,
         "production_generated": production_generated,
         "comparable_original_observations": production_original,
@@ -12503,6 +12529,7 @@ def analyse(
     xai_usage_parse_errors: List[Dict[str, Any]] = []
     regular_image_usage_events: List[Dict[str, Any]] = []
     original_editorial_shadow_events: List[Dict[str, Any]] = []
+    pending_original_editorial_shadow_companions: Counter = Counter()
     generated_identity_shadow_events: List[Dict[str, Any]] = []
     generated_identity_policy_events: List[Dict[str, Any]] = []
     generated_image_spacing_events: List[Dict[str, Any]] = []
@@ -15355,6 +15382,31 @@ def analyse(
             )
             continue
 
+        if "ORIGINAL_EDITORIAL_SELECTION_RESULT " in msg:
+            raw = msg.split("ORIGINAL_EDITORIAL_SELECTION_RESULT ", 1)[1].strip()
+            try:
+                parsed = _strict_native_json_object(
+                    raw.encode("utf-8"),
+                    label="ORIGINAL_EDITORIAL_SELECTION_RESULT",
+                )
+            except Exception as exc:
+                errors.append({
+                    "time": r.ts.strftime("%Y-%m-%d %H:%M:%S"),
+                    "level": r.level,
+                    "message": f"Malformed ORIGINAL_EDITORIAL_SELECTION_RESULT: {exc}: {short(raw, 240)}",
+                    "source_refs": [record_source_ref(r, input_file_indexes)],
+                })
+                stats["original_editorial_selection_parse_errors"] += 1
+                continue
+            parsed["time"] = r.ts.strftime("%Y-%m-%d %H:%M:%S")
+            parsed["event_mode"] = "selection"
+            original_editorial_shadow_events.append(parsed)
+            pending_original_editorial_shadow_companions[
+                original_editorial_comparison_key(parsed)
+            ] += 1
+            stats["original_editorial_selection_observations"] += 1
+            continue
+
         if "ORIGINAL_EDITORIAL_SHADOW_RESULT " in msg:
             raw = msg.split("ORIGINAL_EDITORIAL_SHADOW_RESULT ", 1)[1].strip()
             try:
@@ -15372,6 +15424,13 @@ def analyse(
                 stats["original_editorial_shadow_parse_errors"] += 1
                 continue
             parsed["time"] = r.ts.strftime("%Y-%m-%d %H:%M:%S")
+            parsed["event_mode"] = "shadow"
+            companion_key = original_editorial_comparison_key(parsed)
+            if pending_original_editorial_shadow_companions[companion_key] > 0:
+                pending_original_editorial_shadow_companions[companion_key] -= 1
+                stats["original_editorial_shadow_companion_observations"] += 1
+                stats["original_editorial_shadow_observations"] += 1
+                continue
             original_editorial_shadow_events.append(parsed)
             stats["original_editorial_shadow_observations"] += 1
             continue
@@ -19727,39 +19786,67 @@ def render_markdown(report: Dict[str, Any]) -> str:
     shadow_events = shadow.get("events") or []
     shadow_summary = shadow.get("summary") or {}
     if shadow_events:
-        out.append("## Original editorial shadow scoring")
-        out.append("This section is shadow-only. It reports hypothetical original-image choices and does not imply the shadow image was posted.")
+        active_selection_observations = int(shadow_summary.get("active_selection_observations", 0) or 0)
+        legacy_shadow_observations = int(shadow_summary.get("legacy_shadow_observations", 0) or 0)
+        if active_selection_observations:
+            out.append("## Original editorial image selection")
+            out.append("Active selection events report the pre-editorial baseline and the image actually selected by the editorial scorer.")
+            if legacy_shadow_observations:
+                out.append("Unmatched legacy shadow events remain hypothetical and are labelled shadow-only below.")
+        else:
+            out.append("## Original editorial shadow scoring")
+            out.append("This section is shadow-only. It reports hypothetical original-image choices and does not imply the shadow image was posted.")
         out.append("")
         out.append("```text")
-        out.append(f"shadow_observations                  = {shadow_summary.get('observations', 0)}")
-        out.append(f"production_original_winners          = {shadow_summary.get('production_original', 0)}")
-        out.append(f"production_generated_winners         = {shadow_summary.get('production_generated', 0)}")
-        out.append(f"comparable_original_observations     = {shadow_summary.get('comparable_original_observations', 0)}")
-        out.append(f"original_winner_changes              = {shadow_summary.get('winner_changes', 0)} ({float(shadow_summary.get('winner_change_percent', 0.0)):.1f}%)")
         avg_rank = shadow_summary.get("average_production_winner_shadow_rank")
-        out.append(
-            "mean_production_winner_shadow_rank    = "
-            f"{format_rank(avg_rank, mean=True)}"
-        )
-        out.append(
-            "median_production_winner_shadow_rank  = "
-            f"{format_rank(shadow_summary.get('median_production_winner_shadow_rank'))}"
-        )
-        out.append(
-            "worst_production_winner_shadow_rank   = "
-            f"{format_rank(shadow_summary.get('worst_production_winner_shadow_rank'))}"
-        )
-        out.append(f"production_winner_shadow_rank_1      = {shadow_summary.get('production_rank_1', 0)}")
-        out.append(f"production_winner_shadow_rank_2_or_3 = {shadow_summary.get('production_rank_2_or_3', 0)}")
-        out.append(f"production_winner_shadow_rank_10_plus = {shadow_summary.get('production_rank_10_or_worse', 0)}")
+        if active_selection_observations:
+            out.append(f"editorial_observations                 = {shadow_summary.get('observations', 0)}")
+            out.append(f"active_selection_observations          = {active_selection_observations}")
+            out.append(f"legacy_shadow_observations             = {legacy_shadow_observations}")
+            out.append(f"selector_applied                       = {shadow_summary.get('selector_applied_observations', 0)}")
+            out.append(f"selector_not_applied                   = {shadow_summary.get('selector_not_applied_observations', 0)}")
+            out.append(f"selected_winner_changes                = {shadow_summary.get('selected_winner_changes', 0)}")
+            out.append(f"baseline_original_winners              = {shadow_summary.get('production_original', 0)}")
+            out.append(f"baseline_generated_winners             = {shadow_summary.get('production_generated', 0)}")
+            out.append(f"comparable_original_observations       = {shadow_summary.get('comparable_original_observations', 0)}")
+            out.append(f"editorial_winner_differences           = {shadow_summary.get('winner_changes', 0)} ({float(shadow_summary.get('winner_change_percent', 0.0)):.1f}%)")
+            out.append(f"mean_baseline_winner_editorial_rank    = {format_rank(avg_rank, mean=True)}")
+            out.append(f"median_baseline_winner_editorial_rank  = {format_rank(shadow_summary.get('median_production_winner_shadow_rank'))}")
+            out.append(f"worst_baseline_winner_editorial_rank   = {format_rank(shadow_summary.get('worst_production_winner_shadow_rank'))}")
+            out.append(f"baseline_winner_editorial_rank_1       = {shadow_summary.get('production_rank_1', 0)}")
+            out.append(f"baseline_winner_editorial_rank_2_or_3  = {shadow_summary.get('production_rank_2_or_3', 0)}")
+            out.append(f"baseline_winner_editorial_rank_10_plus = {shadow_summary.get('production_rank_10_or_worse', 0)}")
+        else:
+            out.append(f"shadow_observations                  = {shadow_summary.get('observations', 0)}")
+            out.append(f"production_original_winners          = {shadow_summary.get('production_original', 0)}")
+            out.append(f"production_generated_winners         = {shadow_summary.get('production_generated', 0)}")
+            out.append(f"comparable_original_observations     = {shadow_summary.get('comparable_original_observations', 0)}")
+            out.append(f"original_winner_changes              = {shadow_summary.get('winner_changes', 0)} ({float(shadow_summary.get('winner_change_percent', 0.0)):.1f}%)")
+            out.append(
+                "mean_production_winner_shadow_rank    = "
+                f"{format_rank(avg_rank, mean=True)}"
+            )
+            out.append(
+                "median_production_winner_shadow_rank  = "
+                f"{format_rank(shadow_summary.get('median_production_winner_shadow_rank'))}"
+            )
+            out.append(
+                "worst_production_winner_shadow_rank   = "
+                f"{format_rank(shadow_summary.get('worst_production_winner_shadow_rank'))}"
+            )
+            out.append(f"production_winner_shadow_rank_1      = {shadow_summary.get('production_rank_1', 0)}")
+            out.append(f"production_winner_shadow_rank_2_or_3 = {shadow_summary.get('production_rank_2_or_3', 0)}")
+            out.append(f"production_winner_shadow_rank_10_plus = {shadow_summary.get('production_rank_10_or_worse', 0)}")
         out.append(f"average_abs_editorial_adjustment     = {float(shadow_summary.get('average_abs_editorial_adjustment', 0.0)):.2f}")
         out.append(f"max_abs_editorial_adjustment         = {float(shadow_summary.get('max_abs_editorial_adjustment', 0.0)):.2f}")
         out.append(f"cap_hit_count                        = {shadow_summary.get('cap_hit_count', 0)}")
         out.append("```")
         severe = shadow_summary.get("severe_disagreements") or []
         if severe:
-            out.append("Severe disagreements (production winner ranked 10 or worse):")
-            out.append(md_table_row(["time", "production", "shadow", "production rank"]))
+            winner_term = "baseline" if active_selection_observations else "production"
+            editorial_term = "editorial" if active_selection_observations else "shadow"
+            out.append(f"Severe disagreements ({winner_term} winner ranked 10 or worse):")
+            out.append(md_table_row(["time", winner_term, editorial_term, f"{winner_term} rank"]))
             out.append(md_table_row(["---"] * 4))
             for item in severe:
                 out.append(md_table_row([
@@ -19770,10 +19857,11 @@ def render_markdown(report: Dict[str, Any]) -> str:
                 ]))
             out.append("")
         else:
-            out.append("Severe disagreements (production winner ranked 10 or worse): **0**.")
+            winner_term = "baseline" if active_selection_observations else "production"
+            out.append(f"Severe disagreements ({winner_term} winner ranked 10 or worse): **0**.")
             out.append("")
         if shadow_summary.get("most_frequent_shadow_winners"):
-            out.append("Most frequent shadow winners:")
+            out.append("Most frequent editorial winners:" if active_selection_observations else "Most frequent shadow winners:")
             out.append(", ".join(f"{name} ({count})" for name, count in shadow_summary.get("most_frequent_shadow_winners", []) if name))
             out.append("")
         if shadow_summary.get("most_frequent_affinity_concepts"):
@@ -19781,7 +19869,7 @@ def render_markdown(report: Dict[str, Any]) -> str:
             out.append(", ".join(f"{name} ({count})" for name, count in shadow_summary.get("most_frequent_affinity_concepts", []) if name))
             out.append("")
         if shadow_summary.get("most_frequent_active_dimensions"):
-            out.append("Most frequent positive shadow-winner dimensions:")
+            out.append("Most frequent positive editorial-winner dimensions:" if active_selection_observations else "Most frequent positive shadow-winner dimensions:")
             out.append(", ".join(f"{name} ({count})" for name, count in shadow_summary.get("most_frequent_active_dimensions", []) if name))
             out.append("")
         changed_shadow = [
@@ -19791,8 +19879,12 @@ def render_markdown(report: Dict[str, Any]) -> str:
         ]
         if changed_shadow:
             out.append("Changed-winner observations:")
-            out.append(md_table_row(["time", "line_no", "production", "shadow", "production rank", "adjustment", "reason"]))
-            out.append(md_table_row(["---"] * 7))
+            if active_selection_observations:
+                out.append(md_table_row(["time", "mode", "line_no", "baseline", "editorial winner", "selected", "baseline rank", "adjustment", "reason"]))
+                out.append(md_table_row(["---"] * 9))
+            else:
+                out.append(md_table_row(["time", "line_no", "production", "shadow", "production rank", "adjustment", "reason"]))
+                out.append(md_table_row(["---"] * 7))
             for item in changed_shadow[:20]:
                 reason_bits = []
                 if item.get("affinity_matches"):
@@ -19801,15 +19893,29 @@ def render_markdown(report: Dict[str, Any]) -> str:
                     reason_bits.append("dimensions=" + ",".join(str(v) for v in item.get("dimension_matches", [])[:4]))
                 if item.get("penalties"):
                     reason_bits.append("penalties=" + ",".join(str(v) for v in item.get("penalties", [])[:3]))
-                out.append(md_table_row([
-                    item.get("time", ""),
-                    item.get("line_no", ""),
-                    f"{item.get('production_winner', '')} ({item.get('production_source', '')})",
-                    item.get("shadow_original_winner", ""),
-                    item.get("production_shadow_rank", ""),
-                    item.get("shadow_winner_editorial_adjustment", ""),
-                    "; ".join(reason_bits),
-                ]))
+                if active_selection_observations:
+                    is_selection = item.get("event_mode") == "selection"
+                    out.append(md_table_row([
+                        item.get("time", ""),
+                        "active" if is_selection else "shadow-only",
+                        item.get("line_no", ""),
+                        f"{item.get('production_winner', '')} ({item.get('production_source', '')})",
+                        item.get("shadow_original_winner", ""),
+                        item.get("selected_winner", "") if is_selection else "hypothetical",
+                        item.get("production_shadow_rank", ""),
+                        item.get("shadow_winner_editorial_adjustment", ""),
+                        "; ".join(reason_bits),
+                    ]))
+                else:
+                    out.append(md_table_row([
+                        item.get("time", ""),
+                        item.get("line_no", ""),
+                        f"{item.get('production_winner', '')} ({item.get('production_source', '')})",
+                        item.get("shadow_original_winner", ""),
+                        item.get("production_shadow_rank", ""),
+                        item.get("shadow_winner_editorial_adjustment", ""),
+                        "; ".join(reason_bits),
+                    ]))
             out.append("")
         else:
             out.append("No changed-winner observations in this window.")
