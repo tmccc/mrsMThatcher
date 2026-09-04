@@ -168,6 +168,7 @@ def _source_receipt() -> dict[str, object]:
         "reply_text": REPLY_TEXT,
         "reply_context": {
             "target_id": TARGET_ID,
+            "target_author_id": "1491806039213154305",
             "thread_id": CONVERSATION_ID,
             "lane": "mention",
         },

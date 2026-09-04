@@ -155,7 +155,7 @@ deployed as a coherent set:
 - `remote_write_transport_journal.py`
 - `exact_receipt_retirement.py`
 - `transaction_mutation_authority.py`
-- `reply_strategy.py`
+- `single_call_reply.py`
 - `reply_evidence.py`
 - `historical_context_formatter.py`
 - `historical_context_outbox.py`

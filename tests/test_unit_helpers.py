@@ -147,12 +147,14 @@ class UnitReplyEvidenceRepository:
         maximum_packets: int,
         maximum_passages: int,
         preferred_quote_id: str | None,
+        trusted_only: bool = False,
     ) -> list[EvidencePassage]:
         """Return the one trusted unit passage within requested bounds."""
 
         assert maximum_packets == 8
         assert maximum_passages == 32
         assert preferred_quote_id is None
+        assert trusted_only is True
         return [self.passage]
 
 
@@ -166,6 +168,7 @@ def unit_reply_context(
     lane: str = "mention",
     contribution: str = "A contribution.",
     clarification_request: dict[str, str] | None = None,
+    target_author_id: str = "200",
 ) -> dict[str, object]:
     """Return a minimal canonical production reply context."""
 
@@ -188,7 +191,7 @@ def unit_reply_context(
         "visual_description": None,
         "clarification_request": clarification_request,
         "current_date": "2026-07-20",
-        "target_author_id": "200",
+        "target_author_id": target_author_id,
         "target_created_at": "2026-07-20T12:00:00Z",
     }
 
@@ -224,6 +227,7 @@ def unit_approved_reply(
         payload=payload,
         fact_map=fact_map,
         images=[],
+        target_author_id=str(context["target_author_id"]),
     )
     metadata = {
         "strategy_version": STRATEGY_VERSION,
@@ -258,6 +262,7 @@ def unit_confirmed_reply_receipt(
         lane=lane,
         contribution=contribution,
         clarification_request=clarification_request,
+        target_author_id=author_id,
     )
     if lane == "quote_tweet":
         original_turn = {
@@ -9914,6 +9919,7 @@ def test_current_conversational_receipt_requires_string_identifier_fields(
         "reply_text": "A reviewed reply.",
         "reply_context": {
             "target_id": "111",
+            "target_author_id": "222",
             "thread_id": "111",
             "lane": "mention",
         },
@@ -9932,6 +9938,13 @@ def test_current_conversational_receipt_requires_string_identifier_fields(
         if field == "conversation_id":
             changed["reply_context"]["thread_id"] = 111
         assert bot.sending_reply_receipt_is_semantically_valid(changed) is False
+
+    mismatched_author = copy.deepcopy(receipt)
+    mismatched_author["reply_context"]["target_author_id"] = "333"
+    assert (
+        bot.sending_reply_receipt_is_semantically_valid(mismatched_author)
+        is False
+    )
 
     confirmed = bot._confirmed_reply_receipt_from_sending(
         receipt,
@@ -16369,7 +16382,72 @@ def test_author_cap_context_quote_commentary_recovers_original_from_cache(
     }
 
 
-def test_non_contiguous_cached_author_cap_context_is_not_invented(
+def test_direct_quote_refreshes_text_only_cache_and_becomes_model_visible(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(bot, "MY_USER_ID", "12345")
+    cache_epoch = bot.now_epoch()
+    mention = {
+        "id": "920",
+        "author_id": "200",
+        "conversation_id": "920",
+        "text": "What do you make of this?",
+        "referenced_tweets": [{"type": "quoted", "id": "900"}],
+    }
+    state = bot.default_state()
+    state["tweet_cache"] = {
+        "900": {
+            "id": "900",
+            "cached_epoch": cache_epoch,
+            "author_id": "12345",
+            "conversation_id": "900",
+            "text": "The directly quoted account post.",
+            "referenced_tweets": [],
+        }
+    }
+    lookups: list[tuple[str, bool]] = []
+
+    def fetch(tweet_id: str, *, include_media: bool = False) -> dict:
+        lookups.append((tweet_id, include_media))
+        return {
+            "id": "900",
+            "author_id": "12345",
+            "conversation_id": "900",
+            "text": "The directly quoted account post.",
+            "referenced_tweets": [],
+            "attachments": {"media_keys": ["photo-1"]},
+            "_attached_media": [
+                {
+                    "media_key": "photo-1",
+                    "type": "photo",
+                    "url": "https://pbs.twimg.test/photo.jpg",
+                }
+            ],
+        }
+
+    monkeypatch.setattr(bot, "get_tweet_by_id", fetch)
+
+    context, should_continue = bot.build_context_for_reply_ai(mention, state)
+
+    assert should_continue is True
+    assert lookups == [("900", True)]
+    assert [
+        turn["post_id"] for turn in context["visible_conversation"]
+    ] == ["900", "920"]
+    assert context["visible_conversation"][0]["text"] == (
+        "The directly quoted account post."
+    )
+    assert context["root_post_id"] == "900"
+    assert context["parent_post_id"] == "900"
+    assert context["_prepared_media_context"]["photos"] == [
+        {
+            "media_key": "photo-1",
+            "url": "https://pbs.twimg.test/photo.jpg",
+        }
+    ]
+
+
+def test_non_contiguous_cached_author_cap_context_is_not_invented_into_path(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     monkeypatch.setattr(bot, "MY_USER_ID", "12345")
@@ -16412,8 +16490,16 @@ def test_non_contiguous_cached_author_cap_context_is_not_invented(
 
     context, should_continue = bot.build_context_for_reply_ai(mention, state)
 
-    assert should_continue is False
-    assert context == {}
+    assert should_continue is True
+    assert context["parent_thread"] == []
+    assert context["visible_conversation"] == [
+        {
+            "post_id": "960",
+            "author_role": "user",
+            "text": "A newer contribution in the same conversation.",
+        }
+    ]
+    assert context["quoted_post"] is None
 
 
 def test_trim_context_text_never_exceeds_requested_limit() -> None:
@@ -16575,6 +16661,39 @@ def test_x_request_preserves_method_and_path_on_http_error(
         bot.classify_x_api_error(caught.value)
         == bot.X_API_ERROR_ENDPOINT_NOT_FOUND
     )
+
+
+def test_openai_5xx_is_not_retried_after_an_ambiguous_provider_response(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    calls: list[dict[str, object]] = []
+    response = SimpleNamespace(
+        status_code=500,
+        text='{"error":"upstream failure"}',
+        close=lambda: None,
+    )
+
+    def post(*_args: object, **kwargs: object) -> object:
+        calls.append(dict(kwargs))
+        return response
+
+    monkeypatch.setattr(bot.requests, "post", post)
+    monkeypatch.setattr(
+        bot, "require_remote_operation_unpaused", lambda *_args: None
+    )
+    monkeypatch.setattr(bot, "report_bot_health_progress", lambda *_args: None)
+
+    with pytest.raises(bot.ApiError) as caught:
+        bot.openai_responses_reply_call(
+            request={"model": "gpt-5.6-sol"},
+            timeout_seconds=180,
+            lane="mention",
+            target_id="100",
+        )
+
+    assert caught.value.status_code == 500
+    assert caught.value.error_category == "provider_http_500"
+    assert len(calls) == 1
 
 
 def test_status_only_generic_403_and_404_are_not_target_terminal() -> None:

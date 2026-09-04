@@ -68,12 +68,15 @@ occurs once, at the end. Recent same-author pairs come from the existing bounded
 updated idempotently during confirmed-receipt recovery.
 
 The response is parsed once with duplicate-key rejection and exact fields and
-enums. Mechanical validation enforces decision consistency, grounding IDs for
-direct factual replies, Unicode validity, two sentences, 270 weighted
-characters, no line breaks, real links/domains/email/network addresses,
-mentions, hashtags, emoji or genuine duplicate recent prose. It deliberately
-does not impose a language or script restriction. CJK sentence punctuation is
-not treated as a domain separator.
+enums. The completed Responses envelope must also contain one identified,
+completed assistant message with exactly one output-text item. Mechanical
+validation enforces decision consistency, grounding IDs for direct factual
+replies, Unicode validity, two sentences, 270 weighted characters, no line
+breaks, real links/domains/email/network addresses, mentions, hashtags, emoji
+or genuine duplicate recent prose. It deliberately does not impose a language
+or script restriction. Natural CJK prose remains valid with either native or
+ASCII sentence stops, while recognisable internationalised domains remain
+blocked.
 
 ## Context and quarantine follow-up
 
@@ -90,42 +93,70 @@ age-bounded rows in confirmation order. No new state field was necessary.
 
 Verified parent traversal is independently bounded at 64 ancestors before the
 canonical path is reduced to 12 turns and 12,000 text characters, retaining the
-root, target and nearest parents. Fact retrieval still sees only the bounded
-current context and directly quoted subject, including quoted-subject text only
-in the local retrieval query when it is not already visible; compact passages
-deduplicate by normalised passage, source and locator without padding. Target
-images are selected before directly quoted-post images, unrelated parent images
-are not eligible, and at most two validated images enter the one Sol request.
-Declared attachment metadata that cannot be resolved to a validated image is an
+root when reached, the target and the nearest parents. If an unavailable older
+ancestor prevents reaching the root, the longest verified contiguous suffix is
+used instead of imposing the former three-parent ceiling. A directly quoted
+post is represented as the canonical visible subject, so its text appears once
+in the model JSON rather than being hidden or duplicated. A permanently
+unbuildable context is recorded as an operational terminal outcome and retired,
+allowing later backlog candidates to proceed without creating a no-reply
+strike.
+
+Fact retrieval sees only that bounded visible conversation. Production
+`trusted_facts` admit high/medium-confidence, authorised quotation or exact
+official-source passages from factual fields; unverified, low-confidence and
+interpretive research fields are excluded. Compact passages deduplicate by
+normalised passage, source and locator without padding. Target images are
+selected before directly quoted-post images, unrelated parent images are not
+eligible, and at most two validated images enter the one Sol request. A
+text-only cached direct quote is refreshed with X media expansions. Declared
+attachment metadata that cannot be resolved to a validated image is an
 operational image-input failure rather than a silent text-only downgrade.
 
 The existing mention-author quarantine remains ahead of context, evidence,
-media and provider work. Only a valid editorial `no_reply` adds its normal
-strike; provider, schema, local-validation and image-input failures do not.
-Receipt recovery remains idempotent and no longer performs a redundant strike
-mutation; the established validated-reply clearing point and exact expiry
+media and provider work. Only a mechanically valid editorial `no_reply` with
+reason `spam_or_abuse` is a qualifying strike; ordinary completed, irrelevant
+or otherwise declined exchanges do not strike. Provider, schema,
+local-validation, context and image-input failures never strike. Records from
+the immediately preceding `majority_resolvable_terminal_no_reply_v3` policy are
+accepted and migrated during state loading, so cut-over cannot invalidate an
+otherwise sound runtime state. Receipt recovery remains idempotent and does not
+mutate strikes; the established validated-reply clearing point and exact expiry
 boundary remain unchanged. Context telemetry adds visible character count and
 names the history metric `recent_conversational_reply_count`; it logs counts
 and hashes, never history prose, fact passages or image content.
 
+The new draft schema is version 2 and binds the target author as well as target,
+root, parent and lane; the outer receipt author must equal the context author.
+This prevents corrupt recovery from assigning confirmed prose or quota effects
+to the wrong contributor. The digest also treats duplicate provider-usage
+events or a request-attempt count above one as a one-call violation, without
+simultaneously counting that candidate as compliant. Prospective extraction now
+parses the actual single-call context log, and the README coherent deployment
+set includes the mandatory `single_call_reply.py` module.
+
 ## Decisions, failures and persistence
 
-A valid `no_reply` is a terminal editorial outcome and retains existing
-no-reply strike/quarantine accounting. Provider, timeout, envelope, schema,
-context, image and local-validation failures remain operational: they do not
-terminalise the candidate, add an author strike, invoke repair, or fall back to
-another model. A single immediate transport retry is bounded to a definite
-pre-transmission connection failure or transient HTTP 429/5xx response.
+A valid `no_reply` is a terminal editorial outcome and follows the qualifying
+strike policy above. Provider, timeout, envelope, schema, image and local-output
+validation failures remain operational: they do not add an author strike,
+invoke repair, or fall back to another model. Retryable provider failures remain
+with the existing candidate mechanism; only a permanently unusable local
+context is retired as an operational outcome to prevent backlog starvation. A
+single immediate transport retry is permitted only for a definite
+pre-transmission connection failure or HTTP 429. A 5xx, ambiguous timeout,
+completed invalid response, incomplete response or refusal is never retried
+immediately.
 
-Only a valid reply creates the new compact draft. It binds the target/root/
-parent/lane identities, exact contribution and visible-context hashes, complete
-payload hash, frozen prompt/schema, model settings, reply and kind, compact fact
-IDs and complete used-source hashes, image identities/hashes, one model call,
-creation time and deterministic `validated_draft_hash`. A valid pending draft
-survives restart and is reused with zero provider calls. Old drafts are not
-reinterpreted. X target revalidation, receipts, journals, ambiguous-write
-barriers, confirmation recovery, quotas, spacing and posting remain in the
-existing path.
+Only a valid reply creates the new compact draft. It binds the target author,
+target/root/parent/lane identities, exact contribution and visible-context
+hashes, complete payload hash, frozen prompt/schema, model settings, reply and
+kind, compact fact IDs and complete used-source hashes, image identities/hashes,
+one model call, creation time and deterministic `validated_draft_hash`. A valid
+pending draft survives restart and is reused with zero provider calls. Old
+drafts are not reinterpreted. X target revalidation, receipts, journals,
+ambiguous-write barriers, confirmation recovery, quotas, spacing and posting
+remain in the existing path.
 
 ## Observability and compatibility
 
@@ -157,11 +188,13 @@ mention/hot-post/quote-tweet lanes, text and multimodal requests, target
 eligibility/revalidation, editorial versus operational outcomes, durable drafts,
 confirmed receipts and recovery, same-author history, author caps/quarantine,
 mention backlog, digest v3, prospective extraction, remote-write guards and
-production import isolation. The final focused set passed 1,100 tests; the full
-integration harness passed 311 tests. Compilation of all 28 changed Python
-files, documentation coverage for 179 modules and `git diff --check` passed.
-The exact four-worker README suite then passed 5,407 tests in 485.78 seconds
-with 873 deprecation warnings and no worker restart.
+production import isolation. The independent-review remediation focused set
+passed 1,258 tests; five exact receipt/journal regressions exposed by the first
+full run also passed after their synthetic contexts were updated with the new
+author binding. Compilation of all 30 changed Python files, documentation
+coverage for 179 modules and `git diff --check` passed. The exact four-worker
+README suite then passed 5,422 tests in 467.57 seconds with 873 deprecation
+warnings and no worker restart.
 
 The requested retired-symbol audit found no match in the production import or
 call closure. Remaining matches are limited to historical reports, explicitly

@@ -5451,7 +5451,9 @@ def test_openai_failure_records_operational_error_without_posting(tmp_path: Path
     state = read_json(base_dir / "bot_state.json")
     assert len(state["openai_error_epochs"]) == 1
     assert state["x_error_epochs"] == []
-    assert len(fake_server.openai_requests) == 2
+    # A provider 5xx is ambiguous execution, so the production transport must
+    # not issue a second Responses request for the same candidate.
+    assert len(fake_server.openai_requests) == 1
     assert fake_server.xai_requests == []
     assert fake_server.posts == []
 

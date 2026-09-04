@@ -22,7 +22,7 @@ from typing import Any, Callable, Mapping, Sequence
 
 
 STRATEGY_VERSION = "single-sol-reply-20260904"
-DRAFT_SCHEMA_VERSION = 1
+DRAFT_SCHEMA_VERSION = 2
 MODEL = "gpt-5.6-sol"
 REASONING_EFFORT = "high"
 TEMPERATURE = 1
@@ -344,14 +344,31 @@ def strict_json_loads(value: str | bytes) -> Any:
     )
 
 
-def _clean_text(value: object, *, label: str, allow_empty: bool = False) -> str:
+def _clean_text(
+    value: object,
+    *,
+    label: str,
+    allow_empty: bool = False,
+    allow_natural_joiners: bool = False,
+) -> str:
     if not isinstance(value, str):
         raise ContextValidationError(f"{label} must be text")
     try:
         value.encode("utf-8", errors="strict")
     except UnicodeEncodeError as exc:
         raise ContextValidationError(f"{label} contains malformed Unicode") from exc
-    if any(unicodedata.category(character) in {"Cc", "Cf", "Cs"} for character in value):
+    permitted_format_characters = {"\N{ZERO WIDTH NON-JOINER}", "\N{ZERO WIDTH JOINER}"}
+    if any(
+        unicodedata.category(character) in {"Cc", "Cs"}
+        or (
+            unicodedata.category(character) == "Cf"
+            and (
+                not allow_natural_joiners
+                or character not in permitted_format_characters
+            )
+        )
+        for character in value
+    ):
         raise ContextValidationError(f"{label} contains control or format characters")
     if value != value.strip() or (not allow_empty and not value):
         raise ContextValidationError(f"{label} must be non-empty trimmed text")
@@ -376,7 +393,11 @@ def _public_turn(value: object) -> dict[str, str]:
         role = "other_user"
     if role not in {"account", "user", "other_user"}:
         raise ContextValidationError("visible turn role is invalid")
-    text = _clean_text(value.get("text"), label="visible turn text")
+    text = _clean_text(
+        value.get("text"),
+        label="visible turn text",
+        allow_natural_joiners=True,
+    )
     return {"post_id": str(post_id), "role": role, "text": text}
 
 
@@ -507,11 +528,19 @@ def validate_compact_facts(facts: object) -> list[dict[str, str]]:
             {
                 "id": str(fact["id"]),
                 "passage": _clean_text(
-                    fact.get("passage"), label="fact passage"
+                    fact.get("passage"),
+                    label="fact passage",
+                    allow_natural_joiners=True,
                 ),
-                "source": _clean_text(fact.get("source"), label="fact source"),
+                "source": _clean_text(
+                    fact.get("source"),
+                    label="fact source",
+                    allow_natural_joiners=True,
+                ),
                 "locator": _clean_text(
-                    fact.get("locator"), label="fact locator"
+                    fact.get("locator"),
+                    label="fact locator",
+                    allow_natural_joiners=True,
                 ),
             }
         )
@@ -523,26 +552,34 @@ def _trusted_facts(
     visible: Sequence[Mapping[str, str]],
     repository: object,
 ) -> tuple[list[dict[str, str]], dict[str, dict[str, str]]]:
-    resolution = repository.resolve_context_quotation(dict(context))
+    # Resolve quotation identity from the same canonical text the model sees;
+    # internal history and an out-of-path quote must not steer fact selection.
+    retrieval_context = {
+        "incoming_contribution": str(visible[-1].get("text") or ""),
+        "parent_thread": [
+            {
+                "post_id": str(turn.get("post_id") or ""),
+                "author_role": str(turn.get("role") or ""),
+                "text": str(turn.get("text") or ""),
+            }
+            for turn in visible[:-1]
+        ],
+        "quoted_post": None,
+    }
+    resolution = repository.resolve_context_quotation(retrieval_context)
     preferred_quote_id = (
         str(resolution.get("quote_id") or "")
         if isinstance(resolution, dict)
         else None
     )
     query_parts = [str(turn.get("text") or "") for turn in visible]
-    visible_ids = {str(turn.get("post_id") or "") for turn in visible}
-    quoted_post = context.get("quoted_post")
-    if isinstance(quoted_post, Mapping):
-        quoted_id = str(quoted_post.get("post_id") or "")
-        quoted_text = str(quoted_post.get("text") or "").strip()
-        if quoted_id and quoted_id not in visible_ids and quoted_text:
-            query_parts.append(quoted_text)
     query = " ".join(query_parts)
     passages = repository.candidate_passages(
         query,
         maximum_packets=MAX_EVIDENCE_PACKETS,
         maximum_passages=MAX_TRUSTED_FACTS,
         preferred_quote_id=preferred_quote_id,
+        trusted_only=True,
     )
     return compact_fact_records([passage.prompt_record() for passage in passages])
 
@@ -560,10 +597,14 @@ def _same_author_interactions(value: object) -> list[dict[str, str]]:
         clean.append(
             {
                 "contributor": _clean_text(
-                    item.get("contributor"), label="earlier contributor text"
+                    item.get("contributor"),
+                    label="earlier contributor text",
+                    allow_natural_joiners=True,
                 ),
                 "account_reply": _clean_text(
-                    item.get("account_reply"), label="earlier account reply"
+                    item.get("account_reply"),
+                    label="earlier account reply",
+                    allow_natural_joiners=True,
                 ),
             }
         )
@@ -586,7 +627,13 @@ def _recent_replies(
             text = item.get("text")
         else:
             text = item
-        rows.append(_clean_text(text, label="recent account reply"))
+        rows.append(
+            _clean_text(
+                text,
+                label="recent account reply",
+                allow_natural_joiners=True,
+            )
+        )
     return rows[-MAX_RECENT_ACCOUNT_REPLIES:]
 
 
@@ -608,6 +655,7 @@ def build_model_payload(
     target_id = str(
         _clean_post_id(context.get("target_id"), label="target post ID")
     )
+    _clean_post_id(context.get("target_author_id"), label="target author ID")
     root_id = str(
         _clean_post_id(
             context.get("root_post_id") or context.get("thread_id"),
@@ -780,7 +828,7 @@ def parse_openai_response(
     response: object,
     *,
     expected_model: str = MODEL,
-) -> tuple[str, dict[str, int], str | None]:
+) -> tuple[str, dict[str, int], str]:
     """Extract one complete structured text item and usage from a response."""
 
     if not isinstance(response, Mapping):
@@ -795,9 +843,19 @@ def parse_openai_response(
     returned_model = str(response.get("model") or "")
     if returned_model != expected_model:
         raise ModelResponseError("provider returned a different model")
+    response_id = response.get("id")
+    if (
+        not isinstance(response_id, str)
+        or not response_id
+        or response_id != response_id.strip()
+        or len(response_id) > 200
+        or any(character.isspace() for character in response_id)
+    ):
+        raise ModelResponseError("provider response ID is invalid")
     texts: list[str] = []
     unexpected: list[str] = []
     refused = False
+    message_count = 0
     output = response.get("output")
     if not isinstance(output, list):
         output = []
@@ -811,6 +869,11 @@ def parse_openai_response(
         if item_type != "message":
             unexpected.append(item_type or "unknown_output_item")
             continue
+        message_count += 1
+        if item.get("role") != "assistant":
+            unexpected.append("invalid_message_role")
+        if item.get("status") != "completed":
+            unexpected.append("incomplete_message")
         content = item.get("content")
         if not isinstance(content, list):
             unexpected.append("missing_message_content")
@@ -828,10 +891,7 @@ def parse_openai_response(
                 unexpected.append(part_type or "unknown_content_item")
     if refused:
         raise ModelResponseError("provider refused the response", category="provider_refusal")
-    top_text = response.get("output_text")
-    if not texts and isinstance(top_text, str) and top_text:
-        texts.append(top_text)
-    if len(texts) != 1 or unexpected:
+    if message_count != 1 or len(texts) != 1 or unexpected:
         raise ModelResponseError("provider response did not contain one output text")
     usage_raw = response.get("usage")
     usage_raw = usage_raw if isinstance(usage_raw, Mapping) else {}
@@ -854,8 +914,7 @@ def parse_openai_response(
         "total_tokens": count(usage_raw.get("total_tokens"))
         or input_tokens + output_tokens,
     }
-    response_id = response.get("id")
-    return texts[0], usage, str(response_id) if isinstance(response_id, str) else None
+    return texts[0], usage, response_id
 
 
 def _is_sentence_terminator(character: str) -> bool:
@@ -973,6 +1032,32 @@ _UNICODE_DOMAIN_RE = re.compile(
     r"(?<![@\w-])([^\s./@:]+(?:\.[^\s./@:]+)+)(?![\w-])",
     re.UNICODE,
 )
+_COMMON_ASCII_TLDS = frozenset(
+    "app biz com dev edu example gov info int io mil museum name net org site "
+    "tech uk xyz".split()
+)
+# Root-zone IDN labels plus the conventional example/test labels used when an
+# explicit internationalised address is discussed.  Requiring a recognisable
+# suffix avoids treating arbitrary non-Latin clauses separated by a full stop
+# as hostnames.
+_KNOWN_IDN_TLDS = frozenset(
+    """
+    امارات հայ বাংলা бг البحرين бел 中国 中國 الجزائر مصر ею ευ موريتانيا გე
+    ελ 香港 भारत ଭାରତ ভাৰত भारतम् भारोत ڀارت ഭാരതം भारत بارت بھارت భారత్
+    ભારત ਭਾਰਤ ভারত இந்தியா ایران ايران عراق الاردن 한국 қаз ລາວ ලංකා
+    இலங்கை المغرب мкд мон 澳門 澳门 مليسيا عمان پاکستان پاكستان فلسطين срб
+    рф قطر السعودية السعودیة السعودیۃ السعوديه سودان 新加坡 சிங்கப்பூர் سورية
+    سوريا ไทย تونس 台灣 台湾 臺灣 укр اليمن कॉम セール 佛山 慈善 集团 在线 点看
+    คอม 八卦 موقع 公益 公司 香格里拉 网站 移动 我爱你 москва католик онлайн сайт
+    联通 קום 时尚 微博 淡马锡 ファッション орг नेट ストア アマゾン 삼성 商标
+    商店 商城 дети ポイント 新闻 家電 كوم 中文网 中信 娱乐 谷歌 電訊盈科 购物
+    クラウド 通販 网店 संगठन 餐厅 网络 ком 亚马逊 诺基亚 食品 飞利浦 手机
+    ارامكو العليان اتصالات بازار ابوظبي كاثوليك همراه 닷컴 政府 شبكة بيتك عرب
+    机构 组织机构 健康 招聘 рус 大拿 みんな グーグル 世界 書籍 网址 닷넷 コム
+    天主教 游戏 vermögensberater vermögensberatung 企业 信息 嘉里大酒店 嘉里
+    广东 政务 测试 テスト إختبار
+    """.split()
+)
 _IPV4_RE = re.compile(r"(?<![\w.])(?:[0-9]{1,3}\.){3}[0-9]{1,3}(?![\w.])")
 _IPV6_RE = re.compile(r"(?<![0-9A-Fa-f:])\[?[0-9A-Fa-f:]*:[0-9A-Fa-f:]+\]?(?![0-9A-Fa-f:])")
 
@@ -997,7 +1082,14 @@ def contains_link_or_address(text: str) -> bool:
         except ValueError:
             continue
         return True
-    for match in _UNICODE_DOMAIN_RE.finditer(text):
+    domain_scan_text = text.translate(
+        {
+            ord("\N{IDEOGRAPHIC FULL STOP}"): ".",
+            ord("\N{FULLWIDTH FULL STOP}"): ".",
+            ord("\N{HALFWIDTH IDEOGRAPHIC FULL STOP}"): ".",
+        }
+    )
+    for match in _UNICODE_DOMAIN_RE.finditer(domain_scan_text):
         candidate = match.group(1)
         labels = candidate.split(".")
         if all(label.isascii() for label in labels):
@@ -1018,9 +1110,21 @@ def contains_link_or_address(text: str) -> bool:
             encoded = [label.encode("idna").decode("ascii") for label in labels]
         except UnicodeError:
             continue
+        top_level = labels[-1].casefold()
+        top_level_is_recognisable = (
+            top_level in _KNOWN_IDN_TLDS
+            or (
+                top_level.isascii()
+                and (
+                    top_level in _COMMON_ASCII_TLDS
+                    or (len(top_level) == 2 and top_level.isalpha())
+                    or top_level.startswith("xn--")
+                )
+            )
+        )
         if (
             all(1 <= len(label) <= 63 for label in encoded)
-            and len(labels[-1]) >= 2
+            and top_level_is_recognisable
             and any(unicodedata.category(char).startswith("L") for char in labels[-1])
         ):
             return True
@@ -1177,6 +1281,7 @@ _DRAFT_FIELDS = {
     "draft_schema_version",
     "strategy_version",
     "target_id",
+    "target_author_id",
     "root_post_id",
     "parent_post_id",
     "candidate_source",
@@ -1219,6 +1324,7 @@ def create_durable_draft(
     payload: Mapping[str, Any],
     fact_map: Mapping[str, Mapping[str, str]],
     images: Sequence[Mapping[str, Any]],
+    target_author_id: str,
 ) -> dict[str, Any]:
     """Bind a valid reply to its exact one-call inputs and local sources."""
 
@@ -1241,6 +1347,9 @@ def create_durable_draft(
         "draft_schema_version": DRAFT_SCHEMA_VERSION,
         "strategy_version": STRATEGY_VERSION,
         "target_id": str(identities["target_post_id"]),
+        "target_author_id": str(
+            _clean_post_id(target_author_id, label="target author ID")
+        ),
         "root_post_id": str(identities["root_post_id"]),
         "parent_post_id": identities["parent_post_id"],
         "candidate_source": str(payload["lane"]),
@@ -1311,6 +1420,11 @@ def validate_persisted_draft(
     if parsed_created_at.tzinfo is None:
         raise ValueError("pending single-call draft creation time lacks UTC")
     target_id = str(context.get("target_id") or "")
+    target_author_id = str(
+        _clean_post_id(
+            context.get("target_author_id"), label="target author ID"
+        )
+    )
     visible = bound_visible_conversation(
         context.get("visible_conversation") or [], target_post_id=target_id
     )
@@ -1318,6 +1432,7 @@ def validate_persisted_draft(
     parent_id = context.get("parent_post_id")
     if (
         draft.get("target_id") != target_id
+        or draft.get("target_author_id") != target_author_id
         or draft.get("root_post_id") != root_id
         or draft.get("parent_post_id") != parent_id
         or draft.get("candidate_source") != context.get("lane")
@@ -1542,6 +1657,7 @@ def run_reply_pipeline(
             payload=payload,
             fact_map=fact_map,
             images=images,
+            target_author_id=str(context.get("target_author_id") or ""),
         )
     except (KeyError, TypeError, ValueError) as exc:
         return PipelineResult(

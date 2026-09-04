@@ -906,24 +906,33 @@ def test_missing_undateable_root_stays_start_unknown(tmp_path: Path) -> None:
 
 def test_single_call_decision_is_retained_without_stage_summary() -> None:
     records, _ = extractor.parse_log_records(
-        event_line(
-            "2026-09-04 12:00:00",
-            "single_call_reply_decision",
-            target_id="900",
-            root_post_id="800",
-            parent_post_id="850",
-            lane="mention",
-            incoming_text="A current contribution",
-            strategy_version="single-sol-reply-20260904",
-            model="gpt-5.6-sol",
-            decision="no_reply",
-            reply_kind="no_reply",
-            reason_code="completed_exchange",
-            outcome_type="editorial",
-            local_validation_status="passed",
-            model_call_count=1,
-            visible_turn_count=3,
-            trusted_fact_count=2,
+        (
+            log_line(
+                "2026-09-04 12:00:00",
+                "Considering mention id=900 author_id=700 "
+                "text='A current contribution'",
+            )
+            + log_line(
+                "2026-09-04 12:00:01",
+                "Built single-call reply context target_id=900 turns=3 "
+                "root_id=800 parent_id=850",
+            )
+            + event_line(
+                "2026-09-04 12:00:02",
+                "single_call_reply_decision",
+                target_id="900",
+                lane="mention",
+                strategy_version="single-sol-reply-20260904",
+                model="gpt-5.6-sol",
+                decision="no_reply",
+                reply_kind="no_reply",
+                reason_code="completed_exchange",
+                outcome_type="editorial",
+                local_validation_status="passed",
+                model_call_count=1,
+                visible_turn_count=3,
+                trusted_fact_count=2,
+            )
         ).encode()
     )
 
@@ -935,9 +944,9 @@ def test_single_call_decision_is_retained_without_stage_summary() -> None:
     assert post["tested_pipeline_stage_summaries"] == []
     assert post["pipeline_stage_summaries"] == [
         {
-            "event_id": records[0].record_fingerprint,
+            "event_id": records[2].record_fingerprint,
             "event_kind": "single_call_reply_decision",
-            "observed_at": records[0].timestamp,
+            "observed_at": records[2].timestamp,
             "model_call_count": 1,
             "decision": "no_reply",
             "reply_kind": "no_reply",

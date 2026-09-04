@@ -287,6 +287,7 @@ def _conversational_sending(*, author_id: str) -> dict:
         "reply_text": "A reviewed reply.",
         "reply_context": {
             "target_id": "111",
+            "target_author_id": author_id,
             "thread_id": "111",
             "lane": "mention",
         },

@@ -207,6 +207,10 @@ CONTEXT_RE = re.compile(
     r"Built AI reply context for (?:mention|hot.post.reply) (\d+)\. "
     r"chain_items=(\d+) immediate_parent=([^\s]+) quoted=(True|False)",
 )
+SINGLE_CALL_CONTEXT_RE = re.compile(
+    r"Built single-call reply context target_id=(\d+) turns=(\d+) "
+    r"root_id=([^\s]+) parent_id=([^\s]+)",
+)
 GENERATED_RE = re.compile(
     r"Generated reply to (mention|hot_post_reply) (\d+): (.*)$", re.S
 )
@@ -3233,6 +3237,27 @@ def normalise_canonical_posts(
                 row["reconstruction_confidence"] = "high"
             if row.get("author_role") != "account":
                 row["parent_thread_entry_count"] = chain_items
+            _touch_post(row, record)
+
+        match = SINGLE_CALL_CONTEXT_RE.search(message)
+        if match:
+            target_id = match.group(1)
+            row = get_user(target_id)
+            turn_count = int(match.group(2))
+            root_id = match.group(3)
+            parent_id = match.group(4)
+            if row.get("author_role") == "account":
+                _record_account_self_observation(row, record)
+            else:
+                _set_identity(row, "root_post_id", root_id)
+                if parent_id.casefold() in {"none", "null", "unavailable", ""}:
+                    row["parent_post_id"] = None
+                    row["parent_observation_status"] = "confirmed_none"
+                else:
+                    _set_identity(row, "parent_post_id", parent_id)
+                    row["parent_observation_status"] = "observed"
+                row["parent_thread_entry_count"] = max(0, turn_count - 1)
+                row["reconstruction_confidence"] = "high"
             _touch_post(row, record)
 
         match = GENERATED_RE.search(message)

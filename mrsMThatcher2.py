@@ -466,7 +466,10 @@ AUTHOR_NO_REPLY_QUARANTINE_THRESHOLD = 3
 AUTHOR_NO_REPLY_QUARANTINE_WINDOW_SECONDS = 21600
 AUTHOR_NO_REPLY_QUARANTINE_SECONDS = 43200
 AUTHOR_EVALUATION_QUARANTINE_EVIDENCE_POLICY = (
-    "single_sol_editorial_no_reply_v1"
+    "single_sol_explicit_spam_or_abuse_v2"
+)
+AUTHOR_EVALUATION_QUARANTINE_PREVIOUS_EVIDENCE_POLICY = (
+    "majority_resolvable_terminal_no_reply_v3"
 )
 AUTHOR_EVALUATION_QUARANTINE_SEEDED_EVIDENCE_POLICY = (
     "majority_spam_or_abuse_seeded_corroboration_v2"
@@ -5193,12 +5196,22 @@ def normalise_author_evaluation_quarantines(value: object, *, path: Path) -> dic
             and evidence_policy
             == AUTHOR_EVALUATION_QUARANTINE_SEEDED_EVIDENCE_POLICY
         )
+        is_previous_policy = (
+            record_fields == current_fields
+            and evidence_policy
+            == AUTHOR_EVALUATION_QUARANTINE_PREVIOUS_EVIDENCE_POLICY
+        )
         is_current_policy = (
             record_fields == current_fields
             and evidence_policy
             == AUTHOR_EVALUATION_QUARANTINE_EVIDENCE_POLICY
         )
-        if not (is_legacy_policy or is_seeded_policy or is_current_policy):
+        if not (
+            is_legacy_policy
+            or is_seeded_policy
+            or is_previous_policy
+            or is_current_policy
+        ):
             return None
         timestamps = raw_record.get("recent_no_reply_epochs")
         until = raw_record.get("quarantine_until_epoch")
@@ -5266,6 +5279,13 @@ def normalise_author_evaluation_quarantines(value: object, *, path: Path) -> dic
             if is_seeded_policy:
                 log.info(
                     "Migrating seeded-corroboration author-evaluation history "
+                    "for author_id=%s from %s",
+                    author_id,
+                    path,
+                )
+            elif is_previous_policy:
+                log.info(
+                    "Migrating immediately preceding author-evaluation history "
                     "for author_id=%s from %s",
                     author_id,
                     path,
@@ -8416,6 +8436,8 @@ def _reply_context_post(
 def _directly_quoted_tweet_for_reply_context(
     candidate: dict,
     state: dict,
+    *,
+    include_media: bool = True,
 ) -> dict | None:
     """Return one directly quoted post with native media metadata when available."""
 
@@ -8426,29 +8448,35 @@ def _directly_quoted_tweet_for_reply_context(
         quoted_id = str(reference.get("id") or "")
         if not quoted_id:
             continue
-        cache = state.get("tweet_cache", {})
-        cached = cache.get(quoted_id) if isinstance(cache, dict) else None
-        cached_has_material_image_hint = bool(
-            isinstance(cached, dict)
-            and (
-                cached.get("_attached_media")
-                or cached.get("attachments")
-                or cached.get("image_summary")
-                or cached.get("post_type") in {"quote", "daily_meme"}
-            )
-        )
         try:
             quoted = get_tweet_by_id_cached(
                 quoted_id,
                 state,
-                include_media=not isinstance(cached, dict)
-                or cached_has_material_image_hint,
+                # Parent-cache records omit native attachment expansions.  A
+                # direct quote must refresh once with media fields rather than
+                # treating a text-only cache hit as proof of no image.
+                include_media=include_media,
             )
         except ApiError as exc:
             if not api_error_is_permanent_target_failure(exc):
                 raise
             return None
         return quoted
+    return None
+
+
+def _direct_quote_id(candidate: dict) -> str | None:
+    """Return the candidate's one valid directly quoted post identity."""
+
+    references = candidate.get("referenced_tweets", []) or []
+    if not isinstance(references, list):
+        return None
+    for reference in references:
+        if not isinstance(reference, dict) or reference.get("type") != "quoted":
+            continue
+        quoted_id = str(reference.get("id") or "")
+        if quoted_id:
+            return quoted_id
     return None
 
 
@@ -8543,13 +8571,12 @@ def build_context_for_reply_ai(
     if root_id != mention_id:
         if not chain or str(chain[0].get("id") or "") != root_id:
             log.warning(
-                "Verified parent path did not reach root target_id=%s root_id=%s "
-                "within %s verified parent traversals",
+                "Verified parent path did not reach root; retaining the longest "
+                "available contiguous suffix target_id=%s root_id=%s traversals=%s",
                 mention_id,
                 root_id,
                 THREAD_CONTEXT_MAX_DEPTH,
             )
-            return {}, False
         if not _parent_path_is_contiguous(chain, mention):
             log.warning(
                 "Verified parent path is not contiguous target_id=%s",
@@ -8578,10 +8605,12 @@ def build_context_for_reply_ai(
         )
         if not post["post_id"] or not post["text"]:
             log.warning(
-                "Parent path contains an unusable turn target_id=%s",
+                "Discarding older context through an unusable parent turn "
+                "target_id=%s",
                 mention_id,
             )
-            return {}, False
+            visible = []
+            continue
         visible.append(post)
     target_turn = _reply_context_post(
         mention,
@@ -8591,6 +8620,42 @@ def build_context_for_reply_ai(
     if not target_turn["post_id"] or not target_turn["text"]:
         return {}, False
     visible.append(target_turn)
+
+    directly_quoted_candidate = _directly_quoted_tweet_for_reply_context(
+        mention, state
+    )
+    if _direct_quote_id(mention) and directly_quoted_candidate is None:
+        log.warning(
+            "Directly quoted post is unavailable; refusing incomplete context "
+            "target_id=%s quoted_id=%s",
+            mention_id,
+            _direct_quote_id(mention),
+        )
+        return {}, False
+    quoted_candidate = directly_quoted_candidate
+    if quoted_candidate is None and chain:
+        quoted_candidate = _directly_quoted_tweet_for_reply_context(
+            chain[0], state, include_media=False
+        )
+    quoted_post = None
+    if quoted_candidate is not None:
+        candidate_post = _reply_context_post(
+            quoted_candidate,
+            principal_author_id=author_id,
+        )
+        if candidate_post["post_id"] and candidate_post["text"]:
+            quoted_post = candidate_post
+
+    # A post directly quoted by the candidate is its explicit subject.  Put
+    # that text in the sole visible-conversation field rather than hiding it in
+    # internal context or duplicating it elsewhere in the model payload.  This
+    # is the same two-turn representation used by the quote-tweet lane.
+    model_root_id = root_id
+    model_parent_id = get_immediate_parent_id(mention)
+    if directly_quoted_candidate is not None and quoted_post is not None:
+        visible = [copy.deepcopy(quoted_post), target_turn]
+        model_root_id = str(quoted_post["post_id"])
+        model_parent_id = str(quoted_post["post_id"])
 
     try:
         bounded_visible = bound_visible_conversation(
@@ -8614,19 +8679,6 @@ def build_context_for_reply_ai(
     ]
 
     parent_thread = copy.deepcopy(visible[:-1])
-    quoted_candidate = _directly_quoted_tweet_for_reply_context(mention, state)
-    if quoted_candidate is None and chain:
-        quoted_candidate = _directly_quoted_tweet_for_reply_context(
-            chain[0], state
-        )
-    quoted_post = None
-    if quoted_candidate is not None:
-        candidate_post = _reply_context_post(
-            quoted_candidate,
-            principal_author_id=author_id,
-        )
-        if candidate_post["post_id"] and candidate_post["text"]:
-            quoted_post = candidate_post
     prepared_media_context = reply_media_context_for_candidate(
         mention,
         lane=str(mention.get("_source") or "mention"),
@@ -8636,8 +8688,8 @@ def build_context_for_reply_ai(
     context: dict[str, object] = {
         "target_id": mention_id,
         "thread_id": root_id,
-        "root_post_id": root_id,
-        "parent_post_id": get_immediate_parent_id(mention),
+        "root_post_id": model_root_id,
+        "parent_post_id": model_parent_id,
         "lane": str(mention.get("_source") or "mention"),
         "incoming_contribution": mention_text,
         "quoted_post": quoted_post,
@@ -8651,10 +8703,12 @@ def build_context_for_reply_ai(
         "_prepared_media_context": prepared_media_context,
     }
     log.info(
-        "Built single-call reply context target_id=%s turns=%d root_id=%s",
+        "Built single-call reply context target_id=%s turns=%d root_id=%s "
+        "parent_id=%s",
         mention_id,
         len(visible),
-        root_id,
+        model_root_id,
+        model_parent_id,
     )
     log_json_debug("Single-call reply context", context)
     return context, True
@@ -22658,7 +22712,7 @@ def openai_responses_reply_call(
     lane: str,
     target_id: str,
 ) -> dict[str, object]:
-    """Send the one Responses request with one narrowly safe transport retry."""
+    """Send one executable Responses request, retrying only proved non-execution."""
 
     log.info(
         "Calling single-call reply provider=OpenAI model=%s "
@@ -22706,10 +22760,10 @@ def openai_responses_reply_call(
             ) from exc
         finally:
             report_bot_health_progress("ai_call")
-        if response.status_code in {429} or response.status_code >= 500:
+        if response.status_code == 429:
             if attempt == 1:
                 log.warning(
-                    "OpenAI single-call reply returned transient HTTP %s; "
+                    "OpenAI single-call reply returned pre-execution HTTP %s; "
                     "retrying once target_id=%s",
                     response.status_code,
                     target_id,
@@ -22928,7 +22982,11 @@ def terminal_reply_evaluation(state: dict, target_id: str) -> dict | None:
     if not isinstance(records, dict):
         return None
     record = records.get(str(target_id))
-    if isinstance(record, dict) and record.get("outcome") in {"no_reply", "reply_not_permitted"}:
+    if isinstance(record, dict) and record.get("outcome") in {
+        "no_reply",
+        "operational_failure",
+        "reply_not_permitted",
+    }:
         return record
     return None
 
@@ -22944,7 +23002,7 @@ def record_terminal_reply_evaluation(
     evidence_policy: str | None = None,
 ) -> None:
     """Record terminal reply evaluation."""
-    if outcome not in {"no_reply", "reply_not_permitted"}:
+    if outcome not in {"no_reply", "operational_failure", "reply_not_permitted"}:
         raise ValueError(f"Unsupported terminal reply outcome: {outcome}")
     records = state.get("reply_evaluation_records", {})
     if not isinstance(records, dict):
@@ -23095,8 +23153,10 @@ def _conversational_reply_receipt_is_semantically_valid(
         return False
     if (
         type(context.get("target_id")) is not str
+        or type(context.get("target_author_id")) is not str
         or type(context.get("thread_id")) is not str
         or context.get("target_id") != data["target_id"]
+        or context.get("target_author_id") != author_id
         or context.get("thread_id") != conversation_id
         or context.get("lane") != source
     ):
@@ -24645,7 +24705,7 @@ def maybe_reply_to_mentions(
 
         if not should_continue:
             log.warning(
-                "Deferring %s %s: canonical context is unavailable",
+                "Retiring %s %s after a permanent canonical-context failure",
                 candidate_source,
                 mention_id,
             )
@@ -24659,8 +24719,21 @@ def maybe_reply_to_mentions(
                 lane=str(candidate_source),
                 target_id=mention_id,
             )
-            save_state(state)
-            return NORMAL_CHECK_STATUS_CHECKED
+            record_terminal_reply_evaluation(
+                state,
+                target_id=mention_id,
+                lane=str(candidate_source),
+                reason="canonical_context_unavailable",
+                outcome="operational_failure",
+            )
+            maybe_mark_hot_post_reply_skipped(
+                state,
+                mention,
+                reason="operational_context_failure",
+            )
+            mark_mention_seen_if_applicable(state, mention)
+            save_state(state, durable=True)
+            continue
 
         prepared_media_context = reply_context.pop(
             "_prepared_media_context",
@@ -24796,12 +24869,12 @@ def maybe_reply_to_mentions(
                 lane=str(candidate_source),
                 reason=reason_code,
             )
-            if candidate_source == "mention":
+            if candidate_source == "mention" and reason_code == "spam_or_abuse":
                 record_qualifying_author_no_reply(
                     state,
                     author_id,
                     current_epoch=current,
-                    explicit_spam_or_abuse=reason_code == "spam_or_abuse",
+                    explicit_spam_or_abuse=True,
                 )
             log.info(
                 "Sol selected no_reply for %s %s reason=%s",

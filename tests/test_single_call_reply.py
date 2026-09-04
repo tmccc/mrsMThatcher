@@ -9,6 +9,7 @@ from pathlib import Path
 import pytest
 
 import single_call_reply as pipeline
+from reply_evidence import EvidencePassage, EvidenceRepository, retrieval_tokens
 
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
@@ -68,10 +69,12 @@ class FakeRepository:
         maximum_packets: int,
         maximum_passages: int,
         preferred_quote_id: str | None,
+        trusted_only: bool = False,
     ) -> list[FakePassage]:
         """Return bounded passages and retain the requested limits."""
 
         assert preferred_quote_id is None
+        assert trusted_only is True
         self.last_query = query
         self.last_limits = (maximum_packets, maximum_passages)
         return list(self.passages.values())[:maximum_passages]
@@ -97,6 +100,7 @@ def context(*, turns: int = 2) -> dict[str, object]:
     )
     return {
         "target_id": "target",
+        "target_author_id": "200",
         "thread_id": "post-1" if turns > 1 else "target",
         "root_post_id": "post-1" if turns > 1 else "target",
         "parent_post_id": f"post-{turns - 1}" if turns > 1 else None,
@@ -144,6 +148,8 @@ def response_envelope(text: str) -> dict[str, object]:
             {"type": "reasoning", "summary": []},
             {
                 "type": "message",
+                "role": "assistant",
+                "status": "completed",
                 "content": [{"type": "output_text", "text": text}],
             },
         ],
@@ -252,6 +258,27 @@ def test_visible_path_rejects_duplicate_target_and_handles_short_context() -> No
         )
 
 
+def test_visible_context_accepts_natural_joiners_but_not_other_format_controls() -> None:
+    """Permit ZWJ/ZWNJ in contribution text without accepting hidden controls."""
+
+    source = context(turns=1)
+    source["incoming_contribution"] = "خانواده\u200cها 👨\u200d👩\u200d👧"
+    source["visible_conversation"][0]["text"] = source[
+        "incoming_contribution"
+    ]
+    payload, _mapping = pipeline.build_model_payload(
+        context=source,
+        repository=FakeRepository(),
+    )
+    assert payload["visible_conversation"][0]["text"] == source[
+        "incoming_contribution"
+    ]
+
+    source["visible_conversation"][0]["text"] = "hidden\u2060control"
+    with pytest.raises(pipeline.ContextValidationError, match="format"):
+        pipeline.build_model_payload(context=source, repository=FakeRepository())
+
+
 def test_visible_character_trimming_retains_root_target_and_nearest_parents() -> None:
     """Remove older intermediate turns before nearer parent context."""
 
@@ -321,6 +348,15 @@ def test_fact_compaction_deduplicates_without_history_contaminating_retrieval() 
         "author_role": "other_user",
         "text": "DIRECTLY-QUOTED-SUBJECT",
     }
+    current_context["root_post_id"] = "quoted-subject"
+    current_context["parent_post_id"] = "quoted-subject"
+    current_context["parent_thread"] = [
+        copy.deepcopy(current_context["quoted_post"])
+    ]
+    current_context["visible_conversation"] = [
+        copy.deepcopy(current_context["quoted_post"]),
+        copy.deepcopy(current_context["visible_conversation"][-1]),
+    ]
     payload, _fact_map = pipeline.build_model_payload(
         context=current_context,
         repository=repository,
@@ -336,7 +372,59 @@ def test_fact_compaction_deduplicates_without_history_contaminating_retrieval() 
     assert "SAME-AUTHOR-CONTAMINATION" not in repository.last_query
     assert "RECENT-REPLY-CONTAMINATION" not in repository.last_query
     assert "DIRECTLY-QUOTED-SUBJECT" in repository.last_query
+    assert payload["visible_conversation"][0]["text"] == (
+        "DIRECTLY-QUOTED-SUBJECT"
+    )
     assert len(payload["trusted_facts"]) == 2
+
+
+def test_trusted_fact_retrieval_excludes_uncertain_and_interpretive_passages() -> None:
+    """Do not relabel unresolved research or editorial analysis as authority."""
+
+    def passage(
+        identity: str,
+        *,
+        field: str = "historical_context",
+        status: str = "exact",
+        confidence: str = "high",
+    ) -> EvidencePassage:
+        return EvidencePassage(
+            evidence_id=identity,
+            source_hash=f"source-{identity}",
+            quote_id=f"quote-{identity}",
+            field=field,
+            passage=f"Distinct policy evidence {identity}",
+            source_title="Official archive",
+            source_url="https://archive.example/source",
+            stable_locator=f"record:{identity}",
+            verification_status=status,
+            research_confidence=confidence,
+        )
+
+    candidates = [
+        passage("trusted"),
+        passage("low", confidence="low"),
+        passage("unverified", status="unverified"),
+        passage("interpretive", field="intended_argument"),
+    ]
+    repository = object.__new__(EvidenceRepository)
+    repository.packets = {}
+    repository.passages = {
+        item.evidence_id: item for item in candidates
+    }
+    repository._passage_tokens = {
+        item.evidence_id: retrieval_tokens(item.passage) for item in candidates
+    }
+    repository._passages_by_quote = {}
+
+    selected = repository.candidate_passages(
+        "distinct policy evidence",
+        maximum_packets=8,
+        maximum_passages=32,
+        trusted_only=True,
+    )
+
+    assert [item.evidence_id for item in selected] == ["trusted"]
 
 
 def test_text_candidate_builds_one_exact_responses_request() -> None:
@@ -467,7 +555,9 @@ def test_same_author_reply_remains_part_of_local_duplicate_validation() -> None:
         "192.0.2.1",
         "2001:db8::1",
         "xn--bcher-kva.example",
+        "bücher.de",
         "例子.测试",
+        "例子。测试",
         "пример.рф",
         "مثال.إختبار",
     ],
@@ -491,6 +581,8 @@ def test_real_links_domains_email_and_network_addresses_are_rejected(
     "reply",
     [
         "这场争论的重点是责任，而不是口号。原则若不能落实为行动，就只是装饰。",
+        "责任比口号重要.原则必须化为行动.",
+        "責任は重要.原則は行動を導く.",
         "المبدأ الواضح خير من الشعار الغامض.",
         "責任を伴わない約束は、ただの飾りです。",
         "Ответственность важнее лозунгов. Принцип должен вести к действию.",
@@ -603,6 +695,37 @@ def test_validated_draft_recovers_without_transport() -> None:
         "validated_draft_hash"
     ]
     assert draft["model_call_count"] == 1
+
+    mismatched_context = copy.deepcopy(source_context)
+    mismatched_context["target_author_id"] = "201"
+    with pytest.raises(ValueError, match="context mismatch"):
+        pipeline.validate_persisted_draft(
+            result.reply.draft_record,
+            context=mismatched_context,
+            repository=repository,
+        )
+
+
+@pytest.mark.parametrize(
+    "mutation",
+    ["missing_id", "wrong_role", "incomplete_message"],
+)
+def test_provider_envelope_requires_bound_completed_assistant_message(
+    mutation: str,
+) -> None:
+    """Reject structurally invalid Responses envelopes before output parsing."""
+
+    envelope = response_envelope(raw_decision())
+    message = envelope["output"][1]
+    if mutation == "missing_id":
+        envelope.pop("id")
+    elif mutation == "wrong_role":
+        message["role"] = "user"
+    else:
+        message["status"] = "in_progress"
+
+    with pytest.raises(pipeline.ModelResponseError):
+        pipeline.parse_openai_response(envelope)
 
 
 def test_disabled_pipeline_stops_before_payload_and_transport() -> None:

@@ -75,7 +75,7 @@ MAX_REASONABLE_STATE_EPOCH = 4_102_531_200
 AUTHOR_NO_REPLY_PROGRESS_MAX_AUTHORS = 25_000
 AUTHOR_NO_REPLY_PROGRESS_MAX_THRESHOLD = 250_000
 AUTHOR_EVALUATION_QUARANTINE_EVIDENCE_POLICY = (
-    "single_sol_editorial_no_reply_v1"
+    "single_sol_explicit_spam_or_abuse_v2"
 )
 AUTHOR_EVALUATION_QUARANTINE_PREVIOUS_EVIDENCE_POLICY = (
     "majority_resolvable_terminal_no_reply_v3"
@@ -11990,8 +11990,38 @@ def single_call_reply_summary(events: List[Dict[str, Any]]) -> Dict[str, Any]:
         (normalise_reply_lane(item.get("lane")), str(item.get("target_id") or ""))
         for item in usage
     )
-    duplicate_usage_count = sum(count - 1 for count in usage_per_candidate.values() if count > 1)
-    one_call_violations = len(invalid_call_counts) + duplicate_usage_count
+    duplicate_usage_keys = {
+        key for key, count in usage_per_candidate.items() if count > 1
+    }
+    multiple_request_keys = {
+        (normalise_reply_lane(item.get("lane")), str(item.get("target_id") or ""))
+        for item in [*decisions, *usage]
+        if type(
+            item.get(
+                "provider_request_attempt_count",
+                item.get("request_attempt_count"),
+            )
+        ) is int
+        and item.get(
+            "provider_request_attempt_count",
+            item.get("request_attempt_count"),
+        ) > 1
+    }
+    invalid_call_ids = {id(item) for item in invalid_call_counts}
+    violating_candidate_keys = duplicate_usage_keys | multiple_request_keys
+    compliant_decisions = [
+        item
+        for item in decisions
+        if id(item) not in invalid_call_ids
+        and (
+            normalise_reply_lane(item.get("lane")),
+            str(item.get("target_id") or ""),
+        )
+        not in violating_candidate_keys
+    ]
+    one_call_violations = len(decisions) - len(compliant_decisions)
+    if not decisions:
+        one_call_violations = len(violating_candidate_keys)
     token_fields = (
         "input_tokens",
         "cached_input_tokens",
@@ -12040,7 +12070,7 @@ def single_call_reply_summary(events: List[Dict[str, Any]]) -> Dict[str, Any]:
         "posting_failure_count": len(posting_failures),
         "recovered_draft_count": len(recovered),
         "model_attempt_count": len(model_attempts),
-        "one_call_compliant_count": len(decisions) - len(invalid_call_counts),
+        "one_call_compliant_count": len(compliant_decisions),
         "one_call_violation_count": one_call_violations,
         "one_call_compliance": (
             "passed" if decisions and one_call_violations == 0 else

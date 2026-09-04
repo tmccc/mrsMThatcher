@@ -583,6 +583,40 @@ def test_single_call_digest_flags_duplicate_provider_usage_as_call_violation():
     summary = report["single_call_reply"]
     assert summary["one_call_compliance"] == "failed"
     assert summary["one_call_violation_count"] == 1
+    assert summary["one_call_compliant_count"] == 0
+
+
+def test_single_call_digest_flags_multiple_request_attempts_as_violation():
+    decision = structured_record(0, {
+        "event": "single_call_reply_decision",
+        "lane": "mention",
+        "target_id": "202",
+        "strategy_version": "single-sol-reply-20260904",
+        "model": "gpt-5.6-sol",
+        "decision": "reply",
+        "reply_kind": "social",
+        "reason_code": "useful_reply",
+        "used_fact_count": 0,
+        "model_call_count": 1,
+        "provider_request_attempt_count": 2,
+        "local_validation_status": "passed",
+        "outcome_type": "editorial",
+        "pipeline_status": "reply",
+    })
+    usage = structured_record(1, {
+        "event": "single_call_reply_provider_usage",
+        "lane": "mention",
+        "target_id": "202",
+        "strategy_version": "single-sol-reply-20260904",
+        "model": "gpt-5.6-sol",
+        "request_attempt_count": 2,
+    })
+
+    summary = digest.analyse([decision, usage])["single_call_reply"]
+
+    assert summary["one_call_compliance"] == "failed"
+    assert summary["one_call_compliant_count"] == 0
+    assert summary["one_call_violation_count"] == 1
 
 
 def test_old_multi_stage_logs_are_only_counted_as_legacy():

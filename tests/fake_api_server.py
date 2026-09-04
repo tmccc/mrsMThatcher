@@ -399,6 +399,7 @@ class FakeApiServer:
                         {
                             "type": "message",
                             "role": "assistant",
+                            "status": "completed",
                             "content": [
                                 {"type": "output_text", "text": output_text}
                             ],

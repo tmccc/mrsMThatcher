@@ -55,6 +55,21 @@ RETRIEVAL_FIELDS = (
     "claimed_consequence",
 )
 AUTHORISED_QUOTATION_STATUSES = {"exact", "normalised", "excerpt", "variant"}
+TRUSTED_FACT_VERIFICATION_STATUSES = AUTHORISED_QUOTATION_STATUSES | {
+    "official_source_exact"
+}
+TRUSTED_FACT_RESEARCH_CONFIDENCES = {"high", "medium"}
+TRUSTED_FACT_PASSAGE_FIELDS = {
+    "factual_evidence",
+    "verified_text",
+    "quote_text",
+    "historical_context",
+    "source_event",
+    "immediate_subject",
+    "date",
+    "speaker",
+    "entities",
+}
 QUOTE_TEXT_SENTINELS = {"", "unknown", "unresolved", "no verified text available."}
 RESOLVED_QUOTATION_FIELDS = (
     "quote_text",
@@ -403,6 +418,7 @@ class EvidenceRepository:
         maximum_passages: int = 24,
         preferred_quote_id: str | None = None,
         restrict_to_preferred_quote: bool = False,
+        trusted_only: bool = False,
     ) -> list[EvidencePassage]:
         """Return lexical candidates without asserting that they support the claim."""
         if restrict_to_preferred_quote and preferred_quote_id not in self.packets:
@@ -412,6 +428,8 @@ class EvidenceRepository:
             return []
         ranked: list[tuple[int, int, str, EvidencePassage]] = []
         for evidence_id, passage in self.passages.items():
+            if trusted_only and not self.passage_is_trusted_fact(passage):
+                continue
             overlap = query & self._passage_tokens[evidence_id]
             if not overlap:
                 continue
@@ -430,7 +448,14 @@ class EvidenceRepository:
                 field: index for index, field in enumerate(PREFERRED_PASSAGE_FIELDS)
             }
             preferred = sorted(
-                self._passages_by_quote.get(str(preferred_quote_id), []),
+                (
+                    passage
+                    for passage in self._passages_by_quote.get(
+                        str(preferred_quote_id), []
+                    )
+                    if not trusted_only
+                    or self.passage_is_trusted_fact(passage)
+                ),
                 key=lambda passage: (
                     field_order.get(passage.field, len(field_order)),
                     passage.evidence_id,
@@ -453,6 +478,18 @@ class EvidenceRepository:
             if len(selected) >= maximum_passages:
                 break
         return selected
+
+    @staticmethod
+    def passage_is_trusted_fact(passage: EvidencePassage) -> bool:
+        """Return whether a passage may be labelled authoritative model input."""
+
+        return bool(
+            passage.field in TRUSTED_FACT_PASSAGE_FIELDS
+            and passage.verification_status.casefold()
+            in TRUSTED_FACT_VERIFICATION_STATUSES
+            and passage.research_confidence.casefold()
+            in TRUSTED_FACT_RESEARCH_CONFIDENCES
+        )
 
     def resolve_context_quotation(self, context: dict[str, Any]) -> dict[str, Any] | None:
         """Resolve one source-grounded quotation from separated reply context."""
