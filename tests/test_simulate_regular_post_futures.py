@@ -100,7 +100,7 @@ def isolated_simulator_bot(tmp_path: Path, snapshot: Path):
         "REGULAR_POST_RECEIPT_FILE", "MEME_POST_RECEIPT_FILE", "CONFIRMED_REPLY_RECEIPT_FILE", "LOCK_FILE",
         "_ORIGINAL_EDITORIAL_ANALYSIS_CACHE", "_GENERATED_IDENTITY_AUDIT_CACHE", "load_quote_analysis",
         "load_image_analysis", "current_image_sha256", "now_epoch", "upload_media", "create_post",
-        "generate_ai_first_reply", "acquire_instance_lock", "post_random_quote", "post_next_meme",
+        "generate_single_call_reply", "acquire_instance_lock", "post_random_quote", "post_next_meme",
         "maybe_reply_to_mentions", "maybe_reply_to_quote_tweets", "write_regular_post_receipt",
         "write_meme_post_receipt", "write_confirmed_reply_receipt", "remove_regular_post_receipt",
         "remove_meme_post_receipt", "remove_confirmed_reply_receipt", "atomic_write_json", "save_used_set",
@@ -255,7 +255,7 @@ def test_hard_guards_block_post_upload_reply_lock_and_network(tmp_path: Path) ->
     guarded_names = (
         "upload_media",
         "create_post",
-        "generate_ai_first_reply",
+        "generate_single_call_reply",
         "acquire_instance_lock",
         "post_random_quote",
         "post_next_meme",
@@ -278,7 +278,7 @@ def test_hard_guards_block_post_upload_reply_lock_and_network(tmp_path: Path) ->
     try:
         sim.install_hard_guards(bot, writer)
         for name in (
-            "upload_media", "create_post", "generate_ai_first_reply", "acquire_instance_lock",
+            "upload_media", "create_post", "generate_single_call_reply", "acquire_instance_lock",
             "post_random_quote", "post_next_meme", "maybe_reply_to_mentions", "maybe_reply_to_quote_tweets",
         ):
             with pytest.raises(sim.SimulationSafetyError):

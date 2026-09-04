@@ -256,27 +256,11 @@ def prepare_base_dir(
         "MAX_MENTIONS_PER_CHECK": 10,
         "MAX_AUTO_REPLIES_PER_DAY": 48,
         "MAX_REPLIES_PER_AUTHOR_PER_DAY": 6,
-        "ai_first_reply_strategy": {
+        "single_call_reply": {
             "enabled": True,
-            "strategy_version": "ai-first-reply-v3",
-            "proposer_model": "fixture-proposer",
-            "reviewer_model": "fixture-reviewer",
-            "evidence_model": "fixture-evidence",
-            "research_corpus_path": str(ROOT / "semantic_alignment_research/quote_research_full_001"),
-            "maximum_model_calls": 6,
-            "proposer_timeout_seconds": 10,
-            "evidence_timeout_seconds": 10,
-            "reviewer_timeout_seconds": 10,
-            "proposer_max_output_tokens": 900,
-            "evidence_max_output_tokens": 1800,
-            "reviewer_max_output_tokens": 900,
-            "maximum_revisions": 1,
-            "maximum_invalid_response_retries": 1,
-            "maximum_claims": 6,
-            "maximum_evidence_packets_per_claim": 6,
-            "maximum_evidence_passages_per_claim": 24,
-            "maximum_reply_sentences": 2,
-            "fail_closed": True,
+            "strategy_version": "single-sol-reply-20260904",
+            "model": "gpt-5.6-sol",
+            "timeout_seconds": 10,
         },
     }
     if local_config:
@@ -324,6 +308,7 @@ def run_bot_command(
     x_api_base_url: str | None = None,
     x_upload_base_url: str | None = None,
     xai_api_base_url: str | None = None,
+    openai_api_base_url: str | None = None,
     unset_x_upload_base_url: bool = False,
     extra_env: dict[str, str] | None = None,
 ) -> subprocess.CompletedProcess[str]:
@@ -336,12 +321,14 @@ def run_bot_command(
             "X_API_BASE_URL": x_api_base_url or server.url,
             "X_UPLOAD_BASE_URL": x_upload_base_url or server.url,
             "XAI_API_BASE_URL": xai_api_base_url or f"{server.url}/v1",
+            "OPENAI_API_BASE_URL": openai_api_base_url or f"{server.url}/v1",
             "X_CONSUMER_KEY": "dummy",
             "X_CONSUMER_SECRET": "dummy",
             "X_ACCESS_TOKEN": "dummy",
             "X_ACCESS_SECRET": "dummy",
             "X_MY_USER_ID": "12345",
             "XAI_API_KEY": "dummy",
+            "OPENAI_API_KEY": "dummy",
             "X_BEARER_TOKEN": "dummy",
             "LOG_LEVEL": "INFO",
         }
@@ -371,6 +358,7 @@ def run_bot_with_env(base_dir: Path, command: str = "--test-cycle", *, extra_env
     env.pop("X_API_BASE_URL", None)
     env.pop("X_UPLOAD_BASE_URL", None)
     env.pop("XAI_API_BASE_URL", None)
+    env.pop("OPENAI_API_BASE_URL", None)
     env.pop("MRS_ALLOW_LIVE_ENDPOINTS_IN_TEST", None)
     env.update(
         {
@@ -383,6 +371,7 @@ def run_bot_with_env(base_dir: Path, command: str = "--test-cycle", *, extra_env
             "X_ACCESS_SECRET": "dummy",
             "X_MY_USER_ID": "12345",
             "XAI_API_KEY": "dummy",
+            "OPENAI_API_KEY": "dummy",
             "LOG_LEVEL": "INFO",
         }
     )
@@ -691,36 +680,6 @@ def fake_server_post_replies(server: FakeApiServer) -> list[str]:
     ]
 
 
-def enable_tested_reply_pipeline_fixture(base_dir: Path) -> None:
-    import tested_reply_pipeline as pipeline
-
-    config = read_json(base_dir / "mrsMThatcher.local.json")
-    config["ai_first_reply_strategy"]["enabled"] = False
-    tested_config = pipeline.default_config()
-    tested_config["enabled"] = True
-    config["tested_reply_pipeline"] = tested_config
-    write_json(base_dir / "mrsMThatcher.local.json", config)
-
-
-def integration_visual_description() -> dict:
-    return {
-        "images": [
-            {
-                "index": 1,
-                "literal_description": "A road sign stands beneath a clear sky.",
-                "visible_text": ["AUSTRALIA"],
-                "salient_elements": ["road sign", "blue sky"],
-                "apparent_message": "The photograph appears to invite a comparison.",
-                "uncertainties": ["The location cannot be confirmed visually."],
-            }
-        ],
-        "combined_context": "The photograph presents a roadside comparison.",
-        "relationship_to_contribution": (
-            "It appears to illustrate the phrase 'Just like Australia' without proving it."
-        ),
-    }
-
-
 @pytest.fixture
 def fake_server(request):
     scenario = load_scenario(SCENARIOS / request.param)
@@ -812,6 +771,15 @@ def test_normal_mention_reply(tmp_path: Path, fake_server: FakeApiServer) -> Non
     assert result.returncode == 0, result.stderr + result.stdout
     assert len(fake_server.posts) == 1
     assert fake_server.posts[0]["reply"]["in_reply_to_tweet_id"] == "100"
+    assert len(fake_server.openai_requests) == 1
+    assert fake_server.xai_requests == []
+    payload = json.loads(fake_server.openai_requests[0]["input"])
+    assert payload["lane"] == "mention"
+    assert payload["identities"]["target_post_id"] == "100"
+    assert payload["visible_conversation"][-1]["post_id"] == "100"
+    assert sum(
+        turn["post_id"] == "100" for turn in payload["visible_conversation"]
+    ) == 1
     state = read_json(base_dir / "bot_state.json")
     assert "100" in state["replied_to_ids"]
     assert state["last_seen_mention_id"] == "100"
@@ -825,39 +793,22 @@ def test_missing_reply_evidence_fails_before_model_or_post(
     fake_server: FakeApiServer,
 ) -> None:
     base_dir = prepare_base_dir(tmp_path)
-    config = read_json(base_dir / "mrsMThatcher.local.json")
-    config["ai_first_reply_strategy"]["research_corpus_path"] = str(
-        base_dir / "missing-research-corpus"
+    corpus_dir = (
+        base_dir / "semantic_alignment_research" / "quote_research_full_001"
     )
-    write_json(base_dir / "mrsMThatcher.local.json", config)
+    corpus_dir.rename(base_dir / "missing-research-corpus")
 
     result = run_cycle(base_dir, fake_server)
 
     assert result.returncode == 0, result.stderr + result.stdout
+    assert fake_server.openai_requests == []
     assert fake_server.xai_requests == []
     assert fake_server.uploads == []
     assert fake_server.posts == []
     assert "reply_evidence_unavailable" in result.stdout
     state = read_json(base_dir / "bot_state.json")
-    assert state.get("xai_error_epochs", []) == []
+    assert state.get("openai_error_epochs", []) == []
 
-
-def test_dry_run_mention_reply_caches_generated_reply_without_posting(tmp_path: Path) -> None:
-    server = FakeApiServer(load_scenario(SCENARIOS / "normal_mention_reply.json")).start()
-    try:
-        base_dir = prepare_base_dir(tmp_path, local_config={"DRY_RUN_REPLIES": True})
-        result = run_cycle(base_dir, server)
-
-        assert result.returncode == 0, result.stderr + result.stdout
-        assert server.posts == []
-        state = read_json(base_dir / "bot_state.json")
-        cached = state["tweet_cache"]["dry-run-reply-100"]
-        assert cached["text"] == "Quite right. Good sense is unfashionable only to those profiting from nonsense."
-        assert cached["author_id"] == "12345"
-        assert cached["referenced_tweets"] == [{"id": "100", "type": "replied_to"}]
-        assert cached["post_type"] == "auto_reply"
-    finally:
-        server.stop()
 
 
 def test_malformed_mention_ids_are_skipped_without_crashing(tmp_path: Path) -> None:
@@ -909,27 +860,6 @@ def test_quote_reply_flips_priority_to_normal(tmp_path: Path) -> None:
     finally:
         server.stop()
 
-
-def test_dry_run_quote_reply_caches_generated_reply_without_posting(tmp_path: Path) -> None:
-    server = FakeApiServer(load_scenario(SCENARIOS / "quote_tweet_reply.json")).start()
-    try:
-        base_dir = prepare_base_dir(
-            tmp_path,
-            state={"next_reply_lane_priority": "quote", "recent_own_post_ids": ["900"], "last_reply_epoch": 0},
-            local_config={"DRY_RUN_REPLIES": True, "ENABLE_HOT_POST_REPLY_CHECKS": False},
-        )
-        result = run_cycle(base_dir, server)
-
-        assert result.returncode == 0, result.stderr + result.stdout
-        assert server.posts == []
-        state = read_json(base_dir / "bot_state.json")
-        cached = state["tweet_cache"]["dry-run-quote-reply-910"]
-        assert cached["text"] == "A point is useful only when it survives contact with reality. This one rather does."
-        assert cached["author_id"] == "12345"
-        assert cached["referenced_tweets"] == [{"id": "910", "type": "replied_to"}]
-        assert cached["post_type"] == "auto_reply"
-    finally:
-        server.stop()
 
 
 def test_production_tick_quote_priority_runs_quote_before_due_mentions(tmp_path: Path) -> None:
@@ -1491,7 +1421,8 @@ def test_spam_normal_lane_outcome_consumes_check_interval(tmp_path: Path) -> Non
         assert first.returncode == 0, first.stderr + first.stdout
         assert second.returncode == 0, second.stderr + second.stdout
         assert len(server.posts) == 0
-        assert len(server.xai_requests) == 0
+        assert server.openai_requests == []
+        assert server.xai_requests == []
         assert server.path_counts.get("/2/users/12345/mentions") == 1
         state = read_json(base_dir / "bot_state.json")
         assert state["last_reply_epoch"] == 0
@@ -1537,7 +1468,8 @@ def test_per_author_cap_normal_lane_outcome_consumes_check_interval(tmp_path: Pa
         assert first.returncode == 0, first.stderr + first.stdout
         assert second.returncode == 0, second.stderr + second.stdout
         assert len(server.posts) == 0
-        assert len(server.xai_requests) == 0
+        assert server.openai_requests == []
+        assert server.xai_requests == []
         assert server.path_counts.get("/2/users/12345/mentions") == 1
         state = read_json(base_dir / "bot_state.json")
         assert state["last_reply_check_epoch"] == 1_779_102_000
@@ -2408,7 +2340,8 @@ def test_hot_post_full_rescan_after_restart_omits_since_id_without_duplicate(tmp
         assert len(recent_searches) == 1
         assert "since_id" not in recent_searches[0]["query"]
         assert len(server.posts) == 0
-        assert len(server.xai_requests) == 0
+        assert server.openai_requests == []
+        assert server.xai_requests == []
         state = read_json(base_dir / "bot_state.json")
         assert state["hot_post_reply_check_counts"]["700"] == 12
         assert "old-watch" not in state["hot_post_reply_since_ids"]
@@ -2543,10 +2476,11 @@ def test_startup_self_test_does_not_rotate_backups_when_scheduler_epochs_are_cle
         "--self-test",
         extra_env={
             "MRS_FAKE_NOW_EPOCH": "2000000000",
-            "X_API_BASE_URL": "http://127.0.0.1:1",
-            "X_UPLOAD_BASE_URL": "http://127.0.0.1:1",
-            "XAI_API_BASE_URL": "http://127.0.0.1:1/v1",
-            "X_BEARER_TOKEN": "dummy",
+                "X_API_BASE_URL": "http://127.0.0.1:1",
+                "X_UPLOAD_BASE_URL": "http://127.0.0.1:1",
+                "XAI_API_BASE_URL": "http://127.0.0.1:1/v1",
+                "OPENAI_API_BASE_URL": "http://127.0.0.1:1/v1",
+                "X_BEARER_TOKEN": "dummy",
         },
     )
 
@@ -3130,7 +3064,8 @@ def test_transient_parent_fetch_failure_keeps_candidate_after_traversal_complete
         result = run_cycle(base_dir, server)
         assert result.returncode == 0, result.stderr + result.stdout
         assert len(server.posts) == 0
-        assert server.path_counts.get("/v1/chat/completions", 0) == 0
+        assert server.path_counts.get("/v1/responses", 0) == 0
+        assert server.xai_requests == []
         state = read_json(base_dir / "bot_state.json")
         assert state["last_seen_mention_id"] == "100"
         assert set(state["mention_pending_candidates"]) == {"100"}
@@ -3214,6 +3149,14 @@ def test_regular_quote_and_meme_posts_do_not_alter_reply_priority(tmp_path: Path
 
 def test_hot_post_watermark_edges_and_full_rescan(tmp_path: Path) -> None:
     scenario = {
+        "tweets": {
+            "700": {
+                "id": "700",
+                "text": "A watched account post.",
+                "author_id": "12345",
+                "conversation_id": "700",
+            }
+        },
         "search_recent": [
             {
                 "id": "300",
@@ -3233,6 +3176,16 @@ def test_hot_post_watermark_edges_and_full_rescan(tmp_path: Path) -> None:
 
         first = run_bot_command(base_dir, server, "--test-cycle", extra_env={"MRS_FAKE_NOW_EPOCH": "2000000000"})
         assert first.returncode == 0, first.stderr + first.stdout
+        assert len(server.openai_requests) == 1
+        assert server.xai_requests == []
+        payload = json.loads(server.openai_requests[0]["input"])
+        assert payload["lane"] == "hot_post_reply"
+        assert payload["identities"]["root_post_id"] == "700"
+        assert payload["visible_conversation"][-1]["post_id"] == "300"
+        assert sum(
+            turn["post_id"] == "300"
+            for turn in payload["visible_conversation"]
+        ) == 1
         state = read_json(base_dir / "bot_state.json")
         assert state["hot_post_reply_since_ids"] == {}
         assert "300" in state["replied_to_ids"]
@@ -3273,7 +3226,7 @@ def test_hot_post_watermark_edges_and_full_rescan(tmp_path: Path) -> None:
         scenario["search_recent"] = [
             {
                 "id": "303",
-                "text": "Grok will skip this usable candidate",
+                "text": "The model will decline this usable candidate",
                 "author_id": "403",
                 "conversation_id": "700",
                 "entities": {"mentions": [{"id": "12345", "username": "MrsMThatcher"}]},
@@ -3286,7 +3239,9 @@ def test_hot_post_watermark_edges_and_full_rescan(tmp_path: Path) -> None:
         assert fourth.returncode == 0, fourth.stderr + fourth.stdout
         state = read_json(base_dir / "bot_state.json")
         assert state["hot_post_reply_since_ids"]["700"] == "301"
-        assert state["skipped_hot_reply_records"]["303"]["reason"] == "no_usable_reply_generated"
+        assert state["skipped_hot_reply_records"]["303"]["reason"] == (
+            "editorial_no_reply:no_meaningful_content"
+        )
         assert state["skipped_hot_reply_records"]["303"]["retryable"] is False
 
         state["hot_post_reply_check_counts"]["700"] = 11
@@ -3304,13 +3259,14 @@ def test_hot_post_watermark_edges_and_full_rescan(tmp_path: Path) -> None:
             }
         ]
         before_posts = len(server.posts)
-        before_xai = len(server.xai_requests)
+        before_openai = len(server.openai_requests)
         fifth = run_bot_command(base_dir, server, "--test-cycle", extra_env={"MRS_FAKE_NOW_EPOCH": "2000000008"})
         assert fifth.returncode == 0, fifth.stderr + fifth.stdout
         recent_searches = [req for req in server.requests if req["path"] == "/2/tweets/search/recent"]
         assert "since_id" not in recent_searches[-1]["query"]
         assert len(server.posts) == before_posts
-        assert len(server.xai_requests) == before_xai
+        assert len(server.openai_requests) == before_openai
+        assert server.xai_requests == []
     finally:
         server.stop()
 
@@ -3322,7 +3278,8 @@ def test_duplicate_mention_hot_post_counts_and_state_increment_once(tmp_path: Pa
         result = run_cycle(base_dir, server)
         assert result.returncode == 0, result.stderr + result.stdout
         state = read_json(base_dir / "bot_state.json")
-        assert len(server.xai_requests) == 3
+        assert len(server.openai_requests) == 1
+        assert server.xai_requests == []
         assert state["daily_reply_count"] == 1
         assert state["daily_replied_author_ids"].count("210") == 1
         assert state["replied_to_ids"].count("110") == 1
@@ -3763,6 +3720,7 @@ def test_quote_tweet_bad_watch_id_and_inaccessible_original_do_not_call_grok(tmp
         (base_dir / "extra_quote_watch_post_ids.txt").write_text("not-a-post-id\n", encoding="utf-8")
         result = run_cycle(base_dir, server)
         assert result.returncode == 0, result.stderr + result.stdout
+        assert server.openai_requests == []
         assert server.xai_requests == []
         assert server.posts == []
         assert any(req["path"] == "/2/tweets/999" for req in server.requests)
@@ -3817,7 +3775,8 @@ def test_quote_tweets_process_oldest_first_stop_after_one_and_skip_seen(tmp_path
         assert result.returncode == 0, result.stderr + result.stdout
         assert len(server.posts) == 1
         assert server.posts[0]["reply"]["in_reply_to_tweet_id"] == "911"
-        assert len(server.xai_requests) == 3
+        assert len(server.openai_requests) == 1
+        assert server.xai_requests == []
         state = read_json(base_dir / "bot_state.json")
         assert "911" in state["replied_to_quote_post_ids"]
         assert "912" not in state["replied_to_quote_post_ids"]
@@ -3827,11 +3786,12 @@ def test_quote_tweets_process_oldest_first_stop_after_one_and_skip_seen(tmp_path
         state["replied_to_quote_post_ids"] = []
         state["skipped_quote_post_ids"] = []
         write_json(base_dir / "bot_state.json", state)
-        before_xai = len(server.xai_requests)
+        before_openai = len(server.openai_requests)
         scenario["grok_replies"] = ["Should not be used for already seen quote."]
         seen = run_cycle(base_dir, server)
         assert seen.returncode == 0, seen.stderr + seen.stdout
-        assert len(server.xai_requests) == before_xai
+        assert len(server.openai_requests) == before_openai
+        assert server.xai_requests == []
     finally:
         server.stop()
 
@@ -3874,6 +3834,7 @@ def test_link_only_quote_tweet_skips_without_calling_grok(tmp_path: Path) -> Non
         )
         result = run_cycle(base_dir, server)
         assert result.returncode == 0, result.stderr + result.stdout
+        assert server.openai_requests == []
         assert server.xai_requests == []
         assert server.posts == []
         state = read_json(base_dir / "bot_state.json")
@@ -4000,6 +3961,14 @@ def test_hot_post_pagination_reaches_candidate_on_second_page(tmp_path: Path) ->
         {
             "enable_pagination": True,
             "mentions": [],
+            "tweets": {
+                "700": {
+                    "id": "700",
+                    "text": "A watched account post.",
+                    "author_id": "12345",
+                    "conversation_id": "700",
+                }
+            },
             "search_recent": replies,
             "grok_reply": "That is exactly the weakness in the argument.",
         }
@@ -4232,6 +4201,14 @@ def test_hot_post_resumed_final_unusable_page_clears_cursor_and_advances_since_i
         {
             "enable_pagination": True,
             "mentions": [],
+            "tweets": {
+                "700": {
+                    "id": "700",
+                    "text": "A watched account post.",
+                    "author_id": "12345",
+                    "conversation_id": "700",
+                }
+            },
             "search_recent": replies,
         }
     ).start()
@@ -4294,6 +4271,14 @@ def test_hot_post_truncated_pagination_resumes_on_next_check(tmp_path: Path) -> 
         {
             "enable_pagination": True,
             "mentions": [],
+            "tweets": {
+                "700": {
+                    "id": "700",
+                    "text": "A watched account post.",
+                    "author_id": "12345",
+                    "conversation_id": "700",
+                }
+            },
             "search_recent": replies,
             "grok_reply": "That watched reply deserves a short answer.",
         }
@@ -4439,9 +4424,15 @@ def test_structured_event_logs_are_valid_json_and_cover_no_post_paths(tmp_path: 
         result = run_cycle(skip_base, skip_server)
         assert result.returncode == 0, result.stderr + result.stdout
         events = event_payloads(skip_base)
-        skipped = [event for event in events if event["event"] == "candidate_skipped"]
-        assert skipped
-        assert skipped[0]["reason"] == "no_usable_reply_generated"
+        decisions = [
+            event
+            for event in events
+            if event["event"] == "single_call_reply_decision"
+        ]
+        assert len(decisions) == 1
+        assert decisions[0]["pipeline_status"] == "no_reply"
+        assert decisions[0]["outcome_type"] == "editorial"
+        assert decisions[0]["reason_code"] == "no_meaningful_content"
     finally:
         skip_server.stop()
 
@@ -4465,7 +4456,8 @@ def test_duplicate_mention_and_hot_post_candidate_posts_once(tmp_path: Path, fak
     assert result.returncode == 0, result.stderr + result.stdout
     assert len(fake_server.posts) == 1
     assert fake_server.posts[0]["reply"]["in_reply_to_tweet_id"] == "110"
-    assert len(fake_server.xai_requests) == 3
+    assert len(fake_server.openai_requests) == 1
+    assert fake_server.xai_requests == []
     state = read_json(base_dir / "bot_state.json")
     assert state["last_seen_mention_id"] == "110"
 
@@ -4498,6 +4490,20 @@ def test_quote_tweet_reply(tmp_path: Path, fake_server: FakeApiServer) -> None:
     assert result.returncode == 0, result.stderr + result.stdout
     assert len(fake_server.posts) == 1
     assert fake_server.posts[0]["reply"]["in_reply_to_tweet_id"] == "910"
+    assert len(fake_server.openai_requests) == 1
+    assert fake_server.xai_requests == []
+    payload = json.loads(fake_server.openai_requests[0]["input"])
+    assert payload["lane"] == "quote_tweet"
+    assert payload["identities"] == {
+        "parent_post_id": "900",
+        "root_post_id": "900",
+        "subject_post_id": "900",
+        "target_post_id": "910",
+    }
+    assert payload["visible_conversation"][-1]["post_id"] == "910"
+    assert sum(
+        turn["post_id"] == "910" for turn in payload["visible_conversation"]
+    ) == 1
     state = read_json(base_dir / "bot_state.json")
     assert "910" in state["replied_to_quote_post_ids"]
 
@@ -4540,6 +4546,7 @@ def test_per_author_cap_applies_to_quote_tweet_path(
     if prior_count < 6:
         assert state["daily_replied_author_counts"]["310"] == prior_count + 1
     else:
+        assert fake_server.openai_requests == []
         assert fake_server.xai_requests == []
         assert state["daily_replied_author_counts"]["310"] == 6
         assert state["tweet_cache"]["910"]["post_type"] == "author_cap_quote_context"
@@ -4585,6 +4592,7 @@ def test_per_author_cap_skips_seventh_reply(tmp_path: Path, fake_server: FakeApi
 
     assert result.returncode == 0, result.stderr + result.stdout
     assert fake_server.posts == []
+    assert fake_server.openai_requests == []
     assert fake_server.xai_requests == []
     state = read_json(base_dir / "bot_state.json")
     assert state["last_seen_mention_id"] == "140"
@@ -4651,6 +4659,7 @@ def test_author_cap_context_survives_restart_in_newer_target_prompt(
             extra_env={"MRS_FAKE_NOW_EPOCH": str(first_epoch)},
         )
         assert process_a.returncode == 0, process_a.stderr + process_a.stdout
+        assert server.openai_requests == []
         assert server.xai_requests == []
         assert server.posts == []
         state_after_a = read_json(base_dir / "bot_state.json")
@@ -4665,32 +4674,16 @@ def test_author_cap_context_survives_restart_in_newer_target_prompt(
         )
         assert process_b.returncode == 0, process_b.stderr + process_b.stdout
 
-        proposer_requests = [
-            request
-            for request in server.xai_requests
-            if request.get("response_format", {}).get("json_schema", {}).get("name")
-            == "ai_reply_proposer"
+        assert len(server.openai_requests) == 1
+        assert server.xai_requests == []
+        model_payload = json.loads(server.openai_requests[0]["input"])
+        assert model_payload["visible_conversation"] == [
+            {"post_id": "500", "role": "user", "text": capped_text},
+            {"post_id": "510", "role": "user", "text": newer_text},
         ]
-        assert len(proposer_requests) == 1
-        user_content = proposer_requests[0]["messages"][-1]["content"]
-        if isinstance(user_content, list):
-            user_content = next(
-                item["text"]
-                for item in user_content
-                if isinstance(item, dict) and item.get("type") == "text"
-            )
-        proposer_payload = json.loads(user_content)
-        sections = proposer_payload["context_sections"]
-        assert sections["incoming_contribution_to_answer"] == newer_text
-        assert sections["quoted_post_context_only"] is None
-        assert sections["bounded_parent_thread_context_only"] == [{
-            "post_id": "500",
-            "author_role": "user",
-            "text": capped_text,
-        }]
-        assert json.dumps(proposer_payload, sort_keys=True).count(capped_text) == 1
-        assert proposer_payload["target"]["target_id"] == "510"
-        assert proposer_payload["target"]["thread_id"] == "500"
+        assert json.dumps(model_payload, sort_keys=True).count(capped_text) == 1
+        assert model_payload["identities"]["target_post_id"] == "510"
+        assert model_payload["identities"]["root_post_id"] == "500"
         assert fake_server_post_replies(server) == ["510"]
         assert all(reply_target != "500" for reply_target in fake_server_post_replies(server))
     finally:
@@ -4749,7 +4742,8 @@ def test_per_author_cap_above_one_is_enforced(tmp_path: Path) -> None:
         assert server.posts[0]["reply"]["in_reply_to_tweet_id"] == "100"
         assert server.posts[1]["reply"]["in_reply_to_tweet_id"] == "101"
         assert server.posts[2]["reply"]["in_reply_to_tweet_id"] == "102"
-        assert len(server.xai_requests) == 9
+        assert len(server.openai_requests) == 3
+        assert server.xai_requests == []
         state = read_json(base_dir / "bot_state.json")
         assert state["daily_replied_author_counts"]["240"] == 3
         assert state["daily_replied_author_ids"] == ["240"]
@@ -5267,11 +5261,10 @@ def test_x_read_cooldown_does_not_block_due_daily_meme(tmp_path: Path) -> None:
         server.stop()
 
 
-def test_tested_pipeline_native_photo_is_analysed_once_before_downstream_stages(
+
+def test_native_photo_uses_one_multimodal_responses_request(
     tmp_path: Path,
 ) -> None:
-    photo_url = "https://pbs.twimg.com/media/integration-native-photo.jpg"
-    analysis = integration_visual_description()
     scenario = {
         "mentions": [
             {
@@ -5289,64 +5282,19 @@ def test_tested_pipeline_native_photo_is_analysed_once_before_downstream_stages(
                     {
                         "media_key": "3_100",
                         "type": "photo",
-                        "url": photo_url,
+                        "url": "pending",
                     }
                 ]
             }
         },
-        "xai_responses": [
-            {
-                "status": 200,
-                "body": {
-                    "choices": [
-                        {"message": {"content": json.dumps(analysis)}}
-                    ],
-                    "usage": {"total_tokens": 12},
-                },
-            },
-            {
-                "status": 200,
-                "body": {
-                    "choices": [
-                        {
-                            "message": {
-                                "content": json.dumps(
-                                    {
-                                        "decision": "reply",
-                                        "reply": "PRIVATE GATE CANDIDATE",
-                                    }
-                                )
-                            }
-                        }
-                    ],
-                    "usage": {"total_tokens": 12},
-                },
-            },
-            {
-                "status": 200,
-                "body": {
-                    "choices": [
-                        {
-                            "message": {
-                                "content": json.dumps(
-                                    {
-                                        "status": "reply",
-                                        "reply": (
-                                            "A comparison is useful only when its principle is clear."
-                                        ),
-                                    }
-                                )
-                            }
-                        }
-                    ],
-                    "usage": {"total_tokens": 12},
-                },
-            },
-        ],
+        "openai_reply": (
+            "A comparison is useful only when its principle is clear."
+        ),
     }
     server = FakeApiServer(scenario).start()
     try:
-        fixed_epoch = 2_000_000_000
+        photo_url = f"{server.url}/media/native.png"
+        scenario["mentions_extra"]["includes"]["media"][0]["url"] = photo_url
         base_dir = prepare_base_dir(
             tmp_path,
             state={"last_reply_epoch": 0},
@@ -5355,136 +5303,74 @@ def test_tested_pipeline_native_photo_is_analysed_once_before_downstream_stages(
                 "ENABLE_QUOTE_TWEET_CHECKS": False,
             },
         )
-        enable_tested_reply_pipeline_fixture(base_dir)
 
         result = run_bot_command(
             base_dir,
             server,
             "--test-cycle",
-            extra_env={
-                "MRS_FAKE_NOW_EPOCH": str(fixed_epoch),
-                "OPENAI_API_KEY": "dummy",
-                "OPENAI_API_BASE_URL": f"{server.url}/v1",
-            },
+            extra_env={"MRS_FAKE_NOW_EPOCH": "2000000000"},
         )
 
         assert result.returncode == 0, result.stderr + result.stdout
-        assert len(server.xai_requests) == 3
-        requests_by_schema = {
-            request["response_format"]["json_schema"]["name"]: request
-            for request in server.xai_requests
-        }
-        assert set(requests_by_schema) == {
-            "ai_reply_tested_pipeline_visual_description",
-            "mrs_tested_candidate_backed_engagement",
-            "mrs_tested_writer_v3_initial",
-        }
-        visual_request = requests_by_schema[
-            "ai_reply_tested_pipeline_visual_description"
+        assert len(server.openai_requests) == 1
+        assert server.xai_requests == []
+        request = server.openai_requests[0]
+        assert request["model"] == "gpt-5.6-sol"
+        assert request["reasoning"] == {"effort": "high"}
+        assert request["temperature"] == 1
+        assert request["max_output_tokens"] == 8192
+        assert request["store"] is False
+        assert "tools" not in request
+        assert request["text"]["format"]["type"] == "json_schema"
+        assert request["text"]["format"]["name"] == (
+            "single_call_reply_decision"
+        )
+        assert request["text"]["format"]["strict"] is True
+        assert hashlib.sha256(request["instructions"].encode("utf-8")).hexdigest() == (
+            "7bfa91fb2d9b1175560abb33e43f2ced6910d8e63cadd1f8f04935b6dc2f2560"
+        )
+        assert isinstance(request["input"], list)
+        content = request["input"][0]["content"]
+        assert [item["type"] for item in content] == [
+            "input_text",
+            "input_image",
         ]
+        model_payload = json.loads(content[0]["text"])
+        assert model_payload["visible_conversation"][-1]["post_id"] == "100"
         assert sum(
-            request["response_format"]["json_schema"]["name"]
-            == "ai_reply_tested_pipeline_visual_description"
-            for request in server.xai_requests
+            turn["post_id"] == "100"
+            for turn in model_payload["visible_conversation"]
         ) == 1
-        assert visual_request["reasoning_effort"] == "low"
-        assert "store" not in visual_request
-        visual_content = visual_request["messages"][1]["content"]
-        assert isinstance(visual_content, list)
-        assert visual_content == [
-            {
-                "type": "text",
-                "text": visual_content[0]["text"],
-            },
-            {
-                "type": "image_url",
-                "image_url": {"url": photo_url},
-            },
-        ]
-        visual_text = json.loads(visual_content[0]["text"])
-        assert visual_text["incoming_contribution"].startswith(
-            "@MrsMThatcher Just like Australia."
-        )
-        assert set(visual_text) == {
-            "incoming_contribution",
-            "quoted_post_text",
-            "parent_thread_text",
-        }
-        assert "detail" not in json.dumps(visual_request, sort_keys=True)
-
-        expected_media = {
-            "status": "analysed",
-            "trust": "untrusted_user_supplied_visual_context",
-            "image_count": 1,
-            "analysis": analysis,
-        }
-        downstream_payloads = []
-        for name in (
-            "mrs_tested_candidate_backed_engagement",
-            "mrs_tested_writer_v3_initial",
-        ):
-            payload = json.loads(requests_by_schema[name]["messages"][1]["content"])
-            downstream_payloads.append(payload)
-            assert payload["media_context"] == expected_media
-            assert payload["trusted_facts"] != expected_media
-        downstream = json.dumps(downstream_payloads, sort_keys=True)
-        for forbidden in (
-            photo_url,
-            "pbs.twimg.com",
-            "3_100",
-            "media_key",
-            "preview_image_url",
-            '"image_url"',
-        ):
-            assert forbidden not in downstream
-
-        events = event_payloads(base_dir)
-        visual_events = [
-            event
-            for event in events
-            if event.get("event") == "reply_visual_description"
-        ]
-        assert len(visual_events) == 1
-        assert visual_events[0]["status"] == "analysed"
-        assert visual_events[0]["supplied_image_count"] == 1
-        assert visual_events[0]["visual_analysis_call_count"] == 1
-        assert visual_events[0]["analysis"] == analysis
-        canonical_analysis = json.dumps(
-            analysis,
-            ensure_ascii=False,
-            sort_keys=True,
-            separators=(",", ":"),
-        )
-        assert visual_events[0]["description_sha256"] == hashlib.sha256(
-            canonical_analysis.encode("utf-8")
-        ).hexdigest()
-        visual_event_text = json.dumps(visual_events[0], sort_keys=True)
-        for forbidden in (
-            photo_url,
-            "pbs.twimg.com",
-            "3_100",
-            "media_key",
-            "image_url",
-            "request_payload",
-            "choices",
-            "usage",
-        ):
-            assert forbidden not in visual_event_text
-        decision = next(
-            event
-            for event in events
-            if event.get("event") == "ai_reply_pipeline_decision"
-        )
-        assert decision["model_call_count"] == 2
+        assert model_payload["visual_description"] is None
+        assert content[1]["image_url"].startswith("data:image/png;base64,")
+        assert photo_url not in json.dumps(request, sort_keys=True)
         assert fake_server_post_replies(server) == ["100"]
+        events = event_payloads(base_dir)
+        decisions = [
+            event
+            for event in events
+            if event.get("event") == "single_call_reply_decision"
+        ]
+        assert len(decisions) == 1
+        assert decisions[0]["model_call_count"] == 1
+        assert decisions[0]["supplied_image_count"] == 1
+        assert not any(
+            event.get("event") == "reply_visual_description"
+            for event in events
+        )
+        logged = "\n".join(
+            path.read_text(encoding="utf-8")
+            for path in sorted(base_dir.glob("mrsMThatcher.log*"))
+        )
+        assert "data:image/" not in logged
+        assert "iVBORw0KGgpmaXh0dXJl" not in logged
     finally:
         server.stop()
 
 
-def test_native_photo_visual_provider_error_keeps_candidate_retryable(
+def test_material_photo_fetch_failure_is_operational_and_makes_no_model_call(
     tmp_path: Path,
 ) -> None:
-    photo_url = "https://pbs.twimg.com/media/integration-failure.jpg"
     scenario = {
         "mentions": [
             {
@@ -5502,18 +5388,18 @@ def test_native_photo_visual_provider_error_keeps_candidate_retryable(
                     {
                         "media_key": "3_100",
                         "type": "photo",
-                        "url": photo_url,
+                        "url": "pending",
                     }
                 ]
             }
         },
-        "xai_responses": [
-            {"status": 503, "body": {"error": "visual provider unavailable"}}
-        ],
+        "media_responses": {"/media/missing.png": {"status": 404}},
     }
     server = FakeApiServer(scenario).start()
     try:
-        fixed_epoch = 2_000_000_000
+        scenario["mentions_extra"]["includes"]["media"][0]["url"] = (
+            f"{server.url}/media/missing.png"
+        )
         base_dir = prepare_base_dir(
             tmp_path,
             state={"last_reply_epoch": 0, "daily_reply_count": 0},
@@ -5522,68 +5408,57 @@ def test_native_photo_visual_provider_error_keeps_candidate_retryable(
                 "ENABLE_QUOTE_TWEET_CHECKS": False,
             },
         )
-        enable_tested_reply_pipeline_fixture(base_dir)
-
         result = run_bot_command(
             base_dir,
             server,
             "--test-cycle",
-            extra_env={
-                "MRS_FAKE_NOW_EPOCH": str(fixed_epoch),
-                "OPENAI_API_KEY": "dummy",
-                "OPENAI_API_BASE_URL": f"{server.url}/v1",
-            },
+            extra_env={"MRS_FAKE_NOW_EPOCH": "2000000000"},
         )
 
         assert result.returncode == 0, result.stderr + result.stdout
-        assert server.path_counts.get("/v1/chat/completions", 0) == 1
+        assert server.openai_requests == []
         assert server.xai_requests == []
         assert server.posts == []
         state = read_json(base_dir / "bot_state.json")
-        assert len(state["xai_error_epochs"]) == 1
+        assert len(state["openai_error_epochs"]) == 1
         assert state["daily_reply_count"] == 0
         assert state["replied_to_ids"] == []
         assert state["pending_ai_reply_drafts"] == {}
         assert "100" in state["mention_pending_candidates"]
         assert state.get("reply_evaluation_records", {}).get("100") is None
-        assert not (base_dir / "confirmed_reply_receipt.json").exists()
+        assert state.get("author_evaluation_quarantines", {}) == {}
         events = event_payloads(base_dir)
-        visual_events = [
+        decisions = [
             event
             for event in events
-            if event.get("event") == "reply_visual_description"
+            if event.get("event") == "single_call_reply_decision"
         ]
-        assert len(visual_events) == 1
-        assert visual_events[0]["status"] == "provider_error"
-        assert visual_events[0]["visual_analysis_call_count"] == 1
-        assert "analysis" not in visual_events[0]
-        assert not any(
-            event.get("event") in {
-                "ai_reply_pipeline_stage_summary",
-                "ai_reply_pipeline_decision",
-            }
-            for event in events
-        )
-        assert photo_url not in json.dumps(visual_events[0], sort_keys=True)
+        assert len(decisions) == 1
+        assert decisions[0]["pipeline_status"] == "operational_failure"
+        assert decisions[0]["error_category"] == "image_input"
+        assert decisions[0]["model_call_count"] == 0
+        assert decisions[0]["outcome_type"] == "operational"
     finally:
         server.stop()
 
 
-@pytest.mark.parametrize("fake_server", ["xai_failure.json"], indirect=True)
-def test_xai_failure_records_xai_error_without_posting(tmp_path: Path, fake_server: FakeApiServer) -> None:
+@pytest.mark.parametrize("fake_server", ["openai_failure.json"], indirect=True)
+def test_openai_failure_records_operational_error_without_posting(tmp_path: Path, fake_server: FakeApiServer) -> None:
     base_dir = prepare_base_dir(tmp_path)
     result = run_cycle(base_dir, fake_server)
 
     assert result.returncode == 0, result.stderr + result.stdout
     state = read_json(base_dir / "bot_state.json")
-    assert len(state["xai_error_epochs"]) == 1
+    assert len(state["openai_error_epochs"]) == 1
     assert state["x_error_epochs"] == []
+    assert len(fake_server.openai_requests) == 2
+    assert fake_server.xai_requests == []
     assert fake_server.posts == []
 
 
-@pytest.mark.parametrize("fake_server", ["xai_failure.json"], indirect=True)
-def test_xai_cooldown_does_not_block_quote_image_posting(tmp_path: Path, fake_server: FakeApiServer) -> None:
-    base_dir = prepare_base_dir(tmp_path, local_config={"MAX_XAI_ERRORS_PER_WINDOW": 3})
+@pytest.mark.parametrize("fake_server", ["openai_failure.json"], indirect=True)
+def test_openai_cooldown_does_not_block_quote_image_posting(tmp_path: Path, fake_server: FakeApiServer) -> None:
+    base_dir = prepare_base_dir(tmp_path)
 
     for offset in [0, 10, 20]:
         result = run_bot_command(
@@ -5595,10 +5470,13 @@ def test_xai_cooldown_does_not_block_quote_image_posting(tmp_path: Path, fake_se
         assert result.returncode == 0, result.stderr + result.stdout
 
     state = read_json(base_dir / "bot_state.json")
-    assert len(state["xai_error_epochs"]) == 3
-    assert state["xai_api_cooldown_reason"] == "too many xai API errors in the last hour"
-    assert int(state["xai_api_cooldown_until_epoch"]) > 2_000_000_000
+    assert len(state["openai_error_epochs"]) == 3
+    assert state["openai_api_cooldown_reason"] == (
+        "too many openai API errors in the last hour"
+    )
+    assert int(state["openai_api_cooldown_until_epoch"]) > 2_000_000_000
     assert state["api_cooldown_until_epoch"] == 0
+    assert fake_server.xai_requests == []
 
     post_result = run_bot_command(
         base_dir,
@@ -5798,14 +5676,14 @@ def test_test_mode_refuses_live_endpoints_with_explicit_ports(tmp_path: Path) ->
         extra_env={
             "X_API_BASE_URL": "https://api.x.com:443",
             "X_UPLOAD_BASE_URL": "https://upload.twitter.com:443",
-            "XAI_API_BASE_URL": "https://api.x.ai:443/v1",
+            "OPENAI_API_BASE_URL": "https://api.openai.com:443/v1",
         },
     )
 
     assert result.returncode == 2
     assert "X_API_BASE_URL=https://api.x.com:443" in result.stdout
     assert "X_UPLOAD_BASE_URL=https://upload.twitter.com:443" in result.stdout
-    assert "XAI_API_BASE_URL=https://api.x.ai:443/v1" in result.stdout
+    assert "OPENAI_API_BASE_URL=https://api.openai.com:443/v1" in result.stdout
 
 
 def test_live_endpoint_override_requires_deliberate_phrase(tmp_path: Path) -> None:
@@ -5843,7 +5721,7 @@ def test_self_test_refuses_live_defaults_and_upload_inherits_fake_x_origin(
         "--self-test",
         extra_env={
             "X_UPLOAD_BASE_URL": fake,
-            "XAI_API_BASE_URL": f"{fake}/v1",
+            "OPENAI_API_BASE_URL": f"{fake}/v1",
         },
     )
     assert live_x.returncode == 2
@@ -5854,14 +5732,14 @@ def test_self_test_refuses_live_defaults_and_upload_inherits_fake_x_origin(
         "--self-test",
         extra_env={
             "X_API_BASE_URL": fake,
-            "XAI_API_BASE_URL": f"{fake}/v1",
+            "OPENAI_API_BASE_URL": f"{fake}/v1",
         },
     )
     assert inherited_upload.returncode == 0, (
         inherited_upload.stderr + inherited_upload.stdout
     )
 
-    live_xai = run_bot_with_env(
+    live_openai = run_bot_with_env(
         base_dir,
         "--self-test",
         extra_env={
@@ -5869,8 +5747,8 @@ def test_self_test_refuses_live_defaults_and_upload_inherits_fake_x_origin(
             "X_UPLOAD_BASE_URL": fake,
         },
     )
-    assert live_xai.returncode == 2
-    assert "XAI_API_BASE_URL=https://api.x.ai/v1" in live_xai.stdout
+    assert live_openai.returncode == 2
+    assert "OPENAI_API_BASE_URL=https://api.openai.com/v1" in live_openai.stdout
 
 
 def test_self_test_in_test_mode_accepts_fake_endpoints_and_exact_phrase_only(tmp_path: Path) -> None:
@@ -5884,6 +5762,7 @@ def test_self_test_in_test_mode_accepts_fake_endpoints_and_exact_phrase_only(tmp
             "X_API_BASE_URL": fake,
             "X_UPLOAD_BASE_URL": fake,
             "XAI_API_BASE_URL": f"{fake}/v1",
+            "OPENAI_API_BASE_URL": f"{fake}/v1",
         },
     )
     assert fake_endpoints.returncode == 0, fake_endpoints.stderr + fake_endpoints.stdout
@@ -5918,6 +5797,7 @@ def test_invalid_request_timeout_env_falls_back_safely_in_test_mode(tmp_path: Pa
             "X_API_BASE_URL": fake,
             "X_UPLOAD_BASE_URL": fake,
             "XAI_API_BASE_URL": f"{fake}/v1",
+            "OPENAI_API_BASE_URL": f"{fake}/v1",
             "MRS_REQUEST_TIMEOUT_SECONDS": "not-a-number",
         },
     )
@@ -5961,13 +5841,13 @@ def test_x_endpoint_overrides_reject_terminal_version_segments(
     [
         ("closed", "x", "/2/users/12345/mentions"),
         ("timeout", "x", "/2/users/12345/mentions"),
-        ("closed", "xai", "/v1/chat/completions"),
-        ("timeout", "xai", "/v1/chat/completions"),
+        ("closed", "openai", "/v1/responses"),
+        ("timeout", "openai", "/v1/responses"),
     ],
 )
 def test_network_level_failures_closed_and_timeout(tmp_path: Path, failure: str, service: str, path: str) -> None:
     scenario = {"network_failures": {path: failure}, "network_timeout_sleep_seconds": 1}
-    if service == "xai":
+    if service == "openai":
         scenario["mentions"] = load_scenario(SCENARIOS / "normal_mention_reply.json")["mentions"]
     server = FakeApiServer(scenario).start()
     try:
@@ -5977,16 +5857,17 @@ def test_network_level_failures_closed_and_timeout(tmp_path: Path, failure: str,
         state = read_json(base_dir / "bot_state.json")
         if service == "x":
             assert len(state["x_error_epochs"]) == 1
-            assert state["xai_error_epochs"] == []
+            assert state["openai_error_epochs"] == []
         else:
-            assert len(state["xai_error_epochs"]) == 1
+            assert len(state["openai_error_epochs"]) == 1
             assert state["x_error_epochs"] == []
+            assert server.xai_requests == []
         assert server.posts == []
     finally:
         server.stop()
 
 
-def test_connection_refused_for_x_and_xai_are_recorded(tmp_path: Path) -> None:
+def test_connection_refused_for_x_and_openai_are_recorded(tmp_path: Path) -> None:
     x_base = prepare_base_dir(tmp_path / "x")
     x_result = run_bot_with_env(
         x_base,
@@ -5994,6 +5875,7 @@ def test_connection_refused_for_x_and_xai_are_recorded(tmp_path: Path) -> None:
             "X_API_BASE_URL": "http://127.0.0.1:9",
             "X_UPLOAD_BASE_URL": "http://127.0.0.1:9",
             "XAI_API_BASE_URL": "http://127.0.0.1:9/v1",
+            "OPENAI_API_BASE_URL": "http://127.0.0.1:9/v1",
             "MRS_REQUEST_TIMEOUT_SECONDS": "0.05",
         },
     )
@@ -6002,32 +5884,56 @@ def test_connection_refused_for_x_and_xai_are_recorded(tmp_path: Path) -> None:
 
     server = FakeApiServer(load_scenario(SCENARIOS / "normal_mention_reply.json")).start()
     try:
-        xai_base = prepare_base_dir(tmp_path / "xai")
-        xai_result = run_bot_command(
-            xai_base,
+        openai_base = prepare_base_dir(tmp_path / "openai")
+        openai_result = run_bot_command(
+            openai_base,
             server,
-            xai_api_base_url="http://127.0.0.1:9/v1",
+            openai_api_base_url="http://127.0.0.1:9/v1",
             extra_env={"MRS_REQUEST_TIMEOUT_SECONDS": "0.05"},
         )
-        assert xai_result.returncode == 0, xai_result.stderr + xai_result.stdout
-        state = read_json(xai_base / "bot_state.json")
-        assert len(state["xai_error_epochs"]) == 1
+        assert openai_result.returncode == 0, (
+            openai_result.stderr + openai_result.stdout
+        )
+        state = read_json(openai_base / "bot_state.json")
+        assert len(state["openai_error_epochs"]) == 1
         assert state["x_error_epochs"] == []
+        assert server.xai_requests == []
     finally:
         server.stop()
 
 
 @pytest.mark.parametrize(
-    "scenario_update,expect_xai_error,expect_post",
+    "scenario_update",
     [
-        ({"xai_non_json": True}, True, False),
-        ({"xai_success_body": {}}, True, False),
-        ({"xai_success_body": {"choices": [{"message": {}}]}}, True, False),
-        ({"xai_success_body": {"choices": [{"message": {"content": ""}}]}}, True, False),
-        ({"xai_success_body": {"choices": [{"message": {"content": "word " * 200}}]}}, True, False),
+        {"openai_non_json": True},
+        {"openai_responses": [{"body": {}}]},
+        {
+            "openai_responses": [{
+                "body": {
+                    "status": "completed",
+                    "model": "gpt-5.6-sol",
+                    "output": [],
+                }
+            }]
+        },
+        {
+            "openai_reply_decisions": [""],
+        },
+        {
+            "openai_reply_decisions": [{
+                "decision": "reply",
+                "reply_kind": "social",
+                "reply": "word " * 200,
+                "used_fact_ids": [],
+                "reason_code": "useful_reply",
+            }],
+        },
     ],
 )
-def test_malformed_xai_success_responses(tmp_path: Path, scenario_update: dict, expect_xai_error: bool, expect_post: bool) -> None:
+def test_malformed_openai_responses_are_operational_failures(
+    tmp_path: Path,
+    scenario_update: dict,
+) -> None:
     scenario = load_scenario(SCENARIOS / "normal_mention_reply.json")
     scenario.update(scenario_update)
     server = FakeApiServer(scenario).start()
@@ -6036,20 +5942,19 @@ def test_malformed_xai_success_responses(tmp_path: Path, scenario_update: dict, 
         result = run_cycle(base_dir, server)
         assert result.returncode == 0, result.stderr + result.stdout
         state = read_json(base_dir / "bot_state.json")
-        assert bool(state["xai_error_epochs"]) is expect_xai_error
+        assert bool(state["openai_error_epochs"])
         assert state["last_seen_mention_id"] == "100"
         assert set(state["mention_pending_candidates"]) == {"100"}
         assert state.get("reply_evaluation_records", {}) == {}
-        assert bool(server.posts) is expect_post
-        if expect_post:
-            assert len(server.posts[0]["text"]) <= 270
+        assert server.posts == []
+        assert server.xai_requests == []
     finally:
         server.stop()
 
 
-def test_quote_tweet_malformed_xai_success_records_xai_error(tmp_path: Path) -> None:
+def test_quote_tweet_malformed_openai_response_records_operational_error(tmp_path: Path) -> None:
     scenario = load_scenario(SCENARIOS / "quote_tweet_reply.json")
-    scenario["xai_success_body"] = {}
+    scenario["openai_responses"] = [{"body": {}}]
     server = FakeApiServer(scenario).start()
     try:
         base_dir = prepare_base_dir(
@@ -6062,8 +5967,9 @@ def test_quote_tweet_malformed_xai_success_records_xai_error(tmp_path: Path) -> 
         assert result.returncode == 0, result.stderr + result.stdout
         assert server.posts == []
         state = read_json(base_dir / "bot_state.json")
-        assert len(state["xai_error_epochs"]) == 1
+        assert len(state["openai_error_epochs"]) == 1
         assert state["x_error_epochs"] == []
+        assert server.xai_requests == []
     finally:
         server.stop()
 
@@ -6216,7 +6122,8 @@ def test_digest_golden_sections_for_generated_logs(tmp_path: Path) -> None:
         assert "## Input files" in digest.stdout
         assert "records_after_since=" in digest.stdout
         assert "records_in_window_before_dedupe=" in digest.stdout
-        assert "1 mention reply" in digest.stdout
+        assert "## Single-call conversational replies" in digest.stdout
+        assert "1 candidate evaluated; 1 reply posted" in digest.stdout
         assert "hot_search" in digest.stdout or "hot-post" in digest.stdout
     finally:
         server.stop()
@@ -6228,8 +6135,10 @@ def test_digest_golden_sections_for_generated_logs(tmp_path: Path) -> None:
         assert result.returncode == 0, result.stderr + result.stdout
         digest = run_digest(skip_base)
         assert digest.returncode == 0, digest.stderr
-        assert "candidate_skipped" in (skip_base / "test.log").read_text(encoding="utf-8")
-        assert "Grok skip" in digest.stdout or "candidate" in digest.stdout
+        assert "single_call_reply_decision" in (
+            skip_base / "test.log"
+        ).read_text(encoding="utf-8")
+        assert "1 valid editorial no-reply decision" in digest.stdout
     finally:
         skip_server.stop()
 
@@ -6317,7 +6226,7 @@ def test_digest_golden_sections_for_generated_logs(tmp_path: Path) -> None:
                 "2026-07-03 10:30:02 INFO     main:4140 - Config: QUOTE_LOOKUP_API_MAX_RESULTS=10",
                 "2026-07-03 10:30:02 INFO     main:4141 - Config: QUOTE_LOOKUP_MAX_PAGES_PER_POST=3",
                 "2026-07-03 10:30:02 INFO     main:4148 - Config: HOT_POST_REPLY_SEARCH_MAX_PAGES_PER_CHECK=3",
-                "2026-07-03 10:31:00 DEBUG    save_state:994 - State being saved: {\"api_cooldown_until_epoch\": 0, \"xai_api_cooldown_until_epoch\": 0, \"quote_api_cooldown_until_epoch\": 0}",
+                "2026-07-03 10:31:00 DEBUG    save_state:994 - State being saved: {\"api_cooldown_until_epoch\": 0, \"openai_api_cooldown_until_epoch\": 0, \"quote_api_cooldown_until_epoch\": 0}",
             ]
         )
         + "\n",
@@ -6521,8 +6430,8 @@ def test_digest_golden_sections_for_generated_logs(tmp_path: Path) -> None:
     (xai_cooldown_base / "test.log").write_text(
         "2026-07-03 12:00:00 DEBUG    save_state:994 - State being saved: "
         "{\"api_cooldown_until_epoch\": 0, "
-        "\"xai_api_cooldown_until_epoch\": 4102444800, "
-        "\"xai_api_cooldown_reason\": \"too many xai API errors in the last hour\", "
+        "\"openai_api_cooldown_until_epoch\": 4102444800, "
+        "\"openai_api_cooldown_reason\": \"too many openai API errors in the last hour\", "
         "\"quote_api_cooldown_until_epoch\": 0}\n",
         encoding="utf-8",
     )
@@ -6532,14 +6441,14 @@ def test_digest_golden_sections_for_generated_logs(tmp_path: Path) -> None:
             "daily_reply_count": 0,
             "api_cooldown_until_epoch": 0,
             "x_write_api_cooldown_until_epoch": 0,
-            "xai_api_cooldown_until_epoch": 4102444800,
-            "xai_api_cooldown_reason": "too many xai API errors in the last hour",
+            "openai_api_cooldown_until_epoch": 4102444800,
+            "openai_api_cooldown_reason": "too many openai API errors in the last hour",
             "quote_api_cooldown_until_epoch": 0,
         },
     )
     xai_cooldown_digest = run_digest(xai_cooldown_base)
     assert xai_cooldown_digest.returncode == 0, xai_cooldown_digest.stderr
-    assert "xAI cooldown active now" in xai_cooldown_digest.stdout
+    assert "OpenAI cooldown active now" in xai_cooldown_digest.stdout
     assert "no API cooldown" not in xai_cooldown_digest.stdout
 
     stale_base = prepare_base_dir(tmp_path / "digest-stale-cooldown")
@@ -6565,7 +6474,7 @@ def test_digest_golden_sections_for_generated_logs(tmp_path: Path) -> None:
             "api_cooldown_until_epoch": 1,
             "api_cooldown_reason": "old cooldown",
             "x_write_api_cooldown_until_epoch": 0,
-            "xai_api_cooldown_until_epoch": 0,
+            "openai_api_cooldown_until_epoch": 0,
             "quote_api_cooldown_until_epoch": 0,
         },
     )
@@ -6605,7 +6514,7 @@ def test_digest_golden_sections_for_generated_logs(tmp_path: Path) -> None:
     (cleared_base / "test.log").write_text(
         "\n".join(
             [
-                "2026-07-03 11:00:00 DEBUG    save_state:994 - State being saved: {\"api_cooldown_until_epoch\": 0, \"api_cooldown_reason\": \"\", \"quote_api_cooldown_until_epoch\": 0, \"quote_api_cooldown_reason\": \"\", \"x_write_api_cooldown_until_epoch\": 0, \"x_write_api_cooldown_reason\": \"\", \"xai_api_cooldown_until_epoch\": 0, \"xai_api_cooldown_reason\": \"\"}",
+                "2026-07-03 11:00:00 DEBUG    save_state:994 - State being saved: {\"api_cooldown_until_epoch\": 0, \"api_cooldown_reason\": \"\", \"quote_api_cooldown_until_epoch\": 0, \"quote_api_cooldown_reason\": \"\", \"x_write_api_cooldown_until_epoch\": 0, \"x_write_api_cooldown_reason\": \"\", \"openai_api_cooldown_until_epoch\": 0, \"openai_api_cooldown_reason\": \"\"}",
             ]
         )
         + "\n",
@@ -6621,8 +6530,8 @@ def test_digest_golden_sections_for_generated_logs(tmp_path: Path) -> None:
             "quote_api_cooldown_reason": "",
             "x_write_api_cooldown_until_epoch": 0,
             "x_write_api_cooldown_reason": "",
-            "xai_api_cooldown_until_epoch": 0,
-            "xai_api_cooldown_reason": "",
+            "openai_api_cooldown_until_epoch": 0,
+            "openai_api_cooldown_reason": "",
         },
     )
     cleared_digest = run_digest(cleared_base, state_file=cleared_state_file)
@@ -8126,27 +8035,6 @@ def test_digest_reports_confirmed_reply_emergency_persistence_paths(tmp_path: Pa
     assert "both receipt write and emergency state save failed" in digest.stdout
 
 
-def test_digest_reports_reply_media_context(tmp_path: Path) -> None:
-    base = tmp_path / "digest-reply-media-context"
-    write_digest_log(
-        base,
-        [
-            "2026-07-07 07:00:00 INFO     reply_media_context_for_candidate:2350 - Reply media context lane=mention target_id=123 photos=1 mode=multimodal status=supplied",
-            "2026-07-07 07:00:01 WARNING  ask_grok_for_reply:5647 - Reply media context fallback lane=mention target_id=123 photos_expected=1 initial_mode=multimodal final_mode=text_fallback status=unavailable http_status=400",
-            "2026-07-07 07:01:00 WARNING  reply_media_context_for_candidate:2365 - Reply media context unavailable lane=quote_tweet target_id=456 photos_expected=1 mode=multimodal status=unavailable",
-        ],
-    )
-
-    digest = run_digest(base)
-
-    assert digest.returncode == 0, digest.stderr
-    assert "## Reply media context" in digest.stdout
-    assert "| time | level | lane | target_id | photos | mode | status | http_status |" in digest.stdout
-    assert "| 2026-07-07 07:00:00 | INFO | mention | 123 | 1 | multimodal | supplied |  |" in digest.stdout
-    assert "| 2026-07-07 07:00:01 | WARNING | mention | 123 | 1 | text_fallback | unavailable | 400 |" in digest.stdout
-    assert "| 2026-07-07 07:01:00 | WARNING | quote_tweet | 456 | 1 | multimodal | unavailable |  |" in digest.stdout
-    assert "operational error(s)" not in digest.stdout
-
 
 def test_digest_reports_regular_image_made_with_ai_from_create_post(tmp_path: Path) -> None:
     base = tmp_path / "digest-regular-image-made-with-ai"
@@ -8283,473 +8171,6 @@ def test_digest_generated_spacing_resume_carries_latest_state(tmp_path: Path) ->
     assert "generated_pool_allowed          = true" in third_digest.stdout
 
 
-def test_digest_reports_xai_usage_events_and_totals(tmp_path: Path) -> None:
-    base = tmp_path / "digest-xai-usage"
-    write_digest_log(
-        base,
-        [
-            "2026-07-06 15:46:26 INFO maybe_reply_to_mentions - Considering mention id=123 author_id=456 text='@MrsMThatcher hello'",
-            "2026-07-06 15:46:27 INFO ask_grok_for_reply - Asking Grok for reply. context_text='Incoming post/comment to answer:\\n@MrsMThatcher hello'",
-            "2026-07-06 15:46:37 INFO ask_grok_for_reply - xAI usage={'prompt_tokens': 533, 'completion_tokens': 20, 'total_tokens': 1314, 'prompt_tokens_details': {'text_tokens': 533, 'audio_tokens': 0, 'image_tokens': 0, 'cached_tokens': 128}, 'completion_tokens_details': {'reasoning_tokens': 761, 'audio_tokens': 0, 'accepted_prediction_tokens': 0, 'rejected_prediction_tokens': 0}, 'num_sources_used': 0, 'cost_in_usd_ticks': 24843500}",
-            "2026-07-06 15:46:37 INFO maybe_reply_to_mentions - Generated reply to mention 123: 'A reply.'",
-            "2026-07-06 15:47:00 INFO ask_grok_for_reply - xAI usage={'prompt_tokens': 539, 'completion_tokens': 18, 'total_tokens': 1109, 'prompt_tokens_details': {'cached_tokens': 128}, 'completion_tokens_details': {'reasoning_tokens': 552}, 'num_sources_used': 2, 'cost_in_usd_ticks': 19643500}",
-        ],
-    )
-
-    digest = run_digest(base)
-    assert digest.returncode == 0, digest.stderr
-    assert "## xAI usage" in digest.stdout
-    assert "| 2026-07-06 15:46:37 | mention | 123 | 533 | 128 | 761 | 20 | 1314 | 0 | 24843500 |" in digest.stdout
-    assert "| 2026-07-06 15:47:00 | unknown |  | 539 | 128 | 552 | 18 | 1109 | 2 | 19643500 |" in digest.stdout
-    assert "successful_xai_calls = 2" in digest.stdout
-    assert "prompt_tokens        = 1072" in digest.stdout
-    assert "cached_tokens        = 256" in digest.stdout
-    assert "image_tokens         = 0" in digest.stdout
-    assert "reasoning_tokens     = 1313" in digest.stdout
-    assert "completion_tokens    = 38" in digest.stdout
-    assert "total_tokens         = 2423" in digest.stdout
-    assert "sources_used         = 2" in digest.stdout
-    assert "known_cost_ticks_lower_bound = 44487000" in digest.stdout
-    assert "0 mention replies" in digest.stdout
-
-
-def test_digest_reports_reply_strategy_decisions(tmp_path: Path) -> None:
-    base = tmp_path / "digest-reply-strategy"
-    write_digest_log(base, [
-        '2026-07-14 12:00:00 INFO log_event:420 - EVENT {"event":"reply_strategy_decision","mode":"historical_context","humour_tone":"dry","evidence_confidence":"medium","retrieved_quote_ids":["aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"],"factual_claim_made":true,"grounded":true,"no_reply_reason":""}',
-    ])
-    digest = run_digest(base)
-    assert digest.returncode == 0, digest.stderr
-    assert "## Reply strategy decisions" in digest.stdout
-    assert "| time | lane | strategy_version | mode | reply_requirement | route_source | tone | evidence_confidence | trusted_facts_supplied_count | used_fact_count | factual_claim | grounded | reviewer_verdict | model_call_count | revision_count | author_quarantine_evidence | no_reply_reason |" in digest.stdout
-    assert "| 2026-07-14 12:00:00 | unavailable |  | historical_context |  |  | dry | medium |  |  | True | True |  |  |  |  |  |" in digest.stdout
-
-
-def test_digest_markdown_distinguishes_principle_and_editorial_no_reply_categories(
-    tmp_path: Path,
-) -> None:
-    base = tmp_path / "digest-principle-strategy"
-    write_digest_log(base, [
-        '2026-07-14 12:00:00 INFO log_event:420 - EVENT {"event":"reply_strategy_decision","target_id":"1","lane":"mention","mode":"principle_reply","humour_tone":"none","evidence_confidence":"none","retrieved_quote_ids":[],"factual_claim_made":false,"grounded":false,"no_reply_reason":""}',
-        '2026-07-14 12:00:01 INFO log_event:420 - EVENT {"event":"reply_strategy_outcome","status":"confirmed","target_id":"1","reply_post_id":"9","lane":"mention","mode":"principle_reply","humour_tone":"none","evidence_confidence":"none","retrieved_quote_ids":[],"factual_claim_made":false,"grounded":false,"no_reply_reason":""}',
-        '2026-07-14 12:01:00 INFO log_event:420 - EVENT {"event":"reply_strategy_decision","target_id":"2","lane":"quote_tweet","mode":"no_reply","humour_tone":"none","evidence_confidence":"none","retrieved_quote_ids":[],"factual_claim_made":false,"grounded":false,"no_reply_reason":"no_reply_due_to_unverifiable_claim"}',
-    ])
-
-    result = run_digest(base)
-
-    assert result.returncode == 0, result.stderr
-    assert "principle_reply=1" in result.stdout
-    assert "No-reply categories: no_reply_due_to_unverifiable_claim=1" in result.stdout
-
-
-def test_digest_writer_local_production_regression_is_not_deliberately_declined(
-    tmp_path: Path,
-) -> None:
-    base = tmp_path / "digest-writer-local-production-regression"
-    target_id = "2094332420753645620"
-    reason = "writer_local_rejection:reply_contains_link"
-    lines = pipeline_digest_lines(
-        target_id=target_id,
-        status="no_reply",
-        reason=reason,
-        model_call_count=2,
-        revision_count=0,
-        route_source="xai_gate",
-        xai_gate_decision="reply",
-        provider_call_counts={"xAI": 1, "OpenAI": 1},
-    )
-    lines.append(
-        digest_event_line(
-            "2026-08-31 09:14:25",
-            "candidate_skipped",
-            lane="mention",
-            id=target_id,
-            author_id="1971488580590866432",
-            reason="no_usable_reply_generated",
-        )
-    )
-    write_digest_log(base, lines)
-
-    json_result = run_digest(base, as_json=True)
-
-    assert json_result.returncode == 0, json_result.stderr
-    payload = json.loads(json_result.stdout)
-    strategy = payload["reply_strategy"]
-    assert strategy["writer_local_failure_count"] == 1
-    assert strategy["deliberately_declined_count"] == 0
-    assert strategy["ai_reviewed_decline_count"] == 0
-    assert strategy["terminal_no_reply_decision_count"] == 1
-    assert strategy["no_reply_category_counts"]["writer_local_failure"] == 1
-    assert strategy["no_reply_category_counts"].get(
-        "other_editorial_decline", 0
-    ) == 0
-    assert strategy["rejection_reason_counts"][reason] == 1
-    headline = payload["summary"]["headline"]
-    assert "1 writer-local failure" in headline
-    assert "1 deliberately declined" not in headline
-    assert "editorial decline" not in headline.lower()
-    decision = next(
-        event
-        for event in payload["events"]
-        if event.get("kind") == "reply_strategy_decision"
-    )
-    assert decision["target_id"] == target_id
-    assert decision["author_quarantine_evidence"] is None
-
-    markdown_result = run_digest(base)
-
-    assert markdown_result.returncode == 0, markdown_result.stderr
-    section = digest_markdown_section(
-        markdown_result.stdout, "Conversational reply strategy"
-    )
-    assert "1 writer-local failure" in section
-    assert "No-reply categories: writer_local_failure=1" in section
-    assert "No-reply/rejection reasons:" in section
-    assert "Editorial no-reply/rejections:" not in section
-
-
-@pytest.mark.parametrize(
-    ("reason", "revision_count"),
-    (
-        ("writer_link_repair_failed", 0),
-        ("writer_link_repair_local_rejection:reply_contains_link", 1),
-    ),
-    ids=("repair-unavailable", "repair-local-rejection"),
-)
-def test_digest_writer_local_repair_terminal_reasons_are_not_editorial_declines(
-    tmp_path: Path,
-    reason: str,
-    revision_count: int,
-) -> None:
-    base = tmp_path / f"digest-{reason.replace(':', '-')}"
-    write_digest_log(
-        base,
-        pipeline_digest_lines(
-            target_id="2094332420753645621",
-            status="no_reply",
-            reason=reason,
-            model_call_count=3,
-            revision_count=revision_count,
-            route_source="xai_gate",
-            xai_gate_decision="reply",
-            provider_call_counts={"xAI": 1, "OpenAI": 2},
-        ),
-    )
-
-    result = run_digest(base, as_json=True)
-
-    assert result.returncode == 0, result.stderr
-    strategy = json.loads(result.stdout)["reply_strategy"]
-    assert strategy["writer_local_failure_count"] == 1
-    assert strategy["deliberately_declined_count"] == 0
-    assert strategy["ai_reviewed_decline_count"] == 0
-    assert strategy["terminal_no_reply_decision_count"] == 1
-    assert strategy["no_reply_category_counts"] == {"writer_local_failure": 1}
-    assert strategy["rejection_reason_counts"][reason] == 1
-
-
-def test_digest_genuine_deliberately_declined_decision_remains_unchanged(
-    tmp_path: Path,
-) -> None:
-    base = tmp_path / "digest-genuine-deliberate-decline"
-    write_digest_log(
-        base,
-        pipeline_digest_lines(
-            target_id="2094332420753645622",
-            status="no_reply",
-            reason="reply_necessity_review",
-            model_call_count=3,
-            revision_count=0,
-            route_source="reply_necessity_review",
-            xai_gate_decision="no_reply",
-            provider_call_counts={"xAI": 3, "OpenAI": 0},
-        ),
-    )
-
-    result = run_digest(base, as_json=True)
-
-    assert result.returncode == 0, result.stderr
-    payload = json.loads(result.stdout)
-    strategy = payload["reply_strategy"]
-    assert strategy["writer_local_failure_count"] == 0
-    assert strategy["deliberately_declined_count"] == 1
-    assert strategy["ai_reviewed_decline_count"] == 1
-    assert strategy["terminal_no_reply_decision_count"] == 1
-    assert strategy["no_reply_category_counts"]["other_editorial_decline"] == 1
-    assert strategy["no_reply_category_counts"].get(
-        "writer_local_failure", 0
-    ) == 0
-    assert "1 deliberately declined" in payload["summary"]["headline"]
-    assert "writer-local failure" not in payload["summary"]["headline"]
-
-
-def test_digest_successful_writer_link_repair_is_not_a_writer_local_failure(
-    tmp_path: Path,
-) -> None:
-    base = tmp_path / "digest-successful-writer-link-repair"
-    target_id = "2094332420753645623"
-    lines = [
-        (
-            "2026-08-31 09:14:20 INFO     maybe_reply_to_mentions:1 - "
-            f"Considering mention id={target_id} author_id=200 text='A question'"
-        ),
-        (
-            "2026-08-31 09:14:21 INFO     tested_pipeline_structured_call:1 - "
-            "Calling tested reply pipeline stage=writer_v3_link_repair "
-            "provider=OpenAI model=gpt-test reasoning_effort=low"
-        ),
-        (
-            "2026-08-31 09:14:22 INFO     tested_pipeline_structured_call:1 - "
-            "Tested reply stage=writer_v3_link_repair provider=OpenAI "
-            "usage={'prompt_tokens': 8, 'completion_tokens': 2, "
-            "'total_tokens': 10, 'num_sources_used': 0}"
-        ),
-        *pipeline_digest_lines(
-            target_id=target_id,
-            status="approved",
-            reason="pipeline_approved",
-            model_call_count=3,
-            revision_count=1,
-            route_source="xai_gate",
-            xai_gate_decision="reply",
-            provider_call_counts={"xAI": 1, "OpenAI": 2},
-            mode="opinion_or_principle",
-        ),
-        digest_event_line(
-            "2026-08-31 09:14:25",
-            "ai_reply_pipeline_outcome",
-            status="confirmed",
-            lane="mention",
-            target_id=target_id,
-            reply_post_id="2094332420753645699",
-            strategy_version="tested-reply-pipeline-20260817",
-            mode="opinion_or_principle",
-            reply_requirement="general",
-            route_source="xai_gate",
-            model_call_count=3,
-            revision_count=1,
-        ),
-    ]
-    write_digest_log(base, lines)
-
-    result = run_digest(base, as_json=True)
-
-    assert result.returncode == 0, result.stderr
-    payload = json.loads(result.stdout)
-    strategy = payload["reply_strategy"]
-    assert strategy["confirmed_outcome_count"] == 1
-    assert strategy["outcome_status_counts"]["posted"] == 1
-    assert strategy["writer_local_failure_count"] == 0
-    assert strategy["terminal_no_reply_decision_count"] == 0
-    assert strategy["no_reply_category_counts"].get(
-        "writer_local_failure", 0
-    ) == 0
-    assert "writer-local failure" not in payload["summary"]["headline"]
-    candidate = payload["provider_usage"]["cost_summary"]["candidates"][0]
-    assert candidate["outcome"] == "published"
-    assert candidate["stages"] == {"writer_v3_link_repair": 1}
-
-
-def test_digest_reports_xai_usage_unknown_context_and_malformed_records(tmp_path: Path) -> None:
-    base = tmp_path / "digest-xai-usage-unknown-malformed"
-    write_digest_log(
-        base,
-        [
-            "2026-07-06 14:45:54 INFO ask_grok_for_reply - xAI usage={'prompt_tokens': 539, 'completion_tokens': 18, 'total_tokens': 1109, 'prompt_tokens_details': {'cached_tokens': 128}, 'completion_tokens_details': {'reasoning_tokens': 552}, 'num_sources_used': 0, 'cost_in_usd_ticks': 19643500}",
-            "2026-07-06 14:46:00 INFO ask_grok_for_reply - xAI usage={'prompt_tokens': bad",
-        ],
-    )
-
-    digest = run_digest(base)
-    assert digest.returncode == 0, digest.stderr
-    assert "## xAI usage" in digest.stdout
-    assert "| 2026-07-06 14:45:54 | unknown |  | 539 | 128 | 552 | 18 | 1109 | 0 | 19643500 |" in digest.stdout
-    assert "successful_xai_calls = 1" in digest.stdout
-    assert "Malformed xAI usage records" in digest.stdout
-    assert "could not parse xAI usage dictionary" in digest.stdout
-
-
-def test_digest_associates_xai_usage_with_quote_tweet_context(tmp_path: Path) -> None:
-    base = tmp_path / "digest-xai-usage-quote-tweet"
-    write_digest_log(
-        base,
-        [
-            "2026-07-06 12:00:00 INFO maybe_reply_to_quote_tweets:4000 - Considering quote tweet id=999 author_id=777 original_post_id=555 text='Interesting'",
-            "2026-07-06 12:00:01 INFO ask_grok_for_reply:5315 - Asking Grok for reply. context_text=\"A user has quote-posted one of this account's posts.\"",
-            "2026-07-06 12:00:02 INFO ask_grok_for_reply:5396 - xAI usage={'prompt_tokens': 100, 'completion_tokens': 5, 'total_tokens': 150, 'prompt_tokens_details': {'cached_tokens': 25}, 'completion_tokens_details': {'reasoning_tokens': 45}, 'num_sources_used': 1, 'cost_in_usd_ticks': 123}",
-            "2026-07-06 12:00:03 INFO ask_grok_for_reply:5414 - Grok generated usable reply: 'A reply.'",
-        ],
-    )
-
-    digest = run_digest(base)
-    assert digest.returncode == 0, digest.stderr
-    assert "| 2026-07-06 12:00:02 | quote-tweet | 999 | 100 | 25 | 45 | 5 | 150 | 1 | 123 |" in digest.stdout
-
-
-def test_digest_does_not_reuse_completed_mention_xai_context(tmp_path: Path) -> None:
-    base = tmp_path / "digest-xai-usage-stale-mention"
-    write_digest_log(
-        base,
-        [
-            "2026-07-06 15:00:00 INFO maybe_reply_to_mentions:3000 - Considering mention id=123 author_id=456 text='@MrsMThatcher hello'",
-            "2026-07-06 15:00:01 INFO ask_grok_for_reply:5315 - Asking Grok for reply. context_text='Incoming post/comment to answer:\\n@MrsMThatcher hello'",
-            "2026-07-06 15:00:02 INFO ask_grok_for_reply:5396 - xAI usage={'prompt_tokens': 10, 'completion_tokens': 2, 'total_tokens': 20, 'prompt_tokens_details': {'cached_tokens': 1}, 'completion_tokens_details': {'reasoning_tokens': 8}, 'num_sources_used': 0, 'cost_in_usd_ticks': 100}",
-            "2026-07-06 15:00:03 INFO maybe_reply_to_mentions:3050 - Generated reply to mention 123: 'A reply.'",
-            "2026-07-06 15:00:04 INFO ask_grok_for_reply:5396 - xAI usage={'prompt_tokens': 11, 'completion_tokens': 3, 'total_tokens': 21, 'prompt_tokens_details': {'cached_tokens': 2}, 'completion_tokens_details': {'reasoning_tokens': 7}, 'num_sources_used': 0, 'cost_in_usd_ticks': 101}",
-        ],
-    )
-
-    digest = run_digest(base)
-    assert digest.returncode == 0, digest.stderr
-    assert "| 2026-07-06 15:00:02 | mention | 123 | 10 | 1 | 8 | 2 | 20 | 0 | 100 |" in digest.stdout
-    assert "| 2026-07-06 15:00:04 | unknown |  | 11 | 2 | 7 | 3 | 21 | 0 | 101 |" in digest.stdout
-
-
-def test_digest_does_not_reuse_completed_quote_tweet_xai_context(tmp_path: Path) -> None:
-    base = tmp_path / "digest-xai-usage-stale-quote-tweet"
-    write_digest_log(
-        base,
-        [
-            "2026-07-06 12:00:00 INFO maybe_reply_to_quote_tweets:4000 - Considering quote tweet id=999 author_id=777 original_post_id=555 text='Interesting'",
-            "2026-07-06 12:00:01 INFO ask_grok_for_reply:5315 - Asking Grok for reply. context_text=\"A user has quote-posted one of this account's posts.\"",
-            "2026-07-06 12:00:02 INFO ask_grok_for_reply:5396 - xAI usage={'prompt_tokens': 100, 'completion_tokens': 5, 'total_tokens': 150, 'prompt_tokens_details': {'cached_tokens': 25}, 'completion_tokens_details': {'reasoning_tokens': 45}, 'num_sources_used': 1, 'cost_in_usd_ticks': 123}",
-            "2026-07-06 12:00:03 INFO maybe_reply_to_quote_tweets:4020 - Generated reply to quote tweet 999: 'A reply.'",
-            "2026-07-06 12:00:04 INFO ask_grok_for_reply:5396 - xAI usage={'prompt_tokens': 101, 'completion_tokens': 6, 'total_tokens': 151, 'prompt_tokens_details': {'cached_tokens': 26}, 'completion_tokens_details': {'reasoning_tokens': 46}, 'num_sources_used': 0, 'cost_in_usd_ticks': 124}",
-        ],
-    )
-
-    digest = run_digest(base)
-    assert digest.returncode == 0, digest.stderr
-    assert "| 2026-07-06 12:00:02 | quote-tweet | 999 | 100 | 25 | 45 | 5 | 150 | 1 | 123 |" in digest.stdout
-    assert "| 2026-07-06 12:00:04 | unknown |  | 101 | 26 | 46 | 6 | 151 | 0 | 124 |" in digest.stdout
-
-
-def test_digest_does_not_attribute_mention_xai_usage_to_stale_locally_skipped_quote_tweet(tmp_path: Path) -> None:
-    base = tmp_path / "digest-xai-usage-stale-quote-to-mention"
-    quote_a = "2074443670913184251"
-    quote_b = "2074425517856428052"
-    mention_c = "2074472113872769394"
-    write_digest_log(
-        base,
-        [
-            f"2026-07-07 12:51:00 INFO maybe_reply_to_quote_tweets:4000 - Considering quote tweet id={quote_a} author_id=777 original_post_id=555 text='Now the Brits arrest you for tweets.'",
-            "2026-07-07 12:51:01 INFO ask_grok_for_reply:5315 - Asking Grok for reply. context_text=\"A user has quote-posted one of this account's posts.\"",
-            "2026-07-07 12:51:04 INFO ask_grok_for_reply:5396 - xAI usage={'prompt_tokens': 100, 'completion_tokens': 5, 'total_tokens': 150, 'prompt_tokens_details': {'cached_tokens': 25}, 'completion_tokens_details': {'reasoning_tokens': 45}, 'num_sources_used': 1, 'cost_in_usd_ticks': 123}",
-            f"2026-07-07 12:51:04 INFO maybe_reply_to_quote_tweets:4020 - No usable reply generated for quote tweet {quote_a}",
-            f"2026-07-07 12:51:05 INFO maybe_reply_to_quote_tweets:4000 - Considering quote tweet id={quote_b} author_id=888 original_post_id=555 text='Proprio quello che mancava nel 1978.'",
-            f"2026-07-07 12:51:05 INFO maybe_reply_to_quote_tweets:4010 - Skipping quote tweet {quote_b}: already seen/replied/skipped",
-            f"2026-07-07 13:35:11 INFO maybe_reply_to_mentions:3000 - Considering mention id={mention_c} author_id=999 text='@MrsMThatcher Me too, GOAT ♥️♥️'",
-            "2026-07-07 13:35:12 INFO ask_grok_for_reply:5315 - Asking Grok for reply. context_text='Incoming post/comment to answer:\\n@MrsMThatcher Me too, GOAT ♥️♥️'",
-            "2026-07-07 13:35:20 INFO ask_grok_for_reply:5396 - xAI usage={'prompt_tokens': 458, 'completion_tokens': 11, 'total_tokens': 1147, 'prompt_tokens_details': {'cached_tokens': 128}, 'completion_tokens_details': {'reasoning_tokens': 678}, 'num_sources_used': 0, 'cost_in_usd_ticks': 2160600}",
-            f"2026-07-07 13:35:21 INFO maybe_reply_to_mentions:3050 - Generated reply to mention {mention_c}: 'Many do. It saves a great deal of time.'",
-            "2026-07-07 13:35:22 INFO maybe_reply_to_mentions:3100 - Reply posted successfully",
-        ],
-    )
-
-    digest = run_digest(base)
-    assert digest.returncode == 0, digest.stderr
-    assert f"| 2026-07-07 12:51:04 | quote-tweet | {quote_a} | 100 | 25 | 45 | 5 | 150 | 1 | 123 |" in digest.stdout
-    assert f"| 2026-07-07 13:35:20 | mention | {mention_c} | 458 | 128 | 678 | 11 | 1147 | 0 | 2160600 |" in digest.stdout
-    assert f"| 2026-07-07 13:35:20 | quote-tweet | {quote_b} |" not in digest.stdout
-
-
-def test_digest_local_quote_tweet_skip_does_not_create_xai_context(tmp_path: Path) -> None:
-    base = tmp_path / "digest-xai-usage-local-quote-skip"
-    quote_b = "2074425517856428052"
-    write_digest_log(
-        base,
-        [
-            f"2026-07-07 12:51:05 INFO maybe_reply_to_quote_tweets:4000 - Considering quote tweet id={quote_b} author_id=888 original_post_id=555 text='Proprio quello che mancava nel 1978.'",
-            f"2026-07-07 12:51:05 INFO maybe_reply_to_quote_tweets:4010 - Skipping quote tweet {quote_b}: already seen/replied/skipped",
-            "2026-07-07 13:00:00 INFO ask_grok_for_reply:5396 - xAI usage={'prompt_tokens': 12, 'completion_tokens': 3, 'total_tokens': 40, 'prompt_tokens_details': {'cached_tokens': 2}, 'completion_tokens_details': {'reasoning_tokens': 25}, 'num_sources_used': 0, 'cost_in_usd_ticks': 44}",
-        ],
-    )
-
-    digest = run_digest(base)
-    assert digest.returncode == 0, digest.stderr
-    assert "| 2026-07-07 13:00:00 | unknown |  | 12 | 2 | 25 | 3 | 40 | 0 | 44 |" in digest.stdout
-    assert f"| 2026-07-07 13:00:00 | quote-tweet | {quote_b} |" not in digest.stdout
-
-
-def test_digest_local_mention_skip_does_not_poison_later_quote_tweet_xai_context(tmp_path: Path) -> None:
-    base = tmp_path / "digest-xai-usage-local-mention-skip"
-    mention_a = "111"
-    quote_b = "222"
-    write_digest_log(
-        base,
-        [
-            f"2026-07-07 10:00:00 INFO maybe_reply_to_mentions:3000 - Considering mention id={mention_a} author_id=456 text='@MrsMThatcher spam'",
-            f"2026-07-07 10:00:01 INFO maybe_reply_to_mentions:3078 - Skipping mention {mention_a}: spam/not worth replying",
-            f"2026-07-07 10:01:00 INFO maybe_reply_to_quote_tweets:4000 - Considering quote tweet id={quote_b} author_id=777 original_post_id=555 text='Interesting'",
-            "2026-07-07 10:01:01 INFO ask_grok_for_reply:5315 - Asking Grok for reply. context_text=\"A user has quote-posted one of this account's posts.\"",
-            "2026-07-07 10:01:02 INFO ask_grok_for_reply:5396 - xAI usage={'prompt_tokens': 20, 'completion_tokens': 4, 'total_tokens': 60, 'prompt_tokens_details': {'cached_tokens': 3}, 'completion_tokens_details': {'reasoning_tokens': 36}, 'num_sources_used': 1, 'cost_in_usd_ticks': 55}",
-            f"2026-07-07 10:01:03 INFO maybe_reply_to_quote_tweets:4020 - Generated reply to quote tweet {quote_b}: 'A reply.'",
-        ],
-    )
-
-    digest = run_digest(base)
-    assert digest.returncode == 0, digest.stderr
-    assert f"| 2026-07-07 10:01:02 | quote-tweet | {quote_b} | 20 | 3 | 36 | 4 | 60 | 1 | 55 |" in digest.stdout
-    assert f"| 2026-07-07 10:01:02 | mention | {mention_a} |" not in digest.stdout
-
-
-def test_digest_keeps_consecutive_mixed_lane_xai_contexts_in_order(tmp_path: Path) -> None:
-    base = tmp_path / "digest-xai-usage-consecutive-mixed"
-    mention_a = "301"
-    quote_b = "302"
-    mention_c = "303"
-    write_digest_log(
-        base,
-        [
-            f"2026-07-07 11:00:00 INFO maybe_reply_to_mentions:3000 - Considering mention id={mention_a} author_id=401 text='@MrsMThatcher one'",
-            "2026-07-07 11:00:01 INFO ask_grok_for_reply:5315 - Asking Grok for reply. context_text='Incoming post/comment to answer:\\n@MrsMThatcher one'",
-            "2026-07-07 11:00:02 INFO ask_grok_for_reply:5396 - xAI usage={'prompt_tokens': 30, 'completion_tokens': 3, 'total_tokens': 70, 'prompt_tokens_details': {'cached_tokens': 4}, 'completion_tokens_details': {'reasoning_tokens': 37}, 'num_sources_used': 0, 'cost_in_usd_ticks': 101}",
-            f"2026-07-07 11:00:03 INFO maybe_reply_to_mentions:3050 - Generated reply to mention {mention_a}: 'Reply one.'",
-            f"2026-07-07 11:01:00 INFO maybe_reply_to_quote_tweets:4000 - Considering quote tweet id={quote_b} author_id=402 original_post_id=555 text='Two'",
-            "2026-07-07 11:01:01 INFO ask_grok_for_reply:5315 - Asking Grok for reply. context_text=\"A user has quote-posted one of this account's posts.\"",
-            "2026-07-07 11:01:02 INFO ask_grok_for_reply:5396 - xAI usage={'prompt_tokens': 31, 'completion_tokens': 4, 'total_tokens': 71, 'prompt_tokens_details': {'cached_tokens': 5}, 'completion_tokens_details': {'reasoning_tokens': 36}, 'num_sources_used': 1, 'cost_in_usd_ticks': 102}",
-            f"2026-07-07 11:01:03 INFO maybe_reply_to_quote_tweets:4020 - No usable reply generated for quote tweet {quote_b}",
-            f"2026-07-07 11:02:00 INFO maybe_reply_to_mentions:3000 - Considering mention id={mention_c} author_id=403 text='@MrsMThatcher three'",
-            "2026-07-07 11:02:01 INFO ask_grok_for_reply:5315 - Asking Grok for reply. context_text='Incoming post/comment to answer:\\n@MrsMThatcher three'",
-            "2026-07-07 11:02:02 INFO ask_grok_for_reply:5396 - xAI usage={'prompt_tokens': 32, 'completion_tokens': 5, 'total_tokens': 72, 'prompt_tokens_details': {'cached_tokens': 6}, 'completion_tokens_details': {'reasoning_tokens': 35}, 'num_sources_used': 0, 'cost_in_usd_ticks': 103}",
-            f"2026-07-07 11:02:03 INFO maybe_reply_to_mentions:3050 - Generated reply to mention {mention_c}: 'Reply three.'",
-        ],
-    )
-
-    digest = run_digest(base)
-    assert digest.returncode == 0, digest.stderr
-    assert f"| 2026-07-07 11:00:02 | mention | {mention_a} | 30 | 4 | 37 | 3 | 70 | 0 | 101 |" in digest.stdout
-    assert f"| 2026-07-07 11:01:02 | quote-tweet | {quote_b} | 31 | 5 | 36 | 4 | 71 | 1 | 102 |" in digest.stdout
-    assert f"| 2026-07-07 11:02:02 | mention | {mention_c} | 32 | 6 | 35 | 5 | 72 | 0 | 103 |" in digest.stdout
-
-
-def test_digest_carries_active_xai_context_across_resume_boundary(tmp_path: Path) -> None:
-    base = tmp_path / "digest-xai-resume-boundary"
-    state_file = tmp_path / "digest-state.json"
-    mention_id = "2074728963755196898"
-    reply_id = "2074730135442374791"
-    first_window = [
-        f"2026-07-08 06:39:38 INFO maybe_reply_to_mentions:6132 - Considering mention id={mention_id} author_id=1394717514475704320 text='@MrsMThatcher socialism works?'",
-        "2026-07-08 06:39:38 INFO ask_grok_for_reply:5682 - Asking Grok for reply. context_text='Incoming post/comment to answer:\\n@MrsMThatcher socialism works?'",
-    ]
-    second_window = [
-        "2026-07-08 06:39:45 INFO ask_grok_for_reply:5784 - xAI usage={'prompt_tokens': 529, 'completion_tokens': 29, 'total_tokens': 1194, 'prompt_tokens_details': {'cached_tokens': 128}, 'completion_tokens_details': {'reasoning_tokens': 636}, 'num_sources_used': 0, 'cost_in_usd_ticks': 21893500}",
-        f"2026-07-08 06:39:45 INFO maybe_reply_to_mentions:6224 - Generated reply to mention {mention_id}: 'Poverty is the absence of wealth.'",
-        f"2026-07-08 06:39:45 INFO create_post:3236 - Created X post successfully. response={{'data': {{'text': 'Poverty is the absence of wealth.', 'id': '{reply_id}'}}}}",
-        "2026-07-08 06:39:45 INFO maybe_reply_to_mentions:6357 - Reply posted successfully",
-    ]
-
-    write_digest_log(base, first_window)
-    first_digest = run_digest(base, state_file=state_file)
-    assert first_digest.returncode == 0, first_digest.stderr
-
-    write_digest_log(base, [*first_window, *second_window])
-    second_digest = run_digest(base, state_file=state_file)
-    assert second_digest.returncode == 0, second_digest.stderr
-    assert f"| 2026-07-08 06:39:45 | mention | {mention_id} | 529 | 128 | 636 | 29 | 1194 | 0 | 21893500 |" in second_digest.stdout
-    assert f"| 2026-07-08 06:39:45 | {mention_id} | 1394717514475704320 | @MrsMThatcher socialism works? | Poverty is the absence of wealth. | {reply_id} |" in second_digest.stdout
-    assert "| 2026-07-08 06:39:45 | unknown |" not in second_digest.stdout
-
 
 def test_digest_json_source_identity_is_stable_across_resume_filtering(
     tmp_path: Path,
@@ -8809,67 +8230,6 @@ def test_digest_json_source_identity_is_stable_across_resume_filtering(
     )
 
 
-def test_digest_does_not_carry_completed_xai_context_across_resume_boundary(tmp_path: Path) -> None:
-    base = tmp_path / "digest-xai-completed-resume-boundary"
-    state_file = tmp_path / "digest-state.json"
-    write_digest_log(
-        base,
-        [
-            "2026-07-08 06:39:38 INFO maybe_reply_to_mentions:6132 - Considering mention id=123 author_id=456 text='@MrsMThatcher hello'",
-            "2026-07-08 06:39:38 INFO ask_grok_for_reply:5682 - Asking Grok for reply. context_text='Incoming post/comment to answer:\\n@MrsMThatcher hello'",
-            "2026-07-08 06:39:38 INFO ask_grok_for_reply:5784 - xAI usage={'prompt_tokens': 10, 'completion_tokens': 2, 'total_tokens': 20, 'prompt_tokens_details': {'cached_tokens': 1}, 'completion_tokens_details': {'reasoning_tokens': 8}, 'num_sources_used': 0, 'cost_in_usd_ticks': 100}",
-            "2026-07-08 06:39:38 INFO maybe_reply_to_mentions:6224 - Generated reply to mention 123: 'A reply.'",
-        ],
-    )
-    first_digest = run_digest(base, state_file=state_file)
-    assert first_digest.returncode == 0, first_digest.stderr
-
-    write_digest_log(
-        base,
-        [
-            "2026-07-08 06:39:38 INFO maybe_reply_to_mentions:6132 - Considering mention id=123 author_id=456 text='@MrsMThatcher hello'",
-            "2026-07-08 06:39:38 INFO ask_grok_for_reply:5682 - Asking Grok for reply. context_text='Incoming post/comment to answer:\\n@MrsMThatcher hello'",
-            "2026-07-08 06:39:38 INFO ask_grok_for_reply:5784 - xAI usage={'prompt_tokens': 10, 'completion_tokens': 2, 'total_tokens': 20, 'prompt_tokens_details': {'cached_tokens': 1}, 'completion_tokens_details': {'reasoning_tokens': 8}, 'num_sources_used': 0, 'cost_in_usd_ticks': 100}",
-            "2026-07-08 06:39:38 INFO maybe_reply_to_mentions:6224 - Generated reply to mention 123: 'A reply.'",
-            "2026-07-08 06:40:00 INFO ask_grok_for_reply:5784 - xAI usage={'prompt_tokens': 11, 'completion_tokens': 3, 'total_tokens': 21, 'prompt_tokens_details': {'cached_tokens': 2}, 'completion_tokens_details': {'reasoning_tokens': 7}, 'num_sources_used': 0, 'cost_in_usd_ticks': 101}",
-        ],
-    )
-    second_digest = run_digest(base, state_file=state_file)
-    assert second_digest.returncode == 0, second_digest.stderr
-    assert "| 2026-07-08 06:40:00 | unknown |  | 11 | 2 | 7 | 3 | 21 | 0 | 101 |" in second_digest.stdout
-    assert "| 2026-07-08 06:40:00 | mention | 123 |" not in second_digest.stdout
-
-
-def test_digest_new_request_beats_carried_pending_xai_candidate(tmp_path: Path) -> None:
-    base = tmp_path / "digest-xai-carried-pending-tie"
-    state_file = tmp_path / "digest-state.json"
-    old_quote = "900"
-    new_mention = "901"
-    write_digest_log(
-        base,
-        [
-            f"2026-07-08 06:39:38 INFO maybe_reply_to_quote_tweets:4000 - Considering quote tweet id={old_quote} author_id=777 original_post_id=555 text='Old quote'",
-            "2026-07-08 06:39:38 INFO ask_grok_for_reply:5682 - Asking Grok for reply. context_text=\"A user has quote-posted one of this account's posts.\"",
-        ],
-    )
-    first_digest = run_digest(base, state_file=state_file)
-    assert first_digest.returncode == 0, first_digest.stderr
-
-    write_digest_log(
-        base,
-        [
-            f"2026-07-08 06:39:38 INFO maybe_reply_to_quote_tweets:4000 - Considering quote tweet id={old_quote} author_id=777 original_post_id=555 text='Old quote'",
-            "2026-07-08 06:39:38 INFO ask_grok_for_reply:5682 - Asking Grok for reply. context_text=\"A user has quote-posted one of this account's posts.\"",
-            f"2026-07-08 06:40:00 INFO maybe_reply_to_mentions:6132 - Considering mention id={new_mention} author_id=456 text='@MrsMThatcher new mention'",
-            "2026-07-08 06:40:00 INFO ask_grok_for_reply:5682 - Asking Grok for reply. context_text='Incoming post/comment to answer:\\n@MrsMThatcher new mention'",
-            "2026-07-08 06:40:01 INFO ask_grok_for_reply:5784 - xAI usage={'prompt_tokens': 11, 'completion_tokens': 3, 'total_tokens': 21, 'prompt_tokens_details': {'cached_tokens': 2}, 'completion_tokens_details': {'reasoning_tokens': 7}, 'num_sources_used': 0, 'cost_in_usd_ticks': 101}",
-        ],
-    )
-    second_digest = run_digest(base, state_file=state_file)
-    assert second_digest.returncode == 0, second_digest.stderr
-    assert f"| 2026-07-08 06:40:01 | mention | {new_mention} | 11 | 2 | 7 | 3 | 21 | 0 | 101 |" in second_digest.stdout
-    assert f"| 2026-07-08 06:40:01 | quote-tweet | {old_quote} |" not in second_digest.stdout
-
 
 def test_digest_json_contract_identifies_the_major_versioned_schema_and_retained_roots(
     tmp_path: Path,
@@ -8885,7 +8245,7 @@ def test_digest_json_contract_identifies_the_major_versioned_schema_and_retained
     assert result.returncode == 0, result.stderr
     payload = json.loads(result.stdout)
     contract = payload["digest_contract"]
-    assert contract["schema_version"] == 2
+    assert contract["schema_version"] == 3
     assert contract["output_kind"] == "mrs_log_digest"
     assert contract["producer"] == "mrs_log_digest.py"
     assert contract["compatibility_policy"] == "major-versioned"
@@ -8913,7 +8273,7 @@ def test_digest_json_contract_identifies_the_major_versioned_schema_and_retained
         for description in projection_semantics.values()
     )
 
-    legacy_top_level_keys = {
+    retained_top_level_keys = {
         "summary",
         "latest_config",
         "latest_state",
@@ -8927,11 +8287,8 @@ def test_digest_json_contract_identifies_the_major_versioned_schema_and_retained
         "historical_context_replies",
         "production_consistency",
         "historical_context_quality",
-        "reply_strategy",
-        "reply_pipeline_stages",
-        "reply_media_context",
-        "reply_visual_context_summary",
-        "reply_visual_context_targets",
+        "single_call_reply",
+        "legacy_multi_stage",
         "asset_health",
         "media_upload",
         "regular_image_usage",
@@ -8939,8 +8296,6 @@ def test_digest_json_contract_identifies_the_major_versioned_schema_and_retained
         "generated_identity_shadow",
         "generated_identity_policy",
         "generated_image_spacing",
-        "provider_usage",
-        "xai_usage",
         "resume_context",
         "lifecycle",
         "events",
@@ -8980,7 +8335,16 @@ def test_digest_json_contract_identifies_the_major_versioned_schema_and_retained
         "detailed_appendix",
         "openai_published_cost",
     }
-    assert legacy_top_level_keys <= set(payload)
+    assert retained_top_level_keys <= set(payload)
+    assert {
+        "reply_strategy",
+        "reply_pipeline_stages",
+        "reply_media_context",
+        "reply_visual_context_summary",
+        "reply_visual_context_targets",
+        "provider_usage",
+        "xai_usage",
+    }.isdisjoint(payload)
 
 
 def test_copied_digest_without_git_still_emits_valid_contract_json(
@@ -9025,214 +8389,13 @@ def test_copied_digest_without_git_still_emits_valid_contract_json(
     assert result.returncode == 0, result.stderr
     payload = json.loads(result.stdout)
     contract = payload["digest_contract"]
+    assert contract["schema_version"] == 3
     assert contract["producer_source_sha256"] == hashlib.sha256(
         copied_script.read_bytes()
     ).hexdigest()
     assert contract["repository_head_sha"] is None
     assert "generator" + "_git_sha" not in contract
 
-
-def test_digest_json_v2_removes_only_the_retired_observer_roots_from_verified_base(
-    tmp_path: Path,
-) -> None:
-    base_sha = "0097657357c0ffb0dd87e860073d947c2ecb032e"
-    fixture = tmp_path / "recursive-additive-contract"
-    fixture.mkdir()
-    log = fixture / "test.log"
-    mention_target = "2096000000000000001"
-    mention_reply = "2096000000000000002"
-    historical_parent = "2096000000000000011"
-    historical_reply = "2096000000000000012"
-    historical_quote = "b" * 64
-    exact_mention_text = "Exact durable mention reply.\nSecond line."
-    exact_historical_text = "Context — Exact durable context.\n\nMeaning — Preserved."
-    log.write_text(
-        "\n".join(
-            [
-                "2026-08-30 20:00:00 INFO     main:1 - Main loop tick",
-                digest_event_line(
-                    "2026-08-30 20:00:01",
-                    "historical_context_reply",
-                    status="completed",
-                    parent_post_id=historical_parent,
-                    quote_id=historical_quote,
-                    character_count=len(exact_historical_text),
-                    reply_preview="Context — Preview…",
-                ),
-                digest_event_line(
-                    "2026-08-30 20:00:02",
-                    "historical_context_reply_posted",
-                    event_version=1,
-                    lane="historical_context_reply",
-                    parent_post_id=historical_parent,
-                    reply_post_id=historical_reply,
-                    root_post_id=historical_parent,
-                    conversation_id=historical_parent,
-                    reply_text=exact_historical_text,
-                    quote_id=historical_quote,
-                    publication_authority="confirmed_transport",
-                ),
-                f"2026-08-30 20:01:00 INFO maybe_reply_to_mentions:100 - Considering mention id={mention_target} author_id=501 text='Input'",
-                f"2026-08-30 20:01:01 INFO maybe_reply_to_mentions:101 - Generated reply to mention {mention_target}: 'Preview.'",
-                f"2026-08-30 20:01:02 INFO create_post:102 - Created X post successfully. response={{'data': {{'id': '{mention_reply}'}}}}",
-                f"2026-08-30 20:01:03 INFO maybe_reply_to_mentions:103 - Recorded and cached own auto-reply id={mention_reply}",
-                "2026-08-30 20:01:04 INFO maybe_reply_to_mentions:104 - Reply posted successfully",
-                digest_event_line(
-                    "2026-08-30 20:01:05",
-                    "reply_posted",
-                    lane="mention",
-                    target_id=mention_target,
-                    reply_post_id=mention_reply,
-                    author_id="501",
-                ),
-                "2026-08-30 20:02:00 INFO create_post:200 - Creating X post with durable transport journal. lane=mention transaction_id="
-                + ("c" * 64)
-                + f" reply_to_id={mention_target} media_count=0 made_with_ai=True",
-                "2026-08-30 20:02:01 INFO x_request:201 - X request: POST https://api.x.com/2/tweets",
-                "2026-08-30 20:02:02 ERROR x_request:202 - X API error 503: service unavailable",
-            ]
-        )
-        + "\n",
-        encoding="utf-8",
-    )
-    write_json(
-        fixture / "bot_state.json",
-        {
-            "daily_reply_count": 1,
-            "daily_quote_reply_count": 0,
-            "last_seen_mention_id": mention_target,
-            "author_evaluation_quarantines": {},
-            "ai_reply_history": [
-                {
-                    "target_id": mention_target,
-                    "reply_post_id": mention_reply,
-                    "candidate_source": "mention",
-                    "proposed_reply": exact_mention_text,
-                }
-            ],
-            "tweet_cache": {
-                mention_reply: {
-                    "id": mention_reply,
-                    "post_type": "auto_reply",
-                    "text": exact_mention_text,
-                    "referenced_tweets": [
-                        {"type": "replied_to", "id": mention_target}
-                    ],
-                }
-            },
-        },
-    )
-    write_json(
-        fixture / "mrsMThatcher.local.json",
-        {
-            "MAX_AUTO_REPLIES_PER_DAY": 8,
-            "MAX_REPLIES_PER_AUTHOR_PER_DAY": 2,
-            "MAX_QUOTE_REPLIES_PER_DAY": 3,
-            "AUTHOR_NO_REPLY_QUARANTINE_THRESHOLD": 3,
-            "AUTHOR_NO_REPLY_QUARANTINE_WINDOW_SECONDS": 21_600,
-            "AUTHOR_NO_REPLY_QUARANTINE_SECONDS": 43_200,
-        },
-    )
-    try:
-        source = subprocess.run(
-            ["git", "-C", str(ROOT), "show", f"{base_sha}:mrs_log_digest.py"],
-            text=True,
-            capture_output=True,
-            timeout=30,
-            check=False,
-        )
-    except FileNotFoundError:
-        pytest.skip("Git is unavailable for the verified-base compatibility check")
-    if source.returncode != 0:
-        pytest.skip(f"verified base source is unavailable: {source.stderr.strip()}")
-    base_script = fixture / "mrs_log_digest.base.py"
-    base_script.write_text(source.stdout, encoding="utf-8")
-    environment = os.environ.copy()
-    environment.update(
-        {
-            "HOME": str(fixture / "empty-home"),
-            "PYTHONPATH": str(ROOT),
-        }
-    )
-
-    def invoke(script: Path, *, as_json: bool) -> subprocess.CompletedProcess[str]:
-        arguments = [
-            sys.executable,
-            str(script),
-            "--project-dir",
-            str(fixture),
-            "--glob",
-            "test.log",
-            "--no-state",
-        ]
-        if as_json:
-            arguments.append("--json")
-        arguments.append(str(log))
-        return subprocess.run(
-            arguments,
-            cwd=ROOT,
-            env=environment,
-            text=True,
-            capture_output=True,
-            timeout=30,
-            check=False,
-        )
-
-    old_json = invoke(base_script, as_json=True)
-    new_json = invoke(DIGEST, as_json=True)
-    assert old_json.returncode == 0, old_json.stderr
-    assert new_json.returncode == 0, new_json.stderr
-    old_payload = json.loads(old_json.stdout)
-    new_payload = json.loads(new_json.stdout)
-    ignored_dynamic_paths = {
-        "$.generation_epoch",
-        "$.generation_time",
-        "$.error_health.safety_snapshot_observed_at",
-        "$.remote_write_safety.observed_at",
-        "$.openai_published_cost.age",
-        "$.openai_published_cost.age_seconds",
-    }
-    retired_roots = {
-        "_".join(("semantic", "veto", "load", "lifecycle")),
-        "_".join(("quote", "image", "semantic", "veto", "shadow")),
-    }
-
-    def assert_recursive_superset(before: object, after: object, path: str) -> None:
-        if path in ignored_dynamic_paths:
-            return
-        assert type(after) is type(before), path
-        if isinstance(before, dict):
-            expected_keys = set(before)
-            if path == "$":
-                expected_keys -= retired_roots
-            assert expected_keys <= set(after), path
-            for key, value in before.items():
-                if path == "$" and key not in expected_keys:
-                    continue
-                assert_recursive_superset(value, after[key], f"{path}.{key}")
-        elif isinstance(before, list):
-            assert len(after) == len(before), path
-            for index, (old_item, new_item) in enumerate(zip(before, after)):
-                assert_recursive_superset(
-                    old_item,
-                    new_item,
-                    f"{path}[{index}]",
-                )
-        else:
-            assert after == before, path
-
-    assert_recursive_superset(old_payload, new_payload, "$")
-    assert "digest_contract" not in old_payload
-    assert new_payload["digest_contract"]["schema_version"] == 2
-    assert retired_roots.isdisjoint(new_payload)
-
-    old_markdown = invoke(base_script, as_json=False)
-    new_markdown = invoke(DIGEST, as_json=False)
-    assert old_markdown.returncode == 0, old_markdown.stderr
-    assert new_markdown.returncode == 0, new_markdown.stderr
-    retired_heading = "## Quote/image " + "semantic veto shadow"
-    assert retired_heading in old_markdown.stdout
-    assert retired_heading not in new_markdown.stdout
 
 
 def test_digest_historical_context_reply_uses_exact_confirmed_text_and_bounded_provenance(
@@ -11953,52 +11116,6 @@ def test_digest_selftest_pending_identity_is_not_persisted_across_resume(
         for event in second_payload["events"]
     )
 
-
-def test_digest_selftest_provider_call_attempt_is_not_persisted_or_matched(
-    tmp_path: Path,
-) -> None:
-    base = tmp_path / "selftest-provider-call-resume"
-    base.mkdir()
-    state_file = base / "digest-state.json"
-    selftest_log = base / "application.selftest.log"
-    production_log = base / "application.log"
-    selftest_log.write_text(
-        "2026-08-30 21:45:24 INFO xai_structured_reply_call:1124 - "
-        "Calling AI-first reply stage=proposer model=SELFTESTMODEL\n",
-        encoding="utf-8",
-    )
-
-    first = run_digest_inputs(
-        base,
-        [selftest_log],
-        state_file=state_file,
-    )
-
-    assert first.returncode == 0, first.stderr
-    assert json.loads(first.stdout)["resume_context"][
-        "active_xai_call_attempt"
-    ] is None
-    assert json.loads(state_file.read_text(encoding="utf-8"))[
-        "last_active_xai_call_attempt"
-    ] is None
-
-    production_log.write_text(
-        "2026-08-30 21:45:25 INFO xai_structured_reply_call:1125 - "
-        "xAI reply stage=proposer usage={'total_tokens': 100, "
-        "'cost_in_usd_ticks': 10000000}\n",
-        encoding="utf-8",
-    )
-    second = run_digest_inputs(
-        base,
-        [production_log],
-        state_file=state_file,
-    )
-
-    assert second.returncode == 0, second.stderr
-    usage = json.loads(second.stdout)["provider_usage"]["events"][0]
-    assert usage["call_start_matched"] is False
-    assert usage["model"] == ""
-    assert "SELFTESTMODEL" not in second.stdout
 
 
 def test_digest_selftest_legacy_reply_cannot_anchor_exact_text(

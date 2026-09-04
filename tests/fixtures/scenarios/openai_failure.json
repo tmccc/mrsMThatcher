@@ -2,11 +2,11 @@
   "mentions": [
     {
       "id": "200",
-      "text": "@mrsMThatcher xai failure?",
+      "text": "@mrsMThatcher provider failure?",
       "author_id": "300",
       "conversation_id": "200",
       "created_at": "2026-06-30T12:00:00Z"
     }
   ],
-  "xai_status": 500
+  "openai_status": 500
 }

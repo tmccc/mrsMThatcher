@@ -2156,6 +2156,7 @@ def _set_identity(post: dict[str, Any], field: str, value: Any) -> None:
 
 PIPELINE_EVENT_KINDS = frozenset(
     {
+        "single_call_reply_decision",
         "ai_reply_pipeline_decision",
         "ai_reply_pipeline_effective_outcome",
         "ai_reply_pipeline_failure",
@@ -2202,6 +2203,11 @@ STRUCTURED_CONVERSATION_EVENT_FIELDS: dict[str, StructuredEventContract] = {
 }
 STRUCTURED_CONVERSATION_EVENT_FIELDS.update(
     {
+        "single_call_reply_posting_outcome": StructuredEventContract(
+            target_fields=("target_id",),
+            reply_creation_fields=("reply_created_at",),
+            confirms_publication=True,
+        ),
         "reply_posted": StructuredEventContract(
             target_fields=("target_id",),
             incoming_text_fields=("incoming_text", "incoming_contribution"),
@@ -2302,6 +2308,21 @@ PIPELINE_SUMMARY_FIELDS = (
     "final_validation",
     "mode",
     "model_call_count",
+    "decision",
+    "reply_kind",
+    "reason_code",
+    "outcome_type",
+    "local_validation_status",
+    "error_category",
+    "failure_reason",
+    "visible_turn_count",
+    "visible_character_count",
+    "same_author_interaction_count",
+    "recent_conversational_reply_count",
+    "recent_reply_count",
+    "trusted_fact_count",
+    "supplied_image_count",
+    "model",
     "original_local_rejection_reason",
     "pipeline_stage_status",
     "reply_requirement",

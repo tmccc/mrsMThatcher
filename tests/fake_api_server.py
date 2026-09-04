@@ -23,6 +23,7 @@ class FakeApiServer:
         self.posts: list[dict[str, Any]] = []
         self.uploads: list[dict[str, Any]] = []
         self.xai_requests: list[dict[str, Any]] = []
+        self.openai_requests: list[dict[str, Any]] = []
         self.requests: list[dict[str, Any]] = []
         self.path_counts: dict[str, int] = {}
         self._next_post_id = int(scenario.get("next_post_id", 900000))
@@ -102,6 +103,13 @@ class FakeApiServer:
 
             def _text_response(self, status: int, text: str, content_type: str = "text/plain") -> None:
                 payload = text.encode("utf-8")
+                self.send_response(status)
+                self.send_header("Content-Type", content_type)
+                self.send_header("Content-Length", str(len(payload)))
+                self.end_headers()
+                self.wfile.write(payload)
+
+            def _bytes_response(self, status: int, payload: bytes, content_type: str) -> None:
                 self.send_response(status)
                 self.send_header("Content-Type", content_type)
                 self.send_header("Content-Length", str(len(payload)))
@@ -340,6 +348,71 @@ class FakeApiServer:
                     }
                 )
 
+            def _single_call_response(self) -> dict[str, Any]:
+                decisions = self.fake.scenario.setdefault(
+                    "openai_reply_decisions", []
+                )
+                if decisions:
+                    decision = decisions.pop(0)
+                else:
+                    replies = self.fake.scenario.setdefault("openai_replies", [])
+                    if not replies:
+                        replies = self.fake.scenario.setdefault("grok_replies", [])
+                    reply = replies.pop(0) if replies else self.fake.scenario.get(
+                        "openai_reply",
+                        self.fake.scenario.get(
+                            "grok_reply",
+                            "A measured reply is usually the sharpest one.",
+                        ),
+                    )
+                    if str(reply).strip().upper() == "SKIP":
+                        decision = {
+                            "decision": "no_reply",
+                            "reply_kind": "no_reply",
+                            "reply": "",
+                            "used_fact_ids": [],
+                            "reason_code": "no_meaningful_content",
+                        }
+                    else:
+                        decision = {
+                            "decision": "reply",
+                            "reply_kind": "social",
+                            "reply": str(reply),
+                            "used_fact_ids": [],
+                            "reason_code": "useful_reply",
+                        }
+                output_text = (
+                    decision
+                    if isinstance(decision, str)
+                    else json.dumps(
+                        decision,
+                        ensure_ascii=False,
+                        sort_keys=True,
+                        separators=(",", ":"),
+                    )
+                )
+                return {
+                    "id": "resp_fixture",
+                    "status": "completed",
+                    "model": "gpt-5.6-sol",
+                    "output": [
+                        {
+                            "type": "message",
+                            "role": "assistant",
+                            "content": [
+                                {"type": "output_text", "text": output_text}
+                            ],
+                        }
+                    ],
+                    "usage": {
+                        "input_tokens": 10,
+                        "input_tokens_details": {"cached_tokens": 4},
+                        "output_tokens": 8,
+                        "output_tokens_details": {"reasoning_tokens": 3},
+                        "total_tokens": 18,
+                    },
+                }
+
             def _maybe_network_failure(self, path: str) -> bool:
                 failures = self.fake.scenario.get("network_failures", {})
                 failure = failures.get(path)
@@ -519,6 +592,20 @@ class FakeApiServer:
                     self._json_response(200, {"data": tweet} if tweet else {})
                     return
 
+                if path.startswith("/media/"):
+                    media = self.fake.scenario.get("media_responses", {}).get(
+                        path, {}
+                    )
+                    status = int(media.get("status", 200))
+                    mime_type = str(media.get("content_type", "image/png"))
+                    raw = media.get("body", "")
+                    if isinstance(raw, str) and raw:
+                        payload = raw.encode("latin-1")
+                    else:
+                        payload = b"\x89PNG\r\n\x1a\nfixture"
+                    self._bytes_response(status, payload, mime_type)
+                    return
+
                 self._json_response(404, {"error": f"Unhandled GET {path}"})
 
             def do_POST(self) -> None:
@@ -627,6 +714,40 @@ class FakeApiServer:
                             "usage": {"total_tokens": 12},
                         },
                     )
+                    return
+
+                if path == "/v1/responses":
+                    body = self._read_json()
+                    self._record("POST", path, query, body)
+                    self.fake.openai_requests.append(body)
+                    responses = self.fake.scenario.setdefault(
+                        "openai_responses", []
+                    )
+                    if responses:
+                        response = responses.pop(0)
+                        status = int(response.get("status", 200))
+                        if status >= 400:
+                            self._json_response(
+                                status,
+                                response.get(
+                                    "body",
+                                    {"error": "configured OpenAI failure"},
+                                ),
+                            )
+                            return
+                        self._json_response(status, response.get("body", {}))
+                        return
+                    if self.fake.scenario.get("openai_non_json"):
+                        self._text_response(200, "not json")
+                        return
+                    status = int(self.fake.scenario.get("openai_status", 200))
+                    if status >= 400:
+                        self._json_response(
+                            status,
+                            {"error": "configured OpenAI failure"},
+                        )
+                        return
+                    self._json_response(200, self._single_call_response())
                     return
 
                 self._record("POST", path, query, "<unhandled>")

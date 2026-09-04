@@ -173,7 +173,7 @@ def test_organization_wide_labelling_is_honest_and_not_combined(tmp_path: Path) 
     rendered = render_cost(report)
     assert report["scope"]["kind"] == "organization"
     assert "organisation-wide (not bot-exclusive)" in rendered
-    assert "not combined with the bot's xAI component" in rendered
+    assert "xAI" not in rendered
     assert "Combined selected-window estimate:" not in rendered
 
 
@@ -445,7 +445,7 @@ def test_complete_closed_utc_day_uses_published_daily_total(tmp_path: Path) -> N
     assert selected["segments"][0]["method"] == "latest provider-published daily total"
 
 
-def test_combined_reporting_exists_only_for_project_scope(tmp_path: Path) -> None:
+def test_legacy_provider_usage_is_not_combined_for_any_scope(tmp_path: Path) -> None:
     usage = {
         "events": [
             {
@@ -457,14 +457,12 @@ def test_combined_reporting_exists_only_for_project_scope(tmp_path: Path) -> Non
     project_path = write_cache(tmp_path / "project.json", current_day())
     project_report = cost_report(project_path, provider_usage=usage)
     assert project_report["selected_window"]["amount"] == "0.75"
-    assert project_report["combined_selected_window"] == {
-        "available": True,
-        "amount": "0.85",
-    }
+    assert "combined_selected_window" not in project_report
+    assert "xai_component" not in project_report
     project_rendered = render_cost(project_report)
-    assert "Combined selected-window estimate: **US$0.85**" in project_rendered
-    assert "xAI component (provider-reported): **US$0.1**" in project_rendered
-    assert "OpenAI component (published-cost delta estimate): **US$0.75**" in project_rendered
+    assert "OpenAI selected-window estimate: **US$0.75**" in project_rendered
+    assert "xAI" not in project_rendered
+    assert "Combined selected-window estimate:" not in project_rendered
 
     organization_path = write_cache(
         tmp_path / "organization.json",
@@ -473,10 +471,12 @@ def test_combined_reporting_exists_only_for_project_scope(tmp_path: Path) -> Non
     )
     organization_report = cost_report(organization_path, provider_usage=usage)
     assert "combined_selected_window" not in organization_report
+    assert "xai_component" not in organization_report
+    assert "xAI" not in render_cost(organization_report)
     assert "Combined selected-window estimate:" not in render_cost(organization_report)
 
 
-def test_organization_wide_partial_cost_remains_separate_from_xai(
+def test_organization_wide_partial_cost_remains_openai_only(
     tmp_path: Path,
 ) -> None:
     usage = {
@@ -509,11 +509,11 @@ def test_organization_wide_partial_cost_remains_separate_from_xai(
     assert report["selected_window"]["amount"] == "0.1968775"
     assert "combined_selected_window" not in report
     assert "OpenAI organisation-wide selected-window estimate (partial coverage)" in rendered
-    assert "not combined with the bot's xAI component" in rendered
+    assert "xAI" not in rendered
     assert "Combined selected-window estimate:" not in rendered
 
 
-def test_project_partial_cost_is_not_used_for_combined_total(tmp_path: Path) -> None:
+def test_project_partial_cost_remains_openai_only(tmp_path: Path) -> None:
     usage = {
         "events": [
             {
@@ -538,17 +538,11 @@ def test_project_partial_cost_is_not_used_for_combined_total(tmp_path: Path) -> 
     )
     rendered = render_cost(report)
     assert report["selected_window"]["status"] == "partial"
-    assert report["combined_selected_window"] == {
-        "available": False,
-        "reason": "one or both provider components are unavailable or partial",
-    }
+    assert "combined_selected_window" not in report
+    assert "xai_component" not in report
     assert "OpenAI selected-window estimate (partial coverage)" in rendered
-    assert "Combined selected-window estimate: **unknown**." in rendered
-    assert "xAI component (provider-reported): **US$0.1**." in rendered
-    assert (
-        "OpenAI component (published-cost delta estimate): **unknown or partial**."
-        in rendered
-    )
+    assert "Combined selected-window estimate:" not in rendered
+    assert "xAI" not in rendered
 
 
 def test_digest_path_override_uses_monkeypatched_fixture_not_environment(

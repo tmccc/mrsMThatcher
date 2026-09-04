@@ -51,7 +51,7 @@ from reply_strategy import (
     sentence_count,
     x_weighted_reply_length,
 )
-from tested_reply_pipeline import detect_claim_risk
+from tools.reply_claim_diagnostics import detect_claim_risk
 
 
 TRIAL_VERSION = "single-call-reply-provider-trial-v1"

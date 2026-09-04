@@ -16,7 +16,7 @@ Run the safe local integration tests with:
 ```bash
 python3 -m pip install -r requirements.txt
 python3 tools/check_python_documentation.py
-PYTEST_DISABLE_PLUGIN_AUTOLOAD=1 python3 -m pytest tests/test_integration_harness.py
+MRS_TEST_MODE=1 PYTEST_DISABLE_PLUGIN_AUTOLOAD=1 python3 -m pytest tests/test_integration_harness.py
 ```
 
 The tests start a fake local API server and run the real bot script with
@@ -28,7 +28,7 @@ All bot state is created under pytest temporary directories. The harness sets:
 - `MRS_LOG_FILE=<tmp test state dir>/test.log`
 - `X_API_BASE_URL=<fake server>`
 - `X_UPLOAD_BASE_URL=<fake server>`
-- `XAI_API_BASE_URL=<fake server>/v1`
+- `OPENAI_API_BASE_URL=<fake server>/v1`
 
 The complete offline test and research-tool dependency set is recorded in
 `requirements-dev.txt`. Install it when running the full repository suite:
@@ -36,7 +36,7 @@ The complete offline test and research-tool dependency set is recorded in
 ```bash
 python3 -m pip install -r requirements-dev.txt
 python3 tools/check_python_documentation.py
-PYTEST_DISABLE_PLUGIN_AUTOLOAD=1 python3 -m pytest -q
+MRS_TEST_MODE=1 PYTEST_DISABLE_PLUGIN_AUTOLOAD=1 python3 -m pytest -q
 ```
 
 On the four-core production host, the coverage-equivalent fast path uses four
@@ -44,7 +44,7 @@ isolated pytest workers:
 
 ```bash
 python3 tools/check_python_documentation.py
-PYTEST_DISABLE_PLUGIN_AUTOLOAD=1 python3 -m pytest -q \
+MRS_TEST_MODE=1 PYTEST_DISABLE_PLUGIN_AUTOLOAD=1 python3 -m pytest -q \
   -p xdist.plugin -n 4 --dist=worksteal --max-worker-restart=0
 ```
 
@@ -69,13 +69,13 @@ export MRS_BASE_DIR=/tmp/mrsMThatcher-test
 export MRS_LOG_FILE=/tmp/mrsMThatcher-test/test.log
 export X_API_BASE_URL="$FAKE_API_URL"
 export X_UPLOAD_BASE_URL="$FAKE_API_URL"
-export XAI_API_BASE_URL="$FAKE_API_URL/v1"
+export OPENAI_API_BASE_URL="$FAKE_API_URL/v1"
 export X_CONSUMER_KEY=dummy
 export X_CONSUMER_SECRET=dummy
 export X_ACCESS_TOKEN=dummy
 export X_ACCESS_SECRET=dummy
 export X_MY_USER_ID=12345
-export XAI_API_KEY=dummy
+export OPENAI_API_KEY=dummy
 export X_BEARER_TOKEN=dummy
 ```
 
@@ -106,7 +106,7 @@ deserialised; if JSON history is missing while a legacy pickle exists, the bot
 fails closed until JSON history is restored or migrated manually from a trusted
 backup. They use `MRS_LOG_FILE` for logs.
 
-The base-directory, log, primary X API, and xAI defaults remain as listed
+The base-directory, log, primary X API, and OpenAI defaults remain as listed
 below. Media upload routing is the exception: `X_UPLOAD_BASE_URL` no longer
 defaults to the legacy `https://upload.twitter.com` origin used with
 `/1.1/media/upload.json`. When unset, it now inherits the resolved
@@ -117,7 +117,7 @@ X reads and `POST /2/tweets` continue to use `X_API_BASE_URL`.
 - `MRS_LOG_FILE` defaults to `<MRS_BASE_DIR>/mrsMThatcher.log`
 - `X_API_BASE_URL` defaults to `https://api.x.com`
 - `X_UPLOAD_BASE_URL` inherits the resolved `X_API_BASE_URL` when unset
-- `XAI_API_BASE_URL` defaults to `https://api.x.ai/v1`
+- `OPENAI_API_BASE_URL` defaults to `https://api.openai.com/v1`
 
 Safety guards:
 
@@ -126,13 +126,13 @@ Safety guards:
 - The primary production log rotates at 2,000,000 bytes, retains 100 rotated backups, and therefore has an approximate maximum active-plus-rotations footprint of 202 MB.
 - If `MRS_TEST_MODE=1` and `MRS_BASE_DIR` resolves to the production directory or a child of it, the bot aborts before logging or state writes.
 - If `MRS_TEST_MODE=1` and `MRS_LOG_FILE` resolves under the production directory, the bot aborts.
-- If `MRS_TEST_MODE=1` and any API base URL still points at live X/xAI hosts, the bot aborts unless `MRS_ALLOW_LIVE_ENDPOINTS_IN_TEST=I_UNDERSTAND_THIS_CAN_POST_TO_LIVE_X` is set deliberately.
+- If `MRS_TEST_MODE=1` and any API base URL still points at live X/OpenAI hosts, the bot aborts unless `MRS_ALLOW_LIVE_ENDPOINTS_IN_TEST=I_UNDERSTAND_THIS_CAN_POST_TO_LIVE_X` is set deliberately.
 
 Endpoint override convention:
 
 - `X_API_BASE_URL` must be an origin only (scheme, host and optional port), with no path, query, fragment or user information; the bot appends `/2/...` endpoint paths.
 - `X_UPLOAD_BASE_URL` must likewise be an origin only. It is used only for the exact literal `POST /2/media/upload`; reads and `POST /2/tweets` continue to use `X_API_BASE_URL`. When unset it inherits the resolved `X_API_BASE_URL`. The bot does not fall back to a second legacy upload endpoint after an uncertain outcome.
-- `XAI_API_BASE_URL` should include `/v1` when the fake server exposes `/v1/chat/completions`.
+- `OPENAI_API_BASE_URL` should include `/v1` when the fake server exposes `/v1/responses`.
 
 Scenario fixtures live in `tests/fixtures/scenarios/`. The fake server implements only the endpoints the bot currently uses:
 
@@ -142,7 +142,7 @@ Scenario fixtures live in `tests/fixtures/scenarios/`. The fake server implement
 - `GET /2/tweets/{id}`
 - `POST /2/tweets`
 - `POST /2/media/upload`
-- `POST /v1/chat/completions`
+- `POST /v1/responses`
 
 ## Files To Keep Together
 
@@ -281,62 +281,55 @@ it uses compact `Context —`, optional `Meaning —`, `Verification —`, and `
 sections. Its deterministic Meaning rule omits only redundant explanation; provenance is
 never shortened away. The reviewed corpus fits below 650 weighted characters.
 
-## AI-First Conversational Replies
+## Single-call Conversational Replies
 
-Mention and quote-tweet replies use one production strategy: a structured AI
-proposer, claim-specific local evidence adjudication when the draft contains
-facts, and a fresh independent AI reviewer. Only an explicit reviewer approval
-can reach the durable posting path. The historical quotation corpus remains
-available as factual evidence and for exact quotation verification, but replies
-are not assembled from a selected quotation packet.
+Mention, quote-tweet and hot-post replies use one production strategy. Existing
+deterministic eligibility and scheduling run first; the bot then assembles
+bounded conversation context and locally retrieved trusted facts, makes one
+OpenAI Responses API call, applies strict mechanical validation, and passes a
+valid reply to the existing durable X-write path. A valid `no_reply` is the
+editorial decision. Provider, schema and local-validation failures are
+operational failures and do not count as editorial declines.
+
+There is no shadow, fallback, reviewer, secondary provider, claim-audit call,
+repair call or separate visual-description call. An image-bearing candidate
+supplies up to two locally validated images in the same Sol request.
 
 Configure it through the ignored local configuration after review:
 
 ```json
 {
-  "ai_first_reply_strategy": {
+  "single_call_reply": {
     "enabled": true,
-    "strategy_version": "ai-first-reply-v3",
-    "proposer_model": "grok-4.3",
-    "reviewer_model": "grok-4.3",
-    "evidence_model": "grok-4.3",
-    "research_corpus_path": "semantic_alignment_research/quote_research_full_001",
-    "maximum_model_calls": 6,
-    "proposer_timeout_seconds": 60,
-    "evidence_timeout_seconds": 60,
-    "reviewer_timeout_seconds": 60,
-    "proposer_max_output_tokens": 900,
-    "evidence_max_output_tokens": 1800,
-    "reviewer_max_output_tokens": 900,
-    "maximum_revisions": 1,
-    "maximum_invalid_response_retries": 1,
-    "maximum_claims": 6,
-    "maximum_evidence_packets_per_claim": 6,
-    "maximum_evidence_passages_per_claim": 24,
-    "maximum_reply_sentences": 2,
-    "fail_closed": true
+    "strategy_version": "single-sol-reply-20260904",
+    "model": "gpt-5.6-sol",
+    "timeout_seconds": 180
   }
 }
 ```
 
-The source corpus is loaded lazily on the first candidate that reaches the reply
-pipeline. Its partition and packet-file hash are checked against its own immutable
-manifest and final status, then the current archive is filtered to exactly 611
-attribution-eligible Thatcher packets. Production packet validation comes from
-the dependency-free `semantic_alignment/quote_research_schema.py`; it does not
-import the Gemini/Vertex research runner or provider SDK. A failed corpus load is
-cached for the process and fails closed before media preparation or an AI call.
-Factual claims must be supported by exact, hash-validated local passages. Approved
-drafts use schema version 2 and are revalidated against their contribution,
-context, models, prompts and source hashes before reuse or receipt reconciliation.
-V1 drafts are never migrated or posted.
+The request always uses `gpt-5.6-sol`, reasoning effort `high`, temperature `1`,
+`max_output_tokens=8192`, `store=false`, strict JSON Schema output and no tools.
+The model sees at most 12 visible turns and 12,000 visible-text characters,
+eight earlier same-author interactions, 30 recent confirmed conversational
+replies, 32 compact trusted facts selected from at most eight evidence packets,
+and two images. Same-author interactions are drawn from the existing confirmed
+`ai_reply_history`; they are recorded only after remote confirmation, including
+confirmed-receipt recovery.
+
+Only a mechanically valid `reply` creates a pending draft. The compact draft is
+bound to the contribution, complete canonical payload, frozen prompt and schema,
+model settings, used source records and supplied images. A validated pending
+draft is reusable after restart without another provider call. Drafts from old
+strategies are never reinterpreted or posted after cut-over.
 
 Production conversational replies are limited to 48 automatic replies per
 day and 6 replies per author per day. The quote-tweet lane also retains its
 separate 12-reply daily ceiling; that lane-specific limit is not the global
 conversational-reply limit.
 
-Audit legacy V1 drafts without credentials, posting, or network access:
+The following legacy audit remains offline historical tooling; it is not a
+selectable production reply strategy:
 
 ```bash
 python3 reply_strategy.py \
@@ -344,7 +337,8 @@ python3 reply_strategy.py \
   --output semantic_alignment_research/ai_first_reply_strategy_001/legacy_v1_draft_audit.json
 ```
 
-Run the network-free fixture, saved-history and local-retrieval evaluation:
+The older network-free fixture, saved-history and local-retrieval evaluation is
+also retained only for research:
 
 ```bash
 python3 tools/evaluate_ai_first_reply_strategy.py \
@@ -714,15 +708,14 @@ per-call and per-stage rows remain `unknown` because daily cost is not allocated
 back to individual calls.
 
 Set the collector-only `OPENAI_COST_PROJECT_ID` when the configured project is
-the bot's OpenAI project. The digest can then label and combine that project's
-sample-delta estimate with the existing xAI provider-reported component. With
-no configured project, reporting is explicitly organization-wide, is not
-described as bot-exclusive, and is not combined with bot cost.
+the bot's OpenAI project. The digest can then label that project's sample-delta
+estimate as project scoped. With no configured project, reporting is explicitly
+organization-wide and is not described as bot-exclusive.
 
 ## Launcher And Private Environment
 
 `mrsMThatcher.env.example` is a sanitized example of the private live
-environment file. It lists the required X/xAI environment variables with
+environment file. It lists the required X/OpenAI environment variables with
 placeholder values.
 
 For live use, copy it to the ignored runtime name, edit that copy, and keep it
@@ -947,7 +940,7 @@ Restart the live service using the normal service manager for this host.
 After restart, check the live log for startup config and safety markers:
 
 ```bash
-grep -E "Bot starting|Base dir=|State file=|Log file=|X base=|X upload base=|xAI base=|Config:" /disks/disk1/etc/mrsMThatcher/mrsMThatcher.log | tail -80
+grep -E "Bot starting|Base dir=|State file=|Log file=|X base=|X upload base=|OpenAI base=|Config:" /disks/disk1/etc/mrsMThatcher/mrsMThatcher.log | tail -80
 ```
 
 The deployment smoke test should not use `MRS_TEST_MODE=1`; that mode is only

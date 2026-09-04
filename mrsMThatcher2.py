@@ -209,7 +209,7 @@ from datetime import datetime, timedelta
 from glob import glob
 from logging.handlers import RotatingFileHandler
 from pathlib import Path
-from time import sleep
+from time import monotonic, sleep
 from urllib.parse import unquote
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
@@ -218,6 +218,33 @@ from requests_oauthlib import OAuth1
 from urllib3.util import Timeout
 
 import engagement_question_experiment as engagement_question_trial
+
+from single_call_reply import (
+    MAX_IMAGE_BYTES as SINGLE_CALL_MAX_IMAGE_BYTES,
+    MAX_RECENT_ACCOUNT_REPLIES,
+    MAX_REPLY_SENTENCES,
+    MAX_SAME_AUTHOR_INTERACTIONS,
+    MAX_SUPPLIED_IMAGES,
+    MAX_TRUSTED_FACTS,
+    MAX_VISIBLE_TEXT_CHARACTERS,
+    MAX_VISIBLE_TURNS,
+    MAX_WEIGHTED_CHARACTERS,
+    MODEL as SINGLE_CALL_MODEL,
+    RESEARCH_CORPUS_PATH as SINGLE_CALL_REPLY_RESEARCH_CORPUS_PATH,
+    REASONING_EFFORT as SINGLE_CALL_REASONING_EFFORT,
+    STRATEGY_VERSION as SINGLE_CALL_STRATEGY_VERSION,
+    TEMPERATURE as SINGLE_CALL_TEMPERATURE,
+    ContextValidationError,
+    PipelineResult,
+    ValidatedReply,
+    bound_visible_conversation,
+    decision_telemetry as single_call_decision_telemetry,
+    default_config as single_call_reply_default_config,
+    run_reply_pipeline as run_single_call_reply_pipeline,
+    validate_config as validate_single_call_reply_config,
+    validate_persisted_draft as validate_single_call_persisted_draft,
+    validate_supplied_images,
+)
 
 from mrs_bot_health import (
     BotHealthReporter,
@@ -420,6 +447,8 @@ NORMAL_CHECK_STATUS_API_ERROR = "api_error"
 REPLY_EVALUATION_MIN_RETENTION_SECONDS = 30 * 24 * 60 * 60
 REPLY_EVALUATION_MAX_RECORDS = 25_000
 MENTION_BACKLOG_CONTINUATION_TOKEN_LIMIT = 10_000
+AI_REPLY_HISTORY_MAX_AGE_SECONDS = 2 * 365 * 24 * 60 * 60
+AI_REPLY_HISTORY_MAX_RECORDS = 1_000
 
 # ---------------------------------------------------------------------
 # Reply automation
@@ -437,7 +466,7 @@ AUTHOR_NO_REPLY_QUARANTINE_THRESHOLD = 3
 AUTHOR_NO_REPLY_QUARANTINE_WINDOW_SECONDS = 21600
 AUTHOR_NO_REPLY_QUARANTINE_SECONDS = 43200
 AUTHOR_EVALUATION_QUARANTINE_EVIDENCE_POLICY = (
-    "majority_resolvable_terminal_no_reply_v3"
+    "single_sol_editorial_no_reply_v1"
 )
 AUTHOR_EVALUATION_QUARANTINE_SEEDED_EVIDENCE_POLICY = (
     "majority_spam_or_abuse_seeded_corroboration_v2"
@@ -458,16 +487,17 @@ HOT_POST_REPLY_FULL_RESCAN_EVERY_CHECKS = 12
 
 MIN_SECONDS_BETWEEN_REPLIES = 900
 
-DRY_RUN_REPLIES = False
 MARK_AI_REPLIES_AS_AI = False
 
 ALWAYS_FETCH_PARENT_FOR_CONTEXT = True
 SKIP_REPLIES_TO_OWN_AUTO_REPLIES = False
 
-THREAD_CONTEXT_MAX_DEPTH = 3
-THREAD_CONTEXT_MAX_CHARS_PER_POST = 500
-THREAD_CONTEXT_MAX_TOTAL_CHARS = 1500
-MAX_REPLY_CONTEXT_PHOTOS = 2
+# Parent traversal is independently bounded so a verified root can still be
+# found before the model-facing path is reduced to MAX_VISIBLE_TURNS.
+THREAD_CONTEXT_MAX_DEPTH = 64
+THREAD_CONTEXT_MAX_CHARS_PER_POST = MAX_VISIBLE_TEXT_CHARACTERS
+THREAD_CONTEXT_MAX_TOTAL_CHARS = MAX_VISIBLE_TEXT_CHARACTERS
+MAX_REPLY_CONTEXT_PHOTOS = MAX_SUPPLIED_IMAGES
 GENERATED_IMAGE_ORIGIN_QUOTE_BOOST = 4
 
 TWEET_CACHE_MAX_AGE_SECONDS = 7 * 24 * 3600
@@ -479,16 +509,15 @@ TWEET_CACHE_MAX_ITEMS = 500
 
 ERROR_WINDOW_SECONDS = 3600
 MAX_X_ERRORS_PER_WINDOW = 3
-MAX_XAI_ERRORS_PER_WINDOW = 3
+MAX_OPENAI_ERRORS_PER_WINDOW = 3
 COOLDOWN_AFTER_REPEATED_ERRORS_SECONDS = 3600
 COOLDOWN_AFTER_429_SECONDS = 3600
 
 # ---------------------------------------------------------------------
-# xAI/Grok
+# Single-call conversational generation
 # ---------------------------------------------------------------------
 
-XAI_MODEL = os.getenv("XAI_MODEL", "grok-4.3")
-MAX_REPLY_CHARS = 270
+MAX_REPLY_CHARS = MAX_WEIGHTED_CHARACTERS
 REPLY_INCOMING_MAX_CHARS = 10_000
 
 # ---------------------------------------------------------------------
@@ -567,31 +596,7 @@ engagement_question_experiment_plan_path = (
     "engagement_question_experiment/active_plan.json"
 )
 engagement_question_notification_output_path = ""
-ai_first_reply_strategy = {
-    "enabled": False,
-    "strategy_version": "ai-first-reply-v3",
-    "proposer_model": XAI_MODEL,
-    "reviewer_model": XAI_MODEL,
-    "evidence_model": XAI_MODEL,
-    "research_corpus_path": "semantic_alignment_research/quote_research_full_001",
-    "maximum_model_calls": 6,
-    "proposer_timeout_seconds": 60,
-    "evidence_timeout_seconds": 60,
-    "reviewer_timeout_seconds": 60,
-    "proposer_max_output_tokens": 900,
-    "evidence_max_output_tokens": 1800,
-    "reviewer_max_output_tokens": 900,
-    "maximum_revisions": 1,
-    "maximum_invalid_response_retries": 1,
-    "maximum_claims": 6,
-    "maximum_evidence_packets_per_claim": 6,
-    "maximum_evidence_passages_per_claim": 24,
-    "maximum_reply_sentences": 2,
-    "fail_closed": True,
-}
-from tested_reply_pipeline import default_config as tested_reply_pipeline_default_config
-
-tested_reply_pipeline = tested_reply_pipeline_default_config()
+single_call_reply = single_call_reply_default_config()
 
 LINES_USED_FILE = BASE_DIR / "lines_used.json"
 IMAGES_USED_FILE = BASE_DIR / "images_used.json"
@@ -899,8 +904,8 @@ def descriptor_owns_exclusive_flock(
 
 def test_mode_excludes_live_remote_writes() -> bool:
     """Return whether test mode uses only explicitly local fake endpoints."""
-    endpoints = [X_BASE, X_UPLOAD_BASE, XAI_BASE]
-    if tested_reply_pipeline.get("enabled") is True:
+    endpoints = [X_BASE, X_UPLOAD_BASE]
+    if single_call_reply.get("enabled") is True:
         endpoints.append(OPENAI_BASE)
     return (
         TEST_MODE
@@ -1621,22 +1626,15 @@ LOCAL_CONFIG_ALLOWED_KEYS = {
     "HOT_POST_REPLY_SEARCH_MAX_PAGES_PER_CHECK",
 
     # Context/model/API behaviour
-    "DRY_RUN_REPLIES",
     "MARK_AI_REPLIES_AS_AI",
     "ALWAYS_FETCH_PARENT_FOR_CONTEXT",
     "SKIP_REPLIES_TO_OWN_AUTO_REPLIES",
-    "THREAD_CONTEXT_MAX_DEPTH",
-    "THREAD_CONTEXT_MAX_CHARS_PER_POST",
-    "THREAD_CONTEXT_MAX_TOTAL_CHARS",
     "TWEET_CACHE_MAX_AGE_SECONDS",
     "TWEET_CACHE_MAX_ITEMS",
     "ERROR_WINDOW_SECONDS",
     "MAX_X_ERRORS_PER_WINDOW",
-    "MAX_XAI_ERRORS_PER_WINDOW",
     "COOLDOWN_AFTER_REPEATED_ERRORS_SECONDS",
     "COOLDOWN_AFTER_429_SECONDS",
-    "XAI_MODEL",
-    "MAX_REPLY_CHARS",
 
     # Optional generated-image pool for regular quote/image posts
     "ENABLE_GENERATED_IMAGE_POOL",
@@ -1658,8 +1656,7 @@ LOCAL_CONFIG_ALLOWED_KEYS = {
     # Operational hardening
     "STATE_BACKUP_COUNT",
     "historical_context_reply",
-    "ai_first_reply_strategy",
-    "tested_reply_pipeline",
+    "single_call_reply",
     "engagement_question_experiment_enabled",
     "engagement_question_experiment_plan_path",
     "engagement_question_notification_output_path",
@@ -1696,17 +1693,12 @@ LOCAL_CONFIG_NON_NEGATIVE_INT_KEYS = {
     "QUOTE_LOOKUP_MAX_PAGES_PER_POST",
     "MENTIONS_MAX_PAGES_PER_CHECK",
     "HOT_POST_REPLY_SEARCH_MAX_PAGES_PER_CHECK",
-    "THREAD_CONTEXT_MAX_DEPTH",
-    "THREAD_CONTEXT_MAX_CHARS_PER_POST",
-    "THREAD_CONTEXT_MAX_TOTAL_CHARS",
     "TWEET_CACHE_MAX_AGE_SECONDS",
     "TWEET_CACHE_MAX_ITEMS",
     "ERROR_WINDOW_SECONDS",
     "MAX_X_ERRORS_PER_WINDOW",
-    "MAX_XAI_ERRORS_PER_WINDOW",
     "COOLDOWN_AFTER_REPEATED_ERRORS_SECONDS",
     "COOLDOWN_AFTER_429_SECONDS",
-    "MAX_REPLY_CHARS",
     "GENERATED_IMAGE_ORIGIN_QUOTE_BOOST",
     "GENERATED_IMAGE_MIN_ORIGINAL_POSTS_BETWEEN",
     "STATE_BACKUP_COUNT",
@@ -1729,16 +1721,11 @@ LOCAL_CONFIG_POSITIVE_INT_KEYS = {
     "QUOTE_LOOKUP_MAX_PAGES_PER_POST",
     "MENTIONS_MAX_PAGES_PER_CHECK",
     "HOT_POST_REPLY_SEARCH_MAX_PAGES_PER_CHECK",
-    "THREAD_CONTEXT_MAX_DEPTH",
-    "THREAD_CONTEXT_MAX_CHARS_PER_POST",
-    "THREAD_CONTEXT_MAX_TOTAL_CHARS",
     "TWEET_CACHE_MAX_AGE_SECONDS",
     "TWEET_CACHE_MAX_ITEMS",
     "MAX_X_ERRORS_PER_WINDOW",
-    "MAX_XAI_ERRORS_PER_WINDOW",
     "COOLDOWN_AFTER_REPEATED_ERRORS_SECONDS",
     "COOLDOWN_AFTER_429_SECONDS",
-    "MAX_REPLY_CHARS",
 }
 
 
@@ -1929,28 +1916,11 @@ def validate_runtime_config_values(values: dict[str, object]) -> list[str]:
         if type(maximum) is not int or not 120 <= maximum <= 25_000:
             errors.append("historical_context_reply.maximum_length must be an integer from 120 to 25000")
 
-    from reply_strategy import validate_strategy_config
-
-    strategy_config = values.get(
-        "ai_first_reply_strategy",
-        globals().get("ai_first_reply_strategy"),
+    reply_config = values.get(
+        "single_call_reply",
+        globals().get("single_call_reply"),
     )
-    errors.extend(validate_strategy_config(strategy_config))
-
-    from tested_reply_pipeline import validate_strategy_config as validate_tested_reply_pipeline_config
-
-    tested_config = values.get(
-        "tested_reply_pipeline",
-        globals().get("tested_reply_pipeline"),
-    )
-    errors.extend(validate_tested_reply_pipeline_config(tested_config))
-    if (
-        isinstance(strategy_config, dict)
-        and strategy_config.get("enabled") is True
-        and isinstance(tested_config, dict)
-        and tested_config.get("enabled") is True
-    ):
-        errors.append("ai_first_reply_strategy and tested_reply_pipeline cannot both be enabled")
+    errors.extend(validate_single_call_reply_config(reply_config))
 
     def int_value(key: str) -> int:
         return int(values.get(key, globals().get(key, 0)))
@@ -1973,14 +1943,10 @@ def validate_runtime_config_values(values: dict[str, object]) -> list[str]:
         "QUOTE_LOOKUP_MAX_PAGES_PER_POST",
         "MENTIONS_MAX_PAGES_PER_CHECK",
         "HOT_POST_REPLY_SEARCH_MAX_PAGES_PER_CHECK",
-        "THREAD_CONTEXT_MAX_DEPTH",
-        "THREAD_CONTEXT_MAX_CHARS_PER_POST",
-        "THREAD_CONTEXT_MAX_TOTAL_CHARS",
         "TWEET_CACHE_MAX_AGE_SECONDS",
         "TWEET_CACHE_MAX_ITEMS",
         "ERROR_WINDOW_SECONDS",
         "MAX_X_ERRORS_PER_WINDOW",
-        "MAX_XAI_ERRORS_PER_WINDOW",
         "COOLDOWN_AFTER_REPEATED_ERRORS_SECONDS",
         "COOLDOWN_AFTER_429_SECONDS",
     }
@@ -1991,14 +1957,6 @@ def validate_runtime_config_values(values: dict[str, object]) -> list[str]:
                 errors.append(f"{key} must be positive")
         except Exception:
             errors.append(f"{key} must be an integer")
-
-    raw_reply_chars = values.get("MAX_REPLY_CHARS", globals().get("MAX_REPLY_CHARS"))
-    if type(raw_reply_chars) is not int:
-        errors.append("MAX_REPLY_CHARS must be an integer")
-    elif raw_reply_chars <= 0:
-        errors.append("MAX_REPLY_CHARS must be positive")
-    elif raw_reply_chars > 280:
-        errors.append("MAX_REPLY_CHARS must not exceed 280")
 
     for key, low, high in (
         ("MAX_MENTIONS_PER_CHECK", 5, 100),
@@ -2202,7 +2160,7 @@ def load_validated_local_config_overrides() -> dict[str, object] | None:
     if "reply_strategy" in data:
         raise LocalConfigError(
             "Local config contains retired reply_strategy V1 settings; replace them with "
-            "the reviewed ai_first_reply_strategy configuration before activation"
+            "the single_call_reply configuration before activation"
         )
 
     proposed: dict[str, object] = {}
@@ -2269,18 +2227,8 @@ if SOURCE_DEFAULT_CONFIG_ERRORS:
 
 
 def conversational_reply_pipeline_enabled() -> bool:
-    """Return whether exactly one reviewed conversational pipeline is active."""
-    return (
-        tested_reply_pipeline.get("enabled") is True
-        or ai_first_reply_strategy.get("enabled") is True
-    )
-
-
-def active_reply_evidence_config() -> dict:
-    """Return the enabled pipeline's local evidence settings."""
-    if tested_reply_pipeline.get("enabled") is True:
-        return tested_reply_pipeline
-    return ai_first_reply_strategy
+    """Return whether the sole production conversational pipeline is enabled."""
+    return single_call_reply.get("enabled") is True
 
 
 def reply_evidence_repository():
@@ -2293,7 +2241,7 @@ def reply_evidence_repository():
 
     from reply_evidence import EvidenceRepository
 
-    research_path = Path(str(active_reply_evidence_config()["research_corpus_path"]))
+    research_path = Path(SINGLE_CALL_REPLY_RESEARCH_CORPUS_PATH)
     if not research_path.is_absolute():
         research_path = BASE_DIR / research_path
     factual_evidence_path = BASE_DIR / "reply_factual_evidence.json"
@@ -3473,7 +3421,6 @@ ACCESS_TOKEN = os.getenv("X_ACCESS_TOKEN", "")
 ACCESS_SECRET = os.getenv("X_ACCESS_SECRET", "")
 MY_USER_ID = os.getenv("X_MY_USER_ID", "")
 MY_USERNAME = os.getenv("X_MY_USERNAME", "MrsMThatcher").strip().lstrip("@")
-XAI_API_KEY = os.getenv("XAI_API_KEY", "")
 OPENAI_API_KEY = os.getenv("OPENAI_API_KEY", "")
 
 # Optional. If set, quote lookup uses Bearer auth. If not set, the script
@@ -3486,7 +3433,6 @@ log.debug("  X_CONSUMER_SECRET=%s", redact_secret(CONSUMER_SECRET))
 log.debug("  X_ACCESS_TOKEN=%s", redact_secret(ACCESS_TOKEN))
 log.debug("  X_ACCESS_SECRET=%s", redact_secret(ACCESS_SECRET))
 log.debug("  X_MY_USER_ID=%s", MY_USER_ID or "<missing>")
-log.debug("  XAI_API_KEY=%s", redact_secret(XAI_API_KEY))
 log.debug("  OPENAI_API_KEY=%s", redact_secret(OPENAI_API_KEY))
 log.debug("  X_BEARER_TOKEN=%s", redact_secret(X_BEARER_TOKEN))
 
@@ -3497,10 +3443,14 @@ def validate_production_credentials() -> None:
             "Missing X credentials. Set X_CONSUMER_KEY, X_CONSUMER_SECRET, "
             "X_ACCESS_TOKEN, X_ACCESS_SECRET, X_MY_USER_ID"
         )
-    if ENABLE_AUTO_REPLIES and not XAI_API_KEY:
-        raise RuntimeError("ENABLE_AUTO_REPLIES is True, but XAI_API_KEY is not set")
-    if ENABLE_AUTO_REPLIES and tested_reply_pipeline.get("enabled") and not OPENAI_API_KEY:
-        raise RuntimeError("tested_reply_pipeline is enabled, but OPENAI_API_KEY is not set")
+    if (
+        ENABLE_AUTO_REPLIES
+        and single_call_reply.get("enabled") is True
+        and not OPENAI_API_KEY
+    ):
+        raise RuntimeError(
+            "single_call_reply is enabled, but OPENAI_API_KEY is not set"
+        )
 
 AUTH = OAuth1(
     CONSUMER_KEY,
@@ -3516,7 +3466,7 @@ def normalise_base_url(raw: str, *, require_origin: bool = False) -> str:
     Route classification is performed against paths which this module appends
     itself.  A configured path prefix, query, fragment or user-info component
     could make the literal route and the prepared on-wire route disagree, so
-    the X request and upload bases must be origins.  The xAI provider retains
+    the X request and upload bases must be origins.  The OpenAI provider retains
     its explicit ``/v1`` base because it does not participate in X route
     classification.
     """
@@ -3584,7 +3534,6 @@ X_UPLOAD_BASE = normalise_base_url(
     os.getenv("X_UPLOAD_BASE_URL", X_BASE),
     require_origin=True,
 )
-XAI_BASE = normalise_base_url(os.getenv("XAI_API_BASE_URL", "https://api.x.ai/v1"))
 OPENAI_BASE = normalise_base_url(os.getenv("OPENAI_API_BASE_URL", "https://api.openai.com/v1"))
 LIVE_ENDPOINT_TEST_OVERRIDE_PHRASE = "I_UNDERSTAND_THIS_CAN_POST_TO_LIVE_X"
 
@@ -3639,7 +3588,7 @@ if (
         for name, value in (
             ("X_API_BASE_URL", X_BASE),
             ("X_UPLOAD_BASE_URL", X_UPLOAD_BASE),
-            ("XAI_API_BASE_URL", XAI_BASE),
+            ("OPENAI_API_BASE_URL", OPENAI_BASE),
         )
         if not endpoint_is_loopback(value)
     ]
@@ -3659,7 +3608,7 @@ if (
 # ---------------------------------------------------------------------
 
 class ApiError(Exception):
-    """Raised when an X or xAI API operation fails."""
+    """Raised when an X or OpenAI API operation fails."""
     def __init__(
         self,
         message: str,
@@ -3740,6 +3689,8 @@ class _MentionBacklogContinuationLimit(RuntimeError):
 
 class RemoteOperationsPaused(RuntimeError):
     """A global runtime-control pause blocked a remote operation."""
+
+    propagate_from_single_call_pipeline = True
 
 
 def api_error_proves_remote_non_success(error: BaseException) -> bool:
@@ -4077,13 +4028,13 @@ def default_state() -> dict:
 
         "x_error_epochs": [],
         "x_write_error_epochs": [],
-        "xai_error_epochs": [],
+        "openai_error_epochs": [],
         "api_cooldown_until_epoch": 0,
         "api_cooldown_reason": "",
         "x_write_api_cooldown_until_epoch": 0,
         "x_write_api_cooldown_reason": "",
-        "xai_api_cooldown_until_epoch": 0,
-        "xai_api_cooldown_reason": "",
+        "openai_api_cooldown_until_epoch": 0,
+        "openai_api_cooldown_reason": "",
         "quote_x_error_epochs": [],
         "quote_api_cooldown_until_epoch": 0,
         "quote_api_cooldown_reason": "",
@@ -4544,7 +4495,7 @@ def record_qualifying_author_no_reply(
     current_epoch: int | None = None,
     explicit_spam_or_abuse: bool = True,
 ) -> bool:
-    """Add one final majority-resolvable no-reply strike for an author."""
+    """Add one mechanically valid editorial no-reply strike for an author."""
     author_id = str(author_id)
     if not author_id or not author_id.isdigit():
         return False
@@ -4595,7 +4546,7 @@ def record_qualifying_author_no_reply(
 
 
 def clear_author_evaluation_quarantine_history(state: dict, author_id: str) -> bool:
-    """Clear prior strikes when a mention receives a fully approved reply."""
+    """Clear prior strikes when a mention receives a validated reply."""
     records = state.get("author_evaluation_quarantines")
     if not isinstance(records, dict) or str(author_id) not in records:
         return False
@@ -5510,7 +5461,12 @@ def normalise_state_candidate(
         "skipped_quote_post_ids",
         "quote_spam_author_ids",
     }
-    epoch_list_keys = {"x_error_epochs", "x_write_error_epochs", "xai_error_epochs", "quote_x_error_epochs"}
+    epoch_list_keys = {
+        "x_error_epochs",
+        "x_write_error_epochs",
+        "openai_error_epochs",
+        "quote_x_error_epochs",
+    }
     string_map_keys = {
         "hot_post_reply_since_ids",
         "hot_post_reply_pagination_tokens",
@@ -5547,7 +5503,7 @@ def normalise_state_candidate(
         "next_quote_post_epoch",
         "api_cooldown_until_epoch",
         "x_write_api_cooldown_until_epoch",
-        "xai_api_cooldown_until_epoch",
+        "openai_api_cooldown_until_epoch",
         "quote_api_cooldown_until_epoch",
     }
 
@@ -6329,10 +6285,10 @@ def in_api_cooldown(state: dict, *, scope: str = "api") -> bool:
         until = int(state.get("quote_api_cooldown_until_epoch", 0) or 0)
         reason = state.get("quote_api_cooldown_reason", "Quote API cooldown")
         label = "Quote API cooldown"
-    elif scope == "xai":
-        until = int(state.get("xai_api_cooldown_until_epoch", 0) or 0)
-        reason = state.get("xai_api_cooldown_reason", "xAI API cooldown")
-        label = "xAI API cooldown"
+    elif scope == "openai":
+        until = int(state.get("openai_api_cooldown_until_epoch", 0) or 0)
+        reason = state.get("openai_api_cooldown_reason", "OpenAI API cooldown")
+        label = "OpenAI API cooldown"
     elif scope == "write":
         until = int(state.get("x_write_api_cooldown_until_epoch", 0) or 0)
         reason = state.get("x_write_api_cooldown_reason", "X write API cooldown")
@@ -6358,7 +6314,11 @@ def clear_expired_api_cooldowns(state: dict) -> bool:
     for until_key, reason_key, label in (
         ("api_cooldown_until_epoch", "api_cooldown_reason", "X read API cooldown"),
         ("x_write_api_cooldown_until_epoch", "x_write_api_cooldown_reason", "X write API cooldown"),
-        ("xai_api_cooldown_until_epoch", "xai_api_cooldown_reason", "xAI API cooldown"),
+        (
+            "openai_api_cooldown_until_epoch",
+            "openai_api_cooldown_reason",
+            "OpenAI API cooldown",
+        ),
         ("quote_api_cooldown_until_epoch", "quote_api_cooldown_reason", "Quote API cooldown"),
     ):
         until = int(state.get(until_key, 0) or 0)
@@ -6441,11 +6401,13 @@ def record_api_error(state: dict, error: Exception, service: str, *, scope: str 
         max_errors = MAX_X_ERRORS_PER_WINDOW
         cooldown_until_key = "api_cooldown_until_epoch"
         cooldown_reason_key = "api_cooldown_reason"
+    elif service == "openai":
+        key = "openai_error_epochs"
+        max_errors = MAX_OPENAI_ERRORS_PER_WINDOW
+        cooldown_until_key = "openai_api_cooldown_until_epoch"
+        cooldown_reason_key = "openai_api_cooldown_reason"
     else:
-        key = "xai_error_epochs"
-        max_errors = MAX_XAI_ERRORS_PER_WINDOW
-        cooldown_until_key = "xai_api_cooldown_until_epoch"
-        cooldown_reason_key = "xai_api_cooldown_reason"
+        raise ValueError(f"unsupported API error service: {service}")
 
     epochs = prune_error_epochs(state.get(key, []))
     epochs.append(current)
@@ -8023,13 +7985,24 @@ def get_immediate_parent_id(tweet: dict) -> str | None:
     return None
 
 
-def get_tweet_by_id(tweet_id: str) -> dict | None:
-    """Fetch one post from X by ID."""
+def get_tweet_by_id(
+    tweet_id: str,
+    *,
+    include_media: bool = False,
+) -> dict | None:
+    """Fetch one post from X by ID, optionally including native image metadata."""
     log.info("Fetching tweet by id. tweet_id=%s", tweet_id)
 
-    params = {
-        "tweet.fields": "author_id,created_at,conversation_id,referenced_tweets",
-    }
+    tweet_fields = "author_id,created_at,conversation_id,referenced_tweets"
+    params = {"tweet.fields": tweet_fields}
+    if include_media:
+        params.update(
+            {
+                "tweet.fields": f"{tweet_fields},attachments",
+                "expansions": "attachments.media_keys",
+                "media.fields": "media_key,type,url,preview_image_url",
+            }
+        )
 
     result = x_request(
         "GET",
@@ -8040,6 +8013,8 @@ def get_tweet_by_id(tweet_id: str) -> dict | None:
     tweet = result.get("data")
     if tweet is not None and not isinstance(tweet, dict):
         raise ApiError("X tweet lookup returned malformed tweet data", service="x")
+    if include_media and isinstance(tweet, dict):
+        attach_media_to_tweets([tweet], result.get("includes"))
     log_json_debug("Fetched tweet", tweet)
 
     return tweet
@@ -8053,7 +8028,7 @@ def reply_target_is_available_immediately_before_send(target_id: str) -> bool:
     the tweet cache and runs before the sending receipt and transport journal
     are created.  Target-specific lookup failures are terminal for this
     candidate; authentication, endpoint and transient failures remain errors
-    so callers retain the approved draft for a later attempt.
+    so callers retain the validated draft for a later attempt.
     """
 
     target_id = str(target_id)
@@ -8090,21 +8065,45 @@ def reply_target_is_available_immediately_before_send(target_id: str) -> bool:
     return True
 
 
-def get_tweet_by_id_cached(tweet_id: str, state: dict) -> dict | None:
-    """Return a cached post or fetch it from X by ID."""
+def get_tweet_by_id_cached(
+    tweet_id: str,
+    state: dict,
+    *,
+    include_media: bool = False,
+) -> dict | None:
+    """Return a cached post, refreshing a direct lookup when media is required."""
     prune_tweet_cache(state)
 
     tweet_id = str(tweet_id)
     cache = state.setdefault("tweet_cache", {})
     cached = cache.get(tweet_id)
 
-    if cached:
+    if cached and not include_media:
         log.info("Using cached tweet for context. tweet_id=%s", tweet_id)
         return cached
 
-    tweet = get_tweet_by_id(tweet_id)
+    tweet = (
+        get_tweet_by_id(tweet_id, include_media=True)
+        if include_media
+        else get_tweet_by_id(tweet_id)
+    )
 
     if tweet:
+        if cached:
+            result = copy.deepcopy(cached)
+            for key in (
+                "id",
+                "text",
+                "author_id",
+                "conversation_id",
+                "referenced_tweets",
+                "created_at",
+                "attachments",
+                "_attached_media",
+            ):
+                if key in tweet:
+                    result[key] = copy.deepcopy(tweet[key])
+            return result
         cached_tweet = cache_tweet(
             state,
             tweet_id=str(tweet.get("id", tweet_id)),
@@ -8115,7 +8114,12 @@ def get_tweet_by_id_cached(tweet_id: str, state: dict) -> dict | None:
             created_at=tweet.get("created_at"),
         )
         save_state(state)
-        return cached_tweet
+        result = copy.deepcopy(cached_tweet)
+        if "attachments" in tweet:
+            result["attachments"] = copy.deepcopy(tweet["attachments"])
+        if "_attached_media" in tweet:
+            result["_attached_media"] = copy.deepcopy(tweet["_attached_media"])
+        return result
 
     return None
 
@@ -8164,6 +8168,42 @@ def candidate_native_photo_media(candidate: dict) -> tuple[list[dict], int]:
     if not isinstance(media_items, list):
         media_items = []
 
+    attachments = candidate.get("attachments")
+    declared_media_keys: set[str] = set()
+    malformed_attachment_metadata = False
+    if attachments is not None:
+        if not isinstance(attachments, dict):
+            malformed_attachment_metadata = True
+        else:
+            raw_media_keys = attachments.get("media_keys", [])
+            if not isinstance(raw_media_keys, list):
+                malformed_attachment_metadata = True
+            else:
+                declared_media_keys = {
+                    str(media_key).strip()
+                    for media_key in raw_media_keys
+                    if str(media_key).strip()
+                }
+
+    attached_media_keys = {
+        str(media.get("media_key") or "").strip()
+        for media in media_items
+        if isinstance(media, dict)
+        and str(media.get("media_key") or "").strip()
+    }
+    unresolved_declared_keys = declared_media_keys - attached_media_keys
+    unclassified_declared_keys = {
+        str(media.get("media_key") or "").strip()
+        for media in media_items
+        if (
+            isinstance(media, dict)
+            and str(media.get("media_key") or "").strip()
+            in declared_media_keys
+            and str(media.get("type") or "").lower()
+            not in {"photo", "video", "animated_gif"}
+        )
+    }
+
     photo_records = [
         media
         for media in media_items
@@ -8183,26 +8223,67 @@ def candidate_native_photo_media(candidate: dict) -> tuple[list[dict], int]:
         if len(usable) >= MAX_REPLY_CONTEXT_PHOTOS:
             break
 
-    return usable, len(photo_records)
+    unresolved_count = len(
+        unresolved_declared_keys | unclassified_declared_keys
+    )
+    if malformed_attachment_metadata:
+        unresolved_count = max(1, unresolved_count)
+    return usable, len(photo_records) + unresolved_count
 
 
-def reply_media_context_for_candidate(candidate: dict, *, lane: str, target_id: str) -> dict:
-    """Return the reply media context for candidate."""
-    photos, expected_photo_count = candidate_native_photo_media(candidate)
-    if photos:
+def reply_media_context_for_candidate(
+    candidate: dict,
+    *,
+    lane: str,
+    target_id: str,
+    quoted_candidate: dict | None = None,
+) -> dict:
+    """Prioritise target photos, then photos from the directly quoted post."""
+
+    target_photos, target_expected = candidate_native_photo_media(candidate)
+    target_required = min(target_expected, MAX_REPLY_CONTEXT_PHOTOS)
+    if len(target_photos) < target_required:
+        selected: list[dict] = []
+        metadata_complete = False
+    else:
+        selected = list(target_photos[:MAX_REPLY_CONTEXT_PHOTOS])
+        metadata_complete = True
+
+    quoted_expected = 0
+    quoted_photos: list[dict] = []
+    remaining = MAX_REPLY_CONTEXT_PHOTOS - len(selected)
+    if remaining and isinstance(quoted_candidate, dict):
+        quoted_photos, quoted_expected = candidate_native_photo_media(
+            quoted_candidate
+        )
+        quoted_required = min(quoted_expected, remaining)
+        if len(quoted_photos) < quoted_required:
+            metadata_complete = False
+        seen_media = {str(photo.get("media_key") or "") for photo in selected}
+        for photo in quoted_photos:
+            media_key = str(photo.get("media_key") or "")
+            if media_key in seen_media:
+                continue
+            selected.append(photo)
+            seen_media.add(media_key)
+            if len(selected) >= MAX_REPLY_CONTEXT_PHOTOS:
+                break
+
+    expected_photo_count = target_expected + quoted_expected
+    if selected and metadata_complete:
         log.info(
             "Reply media context lane=%s target_id=%s photos=%d mode=multimodal status=supplied",
             lane,
             target_id,
-            len(photos),
+            len(selected),
         )
         return {
             "lane": lane,
             "target_id": str(target_id),
             "mode": "multimodal",
             "status": "supplied",
-            "photos_expected": expected_photo_count,
-            "photos": photos,
+            "photos_expected": len(selected),
+            "photos": selected,
         }
 
     if expected_photo_count:
@@ -8229,22 +8310,6 @@ def reply_media_context_for_candidate(candidate: dict, *, lane: str, target_id: 
         "photos_expected": 0,
         "photos": [],
     }
-
-
-def redact_xai_payload_for_log(payload: dict) -> dict:
-    """Redact xAI payload for log."""
-    redacted = copy.deepcopy(payload)
-    for message in redacted.get("messages", []) or []:
-        content = message.get("content")
-        if not isinstance(content, list):
-            continue
-        for part in content:
-            if not isinstance(part, dict) or part.get("type") != "image_url":
-                continue
-            image_url = part.get("image_url")
-            if isinstance(image_url, dict) and image_url.get("url"):
-                image_url["url"] = "[redacted native X image URL]"
-    return redacted
 
 
 def tweet_context_text(tweet: dict) -> str:
@@ -8316,94 +8381,44 @@ def build_parent_chain(mention: dict, state: dict) -> list[dict]:
     return chain
 
 
-def _reply_context_order(tweet: dict) -> tuple[int, str]:
-    """Return a stable chronological key for cached X posts."""
-    tweet_id = str(tweet.get("id") or "")
-    return (int(tweet_id) if tweet_id.isdigit() else 0, tweet_id)
-
-
-def _author_cap_context_posts(mention: dict, state: dict) -> list[dict]:
-    """Return cached cap-skipped contributions from this author and conversation."""
-    mention_id = str(mention.get("id") or "")
-    author_id = str(mention.get("author_id") or "")
-    conversation_id = str(mention.get("conversation_id") or mention_id)
-    cache = state.get("tweet_cache", {})
-    if not isinstance(cache, dict):
-        return []
-
-    posts = [
-        tweet
-        for tweet_id, tweet in cache.items()
-        if isinstance(tweet, dict)
-        and str(tweet_id) != mention_id
-        and tweet.get("post_type") in {"author_cap_context", "author_cap_quote_context"}
-        and str(tweet.get("author_id") or "") == author_id
-        and str(tweet.get("conversation_id") or tweet_id) == conversation_id
-    ]
-    return sorted(posts, key=_reply_context_order)
-
-
-def _cached_quoted_post_for_cap_context(
-    context_posts: list[dict],
-    state: dict,
-) -> dict[str, str] | None:
-    """Recover a capped quote-tweet's original post without an X lookup."""
-    cache = state.get("tweet_cache", {})
-    if not isinstance(cache, dict):
-        return None
-
-    for tweet in reversed(context_posts):
-        if tweet.get("post_type") != "author_cap_quote_context":
-            continue
-        references = tweet.get("referenced_tweets", []) or []
-        for reference in references:
-            if not isinstance(reference, dict) or reference.get("type") != "quoted":
-                continue
-            quoted_id = str(reference.get("id") or "")
-            quoted = cache.get(quoted_id)
-            if not isinstance(quoted, dict):
-                return {
-                    "post_id": quoted_id or "unknown",
-                    "author_role": "unknown",
-                    "text": "[Quoted post unavailable.]",
-                }
-            return _reply_context_post(
-                quoted,
-                maximum_chars=THREAD_CONTEXT_MAX_CHARS_PER_POST,
-            )
-    return None
-
-
 def is_our_auto_reply(tweet: dict | None, state: dict) -> bool:
-    """Return whether is our auto reply."""
-    if not tweet:
+    """Return whether a post is one of this account's conversational replies."""
+
+    if not tweet or str(tweet.get("author_id")) != str(MY_USER_ID):
         return False
-
-    if str(tweet.get("author_id")) != str(MY_USER_ID):
-        return False
-
-    own_auto_reply_ids = set(str(x) for x in state.get("own_auto_reply_ids", []))
-    return str(tweet.get("id")) in own_auto_reply_ids
+    return str(tweet.get("id")) in {
+        str(value) for value in state.get("own_auto_reply_ids", [])
+    }
 
 
-def _reply_context_post(tweet: dict, *, maximum_chars: int) -> dict[str, str]:
-    """Return one bounded post with an explicit role label."""
+def _reply_context_post(
+    tweet: dict,
+    *,
+    principal_author_id: str,
+    maximum_chars: int = MAX_VISIBLE_TEXT_CHARACTERS,
+) -> dict[str, str]:
+    """Return one bounded visible post with its canonical participant role."""
+
     author_id = str(tweet.get("author_id") or "")
     if author_id == str(MY_USER_ID):
-        author_role = "account"
-    elif author_id:
-        author_role = "user"
+        role = "account"
+    elif author_id and author_id == str(principal_author_id):
+        role = "user"
     else:
-        author_role = "unknown"
+        role = "other_user"
     return {
-        "post_id": str(tweet.get("id") or "unknown"),
-        "author_role": author_role,
+        "post_id": str(tweet.get("id") or ""),
+        "author_role": role,
         "text": trim_context_text(tweet_context_text(tweet), maximum_chars),
     }
 
 
-def _quoted_post_for_reply_context(candidate: dict, state: dict) -> dict[str, str] | None:
-    """Return one explicitly quoted post, including an unavailable marker when known."""
+def _directly_quoted_tweet_for_reply_context(
+    candidate: dict,
+    state: dict,
+) -> dict | None:
+    """Return one directly quoted post with native media metadata when available."""
+
     references = candidate.get("referenced_tweets", []) or []
     for reference in references:
         if not isinstance(reference, dict) or reference.get("type") != "quoted":
@@ -8411,120 +8426,238 @@ def _quoted_post_for_reply_context(candidate: dict, state: dict) -> dict[str, st
         quoted_id = str(reference.get("id") or "")
         if not quoted_id:
             continue
+        cache = state.get("tweet_cache", {})
+        cached = cache.get(quoted_id) if isinstance(cache, dict) else None
+        cached_has_material_image_hint = bool(
+            isinstance(cached, dict)
+            and (
+                cached.get("_attached_media")
+                or cached.get("attachments")
+                or cached.get("image_summary")
+                or cached.get("post_type") in {"quote", "daily_meme"}
+            )
+        )
         try:
-            quoted = get_tweet_by_id_cached(quoted_id, state)
+            quoted = get_tweet_by_id_cached(
+                quoted_id,
+                state,
+                include_media=not isinstance(cached, dict)
+                or cached_has_material_image_hint,
+            )
         except ApiError as exc:
             if not api_error_is_permanent_target_failure(exc):
                 raise
-            quoted = None
-        if quoted is None:
-            return {
-                "post_id": quoted_id,
-                "author_role": "unknown",
-                "text": "[Quoted post unavailable.]",
-            }
-        return _reply_context_post(
-            quoted,
-            maximum_chars=THREAD_CONTEXT_MAX_CHARS_PER_POST,
-        )
+            return None
+        return quoted
     return None
 
 
-def build_context_for_reply_ai(mention: dict, state: dict) -> tuple[dict[str, object], bool]:
-    """Build structured incoming, parent-thread and quoted-post context."""
-    mention_id = str(mention.get("id"))
-    mention_text = mention.get("text", "").strip()
+def _quoted_post_for_reply_context(
+    candidate: dict,
+    state: dict,
+    *,
+    principal_author_id: str,
+) -> dict[str, str] | None:
+    """Return one directly quoted post for local fact retrieval."""
 
-    if not mention_text:
-        log.info("Mention %s has no text; skipping", mention_id)
+    quoted = _directly_quoted_tweet_for_reply_context(candidate, state)
+    if quoted is None:
+        return None
+    post = _reply_context_post(
+        quoted,
+        principal_author_id=principal_author_id,
+    )
+    return post if post["post_id"] and post["text"] else None
+
+
+def _parent_path_is_contiguous(path: list[dict], target: dict) -> bool:
+    """Return whether every retained turn directly parents the next turn."""
+
+    complete = [*path, target]
+    return all(
+        str(get_immediate_parent_id(complete[index]) or "")
+        == str(complete[index - 1].get("id") or "")
+        for index in range(1, len(complete))
+    )
+
+
+def _parent_path_is_chronological(path: list[dict], target: dict) -> bool:
+    """Reject a verified parent path whose available timestamps run forward."""
+
+    def verified_created_epoch(post: dict) -> int | None:
+        epoch = parse_x_datetime_to_epoch(post.get("created_at"))
+        cached_epoch = post.get("cached_epoch")
+        # ``cache_tweet`` historically supplied the observation time when X
+        # omitted created_at.  Do not mistake that local fallback for verified
+        # post chronology.
+        if type(cached_epoch) is int and epoch == cached_epoch:
+            return None
+        return epoch
+
+    complete = [*path, target]
+    for older, newer in zip(complete, complete[1:]):
+        older_epoch = verified_created_epoch(older)
+        newer_epoch = verified_created_epoch(newer)
+        if (
+            older_epoch is not None
+            and newer_epoch is not None
+            and older_epoch > newer_epoch
+        ):
+            return False
+    return True
+
+
+def build_context_for_reply_ai(
+    mention: dict,
+    state: dict,
+) -> tuple[dict[str, object], bool]:
+    """Build the verified parent-contiguous canonical single-call context."""
+
+    mention_id = str(mention.get("id") or "")
+    mention_text = trim_context_text(
+        str(mention.get("text") or "").strip(),
+        REPLY_INCOMING_MAX_CHARS,
+    )
+    author_id = str(mention.get("author_id") or "")
+    root_id = str(mention.get("conversation_id") or mention_id)
+    if not mention_id or not mention_text or not author_id or not root_id:
+        log.warning("Reply candidate lacks usable identity or text target_id=%s", mention_id)
         return {}, False
 
     chain: list[dict] = []
-
     if ALWAYS_FETCH_PARENT_FOR_CONTEXT:
-        try:
-            chain = build_parent_chain(mention, state)
-        except ApiError as e:
-            log.warning("Could not build parent chain for mention %s: %s", mention_id, e)
-            raise
-        except Exception as e:
-            log.warning("Unexpected failure building parent chain for mention %s: %s", mention_id, e)
-            return {}, False
+        chain = build_parent_chain(mention, state)
 
     immediate_parent = chain[-1] if chain else None
-
-    if SKIP_REPLIES_TO_OWN_AUTO_REPLIES and is_our_auto_reply(immediate_parent, state):
+    if SKIP_REPLIES_TO_OWN_AUTO_REPLIES and is_our_auto_reply(
+        immediate_parent,
+        state,
+    ):
         log.info(
-            "Skipping mention %s: immediate parent %s is one of our own auto-replies",
+            "Skipping target_id=%s because its immediate parent is an own "
+            "conversational reply",
             mention_id,
-            immediate_parent.get("id") if immediate_parent else None,
         )
         return {}, False
 
-    immediate_parent_id = str(immediate_parent.get("id") or "") if immediate_parent else ""
-    merged_by_id: dict[str, dict] = {}
-    for tweet in chain:
-        tweet_id = str(tweet.get("id") or "")
-        if tweet_id and tweet_id != mention_id:
-            merged_by_id[tweet_id] = tweet
-    complete_cap_context = _author_cap_context_posts(mention, state)
-    recovered_cap_quoted_post = _cached_quoted_post_for_cap_context(
-        complete_cap_context,
-        state,
-    )
-    for tweet in complete_cap_context:
-        tweet_id = str(tweet.get("id") or "")
-        if tweet_id:
-            merged_by_id[tweet_id] = tweet
-
-    merged_context = sorted(merged_by_id.values(), key=_reply_context_order)
-    selected_context = merged_context[-3:]
-    if immediate_parent_id and all(
-        str(tweet.get("id") or "") != immediate_parent_id for tweet in selected_context
-    ):
-        selected_context = sorted(
-            [immediate_parent, *selected_context[-2:]],
-            key=_reply_context_order,
+    if root_id != mention_id:
+        if not chain or str(chain[0].get("id") or "") != root_id:
+            log.warning(
+                "Verified parent path did not reach root target_id=%s root_id=%s "
+                "within %s verified parent traversals",
+                mention_id,
+                root_id,
+                THREAD_CONTEXT_MAX_DEPTH,
+            )
+            return {}, False
+        if not _parent_path_is_contiguous(chain, mention):
+            log.warning(
+                "Verified parent path is not contiguous target_id=%s",
+                mention_id,
+            )
+            return {}, False
+        if not _parent_path_is_chronological(chain, mention):
+            log.warning(
+                "Verified parent path contains a post later than its child "
+                "target_id=%s",
+                mention_id,
+            )
+            return {}, False
+    elif chain:
+        log.warning(
+            "Root target unexpectedly has a parent path target_id=%s",
+            mention_id,
         )
+        return {}, False
 
-    # The AI-first context contract permits at most three inherited posts. Prefer the newest
-    # relevant context, retain the immediate parent, and enforce the aggregate text budget.
-    remaining_parent_chars = min(max(int(THREAD_CONTEXT_MAX_TOTAL_CHARS), 0), 6_000)
-    maximum_parent_chars = min(max(int(THREAD_CONTEXT_MAX_CHARS_PER_POST), 0), 2_000)
-    parent_thread: list[dict[str, str]] = []
-    for tweet in reversed(selected_context):
+    visible: list[dict[str, str]] = []
+    for tweet in chain:
         post = _reply_context_post(
             tweet,
-            maximum_chars=min(maximum_parent_chars, remaining_parent_chars),
+            principal_author_id=author_id,
         )
-        remaining_parent_chars -= len(post["text"])
-        parent_thread.insert(0, post)
+        if not post["post_id"] or not post["text"]:
+            log.warning(
+                "Parent path contains an unusable turn target_id=%s",
+                mention_id,
+            )
+            return {}, False
+        visible.append(post)
+    target_turn = _reply_context_post(
+        mention,
+        principal_author_id=author_id,
+        maximum_chars=REPLY_INCOMING_MAX_CHARS,
+    )
+    if not target_turn["post_id"] or not target_turn["text"]:
+        return {}, False
+    visible.append(target_turn)
+
+    try:
+        bounded_visible = bound_visible_conversation(
+            visible,
+            target_post_id=mention_id,
+        )
+    except ContextValidationError as exc:
+        log.warning(
+            "Verified parent path could not be bounded target_id=%s reason=%s",
+            mention_id,
+            exc,
+        )
+        return {}, False
+    visible = [
+        {
+            "post_id": turn["post_id"],
+            "author_role": turn["role"],
+            "text": turn["text"],
+        }
+        for turn in bounded_visible
+    ]
+
+    parent_thread = copy.deepcopy(visible[:-1])
+    quoted_candidate = _directly_quoted_tweet_for_reply_context(mention, state)
+    if quoted_candidate is None and chain:
+        quoted_candidate = _directly_quoted_tweet_for_reply_context(
+            chain[0], state
+        )
+    quoted_post = None
+    if quoted_candidate is not None:
+        candidate_post = _reply_context_post(
+            quoted_candidate,
+            principal_author_id=author_id,
+        )
+        if candidate_post["post_id"] and candidate_post["text"]:
+            quoted_post = candidate_post
+    prepared_media_context = reply_media_context_for_candidate(
+        mention,
+        lane=str(mention.get("_source") or "mention"),
+        target_id=mention_id,
+        quoted_candidate=quoted_candidate,
+    )
     context: dict[str, object] = {
         "target_id": mention_id,
-        "thread_id": str(mention.get("conversation_id") or mention_id),
+        "thread_id": root_id,
+        "root_post_id": root_id,
+        "parent_post_id": get_immediate_parent_id(mention),
         "lane": str(mention.get("_source") or "mention"),
-        "incoming_contribution": trim_context_text(mention_text, REPLY_INCOMING_MAX_CHARS),
-        "quoted_post": (
-            _quoted_post_for_reply_context(mention, state)
-            or recovered_cap_quoted_post
-        ),
+        "incoming_contribution": mention_text,
+        "quoted_post": quoted_post,
         "parent_thread": parent_thread,
+        "visible_conversation": visible,
+        "visual_description": None,
         "clarification_request": None,
         "current_date": current_datetime().strftime("%Y-%m-%d"),
+        "target_author_id": author_id,
+        "target_created_at": str(mention.get("created_at") or ""),
+        "_prepared_media_context": prepared_media_context,
     }
-
     log.info(
-        "Built AI reply context for mention %s. chain_items=%d immediate_parent=%s quoted=%s",
+        "Built single-call reply context target_id=%s turns=%d root_id=%s",
         mention_id,
-        len(chain),
-        immediate_parent.get("id") if immediate_parent else None,
-        bool(context["quoted_post"]),
+        len(visible),
+        root_id,
     )
-    log_json_debug("Context sent to AI reply pipeline", context)
-
+    log_json_debug("Single-call reply context", context)
     return context, True
-
-
 # ---------------------------------------------------------------------
 # Mentions
 # ---------------------------------------------------------------------
@@ -9156,14 +9289,17 @@ def get_hot_post_reply_candidates(state: dict) -> list[dict]:
                 pending_record = drafts.get(pending_key) if isinstance(drafts, dict) else None
                 if isinstance(pending_record, dict):
                     log_event(
-                        "ai_reply_pipeline_outcome",
+                        "single_call_reply_posting_outcome",
                         status="posting_failed_terminal",
                         lane="hot_post_reply",
                         target_id=reply_id,
                         reply_post_id="",
                         strategy_version=pending_record.get("strategy_version"),
-                        mode=pending_record.get("mode"),
-                        reviewer_verdict=pending_record.get("reviewer_verdict"),
+                        reply_kind=pending_record.get("reply_kind"),
+                        reason_code=pending_record.get("reason_code"),
+                        validated_draft_hash=pending_record.get(
+                            "validated_draft_hash"
+                        ),
                         failure_reason="reply_not_permitted_preflight",
                     )
                     clear_pending_ai_reply(state, reply_id, "hot_post_reply")
@@ -9321,7 +9457,7 @@ def maybe_mark_hot_post_reply_skipped(state: dict, candidate: dict, reason: str 
     last_seen_mention_id still advances, but annotate it with
     _also_hot_post_reply=True. If that mention is then skipped, this helper
     still records the ID in skipped_hot_reply_ids so the hot-post lane does not
-    reconsider it later and ask Grok a second time.
+    reconsider it later and spend a second model decision.
     """
     if candidate.get("_source") == "hot_post_reply" or candidate.get("_also_hot_post_reply"):
         mark_hot_post_reply_skipped(
@@ -9338,7 +9474,7 @@ def dedupe_reply_candidates(mentions: list[dict], hot_post_replies: list[dict]) 
 
     Normal mentions win when the same tweet is present in both sources. That
     preserves last_seen_mention_id handling and prevents the same tweet being
-    sent to Grok twice in one check. The retained mention is annotated as also
+    sent to the model twice in one check. The retained mention is annotated as also
     belonging to the hot-post lane, so any skip decision is remembered for the
     hot-post search path too.
     """
@@ -9377,6 +9513,13 @@ def dedupe_reply_candidates(mentions: list[dict], hot_post_replies: list[dict]) 
             hot_original_post_id = hot_post_reply.get("_hot_original_post_id")
             if hot_original_post_id:
                 retained_mention["_hot_original_post_id"] = str(hot_original_post_id)
+            if (
+                not retained_mention.get("referenced_tweets")
+                and isinstance(hot_post_reply.get("referenced_tweets"), list)
+            ):
+                retained_mention["referenced_tweets"] = copy.deepcopy(
+                    hot_post_reply["referenced_tweets"]
+                )
 
             log.info(
                 "Dropping duplicate hot-post reply candidate %s: already present as a normal mention; "
@@ -21986,161 +22129,9 @@ def is_probably_spam_or_not_worth_replying(text: str) -> bool:
     return False
 
 
-def xai_user_content(user_prompt: str, media_context: dict | None = None) -> str | list[dict]:
-    """Return the xAI user content."""
-    if not media_context or media_context.get("status") == "none":
-        return user_prompt
-
-    if media_context.get("status") == "unavailable":
-        photos_expected = int(media_context.get("photos_expected", 0) or 0)
-        return (
-            f"{user_prompt}\n\n"
-            "ATTACHED MEDIA:\n"
-            f"The candidate contains {photos_expected} native X photo attachment(s), "
-            "but their contents could not be made available to the model. "
-            "Do not invent image contents. If the text depends on the missing image, decline using the required "
-            "structured schema: proposer mode=no_reply or reviewer verdict=reject."
-        )
-
-    photos = media_context.get("photos", [])
-    if not isinstance(photos, list) or not photos:
-        return user_prompt
-
-    content: list[dict] = [{"type": "text", "text": user_prompt}]
-    for photo in photos[:MAX_REPLY_CONTEXT_PHOTOS]:
-        if not isinstance(photo, dict):
-            continue
-        url = str(photo.get("url") or "").strip()
-        if not url:
-            continue
-        content.append({"type": "image_url", "image_url": {"url": url}})
-    return content if len(content) > 1 else user_prompt
-
-
-def response_text_for_classification(response: requests.Response) -> str:
-    """Return the response text for classification."""
-    try:
-        data = response.json()
-    except Exception:
-        return response.text or ""
-    extracted = extract_error_text_for_classification(data)
-    if extracted:
-        return extracted
-    return ""
-
-
-def extract_error_text_for_classification(data: object) -> str:
-    """Extract error text for classification."""
-    parts: list[str] = []
-
-    def add(value: object) -> None:
-        if value is None:
-            return
-        if isinstance(value, str):
-            parts.append(value)
-        elif isinstance(value, (int, float, bool)):
-            parts.append(str(value))
-
-    def collect_error_object(value: object) -> None:
-        if isinstance(value, str):
-            add(value)
-            return
-        if isinstance(value, list):
-            for item in value:
-                collect_error_object(item)
-            return
-        if not isinstance(value, dict):
-            return
-        for key in ("message", "detail", "type", "code", "param", "title", "reason"):
-            if key in value:
-                add(value.get(key))
-        for key in ("error", "errors"):
-            if key in value:
-                collect_error_object(value.get(key))
-
-    if isinstance(data, str):
-        add(data)
-    elif isinstance(data, dict):
-        for key in ("error", "errors", "message", "detail"):
-            if key in data:
-                if key in {"error", "errors"}:
-                    collect_error_object(data.get(key))
-                else:
-                    add(data.get(key))
-    elif isinstance(data, list):
-        for item in data:
-            collect_error_object(item)
-
-    return " ".join(part for part in parts if part)
-
-
-def term_or_phrase_in_text(term: str, text: str) -> bool:
-    """Return the term or phrase in text."""
-    escaped = re.escape(term)
-    escaped = escaped.replace(r"\ ", r"\s+")
-    return re.search(rf"(?<![A-Za-z0-9_]){escaped}(?![A-Za-z0-9_])", text) is not None
-
-
-def any_term_or_phrase_in_text(terms: list[str], text: str) -> bool:
-    """Return the any term or phrase in text."""
-    return any(term_or_phrase_in_text(term, text) for term in terms)
-
-
-def xai_error_is_multimodal_input_rejection(response: requests.Response) -> bool:
-    """Return whether xAI error is multimodal input rejection."""
-    if response.status_code not in {400, 415, 422}:
-        return False
-
-    body = response_text_for_classification(response).lower()
-    if not body:
-        return False
-
-    image_markers = [
-        "image",
-        "image input",
-        "image_url",
-        "image url",
-        "image content",
-        "image attachment",
-        "multimodal",
-        "vision",
-    ]
-    rejection_markers = [
-        "reject",
-        "rejected",
-        "rejection",
-        "invalid",
-        "unsupported",
-        "not supported",
-        "not allowed",
-        "cannot",
-        "can't",
-    ]
-
-    return any_term_or_phrase_in_text(image_markers, body) and any_term_or_phrase_in_text(
-        rejection_markers,
-        body,
-    )
-
-
-def recent_auto_reply_texts(state: dict, limit: int = 20) -> list[str]:
-    """Return the recent auto reply texts."""
-    cache = state.get("tweet_cache", {})
-    if not isinstance(cache, dict):
-        return []
-    rows = [
-        value for value in cache.values()
-        if isinstance(value, dict)
-        and value.get("post_type") == "auto_reply"
-        and str(value.get("author_id") or "") == str(MY_USER_ID)
-        and str(value.get("text") or "").strip()
-    ]
-    rows.sort(key=lambda value: (int(value.get("cached_epoch", 0) or 0), str(value.get("id") or "")), reverse=True)
-    return [str(value["text"]) for value in rows[:limit]]
-
-
 def pending_ai_reply_draft_key(target_id: object, candidate_source: object) -> str:
-    """Return the V3 pending AI reply draft key."""
+    """Return the current single-call pending reply draft key."""
+
     return f"{str(candidate_source or 'mention')}:{str(target_id)}"
 
 
@@ -22148,45 +22139,16 @@ def validate_current_ai_reply_draft(
     draft: object,
     *,
     context: dict[str, object],
-    recent_replies: list[str] | None = None,
+    recent_replies: list[object] | None = None,
 ) -> dict:
-    """Validate either a legacy V3 draft or a tested-pipeline draft."""
-    from tested_reply_pipeline import STRATEGY_VERSION as TESTED_STRATEGY_VERSION
+    """Validate only a current single-call durable reply draft."""
 
-    if isinstance(draft, dict) and draft.get("strategy_version") == TESTED_STRATEGY_VERSION:
-        from tested_reply_pipeline import validate_persisted_draft
-
-        return validate_persisted_draft(
-            draft,
-            context=context,
-            config=tested_reply_pipeline,
-            repository=reply_evidence_repository(),
-            maximum_reply_length=MAX_REPLY_CHARS,
-            recent_replies=recent_replies,
-        )
-    from reply_strategy import validate_persisted_draft
-
-    return validate_persisted_draft(
+    return validate_single_call_persisted_draft(
         draft,
         context=context,
-        config=ai_first_reply_strategy,
         repository=reply_evidence_repository(),
-        maximum_reply_length=MAX_REPLY_CHARS,
-        recent_replies=recent_replies,
+        recent_account_replies=recent_replies or [],
     )
-
-
-def current_ai_reply_evidence_telemetry(draft: dict) -> dict[str, object]:
-    """Return telemetry for either supported durable draft schema."""
-    from tested_reply_pipeline import STRATEGY_VERSION as TESTED_STRATEGY_VERSION
-
-    if draft.get("strategy_version") == TESTED_STRATEGY_VERSION:
-        from tested_reply_pipeline import evidence_telemetry
-
-        return evidence_telemetry(draft)
-    from reply_strategy import evidence_telemetry
-
-    return evidence_telemetry(draft, reply_evidence_repository())
 
 
 def store_pending_ai_reply(
@@ -22197,16 +22159,19 @@ def store_pending_ai_reply(
     *,
     context: dict[str, object],
 ) -> bool:
-    """Store a reviewer-approved V3 draft after complete local revalidation."""
-    from reply_strategy import AIReply
+    """Store a mechanically validated single-call draft."""
 
-    if not isinstance(reply, AIReply):
+    if not isinstance(reply, ValidatedReply):
         return False
     try:
-        validated = validate_current_ai_reply_draft(reply.draft_record, context=context)
+        validated = validate_current_ai_reply_draft(
+            reply.draft_record,
+            context=context,
+        )
     except (KeyError, OSError, RuntimeError, TypeError, ValueError) as exc:
         log.warning(
-            "Refusing invalid V3 pending AI reply draft target_id=%s source=%s reason=%s",
+            "Refusing invalid single-call pending reply draft target_id=%s "
+            "source=%s reason=%s",
             target_id,
             candidate_source,
             exc,
@@ -22221,7 +22186,9 @@ def store_pending_ai_reply(
     drafts = state.setdefault("pending_ai_reply_drafts", {})
     if not isinstance(drafts, dict):
         return False
-    drafts[pending_ai_reply_draft_key(target_id, candidate_source)] = copy.deepcopy(validated)
+    drafts[pending_ai_reply_draft_key(target_id, candidate_source)] = (
+        copy.deepcopy(validated)
+    )
     while len(drafts) > 100:
         drafts.pop(next(iter(drafts)))
     return True
@@ -22233,15 +22200,15 @@ def pending_ai_reply(
     candidate_source: str,
     *,
     context: dict[str, object],
-    recent_replies: list[str] | None = None,
+    recent_replies: list[object] | None = None,
 ) -> str | None:
-    """Return a locally revalidated reviewer-approved V3 draft."""
-    from reply_strategy import AIReply
+    """Recover a valid current draft without another provider request."""
 
     drafts = state.get("pending_ai_reply_drafts", {})
     if not isinstance(drafts, dict):
         return None
-    record = drafts.get(pending_ai_reply_draft_key(target_id, candidate_source))
+    key = pending_ai_reply_draft_key(target_id, candidate_source)
+    record = drafts.get(key)
     try:
         validated = validate_current_ai_reply_draft(
             record,
@@ -22253,122 +22220,52 @@ def pending_ai_reply(
     except (KeyError, OSError, RuntimeError, TypeError, ValueError) as exc:
         if record is not None:
             log.warning(
-                "Discarding invalid V3 pending AI reply draft target_id=%s source=%s reason=%s",
+                "Discarding obsolete or invalid pending reply draft "
+                "target_id=%s source=%s reason=%s",
                 target_id,
                 candidate_source,
                 exc,
             )
-            drafts.pop(pending_ai_reply_draft_key(target_id, candidate_source), None)
+            drafts.pop(key, None)
             if not drafts:
                 state.pop("pending_ai_reply_drafts", None)
         return None
     metadata = {
         "strategy_version": validated["strategy_version"],
-        "mode": validated["mode"],
-        "tone": validated["tone"],
-        "final_reply_kind": validated.get(
-            "final_reply_kind", validated.get("mode", "opinion_or_principle")
-        ),
-        "reply_requirement": validated.get("reply_requirement"),
-        "route_source": validated.get("route_source"),
-        "claim_risk_categories": validated.get("claim_risk_categories", []),
-        "confidence": "approved",
-        "factual_claim_count": len(validated["factual_claims"]),
-        "evidence_ids": validated.get("evidence_ids"),
-        "reviewer_verdict": validated["reviewer_verdict"],
+        "reply_kind": validated["reply_kind"],
+        "reason_code": validated["reason_code"],
+        "used_fact_ids": list(validated["used_fact_ids"]),
+        "used_fact_count": len(validated["used_fact_ids"]),
+        "trusted_fact_count": len(validated["trusted_fact_ids"]),
         "model_call_count": validated["model_call_count"],
-        "revision_count": validated["revision_count"],
-        **current_ai_reply_evidence_telemetry(validated),
+        "validated_draft_hash": validated["validated_draft_hash"],
+        "recovered_without_provider_call": True,
     }
-    return AIReply(validated["proposed_reply"], copy.deepcopy(validated), metadata)
-
-
-def ai_reply_evidence_telemetry(reply: object) -> dict[str, object]:
-    """Return audit metrics from an already-validated AI reply draft."""
-
-    metadata = getattr(reply, "pipeline_metadata", None)
-    telemetry_fields = (
-        "evidence_confidence",
-        "retrieved_count",
-        "evidence_reference_count",
+    log_event(
+        "single_call_reply_draft_recovered",
+        lane=str(candidate_source),
+        target_id=str(target_id),
+        strategy_version=SINGLE_CALL_STRATEGY_VERSION,
+        model=SINGLE_CALL_MODEL,
+        validated_draft_hash=validated["validated_draft_hash"],
+        model_call_count=0,
     )
-    if isinstance(metadata, dict) and all(
-        field in metadata for field in telemetry_fields
-    ):
-        return {
-            field: metadata.get(field)
-            for field in (
-                *telemetry_fields,
-                "trusted_facts_supplied_count",
-                "trusted_fact_ids_supplied",
-                "used_fact_count",
-                "used_fact_ids",
-            )
-            if field in metadata
-        }
-    draft = getattr(reply, "draft_record", reply)
-    if not isinstance(draft, dict):
-        return {
-            "evidence_confidence": "unavailable",
-            "retrieved_count": None,
-            "evidence_reference_count": None,
-            "trusted_facts_supplied_count": None,
-            "trusted_fact_ids_supplied": None,
-            "used_fact_count": "unknown",
-            "used_fact_ids": None,
-        }
-    try:
-        return current_ai_reply_evidence_telemetry(draft)
-    except (KeyError, OSError, RuntimeError, TypeError, ValueError):
-        return {
-            "evidence_confidence": "unavailable",
-            "retrieved_count": None,
-            "evidence_reference_count": None,
-            "trusted_facts_supplied_count": None,
-            "trusted_fact_ids_supplied": None,
-            "used_fact_count": "unknown",
-            "used_fact_ids": None,
-        }
+    return ValidatedReply(
+        validated["proposed_reply"],
+        copy.deepcopy(validated),
+        metadata,
+    )
 
 
 def clear_pending_ai_reply(state: dict, target_id: str, candidate_source: str) -> None:
-    """Clear one V3 pending reply draft after a terminal outcome or reconciliation."""
+    """Clear one pending reply draft after a terminal outcome or reconciliation."""
+
     drafts = state.get("pending_ai_reply_drafts")
     if not isinstance(drafts, dict):
         return
     drafts.pop(pending_ai_reply_draft_key(target_id, candidate_source), None)
     if not drafts:
         state.pop("pending_ai_reply_drafts", None)
-
-
-def log_ai_reply_dry_run(*, context: dict[str, object], reply: str, lane: str, target_id: str) -> None:
-    """Emit bounded AI-first dry-run telemetry."""
-    metadata = getattr(reply, "pipeline_metadata", None)
-    if not isinstance(metadata, dict):
-        return
-    telemetry = ai_reply_evidence_telemetry(reply)
-    log_event(
-        "ai_reply_pipeline_dry_run",
-        lane=lane,
-        target_id=target_id,
-        contribution_hash=hashlib.sha256(
-            str(context.get("incoming_contribution") or "").encode("utf-8")
-        ).hexdigest(),
-        strategy_version=metadata.get("strategy_version"),
-        mode=metadata.get("mode"),
-        final_reply_kind=metadata.get("final_reply_kind"),
-        reply_requirement=metadata.get("reply_requirement"),
-        route_source=metadata.get("route_source"),
-        claim_risk_categories=metadata.get("claim_risk_categories", []),
-        tone=metadata.get("tone"),
-        factual_claim_count=metadata.get("factual_claim_count"),
-        evidence_ids=metadata.get("evidence_ids", []),
-        **telemetry,
-        reviewer_verdict=metadata.get("reviewer_verdict"),
-        model_call_count=metadata.get("model_call_count"),
-        revision_count=metadata.get("revision_count"),
-        production_post_created=False,
-    )
 
 
 def log_ai_reply_posting_outcome(
@@ -22378,804 +22275,650 @@ def log_ai_reply_posting_outcome(
     lane: str,
     target_id: str,
     failure_reason: str,
+    reply_post_id: str = "",
 ) -> None:
-    """Emit posting outcome telemetry without exposing prompts or model reasoning."""
+    """Emit a bounded posting outcome without model inputs or reasoning."""
+
     metadata = getattr(reply, "pipeline_metadata", None)
     if not isinstance(metadata, dict):
-        return
-    telemetry = ai_reply_evidence_telemetry(reply)
+        draft = getattr(reply, "draft_record", None)
+        metadata = draft if isinstance(draft, dict) else {}
     log_event(
-        "ai_reply_pipeline_outcome",
+        "single_call_reply_posting_outcome",
         status=status,
         lane=lane,
         target_id=target_id,
-        reply_post_id="",
+        reply_post_id=reply_post_id,
         strategy_version=metadata.get("strategy_version"),
-        mode=metadata.get("mode"),
-        final_reply_kind=metadata.get("final_reply_kind"),
-        reply_requirement=metadata.get("reply_requirement"),
-        route_source=metadata.get("route_source"),
-        claim_risk_categories=metadata.get("claim_risk_categories", []),
-        tone=metadata.get("tone"),
-        factual_claim_count=metadata.get("factual_claim_count"),
-        evidence_ids=metadata.get("evidence_ids", []),
-        **telemetry,
-        reviewer_verdict=metadata.get("reviewer_verdict"),
-        model_call_count=metadata.get("model_call_count"),
-        revision_count=metadata.get("revision_count"),
+        reply_kind=metadata.get("reply_kind"),
+        reason_code=metadata.get("reason_code"),
+        validated_draft_hash=metadata.get("validated_draft_hash"),
         failure_reason=failure_reason,
     )
 
 
-def xai_structured_reply_call(
-    *,
-    stage: str,
-    model: str,
-    system_prompt: str,
-    user_prompt: str,
-    response_schema: dict,
-    timeout_seconds: int,
-    max_output_tokens: int,
-    media_context: dict | None,
-    log_request_payload: bool = True,
-    reasoning_effort: str | None = None,
-) -> object:
-    """Send one isolated structured xAI call for an AI-first pipeline stage."""
-    payload = {
-        "model": model,
-        "messages": [
-            {"role": "system", "content": system_prompt},
-            {"role": "user", "content": xai_user_content(user_prompt, media_context)},
-        ],
-        "temperature": 0,
-        "max_tokens": max_output_tokens,
-        "response_format": {
-            "type": "json_schema",
-            "json_schema": {
-                "name": f"ai_reply_{stage}",
-                "strict": True,
-                "schema": response_schema,
-            },
-        },
-    }
-    if reasoning_effort is not None:
-        payload["reasoning_effort"] = reasoning_effort
-    log.info("Calling AI-first reply stage=%s model=%s", stage, model)
-    if log_request_payload:
-        log_json_debug("xAI structured reply request", redact_xai_payload_for_log(payload))
-    require_remote_operation_unpaused(f"xAI reply stage {stage}")
-    report_bot_health_progress("ai_call")
-    try:
-        response = requests.post(
-            f"{XAI_BASE}/chat/completions",
-            headers={
-                "Authorization": f"Bearer {XAI_API_KEY}",
-                "Content-Type": "application/json",
-            },
-            json=payload,
-            timeout=timeout_seconds,
-        )
-    except requests.RequestException as exc:
-        log.exception("xAI reply stage=%s failed before receiving a response", stage)
-        raise ApiError(str(exc), service="xai") from exc
-    finally:
-        report_bot_health_progress("ai_call")
-    if response.status_code >= 400:
-        if media_context and media_context.get("status") == "supplied" and xai_error_is_multimodal_input_rejection(response):
-            log.warning(
-                "AI-first reply stage=%s rejected supplied media; failing closed without an extra model call",
-                stage,
-            )
-        raise ApiError(
-            f"xAI reply stage {stage} error {response.status_code}: {response.text}",
-            service="xai",
-            status_code=response.status_code,
-        )
-    try:
-        data = response.json()
-    except json.JSONDecodeError as exc:
-        raise ApiError(
-            f"xAI reply stage {stage} returned non-JSON: {response.text[:500]}",
-            service="xai",
-        ) from exc
-    if not isinstance(data, dict):
-        raise ApiError(
-            f"xAI reply stage {stage} response must be an object",
-            service="xai",
-        )
-    usage = data.get("usage")
-    if usage:
-        log.info("xAI reply stage=%s usage=%s", stage, usage)
-    try:
-        content = data["choices"][0]["message"]["content"]
-    except (KeyError, IndexError, TypeError) as exc:
-        raise ApiError(
-            f"xAI reply stage {stage} response shape is invalid",
-            service="xai",
-        ) from exc
-    if not isinstance(content, (str, dict)):
-        raise ApiError(
-            f"xAI reply stage {stage} content must be structured JSON",
-            service="xai",
-        )
-    return content
+CONVERSATIONAL_REPLY_HISTORY_LANES = frozenset(
+    {"mention", "hot_post_reply", "quote_tweet", "conversational_reply"}
+)
 
 
-def describe_reply_media_for_tested_pipeline(
-    context: dict[str, object],
-    media_context: dict | None,
-    *,
-    config: dict,
-) -> dict | None:
-    """Describe supplied photos once and return URL-free untrusted context."""
-    if not isinstance(media_context, dict) or media_context.get("status") != "supplied":
-        return media_context
+def _confirmed_conversational_history_rows(state: dict) -> list[dict]:
+    """Return positively identified rows from the durable confirmation history."""
 
-    from reply_strategy import validate_reply_context
-    from tested_reply_pipeline import (
-        VISUAL_DESCRIPTION_MAX_IMAGES,
-        VISUAL_DESCRIPTION_MAX_OUTPUT_TOKENS,
-        VISUAL_DESCRIPTION_PROMPT,
-        VISUAL_DESCRIPTION_SCHEMA,
-        VISUAL_DESCRIPTION_SCHEMA_VERSION,
-        VISUAL_DESCRIPTION_TRUST,
-        validate_visual_description,
-    )
-
-    lane = str(context.get("lane") or "")
-    target_id = str(context.get("target_id") or "")
-    photos = media_context.get("photos")
-    supplied_image_count = len(photos) if isinstance(photos, list) else 0
-
-    def record(
-        status: str,
-        *,
-        call_count: int,
-        description_sha256: str = "",
-        analysis: dict[str, object] | None = None,
-    ) -> None:
-        fields: dict[str, object] = {
-            "lane": lane,
-            "target_id": target_id,
-            "supplied_image_count": supplied_image_count,
-            "status": status,
-            "analysis_schema_version": VISUAL_DESCRIPTION_SCHEMA_VERSION,
-            "description_sha256": description_sha256,
-            "visual_analysis_call_count": call_count,
-        }
-        if analysis is not None:
-            fields["analysis"] = analysis
-        log_event(
-            "reply_visual_description",
-            **fields,
-        )
-
-    if VISUAL_DESCRIPTION_MAX_IMAGES != MAX_REPLY_CONTEXT_PHOTOS:
-        raise RuntimeError("visual description photo limit differs from reply media limit")
-    if (
-        not isinstance(photos, list)
-        or not 1 <= len(photos) <= MAX_REPLY_CONTEXT_PHOTOS
-        or any(
-            not isinstance(photo, dict)
-            or not isinstance(photo.get("url"), str)
-            or not str(photo["url"]).strip()
-            for photo in photos
-        )
-    ):
-        record("invalid_supplied_media", call_count=0)
-        raise ApiError(
-            "supplied reply media is invalid for visual description",
-            service="xai",
-        )
-
-    clean_context = validate_reply_context(context)
-    quoted_post = clean_context.get("quoted_post")
-    visual_input = {
-        "incoming_contribution": clean_context["incoming_contribution"],
-        "quoted_post_text": (
-            str(quoted_post.get("text") or "")
-            if isinstance(quoted_post, dict)
-            else ""
-        ),
-        "parent_thread_text": [
-            str(item.get("text") or "")
-            for item in clean_context["parent_thread"]
-            if isinstance(item, dict)
-        ],
-    }
-    source_urls = [str(photo["url"]).strip() for photo in photos]
-    visual_media = {
-        "status": "supplied",
-        "photos": [{"url": url} for url in source_urls],
-    }
-    try:
-        raw = xai_structured_reply_call(
-            stage="tested_pipeline_visual_description",
-            model=str(config["xai_model"]),
-            system_prompt=VISUAL_DESCRIPTION_PROMPT,
-            user_prompt=json.dumps(
-                visual_input,
-                ensure_ascii=False,
-                sort_keys=True,
-                separators=(",", ":"),
-            ),
-            response_schema=copy.deepcopy(VISUAL_DESCRIPTION_SCHEMA),
-            timeout_seconds=int(config["timeout_seconds"]),
-            max_output_tokens=VISUAL_DESCRIPTION_MAX_OUTPUT_TOKENS,
-            media_context=visual_media,
-            log_request_payload=False,
-            reasoning_effort=str(config["xai_reasoning_effort"]),
-        )
-    except RemoteOperationsPaused:
-        record("paused", call_count=0)
-        raise
-    except ApiError as exc:
-        record("provider_error", call_count=1)
-        raise ApiError(
-            "xAI visual description provider request failed",
-            service="xai",
-            status_code=exc.status_code,
-            reset_epoch=exc.reset_epoch,
-        ) from None
-    except Exception:
-        record("provider_error", call_count=1)
-        raise
-
-    try:
-        analysis = validate_visual_description(
-            raw,
-            supplied_image_count=supplied_image_count,
-        )
-        canonical_analysis = json.dumps(
-            analysis,
-            ensure_ascii=False,
-            sort_keys=True,
-            separators=(",", ":"),
-        )
-        folded_analysis = canonical_analysis.casefold()
-        if any(url.casefold() in folded_analysis for url in source_urls):
-            raise ValueError("visual description echoed a source image URL")
-    except (json.JSONDecodeError, TypeError, ValueError) as exc:
-        record("invalid_response", call_count=1)
-        raise ApiError(
-            "xAI visual description failed local schema validation",
-            service="xai",
-        ) from None
-
-    description_sha256 = hashlib.sha256(
-        canonical_analysis.encode("utf-8")
-    ).hexdigest()
-    record(
-        "analysed",
-        call_count=1,
-        description_sha256=description_sha256,
-        analysis=analysis,
-    )
-    return {
-        "status": "analysed",
-        "trust": VISUAL_DESCRIPTION_TRUST,
-        "image_count": supplied_image_count,
-        "analysis": analysis,
-    }
-
-
-def tested_pipeline_structured_call(
-    *,
-    provider: str,
-    stage: str,
-    model: str,
-    system_prompt: str,
-    payload: dict,
-    response_schema: dict,
-    timeout_seconds: int,
-    max_output_tokens: int,
-    reasoning_effort: str,
-) -> object:
-    """Call one tested-pipeline stage with bounded transient retries."""
-    if provider not in {"xAI", "OpenAI"}:
-        raise ValueError("unsupported tested-pipeline provider")
-    is_xai = provider == "xAI"
-    request = {
-        "model": model,
-        "messages": [
-            {"role": "system", "content": system_prompt},
-            {
-                "role": "user",
-                "content": json.dumps(payload, ensure_ascii=False, sort_keys=True),
-            },
-        ],
-        "reasoning_effort": reasoning_effort,
-        "temperature": 1,
-        "response_format": {
-            "type": "json_schema",
-            "json_schema": {
-                "name": "mrs_tested_" + re.sub(r"[^a-z0-9_]+", "_", stage.lower())[:48],
-                "strict": True,
-                "schema": response_schema,
-            },
-        },
-    }
-    if is_xai:
-        request["max_tokens"] = max_output_tokens
-    else:
-        request["max_completion_tokens"] = max_output_tokens
-        request["store"] = False
-        request["prompt_cache_options"] = {"mode": "explicit"}
-    base = XAI_BASE if is_xai else OPENAI_BASE
-    api_key = XAI_API_KEY if is_xai else OPENAI_API_KEY
-    log.info(
-        "Calling tested reply pipeline stage=%s provider=%s model=%s reasoning_effort=%s",
-        stage,
-        provider,
-        model,
-        reasoning_effort,
-    )
-    require_remote_operation_unpaused(f"{provider} tested reply stage {stage}")
-    for attempt in (1, 2):
-        report_bot_health_progress("ai_call")
-        try:
-            response = requests.post(
-                f"{base}/chat/completions",
-                headers={"Authorization": f"Bearer {api_key}", "Content-Type": "application/json"},
-                json=request,
-                timeout=timeout_seconds,
-            )
-        except requests.Timeout as exc:
-            if attempt == 1:
-                log.warning("Tested reply stage=%s timed out; retrying once", stage)
-                continue
-            raise ApiError(str(exc), service="xai") from exc
-        except requests.RequestException as exc:
-            raise ApiError(str(exc), service="xai") from exc
-        finally:
-            report_bot_health_progress("ai_call")
-        if response.status_code == 429 or response.status_code >= 500:
-            if attempt == 1:
-                log.warning(
-                    "Tested reply stage=%s provider=%s returned HTTP %s; retrying once",
-                    stage,
-                    provider,
-                    response.status_code,
-                )
-                sleep(1)
-                continue
-        if response.status_code >= 400:
-            raise ApiError(
-                f"{provider} tested reply stage {stage} error {response.status_code}: {response.text[:500]}",
-                service="xai",
-                status_code=response.status_code,
-            )
-        try:
-            data = response.json()
-            content = data["choices"][0]["message"]["content"]
-        except (json.JSONDecodeError, KeyError, IndexError, TypeError) as exc:
-            raise ApiError(
-                f"{provider} tested reply stage {stage} response shape is invalid",
-                service="xai",
-            ) from exc
-        if not isinstance(content, (str, dict)):
-            raise ApiError(
-                f"{provider} tested reply stage {stage} content is not structured JSON",
-                service="xai",
-            )
-        if data.get("usage"):
-            log.info("Tested reply stage=%s provider=%s usage=%s", stage, provider, data["usage"])
-        return content
-    raise AssertionError("unreachable tested-pipeline retry state")
-
-
-def tested_pipeline_no_reply_qualifies_for_author_quarantine(
-    *,
-    status: str,
-    reason: str,
-    telemetry: dict,
-    allow_corroborating_no_reply: bool = False,
-) -> bool:
-    """Classify final majority no-replies for author-strike accounting."""
-    if status != "no_reply":
-        return False
-    if reason == "reply_necessity_review" and telemetry.get(
-        "reply_necessity_majority_resolvable"
-    ) is True:
-        outcome = telemetry.get("reply_necessity_outcome")
-        if outcome == "confirm_no_reply_spam_or_abuse":
-            return True
-        if (
-            allow_corroborating_no_reply is True
-            and outcome == "confirm_no_reply"
+    history = state.get("ai_reply_history", [])
+    if not isinstance(history, list):
+        return []
+    rows: list[dict] = []
+    for raw in history:
+        if not isinstance(raw, dict):
+            continue
+        if str(raw.get("candidate_source") or "") not in (
+            CONVERSATIONAL_REPLY_HISTORY_LANES
         ):
-            return True
+            continue
+        if raw.get("deleted") is True or str(raw.get("status") or "") in {
+            "deleted",
+            "failed",
+            "pending",
+        }:
+            continue
+        target_id = str(raw.get("target_id") or "")
+        reply_post_id = str(raw.get("reply_post_id") or "")
+        reply = str(raw.get("proposed_reply") or "").strip()
+        epoch = raw.get("reply_epoch")
+        if (
+            not valid_string_post_id(target_id)
+            or not valid_string_post_id(reply_post_id)
+            or not reply
+            or type(epoch) is not int
+            or epoch <= 0
+            or epoch > MAX_REASONABLE_STATE_EPOCH
+        ):
+            continue
+        rows.append(raw)
+    return rows
+
+
+def _confirmed_history_sort_key(row: dict) -> tuple[int, int]:
+    """Order confirmed replies by time and numeric X post identity."""
+
+    return (int(row["reply_epoch"]), int(str(row["reply_post_id"])))
+
+
+def recent_confirmed_account_replies(
+    state: dict,
+    limit: int = MAX_RECENT_ACCOUNT_REPLIES,
+    *,
+    before_epoch: int | None = None,
+    excluded_post_ids: set[str] | None = None,
+    excluded_reply_post_ids: set[str] | None = None,
+) -> list[dict[str, str]]:
+    """Return only prior remotely confirmed conversational account replies."""
+
+    if before_epoch is None:
+        return []
+    excluded = {str(value) for value in (excluded_post_ids or set())}
+    excluded.update(str(value) for value in (excluded_reply_post_ids or set()))
+    rows = []
+    for row in _confirmed_conversational_history_rows(state):
+        reply_post_id = str(row["reply_post_id"])
+        if reply_post_id in excluded:
+            continue
+        if row["reply_epoch"] >= before_epoch:
+            continue
+        rows.append(row)
+    rows.sort(key=_confirmed_history_sort_key)
+    by_reply_id: dict[str, dict] = {}
+    for row in rows:
+        by_reply_id[str(row["reply_post_id"])] = row
+    rows = sorted(by_reply_id.values(), key=_confirmed_history_sort_key)
+    bounded_limit = max(0, min(int(limit), MAX_RECENT_ACCOUNT_REPLIES))
+    return [
+        {
+            "post_id": str(row["reply_post_id"]),
+            "text": str(row["proposed_reply"]).strip(),
+        }
+        for row in rows[-bounded_limit:]
+    ] if bounded_limit else []
+
+
+def _same_author_confirmed_history_rows(
+    state: dict,
+    *,
+    author_id: object,
+    current_thread_post_ids: set[str],
+    target_id: object,
+    before_epoch: int | None,
+) -> list[dict]:
+    """Select genuine prior same-author pairs before dropping local identity."""
+
+    wanted_author = str(author_id or "")
+    current_target = str(target_id or "")
+    if not wanted_author or before_epoch is None:
+        return []
+    latest_allowed = before_epoch
+    earliest_allowed = latest_allowed - AI_REPLY_HISTORY_MAX_AGE_SECONDS
+    rows: list[dict] = []
+    for row in _confirmed_conversational_history_rows(state):
+        if str(row.get("author_id") or "") != wanted_author:
+            continue
+        identity_fields = {
+            str(row.get("target_id") or ""),
+            str(row.get("reply_post_id") or ""),
+            str(row.get("conversation_id") or ""),
+            str(row.get("root_post_id") or ""),
+        }
+        identity_fields.discard("")
+        if (
+            str(row.get("target_id") or "") == current_target
+            or identity_fields.intersection(current_thread_post_ids)
+        ):
+            continue
+        epoch = int(row["reply_epoch"])
+        if epoch < earliest_allowed:
+            continue
+        if epoch >= before_epoch:
+            continue
+        contributor = str(row.get("incoming_contribution") or "").strip()
+        if (
+            not str(row.get("conversation_id") or "")
+            or not contributor
+            or hashlib.sha256(contributor.encode("utf-8")).hexdigest()
+            != row.get("incoming_contribution_sha256")
+        ):
+            continue
+        rows.append(row)
+    rows.sort(key=_confirmed_history_sort_key)
+    by_interaction: dict[tuple[str, str], dict] = {}
+    for row in rows:
+        identity = (str(row["target_id"]), str(row["reply_post_id"]))
+        by_interaction[identity] = row
+    return sorted(
+        by_interaction.values(),
+        key=_confirmed_history_sort_key,
+    )[-MAX_SAME_AUTHOR_INTERACTIONS:]
+
+
+def recent_same_author_account_interactions(
+    state: dict,
+    *,
+    author_id: object,
+    conversation_id: object,
+    target_id: object,
+    before_epoch: int | None = None,
+    visible_post_ids: set[str] | None = None,
+) -> list[dict[str, str]]:
+    """Return confirmed pairs from earlier conversations by this contributor."""
+
+    current_thread_post_ids = {
+        str(value) for value in (visible_post_ids or set()) if str(value)
+    }
+    current_thread_post_ids.add(str(conversation_id or ""))
+    current_thread_post_ids.discard("")
+    rows = _same_author_confirmed_history_rows(
+        state,
+        author_id=author_id,
+        current_thread_post_ids=current_thread_post_ids,
+        target_id=target_id,
+        before_epoch=before_epoch,
+    )
+    return [
+        {
+            "contributor": str(row["incoming_contribution"]).strip(),
+            "account_reply": str(row["proposed_reply"]).strip(),
+        }
+        for row in rows[-MAX_SAME_AUTHOR_INTERACTIONS:]
+    ]
+
+
+def _reply_target_epoch(context: dict[str, object]) -> int | None:
+    value = context.get("target_created_at")
+    if not isinstance(value, str) or not value:
+        return None
+    try:
+        parsed = datetime.fromisoformat(value.replace("Z", "+00:00"))
+    except ValueError:
+        return None
+    if parsed.tzinfo is None:
+        return None
+    return int(parsed.timestamp())
+
+
+_REPLY_IMAGE_MIME_TYPES = {
+    "image/jpeg",
+    "image/png",
+    "image/webp",
+    "image/gif",
+}
+
+
+class ReplyMediaUnavailable(RuntimeError):
+    """A material candidate image could not be collected safely."""
+
+
+def _safe_reply_image_url(value: object) -> str:
+    url = str(value or "").strip()
+    try:
+        parsed = urlsplit(url)
+        port = parsed.port
+    except ValueError as exc:
+        raise ReplyMediaUnavailable("candidate image URL has an invalid port") from exc
+    trusted_production_origin = bool(
+        parsed.scheme == "https"
+        and parsed.hostname == "pbs.twimg.com"
+        and port in {None, 443}
+    )
+    trusted_test_origin = bool(
+        TEST_MODE
+        and parsed.scheme == "http"
+        and endpoint_is_loopback(url)
+        and parsed.path.startswith("/media/")
+    )
     if (
-        reason == "allegation_review_suppression"
-        and telemetry.get("allegation_conspiracy_outcome")
-        == "confirm_no_reply_spam_or_abuse"
-        and telemetry.get("allegation_conspiracy_majority_resolvable") is True
+        not (trusted_production_origin or trusted_test_origin)
+        or parsed.username is not None
+        or parsed.password is not None
+        or not parsed.path.startswith("/media/")
+        or parsed.fragment
     ):
+        raise ReplyMediaUnavailable("candidate image URL is outside the trusted X media origin")
+    return url
+
+
+def collect_reply_images(media_context: dict | None) -> list[dict[str, object]]:
+    """Collect up to two already-identified native X images with hard bounds."""
+
+    if not isinstance(media_context, dict):
+        return []
+    status = media_context.get("status")
+    expected = int(media_context.get("photos_expected", 0) or 0)
+    if status == "none" and expected == 0:
+        return []
+    photos = media_context.get("photos")
+    required_count = min(expected, MAX_SUPPLIED_IMAGES)
+    if (
+        status != "supplied"
+        or not isinstance(photos, list)
+        or required_count < 1
+        or len(photos) != required_count
+    ):
+        raise ReplyMediaUnavailable("material candidate image metadata is incomplete")
+    collected: list[dict[str, object]] = []
+    for index, photo in enumerate(photos, 1):
+        if not isinstance(photo, dict):
+            raise ReplyMediaUnavailable("candidate image metadata is invalid")
+        identity = str(photo.get("media_key") or "").strip()
+        if not identity:
+            raise ReplyMediaUnavailable("candidate image lacks a stable identity")
+        url = _safe_reply_image_url(photo.get("url"))
+        require_remote_operation_unpaused(
+            f"candidate image collection {index}/{len(photos)}"
+        )
+        response = None
+        try:
+            response = requests.get(
+                url,
+                stream=True,
+                allow_redirects=False,
+                timeout=request_timeout(),
+                headers={"Accept": "image/jpeg,image/png,image/webp,image/gif"},
+            )
+            if response.status_code != 200:
+                raise ReplyMediaUnavailable(
+                    f"candidate image returned HTTP {response.status_code}"
+                )
+            if response.headers.get("Location"):
+                raise ReplyMediaUnavailable("candidate image attempted a redirect")
+            mime_type = str(
+                response.headers.get("Content-Type") or ""
+            ).split(";", 1)[0].strip().lower()
+            if mime_type not in _REPLY_IMAGE_MIME_TYPES:
+                raise ReplyMediaUnavailable("candidate image type is unsupported")
+            raw_length = response.headers.get("Content-Length")
+            if raw_length:
+                try:
+                    content_length = int(raw_length)
+                except ValueError as exc:
+                    raise ReplyMediaUnavailable(
+                        "candidate image length is invalid"
+                    ) from exc
+                if not 1 <= content_length <= SINGLE_CALL_MAX_IMAGE_BYTES:
+                    raise ReplyMediaUnavailable(
+                        "candidate image length is outside the safe bound"
+                    )
+            chunks: list[bytes] = []
+            total = 0
+            for chunk in response.iter_content(chunk_size=64 * 1024):
+                if not isinstance(chunk, bytes) or not chunk:
+                    continue
+                total += len(chunk)
+                if total > SINGLE_CALL_MAX_IMAGE_BYTES:
+                    raise ReplyMediaUnavailable("candidate image exceeds the safe bound")
+                chunks.append(chunk)
+            image_bytes = b"".join(chunks)
+        except ReplyMediaUnavailable:
+            raise
+        except requests.RequestException as exc:
+            raise ReplyMediaUnavailable(
+                "candidate image could not be obtained safely"
+            ) from exc
+        finally:
+            if response is not None:
+                close_response = getattr(response, "close", None)
+                if callable(close_response):
+                    close_response()
+        collected.append(
+            {
+                "identity": identity,
+                "mime_type": mime_type,
+                "data": image_bytes,
+            }
+        )
+    try:
+        return validate_supplied_images(collected)
+    except (RuntimeError, TypeError, ValueError) as exc:
+        raise ReplyMediaUnavailable("candidate image bytes failed validation") from exc
+
+
+def _definite_connection_failure_before_transmission(
+    error: requests.RequestException,
+) -> bool:
+    if isinstance(error, requests.ConnectTimeout):
         return True
+    if not isinstance(error, requests.ConnectionError):
+        return False
+    current: BaseException | None = error
+    while current is not None:
+        if type(current).__name__ in {
+            "NewConnectionError",
+            "NameResolutionError",
+            "ConnectionRefusedError",
+            "gaierror",
+        }:
+            return True
+        current = current.__cause__ or current.__context__
     return False
 
 
-def generate_ai_first_reply(
+def _openai_api_error(
+    message: str,
+    *,
+    category: str,
+    status_code: int | None = None,
+) -> ApiError:
+    error = ApiError(message, service="openai", status_code=status_code)
+    error.error_category = category
+    return error
+
+
+def openai_responses_reply_call(
+    *,
+    request: dict[str, object],
+    timeout_seconds: int,
+    lane: str,
+    target_id: str,
+) -> dict[str, object]:
+    """Send the one Responses request with one narrowly safe transport retry."""
+
+    log.info(
+        "Calling single-call reply provider=OpenAI model=%s "
+        "reasoning_effort=%s lane=%s target_id=%s",
+        SINGLE_CALL_MODEL,
+        SINGLE_CALL_REASONING_EFFORT,
+        lane,
+        target_id,
+    )
+    started = monotonic()
+    for attempt in (1, 2):
+        require_remote_operation_unpaused(
+            f"OpenAI single-call reply target {target_id}"
+        )
+        report_bot_health_progress("ai_call")
+        try:
+            response = requests.post(
+                f"{OPENAI_BASE}/responses",
+                headers={
+                    "Authorization": f"Bearer {OPENAI_API_KEY}",
+                    "Content-Type": "application/json",
+                },
+                json=request,
+                timeout=timeout_seconds,
+                allow_redirects=False,
+            )
+        except requests.RequestException as exc:
+            if (
+                attempt == 1
+                and _definite_connection_failure_before_transmission(exc)
+            ):
+                log.warning(
+                    "OpenAI single-call reply had a definite pre-transmission "
+                    "connection failure; retrying once target_id=%s",
+                    target_id,
+                )
+                continue
+            raise _openai_api_error(
+                "OpenAI single-call reply transport failed",
+                category=(
+                    "provider_ambiguous_timeout"
+                    if isinstance(exc, requests.Timeout)
+                    else "provider_transport"
+                ),
+            ) from exc
+        finally:
+            report_bot_health_progress("ai_call")
+        if response.status_code in {429} or response.status_code >= 500:
+            if attempt == 1:
+                log.warning(
+                    "OpenAI single-call reply returned transient HTTP %s; "
+                    "retrying once target_id=%s",
+                    response.status_code,
+                    target_id,
+                )
+                close_response = getattr(response, "close", None)
+                if callable(close_response):
+                    close_response()
+                sleep(1)
+                continue
+        if not 200 <= response.status_code < 300:
+            status_code = response.status_code
+            close_response = getattr(response, "close", None)
+            if callable(close_response):
+                close_response()
+            raise _openai_api_error(
+                f"OpenAI single-call reply returned HTTP {status_code}",
+                category=f"provider_http_{status_code}",
+                status_code=status_code,
+            )
+        try:
+            data = response.json()
+        except (ValueError, TypeError) as exc:
+            close_response = getattr(response, "close", None)
+            if callable(close_response):
+                close_response()
+            raise _openai_api_error(
+                "OpenAI single-call reply returned malformed JSON",
+                category="provider_envelope",
+            ) from exc
+        close_response = getattr(response, "close", None)
+        if callable(close_response):
+            close_response()
+        if not isinstance(data, dict):
+            raise _openai_api_error(
+                "OpenAI single-call reply response is not an object",
+                category="provider_envelope",
+            )
+        return {
+            "response": data,
+            "latency_ms": max(0, round((monotonic() - started) * 1000)),
+            "request_attempt_count": attempt,
+        }
+    raise AssertionError("unreachable OpenAI request retry state")
+
+
+def _record_single_call_result(
+    result: PipelineResult,
+    *,
+    lane: str,
+    target_id: str,
+) -> None:
+    telemetry = single_call_decision_telemetry(result)
+    log_event(
+        "single_call_reply_decision",
+        lane=lane,
+        target_id=target_id,
+        **telemetry,
+    )
+    if result.provider_usage:
+        usage = dict(result.provider_usage)
+        log.info(
+            "Single-call reply provider=OpenAI model=%s usage=%s",
+            SINGLE_CALL_MODEL,
+            usage,
+        )
+        log_event(
+            "single_call_reply_provider_usage",
+            lane=lane,
+            target_id=target_id,
+            strategy_version=SINGLE_CALL_STRATEGY_VERSION,
+            model=SINGLE_CALL_MODEL,
+            provider_response_id=result.provider_response_id,
+            provider_latency_ms=result.provider_latency_ms,
+            request_attempt_count=result.provider_request_attempt_count,
+            **usage,
+        )
+
+
+def generate_single_call_reply(
     context: dict[str, object],
     media_context: dict | None = None,
     *,
-    recent_replies: list[str] | None = None,
+    state: dict,
     evaluation_outcome: dict | None = None,
 ) -> str | None:
-    """Run the sole conversational reply strategy and return only approved prose."""
-    if tested_reply_pipeline.get("enabled") is True:
-        from tested_reply_pipeline import (
-            STRATEGY_VERSION,
-            repair_approved_direct_answer,
-            run_reply_pipeline,
-            stage_telemetry,
-        )
-
-        lane = str(context.get("lane") or "")
-        target_id = str(context.get("target_id") or "")
-        log.info("Running tested reply pipeline lane=%s target_id=%s", lane, target_id)
-        repository = reply_evidence_repository()
-        analysed_media_context = describe_reply_media_for_tested_pipeline(
-            context,
-            media_context,
-            config=tested_reply_pipeline,
-        )
-        result = run_reply_pipeline(
-            context=context,
-            config=tested_reply_pipeline,
-            repository=repository,
-            transport=tested_pipeline_structured_call,
-            maximum_reply_length=MAX_REPLY_CHARS,
-            recent_replies=recent_replies,
-            media_context=analysed_media_context,
-        )
-        pipeline_stage_status = result.status
-        pipeline_stage_reason = result.reason
-        effective_reply = result.reply
-        effective_status = result.status
-        effective_reason = result.reason
-        original_local_rejection_reason: str | None = None
-        original_proposed_draft: str | None = None
-        repaired_draft: str | None = None
-        repair_attempted = False
-        repair_outcome = "not_applicable"
-        effective_audit = result.audit
-        effective_model_call_count = result.model_call_count
-        effective_revision_count = result.revision_count
-
-        if (
-            result.reply is not None
-            and context.get("clarification_request") is not None
-            and result.reply.draft_record.get("mode") != "direct_factual_answer"
-        ):
-            original_local_rejection_reason = (
-                "clarification_not_direct_factual_answer"
-            )
-            original_proposed_draft = str(result.reply)
-            repair = repair_approved_direct_answer(
-                approved_reply=result.reply,
-                context=context,
-                config=tested_reply_pipeline,
-                repository=repository,
-                transport=tested_pipeline_structured_call,
-                maximum_reply_length=MAX_REPLY_CHARS,
-                recent_replies=recent_replies,
-                media_context=analysed_media_context,
-            )
-            repair_attempted = repair.attempted
-            repair_outcome = repair.outcome
-            repaired_draft = repair.repaired_draft
-            effective_audit = (*result.audit, *repair.audit)
-            effective_model_call_count += repair.additional_model_calls
-            if repair.reply is None:
-                effective_reply = None
-                effective_status = "local_rejection"
-                effective_reason = repair.reason
-            else:
-                effective_reply = repair.reply
-                effective_status = "approved_for_publication"
-                effective_reason = repair.reason
-                effective_model_call_count = int(
-                    repair.reply.pipeline_metadata.get(
-                        "model_call_count", effective_model_call_count
-                    )
-                )
-                effective_revision_count = int(
-                    repair.reply.pipeline_metadata.get(
-                        "revision_count", effective_revision_count + 1
-                    )
-                )
-        elif result.reply is not None:
-            effective_status = "approved_for_publication"
-            effective_reason = "local_validation_passed"
-
-        pipeline_stage_telemetry = stage_telemetry(effective_audit)
-        pipeline_stage_telemetry.update(
-            {
-                "direct_answer_repair_attempted": repair_attempted,
-                "direct_answer_repair_outcome": repair_outcome,
-                "original_local_rejection_reason": (
-                    original_local_rejection_reason
-                ),
-            }
-        )
-        log_event(
-            "ai_reply_pipeline_stage_summary",
-            lane=lane,
-            target_id=target_id,
-            strategy_version=STRATEGY_VERSION,
-            status=pipeline_stage_status,
-            pipeline_stage_status=pipeline_stage_status,
-            terminal_reason=pipeline_stage_reason,
-            effective_status=effective_status,
-            effective_reason=effective_reason,
-            model_call_count=effective_model_call_count,
-            revision_count=effective_revision_count,
-            **pipeline_stage_telemetry,
-        )
-        if effective_reply is None:
-            log.info(
-                "Tested reply pipeline ended stage_status=%s effective_status=%s "
-                "lane=%s target_id=%s reason=%s calls=%d",
-                pipeline_stage_status,
-                effective_status,
-                lane,
-                target_id,
-                effective_reason,
-                effective_model_call_count,
-            )
-            log_event(
-                "ai_reply_pipeline_decision",
-                lane=lane,
-                target_id=target_id,
-                status=pipeline_stage_status,
-                pipeline_stage_status=pipeline_stage_status,
-                effective_status=effective_status,
-                effective_reason=effective_reason,
-                strategy_version=STRATEGY_VERSION,
-                mode=(
-                    result.reply.draft_record.get("mode")
-                    if result.reply is not None
-                    else "no_reply"
-                ),
-                final_reply_kind=(
-                    result.reply.draft_record.get("final_reply_kind")
-                    if result.reply is not None
-                    else "no_reply"
-                ),
-                reply_requirement=pipeline_stage_telemetry.get("reply_requirement"),
-                route_source=pipeline_stage_telemetry.get("route_source"),
-                claim_risk_categories=pipeline_stage_telemetry.get(
-                    "claim_risk_categories", []
-                ),
-                proposer_mode=(
-                    result.reply.draft_record.get("mode")
-                    if result.reply is not None
-                    else "not_applicable"
-                ),
-                tone="unknown",
-                factual_claim_count=(
-                    len(result.reply.draft_record.get("factual_claims") or [])
-                    if result.reply is not None
-                    else 0
-                ),
-                evidence_ids=None,
-                evidence_confidence=(
-                    "local_trusted_facts_supplied"
-                    if pipeline_stage_telemetry.get(
-                        "trusted_facts_supplied_count", 0
-                    )
-                    else "none"
-                ),
-                retrieved_count=pipeline_stage_telemetry.get(
-                    "trusted_facts_supplied_count", 0
-                ),
-                evidence_reference_count=(
-                    None if result.reply is not None else 0
-                ),
-                trusted_facts_supplied_count=pipeline_stage_telemetry.get(
-                    "trusted_facts_supplied_count", 0
-                ),
-                trusted_fact_ids_supplied=pipeline_stage_telemetry.get(
-                    "trusted_fact_ids_supplied", []
-                ),
-                used_fact_count=("unknown" if result.reply is not None else 0),
-                used_fact_ids=(None if result.reply is not None else []),
-                reviewer_verdict=(
-                    result.reply.draft_record.get("reviewer_verdict")
-                    if result.reply is not None
-                    else "pipeline_no_reply"
-                ),
-                terminal_stage=pipeline_stage_reason,
-                claim_auditor_status="recorded_in_pipeline_audit",
-                evidence_status="local_only",
-                reason=effective_reason,
-                original_local_rejection_reason=original_local_rejection_reason,
-                direct_answer_repair_attempted=repair_attempted,
-                direct_answer_repair_outcome=repair_outcome,
-                incoming_contribution=(
-                    str(context.get("incoming_contribution") or "")
-                    if original_local_rejection_reason
-                    else None
-                ),
-                proposed_draft=original_proposed_draft,
-                repaired_draft=repaired_draft,
-                model_call_count=effective_model_call_count,
-                revision_count=effective_revision_count,
-            )
-            if evaluation_outcome is not None:
-                qualifying_author_no_reply = (
-                    tested_pipeline_no_reply_qualifies_for_author_quarantine(
-                        status=pipeline_stage_status,
-                        reason=pipeline_stage_reason,
-                        telemetry=pipeline_stage_telemetry,
-                    )
-                )
-                evaluation_outcome.update(
-                    {
-                        "status": effective_status,
-                        "reason": effective_reason,
-                        "original_local_rejection_reason": (
-                            original_local_rejection_reason
-                        ),
-                        "direct_answer_repair_attempted": repair_attempted,
-                        "direct_answer_repair_outcome": repair_outcome,
-                        "qualifying_author_no_reply": qualifying_author_no_reply,
-                        "corroborating_author_no_reply": (
-                            not qualifying_author_no_reply
-                            and tested_pipeline_no_reply_qualifies_for_author_quarantine(
-                                status=pipeline_stage_status,
-                                reason=pipeline_stage_reason,
-                                telemetry=pipeline_stage_telemetry,
-                                allow_corroborating_no_reply=True,
-                            )
-                        ),
-                        "model_call_count": effective_model_call_count,
-                    }
-                )
-            return None
-        metadata = effective_reply.pipeline_metadata
-        telemetry = ai_reply_evidence_telemetry(effective_reply)
-        log_event(
-            "ai_reply_pipeline_decision",
-            lane=lane,
-            target_id=target_id,
-            status="approved",
-            pipeline_stage_status=pipeline_stage_status,
-            effective_status=effective_status,
-            effective_reason=effective_reason,
-            strategy_version=metadata["strategy_version"],
-            mode=metadata["mode"],
-            final_reply_kind=metadata.get("final_reply_kind"),
-            reply_requirement=metadata.get("reply_requirement"),
-            route_source=metadata.get("route_source"),
-            claim_risk_categories=metadata.get("claim_risk_categories", []),
-            tone=metadata["tone"],
-            factual_claim_count=metadata["factual_claim_count"],
-            evidence_ids=metadata["evidence_ids"],
-            **telemetry,
-            reviewer_verdict=metadata["reviewer_verdict"],
-            model_call_count=metadata["model_call_count"],
-            revision_count=metadata["revision_count"],
-            original_local_rejection_reason=original_local_rejection_reason,
-            direct_answer_repair_attempted=repair_attempted,
-            direct_answer_repair_outcome=repair_outcome,
-            incoming_contribution=(
-                str(context.get("incoming_contribution") or "")
-                if original_local_rejection_reason
-                else None
-            ),
-            proposed_draft=original_proposed_draft,
-            repaired_draft=repaired_draft,
-        )
-        if evaluation_outcome is not None:
-            evaluation_outcome.update(
-                {
-                    "status": "approved",
-                    "reason": effective_reason,
-                    "original_local_rejection_reason": (
-                        original_local_rejection_reason
-                    ),
-                    "direct_answer_repair_attempted": repair_attempted,
-                    "direct_answer_repair_outcome": repair_outcome,
-                    "qualifying_author_no_reply": False,
-                    "model_call_count": metadata["model_call_count"],
-                }
-            )
-        return effective_reply
-
-    from reply_strategy import STRATEGY_VERSION, outcome_telemetry, run_reply_pipeline
+    """Make one authoritative Sol decision and return only validated prose."""
 
     lane = str(context.get("lane") or "")
     target_id = str(context.get("target_id") or "")
-    log.info("Running AI-first reply pipeline lane=%s target_id=%s", lane, target_id)
-    result = run_reply_pipeline(
-        context=context,
-        config=ai_first_reply_strategy,
-        repository=reply_evidence_repository(),
-        transport=xai_structured_reply_call,
-        maximum_reply_length=MAX_REPLY_CHARS,
-        recent_replies=recent_replies,
-        media_context=media_context,
-    )
-    if result.reply is None:
-        pipeline_telemetry = outcome_telemetry(result)
-        evidence_status = pipeline_telemetry["evidence_status"]
-        evidence_absent = evidence_status in {"not_run", "insufficient"}
-        operational_failure = result.status not in {"no_reply", "disabled"}
-        log_method = log.error if operational_failure else log.info
-        log_method(
-            "AI-first reply pipeline ended status=%s lane=%s target_id=%s reason=%s calls=%d revisions=%d",
-            result.status,
-            lane,
-            target_id,
-            result.reason,
-            result.model_call_count,
-            result.revision_count,
-        )
-        log_event(
-            "ai_reply_pipeline_failure" if operational_failure else "ai_reply_pipeline_decision",
-            lane=lane,
-            target_id=target_id,
-            status=result.status,
-            strategy_version=STRATEGY_VERSION,
-            mode=(
-                pipeline_telemetry["proposer_mode"]
-                if pipeline_telemetry["proposer_mode"] != "not_run"
-                else "unavailable"
+    visible_turns = [
+        turn
+        for turn in (context.get("visible_conversation") or [])
+        if isinstance(turn, dict)
+    ]
+    try:
+        supplied_images = collect_reply_images(media_context)
+    except RemoteOperationsPaused:
+        raise
+    except ReplyMediaUnavailable as exc:
+        result = PipelineResult(
+            status="operational_failure",
+            reason="material_image_unavailable",
+            error_category="image_input",
+            local_validation_status="not_run",
+            visible_turn_count=len(visible_turns),
+            visible_character_count=sum(
+                len(str(turn.get("text") or "")) for turn in visible_turns
             ),
-            proposer_mode=pipeline_telemetry["proposer_mode"],
-            tone=pipeline_telemetry["proposer_tone"],
-            factual_claim_count=pipeline_telemetry["factual_claim_count"],
-            evidence_ids=[] if evidence_absent else None,
-            evidence_confidence="none" if evidence_absent else "unavailable",
-            retrieved_count=None,
-            evidence_reference_count=0 if evidence_absent else None,
-            reviewer_verdict=pipeline_telemetry["reviewer_verdict"],
-            terminal_stage=pipeline_telemetry["terminal_stage"],
-            claim_auditor_status=pipeline_telemetry["claim_auditor_status"],
-            evidence_status=evidence_status,
-            author_quarantine_evidence="unavailable_ai_first_reply_strategy",
-            reason=result.reason,
-            model_call_count=result.model_call_count,
-            revision_count=result.revision_count,
+            supplied_image_count=0,
         )
+        _record_single_call_result(result, lane=lane, target_id=target_id)
         if evaluation_outcome is not None:
             evaluation_outcome.update(
                 {
-                    "status": result.status,
+                    "status": "operational_failure",
                     "reason": result.reason,
-                    "qualifying_author_no_reply": False,
-                    "author_quarantine_evidence": "unavailable_ai_first_reply_strategy",
+                    "error_category": result.error_category,
+                    "model_call_count": 0,
                 }
             )
-        if operational_failure:
-            raise ApiError(
-                f"AI-first reply pipeline operational failure: {result.reason}",
-                service="xai",
-            )
+        record_api_error(
+            state,
+            _openai_api_error(
+                "single-call reply material image unavailable",
+                category="image_input",
+            ),
+            "openai",
+        )
+        log.warning(
+            "Deferring reply target_id=%s lane=%s because material image "
+            "collection failed: %s",
+            target_id,
+            lane,
+            exc,
+        )
         return None
 
-    metadata = result.reply.pipeline_metadata
-    telemetry = ai_reply_evidence_telemetry(result.reply)
-    metadata.update(telemetry)
-    log_event(
-        "ai_reply_pipeline_decision",
-        lane=lane,
-        target_id=target_id,
-        status="approved",
-        strategy_version=metadata["strategy_version"],
-        mode=metadata["mode"],
-        tone=metadata["tone"],
-        factual_claim_count=metadata["factual_claim_count"],
-        evidence_ids=metadata["evidence_ids"],
-        **telemetry,
-        reviewer_verdict=metadata["reviewer_verdict"],
-        model_call_count=metadata["model_call_count"],
-        revision_count=metadata["revision_count"],
+    before_epoch = _reply_target_epoch(context)
+    current_thread_post_ids = {
+        str(turn.get("post_id") or "") for turn in visible_turns
+    }
+    current_thread_post_ids.update(
+        {
+            str(context.get("thread_id") or ""),
+            str(context.get("root_post_id") or ""),
+        }
     )
+    current_thread_post_ids.discard("")
+    same_author_rows = _same_author_confirmed_history_rows(
+        state,
+        author_id=context.get("target_author_id"),
+        current_thread_post_ids=current_thread_post_ids,
+        target_id=target_id,
+        before_epoch=before_epoch,
+    )
+    same_author = [
+        {
+            "contributor": str(row["incoming_contribution"]).strip(),
+            "account_reply": str(row["proposed_reply"]).strip(),
+        }
+        for row in same_author_rows
+    ]
+    recent_replies = recent_confirmed_account_replies(
+        state,
+        before_epoch=before_epoch,
+        excluded_post_ids=current_thread_post_ids,
+        excluded_reply_post_ids={
+            str(row["reply_post_id"]) for row in same_author_rows
+        },
+    )
+    require_remote_operation_unpaused(
+        f"OpenAI single-call reply preparation target {target_id}"
+    )
+    result = run_single_call_reply_pipeline(
+        context=context,
+        config=single_call_reply,
+        repository=reply_evidence_repository(),
+        transport=openai_responses_reply_call,
+        same_author_interactions=same_author,
+        recent_account_replies=recent_replies,
+        supplied_images=supplied_images,
+        visual_description=context.get("visual_description"),
+    )
+    _record_single_call_result(result, lane=lane, target_id=target_id)
     if evaluation_outcome is not None:
-        evaluation_outcome.update({"status": "approved", "reason": "reviewer_approved"})
+        evaluation_outcome.update(
+            {
+                "status": result.status,
+                "reason": result.reason,
+                "reason_code": result.reason_code,
+                "reply_kind": result.reply_kind,
+                "error_category": result.error_category,
+                "model_call_count": result.model_call_count,
+            }
+        )
+    if result.status == "operational_failure":
+        record_api_error(
+            state,
+            _openai_api_error(
+                f"single-call reply operational failure: {result.reason}",
+                category=result.error_category or "operational_failure",
+            ),
+            "openai",
+        )
+        return None
+    if result.status in {"disabled", "no_reply"}:
+        return None
+    if result.status != "reply" or not isinstance(result.reply, ValidatedReply):
+        raise RuntimeError("single-call reply returned an impossible result")
     return result.reply
 
 
@@ -23224,7 +22967,7 @@ def record_terminal_reply_evaluation(
 
 
 def ai_reply_receipt_draft_is_valid(data: dict, text: object) -> bool:
-    """Return whether a receipt carries a currently valid approved V3 draft."""
+    """Return whether a receipt carries a valid current single-call draft."""
     context = data.get("reply_context")
     draft = data.get("ai_reply_draft")
     if not isinstance(context, dict) or not isinstance(draft, dict):
@@ -23387,9 +23130,6 @@ def _conversational_reply_receipt_is_semantically_valid(
         if clarification.get("trigger") not in {"explicit_correction", "restated_question"}:
             return False
         if clarification.get("thread_id") != conversation_id:
-            return False
-        draft = data.get("ai_reply_draft")
-        if not isinstance(draft, dict) or draft.get("mode") != "direct_factual_answer":
             return False
     if (
         schema_version == 4
@@ -23966,7 +23706,6 @@ def apply_confirmed_reply_receipt(state: dict, receipt: dict) -> None:
 
     if candidate_source == "mention":
         remove_pending_mention_candidate(state, target_id)
-        clear_author_evaluation_quarantine_history(state, author_id)
         if mention_pagination_to_preserve is not None:
             state["mention_pagination"] = mention_pagination_to_preserve
             log.info(
@@ -24006,10 +23745,25 @@ def apply_confirmed_reply_receipt(state: dict, receipt: dict) -> None:
     )
     ai_reply_draft = receipt.get("ai_reply_draft")
     if isinstance(ai_reply_draft, dict):
-        evidence_telemetry = ai_reply_evidence_telemetry(ai_reply_draft)
+        reply_context = receipt.get("reply_context")
+        visible = (
+            reply_context.get("visible_conversation")
+            if isinstance(reply_context, dict)
+            else None
+        )
+        incoming_contribution = ""
+        if isinstance(visible, list) and visible and isinstance(visible[-1], dict):
+            incoming_contribution = str(visible[-1].get("text") or "").strip()
+        if not incoming_contribution and isinstance(reply_context, dict):
+            incoming_contribution = str(
+                reply_context.get("incoming_contribution") or ""
+            ).strip()
         record = {
             "target_id": target_id,
             "reply_post_id": reply_post_id,
+            "author_id": author_id,
+            "conversation_id": conversation_id,
+            "incoming_contribution": incoming_contribution,
             "candidate_source": candidate_source,
             "reply_epoch": reply_epoch,
             **ai_reply_draft,
@@ -24017,35 +23771,42 @@ def apply_confirmed_reply_receipt(state: dict, receipt: dict) -> None:
         if receipt.get("schema_version") == 4:
             record["attempt_epoch"] = int(receipt["attempt_epoch"])
             record["confirmation_epoch"] = reply_epoch
+        cutoff = max(reply_epoch, now_epoch()) - AI_REPLY_HISTORY_MAX_AGE_SECONDS
         history = [
-            item for item in state.get("ai_reply_history", [])
-            if isinstance(item, dict) and str(item.get("reply_post_id") or "") != reply_post_id
+            item
+            for item in state.get("ai_reply_history", [])
+            if (
+                isinstance(item, dict)
+                and str(item.get("reply_post_id") or "") != reply_post_id
+                and str(item.get("target_id") or "") != target_id
+                and type(item.get("reply_epoch")) is int
+                and item["reply_epoch"] >= cutoff
+            )
         ]
         history.append(record)
-        state["ai_reply_history"] = history[-1000:]
+        history.sort(
+            key=lambda item: (
+                int(item["reply_epoch"]),
+                int(str(item.get("reply_post_id") or "0"))
+                if valid_string_post_id(item.get("reply_post_id"))
+                else 0,
+            )
+        )
+        state["ai_reply_history"] = history[-AI_REPLY_HISTORY_MAX_RECORDS:]
         log_event(
-            "ai_reply_pipeline_outcome",
+            "single_call_reply_posting_outcome",
             status="confirmed",
             lane=candidate_source,
             target_id=target_id,
             reply_post_id=reply_post_id,
             strategy_version=ai_reply_draft.get("strategy_version"),
-            mode=ai_reply_draft.get("mode"),
-            final_reply_kind=ai_reply_draft.get(
-                "final_reply_kind", ai_reply_draft.get("mode")
-            ),
-            reply_requirement=ai_reply_draft.get("reply_requirement"),
-            route_source=ai_reply_draft.get("route_source"),
-            claim_risk_categories=ai_reply_draft.get(
-                "claim_risk_categories", []
-            ),
-            tone=ai_reply_draft.get("tone"),
-            factual_claim_count=len(ai_reply_draft.get("factual_claims", [])),
-            evidence_ids=ai_reply_draft.get("evidence_ids", []),
-            **evidence_telemetry,
-            reviewer_verdict=ai_reply_draft.get("reviewer_verdict"),
+            reply_kind=ai_reply_draft.get("reply_kind"),
+            reason_code=ai_reply_draft.get("reason_code"),
+            used_fact_count=len(ai_reply_draft.get("used_fact_ids") or []),
+            supplied_image_count=len(ai_reply_draft.get("supplied_images") or []),
             model_call_count=ai_reply_draft.get("model_call_count"),
-            revision_count=ai_reply_draft.get("revision_count"),
+            validated_draft_hash=ai_reply_draft.get("validated_draft_hash"),
+            failure_reason="",
         )
     if isinstance(clarification, dict):
         thread_id = str(clarification["thread_id"])
@@ -24566,8 +24327,8 @@ def maybe_reply_to_mentions(
     if in_api_cooldown(state, scope="write"):
         log.info("Skipping mention check due to X write API cooldown")
         return NORMAL_CHECK_STATUS_SKIPPED_COOLDOWN
-    if in_api_cooldown(state, scope="xai"):
-        log.info("Skipping mention check due to xAI API cooldown")
+    if in_api_cooldown(state, scope="openai"):
+        log.info("Skipping mention check due to OpenAI API cooldown")
         return NORMAL_CHECK_STATUS_SKIPPED_COOLDOWN
 
     daily_replied_author_counts = daily_author_reply_counts(state)
@@ -24640,10 +24401,7 @@ def maybe_reply_to_mentions(
     mentions = valid_tweets_sorted_by_id(mentions, context="mention/hot-post candidate")
 
     replied_to_ids = set(str(x) for x in state.get("replied_to_ids", []))
-    dry_run_seen_ids = set(str(x) for x in state.get("dry_run_seen_mention_ids", []))
-
     log.debug("replied_to_ids count=%d", len(replied_to_ids))
-    log.debug("dry_run_seen_ids count=%d", len(dry_run_seen_ids))
 
     fresh_mention_ai_evaluations = int(_fresh_mention_ai_evaluations)
     quarantine_retirements_pending = False
@@ -24686,13 +24444,6 @@ def maybe_reply_to_mentions(
             log.info("Skipping %s %s: already replied to", candidate_source, mention_id)
             maybe_mark_hot_post_reply_skipped(state, mention, reason="already_replied")
             log_event("candidate_skipped", lane=candidate_log_source, id=mention_id, reason="already_replied")
-            mark_mention_seen_if_applicable(state, mention)
-            continue
-
-        if DRY_RUN_REPLIES and mention_id in dry_run_seen_ids:
-            log.info("Skipping %s %s: already seen in dry-run", candidate_source, mention_id)
-            maybe_mark_hot_post_reply_skipped(state, mention, reason="dry_run_already_seen")
-            log_event("candidate_skipped", lane=candidate_log_source, id=mention_id, reason="dry_run_already_seen")
             mark_mention_seen_if_applicable(state, mention)
             continue
 
@@ -24754,14 +24505,17 @@ def maybe_reply_to_mentions(
             pending_record = drafts.get(pending_key) if isinstance(drafts, dict) else None
             if isinstance(pending_record, dict):
                 log_event(
-                    "ai_reply_pipeline_outcome",
+                    "single_call_reply_posting_outcome",
                     status="posting_failed_terminal",
                     lane=str(candidate_source),
                     target_id=mention_id,
                     reply_post_id="",
                     strategy_version=pending_record.get("strategy_version"),
-                    mode=pending_record.get("mode"),
-                    reviewer_verdict=pending_record.get("reviewer_verdict"),
+                    reply_kind=pending_record.get("reply_kind"),
+                    reason_code=pending_record.get("reason_code"),
+                    validated_draft_hash=pending_record.get(
+                        "validated_draft_hash"
+                    ),
                     failure_reason="reply_not_permitted_preflight",
                 )
                 clear_pending_ai_reply(state, mention_id, str(candidate_source))
@@ -24890,12 +24644,28 @@ def maybe_reply_to_mentions(
             return NORMAL_CHECK_STATUS_API_ERROR
 
         if not should_continue:
-            log.info("Skipping %s %s: could not build usable context or configured to skip", candidate_source, mention_id)
-            maybe_mark_hot_post_reply_skipped(state, mention, reason="context_unavailable")
-            log_event("candidate_skipped", lane=candidate_log_source, id=mention_id, reason="context_unavailable")
-            mark_mention_seen_if_applicable(state, mention)
+            log.warning(
+                "Deferring %s %s: canonical context is unavailable",
+                candidate_source,
+                mention_id,
+            )
+            _record_single_call_result(
+                PipelineResult(
+                    status="operational_failure",
+                    reason="canonical_context_unavailable",
+                    error_category="context_validation",
+                    local_validation_status="failed",
+                ),
+                lane=str(candidate_source),
+                target_id=mention_id,
+            )
             save_state(state)
-            continue
+            return NORMAL_CHECK_STATUS_CHECKED
+
+        prepared_media_context = reply_context.pop(
+            "_prepared_media_context",
+            None,
+        )
 
         if clarification is not None:
             reply_context["clarification_request"] = {
@@ -24921,10 +24691,14 @@ def maybe_reply_to_mentions(
             )
             return NORMAL_CHECK_STATUS_CHECKED
 
-        media_context = reply_media_context_for_candidate(
-            mention,
-            lane=str(candidate_source),
-            target_id=mention_id,
+        media_context = (
+            prepared_media_context
+            if isinstance(prepared_media_context, dict)
+            else reply_media_context_for_candidate(
+                mention,
+                lane=str(candidate_source),
+                target_id=mention_id,
+            )
         )
 
         reply_text = pending_ai_reply(
@@ -24932,7 +24706,6 @@ def maybe_reply_to_mentions(
             mention_id,
             str(candidate_source),
             context=reply_context,
-            recent_replies=recent_auto_reply_texts(state),
         )
         evaluation_outcome: dict[str, object] = {}
         try:
@@ -24942,7 +24715,8 @@ def maybe_reply_to_mentions(
                     and fresh_mention_ai_evaluations >= MAX_MENTIONS_PER_CHECK
                 ):
                     log.info(
-                        "Deferring mention %s: fresh AI evaluation budget exhausted (%s)",
+                        "Deferring mention %s: fresh model evaluation budget "
+                        "exhausted (%s)",
                         mention_id,
                         MAX_MENTIONS_PER_CHECK,
                     )
@@ -24950,19 +24724,24 @@ def maybe_reply_to_mentions(
                         "mention_candidate_deferred",
                         target_id=mention_id,
                         author_id=author_id,
-                        reason="fresh_ai_evaluation_budget_exhausted",
+                        reason="fresh_model_evaluation_budget_exhausted",
                     )
                     continue
                 if candidate_source == "mention":
                     fresh_mention_ai_evaluations += 1
-                reply_text = generate_ai_first_reply(
+                reply_text = generate_single_call_reply(
                     reply_context,
                     media_context,
-                    recent_replies=recent_auto_reply_texts(state),
+                    state=state,
                     evaluation_outcome=evaluation_outcome,
                 )
             else:
-                log.info("Reusing persisted AI-first reply draft target_id=%s source=%s", mention_id, candidate_source)
+                log.info(
+                    "Reusing persisted single-call reply draft "
+                    "target_id=%s source=%s",
+                    mention_id,
+                    candidate_source,
+                )
         except RemoteOperationsPaused:
             log.info(
                 "Deferring conversational reply evaluation lane=%s target_id=%s "
@@ -24978,195 +24757,109 @@ def maybe_reply_to_mentions(
             )
             save_state(state, durable=True)
             return NORMAL_CHECK_STATUS_CHECKED
-        except ApiError as e:
-            log.exception("Failed to ask Grok for reply")
-            record_api_error(state, e, "xai")
+        except ApiError as exc:
+            log.exception("OpenAI single-call reply failed")
+            record_api_error(state, exc, "openai")
             save_state(state)
             return NORMAL_CHECK_STATUS_API_ERROR
-        except Exception as e:
-            log.exception("Unexpected Grok failure")
-            record_api_error(state, e, "xai")
+        except Exception as exc:
+            log.exception("Unexpected single-call reply failure")
+            record_api_error(
+                state,
+                _openai_api_error(
+                    "unexpected single-call reply failure",
+                    category="unexpected_pipeline_failure",
+                ),
+                "openai",
+            )
             save_state(state)
             return NORMAL_CHECK_STATUS_API_ERROR
 
-        from reply_strategy import AIReply
         if not reply_text:
-            if (
-                not DRY_RUN_REPLIES
-                and evaluation_outcome.get("status") in {
-                    "no_reply",
-                    "local_rejection",
-                }
-            ):
-                record_terminal_reply_evaluation(
-                    state,
-                    target_id=mention_id,
-                    lane=str(candidate_source),
-                    reason=evaluation_outcome.get("reason", "model_selected_no_reply"),
+            if evaluation_outcome.get("status") != "no_reply":
+                log.warning(
+                    "Deferring %s %s after operational reply failure reason=%s",
+                    candidate_source,
+                    mention_id,
+                    evaluation_outcome.get("reason", "unknown"),
                 )
-                if (
-                    candidate_source == "mention"
-                    and evaluation_outcome.get("status") == "no_reply"
-                    and (
-                        evaluation_outcome.get("qualifying_author_no_reply") is True
-                        or evaluation_outcome.get("corroborating_author_no_reply")
-                        is True
-                    )
-                ):
-                    # Both final outcome classes count.  The explicit flag is
-                    # retained only as backwards-compatible diagnostic data.
-                    record_qualifying_author_no_reply(
-                        state,
-                        author_id,
-                        current_epoch=current,
-                        explicit_spam_or_abuse=(
-                            evaluation_outcome.get("qualifying_author_no_reply")
-                            is True
-                        ),
-                    )
-            log.info("No usable reply generated for %s %s", candidate_source, mention_id)
-            maybe_mark_hot_post_reply_skipped(state, mention, reason="no_usable_reply_generated")
-            log_event("candidate_skipped", lane=candidate_log_source, id=mention_id, reason="no_usable_reply_generated")
-            mark_mention_seen_if_applicable(state, mention)
-            save_state(state)
-            continue
-        if not isinstance(reply_text, AIReply):
-            log.error(
-                "AI-first reply pipeline returned an unapproved reply type; refusing target_id=%s source=%s",
-                mention_id,
+                save_state(state, durable=True)
+                return NORMAL_CHECK_STATUS_API_ERROR
+            reason_code = str(
+                evaluation_outcome.get("reason_code")
+                or evaluation_outcome.get("reason")
+                or "model_selected_no_reply"
+            )
+            record_terminal_reply_evaluation(
+                state,
+                target_id=mention_id,
+                lane=str(candidate_source),
+                reason=reason_code,
+            )
+            if candidate_source == "mention":
+                record_qualifying_author_no_reply(
+                    state,
+                    author_id,
+                    current_epoch=current,
+                    explicit_spam_or_abuse=reason_code == "spam_or_abuse",
+                )
+            log.info(
+                "Sol selected no_reply for %s %s reason=%s",
                 candidate_source,
-            )
-            record_terminal_reply_evaluation(
-                state,
-                target_id=mention_id,
-                lane=str(candidate_source),
-                reason="reviewer_approval_missing",
-            )
-            maybe_mark_hot_post_reply_skipped(state, mention, reason="reviewer_approval_missing")
-            mark_mention_seen_if_applicable(state, mention)
-            save_state(state, durable=True)
-            continue
-        if clarification is not None and reply_text.draft_record.get("mode") != "direct_factual_answer":
-            log.error("Clarification reply lacks direct_factual_answer mode; refusing target_id=%s", mention_id)
-            log_event(
-                "ai_reply_pipeline_effective_outcome",
-                lane=str(candidate_source),
-                target_id=mention_id,
-                strategy_version=reply_text.draft_record.get(
-                    "strategy_version", "unavailable"
-                ),
-                pipeline_stage_status="approved",
-                effective_status="local_rejection",
-                effective_reason="clarification_not_direct_factual_answer",
-                original_local_rejection_reason=(
-                    "clarification_not_direct_factual_answer"
-                ),
-                direct_answer_repair_attempted=False,
-                direct_answer_repair_outcome="unavailable_legacy_path",
-                incoming_contribution=str(
-                    reply_context.get("incoming_contribution") or ""
-                ),
-                proposed_draft=str(reply_text),
-                repaired_draft=None,
-            )
-            record_terminal_reply_evaluation(
-                state,
-                target_id=mention_id,
-                lane=str(candidate_source),
-                reason="clarification_not_direct_factual_answer",
+                mention_id,
+                reason_code,
             )
             maybe_mark_hot_post_reply_skipped(
                 state,
                 mention,
-                reason="clarification_not_direct_factual_answer",
+                reason=f"editorial_no_reply:{reason_code}",
             )
             mark_mention_seen_if_applicable(state, mention)
             save_state(state, durable=True)
             continue
+        if not isinstance(reply_text, ValidatedReply):
+            log.error(
+                "Single-call pipeline returned an unvalidated reply type; "
+                "deferring target_id=%s source=%s",
+                mention_id,
+                candidate_source,
+            )
+            save_state(state, durable=True)
+            return NORMAL_CHECK_STATUS_API_ERROR
         if candidate_source == "mention":
             clear_author_evaluation_quarantine_history(state, author_id)
 
-        log.info("Generated reply to mention %s: %r", mention_id, reply_text)
-
-        if not DRY_RUN_REPLIES:
-            draft_stored = store_pending_ai_reply(
-                state,
+        log.info("Generated validated reply to target %s: %r", mention_id, reply_text)
+        draft_stored = store_pending_ai_reply(
+            state,
+            mention_id,
+            str(candidate_source),
+            reply_text,
+            context=reply_context,
+        )
+        if not draft_stored:
+            log.error(
+                "Single-call reply draft failed persistence validation; "
+                "deferring target_id=%s source=%s",
                 mention_id,
-                str(candidate_source),
-                reply_text,
-                context=reply_context,
+                candidate_source,
             )
-            if not draft_stored:
-                log.error(
-                    "AI-first reply draft failed persistence validation; "
-                    "skipping target_id=%s source=%s",
-                    mention_id,
-                    candidate_source,
-                )
-                record_terminal_reply_evaluation(
-                    state,
-                    target_id=mention_id,
-                    lane=str(candidate_source),
-                    reason="ai_reply_persistence_validation_failed",
-                )
-                maybe_mark_hot_post_reply_skipped(
-                    state,
-                    mention,
-                    reason="ai_reply_persistence_validation_failed",
-                )
-                log_event(
-                    "candidate_skipped",
-                    lane=candidate_log_source,
-                    id=mention_id,
-                    reason="ai_reply_persistence_validation_failed",
-                )
-                mark_mention_seen_if_applicable(state, mention)
-                save_state(state, durable=True)
-                continue
-            save_state(state, durable=True)
-
-        if DRY_RUN_REPLIES:
-            log.warning("DRY_RUN_REPLIES=True, not posting generated reply")
-            log_ai_reply_dry_run(
-                context=reply_context,
-                reply=reply_text,
+            log_event(
+                "single_call_reply_posting_outcome",
+                status="draft_persistence_failed",
                 lane=str(candidate_source),
                 target_id=mention_id,
+                strategy_version=SINGLE_CALL_STRATEGY_VERSION,
+                reply_kind=reply_text.draft_record.get("reply_kind"),
+                reason_code=reply_text.draft_record.get("reason_code"),
+                validated_draft_hash=reply_text.draft_record.get(
+                    "validated_draft_hash"
+                ),
+                failure_reason="draft_persistence_validation_failed",
             )
-
-            completion_epoch = now_epoch()
-            reset_daily_reply_count_if_needed(state)
-            state["daily_reply_count"] += 1
-            state["last_reply_epoch"] = completion_epoch
-
-            dry_run_seen_ids.add(mention_id)
-            state["dry_run_seen_mention_ids"] = append_unique_capped(
-                state.get("dry_run_seen_mention_ids", []),
-                mention_id,
-                1000,
-            )
-
-            mark_daily_author_replied(state, author_id)
-
-            cache_tweet(
-                state,
-                tweet_id=f"dry-run-reply-{mention_id}",
-                text=reply_text,
-                author_id=str(MY_USER_ID),
-                conversation_id=str(mention.get("conversation_id", mention_id)),
-                referenced_tweets=[
-                    {
-                        "type": "replied_to",
-                        "id": str(mention_id),
-                    }
-                ],
-                post_type="auto_reply",
-            )
-
-            mark_mention_seen_if_applicable(state, mention)
-            save_state(state)
-            return NORMAL_CHECK_STATUS_POSTED
-
+            save_state(state, durable=True)
+            return NORMAL_CHECK_STATUS_API_ERROR
+        save_state(state, durable=True)
         receipt_template = {
             "schema_version": 4,
             "lifecycle_state": "sending",
@@ -25843,8 +25536,8 @@ def quote_tweet_directly_quotes_original(quote_tweet: dict, original_post_id: st
     if re.match(r"^RT\s+@\w+:", text):
         return False
 
-    # Conservative default: ambiguous quote lookup results are skipped rather
-    # than sent to Grok or replied to.
+    # Conservative default: ambiguous quote lookup results are skipped before
+    # model preparation or posting.
     return False
 
 
@@ -25872,29 +25565,65 @@ def quote_author_profile_text(quote_tweet: dict) -> str:
     return "\n".join(part for part in parts if part.strip())
 
 
-def build_quote_tweet_reply_context(original_tweet: dict, quote_tweet: dict) -> dict[str, object]:
-    """Build a structured quote-post context with commentary kept primary."""
-    context: dict[str, object] = {
-        "target_id": str(quote_tweet.get("id") or ""),
-        "thread_id": str(quote_tweet.get("conversation_id") or quote_tweet.get("id") or ""),
-        "lane": "quote_tweet",
-        "incoming_contribution": trim_context_text(
-            str(quote_tweet.get("text") or ""),
-            REPLY_INCOMING_MAX_CHARS,
+def build_quote_tweet_reply_context(
+    original_tweet: dict,
+    quote_tweet: dict,
+) -> dict[str, object]:
+    """Build the canonical two-turn context for a direct quote-tweet."""
+
+    target_id = str(quote_tweet.get("id") or "")
+    original_id = str(original_tweet.get("id") or "")
+    author_id = str(quote_tweet.get("author_id") or "")
+    target_turn = _reply_context_post(
+        quote_tweet,
+        principal_author_id=author_id,
+        maximum_chars=REPLY_INCOMING_MAX_CHARS,
+    )
+    original_turn = {
+        "post_id": original_id,
+        "author_role": "account",
+        "text": trim_context_text(
+            tweet_context_text(original_tweet),
+            max(1, MAX_VISIBLE_TEXT_CHARACTERS - len(target_turn["text"])),
         ),
-        "quoted_post": {
-            "post_id": str(original_tweet.get("id") or "unknown"),
-            "author_role": "account",
-            "text": trim_context_text(
-                tweet_context_text(original_tweet),
-                THREAD_CONTEXT_MAX_CHARS_PER_POST,
-            ),
-        },
-        "parent_thread": [],
+    }
+    bounded_visible = bound_visible_conversation(
+        [original_turn, target_turn],
+        target_post_id=target_id,
+    )
+    visible = [
+        {
+            "post_id": turn["post_id"],
+            "author_role": turn["role"],
+            "text": turn["text"],
+        }
+        for turn in bounded_visible
+    ]
+    context: dict[str, object] = {
+        "target_id": target_id,
+        "thread_id": str(
+            quote_tweet.get("conversation_id") or target_id
+        ),
+        "root_post_id": original_id,
+        "parent_post_id": original_id,
+        "lane": "quote_tweet",
+        "incoming_contribution": target_turn["text"],
+        "quoted_post": copy.deepcopy(original_turn),
+        "parent_thread": [copy.deepcopy(original_turn)],
+        "visible_conversation": visible,
+        "visual_description": None,
         "clarification_request": None,
         "current_date": current_datetime().strftime("%Y-%m-%d"),
+        "target_author_id": author_id,
+        "target_created_at": str(quote_tweet.get("created_at") or ""),
+        "_prepared_media_context": reply_media_context_for_candidate(
+            quote_tweet,
+            lane="quote_tweet",
+            target_id=target_id,
+            quoted_candidate=original_tweet,
+        ),
     }
-    log_json_debug("Quote-tweet context sent to AI reply pipeline", context)
+    log_json_debug("Single-call quote-tweet context", context)
     return context
 
 
@@ -25971,7 +25700,11 @@ def maybe_reply_to_quote_tweets(state: dict) -> str:
         log.info("Skipping quote-tweet check due to runtime control file")
         return QUOTE_CHECK_STATUS_DISABLED
 
-    if in_api_cooldown(state, scope="write") or in_api_cooldown(state, scope="xai") or in_api_cooldown(state, scope="quote"):
+    if (
+        in_api_cooldown(state, scope="write")
+        or in_api_cooldown(state, scope="openai")
+        or in_api_cooldown(state, scope="quote")
+    ):
         log.info("Skipping quote-tweet check due to API cooldown")
         return QUOTE_CHECK_STATUS_SKIPPED_COOLDOWN
 
@@ -26176,6 +25909,40 @@ def maybe_reply_to_quote_tweets(state: dict) -> str:
                 save_state(state)
                 continue
 
+            try:
+                original_context_tweet = get_tweet_by_id_cached(
+                    original_post_id,
+                    state,
+                    include_media=True,
+                )
+            except ApiError as exc:
+                log.exception(
+                    "Could not collect directly quoted post context for quote "
+                    "tweet %s",
+                    quote_id,
+                )
+                record_api_error(state, exc, "x", scope="quote")
+                save_state(state)
+                return QUOTE_CHECK_STATUS_CHECKED
+            if original_context_tweet is None:
+                log.warning(
+                    "Deferring quote tweet %s because its directly quoted "
+                    "post could not be collected",
+                    quote_id,
+                )
+                _record_single_call_result(
+                    PipelineResult(
+                        status="operational_failure",
+                        reason="quoted_post_context_unavailable",
+                        error_category="image_input",
+                        local_validation_status="not_run",
+                    ),
+                    lane="quote_tweet",
+                    target_id=quote_id,
+                )
+                save_state(state)
+                return QUOTE_CHECK_STATUS_CHECKED
+
             cache_tweet(
                 state,
                 tweet_id=quote_id,
@@ -26188,7 +25955,14 @@ def maybe_reply_to_quote_tweets(state: dict) -> str:
             )
             save_state(state)
 
-            reply_context = build_quote_tweet_reply_context(original_tweet, quote_tweet)
+            reply_context = build_quote_tweet_reply_context(
+                original_context_tweet,
+                quote_tweet,
+            )
+            prepared_media_context = reply_context.pop(
+                "_prepared_media_context",
+                None,
+            )
 
             processed_candidates += 1
             try:
@@ -26206,10 +25980,15 @@ def maybe_reply_to_quote_tweets(state: dict) -> str:
                 )
                 return QUOTE_CHECK_STATUS_CHECKED
 
-            media_context = reply_media_context_for_candidate(
-                quote_tweet,
-                lane="quote_tweet",
-                target_id=quote_id,
+            media_context = (
+                prepared_media_context
+                if isinstance(prepared_media_context, dict)
+                else reply_media_context_for_candidate(
+                    quote_tweet,
+                    lane="quote_tweet",
+                    target_id=quote_id,
+                    quoted_candidate=original_context_tweet,
+                )
             )
 
             reply_text = pending_ai_reply(
@@ -26217,118 +25996,120 @@ def maybe_reply_to_quote_tweets(state: dict) -> str:
                 quote_id,
                 "quote_tweet",
                 context=reply_context,
-                recent_replies=recent_auto_reply_texts(state),
             )
-            evaluation_outcome: dict[str, str] = {}
+            evaluation_outcome: dict[str, object] = {}
             try:
                 if reply_text is None:
-                    reply_text = generate_ai_first_reply(
+                    reply_text = generate_single_call_reply(
                         reply_context,
                         media_context,
-                        recent_replies=recent_auto_reply_texts(state),
+                        state=state,
                         evaluation_outcome=evaluation_outcome,
                     )
                 else:
-                    log.info("Reusing persisted AI-first reply draft target_id=%s source=quote_tweet", quote_id)
-            except ApiError as e:
-                log.exception("Failed to ask Grok for quote-tweet reply")
-                record_api_error(state, e, "xai")
+                    log.info(
+                        "Reusing persisted single-call reply draft "
+                        "target_id=%s source=quote_tweet",
+                        quote_id,
+                    )
+            except RemoteOperationsPaused:
+                log.info(
+                    "Deferring quote-tweet reply target_id=%s "
+                    "reason=global_runtime_control_pause",
+                    quote_id,
+                )
+                save_state(state, durable=True)
+                return QUOTE_CHECK_STATUS_CHECKED
+            except ApiError as exc:
+                log.exception("OpenAI single-call quote-tweet reply failed")
+                record_api_error(state, exc, "openai")
                 save_state(state)
                 return QUOTE_CHECK_STATUS_CHECKED
-            except Exception as e:
-                log.exception("Unexpected Grok failure during quote-tweet reply")
-                record_api_error(state, e, "xai")
+            except Exception:
+                log.exception("Unexpected single-call quote-tweet reply failure")
+                record_api_error(
+                    state,
+                    _openai_api_error(
+                        "unexpected single-call quote-tweet failure",
+                        category="unexpected_pipeline_failure",
+                    ),
+                    "openai",
+                )
                 save_state(state)
                 return QUOTE_CHECK_STATUS_CHECKED
 
-            from reply_strategy import AIReply
             if not reply_text:
-                if (
-                    not DRY_RUN_REPLIES
-                    and evaluation_outcome.get("status") == "no_reply"
-                ):
-                    record_terminal_reply_evaluation(
-                        state,
-                        target_id=quote_id,
-                        lane="quote_tweet",
-                        reason=evaluation_outcome.get("reason", "model_selected_no_reply"),
+                if evaluation_outcome.get("status") != "no_reply":
+                    log.warning(
+                        "Deferring quote tweet %s after operational reply "
+                        "failure reason=%s",
+                        quote_id,
+                        evaluation_outcome.get("reason", "unknown"),
                     )
-                log.info("No usable reply generated for quote tweet %s", quote_id)
-                mark_quote_tweet_skipped(state, quote_id)
-                save_state(state, durable=evaluation_outcome.get("status") == "no_reply")
-                continue
-            if not isinstance(reply_text, AIReply):
-                log.error(
-                    "AI-first reply pipeline returned an unapproved reply type; refusing quote_tweet target_id=%s",
-                    quote_id,
+                    save_state(state, durable=True)
+                    return QUOTE_CHECK_STATUS_CHECKED
+                reason_code = str(
+                    evaluation_outcome.get("reason_code")
+                    or evaluation_outcome.get("reason")
+                    or "model_selected_no_reply"
                 )
                 record_terminal_reply_evaluation(
                     state,
                     target_id=quote_id,
                     lane="quote_tweet",
-                    reason="reviewer_approval_missing",
+                    reason=reason_code,
+                )
+                log.info(
+                    "Sol selected no_reply for quote tweet %s reason=%s",
+                    quote_id,
+                    reason_code,
                 )
                 mark_quote_tweet_skipped(state, quote_id)
                 save_state(state, durable=True)
                 continue
-
-            log.info("Generated reply to quote tweet %s: %r", quote_id, reply_text)
-
-            if not DRY_RUN_REPLIES:
-                draft_stored = store_pending_ai_reply(
-                    state,
+            if not isinstance(reply_text, ValidatedReply):
+                log.error(
+                    "Single-call pipeline returned an unvalidated quote-tweet "
+                    "reply; deferring target_id=%s",
                     quote_id,
-                    "quote_tweet",
-                    reply_text,
-                    context=reply_context,
                 )
-                if not draft_stored:
-                    log.error(
-                        "AI-first reply draft failed persistence validation; "
-                        "skipping target_id=%s source=quote_tweet",
-                        quote_id,
-                    )
-                    mark_quote_tweet_skipped(state, quote_id)
-                    save_state(state, durable=True)
-                    continue
                 save_state(state, durable=True)
+                return QUOTE_CHECK_STATUS_CHECKED
 
-            if DRY_RUN_REPLIES:
-                log.warning("DRY_RUN_REPLIES=True, not posting generated quote-tweet reply")
-                log_ai_reply_dry_run(
-                    context=reply_context,
-                    reply=reply_text,
+            log.info(
+                "Generated validated reply to quote tweet %s: %r",
+                quote_id,
+                reply_text,
+            )
+            draft_stored = store_pending_ai_reply(
+                state,
+                quote_id,
+                "quote_tweet",
+                reply_text,
+                context=reply_context,
+            )
+            if not draft_stored:
+                log.error(
+                    "Single-call reply draft failed persistence validation; "
+                    "deferring target_id=%s source=quote_tweet",
+                    quote_id,
+                )
+                log_event(
+                    "single_call_reply_posting_outcome",
+                    status="draft_persistence_failed",
                     lane="quote_tweet",
                     target_id=quote_id,
+                    strategy_version=SINGLE_CALL_STRATEGY_VERSION,
+                    reply_kind=reply_text.draft_record.get("reply_kind"),
+                    reason_code=reply_text.draft_record.get("reason_code"),
+                    validated_draft_hash=reply_text.draft_record.get(
+                        "validated_draft_hash"
+                    ),
+                    failure_reason="draft_persistence_validation_failed",
                 )
-
-                completion_epoch = now_epoch()
-                reset_daily_reply_count_if_needed(state)
-                reset_daily_quote_reply_count_if_needed(state)
-                state["daily_reply_count"] = int(state.get("daily_reply_count", 0) or 0) + 1
-                state["daily_quote_reply_count"] = int(state.get("daily_quote_reply_count", 0) or 0) + 1
-                state["last_reply_epoch"] = completion_epoch
-
-                mark_daily_author_replied(state, author_id)
-                mark_quote_tweet_replied(state, quote_id)
-
-                cache_tweet(
-                    state,
-                    tweet_id=f"dry-run-quote-reply-{quote_id}",
-                    text=reply_text,
-                    author_id=str(MY_USER_ID),
-                    conversation_id=str(quote_tweet.get("conversation_id", quote_id)),
-                    referenced_tweets=[
-                        {
-                            "type": "replied_to",
-                            "id": str(quote_id),
-                        }
-                    ],
-                    post_type="auto_reply",
-                )
-                save_state(state)
-                return QUOTE_CHECK_STATUS_POSTED
-
+                save_state(state, durable=True)
+                return QUOTE_CHECK_STATUS_CHECKED
+            save_state(state, durable=True)
             receipt_template = {
                 "schema_version": 4,
                 "lifecycle_state": "sending",
@@ -26787,7 +26568,6 @@ def main() -> None:
 
     log.info("Config: POST_SLEEP_MIN=%s POST_SLEEP_MAX=%s", POST_SLEEP_MIN, POST_SLEEP_MAX)
     log.info("Config: ENABLE_AUTO_REPLIES=%s", ENABLE_AUTO_REPLIES)
-    log.info("Config: DRY_RUN_REPLIES=%s", DRY_RUN_REPLIES)
     log.info("Config: REPLY_CHECK_EVERY_SECONDS=%s", REPLY_CHECK_EVERY_SECONDS)
     log.info("Config: MAX_AUTO_REPLIES_PER_DAY=%s", MAX_AUTO_REPLIES_PER_DAY)
     log.info("Config: MAX_REPLIES_PER_AUTHOR_PER_DAY=%s", MAX_REPLIES_PER_AUTHOR_PER_DAY)
@@ -26808,7 +26588,15 @@ def main() -> None:
     log.info("Config: TWEET_CACHE_MAX_AGE_SECONDS=%s", TWEET_CACHE_MAX_AGE_SECONDS)
     log.info("Config: TWEET_CACHE_MAX_ITEMS=%s", TWEET_CACHE_MAX_ITEMS)
     log.info("Config: STATE_BACKUP_COUNT=%s", STATE_BACKUP_COUNT)
-    log.info("Config: XAI_MODEL=%s", XAI_MODEL)
+    log.info(
+        "Config: single_call_reply enabled=%s strategy_version=%s model=%s "
+        "reasoning_effort=%s temperature=%s",
+        single_call_reply.get("enabled"),
+        SINGLE_CALL_STRATEGY_VERSION,
+        SINGLE_CALL_MODEL,
+        SINGLE_CALL_REASONING_EFFORT,
+        SINGLE_CALL_TEMPERATURE,
+    )
 
     log.info("Config: ENABLE_DAILY_MEME_POSTS=%s", ENABLE_DAILY_MEME_POSTS)
     log.info("Config: MEME_DIR=%s", MEME_DIR)
@@ -27188,9 +26976,9 @@ def _self_test_warn(label: str, ok: bool, detail: str = "") -> None:
 
 
 def run_self_test() -> int:
-    """Run local checks without posting or calling X/xAI."""
+    """Run local checks without posting or calling X or OpenAI."""
     require_production_bootstrap()
-    log.info("Running self-test only; no X or xAI API calls will be made")
+    log.info("Running self-test only; no X or OpenAI API calls will be made")
     failures = 0
 
     def require(label: str, ok: bool, detail: str = "") -> None:
@@ -27268,10 +27056,11 @@ def run_self_test() -> int:
     require("X_ACCESS_TOKEN set", bool(ACCESS_TOKEN))
     require("X_ACCESS_SECRET set", bool(ACCESS_SECRET))
     require("X_MY_USER_ID set", bool(MY_USER_ID))
-    if ENABLE_AUTO_REPLIES:
-        require("XAI_API_KEY set when auto replies enabled", bool(XAI_API_KEY))
-        if tested_reply_pipeline.get("enabled"):
-            require("OPENAI_API_KEY set when tested reply pipeline enabled", bool(OPENAI_API_KEY))
+    if ENABLE_AUTO_REPLIES and single_call_reply.get("enabled") is True:
+        require(
+            "OPENAI_API_KEY set when single-call replies enabled",
+            bool(OPENAI_API_KEY),
+        )
     _self_test_warn("X_BEARER_TOKEN set", bool(X_BEARER_TOKEN), "needed/preferred for quote/hot search")
 
     require("MAX_AUTO_REPLIES_PER_DAY positive", int(MAX_AUTO_REPLIES_PER_DAY) > 0, str(MAX_AUTO_REPLIES_PER_DAY))
@@ -27309,7 +27098,6 @@ def run_test_cycle() -> int:
     log.info("Log file=%s", LOG_FILE)
     log.info("X base=%s", X_BASE)
     log.info("X upload base=%s", X_UPLOAD_BASE)
-    log.info("xAI base=%s", XAI_BASE)
     log.info("OpenAI base=%s", OPENAI_BASE)
 
     state = load_runtime_state()

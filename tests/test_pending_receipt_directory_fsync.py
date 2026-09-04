@@ -1073,19 +1073,11 @@ def test_durability_uncertainty_blocks_x_and_provider_transports(
     with pytest.raises(bot.AmbiguousRemotePostOutcome):
         bot.x_request("POST", "/2/tweets", json={"text": "synthetic"})
     with pytest.raises(bot.AmbiguousRemotePostOutcome):
-        bot.xai_structured_reply_call(
-            stage="synthetic",
-            model="synthetic-model",
-            system_prompt="system",
-            user_prompt="user",
-            response_schema={
-                "type": "object",
-                "properties": {},
-                "additionalProperties": False,
-            },
+        bot.openai_responses_reply_call(
+            request={},
             timeout_seconds=1,
-            max_output_tokens=1,
-            media_context=None,
+            lane="mention",
+            target_id="synthetic",
         )
     assert request_calls == []
 
@@ -1883,7 +1875,7 @@ def test_later_valid_marker_recovery_releases_sigint_once_without_remote_actions
     monkeypatch.setattr(bot, "create_post", remote_lane_reached)
     monkeypatch.setattr(bot, "upload_media", remote_lane_reached)
     monkeypatch.setattr(bot, "x_request", remote_lane_reached)
-    monkeypatch.setattr(bot, "xai_structured_reply_call", remote_lane_reached)
+    monkeypatch.setattr(bot, "openai_responses_reply_call", remote_lane_reached)
 
     original_signal_handler = signal.getsignal(signal.SIGINT)
     delivered: list[int] = []
@@ -2058,7 +2050,7 @@ def test_main_rechecks_marker_durability_on_every_blocked_tick(
     monkeypatch.setattr(bot, "create_post", remote_lane_reached)
     monkeypatch.setattr(bot, "upload_media", remote_lane_reached)
     monkeypatch.setattr(bot, "x_request", remote_lane_reached)
-    monkeypatch.setattr(bot, "xai_structured_reply_call", remote_lane_reached)
+    monkeypatch.setattr(bot, "openai_responses_reply_call", remote_lane_reached)
 
     original_signal_handler = signal.getsignal(signal.SIGINT)
     delivered: list[int] = []
@@ -2196,7 +2188,7 @@ def test_fresh_process_marker_disappearance_blocks_multiple_real_daemon_ticks(
     monkeypatch.setattr(bot, "create_post", remote_lane_reached)
     monkeypatch.setattr(bot, "upload_media", remote_lane_reached)
     monkeypatch.setattr(bot, "x_request", remote_lane_reached)
-    monkeypatch.setattr(bot, "xai_structured_reply_call", remote_lane_reached)
+    monkeypatch.setattr(bot, "openai_responses_reply_call", remote_lane_reached)
 
     marker_payload = _ambiguous_marker_payload()
     bot.atomic_write_json(

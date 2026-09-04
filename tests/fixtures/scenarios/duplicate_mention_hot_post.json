@@ -1,4 +1,13 @@
 {
+  "tweets": {
+    "700": {
+      "id": "700",
+      "text": "A watched account post.",
+      "author_id": "12345",
+      "conversation_id": "700",
+      "created_at": "2026-06-30T11:59:00Z"
+    }
+  },
   "mentions": [
     {
       "id": "110",

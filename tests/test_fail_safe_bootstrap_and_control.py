@@ -815,7 +815,14 @@ def test_bootstrap_is_explicit_valid_and_idempotent(tmp_path, monkeypatch):
         "reply_evidence_repository",
         lambda: evidence_loads.append(True),
     )
-    for key in ("CONSUMER_KEY", "CONSUMER_SECRET", "ACCESS_TOKEN", "ACCESS_SECRET", "MY_USER_ID", "XAI_API_KEY"):
+    for key in (
+        "CONSUMER_KEY",
+        "CONSUMER_SECRET",
+        "ACCESS_TOKEN",
+        "ACCESS_SECRET",
+        "MY_USER_ID",
+        "OPENAI_API_KEY",
+    ):
         monkeypatch.setattr(bot, key, "test-value")
     bot.production_bootstrap(configure_file_logging=False)
     path.write_text("{")
@@ -1783,15 +1790,11 @@ def test_global_pause_is_rechecked_at_remote_boundaries(
             image_path.write_bytes(b"not sent")
             bot.upload_media(str(image_path), lane="quote_image")
         elif boundary == "provider":
-            bot.xai_structured_reply_call(
-                stage="review",
-                model="unit-model",
-                system_prompt="system",
-                user_prompt="user",
-                response_schema={"type": "object", "properties": {}},
+            bot.openai_responses_reply_call(
+                request={},
                 timeout_seconds=1,
-                max_output_tokens=10,
-                media_context=None,
+                lane="mention",
+                target_id="123",
             )
         else:
             bot.create_post(

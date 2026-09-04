@@ -33,13 +33,13 @@ IMPORT_ENV = {
     "MRS_LOG_FILE": str(UNIT_BASE / "unit-test.log"),
     "X_API_BASE_URL": "http://127.0.0.1:9",
     "X_UPLOAD_BASE_URL": "http://127.0.0.1:9",
-    "XAI_API_BASE_URL": "http://127.0.0.1:9/v1",
+    "OPENAI_API_BASE_URL": "http://127.0.0.1:9/v1",
     "X_CONSUMER_KEY": "dummy",
     "X_CONSUMER_SECRET": "dummy",
     "X_ACCESS_TOKEN": "dummy",
     "X_ACCESS_SECRET": "dummy",
     "X_MY_USER_ID": "12345",
-    "XAI_API_KEY": "dummy",
+    "OPENAI_API_KEY": "dummy",
     "X_BEARER_TOKEN": "dummy",
 }
 ORIGINAL_ENV = {key: os.environ.get(key) for key in IMPORT_ENV}
@@ -49,9 +49,9 @@ import mrsMThatcher2 as bot  # noqa: E402
 import exact_receipt_retirement as exact_retirement_module  # noqa: E402
 import remote_write_transport_journal as transport_journal_module  # noqa: E402
 
-SOURCE_DEFAULT_AI_FIRST_REPLY_STRATEGY = copy.deepcopy(bot.ai_first_reply_strategy)
-bot.ai_first_reply_strategy = {
-    **bot.ai_first_reply_strategy,
+SOURCE_DEFAULT_SINGLE_CALL_REPLY = copy.deepcopy(bot.single_call_reply)
+bot.single_call_reply = {
+    **bot.single_call_reply,
     "enabled": True,
 }
 
@@ -63,12 +63,12 @@ for key, value in ORIGINAL_ENV.items():
 
 from tests.fake_api_server import FakeApiServer, load_scenario  # noqa: E402
 from reply_evidence import EvidencePassage  # noqa: E402
-from reply_strategy import (  # noqa: E402
-    AIReply,
-    CLAIM_AUDITED_MODES,
+from single_call_reply import (  # noqa: E402
+    PipelineResult,
     STRATEGY_VERSION,
-    build_draft_record,
-    split_reply_sentences,
+    ValidatedReply,
+    build_model_payload,
+    create_durable_draft,
 )
 
 SCENARIOS = Path(__file__).resolve().parent / "fixtures" / "scenarios"
@@ -140,6 +140,21 @@ class UnitReplyEvidenceRepository:
     def resolve_context_quotation(self, _context: dict[str, object]) -> None:
         return None
 
+    def candidate_passages(
+        self,
+        _query: str,
+        *,
+        maximum_packets: int,
+        maximum_passages: int,
+        preferred_quote_id: str | None,
+    ) -> list[EvidencePassage]:
+        """Return the one trusted unit passage within requested bounds."""
+
+        assert maximum_packets == 8
+        assert maximum_passages == 32
+        assert preferred_quote_id is None
+        return [self.passage]
+
 
 UNIT_REPLY_REPOSITORY = UnitReplyEvidenceRepository()
 
@@ -152,15 +167,29 @@ def unit_reply_context(
     contribution: str = "A contribution.",
     clarification_request: dict[str, str] | None = None,
 ) -> dict[str, object]:
+    """Return a minimal canonical production reply context."""
+
+    root_id = thread_id or target_id
+    target_turn = {
+        "post_id": target_id,
+        "author_role": "user",
+        "text": contribution,
+    }
     return {
         "target_id": target_id,
-        "thread_id": thread_id or target_id,
+        "thread_id": root_id,
+        "root_post_id": root_id,
+        "parent_post_id": None,
         "lane": lane,
         "incoming_contribution": contribution,
         "quoted_post": None,
         "parent_thread": [],
+        "visible_conversation": [target_turn],
+        "visual_description": None,
         "clarification_request": clarification_request,
         "current_date": "2026-07-20",
+        "target_author_id": "200",
+        "target_created_at": "2026-07-20T12:00:00Z",
     }
 
 
@@ -170,117 +199,43 @@ def unit_approved_reply(
     text: str = "Thank you for the observation.",
     mode: str = "courtesy",
     factual: bool = False,
-) -> AIReply:
-    claims: list[dict[str, object]] = []
-    evidence: list[dict[str, object]] = []
-    sentences = split_reply_sentences(text)
-    if factual:
-        for index, sentence in enumerate(sentences, start=1):
-            claim_record = {
-                "claim_id": f"claim-{index}",
-                "claim_text": sentence,
-                "requires_evidence": True,
-                "actor": "people in East Germany",
-                "action_or_relationship": "moved",
-                "direction_or_polarity": "East to West",
-                "date_or_period": "November 1989",
-                "quantity": "",
-            }
-            claims.append(claim_record)
-            evidence.append({
-                "claim_id": claim_record["claim_id"],
-                "claim_text": sentence,
-                "verdict": "supports",
-                "evidence": [{
-                    "evidence_id": UNIT_REPLY_REPOSITORY.passage.evidence_id,
-                    "exact_supporting_passage": UNIT_REPLY_REPOSITORY.passage.passage,
-                    "relation": "supports",
-                    "source_hash": UNIT_REPLY_REPOSITORY.passage.source_hash,
-                    "evidence_input_hash": UNIT_REPLY_REPOSITORY.passage.model_input_hash(),
-                }],
-                "actor": claim_record["actor"],
-                "action_or_relationship": claim_record["action_or_relationship"],
-                "direction_or_polarity": claim_record["direction_or_polarity"],
-                "date_or_period": claim_record["date_or_period"],
-                "quantity": "",
-                "explanation": "Exact unit evidence supports the claim.",
-            })
-    proposal = {
-        "mode": mode,
-        "interpretation": "Unit-test interpretation.",
-        "proposed_reply": text,
-        "direct_factual_question_present": mode == "direct_factual_answer",
-        "requested_answer_type": "action" if mode == "direct_factual_answer" else "none",
-        "direct_answer_text": sentences[0] if mode == "direct_factual_answer" else "",
-        "factual_claims": claims,
-        "exact_thatcher_wording_used": False,
-        "exact_thatcher_wording": "",
-        "tone": "neutral",
-        "confidence": "high",
-        "no_reply_reason": "",
-    }
-    review = {
-        "verdict": "approve",
-        "reasons": [],
-        "sentence_assessments": [{
-            "sentence_text": sentence,
-            "classification": "factual_claim" if factual else "other_non_factual",
-            "factual_claims": [sentence] if factual else [],
-            "non_factual_basis": "none" if factual else "rhetorical_question",
-            "world_claim_checks": {
-                "asserts_actor_state_or_action": factual,
-                "asserts_causal_or_predictive_relation": False,
-                "asserts_comparison_or_outcome": False,
-                "asserts_historical_date_or_quantity": False,
-                "asserts_meaning_or_attribution": False,
-                "purely_non_factual": not factual,
-            },
-        } for sentence in sentences],
-    }
-    claim_audit = None
-    if not factual and mode in CLAIM_AUDITED_MODES:
-        claim_audit = {
-            "actual_factual_claims": [],
-            "sentence_assessments": [{
-                "sentence_text": sentence,
-                "factual_claims": [],
-                "world_claim_checks": {
-                    "asserts_actor_state_or_action": False,
-                    "asserts_causal_or_predictive_relation": False,
-                    "asserts_comparison_or_outcome": False,
-                    "asserts_historical_date_or_quantity": False,
-                    "asserts_meaning_or_attribution": False,
-                    "purely_non_factual": True,
-                },
-            } for sentence in sentences],
-        }
-    draft = build_draft_record(
+) -> ValidatedReply:
+    """Return one locally validated single-call reply and durable draft."""
+
+    payload, fact_map = build_model_payload(
         context=context,
-        proposer=proposal,
-        evidence=evidence,
-        reviewer=review,
-        claim_auditor=claim_audit,
-        resolved_quotation=None,
-        config=bot.ai_first_reply_strategy,
-        model_call_count=3 if factual or claim_audit is not None else 2,
-        revision_count=0,
-        creation_time="2026-07-20T12:00:00Z",
-        retrieved_count=1 if factual else 0,
+        repository=UNIT_REPLY_REPOSITORY,
+    )
+    reply_kind = (
+        "direct_factual"
+        if factual or mode == "direct_factual_answer"
+        else "social" if mode == "courtesy" else "principle"
+    )
+    used_fact_ids = ["F1"] if reply_kind == "direct_factual" else []
+    output = {
+        "decision": "reply",
+        "reply_kind": reply_kind,
+        "reply": text,
+        "used_fact_ids": used_fact_ids,
+        "reason_code": "useful_reply",
+    }
+    draft = create_durable_draft(
+        output=output,
+        payload=payload,
+        fact_map=fact_map,
+        images=[],
     )
     metadata = {
         "strategy_version": STRATEGY_VERSION,
-        "mode": mode,
-        "tone": "neutral",
-        "confidence": "high",
-        "factual_claim_count": len(claims),
-        "evidence_ids": draft["evidence_ids"],
-        "reviewer_verdict": "approve",
-        "model_call_count": draft["model_call_count"],
-        "revision_count": 0,
+        "reply_kind": reply_kind,
+        "reason_code": "useful_reply",
+        "used_fact_ids": used_fact_ids,
+        "used_fact_count": len(used_fact_ids),
+        "trusted_fact_count": len(payload["trusted_facts"]),
+        "model_call_count": 1,
+        "validated_draft_hash": draft["validated_draft_hash"],
     }
-    return AIReply(text, draft, metadata)
-
-
+    return ValidatedReply(text, draft, metadata)
 def unit_confirmed_reply_receipt(
     *,
     target_id: str = "100",
@@ -305,11 +260,21 @@ def unit_confirmed_reply_receipt(
         clarification_request=clarification_request,
     )
     if lane == "quote_tweet":
-        context["quoted_post"] = {
+        original_turn = {
             "post_id": resolved_original_post_id,
             "author_role": "account",
             "text": "Original account post.",
         }
+        target_turn = copy.deepcopy(context["visible_conversation"][-1])
+        context.update(
+            {
+                "root_post_id": resolved_original_post_id,
+                "parent_post_id": resolved_original_post_id,
+                "quoted_post": copy.deepcopy(original_turn),
+                "parent_thread": [copy.deepcopy(original_turn)],
+                "visible_conversation": [original_turn, target_turn],
+            }
+        )
     reply = unit_approved_reply(
         context,
         text=text,
@@ -546,7 +511,7 @@ def isolate_regular_post_receipt(tmp_path: Path, monkeypatch: pytest.MonkeyPatch
     monkeypatch.setattr(
         bot,
         "get_tweet_by_id",
-        lambda tweet_id: {"id": str(tweet_id)},
+        lambda tweet_id, **_kwargs: {"id": str(tweet_id)},
     )
     monkeypatch.setattr(bot, "reply_evidence_repository", lambda: UNIT_REPLY_REPOSITORY)
     monkeypatch.setattr(
@@ -587,33 +552,6 @@ def quote_analysis_for_lines(lines: list[str], analyses: dict[int, dict] | None 
     }
 
 
-def xai_user_content(server: FakeApiServer) -> str | list[dict]:
-    assert server.xai_requests
-    return server.xai_requests[-1]["messages"][1]["content"]
-
-
-def xai_image_urls(server: FakeApiServer) -> list[str]:
-    content = xai_user_content(server)
-    if not isinstance(content, list):
-        return []
-    return [
-        part["image_url"]["url"]
-        for part in content
-        if part.get("type") == "image_url"
-    ]
-
-
-def fake_xai_response(status_code: int, body: dict | str) -> bot.requests.Response:
-    response = bot.requests.Response()
-    response.status_code = status_code
-    if isinstance(body, str):
-        response._content = body.encode("utf-8")
-    else:
-        response._content = json.dumps(body).encode("utf-8")
-        response.headers["Content-Type"] = "application/json"
-    return response
-
-
 def invalid_pagination_cursor_error() -> bot.ApiError:
     """Return a representative X invalid-pagination-token response."""
     return bot.ApiError(
@@ -642,65 +580,6 @@ def repeated_quote_cursor_suppression(
         if retry_after_epoch is not None
         else detected_epoch + bot.QUOTE_REPEATED_CURSOR_BACKOFF_SECONDS,
     }
-
-
-def run_native_photo_mention_with_xai_responses(
-    tmp_path: Path,
-    monkeypatch: pytest.MonkeyPatch,
-    responses: list[dict],
-) -> tuple[str, list[dict], list[dict], dict]:
-    scenario = {
-        "mentions": [
-            {
-                "id": "100",
-                "text": "This depends on the image. https://t.co/example",
-                "author_id": "200",
-                "conversation_id": "100",
-                "created_at": "2026-07-06T10:00:00Z",
-                "attachments": {"media_keys": ["3_100"]},
-            }
-        ],
-        "mentions_extra": {
-            "includes": {
-                "media": [
-                    {
-                        "media_key": "3_100",
-                        "type": "photo",
-                        "url": "https://pbs.twimg.com/media/native-photo.jpg",
-                    }
-                ]
-            }
-        },
-        "xai_responses": responses,
-    }
-    server = FakeApiServer(scenario).start()
-    try:
-        fixed_epoch = 2_000_000_000
-        monkeypatch.setattr(bot, "STATE_FILE", tmp_path / "bot_state.json")
-        monkeypatch.setattr(bot, "STATE_BACKUP_COUNT", 0)
-        monkeypatch.setattr(bot, "CONTROL_FILE", tmp_path / "mrsMThatcher.control.json")
-        monkeypatch.setattr(bot, "EXTRA_QUOTE_WATCH_FILE", tmp_path / "extra_quote_watch_post_ids.txt")
-        _configure_test_x_base(monkeypatch, server.url)
-        monkeypatch.setattr(bot, "XAI_BASE", f"{server.url}/v1")
-        enabled_strategy = copy.deepcopy(bot.ai_first_reply_strategy)
-        enabled_strategy["enabled"] = True
-        monkeypatch.setattr(bot, "ai_first_reply_strategy", enabled_strategy)
-        monkeypatch.setattr(bot, "ENABLE_AUTO_REPLIES", True)
-        monkeypatch.setattr(bot, "ENABLE_HOT_POST_REPLY_CHECKS", False)
-        monkeypatch.setattr(bot, "MIN_SECONDS_BETWEEN_REPLIES", 0)
-        monkeypatch.setattr(bot, "MAX_AUTO_REPLIES_PER_DAY", 24)
-        monkeypatch.setattr(bot, "MAX_REPLIES_PER_AUTHOR_PER_DAY", 5)
-        monkeypatch.setattr(bot, "MY_USER_ID", "12345")
-        monkeypatch.setattr(bot, "now_epoch", lambda: fixed_epoch)
-        monkeypatch.setattr(bot, "current_datetime", lambda: datetime.fromtimestamp(fixed_epoch))
-
-        state = bot.default_state()
-        state["daily_reply_date"] = bot.current_datetime().strftime("%Y-%m-%d")
-        status = bot.maybe_reply_to_mentions(state)
-        xai_posts = [request for request in server.requests if request["path"] == "/v1/chat/completions"]
-        return status, xai_posts, list(server.xai_requests), state
-    finally:
-        server.stop()
 
 
 def image_analysis_for_paths(paths: list[Path], analyses: dict[str, dict] | None = None) -> dict:
@@ -1284,35 +1163,36 @@ def test_runtime_config_validation_rejects_negative_generated_spacing() -> None:
     assert "GENERATED_IMAGE_MIN_ORIGINAL_POSTS_BETWEEN must be non-negative" in errors
 
 
-@pytest.mark.parametrize("field", ["fail_closed", "maximum_revisions", "strategy_version"])
-def test_ai_first_reply_strategy_validator_rejects_weakened_safety_fields(field: str) -> None:
-    strategy = json.loads(json.dumps(bot.ai_first_reply_strategy))
+@pytest.mark.parametrize("field", ["enabled", "model", "strategy_version", "timeout_seconds"])
+def test_single_call_reply_validator_rejects_invalid_fields(field: str) -> None:
+    strategy = json.loads(json.dumps(bot.single_call_reply))
     strategy[field] = {
-        "fail_closed": False,
-        "maximum_revisions": 2,
+        "enabled": "yes",
+        "model": "another-model",
         "strategy_version": "legacy",
+        "timeout_seconds": 0,
     }[field]
 
-    errors = bot.validate_runtime_config_values({"ai_first_reply_strategy": strategy})
+    errors = bot.validate_runtime_config_values({"single_call_reply": strategy})
 
     assert errors
 
 
-def test_ai_first_reply_strategy_source_defaults_remain_disabled() -> None:
+def test_single_call_reply_source_defaults_remain_disabled() -> None:
     example = json.loads(Path("mrsMThatcher.local.example.json").read_text(encoding="utf-8"))
 
-    assert SOURCE_DEFAULT_AI_FIRST_REPLY_STRATEGY["enabled"] is False
-    assert example["ai_first_reply_strategy"]["enabled"] is False
+    assert SOURCE_DEFAULT_SINGLE_CALL_REPLY["enabled"] is False
+    assert example["single_call_reply"]["enabled"] is False
 
 
-def test_disabled_ai_first_strategy_skips_mention_lane_before_discovery(
+def test_disabled_single_call_reply_skips_mention_lane_before_discovery(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     state = bot.default_state()
-    disabled = copy.deepcopy(bot.ai_first_reply_strategy)
+    disabled = copy.deepcopy(bot.single_call_reply)
     disabled["enabled"] = False
     monkeypatch.setattr(bot, "ENABLE_AUTO_REPLIES", True)
-    monkeypatch.setattr(bot, "ai_first_reply_strategy", disabled)
+    monkeypatch.setattr(bot, "single_call_reply", disabled)
     monkeypatch.setattr(bot, "block_if_ambiguous_remote_post", lambda: None)
     monkeypatch.setattr(
         bot,
@@ -1329,15 +1209,15 @@ def test_disabled_ai_first_strategy_skips_mention_lane_before_discovery(
     assert state.get("reply_evaluation_records", {}) == {}
 
 
-def test_disabled_ai_first_strategy_skips_quote_lane_before_discovery(
+def test_disabled_single_call_reply_skips_quote_lane_before_discovery(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     state = bot.default_state()
-    disabled = copy.deepcopy(bot.ai_first_reply_strategy)
+    disabled = copy.deepcopy(bot.single_call_reply)
     disabled["enabled"] = False
     monkeypatch.setattr(bot, "ENABLE_AUTO_REPLIES", True)
     monkeypatch.setattr(bot, "ENABLE_QUOTE_TWEET_CHECKS", True)
-    monkeypatch.setattr(bot, "ai_first_reply_strategy", disabled)
+    monkeypatch.setattr(bot, "single_call_reply", disabled)
     monkeypatch.setattr(bot, "block_if_ambiguous_remote_post", lambda: None)
     monkeypatch.setattr(
         bot,
@@ -1347,231 +1227,6 @@ def test_disabled_ai_first_strategy_skips_quote_lane_before_discovery(
 
     assert bot.maybe_reply_to_quote_tweets(state) == bot.QUOTE_CHECK_STATUS_DISABLED
     assert state.get("reply_evaluation_records", {}) == {}
-
-
-def test_proposer_invalid_pipeline_telemetry_raises_retryable_api_error(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    import reply_strategy
-
-    enabled = copy.deepcopy(bot.ai_first_reply_strategy)
-    enabled["enabled"] = True
-    outcome: dict[str, str] = {}
-    events: list[tuple[str, dict]] = []
-    monkeypatch.setattr(bot, "ai_first_reply_strategy", enabled)
-    monkeypatch.setattr(bot, "reply_evidence_repository", lambda: UNIT_REPLY_REPOSITORY)
-    monkeypatch.setattr(
-        reply_strategy,
-        "run_reply_pipeline",
-        lambda **_kwargs: reply_strategy.PipelineResult(
-            None,
-            "operational_failure",
-            "proposer_invalid",
-            2,
-            0,
-            ({"stage": "proposer", "status": "invalid", "attempt": 2},),
-        ),
-    )
-    monkeypatch.setattr(bot, "log_event", lambda name, **values: events.append((name, values)))
-
-    with pytest.raises(bot.ApiError, match="operational failure: proposer_invalid"):
-        bot.generate_ai_first_reply(
-            unit_reply_context(),
-            evaluation_outcome=outcome,
-        )
-
-    assert outcome == {
-        "status": "operational_failure",
-        "reason": "proposer_invalid",
-        "qualifying_author_no_reply": False,
-        "author_quarantine_evidence": "unavailable_ai_first_reply_strategy",
-    }
-    assert events == [(
-        "ai_reply_pipeline_failure",
-        {
-            "lane": "mention",
-            "target_id": "100",
-            "status": "operational_failure",
-            "strategy_version": STRATEGY_VERSION,
-            "mode": "unavailable",
-            "proposer_mode": "not_run",
-            "tone": "none",
-            "factual_claim_count": None,
-            "evidence_ids": [],
-            "evidence_confidence": "none",
-            "retrieved_count": None,
-            "evidence_reference_count": 0,
-            "reviewer_verdict": "not_run",
-            "terminal_stage": "proposer",
-            "claim_auditor_status": "not_run",
-            "evidence_status": "not_run",
-            "author_quarantine_evidence": "unavailable_ai_first_reply_strategy",
-            "reason": "proposer_invalid",
-            "model_call_count": 2,
-            "revision_count": 0,
-        },
-    )]
-
-
-def test_confirmed_no_reply_pipeline_telemetry_reports_independent_review(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    import reply_strategy
-
-    interpretation_marker = "PRIVATE_PROPOSER_INTERPRETATION_MARKER"
-    reason_marker = "PRIVATE_PROPOSER_NO_REPLY_REASON_MARKER"
-    events: list[tuple[str, dict]] = []
-    outcome: dict[str, object] = {}
-    monkeypatch.setattr(bot, "reply_evidence_repository", lambda: UNIT_REPLY_REPOSITORY)
-    monkeypatch.setattr(
-        reply_strategy,
-        "run_reply_pipeline",
-        lambda **_kwargs: reply_strategy.PipelineResult(
-            None,
-            "no_reply",
-            "independent_no_reply_confirmed",
-            2,
-            0,
-            (
-                {
-                    "stage": "proposer",
-                    "status": "completed",
-                    "mode": "no_reply",
-                    "tone": "none",
-                    "factual_claim_count": 0,
-                },
-                {
-                    "stage": "no_reply_reviewer",
-                    "status": "completed",
-                    "verdict": "confirm_no_reply",
-                },
-            ),
-        ),
-    )
-    monkeypatch.setattr(bot, "log_event", lambda name, **values: events.append((name, values)))
-
-    assert bot.generate_ai_first_reply(
-        unit_reply_context(),
-        evaluation_outcome=outcome,
-    ) is None
-
-    assert outcome == {
-        "status": "no_reply",
-        "reason": "independent_no_reply_confirmed",
-        "qualifying_author_no_reply": False,
-        "author_quarantine_evidence": "unavailable_ai_first_reply_strategy",
-    }
-
-    name, decision = events[-1]
-    assert name == "ai_reply_pipeline_decision"
-    assert decision["mode"] == "no_reply"
-    assert decision["proposer_mode"] == "no_reply"
-    assert decision["terminal_stage"] == "no_reply_reviewer"
-    assert decision["reviewer_verdict"] == "confirm_no_reply"
-    assert decision["claim_auditor_status"] == "not_run"
-    assert decision["evidence_status"] == "not_run"
-    assert (
-        decision["author_quarantine_evidence"]
-        == "unavailable_ai_first_reply_strategy"
-    )
-    assert decision["reason"] == "independent_no_reply_confirmed"
-    serialised_decision = json.dumps(decision, sort_keys=True)
-    for private_marker in (interpretation_marker, reason_marker):
-        assert private_marker not in serialised_decision
-    assert "no_reply_reason" not in decision
-    assert "interpretation" not in decision
-
-
-def test_evidence_stage_operational_failure_telemetry_keeps_unknown_references(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    import reply_strategy
-
-    events: list[tuple[str, dict]] = []
-    monkeypatch.setattr(bot, "reply_evidence_repository", lambda: UNIT_REPLY_REPOSITORY)
-    monkeypatch.setattr(
-        reply_strategy,
-        "run_reply_pipeline",
-        lambda **_kwargs: reply_strategy.PipelineResult(
-            None,
-            "operational_failure",
-            "reviewer_invalid",
-            4,
-            0,
-            (
-                {
-                    "stage": "proposer",
-                    "status": "completed",
-                    "mode": "direct_factual_answer",
-                    "tone": "neutral",
-                    "factual_claim_count": 1,
-                },
-                {"stage": "evidence", "status": "completed", "supported": True},
-                {"stage": "reviewer", "status": "invalid", "attempt": 2},
-            ),
-        ),
-    )
-    monkeypatch.setattr(bot, "log_event", lambda name, **values: events.append((name, values)))
-
-    with pytest.raises(bot.ApiError, match="operational failure: reviewer_invalid"):
-        bot.generate_ai_first_reply(unit_reply_context())
-
-    name, failure = events[-1]
-    assert name == "ai_reply_pipeline_failure"
-    assert failure["proposer_mode"] == "direct_factual_answer"
-    assert failure["terminal_stage"] == "reviewer"
-    assert failure["reviewer_verdict"] == "invalid"
-    assert failure["claim_auditor_status"] == "not_run"
-    assert failure["evidence_status"] == "completed"
-    assert failure["evidence_ids"] is None
-    assert failure["evidence_confidence"] == "unavailable"
-    assert failure["evidence_reference_count"] is None
-
-
-def test_approved_ai_reply_decision_logs_existing_evidence_metrics(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    import reply_strategy
-
-    context = unit_reply_context(
-        contribution="Where did people move in November 1989?"
-    )
-    reply = unit_approved_reply(
-        context,
-        text=(
-            "People moved from East Germany towards West Germany in November "
-            "1989."
-        ),
-        mode="direct_factual_answer",
-        factual=True,
-    )
-    events: list[tuple[str, dict]] = []
-    monkeypatch.setattr(bot, "reply_evidence_repository", lambda: UNIT_REPLY_REPOSITORY)
-    monkeypatch.setattr(
-        reply_strategy,
-        "run_reply_pipeline",
-        lambda **_kwargs: reply_strategy.PipelineResult(
-            reply,
-            "approved",
-            "reviewer_approved",
-            3,
-            0,
-            (),
-        ),
-    )
-    monkeypatch.setattr(
-        bot,
-        "log_event",
-        lambda name, **values: events.append((name, values)),
-    )
-
-    generated = bot.generate_ai_first_reply(context)
-
-    assert generated == reply
-    decision = events[-1][1]
-    assert decision["evidence_confidence"] == "high"
-    assert decision["retrieved_count"] == 1
-    assert decision["evidence_reference_count"] == 1
 
 
 def test_operational_pipeline_failure_does_not_consume_mention_target(
@@ -1587,20 +1242,21 @@ def test_operational_pipeline_failure_does_not_consume_mention_target(
         "conversation_id": "100",
         "referenced_tweets": [],
     }
-    enabled = copy.deepcopy(bot.ai_first_reply_strategy)
-    enabled["enabled"] = True
-
     def fail_operationally(
         _context: dict,
         *_args: object,
         evaluation_outcome: dict[str, str],
         **_kwargs: object,
     ) -> None:
-        evaluation_outcome.update({"status": "operational_failure", "reason": "proposer_invalid"})
-        raise bot.ApiError("AI-first reply pipeline operational failure", service="xai")
+        evaluation_outcome.update({
+            "status": "operational_failure",
+            "reason": "provider_request_failed",
+            "error_category": "provider_transport",
+            "model_call_count": 1,
+        })
+        return None
 
     monkeypatch.setattr(bot, "ENABLE_AUTO_REPLIES", True)
-    monkeypatch.setattr(bot, "ai_first_reply_strategy", enabled)
     monkeypatch.setattr(bot, "MIN_SECONDS_BETWEEN_REPLIES", 0)
     monkeypatch.setattr(bot, "MAX_AUTO_REPLIES_PER_DAY", 5)
     monkeypatch.setattr(bot, "MAX_REPLIES_PER_AUTHOR_PER_DAY", 5)
@@ -1620,7 +1276,7 @@ def test_operational_pipeline_failure_does_not_consume_mention_target(
     )
     monkeypatch.setattr(bot, "reply_evidence_repository", lambda: UNIT_REPLY_REPOSITORY)
     monkeypatch.setattr(bot, "reply_media_context_for_candidate", lambda *_args, **_kwargs: {})
-    monkeypatch.setattr(bot, "generate_ai_first_reply", fail_operationally)
+    monkeypatch.setattr(bot, "generate_single_call_reply", fail_operationally)
     monkeypatch.setattr(bot, "save_state", lambda *_args, **_kwargs: None)
 
     assert bot.maybe_reply_to_mentions(state) == bot.NORMAL_CHECK_STATUS_API_ERROR
@@ -1628,17 +1284,21 @@ def test_operational_pipeline_failure_does_not_consume_mention_target(
     assert state.get("last_seen_mention_id") is None
 
 
-def test_runtime_config_cannot_raise_reply_length_above_x_limit() -> None:
-    errors = bot.validate_runtime_config_values({"MAX_REPLY_CHARS": 281})
+def test_single_call_config_rejects_reply_length_tuning_knob() -> None:
+    config = copy.deepcopy(bot.single_call_reply)
+    config["MAX_REPLY_CHARS"] = 281
+    errors = bot.validate_runtime_config_values({"single_call_reply": config})
 
-    assert "MAX_REPLY_CHARS must not exceed 280" in errors
+    assert errors
 
 
 @pytest.mark.parametrize("value", [True, 270.0, "270"])
 def test_runtime_config_requires_integer_reply_length(value: object) -> None:
-    errors = bot.validate_runtime_config_values({"MAX_REPLY_CHARS": value})
+    config = copy.deepcopy(bot.single_call_reply)
+    config["MAX_REPLY_CHARS"] = value
+    errors = bot.validate_runtime_config_values({"single_call_reply": config})
 
-    assert "MAX_REPLY_CHARS must be an integer" in errors
+    assert errors
 
 
 def test_original_image_selection_returns_observability_and_logs(
@@ -7958,7 +7618,7 @@ def test_main_global_pause_stops_before_every_remote_lane(
     monkeypatch.setattr(bot, "create_post", remote_lane_reached)
     monkeypatch.setattr(bot, "upload_media", remote_lane_reached)
     monkeypatch.setattr(bot, "x_request", remote_lane_reached)
-    monkeypatch.setattr(bot, "xai_structured_reply_call", remote_lane_reached)
+    monkeypatch.setattr(bot, "openai_responses_reply_call", remote_lane_reached)
 
     class MaintenanceTickComplete(Exception):
         pass
@@ -10510,7 +10170,6 @@ def test_malformed_reply_post_id_is_not_recorded(monkeypatch: pytest.MonkeyPatch
     }
 
     monkeypatch.setattr(bot, "ENABLE_AUTO_REPLIES", True)
-    monkeypatch.setattr(bot, "DRY_RUN_REPLIES", False)
     monkeypatch.setattr(bot, "MARK_AI_REPLIES_AS_AI", False)
     monkeypatch.setattr(bot, "MIN_SECONDS_BETWEEN_REPLIES", 0)
     monkeypatch.setattr(bot, "MAX_AUTO_REPLIES_PER_DAY", 5)
@@ -10525,7 +10184,7 @@ def test_malformed_reply_post_id_is_not_recorded(monkeypatch: pytest.MonkeyPatch
     monkeypatch.setattr(bot, "build_context_for_reply_ai", lambda mention, state: (context, True))
     monkeypatch.setattr(
         bot,
-        "generate_ai_first_reply",
+        "generate_single_call_reply",
         lambda actual_context, *_args, **_kwargs: unit_approved_reply(actual_context),
     )
     install_receipt_bound_x_request_stub(
@@ -10612,8 +10271,13 @@ def test_truncated_pagination_no_reply_is_not_evaluated_twice(
     calls: list[str] = []
 
     def no_reply(_context: dict, *_args: object, evaluation_outcome=None, **_kwargs: object):
-        calls.append("xai")
-        evaluation_outcome.update({"status": "no_reply", "reason": "no useful response"})
+        calls.append("sol")
+        evaluation_outcome.update({
+            "status": "no_reply",
+            "reason": "completed_exchange",
+            "reason_code": "completed_exchange",
+            "model_call_count": 1,
+        })
         return None
 
     monkeypatch.setattr(bot, "ENABLE_AUTO_REPLIES", True)
@@ -10629,17 +10293,17 @@ def test_truncated_pagination_no_reply_is_not_evaluated_twice(
     context = unit_reply_context(target_id="100", contribution=mention["text"])
     monkeypatch.setattr(bot, "build_context_for_reply_ai", lambda *_args: (context, True))
     monkeypatch.setattr(bot, "reply_media_context_for_candidate", lambda *_args, **_kwargs: {})
-    monkeypatch.setattr(bot, "generate_ai_first_reply", no_reply)
+    monkeypatch.setattr(bot, "generate_single_call_reply", no_reply)
     monkeypatch.setattr(bot, "save_state", lambda *_args, **_kwargs: None)
 
     assert bot.maybe_reply_to_mentions(state) == bot.NORMAL_CHECK_STATUS_CHECKED
     assert bot.maybe_reply_to_mentions(state) == bot.NORMAL_CHECK_STATUS_CHECKED
 
-    assert calls == ["xai"]
+    assert calls == ["sol"]
     assert state["reply_evaluation_records"]["100"]["outcome"] == "no_reply"
 
 
-def test_truncated_pagination_rejected_model_output_is_terminal(
+def test_truncated_pagination_invalid_model_output_is_operational_not_terminal(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     state = bot.default_state()
@@ -10654,8 +10318,13 @@ def test_truncated_pagination_rejected_model_output_is_terminal(
     calls: list[str] = []
 
     def rejected(_context: dict, *_args: object, evaluation_outcome=None, **_kwargs: object):
-        calls.append("xai")
-        evaluation_outcome.update({"status": "no_reply", "reason": "reviewer_rejected"})
+        calls.append("sol")
+        evaluation_outcome.update({
+            "status": "operational_failure",
+            "reason": "model_response_validation_failed",
+            "error_category": "local_validation",
+            "model_call_count": 1,
+        })
         return None
 
     monkeypatch.setattr(bot, "ENABLE_AUTO_REPLIES", True)
@@ -10671,14 +10340,14 @@ def test_truncated_pagination_rejected_model_output_is_terminal(
     context = unit_reply_context(target_id="101", contribution=mention["text"])
     monkeypatch.setattr(bot, "build_context_for_reply_ai", lambda *_args: (context, True))
     monkeypatch.setattr(bot, "reply_media_context_for_candidate", lambda *_args, **_kwargs: {})
-    monkeypatch.setattr(bot, "generate_ai_first_reply", rejected)
+    monkeypatch.setattr(bot, "generate_single_call_reply", rejected)
     monkeypatch.setattr(bot, "save_state", lambda *_args, **_kwargs: None)
 
-    assert bot.maybe_reply_to_mentions(state) == bot.NORMAL_CHECK_STATUS_CHECKED
-    assert bot.maybe_reply_to_mentions(state) == bot.NORMAL_CHECK_STATUS_CHECKED
+    assert bot.maybe_reply_to_mentions(state) == bot.NORMAL_CHECK_STATUS_API_ERROR
+    assert bot.maybe_reply_to_mentions(state) == bot.NORMAL_CHECK_STATUS_API_ERROR
 
-    assert calls == ["xai"]
-    assert state["reply_evaluation_records"]["101"]["reason"] == "reviewer_rejected"
+    assert calls == ["sol", "sol"]
+    assert "101" not in state.get("reply_evaluation_records", {})
 
 
 def test_confirmed_mention_reply_save_failure_replays_after_restart(
@@ -10724,10 +10393,8 @@ def test_confirmed_mention_reply_save_failure_replays_after_restart(
         monkeypatch.setattr(bot, "CONTROL_FILE", control_file)
         monkeypatch.setattr(bot, "EXTRA_QUOTE_WATCH_FILE", watch_file)
         _configure_test_x_base(monkeypatch, server.url)
-        monkeypatch.setattr(bot, "XAI_BASE", f"{server.url}/v1")
         monkeypatch.setattr(bot, "ENABLE_AUTO_REPLIES", True)
         monkeypatch.setattr(bot, "ENABLE_HOT_POST_REPLY_CHECKS", False)
-        monkeypatch.setattr(bot, "DRY_RUN_REPLIES", False)
         monkeypatch.setattr(bot, "MARK_AI_REPLIES_AS_AI", False)
         monkeypatch.setattr(bot, "MIN_SECONDS_BETWEEN_REPLIES", 0)
         monkeypatch.setattr(bot, "MAX_AUTO_REPLIES_PER_DAY", 24)
@@ -10739,7 +10406,7 @@ def test_confirmed_mention_reply_save_failure_replays_after_restart(
         monkeypatch.setattr(bot, "current_datetime", lambda: datetime.fromtimestamp(fixed_epoch))
         monkeypatch.setattr(
             bot,
-            "generate_ai_first_reply",
+            "generate_single_call_reply",
             lambda context, *_args, **_kwargs: unit_approved_reply(
                 context,
                 text="Quite right. Good sense still matters.",
@@ -10823,554 +10490,6 @@ def test_confirmed_mention_reply_save_failure_replays_after_restart(
         server.stop()
 
 
-def test_mention_native_photo_context_reaches_xai(
-    tmp_path: Path,
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    scenario = {
-        "mentions": [
-            {
-                "id": "100",
-                "text": "You've been conquered. https://t.co/example",
-                "author_id": "200",
-                "conversation_id": "100",
-                "created_at": "2026-07-06T10:00:00Z",
-                "attachments": {"media_keys": ["3_100"]},
-            }
-        ],
-        "mentions_extra": {
-            "includes": {
-                "media": [
-                    {
-                        "media_key": "3_100",
-                        "type": "photo",
-                        "url": "https://pbs.twimg.com/media/native-photo.jpg",
-                    }
-                ]
-            }
-        },
-        "grok_replies": ["SKIP"],
-    }
-    server = FakeApiServer(scenario).start()
-    try:
-        fixed_epoch = 2_000_000_000
-        monkeypatch.setattr(bot, "STATE_FILE", tmp_path / "bot_state.json")
-        monkeypatch.setattr(bot, "STATE_BACKUP_COUNT", 0)
-        monkeypatch.setattr(bot, "CONTROL_FILE", tmp_path / "mrsMThatcher.control.json")
-        monkeypatch.setattr(bot, "EXTRA_QUOTE_WATCH_FILE", tmp_path / "extra_quote_watch_post_ids.txt")
-        _configure_test_x_base(monkeypatch, server.url)
-        monkeypatch.setattr(bot, "XAI_BASE", f"{server.url}/v1")
-        monkeypatch.setattr(bot, "ENABLE_AUTO_REPLIES", True)
-        monkeypatch.setattr(bot, "ENABLE_HOT_POST_REPLY_CHECKS", False)
-        monkeypatch.setattr(bot, "DRY_RUN_REPLIES", False)
-        monkeypatch.setattr(bot, "MIN_SECONDS_BETWEEN_REPLIES", 0)
-        monkeypatch.setattr(bot, "MAX_AUTO_REPLIES_PER_DAY", 24)
-        monkeypatch.setattr(bot, "MAX_REPLIES_PER_AUTHOR_PER_DAY", 5)
-        monkeypatch.setattr(bot, "MY_USER_ID", "12345")
-        monkeypatch.setattr(bot, "now_epoch", lambda: fixed_epoch)
-        monkeypatch.setattr(bot, "current_datetime", lambda: datetime.fromtimestamp(fixed_epoch))
-
-        state = bot.default_state()
-        state["daily_reply_date"] = bot.current_datetime().strftime("%Y-%m-%d")
-
-        candidates = bot.get_mentions(state)
-        media = bot.reply_media_context_for_candidate(candidates[0], lane="mention", target_id="100")
-        user_content = bot.xai_user_content("You've been conquered.", media)
-        assert isinstance(user_content, list)
-        text_parts = [part["text"] for part in user_content if part.get("type") == "text"]
-        image_parts = [part for part in user_content if part.get("type") == "image_url"]
-        assert text_parts
-        assert "You've been conquered." in text_parts[0]
-        assert "https://t.co/example" not in text_parts[0]
-        assert image_parts == [
-            {
-                "type": "image_url",
-                "image_url": {"url": "https://pbs.twimg.com/media/native-photo.jpg"},
-            }
-        ]
-    finally:
-        server.stop()
-
-
-def test_text_only_mention_keeps_plain_xai_content(
-    tmp_path: Path,
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    scenario = {
-        "mentions": [
-            {
-                "id": "100",
-                "text": "A plain comment.",
-                "author_id": "200",
-                "conversation_id": "100",
-                "created_at": "2026-07-06T10:00:00Z",
-            }
-        ],
-        "grok_replies": ["SKIP"],
-    }
-    server = FakeApiServer(scenario).start()
-    try:
-        fixed_epoch = 2_000_000_000
-        monkeypatch.setattr(bot, "STATE_FILE", tmp_path / "bot_state.json")
-        monkeypatch.setattr(bot, "STATE_BACKUP_COUNT", 0)
-        monkeypatch.setattr(bot, "CONTROL_FILE", tmp_path / "mrsMThatcher.control.json")
-        monkeypatch.setattr(bot, "EXTRA_QUOTE_WATCH_FILE", tmp_path / "extra_quote_watch_post_ids.txt")
-        _configure_test_x_base(monkeypatch, server.url)
-        monkeypatch.setattr(bot, "XAI_BASE", f"{server.url}/v1")
-        monkeypatch.setattr(bot, "ENABLE_AUTO_REPLIES", True)
-        monkeypatch.setattr(bot, "ENABLE_HOT_POST_REPLY_CHECKS", False)
-        monkeypatch.setattr(bot, "MIN_SECONDS_BETWEEN_REPLIES", 0)
-        monkeypatch.setattr(bot, "MAX_AUTO_REPLIES_PER_DAY", 24)
-        monkeypatch.setattr(bot, "MAX_REPLIES_PER_AUTHOR_PER_DAY", 5)
-        monkeypatch.setattr(bot, "MY_USER_ID", "12345")
-        monkeypatch.setattr(bot, "now_epoch", lambda: fixed_epoch)
-        monkeypatch.setattr(bot, "current_datetime", lambda: datetime.fromtimestamp(fixed_epoch))
-
-        state = bot.default_state()
-        state["daily_reply_date"] = bot.current_datetime().strftime("%Y-%m-%d")
-
-        candidates = bot.get_mentions(state)
-        media = bot.reply_media_context_for_candidate(candidates[0], lane="mention", target_id="100")
-        assert isinstance(bot.xai_user_content("A plain comment.", media), str)
-        assert media["status"] == "none"
-    finally:
-        server.stop()
-
-
-def test_mention_external_url_without_native_photo_is_not_image_input(
-    tmp_path: Path,
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    scenario = {
-        "mentions": [
-            {
-                "id": "100",
-                "text": "Look at this https://example.com/story",
-                "author_id": "200",
-                "conversation_id": "100",
-                "created_at": "2026-07-06T10:00:00Z",
-            }
-        ],
-        "grok_replies": ["SKIP"],
-    }
-    server = FakeApiServer(scenario).start()
-    try:
-        fixed_epoch = 2_000_000_000
-        monkeypatch.setattr(bot, "STATE_FILE", tmp_path / "bot_state.json")
-        monkeypatch.setattr(bot, "STATE_BACKUP_COUNT", 0)
-        monkeypatch.setattr(bot, "CONTROL_FILE", tmp_path / "mrsMThatcher.control.json")
-        monkeypatch.setattr(bot, "EXTRA_QUOTE_WATCH_FILE", tmp_path / "extra_quote_watch_post_ids.txt")
-        _configure_test_x_base(monkeypatch, server.url)
-        monkeypatch.setattr(bot, "XAI_BASE", f"{server.url}/v1")
-        monkeypatch.setattr(bot, "ENABLE_AUTO_REPLIES", True)
-        monkeypatch.setattr(bot, "ENABLE_HOT_POST_REPLY_CHECKS", False)
-        monkeypatch.setattr(bot, "MIN_SECONDS_BETWEEN_REPLIES", 0)
-        monkeypatch.setattr(bot, "MAX_AUTO_REPLIES_PER_DAY", 24)
-        monkeypatch.setattr(bot, "MAX_REPLIES_PER_AUTHOR_PER_DAY", 5)
-        monkeypatch.setattr(bot, "MY_USER_ID", "12345")
-        monkeypatch.setattr(bot, "now_epoch", lambda: fixed_epoch)
-        monkeypatch.setattr(bot, "current_datetime", lambda: datetime.fromtimestamp(fixed_epoch))
-
-        state = bot.default_state()
-        state["daily_reply_date"] = bot.current_datetime().strftime("%Y-%m-%d")
-
-        candidates = bot.get_mentions(state)
-        media = bot.reply_media_context_for_candidate(candidates[0], lane="mention", target_id="100")
-        content = bot.xai_user_content("Look at this", media)
-        assert isinstance(content, str)
-        assert media["status"] == "none"
-    finally:
-        server.stop()
-
-
-def test_mention_native_photo_context_caps_multiple_photos_in_order(
-    tmp_path: Path,
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    scenario = {
-        "mentions": [
-            {
-                "id": "100",
-                "text": "Several images attached.",
-                "author_id": "200",
-                "conversation_id": "100",
-                "created_at": "2026-07-06T10:00:00Z",
-                "attachments": {"media_keys": ["3_a", "3_b", "3_c"]},
-            }
-        ],
-        "mentions_extra": {
-            "includes": {
-                "media": [
-                    {"media_key": "3_a", "type": "photo", "url": "https://pbs.twimg.com/media/a.jpg"},
-                    {"media_key": "3_b", "type": "photo", "url": "https://pbs.twimg.com/media/b.jpg"},
-                    {"media_key": "3_c", "type": "photo", "url": "https://pbs.twimg.com/media/c.jpg"},
-                ]
-            }
-        },
-        "grok_replies": ["SKIP"],
-    }
-    server = FakeApiServer(scenario).start()
-    try:
-        fixed_epoch = 2_000_000_000
-        monkeypatch.setattr(bot, "STATE_FILE", tmp_path / "bot_state.json")
-        monkeypatch.setattr(bot, "STATE_BACKUP_COUNT", 0)
-        monkeypatch.setattr(bot, "CONTROL_FILE", tmp_path / "mrsMThatcher.control.json")
-        monkeypatch.setattr(bot, "EXTRA_QUOTE_WATCH_FILE", tmp_path / "extra_quote_watch_post_ids.txt")
-        _configure_test_x_base(monkeypatch, server.url)
-        monkeypatch.setattr(bot, "XAI_BASE", f"{server.url}/v1")
-        monkeypatch.setattr(bot, "ENABLE_AUTO_REPLIES", True)
-        monkeypatch.setattr(bot, "ENABLE_HOT_POST_REPLY_CHECKS", False)
-        monkeypatch.setattr(bot, "MIN_SECONDS_BETWEEN_REPLIES", 0)
-        monkeypatch.setattr(bot, "MAX_AUTO_REPLIES_PER_DAY", 24)
-        monkeypatch.setattr(bot, "MAX_REPLIES_PER_AUTHOR_PER_DAY", 5)
-        monkeypatch.setattr(bot, "MY_USER_ID", "12345")
-        monkeypatch.setattr(bot, "now_epoch", lambda: fixed_epoch)
-        monkeypatch.setattr(bot, "current_datetime", lambda: datetime.fromtimestamp(fixed_epoch))
-
-        state = bot.default_state()
-        state["daily_reply_date"] = bot.current_datetime().strftime("%Y-%m-%d")
-
-        candidates = bot.get_mentions(state)
-        media = bot.reply_media_context_for_candidate(candidates[0], lane="mention", target_id="100")
-        content = bot.xai_user_content("Several images attached.", media)
-        assert isinstance(content, list)
-        assert [part["image_url"]["url"] for part in content if part.get("type") == "image_url"] == [
-            "https://pbs.twimg.com/media/a.jpg",
-            "https://pbs.twimg.com/media/b.jpg",
-        ]
-    finally:
-        server.stop()
-
-
-def test_native_photo_unavailable_adds_incomplete_context_warning(
-    tmp_path: Path,
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    scenario = {
-        "mentions": [
-            {
-                "id": "100",
-                "text": "This only makes sense with the image. https://t.co/example",
-                "author_id": "200",
-                "conversation_id": "100",
-                "created_at": "2026-07-06T10:00:00Z",
-                "attachments": {"media_keys": ["3_100"]},
-            }
-        ],
-        "mentions_extra": {
-            "includes": {
-                "media": [
-                    {
-                        "media_key": "3_100",
-                        "type": "photo",
-                    }
-                ]
-            }
-        },
-        "grok_replies": ["SKIP"],
-    }
-    server = FakeApiServer(scenario).start()
-    try:
-        fixed_epoch = 2_000_000_000
-        monkeypatch.setattr(bot, "STATE_FILE", tmp_path / "bot_state.json")
-        monkeypatch.setattr(bot, "STATE_BACKUP_COUNT", 0)
-        monkeypatch.setattr(bot, "CONTROL_FILE", tmp_path / "mrsMThatcher.control.json")
-        monkeypatch.setattr(bot, "EXTRA_QUOTE_WATCH_FILE", tmp_path / "extra_quote_watch_post_ids.txt")
-        _configure_test_x_base(monkeypatch, server.url)
-        monkeypatch.setattr(bot, "XAI_BASE", f"{server.url}/v1")
-        monkeypatch.setattr(bot, "ENABLE_AUTO_REPLIES", True)
-        monkeypatch.setattr(bot, "ENABLE_HOT_POST_REPLY_CHECKS", False)
-        monkeypatch.setattr(bot, "MIN_SECONDS_BETWEEN_REPLIES", 0)
-        monkeypatch.setattr(bot, "MAX_AUTO_REPLIES_PER_DAY", 24)
-        monkeypatch.setattr(bot, "MAX_REPLIES_PER_AUTHOR_PER_DAY", 5)
-        monkeypatch.setattr(bot, "MY_USER_ID", "12345")
-        monkeypatch.setattr(bot, "now_epoch", lambda: fixed_epoch)
-        monkeypatch.setattr(bot, "current_datetime", lambda: datetime.fromtimestamp(fixed_epoch))
-
-        state = bot.default_state()
-        state["daily_reply_date"] = bot.current_datetime().strftime("%Y-%m-%d")
-
-        candidates = bot.get_mentions(state)
-        media = bot.reply_media_context_for_candidate(candidates[0], lane="mention", target_id="100")
-        content = bot.xai_user_content("This only makes sense with the image.", media)
-        assert isinstance(content, str)
-        assert "could not be made available" in content
-        assert "Do not invent image contents" in content
-        assert "https://t.co/example" not in content
-    finally:
-        server.stop()
-
-
-def test_multimodal_xai_rejection_fails_closed_without_retry(
-    tmp_path: Path,
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    scenario = {
-        "mentions": [
-            {
-                "id": "100",
-                "text": "This depends on the image. https://t.co/example",
-                "author_id": "200",
-                "conversation_id": "100",
-                "created_at": "2026-07-06T10:00:00Z",
-                "attachments": {"media_keys": ["3_100"]},
-            }
-        ],
-        "mentions_extra": {
-            "includes": {
-                "media": [
-                    {
-                        "media_key": "3_100",
-                        "type": "photo",
-                        "url": "https://pbs.twimg.com/media/native-photo.jpg",
-                    }
-                ]
-            }
-        },
-        "xai_responses": [
-            {"status": 400, "body": {"error": "image input rejected"}},
-            {
-                "status": 200,
-                "body": {
-                    "choices": [{"message": {"content": "SKIP"}}],
-                    "usage": {"total_tokens": 12},
-                },
-            },
-        ],
-    }
-    server = FakeApiServer(scenario).start()
-    try:
-        fixed_epoch = 2_000_000_000
-        monkeypatch.setattr(bot, "STATE_FILE", tmp_path / "bot_state.json")
-        monkeypatch.setattr(bot, "STATE_BACKUP_COUNT", 0)
-        monkeypatch.setattr(bot, "CONTROL_FILE", tmp_path / "mrsMThatcher.control.json")
-        monkeypatch.setattr(bot, "EXTRA_QUOTE_WATCH_FILE", tmp_path / "extra_quote_watch_post_ids.txt")
-        _configure_test_x_base(monkeypatch, server.url)
-        monkeypatch.setattr(bot, "XAI_BASE", f"{server.url}/v1")
-        monkeypatch.setattr(bot, "ENABLE_AUTO_REPLIES", True)
-        monkeypatch.setattr(bot, "ENABLE_HOT_POST_REPLY_CHECKS", False)
-        monkeypatch.setattr(bot, "MIN_SECONDS_BETWEEN_REPLIES", 0)
-        monkeypatch.setattr(bot, "MAX_AUTO_REPLIES_PER_DAY", 24)
-        monkeypatch.setattr(bot, "MAX_REPLIES_PER_AUTHOR_PER_DAY", 5)
-        monkeypatch.setattr(bot, "MY_USER_ID", "12345")
-        monkeypatch.setattr(bot, "now_epoch", lambda: fixed_epoch)
-        monkeypatch.setattr(bot, "current_datetime", lambda: datetime.fromtimestamp(fixed_epoch))
-
-        state = bot.default_state()
-        state["daily_reply_date"] = bot.current_datetime().strftime("%Y-%m-%d")
-
-        media = {
-            "status": "supplied",
-            "photos": [{"url": "https://pbs.twimg.com/media/native-photo.jpg"}],
-        }
-        with pytest.raises(bot.ApiError, match="error 400"):
-            bot.xai_structured_reply_call(
-                stage="proposer",
-                model="unit-model",
-                system_prompt="system",
-                user_prompt="user",
-                response_schema={"type": "object"},
-                timeout_seconds=5,
-                max_output_tokens=100,
-                media_context=media,
-            )
-
-        xai_posts = [request for request in server.requests if request["path"] == "/v1/chat/completions"]
-        assert len(xai_posts) == 1
-        assert isinstance(xai_posts[0]["body"]["messages"][1]["content"], list)
-    finally:
-        server.stop()
-
-
-@pytest.mark.parametrize(
-    ("status_code", "body"),
-    [
-        (400, {"error": "invalid request body"}),
-        (403, {"error": "forbidden"}),
-        (415, {"error": "unsupported content type application/json"}),
-        (422, {"error": "unsupported input type"}),
-        (422, {"error": "invalid provision"}),
-        (422, {"error": "invalid revision"}),
-        (422, {"error": "invalid supervision setting"}),
-        (
-            400,
-            {
-                "error": {"message": "invalid request body"},
-                "request_fragment": {"type": "image_url"},
-            },
-        ),
-        (401, {"error": "configured 401 failure"}),
-        (429, {"error": "configured 429 failure"}),
-        (503, {"error": "configured 503 failure"}),
-    ],
-)
-def test_xai_multimodal_rejection_classifier_rejects_unrelated_errors(
-    status_code: int,
-    body: dict,
-) -> None:
-    assert bot.xai_error_is_multimodal_input_rejection(fake_xai_response(status_code, body)) is False
-
-
-@pytest.mark.parametrize(
-    ("status_code", "body"),
-    [
-        (400, {"error": "unsupported image_url in multimodal input"}),
-        (415, {"error": "image content type is unsupported"}),
-        (422, {"error": "invalid multimodal image input"}),
-        (422, {"error": "invalid vision input"}),
-        (
-            400,
-            {
-                "error": {"message": "unsupported image_url in multimodal input"},
-                "request_fragment": {"type": "image_url"},
-            },
-        ),
-    ],
-)
-def test_xai_multimodal_rejection_classifier_accepts_media_specific_errors(
-    status_code: int,
-    body: dict,
-) -> None:
-    assert bot.xai_error_is_multimodal_input_rejection(fake_xai_response(status_code, body)) is True
-
-
-@pytest.mark.parametrize(
-    ("status_code", "body"),
-    [
-        (400, {"error": "invalid request body"}),
-        (403, {"error": "forbidden"}),
-        (415, {"error": "unsupported content type application/json"}),
-        (422, {"error": "unsupported input type"}),
-        (
-            400,
-            {
-                "error": {"message": "invalid request body"},
-                "request_fragment": {"type": "image_url"},
-            },
-        ),
-        (401, {"error": "configured 401 failure"}),
-        (429, {"error": "configured 429 failure"}),
-        (503, {"error": "configured 503 failure"}),
-    ],
-)
-def test_non_image_xai_http_errors_do_not_retry_as_text_fallback(
-    tmp_path: Path,
-    monkeypatch: pytest.MonkeyPatch,
-    status_code: int,
-    body: dict,
-) -> None:
-    status, xai_posts, successful_xai_requests, _state = run_native_photo_mention_with_xai_responses(
-        tmp_path,
-        monkeypatch,
-        [
-            {"status": status_code, "body": body},
-            {
-                "status": 200,
-                "body": {
-                    "choices": [{"message": {"content": "SKIP"}}],
-                    "usage": {"total_tokens": 12},
-                },
-            },
-        ],
-    )
-
-    assert status == bot.NORMAL_CHECK_STATUS_API_ERROR
-    assert len(xai_posts) == 1
-    assert isinstance(xai_posts[0]["body"]["messages"][1]["content"], list)
-    assert successful_xai_requests == []
-
-
-@pytest.mark.parametrize(
-    ("status_code", "body"),
-    [
-        (400, {"error": "unsupported image_url in multimodal input"}),
-        (415, {"error": "image content type is unsupported"}),
-        (422, {"error": "invalid multimodal image input"}),
-    ],
-)
-def test_image_xai_http_rejection_fails_closed_without_text_fallback(
-    tmp_path: Path,
-    monkeypatch: pytest.MonkeyPatch,
-    status_code: int,
-    body: dict,
-) -> None:
-    status, xai_posts, successful_xai_requests, _state = run_native_photo_mention_with_xai_responses(
-        tmp_path,
-        monkeypatch,
-        [
-            {"status": status_code, "body": body},
-            {
-                "status": 200,
-                "body": {
-                    "choices": [{"message": {"content": "SKIP"}}],
-                    "usage": {"total_tokens": 12},
-                },
-            },
-            {
-                "status": 200,
-                "body": {
-                    "choices": [{"message": {"content": "This third response must not be used."}}],
-                    "usage": {"total_tokens": 99},
-                },
-            },
-        ],
-    )
-
-    assert status == bot.NORMAL_CHECK_STATUS_API_ERROR
-    assert len(xai_posts) == 1
-    assert isinstance(xai_posts[0]["body"]["messages"][1]["content"], list)
-    assert successful_xai_requests == []
-
-
-def test_quote_tweet_native_photo_context_reaches_xai(
-    tmp_path: Path,
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    scenario = load_scenario(SCENARIOS / "quote_tweet_reply.json")
-    scenario["quote_tweets"]["900"]["data"][0]["attachments"] = {"media_keys": ["3_910"]}
-    scenario["quote_tweets"]["900"]["includes"]["media"] = [
-        {
-            "media_key": "3_910",
-            "type": "photo",
-            "url": "https://pbs.twimg.com/media/quote-photo.jpg",
-        }
-    ]
-    scenario["grok_replies"] = ["SKIP"]
-    server = FakeApiServer(scenario).start()
-    try:
-        fixed_epoch = 2_000_000_000
-        monkeypatch.setattr(bot, "STATE_FILE", tmp_path / "bot_state.json")
-        monkeypatch.setattr(bot, "STATE_BACKUP_COUNT", 0)
-        monkeypatch.setattr(bot, "CONTROL_FILE", tmp_path / "mrsMThatcher.control.json")
-        _configure_test_x_base(monkeypatch, server.url)
-        monkeypatch.setattr(bot, "XAI_BASE", f"{server.url}/v1")
-        monkeypatch.setattr(bot, "ENABLE_AUTO_REPLIES", True)
-        monkeypatch.setattr(bot, "ENABLE_QUOTE_TWEET_CHECKS", True)
-        monkeypatch.setattr(bot, "MIN_SECONDS_BETWEEN_REPLIES", 0)
-        monkeypatch.setattr(bot, "MAX_AUTO_REPLIES_PER_DAY", 24)
-        monkeypatch.setattr(bot, "MAX_QUOTE_REPLIES_PER_DAY", 10)
-        monkeypatch.setattr(bot, "MAX_REPLIES_PER_AUTHOR_PER_DAY", 5)
-        monkeypatch.setattr(bot, "QUOTE_REPLY_DELAY_SECONDS", 0)
-        monkeypatch.setattr(bot, "MY_USER_ID", "12345")
-        monkeypatch.setattr(bot, "now_epoch", lambda: fixed_epoch)
-        monkeypatch.setattr(bot, "current_datetime", lambda: datetime.fromtimestamp(fixed_epoch))
-
-        state = bot.default_state()
-        state["recent_own_post_ids"] = ["900"]
-        state["daily_reply_date"] = bot.current_datetime().strftime("%Y-%m-%d")
-        state["daily_quote_reply_date"] = state["daily_reply_date"]
-
-        candidates = scenario["quote_tweets"]["900"]["data"]
-        bot.attach_media_to_tweets(candidates, scenario["quote_tweets"]["900"]["includes"])
-        media = bot.reply_media_context_for_candidate(candidates[0], lane="quote_tweet", target_id="910")
-        assert media["photos"] == [{
-            "media_key": "3_910",
-            "url": "https://pbs.twimg.com/media/quote-photo.jpg",
-        }]
-    finally:
-        server.stop()
-
-
 def test_strategy_persistence_failure_blocks_quote_tweet_x_write(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
@@ -11385,7 +10504,6 @@ def test_strategy_persistence_failure_blocks_quote_tweet_x_write(
         _configure_test_x_base(monkeypatch, server.url)
         monkeypatch.setattr(bot, "ENABLE_AUTO_REPLIES", True)
         monkeypatch.setattr(bot, "ENABLE_QUOTE_TWEET_CHECKS", True)
-        monkeypatch.setattr(bot, "DRY_RUN_REPLIES", False)
         monkeypatch.setattr(bot, "MIN_SECONDS_BETWEEN_REPLIES", 0)
         monkeypatch.setattr(bot, "MAX_AUTO_REPLIES_PER_DAY", 24)
         monkeypatch.setattr(bot, "MAX_QUOTE_REPLIES_PER_DAY", 10)
@@ -11396,7 +10514,14 @@ def test_strategy_persistence_failure_blocks_quote_tweet_x_write(
         monkeypatch.setattr(bot, "current_datetime", lambda: datetime.fromtimestamp(fixed_epoch))
         monkeypatch.setattr(
             bot,
-            "generate_ai_first_reply",
+            "get_tweet_by_id",
+            lambda tweet_id, **_kwargs: copy.deepcopy(
+                scenario["tweets"].get(str(tweet_id))
+            ),
+        )
+        monkeypatch.setattr(
+            bot,
+            "generate_single_call_reply",
             lambda context, *_args, **_kwargs: unit_approved_reply(
                 context,
                 text="Conviction matters more than applause.",
@@ -11418,7 +10543,7 @@ def test_strategy_persistence_failure_blocks_quote_tweet_x_write(
 
         assert bot.maybe_reply_to_quote_tweets(state) == bot.QUOTE_CHECK_STATUS_CHECKED
         assert state["daily_reply_count"] == 0
-        assert "910" in state["seen_quote_post_ids"]
+        assert "910" not in state["seen_quote_post_ids"]
     finally:
         server.stop()
 
@@ -11446,7 +10571,12 @@ def test_quote_tweet_model_no_reply_is_durable_beyond_bounded_scan_lists(
         model_calls.append("called")
         outcome = kwargs.get("evaluation_outcome")
         if isinstance(outcome, dict):
-            outcome.update({"status": "no_reply", "reason": "no_reply_due_to_unverifiable_claim"})
+            outcome.update({
+                "status": "no_reply",
+                "reason": "unsupported_or_unverifiable",
+                "reason_code": "unsupported_or_unverifiable",
+                "model_call_count": 1,
+            })
         return None
 
     monkeypatch.setattr(bot, "ENABLE_AUTO_REPLIES", True)
@@ -11467,7 +10597,7 @@ def test_quote_tweet_model_no_reply_is_durable_beyond_bounded_scan_lists(
     monkeypatch.setattr(bot, "quote_tweet_is_old_enough", lambda _tweet: True)
     monkeypatch.setattr(bot, "is_probably_spam_or_not_worth_replying", lambda _text: False)
     monkeypatch.setattr(bot, "reply_media_context_for_candidate", lambda *_args, **_kwargs: {})
-    monkeypatch.setattr(bot, "generate_ai_first_reply", no_reply)
+    monkeypatch.setattr(bot, "generate_single_call_reply", no_reply)
     monkeypatch.setattr(bot, "save_state", lambda *_args, **_kwargs: None)
 
     assert bot.maybe_reply_to_quote_tweets(state) == bot.QUOTE_CHECK_STATUS_CHECKED
@@ -11499,7 +10629,7 @@ def test_quote_tweet_generic_403_remains_ambiguous_and_durable(
     model_calls: list[str] = []
     post_calls: list[str] = []
 
-    def reply(context: dict, *_args: object, **_kwargs: object) -> AIReply:
+    def reply(context: dict, *_args: object, **_kwargs: object) -> ValidatedReply:
         model_calls.append("called")
         return unit_approved_reply(
             context,
@@ -11533,7 +10663,7 @@ def test_quote_tweet_generic_403_remains_ambiguous_and_durable(
     monkeypatch.setattr(bot, "quote_tweet_is_old_enough", lambda _tweet: True)
     monkeypatch.setattr(bot, "is_probably_spam_or_not_worth_replying", lambda _text: False)
     monkeypatch.setattr(bot, "reply_media_context_for_candidate", lambda *_args, **_kwargs: {})
-    monkeypatch.setattr(bot, "generate_ai_first_reply", reply)
+    monkeypatch.setattr(bot, "generate_single_call_reply", reply)
     monkeypatch.setattr(bot, "create_post", forbidden_post)
     monkeypatch.setattr(bot, "save_state", lambda *_args, **_kwargs: None)
 
@@ -11551,7 +10681,7 @@ def test_quote_tweet_generic_403_remains_ambiguous_and_durable(
     )
 
 
-def test_hot_post_reply_native_photo_context_reaches_xai(
+def test_hot_post_reply_native_photo_context_is_retained_for_single_call(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -11600,7 +10730,6 @@ def test_hot_post_reply_native_photo_context_reaches_xai(
         monkeypatch.setattr(bot, "CONTROL_FILE", tmp_path / "mrsMThatcher.control.json")
         monkeypatch.setattr(bot, "EXTRA_QUOTE_WATCH_FILE", watch_file)
         _configure_test_x_base(monkeypatch, server.url)
-        monkeypatch.setattr(bot, "XAI_BASE", f"{server.url}/v1")
         monkeypatch.setattr(bot, "ENABLE_AUTO_REPLIES", True)
         monkeypatch.setattr(bot, "ENABLE_HOT_POST_REPLY_CHECKS", True)
         monkeypatch.setattr(bot, "MIN_SECONDS_BETWEEN_REPLIES", 0)
@@ -11622,6 +10751,103 @@ def test_hot_post_reply_native_photo_context_reaches_xai(
         }]
     finally:
         server.stop()
+
+
+def test_reply_images_prioritise_target_then_direct_quote_and_ignore_parent() -> None:
+    def candidate(post_id: str, *media_keys: str) -> dict:
+        return {
+            "id": post_id,
+            "_attached_media": [
+                {
+                    "media_key": media_key,
+                    "type": "photo",
+                    "url": f"https://pbs.twimg.com/media/{media_key}.jpg",
+                }
+                for media_key in media_keys
+            ],
+        }
+
+    target = candidate("100", "target-1")
+    quoted = candidate("90", "quoted-1", "quoted-2")
+    unrelated_parent = candidate("80", "parent-1")
+
+    media = bot.reply_media_context_for_candidate(
+        target,
+        lane="mention",
+        target_id="100",
+        quoted_candidate=quoted,
+    )
+
+    assert media["status"] == "supplied"
+    assert [photo["media_key"] for photo in media["photos"]] == [
+        "target-1",
+        "quoted-1",
+    ]
+    assert len(media["photos"]) == 2
+    assert "parent-1" not in {
+        photo["media_key"] for photo in media["photos"]
+    }
+    assert unrelated_parent["_attached_media"][0]["media_key"] == "parent-1"
+
+    target_only = bot.reply_media_context_for_candidate(
+        candidate("101", "target-1", "target-2", "target-3"),
+        lane="mention",
+        target_id="101",
+        quoted_candidate=quoted,
+    )
+    assert [photo["media_key"] for photo in target_only["photos"]] == [
+        "target-1",
+        "target-2",
+    ]
+
+    incomplete = bot.reply_media_context_for_candidate(
+        {
+            "id": "102",
+            "attachments": {"media_keys": ["target-missing"]},
+        },
+        lane="mention",
+        target_id="102",
+    )
+    assert incomplete == {
+        "lane": "mention",
+        "target_id": "102",
+        "mode": "multimodal",
+        "status": "unavailable",
+        "photos_expected": 1,
+        "photos": [],
+    }
+
+
+def test_quote_tweet_context_wires_target_and_quoted_images_in_priority_order() -> None:
+    def media(media_key: str) -> dict[str, str]:
+        return {
+            "media_key": media_key,
+            "type": "photo",
+            "url": f"https://pbs.twimg.com/media/{media_key}.jpg",
+        }
+
+    context = bot.build_quote_tweet_reply_context(
+        {
+            "id": "900",
+            "author_id": "12345",
+            "text": "Quoted account post.",
+            "_attached_media": [media("quoted-1"), media("quoted-2")],
+        },
+        {
+            "id": "910",
+            "author_id": "200",
+            "conversation_id": "910",
+            "text": "Target commentary.",
+            "_attached_media": [media("target-1")],
+        },
+    )
+
+    prepared = context.pop("_prepared_media_context")
+    assert [photo["media_key"] for photo in prepared["photos"]] == [
+        "target-1",
+        "quoted-1",
+    ]
+    assert context["visible_conversation"][-1]["post_id"] == "910"
 
 
 def test_confirmed_reply_receipt_reconciliation_is_idempotent(
@@ -11658,6 +10884,35 @@ def test_confirmed_reply_receipt_reconciliation_is_idempotent(
     assert state["replied_to_ids"].count("100") == 1
     assert state["own_auto_reply_ids"].count("900000") == 1
     assert state["last_seen_mention_id"] == "100"
+
+
+def test_confirmed_receipt_recovery_does_not_change_no_reply_strikes() -> None:
+    fixed_epoch = 2_000_000_000
+    state = bot.default_state()
+    state["daily_reply_date"] = bot.epoch_date_str(fixed_epoch)
+    bot.record_qualifying_author_no_reply(
+        state,
+        "200",
+        current_epoch=fixed_epoch - 2,
+        explicit_spam_or_abuse=False,
+    )
+    bot.record_qualifying_author_no_reply(
+        state,
+        "200",
+        current_epoch=fixed_epoch - 1,
+        explicit_spam_or_abuse=False,
+    )
+    before = copy.deepcopy(state["author_evaluation_quarantines"])
+    receipt = unit_confirmed_reply_receipt(
+        target_id="100",
+        reply_post_id="900000",
+        author_id="200",
+        epoch=fixed_epoch,
+    )
+
+    bot.apply_confirmed_reply_receipt(state, receipt)
+
+    assert state["author_evaluation_quarantines"] == before
 
 
 def test_conversational_reply_receipt_schema_v3_lifecycle_is_explicit() -> None:
@@ -12007,7 +11262,7 @@ def test_schema_v4_confirmation_advances_daily_counters_once_across_midnight(
         assert state["daily_quote_reply_count"] == 3
 
 
-def test_confirmed_factual_reply_outcome_logs_existing_evidence_metrics(
+def test_confirmed_factual_reply_outcome_logs_compact_fact_metrics(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     events: list[tuple[str, dict]] = []
@@ -12030,12 +11285,12 @@ def test_confirmed_factual_reply_outcome_logs_existing_evidence_metrics(
     outcome = next(
         values
         for name, values in events
-        if name == "ai_reply_pipeline_outcome"
+        if name == "single_call_reply_posting_outcome"
     )
     assert outcome["status"] == "confirmed"
-    assert outcome["evidence_confidence"] == "high"
-    assert outcome["retrieved_count"] == 1
-    assert outcome["evidence_reference_count"] == 1
+    assert outcome["reply_kind"] == "direct_factual"
+    assert outcome["used_fact_count"] == 1
+    assert outcome["model_call_count"] == 1
 
 
 def test_schema_v4_reconciliation_never_rolls_newer_daily_state_backward() -> None:
@@ -12079,7 +11334,7 @@ def test_reply_spacing_is_measured_from_schema_v4_confirmation(
         ),
     )
     monkeypatch.setattr(bot, "ENABLE_AUTO_REPLIES", True)
-    monkeypatch.setitem(bot.ai_first_reply_strategy, "enabled", True)
+    monkeypatch.setitem(bot.single_call_reply, "enabled", True)
     monkeypatch.setattr(bot, "MIN_SECONDS_BETWEEN_REPLIES", 1800)
     monkeypatch.setattr(bot, "MAX_AUTO_REPLIES_PER_DAY", 24)
     monkeypatch.setattr(bot, "lane_paused", lambda *_args, **_kwargs: False)
@@ -12347,7 +11602,7 @@ def test_confirmed_receipt_reconciliation_cannot_authorise_stale_pending_state(
     )
     monkeypatch.setattr(
         bot,
-        "generate_ai_first_reply",
+        "generate_single_call_reply",
         lambda *_args, **_kwargs: pytest.fail(
             "stale pending state must not reach the reply provider"
         ),
@@ -12430,7 +11685,7 @@ def test_receipt_recovery_from_older_backup_without_page_ownership_is_guarded(
     )
     monkeypatch.setattr(
         bot,
-        "generate_ai_first_reply",
+        "generate_single_call_reply",
         lambda *_args, **_kwargs: pytest.fail(
             "backup receipt recovery must not call the reply provider"
         ),
@@ -13264,11 +12519,10 @@ def test_same_thread_clarification_at_author_cap_is_skipped_before_model_or_post
     monkeypatch.setattr(bot, "STATE_FILE", tmp_path / "state.json")
     monkeypatch.setattr(bot, "STATE_BACKUP_COUNT", 0)
     monkeypatch.setattr(bot, "MY_USER_ID", "12345")
-    enabled_strategy = copy.deepcopy(bot.ai_first_reply_strategy)
+    enabled_strategy = copy.deepcopy(bot.single_call_reply)
     enabled_strategy["enabled"] = True
-    monkeypatch.setattr(bot, "ai_first_reply_strategy", enabled_strategy)
+    monkeypatch.setattr(bot, "single_call_reply", enabled_strategy)
     monkeypatch.setattr(bot, "ENABLE_AUTO_REPLIES", True)
-    monkeypatch.setattr(bot, "DRY_RUN_REPLIES", False)
     monkeypatch.setattr(bot, "MARK_AI_REPLIES_AS_AI", False)
     monkeypatch.setattr(bot, "MIN_SECONDS_BETWEEN_REPLIES", 0)
     monkeypatch.setattr(bot, "MAX_AUTO_REPLIES_PER_DAY", 48)
@@ -13287,7 +12541,7 @@ def test_same_thread_clarification_at_author_cap_is_skipped_before_model_or_post
     )
     monkeypatch.setattr(
         bot,
-        "generate_ai_first_reply",
+        "generate_single_call_reply",
         lambda *_args, **_kwargs: pytest.fail("model must not be called"),
     )
     install_receipt_bound_x_request_stub(
@@ -13299,154 +12553,6 @@ def test_same_thread_clarification_at_author_cap_is_skipped_before_model_or_post
     assert state["daily_reply_count"] == 6
     assert state["daily_replied_author_counts"]["200"] == 6
     assert "700" not in state.get("clarification_reply_records", {})
-
-
-def test_tested_pipeline_supported_factual_clarification_passes_guards_and_receipt(
-    tmp_path: Path,
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    import tested_reply_pipeline as tested_pipeline
-
-    fixed_epoch = 2_000_000_000
-    state = bot.default_state()
-    state["daily_reply_date"] = datetime.fromtimestamp(
-        fixed_epoch, ZoneInfo("Europe/London")
-    ).strftime("%Y-%m-%d")
-    state["daily_reply_count"] = 1
-    state["daily_replied_author_ids"] = ["200"]
-    state["daily_replied_author_counts"] = {"200": 1}
-    state["own_auto_reply_ids"] = ["900"]
-    state["tweet_cache"] = {
-        "100": {
-            "id": "100",
-            "author_id": "200",
-            "conversation_id": "700",
-            "text": "@MrsMThatcher Where did people move when the Berlin Wall fell?",
-            "referenced_tweets": [{"type": "replied_to", "id": "700"}],
-        },
-        "900": {
-            "id": "900",
-            "author_id": "12345",
-            "conversation_id": "700",
-            "text": "When free to choose, people choose freedom.",
-            "post_type": "auto_reply",
-            "referenced_tweets": [{"type": "replied_to", "id": "100"}],
-        },
-    }
-    correction = {
-        "id": "101",
-        "author_id": "200",
-        "conversation_id": "700",
-        "text": "@MrsMThatcher That did not answer my question.",
-        "entities": {
-            "mentions": [{"id": "12345", "username": "MrsMThatcher"}]
-        },
-        "referenced_tweets": [{"type": "replied_to", "id": "900"}],
-    }
-
-    class TestedRepository(UnitReplyEvidenceRepository):
-        def candidate_passages(self, _text: str, **_kwargs: object) -> list:
-            return [self.passage]
-
-    def transport(**kwargs: object) -> dict[str, str]:
-        stage = str(kwargs["stage"])
-        if stage == "candidate_backed_engagement":
-            return {"decision": "no_reply", "reply": ""}
-        if stage.startswith("reply_necessity_"):
-            return {"outcome": "require_supported_factual_reply"}
-        if stage in {
-            "narrow_claim_audit",
-            "cleanup_claim_audit",
-            "diversity_claim_audit",
-        }:
-            return {"outcome": "pass"}
-        if stage in {
-            "writer_v3_initial",
-            "bounded_claim_cleanup",
-            "exact_duplicate_repair",
-        }:
-            return {
-                "status": "reply",
-                "reply": (
-                    "People moved from East Germany towards West Germany in "
-                    "November 1989."
-                ),
-            }
-        raise AssertionError(stage)
-
-    def build_context(
-        candidate: dict, _state: dict
-    ) -> tuple[dict[str, object], bool]:
-        return (
-            unit_reply_context(
-                target_id=str(candidate["id"]),
-                thread_id=str(candidate["conversation_id"]),
-                contribution=str(candidate["text"]),
-            ),
-            True,
-        )
-
-    promoted_receipts: list[dict] = []
-    original_promote = bot.promote_sending_reply_receipt
-
-    def promote(*args: object, **kwargs: object) -> dict:
-        receipt = original_promote(*args, **kwargs)
-        assert bot.confirmed_reply_receipt_is_semantically_valid(receipt)
-        promoted_receipts.append(dict(receipt))
-        return receipt
-
-    monkeypatch.setattr(bot, "STATE_FILE", tmp_path / "state.json")
-    monkeypatch.setattr(bot, "STATE_BACKUP_COUNT", 0)
-    monkeypatch.setattr(bot, "MY_USER_ID", "12345")
-    config = copy.deepcopy(tested_pipeline.default_config())
-    config["enabled"] = True
-    monkeypatch.setattr(bot, "tested_reply_pipeline", config)
-    monkeypatch.setattr(bot, "OPENAI_BASE", "http://127.0.0.1:9/v1")
-    monkeypatch.setattr(bot, "ENABLE_AUTO_REPLIES", True)
-    monkeypatch.setattr(bot, "DRY_RUN_REPLIES", False)
-    monkeypatch.setattr(bot, "MARK_AI_REPLIES_AS_AI", False)
-    monkeypatch.setattr(bot, "MIN_SECONDS_BETWEEN_REPLIES", 0)
-    monkeypatch.setattr(bot, "MAX_AUTO_REPLIES_PER_DAY", 48)
-    monkeypatch.setattr(bot, "MAX_REPLIES_PER_AUTHOR_PER_DAY", 6)
-    monkeypatch.setattr(bot, "now_epoch", lambda: fixed_epoch)
-    monkeypatch.setattr(
-        bot,
-        "current_datetime",
-        lambda: datetime.fromtimestamp(fixed_epoch, ZoneInfo("Europe/London")),
-    )
-    monkeypatch.setattr(bot, "lane_paused", lambda *_args, **_kwargs: False)
-    monkeypatch.setattr(bot, "in_api_cooldown", lambda *_args, **_kwargs: False)
-    monkeypatch.setattr(bot, "get_mentions", lambda _state: [correction])
-    monkeypatch.setattr(bot, "get_hot_post_reply_candidates", lambda _state: [])
-    monkeypatch.setattr(
-        bot, "is_probably_spam_or_not_worth_replying", lambda _text: False
-    )
-    monkeypatch.setattr(bot, "build_context_for_reply_ai", build_context)
-    monkeypatch.setattr(
-        bot, "reply_media_context_for_candidate", lambda *_args, **_kwargs: {}
-    )
-    monkeypatch.setattr(bot, "reply_evidence_repository", TestedRepository)
-    monkeypatch.setattr(bot, "tested_pipeline_structured_call", transport)
-    monkeypatch.setattr(bot, "promote_sending_reply_receipt", promote)
-
-    def confirmed_remote(*_args: object, **_kwargs: object) -> dict[str, object]:
-        status, sending = bot.load_confirmed_reply_receipt()
-        assert status == "sending"
-        assert sending is not None
-        assert bot.sending_reply_receipt_is_semantically_valid(sending)
-        assert sending["ai_reply_draft"]["mode"] == "direct_factual_answer"
-        assert sending["ai_reply_draft"]["final_reply_kind"] == "factual"
-        return {"data": {"id": "900001"}}
-
-    install_receipt_bound_x_request_stub(monkeypatch, confirmed_remote)
-
-    assert bot.maybe_reply_to_mentions(state) == bot.NORMAL_CHECK_STATUS_POSTED
-    assert len(promoted_receipts) == 1
-    assert promoted_receipts[0]["clarification_reply"]["thread_id"] == "700"
-    assert state["daily_reply_count"] == 2
-    assert state["daily_replied_author_counts"]["200"] == 2
-    assert state["clarification_reply_records"]["700"]["thread_terminal"] is True
-    assert bot.terminal_reply_evaluation(state, "101") is None
 
 
 def test_author_cap_context_is_terminal_but_available_to_next_eligible_reply(
@@ -13494,11 +12600,10 @@ def test_author_cap_context_is_terminal_but_available_to_next_eligible_reply(
     monkeypatch.setattr(bot, "STATE_FILE", tmp_path / "state.json")
     monkeypatch.setattr(bot, "STATE_BACKUP_COUNT", 0)
     monkeypatch.setattr(bot, "MY_USER_ID", "12345")
-    enabled_strategy = copy.deepcopy(bot.ai_first_reply_strategy)
+    enabled_strategy = copy.deepcopy(bot.single_call_reply)
     enabled_strategy["enabled"] = True
-    monkeypatch.setattr(bot, "ai_first_reply_strategy", enabled_strategy)
+    monkeypatch.setattr(bot, "single_call_reply", enabled_strategy)
     monkeypatch.setattr(bot, "ENABLE_AUTO_REPLIES", True)
-    monkeypatch.setattr(bot, "DRY_RUN_REPLIES", False)
     monkeypatch.setattr(bot, "MARK_AI_REPLIES_AS_AI", False)
     monkeypatch.setattr(bot, "MIN_SECONDS_BETWEEN_REPLIES", 0)
     monkeypatch.setattr(bot, "MAX_AUTO_REPLIES_PER_DAY", 48)
@@ -13521,11 +12626,11 @@ def test_author_cap_context_is_terminal_but_available_to_next_eligible_reply(
     )
     monkeypatch.setattr(bot, "reply_media_context_for_candidate", lambda *_args, **_kwargs: {})
 
-    def answer(context: dict[str, object], *_args: object, **_kwargs: object) -> AIReply:
+    def answer(context: dict[str, object], *_args: object, **_kwargs: object) -> ValidatedReply:
         ai_contexts.append(context)
         return unit_approved_reply(context, text="A practical policy answer.")
 
-    monkeypatch.setattr(bot, "generate_ai_first_reply", answer)
+    monkeypatch.setattr(bot, "generate_single_call_reply", answer)
     install_receipt_bound_x_request_stub(
         monkeypatch,
         lambda *_args, **_kwargs: {"data": {"id": "900001"}},
@@ -13541,7 +12646,10 @@ def test_author_cap_context_is_terminal_but_available_to_next_eligible_reply(
     assert bot.maybe_reply_to_mentions(state) == bot.NORMAL_CHECK_STATUS_POSTED
     assert len(ai_contexts) == 1
     assert ai_contexts[0]["target_id"] == "201"
-    assert [post["post_id"] for post in ai_contexts[0]["parent_thread"]] == ["100", "200"]
+    assert [post["post_id"] for post in ai_contexts[0]["parent_thread"]] == ["100"]
+    assert [
+        turn["post_id"] for turn in ai_contexts[0]["visible_conversation"]
+    ] == ["100", "201"]
     assert state["replied_to_ids"] == ["201"]
 
 
@@ -13583,7 +12691,7 @@ def test_unrelated_follow_up_does_not_bypass_author_cap(
     monkeypatch.setattr(bot, "in_api_cooldown", lambda *args, **kwargs: False)
     monkeypatch.setattr(bot, "get_mentions", lambda _state: [follow_up])
     monkeypatch.setattr(bot, "get_hot_post_reply_candidates", lambda _state: [])
-    monkeypatch.setattr(bot, "generate_ai_first_reply", lambda *_args, **_kwargs: pytest.fail("xAI must not be called"))
+    monkeypatch.setattr(bot, "generate_single_call_reply", lambda *_args, **_kwargs: pytest.fail("xAI must not be called"))
     monkeypatch.setattr(bot, "save_state", lambda *_args, **_kwargs: None)
 
     assert bot.maybe_reply_to_mentions(state) == bot.NORMAL_CHECK_STATUS_CHECKED
@@ -13715,13 +12823,12 @@ def test_completed_clarification_thread_stays_terminal_after_restart_and_cap_res
         media_ids.append(str(candidate["id"]))
         return {}
 
-    def answer(context: dict[str, object], *_args: object, **_kwargs: object) -> AIReply:
+    def answer(context: dict[str, object], *_args: object, **_kwargs: object) -> ValidatedReply:
         model_contexts.append(str(context["target_id"]))
         return unit_approved_reply(context, text="Quite so.", mode="courtesy")
 
     monkeypatch.setattr(bot, "MY_USER_ID", "12345")
     monkeypatch.setattr(bot, "ENABLE_AUTO_REPLIES", True)
-    monkeypatch.setattr(bot, "DRY_RUN_REPLIES", False)
     monkeypatch.setattr(bot, "MARK_AI_REPLIES_AS_AI", False)
     monkeypatch.setattr(bot, "MIN_SECONDS_BETWEEN_REPLIES", 0)
     monkeypatch.setattr(bot, "MAX_AUTO_REPLIES_PER_DAY", 5)
@@ -13739,7 +12846,7 @@ def test_completed_clarification_thread_stays_terminal_after_restart_and_cap_res
     monkeypatch.setattr(bot, "is_probably_spam_or_not_worth_replying", lambda _text: False)
     monkeypatch.setattr(bot, "build_context_for_reply_ai", build_context)
     monkeypatch.setattr(bot, "reply_media_context_for_candidate", prepare_media)
-    monkeypatch.setattr(bot, "generate_ai_first_reply", answer)
+    monkeypatch.setattr(bot, "generate_single_call_reply", answer)
     install_receipt_bound_x_request_stub(
         monkeypatch,
         lambda *_args, **_kwargs: {"data": {"id": "900002"}},
@@ -13819,7 +12926,7 @@ def test_clarification_receipt_requires_grounded_direct_reply_metadata() -> None
     assert bot.confirmed_reply_receipt_is_semantically_valid(receipt) is False
 
 
-def test_clarification_receipt_rejects_approved_non_factual_draft() -> None:
+def test_clarification_receipt_accepts_valid_single_call_clarification_draft() -> None:
     request = {
         "original_question": "Where did people run when the Berlin Wall fell?",
         "correction": "That did not answer my question.",
@@ -13839,7 +12946,7 @@ def test_clarification_receipt_rejects_approved_non_factual_draft() -> None:
         "trigger": "explicit_correction",
     }
 
-    assert bot.confirmed_reply_receipt_is_semantically_valid(receipt) is False
+    assert bot.confirmed_reply_receipt_is_semantically_valid(receipt) is True
 
 
 def test_confirmed_reply_receipt_preserves_ai_draft_after_reconciliation(
@@ -13872,9 +12979,283 @@ def test_confirmed_reply_receipt_preserves_ai_draft_after_reconciliation(
     history = state["ai_reply_history"][0]
     assert history["target_id"] == "100"
     assert history["reply_post_id"] == "900000"
+    assert history["author_id"] == "200"
+    assert history["conversation_id"] == "100"
+    assert history["incoming_contribution"] == "A contribution."
     assert history["strategy_version"] == STRATEGY_VERSION
-    assert history["reviewer_verdict"] == "approve"
-    assert history["mode"] == "direct_factual_answer"
+    assert history["reply_kind"] == "direct_factual"
+    assert history["used_fact_ids"] == ["F1"]
+    assert history["validated_draft_hash"] == receipt["ai_reply_draft"][
+        "validated_draft_hash"
+    ]
+    assert bot.recent_same_author_account_interactions(
+        state,
+        author_id="200",
+        conversation_id="different-conversation",
+        target_id="new-target",
+        before_epoch=fixed_epoch + 1,
+    ) == [
+        {
+            "contributor": "A contribution.",
+            "account_reply": "A grounded reply.",
+        }
+    ]
+
+
+def test_recent_account_replies_are_only_confirmed_conversational_replies() -> None:
+    state = bot.default_state()
+    state["ai_reply_history"] = [
+        {
+            "target_id": str(100 + index),
+            "reply_post_id": str(9000 + index),
+            "candidate_source": lane,
+            "reply_epoch": index,
+            "proposed_reply": text,
+        }
+        for index, lane, text in (
+            (1, "mention", "Confirmed mention reply."),
+            (2, "hot_post_reply", "Confirmed hot-post reply."),
+            (3, "quote_tweet", "Confirmed quote-tweet reply."),
+            (4, "conversational_reply", "Confirmed generic reply."),
+            (5, "quote_image", "Quotation main post."),
+            (6, "daily_meme", "Daily meme."),
+            (7, "historical_context_reply", "Historical-context reply."),
+        )
+    ]
+    state["ai_reply_history"].extend(
+        [
+            {
+                "target_id": "108",
+                "reply_post_id": "9008",
+                "candidate_source": "mention",
+                "reply_epoch": 8,
+                "proposed_reply": "Deleted reply.",
+                "deleted": True,
+            },
+            {
+                "target_id": "109",
+                "reply_post_id": "9009",
+                "candidate_source": "mention",
+                "reply_epoch": 9,
+                "proposed_reply": "Failed reply.",
+                "status": "failed",
+            },
+            {
+                "target_id": "110",
+                "candidate_source": "mention",
+                "reply_epoch": 10,
+                "proposed_reply": "Unconfirmed reply attempt.",
+            },
+            {
+                "target_id": "111",
+                "reply_post_id": "9011",
+                "candidate_source": "mention",
+                "reply_epoch": 50,
+                "proposed_reply": "Reply later than the current target.",
+            },
+        ]
+    )
+    state["pending_ai_reply_drafts"] = {
+        "mention:112": {"proposed_reply": "Pending model draft."}
+    }
+    state["recent_own_post_ids"] = ["8001", "8002"]
+    state["tweet_cache"] = {
+        "8001": {"post_type": "quote", "text": "Cached quotation post."},
+        "8002": {"post_type": "daily_meme", "text": "Cached meme post."},
+    }
+
+    assert bot.recent_confirmed_account_replies(
+        state,
+        before_epoch=20,
+        excluded_post_ids={"9002"},
+    ) == [
+        {"post_id": "9001", "text": "Confirmed mention reply."},
+        {"post_id": "9003", "text": "Confirmed quote-tweet reply."},
+        {"post_id": "9004", "text": "Confirmed generic reply."},
+    ]
+    assert bot.recent_confirmed_account_replies(state) == []
+
+
+def test_recent_conversational_replies_take_latest_thirty_chronologically() -> None:
+    state = bot.default_state()
+    state["ai_reply_history"] = [
+        {
+            "target_id": str(1000 + index),
+            "reply_post_id": str(9000 + index),
+            "candidate_source": "mention",
+            "reply_epoch": index,
+            "proposed_reply": f"Confirmed reply {index}.",
+        }
+        for index in range(1, 36)
+    ]
+
+    replies = bot.recent_confirmed_account_replies(state, before_epoch=40)
+
+    assert [row["post_id"] for row in replies] == [
+        str(9000 + index) for index in range(6, 36)
+    ]
+
+
+def test_same_author_history_is_bound_prior_deduplicated_and_cross_thread() -> None:
+    state = bot.default_state()
+    eligible = [
+        {
+            "target_id": str(100 + index),
+            "reply_post_id": str(9000 + index),
+            "author_id": "200",
+            "conversation_id": str(700 + index),
+            "root_post_id": str(700 + index),
+            "incoming_contribution": f"Contributor {index}.",
+            "incoming_contribution_sha256": hashlib.sha256(
+                f"Contributor {index}.".encode("utf-8")
+            ).hexdigest(),
+            "candidate_source": "mention",
+            "reply_epoch": index,
+            "proposed_reply": f"Account reply {index}.",
+        }
+        for index in range(1, 11)
+    ]
+    state["ai_reply_history"] = [
+        *eligible,
+        copy.deepcopy(eligible[-1]),
+        {
+            **eligible[0],
+            "target_id": "300",
+            "reply_post_id": "9300",
+            "conversation_id": "current-root",
+            "root_post_id": "current-root",
+            "incoming_contribution": "Same current thread.",
+            "incoming_contribution_sha256": hashlib.sha256(
+                b"Same current thread."
+            ).hexdigest(),
+            "reply_epoch": 20,
+        },
+        {
+            **eligible[0],
+            "target_id": "301",
+            "reply_post_id": "9301",
+            "author_id": "201",
+            "incoming_contribution": "Another author.",
+            "incoming_contribution_sha256": hashlib.sha256(
+                b"Another author."
+            ).hexdigest(),
+            "reply_epoch": 21,
+        },
+        {
+            **eligible[0],
+            "target_id": "302",
+            "reply_post_id": "9302",
+            "incoming_contribution": "Later interaction.",
+            "incoming_contribution_sha256": hashlib.sha256(
+                b"Later interaction."
+            ).hexdigest(),
+            "reply_epoch": 100,
+        },
+        {
+            **eligible[0],
+            "target_id": "303",
+            "reply_post_id": "",
+            "incoming_contribution": "Unconfirmed draft.",
+            "incoming_contribution_sha256": hashlib.sha256(
+                b"Unconfirmed draft."
+            ).hexdigest(),
+            "reply_epoch": 22,
+        },
+    ]
+
+    interactions = bot.recent_same_author_account_interactions(
+        state,
+        author_id="200",
+        conversation_id="current-conversation",
+        target_id="current-target",
+        before_epoch=50,
+        visible_post_ids={"current-root", "current-target"},
+    )
+
+    assert interactions == [
+        {
+            "contributor": f"Contributor {index}.",
+            "account_reply": f"Account reply {index}.",
+        }
+        for index in range(3, 11)
+    ]
+    assert bot.recent_same_author_account_interactions(
+        state,
+        author_id="200",
+        conversation_id="current-conversation",
+        target_id="current-target",
+        visible_post_ids={"current-root", "current-target"},
+    ) == []
+
+
+def test_generation_does_not_duplicate_same_author_reply_in_recent_replies(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    context = unit_reply_context(target_id="500", thread_id="500")
+    target_epoch = int(datetime.fromisoformat("2026-07-20T12:00:00+00:00").timestamp())
+    state = bot.default_state()
+    state["ai_reply_history"] = [
+        {
+            "target_id": "100",
+            "reply_post_id": "9001",
+            "author_id": "200",
+            "conversation_id": "100",
+            "root_post_id": "100",
+            "incoming_contribution": "An earlier contribution.",
+            "incoming_contribution_sha256": hashlib.sha256(
+                b"An earlier contribution."
+            ).hexdigest(),
+            "candidate_source": "mention",
+            "reply_epoch": target_epoch - 20,
+            "proposed_reply": "Same-author confirmed reply.",
+        },
+        {
+            "target_id": "200",
+            "reply_post_id": "9002",
+            "author_id": "201",
+            "conversation_id": "200",
+            "root_post_id": "200",
+            "incoming_contribution": "Someone else's contribution.",
+            "incoming_contribution_sha256": hashlib.sha256(
+                b"Someone else's contribution."
+            ).hexdigest(),
+            "candidate_source": "hot_post_reply",
+            "reply_epoch": target_epoch - 10,
+            "proposed_reply": "Other confirmed conversational reply.",
+        },
+    ]
+    captured: dict[str, object] = {}
+
+    def pipeline(**kwargs: object) -> PipelineResult:
+        captured.update(kwargs)
+        return PipelineResult(
+            status="no_reply",
+            reason="completed_exchange",
+            decision="no_reply",
+            reply_kind="no_reply",
+            reason_code="completed_exchange",
+            model_call_count=1,
+            local_validation_status="passed",
+        )
+
+    monkeypatch.setattr(bot, "run_single_call_reply_pipeline", pipeline)
+    monkeypatch.setattr(bot, "reply_evidence_repository", lambda: UNIT_REPLY_REPOSITORY)
+    monkeypatch.setattr(bot, "require_remote_operation_unpaused", lambda *_args: None)
+    monkeypatch.setattr(bot, "log_event", lambda *_args, **_kwargs: None)
+
+    assert bot.generate_single_call_reply(context, None, state=state) is None
+    assert captured["same_author_interactions"] == [
+        {
+            "contributor": "An earlier contribution.",
+            "account_reply": "Same-author confirmed reply.",
+        }
+    ]
+    assert captured["recent_account_replies"] == [
+        {
+            "post_id": "9002",
+            "text": "Other confirmed conversational reply.",
+        }
+    ]
 
 
 def test_confirmed_reply_receipt_rejects_malformed_ai_draft() -> None:
@@ -13887,16 +13268,16 @@ def test_confirmed_reply_receipt_rejects_malformed_ai_draft() -> None:
     assert bot.confirmed_reply_receipt_is_semantically_valid(receipt) is False
 
 
-def test_confirmed_reply_receipt_rejects_non_approved_reviewer_verdict() -> None:
+def test_confirmed_reply_receipt_rejects_unexpected_legacy_approval_field() -> None:
     receipt = unit_confirmed_reply_receipt(text="An alleged correction.")
-    receipt["ai_reply_draft"]["reviewer_verdict"] = "revise"
+    receipt["ai_reply_draft"]["legacy_approval"] = "revise"
     assert bot.confirmed_reply_receipt_is_semantically_valid(receipt) is False
 
 
-@pytest.mark.parametrize("field", ["source_hashes", "claim_evidence", "evidence_ids"])
+@pytest.mark.parametrize("field", ["used_fact_sources", "used_fact_ids", "trusted_fact_ids"])
 def test_confirmed_reply_receipt_rejects_incomplete_or_changed_evidence(field: str) -> None:
     receipt = unit_confirmed_reply_receipt(text="A grounded reply.", factual=True)
-    receipt["ai_reply_draft"][field] = {} if field == "source_hashes" else []
+    receipt["ai_reply_draft"][field] = []
     assert bot.confirmed_reply_receipt_is_semantically_valid(receipt) is False
 
 
@@ -14997,7 +14378,6 @@ def test_new_first_page_quote_is_processed_while_continuation_is_suppressed(
 
     monkeypatch.setattr(bot, "ENABLE_AUTO_REPLIES", True)
     monkeypatch.setattr(bot, "ENABLE_QUOTE_TWEET_CHECKS", True)
-    monkeypatch.setattr(bot, "DRY_RUN_REPLIES", False)
     monkeypatch.setattr(bot, "MIN_SECONDS_BETWEEN_REPLIES", 0)
     monkeypatch.setattr(bot, "MAX_AUTO_REPLIES_PER_DAY", 24)
     monkeypatch.setattr(bot, "MAX_QUOTE_REPLIES_PER_DAY", 10)
@@ -15030,7 +14410,7 @@ def test_new_first_page_quote_is_processed_while_continuation_is_suppressed(
         "reply_media_context_for_candidate",
         lambda *_args, **_kwargs: {},
     )
-    monkeypatch.setattr(bot, "generate_ai_first_reply", no_reply)
+    monkeypatch.setattr(bot, "generate_single_call_reply", no_reply)
     monkeypatch.setattr(bot, "save_state", lambda *_args, **_kwargs: None)
 
     status = bot.maybe_reply_to_quote_tweets(state)
@@ -15223,7 +14603,7 @@ def test_pending_ai_reply_survives_state_round_trip_and_is_reused(
     loaded = bot.load_state()
     reused = bot.pending_ai_reply(loaded, "100", "mention", context=context)
     assert reused == reply
-    assert isinstance(reused, AIReply)
+    assert isinstance(reused, ValidatedReply)
     assert reused.draft_record == reply.draft_record
 
 
@@ -15284,7 +14664,7 @@ def test_safe_pending_opinion_reply_reuses_the_persisted_context() -> None:
     assert bot.pending_ai_reply(state, "100", "mention", context=context) == reply
 
 
-def test_pending_ai_reply_is_discarded_if_it_became_a_recent_duplicate() -> None:
+def test_pending_ai_reply_is_reused_even_if_recent_replies_advance() -> None:
     state = bot.default_state()
     incoming = "Institutions endure when people defend their purpose."
     text = "Institutions endure only when people defend their purpose."
@@ -15292,37 +14672,36 @@ def test_pending_ai_reply_is_discarded_if_it_became_a_recent_duplicate() -> None
     reply = unit_approved_reply(context, text=text, mode="opinion_or_principle")
     assert bot.store_pending_ai_reply(state, "100", "mention", reply, context=context) is True
 
-    assert bot.pending_ai_reply(
+    reused = bot.pending_ai_reply(
         state,
         "100",
         "mention",
         context=context,
         recent_replies=[text],
-    ) is None
-    assert "pending_ai_reply_drafts" not in state
+    )
+    assert reused == reply
+    assert state["pending_ai_reply_drafts"]["mention:100"] == reply.draft_record
 
 
 def test_pending_ai_reply_rejects_overlong_incoming_context() -> None:
-    state = bot.default_state()
-    incoming = "Institutions endure when people defend their purpose. " + ("context " * 3000)
+    incoming = (
+        "Institutions endure when people defend their purpose. "
+        + ("context " * 3000).strip()
+    )
     text = "Institutions endure only when people defend their purpose."
     context = unit_reply_context(target_id="100", contribution=incoming)
-    reply = unit_approved_reply(context, text=text, mode="opinion_or_principle")
 
     assert len(incoming) > 10_000
-    assert bot.store_pending_ai_reply(state, "100", "mention", reply, context=context) is False
+    with pytest.raises(RuntimeError, match="visible-context character bound"):
+        unit_approved_reply(context, text=text, mode="opinion_or_principle")
 
 
 def test_pending_ai_reply_rejects_context_beyond_schema_limit() -> None:
-    state = bot.default_state()
     text = "Institutions endure only when people defend their purpose."
     context = unit_reply_context(target_id="100", contribution="x" * 20_001)
-    reply = unit_approved_reply(context, text=text, mode="opinion_or_principle")
 
-    stored = bot.store_pending_ai_reply(state, "100", "mention", reply, context=context)
-
-    assert stored is False
-    assert not state.get("pending_ai_reply_drafts")
+    with pytest.raises(RuntimeError, match="visible-context character bound"):
+        unit_approved_reply(context, text=text, mode="opinion_or_principle")
 
 
 def test_pending_reply_created_under_an_older_strategy_version_is_not_reused() -> None:
@@ -15414,7 +14793,7 @@ def test_pending_factual_reply_is_reused_after_source_hash_revalidation() -> Non
     reused = bot.pending_ai_reply(state, "100", "mention", context=context)
 
     assert reused == reply
-    assert reused.draft_record["source_hashes"] == reply.draft_record["source_hashes"]
+    assert reused.draft_record["used_fact_sources"] == reply.draft_record["used_fact_sources"]
 
 
 def test_pending_ai_reply_drafts_are_bounded() -> None:
@@ -15504,10 +14883,8 @@ def test_confirmed_reply_normal_success_uses_durable_state_before_receipt_remova
         monkeypatch.setattr(bot, "CONTROL_FILE", tmp_path / "mrsMThatcher.control.json")
         monkeypatch.setattr(bot, "EXTRA_QUOTE_WATCH_FILE", tmp_path / "extra_quote_watch_post_ids.txt")
         _configure_test_x_base(monkeypatch, server.url)
-        monkeypatch.setattr(bot, "XAI_BASE", f"{server.url}/v1")
         monkeypatch.setattr(bot, "ENABLE_AUTO_REPLIES", True)
         monkeypatch.setattr(bot, "ENABLE_HOT_POST_REPLY_CHECKS", False)
-        monkeypatch.setattr(bot, "DRY_RUN_REPLIES", False)
         monkeypatch.setattr(bot, "MARK_AI_REPLIES_AS_AI", False)
         monkeypatch.setattr(bot, "MIN_SECONDS_BETWEEN_REPLIES", 0)
         monkeypatch.setattr(bot, "MAX_AUTO_REPLIES_PER_DAY", 24)
@@ -15517,7 +14894,7 @@ def test_confirmed_reply_normal_success_uses_durable_state_before_receipt_remova
         monkeypatch.setattr(bot, "current_datetime", lambda: datetime.fromtimestamp(fixed_epoch))
         monkeypatch.setattr(
             bot,
-            "generate_ai_first_reply",
+            "generate_single_call_reply",
             lambda context, *_args, **_kwargs: unit_approved_reply(context),
         )
 
@@ -15560,10 +14937,8 @@ def test_confirmed_reply_latest_backup_recovers_suppression_after_primary_corrup
         monkeypatch.setattr(bot, "CONTROL_FILE", tmp_path / "mrsMThatcher.control.json")
         monkeypatch.setattr(bot, "EXTRA_QUOTE_WATCH_FILE", tmp_path / "extra_quote_watch_post_ids.txt")
         _configure_test_x_base(monkeypatch, server.url)
-        monkeypatch.setattr(bot, "XAI_BASE", f"{server.url}/v1")
         monkeypatch.setattr(bot, "ENABLE_AUTO_REPLIES", True)
         monkeypatch.setattr(bot, "ENABLE_HOT_POST_REPLY_CHECKS", False)
-        monkeypatch.setattr(bot, "DRY_RUN_REPLIES", False)
         monkeypatch.setattr(bot, "MARK_AI_REPLIES_AS_AI", False)
         monkeypatch.setattr(bot, "MIN_SECONDS_BETWEEN_REPLIES", 0)
         monkeypatch.setattr(bot, "MAX_AUTO_REPLIES_PER_DAY", 24)
@@ -15573,7 +14948,7 @@ def test_confirmed_reply_latest_backup_recovers_suppression_after_primary_corrup
         monkeypatch.setattr(bot, "current_datetime", lambda: datetime.fromtimestamp(fixed_epoch))
         monkeypatch.setattr(
             bot,
-            "generate_ai_first_reply",
+            "generate_single_call_reply",
             lambda context, *_args, **_kwargs: unit_approved_reply(context),
         )
 
@@ -15623,10 +14998,18 @@ def test_confirmed_quote_tweet_reply_save_failure_replays_after_restart(
         monkeypatch.setattr(bot, "STATE_BACKUP_COUNT", 0)
         monkeypatch.setattr(bot, "CONTROL_FILE", tmp_path / "mrsMThatcher.control.json")
         _configure_test_x_base(monkeypatch, server.url)
-        monkeypatch.setattr(bot, "XAI_BASE", f"{server.url}/v1")
+        monkeypatch.setattr(
+            bot,
+            "get_tweet_by_id",
+            lambda tweet_id, **_kwargs: copy.deepcopy(
+                scenario["tweets"].get(str(tweet_id))
+                or scenario["quote_tweets"]["900"]["data"][0]
+                if str(tweet_id) == "910"
+                else scenario["tweets"].get(str(tweet_id))
+            ),
+        )
         monkeypatch.setattr(bot, "ENABLE_AUTO_REPLIES", True)
         monkeypatch.setattr(bot, "ENABLE_QUOTE_TWEET_CHECKS", True)
-        monkeypatch.setattr(bot, "DRY_RUN_REPLIES", False)
         monkeypatch.setattr(bot, "MARK_AI_REPLIES_AS_AI", False)
         monkeypatch.setattr(bot, "MIN_SECONDS_BETWEEN_REPLIES", 0)
         monkeypatch.setattr(bot, "MAX_AUTO_REPLIES_PER_DAY", 24)
@@ -15638,7 +15021,7 @@ def test_confirmed_quote_tweet_reply_save_failure_replays_after_restart(
         monkeypatch.setattr(bot, "current_datetime", lambda: datetime.fromtimestamp(fixed_epoch))
         monkeypatch.setattr(
             bot,
-            "generate_ai_first_reply",
+            "generate_single_call_reply",
             lambda context, *_args, **_kwargs: unit_approved_reply(
                 context,
                 text="A point is useful only when it survives contact with reality.",
@@ -15719,11 +15102,19 @@ def test_quote_tweet_receipt_reconciled_by_mention_lane_counts_quote_reply(
         monkeypatch.setattr(bot, "CONTROL_FILE", tmp_path / "mrsMThatcher.control.json")
         monkeypatch.setattr(bot, "EXTRA_QUOTE_WATCH_FILE", tmp_path / "extra_quote_watch_post_ids.txt")
         _configure_test_x_base(monkeypatch, server.url)
-        monkeypatch.setattr(bot, "XAI_BASE", f"{server.url}/v1")
+        monkeypatch.setattr(
+            bot,
+            "get_tweet_by_id",
+            lambda tweet_id, **_kwargs: copy.deepcopy(
+                scenario["tweets"].get(str(tweet_id))
+                or scenario["quote_tweets"]["900"]["data"][0]
+                if str(tweet_id) == "910"
+                else scenario["tweets"].get(str(tweet_id))
+            ),
+        )
         monkeypatch.setattr(bot, "ENABLE_AUTO_REPLIES", True)
         monkeypatch.setattr(bot, "ENABLE_HOT_POST_REPLY_CHECKS", False)
         monkeypatch.setattr(bot, "ENABLE_QUOTE_TWEET_CHECKS", True)
-        monkeypatch.setattr(bot, "DRY_RUN_REPLIES", False)
         monkeypatch.setattr(bot, "MARK_AI_REPLIES_AS_AI", False)
         monkeypatch.setattr(bot, "MIN_SECONDS_BETWEEN_REPLIES", 0)
         monkeypatch.setattr(bot, "MAX_AUTO_REPLIES_PER_DAY", 24)
@@ -15735,7 +15126,7 @@ def test_quote_tweet_receipt_reconciled_by_mention_lane_counts_quote_reply(
         monkeypatch.setattr(bot, "current_datetime", lambda: datetime.fromtimestamp(fixed_epoch))
         monkeypatch.setattr(
             bot,
-            "generate_ai_first_reply",
+            "generate_single_call_reply",
             lambda context, *_args, **_kwargs: unit_approved_reply(
                 context,
                 text="A point is useful only when it survives contact with reality.",
@@ -16752,74 +16143,26 @@ def test_reply_daily_cap_dates_ignore_ambient_timezone_and_reset_authors(
         time.tzset()
 
 
-@pytest.mark.parametrize("lane", ["mention", "quote_tweet"])
-def test_xai_structured_reply_transport_preserves_separated_context(
-    lane: str,
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    account_post = (
-        "I know some of the images have been a bit odd of late. "
-        "I'm working on it - bear with me..."
-    )
-    incoming = "Not her most memorable quote"
-    context = unit_reply_context(target_id="100", lane=lane, contribution=incoming)
-    context["quoted_post"] = {
-        "post_id": "90",
-        "author_role": "account",
-        "text": account_post,
-    }
-
-    requests_seen: list[dict] = []
-
-    def fake_post(*args: object, **kwargs: object) -> bot.requests.Response:
-        requests_seen.append(kwargs["json"])
-        return fake_xai_response(200, {"choices": [{"message": {"content": {"mode": "no_reply"}}}]})
-
-    monkeypatch.setattr(bot.requests, "post", fake_post)
-
-    result = bot.xai_structured_reply_call(
-        stage="proposer",
-        model="unit-model",
-        system_prompt="system policy",
-        user_prompt=json.dumps(context, sort_keys=True),
-        response_schema={"type": "object", "additionalProperties": False},
-        timeout_seconds=5,
-        max_output_tokens=100,
-        media_context=None,
-    )
-    assert result == {"mode": "no_reply"}
-    assert len(requests_seen) == 1
-    payload = requests_seen[0]
-    assert payload["model"] == "unit-model"
-    assert [message["role"] for message in payload["messages"]] == ["system", "user"]
-    prompt = payload["messages"][1]["content"]
-    assert isinstance(prompt, str)
-    assert account_post in prompt
-    assert incoming in prompt
-    assert payload["response_format"]["json_schema"]["strict"] is True
-
-
-def test_unavailable_media_instruction_preserves_structured_schema() -> None:
-    prompt = bot.xai_user_content(
-        "structured prompt",
-        {"status": "unavailable", "photos_expected": 1},
-    )
-    assert isinstance(prompt, str)
-    assert "Return exactly SKIP" not in prompt
-    assert "proposer mode=no_reply" in prompt
-    assert "reviewer verdict=reject" in prompt
-
-
 def test_long_parent_context_never_truncates_away_incoming_contribution(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     incoming = "INCOMING-ISSUE-MARKER responsibility for local government"
-    mention = {"id": "900", "text": incoming, "conversation_id": "700"}
+    mention = {
+        "id": "900",
+        "author_id": "200",
+        "text": incoming,
+        "conversation_id": "1",
+        "referenced_tweets": [{"type": "replied_to", "id": "5"}],
+    }
     chain = [
         {
             "id": str(index),
             "author_id": str(100 + index),
             "text": f"parent-{index} " + ("inherited context " * 80),
+            "referenced_tweets": (
+                [{"type": "replied_to", "id": str(index - 1)}]
+                if index > 1 else []
+            ),
         }
         for index in range(1, 6)
     ]
@@ -16831,35 +16174,117 @@ def test_long_parent_context_never_truncates_away_incoming_contribution(
 
     assert should_continue is True
     assert context["incoming_contribution"] == incoming
-    assert len(context["parent_thread"]) == 3
-    assert context["parent_thread"][0]["post_id"] == "3"
+    assert len(context["parent_thread"]) == 5
+    assert context["parent_thread"][0]["post_id"] == "1"
     assert context["parent_thread"][-1]["post_id"] == "5"
-    assert sum(len(parent["text"]) for parent in context["parent_thread"]) <= bot.THREAD_CONTEXT_MAX_TOTAL_CHARS
-    assert all(
-        len(parent["text"]) <= bot.THREAD_CONTEXT_MAX_CHARS_PER_POST
-        for parent in context["parent_thread"]
+    assert context["visible_conversation"][-1]["post_id"] == "900"
+    assert sum(
+        len(turn["text"]) for turn in context["visible_conversation"]
+    ) <= bot.MAX_VISIBLE_TEXT_CHARACTERS
+
+
+def test_fifteen_turn_linear_thread_reaches_root_then_bounds_visible_path(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    mention = {
+        "id": "15",
+        "author_id": "200",
+        "text": "Final target contribution.",
+        "conversation_id": "1",
+        "created_at": "2026-09-04T12:15:00Z",
+        "referenced_tweets": [{"type": "replied_to", "id": "14"}],
+    }
+    chain = [
+        {
+            "id": str(index),
+            "author_id": "12345" if index == 1 else "200",
+            "text": f"Linear turn {index}.",
+            "conversation_id": "1",
+            "created_at": f"2026-09-04T12:{index:02d}:00Z",
+            "referenced_tweets": (
+                [{"type": "replied_to", "id": str(index - 1)}]
+                if index > 1
+                else []
+            ),
+        }
+        for index in range(1, 15)
+    ]
+    state = bot.default_state()
+    cache_epoch = bot.now_epoch()
+    state["tweet_cache"] = {
+        row["id"]: {**row, "cached_epoch": cache_epoch} for row in chain
+    }
+    monkeypatch.setattr(bot, "MY_USER_ID", "12345")
+    monkeypatch.setattr(
+        bot,
+        "get_tweet_by_id",
+        lambda *_args, **_kwargs: pytest.fail(
+            "the verified cached parent path should be sufficient"
+        ),
+    )
+
+    context, should_continue = bot.build_context_for_reply_ai(
+        mention,
+        state,
+    )
+
+    assert should_continue is True
+    assert [turn["post_id"] for turn in context["visible_conversation"]] == [
+        "1",
+        *[str(index) for index in range(5, 16)],
+    ]
+    assert context["visible_conversation"][-1]["post_id"] == "15"
+    assert sum(
+        turn["post_id"] == "15" for turn in context["visible_conversation"]
+    ) == 1
+
+
+def test_parent_created_after_target_is_not_admitted_to_visible_context(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    mention = {
+        "id": "2",
+        "author_id": "200",
+        "text": "Target.",
+        "conversation_id": "1",
+        "created_at": "2026-09-04T12:00:00Z",
+        "referenced_tweets": [{"type": "replied_to", "id": "1"}],
+    }
+    parent = {
+        "id": "1",
+        "author_id": "12345",
+        "text": "Impossible later parent.",
+        "conversation_id": "1",
+        "created_at": "2026-09-04T12:01:00Z",
+        "referenced_tweets": [],
+    }
+    monkeypatch.setattr(bot, "build_parent_chain", lambda *_args: [parent])
+
+    assert bot.build_context_for_reply_ai(mention, bot.default_state()) == (
+        {},
+        False,
     )
 
 
-def test_author_cap_context_merges_siblings_with_parent_dedup_and_scope(
+def test_context_uses_only_parent_contiguous_path_not_cached_siblings(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     cache_epoch = bot.now_epoch()
     mention = {
         "id": "300",
         "author_id": "200",
-        "conversation_id": "700",
+        "conversation_id": "100",
         "text": "What follows from all that?",
         "referenced_tweets": [{"type": "replied_to", "id": "150"}],
     }
     state = bot.default_state()
     state["tweet_cache"] = {
         "100": {
-            "id": "100", "cached_epoch": cache_epoch, "author_id": "12345", "conversation_id": "700",
+            "id": "100", "cached_epoch": cache_epoch, "author_id": "12345", "conversation_id": "100",
             "text": "Opening post.", "referenced_tweets": [],
         },
         "150": {
-            "id": "150", "cached_epoch": cache_epoch, "author_id": "200", "conversation_id": "700",
+            "id": "150", "cached_epoch": cache_epoch, "author_id": "200", "conversation_id": "100",
             "text": "Immediate capped parent.", "post_type": "author_cap_context",
             "referenced_tweets": [{"type": "replied_to", "id": "100"}],
         },
@@ -16898,7 +16323,7 @@ def test_author_cap_context_merges_siblings_with_parent_dedup_and_scope(
     context, should_continue = bot.build_context_for_reply_ai(mention, state)
 
     assert should_continue is True
-    assert [post["post_id"] for post in context["parent_thread"]] == ["150", "170", "180"]
+    assert [post["post_id"] for post in context["parent_thread"]] == ["100", "150"]
     assert sum(post["post_id"] == "150" for post in context["parent_thread"]) == 1
     assert all(post["post_id"] not in {"190", "200"} for post in context["parent_thread"])
 
@@ -16944,7 +16369,7 @@ def test_author_cap_context_quote_commentary_recovers_original_from_cache(
     }
 
 
-def test_author_cap_context_quote_survives_parent_thread_truncation(
+def test_non_contiguous_cached_author_cap_context_is_not_invented(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     monkeypatch.setattr(bot, "MY_USER_ID", "12345")
@@ -16987,12 +16412,8 @@ def test_author_cap_context_quote_survives_parent_thread_truncation(
 
     context, should_continue = bot.build_context_for_reply_ai(mention, state)
 
-    assert should_continue is True
-    assert [post["post_id"] for post in context["parent_thread"]] == ["930", "940", "950"]
-    assert all(post["post_id"] != "910" for post in context["parent_thread"])
-    assert context["quoted_post"] == {
-        "post_id": "900", "author_role": "account", "text": "The original account post.",
-    }
+    assert should_continue is False
+    assert context == {}
 
 
 def test_trim_context_text_never_exceeds_requested_limit() -> None:
@@ -17014,7 +16435,10 @@ def test_quote_tweet_context_never_truncates_away_user_commentary(
 
     assert context["incoming_contribution"] == incoming
     assert context["quoted_post"]["post_id"] == "900"
-    assert len(context["quoted_post"]["text"]) <= bot.THREAD_CONTEXT_MAX_CHARS_PER_POST
+    assert context["visible_conversation"][-1]["text"] == incoming
+    assert sum(
+        len(turn["text"]) for turn in context["visible_conversation"]
+    ) <= bot.MAX_VISIBLE_TEXT_CHARACTERS
 
 
 def test_meme_summary_context_limit_covers_current_analysis_shape() -> None:
@@ -17198,11 +16622,9 @@ def test_parent_and_quoted_lookup_only_suppress_target_specific_failures(
         **mention,
         "referenced_tweets": [{"type": "quoted", "id": "123"}],
     }
-    assert bot._quoted_post_for_reply_context(quoted, {}) == {
-        "post_id": "123",
-        "author_role": "unknown",
-        "text": "[Quoted post unavailable.]",
-    }
+    assert bot._quoted_post_for_reply_context(
+        quoted, {}, principal_author_id="300"
+    ) is None
 
     global_denial = bot.ApiError(
         "X API error 403: Invalid or expired token",
@@ -17219,7 +16641,9 @@ def test_parent_and_quoted_lookup_only_suppress_target_specific_failures(
     with pytest.raises(bot.ApiError, match="expired token"):
         bot.build_parent_chain(mention, {})
     with pytest.raises(bot.ApiError, match="expired token"):
-        bot._quoted_post_for_reply_context(quoted, {})
+        bot._quoted_post_for_reply_context(
+            quoted, {}, principal_author_id="300"
+        )
 
 
 def test_deleted_reply_target_403_is_terminal_not_transient(
@@ -17446,7 +16870,7 @@ def test_deterministic_spam_skip_precedes_context_media_retrieval_and_xai(
     monkeypatch.setattr(bot, "get_hot_post_reply_candidates", lambda _state: [])
     monkeypatch.setattr(bot, "build_context_for_reply_ai", lambda *_args: pytest.fail("context must not be built"))
     monkeypatch.setattr(bot, "reply_media_context_for_candidate", lambda *_args, **_kwargs: pytest.fail("media must not be prepared"))
-    monkeypatch.setattr(bot, "generate_ai_first_reply", lambda *_args, **_kwargs: pytest.fail("retrieval/xAI must not be called"))
+    monkeypatch.setattr(bot, "generate_single_call_reply", lambda *_args, **_kwargs: pytest.fail("retrieval/xAI must not be called"))
     monkeypatch.setattr(bot, "create_post", lambda *_args, **_kwargs: pytest.fail("X write must not be called"))
     monkeypatch.setattr(bot, "save_state", lambda *_args, **_kwargs: None)
 
@@ -17471,7 +16895,6 @@ def test_strategy_persistence_failure_blocks_mention_x_write(
     context = unit_reply_context(target_id="100", contribution=mention["text"])
 
     monkeypatch.setattr(bot, "ENABLE_AUTO_REPLIES", True)
-    monkeypatch.setattr(bot, "DRY_RUN_REPLIES", False)
     monkeypatch.setattr(bot, "MIN_SECONDS_BETWEEN_REPLIES", 0)
     monkeypatch.setattr(bot, "MAX_AUTO_REPLIES_PER_DAY", 5)
     monkeypatch.setattr(bot, "MAX_REPLIES_PER_AUTHOR_PER_DAY", 5)
@@ -17488,7 +16911,7 @@ def test_strategy_persistence_failure_blocks_mention_x_write(
     monkeypatch.setattr(bot, "reply_media_context_for_candidate", lambda *_args, **_kwargs: {})
     monkeypatch.setattr(
         bot,
-        "generate_ai_first_reply",
+        "generate_single_call_reply",
         lambda actual_context, *_args, **_kwargs: unit_approved_reply(
             actual_context,
             text=text,
@@ -17503,11 +16926,9 @@ def test_strategy_persistence_failure_blocks_mention_x_write(
     )
     monkeypatch.setattr(bot, "save_state", lambda *_args, **_kwargs: None)
 
-    assert bot.maybe_reply_to_mentions(state) == bot.NORMAL_CHECK_STATUS_CHECKED
+    assert bot.maybe_reply_to_mentions(state) == bot.NORMAL_CHECK_STATUS_API_ERROR
     assert state["daily_reply_count"] == 0
-    assert state["reply_evaluation_records"]["100"]["reason"] == (
-        "ai_reply_persistence_validation_failed"
-    )
+    assert "100" not in state.get("reply_evaluation_records", {})
 
 
 def test_deleted_target_after_generation_is_retired_before_any_x_write(
@@ -17531,7 +16952,6 @@ def test_deleted_target_after_generation_is_retired_before_any_x_write(
     durable_saves: list[bool] = []
 
     monkeypatch.setattr(bot, "ENABLE_AUTO_REPLIES", True)
-    monkeypatch.setattr(bot, "DRY_RUN_REPLIES", False)
     monkeypatch.setattr(bot, "MIN_SECONDS_BETWEEN_REPLIES", 0)
     monkeypatch.setattr(bot, "MAX_AUTO_REPLIES_PER_DAY", 5)
     monkeypatch.setattr(bot, "MAX_REPLIES_PER_AUTHOR_PER_DAY", 5)
@@ -17547,7 +16967,7 @@ def test_deleted_target_after_generation_is_retired_before_any_x_write(
     monkeypatch.setattr(bot, "reply_media_context_for_candidate", lambda *_args, **_kwargs: {})
     monkeypatch.setattr(
         bot,
-        "generate_ai_first_reply",
+        "generate_single_call_reply",
         lambda actual_context, *_args, **_kwargs: unit_approved_reply(
             actual_context,
             mode="opinion_or_principle",
@@ -17599,7 +17019,9 @@ def test_deleted_target_after_generation_is_retired_before_any_x_write(
         }
     ]
     outcome_events = [
-        values for name, values in events if name == "ai_reply_pipeline_outcome"
+        values
+        for name, values in events
+        if name == "single_call_reply_posting_outcome"
     ]
     assert len(outcome_events) == 1
     assert outcome_events[0]["status"] == "posting_failed_terminal"
@@ -17640,7 +17062,7 @@ def test_ineligible_truncated_mention_is_terminal_before_context_media_or_xai(
     monkeypatch.setattr(bot, "get_hot_post_reply_candidates", lambda _state: [])
     monkeypatch.setattr(bot, "build_context_for_reply_ai", lambda *_args: pytest.fail("context must not be built"))
     monkeypatch.setattr(bot, "reply_media_context_for_candidate", lambda *_args, **_kwargs: pytest.fail("media must not be prepared"))
-    monkeypatch.setattr(bot, "generate_ai_first_reply", lambda *_args, **_kwargs: pytest.fail("xAI must not be called"))
+    monkeypatch.setattr(bot, "generate_single_call_reply", lambda *_args, **_kwargs: pytest.fail("xAI must not be called"))
     monkeypatch.setattr(bot, "create_post", lambda *_args, **_kwargs: pytest.fail("X write must not be called"))
     monkeypatch.setattr(bot, "log_event", lambda name, **values: events.append((name, values)))
     monkeypatch.setattr(bot, "save_state", lambda *_args, **_kwargs: None)
@@ -17653,7 +17075,11 @@ def test_ineligible_truncated_mention_is_terminal_before_context_media_or_xai(
     assert record["reason"] == "target_does_not_directly_mention_account"
     assert sum(name == "reply_target_terminal" for name, _values in events) == 1
     assert not state.get("pending_ai_reply_drafts")
-    strategy_events = [values for name, values in events if name == "ai_reply_pipeline_outcome"]
+    strategy_events = [
+        values
+        for name, values in events
+        if name == "single_call_reply_posting_outcome"
+    ]
     assert len(strategy_events) == 1
     assert strategy_events[0]["status"] == "posting_failed_terminal"
     assert strategy_events[0]["failure_reason"] == "reply_not_permitted_preflight"
@@ -17681,7 +17107,6 @@ def test_posting_generic_reply_403_is_retry_blocking_not_terminal(
     )
 
     monkeypatch.setattr(bot, "ENABLE_AUTO_REPLIES", True)
-    monkeypatch.setattr(bot, "DRY_RUN_REPLIES", False)
     monkeypatch.setattr(bot, "MIN_SECONDS_BETWEEN_REPLIES", 0)
     monkeypatch.setattr(bot, "MAX_AUTO_REPLIES_PER_DAY", 5)
     monkeypatch.setattr(bot, "MAX_REPLIES_PER_AUTHOR_PER_DAY", 5)
@@ -17697,7 +17122,7 @@ def test_posting_generic_reply_403_is_retry_blocking_not_terminal(
     monkeypatch.setattr(bot, "reply_media_context_for_candidate", lambda *_args, **_kwargs: {})
     monkeypatch.setattr(
         bot,
-        "generate_ai_first_reply",
+        "generate_single_call_reply",
         lambda actual_context, *_args, **_kwargs: unit_approved_reply(actual_context),
     )
     monkeypatch.setattr(bot, "create_post", lambda **_kwargs: (_ for _ in ()).throw(error))
@@ -17711,11 +17136,15 @@ def test_posting_generic_reply_403_is_retry_blocking_not_terminal(
     assert status == "sending"
     assert receipt is not None
     assert receipt["target_id"] == "100"
-    strategy_events = [values for name, values in events if name == "ai_reply_pipeline_outcome"]
+    strategy_events = [
+        values
+        for name, values in events
+        if name == "single_call_reply_posting_outcome"
+    ]
     assert len(strategy_events) == 1
     assert strategy_events[0]["status"] == "posting_failed_retryable"
     assert strategy_events[0]["strategy_version"] == STRATEGY_VERSION
-    assert strategy_events[0]["reviewer_verdict"] == "approve"
+    assert strategy_events[0]["validated_draft_hash"]
     assert strategy_events[0]["failure_reason"] == "ambiguous_remote_outcome"
 
 

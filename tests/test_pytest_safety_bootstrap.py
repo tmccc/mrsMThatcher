@@ -23,13 +23,13 @@ COLLECTION_ENVIRONMENT = {
         "MRS_PYTEST_BOOTSTRAP_LOG_FILE",
         "MRS_PYTEST_BOOTSTRAP_X_API_BASE_URL",
         "MRS_PYTEST_BOOTSTRAP_X_UPLOAD_BASE_URL",
-        "MRS_PYTEST_BOOTSTRAP_XAI_API_BASE_URL",
+        "MRS_PYTEST_BOOTSTRAP_OPENAI_API_BASE_URL",
         "MRS_PYTEST_WORKER_ID",
         "X_API_BASE_URL",
         "X_UPLOAD_BASE_URL",
-        "XAI_API_BASE_URL",
+        "OPENAI_API_BASE_URL",
         "X_CONSUMER_KEY",
-        "XAI_API_KEY",
+        "OPENAI_API_KEY",
     )
 }
 
@@ -65,7 +65,7 @@ def test_collection_import_uses_process_local_test_environment() -> None:
         COLLECTION_ENVIRONMENT["MRS_PYTEST_BOOTSTRAP_X_UPLOAD_BASE_URL"]
         == "http://127.0.0.1:9"
     )
-    assert COLLECTION_ENVIRONMENT["MRS_PYTEST_BOOTSTRAP_XAI_API_BASE_URL"] == (
+    assert COLLECTION_ENVIRONMENT["MRS_PYTEST_BOOTSTRAP_OPENAI_API_BASE_URL"] == (
         "http://127.0.0.1:9/v1"
     )
     assert not is_relative_to(
@@ -77,13 +77,13 @@ def test_collection_import_uses_process_local_test_environment() -> None:
         PRODUCTION_BASE,
     )
     assert COLLECTION_ENVIRONMENT["X_CONSUMER_KEY"] == "dummy"
-    assert COLLECTION_ENVIRONMENT["XAI_API_KEY"] == "dummy"
+    assert COLLECTION_ENVIRONMENT["OPENAI_API_KEY"] == "dummy"
 
     assert bot.TEST_MODE is True
     assert not is_relative_to(bot.BASE_DIR.resolve(), PRODUCTION_BASE)
     assert bot.X_BASE == "http://127.0.0.1:9"
     assert bot.X_UPLOAD_BASE == "http://127.0.0.1:9"
-    assert bot.XAI_BASE == "http://127.0.0.1:9/v1"
+    assert bot.OPENAI_BASE == "http://127.0.0.1:9/v1"
 
 
 def test_default_network_policy_denies_loopback_and_non_loopback() -> None:

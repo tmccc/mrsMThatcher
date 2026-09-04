@@ -2,8 +2,8 @@
 """Source-grounded evidence records for conversational reply claims.
 
 The production reply pipeline uses lexical matching only to assemble bounded
-candidate passages.  Whether a passage entails a claim is decided separately
-and is never inferred from token overlap.
+candidate passages for its one decision call. Token overlap does not itself
+establish a claim.
 """
 
 from __future__ import annotations
@@ -128,7 +128,7 @@ def retrieval_tokens(value: Any) -> set[str]:
 
 @dataclass(frozen=True)
 class EvidencePassage:
-    """A source-backed local passage that an evidence model may cite."""
+    """A source-backed local passage that a reply decision may cite."""
 
     evidence_id: str
     source_hash: str
@@ -147,7 +147,7 @@ class EvidencePassage:
     quantity: str = ""
 
     def prompt_record(self) -> dict[str, Any]:
-        """Return the bounded record supplied to the evidence model."""
+        """Return the complete local source record for compact conversion."""
         return {
             "evidence_id": self.evidence_id,
             "quote_id": self.quote_id,
@@ -166,7 +166,7 @@ class EvidencePassage:
         }
 
     def model_input_hash(self) -> str:
-        """Bind persisted approval to every evidence field supplied to a model."""
+        """Hash every source field for historical offline draft validation."""
         return value_hash(self.prompt_record())
 
 

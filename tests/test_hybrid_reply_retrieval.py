@@ -113,7 +113,7 @@ def test_insufficient_top_margin_rejects_ambiguous_set():
 
 
 def test_hybrid_retrieval_is_offline_only_and_absent_from_live_configuration():
-    assert "hybrid_retrieval" not in bot.ai_first_reply_strategy
+    assert "hybrid_retrieval" not in bot.single_call_reply
     assert not hasattr(hybrid, "submit_shadow_comparison")
     assert not hasattr(hybrid, "ShadowWorker")
     source = Path("mrsMThatcher2.py").read_text(encoding="utf-8")

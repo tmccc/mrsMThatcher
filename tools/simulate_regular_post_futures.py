@@ -504,7 +504,7 @@ def install_hard_guards(bot: Any, writer: PrivateWriter) -> None:
     for name in (
         "upload_media",
         "create_post",
-        "generate_ai_first_reply",
+        "generate_single_call_reply",
         "acquire_instance_lock",
         "post_random_quote",
         "post_next_meme",

@@ -272,10 +272,10 @@ collector never emits one warning per ignored event.
 
 Version 4 also retains bounded reply-image lifecycle metadata. The exact
 supplied/unavailable `Reply media context` lines contribute at most 16 newest
-deterministic collection observations per target. The registered
+deterministic collection observations per target. The registered legacy
 `reply_visual_description` event contributes at most 16 newest lifecycle events
-and is preliminary visual context, not a tested-pipeline stage summary. Each
-retained row is a visual lifecycle event; only its
+from pre-cut-over logs. It is compatibility metadata, not a current production
+stage. Each retained row is a visual lifecycle event; only its
 `visual_analysis_call_count` records whether a provider analysis call was
 actually attempted. Canonical
 posts retain only observation time, record fingerprint, normalised lane,
@@ -300,6 +300,11 @@ bounded history, not guaranteed lifetime totals.
 This metadata is reviewer evidence only: image presence or a missing, failed,
 or repeated analysis does not itself classify a reply as defective and does
 not create a review reason.
+
+Current logs use the registered `single_call_reply_decision` event. The
+extractor retains it for the candidate directly, including when no legacy
+pipeline-stage summary exists; image understanding, when present, occurred in
+that same production decision call.
 
 ## Open and quiescent conversations
 

@@ -904,6 +904,54 @@ def test_missing_undateable_root_stays_start_unknown(tmp_path: Path) -> None:
     assert conversation["prospective_status"] == "start_unknown"
 
 
+def test_single_call_decision_is_retained_without_stage_summary() -> None:
+    records, _ = extractor.parse_log_records(
+        event_line(
+            "2026-09-04 12:00:00",
+            "single_call_reply_decision",
+            target_id="900",
+            root_post_id="800",
+            parent_post_id="850",
+            lane="mention",
+            incoming_text="A current contribution",
+            strategy_version="single-sol-reply-20260904",
+            model="gpt-5.6-sol",
+            decision="no_reply",
+            reply_kind="no_reply",
+            reason_code="completed_exchange",
+            outcome_type="editorial",
+            local_validation_status="passed",
+            model_call_count=1,
+            visible_turn_count=3,
+            trusted_fact_count=2,
+        ).encode()
+    )
+
+    post = extractor.normalise_canonical_posts(records, [], b"s" * 32)[0]
+
+    assert post["post_id"] == "900"
+    assert post["root_post_id"] == "800"
+    assert post["parent_post_id"] == "850"
+    assert post["tested_pipeline_stage_summaries"] == []
+    assert post["pipeline_stage_summaries"] == [
+        {
+            "event_id": records[0].record_fingerprint,
+            "event_kind": "single_call_reply_decision",
+            "observed_at": records[0].timestamp,
+            "model_call_count": 1,
+            "decision": "no_reply",
+            "reply_kind": "no_reply",
+            "reason_code": "completed_exchange",
+            "outcome_type": "editorial",
+            "local_validation_status": "passed",
+            "visible_turn_count": 3,
+            "trusted_fact_count": 2,
+            "model": "gpt-5.6-sol",
+            "strategy_version": "single-sol-reply-20260904",
+        }
+    ]
+
+
 def test_conflicting_explicit_creation_time_preserves_snowflake_and_malformed_falls_back() -> None:
     key = b"t" * 32
     snowflake = snowflake_id("2026-08-24T15:00:00Z")

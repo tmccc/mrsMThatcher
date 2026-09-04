@@ -26,8 +26,9 @@ and AppleDouble files.
 
 | Module | Responsibility | External effects |
 |---|---|---|
-| `mrsMThatcher2.py` | Production scheduling, quotation/image selection, replies, receipts and recovery | X and xAI only after explicit production bootstrap; durable production state |
-| `reply_strategy.py` | Retrieval, structured reply parsing, grounding, relevance and safety validation | Local corpus reads; its audit CLI is offline |
+| `mrsMThatcher2.py` | Production scheduling, quotation/image selection, replies, receipts and recovery | X and OpenAI only after explicit production bootstrap; durable production state |
+| `single_call_reply.py` | Frozen Sol prompt/schema, bounded context and facts, one-call orchestration, mechanical validation and durable-draft validation | One injected OpenAI Responses call; local validation and hashing |
+| `reply_evidence.py` | Lexically shortlist validated local passages for compact trusted facts | Local corpus reads only |
 | `historical_context_formatter.py` | Canonical research loading, compact context formatting and context-reply persistence | Local state; posting only through an injected callback |
 | `shadow_lifecycle.py` | Strict validation for the versioned shadow-feature lifecycle register | Local file reads only |
 | `mrs_log_digest.py` | Structured/legacy log parsing, aggregation and Markdown/JSON reports | Local log and resume-state reads/writes; no provider calls |
@@ -70,7 +71,7 @@ unless attribution eligibility is exactly 611.
 - Research/provider CLIs require explicit execution flags and bounded spend;
   offline audit, replay and report commands do not contact providers.
 - Tests use temporary state and fake endpoints. They must never point at live X
-  or xAI endpoints without the deliberate test override phrase.
+  or OpenAI endpoints without the deliberate test override phrase.
 
 ## Support And Research Code
 
@@ -80,6 +81,10 @@ replay and reporting. Root-level `analyse_*`, `compare_*`, `recover_*` and
 `run_*` scripts are command-line orchestration over those modules. Tools under
 `tools/` provide isolated analysis and local review applications; their own
 README files define mutable-data boundaries.
+
+`reply_strategy.py` and `tools/reply_claim_diagnostics.py` are retained for
+offline historical evaluation only. Neither is imported by the production bot;
+the sole production conversational implementation is `single_call_reply.py`.
 
 Historical reports and paid raw responses are evidence, not runtime APIs. Do
 not rewrite them to match newer terminology; new reports should link back to

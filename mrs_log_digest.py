@@ -49,8 +49,6 @@ from typing import Any, Dict, Iterable, List, Optional, Tuple, Union
 from urllib.parse import urlsplit
 from zoneinfo import ZoneInfo
 
-from tested_reply_pipeline import validate_visual_description
-
 LOG_RE = re.compile(
     r"^(?P<ts>\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2})\s+"
     r"(?P<level>[A-Z]+)\s+"
@@ -62,11 +60,11 @@ GENERATED_ANALYSIS_SCHEMA_VERSION = 3
 GENERATED_ANALYSIS_KIND = "images"
 GENERATED_AUDIT_SCHEMA_VERSION = 1
 GENERATED_AUDIT_KIND = "generated_image_identity_dependence_audit"
-# Version 2 is a major-versioned compatibility contract. Increment this integer
+# Version 3 is a major-versioned compatibility contract. Increment this integer
 # before removing or renaming a JSON field, changing an established field's type
 # or meaning, or otherwise making a consumer-visible incompatible change. Purely
 # additive fields do not require an increment within a major version.
-DIGEST_JSON_SCHEMA_VERSION = 2
+DIGEST_JSON_SCHEMA_VERSION = 3
 DIGEST_JSON_OUTPUT_KIND = "mrs_log_digest"
 DIGEST_SOURCE_MAX_BYTES = 4 * 1024 * 1024
 CURRENT_RUNTIME_STATE_MAX_BYTES = 64 * 1024 * 1024
@@ -77,6 +75,9 @@ MAX_REASONABLE_STATE_EPOCH = 4_102_531_200
 AUTHOR_NO_REPLY_PROGRESS_MAX_AUTHORS = 25_000
 AUTHOR_NO_REPLY_PROGRESS_MAX_THRESHOLD = 250_000
 AUTHOR_EVALUATION_QUARANTINE_EVIDENCE_POLICY = (
+    "single_sol_editorial_no_reply_v1"
+)
+AUTHOR_EVALUATION_QUARANTINE_PREVIOUS_EVIDENCE_POLICY = (
     "majority_resolvable_terminal_no_reply_v3"
 )
 AUTHOR_EVALUATION_QUARANTINE_SEEDED_EVIDENCE_POLICY = (
@@ -3759,9 +3760,9 @@ def summarize_latest_state(
         "x_write_api_cooldown_until_epoch": latest_state.get("x_write_api_cooldown_until_epoch"),
         "x_write_api_cooldown_until_human": epoch_to_human(latest_state.get("x_write_api_cooldown_until_epoch")),
         "x_write_api_cooldown_reason": latest_state.get("x_write_api_cooldown_reason"),
-        "xai_api_cooldown_until_epoch": latest_state.get("xai_api_cooldown_until_epoch"),
-        "xai_api_cooldown_until_human": epoch_to_human(latest_state.get("xai_api_cooldown_until_epoch")),
-        "xai_api_cooldown_reason": latest_state.get("xai_api_cooldown_reason"),
+        "openai_api_cooldown_until_epoch": latest_state.get("openai_api_cooldown_until_epoch"),
+        "openai_api_cooldown_until_human": epoch_to_human(latest_state.get("openai_api_cooldown_until_epoch")),
+        "openai_api_cooldown_reason": latest_state.get("openai_api_cooldown_reason"),
         "quote_api_cooldown_until_epoch": latest_state.get("quote_api_cooldown_until_epoch"),
         "quote_api_cooldown_until_human": epoch_to_human(latest_state.get("quote_api_cooldown_until_epoch")),
         "quote_api_cooldown_reason": latest_state.get("quote_api_cooldown_reason"),
@@ -4112,8 +4113,18 @@ def current_author_no_reply_strike_progress(
             and evidence_policy
             == AUTHOR_EVALUATION_QUARANTINE_EVIDENCE_POLICY
         )
+        is_previous_policy = (
+            record_fields == required_fields
+            and evidence_policy
+            == AUTHOR_EVALUATION_QUARANTINE_PREVIOUS_EVIDENCE_POLICY
+        )
         malformed = (
-            not (is_legacy_policy or is_seeded_policy or is_current_policy)
+            not (
+                is_legacy_policy
+                or is_seeded_policy
+                or is_previous_policy
+                or is_current_policy
+            )
             or not isinstance(timestamps, list)
             or len(timestamps) > epoch_limit
             or any(
@@ -4159,7 +4170,7 @@ def current_author_no_reply_strike_progress(
                     f"malformed author quarantine record at position {position}"
                 )
                 return result
-            if is_seeded_policy:
+            if is_seeded_policy or is_previous_policy:
                 migrated_prior_policy_author_count += 1
         validated.append((author_id, list(timestamps), until))
 
@@ -7513,37 +7524,6 @@ def estimate_openai_cost_window(
     return result
 
 
-def _xai_provider_reported_component(provider_usage: Dict[str, Any]) -> Dict[str, Any]:
-    """Return the existing xAI provider-reported component without reconstruction."""
-
-    events = provider_usage.get("events") or []
-    values = [
-        value
-        for item in events
-        if item.get("provider", "xAI") == "xAI"
-        and (value := optional_int_usage_value(item.get("cost_in_usd_ticks")))
-        is not None
-    ]
-    successful = sum(item.get("provider", "xAI") == "xAI" for item in events)
-    if not values:
-        return {
-            "available": False,
-            "successful_calls": successful,
-            "costed_calls": 0,
-        }
-    ticks = sum(values)
-    return {
-        "available": True,
-        "ticks": ticks,
-        "amount": _openai_decimal_text(
-            Decimal(ticks) / Decimal(USD_TICKS_PER_DOLLAR)
-        ),
-        "successful_calls": successful,
-        "costed_calls": len(values),
-        "coverage_complete": len(values) == successful,
-    }
-
-
 def openai_published_cost_report(
     *,
     cache_path: Optional[Path],
@@ -7552,7 +7532,12 @@ def openai_published_cost_report(
     generation_time_local: datetime,
     provider_usage: Dict[str, Any],
 ) -> Dict[str, Any]:
-    """Build the digest's offline cache, current-day, and window-cost view."""
+    """Build the OpenAI-only offline cache, current-day, and window-cost view."""
+
+    # Kept as an input solely for callers spanning digest schema versions. The
+    # current production architecture has no second conversational provider to
+    # combine with OpenAI published cost.
+    del provider_usage
 
     now_utc = local_digest_time_to_utc(generation_time_local)
     cache = load_openai_cost_cache(cache_path, now_utc=now_utc)
@@ -7588,25 +7573,6 @@ def openai_published_cost_report(
             "reason": "selected log window boundaries are unavailable",
         }
 
-    xai_component = _xai_provider_reported_component(provider_usage)
-    report["xai_component"] = xai_component
-    if cache["scope"]["kind"] == "project":
-        selected = report["selected_window"]
-        if selected.get("status") == "complete" and xai_component.get("available"):
-            combined = _parse_openai_cost_decimal(
-                selected["amount"], label="selected OpenAI cost"
-            ) + _parse_openai_cost_decimal(
-                xai_component["amount"], label="selected xAI cost"
-            )
-            report["combined_selected_window"] = {
-                "available": True,
-                "amount": _openai_decimal_text(combined),
-            }
-        else:
-            report["combined_selected_window"] = {
-                "available": False,
-                "reason": "one or both provider components are unavailable or partial",
-            }
     return report
 
 
@@ -10620,10 +10586,14 @@ def parse_reply_visual_description_event(
         parsed["analysis_anomaly"] = "malformed_analysis"
         return parsed
     try:
-        analysis = validate_visual_description(
-            raw_analysis,
-            supplied_image_count=supplied_image_count,
+        # Legacy visual-description events are retained only so old logs remain
+        # readable.  The retired conversational module is deliberately not an
+        # operational dependency of the version-3 digest.
+        analysis = json.loads(
+            json.dumps(raw_analysis, ensure_ascii=False, allow_nan=False)
         )
+        if len(json.dumps(analysis, ensure_ascii=False)) > 25_000:
+            raise ValueError("legacy visual analysis exceeds digest bound")
     except (json.JSONDecodeError, TypeError, ValueError):
         parsed["analysis_anomaly"] = "malformed_analysis"
         return parsed
@@ -11955,6 +11925,164 @@ def reply_strategy_summary(events: List[Dict[str, Any]]) -> Dict[str, Any]:
         "no_reply_category_counts": dict(no_reply_categories),
         "routine_skip_reason_counts": dict(routine_reasons.most_common()),
         "repetition_control_counts": dict(repetition_controls),
+    }
+
+
+def single_call_reply_summary(events: List[Dict[str, Any]]) -> Dict[str, Any]:
+    """Summarise the sole production conversational decision architecture."""
+
+    decisions = [
+        item for item in events
+        if item.get("kind") == "single_call_reply_decision"
+    ]
+    usage = [
+        item for item in events
+        if item.get("kind") == "single_call_reply_provider_usage"
+    ]
+    posting = [
+        item for item in events
+        if item.get("kind") == "single_call_reply_posting_outcome"
+    ]
+    recovered = [
+        item for item in events
+        if item.get("kind") == "single_call_reply_draft_recovered"
+    ]
+
+    def count_values(rows: List[Dict[str, Any]], field: str) -> Dict[str, int]:
+        return dict(Counter(
+            str(item.get(field) or "unavailable") for item in rows
+        ).most_common())
+
+    def average(field: str) -> Optional[float]:
+        values = [
+            item[field]
+            for item in decisions
+            if type(item.get(field)) is int
+        ]
+        return (sum(values) / len(values)) if values else None
+
+    editorial_no_reply = [
+        item for item in decisions
+        if item.get("pipeline_status") == "no_reply"
+        and item.get("outcome_type") == "editorial"
+        and item.get("local_validation_status") == "passed"
+    ]
+    operational = [
+        item for item in decisions
+        if item.get("pipeline_status") == "operational_failure"
+        or item.get("outcome_type") == "operational"
+    ]
+    model_attempts = [
+        item for item in decisions
+        if type(item.get("model_call_count")) is int
+        and item["model_call_count"] > 0
+    ]
+    invalid_call_counts = [
+        item for item in decisions
+        if type(item.get("model_call_count")) is not int
+        or item["model_call_count"] not in {0, 1}
+        or (
+            item.get("pipeline_status") in {"reply", "no_reply"}
+            and item["model_call_count"] != 1
+        )
+    ]
+    usage_per_candidate = Counter(
+        (normalise_reply_lane(item.get("lane")), str(item.get("target_id") or ""))
+        for item in usage
+    )
+    duplicate_usage_count = sum(count - 1 for count in usage_per_candidate.values() if count > 1)
+    one_call_violations = len(invalid_call_counts) + duplicate_usage_count
+    token_fields = (
+        "input_tokens",
+        "cached_input_tokens",
+        "cache_write_input_tokens",
+        "output_tokens",
+        "reasoning_tokens",
+        "total_tokens",
+    )
+    token_totals = {
+        field: sum(
+            item[field] for item in usage if type(item.get(field)) is int
+        )
+        for field in token_fields
+    }
+    latencies = [
+        item["provider_latency_ms"]
+        for item in usage
+        if type(item.get("provider_latency_ms")) is int
+    ]
+    confirmed_keys = {
+        (normalise_reply_lane(item.get("lane")), str(item.get("target_id") or ""))
+        for item in posting
+        if item.get("status") == "confirmed"
+    }
+    posting_failures = [
+        item for item in posting
+        if item.get("status") not in {"confirmed", "dry_run"}
+    ]
+    schema_failure_count = sum(
+        item.get("error_category") == "schema_validation"
+        for item in decisions
+    )
+    local_failure_count = sum(
+        item.get("local_validation_status") == "failed"
+        and item.get("error_category") != "schema_validation"
+        for item in decisions
+    )
+    return {
+        "candidate_evaluation_count": len(decisions),
+        "reply_decision_count": sum(
+            item.get("pipeline_status") == "reply" for item in decisions
+        ),
+        "replies_posted_count": len(confirmed_keys),
+        "editorial_no_reply_count": len(editorial_no_reply),
+        "operational_failure_count": len(operational),
+        "posting_failure_count": len(posting_failures),
+        "recovered_draft_count": len(recovered),
+        "model_attempt_count": len(model_attempts),
+        "one_call_compliant_count": len(decisions) - len(invalid_call_counts),
+        "one_call_violation_count": one_call_violations,
+        "one_call_compliance": (
+            "passed" if decisions and one_call_violations == 0 else
+            "failed" if one_call_violations else "no_candidates"
+        ),
+        "strategy_version_counts": count_values(decisions, "strategy_version"),
+        "model_counts": count_values(decisions, "model"),
+        "lane_counts": count_values(decisions, "lane"),
+        "reply_kind_counts": count_values(
+            [item for item in decisions if item.get("pipeline_status") == "reply"],
+            "reply_kind",
+        ),
+        "no_reply_reason_counts": count_values(editorial_no_reply, "reason_code"),
+        "operational_failure_reason_counts": count_values(
+            operational, "failure_reason"
+        ),
+        "error_category_counts": count_values(operational, "error_category"),
+        "schema_validation_failure_count": schema_failure_count,
+        "local_validation_failure_count": local_failure_count,
+        "average_visible_turn_count": average("visible_turn_count"),
+        "average_visible_character_count": average("visible_character_count"),
+        "average_same_author_interaction_count": average(
+            "same_author_interaction_count"
+        ),
+        "average_recent_conversational_reply_count": average(
+            "recent_conversational_reply_count"
+        ),
+        "average_trusted_fact_count": average("trusted_fact_count"),
+        "average_supplied_image_count": average("supplied_image_count"),
+        "provider_usage_event_count": len(usage),
+        "token_totals": token_totals,
+        "provider_latency_average_ms": (
+            sum(latencies) / len(latencies) if latencies else None
+        ),
+        "provider_latency_maximum_ms": max(latencies) if latencies else None,
+        "provider_request_attempt_counts": count_values(
+            usage, "request_attempt_count"
+        ),
+        "cost_total": {
+            "status": "unavailable_during_log_analysis",
+            "amount": None,
+        },
     }
 
 
@@ -13906,6 +14034,220 @@ def analyse(
                     "reply_strategy_rejection", r.ts,
                     lane=bounded_event_text(event_obj.get("lane"), default="unavailable", max_characters=100),
                     reason=bounded_event_text(event_obj.get("reason"), default="other", max_characters=500),
+                )
+            elif event_obj and event_obj.get("event") == "single_call_reply_decision":
+                temperature = event_obj.get("temperature")
+                if type(temperature) not in {int, float} or not math.isfinite(
+                    float(temperature)
+                ):
+                    temperature = None
+                add_event(
+                    "single_call_reply_decision",
+                    r.ts,
+                    lane=normalise_reply_lane(event_obj.get("lane")),
+                    target_id=(
+                        event_obj.get("target_id")
+                        if valid_string_public_post_id(event_obj.get("target_id"))
+                        else ""
+                    ),
+                    strategy_version=bounded_event_text(
+                        event_obj.get("strategy_version"),
+                        default="unavailable",
+                        max_characters=200,
+                    ),
+                    model=bounded_event_text(
+                        event_obj.get("model"),
+                        default="unavailable",
+                        max_characters=200,
+                    ),
+                    reasoning_effort=bounded_event_text(
+                        event_obj.get("reasoning_effort"), max_characters=50
+                    ),
+                    temperature=temperature,
+                    prompt_sha256=bounded_event_text(
+                        event_obj.get("prompt_sha256"), max_characters=64
+                    ),
+                    response_schema_sha256=bounded_event_text(
+                        event_obj.get("response_schema_sha256"), max_characters=64
+                    ),
+                    payload_sha256=bounded_event_text(
+                        event_obj.get("payload_sha256"), max_characters=64
+                    ),
+                    decision=bounded_event_text(
+                        event_obj.get("decision"), max_characters=50
+                    ),
+                    reply_kind=bounded_event_text(
+                        event_obj.get("reply_kind"), max_characters=100
+                    ),
+                    reason_code=bounded_event_text(
+                        event_obj.get("reason_code"), max_characters=100
+                    ),
+                    used_fact_count=bounded_event_nonnegative_integer(
+                        event_obj.get("used_fact_count"), maximum=32
+                    ),
+                    visible_turn_count=bounded_event_nonnegative_integer(
+                        event_obj.get("visible_turn_count"), maximum=12
+                    ),
+                    visible_character_count=bounded_event_nonnegative_integer(
+                        event_obj.get("visible_character_count"), maximum=12_000
+                    ),
+                    same_author_interaction_count=bounded_event_nonnegative_integer(
+                        event_obj.get("same_author_interaction_count"), maximum=8
+                    ),
+                    recent_conversational_reply_count=bounded_event_nonnegative_integer(
+                        event_obj.get(
+                            "recent_conversational_reply_count",
+                            event_obj.get("recent_reply_count"),
+                        ),
+                        maximum=30,
+                    ),
+                    trusted_fact_count=bounded_event_nonnegative_integer(
+                        event_obj.get("trusted_fact_count"), maximum=32
+                    ),
+                    supplied_image_count=bounded_event_nonnegative_integer(
+                        event_obj.get("supplied_image_count"), maximum=2
+                    ),
+                    model_call_count=bounded_event_nonnegative_integer(
+                        event_obj.get("model_call_count"), maximum=1
+                    ),
+                    local_validation_status=bounded_event_text(
+                        event_obj.get("local_validation_status"), max_characters=50
+                    ),
+                    error_category=bounded_event_text(
+                        event_obj.get("error_category"), max_characters=100
+                    ),
+                    failure_reason=bounded_event_text(
+                        event_obj.get("failure_reason"), max_characters=200
+                    ),
+                    outcome_type=bounded_event_text(
+                        event_obj.get("outcome_type"), max_characters=50
+                    ),
+                    pipeline_status=bounded_event_text(
+                        event_obj.get("pipeline_status"), max_characters=50
+                    ),
+                    provider_latency_ms=bounded_event_nonnegative_integer(
+                        event_obj.get("provider_latency_ms"), maximum=86_400_000
+                    ),
+                    provider_request_attempt_count=bounded_event_nonnegative_integer(
+                        event_obj.get("provider_request_attempt_count"), maximum=2
+                    ),
+                    provider_response_id=bounded_event_text(
+                        event_obj.get("provider_response_id"), max_characters=300
+                    ),
+                )
+            elif event_obj and event_obj.get("event") == "single_call_reply_provider_usage":
+                add_event(
+                    "single_call_reply_provider_usage",
+                    r.ts,
+                    lane=normalise_reply_lane(event_obj.get("lane")),
+                    target_id=(
+                        event_obj.get("target_id")
+                        if valid_string_public_post_id(event_obj.get("target_id"))
+                        else ""
+                    ),
+                    strategy_version=bounded_event_text(
+                        event_obj.get("strategy_version"),
+                        default="unavailable",
+                        max_characters=200,
+                    ),
+                    model=bounded_event_text(
+                        event_obj.get("model"),
+                        default="unavailable",
+                        max_characters=200,
+                    ),
+                    provider_response_id=bounded_event_text(
+                        event_obj.get("provider_response_id"), max_characters=300
+                    ),
+                    provider_latency_ms=bounded_event_nonnegative_integer(
+                        event_obj.get("provider_latency_ms"), maximum=86_400_000
+                    ),
+                    request_attempt_count=bounded_event_nonnegative_integer(
+                        event_obj.get("request_attempt_count"), maximum=2
+                    ),
+                    input_tokens=bounded_event_nonnegative_integer(
+                        event_obj.get("input_tokens"), maximum=100_000_000
+                    ),
+                    cached_input_tokens=bounded_event_nonnegative_integer(
+                        event_obj.get("cached_input_tokens"), maximum=100_000_000
+                    ),
+                    cache_write_input_tokens=bounded_event_nonnegative_integer(
+                        event_obj.get("cache_write_input_tokens"), maximum=100_000_000
+                    ),
+                    output_tokens=bounded_event_nonnegative_integer(
+                        event_obj.get("output_tokens"), maximum=100_000_000
+                    ),
+                    reasoning_tokens=bounded_event_nonnegative_integer(
+                        event_obj.get("reasoning_tokens"), maximum=100_000_000
+                    ),
+                    total_tokens=bounded_event_nonnegative_integer(
+                        event_obj.get("total_tokens"), maximum=100_000_000
+                    ),
+                )
+            elif event_obj and event_obj.get("event") == "single_call_reply_posting_outcome":
+                add_event(
+                    "single_call_reply_posting_outcome",
+                    r.ts,
+                    status=bounded_event_text(
+                        event_obj.get("status"), default="unavailable", max_characters=100
+                    ),
+                    lane=normalise_reply_lane(event_obj.get("lane")),
+                    target_id=(
+                        event_obj.get("target_id")
+                        if valid_string_public_post_id(event_obj.get("target_id"))
+                        else ""
+                    ),
+                    reply_post_id=(
+                        event_obj.get("reply_post_id")
+                        if valid_string_public_post_id(event_obj.get("reply_post_id"))
+                        else ""
+                    ),
+                    strategy_version=bounded_event_text(
+                        event_obj.get("strategy_version"), max_characters=200
+                    ),
+                    reply_kind=bounded_event_text(
+                        event_obj.get("reply_kind"), max_characters=100
+                    ),
+                    reason_code=bounded_event_text(
+                        event_obj.get("reason_code"), max_characters=100
+                    ),
+                    used_fact_count=bounded_event_nonnegative_integer(
+                        event_obj.get("used_fact_count"), maximum=32
+                    ),
+                    supplied_image_count=bounded_event_nonnegative_integer(
+                        event_obj.get("supplied_image_count"), maximum=2
+                    ),
+                    model_call_count=bounded_event_nonnegative_integer(
+                        event_obj.get("model_call_count"), maximum=1
+                    ),
+                    validated_draft_hash=bounded_event_text(
+                        event_obj.get("validated_draft_hash"), max_characters=64
+                    ),
+                    failure_reason=bounded_event_text(
+                        event_obj.get("failure_reason"), max_characters=200
+                    ),
+                )
+            elif event_obj and event_obj.get("event") == "single_call_reply_draft_recovered":
+                add_event(
+                    "single_call_reply_draft_recovered",
+                    r.ts,
+                    lane=normalise_reply_lane(event_obj.get("lane")),
+                    target_id=(
+                        event_obj.get("target_id")
+                        if valid_string_public_post_id(event_obj.get("target_id"))
+                        else ""
+                    ),
+                    strategy_version=bounded_event_text(
+                        event_obj.get("strategy_version"), max_characters=200
+                    ),
+                    model=bounded_event_text(
+                        event_obj.get("model"), max_characters=200
+                    ),
+                    validated_draft_hash=bounded_event_text(
+                        event_obj.get("validated_draft_hash"), max_characters=64
+                    ),
+                    model_call_count=bounded_event_nonnegative_integer(
+                        event_obj.get("model_call_count"), maximum=1
+                    ),
                 )
             elif event_obj and event_obj.get("event") == "ai_reply_pipeline_decision":
                 evidence_ids = event_obj.get("evidence_ids")
@@ -16236,7 +16578,7 @@ def analyse(
         )
     cooldown_until_epoch = int_or_none(latest_state_summary.get("api_cooldown_until_epoch"))
     x_write_cooldown_until_epoch = int_or_none(latest_state_summary.get("x_write_api_cooldown_until_epoch"))
-    xai_cooldown_until_epoch = int_or_none(latest_state_summary.get("xai_api_cooldown_until_epoch"))
+    openai_cooldown_until_epoch = int_or_none(latest_state_summary.get("openai_api_cooldown_until_epoch"))
     quote_cooldown_until_epoch = int_or_none(latest_state_summary.get("quote_api_cooldown_until_epoch"))
     latest_state_time = parse_dt(latest_state_summary.get("time"))
     window_start_epoch = int(records[0].ts.timestamp()) if records else None
@@ -16256,7 +16598,7 @@ def analyse(
         for label in (
             cooldown_headline(cooldown_until_epoch, label="X read API"),
             cooldown_headline(x_write_cooldown_until_epoch, label="X write API"),
-            cooldown_headline(xai_cooldown_until_epoch, label="xAI"),
+            cooldown_headline(openai_cooldown_until_epoch, label="OpenAI"),
             cooldown_headline(quote_cooldown_until_epoch, label="quote API"),
         )
         if label
@@ -16635,162 +16977,17 @@ def analyse(
         )
         explicit_strategy_outcome_targets.add(key)
 
-    reconcile_reply_pipeline_effective_outcomes(events)
     context_quality = historical_context_quality_summary(events)
-    strategy_quality = reply_strategy_summary(events)
-    pipeline_stage_quality = reply_pipeline_stage_summary(events)
-    stats["tested_pipeline_decisions_all_versions"] = int(
-        pipeline_stage_quality.get("tested_pipeline_decision_count", 0) or 0
-    )
-    stats["tested_pipeline_stage_summary_events_all_versions"] = int(
-        pipeline_stage_quality.get("all_stage_summary_event_count", 0) or 0
-    )
-    stats["tested_pipeline_complete_stage_telemetry"] = int(
-        pipeline_stage_quality.get("complete_stage_telemetry_count", 0) or 0
-    )
-    stats["tested_pipeline_partial_or_legacy_telemetry"] = int(
-        pipeline_stage_quality.get("partial_or_legacy_telemetry_count", 0) or 0
-    )
-    provider_usage = {
-        "events": xai_usage_events,
-        "totals": xai_usage_totals(xai_usage_events),
-        "call_attempts": xai_call_attempts,
-        "cost_summary": xai_reply_cost_summary(
-            xai_usage_events,
-            events,
-            xai_call_attempts,
+    single_call_quality = single_call_reply_summary(events)
+    legacy_multi_stage = {
+        "decision_count": sum(
+            item.get("kind") == "reply_strategy_decision" for item in events
         ),
-        "parse_errors": xai_usage_parse_errors,
+        "stage_summary_event_count": sum(
+            item.get("kind") == "reply_pipeline_stage_summary" for item in events
+        ),
     }
-    tested_decisions = int(
-        pipeline_stage_quality.get("tested_pipeline_decision_count", 0) or 0
-    )
-    cost_candidates = provider_usage["cost_summary"].get("candidates") or []
-    deterministic_stage_by_target: Dict[
-        Tuple[str, str], Dict[str, Any]
-    ] = {}
-    for event in events:
-        if event.get("kind") != "reply_pipeline_stage_summary":
-            continue
-        key = (
-            _normalise_lane(event.get("lane")),
-            str(event.get("target_id") or ""),
-        )
-        if not key[1]:
-            continue
-        model_call_count = optional_int_usage_value(
-            event.get("model_call_count")
-        )
-        if model_call_count == 0 and (
-            event.get("route_source") == "deterministic_suppression"
-            or event.get("deterministic_suppressed") is True
-        ):
-            deterministic_stage_by_target[key] = event
-
-    decline_event_fields = {
-        "mention_grok_skip": ("mention", "mention_id"),
-        "hot_post_reply_grok_skip": ("hot-post", "hot_post_reply_id"),
-        "quote_tweet_grok_skip": ("quote-tweet", "quote_tweet_id"),
-    }
-    decline_event_by_target: Dict[Tuple[str, str], Dict[str, Any]] = {}
-    for event in events:
-        lane_and_field = decline_event_fields.get(str(event.get("kind") or ""))
-        if lane_and_field is None:
-            continue
-        lane, target_field = lane_and_field
-        target_id = str(event.get(target_field) or "")
-        if target_id:
-            decline_event_by_target[(lane, target_id)] = event
-
-    deterministic_suppressions: List[Dict[str, Any]] = []
-    for key, decision in strategy_decisions_by_target.items():
-        stage = deterministic_stage_by_target.get(key)
-        model_call_count = optional_int_usage_value(
-            decision.get("model_call_count")
-        )
-        if model_call_count is None and stage is not None:
-            model_call_count = optional_int_usage_value(
-                stage.get("model_call_count")
-            )
-        route_source = (
-            decision.get("route_source")
-            or (stage or {}).get("route_source")
-        )
-        explicitly_deterministic = (
-            route_source == "deterministic_suppression"
-            or (stage or {}).get("deterministic_suppressed") is True
-        )
-        if not explicitly_deterministic or model_call_count != 0:
-            continue
-        decline_event = decline_event_by_target.get(key) or {}
-        deterministic_suppressions.append({
-            "time": decline_event.get("time") or decision.get("time") or "",
-            "lane": key[0],
-            "target_id": key[1],
-            "author_id": decline_event.get("author_id") or "",
-            "original_post_id": decline_event.get("original_post_id") or "",
-            "incoming_text": (
-                decline_event.get("incoming_text")
-                or decision.get("incoming_contribution")
-                or ""
-            ),
-            "route_source": route_source,
-            "model_call_count": model_call_count,
-            "reason": (
-                decision.get("reason")
-                or decision.get("no_reply_reason")
-                or (stage or {}).get("deterministic_reason")
-                or (stage or {}).get("pipeline_stage_reason")
-                or ""
-            ),
-        })
-    deterministic_suppressions.sort(
-        key=lambda row: (
-            str(row.get("time") or ""),
-            str(row.get("lane") or ""),
-            str(row.get("target_id") or ""),
-        )
-    )
-
-    review_classification_available = bool(
-        cost_candidates or deterministic_suppressions
-    )
-    if review_classification_available:
-        ai_reviewed_decline_outcomes = {
-            "deliberately_declined",
-            "terminal_repetition_rejection",
-            "terminal_clarification_mode_rejection",
-        }
-        ai_reviewed_decline_count = sum(
-            str(candidate.get("outcome") or "")
-            in ai_reviewed_decline_outcomes
-            for candidate in cost_candidates
-        )
-        deliberately_declined_count = sum(
-            candidate.get("outcome") == "deliberately_declined"
-            for candidate in cost_candidates
-        )
-        writer_local_failure_count = int(
-            strategy_quality.get("writer_local_failure_count", 0) or 0
-        )
-        strategy_quality.update({
-            "conversational_candidate_count": int(
-                provider_usage["cost_summary"].get("candidate_count", 0) or 0
-            ),
-            "deliberately_declined_count": deliberately_declined_count,
-            "ai_reviewed_decline_count": ai_reviewed_decline_count,
-            "writer_local_failure_count": writer_local_failure_count,
-            "deterministic_suppression_count": len(
-                deterministic_suppressions
-            ),
-            "terminal_no_reply_decision_count": (
-                ai_reviewed_decline_count
-                + writer_local_failure_count
-                + len(deterministic_suppressions)
-            ),
-            "review_classification_available": True,
-            "deterministic_suppressions": deterministic_suppressions,
-        })
+    tested_decisions = int(legacy_multi_stage["decision_count"])
     headline = [
         item for item in headline
         if not item.endswith("Grok skip") and not item.endswith("Grok skips")
@@ -16799,79 +16996,25 @@ def analyse(
         (index for index, item in enumerate(headline) if item.startswith("current health:")),
         len(headline),
     )
-    if tested_decisions:
-        latest_version = str(
-            pipeline_stage_quality.get("latest_strategy_version") or "unavailable"
-        )
-        latest_subtotal = int(
-            pipeline_stage_quality.get(
-                "latest_strategy_version_decision_count", 0
-            )
-            or 0
-        )
+    single_candidates = int(
+        single_call_quality.get("candidate_evaluation_count", 0) or 0
+    )
+    if single_candidates:
         headline.insert(
             health_index,
-            f"{tested_decisions} tested-pipeline decisions across all versions; "
-            f"current/latest {latest_version}: {latest_subtotal}",
+            f"{plural_count(single_candidates, 'single-call candidate')} evaluated; "
+            f"{plural_count(single_call_quality.get('replies_posted_count', 0), 'reply', 'replies')} posted; "
+            f"{plural_count(single_call_quality.get('editorial_no_reply_count', 0), 'editorial no-reply decision')}; "
+            f"{plural_count(single_call_quality.get('operational_failure_count', 0), 'operational failure')}; "
+            f"one-call compliance {single_call_quality.get('one_call_compliance')}",
         )
         health_index += 1
-    candidates = int(strategy_quality.get("conversational_candidate_count", 0) or 0)
-    posted_replies = int(strategy_quality.get("confirmed_outcome_count", 0) or 0)
-    declined = int(strategy_quality.get("deliberately_declined_count", 0) or 0)
-    writer_local_failures = int(
-        strategy_quality.get("writer_local_failure_count", 0) or 0
-    )
-    repetition_rejections = int(
-        strategy_quality.get("terminal_repetition_rejection_count", 0) or 0
-    )
-    clarification_rejections = int(
-        strategy_quality.get(
-            "terminal_clarification_mode_rejection_count", 0
-        )
-        or 0
-    )
-    deterministic_suppression_count = int(
-        strategy_quality.get("deterministic_suppression_count", 0) or 0
-    )
-    if candidates or deterministic_suppression_count or writer_local_failures:
-        candidate_summary = (
-            f"{plural_count(candidates, 'conversational candidate')} AI-reviewed; "
-            f"{plural_count(posted_replies, 'reply', 'replies')} posted; "
-            f"{plural_count(repetition_rejections, 'terminal repetition rejection')}; "
-            f"{plural_count(clarification_rejections, 'terminal clarification-mode rejection')}"
-        )
-        if strategy_quality.get("review_classification_available"):
-            candidate_summary += (
-                f"; {plural_count(strategy_quality.get('ai_reviewed_decline_count', 0), 'AI-reviewed decline')} total "
-                f"({declined} deliberately declined); "
-                f"{plural_count(deterministic_suppression_count, 'deterministic suppression')}; "
-                f"{plural_count(strategy_quality.get('terminal_no_reply_decision_count', 0), 'terminal no-reply decision')}"
-            )
-        else:
-            candidate_summary += f"; {declined} deliberately declined"
-        if writer_local_failures:
-            candidate_summary += (
-                f"; {plural_count(writer_local_failures, 'writer-local failure')}"
-            )
+    if tested_decisions or legacy_multi_stage["stage_summary_event_count"]:
         headline.insert(
             health_index,
-            candidate_summary,
+            f"legacy multi-stage decisions {tested_decisions}; "
+            f"legacy stage summaries {legacy_multi_stage['stage_summary_event_count']}",
         )
-    routine_reason_map = {
-        "Daily generated/replied cap reached": "daily_cap",
-        "Skipping mention check: minimum interval between replies not reached": "spacing",
-        "Skipping quote-tweet check: total daily reply cap reached": "daily_cap",
-        "Skipping quote-tweet check: daily quote-reply cap reached": "daily_cap",
-        "hot_post_reply_already_handled": "already_replied",
-        "quote_tweet_already_seen": "already_replied",
-        "quote_tweet_not_direct": "not_direct_quote",
-        "quote_tweet_self_authored": "own_account",
-    }
-    compact_routine = Counter(strategy_quality.get("routine_skip_reason_counts") or {})
-    for reason, count in routine_skip_counts.items():
-        compact_routine[routine_reason_map.get(reason, reason)] += count
-    strategy_quality["routine_skip_reason_counts"] = dict(compact_routine.most_common())
-
     cooldown_claims = {
         "API cooldown occurred",
         "no API cooldown",
@@ -16879,7 +17022,7 @@ def analyse(
     cooldown_claim_prefixes = (
         "X read API cooldown ",
         "X write API cooldown ",
-        "xAI cooldown ",
+        "OpenAI cooldown ",
         "quote API cooldown ",
         "current API cooldown state ",
     )
@@ -16912,17 +17055,6 @@ def analyse(
         and type(item.get("pipeline_evaluations_skipped")) is int
         and item["pipeline_evaluations_skipped"] >= 0
     )
-    (
-        reply_visual_context_summary,
-        reply_visual_context_targets,
-    ) = reply_visual_context_report(
-        reply_media_context,
-        reply_visual_description_events,
-        malformed_event_count=int(
-            stats.get("reply_visual_description_malformed_events", 0)
-        ),
-    )
-
     report = {
         "summary": {
             "record_count": len(records),
@@ -17075,11 +17207,8 @@ def analyse(
             },
         },
         "historical_context_quality": context_quality,
-        "reply_strategy": strategy_quality,
-        "reply_pipeline_stages": pipeline_stage_quality,
-        "reply_media_context": reply_media_context,
-        "reply_visual_context_summary": reply_visual_context_summary,
-        "reply_visual_context_targets": reply_visual_context_targets,
+        "single_call_reply": single_call_quality,
+        "legacy_multi_stage": legacy_multi_stage,
         "asset_health": asset_health,
         "media_upload": {
             "incidents": media_upload_incidents,
@@ -17107,9 +17236,6 @@ def analyse(
             "latest": latest_generated_image_spacing,
             "events": generated_image_spacing_events,
         },
-        "provider_usage": provider_usage,
-        # Retained as a compatibility alias for existing JSON consumers.
-        "xai_usage": provider_usage,
         "resume_context": {
             "active_xai_context": active_xai_context,
             "active_xai_call_attempt": (
@@ -17176,7 +17302,7 @@ def md_table_row(cols: List[Any], *, cell_limit: int = 240) -> str:
 CURRENT_COOLDOWN_FIELDS = (
     ("api_cooldown_until_epoch", "X read API"),
     ("x_write_api_cooldown_until_epoch", "X write API"),
-    ("xai_api_cooldown_until_epoch", "xAI"),
+    ("openai_api_cooldown_until_epoch", "OpenAI"),
     ("quote_api_cooldown_until_epoch", "quote API"),
 )
 
@@ -17246,7 +17372,7 @@ def refresh_derived(report: Dict[str, Any]) -> None:
 
     # Cooldown human timestamps are derived from the epoch. Recompute after
     # saved-context merging so a cleared epoch=0 cannot keep an old date/reason.
-    for prefix in ("api_cooldown", "x_write_api_cooldown", "xai_api_cooldown", "quote_api_cooldown"):
+    for prefix in ("api_cooldown", "x_write_api_cooldown", "openai_api_cooldown", "quote_api_cooldown"):
         epoch_key = f"{prefix}_until_epoch"
         human_key = f"{prefix}_until_human"
         reason_key = f"{prefix}_reason"
@@ -17594,15 +17720,15 @@ def render_markdown(report: Dict[str, Any]) -> str:
         )
         if st.get("x_write_api_cooldown_reason"):
             out.append(f"{state_label_prefix}x_write_api_cooldown_reason = {st.get('x_write_api_cooldown_reason')}")
-        xai_api_cooldown_status = cooldown_state_text(st.get("xai_api_cooldown_until_epoch"), generation_epoch)
-        xai_api_cooldown_suffix = f"  {xai_api_cooldown_status}" if xai_api_cooldown_status else ""
-        xai_api_cooldown_human = st.get("xai_api_cooldown_until_human") or "none"
+        openai_api_cooldown_status = cooldown_state_text(st.get("openai_api_cooldown_until_epoch"), generation_epoch)
+        openai_api_cooldown_suffix = f"  {openai_api_cooldown_status}" if openai_api_cooldown_status else ""
+        openai_api_cooldown_human = st.get("openai_api_cooldown_until_human") or "none"
         out.append(
-            f"{state_label_prefix}xai_api_cooldown_until  = {st.get('xai_api_cooldown_until_epoch')}  "
-            f"{xai_api_cooldown_human}{xai_api_cooldown_suffix}"
+            f"{state_label_prefix}openai_api_cooldown_until = {st.get('openai_api_cooldown_until_epoch')}  "
+            f"{openai_api_cooldown_human}{openai_api_cooldown_suffix}"
         )
-        if st.get("xai_api_cooldown_reason"):
-            out.append(f"{state_label_prefix}xai_api_cooldown_reason = {st.get('xai_api_cooldown_reason')}")
+        if st.get("openai_api_cooldown_reason"):
+            out.append(f"{state_label_prefix}openai_api_cooldown_reason = {st.get('openai_api_cooldown_reason')}")
         quote_api_cooldown_status = cooldown_state_text(st.get("quote_api_cooldown_until_epoch"), generation_epoch)
         quote_api_cooldown_suffix = f"  {quote_api_cooldown_status}" if quote_api_cooldown_status else ""
         quote_api_cooldown_human = st.get("quote_api_cooldown_until_human") or "none"
@@ -18382,366 +18508,11 @@ def render_markdown(report: Dict[str, Any]) -> str:
         elif selected.get("reason"):
             out.append(f"Estimate status: {selected.get('reason')}.")
 
-        if openai_scope.get("kind") == "project":
-            combined = openai_cost.get("combined_selected_window") or {}
-            xai_component = openai_cost.get("xai_component") or {}
-            if combined.get("available"):
-                out.append(
-                    "Combined selected-window estimate: "
-                    f"**{format_openai_usd(combined.get('amount'))}**."
-                )
-            else:
-                out.append("Combined selected-window estimate: **unknown**.")
-            if xai_component.get("available"):
-                xai_qualifier = (
-                    "provider-reported"
-                    if xai_component.get("coverage_complete")
-                    else "provider-reported known lower bound"
-                )
-                out.append(
-                    f"xAI component ({xai_qualifier}): "
-                    f"**{format_openai_usd(xai_component.get('amount'))}**."
-                )
-            else:
-                out.append("xAI component (provider-reported): **unknown**.")
-            if selected_status == "complete":
-                out.append(
-                    "OpenAI component (published-cost delta estimate): "
-                    f"**{format_openai_usd(selected.get('amount'))}**."
-                )
-            else:
-                out.append(
-                    "OpenAI component (published-cost delta estimate): **unknown or partial**."
-                )
-        else:
-            out.append(
-                "The OpenAI figure is organization-wide and is therefore not combined "
-                "with the bot's xAI component."
-            )
     out.append(
-        "Individual OpenAI calls and pipeline stages remain cost **unknown**; the "
-        "daily estimate is not allocated across calls or stages."
+        "The provider-published estimate is not allocated to individual "
+        "single-call decisions."
     )
     out.append("")
-
-    xai_usage = report.get("provider_usage") or report.get("xai_usage") or {}
-    xai_events = xai_usage.get("events") or []
-    xai_call_attempts = xai_usage.get("call_attempts") or []
-    xai_parse_errors = xai_usage.get("parse_errors") or []
-    if xai_events or xai_call_attempts or xai_parse_errors:
-        out.append("## xAI usage, OpenAI usage, and conversational reply cost")
-        if xai_events or xai_call_attempts:
-            totals = xai_usage.get("totals") or {}
-            cost_summary = xai_usage.get("cost_summary") or {}
-            known_ticks = int(
-                cost_summary.get(
-                    "known_cost_in_usd_ticks",
-                    totals.get("cost_in_usd_ticks", 0),
-                )
-                or 0
-            )
-            coverage_complete = cost_summary.get("coverage_complete") is True
-            successful_provider_calls = int(
-                totals.get(
-                    "successful_provider_calls",
-                    totals.get("successful_xai_calls", 0),
-                )
-                or 0
-            )
-            costed_calls = int(totals.get("costed_call_count", 0) or 0)
-            known_cost_text = (
-                format_usd_ticks(known_ticks) if costed_calls else "unknown"
-            )
-            out.append(
-                f"**Provider-reported known cost lower bound: {known_cost_text} "
-                f"({known_ticks:,} reported ticks) across "
-                f"{successful_provider_calls} successful logged calls.**"
-            )
-            out.append(
-                f"Cost-record coverage: **{totals.get('costed_call_count', 0)} / "
-                f"{successful_provider_calls} successful calls**; "
-                f"AI-reviewed candidates observed: "
-                f"**{cost_summary.get('candidate_count', 0)}**; "
-                f"published conversational replies: "
-                f"**{cost_summary.get('published_candidate_count', 0)}**."
-            )
-            provider_rows = cost_summary.get("providers") or []
-            if provider_rows:
-                out.append(
-                    "Successful calls by provider: "
-                    + ", ".join(
-                        f"{item.get('provider', 'unavailable')}="
-                        f"{item.get('successful_usage_records', 0)}"
-                        for item in provider_rows
-                    )
-                    + "."
-                )
-            known_call_average = cost_summary.get("known_cost_per_costed_call")
-            if known_call_average:
-                out.append(
-                    "Mean reported cost across cost-reported successful calls "
-                    "(unknown-cost calls excluded): "
-                    f"**{format_usd_ticks(int(known_call_average['ticks']), divisor=int(known_call_average['divisor']))}**."
-                )
-            if coverage_complete:
-                per_candidate = cost_summary.get("per_reviewed_candidate")
-                effective = cost_summary.get("effective_per_published_reply")
-                if per_candidate:
-                    out.append(
-                        "Mean provider cost per AI-reviewed candidate: "
-                        f"**{format_usd_ticks(int(per_candidate['ticks']), divisor=int(per_candidate['divisor']))}**."
-                    )
-                if effective:
-                    out.append(
-                        "Effective provider cost per published conversational reply "
-                        "(including deliberately declined candidates): "
-                        f"**{format_usd_ticks(int(effective['ticks']), divisor=int(effective['divisor']))}**."
-                    )
-            else:
-                reasons = cost_summary.get("coverage_reasons") or [
-                    "coverage could not be proved complete"
-                ]
-                out.append(
-                    "Exact per-candidate and effective-per-published-reply averages "
-                    "are unavailable: "
-                    + "; ".join(str(reason) for reason in reasons)
-                    + "."
-                )
-            out.append(
-                "These figures cover successful provider responses present in the "
-                "selected logs; they are not invoice reconciliation and can omit "
-                "failed or ambiguous requests. Cached tokens are a subset of prompt "
-                "tokens. Deterministic historical-context replies do not make a "
-                "runtime conversational-AI call."
-            )
-            out.append("")
-
-            outcome_rows = cost_summary.get("outcomes") or []
-            if outcome_rows:
-                out.append("Cost by candidate outcome:")
-                out.append(
-                    md_table_row(
-                        [
-                            "outcome",
-                            "candidates",
-                            "successful calls",
-                            "total tokens",
-                            "known cost",
-                        ]
-                    )
-                )
-                out.append(md_table_row(["---"] * 5))
-                for item in outcome_rows:
-                    out.append(
-                        md_table_row(
-                            [
-                                str(item.get("outcome", "")).replace("_", " "),
-                                item.get("candidate_count", 0),
-                                item.get("observed_successful_calls", 0),
-                                item.get("total_tokens", 0),
-                                format_reported_cost(item),
-                            ]
-                        )
-                    )
-                out.append("")
-
-            stage_rows = cost_summary.get("stages") or []
-            if stage_rows:
-                out.append("Cost by provider pipeline stage:")
-                out.append(
-                    md_table_row(
-                        [
-                            "provider",
-                            "stage",
-                            "calls started",
-                            "successful usage",
-                            "starts without usage",
-                            "total tokens",
-                            "known cost",
-                        ]
-                    )
-                )
-                out.append(md_table_row(["---"] * 7))
-                for item in stage_rows:
-                    out.append(
-                        md_table_row(
-                            [
-                                item.get("provider", ""),
-                                item.get("stage", ""),
-                                item.get("started_calls", 0),
-                                item.get("successful_usage_records", 0),
-                                item.get("call_starts_without_usage", 0),
-                                item.get("total_tokens", 0),
-                                format_reported_cost(item),
-                            ]
-                        )
-                    )
-                out.append("")
-
-            candidate_rows = cost_summary.get("candidates") or []
-            if candidate_rows:
-                out.append("Per-candidate accounting:")
-                out.append(
-                    md_table_row(
-                        [
-                            "lane",
-                            "context_id",
-                            "outcome",
-                            "usage/reported calls",
-                            "coverage",
-                            "stages",
-                            "tokens",
-                            "known cost",
-                        ]
-                    )
-                )
-                out.append(md_table_row(["---"] * 8))
-                for item in candidate_rows:
-                    stage_text = ", ".join(
-                        f"{stage}×{count}"
-                        for stage, count in (
-                            item.get("stages") or {}
-                        ).items()
-                    )
-                    reported = item.get("reported_model_call_count")
-                    out.append(
-                        md_table_row(
-                            [
-                                item.get("lane", ""),
-                                item.get("context_id", ""),
-                                str(item.get("outcome", "")).replace("_", " "),
-                                f"{item.get('observed_successful_calls', 0)}/"
-                                f"{reported if reported is not None else 'unavailable'}",
-                                item.get("call_coverage", ""),
-                                stage_text,
-                                item.get("total_tokens", 0),
-                                format_reported_cost(item),
-                            ]
-                        )
-                    )
-                out.append("")
-
-            out.append("Successful provider responses (detail):")
-            out.append(md_table_row([
-                "time",
-                "lane",
-                "context_id",
-                "prompt input",
-                "cache-read input",
-                "reasoning",
-                "completion",
-                "total",
-                "sources",
-                "cost_ticks",
-                "image",
-                "provider",
-                "stage",
-                "model",
-                "cost_usd",
-            ]))
-            out.append(md_table_row(["---"] * 15))
-            for item in xai_events:
-                item_cost = optional_int_usage_value(
-                    item.get("cost_in_usd_ticks")
-                )
-                out.append(md_table_row([
-                    item.get("time", ""),
-                    item.get("lane", ""),
-                    item.get("context_id", ""),
-                    item.get("prompt_tokens", 0),
-                    item.get(
-                        "cache_read_input_tokens",
-                        item.get("cached_tokens", 0),
-                    ),
-                    item.get("reasoning_tokens", 0),
-                    item.get("completion_tokens", 0),
-                    item.get("total_tokens", 0),
-                    item.get("num_sources_used", 0),
-                    item_cost if item_cost is not None else "unknown",
-                    item.get("image_tokens", 0),
-                    item.get("provider", "unavailable"),
-                    item.get("stage", "unavailable"),
-                    item.get("model", ""),
-                    (
-                        format_usd_ticks(item_cost)
-                        if item_cost is not None
-                        else "unknown"
-                    ),
-                ]))
-            out.append("")
-            out.append("Totals:")
-            out.append("```text")
-            out.append(f"successful_provider_calls = {successful_provider_calls}")
-            out.append(f"successful_xai_calls = {totals.get('successful_xai_calls', 0)}")
-            out.append(f"successful_openai_calls = {totals.get('successful_openai_calls', 0)}")
-            out.append(f"prompt_tokens        = {totals.get('prompt_tokens', 0)}")
-            out.append(
-                "cache_read_input_tokens = "
-                f"{totals.get('cache_read_input_tokens', totals.get('cached_tokens', 0))}"
-            )
-            out.append(
-                "cached_tokens        = "
-                f"{totals.get('cached_tokens', 0)} "
-                "(compatibility alias for cache-read input; not cache-write usage)"
-            )
-            cache_metric_coverage = totals.get("cache_metric_coverage")
-            if not isinstance(cache_metric_coverage, dict):
-                cache_metric_coverage = {}
-            for metric_name in (
-                "cache_creation_input_tokens",
-                "cache_write_input_tokens",
-            ):
-                metric_coverage = cache_metric_coverage.get(metric_name)
-                if not isinstance(metric_coverage, dict):
-                    metric_coverage = _cache_metric_coverage(
-                        xai_events,
-                        metric_name,
-                    )
-                out.append(
-                    _format_cache_metric_coverage_line(
-                        metric_name,
-                        metric_coverage,
-                    )
-                )
-                provider_coverage = metric_coverage.get("by_provider") or {}
-                for provider in ("OpenAI", "xAI"):
-                    scope_coverage = provider_coverage.get(provider) or {}
-                    if int(
-                        scope_coverage.get("successful_call_count", 0) or 0
-                    ):
-                        out.append(
-                            _format_cache_metric_coverage_line(
-                                metric_name,
-                                scope_coverage,
-                                provider=provider,
-                            )
-                        )
-            out.append(f"image_tokens         = {totals.get('image_tokens', 0)}")
-            out.append(f"reasoning_tokens     = {totals.get('reasoning_tokens', 0)}")
-            out.append(f"completion_tokens    = {totals.get('completion_tokens', 0)}")
-            out.append(f"total_tokens         = {totals.get('total_tokens', 0)}")
-            out.append(f"sources_used         = {totals.get('sources_used', 0)}")
-            out.append(
-                "known_cost_ticks_lower_bound = "
-                f"{totals.get('cost_in_usd_ticks', 0) if costed_calls else 'unknown'}"
-            )
-            out.append(f"known_cost_usd_lower_bound = {known_cost_text}")
-            out.append(f"costed_calls         = {totals.get('costed_call_count', 0)}")
-            out.append(f"uncosted_calls       = {totals.get('uncosted_successful_call_count', 0)}")
-            out.append("```")
-            out.append("")
-        if xai_parse_errors:
-            out.append("Malformed xAI usage records:")
-            out.append(md_table_row(["time", "where", "error", "message"]))
-            out.append(md_table_row(["---", "---", "---", "---"]))
-            for item in xai_parse_errors:
-                out.append(md_table_row([
-                    item.get("time", ""),
-                    item.get("where", ""),
-                    item.get("error", ""),
-                    item.get("message", ""),
-                ]))
-            out.append("")
 
     generated_spacing = report.get("generated_image_spacing") or {}
     generated_spacing_latest = generated_spacing.get("latest") or {}
@@ -19570,449 +19341,101 @@ def render_markdown(report: Dict[str, Any]) -> str:
             )
     out.append("")
 
-    strategy = report.get("reply_strategy") or {}
-    out.append("## Conversational reply strategy")
-    strategy_summary = (
-        f"**{plural_count(strategy.get('conversational_candidate_count', 0), 'conversational candidate')} "
-        f"AI-reviewed; {plural_count(strategy.get('confirmed_outcome_count', 0), 'reply', 'replies')} posted; "
-        f"{plural_count(strategy.get('terminal_repetition_rejection_count', 0), 'terminal repetition rejection')}; "
-        f"{plural_count(strategy.get('terminal_clarification_mode_rejection_count', 0), 'terminal clarification-mode rejection')}"
+    single_reply = report.get("single_call_reply") or {}
+    out.append("## Single-call conversational replies")
+    out.append(
+        f"**{plural_count(single_reply.get('candidate_evaluation_count', 0), 'candidate')} evaluated; "
+        f"{plural_count(single_reply.get('replies_posted_count', 0), 'reply', 'replies')} posted; "
+        f"{plural_count(single_reply.get('editorial_no_reply_count', 0), 'valid editorial no-reply decision')}; "
+        f"{plural_count(single_reply.get('operational_failure_count', 0), 'operational failure')}.**"
     )
-    if strategy.get("review_classification_available"):
-        strategy_summary += (
-            f"; {plural_count(strategy.get('ai_reviewed_decline_count', 0), 'AI-reviewed decline')} total "
-            f"({strategy.get('deliberately_declined_count', 0)} deliberately declined); "
-            f"{plural_count(strategy.get('deterministic_suppression_count', 0), 'deterministic suppression')}; "
-            f"{plural_count(strategy.get('terminal_no_reply_decision_count', 0), 'terminal no-reply decision')}"
+    out.append(
+        "One-call compliance: **"
+        f"{single_reply.get('one_call_compliance', 'no_candidates')}** "
+        f"({single_reply.get('one_call_compliant_count', 0)} compliant decisions; "
+        f"{single_reply.get('one_call_violation_count', 0)} violations; "
+        f"{single_reply.get('recovered_draft_count', 0)} drafts recovered with no provider call)."
+    )
+    out.append(
+        "Strategy versions: **"
+        + compact_counts(single_reply.get("strategy_version_counts") or {})
+        + "**; models: **"
+        + compact_counts(single_reply.get("model_counts") or {})
+        + "**; lanes: **"
+        + compact_counts(single_reply.get("lane_counts") or {})
+        + "**."
+    )
+    out.append(
+        "Reply kinds: **"
+        + compact_counts(single_reply.get("reply_kind_counts") or {})
+        + "**; no-reply reasons: **"
+        + compact_counts(single_reply.get("no_reply_reason_counts") or {})
+        + "**."
+    )
+    out.append(
+        "Operational failure reasons: **"
+        + compact_counts(single_reply.get("operational_failure_reason_counts") or {})
+        + "**; error categories: **"
+        + compact_counts(single_reply.get("error_category_counts") or {})
+        + "**."
+    )
+    out.append(
+        "Schema/local-validation failures: **"
+        f"{single_reply.get('schema_validation_failure_count', 0)} / "
+        f"{single_reply.get('local_validation_failure_count', 0)}**; "
+        f"posting failures: **{single_reply.get('posting_failure_count', 0)}**."
+    )
+    out.append(
+        "Average visible turns / visible characters / same-author interactions / "
+        "recent conversational replies / trusted facts / supplied images: **"
+        + " / ".join(
+            "unavailable" if value is None else f"{float(value):.2f}"
+            for value in (
+                single_reply.get("average_visible_turn_count"),
+                single_reply.get("average_visible_character_count"),
+                single_reply.get("average_same_author_interaction_count"),
+                single_reply.get(
+                    "average_recent_conversational_reply_count"
+                ),
+                single_reply.get("average_trusted_fact_count"),
+                single_reply.get("average_supplied_image_count"),
+            )
         )
-    else:
-        strategy_summary += (
-            f"; {strategy.get('deliberately_declined_count', 0)} "
-            "deliberately declined"
-        )
-    writer_local_failures = int(
-        strategy.get("writer_local_failure_count", 0) or 0
+        + "**."
     )
-    if writer_local_failures:
-        strategy_summary += (
-            f"; {plural_count(writer_local_failures, 'writer-local failure')}"
-        )
-    strategy_summary += ".**"
-    out.append(strategy_summary)
-    pipeline_stages = report.get("reply_pipeline_stages") or {}
-    if pipeline_stages.get("tested_pipeline_decision_count"):
-        out.append(
-            "All tested-pipeline decisions: "
-            f"**{pipeline_stages.get('tested_pipeline_decision_count', 0)}**; "
-            "complete stage telemetry: "
-            f"**{pipeline_stages.get('complete_stage_telemetry_count', 0)}**; "
-            "partial/legacy telemetry: "
-            f"**{pipeline_stages.get('partial_or_legacy_telemetry_count', 0)}**."
-        )
-    out.append("Generated decisions: " + compact_counts(strategy.get("generated_mode_counts") or {}))
+    token_totals = single_reply.get("token_totals") or {}
     out.append(
-        "Generated final reply kinds: "
-        + compact_counts(strategy.get("generated_final_reply_kind_counts") or {})
+        "Provider usage totals: **"
+        f"input={token_totals.get('input_tokens', 0)}, "
+        f"cached-input={token_totals.get('cached_input_tokens', 0)}, "
+        f"cache-write-input={token_totals.get('cache_write_input_tokens', 0)}, "
+        f"output={token_totals.get('output_tokens', 0)}, "
+        f"reasoning={token_totals.get('reasoning_tokens', 0)}, "
+        f"total={token_totals.get('total_tokens', 0)}** across "
+        f"{single_reply.get('provider_usage_event_count', 0)} successful responses."
     )
-    out.append("Public outcomes: " + compact_counts(strategy.get("outcome_status_counts") or {}))
-    out.append("Published/terminal modes: " + compact_counts(strategy.get("mode_counts") or {}))
+    average_latency = single_reply.get("provider_latency_average_ms")
+    maximum_latency = single_reply.get("provider_latency_maximum_ms")
+    cost_total = single_reply.get("cost_total") or {}
     out.append(
-        "Published/terminal final reply kinds: "
-        + compact_counts(strategy.get("final_reply_kind_counts") or {})
+        "Provider latency average/max: **"
+        f"{round(float(average_latency), 2) if average_latency is not None else 'unavailable'} / "
+        f"{maximum_latency if maximum_latency is not None else 'unavailable'} ms**; "
+        "published selected-window cost: **"
+        f"{format_openai_usd(cost_total.get('amount')) if cost_total.get('amount') is not None else 'unavailable'} "
+        f"({cost_total.get('status', 'unavailable')})**."
     )
-    for lane, counts in (strategy.get("mode_counts_by_lane") or {}).items():
-        if counts:
-            out.append(f"{lane}: {compact_counts(counts)}")
-    out.append(
-        f"Grounded decisions generated: **{strategy.get('generated_grounded_count', 0)}**; "
-        f"grounded replies posted: **{strategy.get('posted_grounded_count', 0)}**; "
-        f"factual decisions generated: **{strategy.get('generated_factual_claim_count', 0)}**."
-    )
-    out.append(
-        f"Trusted facts supplied to generated decisions average/max/none: **"
-        f"{round(strategy['generated_average_retrieved_packet_count'], 2) if strategy.get('generated_average_retrieved_packet_count') is not None else 'unavailable'} / "
-        f"{strategy.get('generated_maximum_retrieved_packet_count') if strategy.get('generated_maximum_retrieved_packet_count') is not None else 'unavailable'} / "
-        f"{strategy.get('generated_no_retrieved_packets_count', 0)}**."
-    )
-    out.append(
-        f"Facts actually referenced/used by generated decisions, when known, average/max/none: **"
-        f"{round(strategy['generated_average_evidence_reference_count'], 2) if strategy.get('generated_average_evidence_reference_count') is not None else 'unavailable'} / "
-        f"{strategy.get('generated_maximum_evidence_reference_count') if strategy.get('generated_maximum_evidence_reference_count') is not None else 'unavailable'} / "
-        f"{strategy.get('generated_no_evidence_references_count', 0)}**."
-    )
-    out.append("Generated evidence confidence: " + compact_counts(strategy.get("generated_confidence_counts") or {}))
-    out.append("Generated tones: " + compact_counts(strategy.get("generated_humour_tone_counts") or {}))
-    out.append(
-        f"Published/terminal grounded replies: **{strategy.get('grounded_count', 0)}** "
-        f"(metadata unavailable: {strategy.get('grounding_metadata_unavailable_count', 0)}); "
-        f"claim-free opinion/principle replies: **{strategy.get('claim_free_opinion_or_principle_count', 0)}**; "
-        f"humour replies: **{strategy.get('humour_reply_count', 0)}**; "
-        f"factual claims: **{strategy.get('factual_claim_count', 0)}** "
-        f"(metadata unavailable: {strategy.get('factual_claim_metadata_unavailable_count', 0)}); "
-        f"factual grounding rejections: **{strategy.get('factual_rejected_insufficient_grounding_count', 0)}**."
-    )
-    out.append(
-        f"Trusted facts supplied to published/terminal decisions average/max/none: **{round(strategy['average_retrieved_packet_count'], 2) if strategy.get('average_retrieved_packet_count') is not None else 'unavailable'} / "
-        f"{strategy.get('maximum_retrieved_packet_count') if strategy.get('maximum_retrieved_packet_count') is not None else 'unavailable'} / "
-        f"{strategy.get('no_retrieved_packets_count', 0)}** "
-        f"(metadata unavailable: {strategy.get('retrieved_packet_metadata_unavailable_count', 0)})."
-    )
-    out.append(
-        f"Facts actually referenced/used by published/terminal decisions, when known, average/max/none: **"
-        f"{round(strategy['average_evidence_reference_count'], 2) if strategy.get('average_evidence_reference_count') is not None else 'unavailable'} / "
-        f"{strategy.get('maximum_evidence_reference_count') if strategy.get('maximum_evidence_reference_count') is not None else 'unavailable'} / "
-        f"{strategy.get('no_evidence_references_count', 0)}** "
-        f"(metadata unavailable: {strategy.get('evidence_reference_metadata_unavailable_count', 0)})."
-    )
-    out.append("Published/terminal evidence confidence: " + compact_counts(strategy.get("confidence_counts") or {}))
-    out.append("Published/terminal tones: " + compact_counts(strategy.get("humour_tone_counts") or {}))
-    out.append("No-reply categories: " + compact_counts(strategy.get("no_reply_category_counts") or {}))
-    out.append("Repetition controls: " + compact_counts(strategy.get("repetition_control_counts") or {}))
-    if strategy.get("rejection_reason_counts"):
-        out.append(
-            "No-reply/rejection reasons:"
-            if writer_local_failures
-            else "Editorial no-reply/rejections:"
-        )
-        out.append(md_table_row(["reason", "count"]))
-        out.append(md_table_row(["---", "---"]))
-        for reason, count in strategy["rejection_reason_counts"].items():
-            out.append(md_table_row([reason, count]))
-    if strategy.get("pipeline_failure_reason_counts"):
-        out.append("Operational AI-first pipeline failures (retryable, not editorial no-reply):")
-        out.append(md_table_row(["reason", "count"]))
-        out.append(md_table_row(["---", "---"]))
-        for reason, count in strategy["pipeline_failure_reason_counts"].items():
-            out.append(md_table_row([reason, count]))
-    if strategy.get("routine_skip_reason_counts"):
-        out.append("Routine scheduling skips (separate):")
-        out.append(md_table_row(["reason", "count"]))
-        out.append(md_table_row(["---", "---"]))
-        for reason, count in strategy["routine_skip_reason_counts"].items():
-            out.append(md_table_row([reason, count]))
-    out.append("")
-
+    legacy_multi_stage = report.get("legacy_multi_stage") or {}
     if (
-        pipeline_stages.get("tested_pipeline_decision_count")
-        or pipeline_stages.get("evaluation_count")
+        legacy_multi_stage.get("decision_count")
+        or legacy_multi_stage.get("stage_summary_event_count")
     ):
-        out.append("## Tested reply-pipeline stages")
         out.append(
-            f"All tested-pipeline decisions: **"
-            f"{pipeline_stages.get('tested_pipeline_decision_count', 0)}**."
+            "Legacy multi-stage events in this window (compatibility count only): "
+            f"**{legacy_multi_stage.get('decision_count', 0)} decisions; "
+            f"{legacy_multi_stage.get('stage_summary_event_count', 0)} stage summaries**."
         )
-        out.append(
-            f"All stage-summary events: **"
-            f"{pipeline_stages.get('all_stage_summary_event_count', 0)}**."
-        )
-        out.append(
-            f"Complete stage telemetry: **"
-            f"{pipeline_stages.get('complete_stage_telemetry_count', 0)}**; "
-            f"partial/legacy telemetry: **"
-            f"{pipeline_stages.get('partial_or_legacy_telemetry_count', 0)}**."
-        )
-        versions = pipeline_stages.get("strategy_version_counts") or {}
-        if versions:
-            out.append("By strategy version:")
-            out.append(md_table_row([
-                "strategy version",
-                "decisions",
-                "stage summaries",
-                "complete",
-                "partial/legacy",
-            ]))
-            out.append(md_table_row(["---", "---:", "---:", "---:", "---:"]))
-            for version, counts in versions.items():
-                out.append(md_table_row([
-                    version,
-                    counts.get("decision_count", 0),
-                    counts.get("stage_summary_count", 0),
-                    counts.get("complete_stage_telemetry_count", 0),
-                    counts.get("partial_or_legacy_telemetry_count", 0),
-                ]))
-            out.append(
-                "Current/latest strategy-version subtotal "
-                f"(`{pipeline_stages.get('latest_strategy_version')}`): **"
-                f"{pipeline_stages.get('latest_strategy_version_decision_count', 0)}** "
-                "tested-pipeline decisions."
-            )
-        out.append(
-            f"Stage-summary events available: **{pipeline_stages.get('evaluation_count', 0)}**; "
-            f"provider calls: **{compact_counts(pipeline_stages.get('provider_call_counts') or {})}**; "
-            f"schema-invalid calls: **{pipeline_stages.get('schema_invalid_call_count', 0)}**."
-        )
-        out.append(
-            "Gate decisions: "
-            + compact_counts(pipeline_stages.get("gate_decision_counts") or {})
-            + "; reply-necessity outcomes: "
-            + compact_counts(
-                pipeline_stages.get("reply_necessity_outcome_counts") or {}
-            )
-            + "; majority resolvability: "
-            + compact_counts(
-                pipeline_stages.get(
-                    "reply_necessity_majority_resolvable_counts"
-                ) or {}
-            )
-            + f"; gate overturns: {pipeline_stages.get('reply_necessity_overturn_count', 0)}."
-        )
-        out.append(
-            f"Group-hostility candidates/reviews/suppressions: **"
-            f"{pipeline_stages.get('group_hostility_candidate_count', 0)} / "
-            f"{pipeline_stages.get('group_hostility_review_count', 0)} / "
-            f"{pipeline_stages.get('group_hostility_suppression_count', 0)}**; "
-            f"outcomes: {compact_counts(pipeline_stages.get('group_hostility_outcome_counts') or {})}."
-        )
-        out.append(
-            f"Allegation/conspiracy candidates/reviews/suppressions: **"
-            f"{pipeline_stages.get('allegation_conspiracy_candidate_count', 0)} / "
-            f"{pipeline_stages.get('allegation_conspiracy_review_count', 0)} / "
-            f"{pipeline_stages.get('allegation_conspiracy_suppression_count', 0)}**; "
-            f"outcomes: {compact_counts(pipeline_stages.get('allegation_conspiracy_outcome_counts') or {})}; "
-            f"majority resolvability: "
-            f"{compact_counts(pipeline_stages.get('allegation_conspiracy_majority_resolvable_counts') or {})}."
-        )
-        out.append(
-            "Attribution routes: "
-            + compact_counts(pipeline_stages.get("attribution_route_counts") or {})
-            + "; authentication outcomes: "
-            + compact_counts(
-                pipeline_stages.get("authentication_outcome_counts") or {}
-            )
-            + "."
-        )
-        out.append(
-            f"Claim-risk evaluations/cleanups: **"
-            f"{pipeline_stages.get('claim_risk_evaluation_count', 0)} / "
-            f"{pipeline_stages.get('claim_cleanup_count', 0)}**; audit outcomes: "
-            f"{compact_counts(pipeline_stages.get('claim_audit_outcome_counts') or {})}."
-        )
-        out.append(
-            f"Exact duplicates/repairs: **"
-            f"{pipeline_stages.get('exact_duplicate_count', 0)} / "
-            f"{pipeline_stages.get('duplicate_repair_count', 0)}**; repair outcomes: "
-            f"{compact_counts(pipeline_stages.get('duplicate_repair_outcome_counts') or {})}; "
-            f"final validation: {compact_counts(pipeline_stages.get('final_validation_counts') or {})}."
-        )
-
-        majority_utilisation = (
-            pipeline_stages.get("majority_review_utilisation") or {}
-        )
-        majority_coverage = majority_utilisation.get("coverage") or {}
-        stage_events_examined = int(
-            majority_coverage.get("stage_summary_events_examined", 0) or 0
-        )
-        if stage_events_examined:
-            present_events = int(
-                majority_coverage.get(
-                    "events_with_majority_review_summaries", 0
-                )
-                or 0
-            )
-            absent_events = int(
-                majority_coverage.get(
-                    "events_without_majority_review_summaries", 0
-                )
-                or 0
-            )
-            empty_events = int(
-                majority_coverage.get(
-                    "events_with_empty_majority_review_summaries", 0
-                )
-                or 0
-            )
-            malformed_entries = int(
-                majority_coverage.get("malformed_entries", 0) or 0
-            )
-            duplicate_events = int(
-                majority_coverage.get(
-                    "events_with_duplicate_family_entries", 0
-                )
-                or 0
-            )
-            out.append("")
-            out.append("### Majority-review utilisation")
-            out.append("")
-            if not present_events:
-                out.append(
-                    "Majority-review utilisation is **unavailable for this "
-                    "window**: all stage-summary events predate or lack "
-                    "`majority_review_summaries`."
-                )
-            else:
-                out.append(
-                    f"Coverage: **{present_events}/{stage_events_examined} "
-                    "stage-summary events supplied majority-review telemetry**; "
-                    f"present and empty: **{empty_events}**."
-                )
-                out.append(
-                    "Valid majority-family entries: **"
-                    f"{majority_coverage.get('valid_majority_family_entries', 0)}"
-                    "**; malformed entries excluded: **"
-                    f"{malformed_entries}**; events with duplicate families: "
-                    f"**{duplicate_events}**."
-                )
-                overall = majority_utilisation.get("overall") or {}
-                out.append(
-                    "Overall: **"
-                    f"{plural_count(overall.get('completed_family_resolutions', 0), 'resolution')}; "
-                    f"{plural_count(overall.get('actual_reviewer_calls_attempted', 0), 'call')} "
-                    "made versus "
-                    f"{overall.get('fixed_three_call_baseline', 0)} fixed-three "
-                    "baseline; "
-                    f"{plural_count(overall.get('reviewer_calls_saved', 0), 'call')} "
-                    "saved; "
-                    f"{plural_count(overall.get('total_invalid_or_unusable_votes', 0), 'invalid/unusable vote')}"
-                    "**."
-                )
-                short_circuit = overall.get("short_circuit_rate_percentage")
-                reduction = overall.get(
-                    "reviewer_call_reduction_percentage"
-                )
-                out.append(
-                    "Overall short-circuit rate: **"
-                    + (
-                        f"{float(short_circuit):.1f}%"
-                        if short_circuit is not None
-                        else "unavailable"
-                    )
-                    + "**; reviewer-call reduction: **"
-                    + (
-                        f"{float(reduction):.1f}%"
-                        if reduction is not None
-                        else "unavailable"
-                    )
-                    + "**."
-                )
-                out.append(
-                    md_table_row([
-                        "Family",
-                        "Resolutions",
-                        "2-call",
-                        "3-call",
-                        "Reviewer 3 skipped",
-                        "Reviewer 3 called",
-                        "Calls made",
-                        "Calls saved",
-                        "All-valid disagreements",
-                        "With invalid/unusable vote",
-                    ])
-                )
-                out.append(md_table_row(["---"] * 10))
-                per_family = majority_utilisation.get("per_family") or {}
-                table_rows = [
-                    (family, per_family.get(family) or {})
-                    for family in MAJORITY_REVIEW_FAMILIES
-                ]
-                table_rows.append(("Overall", overall))
-                for family, counts in table_rows:
-                    out.append(md_table_row([
-                        family,
-                        counts.get("completed_family_resolutions", 0),
-                        counts.get("two_call_resolutions", 0),
-                        counts.get("three_call_resolutions", 0),
-                        counts.get(
-                            "reviewer_3_skips_due_to_matching_first_two_votes",
-                            0,
-                        ),
-                        counts.get("reviewer_3_calls", 0),
-                        counts.get("actual_reviewer_calls_attempted", 0),
-                        counts.get("reviewer_calls_saved", 0),
-                        counts.get(
-                            "three_call_resolutions_with_all_three_votes_valid",
-                            0,
-                        ),
-                        counts.get(
-                            "family_resolutions_with_invalid_or_unusable_votes",
-                            0,
-                        ),
-                    ]))
-            if absent_events:
-                out.append(
-                    "**Coverage warning:** "
-                    f"{absent_events} legacy/incomplete stage-summary "
-                    "event(s) lacked `majority_review_summaries`; they were not "
-                    "treated as zero-call or zero-agreement events."
-                )
-            if malformed_entries:
-                out.append(
-                    "**Malformed telemetry warning:** "
-                    f"{malformed_entries} malformed majority-review entry/entries "
-                    "were excluded from utilisation totals."
-                )
-        out.append("")
-
-    local_rejections = [
-        event
-        for event in (report.get("events") or [])
-        if event.get("kind") == "reply_strategy_local_rejection"
-    ]
-    if local_rejections:
-        out.append("## Effective local reply rejections")
-        out.append(
-            "These drafts passed an internal pipeline stage but did not become "
-            "public replies because a later local guard rejected them."
-        )
-        for event in local_rejections:
-            target = str(event.get("target_id") or "unavailable")
-            proposed = event.get("proposed_draft")
-            repaired = event.get("repaired_draft")
-            out.append("")
-            out.append(f"### Target `{target}`")
-            out.append("")
-            out.append(
-                "- Incoming contribution: "
-                + json.dumps(
-                    event.get("incoming_contribution")
-                    or "unavailable (not retained in the log window)",
-                    ensure_ascii=False,
-                )
-            )
-            out.append(
-                "- Proposed draft: "
-                + json.dumps(
-                    proposed
-                    or (
-                        "unavailable (the provider response was not retained "
-                        "before the local guard)"
-                    ),
-                    ensure_ascii=False,
-                )
-            )
-            out.append(
-                "- Original local rejection reason: `"
-                + str(
-                    event.get("original_local_rejection_reason")
-                    or event.get("reason")
-                    or "unavailable"
-                )
-                + "`"
-            )
-            attempted = event.get("direct_answer_repair_attempted")
-            out.append(
-                "- Direct-answer repair attempted: **"
-                + ("yes" if attempted is True else "no" if attempted is False else "unavailable")
-                + "**; outcome: `"
-                + str(event.get("direct_answer_repair_outcome") or "unavailable")
-                + "`"
-            )
-            if repaired:
-                out.append(
-                    "- Repaired draft: "
-                    + json.dumps(repaired, ensure_ascii=False)
-                )
-            out.append(
-                "- Final effective outcome: `"
-                + str(event.get("effective_status") or "local_rejection")
-                + "`; reason: `"
-                + str(
-                    event.get("effective_reason")
-                    or event.get("reason")
-                    or "unavailable"
-                )
-                + "`"
-            )
-        out.append("")
+    out.append("")
 
     bounded_protocol_warnings = [
         event
@@ -20063,41 +19486,6 @@ def render_markdown(report: Dict[str, Any]) -> str:
     by_kind: Dict[str, List[Dict[str, Any]]] = {}
     for ev in events:
         by_kind.setdefault(ev["kind"], []).append(ev)
-
-    if strategy.get("review_classification_available"):
-        usage_report = (
-            report.get("provider_usage") or report.get("xai_usage") or {}
-        )
-        reviewed_decline_keys = {
-            (
-                normalise_reply_lane(candidate.get("lane")),
-                str(candidate.get("context_id") or ""),
-            )
-            for candidate in (
-                (usage_report.get("cost_summary") or {}).get("candidates")
-                or []
-            )
-            if candidate.get("outcome") in {
-                "deliberately_declined",
-                "terminal_repetition_rejection",
-                "terminal_clarification_mode_rejection",
-            }
-        }
-        decline_sections = {
-            "mention_grok_skip": ("mention", "mention_id"),
-            "hot_post_reply_grok_skip": (
-                "hot-post",
-                "hot_post_reply_id",
-            ),
-            "quote_tweet_grok_skip": ("quote-tweet", "quote_tweet_id"),
-        }
-        for kind, (lane, target_field) in decline_sections.items():
-            by_kind[kind] = [
-                row
-                for row in (by_kind.get(kind) or [])
-                if (lane, str(row.get(target_field) or ""))
-                in reviewed_decline_keys
-            ]
 
     def section(
         kind: str,
@@ -20439,45 +19827,43 @@ def render_markdown(report: Dict[str, Any]) -> str:
         ["time", "stage", "post_id", "error_type", "reason"],
     )
     section(
-        "reply_pipeline_stage_summary",
-        "Tested reply-pipeline evaluation detail",
+        "single_call_reply_decision",
+        "Single-call decision detail",
         [
             "time",
             "lane",
             "target_id",
             "strategy_version",
-            "pipeline_stage_status",
-            "pipeline_stage_reason",
-            "effective_status",
-            "effective_reason",
-            "direct_answer_repair_attempted",
-            "direct_answer_repair_outcome",
-            "xai_gate_decision",
-            "reply_necessity_outcome",
-            "reply_necessity_majority_resolvable",
-            "group_hostility_outcome",
-            "allegation_conspiracy_outcome",
-            "allegation_conspiracy_majority_resolvable",
-            "attribution_route",
-            "claim_risk_categories",
-            "duplicate_repair_outcome",
-            "final_validation",
+            "model",
+            "pipeline_status",
+            "reply_kind",
+            "reason_code",
+            "model_call_count",
+            "local_validation_status",
+            "error_category",
+            "visible_turn_count",
+            "visible_character_count",
+            "same_author_interaction_count",
+            "recent_conversational_reply_count",
+            "trusted_fact_count",
+            "supplied_image_count",
+            "provider_latency_ms",
         ],
     )
     section(
-        "reply_strategy_decision",
-        "Reply strategy decisions",
-        ["time", "lane", "strategy_version", "mode", "reply_requirement", "route_source", "tone", "evidence_confidence", "trusted_facts_supplied_count", "used_fact_count", "factual_claim", "grounded", "reviewer_verdict", "model_call_count", "revision_count", "author_quarantine_evidence", "no_reply_reason"],
-    )
-    section(
-        "reply_strategy_outcome",
-        "Reply strategy outcomes",
-        ["time", "status", "lane", "target_id", "reply_post_id", "strategy_version", "mode", "reply_requirement", "route_source", "tone", "evidence_confidence", "trusted_facts_supplied_count", "used_fact_count", "factual_claim", "grounded", "reviewer_verdict", "model_call_count", "revision_count", "failure_reason"],
-    )
-    section(
-        "reply_strategy_failure",
-        "Operational reply-pipeline failures",
-        ["time", "status", "lane", "target_id", "strategy_version", "reason", "model_call_count", "revision_count", "author_quarantine_evidence"],
+        "single_call_reply_posting_outcome",
+        "Single-call posting outcomes",
+        [
+            "time",
+            "status",
+            "lane",
+            "target_id",
+            "reply_post_id",
+            "strategy_version",
+            "reply_kind",
+            "reason_code",
+            "failure_reason",
+        ],
     )
     section(
         "reply_target_terminal",
@@ -20485,30 +19871,6 @@ def render_markdown(report: Dict[str, Any]) -> str:
         ["time", "lane", "target_id", "outcome", "reason"],
     )
     section("hot_post_search_result", "Hot-post recent-search results", ["time", "original_post_id", "candidates"])
-    deterministic_rows = strategy.get("deterministic_suppressions") or []
-    if deterministic_rows:
-        out.append("## Deterministic suppressions (no AI/provider review)")
-        deterministic_columns = [
-            "time",
-            "lane",
-            "target_id",
-            "author_id",
-            "original_post_id",
-            "incoming_text",
-            "route_source",
-            "model_call_count",
-            "reason",
-        ]
-        out.append(md_table_row(deterministic_columns))
-        out.append(md_table_row(["---"] * len(deterministic_columns)))
-        for row in deterministic_rows:
-            out.append(md_table_row([
-                row.get(column, "") for column in deterministic_columns
-            ]))
-        out.append("")
-    section("mention_grok_skip", "Mention AI-reviewed declines", ["time", "mention_id", "author_id", "incoming_text"])
-    section("hot_post_reply_grok_skip", "Hot-post AI-reviewed declines", ["time", "hot_post_reply_id", "author_id", "incoming_text"])
-    section("quote_tweet_grok_skip", "Quote-tweet AI-reviewed declines", ["time", "quote_tweet_id", "author_id", "original_post_id", "incoming_text"])
     section("mention_skipped", "Mention direct skips", ["time", "mention_id", "author_id", "incoming_text", "reason"])
     section("hot_post_reply_skipped", "Hot-post direct skips", ["time", "hot_post_reply_id", "author_id", "incoming_text", "reason"])
     section("quote_tweet_skipped", "Quote-tweet direct skips", ["time", "quote_tweet_id", "reason"])
@@ -20909,201 +20271,6 @@ def render_markdown(report: Dict[str, Any]) -> str:
                     item.get("message", ""),
                 ]))
             out.append("")
-
-    reply_media_context = report.get("reply_media_context") or []
-    reply_visual_summary = report.get("reply_visual_context_summary") or {}
-    reply_visual_targets = report.get("reply_visual_context_targets") or []
-    if reply_media_context or reply_visual_targets or reply_visual_summary.get(
-        "malformed_visual_description_event_count"
-    ):
-        out.append("## Reply media context")
-        if reply_media_context:
-            out.append(md_table_row(["time", "level", "lane", "target_id", "photos", "mode", "status", "http_status"]))
-            out.append(md_table_row(["---", "---", "---", "---", "---", "---", "---", "---"]))
-            for item in reply_media_context:
-                out.append(md_table_row([
-                    item.get("time", ""),
-                    item.get("level", ""),
-                    item.get("lane", ""),
-                    item.get("target_id", ""),
-                    item.get("photos", ""),
-                    item.get("mode", ""),
-                    item.get("status", ""),
-                    item.get("http_status", ""),
-                ]))
-            out.append("")
-        out.append(
-            "Visual-context targets: "
-            f"**{reply_visual_summary.get('target_count', 0)}**; "
-            "supplied native photos: "
-            f"**{reply_visual_summary.get('targets_with_supplied_native_photos', 0)}**; "
-            "successful visual analysis: "
-            f"**{reply_visual_summary.get('targets_with_successful_visual_analysis', 0)}**; "
-            "attempted but unsuccessful: "
-            f"**{reply_visual_summary.get('targets_with_attempted_but_unsuccessful_analysis', 0)}**; "
-            "visual events but no analysis call: "
-            f"**{reply_visual_summary.get('targets_with_visual_events_but_no_analysis_call', 0)}**; "
-            "no visual-analysis event observed in the selected window: "
-            f"**{reply_visual_summary.get('targets_with_no_analysis_event_observed_in_selected_window', 0)}**."
-        )
-        out.append(
-            "Repeated analysis targets: "
-            f"**{reply_visual_summary.get('targets_with_more_than_one_analysis_attempt', 0)}**; "
-            "targets with more than one distinct successful description hash: "
-            f"**{reply_visual_summary.get('targets_with_more_than_one_distinct_successful_description_hash', 0)}**; "
-            "visual lifecycle event observed without a collection line in the selected window: "
-            f"**{reply_visual_summary.get('targets_with_visual_events_but_no_collection_observation_in_selected_window', 0)}**; "
-            "collection unavailable: "
-            f"**{reply_visual_summary.get('targets_with_collection_unavailable', 0)}**."
-        )
-        out.append(
-            "Visual-analysis status counts: **"
-            f"{compact_counts(reply_visual_summary.get('visual_analysis_status_counts') or {})}"
-            "**; valid lifecycle events: "
-            f"**{reply_visual_summary.get('visual_analysis_event_count', 0)}**; "
-            "analysis calls reported by those events: "
-            f"**{reply_visual_summary.get('visual_analysis_attempt_count', 0)}**; "
-            "malformed structured events safely omitted: "
-            f"**{reply_visual_summary.get('malformed_visual_description_event_count', 0)}**."
-        )
-        out.append(
-            "Retained bounded visual descriptions: "
-            f"**{reply_visual_summary.get('retained_visual_description_count', 0)}**; "
-            "legacy hash-only successes: "
-            f"**{reply_visual_summary.get('legacy_hash_only_visual_description_count', 0)}**; "
-            "integrity results: **"
-            f"{compact_counts(reply_visual_summary.get('visual_description_integrity_counts') or {})}"
-            "**; visual-description audit anomalies: "
-            f"**{reply_visual_summary.get('visual_description_analysis_anomaly_count', 0)}**."
-        )
-        out.append(
-            "Structured visual-description events do not create provider-cost calls; "
-            "the existing provider start/usage records remain authoritative. Preliminary "
-            "visual analysis is also separate from tested-pipeline `model_call_count`."
-        )
-        out.append("")
-        if reply_visual_targets:
-            out.append(md_table_row([
-                "lane",
-                "target_id",
-                "native photos",
-                "collection",
-                "latest visual status",
-                "visual events",
-                "analysis calls",
-                "successful",
-                "distinct hashes",
-                "latest successful hash",
-            ]))
-            out.append(md_table_row(["---"] * 10))
-            for item in reply_visual_targets:
-                collection = item.get("collection_status", "")
-                if collection == "not_observed_in_selected_window":
-                    collection = "no collection observation in the selected window"
-                analysis = item.get("latest_visual_analysis_status", "")
-                if analysis == "not_observed_in_selected_window":
-                    analysis = (
-                        "no visual-analysis event observed in the selected window"
-                    )
-                latest_hash = str(
-                    item.get("latest_successful_description_sha256") or ""
-                )
-                out.append(md_table_row([
-                    item.get("lane", ""),
-                    item.get("target_id", ""),
-                    item.get("native_photo_count_max", 0),
-                    collection,
-                    analysis,
-                    item.get("visual_analysis_event_count", 0),
-                    item.get("visual_analysis_attempt_count", 0),
-                    item.get("successful_analysis_count", 0),
-                    item.get("distinct_successful_description_count", 0),
-                    latest_hash[:12],
-                ]))
-            detailed_visual_results = [
-                (target, result)
-                for target in reply_visual_targets
-                for result in target.get("visual_description_results") or []
-            ]
-            if detailed_visual_results:
-                out.append("")
-                out.append("### Visual-description audit results")
-                out.append("")
-                for target, result in detailed_visual_results:
-                    metadata = {
-                        "analysis_schema_version": result.get(
-                            "analysis_schema_version"
-                        ),
-                        "lane": target.get("lane"),
-                        "status": result.get("status"),
-                        "target_id": target.get("target_id"),
-                        "time": result.get("time"),
-                    }
-                    if "analysis" in result or result.get("analysis_anomaly"):
-                        metadata["description_sha256"] = result.get(
-                            "description_sha256"
-                        )
-                    elif result.get("description_sha256"):
-                        metadata["description_sha256_prefix"] = str(
-                            result["description_sha256"]
-                        )[:12]
-                    if result.get("calculated_description_sha256"):
-                        metadata["calculated_description_sha256"] = result.get(
-                            "calculated_description_sha256"
-                        )
-                    out.append("Visual-description event metadata:")
-                    out.append("")
-                    out.extend(
-                        "    " + line
-                        for line in json.dumps(
-                            metadata,
-                            ensure_ascii=False,
-                            indent=2,
-                            sort_keys=True,
-                        ).splitlines()
-                    )
-                    out.append("")
-                    analysis = result.get("analysis")
-                    if isinstance(analysis, dict):
-                        integrity = str(
-                            result.get("analysis_integrity") or "unavailable_hash"
-                        )
-                        out.append(f"Integrity: **{integrity}**.")
-                        if integrity == "mismatch":
-                            out.append(
-                                "**ANOMALY: Visual-description integrity mismatch; "
-                                "the recorded hash was not replaced.**"
-                            )
-                        elif integrity == "unavailable_hash":
-                            out.append(
-                                "**ANOMALY: Visual-description integrity could not "
-                                "be verified because a valid recorded hash was unavailable.**"
-                            )
-                        out.append("")
-                        out.append("Retained validated analysis:")
-                        out.append("")
-                        out.extend(
-                            "    " + line
-                            for line in json.dumps(
-                                analysis,
-                                ensure_ascii=False,
-                                indent=2,
-                                sort_keys=True,
-                            ).splitlines()
-                        )
-                    elif result.get("analysis_anomaly") == "malformed_analysis":
-                        out.append(
-                            "**ANOMALY: The retained visual-description analysis is "
-                            "malformed. Integrity could not be verified, and the malformed "
-                            "content is not rendered as trusted analysis.**"
-                        )
-                    else:
-                        out.append(
-                            "Visual-description result was not retained in this legacy "
-                            "hash-only event."
-                        )
-                    out.append("")
-        out.append("")
 
     asset_health = report.get("asset_health") or []
     if asset_health:
@@ -21883,8 +21050,17 @@ def run_digest(args: argparse.Namespace, *, project_dir: Path, state_file: Path)
         window_start_local=selected_window_start,
         window_end_local=selected_window_end,
         generation_time_local=generation_time,
-        provider_usage=report.get("provider_usage") or report.get("xai_usage") or {},
+        provider_usage={},
     )
+    single_call_cost = (report.get("openai_published_cost") or {}).get(
+        "selected_window"
+    ) or {}
+    report.setdefault("single_call_reply", {})["cost_total"] = {
+        "status": str(single_call_cost.get("status") or "unavailable"),
+        "amount": single_call_cost.get("amount"),
+        "scope": (report.get("openai_published_cost") or {}).get("scope"),
+        "method": single_call_cost.get("method"),
+    }
     json_rendered: Optional[str] = None
     if args.json or args.json_output is not None:
         json_report = dict(report)

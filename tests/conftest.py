@@ -60,19 +60,19 @@ def initialise_isolated_test_environment() -> Path:
             "MRS_PYTEST_BOOTSTRAP_LOG_FILE": str(state_dir / "test.log"),
             "MRS_PYTEST_BOOTSTRAP_X_API_BASE_URL": dead_loopback_endpoint,
             "MRS_PYTEST_BOOTSTRAP_X_UPLOAD_BASE_URL": dead_loopback_endpoint,
-            "MRS_PYTEST_BOOTSTRAP_XAI_API_BASE_URL": (
+            "MRS_PYTEST_BOOTSTRAP_OPENAI_API_BASE_URL": (
                 f"{dead_loopback_endpoint}/v1"
             ),
             "MRS_PYTEST_WORKER_ID": worker_id,
             "X_API_BASE_URL": dead_loopback_endpoint,
             "X_UPLOAD_BASE_URL": dead_loopback_endpoint,
-            "XAI_API_BASE_URL": f"{dead_loopback_endpoint}/v1",
+            "OPENAI_API_BASE_URL": f"{dead_loopback_endpoint}/v1",
             "X_CONSUMER_KEY": "dummy",
             "X_CONSUMER_SECRET": "dummy",
             "X_ACCESS_TOKEN": "dummy",
             "X_ACCESS_SECRET": "dummy",
             "X_MY_USER_ID": "12345",
-            "XAI_API_KEY": "dummy",
+            "OPENAI_API_KEY": "dummy",
             "X_BEARER_TOKEN": "dummy",
             # Child HTTP clients inherit a dead local proxy. Loopback fake
             # servers remain directly reachable via NO_PROXY.

@@ -336,19 +336,11 @@ def exercise_direct_preflights(
         ),
         (
             "provider_request",
-            lambda: bot.xai_structured_reply_call(
-                stage="literal_second_restart",
-                model="offline-model",
-                system_prompt="offline",
-                user_prompt="offline",
-                response_schema={
-                    "type": "object",
-                    "properties": {},
-                    "additionalProperties": False,
-                },
+            lambda: bot.openai_responses_reply_call(
+                request={},
                 timeout_seconds=1,
-                max_output_tokens=1,
-                media_context=None,
+                lane="mention",
+                target_id="literal_second_restart",
             ),
         ),
         (
@@ -444,7 +436,7 @@ def configure_main_probe(bot, state_directory: Path) -> tuple[list[str], Callabl
     bot.create_post = lambda *_args, **_kwargs: entries.append("create_post")
     bot.upload_media = lambda *_args, **_kwargs: entries.append("media")
     bot.x_request = lambda *_args, **_kwargs: entries.append("x")
-    bot.xai_structured_reply_call = (
+    bot.openai_responses_reply_call = (
         lambda *_args, **_kwargs: entries.append("provider")
     )
 

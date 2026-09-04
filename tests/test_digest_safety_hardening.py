@@ -303,7 +303,7 @@ def test_successful_output_advances_resume_once(tmp_path, monkeypatch):
     assert len(calls) == 1 and (project / ".resume.json").exists()
 
 
-def test_resume_preserves_in_flight_provider_call_until_usage_arrives(tmp_path):
+def test_legacy_provider_resume_clears_without_restoring_old_usage_report(tmp_path):
     project, _names = pool(tmp_path, 2)
     log = project / "mrsMThatcher.log"
     state = project / ".resume.json"
@@ -375,13 +375,12 @@ def test_resume_preserves_in_flight_provider_call_until_usage_arrives(tmp_path):
         "--json-output", str(second_json),
     ]) == 0
     report = json.loads(second_json.read_text(encoding="utf-8"))
-    usage = report["xai_usage"]
-
-    assert usage["events"][0]["call_start_matched"] is True
-    assert usage["events"][0]["model"] == "grok-4.3"
-    assert usage["call_attempts"][0]["usage_observed"] is True
-    assert usage["cost_summary"]["coverage_complete"] is True
-    assert usage["cost_summary"]["unmatched_successful_call_count"] == 0
+    assert "xai_usage" not in report
+    assert "provider_usage" not in report
+    assert report["legacy_multi_stage"] == {
+        "decision_count": 1,
+        "stage_summary_event_count": 0,
+    }
     assert (
         json.loads(state.read_text(encoding="utf-8"))[
             "last_active_xai_call_attempt"

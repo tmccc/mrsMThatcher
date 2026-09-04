@@ -2091,8 +2091,10 @@ def _configure_approved_mention_candidate(
             mode="opinion_or_principle",
         )
 
+    enabled = dict(bot.single_call_reply)
+    enabled["enabled"] = True
     monkeypatch.setattr(bot, "ENABLE_AUTO_REPLIES", True)
-    monkeypatch.setattr(bot, "DRY_RUN_REPLIES", False)
+    monkeypatch.setattr(bot, "single_call_reply", enabled)
     monkeypatch.setattr(bot, "MIN_SECONDS_BETWEEN_REPLIES", 0)
     monkeypatch.setattr(bot, "MAX_AUTO_REPLIES_PER_DAY", 5)
     monkeypatch.setattr(bot, "MAX_REPLIES_PER_AUTHOR_PER_DAY", 5)
@@ -2123,7 +2125,8 @@ def _configure_approved_mention_candidate(
         "reply_media_context_for_candidate",
         lambda *_args, **_kwargs: {},
     )
-    monkeypatch.setattr(bot, "generate_ai_first_reply", approved)
+    monkeypatch.setattr(bot, "reply_evidence_repository", lambda: UNIT_REPLY_REPOSITORY)
+    monkeypatch.setattr(bot, "generate_single_call_reply", approved)
     state["last_reply_epoch"] = 0
     return mention
 
@@ -2162,6 +2165,8 @@ def _configure_approved_quote_candidate(
             mode="opinion_or_principle",
         )
 
+    enabled = dict(bot.single_call_reply)
+    enabled["enabled"] = True
     state["recent_own_post_ids"] = ["900"]
     state["daily_reply_date"] = datetime.fromtimestamp(fixed_epoch).strftime(
         "%Y-%m-%d"
@@ -2169,7 +2174,7 @@ def _configure_approved_quote_candidate(
     state["daily_quote_reply_date"] = state["daily_reply_date"]
     monkeypatch.setattr(bot, "ENABLE_AUTO_REPLIES", True)
     monkeypatch.setattr(bot, "ENABLE_QUOTE_TWEET_CHECKS", True)
-    monkeypatch.setattr(bot, "DRY_RUN_REPLIES", False)
+    monkeypatch.setattr(bot, "single_call_reply", enabled)
     monkeypatch.setattr(bot, "MIN_SECONDS_BETWEEN_REPLIES", 0)
     monkeypatch.setattr(bot, "MAX_AUTO_REPLIES_PER_DAY", 24)
     monkeypatch.setattr(bot, "MAX_QUOTE_REPLIES_PER_DAY", 10)
@@ -2205,7 +2210,8 @@ def _configure_approved_quote_candidate(
         "reply_media_context_for_candidate",
         lambda *_args, **_kwargs: {},
     )
-    monkeypatch.setattr(bot, "generate_ai_first_reply", approved)
+    monkeypatch.setattr(bot, "reply_evidence_repository", lambda: UNIT_REPLY_REPOSITORY)
+    monkeypatch.setattr(bot, "generate_single_call_reply", approved)
     return quote_post
 
 
@@ -3575,7 +3581,7 @@ def test_deleted_mention_reply_is_terminal_without_transport_barriers_or_quota(
     )
     monkeypatch.setattr(
         bot,
-        "generate_ai_first_reply",
+        "generate_single_call_reply",
         lambda *_args, **_kwargs: pytest.fail(
             "terminal target must not call a provider after restart"
         ),
