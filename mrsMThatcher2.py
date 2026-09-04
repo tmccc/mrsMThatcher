@@ -22705,6 +22705,51 @@ def _openai_api_error(
     return error
 
 
+_OPENAI_PROVIDER_HEALTH_FAILURE_CATEGORIES = frozenset(
+    {
+        "provider_ambiguous_timeout",
+        "provider_envelope",
+        "provider_incomplete",
+        "provider_refusal",
+        "provider_schema",
+        "provider_transport",
+        # Strict provider-side structured output makes a schema-invalid model
+        # output a provider contract failure rather than a candidate-local
+        # prose rule failure.
+        "schema_validation",
+    }
+)
+_TERMINAL_CANDIDATE_LOCAL_FAILURE_CATEGORIES = frozenset(
+    {
+        "context_validation",
+        "draft_validation",
+        "image_input",
+        "local_validation",
+    }
+)
+
+
+def _is_openai_provider_health_failure(category: object) -> bool:
+    """Return whether a failure is evidence about OpenAI service health."""
+
+    value = str(category or "")
+    if value in _OPENAI_PROVIDER_HEALTH_FAILURE_CATEGORIES:
+        return True
+    prefix = "provider_http_"
+    status = value.removeprefix(prefix)
+    return value.startswith(prefix) and len(status) == 3 and status.isdigit()
+
+
+def _is_terminal_candidate_local_failure(outcome: dict[str, object]) -> bool:
+    """Return whether one permanent local failure should retire its candidate."""
+
+    return (
+        outcome.get("status") == "operational_failure"
+        and outcome.get("error_category")
+        in _TERMINAL_CANDIDATE_LOCAL_FAILURE_CATEGORIES
+    )
+
+
 def openai_responses_reply_call(
     *,
     request: dict[str, object],
@@ -22884,16 +22929,8 @@ def generate_single_call_reply(
                     "model_call_count": 0,
                 }
             )
-        record_api_error(
-            state,
-            _openai_api_error(
-                "single-call reply material image unavailable",
-                category="image_input",
-            ),
-            "openai",
-        )
         log.warning(
-            "Deferring reply target_id=%s lane=%s because material image "
+            "Rejecting reply target_id=%s lane=%s because material image "
             "collection failed: %s",
             target_id,
             lane,
@@ -22960,14 +22997,23 @@ def generate_single_call_reply(
             }
         )
     if result.status == "operational_failure":
-        record_api_error(
-            state,
-            _openai_api_error(
-                f"single-call reply operational failure: {result.reason}",
-                category=result.error_category or "operational_failure",
-            ),
-            "openai",
-        )
+        if _is_openai_provider_health_failure(result.error_category):
+            record_api_error(
+                state,
+                _openai_api_error(
+                    f"single-call reply provider failure: {result.reason}",
+                    category=str(result.error_category),
+                ),
+                "openai",
+            )
+        else:
+            log.warning(
+                "Single-call reply operational failure did not affect OpenAI "
+                "health target_id=%s lane=%s category=%s",
+                target_id,
+                lane,
+                result.error_category or "uncategorised",
+            )
         return None
     if result.status in {"disabled", "no_reply"}:
         return None
@@ -24832,23 +24878,52 @@ def maybe_reply_to_mentions(
             return NORMAL_CHECK_STATUS_CHECKED
         except ApiError as exc:
             log.exception("OpenAI single-call reply failed")
-            record_api_error(state, exc, "openai")
+            if exc.service == "openai":
+                record_api_error(state, exc, "openai")
             save_state(state)
             return NORMAL_CHECK_STATUS_API_ERROR
-        except Exception as exc:
+        except Exception:
             log.exception("Unexpected single-call reply failure")
-            record_api_error(
-                state,
-                _openai_api_error(
-                    "unexpected single-call reply failure",
-                    category="unexpected_pipeline_failure",
-                ),
-                "openai",
-            )
             save_state(state)
             return NORMAL_CHECK_STATUS_API_ERROR
 
         if not reply_text:
+            if _is_terminal_candidate_local_failure(evaluation_outcome):
+                failure_category = str(evaluation_outcome["error_category"])
+                failure_reason = str(
+                    evaluation_outcome.get("reason") or failure_category
+                )
+                log.warning(
+                    "Retiring %s %s after permanent candidate-local reply "
+                    "failure category=%s reason=%s",
+                    candidate_source,
+                    mention_id,
+                    failure_category,
+                    failure_reason,
+                )
+                record_terminal_reply_evaluation(
+                    state,
+                    target_id=mention_id,
+                    lane=str(candidate_source),
+                    reason=failure_reason,
+                    outcome="operational_failure",
+                )
+                skip_reason = f"operational_{failure_category}"
+                maybe_mark_hot_post_reply_skipped(
+                    state,
+                    mention,
+                    reason=skip_reason,
+                )
+                log_event(
+                    "candidate_skipped",
+                    lane=candidate_log_source,
+                    id=mention_id,
+                    reason=skip_reason,
+                    author_id=author_id,
+                )
+                mark_mention_seen_if_applicable(state, mention)
+                save_state(state, durable=True)
+                continue
             if evaluation_outcome.get("status") != "no_reply":
                 log.warning(
                     "Deferring %s %s after operational reply failure reason=%s",
@@ -25989,6 +26064,32 @@ def maybe_reply_to_quote_tweets(state: dict) -> str:
                     include_media=True,
                 )
             except ApiError as exc:
+                if api_error_is_permanent_target_failure(exc):
+                    log.warning(
+                        "Retiring quote tweet %s because its directly quoted "
+                        "post is permanently unavailable",
+                        quote_id,
+                    )
+                    _record_single_call_result(
+                        PipelineResult(
+                            status="operational_failure",
+                            reason="quoted_post_context_unavailable",
+                            error_category="context_validation",
+                            local_validation_status="not_run",
+                        ),
+                        lane="quote_tweet",
+                        target_id=quote_id,
+                    )
+                    record_terminal_reply_evaluation(
+                        state,
+                        target_id=quote_id,
+                        lane="quote_tweet",
+                        reason="quoted_post_context_unavailable",
+                        outcome="operational_failure",
+                    )
+                    mark_quote_tweet_skipped(state, quote_id)
+                    save_state(state, durable=True)
+                    continue
                 log.exception(
                     "Could not collect directly quoted post context for quote "
                     "tweet %s",
@@ -26007,14 +26108,22 @@ def maybe_reply_to_quote_tweets(state: dict) -> str:
                     PipelineResult(
                         status="operational_failure",
                         reason="quoted_post_context_unavailable",
-                        error_category="image_input",
+                        error_category="context_validation",
                         local_validation_status="not_run",
                     ),
                     lane="quote_tweet",
                     target_id=quote_id,
                 )
-                save_state(state)
-                return QUOTE_CHECK_STATUS_CHECKED
+                record_terminal_reply_evaluation(
+                    state,
+                    target_id=quote_id,
+                    lane="quote_tweet",
+                    reason="quoted_post_context_unavailable",
+                    outcome="operational_failure",
+                )
+                mark_quote_tweet_skipped(state, quote_id)
+                save_state(state, durable=True)
+                continue
 
             cache_tweet(
                 state,
@@ -26028,10 +26137,38 @@ def maybe_reply_to_quote_tweets(state: dict) -> str:
             )
             save_state(state)
 
-            reply_context = build_quote_tweet_reply_context(
-                original_context_tweet,
-                quote_tweet,
-            )
+            try:
+                reply_context = build_quote_tweet_reply_context(
+                    original_context_tweet,
+                    quote_tweet,
+                )
+            except (ContextValidationError, TypeError, ValueError, UnicodeError) as exc:
+                log.warning(
+                    "Retiring quote tweet %s after permanent canonical-context "
+                    "validation failure: %s",
+                    quote_id,
+                    exc,
+                )
+                _record_single_call_result(
+                    PipelineResult(
+                        status="operational_failure",
+                        reason="canonical_context_unavailable",
+                        error_category="context_validation",
+                        local_validation_status="failed",
+                    ),
+                    lane="quote_tweet",
+                    target_id=quote_id,
+                )
+                record_terminal_reply_evaluation(
+                    state,
+                    target_id=quote_id,
+                    lane="quote_tweet",
+                    reason="canonical_context_unavailable",
+                    outcome="operational_failure",
+                )
+                mark_quote_tweet_skipped(state, quote_id)
+                save_state(state, durable=True)
+                continue
             prepared_media_context = reply_context.pop(
                 "_prepared_media_context",
                 None,
@@ -26095,23 +26232,38 @@ def maybe_reply_to_quote_tweets(state: dict) -> str:
                 return QUOTE_CHECK_STATUS_CHECKED
             except ApiError as exc:
                 log.exception("OpenAI single-call quote-tweet reply failed")
-                record_api_error(state, exc, "openai")
+                if exc.service == "openai":
+                    record_api_error(state, exc, "openai")
                 save_state(state)
                 return QUOTE_CHECK_STATUS_CHECKED
             except Exception:
                 log.exception("Unexpected single-call quote-tweet reply failure")
-                record_api_error(
-                    state,
-                    _openai_api_error(
-                        "unexpected single-call quote-tweet failure",
-                        category="unexpected_pipeline_failure",
-                    ),
-                    "openai",
-                )
                 save_state(state)
                 return QUOTE_CHECK_STATUS_CHECKED
 
             if not reply_text:
+                if _is_terminal_candidate_local_failure(evaluation_outcome):
+                    failure_category = str(evaluation_outcome["error_category"])
+                    failure_reason = str(
+                        evaluation_outcome.get("reason") or failure_category
+                    )
+                    log.warning(
+                        "Retiring quote tweet %s after permanent "
+                        "candidate-local reply failure category=%s reason=%s",
+                        quote_id,
+                        failure_category,
+                        failure_reason,
+                    )
+                    record_terminal_reply_evaluation(
+                        state,
+                        target_id=quote_id,
+                        lane="quote_tweet",
+                        reason=failure_reason,
+                        outcome="operational_failure",
+                    )
+                    mark_quote_tweet_skipped(state, quote_id)
+                    save_state(state, durable=True)
+                    continue
                 if evaluation_outcome.get("status") != "no_reply":
                     log.warning(
                         "Deferring quote tweet %s after operational reply "

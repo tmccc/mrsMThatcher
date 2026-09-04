@@ -10316,28 +10316,43 @@ def test_truncated_pagination_no_reply_is_not_evaluated_twice(
     assert state["reply_evaluation_records"]["100"]["outcome"] == "no_reply"
 
 
-def test_truncated_pagination_invalid_model_output_is_operational_not_terminal(
+def test_local_validation_failure_is_terminal_and_does_not_block_later_mention(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     state = bot.default_state()
-    mention = {
-        "id": "101",
-        "author_id": "201",
-        "text": "@MrsMThatcher A substantive claim",
-        "conversation_id": "101",
-        "referenced_tweets": [],
-        "_pagination_truncated": True,
-    }
+    state["daily_reply_count"] = 2
+    mentions = [
+        {
+            "id": target_id,
+            "author_id": author_id,
+            "text": text,
+            "conversation_id": target_id,
+            "referenced_tweets": [],
+        }
+        for target_id, author_id, text in (
+            ("101", "201", "@MrsMThatcher A mechanically invalid answer"),
+            ("102", "202", "@MrsMThatcher A later eligible contribution"),
+        )
+    ]
     calls: list[str] = []
 
-    def rejected(_context: dict, *_args: object, evaluation_outcome=None, **_kwargs: object):
-        calls.append("sol")
-        evaluation_outcome.update({
-            "status": "operational_failure",
-            "reason": "model_response_validation_failed",
-            "error_category": "local_validation",
-            "model_call_count": 1,
-        })
+    def decide(context: dict, *_args: object, evaluation_outcome=None, **_kwargs: object):
+        target_id = str(context["target_id"])
+        calls.append(target_id)
+        if target_id == "101":
+            evaluation_outcome.update({
+                "status": "operational_failure",
+                "reason": "model_response_validation_failed",
+                "error_category": "local_validation",
+                "model_call_count": 1,
+            })
+        else:
+            evaluation_outcome.update({
+                "status": "no_reply",
+                "reason": "completed_exchange",
+                "reason_code": "completed_exchange",
+                "model_call_count": 1,
+            })
         return None
 
     monkeypatch.setattr(bot, "ENABLE_AUTO_REPLIES", True)
@@ -10347,20 +10362,42 @@ def test_truncated_pagination_invalid_model_output_is_operational_not_terminal(
     monkeypatch.setattr(bot, "now_epoch", lambda: 1_800_000_000)
     monkeypatch.setattr(bot, "lane_paused", lambda *args, **kwargs: False)
     monkeypatch.setattr(bot, "in_api_cooldown", lambda *args, **kwargs: False)
-    monkeypatch.setattr(bot, "get_mentions", lambda _state: [dict(mention)])
+    monkeypatch.setattr(
+        bot,
+        "get_mentions",
+        lambda _state: [dict(candidate) for candidate in mentions],
+    )
     monkeypatch.setattr(bot, "get_hot_post_reply_candidates", lambda _state: [])
     monkeypatch.setattr(bot, "is_probably_spam_or_not_worth_replying", lambda _text: False)
-    context = unit_reply_context(target_id="101", contribution=mention["text"])
-    monkeypatch.setattr(bot, "build_context_for_reply_ai", lambda *_args: (context, True))
+    monkeypatch.setattr(
+        bot,
+        "build_context_for_reply_ai",
+        lambda candidate, _state: (
+            unit_reply_context(
+                target_id=str(candidate["id"]),
+                contribution=str(candidate["text"]),
+                target_author_id=str(candidate["author_id"]),
+            ),
+            True,
+        ),
+    )
     monkeypatch.setattr(bot, "reply_media_context_for_candidate", lambda *_args, **_kwargs: {})
-    monkeypatch.setattr(bot, "generate_single_call_reply", rejected)
+    monkeypatch.setattr(bot, "generate_single_call_reply", decide)
     monkeypatch.setattr(bot, "save_state", lambda *_args, **_kwargs: None)
+    state["daily_reply_date"] = bot.reply_cap_date_str(1_800_000_000)
 
-    assert bot.maybe_reply_to_mentions(state) == bot.NORMAL_CHECK_STATUS_API_ERROR
-    assert bot.maybe_reply_to_mentions(state) == bot.NORMAL_CHECK_STATUS_API_ERROR
+    assert bot.maybe_reply_to_mentions(state) == bot.NORMAL_CHECK_STATUS_CHECKED
+    assert bot.maybe_reply_to_mentions(state) == bot.NORMAL_CHECK_STATUS_CHECKED
 
-    assert calls == ["sol", "sol"]
-    assert "101" not in state.get("reply_evaluation_records", {})
+    assert calls == ["101", "102"]
+    assert state["reply_evaluation_records"]["101"]["outcome"] == (
+        "operational_failure"
+    )
+    assert state["reply_evaluation_records"]["102"]["outcome"] == "no_reply"
+    assert state["openai_error_epochs"] == []
+    assert state["openai_api_cooldown_until_epoch"] == 0
+    assert state["daily_reply_count"] == 2
+    assert state["author_evaluation_quarantines"] == {}
 
 
 def test_confirmed_mention_reply_save_failure_replays_after_restart(
@@ -13269,6 +13306,116 @@ def test_generation_does_not_duplicate_same_author_reply_in_recent_replies(
             "text": "Other confirmed conversational reply.",
         }
     ]
+
+
+def test_three_image_input_failures_leave_openai_breaker_untouched(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    state = bot.default_state()
+    context = unit_reply_context()
+
+    def unavailable(_media_context: object) -> list[dict[str, object]]:
+        raise bot.ReplyMediaUnavailable("unit image failure")
+
+    monkeypatch.setattr(bot, "collect_reply_images", unavailable)
+    monkeypatch.setattr(
+        bot,
+        "run_single_call_reply_pipeline",
+        lambda **_kwargs: pytest.fail("image failure must precede Sol"),
+    )
+    monkeypatch.setattr(bot, "log_event", lambda *_args, **_kwargs: None)
+
+    for _ in range(3):
+        outcome: dict[str, object] = {}
+        assert bot.generate_single_call_reply(
+            context,
+            {"status": "unavailable"},
+            state=state,
+            evaluation_outcome=outcome,
+        ) is None
+        assert outcome["error_category"] == "image_input"
+        assert outcome["model_call_count"] == 0
+
+    assert state["openai_error_epochs"] == []
+    assert state["openai_api_cooldown_until_epoch"] == 0
+
+
+@pytest.mark.parametrize(
+    "error_category",
+    [
+        "configuration",
+        "context_validation",
+        "draft_validation",
+        "local_validation",
+    ],
+)
+def test_candidate_local_pipeline_failures_leave_openai_breaker_untouched(
+    monkeypatch: pytest.MonkeyPatch,
+    error_category: str,
+) -> None:
+    state = bot.default_state()
+    context = unit_reply_context()
+
+    monkeypatch.setattr(bot, "collect_reply_images", lambda _media: [])
+    monkeypatch.setattr(bot, "reply_evidence_repository", lambda: UNIT_REPLY_REPOSITORY)
+    monkeypatch.setattr(bot, "require_remote_operation_unpaused", lambda *_args: None)
+    monkeypatch.setattr(bot, "log_event", lambda *_args, **_kwargs: None)
+    monkeypatch.setattr(
+        bot,
+        "run_single_call_reply_pipeline",
+        lambda **_kwargs: PipelineResult(
+            status="operational_failure",
+            reason="unit_candidate_local_failure",
+            error_category=error_category,
+            model_call_count=int(error_category in {"draft_validation", "local_validation"}),
+            local_validation_status="failed",
+        ),
+    )
+
+    for _ in range(3):
+        outcome: dict[str, object] = {}
+        assert bot.generate_single_call_reply(
+            context,
+            None,
+            state=state,
+            evaluation_outcome=outcome,
+        ) is None
+        assert outcome["error_category"] == error_category
+
+    assert state["openai_error_epochs"] == []
+    assert state["openai_api_cooldown_until_epoch"] == 0
+
+
+def test_three_provider_failures_activate_openai_breaker(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    current = 2_000_000_000
+    state = bot.default_state()
+    context = unit_reply_context()
+
+    monkeypatch.setattr(bot, "now_epoch", lambda: current)
+    monkeypatch.setattr(bot, "save_state", lambda *_args, **_kwargs: None)
+    monkeypatch.setattr(bot, "collect_reply_images", lambda _media: [])
+    monkeypatch.setattr(bot, "reply_evidence_repository", lambda: UNIT_REPLY_REPOSITORY)
+    monkeypatch.setattr(bot, "require_remote_operation_unpaused", lambda *_args: None)
+    monkeypatch.setattr(bot, "log_event", lambda *_args, **_kwargs: None)
+    monkeypatch.setattr(
+        bot,
+        "run_single_call_reply_pipeline",
+        lambda **_kwargs: PipelineResult(
+            status="operational_failure",
+            reason="provider_request_failed",
+            error_category="provider_http_500",
+            model_call_count=1,
+            local_validation_status="not_run",
+        ),
+    )
+
+    for _ in range(3):
+        assert bot.generate_single_call_reply(context, None, state=state) is None
+
+    assert state["openai_error_epochs"] == [current, current, current]
+    assert state["openai_api_cooldown_until_epoch"] > current
 
 
 def test_confirmed_reply_receipt_rejects_malformed_ai_draft() -> None:

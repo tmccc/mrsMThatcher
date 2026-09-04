@@ -5420,12 +5420,15 @@ def test_material_photo_fetch_failure_is_operational_and_makes_no_model_call(
         assert server.xai_requests == []
         assert server.posts == []
         state = read_json(base_dir / "bot_state.json")
-        assert len(state["openai_error_epochs"]) == 1
+        assert state["openai_error_epochs"] == []
+        assert state["openai_api_cooldown_until_epoch"] == 0
         assert state["daily_reply_count"] == 0
         assert state["replied_to_ids"] == []
         assert state["pending_ai_reply_drafts"] == {}
-        assert "100" in state["mention_pending_candidates"]
-        assert state.get("reply_evaluation_records", {}).get("100") is None
+        assert state["mention_pending_candidates"] == {}
+        assert state["reply_evaluation_records"]["100"]["outcome"] == (
+            "operational_failure"
+        )
         assert state.get("author_evaluation_quarantines", {}) == {}
         events = event_payloads(base_dir)
         decisions = [
@@ -5451,6 +5454,8 @@ def test_openai_failure_records_operational_error_without_posting(tmp_path: Path
     state = read_json(base_dir / "bot_state.json")
     assert len(state["openai_error_epochs"]) == 1
     assert state["x_error_epochs"] == []
+    assert set(state["mention_pending_candidates"]) == {"200"}
+    assert state.get("reply_evaluation_records", {}).get("200") is None
     # A provider 5xx is ambiguous execution, so the production transport must
     # not issue a second Responses request for the same candidate.
     assert len(fake_server.openai_requests) == 1
@@ -5921,15 +5926,6 @@ def test_connection_refused_for_x_and_openai_are_recorded(tmp_path: Path) -> Non
         {
             "openai_reply_decisions": [""],
         },
-        {
-            "openai_reply_decisions": [{
-                "decision": "reply",
-                "reply_kind": "social",
-                "reply": "word " * 200,
-                "used_fact_ids": [],
-                "reason_code": "useful_reply",
-            }],
-        },
     ],
 )
 def test_malformed_openai_responses_are_operational_failures(
@@ -5954,6 +5950,61 @@ def test_malformed_openai_responses_are_operational_failures(
         server.stop()
 
 
+def test_completed_locally_invalid_response_is_retired_and_later_candidate_runs(
+    tmp_path: Path,
+) -> None:
+    scenario = load_scenario(SCENARIOS / "normal_mention_reply.json")
+    scenario["mentions"].append(
+        {
+            "id": "101",
+            "text": "@mrsMThatcher a later candidate",
+            "author_id": "201",
+            "conversation_id": "101",
+            "created_at": "2026-06-30T12:01:00Z",
+        }
+    )
+    scenario["openai_reply_decisions"] = [
+        {
+            "decision": "reply",
+            "reply_kind": "social",
+            "reply": "word " * 200,
+            "used_fact_ids": [],
+            "reason_code": "useful_reply",
+        },
+        {
+            "decision": "no_reply",
+            "reply_kind": "no_reply",
+            "reply": "",
+            "used_fact_ids": [],
+            "reason_code": "completed_exchange",
+        },
+    ]
+    server = FakeApiServer(scenario).start()
+    try:
+        base_dir = prepare_base_dir(tmp_path)
+        first = run_cycle(base_dir, server)
+        assert first.returncode == 0, first.stderr + first.stdout
+        state = read_json(base_dir / "bot_state.json")
+        assert len(server.openai_requests) == 2
+        assert server.posts == []
+        assert state["openai_error_epochs"] == []
+        assert state["openai_api_cooldown_until_epoch"] == 0
+        assert state["reply_evaluation_records"]["100"]["outcome"] == (
+            "operational_failure"
+        )
+        assert state["reply_evaluation_records"]["101"]["outcome"] == "no_reply"
+        assert state["mention_pending_candidates"] == {}
+        assert state["daily_reply_count"] == 0
+        assert state["daily_quote_reply_count"] == 0
+        assert state["author_evaluation_quarantines"] == {}
+
+        second = run_cycle(base_dir, server)
+        assert second.returncode == 0, second.stderr + second.stdout
+        assert len(server.openai_requests) == 2
+    finally:
+        server.stop()
+
+
 def test_quote_tweet_malformed_openai_response_records_operational_error(tmp_path: Path) -> None:
     scenario = load_scenario(SCENARIOS / "quote_tweet_reply.json")
     scenario["openai_responses"] = [{"body": {}}]
@@ -5972,6 +6023,52 @@ def test_quote_tweet_malformed_openai_response_records_operational_error(tmp_pat
         assert len(state["openai_error_epochs"]) == 1
         assert state["x_error_epochs"] == []
         assert server.xai_requests == []
+    finally:
+        server.stop()
+
+
+def test_quote_tweet_local_validation_failure_is_terminal_not_provider_health(
+    tmp_path: Path,
+) -> None:
+    scenario = load_scenario(SCENARIOS / "quote_tweet_reply.json")
+    scenario["openai_reply_decisions"] = [
+        {
+            "decision": "reply",
+            "reply_kind": "social",
+            "reply": "word " * 200,
+            "used_fact_ids": [],
+            "reason_code": "useful_reply",
+        }
+    ]
+    server = FakeApiServer(scenario).start()
+    try:
+        base_dir = prepare_base_dir(
+            tmp_path,
+            state={
+                "next_reply_lane_priority": "quote",
+                "recent_own_post_ids": ["900"],
+                "last_reply_epoch": 0,
+            },
+            local_config={"ENABLE_HOT_POST_REPLY_CHECKS": False},
+        )
+        first = run_cycle(base_dir, server)
+
+        assert first.returncode == 0, first.stderr + first.stdout
+        assert server.posts == []
+        assert len(server.openai_requests) == 1
+        state = read_json(base_dir / "bot_state.json")
+        assert state["openai_error_epochs"] == []
+        assert state["openai_api_cooldown_until_epoch"] == 0
+        assert state["reply_evaluation_records"]["910"]["outcome"] == (
+            "operational_failure"
+        )
+        assert "910" in state["skipped_quote_post_ids"]
+        assert state["daily_reply_count"] == 0
+        assert state["daily_quote_reply_count"] == 0
+
+        second = run_cycle(base_dir, server)
+        assert second.returncode == 0, second.stderr + second.stdout
+        assert len(server.openai_requests) == 1
     finally:
         server.stop()
 

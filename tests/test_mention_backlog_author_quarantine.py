@@ -750,13 +750,20 @@ def test_operational_failure_does_not_add_strike(
 
 @pytest.mark.parametrize(
     "error_category",
-    ["schema_validation", "image_input"],
+    [
+        "context_validation",
+        "draft_validation",
+        "image_input",
+        "local_validation",
+    ],
 )
-def test_local_or_image_operational_failure_does_not_add_strike(
+def test_candidate_local_operational_failure_retires_without_strike_or_quota(
     monkeypatch: pytest.MonkeyPatch,
     error_category: str,
 ) -> None:
     state = bot.default_state()
+    state["daily_reply_count"] = 2
+    state["daily_quote_reply_count"] = 1
     bot.record_qualifying_author_no_reply(
         state,
         "200",
@@ -768,6 +775,8 @@ def test_local_or_image_operational_failure_does_not_add_strike(
         [candidate],
         current_epoch=2_000_000_000,
     )
+    state["daily_reply_date"] = bot.reply_cap_date_str(2_000_000_000)
+    state["daily_quote_reply_date"] = bot.reply_cap_date_str(2_000_000_000)
 
     def operational_failure(
         _context: dict,
@@ -788,11 +797,69 @@ def test_local_or_image_operational_failure_does_not_add_strike(
 
     monkeypatch.setattr(bot, "generate_single_call_reply", operational_failure)
 
-    assert bot.maybe_reply_to_mentions(state) == bot.NORMAL_CHECK_STATUS_API_ERROR
+    assert bot.maybe_reply_to_mentions(state) == bot.NORMAL_CHECK_STATUS_CHECKED
     assert state["author_evaluation_quarantines"]["200"][
         "recent_no_reply_epochs"
     ] == [1_999_999_999]
-    assert bot.terminal_reply_evaluation(state, "100") is None
+    assert bot.terminal_reply_evaluation(state, "100")["outcome"] == (
+        "operational_failure"
+    )
+    assert state["daily_reply_count"] == 2
+    assert state["daily_quote_reply_count"] == 1
+    assert state["openai_error_epochs"] == []
+    assert state["openai_api_cooldown_until_epoch"] == 0
+
+
+def test_hot_post_local_validation_failure_is_terminal_and_not_provider_health(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    state = bot.default_state()
+    candidate = mention(100, 200)
+    candidate.update(
+        {
+            "_source": "hot_post_reply",
+            "_hot_original_post_id": "90",
+        }
+    )
+    configure_provider_free_mention_check(
+        monkeypatch,
+        [],
+        current_epoch=2_000_000_000,
+    )
+    monkeypatch.setattr(bot, "get_hot_post_reply_candidates", lambda _state: [candidate])
+
+    def operational_failure(
+        _context: dict,
+        *_args: object,
+        evaluation_outcome: dict | None = None,
+        **_kwargs: object,
+    ) -> None:
+        assert evaluation_outcome is not None
+        evaluation_outcome.update(
+            {
+                "status": "operational_failure",
+                "reason": "model_response_validation_failed",
+                "error_category": "local_validation",
+                "model_call_count": 1,
+            }
+        )
+        return None
+
+    monkeypatch.setattr(bot, "generate_single_call_reply", operational_failure)
+
+    assert bot.maybe_reply_to_mentions(state) == bot.NORMAL_CHECK_STATUS_CHECKED
+    assert bot.terminal_reply_evaluation(state, "100")["outcome"] == (
+        "operational_failure"
+    )
+    assert state["skipped_hot_reply_records"]["100"] == {
+        "reason": "operational_local_validation",
+        "retryable": False,
+        "skipped_epoch": 2_000_000_000,
+        "original_post_id": "90",
+    }
+    assert state["openai_error_epochs"] == []
+    assert state["daily_reply_count"] == 0
+    assert state["author_evaluation_quarantines"] == {}
 
 
 def test_permanent_context_failure_retires_candidate_and_reaches_next(

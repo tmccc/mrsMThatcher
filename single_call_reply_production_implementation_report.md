@@ -138,15 +138,36 @@ set includes the mandatory `single_call_reply.py` module.
 ## Decisions, failures and persistence
 
 A valid `no_reply` is a terminal editorial outcome and follows the qualifying
-strike policy above. Provider, timeout, envelope, schema, image and local-output
-validation failures remain operational: they do not add an author strike,
-invoke repair, or fall back to another model. Retryable provider failures remain
-with the existing candidate mechanism; only a permanently unusable local
-context is retired as an operational outcome to prevent backlog starvation. A
-single immediate transport retry is permitted only for a definite
-pre-transmission connection failure or HTTP 429. A 5xx, ambiguous timeout,
-completed invalid response, incomplete response or refusal is never retried
-immediately.
+strike policy above. All provider, schema, image, context, draft and
+local-output validation failures remain operational: they do not become
+editorial `no_reply`, add an author strike, invoke repair, or fall back to
+another model. Genuine OpenAI request/provider failures remain retryable under
+the existing provider cooldown mechanism. A single immediate transport retry
+is permitted only for a definite pre-transmission connection failure or HTTP
+429. A 5xx, ambiguous timeout, completed invalid response, incomplete response
+or refusal is never retried immediately.
+
+## Operational-failure routing amendment
+
+OpenAI service health is now updated only for explicit provider categories:
+transport or ambiguous-timeout failures, provider HTTP status failures
+(including authentication, authorisation and rate limiting), malformed or
+incomplete provider envelopes, refusals, and violations of the strict
+provider-side structured-output contract. Unknown exceptions and the
+candidate-local `image_input`, `context_validation`, `local_validation`,
+`draft_validation` and `configuration` categories never add
+`openai_error_epochs` or activate the global OpenAI cooldown.
+
+Permanent candidate-local image/context failures and completed responses that
+fail local prose or durable-draft validation are recorded as terminal
+operational skips. They are not published, retried through Sol, counted as
+editorial declines, charged to reply quotas or used as quarantine strikes.
+Mentions are retired through the existing durable pending-candidate/watermark
+mechanism; hot-post and quote-tweet candidates use their existing skipped-ID
+records. Processing continues to a later eligible candidate. A genuinely
+transient X lookup error remains retryable where the existing X error
+classification proves that distinction. No new retry state or digest schema
+change was required.
 
 Only a valid reply creates the new compact draft. It binds the target author,
 target/root/parent/lane identities, exact contribution and visible-context
@@ -195,6 +216,14 @@ author binding. Compilation of all 30 changed Python files, documentation
 coverage for 179 modules and `git diff --check` passed. The exact four-worker
 README suite then passed 5,422 tests in 467.57 seconds with 873 deprecation
 warnings and no worker restart.
+
+The operational-failure routing amendment added 162 focused passing tests for
+breaker isolation, terminal local skips, later-candidate progress, unchanged
+quota/quarantine state, provider retryability and mention/hot-post/quote-tweet
+parity. Its final exact four-worker README suite passed **5,432 tests** in
+453.59 seconds with 873 deprecation warnings and no worker restart. The changed
+Python files compiled, documentation coverage again passed for 179 modules,
+and `git diff --check` passed. No live OpenAI or X request was made.
 
 The requested retired-symbol audit found no match in the production import or
 call closure. Remaining matches are limited to historical reports, explicitly
