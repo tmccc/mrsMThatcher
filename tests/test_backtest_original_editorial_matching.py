@@ -2,6 +2,9 @@ from __future__ import annotations
 
 import hashlib
 import json
+import os
+import subprocess
+import sys
 from pathlib import Path
 from types import SimpleNamespace
 
@@ -10,6 +13,33 @@ import pytest
 from tools import backtest_original_editorial_matching as bt
 
 bot = bt.bot
+
+
+def test_module_import_is_safe_without_inherited_openai_environment(
+    tmp_path: Path,
+) -> None:
+    env = os.environ.copy()
+    env.pop("OPENAI_API_BASE_URL", None)
+    env.pop("OPENAI_API_KEY", None)
+    env["TMPDIR"] = str(tmp_path)
+    script = """
+from tools import backtest_original_editorial_matching as backtest
+
+assert backtest.bot.OPENAI_BASE == "http://127.0.0.1:9/v1"
+assert backtest.bot.OPENAI_API_KEY == "offline"
+"""
+
+    result = subprocess.run(
+        [sys.executable, "-c", script],
+        cwd=Path(__file__).resolve().parents[1],
+        env=env,
+        text=True,
+        capture_output=True,
+        timeout=30,
+        check=False,
+    )
+
+    assert result.returncode == 0, result.stderr + result.stdout
 
 
 def test_vocabulary_normalisation_collapses_synonyms() -> None:

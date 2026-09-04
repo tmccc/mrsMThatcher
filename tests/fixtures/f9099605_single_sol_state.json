@@ -1,0 +1,93 @@
+{
+  "ai_reply_history": [],
+  "api_cooldown_reason": "",
+  "api_cooldown_until_epoch": 0,
+  "author_evaluation_quarantines": {
+    "200": {
+      "evidence_policy": "single_sol_editorial_no_reply_v1",
+      "last_updated_epoch": 2000000002,
+      "latest_explicit_spam_or_abuse_epoch": 2000000000,
+      "quarantine_until_epoch": 2000043202,
+      "recent_no_reply_epochs": [
+        2000000000,
+        2000000001,
+        2000000002
+      ]
+    }
+  },
+  "daily_quote_reply_count": 0,
+  "daily_quote_reply_date": null,
+  "daily_replied_author_counts": {
+    "200": 1,
+    "201": 1
+  },
+  "daily_replied_author_ids": [
+    "200",
+    "201"
+  ],
+  "daily_reply_count": 2,
+  "daily_reply_date": "2033-05-18",
+  "dry_run_seen_mention_ids": [],
+  "hot_post_reply_check_counts": {
+    "700": 4
+  },
+  "hot_post_reply_pagination_tokens": {},
+  "hot_post_reply_since_ids": {
+    "700": "800"
+  },
+  "last_main_post_id": null,
+  "last_meme_post_epoch": 0,
+  "last_quote_post_epoch": 0,
+  "last_quote_tweet_check_epoch": 0,
+  "last_regular_image_filename": null,
+  "last_reply_check_epoch": 0,
+  "last_reply_epoch": 0,
+  "last_seen_mention_id": "900",
+  "meme_anchor_quote_post_epoch": 0,
+  "meme_schedule_version": 0,
+  "mention_backlog": {},
+  "mention_backlog_reset_guard": {},
+  "mention_pagination": {},
+  "mention_pending_candidates": {},
+  "minimum_reader_version": 2,
+  "next_meme_post_epoch": 0,
+  "next_meme_schedule_date": "",
+  "next_meme_schedule_mode": "",
+  "next_quote_post_epoch": 0,
+  "next_reply_lane_priority": "normal",
+  "openai_api_cooldown_reason": "",
+  "openai_api_cooldown_until_epoch": 0,
+  "openai_error_epochs": [],
+  "original_regular_posts_since_generated_image": 2,
+  "own_auto_reply_ids": [
+    "601"
+  ],
+  "pending_ai_reply_drafts": {},
+  "pending_reply_drafts": {
+    "__mrs_state_reader_compatibility_fence__": 2
+  },
+  "posted_meme_filenames": [],
+  "quote_api_cooldown_reason": "",
+  "quote_api_cooldown_until_epoch": 0,
+  "quote_lookup_pagination_tokens": {
+    "600": "cursor-f909"
+  },
+  "quote_lookup_repeated_cursor_suppressions": {},
+  "quote_spam_author_ids": [],
+  "quote_x_error_epochs": [],
+  "recent_own_post_ids": [],
+  "replied_to_ids": [
+    "501",
+    "502"
+  ],
+  "replied_to_quote_post_ids": [],
+  "seen_quote_post_ids": [],
+  "skipped_hot_reply_ids": [],
+  "skipped_hot_reply_records": {},
+  "skipped_quote_post_ids": [],
+  "tweet_cache": {},
+  "x_error_epochs": [],
+  "x_write_api_cooldown_reason": "",
+  "x_write_api_cooldown_until_epoch": 0,
+  "x_write_error_epochs": []
+}

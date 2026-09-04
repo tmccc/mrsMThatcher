@@ -10,6 +10,8 @@ import json
 import math
 import os
 import sys
+from collections.abc import Mapping
+from email.utils import parsedate_to_datetime
 from urllib.parse import urlsplit, urlunsplit
 
 
@@ -236,10 +238,12 @@ from single_call_reply import (
     TEMPERATURE as SINGLE_CALL_TEMPERATURE,
     ContextValidationError,
     PipelineResult,
+    ReplyValidationError,
     ValidatedReply,
     bound_visible_conversation,
     decision_telemetry as single_call_decision_telemetry,
     default_config as single_call_reply_default_config,
+    quoted_post_reference_id,
     run_reply_pipeline as run_single_call_reply_pipeline,
     validate_config as validate_single_call_reply_config,
     validate_persisted_draft as validate_single_call_persisted_draft,
@@ -471,6 +475,9 @@ AUTHOR_EVALUATION_QUARANTINE_EVIDENCE_POLICY = (
 AUTHOR_EVALUATION_QUARANTINE_PREVIOUS_EVIDENCE_POLICY = (
     "majority_resolvable_terminal_no_reply_v3"
 )
+AUTHOR_EVALUATION_QUARANTINE_SINGLE_SOL_V1_EVIDENCE_POLICY = (
+    "single_sol_editorial_no_reply_v1"
+)
 AUTHOR_EVALUATION_QUARANTINE_SEEDED_EVIDENCE_POLICY = (
     "majority_spam_or_abuse_seeded_corroboration_v2"
 )
@@ -498,6 +505,7 @@ SKIP_REPLIES_TO_OWN_AUTO_REPLIES = False
 # Parent traversal is independently bounded so a verified root can still be
 # found before the model-facing path is reduced to MAX_VISIBLE_TURNS.
 THREAD_CONTEXT_MAX_DEPTH = 64
+THREAD_CONTEXT_MAX_NETWORK_FETCHES = 3
 THREAD_CONTEXT_MAX_CHARS_PER_POST = MAX_VISIBLE_TEXT_CHARACTERS
 THREAD_CONTEXT_MAX_TOTAL_CHARS = MAX_VISIBLE_TEXT_CHARACTERS
 MAX_REPLY_CONTEXT_PHOTOS = MAX_SUPPLIED_IMAGES
@@ -650,12 +658,15 @@ LOCAL_CONFIG_MAX_BYTES = 64 * 1024
 CONTROL_FILE = BASE_DIR / "mrsMThatcher.control.json"
 LOCK_FILE = BASE_DIR / "mrsMThatcher.lock"
 STATE_BACKUP_COUNT = 5
-STATE_READER_VERSION = 3
-STATE_MINIMUM_READER_VERSION = 2
+STATE_READER_VERSION = 4
+STATE_MINIMUM_READER_VERSION = 4
 ENGAGEMENT_QUESTION_EXPERIMENT_STATE_MINIMUM_READER_VERSION = 3
 STATE_READER_COMPATIBILITY_FENCE = {
     "__mrs_state_reader_compatibility_fence__": STATE_MINIMUM_READER_VERSION,
 }
+STATE_PREVIOUS_READER_COMPATIBILITY_FENCES = (
+    {"__mrs_state_reader_compatibility_fence__": 2},
+)
 
 # Re-read before each quote-tweet check; edit this file while the bot is running.
 EXTRA_QUOTE_WATCH_FILE = BASE_DIR / "extra_quote_watch_post_ids.txt"
@@ -1636,6 +1647,7 @@ LOCAL_CONFIG_ALLOWED_KEYS = {
     "TWEET_CACHE_MAX_ITEMS",
     "ERROR_WINDOW_SECONDS",
     "MAX_X_ERRORS_PER_WINDOW",
+    "MAX_OPENAI_ERRORS_PER_WINDOW",
     "COOLDOWN_AFTER_REPEATED_ERRORS_SECONDS",
     "COOLDOWN_AFTER_429_SECONDS",
 
@@ -1700,6 +1712,7 @@ LOCAL_CONFIG_NON_NEGATIVE_INT_KEYS = {
     "TWEET_CACHE_MAX_ITEMS",
     "ERROR_WINDOW_SECONDS",
     "MAX_X_ERRORS_PER_WINDOW",
+    "MAX_OPENAI_ERRORS_PER_WINDOW",
     "COOLDOWN_AFTER_REPEATED_ERRORS_SECONDS",
     "COOLDOWN_AFTER_429_SECONDS",
     "GENERATED_IMAGE_ORIGIN_QUOTE_BOOST",
@@ -1727,6 +1740,7 @@ LOCAL_CONFIG_POSITIVE_INT_KEYS = {
     "TWEET_CACHE_MAX_AGE_SECONDS",
     "TWEET_CACHE_MAX_ITEMS",
     "MAX_X_ERRORS_PER_WINDOW",
+    "MAX_OPENAI_ERRORS_PER_WINDOW",
     "COOLDOWN_AFTER_REPEATED_ERRORS_SECONDS",
     "COOLDOWN_AFTER_429_SECONDS",
 }
@@ -2164,6 +2178,26 @@ def load_validated_local_config_overrides() -> dict[str, object] | None:
         raise LocalConfigError(
             "Local config contains retired reply_strategy V1 settings; replace them with "
             "the single_call_reply configuration before activation"
+        )
+
+    # This was the global conversational-provider breaker setting immediately
+    # before the single-Sol cut-over. Accept it only as an unambiguous upgrade
+    # alias; runtime configuration and state use the accurately named OpenAI
+    # setting exclusively.
+    legacy_provider_limit = "MAX_XAI_ERRORS_PER_WINDOW"
+    current_provider_limit = "MAX_OPENAI_ERRORS_PER_WINDOW"
+    if legacy_provider_limit in data:
+        if current_provider_limit in data:
+            raise LocalConfigError(
+                "Local config contains both the retired xAI and current "
+                "OpenAI provider error limits"
+            )
+        data = dict(data)
+        data[current_provider_limit] = data.pop(legacy_provider_limit)
+        log.warning(
+            "Migrating retired local config key %s to %s",
+            legacy_provider_limit,
+            current_provider_limit,
         )
 
     proposed: dict[str, object] = {}
@@ -5201,6 +5235,11 @@ def normalise_author_evaluation_quarantines(value: object, *, path: Path) -> dic
             and evidence_policy
             == AUTHOR_EVALUATION_QUARANTINE_PREVIOUS_EVIDENCE_POLICY
         )
+        is_single_sol_v1_policy = (
+            record_fields == current_fields
+            and evidence_policy
+            == AUTHOR_EVALUATION_QUARANTINE_SINGLE_SOL_V1_EVIDENCE_POLICY
+        )
         is_current_policy = (
             record_fields == current_fields
             and evidence_policy
@@ -5210,6 +5249,7 @@ def normalise_author_evaluation_quarantines(value: object, *, path: Path) -> dic
             is_legacy_policy
             or is_seeded_policy
             or is_previous_policy
+            or is_single_sol_v1_policy
             or is_current_policy
         ):
             return None
@@ -5273,6 +5313,7 @@ def normalise_author_evaluation_quarantines(value: object, *, path: Path) -> dic
             if (
                 is_seeded_policy
                 and not until
+                and explicit_epoch
                 and explicit_epoch not in timestamps
             ):
                 return None
@@ -5290,6 +5331,28 @@ def normalise_author_evaluation_quarantines(value: object, *, path: Path) -> dic
                     author_id,
                     path,
                 )
+            elif is_single_sol_v1_policy:
+                # f9099605 recorded every editorial no_reply in ``timestamps``
+                # but separately retained the latest explicit spam/abuse
+                # decision.  Its normal pruning could age that explicit epoch
+                # out of the timestamp list while retaining newer broad
+                # editorial declines, so absence from the list is a valid old
+                # state rather than corruption.  The current policy qualifies
+                # only a still-represented explicit reason.
+                timestamps = (
+                    [explicit_epoch]
+                    if explicit_epoch and explicit_epoch in timestamps
+                    else []
+                )
+                until = 0
+                log.info(
+                    "Migrating preceding single-Sol author-evaluation history "
+                    "for author_id=%s from %s",
+                    author_id,
+                    path,
+                )
+                if not timestamps:
+                    continue
         result[author_id] = {
             "recent_no_reply_epochs": list(timestamps),
             "quarantine_until_epoch": until,
@@ -5435,7 +5498,12 @@ def state_document_for_persistence(state: dict) -> dict:
     """Return state with the reader declaration and pre-reader rollback fence."""
     minimum = require_compatible_state_reader(state, path=STATE_FILE)
     legacy_drafts = state.get("pending_reply_drafts")
-    if legacy_drafts not in (None, {}, STATE_READER_COMPATIBILITY_FENCE):
+    if legacy_drafts not in (
+        None,
+        {},
+        STATE_READER_COMPATIBILITY_FENCE,
+        *STATE_PREVIOUS_READER_COMPATIBILITY_FENCES,
+    ):
         raise RuntimeError(
             "Legacy V1 reply drafts remain in runtime state; refusing to "
             "overwrite them with the reader compatibility fence"
@@ -5829,7 +5897,10 @@ def load_state() -> dict:
                     message,
                 )
                 return None
-        elif legacy_drafts not in (None, {}):
+        elif (
+            legacy_drafts not in (None, {})
+            and legacy_drafts not in STATE_PREVIOUS_READER_COMPATIBILITY_FENCES
+        ):
             message = (
                 f"Legacy V1 reply drafts remain in {candidate}; refusing to interpret or post them "
                 "through the AI-first strategy"
@@ -8005,6 +8076,33 @@ def get_immediate_parent_id(tweet: dict) -> str | None:
     return None
 
 
+def _verified_tweet_lookup_row(
+    tweet: object,
+    *,
+    requested_tweet_id: str,
+) -> dict | None:
+    """Return only a lookup row bound to the exact requested post identity."""
+
+    if tweet is None:
+        return None
+    request_id = str(requested_tweet_id)
+    if not isinstance(tweet, dict):
+        raise ApiError(
+            "X tweet lookup returned malformed tweet data",
+            service="x",
+            request_method="GET",
+            request_path=f"/2/tweets/{request_id}",
+        )
+    if str(tweet.get("id") or "") != request_id:
+        raise ApiError(
+            "X tweet lookup returned a mismatched post",
+            service="x",
+            request_method="GET",
+            request_path=f"/2/tweets/{request_id}",
+        )
+    return tweet
+
+
 def get_tweet_by_id(
     tweet_id: str,
     *,
@@ -8030,9 +8128,10 @@ def get_tweet_by_id(
         params=params,
     )
 
-    tweet = result.get("data")
-    if tweet is not None and not isinstance(tweet, dict):
-        raise ApiError("X tweet lookup returned malformed tweet data", service="x")
+    tweet = _verified_tweet_lookup_row(
+        result.get("data"),
+        requested_tweet_id=str(tweet_id),
+    )
     if include_media and isinstance(tweet, dict):
         attach_media_to_tweets([tweet], result.get("includes"))
     log_json_debug("Fetched tweet", tweet)
@@ -8097,6 +8196,11 @@ def get_tweet_by_id_cached(
     tweet_id = str(tweet_id)
     cache = state.setdefault("tweet_cache", {})
     cached = cache.get(tweet_id)
+    if cached is not None:
+        cached = _verified_tweet_lookup_row(
+            cached,
+            requested_tweet_id=tweet_id,
+        )
 
     if cached and not include_media:
         log.info("Using cached tweet for context. tweet_id=%s", tweet_id)
@@ -8266,7 +8370,14 @@ def reply_media_context_for_candidate(
         selected: list[dict] = []
         metadata_complete = False
     else:
-        selected = list(target_photos[:MAX_REPLY_CONTEXT_PHOTOS])
+        selected = [
+            {
+                **photo,
+                "attachment_role": "target_contribution",
+                "source_post_id": str(candidate.get("id") or target_id),
+            }
+            for photo in target_photos[:MAX_REPLY_CONTEXT_PHOTOS]
+        ]
         metadata_complete = True
 
     quoted_expected = 0
@@ -8284,7 +8395,13 @@ def reply_media_context_for_candidate(
             media_key = str(photo.get("media_key") or "")
             if media_key in seen_media:
                 continue
-            selected.append(photo)
+            selected.append(
+                {
+                    **photo,
+                    "attachment_role": "quoted_subject",
+                    "source_post_id": str(quoted_candidate.get("id") or ""),
+                }
+            )
             seen_media.add(media_key)
             if len(selected) >= MAX_REPLY_CONTEXT_PHOTOS:
                 break
@@ -8366,8 +8483,10 @@ def build_parent_chain(mention: dict, state: dict) -> list[dict]:
     """Build bounded earlier-thread context for a reply candidate."""
     chain: list[dict] = []
     seen_ids: set[str] = set()
+    network_fetches = 0
 
     parent_id = get_immediate_parent_id(mention)
+    prune_tweet_cache(state)
 
     while parent_id and len(chain) < THREAD_CONTEXT_MAX_DEPTH:
         if parent_id in seen_ids:
@@ -8375,6 +8494,19 @@ def build_parent_chain(mention: dict, state: dict) -> list[dict]:
             break
 
         seen_ids.add(parent_id)
+        cache = state.get("tweet_cache", {})
+        parent_is_cached = bool(
+            isinstance(cache, dict) and cache.get(parent_id)
+        )
+        if not parent_is_cached:
+            if network_fetches >= THREAD_CONTEXT_MAX_NETWORK_FETCHES:
+                log.info(
+                    "Stopping parent-chain network expansion after %d "
+                    "uncached lookup(s)",
+                    network_fetches,
+                )
+                break
+            network_fetches += 1
 
         try:
             parent = get_tweet_by_id_cached(parent_id, state)
@@ -8431,6 +8563,68 @@ def _reply_context_post(
         "author_role": role,
         "text": trim_context_text(tweet_context_text(tweet), maximum_chars),
     }
+
+
+def _log_single_call_context_summary(label: str, context: dict[str, object]) -> None:
+    """Log only bounded structure and a digest, never model-facing prose or URLs."""
+
+    visible = context.get("visible_conversation")
+    visible_rows = visible if isinstance(visible, list) else []
+    visible_character_count = sum(
+        len(str(row.get("text") or ""))
+        for row in visible_rows
+        if isinstance(row, dict)
+    )
+    media_context = context.get("_prepared_media_context")
+    photos = (
+        media_context.get("photos")
+        if isinstance(media_context, dict)
+        else None
+    )
+    media_count = len(photos) if isinstance(photos, list) else 0
+    try:
+        encoded = json.dumps(
+            context,
+            ensure_ascii=False,
+            sort_keys=True,
+            separators=(",", ":"),
+            allow_nan=False,
+        ).encode("utf-8")
+    except (TypeError, ValueError, UnicodeError):
+        encoded = b"non-canonical-single-call-context"
+    log.debug(
+        "%s summary target_id=%s visible_turn_count=%d "
+        "visible_character_count=%d quoted_subject_present=%s "
+        "media_count=%d context_sha256=%s",
+        label,
+        str(context.get("target_id") or ""),
+        len(visible_rows),
+        visible_character_count,
+        bool(context.get("quoted_post_id") or context.get("quoted_post")),
+        media_count,
+        hashlib.sha256(encoded).hexdigest(),
+    )
+
+
+def _log_validated_single_call_reply(
+    *,
+    target_description: str,
+    target_id: str,
+    reply: object,
+) -> None:
+    """Log validated output metadata without retaining exact public prose."""
+
+    text = str(reply)
+    encoded = text.encode("utf-8", errors="strict")
+    log.info(
+        "Generated validated reply to %s %s character_count=%d "
+        "utf8_byte_count=%d sha256=%s",
+        target_description,
+        str(target_id),
+        len(text),
+        len(encoded),
+        hashlib.sha256(encoded).hexdigest(),
+    )
 
 
 def _directly_quoted_tweet_for_reply_context(
@@ -8634,28 +8828,34 @@ def build_context_for_reply_ai(
         return {}, False
     quoted_candidate = directly_quoted_candidate
     if quoted_candidate is None and chain:
+        ancestor_quote_id = _direct_quote_id(chain[0])
         quoted_candidate = _directly_quoted_tweet_for_reply_context(
-            chain[0], state, include_media=False
+            chain[0], state, include_media=True
         )
+        if ancestor_quote_id and quoted_candidate is None:
+            log.warning(
+                "Ancestor quoted post is unavailable; refusing incomplete "
+                "context target_id=%s quoted_id=%s",
+                mention_id,
+                ancestor_quote_id,
+            )
+            return {}, False
     quoted_post = None
+    quoted_post_id = None
     if quoted_candidate is not None:
         candidate_post = _reply_context_post(
             quoted_candidate,
             principal_author_id=author_id,
         )
+        quoted_post_id = candidate_post["post_id"] or None
         if candidate_post["post_id"] and candidate_post["text"]:
             quoted_post = candidate_post
 
-    # A post directly quoted by the candidate is its explicit subject.  Put
-    # that text in the sole visible-conversation field rather than hiding it in
-    # internal context or duplicating it elsewhere in the model payload.  This
-    # is the same two-turn representation used by the quote-tweet lane.
-    model_root_id = root_id
-    model_parent_id = get_immediate_parent_id(mention)
-    if directly_quoted_candidate is not None and quoted_post is not None:
-        visible = [copy.deepcopy(quoted_post), target_turn]
-        model_root_id = str(quoted_post["post_id"])
-        model_parent_id = str(quoted_post["post_id"])
+    quoted_post_relationship = None
+    if directly_quoted_candidate is not None:
+        quoted_post_relationship = "target_quote"
+    elif quoted_candidate is not None:
+        quoted_post_relationship = "root_quote"
 
     try:
         bounded_visible = bound_visible_conversation(
@@ -8688,11 +8888,13 @@ def build_context_for_reply_ai(
     context: dict[str, object] = {
         "target_id": mention_id,
         "thread_id": root_id,
-        "root_post_id": model_root_id,
-        "parent_post_id": model_parent_id,
+        "root_post_id": root_id,
+        "parent_post_id": get_immediate_parent_id(mention),
         "lane": str(mention.get("_source") or "mention"),
         "incoming_contribution": mention_text,
         "quoted_post": quoted_post,
+        "quoted_post_id": quoted_post_id,
+        "quoted_post_relationship": quoted_post_relationship,
         "parent_thread": parent_thread,
         "visible_conversation": visible,
         "visual_description": None,
@@ -8707,10 +8909,10 @@ def build_context_for_reply_ai(
         "parent_id=%s",
         mention_id,
         len(visible),
-        model_root_id,
-        model_parent_id,
+        root_id,
+        get_immediate_parent_id(mention),
     )
-    log_json_debug("Single-call reply context", context)
+    _log_single_call_context_summary("Single-call reply context", context)
     return context, True
 # ---------------------------------------------------------------------
 # Mentions
@@ -10308,6 +10510,27 @@ def transport_source_semantic_validator(
     return False
 
 
+def _legacy_conversational_transport_source_semantic_validator(
+    lane: str,
+    receipt: dict,
+    payload: dict,
+) -> bool:
+    """Validate a frozen reply source solely for confirmed-journal recovery."""
+
+    if lane != "conversational_reply":
+        return False
+    expected_keys = {"text", "reply"}
+    if payload.get("made_with_ai") is True:
+        expected_keys.add("made_with_ai")
+    return bool(
+        _legacy_sending_reply_receipt_is_semantically_valid(receipt)
+        and set(payload) == expected_keys
+        and payload.get("text") == receipt.get("reply_text")
+        and payload.get("reply")
+        == {"in_reply_to_tweet_id": str(receipt.get("target_id"))}
+    )
+
+
 def bind_lane_transport_source(
     *,
     receipt_path: Path,
@@ -11820,7 +12043,7 @@ def durable_remote_write_safety_barrier_exists() -> bool:
         status, _receipt = load_confirmed_reply_receipt()
     except Exception:
         return False
-    return confirmed() if status in {"sending", "valid"} else False
+    return confirmed() if status in {"sending", "legacy_sending", "valid"} else False
 
 
 def retain_sigint_deferral_without_durable_barrier(
@@ -17438,6 +17661,7 @@ def reconcile_confirmed_transactions_before_global_barrier(
     journal_path = journal_path_for_receipt(owning_path)
     journal_state = inspect_transport_state(journal_path)
     needs_transport_promotion = False
+    legacy_conversational_transport_promotion = False
     historical_store = None
     historical_sending_receipt = None
     historical_sending_receipt_bytes = None
@@ -17463,7 +17687,8 @@ def reconcile_confirmed_transactions_before_global_barrier(
         )
     elif owning_path == CONFIRMED_REPLY_RECEIPT_FILE:
         status, _source = load_confirmed_reply_receipt()
-        needs_transport_promotion = status == "sending"
+        needs_transport_promotion = status in {"sending", "legacy_sending"}
+        legacy_conversational_transport_promotion = status == "legacy_sending"
     elif owning_path == HISTORICAL_CONTEXT_REPLY_RECEIPT_FILE:
         from historical_context_formatter import HistoricalContextReplyStore
 
@@ -17747,11 +17972,16 @@ def reconcile_confirmed_transactions_before_global_barrier(
             result["historical_context"] = True
             return result
     if journal_state.classification == "confirmed_pair" and needs_transport_promotion:
+        source_validator = (
+            _legacy_conversational_transport_source_semantic_validator
+            if legacy_conversational_transport_promotion
+            else transport_source_semantic_validator
+        )
         recovery = bind_confirmed_transport_source(
             journal_path=journal_path,
             receipt_path=owning_path,
             validator_id=TRANSPORT_SOURCE_VALIDATOR_ID,
-            validator=transport_source_semantic_validator,
+            validator=source_validator,
         )
         source_receipt = recovery.source_binding.receipt_document
         details = recovery.details
@@ -17771,14 +18001,22 @@ def reconcile_confirmed_transactions_before_global_barrier(
                 image_summary=image_summary,
             )
         elif details.lane == "conversational_reply":
-            promote_sending_reply_receipt(
+            confirmation_epoch = _reply_confirmation_epoch_after_remote_success(
                 source_receipt,
-                reply_post_id=details.post_id,
-                confirmation_epoch=_reply_confirmation_epoch_after_remote_success(
-                    source_receipt,
-                    details.confirmation_epoch,
-                ),
+                details.confirmation_epoch,
             )
+            if legacy_conversational_transport_promotion:
+                _promote_legacy_sending_reply_receipt_from_confirmed_transport(
+                    source_receipt,
+                    reply_post_id=details.post_id,
+                    confirmation_epoch=confirmation_epoch,
+                )
+            else:
+                promote_sending_reply_receipt(
+                    source_receipt,
+                    reply_post_id=details.post_id,
+                    confirmation_epoch=confirmation_epoch,
+                )
         elif details.lane == "historical_context_reply":
             from historical_context_formatter import HistoricalContextReplyStore
 
@@ -22255,6 +22493,7 @@ def pending_ai_reply(
     *,
     context: dict[str, object],
     recent_replies: list[object] | None = None,
+    evaluation_outcome: dict[str, object] | None = None,
 ) -> str | None:
     """Recover a valid current draft without another provider request."""
 
@@ -22271,6 +22510,59 @@ def pending_ai_reply(
         )
     except ReplyEvidenceUnavailable:
         raise
+    except ReplyValidationError as exc:
+        if record is not None:
+            log.warning(
+                "Retiring pending reply draft that fails current local "
+                "validation target_id=%s source=%s reason=%s",
+                target_id,
+                candidate_source,
+                exc,
+            )
+            drafts.pop(key, None)
+            if not drafts:
+                state.pop("pending_ai_reply_drafts", None)
+        if evaluation_outcome is not None:
+            evaluation_outcome.update(
+                {
+                    "status": "operational_failure",
+                    "reason": "persisted_draft_local_validation_failed",
+                    "error_category": "local_validation",
+                    "model_call_count": 0,
+                }
+            )
+        visible = [
+            turn
+            for turn in (context.get("visible_conversation") or [])
+            if isinstance(turn, dict)
+        ]
+        _record_single_call_result(
+            PipelineResult(
+                status="operational_failure",
+                reason="persisted_draft_local_validation_failed",
+                error_category="local_validation",
+                model_call_count=0,
+                local_validation_status="failed",
+                payload_sha256=(
+                    str(record.get("model_payload_sha256"))
+                    if isinstance(record, dict)
+                    else None
+                ),
+                visible_turn_count=len(visible),
+                visible_character_count=sum(
+                    len(str(turn.get("text") or "")) for turn in visible
+                ),
+                recent_conversational_reply_count=len(recent_replies or []),
+                supplied_image_count=(
+                    len(record.get("supplied_images") or [])
+                    if isinstance(record, dict)
+                    else 0
+                ),
+            ),
+            lane=candidate_source,
+            target_id=target_id,
+        )
+        return None
     except (KeyError, OSError, RuntimeError, TypeError, ValueError) as exc:
         if record is not None:
             log.warning(
@@ -22436,6 +22728,79 @@ def recent_confirmed_account_replies(
     ] if bounded_limit else []
 
 
+def _reply_context_history_excluded_post_ids(
+    context: dict[str, object],
+) -> set[str]:
+    """Return every current subject identity excluded from history fields."""
+
+    excluded_post_ids = {
+        str(turn.get("post_id") or "")
+        for turn in (context.get("visible_conversation") or [])
+        if isinstance(turn, dict)
+    }
+    excluded_post_ids.update(
+        {
+            str(context.get("thread_id") or ""),
+            str(context.get("root_post_id") or ""),
+        }
+    )
+    quoted_post_id = quoted_post_reference_id(context)
+    if quoted_post_id is not None:
+        excluded_post_ids.add(quoted_post_id)
+    excluded_post_ids.discard("")
+    return excluded_post_ids
+
+
+def recovery_comparison_account_replies(
+    state: dict,
+    *,
+    context: dict[str, object],
+) -> list[dict[str, str]]:
+    """Return current confirmed prose used only to revalidate an unsent draft."""
+
+    excluded_post_ids = _reply_context_history_excluded_post_ids(context)
+    before_epoch = min(now_epoch() + 1, MAX_REASONABLE_STATE_EPOCH + 1)
+    recent = recent_confirmed_account_replies(
+        state,
+        before_epoch=before_epoch,
+        excluded_post_ids=excluded_post_ids,
+    )
+    same_author_rows = _same_author_confirmed_history_rows(
+        state,
+        author_id=context.get("target_author_id"),
+        current_thread_post_ids=excluded_post_ids,
+        target_id=str(context.get("target_id") or ""),
+        before_epoch=before_epoch,
+    )
+    by_reply_id = {
+        str(row.get("post_id") or ""): row
+        for row in recent
+        if isinstance(row, dict)
+    }
+    for row in same_author_rows:
+        reply_id = str(row.get("reply_post_id") or "")
+        if reply_id and reply_id not in by_reply_id:
+            by_reply_id[reply_id] = {
+                "post_id": reply_id,
+                "text": str(row.get("proposed_reply") or ""),
+                "_reply_epoch": int(row.get("reply_epoch") or 0),
+            }
+    history_epochs = {
+        str(row.get("reply_post_id") or ""): int(row.get("reply_epoch") or 0)
+        for row in _confirmed_conversational_history_rows(state)
+    }
+    return [
+        {"post_id": reply_id, "text": str(row.get("text") or "")}
+        for reply_id, row in sorted(
+            by_reply_id.items(),
+            key=lambda item: (
+                int(item[1].get("_reply_epoch") or history_epochs.get(item[0], 0)),
+                item[0],
+            ),
+        )
+    ]
+
+
 def _same_author_confirmed_history_rows(
     state: dict,
     *,
@@ -22550,6 +22915,10 @@ class ReplyMediaUnavailable(RuntimeError):
     """A material candidate image could not be collected safely."""
 
 
+class ReplyMediaTransientUnavailable(ReplyMediaUnavailable):
+    """A material candidate image could not be collected on this cycle."""
+
+
 def _safe_reply_image_url(value: object) -> str:
     url = str(value or "").strip()
     try:
@@ -22618,7 +22987,13 @@ def collect_reply_images(media_context: dict | None) -> list[dict[str, object]]:
                 headers={"Accept": "image/jpeg,image/png,image/webp,image/gif"},
             )
             if response.status_code != 200:
-                raise ReplyMediaUnavailable(
+                failure_type = (
+                    ReplyMediaTransientUnavailable
+                    if response.status_code in {408, 425, 429}
+                    or 500 <= response.status_code < 600
+                    else ReplyMediaUnavailable
+                )
+                raise failure_type(
                     f"candidate image returned HTTP {response.status_code}"
                 )
             if response.headers.get("Location"):
@@ -22653,7 +23028,7 @@ def collect_reply_images(media_context: dict | None) -> list[dict[str, object]]:
         except ReplyMediaUnavailable:
             raise
         except requests.RequestException as exc:
-            raise ReplyMediaUnavailable(
+            raise ReplyMediaTransientUnavailable(
                 "candidate image could not be obtained safely"
             ) from exc
         finally:
@@ -22666,6 +23041,8 @@ def collect_reply_images(media_context: dict | None) -> list[dict[str, object]]:
                 "identity": identity,
                 "mime_type": mime_type,
                 "data": image_bytes,
+                "attachment_role": str(photo.get("attachment_role") or ""),
+                "source_post_id": str(photo.get("source_post_id") or ""),
             }
         )
     try:
@@ -22699,10 +23076,51 @@ def _openai_api_error(
     *,
     category: str,
     status_code: int | None = None,
+    reset_epoch: int | None = None,
+    retry_after_seconds: int | None = None,
+    request_attempt_count: int = 1,
 ) -> ApiError:
-    error = ApiError(message, service="openai", status_code=status_code)
+    error = ApiError(
+        message,
+        service="openai",
+        status_code=status_code,
+        reset_epoch=reset_epoch,
+    )
     error.error_category = category
+    error.retry_after_seconds = retry_after_seconds
+    error.request_attempt_count = request_attempt_count
     return error
+
+
+def _openai_retry_metadata(response: requests.Response) -> tuple[int | None, int | None]:
+    """Return bounded Retry-After metadata for provider cooldown accounting."""
+
+    headers = getattr(response, "headers", {})
+    if not isinstance(headers, Mapping):
+        headers = {}
+    raw = str(headers.get("Retry-After") or "").strip()
+    if not raw:
+        return None, None
+    current = now_epoch()
+    seconds: int | None = None
+    try:
+        numeric = float(raw)
+    except ValueError:
+        try:
+            parsed = parsedate_to_datetime(raw)
+            if parsed.tzinfo is not None:
+                candidate_seconds = math.ceil(parsed.timestamp() - current)
+                if 0 <= candidate_seconds <= 7 * 24 * 60 * 60:
+                    seconds = candidate_seconds
+        except (TypeError, ValueError, OverflowError):
+            seconds = None
+    else:
+        if math.isfinite(numeric) and 0 <= numeric <= 7 * 24 * 60 * 60:
+            seconds = math.ceil(numeric)
+    return (
+        current + seconds if seconds is not None else None,
+        seconds,
+    )
 
 
 _OPENAI_PROVIDER_HEALTH_FAILURE_CATEGORIES = frozenset(
@@ -22710,7 +23128,6 @@ _OPENAI_PROVIDER_HEALTH_FAILURE_CATEGORIES = frozenset(
         "provider_ambiguous_timeout",
         "provider_envelope",
         "provider_incomplete",
-        "provider_refusal",
         "provider_schema",
         "provider_transport",
         # Strict provider-side structured output makes a schema-invalid model
@@ -22725,6 +23142,9 @@ _TERMINAL_CANDIDATE_LOCAL_FAILURE_CATEGORIES = frozenset(
         "draft_validation",
         "image_input",
         "local_validation",
+        "provider_incomplete_content_filter",
+        "provider_incomplete_max_output_tokens",
+        "provider_refusal",
     }
 )
 
@@ -22768,6 +23188,8 @@ def openai_responses_reply_call(
         target_id,
     )
     started = monotonic()
+    first_429_seen = False
+    first_429_retry_metadata: tuple[int | None, int | None] = (None, None)
     for attempt in (1, 2):
         require_remote_operation_unpaused(
             f"OpenAI single-call reply target {target_id}"
@@ -22795,6 +23217,21 @@ def openai_responses_reply_call(
                     target_id,
                 )
                 continue
+            if first_429_seen:
+                reset_epoch, retry_after_seconds = first_429_retry_metadata
+                raise _openai_api_error(
+                    "OpenAI single-call reply transport failed after an "
+                    "earlier HTTP 429",
+                    category=(
+                        "provider_ambiguous_timeout"
+                        if isinstance(exc, requests.Timeout)
+                        else "provider_transport"
+                    ),
+                    status_code=429,
+                    reset_epoch=reset_epoch,
+                    retry_after_seconds=retry_after_seconds,
+                    request_attempt_count=attempt,
+                ) from exc
             raise _openai_api_error(
                 "OpenAI single-call reply transport failed",
                 category=(
@@ -22802,11 +23239,14 @@ def openai_responses_reply_call(
                     if isinstance(exc, requests.Timeout)
                     else "provider_transport"
                 ),
+                request_attempt_count=attempt,
             ) from exc
         finally:
             report_bot_health_progress("ai_call")
         if response.status_code == 429:
             if attempt == 1:
+                first_429_seen = True
+                first_429_retry_metadata = _openai_retry_metadata(response)
                 log.warning(
                     "OpenAI single-call reply returned pre-execution HTTP %s; "
                     "retrying once target_id=%s",
@@ -22819,14 +23259,30 @@ def openai_responses_reply_call(
                 sleep(1)
                 continue
         if not 200 <= response.status_code < 300:
-            status_code = response.status_code
+            observed_status_code = response.status_code
+            reset_epoch, retry_after_seconds = _openai_retry_metadata(response)
+            status_code = observed_status_code
+            if first_429_seen:
+                status_code = 429
+                if observed_status_code != 429 or reset_epoch is None:
+                    reset_epoch, retry_after_seconds = first_429_retry_metadata
             close_response = getattr(response, "close", None)
             if callable(close_response):
                 close_response()
             raise _openai_api_error(
-                f"OpenAI single-call reply returned HTTP {status_code}",
-                category=f"provider_http_{status_code}",
+                (
+                    f"OpenAI single-call reply returned HTTP {observed_status_code}"
+                    + (
+                        " after an earlier HTTP 429"
+                        if observed_status_code != status_code
+                        else ""
+                    )
+                ),
+                category=f"provider_http_{observed_status_code}",
                 status_code=status_code,
+                reset_epoch=reset_epoch,
+                retry_after_seconds=retry_after_seconds,
+                request_attempt_count=attempt,
             )
         try:
             data = response.json()
@@ -22837,6 +23293,14 @@ def openai_responses_reply_call(
             raise _openai_api_error(
                 "OpenAI single-call reply returned malformed JSON",
                 category="provider_envelope",
+                status_code=429 if first_429_seen else None,
+                reset_epoch=(
+                    first_429_retry_metadata[0] if first_429_seen else None
+                ),
+                retry_after_seconds=(
+                    first_429_retry_metadata[1] if first_429_seen else None
+                ),
+                request_attempt_count=attempt,
             ) from exc
         close_response = getattr(response, "close", None)
         if callable(close_response):
@@ -22845,12 +23309,29 @@ def openai_responses_reply_call(
             raise _openai_api_error(
                 "OpenAI single-call reply response is not an object",
                 category="provider_envelope",
+                status_code=429 if first_429_seen else None,
+                reset_epoch=(
+                    first_429_retry_metadata[0] if first_429_seen else None
+                ),
+                retry_after_seconds=(
+                    first_429_retry_metadata[1] if first_429_seen else None
+                ),
+                request_attempt_count=attempt,
             )
-        return {
+        result = {
             "response": data,
             "latency_ms": max(0, round((monotonic() - started) * 1000)),
             "request_attempt_count": attempt,
         }
+        if first_429_seen:
+            result.update(
+                {
+                    "provider_status_code": 429,
+                    "provider_reset_epoch": first_429_retry_metadata[0],
+                    "provider_retry_after_seconds": first_429_retry_metadata[1],
+                }
+            )
+        return result
     raise AssertionError("unreachable OpenAI request retry state")
 
 
@@ -22908,10 +23389,15 @@ def generate_single_call_reply(
     except RemoteOperationsPaused:
         raise
     except ReplyMediaUnavailable as exc:
+        error_category = (
+            "image_transport"
+            if isinstance(exc, ReplyMediaTransientUnavailable)
+            else "image_input"
+        )
         result = PipelineResult(
             status="operational_failure",
             reason="material_image_unavailable",
-            error_category="image_input",
+            error_category=error_category,
             local_validation_status="not_run",
             visible_turn_count=len(visible_turns),
             visible_character_count=sum(
@@ -22930,8 +23416,9 @@ def generate_single_call_reply(
                 }
             )
         log.warning(
-            "Rejecting reply target_id=%s lane=%s because material image "
+            "%s reply target_id=%s lane=%s because material image "
             "collection failed: %s",
+            "Deferring" if error_category == "image_transport" else "Rejecting",
             target_id,
             lane,
             exc,
@@ -22939,16 +23426,7 @@ def generate_single_call_reply(
         return None
 
     before_epoch = _reply_target_epoch(context)
-    current_thread_post_ids = {
-        str(turn.get("post_id") or "") for turn in visible_turns
-    }
-    current_thread_post_ids.update(
-        {
-            str(context.get("thread_id") or ""),
-            str(context.get("root_post_id") or ""),
-        }
-    )
-    current_thread_post_ids.discard("")
+    current_thread_post_ids = _reply_context_history_excluded_post_ids(context)
     same_author_rows = _same_author_confirmed_history_rows(
         state,
         author_id=context.get("target_author_id"),
@@ -22997,12 +23475,24 @@ def generate_single_call_reply(
             }
         )
     if result.status == "operational_failure":
-        if _is_openai_provider_health_failure(result.error_category):
+        provider_health_failure = _is_openai_provider_health_failure(
+            result.error_category
+        )
+        prior_rate_limit = result.provider_status_code == 429
+        if provider_health_failure or prior_rate_limit:
             record_api_error(
                 state,
                 _openai_api_error(
                     f"single-call reply provider failure: {result.reason}",
-                    category=str(result.error_category),
+                    category=(
+                        str(result.error_category)
+                        if provider_health_failure
+                        else "provider_http_429"
+                    ),
+                    status_code=result.provider_status_code,
+                    reset_epoch=result.provider_reset_epoch,
+                    retry_after_seconds=result.provider_retry_after_seconds,
+                    request_attempt_count=result.provider_request_attempt_count,
                 ),
                 "openai",
             )
@@ -23083,6 +23573,747 @@ def ai_reply_receipt_draft_is_valid(data: dict, text: object) -> bool:
     return validated["proposed_reply"] == text
 
 
+_LEGACY_TESTED_REPLY_STRATEGY_VERSION = "tested-reply-pipeline-20260817"
+_LEGACY_AI_FIRST_REPLY_STRATEGY_VERSION = "ai-first-reply-v3"
+_LEGACY_SINGLE_SOL_REPLY_STRATEGY_VERSION = "single-sol-reply-20260904"
+_LEGACY_SINGLE_SOL_PROMPT_SHA256 = (
+    "7bfa91fb2d9b1175560abb33e43f2ced6910d8e63cadd1f8f04935b6dc2f2560"
+)
+_LEGACY_SINGLE_SOL_RESPONSE_SCHEMA_SHA256 = (
+    "3b1e23015cebe3b75eacde04ebfd4344fa25117f047cdcf83241b0ce709872ce"
+)
+_LEGACY_MULTI_MODEL_REPLY_CONTEXT_FIELDS = frozenset(
+    {
+        "target_id",
+        "thread_id",
+        "lane",
+        "incoming_contribution",
+        "quoted_post",
+        "parent_thread",
+        "clarification_request",
+        "current_date",
+    }
+)
+_LEGACY_TESTED_REPLY_DRAFT_FIELDS = frozenset(
+    {
+        "schema_version",
+        "strategy_version",
+        "target_id",
+        "thread_id",
+        "candidate_source",
+        "contribution_hash",
+        "context_hash",
+        "trusted_facts_hash",
+        "proposed_reply",
+        "mode",
+        "final_reply_kind",
+        "tone",
+        "factual_claims",
+        "evidence_ids",
+        "trusted_facts_supplied_count",
+        "trusted_fact_ids_supplied",
+        "used_fact_count",
+        "used_fact_ids",
+        "claim_risk_categories",
+        "reviewer_verdict",
+        "model_call_count",
+        "revision_count",
+        "reply_requirement",
+        "route_source",
+        "creation_time",
+        "approval_hash",
+    }
+)
+_LEGACY_TESTED_REPLY_DIRECT_REPAIR_FIELDS = frozenset(
+    {
+        "direct_answer_repair_attempted",
+        "direct_answer_repair_outcome",
+        "original_local_rejection_reason",
+        "original_proposed_reply",
+    }
+)
+_LEGACY_AI_FIRST_REPLY_DRAFT_FIELDS = frozenset(
+    {
+        "schema_version",
+        "strategy_version",
+        "target_id",
+        "thread_id",
+        "candidate_source",
+        "contribution_hash",
+        "context_hash",
+        "proposed_reply",
+        "mode",
+        "tone",
+        "direct_factual_question_present",
+        "requested_answer_type",
+        "direct_answer_text",
+        "factual_claims",
+        "exact_thatcher_wording_used",
+        "exact_thatcher_wording",
+        "evidence_ids",
+        "claim_evidence",
+        "source_hashes",
+        "evidence_input_hashes",
+        "reviewer_verdict",
+        "reviewer_reasons",
+        "reviewer_sentence_assessments",
+        "claim_auditor_sentence_assessments",
+        "resolved_quote_id",
+        "resolved_quote_context_hash",
+        "proposer_model",
+        "evidence_model",
+        "reviewer_model",
+        "claim_auditor_model",
+        "proposer_prompt_version",
+        "evidence_prompt_version",
+        "reviewer_prompt_version",
+        "claim_auditor_prompt_version",
+        "model_call_count",
+        "revision_count",
+        "creation_time",
+        "approval_hash",
+    }
+)
+_LEGACY_SINGLE_SOL_REPLY_DRAFT_FIELDS = frozenset(
+    {
+        "draft_schema_version",
+        "strategy_version",
+        "target_id",
+        "root_post_id",
+        "parent_post_id",
+        "candidate_source",
+        "incoming_contribution_sha256",
+        "canonical_visible_context_sha256",
+        "model_payload_sha256",
+        "prompt_sha256",
+        "response_schema_sha256",
+        "model",
+        "reasoning_effort",
+        "temperature",
+        "proposed_reply",
+        "reply_kind",
+        "reason_code",
+        "trusted_fact_ids",
+        "used_fact_ids",
+        "used_fact_sources",
+        "supplied_images",
+        "model_call_count",
+        "created_at",
+        "validated_draft_hash",
+    }
+)
+_LEGACY_AI_FIRST_REPLY_MODES = frozenset(
+    {"direct_factual_answer", "opinion_or_principle", "light_humour", "courtesy"}
+)
+_LEGACY_AI_FIRST_REPLY_TONES = frozenset(
+    {"firm", "dry", "wry", "warm", "neutral", "light", "none"}
+)
+_LEGACY_AI_FIRST_ANSWER_TYPES = frozenset(
+    {
+        "none",
+        "actor",
+        "action",
+        "location",
+        "time",
+        "choice",
+        "ownership",
+        "quantity",
+        "duration",
+        "yes_no",
+        "meaning",
+        "source_or_attribution",
+        "other",
+    }
+)
+_LEGACY_AI_FIRST_WORLD_CLAIM_FIELDS = frozenset(
+    {
+        "asserts_actor_state_or_action",
+        "asserts_causal_or_predictive_relation",
+        "asserts_comparison_or_outcome",
+        "asserts_historical_date_or_quantity",
+        "asserts_meaning_or_attribution",
+        "purely_non_factual",
+    }
+)
+_LEGACY_SINGLE_SOL_REPLY_KINDS = frozenset(
+    {
+        "social",
+        "humour",
+        "principle",
+        "direct_factual",
+        "premise_neutral",
+        "clarification",
+    }
+)
+_LEGACY_SINGLE_SOL_REASON_CODES = frozenset(
+    {
+        "useful_reply",
+        "completed_exchange",
+        "already_answered",
+        "no_meaningful_content",
+        "spam_or_abuse",
+        "not_worth_amplifying",
+        "unsupported_or_unverifiable",
+        "insufficient_context",
+        "irrelevant",
+    }
+)
+_LEGACY_SINGLE_SOL_IMAGE_MIME_TYPES = frozenset(
+    {"image/jpeg", "image/png", "image/webp", "image/gif"}
+)
+
+
+def _legacy_reply_value_sha256(value: object) -> str | None:
+    """Hash the compact sorted JSON form used by retired draft writers."""
+
+    try:
+        encoded = json.dumps(
+            value,
+            ensure_ascii=False,
+            sort_keys=True,
+            separators=(",", ":"),
+        ).encode("utf-8", errors="strict")
+    except (TypeError, ValueError, UnicodeError):
+        return None
+    return hashlib.sha256(encoded).hexdigest()
+
+
+def _legacy_reply_sha256_is_valid(value: object) -> bool:
+    return isinstance(value, str) and re.fullmatch(r"[0-9a-f]{64}", value) is not None
+
+
+def _legacy_reply_utc_timestamp_is_valid(value: object) -> bool:
+    if not isinstance(value, str) or not value.endswith("Z"):
+        return False
+    try:
+        parsed = datetime.fromisoformat(value.replace("Z", "+00:00"))
+    except ValueError:
+        return False
+    return parsed.tzinfo is not None and parsed.utcoffset() == timedelta(0)
+
+
+def _legacy_multi_model_context_post_is_valid(value: object) -> bool:
+    return bool(
+        isinstance(value, dict)
+        and set(value) == {"post_id", "author_role", "text"}
+        and valid_string_post_id(value.get("post_id"))
+        and value.get("author_role") in {"account", "user", "unknown"}
+        and isinstance(value.get("text"), str)
+        and len(value["text"]) <= 2_000
+    )
+
+
+def _legacy_multi_model_reply_context_is_valid(context: object) -> bool:
+    """Validate the exact context object hashed by both retired strategies."""
+
+    if not isinstance(context, dict) or set(context) != set(
+        _LEGACY_MULTI_MODEL_REPLY_CONTEXT_FIELDS
+    ):
+        return False
+    if (
+        not valid_string_post_id(context.get("target_id"))
+        or not valid_string_post_id(context.get("thread_id"))
+        or context.get("lane") not in {"mention", "hot_post_reply", "quote_tweet"}
+    ):
+        return False
+    incoming = context.get("incoming_contribution")
+    if (
+        not isinstance(incoming, str)
+        or not incoming.strip()
+        or len(incoming) > 10_000
+    ):
+        return False
+    current_date = context.get("current_date")
+    if not isinstance(current_date, str) or re.fullmatch(
+        r"\d{4}-\d{2}-\d{2}", current_date
+    ) is None:
+        return False
+    try:
+        if datetime.strptime(current_date, "%Y-%m-%d").strftime("%Y-%m-%d") != current_date:
+            return False
+    except ValueError:
+        return False
+    quoted = context.get("quoted_post")
+    if quoted is not None and not _legacy_multi_model_context_post_is_valid(quoted):
+        return False
+    parents = context.get("parent_thread")
+    if (
+        not isinstance(parents, list)
+        or len(parents) > 3
+        or any(not _legacy_multi_model_context_post_is_valid(row) for row in parents)
+    ):
+        return False
+    clarification = context.get("clarification_request")
+    if clarification is None:
+        return True
+    return bool(
+        isinstance(clarification, dict)
+        and set(clarification) == {"original_question", "correction"}
+        and isinstance(clarification.get("original_question"), str)
+        and bool(clarification["original_question"].strip())
+        and len(clarification["original_question"]) <= 10_000
+        and clarification.get("correction") == incoming
+    )
+
+
+def _legacy_tested_reply_draft_is_valid(
+    draft: dict,
+    *,
+    context: dict,
+    text: object,
+) -> bool:
+    expected_fields = set(_LEGACY_TESTED_REPLY_DRAFT_FIELDS)
+    if set(draft).intersection(_LEGACY_TESTED_REPLY_DIRECT_REPAIR_FIELDS):
+        expected_fields.update(_LEGACY_TESTED_REPLY_DIRECT_REPAIR_FIELDS)
+    if set(draft) != expected_fields:
+        return False
+    if (
+        type(draft.get("schema_version")) is not int
+        or draft.get("schema_version") != 1
+        or draft.get("strategy_version")
+        != _LEGACY_TESTED_REPLY_STRATEGY_VERSION
+        or draft.get("target_id") != context.get("target_id")
+        or draft.get("thread_id") != context.get("thread_id")
+        or draft.get("candidate_source") != context.get("lane")
+        or draft.get("proposed_reply") != text
+        or draft.get("reviewer_verdict") != "approve"
+        or draft.get("mode")
+        not in {"direct_factual_answer", "opinion_or_principle"}
+        or not isinstance(draft.get("final_reply_kind"), str)
+        or not isinstance(draft.get("tone"), str)
+        or not isinstance(draft.get("factual_claims"), list)
+        or not isinstance(draft.get("claim_risk_categories"), list)
+        or type(draft.get("model_call_count")) is not int
+        or not 1 <= draft["model_call_count"] <= 20
+        or type(draft.get("revision_count")) is not int
+        or draft["revision_count"] < 0
+        or not _legacy_reply_utc_timestamp_is_valid(draft.get("creation_time"))
+    ):
+        return False
+    if (
+        draft.get("contribution_hash")
+        != hashlib.sha256(context["incoming_contribution"].encode("utf-8")).hexdigest()
+        or draft.get("context_hash") != _legacy_reply_value_sha256(context)
+        or not _legacy_reply_sha256_is_valid(draft.get("trusted_facts_hash"))
+    ):
+        return False
+    if _LEGACY_TESTED_REPLY_DIRECT_REPAIR_FIELDS.issubset(draft) and (
+        draft.get("direct_answer_repair_attempted") is not True
+        or draft.get("direct_answer_repair_outcome") != "approved"
+        or draft.get("mode") != "direct_factual_answer"
+        or draft.get("reply_requirement") != "supported_factual"
+        or not isinstance(draft.get("original_local_rejection_reason"), str)
+        or not draft["original_local_rejection_reason"]
+        or not isinstance(draft.get("original_proposed_reply"), str)
+        or not draft["original_proposed_reply"]
+    ):
+        return False
+    supplied_ids = draft.get("trusted_fact_ids_supplied")
+    if (
+        not isinstance(supplied_ids, list)
+        or any(not isinstance(item, str) or not item for item in supplied_ids)
+        or type(draft.get("trusted_facts_supplied_count")) is not int
+        or draft["trusted_facts_supplied_count"] != len(supplied_ids)
+    ):
+        return False
+    approval = draft.get("approval_hash")
+    unsigned = {key: value for key, value in draft.items() if key != "approval_hash"}
+    return bool(
+        _legacy_reply_sha256_is_valid(approval)
+        and approval == _legacy_reply_value_sha256(unsigned)
+    )
+
+
+def _legacy_ai_first_claim_is_valid(value: object, expected_index: int) -> bool:
+    if not isinstance(value, dict) or set(value) != {
+        "claim_id",
+        "claim_text",
+        "requires_evidence",
+        "actor",
+        "action_or_relationship",
+        "direction_or_polarity",
+        "date_or_period",
+        "quantity",
+    }:
+        return False
+    return bool(
+        value.get("claim_id") == f"claim-{expected_index}"
+        and isinstance(value.get("claim_text"), str)
+        and bool(value["claim_text"].strip())
+        and len(value["claim_text"]) <= 500
+        and value.get("requires_evidence") is True
+        and all(
+            isinstance(value.get(field), str)
+            for field in (
+                "actor",
+                "action_or_relationship",
+                "direction_or_polarity",
+                "date_or_period",
+                "quantity",
+            )
+        )
+    )
+
+
+def _legacy_ai_first_sentence_assessment_is_valid(value: object) -> bool:
+    if not isinstance(value, dict) or set(value) != {
+        "sentence_text",
+        "classification",
+        "factual_claims",
+        "non_factual_basis",
+        "world_claim_checks",
+    }:
+        return False
+    checks = value.get("world_claim_checks")
+    return bool(
+        isinstance(value.get("sentence_text"), str)
+        and value["sentence_text"]
+        and isinstance(value.get("classification"), str)
+        and isinstance(value.get("factual_claims"), list)
+        and all(isinstance(item, str) and item for item in value["factual_claims"])
+        and isinstance(value.get("non_factual_basis"), str)
+        and isinstance(checks, dict)
+        and set(checks) == set(_LEGACY_AI_FIRST_WORLD_CLAIM_FIELDS)
+        and all(type(checks[field]) is bool for field in checks)
+    )
+
+
+def _legacy_ai_first_claim_audit_is_valid(value: object) -> bool:
+    if not isinstance(value, dict) or set(value) != {
+        "sentence_text",
+        "factual_claims",
+        "world_claim_checks",
+    }:
+        return False
+    checks = value.get("world_claim_checks")
+    return bool(
+        isinstance(value.get("sentence_text"), str)
+        and value["sentence_text"]
+        and isinstance(value.get("factual_claims"), list)
+        and all(isinstance(item, str) and item for item in value["factual_claims"])
+        and isinstance(checks, dict)
+        and set(checks) == set(_LEGACY_AI_FIRST_WORLD_CLAIM_FIELDS)
+        and all(type(checks[field]) is bool for field in checks)
+    )
+
+
+def _legacy_ai_first_reply_draft_is_valid(
+    draft: dict,
+    *,
+    context: dict,
+    text: object,
+) -> bool:
+    expected = set(_LEGACY_AI_FIRST_REPLY_DRAFT_FIELDS)
+    if "retrieved_count" in draft:
+        expected.add("retrieved_count")
+    if set(draft) != expected:
+        return False
+    if (
+        type(draft.get("schema_version")) is not int
+        or draft.get("schema_version") != 9
+        or draft.get("strategy_version") != _LEGACY_AI_FIRST_REPLY_STRATEGY_VERSION
+        or draft.get("target_id") != context.get("target_id")
+        or draft.get("thread_id") != context.get("thread_id")
+        or draft.get("candidate_source") != context.get("lane")
+        or draft.get("proposed_reply") != text
+        or draft.get("reviewer_verdict") != "approve"
+        or draft.get("mode") not in _LEGACY_AI_FIRST_REPLY_MODES
+        or draft.get("tone") not in _LEGACY_AI_FIRST_REPLY_TONES
+        or type(draft.get("model_call_count")) is not int
+        or not 1 <= draft["model_call_count"] <= 6
+        or type(draft.get("revision_count")) is not int
+        or draft["revision_count"] not in {0, 1}
+        or not _legacy_reply_utc_timestamp_is_valid(draft.get("creation_time"))
+    ):
+        return False
+    if "retrieved_count" in draft and (
+        type(draft["retrieved_count"]) is not int or draft["retrieved_count"] < 0
+    ):
+        return False
+    if (
+        draft.get("contribution_hash")
+        != hashlib.sha256(context["incoming_contribution"].encode("utf-8")).hexdigest()
+        or draft.get("context_hash") != _legacy_reply_value_sha256(context)
+    ):
+        return False
+    expected_contract = {
+        "proposer_prompt_version": "ai-first-proposer-v15",
+        "evidence_prompt_version": "claim-evidence-entailment-v6",
+        "reviewer_prompt_version": "independent-reply-reviewer-v13",
+        "claim_auditor_prompt_version": "claim-inventory-auditor-v5",
+    }
+    if any(draft.get(key) != value for key, value in expected_contract.items()):
+        return False
+    for field in (
+        "proposer_model",
+        "evidence_model",
+        "reviewer_model",
+        "claim_auditor_model",
+    ):
+        value = draft.get(field)
+        if not isinstance(value, str) or not value or len(value) > 200:
+            return False
+    if draft.get("claim_auditor_model") != draft.get("reviewer_model"):
+        return False
+    direct = draft.get("direct_factual_question_present")
+    answer_type = draft.get("requested_answer_type")
+    direct_text = draft.get("direct_answer_text")
+    if (
+        type(direct) is not bool
+        or answer_type not in _LEGACY_AI_FIRST_ANSWER_TYPES
+        or not isinstance(direct_text, str)
+        or (
+            draft["mode"] == "direct_factual_answer"
+            and (direct is not True or answer_type == "none" or not direct_text)
+        )
+        or (
+            draft["mode"] != "direct_factual_answer"
+            and (direct or answer_type != "none" or direct_text)
+        )
+    ):
+        return False
+    claims = draft.get("factual_claims")
+    if (
+        not isinstance(claims, list)
+        or len(claims) > 6
+        or any(
+            not _legacy_ai_first_claim_is_valid(claim, index)
+            for index, claim in enumerate(claims, start=1)
+        )
+        or (draft["mode"] == "direct_factual_answer" and not claims)
+    ):
+        return False
+    if (
+        type(draft.get("exact_thatcher_wording_used")) is not bool
+        or not isinstance(draft.get("exact_thatcher_wording"), str)
+        or draft["exact_thatcher_wording_used"]
+        != bool(draft["exact_thatcher_wording"].strip())
+    ):
+        return False
+    evidence_ids = draft.get("evidence_ids")
+    source_hashes = draft.get("source_hashes")
+    evidence_input_hashes = draft.get("evidence_input_hashes")
+    claim_evidence = draft.get("claim_evidence")
+    if (
+        not isinstance(evidence_ids, list)
+        or evidence_ids != sorted(set(evidence_ids))
+        or any(not isinstance(item, str) or not item for item in evidence_ids)
+        or not isinstance(source_hashes, dict)
+        or set(source_hashes) != set(evidence_ids)
+        or any(not _legacy_reply_sha256_is_valid(value) for value in source_hashes.values())
+        or not isinstance(evidence_input_hashes, dict)
+        or set(evidence_input_hashes) != set(evidence_ids)
+        or any(
+            not _legacy_reply_sha256_is_valid(value)
+            for value in evidence_input_hashes.values()
+        )
+        or not isinstance(claim_evidence, list)
+        or len(claim_evidence) != len(claims)
+    ):
+        return False
+    expected_claim_ids = [claim["claim_id"] for claim in claims]
+    observed_claim_ids: list[str] = []
+    mapped_evidence_ids: set[str] = set()
+    for mapping in claim_evidence:
+        if not isinstance(mapping, dict) or set(mapping) != {"claim_id", "evidence_ids"}:
+            return False
+        mapped = mapping.get("evidence_ids")
+        if (
+            mapping.get("claim_id") not in expected_claim_ids
+            or not isinstance(mapped, list)
+            or mapped != sorted(set(mapped))
+            or any(item not in evidence_ids for item in mapped)
+            or (claims and not mapped)
+        ):
+            return False
+        observed_claim_ids.append(str(mapping["claim_id"]))
+        mapped_evidence_ids.update(mapped)
+    if observed_claim_ids != expected_claim_ids or mapped_evidence_ids != set(evidence_ids):
+        return False
+    reviewer_reasons = draft.get("reviewer_reasons")
+    assessments = draft.get("reviewer_sentence_assessments")
+    audits = draft.get("claim_auditor_sentence_assessments")
+    if (
+        not isinstance(reviewer_reasons, list)
+        or len(reviewer_reasons) > 12
+        or any(not isinstance(item, str) or len(item) > 300 for item in reviewer_reasons)
+        or not isinstance(assessments, list)
+        or not assessments
+        or any(not _legacy_ai_first_sentence_assessment_is_valid(row) for row in assessments)
+        or not isinstance(audits, list)
+        or any(not _legacy_ai_first_claim_audit_is_valid(row) for row in audits)
+    ):
+        return False
+    resolved_id = draft.get("resolved_quote_id")
+    resolved_hash = draft.get("resolved_quote_context_hash")
+    if (resolved_id is None) != (resolved_hash is None):
+        return False
+    if resolved_id is not None and (
+        not isinstance(resolved_id, str)
+        or not resolved_id
+        or not _legacy_reply_sha256_is_valid(resolved_hash)
+    ):
+        return False
+    approval = draft.get("approval_hash")
+    unsigned = {key: value for key, value in draft.items() if key != "approval_hash"}
+    return bool(
+        _legacy_reply_sha256_is_valid(approval)
+        and approval == _legacy_reply_value_sha256(unsigned)
+    )
+
+
+def _legacy_single_sol_reply_draft_is_valid(
+    data: dict,
+    draft: dict,
+    *,
+    context: dict,
+    text: object,
+) -> bool:
+    schema_version = draft.get("draft_schema_version")
+    if type(schema_version) is not int or schema_version not in {1, 2}:
+        return False
+    expected = set(_LEGACY_SINGLE_SOL_REPLY_DRAFT_FIELDS)
+    if schema_version == 2:
+        expected.add("target_author_id")
+    if set(draft) != expected:
+        return False
+    if (
+        draft.get("strategy_version") != _LEGACY_SINGLE_SOL_REPLY_STRATEGY_VERSION
+        or draft.get("model") != "gpt-5.6-sol"
+        or draft.get("reasoning_effort") != "high"
+        or type(draft.get("temperature")) is not int
+        or draft.get("temperature") != 1
+        or draft.get("model_call_count") != 1
+        or draft.get("prompt_sha256") != _LEGACY_SINGLE_SOL_PROMPT_SHA256
+        or draft.get("response_schema_sha256")
+        != _LEGACY_SINGLE_SOL_RESPONSE_SCHEMA_SHA256
+        or draft.get("proposed_reply") != text
+        or draft.get("reply_kind") not in _LEGACY_SINGLE_SOL_REPLY_KINDS
+        or draft.get("reason_code") not in _LEGACY_SINGLE_SOL_REASON_CODES
+        or not _legacy_reply_utc_timestamp_is_valid(draft.get("created_at"))
+    ):
+        return False
+    stored_hash = draft.get("validated_draft_hash")
+    unsigned = {
+        key: value for key, value in draft.items() if key != "validated_draft_hash"
+    }
+    if (
+        not _legacy_reply_sha256_is_valid(stored_hash)
+        or stored_hash != _legacy_reply_value_sha256(unsigned)
+    ):
+        return False
+    context_author_id = context.get("target_author_id")
+    if (
+        not valid_string_post_id(context.get("target_id"))
+        or not valid_string_post_id(context_author_id)
+        or context.get("target_id") != data.get("target_id")
+        or context_author_id != data.get("author_id")
+        or draft.get("target_id") != context.get("target_id")
+        or (schema_version == 2 and draft.get("target_author_id") != context_author_id)
+    ):
+        return False
+    try:
+        visible = bound_visible_conversation(
+            context.get("visible_conversation") or [],
+            target_post_id=str(context["target_id"]),
+        )
+    except (KeyError, RuntimeError, TypeError, ValueError):
+        return False
+    root_id = str(context.get("root_post_id") or context.get("thread_id") or "")
+    parent_id = context.get("parent_post_id")
+    if (
+        not valid_string_post_id(root_id)
+        or (parent_id is not None and not valid_string_post_id(parent_id))
+        or draft.get("root_post_id") != root_id
+        or draft.get("parent_post_id") != parent_id
+        or draft.get("candidate_source") != context.get("lane")
+        or draft.get("incoming_contribution_sha256")
+        != hashlib.sha256(visible[-1]["text"].encode("utf-8")).hexdigest()
+        or draft.get("canonical_visible_context_sha256")
+        != _legacy_reply_value_sha256(visible)
+        or not _legacy_reply_sha256_is_valid(draft.get("model_payload_sha256"))
+    ):
+        return False
+    trusted_ids = draft.get("trusted_fact_ids")
+    used_ids = draft.get("used_fact_ids")
+    if (
+        not isinstance(trusted_ids, list)
+        or len(trusted_ids) > MAX_TRUSTED_FACTS
+        or trusted_ids
+        != [f"F{index}" for index in range(1, len(trusted_ids) + 1)]
+        or not isinstance(used_ids, list)
+        or len(used_ids) != len(set(used_ids))
+        or not set(used_ids).issubset(set(trusted_ids))
+    ):
+        return False
+    sources = draft.get("used_fact_sources")
+    if not isinstance(sources, list) or len(sources) != len(used_ids):
+        return False
+    for index, source in enumerate(sources):
+        if (
+            not isinstance(source, dict)
+            or set(source)
+            != {"fact_id", "source_identity", "source_record_sha256"}
+            or source.get("fact_id") != used_ids[index]
+            or not isinstance(source.get("source_identity"), str)
+            or not source["source_identity"]
+            or not _legacy_reply_sha256_is_valid(source.get("source_record_sha256"))
+        ):
+            return False
+    image_bindings = draft.get("supplied_images")
+    if not isinstance(image_bindings, list) or len(image_bindings) > MAX_SUPPLIED_IMAGES:
+        return False
+    for binding in image_bindings:
+        if (
+            not isinstance(binding, dict)
+            or set(binding) != {"identity", "sha256", "mime_type", "byte_count"}
+            or not isinstance(binding.get("identity"), str)
+            or not binding["identity"]
+            or not _legacy_reply_sha256_is_valid(binding.get("sha256"))
+            or binding.get("mime_type") not in _LEGACY_SINGLE_SOL_IMAGE_MIME_TYPES
+            or type(binding.get("byte_count")) is not int
+            or not 1 <= binding["byte_count"] <= SINGLE_CALL_MAX_IMAGE_BYTES
+        ):
+            return False
+    return True
+
+
+def _legacy_ai_reply_receipt_draft_is_valid(data: dict, text: object) -> bool:
+    """Validate only frozen drafts already protected by reply lifecycle state."""
+
+    context = data.get("reply_context")
+    draft = data.get("ai_reply_draft")
+    if not isinstance(context, dict) or not isinstance(draft, dict):
+        return False
+    strategy = draft.get("strategy_version")
+    if strategy == _LEGACY_TESTED_REPLY_STRATEGY_VERSION:
+        return bool(
+            _legacy_multi_model_reply_context_is_valid(context)
+            and _legacy_tested_reply_draft_is_valid(
+                draft,
+                context=context,
+                text=text,
+            )
+        )
+    if strategy == _LEGACY_AI_FIRST_REPLY_STRATEGY_VERSION:
+        return bool(
+            _legacy_multi_model_reply_context_is_valid(context)
+            and _legacy_ai_first_reply_draft_is_valid(
+                draft,
+                context=context,
+                text=text,
+            )
+        )
+    if strategy == _LEGACY_SINGLE_SOL_REPLY_STRATEGY_VERSION:
+        return _legacy_single_sol_reply_draft_is_valid(
+            data,
+            draft,
+            context=context,
+            text=text,
+        )
+    return False
+
+
 def mention_pagination_provenance_is_valid(value: object) -> bool:
     """Validate the exact mention continuation bound to a reply receipt."""
     if not isinstance(value, dict):
@@ -23110,8 +24341,9 @@ def _conversational_reply_receipt_is_semantically_valid(
     data: dict,
     *,
     lifecycle_state: str,
+    legacy_recovery: bool = False,
 ) -> bool:
-    """Validate one prepared or confirmed conversational-reply receipt."""
+    """Validate one current receipt or a frozen lifecycle-recovery receipt."""
     if not isinstance(data, dict):
         return False
     if lifecycle_state not in {"sending", "confirmed"}:
@@ -23199,12 +24431,15 @@ def _conversational_reply_receipt_is_semantically_valid(
         return False
     if (
         type(context.get("target_id")) is not str
-        or type(context.get("target_author_id")) is not str
         or type(context.get("thread_id")) is not str
         or context.get("target_id") != data["target_id"]
-        or context.get("target_author_id") != author_id
         or context.get("thread_id") != conversation_id
         or context.get("lane") != source
+    ):
+        return False
+    if not legacy_recovery and (
+        type(context.get("target_author_id")) is not str
+        or context.get("target_author_id") != author_id
     ):
         return False
     if source == "quote_tweet":
@@ -23218,7 +24453,24 @@ def _conversational_reply_receipt_is_semantically_valid(
             return False
     elif original_post_id is not None:
         return False
-    if not ai_reply_receipt_draft_is_valid(data, text):
+    if legacy_recovery:
+        try:
+            legacy_draft_is_valid = _legacy_ai_reply_receipt_draft_is_valid(
+                data,
+                text,
+            )
+        except (
+            IndexError,
+            KeyError,
+            OverflowError,
+            TypeError,
+            UnicodeError,
+            ValueError,
+        ):
+            return False
+        if not legacy_draft_is_valid:
+            return False
+    elif not ai_reply_receipt_draft_is_valid(data, text):
         return False
     clarification = data.get("clarification_reply")
     if clarification is not None:
@@ -23237,17 +24489,34 @@ def _conversational_reply_receipt_is_semantically_valid(
             return False
         if clarification.get("thread_id") != conversation_id:
             return False
-    if (
-        schema_version == 4
-        and lifecycle_state == "confirmed"
-        and "source_receipt_sha256" in data
-    ):
+        if legacy_recovery:
+            draft = data.get("ai_reply_draft")
+            if (
+                isinstance(draft, dict)
+                and draft.get("strategy_version")
+                in {
+                    _LEGACY_TESTED_REPLY_STRATEGY_VERSION,
+                    _LEGACY_AI_FIRST_REPLY_STRATEGY_VERSION,
+                }
+                and draft.get("mode") != "direct_factual_answer"
+            ):
+                return False
+    if schema_version == 4 and lifecycle_state == "confirmed":
+        if legacy_recovery and "source_receipt_sha256" not in data:
+            return False
+        if "source_receipt_sha256" not in data:
+            return True
         try:
             source_receipt = conversational_sending_receipt_from_confirmed(data)
         except (TypeError, ValueError):
             return False
+        source_is_valid = (
+            _legacy_sending_reply_receipt_is_semantically_valid(source_receipt)
+            if legacy_recovery
+            else sending_reply_receipt_is_semantically_valid(source_receipt)
+        )
         if (
-            not sending_reply_receipt_is_semantically_valid(source_receipt)
+            not source_is_valid
             or hashlib.sha256(
                 canonical_atomic_json_bytes(source_receipt)
             ).hexdigest()
@@ -23320,6 +24589,26 @@ def sending_reply_receipt_is_semantically_valid(data: dict) -> bool:
     )
 
 
+def _legacy_confirmed_reply_receipt_is_semantically_valid(data: dict) -> bool:
+    """Accept a frozen draft only for local recovery after remote confirmation."""
+
+    return _conversational_reply_receipt_is_semantically_valid(
+        data,
+        lifecycle_state="confirmed",
+        legacy_recovery=True,
+    )
+
+
+def _legacy_sending_reply_receipt_is_semantically_valid(data: dict) -> bool:
+    """Recognise a frozen sending receipt as a barrier, never send authority."""
+
+    return _conversational_reply_receipt_is_semantically_valid(
+        data,
+        lifecycle_state="sending",
+        legacy_recovery=True,
+    )
+
+
 def load_confirmed_reply_receipt() -> tuple[str, dict | None]:
     """Load confirmed reply receipt."""
     try:
@@ -23343,7 +24632,12 @@ def load_confirmed_reply_receipt() -> tuple[str, dict | None]:
         return "invalid", None
     if sending_reply_receipt_is_semantically_valid(data):
         return "sending", data
-    if not confirmed_reply_receipt_is_semantically_valid(data):
+    if _legacy_sending_reply_receipt_is_semantically_valid(data):
+        return "legacy_sending", data
+    if not (
+        confirmed_reply_receipt_is_semantically_valid(data)
+        or _legacy_confirmed_reply_receipt_is_semantically_valid(data)
+    ):
         log.critical(
             "Semantically invalid confirmed-reply receipt blocks auto-reply processing until repaired: %s",
             CONFIRMED_REPLY_RECEIPT_FILE,
@@ -23543,6 +24837,63 @@ def promote_sending_reply_receipt(
     log.warning(
         "Promoted conversational reply receipt to confirmed source=%s "
         "target_id=%s reply_post_id=%s path=%s",
+        confirmed.get("candidate_source", "mention"),
+        confirmed.get("target_id"),
+        confirmed.get("reply_post_id"),
+        CONFIRMED_REPLY_RECEIPT_FILE,
+    )
+    return confirmed
+
+
+def _promote_legacy_sending_reply_receipt_from_confirmed_transport(
+    sending_receipt: dict,
+    *,
+    reply_post_id: str,
+    confirmation_epoch: int,
+) -> dict:
+    """Promote a frozen source only when its exact journal proves success."""
+
+    status, current = load_confirmed_reply_receipt()
+    if status != "legacy_sending" or current != sending_receipt:
+        raise UnresolvedSendingReplyReceipt(
+            "Legacy conversational sending receipt changed before recovery"
+        )
+    recovery = bind_confirmed_transport_source(
+        journal_path=journal_path_for_receipt(CONFIRMED_REPLY_RECEIPT_FILE),
+        receipt_path=CONFIRMED_REPLY_RECEIPT_FILE,
+        validator_id=TRANSPORT_SOURCE_VALIDATOR_ID,
+        validator=_legacy_conversational_transport_source_semantic_validator,
+    )
+    if (
+        recovery.details.lane != "conversational_reply"
+        or recovery.details.post_id != str(reply_post_id)
+        or recovery.details.confirmation_epoch != int(confirmation_epoch)
+        or recovery.source_binding.receipt_document != sending_receipt
+        or recovery.source_binding.receipt_bytes
+        != canonical_atomic_json_bytes(sending_receipt)
+    ):
+        raise TransportJournalError(
+            "confirmed legacy conversational transport/source lineage changed"
+        )
+    confirmed = _confirmed_reply_receipt_from_sending(
+        sending_receipt,
+        reply_post_id=reply_post_id,
+        confirmation_epoch=confirmation_epoch,
+    )
+    if not _legacy_confirmed_reply_receipt_is_semantically_valid(confirmed):
+        raise RuntimeError(
+            "Internal error: promoted legacy reply receipt failed recovery validation"
+        )
+    replace_bound_source_receipt(
+        recovery.source_binding,
+        canonical_atomic_json_bytes(confirmed),
+        mutation_authority=transaction_mutation_authority(
+            "confirmed legacy conversational source receipt promotion"
+        ),
+    )
+    log.warning(
+        "Promoted legacy conversational reply receipt from exact confirmed "
+        "transport source=%s target_id=%s reply_post_id=%s path=%s",
         confirmed.get("candidate_source", "mention"),
         confirmed.get("target_id"),
         confirmed.get("reply_post_id"),
@@ -23989,7 +25340,7 @@ def reconcile_confirmed_reply_receipt(state: dict) -> bool:
     status, receipt = load_confirmed_reply_receipt()
     if status == "absent":
         return False
-    if status == "sending" and receipt is not None:
+    if status in {"sending", "legacy_sending"} and receipt is not None:
         raise UnresolvedSendingReplyReceipt(
             "A conversational reply was interrupted after its durable sending "
             "receipt was written; manual reconciliation is required before any "
@@ -24530,6 +25881,14 @@ def maybe_reply_to_mentions(
         quarantine_retirements_pending = False
 
     for mention in mentions:
+        if in_api_cooldown(state, scope="openai"):
+            log.info(
+                "Stopping mention/hot-post candidate iteration because the "
+                "OpenAI cooldown became active"
+            )
+            flush_quarantine_retirements()
+            save_state(state, durable=True)
+            return NORMAL_CHECK_STATUS_SKIPPED_COOLDOWN
         mention_id = str(mention["id"])
         author_id = str(mention.get("author_id"))
         incoming_text = mention.get("text", "")
@@ -24820,15 +26179,25 @@ def maybe_reply_to_mentions(
             )
         )
 
+        evaluation_outcome: dict[str, object] = {}
         reply_text = pending_ai_reply(
             state,
             mention_id,
             str(candidate_source),
             context=reply_context,
+            recent_replies=recovery_comparison_account_replies(
+                state,
+                context=reply_context,
+            ),
+            evaluation_outcome=evaluation_outcome,
         )
-        evaluation_outcome: dict[str, object] = {}
         try:
-            if reply_text is None:
+            if (
+                reply_text is None
+                and not _is_terminal_candidate_local_failure(
+                    evaluation_outcome
+                )
+            ):
                 if (
                     candidate_source == "mention"
                     and fresh_mention_ai_evaluations >= MAX_MENTIONS_PER_CHECK
@@ -24854,7 +26223,12 @@ def maybe_reply_to_mentions(
                     state=state,
                     evaluation_outcome=evaluation_outcome,
                 )
-            else:
+                if (
+                    candidate_source == "mention"
+                    and evaluation_outcome.get("model_call_count") == 0
+                ):
+                    fresh_mention_ai_evaluations -= 1
+            elif reply_text is not None:
                 log.info(
                     "Reusing persisted single-call reply draft "
                     "target_id=%s source=%s",
@@ -24977,7 +26351,11 @@ def maybe_reply_to_mentions(
         if candidate_source == "mention":
             clear_author_evaluation_quarantine_history(state, author_id)
 
-        log.info("Generated validated reply to target %s: %r", mention_id, reply_text)
+        _log_validated_single_call_reply(
+            target_description="target",
+            target_id=mention_id,
+            reply=reply_text,
+        )
         draft_stored = store_pending_ai_reply(
             state,
             mention_id,
@@ -25757,6 +27135,8 @@ def build_quote_tweet_reply_context(
         "lane": "quote_tweet",
         "incoming_contribution": target_turn["text"],
         "quoted_post": copy.deepcopy(original_turn),
+        "quoted_post_id": original_turn["post_id"],
+        "quoted_post_relationship": "target_quote",
         "parent_thread": [copy.deepcopy(original_turn)],
         "visible_conversation": visible,
         "visual_description": None,
@@ -25771,7 +27151,7 @@ def build_quote_tweet_reply_context(
             quoted_candidate=original_tweet,
         ),
     }
-    log_json_debug("Single-call quote-tweet context", context)
+    _log_single_call_context_summary("Single-call quote-tweet context", context)
     return context
 
 
@@ -25924,6 +27304,13 @@ def maybe_reply_to_quote_tweets(state: dict) -> str:
         for quote_tweet in valid_tweets_sorted_by_id(quote_tweets, context="quote-tweet candidate"):
             if processed_candidates >= MAX_QUOTE_POSTS_PER_CHECK:
                 break
+            if in_api_cooldown(state, scope="openai"):
+                log.info(
+                    "Stopping quote-tweet candidate iteration because the "
+                    "OpenAI cooldown became active"
+                )
+                save_state(state, durable=True)
+                return QUOTE_CHECK_STATUS_SKIPPED_COOLDOWN
 
             quote_id = str(quote_tweet.get("id", ""))
             author_id = str(quote_tweet.get("author_id", ""))
@@ -26201,22 +27588,32 @@ def maybe_reply_to_quote_tweets(state: dict) -> str:
                 )
             )
 
+            evaluation_outcome: dict[str, object] = {}
             reply_text = pending_ai_reply(
                 state,
                 quote_id,
                 "quote_tweet",
                 context=reply_context,
+                recent_replies=recovery_comparison_account_replies(
+                    state,
+                    context=reply_context,
+                ),
+                evaluation_outcome=evaluation_outcome,
             )
-            evaluation_outcome: dict[str, object] = {}
             try:
-                if reply_text is None:
+                if (
+                    reply_text is None
+                    and not _is_terminal_candidate_local_failure(
+                        evaluation_outcome
+                    )
+                ):
                     reply_text = generate_single_call_reply(
                         reply_context,
                         media_context,
                         state=state,
                         evaluation_outcome=evaluation_outcome,
                     )
-                else:
+                elif reply_text is not None:
                     log.info(
                         "Reusing persisted single-call reply draft "
                         "target_id=%s source=quote_tweet",
@@ -26301,10 +27698,10 @@ def maybe_reply_to_quote_tweets(state: dict) -> str:
                 save_state(state, durable=True)
                 return QUOTE_CHECK_STATUS_CHECKED
 
-            log.info(
-                "Generated validated reply to quote tweet %s: %r",
-                quote_id,
-                reply_text,
+            _log_validated_single_call_reply(
+                target_description="quote tweet",
+                target_id=quote_id,
+                reply=reply_text,
             )
             draft_stored = store_pending_ai_reply(
                 state,
@@ -26808,6 +28205,10 @@ def main() -> None:
     log.info("Config: ALWAYS_FETCH_PARENT_FOR_CONTEXT=%s", ALWAYS_FETCH_PARENT_FOR_CONTEXT)
     log.info("Config: SKIP_REPLIES_TO_OWN_AUTO_REPLIES=%s", SKIP_REPLIES_TO_OWN_AUTO_REPLIES)
     log.info("Config: THREAD_CONTEXT_MAX_DEPTH=%s", THREAD_CONTEXT_MAX_DEPTH)
+    log.info(
+        "Config: THREAD_CONTEXT_MAX_NETWORK_FETCHES=%s",
+        THREAD_CONTEXT_MAX_NETWORK_FETCHES,
+    )
     log.info("Config: THREAD_CONTEXT_MAX_CHARS_PER_POST=%s", THREAD_CONTEXT_MAX_CHARS_PER_POST)
     log.info("Config: THREAD_CONTEXT_MAX_TOTAL_CHARS=%s", THREAD_CONTEXT_MAX_TOTAL_CHARS)
     log.info("Config: TWEET_CACHE_MAX_AGE_SECONDS=%s", TWEET_CACHE_MAX_AGE_SECONDS)

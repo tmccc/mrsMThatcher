@@ -22,7 +22,7 @@ from typing import Any, Callable, Mapping, Sequence
 
 
 STRATEGY_VERSION = "single-sol-reply-20260904"
-DRAFT_SCHEMA_VERSION = 2
+DRAFT_SCHEMA_VERSION = 3
 MODEL = "gpt-5.6-sol"
 REASONING_EFFORT = "high"
 TEMPERATURE = 1
@@ -32,12 +32,21 @@ MAX_WEIGHTED_CHARACTERS = 270
 MAX_VISIBLE_TURNS = 12
 MAX_VISIBLE_TEXT_CHARACTERS = 12_000
 MAX_SAME_AUTHOR_INTERACTIONS = 8
+MAX_SAME_AUTHOR_CONTRIBUTOR_CHARACTERS = 12_000
+MAX_HISTORY_ACCOUNT_REPLY_CHARACTERS = MAX_WEIGHTED_CHARACTERS
 MAX_RECENT_ACCOUNT_REPLIES = 30
 MAX_TRUSTED_FACTS = 32
+MAX_TRUSTED_FACT_PASSAGE_CHARACTERS = 2_000
+MAX_TRUSTED_FACT_SOURCE_CHARACTERS = 512
+MAX_TRUSTED_FACT_LOCATOR_CHARACTERS = 512
+MAX_TRUSTED_FACT_SOURCE_IDENTITY_CHARACTERS = 512
+MAX_TRUSTED_FACT_SOURCE_RECORD_BYTES = 64 * 1024
 MAX_EVIDENCE_PACKETS = 8
 MAX_SUPPLIED_IMAGES = 2
 MAX_IMAGE_BYTES = 20 * 1024 * 1024
 MAX_RAW_OUTPUT_CHARACTERS = 32_768
+MAX_QUOTED_SUBJECT_TEXT_CHARACTERS = MAX_VISIBLE_TEXT_CHARACTERS
+MAX_MODEL_PAYLOAD_BYTES = 1024 * 1024
 PROMPT_CACHE_KEY = "mrsMThatcher-single-sol-7bfa91fb2d9b1175"
 PROMPT_CACHE_OPTIONS = {"mode": "implicit", "ttl": "30m"}
 RESEARCH_CORPUS_PATH = "semantic_alignment_research/quote_research_full_001"
@@ -120,6 +129,7 @@ REASON_CODES = (
     "insufficient_context",
     "irrelevant",
 )
+USED_FACT_ID_PATTERN = re.compile(r"^F(?:[1-9]|[12][0-9]|3[0-2])$")
 RESPONSE_SCHEMA: dict[str, Any] = {
     "type": "object",
     "additionalProperties": False,
@@ -272,6 +282,9 @@ class PipelineResult:
     supplied_image_count: int = 0
     provider_latency_ms: int | None = None
     provider_request_attempt_count: int = 0
+    provider_status_code: int | None = None
+    provider_reset_epoch: int | None = None
+    provider_retry_after_seconds: int | None = None
     provider_response_id: str | None = None
     provider_usage: dict[str, int] = field(default_factory=dict)
 
@@ -350,9 +363,12 @@ def _clean_text(
     label: str,
     allow_empty: bool = False,
     allow_natural_joiners: bool = False,
+    maximum_characters: int | None = None,
 ) -> str:
     if not isinstance(value, str):
         raise ContextValidationError(f"{label} must be text")
+    if maximum_characters is not None and len(value) > maximum_characters:
+        raise ContextValidationError(f"{label} is too long")
     try:
         value.encode("utf-8", errors="strict")
     except UnicodeEncodeError as exc:
@@ -478,6 +494,24 @@ def compact_fact_records(
         )
         if not passage:
             continue
+        passage = _clean_text(
+            passage,
+            label="fact passage",
+            allow_natural_joiners=True,
+            maximum_characters=MAX_TRUSTED_FACT_PASSAGE_CHARACTERS,
+        )
+        source = _clean_text(
+            source,
+            label="fact source",
+            allow_natural_joiners=True,
+            maximum_characters=MAX_TRUSTED_FACT_SOURCE_CHARACTERS,
+        )
+        locator = _clean_text(
+            locator,
+            label="fact locator",
+            allow_natural_joiners=True,
+            maximum_characters=MAX_TRUSTED_FACT_LOCATOR_CHARACTERS,
+        )
         deduplication_key = (
             unicodedata.normalize("NFKC", passage).casefold(),
             unicodedata.normalize("NFKC", source).casefold(),
@@ -487,10 +521,23 @@ def compact_fact_records(
             continue
         seen.add(deduplication_key)
         source_record = copy.deepcopy(dict(record))
+        try:
+            source_record_bytes = canonical_bytes(source_record)
+        except (TypeError, ValueError, UnicodeError) as exc:
+            raise ContextValidationError(
+                "trusted fact source record is not canonical JSON"
+            ) from exc
+        if len(source_record_bytes) > MAX_TRUSTED_FACT_SOURCE_RECORD_BYTES:
+            raise ContextValidationError("trusted fact source record is too large")
         identity = str(
             record.get("evidence_id")
             or record.get("fact_fixture_id")
-            or value_sha256(source_record)
+            or hashlib.sha256(source_record_bytes).hexdigest()
+        )
+        identity = _clean_text(
+            identity,
+            label="fact source identity",
+            maximum_characters=MAX_TRUSTED_FACT_SOURCE_IDENTITY_CHARACTERS,
         )
         fact_id = f"F{len(compact) + 1}"
         compact.append(
@@ -503,7 +550,7 @@ def compact_fact_records(
         )
         private[fact_id] = {
             "source_identity": identity,
-            "source_record_sha256": value_sha256(source_record),
+            "source_record_sha256": hashlib.sha256(source_record_bytes).hexdigest(),
         }
     return compact, private
 
@@ -531,16 +578,19 @@ def validate_compact_facts(facts: object) -> list[dict[str, str]]:
                     fact.get("passage"),
                     label="fact passage",
                     allow_natural_joiners=True,
+                    maximum_characters=MAX_TRUSTED_FACT_PASSAGE_CHARACTERS,
                 ),
                 "source": _clean_text(
                     fact.get("source"),
                     label="fact source",
                     allow_natural_joiners=True,
+                    maximum_characters=MAX_TRUSTED_FACT_SOURCE_CHARACTERS,
                 ),
                 "locator": _clean_text(
                     fact.get("locator"),
                     label="fact locator",
                     allow_natural_joiners=True,
+                    maximum_characters=MAX_TRUSTED_FACT_LOCATOR_CHARACTERS,
                 ),
             }
         )
@@ -550,10 +600,12 @@ def validate_compact_facts(facts: object) -> list[dict[str, str]]:
 def _trusted_facts(
     context: Mapping[str, Any],
     visible: Sequence[Mapping[str, str]],
+    quoted_subject: Mapping[str, str] | None,
     repository: object,
 ) -> tuple[list[dict[str, str]], dict[str, dict[str, str]]]:
     # Resolve quotation identity from the same canonical text the model sees;
-    # internal history and an out-of-path quote must not steer fact selection.
+    # Internal history must not steer fact selection.  A separately labelled
+    # quote is part of the current subject and is therefore eligible.
     retrieval_context = {
         "incoming_contribution": str(visible[-1].get("text") or ""),
         "parent_thread": [
@@ -564,7 +616,15 @@ def _trusted_facts(
             }
             for turn in visible[:-1]
         ],
-        "quoted_post": None,
+        "quoted_post": (
+            {
+                "post_id": quoted_subject["post_id"],
+                "author_role": quoted_subject["role"],
+                "text": quoted_subject["text"],
+            }
+            if quoted_subject is not None
+            else None
+        ),
     }
     resolution = repository.resolve_context_quotation(retrieval_context)
     preferred_quote_id = (
@@ -573,6 +633,8 @@ def _trusted_facts(
         else None
     )
     query_parts = [str(turn.get("text") or "") for turn in visible]
+    if quoted_subject is not None:
+        query_parts.append(str(quoted_subject.get("text") or ""))
     query = " ".join(query_parts)
     passages = repository.candidate_passages(
         query,
@@ -600,11 +662,13 @@ def _same_author_interactions(value: object) -> list[dict[str, str]]:
                     item.get("contributor"),
                     label="earlier contributor text",
                     allow_natural_joiners=True,
+                    maximum_characters=MAX_SAME_AUTHOR_CONTRIBUTOR_CHARACTERS,
                 ),
                 "account_reply": _clean_text(
                     item.get("account_reply"),
                     label="earlier account reply",
                     allow_natural_joiners=True,
+                    maximum_characters=MAX_HISTORY_ACCOUNT_REPLY_CHARACTERS,
                 ),
             }
         )
@@ -632,9 +696,108 @@ def _recent_replies(
                 text,
                 label="recent account reply",
                 allow_natural_joiners=True,
+                maximum_characters=MAX_HISTORY_ACCOUNT_REPLY_CHARACTERS,
             )
         )
     return rows[-MAX_RECENT_ACCOUNT_REPLIES:]
+
+
+def _quoted_subject(
+    context: Mapping[str, Any],
+    *,
+    visible_post_ids: set[str],
+) -> dict[str, str] | None:
+    """Return one non-duplicated, explicitly related quoted-post branch."""
+
+    raw = context.get("quoted_post")
+    if raw is None:
+        return None
+    if not isinstance(raw, Mapping) or set(raw) != {
+        "post_id",
+        "author_role",
+        "text",
+    }:
+        raise ContextValidationError("quoted subject fields mismatch")
+    post_id = str(_clean_post_id(raw.get("post_id"), label="quoted subject ID"))
+    if post_id in visible_post_ids:
+        return None
+    relationship = str(context.get("quoted_post_relationship") or "")
+    if relationship not in {"target_quote", "root_quote"}:
+        raise ContextValidationError("quoted subject relationship is invalid")
+    role = str(raw.get("author_role") or "")
+    if role not in {"account", "user", "other_user"}:
+        raise ContextValidationError("quoted subject role is invalid")
+    return {
+        "relationship": relationship,
+        "post_id": post_id,
+        "role": role,
+        "text": _clean_text(
+            raw.get("text"),
+            label="quoted subject text",
+            allow_natural_joiners=True,
+            maximum_characters=MAX_QUOTED_SUBJECT_TEXT_CHARACTERS,
+        ),
+    }
+
+
+def quoted_post_reference_id(context: Mapping[str, Any]) -> str | None:
+    """Return the verified quote identity, including an image-only quote."""
+
+    explicit = context.get("quoted_post_id")
+    explicit_id = (
+        str(_clean_post_id(explicit, label="quoted subject ID"))
+        if explicit is not None
+        else None
+    )
+    raw = context.get("quoted_post")
+    raw_id = (
+        str(
+            _clean_post_id(
+                raw.get("post_id"),
+                label="quoted subject ID",
+            )
+        )
+        if isinstance(raw, Mapping)
+        else None
+    )
+    if explicit_id is not None and raw_id is not None and explicit_id != raw_id:
+        raise ContextValidationError("quoted subject identities disagree")
+    return explicit_id or raw_id
+
+
+def _image_context(
+    images: Sequence[Mapping[str, Any]],
+    *,
+    target_post_id: str,
+    quoted_post_id: str | None,
+) -> list[dict[str, Any]]:
+    """Return byte-free provenance bound to the candidate's actual subjects."""
+
+    result: list[dict[str, Any]] = []
+    saw_quoted_subject = False
+    for index, image in enumerate(images, 1):
+        role = str(image["attachment_role"])
+        source_post_id = str(image["source_post_id"])
+        if role == "target_contribution":
+            if saw_quoted_subject or source_post_id != target_post_id:
+                raise ContextValidationError(
+                    "target images must precede quoted-subject images and bind "
+                    "to the target"
+                )
+        else:
+            saw_quoted_subject = True
+            if quoted_post_id is None or source_post_id != quoted_post_id:
+                raise ContextValidationError(
+                    "quoted-subject image is not bound to the verified quote"
+                )
+        result.append(
+            {
+                "image_index": index,
+                "attachment_role": role,
+                "source_post_id": source_post_id,
+            }
+        )
+    return result
 
 
 def build_model_payload(
@@ -643,6 +806,7 @@ def build_model_payload(
     repository: object,
     same_author_interactions: Sequence[Mapping[str, str]] = (),
     recent_account_replies: Sequence[object] = (),
+    supplied_images: Sequence[Mapping[str, Any]] = (),
     visual_description: object = None,
 ) -> tuple[dict[str, Any], dict[str, dict[str, str]]]:
     """Build and validate the canonical model-facing payload."""
@@ -671,13 +835,27 @@ def build_model_payload(
     if not isinstance(raw_visible, list):
         raise ContextValidationError("visible conversation is missing")
     visible = bound_visible_conversation(raw_visible, target_post_id=target_id)
-    subject_id = visible[0]["post_id"]
+    quoted_subject = _quoted_subject(
+        context,
+        visible_post_ids={turn["post_id"] for turn in visible},
+    )
+    quoted_post_id = quoted_post_reference_id(context)
+    subject_id = (
+        quoted_subject["post_id"]
+        if quoted_subject is not None
+        else quoted_post_id or visible[0]["post_id"]
+    )
     same_author = _same_author_interactions(same_author_interactions)
     recent = _recent_replies(
         recent_account_replies,
         excluded_post_ids={turn["post_id"] for turn in visible},
     )
-    facts, fact_map = _trusted_facts(context, visible, repository)
+    facts, fact_map = _trusted_facts(
+        context,
+        visible,
+        quoted_subject,
+        repository,
+    )
     facts = validate_compact_facts(facts)
     if visual_description is not None:
         try:
@@ -700,11 +878,23 @@ def build_model_payload(
             "subject_post_id": subject_id,
         },
         "visible_conversation": visible,
+        "quoted_subject": quoted_subject,
         "recent_same_author_account_interactions": same_author,
         "recent_account_replies": recent,
         "trusted_facts": facts,
+        "supplied_images": _image_context(
+            supplied_images,
+            target_post_id=target_id,
+            quoted_post_id=quoted_post_id,
+        ),
         "visual_description": copy.deepcopy(visual_description),
     }
+    try:
+        encoded_payload = canonical_bytes(payload)
+    except (TypeError, ValueError, UnicodeError) as exc:
+        raise ContextValidationError("model payload is not canonical JSON") from exc
+    if len(encoded_payload) > MAX_MODEL_PAYLOAD_BYTES:
+        raise ContextValidationError("model payload is too large")
     return payload, fact_map
 
 
@@ -755,6 +945,15 @@ def validate_supplied_images(images: object) -> list[dict[str, Any]]:
         if identity in identities:
             raise ContextValidationError("supplied image identity is duplicated")
         identities.add(identity)
+        attachment_role = str(image.get("attachment_role") or "")
+        if attachment_role not in {"target_contribution", "quoted_subject"}:
+            raise ContextValidationError("supplied image attachment role is invalid")
+        source_post_id = str(
+            _clean_post_id(
+                image.get("source_post_id"),
+                label=f"image {index} source post ID",
+            )
+        )
         mime_type = str(image.get("mime_type") or "").lower()
         data = image.get("data")
         if mime_type not in _IMAGE_SIGNATURES or type(data) is not bytes:
@@ -772,6 +971,8 @@ def validate_supplied_images(images: object) -> list[dict[str, Any]]:
                 "data": data,
                 "sha256": digest,
                 "byte_count": len(data),
+                "attachment_role": attachment_role,
+                "source_post_id": source_post_id,
             }
         )
     return clean
@@ -835,7 +1036,21 @@ def parse_openai_response(
         raise ModelResponseError("provider response is not an object")
     status = str(response.get("status") or "")
     if status != "completed":
-        category = "provider_refusal" if status == "refused" else "provider_incomplete"
+        if status == "refused":
+            category = "provider_refusal"
+        elif status == "incomplete":
+            details = response.get("incomplete_details")
+            reason = (
+                str(details.get("reason") or "")
+                if isinstance(details, Mapping)
+                else ""
+            )
+            category = {
+                "content_filter": "provider_incomplete_content_filter",
+                "max_output_tokens": "provider_incomplete_max_output_tokens",
+            }.get(reason, "provider_incomplete")
+        else:
+            category = "provider_incomplete"
         raise ModelResponseError(
             f"provider response status is {status or 'missing'}",
             category=category,
@@ -843,14 +1058,8 @@ def parse_openai_response(
     returned_model = str(response.get("model") or "")
     if returned_model != expected_model:
         raise ModelResponseError("provider returned a different model")
-    response_id = response.get("id")
-    if (
-        not isinstance(response_id, str)
-        or not response_id
-        or response_id != response_id.strip()
-        or len(response_id) > 200
-        or any(character.isspace() for character in response_id)
-    ):
+    response_id = _valid_provider_response_id(response.get("id"))
+    if response_id is None:
         raise ModelResponseError("provider response ID is invalid")
     texts: list[str] = []
     unexpected: list[str] = []
@@ -893,6 +1102,29 @@ def parse_openai_response(
         raise ModelResponseError("provider refused the response", category="provider_refusal")
     if message_count != 1 or len(texts) != 1 or unexpected:
         raise ModelResponseError("provider response did not contain one output text")
+    usage = _provider_usage(response)
+    return texts[0], usage, response_id
+
+
+def _valid_provider_response_id(value: object) -> str | None:
+    """Return a bounded provider response ID without logging envelope data."""
+
+    if (
+        not isinstance(value, str)
+        or not value
+        or value != value.strip()
+        or len(value) > 200
+        or any(character.isspace() for character in value)
+    ):
+        return None
+    return value
+
+
+def _provider_usage(response: object) -> dict[str, int]:
+    """Extract bounded usage even when a paid response is incomplete/refused."""
+
+    if not isinstance(response, Mapping):
+        return {}
     usage_raw = response.get("usage")
     usage_raw = usage_raw if isinstance(usage_raw, Mapping) else {}
     input_details = usage_raw.get("input_tokens_details")
@@ -914,49 +1146,344 @@ def parse_openai_response(
         "total_tokens": count(usage_raw.get("total_tokens"))
         or input_tokens + output_tokens,
     }
-    return texts[0], usage, response_id
+    return usage
+
+
+_SENTENCE_TERMINAL_RANGES = (
+    (0x0021, 0x0021), (0x002E, 0x002E), (0x003F, 0x003F),
+    (0x0589, 0x0589), (0x061D, 0x061F), (0x06D4, 0x06D4),
+    (0x0700, 0x0702), (0x07F9, 0x07F9), (0x0837, 0x0837),
+    (0x0839, 0x0839), (0x083D, 0x083E), (0x0964, 0x0965),
+    (0x104A, 0x104B), (0x1362, 0x1362), (0x1367, 0x1368),
+    (0x166E, 0x166E), (0x1735, 0x1736), (0x1803, 0x1803),
+    (0x1809, 0x1809), (0x1944, 0x1945), (0x1AA8, 0x1AAB),
+    (0x1B5A, 0x1B5B), (0x1B5E, 0x1B5F), (0x1B7D, 0x1B7E),
+    (0x1C3B, 0x1C3C), (0x1C7E, 0x1C7F), (0x203C, 0x203D),
+    (0x2047, 0x2049), (0x2E2E, 0x2E2E), (0x2E3C, 0x2E3C),
+    (0x2E53, 0x2E54), (0x3002, 0x3002), (0xA4FF, 0xA4FF),
+    (0xA60E, 0xA60F), (0xA6F3, 0xA6F3), (0xA6F7, 0xA6F7),
+    (0xA876, 0xA877), (0xA8CE, 0xA8CF), (0xA92F, 0xA92F),
+    (0xA9C8, 0xA9C9), (0xAA5D, 0xAA5F), (0xAAF0, 0xAAF1),
+    (0xABEB, 0xABEB), (0xFE52, 0xFE52), (0xFE56, 0xFE57),
+    (0xFF01, 0xFF01), (0xFF0E, 0xFF0E), (0xFF1F, 0xFF1F),
+    (0xFF61, 0xFF61), (0x10A56, 0x10A57), (0x10F55, 0x10F59),
+    (0x10F86, 0x10F89), (0x11047, 0x11048), (0x110BE, 0x110C1),
+    (0x11141, 0x11143), (0x111C5, 0x111C6), (0x111CD, 0x111CD),
+    (0x111DE, 0x111DF), (0x11238, 0x11239), (0x1123B, 0x1123C),
+    (0x112A9, 0x112A9), (0x1144B, 0x1144C), (0x115C2, 0x115C3),
+    (0x115C9, 0x115D7), (0x11641, 0x11642), (0x1173C, 0x1173E),
+    (0x11944, 0x11944), (0x11946, 0x11946), (0x11A42, 0x11A43),
+    (0x11A9B, 0x11A9C), (0x11C41, 0x11C42), (0x11EF7, 0x11EF8),
+    (0x16A6E, 0x16A6F), (0x16AF5, 0x16AF5), (0x16B37, 0x16B38),
+    (0x16B44, 0x16B44), (0x16E98, 0x16E98), (0x1BC9F, 0x1BC9F),
+    (0x1DA88, 0x1DA88),
+)
 
 
 def _is_sentence_terminator(character: str) -> bool:
-    if character in {".", "!", "?", "\N{HORIZONTAL ELLIPSIS}"}:
-        return True
-    name = unicodedata.name(character, "")
+    """Recognise Unicode sentence terminals without counting opening marks."""
+
+    codepoint = ord(character)
     return bool(
-        name.endswith("FULL STOP")
-        or name.endswith("QUESTION MARK")
-        or name.endswith("EXCLAMATION MARK")
-        or "DANDA" in name
+        character == "\N{HORIZONTAL ELLIPSIS}"
+        or codepoint == 0x037E  # GREEK QUESTION MARK
+        or codepoint == 0x05C3  # HEBREW PUNCTUATION SOF PASUQ
+        or 0x0F0D <= codepoint <= 0x0F12  # Tibetan shad family
+        or any(low <= codepoint <= high for low, high in _SENTENCE_TERMINAL_RANGES)
     )
 
 
 _TITLE_ABBREVIATIONS = frozenset({"dr", "hon", "mr", "mrs", "ms", "prof", "rt", "st", "vs"})
 _CONTEXTUAL_ABBREVIATIONS = frozenset({"etc", "govt", "mp"})
+_CONTEXTUAL_CAPITAL_CONTINUATIONS = {
+    "govt": frozenset({"department", "office"}),
+}
+_COMMON_SENTENCE_START_WORDS = frozenset(
+    {
+        "a", "an", "as", "because", "but", "he", "her", "here", "his",
+        "however", "i", "if", "in", "it", "meanwhile", "nevertheless",
+        "no", "nor", "now", "on", "otherwise", "our", "she", "so",
+        "that", "the", "their", "then", "there", "therefore", "they",
+        "this", "those", "thus", "we", "what", "when", "where", "which",
+        "while", "who", "why", "yet", "you",
+    }
+)
+_DOTTED_ENTITY_CONTINUATIONS = frozenset(
+    {
+        "commission", "congress", "court", "government", "parliament",
+        "president", "supreme", "treasury", "union",
+    }
+)
+
+
+def _time_abbreviation_starts_clause(text: str, abbreviation_start: int) -> bool:
+    """Recognise a clock phrase that introduces the current clause."""
+
+    return bool(
+        re.search(
+            r"(?i)(?:^|[.!?]\s+)(?:after|around|at|before|by|from|until)\s+"
+            r"(?:about\s+)?\d{1,2}(?::\d{2})?\s*$",
+            text[:abbreviation_start],
+        )
+    )
+
+
+def _time_abbreviation_has_zone_suffix(text: str, end: int) -> bool:
+    """Recognise a timezone/location qualifier following a clock value."""
+
+    return bool(
+        re.match(
+            r"\s+(?:[A-Z]{2,5}(?=[\s.,;:!?)]|$)|"
+            r"[A-Z][A-Za-z'-]+\s+(?:(?i:summer|standard)\s+)?(?i:time)\b)",
+            text[end:],
+        )
+    )
+
+
+def _period_has_clear_continuation(text: str, end: int) -> bool:
+    """Return whether punctuation/casing proves a period is non-terminal."""
+
+    index = end
+    while index < len(text) and (
+        text[index]
+        in {
+            '"',
+            "'",
+            "\N{RIGHT SINGLE QUOTATION MARK}",
+            "\N{RIGHT DOUBLE QUOTATION MARK}",
+        }
+        or unicodedata.category(text[index]) in {"Pe", "Pf"}
+    ):
+        index += 1
+    if index >= len(text):
+        return True
+    if not text[index].isspace():
+        return bool(
+            text[index].islower()
+            or text[index] in {",", ";", ":"}
+            or unicodedata.category(text[index]) == "Pd"
+        )
+    while index < len(text) and text[index].isspace():
+        index += 1
+    while index < len(text) and (
+        text[index]
+        in {
+            '"',
+            "'",
+            "\N{LEFT SINGLE QUOTATION MARK}",
+            "\N{LEFT DOUBLE QUOTATION MARK}",
+        }
+        or unicodedata.category(text[index]) in {"Pi", "Ps"}
+    ):
+        index += 1
+    while index < len(text) and text[index].isspace():
+        index += 1
+    return index < len(text) and text[index].islower()
+
+
+def _following_spaced_word(text: str, end: int) -> tuple[str, bool]:
+    """Return the following word and whether an opening wrapper precedes it."""
+
+    index = end
+    while index < len(text) and (
+        text[index]
+        in {
+            '"',
+            "'",
+            "\N{RIGHT SINGLE QUOTATION MARK}",
+            "\N{RIGHT DOUBLE QUOTATION MARK}",
+        }
+        or unicodedata.category(text[index]) in {"Pe", "Pf"}
+    ):
+        index += 1
+    if index >= len(text) or not text[index].isspace():
+        return "", False
+    while index < len(text) and text[index].isspace():
+        index += 1
+    opened = False
+    while index < len(text) and (
+        text[index]
+        in {
+            '"',
+            "'",
+            "\N{LEFT SINGLE QUOTATION MARK}",
+            "\N{LEFT DOUBLE QUOTATION MARK}",
+        }
+        or unicodedata.category(text[index]) in {"Pi", "Ps"}
+    ):
+        opened = True
+        index += 1
+    while index < len(text) and text[index].isspace():
+        index += 1
+    match = re.match(r"([^\W\d_]+)", text[index:], re.UNICODE)
+    return (match.group(1) if match is not None else ""), opened
+
+
+def _dotted_entity_starts_clause(text: str, abbreviation_start: int) -> bool:
+    """Return whether an initial dotted entity name clearly continues."""
+
+    return bool(
+        re.search(
+            r"(?i)(?:^|[.!?]\s+)(?:the\s+)?$",
+            text[:abbreviation_start],
+        )
+    )
+
+
+def _wrapped_phrase_continues_sentence(text: str, end: int) -> bool:
+    """Recognise a quoted/parenthetical subject followed by a predicate."""
+
+    index = end
+    while index < len(text) and text[index].isspace():
+        index += 1
+    if index >= len(text):
+        return False
+    closers = {
+        '"': '"',
+        "'": "'",
+        "\N{LEFT DOUBLE QUOTATION MARK}": "\N{RIGHT DOUBLE QUOTATION MARK}",
+        "\N{LEFT SINGLE QUOTATION MARK}": "\N{RIGHT SINGLE QUOTATION MARK}",
+        "(": ")",
+        "[": "]",
+        "{": "}",
+        "«": "»",
+        "‹": "›",
+        "「": "」",
+        "『": "』",
+        "【": "】",
+        "〈": "〉",
+        "《": "》",
+        "〔": "〕",
+    }
+    closer = closers.get(text[index])
+    if closer is not None:
+        close_index = text.find(closer, index + 1)
+    elif unicodedata.category(text[index]) in {"Pi", "Ps"}:
+        close_index = next(
+            (
+                candidate_index
+                for candidate_index in range(index + 1, len(text))
+                if unicodedata.category(text[candidate_index]) in {"Pe", "Pf"}
+            ),
+            -1,
+        )
+    else:
+        return False
+    if close_index < 0 or any(
+        _is_sentence_terminator(character)
+        for character in text[index + 1 : close_index]
+    ):
+        return False
+    remainder = text[close_index + 1 :].lstrip()
+    return bool(remainder and remainder[0].islower())
 
 
 def _period_is_abbreviation(text: str, start: int, end: int) -> bool:
+    # Both stops in common dotted abbreviations are internal boundaries.  The
+    # first check recognises the next dotted initial (``e.g.``/``U.K.``); the
+    # second recognises the complete two-or-more-initial form.
+    if (
+        start > 0
+        and start + 2 < len(text)
+        and text[start - 1].isalpha()
+        and text[start + 1].isalpha()
+        and text[start + 2] == "."
+    ):
+        return True
+    dotted = re.search(r"(?i)(?<![A-Za-z])(?:[A-Za-z]\.){2,}$", text[:end])
+    if dotted is not None:
+        if _period_has_clear_continuation(text, end):
+            return True
+        following_word, opened = _following_spaced_word(text, end)
+        abbreviation = dotted.group(0).casefold()
+        if opened:
+            return bool(
+                abbreviation
+                in {"a.m.", "e.u.", "p.m.", "u.k.", "u.n.", "u.s."}
+                and _wrapped_phrase_continues_sentence(text, end)
+            )
+        if abbreviation in {"e.g.", "i.e."}:
+            return bool(
+                following_word
+                and following_word.casefold() not in _COMMON_SENTENCE_START_WORDS
+            )
+        if not following_word:
+            return False
+        if abbreviation in {"a.m.", "p.m."}:
+            return bool(
+                following_word.casefold() not in _COMMON_SENTENCE_START_WORDS
+                and (
+                    _time_abbreviation_starts_clause(text, dotted.start())
+                    or _time_abbreviation_has_zone_suffix(text, end)
+                )
+            )
+        return bool(
+            abbreviation in {"e.u.", "u.k.", "u.n.", "u.s."}
+            and following_word.casefold() not in _COMMON_SENTENCE_START_WORDS
+            and (
+                following_word.casefold() in _DOTTED_ENTITY_CONTINUATIONS
+                or _dotted_entity_starts_clause(text, dotted.start())
+            )
+        )
     preceding = re.search(r"([A-Za-z]+)$", text[:start])
     if preceding is None:
         return False
     word = preceding.group(1)
     if len(word) == 1 and word.isupper():
-        return True
+        following_word, opened = _following_spaced_word(text, end)
+        return bool(
+            not opened
+            and following_word
+            and following_word[0].isupper()
+            and following_word.casefold() not in _COMMON_SENTENCE_START_WORDS
+            and (
+                not text[: preceding.start()].strip()
+                or re.match(r"\s+[A-Z]\.", text[end:])
+                or re.search(
+                    r"(?:^|\s)(?:[A-Z]\.\s+)+[A-Z]\.$",
+                    text[:end],
+                )
+            )
+        )
     folded = word.casefold()
     remainder = text[end:].lstrip()
-    if folded == "no":
+    if word == "No":
         return bool(remainder and remainder[0].isdigit())
     if folded in _TITLE_ABBREVIATIONS:
-        return True
+        if _period_has_clear_continuation(text, end):
+            return True
+        following_word, opened = _following_spaced_word(text, end)
+        if opened:
+            return _wrapped_phrase_continues_sentence(text, end)
+        return bool(
+            following_word
+            and following_word[0].isupper()
+            and following_word.casefold() not in _COMMON_SENTENCE_START_WORDS
+        )
     return bool(
         folded in _CONTEXTUAL_ABBREVIATIONS
-        and remainder
-        and (remainder[0].islower() or remainder[0] in {",", ";", ":", ")", "]"})
+        and (
+            _period_has_clear_continuation(text, end)
+            or (
+                (following_word := _following_spaced_word(text, end)[0]).casefold()
+                in _CONTEXTUAL_CAPITAL_CONTINUATIONS.get(folded, frozenset())
+            )
+        )
     )
 
 
 def sentence_count(text: str) -> int:
     """Count user-visible Unicode sentence boundaries."""
 
-    compact = " ".join(str(text or "").split())
+    joined = " ".join(str(text or "").split())
+    compact = "".join(
+        unicodedata.normalize("NFKC", character)
+        if character in {"\N{SMALL FULL STOP}", "\N{FULLWIDTH FULL STOP}"}
+        else character
+        if _is_sentence_terminator(character)
+        else unicodedata.normalize("NFKC", character)
+        for character in joined
+    )
     if not compact:
         return 0
     count = 0
@@ -979,15 +1506,16 @@ def sentence_count(text: str) -> int:
                 continue
         count += 1
         trailing = False
-        while index < len(compact) and compact[index] in {
-            '"',
-            "'",
-            "\N{RIGHT SINGLE QUOTATION MARK}",
-            "\N{RIGHT DOUBLE QUOTATION MARK}",
-            ")",
-            "]",
-            "}",
-        }:
+        while index < len(compact) and (
+            compact[index]
+            in {
+                '"',
+                "'",
+                "\N{RIGHT SINGLE QUOTATION MARK}",
+                "\N{RIGHT DOUBLE QUOTATION MARK}",
+            }
+            or unicodedata.category(compact[index]) in {"Pe", "Pf"}
+        ):
             index += 1
         while index < len(compact) and compact[index].isspace():
             index += 1
@@ -1028,14 +1556,6 @@ _ASCII_DOMAIN_RE = re.compile(
     r"(?:[A-Za-z]{2,63}|xn--[A-Za-z0-9-]{1,59})(?![A-Za-z0-9_-])",
     re.IGNORECASE,
 )
-_UNICODE_DOMAIN_RE = re.compile(
-    r"(?<![@\w-])([^\s./@:]+(?:\.[^\s./@:]+)+)(?![\w-])",
-    re.UNICODE,
-)
-_COMMON_ASCII_TLDS = frozenset(
-    "app biz com dev edu example gov info int io mil museum name net org site "
-    "tech uk xyz".split()
-)
 # Root-zone IDN labels plus the conventional example/test labels used when an
 # explicit internationalised address is discussed.  Requiring a recognisable
 # suffix avoids treating arbitrary non-Latin clauses separated by a full stop
@@ -1062,18 +1582,244 @@ _IPV4_RE = re.compile(r"(?<![\w.])(?:[0-9]{1,3}\.){3}[0-9]{1,3}(?![\w.])")
 _IPV6_RE = re.compile(r"(?<![0-9A-Fa-f:])\[?[0-9A-Fa-f:]*:[0-9A-Fa-f:]+\]?(?![0-9A-Fa-f:])")
 
 
+def _unicode_domain_candidates(
+    text: str,
+    *,
+    separator: str,
+) -> list[tuple[str, int, int]]:
+    """Return candidate text and exact bounds for one IDNA separator."""
+
+    candidates: list[tuple[str, int, int]] = []
+    start: int | None = None
+    for index, character in enumerate(text + " "):
+        if (
+            character in {separator, "-"}
+            or unicodedata.category(character)[:1] in {"L", "N", "M"}
+        ):
+            if start is None:
+                start = index
+            continue
+        if start is None:
+            continue
+        raw = text[start:index]
+        candidate = raw.strip(separator)
+        if separator in candidate:
+            leading = len(raw) - len(raw.lstrip(separator))
+            candidate_start = start + leading
+            candidate_end = candidate_start + len(candidate)
+            candidates.append(
+                (
+                    candidate.replace(separator, "."),
+                    candidate_start,
+                    candidate_end,
+                )
+            )
+        start = None
+    return candidates
+
+
+_IDN_EXAMPLE_LABELS = frozenset({"例子", "例え", "예", "مثال", "пример"})
+_CJK_ADDRESS_CUES = (
+    "请访问", "請訪問", "访问", "訪問", "網址", "网址", "網站", "网站",
+    "域名",
+)
+_ASCII_ADDRESS_CUE_RE = re.compile(
+    r"(?i)\b(?:address|browse|domain|go\s+to|host|hostname|link|open|site|url|"
+    r"visit|website)"
+    r"(?:\s+is)?"
+    r"\s*[:：]?\s*[\(\[\{\"'“‘]*\s*$"
+)
+_ASCII_WEAK_ADDRESS_CUE_RE = re.compile(
+    r"(?i)\b(?:find|read|see|use)\s*[:：]?\s*[\(\[\{\"'“‘]*\s*$"
+)
+_CJK_ADDRESS_CUE_RE = re.compile(
+    r"(?:" + "|".join(sorted(map(re.escape, _CJK_ADDRESS_CUES), key=len, reverse=True))
+    + r")(?:是|为|為)?\s*[:：]?\s*[\(\[\{\"'“‘]*\s*$"
+)
+_ATTACHED_CJK_DOMAIN_RE = re.compile(
+    r"(?:请访问|請訪問|访问|訪問|"
+    r"(?:网址|網址|网站|網站|域名)(?:是|为|為))"
+    r"(?P<label>[\w\-]{1,63})\N{IDEOGRAPHIC FULL STOP}"
+    r"(?P<tld>"
+    + "|".join(sorted(map(re.escape, _KNOWN_IDN_TLDS), key=len, reverse=True))
+    + r")"
+)
+_CJK_ADDRESS_CONTINUATION_RE = re.compile(
+    r"^[，,]?\s*(?:可(?:查看|访问|訪問)|欢迎访问|歡迎訪問|获取详情|獲取詳情|"
+    r"了解详情|了解詳情|即可)"
+)
+
+
+def _cjk_address_suffix_is_explicit(suffix: str) -> bool:
+    """Recognise syntax that binds an address cue to a preceding IDN."""
+
+    stripped = suffix.lstrip()
+    if not stripped:
+        return True
+    if all(
+        character.isspace()
+        or character in {'"', "'", ".", "。", "!", "！", "?", "？"}
+        or unicodedata.category(character) in {"Pe", "Pf"}
+        for character in stripped
+    ):
+        return True
+    if re.match(
+        r"^[.\N{IDEOGRAPHIC FULL STOP}]?"
+        r"(?:/[^\s]*|:\d{1,5}(?:/[^\s]*)?|[?#][^\s]+)",
+        stripped,
+    ):
+        return True
+    return _CJK_ADDRESS_CONTINUATION_RE.match(stripped) is not None
+
+
+def _contains_attached_cjk_domain(text: str) -> bool:
+    """Detect a no-space CJK address cue followed by a valid IDN."""
+
+    for match in _ATTACHED_CJK_DOMAIN_RE.finditer(text):
+        try:
+            encoded = [
+                value.encode("idna").decode("ascii")
+                for value in (match.group("label"), match.group("tld"))
+            ]
+        except UnicodeError:
+            continue
+        if (
+            all(1 <= len(value) <= 63 for value in encoded)
+            and _cjk_address_suffix_is_explicit(text[match.end() :])
+        ):
+            return True
+    return False
+
+
+def _idn_candidate_is_explicit(
+    candidate: str,
+    *,
+    source_text: str,
+    source_start: int,
+    source_end: int,
+) -> bool:
+    """Distinguish recognisable IDNs from ambiguous East-Asian clauses."""
+
+    labels = candidate.split(".")
+    if all(label.isascii() for label in labels):
+        return True
+    top_level = labels[-1]
+    if top_level.isascii() and (
+        (2 <= len(top_level) <= 63 and top_level.isalpha())
+        or top_level.casefold().startswith("xn--")
+    ):
+        return True
+    non_ascii_letters = [
+        character
+        for label in labels
+        for character in label
+        if not character.isascii() and character.isalpha()
+    ]
+    if any(
+        unicodedata.east_asian_width(character) not in {"F", "W"}
+        for character in non_ascii_letters
+    ):
+        return True
+    prefix = source_text[:source_start].rstrip()
+    suffix = source_text[source_end:]
+    first_label = labels[0]
+    first_label_letters = [character for character in first_label if character.isalpha()]
+    weak_ascii_cue_is_explicit = bool(
+        _ASCII_WEAK_ADDRESS_CUE_RE.search(prefix)
+        and (
+            (
+                first_label_letters
+                and all(
+                    not character.isascii()
+                    and unicodedata.east_asian_width(character) in {"F", "W"}
+                    for character in first_label_letters
+                )
+            )
+            or not suffix.strip()
+            or re.match(r"^\s*[,;:]?\s*[A-Za-z]", suffix) is not None
+        )
+    )
+    if (
+        _ASCII_ADDRESS_CUE_RE.search(prefix)
+        or (
+            _CJK_ADDRESS_CUE_RE.search(prefix)
+            and _cjk_address_suffix_is_explicit(suffix)
+        )
+        or weak_ascii_cue_is_explicit
+    ):
+        return True
+    if any(
+        unicodedata.normalize("NFKC", first_label).casefold().endswith(example)
+        for example in _IDN_EXAMPLE_LABELS
+    ):
+        return True
+
+    prefix_character = prefix[-1:] if prefix else ""
+    suffix_character = suffix.lstrip()[:1]
+    if (
+        prefix_character
+        and suffix_character
+        and (
+            unicodedata.category(prefix_character) in {"Pi", "Ps"}
+            or prefix_character in {'"', "'"}
+        )
+        and (
+            unicodedata.category(suffix_character) in {"Pe", "Pf"}
+            or suffix_character in {'"', "'"}
+        )
+    ):
+        return True
+    if "\N{IDEOGRAPHIC FULL STOP}" in source_text[source_start:source_end] and re.match(
+        r"^\.(?:\s|$)", suffix
+    ):
+        return True
+    if re.match(
+        r"^[.\N{IDEOGRAPHIC FULL STOP}]?"
+        r"(?:/[^\s]*|:\d{1,5}(?:/[^\s]*)?|[?#][^\s]+)",
+        suffix,
+    ):
+        return True
+    prefix_wrapper_only = all(
+        character.isspace()
+        or character in {'"', "'"}
+        or unicodedata.category(character) in {"Pi", "Ps"}
+        for character in source_text[:source_start]
+    )
+    suffix_wrapper_only = all(
+        character.isspace()
+        or character in {'"', "'", ".", ",", ";", "!", "?", "，", "；", "、", "。"}
+        or unicodedata.category(character) in {"Pe", "Pf"}
+        for character in suffix
+    )
+    return prefix_wrapper_only and suffix_wrapper_only
+
+
 def contains_link_or_address(text: str) -> bool:
     """Reject real links/addresses without treating CJK full stops as dots."""
 
-    if _URL_RE.search(text) or _EMAIL_RE.search(text) or _ASCII_DOMAIN_RE.search(text):
+    # A halfwidth ideographic separator is address-like; preserve the ordinary
+    # U+3002 CJK sentence stop through NFKC so it can be handled conservatively
+    # below.  NFKC itself converts fullwidth Latin and U+FF0E to ASCII.
+    domain_scan_text = unicodedata.normalize(
+        "NFKC",
+        text.replace("\N{HALFWIDTH IDEOGRAPHIC FULL STOP}", "."),
+    )
+    if (
+        _URL_RE.search(domain_scan_text)
+        or _EMAIL_RE.search(domain_scan_text)
+        or _ASCII_DOMAIN_RE.search(domain_scan_text)
+        or "@" in domain_scan_text
+    ):
         return True
-    for match in _IPV4_RE.finditer(text):
+    if _contains_attached_cjk_domain(domain_scan_text):
+        return True
+    for match in _IPV4_RE.finditer(domain_scan_text):
         try:
             ipaddress.ip_address(match.group(0))
         except ValueError:
             continue
         return True
-    for match in _IPV6_RE.finditer(text):
+    for match in _IPV6_RE.finditer(domain_scan_text):
         candidate = match.group(0).strip("[]")
         if candidate.count(":") < 2:
             continue
@@ -1082,17 +1828,28 @@ def contains_link_or_address(text: str) -> bool:
         except ValueError:
             continue
         return True
-    domain_scan_text = text.translate(
-        {
-            ord("\N{IDEOGRAPHIC FULL STOP}"): ".",
-            ord("\N{FULLWIDTH FULL STOP}"): ".",
-            ord("\N{HALFWIDTH IDEOGRAPHIC FULL STOP}"): ".",
-        }
+    domain_candidates = _unicode_domain_candidates(
+        domain_scan_text,
+        separator=".",
     )
-    for match in _UNICODE_DOMAIN_RE.finditer(domain_scan_text):
-        candidate = match.group(1)
+    domain_candidates.extend(
+        _unicode_domain_candidates(
+            domain_scan_text,
+            separator="\N{IDEOGRAPHIC FULL STOP}",
+        )
+    )
+    for candidate, candidate_start, candidate_end in domain_candidates:
         labels = candidate.split(".")
         if all(label.isascii() for label in labels):
+            if _ASCII_DOMAIN_RE.fullmatch(candidate):
+                return True
+            continue
+        if not _idn_candidate_is_explicit(
+            candidate,
+            source_text=domain_scan_text,
+            source_start=candidate_start,
+            source_end=candidate_end,
+        ):
             continue
         if any(
             not label
@@ -1110,14 +1867,13 @@ def contains_link_or_address(text: str) -> bool:
             encoded = [label.encode("idna").decode("ascii") for label in labels]
         except UnicodeError:
             continue
-        top_level = labels[-1].casefold()
+        top_level = unicodedata.normalize("NFKC", labels[-1]).casefold()
         top_level_is_recognisable = (
             top_level in _KNOWN_IDN_TLDS
             or (
                 top_level.isascii()
                 and (
-                    top_level in _COMMON_ASCII_TLDS
-                    or (len(top_level) == 2 and top_level.isalpha())
+                    2 <= len(top_level) <= 63 and top_level.isalpha()
                     or top_level.startswith("xn--")
                 )
             )
@@ -1186,12 +1942,20 @@ def validate_model_output(
         reply = ""
     if (
         not isinstance(used, list)
-        or any(not isinstance(item, str) for item in used)
-        or len(used) != len(set(used))
         or len(used) > MAX_TRUSTED_FACTS
+        or any(
+            not isinstance(item, str)
+            or USED_FACT_ID_PATTERN.fullmatch(item) is None
+            for item in used
+        )
     ):
         errors.append("invalid_used_fact_ids")
         used = []
+    elif len(used) != len(set(used)):
+        # The provider-facing schema deliberately omits unsupported
+        # ``uniqueItems``.  Duplicates therefore passed the exact schema sent
+        # to the provider and are a local mechanical-validation failure.
+        errors.append("duplicate_used_fact_ids")
     if reason_code not in REASON_CODES:
         errors.append("invalid_reason_code")
     facts = payload.get("trusted_facts")
@@ -1233,11 +1997,14 @@ def validate_model_output(
         except UnicodeEncodeError:
             errors.append("malformed_unicode")
         if any(
-            unicodedata.category(character) in {"Cc", "Cf", "Cs"}
+            unicodedata.category(character) in {"Cc", "Cf", "Cs", "Zl", "Zp"}
             for character in reply
         ):
             errors.append("control_or_format_character")
-        if "\n" in reply or "\r" in reply:
+        if "\n" in reply or "\r" in reply or any(
+            unicodedata.category(character) in {"Zl", "Zp"}
+            for character in reply
+        ):
             errors.append("reply_contains_line_break")
         if contains_link_or_address(reply):
             errors.append("reply_contains_link_or_address")
@@ -1253,6 +2020,12 @@ def validate_model_output(
             for turn in payload.get("visible_conversation") or []
             if isinstance(turn, Mapping) and turn.get("role") == "account"
         )
+        quoted_subject = payload.get("quoted_subject")
+        if (
+            isinstance(quoted_subject, Mapping)
+            and quoted_subject.get("role") == "account"
+        ):
+            comparisons.append(str(quoted_subject.get("text") or ""))
         comparisons.extend(
             str(item) for item in payload.get("recent_account_replies") or []
         )
@@ -1287,6 +2060,7 @@ _DRAFT_FIELDS = {
     "candidate_source",
     "incoming_contribution_sha256",
     "canonical_visible_context_sha256",
+    "quoted_subject_sha256",
     "model_payload_sha256",
     "prompt_sha256",
     "response_schema_sha256",
@@ -1313,6 +2087,8 @@ def _image_bindings(images: Sequence[Mapping[str, Any]]) -> list[dict[str, Any]]
             "sha256": str(image["sha256"]),
             "mime_type": str(image["mime_type"]),
             "byte_count": int(image["byte_count"]),
+            "attachment_role": str(image["attachment_role"]),
+            "source_post_id": str(image["source_post_id"]),
         }
         for image in images
     ]
@@ -1355,6 +2131,11 @@ def create_durable_draft(
         "candidate_source": str(payload["lane"]),
         "incoming_contribution_sha256": text_sha256(str(visible[-1]["text"])),
         "canonical_visible_context_sha256": value_sha256(visible),
+        "quoted_subject_sha256": (
+            value_sha256(payload["quoted_subject"])
+            if payload.get("quoted_subject") is not None
+            else None
+        ),
         "model_payload_sha256": value_sha256(payload),
         "prompt_sha256": PROMPT_SHA256,
         "response_schema_sha256": RESPONSE_SCHEMA_SHA256,
@@ -1428,6 +2209,13 @@ def validate_persisted_draft(
     visible = bound_visible_conversation(
         context.get("visible_conversation") or [], target_post_id=target_id
     )
+    quoted_subject = _quoted_subject(
+        context,
+        visible_post_ids={turn["post_id"] for turn in visible},
+    )
+    expected_quoted_subject_hash = (
+        value_sha256(quoted_subject) if quoted_subject is not None else None
+    )
     root_id = str(context.get("root_post_id") or context.get("thread_id") or "")
     parent_id = context.get("parent_post_id")
     if (
@@ -1438,6 +2226,7 @@ def validate_persisted_draft(
         or draft.get("candidate_source") != context.get("lane")
         or draft.get("incoming_contribution_sha256") != text_sha256(visible[-1]["text"])
         or draft.get("canonical_visible_context_sha256") != value_sha256(visible)
+        or draft.get("quoted_subject_sha256") != expected_quoted_subject_hash
         or not _valid_sha256(draft.get("model_payload_sha256"))
     ):
         raise ValueError("pending single-call draft context mismatch")
@@ -1472,24 +2261,57 @@ def validate_persisted_draft(
     image_bindings = draft.get("supplied_images")
     if not isinstance(image_bindings, list) or len(image_bindings) > MAX_SUPPLIED_IMAGES:
         raise ValueError("pending single-call image bindings are invalid")
+    current_quoted_post_id = quoted_post_reference_id(context) or ""
+    saw_quoted_subject_image = False
     for binding in image_bindings:
         if (
             not isinstance(binding, dict)
-            or set(binding) != {"identity", "sha256", "mime_type", "byte_count"}
+            or set(binding) != {
+                "identity",
+                "sha256",
+                "mime_type",
+                "byte_count",
+                "attachment_role",
+                "source_post_id",
+            }
             or not isinstance(binding.get("identity"), str)
             or not _valid_sha256(binding.get("sha256"))
             or binding.get("mime_type") not in _IMAGE_SIGNATURES
             or type(binding.get("byte_count")) is not int
             or not 1 <= binding["byte_count"] <= MAX_IMAGE_BYTES
+            or binding.get("attachment_role")
+            not in {"target_contribution", "quoted_subject"}
+            or not isinstance(binding.get("source_post_id"), str)
+            or not binding["source_post_id"]
         ):
             raise ValueError("pending single-call image binding is invalid")
-    # The recent-reply set was already part of the hash-bound payload and local
-    # validation at creation time. It can legitimately advance before restart,
-    # so recovery must not reinterpret a still-valid draft against later prose.
-    del recent_account_replies
+        if binding["attachment_role"] == "target_contribution":
+            if (
+                saw_quoted_subject_image
+                or binding["source_post_id"] != target_id
+            ):
+                raise ValueError("pending target image binding is invalid")
+        else:
+            saw_quoted_subject_image = True
+            if (
+                not current_quoted_post_id
+                or binding["source_post_id"] != current_quoted_post_id
+            ):
+                raise ValueError("pending quoted image binding is invalid")
+    comparison_replies: list[str] = []
+    for item in recent_account_replies:
+        text = item.get("text") if isinstance(item, Mapping) else item
+        comparison_replies.append(
+            _clean_text(
+                text,
+                label="recovery comparison reply",
+                allow_natural_joiners=True,
+            )
+        )
     validation_payload = {
         "trusted_facts": [{"id": fact_id} for fact_id in trusted_ids],
         "visible_conversation": visible,
+        "quoted_subject": quoted_subject,
         "recent_account_replies": [],
     }
     validate_model_output(
@@ -1505,6 +2327,7 @@ def validate_persisted_draft(
             separators=(",", ":"),
         ),
         payload=validation_payload,
+        comparison_replies=comparison_replies,
     )
     return copy.deepcopy(draft)
 
@@ -1563,15 +2386,17 @@ def run_reply_pipeline(
     fact_map: dict[str, dict[str, str]] = {}
     images: list[dict[str, Any]] = []
     try:
+        images = validate_supplied_images(supplied_images)
         payload, fact_map = build_model_payload(
             context=context,
             repository=repository,
             same_author_interactions=same_author_interactions,
             recent_account_replies=recent_account_replies,
+            supplied_images=images,
             visual_description=visual_description,
         )
         request, images = build_openai_request(
-            payload, supplied_images=supplied_images
+            payload, supplied_images=images
         )
     except (ContextValidationError, TypeError, ValueError, UnicodeError) as exc:
         return PipelineResult(
@@ -1594,16 +2419,48 @@ def run_reply_pipeline(
     except Exception as exc:
         if getattr(exc, "propagate_from_single_call_pipeline", False) is True:
             raise
+        status_code = getattr(exc, "status_code", None)
+        reset_epoch = getattr(exc, "reset_epoch", None)
+        retry_after = getattr(exc, "retry_after_seconds", None)
+        attempt_count = getattr(exc, "request_attempt_count", 1)
+        explicit_category = getattr(exc, "error_category", None)
+        if isinstance(explicit_category, str) and explicit_category:
+            error_category = explicit_category
+        elif type(status_code) is int and 100 <= status_code <= 599:
+            error_category = f"provider_http_{status_code}"
+        else:
+            # The production transport explicitly labels every genuine
+            # provider/connection failure.  An unlabelled exception is a local
+            # transport-boundary defect, not evidence that OpenAI is unhealthy.
+            error_category = "transport_internal"
         return PipelineResult(
             status="operational_failure",
             reason="provider_request_failed",
-            error_category=str(
-                getattr(exc, "error_category", None) or "provider_transport"
-            ),
+            error_category=error_category,
             model_call_count=1,
             local_validation_status="not_run",
             payload_sha256=payload_hash,
             supplied_image_count=len(images),
+            provider_request_attempt_count=(
+                attempt_count
+                if type(attempt_count) is int and attempt_count >= 1
+                else 1
+            ),
+            provider_status_code=(
+                status_code
+                if type(status_code) is int and 100 <= status_code <= 599
+                else None
+            ),
+            provider_reset_epoch=(
+                reset_epoch
+                if type(reset_epoch) is int and reset_epoch >= 0
+                else None
+            ),
+            provider_retry_after_seconds=(
+                retry_after
+                if type(retry_after) is int and retry_after >= 0
+                else None
+            ),
             **counts,
         )
     if not isinstance(transport_result, Mapping):
@@ -1613,8 +2470,32 @@ def run_reply_pipeline(
     attempts = transport_result.get("request_attempt_count", 1)
     latency_ms = latency if type(latency) is int and latency >= 0 else None
     attempt_count = attempts if type(attempts) is int and attempts >= 1 else 1
-    usage: dict[str, int] = {}
-    response_id: str | None = None
+    transport_status = transport_result.get("provider_status_code")
+    transport_reset = transport_result.get("provider_reset_epoch")
+    transport_retry_after = transport_result.get("provider_retry_after_seconds")
+    transport_metadata = {
+        "provider_status_code": (
+            transport_status
+            if type(transport_status) is int and 100 <= transport_status <= 599
+            else None
+        ),
+        "provider_reset_epoch": (
+            transport_reset
+            if type(transport_reset) is int and transport_reset >= 0
+            else None
+        ),
+        "provider_retry_after_seconds": (
+            transport_retry_after
+            if type(transport_retry_after) is int and transport_retry_after >= 0
+            else None
+        ),
+    }
+    usage = _provider_usage(raw_response)
+    response_id = (
+        _valid_provider_response_id(raw_response.get("id"))
+        if isinstance(raw_response, Mapping)
+        else None
+    )
     try:
         raw_text, usage, response_id = parse_openai_response(raw_response)
         output = validate_model_output(raw_text, payload=payload)
@@ -1631,6 +2512,7 @@ def run_reply_pipeline(
             provider_request_attempt_count=attempt_count,
             provider_response_id=response_id,
             provider_usage=usage,
+            **transport_metadata,
             **counts,
         )
     if output["decision"] == "no_reply":
@@ -1649,6 +2531,7 @@ def run_reply_pipeline(
             provider_request_attempt_count=attempt_count,
             provider_response_id=response_id,
             provider_usage=usage,
+            **transport_metadata,
             **counts,
         )
     try:
@@ -1676,6 +2559,7 @@ def run_reply_pipeline(
             provider_request_attempt_count=attempt_count,
             provider_response_id=response_id,
             provider_usage=usage,
+            **transport_metadata,
             **counts,
         )
     metadata = {
@@ -1705,6 +2589,7 @@ def run_reply_pipeline(
         provider_request_attempt_count=attempt_count,
         provider_response_id=response_id,
         provider_usage=usage,
+        **transport_metadata,
         **counts,
     )
 
@@ -1747,5 +2632,8 @@ def decision_telemetry(result: PipelineResult) -> dict[str, Any]:
         "pipeline_status": result.status,
         "provider_latency_ms": result.provider_latency_ms,
         "provider_request_attempt_count": result.provider_request_attempt_count,
+        "provider_status_code": result.provider_status_code,
+        "provider_reset_epoch": result.provider_reset_epoch,
+        "provider_retry_after_seconds": result.provider_retry_after_seconds,
         "provider_response_id": result.provider_response_id,
     }

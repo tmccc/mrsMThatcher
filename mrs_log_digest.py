@@ -45,7 +45,7 @@ from dataclasses import dataclass
 from datetime import datetime, time, timedelta, timezone
 from decimal import Decimal, ROUND_HALF_UP
 from pathlib import Path
-from typing import Any, Dict, Iterable, List, Optional, Tuple, Union
+from typing import Any, Dict, Iterable, List, Mapping, Optional, Tuple, Union
 from urllib.parse import urlsplit
 from zoneinfo import ZoneInfo
 
@@ -79,6 +79,9 @@ AUTHOR_EVALUATION_QUARANTINE_EVIDENCE_POLICY = (
 )
 AUTHOR_EVALUATION_QUARANTINE_PREVIOUS_EVIDENCE_POLICY = (
     "majority_resolvable_terminal_no_reply_v3"
+)
+AUTHOR_EVALUATION_QUARANTINE_SINGLE_SOL_V1_EVIDENCE_POLICY = (
+    "single_sol_editorial_no_reply_v1"
 )
 AUTHOR_EVALUATION_QUARANTINE_SEEDED_EVIDENCE_POLICY = (
     "majority_spam_or_abuse_seeded_corroboration_v2"
@@ -3030,6 +3033,24 @@ def bounded_event_nonnegative_integer(
     return value if type(value) is int and 0 <= value <= maximum else None
 
 
+def bounded_event_nonnegative_integer_observation(
+    document: Mapping[str, Any],
+    key: str,
+    *,
+    maximum: int = MAX_REASONABLE_STATE_EPOCH,
+) -> Tuple[Optional[int], str]:
+    """Project an integer while retaining why required telemetry is unavailable."""
+
+    if key not in document:
+        return None, "missing"
+    value = document.get(key)
+    if type(value) is not int or value < 0:
+        return None, "malformed"
+    if value > maximum:
+        return None, "out_of_range"
+    return value, "available"
+
+
 def bounded_event_finite_number(
     value: Any,
     *,
@@ -4118,11 +4139,17 @@ def current_author_no_reply_strike_progress(
             and evidence_policy
             == AUTHOR_EVALUATION_QUARANTINE_PREVIOUS_EVIDENCE_POLICY
         )
+        is_single_sol_v1_policy = (
+            record_fields == required_fields
+            and evidence_policy
+            == AUTHOR_EVALUATION_QUARANTINE_SINGLE_SOL_V1_EVIDENCE_POLICY
+        )
         malformed = (
             not (
                 is_legacy_policy
                 or is_seeded_policy
                 or is_previous_policy
+                or is_single_sol_v1_policy
                 or is_current_policy
             )
             or not isinstance(timestamps, list)
@@ -4163,6 +4190,7 @@ def current_author_no_reply_strike_progress(
                 or (
                     is_seeded_policy
                     and not until
+                    and explicit_epoch
                     and explicit_epoch not in timestamps
                 )
             ):
@@ -4170,8 +4198,17 @@ def current_author_no_reply_strike_progress(
                     f"malformed author quarantine record at position {position}"
                 )
                 return result
-            if is_seeded_policy or is_previous_policy:
+            if is_seeded_policy or is_previous_policy or is_single_sol_v1_policy:
                 migrated_prior_policy_author_count += 1
+            if is_single_sol_v1_policy:
+                timestamps = (
+                    [explicit_epoch]
+                    if explicit_epoch and explicit_epoch in timestamps
+                    else []
+                )
+                until = 0
+                if not timestamps:
+                    continue
         validated.append((author_id, list(timestamps), until))
 
     cutoff = as_of_epoch - window_seconds
@@ -11977,6 +12014,12 @@ def single_call_reply_summary(events: List[Dict[str, Any]]) -> Dict[str, Any]:
         if type(item.get("model_call_count")) is int
         and item["model_call_count"] > 0
     ]
+
+    def candidate_key(item: Mapping[str, Any]) -> Tuple[str, str]:
+        return (
+            normalise_reply_lane(item.get("lane")),
+            str(item.get("target_id") or ""),
+        )
     invalid_call_counts = [
         item for item in decisions
         if type(item.get("model_call_count")) is not int
@@ -11986,42 +12029,128 @@ def single_call_reply_summary(events: List[Dict[str, Any]]) -> Dict[str, Any]:
             and item["model_call_count"] != 1
         )
     ]
-    usage_per_candidate = Counter(
-        (normalise_reply_lane(item.get("lane")), str(item.get("target_id") or ""))
-        for item in usage
+    model_attempt_decisions_per_candidate = Counter(
+        candidate_key(item) for item in model_attempts
     )
-    duplicate_usage_keys = {
-        key for key, count in usage_per_candidate.items() if count > 1
+    repeated_model_attempt_keys = {
+        key
+        for key, count in model_attempt_decisions_per_candidate.items()
+        if count > 1
     }
-    multiple_request_keys = {
-        (normalise_reply_lane(item.get("lane")), str(item.get("target_id") or ""))
-        for item in [*decisions, *usage]
-        if type(
-            item.get(
-                "provider_request_attempt_count",
-                item.get("request_attempt_count"),
-            )
-        ) is int
-        and item.get(
-            "provider_request_attempt_count",
-            item.get("request_attempt_count"),
-        ) > 1
+    usage_per_candidate = Counter(candidate_key(item) for item in usage)
+    excess_usage_keys = {
+        key
+        for key, count in usage_per_candidate.items()
+        if count > max(1, model_attempt_decisions_per_candidate.get(key, 0))
     }
+
+    attempt_violation_keys: set[Tuple[str, str]] = set()
+    incomplete_attempt_keys: set[Tuple[str, str]] = set()
+    incomplete_attempt_decision_ids: set[int] = set()
+    authorised_retry_decisions: Counter[Tuple[str, str]] = Counter()
+    authorised_retry_usage: Counter[Tuple[str, str]] = Counter()
+    attempt_metadata_status_counts: Counter[str] = Counter()
+    decision_attempt_counts: Dict[Tuple[str, str], set[int]] = {}
+    usage_attempt_counts: Dict[Tuple[str, str], set[int]] = {}
+
+    for item in [*decisions, *usage]:
+        is_decision = item.get("kind") == "single_call_reply_decision"
+        count_key = (
+            "provider_request_attempt_count" if is_decision
+            else "request_attempt_count"
+        )
+        status_key = f"{count_key}_status"
+        status = item.get(status_key)
+        if status not in {"available", "missing", "malformed", "out_of_range"}:
+            if count_key not in item:
+                status = "missing"
+            elif type(item.get(count_key)) is int and item[count_key] >= 0:
+                status = "available"
+            else:
+                status = "malformed"
+        attempt_metadata_status_counts[str(status)] += 1
+        key = candidate_key(item)
+        if status in {"missing", "malformed"}:
+            incomplete_attempt_keys.add(key)
+            if is_decision:
+                incomplete_attempt_decision_ids.add(id(item))
+            continue
+        if status == "out_of_range":
+            attempt_violation_keys.add(key)
+            continue
+
+        attempt_count = item.get(count_key)
+        assert type(attempt_count) is int
+        if attempt_count == 2:
+            (
+                authorised_retry_decisions
+                if is_decision
+                else authorised_retry_usage
+            )[key] += 1
+        if attempt_count > 2:
+            attempt_violation_keys.add(key)
+        if is_decision:
+            model_call_count = item.get("model_call_count")
+            if model_call_count == 0 and attempt_count != 0:
+                attempt_violation_keys.add(key)
+            elif model_call_count == 1:
+                decision_attempt_counts.setdefault(key, set()).add(attempt_count)
+                if attempt_count not in {1, 2}:
+                    attempt_violation_keys.add(key)
+        else:
+            usage_attempt_counts.setdefault(key, set()).add(attempt_count)
+            if attempt_count not in {1, 2}:
+                attempt_violation_keys.add(key)
+
+    attempt_count_mismatch_keys = {
+        key
+        for key in decision_attempt_counts.keys() & usage_attempt_counts.keys()
+        if model_attempt_decisions_per_candidate.get(key) == 1
+        and usage_per_candidate.get(key) == 1
+        and decision_attempt_counts[key] != usage_attempt_counts[key]
+    }
+    authorised_pre_execution_retry_count = sum(
+        max(
+            authorised_retry_decisions.get(key, 0),
+            authorised_retry_usage.get(key, 0),
+        )
+        for key in authorised_retry_decisions.keys() | authorised_retry_usage.keys()
+    )
     invalid_call_ids = {id(item) for item in invalid_call_counts}
-    violating_candidate_keys = duplicate_usage_keys | multiple_request_keys
+    violating_candidate_keys = (
+        excess_usage_keys
+        | attempt_violation_keys
+        | attempt_count_mismatch_keys
+    )
+    decision_candidate_keys = {candidate_key(item) for item in decisions}
+    violating_decision_ids = invalid_call_ids | {
+        id(item)
+        for item in decisions
+        if candidate_key(item) in violating_candidate_keys
+    }
+    incomplete_decision_ids = {
+        id(item)
+        for item in decisions
+        if id(item) not in violating_decision_ids
+        and (
+            id(item) in incomplete_attempt_decision_ids
+            or candidate_key(item) in incomplete_attempt_keys
+        )
+    }
     compliant_decisions = [
         item
         for item in decisions
-        if id(item) not in invalid_call_ids
-        and (
-            normalise_reply_lane(item.get("lane")),
-            str(item.get("target_id") or ""),
-        )
-        not in violating_candidate_keys
+        if id(item) not in violating_decision_ids
+        and id(item) not in incomplete_decision_ids
     ]
-    one_call_violations = len(decisions) - len(compliant_decisions)
-    if not decisions:
-        one_call_violations = len(violating_candidate_keys)
+    one_call_violations = len(violating_decision_ids) + len(
+        violating_candidate_keys - decision_candidate_keys
+    )
+    one_call_incomplete = len(incomplete_decision_ids) + len(
+        incomplete_attempt_keys
+        - violating_candidate_keys
+        - decision_candidate_keys
+    )
     token_fields = (
         "input_tokens",
         "cached_input_tokens",
@@ -12072,9 +12201,24 @@ def single_call_reply_summary(events: List[Dict[str, Any]]) -> Dict[str, Any]:
         "model_attempt_count": len(model_attempts),
         "one_call_compliant_count": len(compliant_decisions),
         "one_call_violation_count": one_call_violations,
+        "one_call_incomplete_count": one_call_incomplete,
         "one_call_compliance": (
-            "passed" if decisions and one_call_violations == 0 else
-            "failed" if one_call_violations else "no_candidates"
+            "failed" if one_call_violations else
+            "incomplete" if one_call_incomplete else
+            "passed" if decisions else "no_candidates"
+        ),
+        "repeated_model_attempt_candidate_count": len(
+            repeated_model_attempt_keys
+        ),
+        "excess_provider_usage_candidate_count": len(excess_usage_keys),
+        "authorised_pre_execution_retry_count": (
+            authorised_pre_execution_retry_count
+        ),
+        "provider_request_attempt_metadata_status_counts": dict(
+            attempt_metadata_status_counts.most_common()
+        ),
+        "provider_request_attempt_mismatch_candidate_count": len(
+            attempt_count_mismatch_keys
         ),
         "strategy_version_counts": count_values(decisions, "strategy_version"),
         "model_counts": count_values(decisions, "model"),
@@ -14071,6 +14215,20 @@ def analyse(
                     float(temperature)
                 ):
                     temperature = None
+                (
+                    provider_request_attempt_count,
+                    provider_request_attempt_count_status,
+                ) = bounded_event_nonnegative_integer_observation(
+                    event_obj,
+                    "provider_request_attempt_count",
+                    maximum=1_000_000,
+                )
+                provider_status_code = event_obj.get("provider_status_code")
+                if (
+                    type(provider_status_code) is not int
+                    or not 100 <= provider_status_code <= 599
+                ):
+                    provider_status_code = None
                 add_event(
                     "single_call_reply_decision",
                     r.ts,
@@ -14158,14 +14316,31 @@ def analyse(
                     provider_latency_ms=bounded_event_nonnegative_integer(
                         event_obj.get("provider_latency_ms"), maximum=86_400_000
                     ),
-                    provider_request_attempt_count=bounded_event_nonnegative_integer(
-                        event_obj.get("provider_request_attempt_count"), maximum=2
+                    provider_request_attempt_count=provider_request_attempt_count,
+                    provider_request_attempt_count_status=(
+                        provider_request_attempt_count_status
+                    ),
+                    provider_status_code=provider_status_code,
+                    provider_reset_epoch=bounded_event_nonnegative_integer(
+                        event_obj.get("provider_reset_epoch")
+                    ),
+                    provider_retry_after_seconds=bounded_event_nonnegative_integer(
+                        event_obj.get("provider_retry_after_seconds"),
+                        maximum=7 * 24 * 60 * 60,
                     ),
                     provider_response_id=bounded_event_text(
                         event_obj.get("provider_response_id"), max_characters=300
                     ),
                 )
             elif event_obj and event_obj.get("event") == "single_call_reply_provider_usage":
+                (
+                    request_attempt_count,
+                    request_attempt_count_status,
+                ) = bounded_event_nonnegative_integer_observation(
+                    event_obj,
+                    "request_attempt_count",
+                    maximum=1_000_000,
+                )
                 add_event(
                     "single_call_reply_provider_usage",
                     r.ts,
@@ -14191,9 +14366,8 @@ def analyse(
                     provider_latency_ms=bounded_event_nonnegative_integer(
                         event_obj.get("provider_latency_ms"), maximum=86_400_000
                     ),
-                    request_attempt_count=bounded_event_nonnegative_integer(
-                        event_obj.get("request_attempt_count"), maximum=2
-                    ),
+                    request_attempt_count=request_attempt_count,
+                    request_attempt_count_status=request_attempt_count_status,
                     input_tokens=bounded_event_nonnegative_integer(
                         event_obj.get("input_tokens"), maximum=100_000_000
                     ),
@@ -19384,7 +19558,20 @@ def render_markdown(report: Dict[str, Any]) -> str:
         f"{single_reply.get('one_call_compliance', 'no_candidates')}** "
         f"({single_reply.get('one_call_compliant_count', 0)} compliant decisions; "
         f"{single_reply.get('one_call_violation_count', 0)} violations; "
+        f"{single_reply.get('one_call_incomplete_count', 0)} incomplete; "
         f"{single_reply.get('recovered_draft_count', 0)} drafts recovered with no provider call)."
+    )
+    out.append(
+        "Logical/physical call diagnostics: **"
+        f"{single_reply.get('repeated_model_attempt_candidate_count', 0)} repeated model-attempt candidates; "
+        f"{single_reply.get('excess_provider_usage_candidate_count', 0)} excess usage candidates; "
+        f"{single_reply.get('authorised_pre_execution_retry_count', 0)} authorised pre-execution retries; "
+        f"{single_reply.get('provider_request_attempt_mismatch_candidate_count', 0)} attempt-count mismatches**. "
+        "Attempt telemetry: **"
+        + compact_counts(
+            single_reply.get("provider_request_attempt_metadata_status_counts") or {}
+        )
+        + "**."
     )
     out.append(
         "Strategy versions: **"
@@ -19878,6 +20065,11 @@ def render_markdown(report: Dict[str, Any]) -> str:
             "trusted_fact_count",
             "supplied_image_count",
             "provider_latency_ms",
+            "provider_request_attempt_count",
+            "provider_request_attempt_count_status",
+            "provider_status_code",
+            "provider_reset_epoch",
+            "provider_retry_after_seconds",
         ],
     )
     section(

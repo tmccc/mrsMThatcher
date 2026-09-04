@@ -155,8 +155,11 @@ deployed as a coherent set:
 - `remote_write_transport_journal.py`
 - `exact_receipt_retirement.py`
 - `transaction_mutation_authority.py`
+- `x_api_error_semantics.py`
+- `engagement_question_experiment.py`
 - `single_call_reply.py`
 - `reply_evidence.py`
+- `reply_factual_evidence.json`
 - `historical_context_formatter.py`
 - `historical_context_outbox.py`
 - `historical_context_packet_corrections.py`
@@ -176,6 +179,15 @@ deployed as a coherent set:
 - `semantic_alignment/io.py`
 - `semantic_alignment/quote_research_schema.py`
 - `semantic_alignment_research/quote_research_full_001/corpus_manifest.json`
+- `semantic_alignment_research/quote_research_full_001/grounding_sources.json`
+- `semantic_alignment_research/quote_research_full_001/historical_context_packet_corrections.json`
+- `semantic_alignment_research/quote_research_full_001/historical_context_source_curated_evidence.json`
+- `semantic_alignment_research/quote_research_full_001/historical_context_source_independent_review.json`
+- `semantic_alignment_research/quote_research_full_001/historical_context_source_openai_research.json`
+- `semantic_alignment_research/quote_research_full_001/historical_context_source_recovery.json`
+- `semantic_alignment_research/quote_research_full_001/historical_context_source_research.json`
+- `semantic_alignment_research/quote_research_full_001/historical_context_source_resolution.json`
+- `semantic_alignment_research/quote_research_full_001/historical_context_source_role_audit.json`
 - `semantic_alignment_research/quote_research_full_001/research_packets.json`
 - `semantic_alignment_research/quote_research_full_001/final_unresolved/final_research_status.json`
 - `mrs_log_digest.py`
@@ -308,12 +320,19 @@ Configure it through the ignored local configuration after review:
 }
 ```
 
+The global OpenAI circuit-breaker threshold is configured separately as
+`"MAX_OPENAI_ERRORS_PER_WINDOW": 3`. During a controlled upgrade, the loader
+accepts the retired `MAX_XAI_ERRORS_PER_WINDOW` name only as an unambiguous
+migration alias; do not retain both names.
+
 The request always uses `gpt-5.6-sol`, reasoning effort `high`, temperature `1`,
 `max_output_tokens=8192`, `store=false`, strict JSON Schema output and no tools.
 The model sees at most 12 visible turns and 12,000 visible-text characters,
 eight earlier same-author interactions, 30 recent confirmed conversational
 replies, 32 compact trusted facts selected from at most eight evidence packets,
-and two images. Same-author interactions are drawn from the existing confirmed
+and two images. Cached parent context may extend to 64 verified ancestors, but
+new parent lookups remain capped at three per candidate. Same-author
+interactions are drawn from the existing confirmed
 `ai_reply_history`; they are recorded only after remote confirmation, including
 confirmed-receipt recovery.
 
@@ -750,14 +769,14 @@ installation for drift with:
 deploy/systemd-user/install.sh --check
 ```
 
-The optional network-free version-4 prospective conversation collector
+The optional network-free version-5 prospective conversation collector
 reconstructs account roots, historical-context replies, and exact same-author
 parent paths from the retained production log rotation without touching the
 bot or its state. It also retains bounded, content-free reply-photo collection
 and visual-analysis metadata for review. Its scheduled private root is
-`/disks/disk1/research/mrsMThatcher-prospective-conversations-v4`; the existing
-version-3 root remains a read-only migration source. Its operation, privacy
-model, registered v3-to-v4 rebuild, validation, manual review packs, and
+`/disks/disk1/research/mrsMThatcher-prospective-conversations-v5`; the existing
+version-4 root remains a read-only migration source. Its operation, privacy
+model, registered v4-to-v5 rebuild, validation, manual review packs, and
 controlled timer activation are documented in the
 [prospective conversation extractor runbook](docs/prospective_conversation_extractor.md).
 
@@ -775,7 +794,7 @@ executes the same checked bot script by default.
 
 The installer uses atomic per-file replacement and runs `daemon-reload`, but it
 does not enable, disable, start, stop, or restart any unit. Its non-mutating
-first-v4 installation also leaves the prospective v4 root absent for the
+first-v5 installation also leaves the prospective v5 root absent for the
 registered rebuild; prospective timer activation is intentionally omitted from
 its suggested commands. The non-mutating analytics `status` check always
 targets the runtime checkout at
@@ -858,7 +877,8 @@ for content validation.
 
 5. Stop only `mrsMThatcher.service`. Verify that its wrapper and Python child
    have both exited before changing any tracked file; leave every other unit
-   running.
+   running unless a release-specific support-service migration below explicitly
+   requires that unit to be quiesced.
 6. With the service stopped, make one private, metadata-preserving backup of
    the operational runtime files outside the checkout. This is the single
    quiescent deployment backup; do not take duplicated live and stopped
@@ -890,6 +910,15 @@ for content validation.
     Never overwrite it with the deployment backup, which may already be stale;
     use a separately reviewed compatibility or migration recovery procedure
     when the earlier code cannot consume the current state.
+
+For the first deployment containing prospective extractor schema version 5,
+disable and stop `mrs-prospective-conversations.timer` before step 7 and verify
+that no extractor oneshot remains active. Keep it inactive through the checkout
+update and follow the ordered v4-to-v5 rebuild, validation, manual oneshot and
+corpus inspection in the
+[prospective conversation extractor runbook](docs/prospective_conversation_extractor.md).
+Enable the hourly timer only after those checks succeed. This exception applies
+to that support collector only; it does not authorise stopping other units.
 
 The pause acknowledgement, complete service shutdown, single runtime backup,
 fast-forward-only update, paused startup verification, exact control-state

@@ -9,7 +9,12 @@ from pathlib import Path
 import pytest
 
 import single_call_reply as pipeline
-from reply_evidence import EvidencePassage, EvidenceRepository, retrieval_tokens
+from reply_evidence import (
+    TRUSTED_FACT_AUDIT_CLAIMS,
+    EvidencePassage,
+    EvidenceRepository,
+    retrieval_tokens,
+)
 
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
@@ -240,6 +245,95 @@ def test_payload_enforces_all_context_and_fact_limits() -> None:
     assert repository.last_limits == (8, 32)
 
 
+def test_history_and_quoted_subject_fields_fail_closed_above_source_bounds() -> None:
+    """Reject individually oversized prose before it can enter the payload."""
+
+    source = context(turns=1)
+    with pytest.raises(pipeline.ContextValidationError, match="contributor.*too long"):
+        pipeline.build_model_payload(
+            context=source,
+            repository=FakeRepository(),
+            same_author_interactions=[
+                {
+                    "contributor": "x"
+                    * (pipeline.MAX_SAME_AUTHOR_CONTRIBUTOR_CHARACTERS + 1),
+                    "account_reply": "A prior reply.",
+                }
+            ],
+        )
+    with pytest.raises(pipeline.ContextValidationError, match="account reply.*too long"):
+        pipeline.build_model_payload(
+            context=source,
+            repository=FakeRepository(),
+            recent_account_replies=[
+                "x" * (pipeline.MAX_HISTORY_ACCOUNT_REPLY_CHARACTERS + 1)
+            ],
+        )
+
+    quoted = context(turns=1)
+    quoted["quoted_post"] = {
+        "post_id": "quoted",
+        "author_role": "other_user",
+        "text": "x" * (pipeline.MAX_QUOTED_SUBJECT_TEXT_CHARACTERS + 1),
+    }
+    quoted["quoted_post_id"] = "quoted"
+    quoted["quoted_post_relationship"] = "target_quote"
+    with pytest.raises(pipeline.ContextValidationError, match="quoted subject text.*too long"):
+        pipeline.build_model_payload(
+            context=quoted,
+            repository=FakeRepository(),
+        )
+
+
+@pytest.mark.parametrize(
+    ("field", "limit"),
+    [
+        ("passage", pipeline.MAX_TRUSTED_FACT_PASSAGE_CHARACTERS),
+        ("source_title", pipeline.MAX_TRUSTED_FACT_SOURCE_CHARACTERS),
+        ("stable_locator", pipeline.MAX_TRUSTED_FACT_LOCATOR_CHARACTERS),
+    ],
+)
+def test_compact_fact_fields_fail_closed_above_source_bounds(
+    field: str,
+    limit: int,
+) -> None:
+    """Bound each model-visible fact field independently of record count."""
+
+    record = {
+        "evidence_id": "evidence-1",
+        "passage": "A trusted passage.",
+        "source_title": "Official archive",
+        "stable_locator": "record:1",
+    }
+    record[field] = "x" * (limit + 1)
+    with pytest.raises(pipeline.ContextValidationError, match="too long"):
+        pipeline.compact_fact_records([record])
+
+
+def test_fact_source_record_and_final_payload_have_canonical_byte_bounds(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Bound private fact inputs and the complete canonical request payload."""
+
+    oversized_record = {
+        "evidence_id": "evidence-1",
+        "passage": "A trusted passage.",
+        "source_title": "Official archive",
+        "stable_locator": "record:1",
+        "unused_private_material": "x"
+        * pipeline.MAX_TRUSTED_FACT_SOURCE_RECORD_BYTES,
+    }
+    with pytest.raises(pipeline.ContextValidationError, match="source record.*too large"):
+        pipeline.compact_fact_records([oversized_record])
+
+    monkeypatch.setattr(pipeline, "MAX_MODEL_PAYLOAD_BYTES", 100)
+    with pytest.raises(pipeline.ContextValidationError, match="model payload.*too large"):
+        pipeline.build_model_payload(
+            context=context(),
+            repository=FakeRepository(),
+        )
+
+
 def test_visible_path_rejects_duplicate_target_and_handles_short_context() -> None:
     """Keep one final target and accept an ordinary two-turn verified path."""
 
@@ -399,6 +493,7 @@ def test_trusted_fact_retrieval_excludes_uncertain_and_interpretive_passages() -
             stable_locator=f"record:{identity}",
             verification_status=status,
             research_confidence=confidence,
+            trusted_fact_eligible=True,
         )
 
     candidates = [
@@ -425,6 +520,364 @@ def test_trusted_fact_retrieval_excludes_uncertain_and_interpretive_passages() -
     )
 
     assert [item.evidence_id for item in selected] == ["trusted"]
+
+
+def test_real_trusted_facts_are_field_and_source_audit_bound() -> None:
+    """Exclude unaudited packet prose and do not expose source URLs as locators."""
+
+    repository = EvidenceRepository(
+        PROJECT_ROOT / "semantic_alignment_research" / "quote_research_full_001",
+        factual_evidence_path=PROJECT_ROOT / "reply_factual_evidence.json",
+    )
+    trusted = [
+        passage
+        for passage in repository.passages.values()
+        if repository.passage_is_trusted_fact(passage)
+    ]
+    cited_bad_quote_id = (
+        "0056972ab9debcb840c36ac23ad0387e715cb22fc4ed49dbcf35159f83592aa5"
+    )
+
+    assert trusted
+    assert cited_bad_quote_id in repository.packets
+    assert any(passage.field == "factual_evidence" for passage in trusted)
+    assert all(passage.field != "quote_text" for passage in trusted)
+    assert all(
+        passage.quote_id != cited_bad_quote_id
+        for passage in trusted
+    )
+    assert all(
+        not repository.passage_is_trusted_fact(passage)
+        for passage in repository.passages.values()
+        if passage.quote_id == cited_bad_quote_id
+    )
+    assert all(
+        not passage.stable_locator.startswith(("http://", "https://"))
+        for passage in trusted
+    )
+    for passage in trusted:
+        if passage.field == "factual_evidence":
+            continue
+        packet = repository.packets[passage.quote_id]
+        source = repository._trusted_packet_field_source(
+            packet,
+            field=passage.field,
+        )
+        audited_claims = TRUSTED_FACT_AUDIT_CLAIMS[passage.field]
+        required_claims = set(audited_claims)
+        assert source is not None
+        assert required_claims <= set(source["claims_supported"])
+        assert passage.stable_locator == (
+            str(source.get("stable_locator") or "")
+            or str(source.get("public_title") or source.get("source_title") or "")
+            or f"retained source {str(source.get('source_id') or '')[:16]}"
+        )
+        assert all(
+            packet["_source_role_audit"]["confidence_after"][claim]
+            in {"medium", "high"}
+            for claim in audited_claims
+        )
+
+
+def test_audit_source_identity_mutation_invalidates_persisted_fact_binding() -> None:
+    """Bind durable facts to the selected audit record, not display text alone."""
+
+    quote_id = "3cced21d7f9bc45fd5479288c7b413bad5e0e48fcf71f103251b6284c8528f12"
+
+    def repository_for(packet: dict[str, object]) -> EvidenceRepository:
+        repository = object.__new__(EvidenceRepository)
+        repository.packets = {quote_id: packet}
+        repository.passages = {}
+        repository._passage_tokens = {}
+        repository._authorised_quote_texts = {}
+        repository._authorised_quote_words = {}
+        repository._quote_match_texts = {}
+        repository._passages_by_quote = {}
+        repository._build_indexes()
+        return repository
+
+    complete = EvidenceRepository(
+        PROJECT_ROOT / "semantic_alignment_research" / "quote_research_full_001",
+        factual_evidence_path=PROJECT_ROOT / "reply_factual_evidence.json",
+    )
+    original_packet = copy.deepcopy(complete.packets[quote_id])
+    original = repository_for(original_packet)
+    original_passage = next(
+        passage
+        for passage in original._passages_by_quote[quote_id]
+        if passage.field == "verified_text"
+    )
+    assert original.passage_is_trusted_fact(original_passage)
+
+    compact, fact_map = pipeline.compact_fact_records(
+        [original_passage.prompt_record()]
+    )
+    source_context = context()
+    visible = pipeline.bound_visible_conversation(
+        source_context["visible_conversation"],
+        target_post_id=source_context["target_id"],
+    )
+    payload = {
+        "lane": source_context["lane"],
+        "identities": {
+            "target_post_id": source_context["target_id"],
+            "root_post_id": source_context["root_post_id"],
+            "parent_post_id": source_context["parent_post_id"],
+        },
+        "visible_conversation": visible,
+        "trusted_facts": compact,
+    }
+    output = {
+        "decision": "reply",
+        "reply_kind": "principle",
+        "reply": "Responsibility matters more than rhetoric.",
+        "used_fact_ids": ["F1"],
+        "reason_code": "useful_reply",
+    }
+    draft = pipeline.create_durable_draft(
+        output=output,
+        payload=payload,
+        fact_map=fact_map,
+        images=[],
+        target_author_id=source_context["target_author_id"],
+    )
+    pipeline.validate_persisted_draft(
+        draft,
+        context=source_context,
+        repository=original,
+    )
+
+    source = EvidenceRepository._trusted_packet_field_source(
+        original_packet,
+        field="verified_text",
+    )
+    assert source is not None
+    source_id = source["source_id"]
+    for mutation in ("source_id", "source_fingerprint", "policy_version"):
+        changed_packet = copy.deepcopy(original_packet)
+        matching_sources = [
+            item
+            for item in changed_packet["_source_role_audit"]["renderable_sources"]
+            if item.get("source_id") == source_id
+        ]
+        assert len(matching_sources) == 1
+        if mutation == "source_id":
+            matching_sources[0]["source_id"] = "f" * 64
+        elif mutation == "source_fingerprint":
+            matching_sources[0]["source_fingerprint"] = "e" * 64
+        else:
+            changed_packet["_source_role_audit"]["policy_version"] += "-changed"
+        changed = repository_for(changed_packet)
+        changed_passage = next(
+            passage
+            for passage in changed._passages_by_quote[quote_id]
+            if passage.field == "verified_text"
+        )
+
+        assert changed_passage.source_title == original_passage.source_title
+        assert changed_passage.stable_locator == original_passage.stable_locator
+        assert changed_passage.source_hash != original_passage.source_hash
+        assert changed_passage.evidence_id != original_passage.evidence_id
+        with pytest.raises(ValueError, match="source record changed"):
+            pipeline.validate_persisted_draft(
+                draft,
+                context=source_context,
+                repository=changed,
+            )
+
+
+def test_quoted_subject_is_separate_retrieval_input_and_draft_binding() -> None:
+    """Keep the verified reply path while binding one labelled quoted branch."""
+
+    repository = FakeRepository(2)
+    source = context(turns=4)
+    source["quoted_post"] = {
+        "post_id": "quoted-900",
+        "author_role": "other_user",
+        "text": "A separately quoted proposition.",
+    }
+    source["quoted_post_id"] = "quoted-900"
+    source["quoted_post_relationship"] = "target_quote"
+    payload, fact_map = pipeline.build_model_payload(
+        context=source,
+        repository=repository,
+    )
+
+    assert [turn["post_id"] for turn in payload["visible_conversation"]] == [
+        "post-1",
+        "post-2",
+        "post-3",
+        "target",
+    ]
+    assert payload["quoted_subject"] == {
+        "relationship": "target_quote",
+        "post_id": "quoted-900",
+        "role": "other_user",
+        "text": "A separately quoted proposition.",
+    }
+    assert repository.last_query is not None
+    assert "A separately quoted proposition." in repository.last_query
+    canonical = pipeline.canonical_bytes(payload).decode("utf-8")
+    assert canonical.count("What principle matters here?") == 1
+    assert canonical.count("A separately quoted proposition.") == 1
+
+    output = pipeline.validate_model_output(raw_decision(), payload=payload)
+    draft = pipeline.create_durable_draft(
+        output=output,
+        payload=payload,
+        fact_map=fact_map,
+        images=[],
+        target_author_id="200",
+    )
+    pipeline.validate_persisted_draft(
+        draft,
+        context=source,
+        repository=repository,
+    )
+    changed = copy.deepcopy(source)
+    changed["quoted_post"]["text"] = "A changed quoted proposition."
+    with pytest.raises(ValueError, match="context mismatch"):
+        pipeline.validate_persisted_draft(
+            draft,
+            context=changed,
+            repository=repository,
+        )
+    mismatched_identity = copy.deepcopy(source)
+    mismatched_identity["quoted_post_id"] = "quoted-901"
+    with pytest.raises(
+        pipeline.ContextValidationError,
+        match="identities disagree",
+    ):
+        pipeline.build_model_payload(
+            context=mismatched_identity,
+            repository=repository,
+        )
+
+
+def test_mixed_image_provenance_is_bound_to_payload_request_and_draft() -> None:
+    """Bind target/quote image order without a second text or model request."""
+
+    source = context(turns=2)
+    source["quoted_post"] = {
+        "post_id": "quoted-900",
+        "author_role": "other_user",
+        "text": "Quoted image subject.",
+    }
+    source["quoted_post_relationship"] = "target_quote"
+    images = [
+        {
+            "identity": "target-image",
+            "mime_type": "image/png",
+            "data": b"\x89PNG\r\n\x1a\ntarget",
+            "attachment_role": "target_contribution",
+            "source_post_id": "target",
+        },
+        {
+            "identity": "quote-image",
+            "mime_type": "image/jpeg",
+            "data": b"\xff\xd8\xffquoted",
+            "attachment_role": "quoted_subject",
+            "source_post_id": "quoted-900",
+        },
+    ]
+    calls: list[dict[str, object]] = []
+
+    def transport(**kwargs: object) -> dict[str, object]:
+        calls.append(copy.deepcopy(kwargs))
+        return {"response": response_envelope(raw_decision())}
+
+    result = pipeline.run_reply_pipeline(
+        context=source,
+        config=enabled_config(),
+        repository=FakeRepository(),
+        transport=transport,
+        supplied_images=images,
+    )
+
+    assert result.status == "reply"
+    assert len(calls) == 1
+    content = calls[0]["request"]["input"][0]["content"]
+    assert [item["type"] for item in content] == [
+        "input_text",
+        "input_image",
+        "input_image",
+    ]
+    model_payload = json.loads(content[0]["text"])
+    assert model_payload["supplied_images"] == [
+        {
+            "attachment_role": "target_contribution",
+            "image_index": 1,
+            "source_post_id": "target",
+        },
+        {
+            "attachment_role": "quoted_subject",
+            "image_index": 2,
+            "source_post_id": "quoted-900",
+        },
+    ]
+    assert result.reply is not None
+    assert [
+        (item["attachment_role"], item["source_post_id"])
+        for item in result.reply.draft_record["supplied_images"]
+    ] == [
+        ("target_contribution", "target"),
+        ("quoted_subject", "quoted-900"),
+    ]
+
+
+@pytest.mark.parametrize(
+    "images",
+    [
+        [
+            {
+                "identity": "wrong-target",
+                "mime_type": "image/png",
+                "data": b"\x89PNG\r\n\x1a\nwrong",
+                "attachment_role": "target_contribution",
+                "source_post_id": "someone-else",
+            }
+        ],
+        [
+            {
+                "identity": "quote-first",
+                "mime_type": "image/jpeg",
+                "data": b"\xff\xd8\xffquote",
+                "attachment_role": "quoted_subject",
+                "source_post_id": "quoted-900",
+            },
+            {
+                "identity": "target-second",
+                "mime_type": "image/png",
+                "data": b"\x89PNG\r\n\x1a\ntarget",
+                "attachment_role": "target_contribution",
+                "source_post_id": "target",
+            },
+        ],
+    ],
+)
+def test_image_provenance_rejects_wrong_subject_or_order(
+    images: list[dict[str, object]],
+) -> None:
+    """Fail before provider work if image provenance is not candidate-bound."""
+
+    source = context(turns=2)
+    source["quoted_post"] = {
+        "post_id": "quoted-900",
+        "author_role": "other_user",
+        "text": "Quoted image subject.",
+    }
+    source["quoted_post_relationship"] = "target_quote"
+    calls: list[object] = []
+    result = pipeline.run_reply_pipeline(
+        context=source,
+        config=enabled_config(),
+        repository=FakeRepository(),
+        transport=lambda **kwargs: calls.append(kwargs),
+        supplied_images=images,
+    )
+    assert result.status == "operational_failure"
+    assert result.error_category == "context_validation"
+    assert calls == []
 
 
 def test_text_candidate_builds_one_exact_responses_request() -> None:
@@ -498,13 +951,26 @@ def test_image_candidate_is_one_multimodal_request() -> None:
                 "identity": "media-1",
                 "mime_type": "image/png",
                 "data": b"\x89PNG\r\n\x1a\nvalidated-test-bytes",
+                "attachment_role": "target_contribution",
+                "source_post_id": "target",
             }
         ],
     )
     assert result.status == "reply"
     assert len(calls) == 1
     content = calls[0]["request"]["input"][0]["content"]
-    assert [item["type"] for item in content] == ["input_text", "input_image"]
+    assert [item["type"] for item in content] == [
+        "input_text",
+        "input_image",
+    ]
+    supplied_image_context = json.loads(content[0]["text"])["supplied_images"]
+    assert supplied_image_context == [
+        {
+            "attachment_role": "target_contribution",
+            "image_index": 1,
+            "source_post_id": "target",
+        }
+    ]
     assert content[1]["image_url"].startswith("data:image/png;base64,")
 
 
@@ -523,8 +989,40 @@ def test_direct_factual_requires_one_supplied_unique_fact() -> None:
             raw_decision(kind="direct_factual", facts=["F99"]), payload=payload
         )
     assert pipeline.validate_model_output(
-        raw_decision(kind="direct_factual", facts=["F1"]), payload=payload
+        raw_decision(
+            kind="direct_factual",
+            reply="Trusted passage 1.",
+            facts=["F1"],
+        ),
+        payload=payload,
     )["used_fact_ids"] == ["F1"]
+
+
+def test_duplicate_fact_ids_are_local_validation_not_provider_schema_failure() -> None:
+    """Classify unsupported provider-side uniqueness as a local mechanical veto."""
+
+    payload, _mapping = pipeline.build_model_payload(
+        context=context(), repository=FakeRepository()
+    )
+    with pytest.raises(pipeline.ReplyValidationError) as duplicate:
+        pipeline.validate_model_output(
+            raw_decision(
+                kind="direct_factual",
+                reply="Trusted passage 1.",
+                facts=["F1", "F1"],
+            ),
+            payload=payload,
+        )
+    assert duplicate.value.errors == ("duplicate_used_fact_ids",)
+    assert duplicate.value.category == "local_validation"
+
+    with pytest.raises(pipeline.ReplyValidationError) as malformed:
+        pipeline.validate_model_output(
+            raw_decision(facts=["not-a-schema-fact-id"]),
+            payload=payload,
+        )
+    assert "invalid_used_fact_ids" in malformed.value.errors
+    assert malformed.value.category == "schema_validation"
 
 
 def test_same_author_reply_remains_part_of_local_duplicate_validation() -> None:
@@ -545,6 +1043,27 @@ def test_same_author_reply_remains_part_of_local_duplicate_validation() -> None:
     assert "exact_duplicate_reply" in raised.value.errors
 
 
+def test_account_quoted_subject_remains_part_of_local_duplicate_validation() -> None:
+    """Exclude quote prose from history fields without weakening validation."""
+
+    source = context(turns=1)
+    source["quoted_post"] = {
+        "post_id": "quoted-account-reply",
+        "author_role": "account",
+        "text": "Responsibility matters more than rhetoric.",
+    }
+    source["quoted_post_id"] = "quoted-account-reply"
+    source["quoted_post_relationship"] = "target_quote"
+    payload, _mapping = pipeline.build_model_payload(
+        context=source,
+        repository=FakeRepository(),
+    )
+
+    with pytest.raises(pipeline.ReplyValidationError) as raised:
+        pipeline.validate_model_output(raw_decision(), payload=payload)
+    assert "exact_duplicate_reply" in raised.value.errors
+
+
 @pytest.mark.parametrize(
     "address",
     [
@@ -552,14 +1071,56 @@ def test_same_author_reply_remains_part_of_local_duplicate_validation() -> None:
         "www.example.com",
         "example.com",
         "name@example.com",
+        "user@品牌。中国",
+        "user＠品牌。中国",
         "192.0.2.1",
         "2001:db8::1",
         "xn--bcher-kva.example",
         "bücher.de",
         "例子.测试",
         "例子。测试",
+        "例子。中国",
+        "example。com",
+        "ｅｘａｍｐｌｅ．ｃｏｍ",
+        "请看 例子.测试，获取详情。",
         "пример.рф",
+        "Смотрите пример.рф, пожалуйста.",
+        "почта。рф/path",
+        "網站。台灣",
         "مثال.إختبار",
+        "مثال。موقع",
+        "品牌.online",
+        "café.london",
+        "Visit “品牌。中国” now.",
+        "Website: 品牌。中国",
+        "The website is 品牌。中国.",
+        "We saw “新聞。香港” yesterday.",
+        "Use 新聞。香港, please.",
+        "We saw 新聞。香港.",
+        "The address is 新聞。香港, which works.",
+        "The URL is 新聞。香港, which works.",
+        "The link is 新聞。香港, which works.",
+        "The hostname is 新聞。香港, which works.",
+        "网址是 品牌。中国，可查看。",
+        "网站是 品牌。中国 可访问。",
+        "域名是 品牌。中国，欢迎访问。",
+        "URL: 品牌。中国",
+        "Link: 品牌。中国",
+        "Go to 品牌。中国 now.",
+        "新聞。香港./path",
+        "新聞。香港。/path",
+        "新聞。香港.?q=1",
+        "新聞。香港.:443",
+        "网址是品牌。中国，可查看。",
+        "网站是品牌。中国，可访问。",
+        "域名是品牌。中国，欢迎访问。",
+        "请访问品牌。中国，获取详情。",
+        "請訪問品牌。中國，了解詳情。",
+        "访问品牌。中国即可。",
+        "Read abc。中国 now.",
+        "See abc。中国 for details.",
+        "Use abc。中国, please.",
+        "Find abc。中国 online.",
     ],
 )
 def test_real_links_domains_email_and_network_addresses_are_rejected(
@@ -597,6 +1158,199 @@ def test_foreign_language_prose_is_not_rejected(reply: str) -> None:
     assert pipeline.validate_model_output(
         raw_decision(reply=reply), payload=payload
     )["reply"] == reply
+
+
+@pytest.mark.parametrize(
+    "reply",
+    [
+        "这是第一点。中国，当然也不例外。",
+        "原则很清楚。公司，应承担责任。",
+        "这是版本2。公司，应承担责任。",
+        "这是A。中国，也不例外。",
+        "我认为 这是第一点。中国 也不例外。",
+        "请访问这一原则。公司，应承担责任。",
+        "访问权很重要。公司，应当尊重它。",
+        "访问自由很重要。中国，也不例外。",
+        "网站监管很重要。中国，也有规则。",
+        "域名制度很重要。公司，应承担责任。",
+        "访问公共服务很重要。政府，应保障公平。",
+        "See principle。中国，也不例外。",
+        "网址是 公共资源。中国，应加强监管。",
+    ],
+)
+def test_cjk_sentence_stops_before_idn_words_remain_prose(reply: str) -> None:
+    """Do not reinterpret ordinary CJK clauses as internationalised hosts."""
+
+    payload, _mapping = pipeline.build_model_payload(
+        context=context(), repository=FakeRepository()
+    )
+    assert pipeline.contains_link_or_address(reply) is False
+    assert pipeline.validate_model_output(
+        raw_decision(reply=reply), payload=payload
+    )["reply"] == reply
+
+
+@pytest.mark.parametrize(
+    "address",
+    [
+        "網站。台灣",
+        "网址。中国",
+        "郵件。公司",
+        "책。한국",
+        "“新聞。香港”",
+        "(新聞。香港)",
+        "新聞。香港,",
+        "新聞。香港，",
+        "新聞。香港/path",
+        "新聞。香港:443",
+        "新聞.香港",
+        "“新聞.香港”",
+        "新聞.香港/path",
+    ],
+)
+def test_bare_ambiguous_cjk_hostname_form_is_rejected(address: str) -> None:
+    """Bias a whole two-label U+3002 token toward explicit address safety."""
+
+    assert pipeline.contains_link_or_address(address) is True
+
+
+@pytest.mark.parametrize(
+    "reply",
+    [
+        "A practical example, e.g. thrift, remains useful.",
+        "「責任が大切です。原則は行動を導きます。」",
+    ],
+)
+def test_sentence_count_accepts_abbreviations_and_unicode_closers(
+    reply: str,
+) -> None:
+    """Do not manufacture extra sentences from punctuation conventions."""
+
+    payload, _mapping = pipeline.build_model_payload(
+        context=context(), repository=FakeRepository()
+    )
+    assert pipeline.sentence_count(reply) <= pipeline.MAX_REPLY_SENTENCES
+    assert pipeline.validate_model_output(
+        raw_decision(reply=reply), payload=payload
+    )["reply"] == reply
+
+
+@pytest.mark.parametrize(
+    "reply",
+    [
+        "Mrs. Thatcher was right. We agree.",
+        "Mr. Smith agrees. We proceed.",
+        "The U.K. Government should act. Responsibility matters.",
+        "At 3 p.m. London responded. We noticed.",
+        "For example, e.g. Thatcher’s reforms mattered. We agree.",
+        "That is, i.e. Thatcher’s point stands. We agree.",
+        "The U.K. Labour Party should listen. Responsibility matters.",
+        "The U.S. Federal Reserve acted. We agree.",
+        "The U.S. Senate acted. We agree.",
+        "The E.U. Council acted. We agree.",
+        "The U.N. Security Council acted. We agree.",
+        "The meeting starts at 3 p.m. London time. We agree.",
+        "The deadline is 5 p.m. BST. We agree.",
+        "The vote is at 7:30 a.m. Westminster time. We agree.",
+        "Meet at 3 p.m. London time. We agree.",
+        "The U.S. “Inflation Reduction Act” passed. We agree.",
+        "The U.K. (London especially) needs reform. We agree.",
+        "Dr. “Thatcher” spoke. We agreed.",
+        "U.K.–based policy matters. We agree.",
+        "The value is ２．５. We agree.",
+        "J. Smith spoke. We agreed.",
+        "A. Smith spoke. We agreed.",
+        "At 3 p.m. (London time) we left. We agreed.",
+        "The U.K. «Government policy» matters. We agree.",
+        "Dr. «Thatcher» spoke. We agreed.",
+        "The Govt. Department acted. We agreed.",
+    ],
+)
+def test_sentence_count_accepts_clear_capitalised_abbreviation_continuations(
+    reply: str,
+) -> None:
+    """Recognise common title, entity and clause-initial time continuations."""
+
+    payload, _mapping = pipeline.build_model_payload(
+        context=context(), repository=FakeRepository()
+    )
+    assert pipeline.sentence_count(reply) == 2
+    assert pipeline.validate_model_output(
+        raw_decision(reply=reply), payload=payload
+    )["reply"] == reply
+
+
+@pytest.mark.parametrize(
+    "reply",
+    [
+        "We met at 3 p.m. It mattered. We left.",
+        "He lives in the U.K. It matters. We agree.",
+        "A. It works. It is fine.",
+        "Prof. She agrees. We proceed.",
+        "I live in the U.K. “It is cold.” It is wet.",
+        "I live in the U.K. (It is cold.) It is wet.",
+        "I live in the U.K. 2025 was cold. It changed.",
+        "He lives in the U.K.It matters. We agree.",
+        "A.It works. It is fine.",
+        "Prof.She agrees. We proceed.",
+        "I live in the U.K.“It is cold.” It is wet.",
+        "At 3 p.m. It mattered. We left.",
+        "By 5 p.m. We stopped. They left.",
+        "Around 7 a.m. However, rain fell. We stayed.",
+        "We met at 3 p.m. London called. We left.",
+        "It ended at 5 p.m. Parliament adjourned. We left.",
+        "A. “Boris agreed.” We left.",
+        "Prof. “Boris agreed.” We left.",
+        "For example, e.g. “Boris agreed.” We left.",
+        "The U.K. It matters. We agree.",
+        "The U.S. This matters. We agree.",
+        "That is, i.e. This matters. We agree.",
+        "Option A. Responsibility matters. We agree.",
+        "Choose A. Responsibility matters. We agree.",
+        "The answer is A. Responsibility matters. We agree.",
+        "The answer is no. 10 people agree. We proceed.",
+        "I said no. 10 colleagues agreed. We left.",
+        "Πρώτη ερώτηση; Δεύτερη; Τρίτη;",
+        "One‽ Two‽ Three‽",
+        "First․ Second․ Third․",
+        "First︙ Second︙ Third︙",
+        "ראשון׃ שני׃ שלישי׃",
+        "དང་པོ། གཉིས་པ། གསུམ་པ།",
+    ],
+)
+def test_sentence_count_rejects_unicode_or_abbreviated_three_sentences(
+    reply: str,
+) -> None:
+    """Keep the two-sentence ceiling across scripts and abbreviations."""
+
+    payload, _mapping = pipeline.build_model_payload(
+        context=context(), repository=FakeRepository()
+    )
+    assert pipeline.sentence_count(reply) == 3
+    with pytest.raises(pipeline.ReplyValidationError) as raised:
+        pipeline.validate_model_output(raw_decision(reply=reply), payload=payload)
+    assert "reply_sentence_limit_exceeded" in raised.value.errors
+
+
+def test_inverted_question_mark_is_not_a_sentence_terminator() -> None:
+    """Count Spanish opening punctuation only at the closing question mark."""
+
+    reply = "¿Qué tal? Bien."
+    assert pipeline.sentence_count(reply) == 2
+
+
+@pytest.mark.parametrize("separator", ["\N{LINE SEPARATOR}", "\N{PARAGRAPH SEPARATOR}"])
+def test_unicode_line_separators_are_rejected(separator: str) -> None:
+    """Treat Unicode line and paragraph separators as prohibited line breaks."""
+
+    payload, _mapping = pipeline.build_model_payload(
+        context=context(), repository=FakeRepository()
+    )
+    with pytest.raises(pipeline.ReplyValidationError) as raised:
+        pipeline.validate_model_output(
+            raw_decision(reply=f"First{separator}Second"), payload=payload
+        )
+    assert "reply_contains_line_break" in raised.value.errors
 
 
 def test_no_reply_is_editorial_but_invalid_output_is_operational() -> None:
@@ -686,15 +1440,24 @@ def test_validated_draft_recovers_without_transport() -> None:
         result.reply.draft_record,
         context=source_context,
         repository=repository,
-        recent_account_replies=[
-            {"post_id": "later", "text": str(result.reply)}
-        ],
     )
     assert calls == 1
     assert draft["validated_draft_hash"] == result.reply.draft_record[
         "validated_draft_hash"
     ]
     assert draft["model_call_count"] == 1
+    with pytest.raises(
+        pipeline.ReplyValidationError,
+        match="exact_duplicate_reply",
+    ):
+        pipeline.validate_persisted_draft(
+            result.reply.draft_record,
+            context=source_context,
+            repository=repository,
+            recent_account_replies=[
+                {"post_id": "later", "text": str(result.reply)}
+            ],
+        )
 
     mismatched_context = copy.deepcopy(source_context)
     mismatched_context["target_author_id"] = "201"

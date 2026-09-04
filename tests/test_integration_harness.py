@@ -16,6 +16,11 @@ import pytest
 from remote_write_safety_protocol import (
     ACTIVATION_BASENAME as REMOTE_WRITE_SAFETY_PROTOCOL_ACTIVATION_BASENAME,
 )
+from historical_context_source_recovery import (
+    RECOVERY_FILENAME,
+    recover_saved_source_evidence,
+)
+from historical_context_source_roles import AUDIT_FILENAME, build_audit
 from tests.fake_api_server import FakeApiServer, load_scenario
 from tests.helpers.protocol_activation import create_test_protocol_activation
 
@@ -136,6 +141,20 @@ def write_minimal_asset_analysis(base_dir: Path) -> None:
             "unresolved_quotes": 0,
         },
     )
+    write_json(research_dir / "grounding_sources.json", {})
+    recovery = recover_saved_source_evidence(
+        research_dir,
+        {quote_hash: packet},
+    )
+    write_json(research_dir / RECOVERY_FILENAME, recovery)
+    source_role_audit = build_audit(
+        {quote_hash: packet},
+        set(),
+        research_dir=research_dir,
+        attribution_eligible_ids={quote_hash},
+        recovered_evidence=recovery,
+    )
+    write_json(research_dir / AUDIT_FILENAME, source_role_audit)
     runtime_manifest = (
         base_dir
         / "semantic_alignment_research"

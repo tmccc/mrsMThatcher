@@ -32,13 +32,13 @@ from typing import Any, Callable, Iterable, Iterator, Mapping, Sequence
 from zoneinfo import ZoneInfo
 
 
-SCHEMA_VERSION = 4
-EXTRACTOR_VERSION = "prospective-conversation-extractor-v4"
-PARSER_VERSION = "prospective-conversation-log-parser-v4"
+SCHEMA_VERSION = 5
+EXTRACTOR_VERSION = "prospective-conversation-extractor-v5"
+PARSER_VERSION = "prospective-conversation-log-parser-v5"
 REGISTERED_REBUILD_SOURCE = (
-    3,
-    "prospective-conversation-extractor-v3",
-    "prospective-conversation-log-parser-v3",
+    4,
+    "prospective-conversation-extractor-v4",
+    "prospective-conversation-log-parser-v4",
 )
 HASH_BLOCK_SIZE = 1024 * 1024
 X_SNOWFLAKE_EPOCH_MS = 1_288_834_974_657

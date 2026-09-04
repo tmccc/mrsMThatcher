@@ -285,7 +285,7 @@ def test_canonical_user_units_cover_live_services_without_secrets() -> None:
         "ExecStart=/usr/bin/python3 "
         "/disks/disk1/etc/mrsMThatcher/tools/extract_prospective_conversations.py "
         "scan --project-dir /disks/disk1/etc/mrsMThatcher "
-        "--output-root /disks/disk1/research/mrsMThatcher-prospective-conversations-v4 "
+        "--output-root /disks/disk1/research/mrsMThatcher-prospective-conversations-v5 "
         "--prospective-start 2026-08-24T15:08:39Z --quiescence-hours 48"
     )
     assert expected_exec in prospective
@@ -303,7 +303,7 @@ def test_canonical_user_units_cover_live_services_without_secrets() -> None:
         line for line in prospective.splitlines() if line.startswith("ReadWritePaths=")
     ]
     assert read_write_lines == [
-        "ReadWritePaths=/disks/disk1/research/mrsMThatcher-prospective-conversations-v4"
+        "ReadWritePaths=/disks/disk1/research/mrsMThatcher-prospective-conversations-v5"
     ]
     assert "ProtectSystem=strict" in prospective
     assert "UMask=0077" in prospective
@@ -340,7 +340,7 @@ def test_user_unit_installer_prepares_and_gates_scheduled_tasks() -> None:
     assert 'OPENAI_COST_DIR="${HOME}/.local/state/mrsMThatcher/openai-costs"' in installer
     assert (
         'PROSPECTIVE_CONVERSATION_DIR="${MRS_PROSPECTIVE_CONVERSATION_DIR:-'
-        '/disks/disk1/research/mrsMThatcher-prospective-conversations-v4}"'
+        '/disks/disk1/research/mrsMThatcher-prospective-conversations-v5}"'
         in installer
     )
     assert (
@@ -369,8 +369,8 @@ def test_user_unit_installer_prepares_and_gates_scheduled_tasks() -> None:
     assert "systemctl --user enable --now mrs-openai-cost-cache.timer" in installer
     assert "systemctl --user enable --now mrs-prospective-conversations.timer" not in installer
     assert "systemctl --user start mrs-prospective-conversations.service" not in installer
-    assert "left prospective conversation v4 root absent for registered rebuild" in installer
-    assert "documented v3-to-v4 rebuild" in installer
+    assert "left prospective conversation v5 root absent for registered rebuild" in installer
+    assert "documented v4-to-v5 rebuild" in installer
     assert "mrs-prospective-conversations.service" in installer
     assert "mrs-prospective-conversations.timer" in installer
 
@@ -469,7 +469,7 @@ def test_user_unit_installer_reports_runtime_readiness_without_activating_units(
     cost_dir = tmp_path / "home" / ".local" / "state" / "mrsMThatcher" / "openai-costs"
     assert cost_dir.stat().st_mode & 0o777 == 0o700
     assert not prospective_dir.exists()
-    assert "left prospective conversation v4 root absent for registered rebuild" in result.stdout
+    assert "left prospective conversation v5 root absent for registered rebuild" in result.stdout
     assert "enable --now mrs-prospective-conversations.timer" not in result.stdout
     assert "start mrs-prospective-conversations.service" not in result.stdout
     assert "enable each desired unit separately" in result.stdout
@@ -549,6 +549,47 @@ def test_openai_collector_environment_example_contains_only_placeholders() -> No
     assert "OPENAI_ADMIN_API_KEY=\n" in example
     assert "OPENAI_COST_PROJECT_ID=\n" in example
     assert "proj_" not in example
+
+
+def test_readme_deploys_complete_single_call_evidence_closure() -> None:
+    """Keep every fail-closed runtime evidence input in the coherent file set."""
+
+    readme = (PROJECT_DIR / "README.md").read_text(encoding="utf-8")
+    coherent_set = readme.split("## Files To Keep Together", 1)[1].split(
+        "The offline research and benchmark implementation", 1
+    )[0]
+    required = {
+        "reply_factual_evidence.json",
+        "semantic_alignment_research/quote_research_full_001/corpus_manifest.json",
+        "semantic_alignment_research/quote_research_full_001/grounding_sources.json",
+        "semantic_alignment_research/quote_research_full_001/historical_context_packet_corrections.json",
+        "semantic_alignment_research/quote_research_full_001/historical_context_source_curated_evidence.json",
+        "semantic_alignment_research/quote_research_full_001/historical_context_source_independent_review.json",
+        "semantic_alignment_research/quote_research_full_001/historical_context_source_openai_research.json",
+        "semantic_alignment_research/quote_research_full_001/historical_context_source_recovery.json",
+        "semantic_alignment_research/quote_research_full_001/historical_context_source_research.json",
+        "semantic_alignment_research/quote_research_full_001/historical_context_source_resolution.json",
+        "semantic_alignment_research/quote_research_full_001/historical_context_source_role_audit.json",
+        "semantic_alignment_research/quote_research_full_001/research_packets.json",
+        "semantic_alignment_research/quote_research_full_001/final_unresolved/final_research_status.json",
+    }
+
+    assert all(f"`{relative_path}`" in coherent_set for relative_path in required)
+    assert all((PROJECT_DIR / relative_path).is_file() for relative_path in required)
+
+
+def test_readme_quiesces_v4_extractor_before_first_v5_deployment() -> None:
+    """Prevent the scheduled collector racing its registered schema rebuild."""
+
+    readme = (PROJECT_DIR / "README.md").read_text(encoding="utf-8")
+    deployment = " ".join(
+        readme.split("## Routine deployment of an already-tested commit", 1)[1].split()
+    )
+
+    assert "disable and stop `mrs-prospective-conversations.timer` before step 7" in deployment
+    assert "verify that no extractor oneshot remains active" in deployment
+    assert "ordered v4-to-v5 rebuild, validation, manual oneshot" in deployment
+    assert "Enable the hourly timer only after those checks succeed" in deployment
 
 
 def test_local_config_example_covers_current_optional_selection_features() -> None:

@@ -2,8 +2,11 @@ from __future__ import annotations
 
 import copy
 import json
+import os
 import random
 import socket
+import subprocess
+import sys
 from contextlib import contextmanager
 from pathlib import Path
 
@@ -26,6 +29,36 @@ DETERMINISTIC_FLAGS = {
     "GENERATED_IDENTITY_SHADOW_SMALL_PENALTY": 6.0,
     "GENERATED_IDENTITY_SHADOW_STRONG_PENALTY": 15.0,
 }
+
+
+def test_production_bot_import_is_safe_without_inherited_openai_environment(
+    tmp_path: Path,
+) -> None:
+    env = os.environ.copy()
+    env.pop("OPENAI_API_BASE_URL", None)
+    env.pop("OPENAI_API_KEY", None)
+    env["MRS_TEST_SESSION_DIR"] = str(tmp_path)
+    script = """
+import os
+from pathlib import Path
+from tools import simulate_regular_post_futures as simulator
+
+bot = simulator.import_production_bot(Path(os.environ["MRS_TEST_SESSION_DIR"]))
+assert bot.OPENAI_BASE == "http://127.0.0.1:9/v1"
+assert bot.OPENAI_API_KEY == "simulator-disabled"
+"""
+
+    result = subprocess.run(
+        [sys.executable, "-c", script],
+        cwd=ROOT,
+        env=env,
+        text=True,
+        capture_output=True,
+        timeout=30,
+        check=False,
+    )
+
+    assert result.returncode == 0, result.stderr + result.stdout
 
 
 def build_simulator_snapshot(tmp_path_factory: pytest.TempPathFactory) -> Path:

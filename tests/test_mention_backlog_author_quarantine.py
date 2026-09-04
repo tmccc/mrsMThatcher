@@ -15,6 +15,9 @@ from single_call_reply import ValidatedReply
 
 
 LONDON = ZoneInfo("Europe/London")
+F909_SINGLE_SOL_STATE_FIXTURE = (
+    Path(__file__).parent / "fixtures" / "f9099605_single_sol_state.json"
+)
 
 DIGEST_AUTHOR_NO_REPLY_EVIDENCE_POLICY = (
     "single_sol_explicit_spam_or_abuse_v2"
@@ -1376,6 +1379,86 @@ def test_immediately_previous_v3_quarantine_migrates_without_rejecting_state(
             "evidence_policy": bot.AUTHOR_EVALUATION_QUARANTINE_EVIDENCE_POLICY,
         }
     }
+
+
+def test_real_f909_single_sol_state_migrates_without_backup_rollback(
+    tmp_path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Load state emitted by f9099605's real writer and retain its sentinels."""
+
+    state_file = tmp_path / "bot_state.json"
+    fixture = json.loads(F909_SINGLE_SOL_STATE_FIXTURE.read_text(encoding="utf-8"))
+    state_file.write_text(
+        json.dumps(fixture, ensure_ascii=False, indent=2) + "\n",
+        encoding="utf-8",
+    )
+    state_file.with_name("bot_state.json.bak1").write_text(
+        json.dumps(fixture, ensure_ascii=False, indent=2) + "\n",
+        encoding="utf-8",
+    )
+    monkeypatch.setattr(bot, "STATE_FILE", state_file)
+    monkeypatch.setattr(bot, "STATE_BACKUP_COUNT", 1)
+    monkeypatch.setattr(bot, "now_epoch", lambda: 2_000_000_003)
+
+    loaded = bot.load_state()
+
+    assert loaded["last_seen_mention_id"] == "900"
+    assert loaded["replied_to_ids"] == ["501", "502"]
+    assert loaded["own_auto_reply_ids"] == ["601"]
+    assert loaded["daily_reply_count"] == 2
+    assert loaded["daily_replied_author_counts"] == {"200": 1, "201": 1}
+    assert loaded["hot_post_reply_since_ids"] == {"700": "800"}
+    assert loaded["hot_post_reply_check_counts"] == {"700": 4}
+    assert loaded["quote_lookup_pagination_tokens"] == {"600": "cursor-f909"}
+    assert loaded["author_evaluation_quarantines"] == {
+        "200": {
+            "recent_no_reply_epochs": [2_000_000_000],
+            "quarantine_until_epoch": 0,
+            "last_updated_epoch": 2_000_000_002,
+            "latest_explicit_spam_or_abuse_epoch": 2_000_000_000,
+            "evidence_policy": bot.AUTHOR_EVALUATION_QUARANTINE_EVIDENCE_POLICY,
+        }
+    }
+
+
+def test_f909_aged_explicit_epoch_does_not_reject_current_state(
+    tmp_path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Accept the exact aged-explicit shape produced by f909 pruning."""
+
+    start = 2_000_000_000
+    later_editorial_epoch = start + 5 * 60 * 60
+    prune_epoch = start + bot.AUTHOR_NO_REPLY_QUARANTINE_WINDOW_SECONDS + 1
+    state_file = tmp_path / "bot_state.json"
+    monkeypatch.setattr(bot, "STATE_FILE", state_file)
+    monkeypatch.setattr(bot, "STATE_BACKUP_COUNT", 0)
+    monkeypatch.setattr(bot, "now_epoch", lambda: prune_epoch)
+    state = bot.default_state()
+    state["last_seen_mention_id"] = "900"
+    # f909 could write this after an explicit spam decision at ``start``, a
+    # non-spam editorial decline five hours later, and a normal prune just
+    # beyond the six-hour window.  Its pruner removed the first timestamp but
+    # left latest_explicit_spam_or_abuse_epoch unchanged while the later broad
+    # timestamp kept the author record alive.
+    state["author_evaluation_quarantines"] = {
+        "200": {
+            "recent_no_reply_epochs": [later_editorial_epoch],
+            "quarantine_until_epoch": 0,
+            "last_updated_epoch": later_editorial_epoch,
+            "latest_explicit_spam_or_abuse_epoch": start,
+            "evidence_policy": (
+                bot.AUTHOR_EVALUATION_QUARANTINE_SINGLE_SOL_V1_EVIDENCE_POLICY
+            ),
+        }
+    }
+    bot.save_state(state, durable=True)
+
+    loaded = bot.load_state()
+
+    assert loaded["last_seen_mention_id"] == "900"
+    assert loaded["author_evaluation_quarantines"] == {}
 
 
 def test_previous_policy_active_quarantine_without_live_strikes_survives_restart(
@@ -3709,6 +3792,60 @@ def test_digest_strike_progress_migrates_valid_seeded_v2_policy_record() -> None
     assert progress["authors"][0]["author_id"] == "900"
     assert progress["authors"][0]["recent_qualifying_no_reply_epochs"] == epochs
     assert progress["authors"][0]["strike_count"] == 2
+
+
+def test_digest_accepts_real_f909_single_sol_quarantine_record() -> None:
+    """Report only the explicit strike retained by the f909 writer."""
+
+    state = json.loads(F909_SINGLE_SOL_STATE_FIXTURE.read_text(encoding="utf-8"))
+    generation_time = datetime.fromtimestamp(2_000_000_003, tz=LONDON)
+
+    progress = digest_author_no_reply_progress(state, generation_time)
+
+    assert_digest_author_no_reply_progress_header(
+        progress,
+        generation_time,
+        migrated_prior_policy_author_count=1,
+    )
+    assert progress["author_count"] == 1
+    assert progress["authors"][0]["author_id"] == "200"
+    assert progress["authors"][0]["recent_qualifying_no_reply_epochs"] == [
+        2_000_000_000
+    ]
+    assert progress["authors"][0]["quarantine_active"] is False
+
+
+def test_digest_accepts_f909_record_after_explicit_epoch_ages_out() -> None:
+    """Mirror production migration for a valid old-writer prune result."""
+
+    start = 2_000_000_000
+    later_editorial_epoch = start + 5 * 60 * 60
+    generation_time = datetime.fromtimestamp(
+        start + bot.AUTHOR_NO_REPLY_QUARANTINE_WINDOW_SECONDS + 1,
+        tz=LONDON,
+    )
+    record = {
+        "recent_no_reply_epochs": [later_editorial_epoch],
+        "quarantine_until_epoch": 0,
+        "last_updated_epoch": later_editorial_epoch,
+        "latest_explicit_spam_or_abuse_epoch": start,
+        "evidence_policy": (
+            bot.AUTHOR_EVALUATION_QUARANTINE_SINGLE_SOL_V1_EVIDENCE_POLICY
+        ),
+    }
+
+    progress = digest_author_no_reply_progress(
+        {"author_evaluation_quarantines": {"200": record}},
+        generation_time,
+    )
+
+    assert_digest_author_no_reply_progress_header(
+        progress,
+        generation_time,
+        migrated_prior_policy_author_count=1,
+    )
+    assert progress["author_count"] == 0
+    assert progress["authors"] == []
 
 
 def test_digest_strike_progress_rejects_seeded_v2_epoch_outside_strike_membership(

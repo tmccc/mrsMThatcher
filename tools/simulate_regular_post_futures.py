@@ -3,8 +3,8 @@
 
 The simulator reads one consistent snapshot of production inputs, then runs the
 real production selectors against private state. It never calls posting, upload,
-reply, lock, X, or xAI functions. All mutable writes are confined to one marked
-simulation session directory.
+reply, lock, X, or OpenAI functions. All mutable writes are confined to one
+marked simulation session directory.
 """
 
 from __future__ import annotations
@@ -384,7 +384,7 @@ def configure_session_logging(bot: Any, log_path: Path) -> None:
 
 def import_production_bot(session_dir: Path) -> Any:
     """Return the import production bot."""
-    import_base = Path("/tmp") / f"mrsMThatcher-simulator-{os.getpid()}"
+    import_base = session_dir / ".production-import"
     import_base.mkdir(parents=True, exist_ok=True)
     env = {
         "MRS_TEST_MODE": "1",
@@ -393,13 +393,13 @@ def import_production_bot(session_dir: Path) -> Any:
         "LOG_LEVEL": "CRITICAL",
         "X_API_BASE_URL": "http://127.0.0.1:9",
         "X_UPLOAD_BASE_URL": "http://127.0.0.1:9",
-        "XAI_API_BASE_URL": "http://127.0.0.1:9/v1",
+        "OPENAI_API_BASE_URL": "http://127.0.0.1:9/v1",
         "X_CONSUMER_KEY": "simulator-disabled",
         "X_CONSUMER_SECRET": "simulator-disabled",
         "X_ACCESS_TOKEN": "simulator-disabled",
         "X_ACCESS_SECRET": "simulator-disabled",
         "X_MY_USER_ID": "0",
-        "XAI_API_KEY": "simulator-disabled",
+        "OPENAI_API_KEY": "simulator-disabled",
         "X_BEARER_TOKEN": "simulator-disabled",
     }
     previous = {key: os.environ.get(key) for key in env}
@@ -2420,7 +2420,7 @@ def main(argv: list[str] | None = None) -> int:
             "production_source_sha256": sha256_file(ROOT / "mrsMThatcher2.py"),
             "simulator_source_sha256": sha256_file(Path(__file__)),
             "network_allowed": False,
-            "xai_calls_allowed": False,
+            "openai_calls_allowed": False,
         }
         if args.mode == "counterfactual":
             session_manifest["branch_rng_design"] = {

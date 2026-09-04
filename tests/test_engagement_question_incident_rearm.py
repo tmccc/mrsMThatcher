@@ -183,7 +183,7 @@ def incident_runtime(
     state.update(
         {
             "minimum_reader_version": (
-                bot.ENGAGEMENT_QUESTION_EXPERIMENT_STATE_MINIMUM_READER_VERSION
+                bot.STATE_MINIMUM_READER_VERSION
             ),
             "pending_reply_drafts": copy.deepcopy(
                 bot.STATE_READER_COMPATIBILITY_FENCE

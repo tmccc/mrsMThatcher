@@ -11,9 +11,9 @@ frozen boundary:
 2026-08-24T15:08:39Z
 ```
 
-The activation format is deliberately versioned as schema `4`, extractor
-`prospective-conversation-extractor-v4`, and parser
-`prospective-conversation-log-parser-v4`. State, cache entries, manifests,
+The activation format is deliberately versioned as schema `5`, extractor
+`prospective-conversation-extractor-v5`, and parser
+`prospective-conversation-log-parser-v5`. State, cache entries, manifests,
 status files, and canonical posts must match those versions exactly.
 
 Collection is descriptive. A newly collected conversation is not thereby a
@@ -64,13 +64,13 @@ The extractor never reads or changes:
 The scheduled output root is fixed at:
 
 ```text
-/disks/disk1/research/mrsMThatcher-prospective-conversations-v4
+/disks/disk1/research/mrsMThatcher-prospective-conversations-v5
 ```
 
 Its layout is:
 
 ```text
-mrsMThatcher-prospective-conversations-v4/
+mrsMThatcher-prospective-conversations-v5/
 ├── state/
 │   ├── extractor-state.json
 │   ├── pseudonym-key
@@ -411,7 +411,7 @@ Run a scan manually with the production settings:
 ```bash
 python3 tools/extract_prospective_conversations.py scan \
   --project-dir /disks/disk1/etc/mrsMThatcher \
-  --output-root /disks/disk1/research/mrsMThatcher-prospective-conversations-v4 \
+  --output-root /disks/disk1/research/mrsMThatcher-prospective-conversations-v5 \
   --prospective-start 2026-08-24T15:08:39Z \
   --quiescence-hours 48
 ```
@@ -425,7 +425,7 @@ Inspect operational status without editing it:
 
 ```bash
 python3 tools/extract_prospective_conversations.py status \
-  --output-root /disks/disk1/research/mrsMThatcher-prospective-conversations-v4
+  --output-root /disks/disk1/research/mrsMThatcher-prospective-conversations-v5
 ```
 
 The command is read-only and returns valid JSON even before initialisation,
@@ -438,7 +438,7 @@ the absence of raw-author fields:
 
 ```bash
 python3 tools/extract_prospective_conversations.py validate \
-  --output-root /disks/disk1/research/mrsMThatcher-prospective-conversations-v4
+  --output-root /disks/disk1/research/mrsMThatcher-prospective-conversations-v5
 ```
 
 Validation exits non-zero on corruption and never repairs it implicitly.
@@ -447,7 +447,7 @@ Freeze a private review pack manually:
 
 ```bash
 python3 tools/extract_prospective_conversations.py freeze-review-pack \
-  --output-root /disks/disk1/research/mrsMThatcher-prospective-conversations-v4 \
+  --output-root /disks/disk1/research/mrsMThatcher-prospective-conversations-v5 \
   --pack-name prospective-review-2026-09-01 \
   --since 2026-08-24T15:08:39Z \
   --until 2026-09-01T00:00:00Z
@@ -464,21 +464,28 @@ The pack manifest records the actual UTC freeze time separately from
 `source_batch_creation_timestamp`, while retaining the source batch ID and
 snapshot hash.
 
-## Registered version-3 to version-4 rebuild
+## Registered version-4 to version-5 rebuild
 
 An extractor or parser version mismatch fails before prior canonical posts or
-cache entries are reused. In particular, normal version-4 `scan` rejects a
-version-3 state rather than silently upgrading it. The only registered rebuild
-source tuple is schema 3,
-`prospective-conversation-extractor-v3`, and
-`prospective-conversation-log-parser-v3`. Rebuild into a separate nonexistent
-destination:
+cache entries are reused. In particular, normal version-5 `scan` rejects a
+version-4 state rather than silently upgrading it. The only registered rebuild
+source tuple is schema 4,
+`prospective-conversation-extractor-v4`, and
+`prospective-conversation-log-parser-v4`.
+
+Version 5 invalidates version-4 caches because it recognises the single-call
+decision/posting events and single-call root/parent context now emitted by the
+production reply path. Reusing an unchanged version-4 source hash or canonical
+post would otherwise omit those observations while claiming current parser
+provenance.
+
+Rebuild into a separate nonexistent destination:
 
 ```bash
 python3 tools/extract_prospective_conversations.py rebuild-to-new-root \
   --project-dir /disks/disk1/etc/mrsMThatcher \
-  --source-output-root /disks/disk1/research/mrsMThatcher-prospective-conversations-v3 \
-  --new-output-root /disks/disk1/research/mrsMThatcher-prospective-conversations-v4 \
+  --source-output-root /disks/disk1/research/mrsMThatcher-prospective-conversations-v4 \
+  --new-output-root /disks/disk1/research/mrsMThatcher-prospective-conversations-v5 \
   --until 2026-09-01T00:00:00Z
 ```
 
@@ -486,22 +493,22 @@ The command opens the old root read-only under its shared lock, verifies the
 registered tuple, reads its frozen boundary and quiescence policy, and copies
 the 32-byte pseudonym key without displaying it. The destination must not
 exist. Current retained production logs must span the boundary and are parsed
-from scratch by parser v4; no v3 canonical post or source cache is reused. The
+from scratch by parser v5; no v4 canonical post or source cache is reused. The
 command validates the complete new root and never changes, switches to, or
 deletes the old root. It does not alter the installed service output path.
 
 A later controlled deployment must perform these steps in order:
 
 1. Disable and stop only `mrs-prospective-conversations.timer`.
-2. Update the production checkout to the reviewed version-4 commit.
+2. Update the production checkout to the reviewed version-5 commit.
 3. Install the updated user units without enabling them.
-4. Run the registered rebuild from the exact v3 root into the v4 root.
-5. Run `validate` against the v4 root.
+4. Run the registered rebuild from the exact v4 root into the v5 root.
+5. Run `validate` against the v5 root.
 6. Run one manual `mrs-prospective-conversations.service` oneshot.
-7. Inspect the first v4 corpus and its warnings.
+7. Inspect the first v5 corpus and its warnings.
 8. Only then enable the hourly prospective extractor timer.
 
-Do not point version-4 code at the version-3 root, reuse v3 batches, or switch
+Do not point version-5 code at the version-4 root, reuse v4 batches, or switch
 the timer before validation and inspection.
 
 ## Atomicity, locking, and recovery
@@ -552,9 +559,9 @@ deploy/systemd-user/install.sh --install
 ```
 
 Installation verifies and copies the units, prepares unrelated scheduled-task
-state, and reloads the user manager. For a first version-4 deployment it
-deliberately leaves the v4 root nonexistent so the registered rebuild can
-create it. On later upgrades it verifies and prepares an existing real v4
+state, and reloads the user manager. For a first version-5 deployment it
+deliberately leaves the v5 root nonexistent so the registered rebuild can
+create it. On later upgrades it verifies and prepares an existing real v5
 directory. It does not enable, disable, start, stop, or restart any unit.
 Activate this collector only after completing the controlled rebuild,
 validation, manual oneshot, and corpus inspection described above:

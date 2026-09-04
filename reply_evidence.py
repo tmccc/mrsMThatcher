@@ -59,16 +59,12 @@ TRUSTED_FACT_VERIFICATION_STATUSES = AUTHORISED_QUOTATION_STATUSES | {
     "official_source_exact"
 }
 TRUSTED_FACT_RESEARCH_CONFIDENCES = {"high", "medium"}
-TRUSTED_FACT_PASSAGE_FIELDS = {
-    "factual_evidence",
-    "verified_text",
-    "quote_text",
-    "historical_context",
-    "source_event",
-    "immediate_subject",
-    "date",
-    "speaker",
-    "entities",
+TRUSTED_FACT_AUDIT_CLAIMS = {
+    "verified_text": ("wording", "attribution"),
+    "historical_context": ("historical_context",),
+    "source_event": ("source_event",),
+    "date": ("date",),
+    "speaker": ("attribution",),
 }
 QUOTE_TEXT_SENTINELS = {"", "unknown", "unresolved", "no verified text available."}
 RESOLVED_QUOTATION_FIELDS = (
@@ -160,6 +156,7 @@ class EvidencePassage:
     direction_or_polarity: str = ""
     date_or_period: str = ""
     quantity: str = ""
+    trusted_fact_eligible: bool = False
 
     def prompt_record(self) -> dict[str, Any]:
         """Return the complete local source record for compact conversion."""
@@ -226,7 +223,10 @@ class EvidenceRepository:
         self.factual_evidence_path = (
             Path(factual_evidence_path) if factual_evidence_path is not None else None
         )
-        packets, unresolved = load_and_validate_corpus(self.research_dir)
+        packets, unresolved = load_and_validate_corpus(
+            self.research_dir,
+            require_source_role_audit=True,
+        )
         if not packets:
             raise RuntimeError("reply evidence requires at least one completed packet")
         self.packets = {
@@ -253,16 +253,6 @@ class EvidenceRepository:
     def _build_indexes(self) -> None:
         for quote_id, packet in sorted(self.packets.items()):
             primary = select_primary_source(packet) or {}
-            source_record = {
-                "quote_id": quote_id,
-                "source_title": str(primary.get("title") or ""),
-                "source_url": str(primary.get("url") or ""),
-                "stable_locator": str(packet.get("stable_locator") or ""),
-                "verification_status": str(packet.get("verification_status") or ""),
-                "research_confidence": str(packet.get("research_confidence") or "low"),
-                "sources": packet.get("sources", []),
-            }
-            source_hash = value_hash(source_record)
             for field in PASSAGE_FIELDS:
                 raw = packet.get(field)
                 if isinstance(raw, list):
@@ -271,6 +261,60 @@ class EvidenceRepository:
                     text = " ".join(str(raw or "").split())
                 if not text:
                     continue
+                trusted_source = self._trusted_packet_field_source(
+                    packet,
+                    field=field,
+                )
+                source = trusted_source or primary
+                source_title = str(
+                    source.get("public_title")
+                    or source.get("source_title")
+                    or source.get("title")
+                    or ""
+                )
+                source_url = str(
+                    source.get("public_url") or source.get("source_url") or ""
+                )
+                source_audit = packet.get("_source_role_audit")
+                stable_locator = (
+                    str(source.get("stable_locator") or "")
+                    or source_title
+                    or f"retained source {str(source.get('source_id') or '')[:16]}"
+                )
+                source_record = {
+                    "quote_id": quote_id,
+                    "field": field,
+                    "source_title": source_title,
+                    "source_url": source_url,
+                    "stable_locator": stable_locator,
+                    "verification_status": str(
+                        packet.get("verification_status") or ""
+                    ),
+                    "research_confidence": str(
+                        packet.get("research_confidence") or "low"
+                    ),
+                    "audited_claims": list(
+                        TRUSTED_FACT_AUDIT_CLAIMS.get(field, ())
+                    ),
+                    "audited_source_id": (
+                        str(source.get("source_id") or "")
+                        if trusted_source is not None
+                        else ""
+                    ),
+                    "audited_source_fingerprint": (
+                        str(source.get("source_fingerprint") or "")
+                        if trusted_source is not None
+                        else ""
+                    ),
+                    "source_role_audit_policy_version": (
+                        str(source_audit.get("policy_version") or "")
+                        if trusted_source is not None
+                        and isinstance(source_audit, dict)
+                        else ""
+                    ),
+                    "trusted_fact_eligible": trusted_source is not None,
+                }
+                source_hash = value_hash(source_record)
                 evidence_id = value_hash({
                     "version": EVIDENCE_REPOSITORY_VERSION,
                     "quote_id": quote_id,
@@ -284,11 +328,12 @@ class EvidenceRepository:
                     quote_id=quote_id,
                     field=field,
                     passage=text,
-                    source_title=str(primary.get("title") or ""),
-                    source_url=str(primary.get("url") or ""),
-                    stable_locator=str(packet.get("stable_locator") or ""),
+                    source_title=source_title,
+                    source_url=source_url,
+                    stable_locator=stable_locator,
                     verification_status=str(packet.get("verification_status") or ""),
                     research_confidence=str(packet.get("research_confidence") or "low"),
+                    trusted_fact_eligible=trusted_source is not None,
                 )
                 self.passages[evidence_id] = passage
                 self._passage_tokens[evidence_id] = retrieval_tokens(text)
@@ -310,6 +355,51 @@ class EvidenceRepository:
             if status in AUTHORISED_QUOTATION_STATUSES and verified:
                 self._authorised_quote_texts[quote_id] = verified
                 self._authorised_quote_words[quote_id] = normalise_words(verified)
+
+    @staticmethod
+    def _trusted_packet_field_source(
+        packet: dict[str, Any],
+        *,
+        field: str,
+    ) -> dict[str, Any] | None:
+        """Return one audited source that supports this exact packet field."""
+
+        required_claims = TRUSTED_FACT_AUDIT_CLAIMS.get(field)
+        if required_claims is None:
+            return None
+        audit = packet.get("_source_role_audit")
+        confidences = audit.get("confidence_after") if isinstance(audit, dict) else None
+        if not isinstance(confidences, dict) or any(
+            str(confidences.get(claim) or "").casefold()
+            not in TRUSTED_FACT_RESEARCH_CONFIDENCES
+            for claim in required_claims
+        ):
+            return None
+        candidates = [
+            source
+            for source in audit.get("renderable_sources", [])
+            if isinstance(source, dict)
+            if set(required_claims).issubset(
+                {str(value) for value in source.get("claims_supported", [])}
+            )
+            and str(
+                source.get("public_title") or source.get("source_title") or ""
+            ).strip()
+        ]
+        if not candidates:
+            return None
+        return min(
+            candidates,
+            key=lambda source: (
+                not bool(
+                    str(source.get("public_url") or source.get("source_url") or "")
+                ),
+                str(
+                    source.get("public_title") or source.get("source_title") or ""
+                ).casefold(),
+                str(source.get("source_id") or ""),
+            ),
+        )
 
     def _build_factual_indexes(self, path: Path) -> None:
         """Load strict source-grounded factual passages from a versioned file."""
@@ -404,6 +494,7 @@ class EvidenceRepository:
                 direction_or_polarity=record["direction_or_polarity"],
                 date_or_period=record["date_or_period"],
                 quantity=record["quantity"],
+                trusted_fact_eligible=True,
             )
             self.passages[evidence_id] = passage
             retrieval_text = " ".join([record["passage"], *terms])
@@ -484,7 +575,11 @@ class EvidenceRepository:
         """Return whether a passage may be labelled authoritative model input."""
 
         return bool(
-            passage.field in TRUSTED_FACT_PASSAGE_FIELDS
+            passage.trusted_fact_eligible is True
+            and (
+                passage.field == "factual_evidence"
+                or passage.field in TRUSTED_FACT_AUDIT_CLAIMS
+            )
             and passage.verification_status.casefold()
             in TRUSTED_FACT_VERIFICATION_STATUSES
             and passage.research_confidence.casefold()

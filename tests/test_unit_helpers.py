@@ -50,6 +50,7 @@ import exact_receipt_retirement as exact_retirement_module  # noqa: E402
 import remote_write_transport_journal as transport_journal_module  # noqa: E402
 
 SOURCE_DEFAULT_SINGLE_CALL_REPLY = copy.deepcopy(bot.single_call_reply)
+SOURCE_GET_TWEET_BY_ID = bot.get_tweet_by_id
 bot.single_call_reply = {
     **bot.single_call_reply,
     "enabled": True,
@@ -69,6 +70,7 @@ from single_call_reply import (  # noqa: E402
     ValidatedReply,
     build_model_payload,
     create_durable_draft,
+    run_reply_pipeline as run_single_call_reply_pipeline,
 )
 
 SCENARIOS = Path(__file__).resolve().parent / "fixtures" / "scenarios"
@@ -120,6 +122,7 @@ class UnitReplyEvidenceRepository:
             stable_locator="unit:1",
             verification_status="exact",
             research_confidence="high",
+            trusted_fact_eligible=True,
         )
         self.passage = passage
         self.passages = {passage.evidence_id: passage}
@@ -10030,6 +10033,57 @@ def test_tweet_cache_normalisation_stringifies_scalars_and_preserves_valid_conte
     assert entry["referenced_tweets"] == [{"type": "333", "id": "444", "extra": "555"}]
 
 
+def test_direct_tweet_lookup_rejects_a_mismatched_response_identity(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Bind a fetched row to the exact ID encoded in the request path."""
+
+    monkeypatch.setattr(
+        bot,
+        "x_request",
+        lambda *_args, **_kwargs: {
+            "data": {
+                "id": "901",
+                "author_id": "200",
+                "text": "A different post.",
+            }
+        },
+    )
+    monkeypatch.setattr(bot, "get_tweet_by_id", SOURCE_GET_TWEET_BY_ID)
+
+    with pytest.raises(bot.ApiError, match="mismatched post") as raised:
+        bot.get_tweet_by_id("900")
+    assert raised.value.request_path == "/2/tweets/900"
+
+
+def test_cached_tweet_lookup_rejects_a_mismatched_row_identity(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Do not trust a cache key when the cached row names another post."""
+
+    state = bot.default_state()
+    state["tweet_cache"] = {
+        "900": {
+            "id": "901",
+            "author_id": "200",
+            "conversation_id": "901",
+            "created_at": "2026-09-04T12:00:00Z",
+            "referenced_tweets": [],
+            "text": "A different cached post.",
+            "cached_epoch": bot.now_epoch(),
+        }
+    }
+    monkeypatch.setattr(
+        bot,
+        "get_tweet_by_id",
+        lambda *_args, **_kwargs: pytest.fail("a mismatched cache hit must fail closed"),
+    )
+
+    with pytest.raises(bot.ApiError, match="mismatched post") as raised:
+        bot.get_tweet_by_id_cached("900", state)
+    assert raised.value.request_path == "/2/tweets/900"
+
+
 def test_valid_tweet_cache_round_trips_through_state_loading(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     state_file = tmp_path / "bot_state.json"
     monkeypatch.setattr(bot, "STATE_FILE", state_file)
@@ -10798,6 +10852,8 @@ def test_hot_post_reply_native_photo_context_is_retained_for_single_call(
         assert media["photos"] == [{
             "media_key": "3_910",
             "url": "https://pbs.twimg.com/media/hot-photo.jpg",
+            "attachment_role": "target_contribution",
+            "source_post_id": "910",
         }]
     finally:
         server.stop()
@@ -10834,6 +10890,14 @@ def test_reply_images_prioritise_target_then_direct_quote_and_ignore_parent() ->
         "quoted-1",
     ]
     assert len(media["photos"]) == 2
+    assert [photo["attachment_role"] for photo in media["photos"]] == [
+        "target_contribution",
+        "quoted_subject",
+    ]
+    assert [photo["source_post_id"] for photo in media["photos"]] == [
+        "100",
+        "90",
+    ]
     assert "parent-1" not in {
         photo["media_key"] for photo in media["photos"]
     }
@@ -10896,6 +10960,14 @@ def test_quote_tweet_context_wires_target_and_quoted_images_in_priority_order() 
     assert [photo["media_key"] for photo in prepared["photos"]] == [
         "target-1",
         "quoted-1",
+    ]
+    assert [photo["attachment_role"] for photo in prepared["photos"]] == [
+        "target_contribution",
+        "quoted_subject",
+    ]
+    assert [photo["source_post_id"] for photo in prepared["photos"]] == [
+        "910",
+        "900",
     ]
     assert context["visible_conversation"][-1]["post_id"] == "910"
 
@@ -12934,7 +13006,7 @@ def test_completed_clarification_threads_are_not_evicted_from_terminal_ledger() 
         reply_post_id="903001",
         author_id="3001",
         contribution=clarification_request["correction"],
-        text="A grounded direct answer.",
+        text="People moved from East Germany towards West Germany in November 1989.",
         epoch=3001,
         factual=True,
         clarification_request=clarification_request,
@@ -13015,7 +13087,7 @@ def test_confirmed_reply_receipt_preserves_ai_draft_after_reconciliation(
         target_id="100",
         reply_post_id="900000",
         author_id="200",
-        text="A grounded reply.",
+        text="People moved from East Germany towards West Germany in November 1989.",
         epoch=fixed_epoch,
         factual=True,
     )
@@ -13047,7 +13119,10 @@ def test_confirmed_reply_receipt_preserves_ai_draft_after_reconciliation(
     ) == [
         {
             "contributor": "A contribution.",
-            "account_reply": "A grounded reply.",
+            "account_reply": (
+                "People moved from East Germany towards West Germany in November "
+                "1989."
+            ),
         }
     ]
 
@@ -13308,6 +13383,119 @@ def test_generation_does_not_duplicate_same_author_reply_in_recent_replies(
     ]
 
 
+def test_generation_excludes_quoted_target_from_same_author_history(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Do not repeat a separately quoted prior contribution as history."""
+
+    context = unit_reply_context(target_id="500", thread_id="500")
+    context["quoted_post"] = {
+        "post_id": "100",
+        "author_role": "user",
+        "text": "An earlier contribution now quoted directly.",
+    }
+    context["quoted_post_id"] = "100"
+    context["quoted_post_relationship"] = "target_quote"
+    target_epoch = int(
+        datetime.fromisoformat("2026-07-20T12:00:00+00:00").timestamp()
+    )
+    contribution = "An earlier contribution now quoted directly."
+    state = bot.default_state()
+    state["ai_reply_history"] = [
+        {
+            "target_id": "100",
+            "reply_post_id": "9001",
+            "author_id": "200",
+            "conversation_id": "100",
+            "root_post_id": "100",
+            "incoming_contribution": contribution,
+            "incoming_contribution_sha256": hashlib.sha256(
+                contribution.encode("utf-8")
+            ).hexdigest(),
+            "candidate_source": "mention",
+            "reply_epoch": target_epoch - 20,
+            "proposed_reply": "Earlier confirmed account reply.",
+        }
+    ]
+    captured: dict[str, object] = {}
+
+    def pipeline(**kwargs: object) -> PipelineResult:
+        captured.update(kwargs)
+        return PipelineResult(
+            status="no_reply",
+            reason="completed_exchange",
+            decision="no_reply",
+            reply_kind="no_reply",
+            reason_code="completed_exchange",
+            model_call_count=1,
+            local_validation_status="passed",
+        )
+
+    monkeypatch.setattr(bot, "run_single_call_reply_pipeline", pipeline)
+    monkeypatch.setattr(bot, "reply_evidence_repository", lambda: UNIT_REPLY_REPOSITORY)
+    monkeypatch.setattr(bot, "require_remote_operation_unpaused", lambda *_args: None)
+    monkeypatch.setattr(bot, "log_event", lambda *_args, **_kwargs: None)
+
+    assert bot.generate_single_call_reply(context, None, state=state) is None
+    assert captured["same_author_interactions"] == []
+
+
+def test_generation_excludes_quoted_account_reply_from_recent_replies(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Do not repeat a separately quoted bot reply in the recent list."""
+
+    context = unit_reply_context(target_id="500", thread_id="500")
+    context["quoted_post"] = {
+        "post_id": "9002",
+        "author_role": "account",
+        "text": "A prior bot reply now quoted directly.",
+    }
+    context["quoted_post_id"] = "9002"
+    context["quoted_post_relationship"] = "target_quote"
+    target_epoch = int(
+        datetime.fromisoformat("2026-07-20T12:00:00+00:00").timestamp()
+    )
+    state = bot.default_state()
+    state["ai_reply_history"] = [
+        {
+            "target_id": "100",
+            "reply_post_id": "9002",
+            "author_id": "201",
+            "conversation_id": "100",
+            "root_post_id": "100",
+            "incoming_contribution": "Someone else's earlier contribution.",
+            "incoming_contribution_sha256": hashlib.sha256(
+                b"Someone else's earlier contribution."
+            ).hexdigest(),
+            "candidate_source": "mention",
+            "reply_epoch": target_epoch - 20,
+            "proposed_reply": "A prior bot reply now quoted directly.",
+        }
+    ]
+    captured: dict[str, object] = {}
+
+    def pipeline(**kwargs: object) -> PipelineResult:
+        captured.update(kwargs)
+        return PipelineResult(
+            status="no_reply",
+            reason="completed_exchange",
+            decision="no_reply",
+            reply_kind="no_reply",
+            reason_code="completed_exchange",
+            model_call_count=1,
+            local_validation_status="passed",
+        )
+
+    monkeypatch.setattr(bot, "run_single_call_reply_pipeline", pipeline)
+    monkeypatch.setattr(bot, "reply_evidence_repository", lambda: UNIT_REPLY_REPOSITORY)
+    monkeypatch.setattr(bot, "require_remote_operation_unpaused", lambda *_args: None)
+    monkeypatch.setattr(bot, "log_event", lambda *_args, **_kwargs: None)
+
+    assert bot.generate_single_call_reply(context, None, state=state) is None
+    assert captured["recent_account_replies"] == []
+
+
 def test_three_image_input_failures_leave_openai_breaker_untouched(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -13419,11 +13607,17 @@ def test_three_provider_failures_activate_openai_breaker(
 
 
 def test_confirmed_reply_receipt_rejects_malformed_ai_draft() -> None:
-    receipt = unit_confirmed_reply_receipt(text="A grounded reply.", factual=True)
+    receipt = unit_confirmed_reply_receipt(
+        text="People moved from East Germany towards West Germany in November 1989.",
+        factual=True,
+    )
     receipt["ai_reply_draft"]["proposed_reply"] = {"not": "a string"}
     assert bot.confirmed_reply_receipt_is_semantically_valid(receipt) is False
 
-    receipt = unit_confirmed_reply_receipt(text="A grounded reply.", factual=True)
+    receipt = unit_confirmed_reply_receipt(
+        text="People moved from East Germany towards West Germany in November 1989.",
+        factual=True,
+    )
     receipt["ai_reply_draft"]["mode"] = []
     assert bot.confirmed_reply_receipt_is_semantically_valid(receipt) is False
 
@@ -13436,7 +13630,10 @@ def test_confirmed_reply_receipt_rejects_unexpected_legacy_approval_field() -> N
 
 @pytest.mark.parametrize("field", ["used_fact_sources", "used_fact_ids", "trusted_fact_ids"])
 def test_confirmed_reply_receipt_rejects_incomplete_or_changed_evidence(field: str) -> None:
-    receipt = unit_confirmed_reply_receipt(text="A grounded reply.", factual=True)
+    receipt = unit_confirmed_reply_receipt(
+        text="People moved from East Germany towards West Germany in November 1989.",
+        factual=True,
+    )
     receipt["ai_reply_draft"][field] = []
     assert bot.confirmed_reply_receipt_is_semantically_valid(receipt) is False
 
@@ -14824,7 +15021,7 @@ def test_safe_pending_opinion_reply_reuses_the_persisted_context() -> None:
     assert bot.pending_ai_reply(state, "100", "mention", context=context) == reply
 
 
-def test_pending_ai_reply_is_reused_even_if_recent_replies_advance() -> None:
+def test_pending_ai_reply_is_retired_if_confirmed_replies_now_duplicate_it() -> None:
     state = bot.default_state()
     incoming = "Institutions endure when people defend their purpose."
     text = "Institutions endure only when people defend their purpose."
@@ -14832,15 +15029,223 @@ def test_pending_ai_reply_is_reused_even_if_recent_replies_advance() -> None:
     reply = unit_approved_reply(context, text=text, mode="opinion_or_principle")
     assert bot.store_pending_ai_reply(state, "100", "mention", reply, context=context) is True
 
+    outcome: dict[str, object] = {}
     reused = bot.pending_ai_reply(
         state,
         "100",
         "mention",
         context=context,
         recent_replies=[text],
+        evaluation_outcome=outcome,
     )
-    assert reused == reply
-    assert state["pending_ai_reply_drafts"]["mention:100"] == reply.draft_record
+    assert reused is None
+    assert state.get("pending_ai_reply_drafts") is None
+    assert outcome == {
+        "status": "operational_failure",
+        "reason": "persisted_draft_local_validation_failed",
+        "error_category": "local_validation",
+        "model_call_count": 0,
+    }
+
+
+def test_duplicate_pending_draft_is_retired_and_later_mention_proceeds(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Recovery performs no paid retry and cannot starve a later candidate."""
+
+    current = 2_000_000_000
+    text = "Institutions endure only when people defend their purpose."
+    candidates = [
+        {
+            "id": target_id,
+            "author_id": author_id,
+            "conversation_id": target_id,
+            "text": contribution,
+            "referenced_tweets": [],
+            "entities": {
+                "mentions": [
+                    {"id": str(bot.MY_USER_ID), "username": "MrsMThatcher"}
+                ]
+            },
+        }
+        for target_id, author_id, contribution in (
+            ("101", "201", "@MrsMThatcher A first contribution."),
+            ("102", "202", "@MrsMThatcher A later contribution."),
+        )
+    ]
+
+    def candidate_context(candidate: dict) -> dict[str, object]:
+        return unit_reply_context(
+            target_id=str(candidate["id"]),
+            contribution=str(candidate["text"]),
+            target_author_id=str(candidate["author_id"]),
+        )
+
+    state = bot.default_state()
+    first_context = candidate_context(candidates[0])
+    reply = unit_approved_reply(
+        first_context,
+        text=text,
+        mode="opinion_or_principle",
+    )
+    assert bot.store_pending_ai_reply(
+        state,
+        "101",
+        "mention",
+        reply,
+        context=first_context,
+    ) is True
+    state["ai_reply_history"] = [
+        {
+            "target_id": "90",
+            "reply_post_id": "9000",
+            "candidate_source": "mention",
+            "reply_epoch": current - 1,
+            "proposed_reply": text,
+        }
+    ]
+    state["daily_reply_date"] = bot.reply_cap_date_str(current)
+    state["daily_reply_count"] = 2
+    calls: list[str] = []
+    events: list[tuple[str, dict[str, object]]] = []
+
+    def decide(
+        context: dict[str, object],
+        *_args: object,
+        evaluation_outcome: dict[str, object] | None = None,
+        **_kwargs: object,
+    ) -> None:
+        calls.append(str(context["target_id"]))
+        assert evaluation_outcome is not None
+        evaluation_outcome.update(
+            {
+                "status": "no_reply",
+                "reason": "completed_exchange",
+                "reason_code": "completed_exchange",
+                "model_call_count": 1,
+            }
+        )
+        return None
+
+    monkeypatch.setattr(bot, "ENABLE_AUTO_REPLIES", True)
+    monkeypatch.setattr(bot, "MIN_SECONDS_BETWEEN_REPLIES", 0)
+    monkeypatch.setattr(bot, "MAX_AUTO_REPLIES_PER_DAY", 5)
+    monkeypatch.setattr(bot, "MAX_REPLIES_PER_AUTHOR_PER_DAY", 5)
+    monkeypatch.setattr(bot, "now_epoch", lambda: current)
+    monkeypatch.setattr(
+        bot,
+        "current_datetime",
+        lambda: datetime.fromtimestamp(current),
+    )
+    monkeypatch.setattr(bot, "lane_paused", lambda *_args, **_kwargs: False)
+    monkeypatch.setattr(bot, "in_api_cooldown", lambda *_args, **_kwargs: False)
+    monkeypatch.setattr(bot, "get_mentions", lambda _state: copy.deepcopy(candidates))
+    monkeypatch.setattr(bot, "get_hot_post_reply_candidates", lambda _state: [])
+    monkeypatch.setattr(
+        bot,
+        "is_probably_spam_or_not_worth_replying",
+        lambda _text: False,
+    )
+    monkeypatch.setattr(
+        bot,
+        "build_context_for_reply_ai",
+        lambda candidate, _state: (candidate_context(candidate), True),
+    )
+    monkeypatch.setattr(
+        bot,
+        "reply_media_context_for_candidate",
+        lambda *_args, **_kwargs: {},
+    )
+    monkeypatch.setattr(
+        bot,
+        "reply_evidence_repository",
+        lambda: UNIT_REPLY_REPOSITORY,
+    )
+    monkeypatch.setattr(bot, "generate_single_call_reply", decide)
+    monkeypatch.setattr(bot, "save_state", lambda *_args, **_kwargs: None)
+    monkeypatch.setattr(
+        bot,
+        "log_event",
+        lambda name, **values: events.append((name, values)),
+    )
+
+    assert bot.maybe_reply_to_mentions(state) == bot.NORMAL_CHECK_STATUS_CHECKED
+    assert calls == ["102"]
+    assert state.get("pending_ai_reply_drafts") is None
+    assert bot.terminal_reply_evaluation(state, "101")["outcome"] == (
+        "operational_failure"
+    )
+    assert bot.terminal_reply_evaluation(state, "102")["outcome"] == "no_reply"
+    assert state["daily_reply_count"] == 2
+    assert state["author_evaluation_quarantines"] == {}
+    recovery_events = [
+        values
+        for name, values in events
+        if name == "single_call_reply_decision"
+        and values.get("target_id") == "101"
+    ]
+    assert len(recovery_events) == 1
+    assert recovery_events[0]["model_call_count"] == 0
+    assert recovery_events[0]["error_category"] == "local_validation"
+
+    assert bot.maybe_reply_to_mentions(state) == bot.NORMAL_CHECK_STATUS_CHECKED
+    assert calls == ["102"]
+
+
+def test_recovery_duplicate_comparisons_include_same_author_beyond_latest_30(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Do not lose an author's older confirmed prose behind global volume."""
+
+    current = 2_000_000_000
+    same_author_text = "An older same-author confirmed reply."
+    same_author_contribution = "An older contribution from this author."
+    state = bot.default_state()
+    state["ai_reply_history"] = [
+        {
+            "target_id": "50",
+            "reply_post_id": "8000",
+            "author_id": "201",
+            "conversation_id": "50",
+            "root_post_id": "50",
+            "incoming_contribution": same_author_contribution,
+            "incoming_contribution_sha256": hashlib.sha256(
+                same_author_contribution.encode("utf-8")
+            ).hexdigest(),
+            "candidate_source": "mention",
+            "reply_epoch": current - 100,
+            "proposed_reply": same_author_text,
+        },
+        *[
+            {
+                "target_id": str(100 + index),
+                "reply_post_id": str(9000 + index),
+                "candidate_source": "hot_post_reply",
+                "reply_epoch": current - 40 + index,
+                "proposed_reply": f"Newer global reply {index}.",
+            }
+            for index in range(31)
+        ],
+    ]
+    monkeypatch.setattr(bot, "now_epoch", lambda: current)
+    context = unit_reply_context(
+        target_id="500",
+        target_author_id="201",
+    )
+
+    comparisons = bot.recovery_comparison_account_replies(
+        state,
+        context=context,
+    )
+
+    assert len(comparisons) == 31
+    assert comparisons[0] == {
+        "post_id": "8000",
+        "text": same_author_text,
+    }
+    assert [row["text"] for row in comparisons[1:]] == [
+        f"Newer global reply {index}." for index in range(1, 31)
+    ]
 
 
 def test_pending_ai_reply_rejects_overlong_incoming_context() -> None:
@@ -16343,6 +16748,72 @@ def test_long_parent_context_never_truncates_away_incoming_contribution(
     ) <= bot.MAX_VISIBLE_TEXT_CHARACTERS
 
 
+def test_single_call_context_and_reply_logs_expose_only_counts_and_hashes(
+    monkeypatch: pytest.MonkeyPatch,
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """Keep exact prose and media URLs out of the new pipeline diagnostics."""
+
+    prose = "PRIVATE-SINGLE-CALL-PROSE"
+    media_url = "https://pbs.twimg.com/media/private-marker.jpg"
+    direct_json_labels: list[str] = []
+    original_log_json_debug = bot.log_json_debug
+
+    def record_json_label(label: str, value: object, max_chars: int = 4000) -> None:
+        direct_json_labels.append(label)
+        original_log_json_debug(label, value, max_chars=max_chars)
+
+    monkeypatch.setattr(bot, "log_json_debug", record_json_label)
+    caplog.set_level(logging.DEBUG, logger=bot.log.name)
+
+    context, should_continue = bot.build_context_for_reply_ai(
+        {
+            "id": "920",
+            "author_id": "200",
+            "conversation_id": "920",
+            "text": prose,
+            "referenced_tweets": [],
+        },
+        bot.default_state(),
+    )
+    assert should_continue is True
+    bot.build_quote_tweet_reply_context(
+        {
+            "id": "900",
+            "author_id": "12345",
+            "text": "Original " + prose,
+            "attachments": {"media_keys": ["photo-private"]},
+            "_attached_media": [
+                {
+                    "media_key": "photo-private",
+                    "type": "photo",
+                    "url": media_url,
+                }
+            ],
+        },
+        {
+            "id": "930",
+            "conversation_id": "930",
+            "author_id": "200",
+            "text": "Commentary " + prose,
+        },
+    )
+    bot._log_validated_single_call_reply(
+        target_description="target",
+        target_id="920",
+        reply=prose,
+    )
+
+    messages = "\n".join(record.getMessage() for record in caplog.records)
+    assert prose not in messages
+    assert media_url not in messages
+    assert "visible_turn_count=" in messages
+    assert "context_sha256=" in messages
+    assert hashlib.sha256(prose.encode("utf-8")).hexdigest() in messages
+    assert not any(label.startswith("Single-call") for label in direct_json_labels)
+    assert context["incoming_contribution"] == prose
+
+
 def test_fifteen_turn_linear_thread_reaches_root_then_bounds_visible_path(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -16397,6 +16868,48 @@ def test_fifteen_turn_linear_thread_reaches_root_then_bounds_visible_path(
     assert sum(
         turn["post_id"] == "15" for turn in context["visible_conversation"]
     ) == 1
+
+
+def test_uncached_parent_chain_performs_at_most_three_direct_lookups(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Bound new X work without lowering the verified cached-path ceiling."""
+
+    mention = {
+        "id": "10",
+        "author_id": "200",
+        "text": "Target contribution.",
+        "conversation_id": "1",
+        "referenced_tweets": [{"type": "replied_to", "id": "9"}],
+    }
+    parents = {
+        str(index): {
+            "id": str(index),
+            "author_id": "200",
+            "text": f"Parent {index}.",
+            "conversation_id": "1",
+            "referenced_tweets": (
+                [{"type": "replied_to", "id": str(index - 1)}]
+                if index > 1
+                else []
+            ),
+        }
+        for index in range(1, 10)
+    }
+    lookups: list[str] = []
+
+    def direct_lookup(tweet_id: str, *, include_media: bool = False) -> dict:
+        assert include_media is False
+        lookups.append(str(tweet_id))
+        return copy.deepcopy(parents[str(tweet_id)])
+
+    monkeypatch.setattr(bot, "get_tweet_by_id", direct_lookup)
+    monkeypatch.setattr(bot, "save_state", lambda *_args, **_kwargs: None)
+
+    chain = bot.build_parent_chain(mention, bot.default_state())
+
+    assert lookups == ["9", "8", "7"]
+    assert [post["id"] for post in chain] == ["7", "8", "9"]
 
 
 def test_parent_created_after_target_is_not_admitted_to_visible_context(
@@ -16488,7 +17001,7 @@ def test_context_uses_only_parent_contiguous_path_not_cached_siblings(
     assert all(post["post_id"] not in {"190", "200"} for post in context["parent_thread"])
 
 
-def test_author_cap_context_quote_commentary_recovers_original_from_cache(
+def test_author_cap_context_quote_commentary_refreshes_original_with_media(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     monkeypatch.setattr(bot, "MY_USER_ID", "12345")
@@ -16512,24 +17025,183 @@ def test_author_cap_context_quote_commentary_recovers_original_from_cache(
             "referenced_tweets": [{"type": "quoted", "id": "900"}],
         },
     }
-    monkeypatch.setattr(
-        bot,
-        "get_tweet_by_id",
-        lambda *_args, **_kwargs: pytest.fail("quote recovery must not fetch from X"),
-    )
+    lookups: list[tuple[str, bool]] = []
+
+    def fetch(tweet_id: str, *, include_media: bool = False) -> dict:
+        lookups.append((str(tweet_id), include_media))
+        return {
+            **copy.deepcopy(state["tweet_cache"]["900"]),
+            "attachments": {"media_keys": ["photo-root"]},
+            "_attached_media": [
+                {
+                    "media_key": "photo-root",
+                    "type": "photo",
+                    "url": "https://pbs.twimg.com/media/root.jpg",
+                }
+            ],
+        }
+
+    monkeypatch.setattr(bot, "get_tweet_by_id", fetch)
+    monkeypatch.setattr(bot, "save_state", lambda *_args, **_kwargs: None)
 
     context, should_continue = bot.build_context_for_reply_ai(mention, state)
 
     assert should_continue is True
+    assert lookups == [("900", True)]
     assert context["parent_thread"] == [
         {"post_id": "910", "author_role": "user", "text": "My capped quote commentary."},
     ]
     assert context["quoted_post"] == {
         "post_id": "900", "author_role": "account", "text": "The original account post.",
     }
+    assert context["quoted_post_relationship"] == "root_quote"
+    assert context["_prepared_media_context"]["photos"] == [
+        {
+            "media_key": "photo-root",
+            "url": "https://pbs.twimg.com/media/root.jpg",
+            "attachment_role": "quoted_subject",
+            "source_post_id": "900",
+        }
+    ]
+    payload, _fact_map = build_model_payload(
+        context=context,
+        repository=UNIT_REPLY_REPOSITORY,
+    )
+    assert payload["quoted_subject"] == {
+        "relationship": "root_quote",
+        "post_id": "900",
+        "role": "account",
+        "text": "The original account post.",
+    }
+    assert [
+        turn["post_id"] for turn in payload["visible_conversation"]
+    ] == ["910", "920"]
 
 
-def test_direct_quote_refreshes_text_only_cache_and_becomes_model_visible(
+def test_declared_ancestor_quote_fails_context_closed_when_unresolvable(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Do not silently drop a structured quote declared by the root ancestor."""
+
+    root = {
+        "id": "910",
+        "author_id": "200",
+        "conversation_id": "910",
+        "text": "Root commentary.",
+        "referenced_tweets": [{"type": "quoted", "id": "900"}],
+    }
+    target = {
+        "id": "920",
+        "author_id": "200",
+        "conversation_id": "910",
+        "text": "Follow-up commentary.",
+        "referenced_tweets": [{"type": "replied_to", "id": "910"}],
+    }
+    lookups: list[tuple[str, bool]] = []
+    monkeypatch.setattr(bot, "build_parent_chain", lambda *_args: [root])
+
+    def missing(
+        tweet_id: str,
+        _state: dict,
+        *,
+        include_media: bool = False,
+    ) -> None:
+        lookups.append((str(tweet_id), include_media))
+        return None
+
+    monkeypatch.setattr(bot, "get_tweet_by_id_cached", missing)
+
+    assert bot.build_context_for_reply_ai(target, bot.default_state()) == ({}, False)
+    assert lookups == [("900", True)]
+
+
+def test_reply_plus_quote_preserves_real_thread_and_separates_quote(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Do not replace a verified reply chain with a directly quoted branch."""
+
+    monkeypatch.setattr(bot, "MY_USER_ID", "12345")
+    root = {
+        "id": "100",
+        "author_id": "12345",
+        "conversation_id": "100",
+        "text": "The actual thread root.",
+        "referenced_tweets": [],
+    }
+    parent = {
+        "id": "200",
+        "author_id": "201",
+        "conversation_id": "100",
+        "text": "The immediate parent.",
+        "referenced_tweets": [{"type": "replied_to", "id": "100"}],
+    }
+    target = {
+        "id": "300",
+        "author_id": "202",
+        "conversation_id": "100",
+        "text": "My reply also quotes this.",
+        "referenced_tweets": [
+            {"type": "replied_to", "id": "200"},
+            {"type": "quoted", "id": "900"},
+        ],
+    }
+    quoted = {
+        "id": "900",
+        "author_id": "203",
+        "conversation_id": "900",
+        "text": "The separately quoted subject.",
+        "referenced_tweets": [],
+    }
+    monkeypatch.setattr(bot, "build_parent_chain", lambda *_args: [root, parent])
+    monkeypatch.setattr(
+        bot,
+        "get_tweet_by_id_cached",
+        lambda tweet_id, *_args, **_kwargs: (
+            quoted
+            if str(tweet_id) == "900"
+            else pytest.fail("only the quoted subject may be fetched")
+        ),
+    )
+    monkeypatch.setattr(
+        bot,
+        "reply_media_context_for_candidate",
+        lambda *_args, **_kwargs: {},
+    )
+
+    context, should_continue = bot.build_context_for_reply_ai(
+        target,
+        bot.default_state(),
+    )
+
+    assert should_continue is True
+    assert [
+        turn["post_id"] for turn in context["visible_conversation"]
+    ] == ["100", "200", "300"]
+    assert context["root_post_id"] == "100"
+    assert context["parent_post_id"] == "200"
+    assert context["quoted_post"] == {
+        "post_id": "900",
+        "author_role": "other_user",
+        "text": "The separately quoted subject.",
+    }
+    assert context["quoted_post_relationship"] == "target_quote"
+
+    payload, _fact_map = build_model_payload(
+        context=context,
+        repository=UNIT_REPLY_REPOSITORY,
+    )
+    assert [
+        turn["post_id"] for turn in payload["visible_conversation"]
+    ] == ["100", "200", "300"]
+    assert payload["quoted_subject"] == {
+        "relationship": "target_quote",
+        "post_id": "900",
+        "role": "other_user",
+        "text": "The separately quoted subject.",
+    }
+
+
+def test_direct_quote_refreshes_cache_without_replacing_the_reply_path(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     monkeypatch.setattr(bot, "MY_USER_ID", "12345")
@@ -16580,16 +17252,139 @@ def test_direct_quote_refreshes_text_only_cache_and_becomes_model_visible(
     assert lookups == [("900", True)]
     assert [
         turn["post_id"] for turn in context["visible_conversation"]
-    ] == ["900", "920"]
-    assert context["visible_conversation"][0]["text"] == (
-        "The directly quoted account post."
-    )
-    assert context["root_post_id"] == "900"
-    assert context["parent_post_id"] == "900"
+    ] == ["920"]
+    assert context["quoted_post"]["text"] == "The directly quoted account post."
+    assert context["quoted_post_relationship"] == "target_quote"
+    assert context["root_post_id"] == "920"
+    assert context["parent_post_id"] is None
     assert context["_prepared_media_context"]["photos"] == [
         {
             "media_key": "photo-1",
             "url": "https://pbs.twimg.test/photo.jpg",
+            "attachment_role": "quoted_subject",
+            "source_post_id": "900",
+        }
+    ]
+
+
+def test_image_only_direct_quote_reaches_one_multimodal_sol_call(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Retain a verified quote identity even when the quoted post has no text."""
+
+    monkeypatch.setattr(bot, "MY_USER_ID", "12345")
+    target = {
+        "id": "920",
+        "author_id": "200",
+        "conversation_id": "920",
+        "text": "What do you make of this?",
+        "referenced_tweets": [{"type": "quoted", "id": "900"}],
+    }
+    quoted = {
+        "id": "900",
+        "author_id": "201",
+        "conversation_id": "900",
+        "text": "",
+        "referenced_tweets": [],
+        "attachments": {"media_keys": ["photo-1"]},
+        "_attached_media": [
+            {
+                "media_key": "photo-1",
+                "type": "photo",
+                "url": "https://pbs.twimg.test/photo.jpg",
+            }
+        ],
+    }
+    monkeypatch.setattr(
+        bot,
+        "get_tweet_by_id_cached",
+        lambda tweet_id, *_args, **_kwargs: (
+            quoted
+            if str(tweet_id) == "900"
+            else pytest.fail("only the quoted image post may be fetched")
+        ),
+    )
+
+    context, should_continue = bot.build_context_for_reply_ai(
+        target,
+        bot.default_state(),
+    )
+
+    assert should_continue is True
+    assert context["quoted_post"] is None
+    assert context["quoted_post_id"] == "900"
+    assert context["_prepared_media_context"]["photos"] == [
+        {
+            "media_key": "photo-1",
+            "url": "https://pbs.twimg.test/photo.jpg",
+            "attachment_role": "quoted_subject",
+            "source_post_id": "900",
+        }
+    ]
+    calls: list[dict[str, object]] = []
+    result = run_single_call_reply_pipeline(
+        context=context,
+        config={
+            "enabled": True,
+            "strategy_version": STRATEGY_VERSION,
+            "model": "gpt-5.6-sol",
+            "timeout_seconds": 180,
+        },
+        repository=UNIT_REPLY_REPOSITORY,
+        transport=lambda **kwargs: (
+            calls.append(kwargs)
+            or {
+                "response": {
+                    "id": "resp_image_only_quote",
+                    "status": "completed",
+                    "model": "gpt-5.6-sol",
+                    "output": [
+                        {
+                            "type": "message",
+                            "role": "assistant",
+                            "status": "completed",
+                            "content": [
+                                {
+                                    "type": "output_text",
+                                    "text": json.dumps(
+                                        {
+                                            "decision": "reply",
+                                            "reply_kind": "principle",
+                                            "reply": "Judgment matters more than appearances.",
+                                            "used_fact_ids": [],
+                                            "reason_code": "useful_reply",
+                                        },
+                                    ),
+                                }
+                            ],
+                        }
+                    ],
+                    "usage": {},
+                }
+            }
+        ),
+        supplied_images=[
+            {
+                "identity": "photo-1",
+                "mime_type": "image/jpeg",
+                "data": b"\xff\xd8\xffimage",
+                "attachment_role": "quoted_subject",
+                "source_post_id": "900",
+            }
+        ],
+    )
+    assert result.status == "reply"
+    assert len(calls) == 1
+    content = calls[0]["request"]["input"][0]["content"]
+    assert [item["type"] for item in content] == ["input_text", "input_image"]
+    payload = json.loads(content[0]["text"])
+    assert payload["quoted_subject"] is None
+    assert payload["identities"]["subject_post_id"] == "900"
+    assert payload["supplied_images"] == [
+        {
+            "attachment_role": "quoted_subject",
+            "image_index": 1,
+            "source_post_id": "900",
         }
     ]
 

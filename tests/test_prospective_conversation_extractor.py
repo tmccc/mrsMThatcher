@@ -625,17 +625,20 @@ def state_bytes(output: Path) -> bytes:
     return (output / "state" / "extractor-state.json").read_bytes()
 
 
-def mark_state_as_registered_v3(output: Path) -> None:
+def mark_state_as_registered_v4(output: Path) -> None:
     state_path = output / "state" / "extractor-state.json"
     state = extractor._strict_read_json(state_path)
     assert isinstance(state, dict)
     state.update(
         {
-            "schema_version": 3,
-            "extractor_version": "prospective-conversation-extractor-v3",
-            "parser_version": "prospective-conversation-log-parser-v3",
+            "schema_version": 4,
+            "extractor_version": "prospective-conversation-extractor-v4",
+            "parser_version": "prospective-conversation-log-parser-v4",
         }
     )
+    for entry in state.get("source_file_cache", {}).values():
+        if isinstance(entry, dict):
+            entry["parser_version"] = "prospective-conversation-log-parser-v4"
     rewrite_private_json(state_path, state, mode=0o600)
 
 
@@ -2130,7 +2133,7 @@ def test_reply_media_and_visual_events_touch_canonical_observation_times() -> No
     assert conversations[0]["turns"][0]["post_id"] == target_id
 
 
-def test_v4_validation_rejects_corrupt_canonical_visual_metadata(
+def test_v5_validation_rejects_corrupt_canonical_visual_metadata(
     tmp_path: Path,
 ) -> None:
     project = tmp_path / "project"
@@ -2209,7 +2212,7 @@ def test_v4_validation_rejects_corrupt_canonical_visual_metadata(
         )
 
 
-def test_v4_validation_rejects_conversation_visual_metadata_mismatch(
+def test_v5_validation_rejects_conversation_visual_metadata_mismatch(
     tmp_path: Path,
 ) -> None:
     project = tmp_path / "project"
@@ -2248,7 +2251,7 @@ def test_v4_validation_rejects_conversation_visual_metadata_mismatch(
     )
 
 
-def test_v4_validation_rejects_candidate_visual_metadata_corruption(
+def test_v5_validation_rejects_candidate_visual_metadata_corruption(
     tmp_path: Path,
 ) -> None:
     project = tmp_path / "project"
@@ -3332,14 +3335,14 @@ def test_send_attempt_history_is_bounded_per_target() -> None:
     ]
 
 
-def test_prospective_version_4_and_registered_v3_predecessor_are_exact() -> None:
-    assert extractor.SCHEMA_VERSION == 4
-    assert extractor.EXTRACTOR_VERSION == "prospective-conversation-extractor-v4"
-    assert extractor.PARSER_VERSION == "prospective-conversation-log-parser-v4"
+def test_prospective_version_5_and_registered_v4_predecessor_are_exact() -> None:
+    assert extractor.SCHEMA_VERSION == 5
+    assert extractor.EXTRACTOR_VERSION == "prospective-conversation-extractor-v5"
+    assert extractor.PARSER_VERSION == "prospective-conversation-log-parser-v5"
     assert extractor.REGISTERED_REBUILD_SOURCE == (
-        3,
-        "prospective-conversation-extractor-v3",
-        "prospective-conversation-log-parser-v3",
+        4,
+        "prospective-conversation-extractor-v4",
+        "prospective-conversation-log-parser-v4",
     )
     assert "reply_visual_description" in (
         extractor.STRUCTURED_CONVERSATION_EVENT_FIELDS
@@ -3416,7 +3419,7 @@ def test_validation_rejects_mixed_parser_versions_in_canonical_snapshot(
     assert any("canonical post parser mismatch" in value for value in problems)
 
 
-def test_registered_rebuild_v3_to_v4_preserves_key_pseudonyms_and_old_root(
+def test_registered_rebuild_v4_to_v5_preserves_key_pseudonyms_and_old_root(
     tmp_path: Path,
 ) -> None:
     project = tmp_path / "project"
@@ -3428,7 +3431,7 @@ def test_registered_rebuild_v3_to_v4_preserves_key_pseudonyms_and_old_root(
         + first_exchange(author_id="stable-rebuild-user"),
     )
     run_scan(project, old_root)
-    mark_state_as_registered_v3(old_root)
+    mark_state_as_registered_v4(old_root)
     old_key = (old_root / "state" / "pseudonym-key").read_bytes()
     old_author = next(
         post["author_key"]
@@ -3464,6 +3467,78 @@ def test_registered_rebuild_v3_to_v4_preserves_key_pseudonyms_and_old_root(
     }
 
 
+def test_registered_v4_to_v5_rebuild_reparses_single_call_semantics(
+    tmp_path: Path,
+) -> None:
+    project = tmp_path / "project"
+    old_root = tmp_path / "old-root"
+    new_root = tmp_path / "new-root"
+    write_active(
+        project,
+        log_line("2026-08-24 15:00:00", "Pre-boundary coverage")
+        + log_line(
+            "2026-09-04 12:00:00",
+            "Considering mention id=900 author_id=700 text='Current contribution'",
+        )
+        + log_line(
+            "2026-09-04 12:00:01",
+            "Built single-call reply context target_id=900 turns=3 "
+            "root_id=800 parent_id=850",
+        )
+        + event_line(
+            "2026-09-04 12:00:02",
+            "single_call_reply_decision",
+            target_id="900",
+            lane="mention",
+            model_call_count=1,
+            decision="no_reply",
+            reply_kind="no_reply",
+            reason_code="completed_exchange",
+        ),
+    )
+    run_scan(project, old_root, until="2026-09-05T00:00:00Z")
+    source_posts = rows(old_root, "canonical-posts.jsonl")
+    source_post = next(post for post in source_posts if post["post_id"] == "900")
+    source_post["root_post_id"] = None
+    source_post["parent_post_id"] = None
+    source_post["pipeline_stage_summaries"] = []
+    rewrite_batch_posts_and_hashes(current_batch(old_root), source_posts)
+    mark_state_as_registered_v4(old_root)
+
+    result = extractor.rebuild_to_new_root(
+        project_dir=project,
+        source_output_root=old_root,
+        new_output_root=new_root,
+        until="2026-09-05T00:00:00Z",
+    )
+    rebuilt = next(
+        post for post in rows(new_root, "canonical-posts.jsonl")
+        if post["post_id"] == "900"
+    )
+    source_manifest = extractor._strict_read_json(
+        current_batch(new_root) / "source-manifest.json"
+    )
+    assert isinstance(source_manifest, dict)
+
+    assert result["status"] == "rebuilt"
+    assert source_manifest["parsed_source_hash_count"] == 1
+    assert rebuilt["schema_version"] == 5
+    assert rebuilt["derivation_parser_version"] == (
+        "prospective-conversation-log-parser-v5"
+    )
+    assert rebuilt["root_post_id"] == "800"
+    assert rebuilt["parent_post_id"] == "850"
+    assert rebuilt["pipeline_stage_summaries"][0]["event_kind"] == (
+        "single_call_reply_decision"
+    )
+    unchanged_source = next(
+        post for post in rows(old_root, "canonical-posts.jsonl")
+        if post["post_id"] == "900"
+    )
+    assert unchanged_source["root_post_id"] is None
+    assert unchanged_source["pipeline_stage_summaries"] == []
+
+
 def test_registered_rebuild_refuses_existing_destination_and_insufficient_boundary_coverage(
     tmp_path: Path,
 ) -> None:
@@ -3473,7 +3548,7 @@ def test_registered_rebuild_refuses_existing_destination_and_insufficient_bounda
     existing.mkdir()
     write_active(project, first_exchange())
     run_scan(project, old_root)
-    mark_state_as_registered_v3(old_root)
+    mark_state_as_registered_v4(old_root)
 
     with pytest.raises(extractor.ExtractorError, match="must not already exist"):
         extractor.rebuild_to_new_root(
@@ -3954,7 +4029,7 @@ def test_status_is_read_only_and_valid_when_uninitialised(tmp_path: Path) -> Non
     status = extractor.get_status(output)
 
     assert status["initialised"] is False
-    assert status["schema_version"] == 4
+    assert status["schema_version"] == 5
     assert status["last_retention_error"] is None
     assert status["automatic_batch_budget_bytes"] == 10 * 1024 * 1024 * 1024
     assert status["minimum_free_bytes"] == 10 * 1024 * 1024 * 1024
@@ -5426,7 +5501,7 @@ def test_source_lag_is_reported_warned_and_does_not_invalidate(tmp_path: Path) -
     assert extractor.validate_output_root(output)["valid"] is True
 
 
-def test_normal_scan_rejects_v3_state_and_rebuild_rejects_unregistered_tuple(
+def test_normal_scan_rejects_v4_state_and_rebuild_rejects_unregistered_tuple(
     tmp_path: Path,
 ) -> None:
     project = tmp_path / "project"
@@ -5436,7 +5511,7 @@ def test_normal_scan_rejects_v3_state_and_rebuild_rejects_unregistered_tuple(
         log_line("2026-08-24 16:00:00", "Boundary coverage") + first_exchange(),
     )
     run_scan(project, old_root)
-    mark_state_as_registered_v3(old_root)
+    mark_state_as_registered_v4(old_root)
 
     with pytest.raises(extractor.ExtractorError, match="unsupported extractor state schema"):
         run_scan(project, old_root)
@@ -5444,7 +5519,7 @@ def test_normal_scan_rejects_v3_state_and_rebuild_rejects_unregistered_tuple(
     state_path = old_root / "state" / "extractor-state.json"
     state = extractor._strict_read_json(state_path)
     assert isinstance(state, dict)
-    state["parser_version"] = "unregistered-v3-parser"
+    state["parser_version"] = "unregistered-v4-parser"
     rewrite_private_json(state_path, state, mode=0o600)
     with pytest.raises(extractor.ExtractorError, match="unsupported rebuild source"):
         extractor.rebuild_to_new_root(

@@ -1215,6 +1215,47 @@ def test_local_config_fractional_values_remain_floats(tmp_path, monkeypatch):
     assert type(loaded["ORIGINAL_EDITORIAL_SHADOW_WEIGHT"]) is float
 
 
+def test_local_config_accepts_openai_breaker_limit(tmp_path, monkeypatch):
+    path = tmp_path / "local.json"
+    path.write_text(
+        '{"MAX_OPENAI_ERRORS_PER_WINDOW":5}',
+        encoding="utf-8",
+    )
+    monkeypatch.setattr(bot, "LOCAL_CONFIG_FILE", path)
+
+    assert bot.load_validated_local_config_overrides() == {
+        "MAX_OPENAI_ERRORS_PER_WINDOW": 5,
+    }
+
+
+def test_local_config_migrates_retired_xai_breaker_limit(tmp_path, monkeypatch):
+    path = tmp_path / "local.json"
+    path.write_text(
+        '{"MAX_XAI_ERRORS_PER_WINDOW":5}',
+        encoding="utf-8",
+    )
+    monkeypatch.setattr(bot, "LOCAL_CONFIG_FILE", path)
+
+    assert bot.load_validated_local_config_overrides() == {
+        "MAX_OPENAI_ERRORS_PER_WINDOW": 5,
+    }
+
+
+def test_local_config_rejects_ambiguous_provider_breaker_limits(
+    tmp_path,
+    monkeypatch,
+):
+    path = tmp_path / "local.json"
+    path.write_text(
+        '{"MAX_XAI_ERRORS_PER_WINDOW":3,"MAX_OPENAI_ERRORS_PER_WINDOW":4}',
+        encoding="utf-8",
+    )
+    monkeypatch.setattr(bot, "LOCAL_CONFIG_FILE", path)
+
+    with pytest.raises(bot.LocalConfigError, match="both the retired xAI"):
+        bot.load_validated_local_config_overrides()
+
+
 @pytest.mark.parametrize("payload", [[], {"disable_all": "perhaps"}, {"disable_all_until": "not-a-time"}])
 def test_control_invalid_without_prior_fails_closed(tmp_path, monkeypatch, payload):
     path = tmp_path / "control.json"

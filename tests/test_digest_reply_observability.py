@@ -435,6 +435,7 @@ def test_single_call_digest_reports_version_three_architecture():
         "trusted_fact_count": 3,
         "supplied_image_count": 1,
         "model_call_count": 1,
+        "provider_request_attempt_count": 1,
         "local_validation_status": "passed",
         "outcome_type": "editorial",
     }
@@ -563,6 +564,7 @@ def test_single_call_digest_flags_duplicate_provider_usage_as_call_violation():
         "reason_code": "useful_reply",
         "used_fact_count": 0,
         "model_call_count": 1,
+        "provider_request_attempt_count": 1,
         "local_validation_status": "passed",
         "outcome_type": "editorial",
         "pipeline_status": "reply",
@@ -586,7 +588,7 @@ def test_single_call_digest_flags_duplicate_provider_usage_as_call_violation():
     assert summary["one_call_compliant_count"] == 0
 
 
-def test_single_call_digest_flags_multiple_request_attempts_as_violation():
+def test_single_call_digest_allows_authorised_pre_execution_retry():
     decision = structured_record(0, {
         "event": "single_call_reply_decision",
         "lane": "mention",
@@ -614,9 +616,120 @@ def test_single_call_digest_flags_multiple_request_attempts_as_violation():
 
     summary = digest.analyse([decision, usage])["single_call_reply"]
 
+    assert summary["one_call_compliance"] == "passed"
+    assert summary["one_call_compliant_count"] == 1
+    assert summary["one_call_violation_count"] == 0
+    assert summary["authorised_pre_execution_retry_count"] == 1
+
+
+def test_single_call_digest_preserves_and_rejects_more_than_two_attempts():
+    decision = structured_record(0, {
+        "event": "single_call_reply_decision",
+        "lane": "mention",
+        "target_id": "203",
+        "model_call_count": 1,
+        "provider_request_attempt_count": 3,
+        "provider_status_code": 429,
+        "provider_reset_epoch": 1_788_534_120,
+        "provider_retry_after_seconds": 120,
+        "pipeline_status": "operational_failure",
+        "outcome_type": "operational",
+    })
+    usage = structured_record(1, {
+        "event": "single_call_reply_provider_usage",
+        "lane": "mention",
+        "target_id": "203",
+        "request_attempt_count": 3,
+    })
+
+    report = digest.analyse([decision, usage])
+    summary = report["single_call_reply"]
+    parsed_decision = next(
+        item for item in report["events"]
+        if item["kind"] == "single_call_reply_decision"
+    )
+
+    assert parsed_decision["provider_request_attempt_count"] == 3
+    assert parsed_decision["provider_request_attempt_count_status"] == "available"
+    assert parsed_decision["provider_status_code"] == 429
+    assert parsed_decision["provider_reset_epoch"] == 1_788_534_120
+    assert parsed_decision["provider_retry_after_seconds"] == 120
+    assert summary["provider_request_attempt_counts"] == {"3": 1}
     assert summary["one_call_compliance"] == "failed"
     assert summary["one_call_compliant_count"] == 0
     assert summary["one_call_violation_count"] == 1
+
+
+@pytest.mark.parametrize(
+    ("attempt_value", "expected_status"),
+    [
+        (None, "missing"),
+        ("1", "malformed"),
+    ],
+)
+def test_single_call_digest_does_not_pass_incomplete_attempt_telemetry(
+    attempt_value,
+    expected_status,
+):
+    payload = {
+        "event": "single_call_reply_decision",
+        "lane": "mention",
+        "target_id": "204",
+        "model_call_count": 1,
+        "pipeline_status": "reply",
+        "outcome_type": "editorial",
+    }
+    if attempt_value is not None:
+        payload["provider_request_attempt_count"] = attempt_value
+
+    report = digest.analyse([structured_record(0, payload)])
+    summary = report["single_call_reply"]
+    parsed = next(
+        item for item in report["events"]
+        if item["kind"] == "single_call_reply_decision"
+    )
+
+    assert parsed["provider_request_attempt_count"] is None
+    assert parsed["provider_request_attempt_count_status"] == expected_status
+    assert summary["one_call_compliance"] == "incomplete"
+    assert summary["one_call_compliant_count"] == 0
+    assert summary["one_call_violation_count"] == 0
+    assert summary["one_call_incomplete_count"] == 1
+    assert summary["provider_request_attempt_metadata_status_counts"] == {
+        expected_status: 1,
+    }
+
+
+def test_single_call_digest_reports_retryable_later_attempts_without_failing():
+    decisions = [
+        structured_record(index, {
+            "event": "single_call_reply_decision",
+            "lane": "mention",
+            "target_id": "205",
+            "model_call_count": 1,
+            "provider_request_attempt_count": 1,
+            "pipeline_status": "operational_failure",
+            "outcome_type": "operational",
+        })
+        for index in range(2)
+    ]
+    usage = [
+        structured_record(index + 2, {
+            "event": "single_call_reply_provider_usage",
+            "lane": "mention",
+            "target_id": "205",
+            "request_attempt_count": 1,
+        })
+        for index in range(2)
+    ]
+
+    summary = digest.analyse([*decisions, *usage])["single_call_reply"]
+
+    assert summary["one_call_compliance"] == "passed"
+    assert summary["one_call_compliant_count"] == 2
+    assert summary["one_call_violation_count"] == 0
+    assert summary["repeated_model_attempt_candidate_count"] == 1
+    assert summary["excess_provider_usage_candidate_count"] == 0
 
 
 def test_old_multi_stage_logs_are_only_counted_as_legacy():

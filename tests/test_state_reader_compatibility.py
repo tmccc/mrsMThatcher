@@ -106,6 +106,44 @@ def test_legacy_state_upgrades_and_reloads_through_all_backup_generations(
         assert persisted["pending_reply_drafts"] == bot.STATE_READER_COMPATIBILITY_FENCE
 
 
+def test_previous_reader_fence_upgrades_to_current_without_state_loss(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    state_file = tmp_path / "bot_state.json"
+    monkeypatch.setattr(bot, "STATE_FILE", state_file)
+    monkeypatch.setattr(bot, "STATE_BACKUP_COUNT", 0)
+    bot.atomic_write_json(
+        state_file,
+        {
+            "minimum_reader_version": 2,
+            "pending_reply_drafts": {
+                "__mrs_state_reader_compatibility_fence__": 2,
+            },
+            "last_seen_mention_id": "99",
+            "future_extension": {"preserved": True},
+        },
+    )
+
+    loaded = bot.load_state()
+
+    assert loaded["minimum_reader_version"] == bot.STATE_MINIMUM_READER_VERSION
+    assert "pending_reply_drafts" not in loaded
+    assert loaded["last_seen_mention_id"] == "99"
+    assert loaded["future_extension"] == {"preserved": True}
+
+    bot.save_state(loaded, durable=True)
+    persisted = json.loads(state_file.read_bytes())
+    assert persisted["minimum_reader_version"] == bot.STATE_MINIMUM_READER_VERSION
+    assert persisted["pending_reply_drafts"] == bot.STATE_READER_COMPATIBILITY_FENCE
+    with pytest.raises(bot.IncompatibleStateReaderError):
+        bot.require_compatible_state_reader(
+            persisted,
+            path=state_file,
+            reader_version=3,
+        )
+
+
 def test_future_state_rejects_before_compatible_backup_fallback(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
