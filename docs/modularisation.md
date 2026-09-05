@@ -1459,3 +1459,121 @@ time-window/text bounds, source-reference callbacks and current classifiers,
 while retaining request/source collection and publication authority in the
 coordinator. These candidates are assessed only; no stage 18 implementation is
 included.
+
+## Extracted in stage 18
+
+Base: `474fc0239fc449aceb46c3e5d0e0938000c3785d`, verified against pushed
+`origin/codex/modularisation-stage17`. Work is isolated on
+`codex/modularisation-stage18` in
+`/disks/disk1/research/mrsMThatcher-modularisation-stage18`.
+This implements stage 18 only; there is no stage-number ceiling. The supervisor
+can continue in fresh sessions until further digest modularisation is no longer
+sensible. Broader bot refactoring remains outside scope.
+
+`mrs_log_digest_state_reporting.py` owns the existing `state_list_count`,
+`state_list_tail`, `state_list_head`,
+`summarize_engagement_question_experiment_state`, `summarize_latest_state`,
+`current_author_no_reply_strike_progress`, `refresh_current_health_headline` and
+`refresh_derived`, plus both small epoch converters. Digest signatures remain
+through aliases or thin wrappers supplying current helpers, prepared data and
+vocabulary. The author-progress limits, five evidence-policy labels, invalid-state
+label and cooldown-field vocabulary move together with unchanged digest aliases;
+experiment vocabulary retains its quote-publication owner.
+
+The verified base samples `datetime.now()` **unconditionally at entry** to
+`summarize_latest_state`; the scope description's conditional-fallback wording
+does not match that implementation. The supplied `clock_now` preserves that exact
+site/order. Epoch converters receive current `datetime.fromtimestamp` and London
+timezone inputs. Author progress retains `state_observed_at or generation_time`
+and samples no extra clock. Strict types, unknown/missing/invalid distinctions,
+current/prior/legacy evidence treatment, expiry chronology, ordering, author/epoch
+bounds and omission counts are unchanged. Shallow copying/sharing and in-place
+derived/headline mutation retain their original behavior.
+
+The owner also holds both complete structured observation bodies (62 lines):
+`mention_backlog_started/progress/completed/reset` and
+`author_evaluation_quarantine_started/skip/expired`. Their exact event-name sets,
+branch predicates/positions, `add_event` and source tracking remain in `analyse`.
+The post-scan projection returns its original event list and Counter plus the
+explicit skipped-evaluation sum. Report attachment/count conversion is unchanged.
+Each event still increments statistics twice, once through `add_event` and once
+through its handler; the projected event count remains one. Loading,
+saved-context application, backscan, persistence and report orchestration remain
+with their current owners. No validation or behavior cleanup was added.
+
+| Physical lines | Before | After |
+| --- | ---: | ---: |
+| Digest file | 7,552 | 6,905 (−647) |
+| `analyse` | 3,486 | 3,419 (−67) |
+| State-reporting module | — | 897 |
+| `run_digest` / Markdown wrapper | 360 / 10 | 360 / 10 |
+
+Validation: baseline **232 passed**, final **239 passed**, using
+`MRS_TEST_MODE=1 PYTEST_DISABLE_PLUGIN_AUTOLOAD=1 python3 -m pytest` with the
+existing temporary-HOME/network isolation. Selection: `test_mrs_log_digest.py`,
+`test_digest_runtime.py`, `test_digest_safety_hardening.py`,
+`test_digest_markdown.py`, `test_digest_reply_observability.py`; the 22 digest-only
+backlog/quarantine/author-progress/source tests from
+`test_digest_reports_backlog_quarantines_and_skipped_pipeline_evaluations` onward
+in `test_mention_backlog_author_quarantine.py`; and six digest-only integration
+cases for compact engagement state, authoritative metrics, runtime state after
+the window, no-`until` state, resume/current-state separation and state-derived
+strike provenance. The bot-operation chronology/restart case and the full bot
+harness were not run. Six new boundary tests cover current conversion/helpers,
+clock order, vocabulary, limits, copying/mutation and event/Counter/source
+identity; the existing guarded import test now includes the new owner.
+
+All ten helper bodies match the base ASTs after only explicit clock/conversion
+substitutions. Original signatures, nine constants/aliases, both complete handler
+bodies (record timestamp substitution only), unchanged dispatch predicates and
+post-scan projection were checked, including every explicit callback/data
+argument. Every remaining coordinator byte matches after excluding extraction
+sites. The documentation gate passes for **200 modules** and `git diff --check`
+passes.
+
+Three complete JSON/Markdown pairs reuse `write_digest_log`, `digest_event_line`,
+`pipeline_digest_lines` and `digest_author_no_reply_record` with shared fixed
+paths/time: fresh author progress (**49,284 / 13,841 bytes**), stale/invalid state
+(**45,495 / 12,804**) and saved context/cooldowns (**49,798 / 14,635**). JSON bytes
+match after replacing only independently verified producer-source hashes;
+independently verified repository HEADs were equal at comparison time. Markdown,
+warnings and fixture bytes/modes/mtimes match without substitution. Temporary
+comparison code/data are excluded. These are focused extraction checks, not an
+exhaustive bot replay. JSON schema 3, Markdown, CLI/defaults, provenance,
+locks/resume and self-test/source isolation are unchanged; the owner has no I/O,
+upward imports, stored callbacks or dependency container.
+
+Recommended next boundary: transaction/media/receipt observation preparation,
+about 414 existing helper lines: `parse_x_request_start`,
+`classify_x_request_endpoint`, `parse_remote_write_transaction_event` (149),
+`summarise_main_post_receipt_lifecycle` (115), `correlate_media_upload_incidents`
+(71), the media predicates and `find_recent_media_path`. Supply prepared records
+or their timestamp/text/path fields and current `short`, source-reference,
+fingerprint, endpoint and media-classifier callbacks. Preserve chronology,
+matching windows, unresolved receipt identity and invocation positions; retain
+request/source collection, statistics and publication authority in the digest.
+
+Record/input ownership is also useful: `Record`, `iter_records`, `read_records`,
+`filter_records_by_time`, `record_source_ref`, `safe_source_logger`,
+`bounded_source_refs`, fingerprint/tail/boundary helpers, `summarize_input_files`
+and `input_retention_coverage`. It needs one shared frozen record identity,
+explicit log regex, parsers/time conversion, current readers/formatters, source
+indexes and reference/tail limits. Preserve rotation ordering, duplicate
+multiplicity, warning/read order and inclusive/exclusive resume boundaries; keep
+discovery and resume policy with the coordinator. This crosses more input/I/O
+ownership than the prepared transaction group.
+
+Provider observations form a separate 187-line helper group:
+`xai_usage_stage_from_msg`, `provider_usage_provider_from_msg`,
+`parse_xai_call_start`, `parse_xai_usage_from_msg`,
+`xai_usage_context_from_pending`, `unknown_xai_usage_context`,
+`normalise_active_xai_call_attempt`, `_cache_input_metric` and
+`summarize_xai_usage_event`. They need prepared pending contexts/records, current
+lane and usage converters, stage classification and cache-metric delegation.
+Keep pending-call/source correlation, resume decisions and cost reporting with
+their existing owners. These candidates are assessed only; no following-stage
+implementation is included.
+
+No production checkout, configuration, durable state, logs or image pools were
+changed; no bot/provider/posting calls, service control, merge or deployment
+occurred. Earlier worktrees and branches are preserved.

@@ -30,6 +30,75 @@ def structured_record(offset, payload, *, level="INFO"):
     )
 
 
+def test_mention_control_extraction_keeps_event_counter_and_source_identity(monkeypatch):
+    names = [
+        "mention_backlog_started", "mention_backlog_progress",
+        "mention_backlog_completed", "mention_backlog_reset",
+        "author_evaluation_quarantine_started", "author_evaluation_quarantine_skip",
+        "author_evaluation_quarantine_expired",
+    ]
+    records = [structured_record(index, {
+        "event": name, "since_id": "opaque", "highest_mention_id": "opaque",
+        "author_id": "opaque", "target_id": "opaque", "pipeline_evaluations_skipped": 2,
+    }) for index, name in enumerate(names)]
+    emitted, counters, timestamps, projected = [], [], [], []
+    source_ref = {"fixture": "source"}
+    monkeypatch.setattr(digest, "valid_string_public_post_id", lambda value: value == "opaque")
+    monkeypatch.setattr(digest, "record_source_ref", lambda *args: source_ref)
+
+    def wrap_handler(name):
+        original = getattr(digest, name)
+
+        def handler(payload, timestamp, *, add_event, stats, **helpers):
+            counters.append(stats)
+            timestamps.append(timestamp)
+
+            def emit(*args, **kwargs):
+                result = add_event(*args, **kwargs)
+                emitted.append(result)
+                return result
+
+            return original(payload, timestamp, add_event=emit, stats=stats, **helpers)
+
+        monkeypatch.setattr(digest, name, handler)
+
+    wrap_handler("record_mention_backlog")
+    wrap_handler("record_author_evaluation_quarantine")
+    prepare = digest.prepare_mention_control_observations
+
+    def projection(events, *, event_counter):
+        created = []
+
+        def counter(values):
+            result = event_counter(values)
+            created.append(result)
+            return result
+
+        result = prepare(events, event_counter=counter)
+        assert result[0] is not events
+        assert result[1] is created[0]
+        assert all(any(item is candidate for candidate in events) for item in result[0])
+        projected.append(result)
+        return result
+
+    monkeypatch.setattr(digest, "prepare_mention_control_observations", projection)
+    report = digest.analyse(records, generation_time=records[-1].ts)
+    observation = report["mention_backlog_and_quarantine"]
+    assert observation["events"] is projected[0][0]
+    assert all(item is emitted[index] for index, item in enumerate(observation["events"]))
+    assert all(item is counters[0] for item in counters)
+    assert all(stamp is record.ts for stamp, record in zip(timestamps, records))
+    assert observation["event_counts"] == dict.fromkeys(names, 1)
+    # Both add_event and the selected handler increment the original counter.
+    assert [counters[0][name] for name in names] == [2] * 7
+    assert observation["pipeline_evaluations_skipped"] == 2
+    assert emitted[0]["since_id"] == "opaque"
+    assert emitted[4]["author_id"] == "opaque"
+    assert all(item["source_refs"][0] is source_ref for item in emitted)
+    emitted[0]["later"] = True
+    assert observation["events"][0]["later"] is True
+
+
 def test_source_classification_uses_stable_authoritative_classes():
     assert formatter.classify_source({"title": "HC Deb", "url": "https://hansard.parliament.uk/x", "source_type": "transcript"}) == "Hansard"
     assert formatter.classify_source({"title": "Redirect", "url": "https://vertexaisearch.cloud.google.com/grounding-api-redirect/x"}) == "no public URL"

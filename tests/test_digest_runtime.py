@@ -13,6 +13,187 @@ import pytest
 import mrs_log_digest as digest
 
 
+def test_state_epoch_wrappers_keep_current_conversion_and_timezone(monkeypatch):
+    calls = []
+    stamp = datetime(2026, 8, 31, 12)
+
+    class ConversionTime(datetime):
+        @classmethod
+        def fromtimestamp(cls, *args, **kwargs):
+            calls.append((args, kwargs))
+            if args[0] == 999:
+                raise OverflowError("fixture overflow")
+            return stamp
+
+    monkeypatch.setattr(digest, "datetime", ConversionTime)
+    monkeypatch.setattr(digest, "LONDON", timezone.utc)
+    assert digest.epoch_to_human("invalid") is None
+    assert digest.epoch_to_human(0) is None
+    assert calls == []
+    assert digest.epoch_to_human("123") == "2026-08-31 12:00:00"
+    assert digest.epoch_to_london_text(321) == "2026-08-31 12:00:00"
+    assert calls == [((123,), {}), ((321,), {"tz": timezone.utc})]
+    with pytest.raises(OverflowError, match="fixture overflow"):
+        digest.epoch_to_human(999)
+    assert digest.epoch_to_london_text(999) is None
+
+
+def test_state_summary_keeps_clock_order_current_helpers_and_shallow_copies(monkeypatch):
+    calls = []
+    stamp = datetime(2026, 8, 31, 12)
+    nested = {"filename": "fixture.png"}
+    state = {"posted_meme_filenames": [nested], "recent_own_post_ids": [nested]}
+    experiment = {"fixture": "current helper result"}
+
+    class ObservationTime(datetime):
+        @classmethod
+        def now(cls):
+            calls.append("now")
+            state["mention_backlog"] = {"started_epoch": int(stamp.timestamp()) - 10}
+            return stamp
+
+    def epoch(value):
+        calls.append("epoch")
+        return "converted"
+
+    def wrap(name):
+        original = getattr(digest, name)
+
+        def current(*args):
+            calls.append(name)
+            assert args[0] is state
+            return original(*args)
+
+        monkeypatch.setattr(digest, name, current)
+
+    def summarize_experiment(value):
+        calls.append("experiment")
+        assert value is None
+        return experiment
+
+    monkeypatch.setattr(digest, "datetime", ObservationTime)
+    monkeypatch.setattr(digest, "epoch_to_human", epoch)
+    for name in ("state_list_count", "state_list_tail", "state_list_head"):
+        wrap(name)
+    monkeypatch.setattr(digest, "summarize_engagement_question_experiment_state", summarize_experiment)
+    summary = digest.summarize_latest_state(state, stamp, source_path=Path("fixture.json"))
+    assert calls == ["now", *(["epoch"] * 10), "state_list_count", "state_list_count",
+                     "state_list_tail", "state_list_head", "state_list_count", "experiment"]
+    assert summary["mention_backlog_age_seconds"] == 10
+    assert summary["_state_source_path"] == "fixture.json"
+    assert summary["engagement_question_experiment"] is experiment
+    assert summary["posted_meme_filenames_tail"] is not state["posted_meme_filenames"]
+    assert summary["posted_meme_filenames_tail"][0] is nested
+    assert summary["recent_own_post_ids_head"][0] is nested
+
+
+def test_state_summary_keeps_current_unknown_labels_and_experiment_vocabulary(monkeypatch):
+    monkeypatch.setattr(digest, "UNKNOWN_MISSING_STATE_FIELD", "missing fixture")
+    monkeypatch.setattr(digest, "UNKNOWN_INVALID_STATE_FIELD", "invalid fixture")
+    monkeypatch.setattr(digest, "ENGAGEMENT_QUESTION_EXPERIMENT_ID", "fixture experiment")
+    monkeypatch.setattr(digest, "ENGAGEMENT_QUESTION_EXPERIMENT_STATE_SCHEMA_VERSION", 7)
+    monkeypatch.setattr(digest, "ENGAGEMENT_QUESTION_EXPERIMENT_STATUSES", {"fixture status"})
+    nested = {"fixture": "shared"}
+    deferral = {"code": nested, "unprojected": "omitted"}
+    summary = digest.summarize_engagement_question_experiment_state({
+        "schema_version": 7, "experiment_id": "fixture experiment",
+        "status": "fixture status", "current_pair_index": True,
+        "current_deferral_reason": deferral,
+    })
+    assert summary["status"] == "fixture status"
+    assert summary["current_pair_index"] == "invalid fixture"
+    assert summary["completed_pair_count"] == "missing fixture"
+    assert summary["current_deferral_reason"] == {"code": nested}
+    assert summary["current_deferral_reason"] is not deferral
+    assert summary["current_deferral_reason"]["code"] is nested
+    assert digest.state_list_count({}, "items") == "missing fixture"
+    assert digest.state_list_count({"items": None}, "items") == "invalid fixture"
+
+
+def test_author_progress_keeps_current_callbacks_limits_and_observation_time(monkeypatch):
+    from tests.test_mention_backlog_author_quarantine import (
+        DIGEST_AUTHOR_NO_REPLY_CONFIG, digest_author_no_reply_record,
+    )
+
+    stamp = datetime(2026, 8, 31, 12)
+    observed = datetime(2026, 8, 31, 12, 5)
+    epoch = int(observed.timestamp())
+    calls = []
+
+    class NoClock(datetime):
+        @classmethod
+        def now(cls, *args, **kwargs):
+            pytest.fail("author progress already has observation and generation times")
+
+    def convert(value):
+        calls.append(value)
+        return f"epoch {value}"
+
+    records = {key: digest_author_no_reply_record([epoch - 10]) for key in ("bbb", "a")}
+    for record in records.values():
+        record["evidence_policy"] = "fixture policy"
+    monkeypatch.setattr(digest, "datetime", NoClock)
+    monkeypatch.setattr(digest, "epoch_to_london_text", convert)
+    monkeypatch.setattr(digest, "valid_public_post_id", lambda value: value in records)
+    monkeypatch.setattr(digest, "AUTHOR_NO_REPLY_PROGRESS_MAX_AUTHORS", 1)
+    monkeypatch.setattr(digest, "AUTHOR_EVALUATION_QUARANTINE_EVIDENCE_POLICY", "fixture policy")
+    result = digest.current_author_no_reply_strike_progress(
+        {"author_evaluation_quarantines": records}, "available",
+        DIGEST_AUTHOR_NO_REPLY_CONFIG, "available", stamp, state_observed_at=observed,
+    )
+    assert result["available"] is True
+    assert result["as_of_epoch"] == epoch
+    assert [item["author_id"] for item in result["authors"]] == ["a"]
+    assert result["omitted_author_count"] == 1
+    assert calls == [epoch, epoch - 10, epoch - 10 + 21600, epoch - 10, epoch - 10 + 21600]
+    assert result["authors"][0]["recent_qualifying_no_reply_epochs"] is not records["a"]["recent_no_reply_epochs"]
+    assert list(records) == ["bbb", "a"]
+    assert records["a"]["recent_no_reply_epochs"] == [epoch - 10]
+
+
+def test_state_refresh_keeps_report_identity_and_current_helper_order(monkeypatch):
+    calls = []
+    state = {"api_cooldown_until_epoch": 123, "openai_api_cooldown_until_epoch": 0,
+             "openai_api_cooldown_until_human": "stale", "openai_api_cooldown_reason": "stale"}
+    summary = {"_headline_without_current_cooldown": ["current health: stale"]}
+    report = {"latest_state": state, "summary": summary, "generation_epoch": 100,
+              "runtime_state_status": {"status": "available"},
+              "error_health": {"current_independent_incident_count": 2}}
+    refresh = digest.refresh_current_health_headline
+    parse_int = digest.int_or_none
+
+    def integer(value):
+        calls.append(("integer", value))
+        return parse_int(value)
+
+    def human(value):
+        calls.append(("human", value))
+        return "converted"
+
+    def headline(value):
+        calls.append(("headline",))
+        assert value is report
+        assert state["openai_api_cooldown_until_human"] is None
+        assert state["openai_api_cooldown_reason"] == ""
+        refresh(value)
+
+    monkeypatch.setattr(digest, "int_or_none", integer)
+    monkeypatch.setattr(digest, "epoch_to_human", human)
+    monkeypatch.setattr(digest, "refresh_current_health_headline", headline)
+    monkeypatch.setattr(digest, "plural_count", lambda *args: "fixture incidents")
+    monkeypatch.setattr(digest, "cooldown_state_text", lambda *args: "active")
+    monkeypatch.setattr(digest, "CURRENT_COOLDOWN_FIELDS", (("api_cooldown_until_epoch", "fixture API"),))
+    assert digest.refresh_derived(report) is None
+    assert report["latest_state"] is state
+    assert report["summary"] is summary
+    assert calls == [("integer", 123), ("human", 123), ("integer", 0),
+                     *([("integer", None)] * 5), ("headline",), ("integer", 100)]
+    assert state["api_cooldown_until_human"] == "converted"
+    assert summary["headline"] == "current health: fixture incidents; fixture API cooldown active now"
+    assert summary["_headline_without_current_cooldown"] == ["current health: stale"]
+    assert report["current_cooldown_status"] == {"api_cooldown_until_epoch": "active"}
+
+
 @pytest.mark.parametrize(
     "loader_name,filename,field,mtime_calls",
     [
@@ -132,7 +313,10 @@ def test_pause_wrapper_samples_patched_clock_at_original_validation_boundary(
         assert result["sha256"] == hashlib.sha256(raw).hexdigest()
 
 
-@pytest.mark.parametrize("module_name", ["mrs_log_digest_runtime", "mrs_log_digest_remote_write"])
+@pytest.mark.parametrize("module_name", [
+    "mrs_log_digest_runtime", "mrs_log_digest_remote_write",
+    "mrs_log_digest_state_reporting",
+])
 def test_runtime_module_import_has_no_runtime_effects_or_upward_dependencies(tmp_path, module_name):
     script = """
 import builtins

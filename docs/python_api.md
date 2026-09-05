@@ -36,6 +36,7 @@ and AppleDouble files.
 | `mrs_log_digest_costs.py` | Published-cost cache validation, UTC-window accounting and report preparation | Cache reads only through an explicitly supplied stable reader; paths, clock observations and strict JSON parser supplied by caller |
 | `mrs_log_digest_provider_costs.py` | Pure conversational provider usage totals, cost attribution, cache-metric coverage and currency formatting | None; consumes supplied observations without mutation |
 | `mrs_log_digest_runtime.py` | Current state/configuration validation and operator pause observations | Reads only through supplied stable readers; explicit project paths, strict JSON parsers, file-time conversion and pause clock; no import-time runtime access |
+| `mrs_log_digest_state_reporting.py` | Prepared current-state, author-strike, cooldown/headline and mention-control reporting | Explicit data, current helpers, vocabulary, epoch conversion and observation clock; refreshes supplied reports and uses the supplied event callback and statistics counter; no I/O or import-time runtime access |
 | `mrs_log_digest_remote_write.py` | Read-only remote-write barrier identities, grouping, safety and reconciliation archive observations | Explicit paths, stable reader, exact-Decimal parser, diagnostic formatter, clock and snapshot/archive-read callbacks; lazy read-only inspectors; no import-time runtime access |
 | `mrs_log_digest_incidents.py` | Operational-error classification, incident grouping/resolution, retirement evidence and remote pause scopes | Supplied observations, current helper/annotation callbacks, scope mappings and conditional clock/epoch conversion; preserves error/event identity and snapshot mutation; no file/home/configuration access or provider calls |
 | `mrs_log_digest_reply_evidence.py` | Durable confirmed conversational receipt and historical reply-history loading/validation | Explicit project paths, stable private reader, native-number parser, canonical encoders, time conversion and validator callbacks; no writes, clock sample or import-time runtime access |
@@ -95,9 +96,49 @@ configuration retain native JSON number types; controls use the exact Decimal
 parser. The control clock is a callable sampled after document/key/generation
 validation and before boolean/time validation. State observation time remains
 sampled in the digest after the state loader returns, separately from report
-generation time and the file mtime. Analysis and current-health overlays remain
-in the digest. Shared `dt_text` and `bounded_exception_status` now live in the
+generation time and the file mtime. Analysis orchestration remains in the digest;
+prepared current-health overlays belong to `mrs_log_digest_state_reporting`.
+Shared `dt_text` and `bounded_exception_status` now live in the
 values leaf and remain explicitly importable through the digest.
+
+Prepared-state callers retain `state_list_count`, `state_list_tail`,
+`state_list_head`, `summarize_engagement_question_experiment_state`,
+`summarize_latest_state`, `current_author_no_reply_strike_progress`,
+`refresh_current_health_headline`, `refresh_derived`, `epoch_to_human` and
+`epoch_to_london_text` with their original digest signatures. The list head/tail
+helpers are direct aliases; thin wrappers supply current digest helpers and
+constants for the other functions. The reporting owner holds the two
+`AUTHOR_NO_REPLY_PROGRESS_*` limits, five `AUTHOR_EVALUATION_QUARANTINE_*`
+evidence-policy labels, `UNKNOWN_INVALID_STATE_FIELD` and
+`CURRENT_COOLDOWN_FIELDS`, retaining digest aliases and values. Missing-state
+vocabulary and scalar validators retain their values owner; experiment vocabulary
+retains its quote-publication owner and is supplied through current digest aliases.
+
+Epoch conversion receives the current `datetime.fromtimestamp`; London conversion
+also receives the current `LONDON`. Local conversion retains its original
+timezone omission and exception behavior. `summarize_latest_state` calls the
+supplied `clock_now` once at entry, before reading state or invoking projection
+helpers, exactly as the original unconditional `datetime.now()` call did.
+Author progress uses `state_observed_at or generation_time` without sampling a
+clock. Unknown/missing/invalid distinctions, strict types, current/prior/legacy
+policy handling, expiry/window boundaries, ordering, limits and omissions remain
+unchanged. State summaries retain shallow slices and projected-value sharing;
+derived/cooldown/headline refreshes mutate the supplied report at the existing
+call sites. Loading, saved-context application, resume, backscan and overall
+report assembly retain their current owners.
+
+`record_mention_backlog` and `record_author_evaluation_quarantine` consume the
+selected parsed payload, record timestamp, current validation helpers,
+`add_event` and the existing statistics counter. The digest retains the four
+backlog and three quarantine dispatch predicates and positions, source tracking
+and event insertion. Both existing statistics increments remain: one in
+`add_event`, one in the selected handler. `prepare_mention_control_observations`
+selects the original emitted event objects and returns its event list, original
+Counter and explicit skipped-evaluation sum; the digest attaches that list and
+converts sorted counts at the original report site. JSON schema 3, exact Markdown,
+CLI/defaults, provenance, locks and self-test isolation are unchanged. The owner
+imports no coordinator, renderer, bot or provider, stores no callbacks and has
+no generic dependency container.
 
 Digest remote-write callers retain `remote_write_safety_snapshot`,
 `reconciliation_archive_snapshot` and the private `_read_readonly_archive_bytes`
