@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import copy
 import hashlib
+import importlib
 import os
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
@@ -261,7 +262,8 @@ def test_utc_parser_keeps_short_circuit_and_exception_identity(monkeypatch):
     assert calls == ["2026-08-30T20:44:10+00:00"] * 2
 
 
-def test_evidence_import_is_inert_and_pure_digest_aliases_keep_identity(tmp_path):
+@pytest.mark.parametrize("module_name", ["mrs_log_digest_reply_evidence", "mrs_log_digest_reply_text"])
+def test_evidence_import_is_inert_and_pure_digest_aliases_keep_identity(tmp_path, module_name):
     script = """
 import datetime
 import decimal
@@ -299,14 +301,19 @@ assert not {"mrs_log_digest", "mrs_log_digest_markdown", "mrsMThatcher2", "singl
 assert list(logging.getLogger().handlers) == handlers
 assert set(logging.Logger.manager.loggerDict) == loggers
 """
+    script = script.replace("mrs_log_digest_reply_evidence", module_name)
     env = {**os.environ, "PYTHONPATH": str(Path(digest.__file__).resolve().parent)}
     result = subprocess.run(
         [sys.executable, "-B", "-c", script], cwd=tmp_path, env=env,
         capture_output=True, text=True, check=False,
     )
     assert result.returncode == 0, result.stderr
-    for name in (
+    names = (
         "valid_conversational_public_reply_text", "_structured_value_sha256",
         "_valid_historical_formatter_metadata",
-    ):
-        assert getattr(digest, name) is getattr(evidence, name)
+    ) if module_name == evidence.__name__ else (
+        "_normalised_structured_reply_confirmation", "PUBLISHED_REPLY_WARNING_LIMIT",
+    )
+    module = importlib.import_module(module_name)
+    for name in names:
+        assert getattr(digest, name) is getattr(module, name)

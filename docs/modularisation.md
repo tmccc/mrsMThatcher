@@ -1050,3 +1050,102 @@ conflict handling and synthesis ordering. This remains a useful boundary without
 moving event collection, `analyse`, pipeline reconciliation or report assembly.
 It is assessed here but left for the supervisor's next fresh session; bot
 refactoring remains outside this sequence's current scope.
+
+## Extracted in stage 14
+
+Base: `b28f415f4c2afcd2603db584142a4e94520442cd`, verified against the pushed
+`origin/codex/modularisation-stage13` tip. Work is isolated on
+`codex/modularisation-stage14` in
+`/disks/disk1/research/mrsMThatcher-modularisation-stage14`.
+This implements stage 14 only. There is no stage-number ceiling; continue until
+further digest modularisation is no longer sensible.
+
+`mrs_log_digest_reply_text.py` owns the complete 876-line public reply-text group:
+`_public_reply_text_result` (79), `_durable_public_reply_text_candidates` (124),
+`_normalised_structured_reply_confirmation` (52) and
+`enrich_published_reply_text` (621). The pure normaliser is a direct digest import;
+three thin wrappers preserve the other original signatures. The unchanged
+`PUBLISHED_REPLY_WARNING_LIMIT = 100` belongs to the text module and retains its
+digest alias, supplied explicitly on each enrichment call.
+
+Wrappers pass prepared evidence, report/event objects, `bounded_source_refs`,
+`epoch_to_london_text` and current normalisation/candidate/result callbacks.
+Candidate validation uses the current digest alias of the stage 13 evidence
+leaf's `valid_conversational_public_reply_text`; shared UTF-8/post-ID/hash helpers
+remain in values. No upward imports, stored callbacks or dependency containers
+are introduced. The leaf performs no file/home/configuration access, clock sample
+or provider calls. Evidence loading, event collection, `analyse`, pipeline and
+operational reconciliation, and report assembly retain their existing owners.
+
+Report/event mutation and identity, production-object filtering, source/self-test
+isolation, prepared-evidence precedence, exact long/multiline text, unavailable
+versus conflicting text, lane/target/reply identities, duplicate/conflict rules,
+copying/sharing, bounded provenance and omission counts, warning caps/order,
+epoch conversion and synthetic-event insertion order are unchanged. Drafts and
+unconfirmed/nonauthoritative observations gain no publication authority. JSON
+schema 3, Markdown, CLI, defaults, provenance, clocks, locks and resume are unchanged.
+
+| Physical lines | Before | After |
+| --- | ---: | ---: |
+| Digest file | 11,746 | 10,933 (−813) |
+| `analyse` | 4,702 | 4,702 |
+| Reply-text module | — | 917 |
+| Reply-evidence module | 873 | 873 |
+| `run_digest` / Markdown wrapper | 360 / 10 | 360 / 10 |
+
+Validation: the focused baseline passed 242 tests; after extraction, 246 pass
+with `MRS_TEST_MODE=1 PYTEST_DISABLE_PLUGIN_AUTOLOAD=1 python3 -m pytest` and the
+existing temporary-HOME/network isolation. Selection covers digest, Markdown,
+reply observability, safety hardening, stage 13 evidence and new text-boundary
+tests, plus 34 integration functions for exact text, receipt/history authority,
+invalid evidence/identities/siblings, draft exclusion, source/self-test isolation,
+provenance, conflicts/warning caps, text bounds, event-scan bounds and
+schema/source-identity/resume contracts. Three added callback tests check call
+order, event identity/mutation, precedence, candidate/reference sharing, shallow
+status copying and the dynamic warning limit; all three also pass on stage 13.
+The existing inert-import check now covers the text module and its digest aliases,
+blocking runtime reads/writes, home lookup, scans, network/subprocess activity and
+logging/service initialisation.
+
+The pure normaliser definition and all four moved bodies/ASTs match stage 13
+after only explicit callback substitutions. All original digest signatures,
+wrapper argument forwarding, 123 retained function/class bodies/ASTs, retained
+non-import module code, earlier imports, warning constant and 17 earlier digest
+leaves are verified unchanged. Ten representative direct helper results and
+direct enrichment match typed values, input/output sharing, event mutation and
+synthesis order. Six complete JSON/Markdown report pairs match on shared existing
+synthetic fixtures with fixed paths/time: bounded historical provenance, confirmed
+reply lanes/draft exclusion, text conflict, structured-only history, completed
+durable history and a v4 conversational receipt with long/multiline text. JSON
+bytes (35,808–62,520) and Markdown bytes (11,642–15,955) match after only independently
+verified producer-source/commit provenance substitutions. Fixture bytes/modes are
+unchanged. Temporary comparison scripts/data are not committed. The documentation
+gate passes for 197 modules; `git diff --check` passes.
+
+These are focused extraction checks, not broader bot validation. No production,
+configuration, durable state, logs or image pools are changed; no bot/provider/
+posting calls, service control, merge or deployment are included. Earlier
+worktrees and branches are preserved.
+
+Recommended next digest boundary: operational-error/incident reporting, centred
+on `summarise_operational_error_health` (1,868 lines). Its adjacent helpers
+`_incident_exception_line`, `_normalise_incident_text`, `classify_operational_error`,
+`_event_time`, `_base_remote_control_key`, `_remote_control_scope`,
+`_remote_operation_scope_for_lane` and `_explicit_remote_pause_scope` add 183 lines
+and give incident signatures, categories and pause scopes one practical owner.
+Keep existing digest aliases and dynamic helper delegation. The three scope
+vocabulary mappings can move with that group, retaining digest aliases.
+
+The summary already accepts errors, events, receipts, lifecycle, remote-write
+transactions, handled restrictions, confirmed-receipt events, prepared safety,
+generation/window times and current-snapshot authority. Supply the fallback
+`datetime.now` and epoch conversion explicitly, preserving their call sites;
+pass `bounded_source_refs`, `seconds_between`, `is_deleted_or_inaccessible_tweet_403`
+and `annotate_remote_write_snapshot_window` as named callbacks while their shared
+owners remain in the digest. Reuse time/text/lane and terminal-outcome helpers
+from values. Preserve identity-based grouping, current versus historical
+resolution, snapshot mutation and incident ordering. Snapshot loading, window
+annotation ownership, event collection and report assembly need not move.
+This is a substantial but coherent observation group without operational actions;
+it is assessed only, for the supervisor's next fresh session. Bot refactoring
+remains outside scope.

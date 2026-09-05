@@ -38,6 +38,7 @@ and AppleDouble files.
 | `mrs_log_digest_runtime.py` | Current state/configuration validation and operator pause observations | Reads only through supplied stable readers; explicit project paths, strict JSON parsers, file-time conversion and pause clock; no import-time runtime access |
 | `mrs_log_digest_remote_write.py` | Read-only remote-write barrier identities, grouping, safety and reconciliation archive observations | Explicit paths, stable reader, exact-Decimal parser, diagnostic formatter, clock and snapshot/archive-read callbacks; lazy read-only inspectors; no import-time runtime access |
 | `mrs_log_digest_reply_evidence.py` | Durable confirmed conversational receipt and historical reply-history loading/validation | Explicit project paths, stable private reader, native-number parser, canonical encoders, time conversion and validator callbacks; no writes, clock sample or import-time runtime access |
+| `mrs_log_digest_reply_text.py` | Exact confirmed public reply-text preparation from prepared runtime/receipt/history evidence | Mutates supplied report/events; explicit source-reference, epoch-conversion and helper/validator callbacks and warning limit; no evidence loading, I/O or clock sample |
 | `mrs_log_digest_corpus.py` | Historical-corpus counts, availability, policies and hashes | Reads the existing research/audit paths under an explicit project directory using supplied strict parsing and file hashing; parsing and hashing remain separate reads |
 | `mrs_log_digest_generated_pool.py` | Generated-image discovery, metadata/hash validation, curation and used-history observations | Reads/scans the existing pool locations relative to an explicit base directory; supplied strict parsers, hashing, clock and ISO timestamp parser; no writes or import-time runtime access |
 | `mrs_log_digest_historical_events.py` | Historical-context event field projection, family counters and emitted-event quality summaries | Only supplied invocation-local counters and event insertion callbacks are mutated/called; no I/O or import-time runtime access |
@@ -142,10 +143,38 @@ text is preserved without applying current generation policy to historical text;
 projection copies, shared values and returned evidence identity are retained.
 
 Dependency direction is digest → reply evidence → values, without reverse imports,
-stored callbacks, runtime I/O on import or service initialisation. Public text
-enrichment, event collection, `analyse`, pipeline reconciliation, report assembly
+stored callbacks, runtime I/O on import or service initialisation. Event collection,
+`analyse`, pipeline reconciliation, report assembly
 and all publication/recovery authority retain their existing owners. JSON schema 3,
 Markdown, CLI, defaults, provenance, clocks, locks and resume behaviour are unchanged.
+
+Public reply-text preparation belongs to `mrs_log_digest_reply_text`.
+`_normalised_structured_reply_confirmation` is a direct digest import with its
+complete original signature/body. `_public_reply_text_result`,
+`_durable_public_reply_text_candidates` and `enrich_published_reply_text` retain
+their original digest signatures through three thin wrappers. They supply current
+`bounded_source_refs`, `epoch_to_london_text`, normalisation/candidate/result
+helpers and `valid_conversational_public_reply_text` from the stage 13 evidence
+leaf. Enrichment still delegates through the digest helper entry points; the
+candidate wrapper supplies the current conversational validator. Shared UTF-8,
+post-ID and hash validators retain their values-module owner.
+`PUBLISHED_REPLY_WARNING_LIMIT` belongs to the text module, remains `100` and is a
+direct digest alias passed explicitly to enrichment on each call.
+
+Prepared structured confirmations retain precedence over receipt-derived
+confirmations. Exact long/multiline published text, unavailable versus conflicting
+evidence, immutable lane/target/reply identities, duplicates, source bounds and
+omission counts, warning caps/order and synthetic-event insertion order are
+unchanged. Enrichment mutates the supplied report and original event list/objects;
+`production_event_object_ids` still filters by identity. Candidate projections,
+shared text/reference values, shallow durable-status copying and historical
+section references into the event list retain their original relationships.
+Drafts and unconfirmed/nonauthoritative observations acquire no publication
+authority. The text module performs no file/home/configuration access, clock
+sampling, provider calls or import-time runtime work. Evidence loading, event
+collection, `analyse`, pipeline/operational reconciliation and report assembly
+remain with their existing owners; JSON schema 3, Markdown and CLI contracts are
+unchanged.
 
 Digest corpus and image-pool callers retain `historical_context_corpus_snapshot`
 and `generated_pool_health_snapshot` with their original signatures and result
