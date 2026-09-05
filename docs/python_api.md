@@ -37,6 +37,7 @@ and AppleDouble files.
 | `mrs_log_digest_provider_costs.py` | Pure conversational provider usage totals, cost attribution, cache-metric coverage and currency formatting | None; consumes supplied observations without mutation |
 | `mrs_log_digest_runtime.py` | Current state/configuration validation and operator pause observations | Reads only through supplied stable readers; explicit project paths, strict JSON parsers, file-time conversion and pause clock; no import-time runtime access |
 | `mrs_log_digest_remote_write.py` | Read-only remote-write barrier identities, grouping, safety and reconciliation archive observations | Explicit paths, stable reader, exact-Decimal parser, diagnostic formatter, clock and snapshot/archive-read callbacks; lazy read-only inspectors; no import-time runtime access |
+| `mrs_log_digest_incidents.py` | Operational-error classification, incident grouping/resolution, retirement evidence and remote pause scopes | Supplied observations, current helper/annotation callbacks, scope mappings and conditional clock/epoch conversion; preserves error/event identity and snapshot mutation; no file/home/configuration access or provider calls |
 | `mrs_log_digest_reply_evidence.py` | Durable confirmed conversational receipt and historical reply-history loading/validation | Explicit project paths, stable private reader, native-number parser, canonical encoders, time conversion and validator callbacks; no writes, clock sample or import-time runtime access |
 | `mrs_log_digest_reply_text.py` | Exact confirmed public reply-text preparation from prepared runtime/receipt/history evidence | Mutates supplied report/events; explicit source-reference, epoch-conversion and helper/validator callbacks and warning limit; no evidence loading, I/O or clock sample |
 | `mrs_log_digest_corpus.py` | Historical-corpus counts, availability, policies and hashes | Reads the existing research/audit paths under an explicit project directory using supplied strict parsing and file hashing; parsing and hashing remain separate reads |
@@ -116,8 +117,42 @@ grouping and failure results are unchanged. Protocol, retirement, transport and
 media inspectors remain lazy and retain their existing read-only arguments.
 Dependency direction is digest → remote-write snapshots → shared values;
 callbacks preserve delegation without reverse imports or stored dependencies.
-Window annotation, operational-health reconciliation, analysis, report assembly
-and all operational/publication authority remain in the coordinator.
+Window annotation, analysis, report assembly and all operational/publication
+authority remain in the coordinator. Operational incident reconciliation belongs
+to `mrs_log_digest_incidents` and consumes the prepared snapshot.
+
+Operational-error callers retain `summarise_operational_error_health`,
+`classify_operational_error`, `_base_remote_control_key`, `_remote_control_scope`,
+`_remote_operation_scope_for_lane` and `_explicit_remote_pause_scope` with their
+original digest signatures through six thin wrappers. `_incident_exception_line`,
+`_normalise_incident_text` and `_event_time` are direct digest imports with their
+complete original definitions. `REMOTE_OPERATION_SCOPE_LABELS`,
+`REMOTE_CONTROL_SCOPE_BY_KEY` and `REMOTE_LANE_SCOPE` belong to the incident module
+and retain identical digest aliases; the wrappers supply the current mappings.
+
+The wrappers supply current classification, incident-text, event-time and scope
+helpers, `bounded_source_refs`, `seconds_between`,
+`is_deleted_or_inaccessible_tweet_403` and
+`annotate_remote_write_snapshot_window` as named callbacks. The 403 predicate is
+supplied by the classifier wrapper. The summary receives `datetime.now` as
+`clock_now`, `datetime.fromtimestamp` as `fromtimestamp` and `datetime.min` as
+`datetime_min`: both conditional clock samples, all three epoch-conversion sites,
+their ordering and the missing-time fallback are unchanged. Shared time/text/lane
+and terminal-outcome helpers come directly from `mrs_log_digest_values`.
+
+Incident categories/signatures, identity grouping, current/historical resolution,
+retirement merging, restrictions versus failures, pause scope and recovery
+chronology, authoritative-window decisions, source references, counts, ordering,
+labels and exception behaviour are unchanged. The summary retains original error
+and event objects, mutates supplied errors and delegates snapshot annotation on
+the original nonempty snapshot; existing empty-snapshot fallback semantics and
+shallow evidence sharing are retained. It performs no file/home/configuration
+access or provider calls. Dependency direction is digest → incidents → values,
+without upward imports, stored callbacks or dependency containers. Snapshot
+loading/window annotation, transaction parsing, media-log correlation, event
+collection, `analyse` and report assembly retain their existing owners. JSON
+schema 3, Markdown, CLI, publication authority and source/self-test isolation are
+unchanged.
 
 Durable reply-evidence callers retain `load_confirmed_reply_receipt_evidence`,
 `load_historical_reply_history_evidence`, `_confirmed_conversational_receipt_evidence`,
@@ -171,10 +206,10 @@ shared text/reference values, shallow durable-status copying and historical
 section references into the event list retain their original relationships.
 Drafts and unconfirmed/nonauthoritative observations acquire no publication
 authority. The text module performs no file/home/configuration access, clock
-sampling, provider calls or import-time runtime work. Evidence loading, event
-collection, `analyse`, pipeline/operational reconciliation and report assembly
-remain with their existing owners; JSON schema 3, Markdown and CLI contracts are
-unchanged.
+sampling, provider calls or import-time runtime work. Evidence loading retains its
+existing owners. Event collection, `analyse`, pipeline reconciliation and report
+assembly remain in the coordinator; operational incident reconciliation belongs to
+`mrs_log_digest_incidents`. JSON schema 3, Markdown and CLI contracts are unchanged.
 
 Digest corpus and image-pool callers retain `historical_context_corpus_snapshot`
 and `generated_pool_health_snapshot` with their original signatures and result
@@ -334,8 +369,8 @@ calculations are unchanged. The distinct lane normalisers remain separate.
 Dependency direction is digest → reply pipeline / reply strategy → values.
 Both reporting modules operate only on supplied observations and import no
 coordinator, renderer, bot or runtime reader. Event parsing, `analyse`,
-`reconcile_reply_pipeline_effective_outcomes`, operational-health reconciliation
-and publication authority remain with their existing owners. The CLI still
+`reconcile_reply_pipeline_effective_outcomes` and publication authority remain
+with their existing owners. The CLI still
 reports legacy multi-stage counts under JSON schema 3 without restoring the
 retired legacy summary sections.
 

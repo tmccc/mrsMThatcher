@@ -1149,3 +1149,114 @@ annotation ownership, event collection and report assembly need not move.
 This is a substantial but coherent observation group without operational actions;
 it is assessed only, for the supervisor's next fresh session. Bot refactoring
 remains outside scope.
+
+## Extracted in stage 15
+
+Base: `38930ab232561d6cf2f8accf96fee2ea5c0f19ac`, verified against the pushed
+`origin/codex/modularisation-stage14` tip. Work is isolated on
+`codex/modularisation-stage15` in
+`/disks/disk1/research/mrsMThatcher-modularisation-stage15`.
+This implements stage 15 only. There is no stage-number ceiling; the supervisor
+can continue in fresh sessions until further digest modularisation is no longer
+sensible. Bot refactoring remains outside scope.
+
+`mrs_log_digest_incidents.py` owns the complete operational incident group:
+`summarise_operational_error_health` (originally 1,868 lines),
+`_incident_exception_line`, `_normalise_incident_text`, `classify_operational_error`,
+`_event_time`, `_base_remote_control_key`, `_remote_control_scope`,
+`_remote_operation_scope_for_lane` and `_explicit_remote_pause_scope` (183 adjacent
+helper lines). Three pure definitions are direct digest imports; six thin wrappers
+retain every other original digest signature. The three unchanged scope mappings
+belong to the incident module, retain digest aliases and are supplied as current
+named data to the relevant wrappers.
+
+Current incident/classification/scope helpers, `bounded_source_refs`,
+`seconds_between`, `is_deleted_or_inaccessible_tweet_403` and
+`annotate_remote_write_snapshot_window` are explicitly delegated. Shared scalar,
+text, lane and terminal-outcome helpers retain their values owner. `datetime.now`
+and `datetime.fromtimestamp` are passed as callbacks; both original conditional
+clock samples, all three epoch-conversion sites and `datetime.min` semantics are
+preserved. There are no upward imports, stored callbacks or dependency containers.
+The module performs no file/home/configuration access or provider calls.
+
+Categories/signatures, grouping and object identity, current/historical resolution
+and retirement, restrictions versus failures, pause scopes and recovery chronology,
+snapshot mutation and empty-snapshot fallback, authoritative-window decisions,
+source references, counts/order/labels and exceptions are unchanged. Snapshot
+loading/window annotation, remote-write transaction parsing, media correlation,
+event collection, `analyse` and report assembly retain their existing owners.
+Publication authority, source/self-test isolation, JSON schema 3, Markdown, CLI,
+defaults, provenance, locks and resume are unchanged.
+
+| Physical lines | Before | After |
+| --- | ---: | ---: |
+| Digest file | 10,933 | 8,922 (−2,011) |
+| `analyse` | 4,702 | 4,702 |
+| Incident module | — | 2,184 |
+| `run_digest` / Markdown wrapper | 360 / 10 | 360 / 10 |
+
+Validation: the affected digest, Markdown, reply-observability and safety-hardening
+baseline passed 173 tests. The final focused selection passes 212 tests with
+`MRS_TEST_MODE=1 PYTEST_DISABLE_PLUGIN_AUTOLOAD=1 python3 -m pytest`, using existing
+temporary-HOME/network isolation. It includes those four files, 12 new boundary
+cases, the existing inert-import check extended to incidents, and 21 selected
+integration functions (24 cases) covering media correlation/bounded provenance,
+unrecovered fallback/deduplication, receipt recovery/source isolation, current and
+historical state, malformed reply confirmations, schema/source identity and resume.
+The bot harness was not run. Existing digest cases cover durable incident resolution,
+new receipts after reconciliation, unmatched/current barriers and transaction shapes.
+
+All 12 new boundary cases also pass against stage 14. They check conditional clock
+and epoch order, dynamic classification/scope/helper/data delegation, source-reference
+sharing, original error objects, snapshot mutation before callback failure, and
+current versus historical window eligibility with shared retirement/ledger evidence.
+The existing import check verifies inert loading and identity of all six direct
+function/mapping aliases, rejecting runtime file access, home lookup, scans,
+network/subprocess activity and logging initialisation.
+
+All nine moved bodies/ASTs match stage 14 after 54 exact callback/data/clock
+substitutions; the three pure definitions match verbatim. Original signatures and
+wrapper forwarding, all 117 retained definitions, other coordinator code/imports,
+the three mappings and 18 earlier digest modules are verified unchanged. Eight
+representative direct incident calls match typed values, ordering, input/output
+sharing and mutation. Four complete JSON/Markdown report pairs match on shared
+existing synthetic fixtures with fixed paths/time: bounded media provenance,
+unrecovered media fallback, self-test receipt removal and a durably resolved reply
+ambiguity. JSON bytes (36,288–44,634) match after only the independently verified
+producer-source hash substitution; repository HEAD provenance is independently
+verified and equal at comparison time. Markdown bytes (12,477–14,315) and fixture
+bytes/modes/timestamps match exactly. Temporary comparison scripts/data are excluded.
+The documentation gate passes for 198 modules; `git diff --check` passes.
+
+These are focused extraction checks. No production checkout, configuration, durable
+bot state, logs or image pools were changed; no bot/provider/posting calls, service
+control, merge or deployment occurred. Earlier branches/worktrees are preserved.
+
+Recommended next boundary: structured legacy reply-pipeline observations still
+inside `analyse`. `conversational_evidence_fields` (89 lines) and nine handlers
+(395 lines) cover `reply_strategy_decision`, `reply_strategy_outcome`,
+`reply_target_terminal`, `reply_strategy_rejection`, `ai_reply_pipeline_decision`,
+`ai_reply_pipeline_stage_summary`, `ai_reply_pipeline_effective_outcome`,
+`ai_reply_pipeline_failure` and `ai_reply_pipeline_outcome`.
+`reconcile_reply_pipeline_effective_outcomes` adds 113 lines of related event
+mutation. Give this roughly 597-line group practical ownership alongside the
+existing reply-pipeline/strategy reporting modules. Supply parsed event objects,
+record timestamps, current `add_event` and `add_or_merge_local_rejection` callbacks,
+`bounded_event_string_list` and `normalise_majority_review_telemetry`; reuse scalar,
+post-ID, lane and terminal-outcome helpers from values. Preserve helper delegation,
+emitted-event identity/order and the coordinator's parsing, dispatch and source
+isolation. This removes a substantial group from `analyse` without changing
+publication authority.
+
+Other substantial groups remain: engagement/quote-publication correlation
+(`correlated_quote_post_fields`, 409 lines, its evidence/warning helpers and the
+main/account-root/engagement structured handlers), author-progress reporting
+(`current_author_no_reply_strike_progress`, 320 lines, plus backlog/quarantine
+observations), and transaction/media/receipt observations
+(`parse_remote_write_transaction_event`, 149; `summarise_main_post_receipt_lifecycle`,
+115; `correlate_media_upload_incidents`, 71, with adjacent helpers). The engagement
+group needs prepared identity/correlation dictionaries, strict publication evidence,
+validators and source-reference/warning callbacks; author progress needs prepared
+state and window times. Assess these as coherent owners, retaining report assembly,
+source collection and CLI/resume orchestration where that remains sensible. No
+following-stage implementation is included here.

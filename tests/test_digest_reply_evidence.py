@@ -262,7 +262,9 @@ def test_utc_parser_keeps_short_circuit_and_exception_identity(monkeypatch):
     assert calls == ["2026-08-30T20:44:10+00:00"] * 2
 
 
-@pytest.mark.parametrize("module_name", ["mrs_log_digest_reply_evidence", "mrs_log_digest_reply_text"])
+@pytest.mark.parametrize("module_name", [
+    "mrs_log_digest_reply_evidence", "mrs_log_digest_reply_text", "mrs_log_digest_incidents",
+])
 def test_evidence_import_is_inert_and_pure_digest_aliases_keep_identity(tmp_path, module_name):
     script = """
 import datetime
@@ -309,6 +311,9 @@ assert set(logging.Logger.manager.loggerDict) == loggers
     )
     assert result.returncode == 0, result.stderr
     names = (
+        "_incident_exception_line", "_normalise_incident_text", "_event_time",
+        "REMOTE_OPERATION_SCOPE_LABELS", "REMOTE_CONTROL_SCOPE_BY_KEY", "REMOTE_LANE_SCOPE",
+    ) if module_name == "mrs_log_digest_incidents" else (
         "valid_conversational_public_reply_text", "_structured_value_sha256",
         "_valid_historical_formatter_metadata",
     ) if module_name == evidence.__name__ else (
