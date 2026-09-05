@@ -31,7 +31,8 @@ and AppleDouble files.
 | `reply_evidence.py` | Lexically shortlist validated local passages for compact trusted facts | Local corpus reads only |
 | `historical_context_formatter.py` | Canonical research loading, compact context formatting and context-reply persistence | Local state; posting only through an injected callback |
 | `shadow_lifecycle.py` | Strict validation for the versioned shadow-feature lifecycle register | Local file reads only |
-| `mrs_log_digest.py` | Structured/legacy log parsing, aggregation and Markdown/JSON reports | Local log and resume-state reads/writes; no provider calls |
+| `mrs_log_digest.py` | Log-input coordination, aggregation and Markdown/JSON reports | Local log and resume-state reads/writes; no provider calls |
+| `mrs_log_digest_records.py` | Shared frozen records, bounded source references, fingerprints, resume-boundary filtering and selected log input reading | Reads/stats supplied log paths and emits existing missing-input warnings; explicit current regex, constructor, parsers, readers and helpers; no import-time runtime access |
 | `mrs_log_digest_markdown.py` | Prepared-report Markdown presentation and section rendering | None; receipt lifecycle analysis is supplied by the caller |
 | `mrs_log_digest_costs.py` | Published-cost cache validation, UTC-window accounting and report preparation | Cache reads only through an explicitly supplied stable reader; paths, clock observations and strict JSON parser supplied by caller |
 | `mrs_log_digest_provider_costs.py` | Pure conversational provider usage totals, cost attribution, cache-metric coverage and currency formatting | None; consumes supplied observations without mutation |
@@ -60,6 +61,35 @@ and AppleDouble files.
 `mrsMThatcher2.py` is intentionally import-safe: importing it does not load the
 private host configuration, acquire the production lock or enter the posting
 loop. Operational entry points require `production_bootstrap()` first.
+
+Record/input callers retain `Record`, `safe_source_logger`, `record_source_ref`,
+`bounded_source_refs`, `record_fingerprint`, `resume_fingerprint_tail`,
+`locate_resume_fingerprint_tail`, `resume_boundary_fingerprint_counts`,
+`filter_resume_boundary_records`, `iter_records`, `read_records`,
+`filter_records_by_time`, `summarize_input_files`, `input_retention_coverage` and
+`combine_input_warnings` through `mrs_log_digest`, with their original signatures
+and defaults. `Record` is the same frozen class imported from
+`mrs_log_digest_records`, with unchanged fields and constructor; there is no
+second record type. `LOG_RE`, `SAFE_SOURCE_LOGGER_RE`, `SOURCE_REFERENCE_LIMIT`
+and `RESUME_FINGERPRINT_TAIL_LIMIT` belong to that owner and retain digest aliases.
+
+The reference merger, boundary-count decoder, time filter and warning combiner
+are direct aliases. Ten thin wrappers supply current digest regexes, tail limit,
+record constructor, `datetime.strptime`/`fromtimestamp`, `dt_text`, `parse_dt`,
+`safe_source_logger`, `record_fingerprint` and `iter_records` where used. Iteration
+remains lazy. Selected input reading preserves log-header/continuation handling,
+replacement decoding, source ordinals/indexes, exact fingerprint bytes, duplicate
+multiplicity, physical versus timestamp order, numeric rotations/mtime ties,
+bounds and stat/read/warning order. Input summaries retain physical first/last
+timestamps.
+
+The owner has no upward import, stored callbacks, home/configuration lookup,
+state write, clock sample or service initialisation. Discovery/explicit-log
+selection, self-test authority, context/backscan policy, `read_resume_data`,
+`save_resume_time`, stable-byte/strict-JSON primitives, locks and `run_digest`/CLI
+remain in the coordinator. Default project/home resolution and producer source
+hash/repository provenance remain anchored to the digest entry point; schema 3,
+Markdown and resume persistence are unchanged.
 
 Digest cost callers retain `load_openai_cost_cache`,
 `estimate_openai_cost_window` and `openai_published_cost_report` in

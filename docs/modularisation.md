@@ -1577,3 +1577,123 @@ implementation is included.
 No production checkout, configuration, durable state, logs or image pools were
 changed; no bot/provider/posting calls, service control, merge or deployment
 occurred. Earlier worktrees and branches are preserved.
+
+## Extracted in stage 19
+
+Base: `dd64509fe29fdb69c9e358f2c284702a8bd88f92`, verified against the live
+`origin/codex/modularisation-stage18`. Work is isolated on
+`codex/modularisation-stage19` in
+`/disks/disk1/research/mrsMThatcher-modularisation-stage19`.
+This implements only stage 19. The supervisor continues in fresh sessions until
+further digest modularisation is no longer sensible; there is no stage-number
+ceiling, and broader bot refactoring remains outside scope.
+
+`mrs_log_digest_records.py` owns the shared frozen `Record`, `safe_source_logger`,
+`record_source_ref`, `bounded_source_refs`, `record_fingerprint`,
+`resume_fingerprint_tail`, `locate_resume_fingerprint_tail`,
+`resume_boundary_fingerprint_counts`, `filter_resume_boundary_records`,
+`iter_records`, `read_records`, `filter_records_by_time`, `summarize_input_files`,
+`input_retention_coverage` and `combine_input_warnings`. Both compiled regexes
+(`LOG_RE`, `SAFE_SOURCE_LOGGER_RE`), `SOURCE_REFERENCE_LIMIT` and
+`RESUME_FINGERPRINT_TAIL_LIMIT` move with unchanged digest aliases. Four helpers
+are direct aliases; ten thin wrappers supply current regex/constructor,
+parser/time conversion, reader, formatter, logger, fingerprint and tail-limit
+inputs. The class's defining module changes; digest and owner expose the same
+class, with the original frozen fields, constructor and defaults.
+
+Discovery/explicit-log selection, self-test authority, resume reading/writing,
+context/backscan policy, stable-byte/strict-JSON primitives, locks and
+`run_digest`/CLI remain unchanged. Producer `__file__`/repository provenance and
+project/home defaults remain anchored to the digest. No validation cleanup,
+clock resampling or persistence redesign was introduced. The owner reads/stats
+only supplied log paths when called; importing it performs no log scans/reads,
+home/configuration resolution, state writes or service initialisation. It has no
+upward imports, stored callbacks or dependency container.
+
+| Physical lines | Before | After |
+| --- | ---: | ---: |
+| Digest file | 6,905 | 6,614 (−291) |
+| `analyse` | 3,419 | 3,419 |
+| Record/input owner | — | 455 |
+| `run_digest` / Markdown wrapper | 360 / 10 | 360 / 10 |
+
+Validation: baseline **221 passed**, final **228 passed**, using
+`MRS_TEST_MODE=1 PYTEST_DISABLE_PLUGIN_AUTOLOAD=1 python3 -m pytest` with the
+existing temporary-HOME/network isolation. Selection: `test_mrs_log_digest.py`,
+`test_digest_safety_hardening.py`, `test_digest_reply_observability.py`,
+`test_digest_markdown.py`, `test_digest_historical_events.py` and
+`test_generated_image_pool_runway_digest.py`; the guarded import test in
+`test_digest_runtime.py`; only the two source-reference/logger tests (three
+cases) in `test_mention_backlog_author_quarantine.py`; and nine digest integration
+cases covering stable source identity across resume filtering, schema roots,
+self-test pending identity across resume, source-isolated confirmed receipts and
+quote/meme pending state, resume/current-state separation, generated-spacing
+resume and correlated/bounded media source references. Existing safety cases
+cover numeric rotations, missing inputs, duplicate cardinality, clock rollback,
+resume-tail/boundary multiplicity and source-isolated state/config backscan.
+The full bot harness was not run.
+
+Six new boundary tests cover shared frozen type/fields, lazy parser and
+constructor delegation, continuation/replacement decoding and parser errors,
+current reader/stat/warning order including mtime ties and stat failure,
+physical summary endpoints, current source/fingerprint/retention helpers and
+tail limits. The existing guarded import case includes the new owner. All prior
+assertions remain. Exact moved bodies and ASTs match stage 18 after only explicit
+regex, tail-limit, constructor, `strptime` and `fromtimestamp` substitutions;
+helper callbacks retain their original body names. Original signatures, class
+AST, four definitions, all 19 imports and ten complete wrapper calls were checked.
+Every remaining coordinator byte matches after excluding extraction/import
+sites. Documentation coverage passes for **201 modules**; `git diff --check`
+passes.
+
+Direct record/source/fingerprint/filter results and three complete JSON/Markdown
+pairs reuse shared `write_digest_log`, `digest_event_line`,
+`pipeline_digest_lines` and `log_line` fixtures with fixed paths/time: physical
+and duplicate ordering with missing rotation (**41,042 / 12,292 bytes**), resumed
+fingerprint tail (**35,288 / 11,464**) and unmatched-tail timestamp-boundary
+fallback (**35,333 / 11,442**). The two initial resume-seeding pairs also match.
+JSON bytes match after replacing only independently verified producer-source
+hashes; independently verified repository HEADs were equal at comparison time.
+Markdown, warning bytes, complete resume files (including multiplicity and tail)
+and input bytes/modes/mtimes match without substitution. Temporary comparison
+code/data are excluded. These are focused extraction checks, not an exhaustive
+replay; schema 3, runtime authority, defaults, source identity and resume behavior
+remain unchanged.
+
+Recommended next boundary: transaction/media/receipt observation preparation.
+The **414-line** helper group is `parse_x_request_start`,
+`classify_x_request_endpoint`, `parse_remote_write_transaction_event`,
+`summarise_main_post_receipt_lifecycle`, `is_media_v2_request_failure`,
+`is_media_fallback_warning`, `is_media_v1_success`, `is_media_v1_failure`,
+`is_main_post_success`, `find_recent_media_path` and
+`correlate_media_upload_incidents`. It can use the shared `Record` owner and
+explicit current `short`, `seconds_between`, source-reference/fingerprint,
+endpoint-classifier and media-predicate callbacks. Preserve correlation windows,
+physical chronology, suppression identity and unresolved receipt matching.
+
+To also reduce `analyse`, assess its nested `add_receipt_event` and
+`add_confirmed_reply_receipt_event` (**40 lines**) with the adjacent legacy receipt
+matching/dispatch group (**146 lines**). Supply the selected record, source
+indexes/classification, receipt lists, statistics and current formatting/source
+callbacks; pass and return the explicit pending confirmed-receipt state. Keep
+production/self-test state switching and dispatch/continue order in the
+coordinator. The related request/transaction projection block (**46 lines**) and
+`add_reply_media_context_event` with its two legacy match branches (**9 + 33
+lines**) are further bounded observations; request/source selection and
+publication authority must stay with the coordinator.
+
+Provider observations remain a separate **187-line** helper candidate:
+`xai_usage_stage_from_msg`, `provider_usage_provider_from_msg`,
+`parse_xai_call_start`, `parse_xai_usage_from_msg`,
+`xai_usage_context_from_pending`, `unknown_xai_usage_context`,
+`normalise_active_xai_call_attempt`, `_cache_input_metric` and
+`summarize_xai_usage_event`. The corresponding call-start/usage observation block
+inside `analyse` is **79 lines**, including attempt matching/mutation, errors and
+statistics. It needs prepared pending context/record data, current lane/usage
+converters, stage/cache helpers and explicit active-attempt state. Keep source
+switching, resume decisions and cost reporting with their existing owners.
+These candidates are assessed only; no following stage is implemented here.
+
+No production checkout, configuration, durable state, logs or image pools were
+changed; no bot/provider/posting calls, service control, merge or deployment
+occurred. Earlier worktrees and branches are preserved.

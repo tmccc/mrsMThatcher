@@ -1,13 +1,20 @@
 from __future__ import annotations
 
 import builtins
+import hashlib
+import io
 import json
+import re
+from collections import Counter
+from dataclasses import MISSING, FrozenInstanceError, fields
 from datetime import datetime, timedelta
 from pathlib import Path
+from types import SimpleNamespace
 
 import pytest
 
 import mrs_log_digest as digest
+import mrs_log_digest_records as record_owner
 
 
 BASE = datetime(2026, 7, 25, 9, 0, 0)
@@ -50,6 +57,248 @@ def loaded_gate(offset: int) -> digest.Record:
         '"policy_version":"gate-v1","ledger_sha256":"ledger",'
         '"projection_sha256":"projection","blocked_quote_count":21}',
     )
+
+
+def test_record_owner_shares_frozen_type_and_lazy_parser_delegation(tmp_path, monkeypatch):
+    assert digest.Record is record_owner.Record
+    assert [field.name for field in fields(digest.Record)] == [
+        "ts", "level", "src", "line", "msg", "path", "ordinal",
+    ]
+    assert all(field.default is MISSING and field.default_factory is MISSING
+               for field in fields(digest.Record))
+    path = tmp_path / "input.log"
+    path.write_bytes(
+        b"leading junk\n2026-07-25 09:00:00 INFO worker:9 - first\n"
+        b"  continuation\xff\n2026-07-25 09:00:01 ERROR other - last"
+    )
+    calls = []
+    original_regex = digest.LOG_RE
+
+    class HeaderRegex:
+        def match(self, value):
+            calls.append(("match", value))
+            return original_regex.match(value)
+
+    class ParserTime(datetime):
+        @classmethod
+        def strptime(cls, value, fmt):
+            calls.append(("parse", value, fmt))
+            return datetime.strptime(value, fmt) + timedelta(days=1)
+
+    def construct(**values):
+        calls.append(("construct", values))
+        return record_owner.Record(**values)
+
+    records = digest.iter_records(path)
+    assert calls == []
+    monkeypatch.setattr(digest, "LOG_RE", HeaderRegex())
+    monkeypatch.setattr(digest, "datetime", ParserTime)
+    monkeypatch.setattr(digest, "Record", construct)
+    first = next(records)
+    assert first == record_owner.Record(
+        BASE + timedelta(days=1), "INFO", "worker", 9,
+        "first\n  continuation\ufffd", str(path), 1,
+    )
+    assert [call[0] for call in calls] == ["match", "match", "parse", "match", "match", "construct"]
+    second = next(records)
+    assert second == record_owner.Record(
+        BASE + timedelta(days=1, seconds=1), "ERROR", "other", 0, "last", str(path), 2,
+    )
+    assert [call[0] for call in calls[-2:]] == ["parse", "construct"]
+    assert list(records) == []
+    with pytest.raises(FrozenInstanceError):
+        first.msg = "changed"
+    path.write_text("2026-99-25 09:00:00 INFO worker - invalid timestamp\n")
+    with pytest.raises(ValueError, match="does not match format"):
+        list(digest.iter_records(path))
+
+
+def test_record_reader_preserves_current_iterator_warning_and_stat_order(tmp_path, monkeypatch):
+    a, b, missing = (tmp_path / name for name in ("a.txt", "b.txt", "missing.txt"))
+    first = digest.Record(BASE, "INFO", "worker", 9, "a", str(a), 1)
+    second = digest.Record(BASE + timedelta(seconds=1), "INFO", "worker", 9, "b", str(b), 1)
+    calls = []
+    original_exists, original_stat = Path.exists, Path.stat
+
+    def exists(path):
+        if path not in (a, b, missing):
+            return original_exists(path)
+        calls.append(("exists", path.name))
+        return path != missing
+
+    def read(path):
+        calls.append(("read", path.name))
+        return iter([first] if path == a else [second])
+
+    def stat(path, *args, **kwargs):
+        if path not in (a, b, missing):
+            return original_stat(path, *args, **kwargs)
+        calls.append(("stat", path.name))
+        if path == missing:
+            raise OSError("missing")
+        return SimpleNamespace(st_mtime_ns=7)
+
+    class Warnings(io.StringIO):
+        def write(self, text):
+            if text.strip():
+                calls.append(("warning", text))
+            return super().write(text)
+
+    warnings = Warnings()
+    monkeypatch.setattr(Path, "exists", exists)
+    monkeypatch.setattr(Path, "stat", stat)
+    monkeypatch.setattr(digest, "iter_records", read)
+    monkeypatch.setattr(digest.sys, "stderr", warnings)
+    result = digest.read_records([b, missing, a], BASE, second.ts, physical_order=True)
+    assert result[0] is first and result[1] is second
+    warning = f"WARNING: missing log file: {missing}"
+    assert warnings.getvalue() == warning + "\n"
+    assert calls == [
+        ("exists", "b.txt"), ("read", "b.txt"), ("exists", "missing.txt"),
+        ("warning", warning), ("exists", "a.txt"), ("read", "a.txt"),
+        ("stat", "b.txt"), ("stat", "missing.txt"), ("stat", "a.txt"),
+    ]
+
+
+def test_input_summary_keeps_stat_reader_conversion_order_and_physical_endpoints(tmp_path, monkeypatch):
+    paths = [tmp_path / name for name in ("read.log", "missing.log", "stat-error.log")]
+    calls = []
+    records = [record(1, "INFO", "worker", "later"), record(0, "INFO", "worker", "earlier")]
+    original_exists, original_stat = Path.exists, Path.stat
+
+    def exists(path):
+        if path not in paths:
+            return original_exists(path)
+        calls.append(("exists", path.name))
+        return path != paths[1]
+
+    def stat(path, *args, **kwargs):
+        if path not in paths:
+            return original_stat(path, *args, **kwargs)
+        calls.append(("stat", path.name))
+        if path == paths[2]:
+            raise OSError("unavailable metadata")
+        return SimpleNamespace(st_size=42, st_mtime=123)
+
+    def read(path):
+        calls.append(("read", path.name))
+        return iter(records)
+
+    class FileTime(datetime):
+        @classmethod
+        def fromtimestamp(cls, value):
+            calls.append(("mtime", value))
+            return BASE
+
+    def format_time(value):
+        calls.append(("format", value))
+        return value.isoformat()
+
+    monkeypatch.setattr(Path, "exists", exists)
+    monkeypatch.setattr(Path, "stat", stat)
+    monkeypatch.setattr(digest, "iter_records", read)
+    monkeypatch.setattr(digest, "datetime", FileTime)
+    monkeypatch.setattr(digest, "dt_text", format_time)
+    summaries = digest.summarize_input_files(paths, BASE, BASE, since_exclusive=True)
+    assert calls == [
+        ("exists", "read.log"), ("exists", "read.log"), ("stat", "read.log"),
+        ("mtime", 123), ("read", "read.log"), ("format", records[0].ts), ("format", BASE),
+        ("exists", "missing.log"), ("exists", "missing.log"),
+        ("exists", "stat-error.log"), ("exists", "stat-error.log"), ("stat", "stat-error.log"),
+        ("read", "stat-error.log"), ("format", records[0].ts), ("format", BASE),
+    ]
+    assert summaries[0] == {
+        "path": str(paths[0]), "exists": True, "size": 42, "mtime": "2026-07-25 09:00:00",
+        "total_records": 2, "first_timestamp": records[0].ts.isoformat(),
+        "last_timestamp": BASE.isoformat(), "records_after_since": 1, "records_in_window": 0,
+    }
+    assert summaries[1]["exists"] is False and summaries[1]["total_records"] == 0
+    assert summaries[2]["size"] is None and summaries[2]["mtime"] is None
+    assert summaries[2]["total_records"] == 2
+
+
+def test_source_and_fingerprint_helpers_use_current_formatter_and_logger(monkeypatch):
+    item = record(0, "INFO", "worker", "exact\x1fbytes\n\ud800", line=9)
+    monkeypatch.setattr(digest, "SAFE_SOURCE_LOGGER_RE", re.compile(r"custom\Z"))
+    assert digest.safe_source_logger("custom") == "custom"
+    assert digest.safe_source_logger("worker") == "unavailable"
+    calls = []
+
+    def format_time(value):
+        calls.append(("time", value))
+        return "formatted"
+
+    def logger(value):
+        calls.append(("logger", value))
+        return "safe"
+
+    monkeypatch.setattr(digest, "dt_text", format_time)
+    monkeypatch.setattr(digest, "safe_source_logger", logger)
+    reference = digest.record_source_ref(item, {item.path: 0})
+    assert reference == {
+        "input_file_index": 0, "record_number": 1, "timestamp": "formatted",
+        "logger": "safe", "logged_source_line_number": 9,
+    }
+    assert digest.record_fingerprint(item) == hashlib.sha256(
+        b"formatted\x1fINFO\x1fworker\x1f9\x1fexact\x1fbytes\n?"
+    ).hexdigest()
+    assert calls == [("time", BASE), ("logger", "worker"), ("time", BASE)]
+    assert digest.bounded_source_refs is record_owner.bounded_source_refs
+    references, omitted = digest.bounded_source_refs(reference, [reference])
+    assert references == [reference] and omitted == 0
+
+
+def test_resume_helpers_keep_current_fingerprint_and_tail_limit(monkeypatch):
+    records = [record(0, "INFO", "worker", "same") for _ in range(3)]
+    calls = []
+
+    def fingerprint(item):
+        calls.append(item)
+        return "f" * 64
+
+    monkeypatch.setattr(digest, "record_fingerprint", fingerprint)
+    monkeypatch.setattr(digest, "RESUME_FINGERPRINT_TAIL_LIMIT", 2)
+    assert digest.resume_fingerprint_tail({
+        "last_log_entry_fingerprint_tail": ["a" * 64, "invalid", "f" * 64],
+    }) == ["f" * 64]
+    assert digest.locate_resume_fingerprint_tail(records, ["f" * 64] * 2) == (2, 2)
+    counts = Counter({"f" * 64: 2})
+    filtered = digest.filter_resume_boundary_records(records, BASE, counts)
+    assert len(filtered) == 1 and filtered[0] is records[2]
+    assert counts == Counter({"f" * 64: 2})
+    assert len(calls) == 6
+    assert all(actual is expected for actual, expected in zip(calls, records * 2))
+
+
+def test_input_coverage_uses_current_parser_and_formatter(monkeypatch):
+    calls = []
+
+    def parse(value):
+        calls.append(("parse", value))
+        if value == "invalid":
+            raise ValueError("invalid")
+        return {"later": BASE + timedelta(seconds=1), "none": None}[value]
+
+    def format_time(value):
+        calls.append(("format", value))
+        return "later" if value > BASE else "start"
+
+    monkeypatch.setattr(digest, "parse_dt", parse)
+    monkeypatch.setattr(digest, "dt_text", format_time)
+    result = digest.input_retention_coverage(
+        [{"first_timestamp": value} for value in ("", "invalid", "none", "later")], BASE,
+    )
+    assert result == {
+        "requested_since": "start", "earliest_retained_timestamp": "later",
+        "requested_start_covered": False, "retention_gap_seconds": 1,
+        "warning": "requested window starts at start, but the earliest retained timestamp is later; "
+                   "coverage of the preceding interval cannot be verified from retained logs",
+    }
+    assert calls == [
+        ("parse", "invalid"), ("parse", "none"), ("parse", "later"),
+        ("format", BASE), ("format", BASE + timedelta(seconds=1)),
+        ("format", BASE), ("format", BASE + timedelta(seconds=1)),
+    ]
 
 
 def test_reply_visual_description_contract_rejects_unsafe_shapes() -> None:

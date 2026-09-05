@@ -41,7 +41,6 @@ import sys
 import tempfile
 from collections import Counter
 from contextlib import ExitStack, contextmanager
-from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone
 from decimal import Decimal
 from pathlib import Path
@@ -50,6 +49,27 @@ from urllib.parse import urlsplit
 from zoneinfo import ZoneInfo
 
 # Explicit imports preserve the existing digest helper import surface.
+from mrs_log_digest_records import (
+    LOG_RE,
+    SOURCE_REFERENCE_LIMIT,
+    RESUME_FINGERPRINT_TAIL_LIMIT,
+    SAFE_SOURCE_LOGGER_RE,
+    Record,
+    safe_source_logger as _safe_source_logger,
+    record_source_ref as _record_source_ref,
+    bounded_source_refs,
+    record_fingerprint as _record_fingerprint,
+    resume_fingerprint_tail as _resume_fingerprint_tail,
+    locate_resume_fingerprint_tail as _locate_resume_fingerprint_tail,
+    resume_boundary_fingerprint_counts,
+    filter_resume_boundary_records as _filter_resume_boundary_records,
+    iter_records as _iter_records,
+    read_records as _read_records,
+    filter_records_by_time,
+    summarize_input_files as _summarize_input_files,
+    input_retention_coverage as _input_retention_coverage,
+    combine_input_warnings,
+)
 from mrs_log_digest_values import (
     MAX_REASONABLE_STATE_EPOCH,
     PUBLISHED_REPLY_TEXT_MAX_CHARACTERS,
@@ -324,11 +344,6 @@ from mrs_log_digest_markdown import (
     render_markdown as _render_digest_markdown,
 )
 
-LOG_RE = re.compile(
-    r"^(?P<ts>\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2})\s+"
-    r"(?P<level>[A-Z]+)\s+"
-    r"(?P<src>[^:]+?)(?::(?P<line>\d+))? - (?P<msg>.*)$"
-)
 # Version 3 is a major-versioned compatibility contract. Increment this integer
 # before removing or renaming a JSON field, changing an established field's type
 # or meaning, or otherwise making a consumer-visible incompatible change. Purely
@@ -336,7 +351,6 @@ LOG_RE = re.compile(
 DIGEST_JSON_SCHEMA_VERSION = 3
 DIGEST_JSON_OUTPUT_KIND = "mrs_log_digest"
 DIGEST_SOURCE_MAX_BYTES = 4 * 1024 * 1024
-SOURCE_REFERENCE_LIMIT = 8
 LONDON = ZoneInfo("Europe/London")
 PROVENANCE_EVENT_KINDS = frozenset(
     {
@@ -356,11 +370,9 @@ PROVENANCE_EVENT_KINDS = frozenset(
         "remote_write_succeeded",
     }
 )
-RESUME_FINGERPRINT_TAIL_LIMIT = 128
 OPENAI_COST_CACHE_PATH = (
     Path.home() / ".local/state/mrsMThatcher/openai-costs/daily_costs.json"
 )
-SAFE_SOURCE_LOGGER_RE = re.compile(r"[A-Za-z_][A-Za-z0-9_.]{0,127}\Z")
 
 
 def file_sha256(path: Path) -> str:
@@ -1083,18 +1095,6 @@ def epoch_to_human(value: Any) -> Optional[str]:
     )
 
 
-@dataclass(frozen=True)
-class Record:
-    """Represent record data."""
-    ts: datetime
-    level: str
-    src: str
-    line: int
-    msg: str
-    path: str
-    ordinal: int
-
-
 def bounded_event_finite_number(
     value: Any,
     *,
@@ -1136,9 +1136,7 @@ def bounded_event_string_list(
 
 def safe_source_logger(value: Any) -> str:
     """Return a non-sensitive bounded logger/function identifier."""
-
-    logger = str(value or "")
-    return logger if SAFE_SOURCE_LOGGER_RE.fullmatch(logger) else "unavailable"
+    return _safe_source_logger(value, safe_source_logger_re=SAFE_SOURCE_LOGGER_RE)
 
 
 def record_source_ref(
@@ -1146,131 +1144,24 @@ def record_source_ref(
     input_file_indexes: Optional[Dict[str, int]] = None,
 ) -> Dict[str, Any]:
     """Return bounded location metadata for one retained physical log record."""
-
-    reference: Dict[str, Any] = {}
-    index = (input_file_indexes or {}).get(record.path)
-    if type(index) is int and index >= 0:
-        reference["input_file_index"] = index
-    else:
-        reference["source_basename"] = Path(record.path).name
-    reference.update(
-        {
-            "record_number": record.ordinal,
-            "timestamp": dt_text(record.ts),
-            "logger": safe_source_logger(record.src),
-        }
+    return _record_source_ref(
+        record, input_file_indexes, dt_text=dt_text, safe_source_logger=safe_source_logger,
     )
-    if record.line > 0:
-        reference["logged_source_line_number"] = record.line
-    return reference
-
-
-def bounded_source_refs(
-    *collections: Any,
-    limit: int = SOURCE_REFERENCE_LIMIT,
-) -> Tuple[List[Dict[str, Any]], int]:
-    """Merge, de-duplicate and cap source references without raw log content."""
-
-    unique: List[Dict[str, Any]] = []
-    identities: set[str] = set()
-    for collection in collections:
-        if isinstance(collection, dict):
-            candidates = [collection]
-        elif isinstance(collection, list):
-            candidates = collection
-        else:
-            continue
-        for candidate in candidates:
-            if not isinstance(candidate, dict):
-                continue
-            allowed = {
-                key: candidate[key]
-                for key in (
-                    "input_file_index",
-                    "source_basename",
-                    "record_number",
-                    "timestamp",
-                    "logger",
-                    "logged_source_line_number",
-                )
-                if key in candidate
-            }
-            if not allowed or "record_number" not in allowed:
-                continue
-            identity = json.dumps(
-                allowed,
-                allow_nan=False,
-                sort_keys=True,
-                separators=(",", ":"),
-            )
-            if identity in identities:
-                continue
-            identities.add(identity)
-            unique.append(allowed)
-    omitted = max(0, len(unique) - limit)
-    return unique[:limit], omitted
 
 
 def record_fingerprint(record: Record) -> str:
     """Record fingerprint."""
-    body = "\x1f".join(
-        [
-            dt_text(record.ts),
-            record.level,
-            record.src,
-            str(record.line),
-            record.msg,
-        ]
-    )
-    return hashlib.sha256(body.encode("utf-8", errors="replace")).hexdigest()
+    return _record_fingerprint(record, dt_text=dt_text)
 
 
 def resume_fingerprint_tail(data: Dict[str, Any]) -> List[str]:
     """Return the resume fingerprint tail."""
-    raw = data.get("last_log_entry_fingerprint_tail")
-    if not isinstance(raw, list):
-        return []
-    return [
-        value
-        for value in raw[-RESUME_FINGERPRINT_TAIL_LIMIT:]
-        if isinstance(value, str) and re.fullmatch(r"[0-9a-f]{64}", value)
-    ]
+    return _resume_fingerprint_tail(data, tail_limit=RESUME_FINGERPRINT_TAIL_LIMIT)
 
 
 def locate_resume_fingerprint_tail(records: List[Record], tail: List[str]) -> Optional[Tuple[int, int]]:
     """Locate the saved append-order tail, tolerating bounded rotation loss."""
-    if not records or not tail:
-        return None
-    fingerprints = [record_fingerprint(record) for record in records]
-    minimum = min(8, len(tail))
-    for length in range(len(tail), minimum - 1, -1):
-        needle = tail[-length:]
-        limit = len(fingerprints) - length + 1
-        for start in range(max(0, limit)):
-            if fingerprints[start:start + length] == needle:
-                return start + length, length
-    return None
-
-
-def resume_boundary_fingerprint_counts(data: Dict[str, Any]) -> Counter[str]:
-    """Return the resume boundary fingerprint counts."""
-    raw_counts = data.get("last_log_entry_fingerprint_counts")
-    counts: Counter[str] = Counter()
-    if isinstance(raw_counts, dict):
-        for fingerprint, raw_count in raw_counts.items():
-            if not fingerprint or isinstance(raw_count, bool):
-                continue
-            try:
-                count = int(raw_count)
-            except (TypeError, ValueError, OverflowError):
-                continue
-            if count > 0:
-                counts[str(fingerprint)] = count
-        return counts
-    for fingerprint in data.get("last_log_entry_fingerprints", []):
-        if fingerprint:
-            counts[str(fingerprint)] += 1
-    return counts
+    return _locate_resume_fingerprint_tail(records, tail, record_fingerprint=record_fingerprint)
 
 
 def filter_resume_boundary_records(
@@ -1279,47 +1170,16 @@ def filter_resume_boundary_records(
     processed_counts: Counter[str],
 ) -> List[Record]:
     """Filter resume boundary records."""
-    remaining = Counter(processed_counts)
-    filtered: List[Record] = []
-    for record in records:
-        fingerprint = record_fingerprint(record)
-        if record.ts == boundary and remaining[fingerprint] > 0:
-            remaining[fingerprint] -= 1
-            continue
-        filtered.append(record)
-    return filtered
+    return _filter_resume_boundary_records(
+        records, boundary, processed_counts, record_fingerprint=record_fingerprint,
+    )
 
 
 def iter_records(path: Path) -> Iterable[Record]:
     """Yield iter records values."""
-    current: Optional[Dict[str, Any]] = None
-    ordinal = 0
-
-    with path.open("r", encoding="utf-8", errors="replace") as fh:
-        for raw in fh:
-            line = raw.rstrip("\n")
-            m = LOG_RE.match(line)
-            if m:
-                if current is not None:
-                    yield Record(**current)
-                ordinal += 1
-                current = {
-                    "ts": datetime.strptime(m.group("ts"), "%Y-%m-%d %H:%M:%S"),
-                    "level": m.group("level"),
-                    "src": m.group("src").strip(),
-                    "line": int(m.group("line") or 0),
-                    "msg": m.group("msg"),
-                    "path": str(path),
-                    "ordinal": ordinal,
-                }
-            elif current is not None:
-                current["msg"] += "\n" + line
-            else:
-                # Ignore leading junk before first timestamp.
-                pass
-
-    if current is not None:
-        yield Record(**current)
+    yield from _iter_records(
+        path, log_re=LOG_RE, record_type=Record, strptime=datetime.strptime,
+    )
 
 
 def read_records(
@@ -1331,77 +1191,10 @@ def read_records(
     physical_order: bool = False,
 ) -> List[Record]:
     """Read and deduplicate structured and legacy log records."""
-    occurrences: Dict[tuple[Any, ...], Dict[str, List[Record]]] = {}
-    path_priority = {str(path): index for index, path in enumerate(paths)}
-    for path in paths:
-        if not path.exists():
-            print(f"WARNING: missing log file: {path}", file=sys.stderr)
-            continue
-        for r in iter_records(path):
-            if since:
-                if since_exclusive:
-                    if r.ts <= since:
-                        continue
-                elif r.ts < since:
-                    continue
-            if until and r.ts > until:
-                continue
-            # Preserve repeated occurrences within a source. For overlapping
-            # rotations, retain the greatest occurrence count seen in any one
-            # source instead of collapsing the record globally.
-            key = (r.ts, r.level, r.src, r.line, r.msg)
-            occurrences.setdefault(key, {}).setdefault(str(path), []).append(r)
-    out: List[Record] = []
-    for by_path in occurrences.values():
-        _selected_path, selected_records = min(
-            by_path.items(),
-            key=lambda item: (-len(item[1]), path_priority.get(item[0], len(paths))),
-        )
-        out.extend(selected_records)
-    if physical_order:
-        canonical = []
-        for path in paths:
-            match = re.fullmatch(r"(?P<base>.+\.log)(?:\.(?P<rotation>\d+))?", path.name)
-            canonical.append((path, match))
-        same_rotation_family = bool(canonical) and all(match for _path, match in canonical)
-        if same_rotation_family:
-            families = {(path.parent.resolve(), match.group("base")) for path, match in canonical if match}
-            same_rotation_family = len(families) == 1
-        if same_rotation_family:
-            ordered_paths = sorted(
-                (path for path, _match in canonical),
-                key=lambda path: (
-                    1 if re.fullmatch(r".+\.log", path.name) else 0,
-                    -int(path.name.rsplit(".", 1)[1]) if path.name.rsplit(".", 1)[1].isdigit() else 0,
-                ),
-            )
-        else:
-            def physical_path_key(path: Path) -> Tuple[int, str]:
-                try:
-                    return path.stat().st_mtime_ns, str(path)
-                except OSError:
-                    return 0, str(path)
-
-            ordered_paths = sorted(paths, key=physical_path_key)
-        physical_priority = {str(path): index for index, path in enumerate(ordered_paths)}
-        out.sort(key=lambda r: (physical_priority.get(r.path, len(paths)), r.ordinal, r.ts))
-    else:
-        out.sort(key=lambda r: (r.ts, r.path, r.ordinal))
-    return out
-
-
-def filter_records_by_time(
-    records: List[Record],
-    since: Optional[datetime],
-    *,
-    since_exclusive: bool,
-) -> List[Record]:
-    """Filter records by time."""
-    if since is None:
-        return list(records)
-    if since_exclusive:
-        return [record for record in records if record.ts > since]
-    return [record for record in records if record.ts >= since]
+    return _read_records(
+        paths, since, until, since_exclusive=since_exclusive,
+        physical_order=physical_order, iter_records=iter_records,
+    )
 
 
 def summarize_input_files(
@@ -1412,54 +1205,10 @@ def summarize_input_files(
     since_exclusive: bool = False,
 ) -> List[Dict[str, Any]]:
     """Summarise input files."""
-    summaries: List[Dict[str, Any]] = []
-
-    for path in paths:
-        summary: Dict[str, Any] = {
-            "path": str(path),
-            "exists": path.exists(),
-            "size": None,
-            "mtime": None,
-            "total_records": 0,
-            "first_timestamp": None,
-            "last_timestamp": None,
-            "records_after_since": 0,
-            "records_in_window": 0,
-        }
-
-        if not path.exists():
-            summaries.append(summary)
-            continue
-
-        try:
-            stat = path.stat()
-            summary["size"] = stat.st_size
-            summary["mtime"] = datetime.fromtimestamp(stat.st_mtime).strftime("%Y-%m-%d %H:%M:%S")
-        except OSError:
-            pass
-
-        for record in iter_records(path):
-            summary["total_records"] += 1
-            ts_text = dt_text(record.ts)
-            if summary["first_timestamp"] is None:
-                summary["first_timestamp"] = ts_text
-            summary["last_timestamp"] = ts_text
-
-            after_since = True
-            if since is not None:
-                after_since = record.ts > since if since_exclusive else record.ts >= since
-            if after_since:
-                summary["records_after_since"] += 1
-
-            selected = after_since
-            if until is not None and record.ts > until:
-                selected = False
-            if selected:
-                summary["records_in_window"] += 1
-
-        summaries.append(summary)
-
-    return summaries
+    return _summarize_input_files(
+        paths, since, until, since_exclusive=since_exclusive,
+        iter_records=iter_records, fromtimestamp=datetime.fromtimestamp, dt_text=dt_text,
+    )
 
 
 def input_retention_coverage(
@@ -1467,49 +1216,9 @@ def input_retention_coverage(
     since: Optional[datetime],
 ) -> Dict[str, Any]:
     """Describe whether retained records cover the requested lower boundary."""
-    timestamps: List[datetime] = []
-    for item in input_files:
-        first = item.get("first_timestamp")
-        if not first:
-            continue
-        try:
-            parsed = parse_dt(str(first))
-        except ValueError:
-            continue
-        if parsed is not None:
-            timestamps.append(parsed)
-    earliest = min(timestamps) if timestamps else None
-    result: Dict[str, Any] = {
-        "requested_since": dt_text(since) if since else None,
-        "earliest_retained_timestamp": dt_text(earliest) if earliest else None,
-        "requested_start_covered": None,
-        "retention_gap_seconds": None,
-        "warning": "",
-    }
-    if since is None or earliest is None:
-        return result
-    if earliest <= since:
-        result["requested_start_covered"] = True
-        return result
-    gap = int((earliest - since).total_seconds())
-    result.update(
-        {
-            "requested_start_covered": False,
-            "retention_gap_seconds": gap,
-            "warning": (
-                f"requested window starts at {dt_text(since)}, but the earliest "
-                f"retained timestamp is {dt_text(earliest)}; coverage of the "
-                "preceding interval cannot be verified from retained logs"
-            ),
-        }
+    return _input_retention_coverage(
+        input_files, since, parse_dt=parse_dt, dt_text=dt_text,
     )
-    return result
-
-
-def combine_input_warnings(*warnings: Optional[str]) -> Optional[str]:
-    """Combine distinct non-empty input warnings deterministically."""
-    values = list(dict.fromkeys(str(value) for value in warnings if value))
-    return "; ".join(values) if values else None
 
 
 def lit(value: str) -> str:
