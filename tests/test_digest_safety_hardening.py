@@ -56,6 +56,98 @@ def publish_readonly_json(path: Path, value: dict) -> bytes:
     return data
 
 
+def test_stable_snapshot_uses_current_identity_callback(tmp_path, monkeypatch):
+    path = tmp_path / "observation.json"
+    raw = b'{"value":1}'
+    path.write_bytes(raw)
+    original = digest._stable_file_identity
+    calls = []
+
+    for invocation in range(2):
+        def identity(metadata, *, invocation=invocation):
+            calls.append((invocation, metadata))
+            return original(metadata)
+
+        monkeypatch.setattr(digest, "_stable_file_identity", identity)
+        data, metadata = digest.read_stable_regular_snapshot(path, maximum=len(raw))
+        assert data == raw
+        observed = calls[invocation * 6:]
+        assert len(observed) == 6
+        assert all(index == invocation for index, _value in observed)
+        assert observed[2][1] is observed[0][1]
+        assert observed[3][1] is observed[4][1] is metadata
+
+    failure = OSError("identity callback failed")
+
+    def fail(metadata):
+        raise failure
+
+    monkeypatch.setattr(digest, "_stable_file_identity", fail)
+    with pytest.raises(OSError) as caught:
+        digest.read_stable_regular_snapshot(path, maximum=len(raw))
+    assert caught.value is failure
+
+
+@pytest.mark.parametrize("reader_name,private", [
+    ("read_stable_regular_bytes", False),
+    ("read_stable_private_json_bytes", True),
+])
+def test_byte_readers_use_current_snapshot_callback(tmp_path, monkeypatch, reader_name, private):
+    path = tmp_path / "observation.json"
+    path.write_bytes(b"{}")
+    path.chmod(0o600)
+    metadata = path.stat()
+    calls = []
+    reader = getattr(digest, reader_name)
+    expected = {"maximum": 7, **({"require_private": True} if private else {})}
+
+    for raw in (b"first", b"second"):
+        def snapshot(requested, *, raw=raw, **kwargs):
+            calls.append((requested, kwargs))
+            return raw, metadata
+
+        monkeypatch.setattr(digest, "read_stable_regular_snapshot", snapshot)
+        assert reader(path, maximum=7) is raw
+    assert calls == [(path, expected), (path, expected)]
+
+    failure = RuntimeError("snapshot callback failed")
+
+    def fail(*args, **kwargs):
+        raise failure
+
+    monkeypatch.setattr(digest, "read_stable_regular_snapshot", fail)
+    with pytest.raises(RuntimeError) as caught:
+        reader(path, maximum=7)
+    assert caught.value is failure
+
+
+def test_native_object_uses_current_value_parser_and_keeps_root_check(monkeypatch):
+    raw = b'{"value":1}'
+    calls = []
+    for result in ({"shared": []}, {"replacement": True}, [1]):
+        def parse(data, *, label, result=result):
+            calls.append((data, label))
+            return result
+
+        monkeypatch.setattr(digest, "_strict_native_json_value", parse)
+        if isinstance(result, dict):
+            assert digest._strict_native_json_object(raw, label="fixture") is result
+        else:
+            with pytest.raises(ValueError, match="^fixture root is not an object$"):
+                digest._strict_native_json_object(raw, label="fixture")
+    assert calls == [(raw, "fixture")] * 3
+
+    failure = ValueError("parser callback failed")
+
+    def fail(*args, **kwargs):
+        raise failure
+
+    monkeypatch.setattr(digest, "_strict_native_json_value", fail)
+    with pytest.raises(ValueError) as caught:
+        digest._strict_native_json_object(raw, label="fixture")
+    assert caught.value is failure
+
+
 def test_runtime_control_snapshot_is_strict_and_fail_closed(tmp_path):
     path = tmp_path / "mrsMThatcher.control.json"
     path.write_text('{"disable_all":true,"generation":3}', encoding="utf-8")

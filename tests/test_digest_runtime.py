@@ -314,6 +314,7 @@ def test_pause_wrapper_samples_patched_clock_at_original_validation_boundary(
 
 
 @pytest.mark.parametrize("module_name", [
+    "mrs_log_digest_input_io",
     "mrs_log_digest_runtime", "mrs_log_digest_remote_write",
     "mrs_log_digest_state_reporting",
     "mrs_log_digest_records",

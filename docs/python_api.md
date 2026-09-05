@@ -32,6 +32,7 @@ and AppleDouble files.
 | `historical_context_formatter.py` | Canonical research loading, compact context formatting and context-reply persistence | Local state; posting only through an injected callback |
 | `shadow_lifecycle.py` | Strict validation for the versioned shadow-feature lifecycle register | Local file reads only |
 | `mrs_log_digest.py` | Log-input coordination, aggregation and Markdown/JSON reports | Local log and resume-state reads/writes; no provider calls |
+| `mrs_log_digest_input_io.py` | Stable file observations, strict native/Decimal JSON parsing and canonical receipt/history encodings | Reads only supplied paths; explicit current sibling callbacks; ordinary file hashing retains its separate read contract; no writes or import-time runtime access |
 | `mrs_log_digest_records.py` | Shared frozen records, bounded source references, fingerprints, resume-boundary filtering and selected log input reading | Reads/stats supplied log paths and emits existing missing-input warnings; explicit current regex, constructor, parsers, readers and helpers; no import-time runtime access |
 | `mrs_log_digest_legacy_posts.py` | Raw legacy quiet/lane, quote/image, spacing, meme, created-post and conversational reply observations and companion response parsing | Supplied shared records, pending/latest objects, lists, counters, production event identities and current event/literal/ID helpers; explicit handled/state returns; no I/O, clock sample, runtime access or provider/posting actions |
 | `mrs_log_digest_transactions.py` | Passive X request, transaction, receipt and media observation preparation, legacy matching, receipt/media correlation and post-scan receipt/error reporting preparation | Supplied records, snapshots, health, pending state, lists/statistics and current helper/source callbacks; no I/O, clock sample, runtime access or publication authority |
@@ -366,6 +367,34 @@ converts sorted counts at the original report site. JSON schema 3, exact Markdow
 CLI/defaults, provenance, locks and self-test isolation are unchanged. The owner
 imports no coordinator, renderer, bot or provider, stores no callbacks and has
 no generic dependency container.
+
+Digest file/JSON callers retain `file_sha256`, `_stable_file_identity`,
+`read_stable_regular_snapshot`, `read_stable_regular_bytes`,
+`read_stable_private_json_bytes`, `canonical_atomic_json_bytes`,
+`canonical_private_json_bytes`, `_strict_json_object`,
+`_strict_native_json_value` and `_strict_native_json_object` with their original
+signatures/defaults. Their implementations belong to `mrs_log_digest_input_io`.
+The six independent functions remain direct digest aliases. Four thin root
+wrappers resolve current sibling helpers on each invocation: the snapshot
+supplies `_stable_file_identity` as `stable_file_identity`; the regular/private
+byte readers supply `read_stable_regular_snapshot` as `read_snapshot`; the native
+object parser supplies `_strict_native_json_value` as `parse_json_value`.
+Callbacks are explicit named inputs and are never stored. Standard-library module
+imports remain shared, preserving patches to their functions.
+
+The stable reader preserves no-follow flags, path/fd metadata comparisons, private
+owner/link/mode checks, size/read bounds, descriptor closure and error order.
+`file_sha256` retains its ordinary file read, including symlink following; corpus
+parse/hash reads remain separate. `_strict_json_object` retains exact `Decimal`
+floats; the native parsers retain ordinary float types, overflow rejection and
+recursive UTF-8 string checks. Duplicate/nonfinite/decoding errors, nested values
+and object-root checks keep their existing contracts. Atomic encoding uses
+`json.dumps`' default ASCII escaping and nonfinite-number policy; private encoding
+uses `ensure_ascii=False, allow_nan=False`. Both retain their exact indentation,
+sorted keys, UTF-8 bytes and trailing newline. The owner imports no digest or bot
+and performs no import-time I/O. `build_digest_contract` and `repository_head_sha`
+remain in root: default `__file__`, producer source identity, schema constants and
+current repository callback resolution still identify the digest facade.
 
 Digest remote-write callers retain `remote_write_safety_snapshot`,
 `reconciliation_archive_snapshot` and the private `_read_readonly_archive_bytes`

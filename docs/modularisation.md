@@ -2422,3 +2422,107 @@ sensible digest modularisation remains. Broader bot refactoring is outside scope
 No production/configuration/state/log/image-pool changes, bot execution,
 provider/posting calls, service control, merge or deployment occurred. Previous
 branches/worktrees are preserved.
+
+## Extracted in stage 27
+
+Base: `adbdd934074cdeead78d4d5c3c3536b14af5c14c`, verified against pushed
+`origin/codex/modularisation-stage26`. Work is isolated on
+`codex/modularisation-stage27` in
+`/disks/disk1/research/mrsMThatcher-modularisation-stage27`.
+
+`mrs_log_digest_input_io.py` owns `file_sha256`, `_stable_file_identity`,
+`read_stable_regular_snapshot`, `read_stable_regular_bytes`,
+`read_stable_private_json_bytes`, `canonical_atomic_json_bytes`,
+`canonical_private_json_bytes`, `_strict_json_object`,
+`_strict_native_json_value` and `_strict_native_json_object`: **183 original
+function lines**. Bodies are unchanged except for named sibling callbacks.
+Six independent functions are direct root aliases. Four thin wrappers retain
+exact signatures/defaults and supply the current identity, snapshot or native
+value parser at invocation time. Shared standard-library modules remain shared;
+there is no reverse import, stored callback, dependency container or new import I/O.
+
+No-follow flags, metadata/owner/link/mode checks, size/read bounds, path/fd
+comparisons, descriptor closure and exception type/text/order remain exact.
+Ordinary file hashing and separate corpus parse/hash reads are unchanged.
+Decimal versus native floats, nested decoding/UTF-8/duplicate/nonfinite failures
+and object-root checks retain their distinct contracts. The canonical encoders
+retain different ASCII/nonfinite defaults and exact sorted/indented bytes/newlines.
+`build_digest_contract` and `repository_head_sha` remain byte-identical in root,
+including facade `__file__`, schema constants and current callback resolution.
+Reconciliation, runtime/evidence, records/discovery, context/cursor, authority,
+window/snapshot, CLI/locking and analysis coordination are unchanged.
+
+| Physical lines | Before | After |
+| --- | ---: | ---: |
+| Digest file | 4,147 | 3,994 (−153) |
+| `analyse` | 1,477 | 1,477 |
+| Input-I/O owner | — | 236 |
+| `run_digest` / Markdown wrapper | 360 / 10 | 360 / 10 |
+
+Validation used `MRS_TEST_MODE=1 PYTEST_DISABLE_PLUGIN_AUTOLOAD=1 python3 -m pytest`
+with the established temporary-HOME/network isolation. Baseline: **276 passed**
+in the eight requested modules (safety hardening, runtime, reply evidence,
+corpus/generated pool, costs, original editorial, generated identity and general
+digest). Final: **294 passed**: 281 in those modules plus 13 cases from eight
+existing digest-only integration functions covering producer identity/copied
+facade, current state beyond the window, receipt/history fallback, private JSON
+redaction and nonfinite/non-UTF-8 display/state input. No whole bot harness ran.
+Three added test functions cover all four sibling delegations across invocations,
+shared results, root checks and original callback exceptions; the existing import
+safety test adds the new owner. All existing test bodies/assertions are retained.
+
+Exact text/AST review verifies all ten moved bodies, four wrapper calls and
+original callable signatures/defaults. Applying only those replacements and the
+new import reproduces every current digest byte. All **91** remaining root
+functions, including `analyse` and `build_digest_contract`, and all **27** existing
+digest companions remain byte-identical. `python3 tools/check_python_documentation.py`
+passes for **207 modules**; `git diff --check` passes.
+
+Four complete fixed-path/time JSON/Markdown pairs match stage 26 using existing
+integration fixtures and their original assertions:
+
+| Fixture | Records | JSON bytes | Markdown bytes |
+| --- | ---: | ---: | ---: |
+| Runtime state after the selected window | 6 | 37,658 | 12,980 |
+| Version-4 receipt with Unicode/multiline text | 1 | 61,685 | 15,955 |
+| Completed historical reply history | 1 | 37,301 | 12,384 |
+| Duplicate-key private/runtime/config input | 1 | 62,905 | 16,009 |
+
+Both producer hashes and repository HEADs were independently verified. Only the
+producer-source hash was substituted; both HEADs were at the base. Stderr and
+fixture bytes/modes/mtimes also match. A second temporary test compares **45**
+typed parser cases, **10** encoding cases and **17** file-operation/error traces,
+plus real private-file bytes/metadata, ordinary symlink hashing and shared JSON
+module patches. It covers distinctions absent from reports, including Decimal
+precision/overflow, nested surrogates, exact encoder bytes, read bounds and close
+ordering. Both temporary tests passed; scripts/data stay outside the worktree.
+These are synthetic comparisons, not an exhaustive filesystem-race or production
+replay; existing nearest regressions and exact body review provide the remaining
+preservation evidence.
+
+Recommended next boundary: substantive context/cursor ownership. Marker stripping,
+context merge, config-pair extraction, backscan annotations and partial-state
+parsing total **117 lines**; `read_resume_data`, `save_resume_time` and
+`apply_saved_context` add **143**. These eight functions and their marker vocabulary
+form a coherent candidate, with current parser, marker/fingerprint helpers,
+clock and refresh callbacks supplied explicitly where needed. Preserve missing
+versus None merge semantics, truncated-state recovery, backscan timestamps,
+retained-history separation from current state, spacing carry-forward and refresh
+order. Resume ownership must retain same-timestamp occurrence merging, bounded
+physical cursor tails, reset/preserve flags, warning/encoding/replacement behavior
+and the existing save-time clock position. `apply_saved_context` currently retains
+history without applying its `window_end` argument; extraction must not invent a
+new temporal filter or promote history to current authority.
+
+Root should retain production/self-test source selection, latest-config scan and
+backscan cutoff/window choice, current-snapshot selection, publication checks,
+overall report schema, CLI/locking/delivery and the decision to save only after
+successful delivery. Moving context/cursor implementation need not move that
+coordinator or duplicate records ownership. This is a useful next assessment,
+not a following-stage implementation or a line-count target.
+
+Stage 27 only is implemented. Stop after stage **32** and reassess, or earlier if
+no sensible digest modularisation remains; older no-ceiling wording is superseded.
+No production/configuration/state/log/image-pool changes, bot execution,
+provider/posting calls, service control, merge, deployment or force-push occurred.
+Previous branches/worktrees are preserved.
