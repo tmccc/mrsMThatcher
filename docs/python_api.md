@@ -50,6 +50,7 @@ and AppleDouble files.
 | `mrs_log_digest_corpus.py` | Historical-corpus counts, availability, policies and hashes | Reads the existing research/audit paths under an explicit project directory using supplied strict parsing and file hashing; parsing and hashing remain separate reads |
 | `mrs_log_digest_generated_pool.py` | Generated-image discovery, metadata/hash validation, curation and used-history observations | Reads/scans the existing pool locations relative to an explicit base directory; supplied strict parsers, hashing, clock and ISO timestamp parser; no writes or import-time runtime access |
 | `mrs_log_digest_historical_events.py` | Historical-context event field projection, family counters and emitted-event quality summaries | Only supplied invocation-local counters and event insertion callbacks are mutated/called; no I/O or import-time runtime access |
+| `mrs_log_digest_consistency_events.py` | Passive production-consistency event projections, family counters and prepared consistency reporting | Explicit parsed fields, timestamps, local counter, insertion and current field helpers; shares control lists and emitted event rows; no I/O, clock sampling or publication authority |
 | `mrs_log_digest_generated_identity.py` | Generated-identity policy/shadow observation parsing and summaries | Mutates only supplied observation/error lists, local counters and the parser result's timestamp; strict parser, diagnostic formatter and lazy source-reference callback supplied by caller; no I/O or import-time runtime access |
 | `mrs_log_digest_original_editorial.py` | Original-editorial selection/shadow observations, companion deduplication and summary | Mutates only supplied observation/error lists, local statistics/companion counters and the parser result's timestamp and event mode; strict parser, diagnostic formatter and lazy source-reference callback supplied by caller; no I/O or import-time runtime access |
 | `mrs_log_digest_single_call.py` | Single-call reply decision, provider usage, posting outcome and recovered-draft observations and summary | Emits only through the supplied `add_event` callback; summary reads emitted events without mutation; no I/O, publication/recovery actions or import-time runtime access |
@@ -558,6 +559,29 @@ and regexes, and `_count_optional` belong to the values leaf and remain explicit
 importable through the digest. Durable-history validation retains its distinct
 schema and vocabulary rules. Dependency direction is digest → historical events
 → values; the new module imports no coordinator, renderer, bot or runtime reader.
+
+Consistency event callers use `record_reply_evidence_unavailable`,
+`record_runtime_control_pause`, `record_runtime_control_clear`,
+`record_clarification_reply_cap_override`, `record_clarification_reply_used`,
+`record_repair_reply_completed`, `record_posting_transaction_state` and
+`record_daily_meme_failure`. Each receives the current parsed event, record
+timestamp, local statistics and `add_event`, plus only its current bounded
+text/list/integer/boolean or string post-ID helpers. Field access/validation
+order, defaults, limits and types are unchanged. Generic insertion remains in
+the digest; pause/clear, clarification and repair still increment their kind
+again after insertion. Returned control-lane lists remain shared with event rows.
+
+`production_consistency_report(events, stats)` returns the same ordered report
+dictionary at the original root literal key position, after late API reporting
+and the historical-reply counters. It creates a new list of the fixed eleven
+kinds with shared rows, followed by five separate sorted counter iterations for
+transaction state, obligation state, meme-failure stage, historical runtime
+status and unavailable-evidence lane. It does not snapshot these counters early.
+The historical-events owner and other report sections are unchanged. Parsed
+EVENT predicates, dispatch/source switching, strict confirmed-publication
+acceptance and completed historical-anchor validation remain in the digest;
+displayed valid IDs confer no publication authority. The owner imports only
+standard-library types and stores no callbacks or invocation state.
 
 Generated-identity callers retain `generated_identity_shadow_summary(events)`
 and `generated_identity_policy_summary(events)` as explicit digest re-exports

@@ -2314,3 +2314,111 @@ Further stages should improve ownership and clarity, without moving all of
 No production/configuration/state/log/image-pool changes, bot execution,
 provider/posting calls, service control, merge or deployment occurred. Previous
 branches/worktrees are preserved; only stage 25 is implemented in this session.
+
+## Extracted in stage 26
+
+Base: `7b760898e7176106fc4825789e44880638d22b2a`, verified against pushed
+`origin/codex/modularisation-stage25`. Work is isolated on
+`codex/modularisation-stage26` in
+`/disks/disk1/research/mrsMThatcher-modularisation-stage26`.
+
+`mrs_log_digest_consistency_events.py` owns eight named projections:
+`reply_evidence_unavailable`, `runtime_control_pause`, `runtime_control_clear`,
+`clarification_reply_cap_override`, `clarification_reply_used`,
+`repair_reply_completed`, `posting_transaction_state` and `daily_meme_failure`.
+Their **169 original body lines** are unchanged apart from the explicit record
+timestamp. Each receives only its actual current field helpers, parsed event,
+local counter and insertion callback. Get/validation order, defaults, limits,
+types and post-insertion counters are preserved, including the second kind
+increments for pause/clear, clarification and repair. Control-lane lists and
+emitted event rows remain shared; displayed IDs grant no publication authority.
+
+`production_consistency_report(events, stats)` holds the exact **45-line**
+dictionary value at the original report-literal key position. It retains the
+eleven-kind subset, new outer list with shared rows, key order and five separate
+`sorted(stats.items())` comprehensions, after the preceding API callback and
+historical-reply counter observation. No early or consolidated snapshot is made.
+
+Parsed EVENT predicates, dispatch order, source-state switching, classification,
+event insertion/provenance, strict `reply_posted` and
+`historical_context_reply_posted` authority branches, and completed historical
+anchor validation stay in root. Historical-context owner functions, the two tiny
+pagination/candidate-skip branches and other report sections are unchanged.
+Existing APIs/signatures/defaults, schema 3, clocks, values/types/order/errors,
+JSON/Markdown, source/window/resume policy, CLI/defaults, producer identity and
+locking are preserved. No dispatcher, state container or stored callback was added.
+
+| Physical lines | Before | After |
+| --- | ---: | ---: |
+| Digest file | 4,308 | 4,147 (−161) |
+| `analyse` | 1,649 | 1,477 (−172) |
+| Consistency-events owner | — | 328 |
+| `run_digest` / Markdown wrapper | 360 / 10 | 360 / 10 |
+
+Validation: baseline **232 passed**, final **234 passed**, with
+`MRS_TEST_MODE=1 PYTEST_DISABLE_PLUGIN_AUTOLOAD=1 python3 -m pytest` and the
+established temporary-HOME/network isolation. Selection: reply observability,
+historical events, general digest and Markdown modules; the two safety-hardening
+self-test state/input-isolation functions; and **seven digest-only integration
+functions** for receipt source isolation, exact historical text/provenance,
+malformed reply confirmation, historical authority, noncanonical conversational
+IDs, integer historical IDs and explicit self-test publication authority.
+Two added functions cover current callback/payload/timestamp delegation across
+invocations, shared lists/rows, original double increments, and late report-time
+counter iteration/order/types. All **52** existing observability helpers/tests
+remain byte-identical; existing assertions are retained. No whole bot harness ran.
+
+Exact text/AST checks verify all moved bodies, the report expression, call inputs
+and existing signatures/defaults. Restoring the nine spans and removing the new
+import reproduces every stage 25 digest byte, establishing that the surrounding
+`analyse` is unchanged. Existing digest companions remain byte-identical.
+`python3 tools/check_python_documentation.py` passes for **206 modules**;
+`git diff --check` passes.
+
+Three complete fixed-path/time JSON/Markdown pairs match stage 25:
+
+| Comparison | Records | JSON bytes | Markdown bytes | Observed publications |
+| --- | ---: | ---: | ---: | ---: |
+| Bounded/malformed control and reply fields | 43 | 70,007 | 15,181 | 0 |
+| Historical families, transaction/meme failures | 76 | 133,686 | 26,769 | 1 |
+| Mixed sources and valid/invalid confirmations | 13 | 45,551 | 14,219 | 2 |
+
+The temporary comparison test passed, reusing historical fixtures and
+`write_digest_log`. Raw `analyse` reports and stderr match too. A direct trace
+matches **984** parsed get/validation/counter observations and checks shared
+control lists and report rows. Producer hashes and both repository HEADs were
+independently verified; only the producer-source hash was substituted, with
+both HEADs at the base. Fixture bytes, modes and mtimes are unchanged. These
+synthetic comparisons use a prepared remote-write snapshot, do not revalidate
+filesystem inspectors and are not an exhaustive replay. Temporary scripts/data
+remain outside the worktree.
+
+Recommended next boundary: the shared stable-byte/private-JSON input primitives.
+The no-follow metadata/read checks, private-file constraints, canonical encoders
+and strict JSON parsers form useful common ownership for runtime, remote-write,
+receipt, history and cost readers. Preserve thin digest compatibility wrappers
+where current helper lookup matters, and keep the native-number and Decimal
+contracts distinct. Source selection, authority decisions and producer identity
+remain coordinator responsibilities; moving those for size would not help.
+
+Context helpers are another substantive boundary: marker stripping, saved-context
+merging, config-pair extraction and backscan annotation total **81 lines**.
+`read_resume_data`, `save_resume_time` and `apply_saved_context` combine persistence,
+clock/cursor decisions and refresh ordering; retain that orchestration while
+considering only separable context preparation. Existing input-reader and domain
+compatibility wrappers are already appropriate.
+
+Substantive companions also remain: prepared post-rate/coverage calculations
+within `generated_post_rate_history` (**55 lines** including reading/time selection)
+could join image-usage ownership while root retains selection; runway-config
+preparation (**20**) and the two reply/API restriction classifiers (**12/14**) are
+smaller companions of existing owners. These are candidates for useful ownership,
+not a line-count target or a commitment to more stages.
+
+Stage 26 only is implemented here. The supervisor starts a fresh session for each
+stage. The user's hard stop after stage **32** for reassessment supersedes older
+no-ceiling language in this report; do not start stage 33, and stop earlier if no
+sensible digest modularisation remains. Broader bot refactoring is outside scope.
+No production/configuration/state/log/image-pool changes, bot execution,
+provider/posting calls, service control, merge or deployment occurred. Previous
+branches/worktrees are preserved.

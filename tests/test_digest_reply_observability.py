@@ -2064,6 +2064,161 @@ def test_new_runtime_pause_evidence_and_repair_events_are_structured():
     assert "Repair replies completed" in rendered
 
 
+def test_consistency_projections_keep_current_callbacks_sharing_and_double_counts(monkeypatch):
+    names = (
+        "reply_evidence_unavailable", "runtime_control_pause", "runtime_control_clear",
+        "clarification_reply_cap_override", "clarification_reply_used",
+        "repair_reply_completed", "posting_transaction_state", "daily_meme_failure",
+    )
+    records = [structured_record(index, {
+        "event": name, "lane": "mention", "lanes": ["pause"], "key": "control",
+        "target_id": "opaque", "thread_id": "opaque", "author_id": "opaque",
+        "reply_post_id": "opaque", "parent_post_id": "opaque", "post_id": "opaque",
+        "bypassed_cap": "daily", "trigger": "question", "until_epoch": 1,
+        "context_reply_state": "pending", "main_post_state": "confirmed",
+        "context_state_persisted": True, "stage": "media", "status": "failed",
+        "error_type": "OSError", "reason": "fixture",
+    }) for index, name in enumerate(names)]
+    original_records = copy.deepcopy(records)
+    previous_stats = None
+    for run in range(2):
+        emitted, counters, lane_lists, parsed = [], [], [], []
+        with monkeypatch.context() as patch:
+            def parse(message):
+                result = json.loads(message.removeprefix("EVENT "))
+                parsed.append(result)
+                return result
+
+            def text(value, **kwargs):
+                return f"run{run}:{value}"
+
+            def lanes(value, **kwargs):
+                assert value == ["pause"]
+                assert kwargs == {"limit": 20, "item_max_characters": 100}
+                result = [f"run{run}:pause"]
+                lane_lists.append(result)
+                return result
+
+            helpers = {
+                "bounded_event_text": text,
+                "bounded_event_string_list": lanes,
+                "bounded_event_nonnegative_integer": lambda value: 71 + run,
+                "bounded_event_boolean": lambda value: False,
+                "valid_string_public_post_id": lambda value: value == "opaque",
+            }
+            patch.setattr(digest, "try_parse_strict_json_object_from_msg", parse)
+            for name, callback in helpers.items():
+                patch.setattr(digest, name, callback)
+
+            def wrap(name):
+                original = getattr(digest, "record_" + name)
+
+                def project(payload, timestamp, stats, *, add_event, **callbacks):
+                    index = names.index(name)
+                    assert payload is parsed[-1]
+                    assert timestamp is records[index].ts
+                    assert all(value is helpers[key] for key, value in callbacks.items())
+                    counters.append(stats)
+
+                    def emit(kind, ts, **fields):
+                        assert kind == name and ts is timestamp
+                        assert stats[kind] == 0
+                        row = add_event(kind, ts, **fields)
+                        assert stats[kind] == 1
+                        emitted.append(row)
+                        return row
+
+                    assert original(payload, timestamp, stats, add_event=emit, **callbacks) is None
+
+                patch.setattr(digest, "record_" + name, project)
+
+            for name in names:
+                wrap(name)
+            report = digest.analyse(records, generation_time=records[-1].ts)
+
+        assert counters[0] is not previous_stats
+        previous_stats = counters[0]
+        assert all(stats is counters[0] for stats in counters)
+        assert [row["kind"] for row in report["events"]] == list(names)
+        consistency = report["production_consistency"]
+        assert consistency["events"] is not report["events"]
+        assert all(row is emitted[index] is report["events"][index]
+                   for index, row in enumerate(consistency["events"]))
+        for row, shared in zip(emitted[1:3], lane_lists):
+            assert row["control_lanes"] is shared
+            assert row["lanes"] == f"run{run}:pause"
+            shared.append("later mutation")
+            assert row["control_lanes"][-1] == "later mutation"
+        emitted[0]["extra"] = "shared mutation"
+        assert consistency["events"][0]["extra"] == "shared mutation"
+        consistency["events"].pop()
+        assert len(report["events"]) == 8
+        assert emitted[1]["until_epoch"] == 71 + run
+        assert emitted[6]["context_state_persisted"] is False
+        assert emitted[0]["target_id"] == emitted[3]["author_id"] == emitted[7]["post_id"] == "opaque"
+        assert emitted[4]["trigger"] == f"run{run}:question"
+        assert emitted[5]["reply_post_id"] == "opaque"
+        assert consistency["context_transaction_state_counts"] == {f"run{run}:pending": 1}
+        assert consistency["daily_meme_failure_stage_counts"] == {f"run{run}:media": 1}
+        assert consistency["reply_evidence_unavailable_lane_counts"] == {f"run{run}:mention": 1}
+        counts = report["summary"]["stats"]
+        assert {name: counts[name] for name in names} == {
+            name: (2 if name in names[1:6] else 1) for name in names
+        }
+        assert report["api_health"]["observed_remote_write_success_count"] == 0
+    assert records == original_records
+
+
+def test_consistency_report_keeps_late_callback_and_separate_counter_iterations(monkeypatch):
+    prefixes = (
+        "context_transaction_state_", "context_obligation_state_",
+        "daily_meme_failure_stage_", "historical_context_runtime_status_",
+        "reply_evidence_unavailable_lane_",
+    )
+    captured = {}
+    observations = []
+
+    class ObservedCounter(Counter):
+        def items(self):
+            if self is captured.get("stats") and captured.get("late"):
+                number = len(observations)
+                observations.append(number)
+                for prefix in prefixes:
+                    # Insert out of order; preserve types as well as sorted keys.
+                    self[prefix + "z"] = number
+                    self[prefix + "a"] = bool(number % 2)
+            return super().items()
+
+    original_project = digest.record_reply_evidence_unavailable
+    original_api_report = digest.api_health_report
+
+    def project(payload, timestamp, stats, **callbacks):
+        captured["stats"] = stats
+        return original_project(payload, timestamp, stats, **callbacks)
+
+    def late_api_report(*args, **kwargs):
+        captured["late"] = True
+        return original_api_report(*args, **kwargs)
+
+    monkeypatch.setattr(digest, "Counter", ObservedCounter)
+    monkeypatch.setattr(digest, "record_reply_evidence_unavailable", project)
+    monkeypatch.setattr(digest, "api_health_report", late_api_report)
+    report = digest.analyse([structured_record(0, {"event": "reply_evidence_unavailable"})])
+    consistency = report["production_consistency"]
+    assert list(consistency) == [
+        "events", "context_transaction_state_counts", "context_obligation_state_counts",
+        "daily_meme_failure_stage_counts", "historical_context_runtime_status_counts",
+        "reply_evidence_unavailable_lane_counts",
+    ]
+    # The historical-reply section takes observation zero immediately beforehand.
+    assert observations == list(range(6))
+    for index, (key, counts) in enumerate(list(consistency.items())[1:], start=1):
+        assert list(counts) == (["a", "unavailable", "z"] if index == 5 else ["a", "z"])
+        assert counts["z"] == index and type(counts["z"]) is int
+        assert counts["a"] is bool(index % 2)
+    assert not any(prefix + "z" in report["summary"]["stats"] for prefix in prefixes)
+
+
 def write_corpus(tmp_path):
     paths = {
         "packets": (
