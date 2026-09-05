@@ -40,6 +40,7 @@ and AppleDouble files.
 | `mrs_log_digest_incidents.py` | Operational-error classification, incident grouping/resolution, retirement evidence and remote pause scopes | Supplied observations, current helper/annotation callbacks, scope mappings and conditional clock/epoch conversion; preserves error/event identity and snapshot mutation; no file/home/configuration access or provider calls |
 | `mrs_log_digest_reply_evidence.py` | Durable confirmed conversational receipt and historical reply-history loading/validation | Explicit project paths, stable private reader, native-number parser, canonical encoders, time conversion and validator callbacks; no writes, clock sample or import-time runtime access |
 | `mrs_log_digest_reply_text.py` | Exact confirmed public reply-text preparation from prepared runtime/receipt/history evidence | Mutates supplied report/events; explicit source-reference, epoch-conversion and helper/validator callbacks and warning limit; no evidence loading, I/O or clock sample |
+| `mrs_log_digest_quote_publication.py` | Quote-publication and engagement-experiment validation, evidence correlation and prepared publication reporting | Mutates supplied evidence, events, invalid-evidence sets and warning/outcome storage; explicit timestamps, source-reference helpers, validators and vocabulary; no files, home/configuration, clock sampling or provider calls |
 | `mrs_log_digest_corpus.py` | Historical-corpus counts, availability, policies and hashes | Reads the existing research/audit paths under an explicit project directory using supplied strict parsing and file hashing; parsing and hashing remain separate reads |
 | `mrs_log_digest_generated_pool.py` | Generated-image discovery, metadata/hash validation, curation and used-history observations | Reads/scans the existing pool locations relative to an explicit base directory; supplied strict parsers, hashing, clock and ISO timestamp parser; no writes or import-time runtime access |
 | `mrs_log_digest_historical_events.py` | Historical-context event field projection, family counters and emitted-event quality summaries | Only supplied invocation-local counters and event insertion callbacks are mutated/called; no I/O or import-time runtime access |
@@ -210,6 +211,40 @@ sampling, provider calls or import-time runtime work. Evidence loading retains i
 existing owners. Event collection, `analyse`, pipeline reconciliation and report
 assembly remain in the coordinator; operational incident reconciliation belongs to
 `mrs_log_digest_incidents`. JSON schema 3, Markdown and CLI contracts are unchanged.
+
+Quote-publication correlation belongs to `mrs_log_digest_quote_publication`.
+`valid_account_root_publication_identity`, `valid_engagement_confirmation_event`
+and `engagement_main_metadata_status` retain their original digest signatures
+through thin wrappers supplying current post-ID validation, hash/pair patterns
+and experiment vocabulary. The eight `ENGAGEMENT_*` constants formerly beside
+those validators retain direct digest aliases, including the shared vocabulary
+used by `summarize_engagement_question_experiment_state`. The warning limit retains
+its values-module owner and is supplied on each warning call.
+
+`record_main_post_publication`, `record_account_root_publication`,
+`record_engagement_confirmation` and `record_engagement_trial_outcome` accept
+prepared parsed payloads, record timestamps and named validator/source/evidence
+callbacks. Strict parsing, the outer loop, dispatch predicates, source tracking,
+event insertion and the daily-meme pending-state update remain in the coordinator
+at their original positions. Local adapters retain dynamic current-source checks
+and omission accounting while the module owns `add_engagement_correlation_warning`,
+`retain_quote_post_evidence`, `note_invalid_quote_post_evidence` and
+`correlated_quote_post_fields`. Correlation maps, invalid-evidence sets, warning
+lists/keys/counters, current text/reference helpers and the question separator are
+explicit arguments. Callbacks are neither stored globally nor bundled in a
+dependency container.
+
+`prepare_quote_publication_report` enriches the original production quote events,
+assembles confirmed experimental publication rows and sorts supplied trial
+outcomes/warnings in place. The returned rows retain projected text/reference
+sharing. Duplicate/conflict semantics, canonical public IDs, exact long/multiline
+text and hashes, field precedence, missing versus null, source-reference bounds,
+warning cap/count/order/omissions and authority/source/self-test filtering are
+unchanged. Observed-success counting reads the same prepared correlation evidence
+with the same object identities. Overall report assembly, JSON schema 3, Markdown,
+CLI, defaults, provenance, clocks, locks and resume retain their existing owners
+and behaviour. The reporting module performs no I/O or runtime initialisation
+and imports no coordinator, renderer, bot or provider module.
 
 Digest corpus and image-pool callers retain `historical_context_corpus_snapshot`
 and `generated_pool_health_snapshot` with their original signatures and result

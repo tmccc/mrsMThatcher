@@ -264,6 +264,7 @@ def test_utc_parser_keeps_short_circuit_and_exception_identity(monkeypatch):
 
 @pytest.mark.parametrize("module_name", [
     "mrs_log_digest_reply_evidence", "mrs_log_digest_reply_text", "mrs_log_digest_incidents",
+    "mrs_log_digest_quote_publication",
 ])
 def test_evidence_import_is_inert_and_pure_digest_aliases_keep_identity(tmp_path, module_name):
     script = """
@@ -311,6 +312,12 @@ assert set(logging.Logger.manager.loggerDict) == loggers
     )
     assert result.returncode == 0, result.stderr
     names = (
+        "ENGAGEMENT_QUESTION_PUBLIC_TEXT_SEPARATOR", "ENGAGEMENT_QUESTION_EXPERIMENT_ID",
+        "ENGAGEMENT_QUESTION_EXPERIMENT_STATE_SCHEMA_VERSION",
+        "ENGAGEMENT_QUESTION_EXPERIMENT_STATUSES", "ENGAGEMENT_PAIR_ID_RE",
+        "ENGAGEMENT_PUBLICATION_ORDERS", "ENGAGEMENT_ARMS",
+        "ENGAGEMENT_MAX_CONFIRMED_PUBLICATIONS",
+    ) if module_name == "mrs_log_digest_quote_publication" else (
         "_incident_exception_line", "_normalise_incident_text", "_event_time",
         "REMOTE_OPERATION_SCOPE_LABELS", "REMOTE_CONTROL_SCOPE_BY_KEY", "REMOTE_LANE_SCOPE",
     ) if module_name == "mrs_log_digest_incidents" else (

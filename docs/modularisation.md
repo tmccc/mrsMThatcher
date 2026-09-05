@@ -1260,3 +1260,97 @@ validators and source-reference/warning callbacks; author progress needs prepare
 state and window times. Assess these as coherent owners, retaining report assembly,
 source collection and CLI/resume orchestration where that remains sensible. No
 following-stage implementation is included here.
+
+## Extracted in stage 16
+
+Base: `f697b7d9cf1a0c7d53dfbc6fb93533617a9af9d9`, verified against the pushed
+`origin/codex/modularisation-stage15` tip. Work is isolated on
+`codex/modularisation-stage16` in
+`/disks/disk1/research/mrsMThatcher-modularisation-stage16`.
+This implements stage 16 only. There is no stage-number ceiling; the supervisor
+can continue in fresh sessions until further digest modularisation is no longer
+sensible. Broader bot refactoring remains outside scope.
+
+`mrs_log_digest_quote_publication.py` owns the three publication/experiment
+validators, warning deduplication/bounds, evidence retention and invalid-evidence
+recording, the four structured main/account-root/confirmation/trial-outcome
+handlers, `correlated_quote_post_fields`, and post-scan quote-event enrichment
+and confirmed experimental publication assembly. Three thin digest wrappers
+preserve the original validator signatures and current helper/constant delegation.
+Eight unchanged engagement vocabulary definitions retain direct digest aliases;
+the existing experiment-state summary consumes those aliases. The warning limit
+retains its values-module owner.
+
+Local adapters preserve dynamic source checks, warning omission accounting and
+correlation callbacks. Existing correlation maps, invalid-evidence sets, warning
+lists/keys/counters, payloads, timestamps, source-reference helpers and validators
+are explicit arguments. No upward imports, stored callbacks or dependency
+containers were introduced. Strict parsing, dispatch, the outer record loop,
+source tracking, event insertion and overall report assembly remain in `analyse`.
+The daily-meme pending-state update remains immediately after main-post evidence
+handling. Observed-success counting reads the same prepared evidence objects.
+
+Canonical public IDs, exact full/multiline text and hashes, duplicate/conflict
+semantics, field precedence and missing-versus-null distinctions, reference
+bounds/omissions, warning cap/count/order/omissions and authority/source/self-test
+filtering are unchanged. Enrichment mutates the original production events and
+sorts the original outcome/warning lists; publication rows retain projected
+value/reference sharing. JSON schema 3, exact Markdown, CLI, defaults, provenance,
+clocks, locks and resume are unchanged. The new module performs no file,
+home/configuration, clock or provider access.
+
+| Physical lines | Before | After |
+| --- | ---: | ---: |
+| Digest file | 8,922 | 8,066 (−856) |
+| `analyse` | 4,702 | 3,905 (−797) |
+| Quote-publication module | — | 1,167 |
+| `run_digest` / Markdown wrapper | 360 / 10 | 360 / 10 |
+
+Validation: 162 tests passed with
+`MRS_TEST_MODE=1 PYTEST_DISABLE_PLUGIN_AUTOLOAD=1 python3 -m pytest`, using the
+established temporary-HOME/network isolation. The 156 existing checks cover the
+digest, Markdown and safety-hardening files plus 19 selected integration
+functions: all 15 requested quote/engagement fixtures, compact experiment state,
+JSON schema/source identity and source-isolated resume. Five new boundary cases
+check current validator/helper/vocabulary delegation, lazy source references,
+warning-limit/duplicate omission accounting, payload/conflict/reference identity
+and in-place enrichment/sorting/sharing. The existing inert-import test is
+extended by one case to the new module and its eight digest aliases. It rejects
+runtime file/home access, scans, network/subprocess activity and logging setup.
+No entire bot harness was run.
+
+The three pure validator bodies match stage 15 verbatim. All four moved closures
+match after only two lazy source-check substitutions and omission-count returns.
+The four handler bodies match after nine record-timestamp and four lazy
+source-reference substitutions. Post-scan enrichment/assembly matches its
+original AST with only a return added. All original public/local signatures,
+eight vocabulary definitions, 118 retained top-level definitions and all other
+coordinator text are unchanged after excluding the explicit extraction sites.
+Earlier reporting modules are unchanged.
+
+Four complete JSON/Markdown pairs match on shared existing fixtures for ordinary
+publication, treatment publication, conflicting/bounded evidence and self-test
+source isolation. Producer source hashes and repository HEADs were independently
+verified before replacing only the producer-hash field; HEADs were equal to the
+base at comparison time. JSON bytes (34,992–41,366) then match exactly; Markdown
+bytes (12,464–15,233) and fixture bytes/modes/timestamps match without substitution.
+Temporary scripts/data are excluded. The documentation gate passes for 199
+modules; `git diff --check` passes.
+
+These checks establish extraction parity on the affected behaviour and selected
+fixtures, not an exhaustive bot replay. No production checkout, configuration,
+durable bot state, logs or image pools were changed; no bot/provider/posting
+calls, service control, merge or deployment occurred. Earlier worktrees and
+branches are preserved.
+
+Recommended next boundary remains the structured legacy reply-pipeline group:
+`conversational_evidence_fields` (89 lines), the nine strategy/pipeline branches
+(395 lines including their dispatch predicates; 386 handler-body lines) and
+`reconcile_reply_pipeline_effective_outcomes` (113 lines). This roughly 597-line
+group still coherently prepares evidence fields, emits decision/stage/terminal
+observations and reconciles the same event objects. Give it ownership alongside
+the existing reply-pipeline/strategy reporting modules, supplying current
+`add_event`, `add_or_merge_local_rejection`, text/list/telemetry validators and
+lane/terminal helpers while retaining parsing, source isolation and event
+insertion in the coordinator. Preserve the reconciliation order and local
+rejection/outcome precedence. No following-stage implementation is included.
