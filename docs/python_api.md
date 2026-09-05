@@ -44,6 +44,8 @@ and AppleDouble files.
 | `mrs_log_digest_single_call.py` | Single-call reply decision, provider usage, posting outcome and recovered-draft observations and summary | Emits only through the supplied `add_event` callback; summary reads emitted events without mutation; no I/O, publication/recovery actions or import-time runtime access |
 | `mrs_log_digest_reply_pipeline.py` | Pure legacy reply-pipeline summary and strict majority-review telemetry validation/utilisation | None; consumes supplied events without mutation |
 | `mrs_log_digest_reply_strategy.py` | Pure legacy reply-strategy summary and no-reply categorisation | None; consumes supplied events without mutation or publication authority |
+| `mrs_log_digest_visual_context.py` | Pure reply visual-description validation and visual-context correlation/reporting | None; validates supplied dictionaries and summarises prepared observations; no publication authority |
+| `mrs_log_digest_image_usage.py` | Pure generated-image utilisation, current-cycle runway and regular-image selection summaries | None; consumes prepared pool, post-rate, configuration and event observations |
 | `mrs_log_digest_values.py` | Shared digest scalar conversions, reason classifiers and report vocabulary | None |
 | `mrs_engagement_analytics.py` | Read-only X metrics collection and isolated SQLite reporting | X reads only with explicit flags; writes only under `engagement_analytics/` |
 | `hybrid_reply_retrieval.py` | CLI for local hybrid retrieval experiments and review artefacts | Offline by default; provider-review commands require explicit execution and budgets |
@@ -107,8 +109,9 @@ curation transaction reads. Explicit times bypass that clock; naive times retain
 host-local timezone handling. `run_digest` still supplies the selected window's
 end (explicit `--until`, otherwise the last selected record), using an implicit
 pool clock only when neither exists. This reference time remains distinct from
-digest generation time. Post rates, utilisation, runway, configuration loading,
-analysis and report assembly stay in the digest. Both snapshot modules have no
+digest generation time. Post-rate scans, configuration loading, analysis and
+report assembly stay in the digest; pure utilisation and runway summaries belong
+to `mrs_log_digest_image_usage`. Both snapshot modules have no
 import-time runtime effects or imports back into the digest, Markdown or bot.
 
 Historical event callers use `record_historical_context_semantic_gate`,
@@ -253,6 +256,40 @@ coordinator, renderer, bot or runtime reader. Event parsing, `analyse`,
 and publication authority remain with their existing owners. The CLI still
 reports legacy multi-stage counts under JSON schema 3 without restoring the
 retired legacy summary sections.
+
+Visual-context callers retain `parse_reply_visual_description_event` and
+`reply_visual_context_report` as explicit digest imports from
+`mrs_log_digest_visual_context`. All six `REPLY_VISUAL_DESCRIPTION_*` constants
+move with the parser and retain their digest aliases. The unchanged
+`SHA256_LOWER_RE` already belongs to `mrs_log_digest_values`; the visual leaf and
+other digest validators share that definition. The visual leaf uses the existing
+`_normalise_lane` without merging the distinct lane normalisers.
+
+Complete signatures, defaults and bodies are unchanged, including strict field
+allowlists, metadata and retained-analysis bounds, native integer/boolean checks,
+status/count/schema distinctions, canonical hashes and malformed-input returns
+and errors. Parsing copies retained analysis through the existing JSON round
+trip; correlation preserves its original ordering, deduplication and sharing of
+retained analysis objects without mutating the supplied observations. Outer
+structured JSON parsing, call sites, event insertion, `analyse` and publication
+authority remain in the coordinator. JSON schema 3 continues to omit the legacy
+visual-context report sections.
+
+Image-usage callers retain `generated_image_utilisation`, `generated_pool_runway`
+and `regular_image_usage_summary` as explicit digest imports from
+`mrs_log_digest_image_usage`. These accept prepared pool, post-rate,
+configuration and event observations with unchanged signatures, defaults and
+bodies. Image coverage, legacy metric aliases, percentages, rankings,
+current-cycle scheduling/availability calculations and failure reasons are
+unchanged. `generated_post_rate_history`, `load_runway_config`,
+`RUNWAY_CONFIG_DEFAULTS`, snapshot/file I/O, clock selection and report assembly
+retain their existing owners.
+
+Dependency direction is digest → visual context → values, and digest → image
+usage → standard library. Neither new leaf imports the coordinator, renderer,
+bot or runtime readers, performs runtime I/O or introduces shared mutable state.
+Markdown, CLI, defaults, provenance, clocks, locks and resume behaviour are
+unchanged.
 
 ## Quotation Corpus Accounting
 

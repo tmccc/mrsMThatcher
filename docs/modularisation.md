@@ -779,3 +779,82 @@ Those consume prepared observations; keep `generated_post_rate_history`,
 their current owners. The visual-context report removes the larger cohesive
 block without moving stateful coordination; the supervisor selects the next
 stage within the authorised ceiling of stage 15.
+
+## Extracted in stage 11
+
+Base: `1eabfbcaaf996b01ad48e1b70b47fccc7c41f538`, verified against the live
+`origin/codex/modularisation-stage10` tip. Work is isolated on
+`codex/modularisation-stage11` in
+`/disks/disk1/research/mrsMThatcher-modularisation-stage11`.
+
+`mrs_log_digest_visual_context.py` owns `parse_reply_visual_description_event`
+and `reply_visual_context_report`, together with all six visual-validation
+constants. `mrs_log_digest_image_usage.py` owns `generated_image_utilisation`,
+`generated_pool_runway` and `regular_image_usage_summary`. All five functions and
+six constants remain explicit digest aliases. `SHA256_LOWER_RE` already has the
+shared values leaf as its owner; its definition and digest alias are unchanged.
+
+The five complete bodies (530 lines) move unchanged. Strict allowlists, bounds,
+native types, hashes, malformed-input behaviour, ordered correlation,
+deduplication, payload copying/sharing, image coverage/metric aliases,
+percentages/rankings and runway calculations/failure reasons are preserved.
+Dependencies are digest → visual context → values and digest → image usage →
+standard library. Neither new leaf has runtime I/O or shared mutable state.
+Outer structured JSON parsing, event insertion, `analyse`, publication and
+operational authority, history/config loaders, snapshot reads, clock selection
+and report assembly stay with their existing owners. JSON schema 3, Markdown,
+CLI, defaults, provenance, clocks, locks and resume behaviour are unchanged.
+
+| Size (physical lines; functions include definition/docstring) | Before | After |
+| --- | ---: | ---: |
+| Digest file | 14,315 | 13,764 (−551) |
+| `analyse` | 4,702 | 4,702 (unchanged) |
+| Visual-context module | — | 430 |
+| Image-usage module | — | 162 |
+| Visual parser / report | 132 / 253 | unchanged |
+| Utilisation / runway / regular-image summary | 65 / 56 / 24 | unchanged |
+| `run_digest` / Markdown wrapper | 360 / 10 | unchanged |
+
+Validation: 194 existing tests pass with
+`MRS_TEST_MODE=1 PYTEST_DISABLE_PLUGIN_AUTOLOAD=1 python3 -m pytest`: the six
+requested reply-observability, digest, Markdown, safety-hardening, utilisation
+and runway files, plus seven integration cases covering source-identity/resume,
+JSON schema/retained roots, copied digest without Git, image spacing/resume,
+regular-image AI labels and oversized image scores. Existing temporary-HOME and
+network isolation are reused; no tests or assertions were added or changed.
+All five moved function ASTs and complete source bodies, six constant
+definitions, 134 retained digest functions/classes and all retained non-import
+module code match stage 10. All earlier digest leaf modules are byte-identical.
+
+A temporary 12-record synthetic fixture reuses the existing pool/quarantine,
+post-log and published-cost cache helpers with a fixed clock and temporary
+project paths. Complete CLI JSON (39,005 bytes) matches stage 10 in values,
+types and ordering except for the independently verified producer source hash;
+both repository SHAs match their worktree HEADs (still at the base during
+comparison). All 13,565 Markdown bytes and 8,194 direct affected-summary bytes
+match. Input values/identities, parser copies and retained-analysis sharing are
+preserved. Independent leaf import/reporting passes with runtime file/home/
+network/subprocess access blocked, unchanged logging, resolved annotations and
+owner-identical digest aliases. The documentation gate passes for 194 modules;
+`git diff --check` passes.
+
+These checks cover the changed boundaries and nearest regressions, not broader
+bot behaviour. The visual report remains a legacy callable omitted from schema
+3 output, so it was compared directly as well as checking the complete report.
+Production and earlier branches/worktrees are preserved; no bot/provider calls,
+merge or deployment are included. This session stops at stage 11.
+
+Recommended next boundary: the read-only remote-write snapshot group,
+`remote_write_safety_snapshot`, `reconciliation_archive_snapshot`,
+`_remote_write_document_identity`, `_group_active_remote_write_artifacts`,
+`_canonical_retirement_source_identity`, `_safe_relative_project_path` and
+`_read_readonly_archive_bytes` (1,314 function lines), with their snapshot
+vocabulary. Thin digest wrappers would supply the project directory, stable
+byte reader, exact-Decimal strict JSON parser, reconciliation diagnostic
+formatter, clock callable and current-control snapshot callback. Preserve clock
+sampling at entry before controls/archive inspection, and keep existing protocol,
+retirement, transport and media inspectors lazy and read-only. Keep
+`annotate_remote_write_snapshot_window`, operational-health reconciliation,
+`analyse` and report assembly in the coordinator. This is a substantial coherent
+observation boundary; the supervisor selects the next stage within the
+authorised ceiling of stage 15. No next-stage implementation is included here.
