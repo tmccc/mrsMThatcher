@@ -34,6 +34,7 @@ and AppleDouble files.
 | `mrs_log_digest.py` | Structured/legacy log parsing, aggregation and Markdown/JSON reports | Local log and resume-state reads/writes; no provider calls |
 | `mrs_log_digest_markdown.py` | Prepared-report Markdown presentation and section rendering | None; receipt lifecycle analysis is supplied by the caller |
 | `mrs_log_digest_costs.py` | Published-cost cache validation, UTC-window accounting and report preparation | Cache reads only through an explicitly supplied stable reader; paths, clock observations and strict JSON parser supplied by caller |
+| `mrs_log_digest_provider_costs.py` | Pure conversational provider usage totals, cost attribution, cache-metric coverage and currency formatting | None; consumes supplied observations without mutation |
 | `mrs_log_digest_runtime.py` | Current state/configuration validation and operator pause observations | Reads only through supplied stable readers; explicit project paths, strict JSON parsers, file-time conversion and pause clock; no import-time runtime access |
 | `mrs_log_digest_corpus.py` | Historical-corpus counts, availability, policies and hashes | Reads the existing research/audit paths under an explicit project directory using supplied strict parsing and file hashing; parsing and hashing remain separate reads |
 | `mrs_log_digest_generated_pool.py` | Generated-image discovery, metadata/hash validation, curation and used-history observations | Reads/scans the existing pool locations relative to an explicit base directory; supplied strict parsers, hashing, clock and ISO timestamp parser; no writes or import-time runtime access |
@@ -59,6 +60,25 @@ module accepts explicit inputs and has no import-time runtime access.
 `prepare_openai_published_cost_report` consumes an already loaded cache without
 I/O. The digest's historical `provider_usage` argument remains accepted and
 ignored.
+
+Provider usage/cost callers retain `xai_reply_cost_summary`, `xai_usage_totals`,
+`_cache_metric_coverage`, `_format_cache_metric_coverage_line`, `int_usage_value`,
+`optional_int_usage_value`, `format_usd_ticks` and `format_reported_cost` as
+explicit digest imports from `mrs_log_digest_provider_costs`. The unchanged
+`USD_TICKS_PER_DOLLAR` and `USD_DISPLAY_QUANTUM` constants belong to that module
+and retain their digest aliases, as does the Decimal `ROUND_HALF_UP` constant.
+Complete signatures, defaults and bodies are
+unchanged, including the permissive integer conversion versus strict native
+nonnegative integer observation, missing/invalid versus zero cost, nullable
+cache-metric coverage, call matching/counting, attribution, ordering, input
+identity and mutation behaviour, and Decimal rounding/currency formatting.
+
+Dependency direction is digest → provider costs → values. The module uses the
+existing lane normaliser and three shared reason classifiers without changing
+precedence; it imports no coordinator, renderer, bot or cache reader and performs
+no runtime I/O. Usage parsing/projection, pending-call correlation, `analyse`,
+resume state and operational-health/publication authority stay with their current
+owners. The published-cost cache module and its coordinator wrappers are unchanged.
 
 Digest runtime callers retain `load_current_runtime_state`,
 `load_current_runtime_config` and `runtime_control_snapshot` with their original

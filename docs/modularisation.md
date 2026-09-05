@@ -703,3 +703,79 @@ semantics. Keep usage parsing/projection, pending call correlation, resume state
 and published-cost cache I/O with their current owners. The smaller pure
 `reply_visual_context_report` (253 lines) and image utilisation/runway summaries
 are further options after that group.
+
+## Extracted in stage 10
+
+Base: `b1f5cd118f61fd82d11453b98a0d7e956234a99b`, verified against the live
+`origin/codex/modularisation-stage9` tip. Work is isolated on
+`codex/modularisation-stage10` in
+`/disks/disk1/research/mrsMThatcher-modularisation-stage10`.
+
+`mrs_log_digest_provider_costs.py` owns `xai_reply_cost_summary`,
+`xai_usage_totals`, `_cache_metric_coverage`, `_format_cache_metric_coverage_line`,
+`int_usage_value`, `optional_int_usage_value`, `format_usd_ticks` and
+`format_reported_cost`: eight complete functions totalling 564 lines. The
+unchanged `USD_TICKS_PER_DOLLAR` and `USD_DISPLAY_QUANTUM` constants move with
+them. All eight functions and both currency constants remain explicit digest
+imports; the Decimal `ROUND_HALF_UP` alias is also retained.
+
+Dependency direction is digest → provider costs → values, using the existing
+lane normaliser and three stage-nine reason classifiers. Complete bodies,
+signatures and defaults are unchanged, preserving distinct integer conversions,
+missing/invalid versus zero costs, cache-metric coverage, response/target/attempt
+matching and deduplication, cost attribution, ordering, input identity/mutation
+behaviour, Decimal rounding/currency formatting and reason precedence.
+
+Usage parsing/projection, pending-call correlation, `analyse`, resume state,
+publication and operational-health authority remain with their current owners.
+The published-cost cache module and coordinator wrappers are unchanged, as are
+JSON schema 3, Markdown, CLI, defaults, provenance, clocks, locks and resume
+behaviour. The new leaf has no runtime I/O or global mutable state.
+
+| Size (physical lines; functions include definition/docstring) | Before | After |
+| --- | ---: | ---: |
+| Digest file | 14,884 | 14,315 (−569) |
+| `analyse` | 4,702 | 4,702 (unchanged) |
+| Provider-costs module | — | 602 |
+| `xai_reply_cost_summary` / `xai_usage_totals` | 403 / 56 | unchanged |
+| `run_digest` / Markdown wrapper | 360 / 10 | unchanged |
+
+Validation: the same 201 existing tests as stage 9 pass with
+`MRS_TEST_MODE=1 PYTEST_DISABLE_PLUGIN_AUTOLOAD=1 python3 -m pytest`: digest-costs,
+OpenAI-cost-digest, reply-observability, digest, Markdown and safety-hardening,
+plus the integration harness's source-identity/resume, JSON schema/retained-roots
+and copied-digest-without-Git tests. Existing temporary-HOME/network isolation is
+reused; no tests or assertions are added or changed. All eight moved function
+ASTs and complete source bodies match stage 9, as do all 139 retained digest
+function/class ASTs and source bodies, both currency constant definitions and
+all remaining non-import digest module code. Existing digest leaf modules are
+byte-identical to stage 9.
+
+A temporary 10-record fixture compares the complete CLI report against the
+unchanged stage-nine worktree with a fixed clock, synthetic project/log paths
+and the existing synthetic published-cost cache fixture. JSON (35,953 bytes)
+matches in values, types and ordering except for independently verified
+`digest_contract.producer_source_sha256`; both repository SHAs are checked
+against their worktree HEADs (still at the base during comparison). All 11,607
+Markdown bytes match. Direct provider usage/cost/cache/currency summaries match
+exactly (5,605 bytes), preserving input list/event values and identities.
+Independent leaf import/reporting has no runtime file/home/network/subprocess
+access or logging changes; digest aliases retain owner identity and annotations
+resolve. The documentation gate passes for 192 modules; `git diff --check` passes.
+
+Validation is limited to these focused regressions and synthetic comparisons;
+no broader bot suites or live calls were needed. Production and earlier
+worktrees/branches are preserved. No merge, deployment or following-stage
+implementation is included; this session stops at stage 10.
+
+Recommended next boundary: `reply_visual_context_report` (253 lines), a coherent
+pure correlation/summary leaf depending only on `Counter`, typing and the shared
+`_normalise_lane`. Keep `parse_reply_visual_description_event`, its validation
+constants and event insertion in the digest. A separate smaller image-reporting
+group is `generated_image_utilisation` (65 lines), `generated_pool_runway`
+(56 lines) and `regular_image_usage_summary` (24 lines), totalling 145 lines.
+Those consume prepared observations; keep `generated_post_rate_history`,
+`load_runway_config`, pool snapshot I/O, clock selection and report assembly with
+their current owners. The visual-context report removes the larger cohesive
+block without moving stateful coordination; the supervisor selects the next
+stage within the authorised ceiling of stage 15.
