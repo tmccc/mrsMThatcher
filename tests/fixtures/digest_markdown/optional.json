@@ -1,0 +1,25 @@
+{
+  "summary": {
+    "time_start": "2026-07-25 09:00:00",
+    "time_end": "2026-07-25 12:00:00",
+    "headline": "Fixed presentation fixture",
+    "record_count": 12,
+    "stats": {
+      "mention_replies": 2
+    },
+    "routine_skip_counts": {}
+  },
+  "latest_state": {
+    "_carried_forward": true,
+    "engagement_question_experiment": {
+      "current_deferral_reason": null
+    }
+  },
+  "openai_published_cost": {
+    "available": false,
+    "reason": "fixture unavailable"
+  },
+  "events": null,
+  "latest_config": {},
+  "error_health": null
+}

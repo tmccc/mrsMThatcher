@@ -1,0 +1,439 @@
+{
+  "summary": {
+    "time_start": "2026-07-25 09:00:00",
+    "time_end": "2026-07-25 12:00:00",
+    "headline": "Fixed presentation fixture",
+    "record_count": 12,
+    "stats": {
+      "mention_replies": 2
+    },
+    "routine_skip_counts": {}
+  },
+  "project_dir": "/fixture/project",
+  "generation_epoch": 1784977200,
+  "latest_state": {
+    "time": "2026-07-24 09:00:00",
+    "_carried_forward": true,
+    "daily_reply_date": "2026-07-24",
+    "daily_reply_count": 7,
+    "daily_quote_reply_date": "2026-07-24",
+    "daily_quote_reply_count": 3,
+    "next_reply_lane_priority": "quote-tweet",
+    "next_quote_post_epoch": 1784984400,
+    "next_quote_post_human": "2026-07-25 13:00:00",
+    "next_meme_post_epoch": 1784988000,
+    "next_meme_post_human": "2026-07-25 14:00:00",
+    "next_meme_schedule_mode": "fallback",
+    "next_meme_schedule_date": "2026-07-25"
+  },
+  "latest_config": {
+    "MAX_AUTO_REPLIES_PER_DAY": "12",
+    "MAX_QUOTE_REPLIES_PER_DAY": "6",
+    "ENABLE_DAILY_MEME_POSTS": "true"
+  },
+  "derived": {
+    "reply_budget": {
+      "auto_used": 7,
+      "auto_limit": 12,
+      "per_author_limit": null,
+      "auto_remaining": 5,
+      "quote_used": 3,
+      "quote_limit": 6,
+      "quote_remaining": 3,
+      "has_any_budget_input": true,
+      "state_carried_forward": true,
+      "config_carried_forward": false,
+      "config_carried_from_log_backscan": false,
+      "config_backscan_timestamp": null,
+      "state_filled_from_previous": false,
+      "config_filled_from_previous": false,
+      "config_filled_from_log_backscan": false,
+      "config_is_on_disk_override": false
+    },
+    "reply_lane_priority": {
+      "current_next_priority": "quote-tweet",
+      "has_priority_state": true,
+      "state_carried_forward": true,
+      "state_filled_from_previous": false,
+      "config_carried_forward": false,
+      "config_carried_from_log_backscan": false,
+      "config_backscan_timestamp": null,
+      "config_filled_from_previous": false,
+      "config_filled_from_log_backscan": false,
+      "normal_lane_due_checks": 0,
+      "mention_function_entries": 0,
+      "mention_fetch_attempts": 0,
+      "mention_checks_skipped_spacing": 0,
+      "mention_checks_skipped_cooldown": 0,
+      "quote_lane_due_checks": 0,
+      "flipped_to_quote": 0,
+      "flipped_to_normal": 0,
+      "forced_normal_before_quote": 0,
+      "normal_first_refusal_no_post": 0,
+      "quote_tweet_status_posted": 0,
+      "quote_tweet_status_checked": 0,
+      "quote_tweet_status_skipped_spacing": 0,
+      "quote_tweet_status_skipped_cap": 0,
+      "quote_tweet_status_skipped_cooldown": 0,
+      "quote_tweet_checks_no_post": 0
+    }
+  },
+  "detailed_appendix": true,
+  "generated_image_spacing": {
+    "latest": {
+      "pool_enabled": false,
+      "allowed": true,
+      "required": 3,
+      "original_posts_since_generated": 4
+    },
+    "events": [
+      {
+        "time": "2026-07-26 12:00:00",
+        "kind": "state",
+        "pool_enabled": false,
+        "allowed": true,
+        "required": 3,
+        "original_posts_since_generated": 4
+      },
+      {
+        "time": "2026-07-27 04:00:00",
+        "kind": "state",
+        "pool_enabled": false,
+        "allowed": true,
+        "required": 3,
+        "original_posts_since_generated": 4
+      }
+    ]
+  },
+  "generated_image_utilisation": {
+    "active_generated_images": 12,
+    "active_images_used_in_observed_logs": 0,
+    "active_images_not_seen_in_observed_logs": 12,
+    "active_pool_observed_usage_percentage": 0.0,
+    "active_images_used_in_current_cycle": 0,
+    "active_images_unused_in_current_cycle": 12,
+    "total_successful_generated_posts_observed": 0,
+    "maximum_successful_posts_for_one_image": 0,
+    "most_frequently_used": [],
+    "never_used": [
+      {
+        "image": "unused-00.png",
+        "origin_quote_hash": "quote-00",
+        "last_successful_post": null,
+        "successful_posts": 0
+      },
+      {
+        "image": "unused-01.png",
+        "origin_quote_hash": "quote-01",
+        "last_successful_post": null,
+        "successful_posts": 0
+      },
+      {
+        "image": "unused-02.png",
+        "origin_quote_hash": "quote-02",
+        "last_successful_post": null,
+        "successful_posts": 0
+      },
+      {
+        "image": "unused-03.png",
+        "origin_quote_hash": "quote-03",
+        "last_successful_post": null,
+        "successful_posts": 0
+      },
+      {
+        "image": "unused-04.png",
+        "origin_quote_hash": "quote-04",
+        "last_successful_post": null,
+        "successful_posts": 0
+      },
+      {
+        "image": "unused-05.png",
+        "origin_quote_hash": "quote-05",
+        "last_successful_post": null,
+        "successful_posts": 0
+      },
+      {
+        "image": "unused-06.png",
+        "origin_quote_hash": "quote-06",
+        "last_successful_post": null,
+        "successful_posts": 0
+      },
+      {
+        "image": "unused-07.png",
+        "origin_quote_hash": "quote-07",
+        "last_successful_post": null,
+        "successful_posts": 0
+      },
+      {
+        "image": "unused-08.png",
+        "origin_quote_hash": "quote-08",
+        "last_successful_post": null,
+        "successful_posts": 0
+      },
+      {
+        "image": "unused-09.png",
+        "origin_quote_hash": "quote-09",
+        "last_successful_post": null,
+        "successful_posts": 0
+      },
+      {
+        "image": "unused-10.png",
+        "origin_quote_hash": "quote-10",
+        "last_successful_post": null,
+        "successful_posts": 0
+      },
+      {
+        "image": "unused-11.png",
+        "origin_quote_hash": "quote-11",
+        "last_successful_post": null,
+        "successful_posts": 0
+      }
+    ],
+    "never_used_total": 12,
+    "unused_longest": [
+      {
+        "image": "unused-00.png",
+        "origin_quote_hash": "quote-00",
+        "last_successful_post": null,
+        "successful_posts": 0
+      },
+      {
+        "image": "unused-01.png",
+        "origin_quote_hash": "quote-01",
+        "last_successful_post": null,
+        "successful_posts": 0
+      },
+      {
+        "image": "unused-02.png",
+        "origin_quote_hash": "quote-02",
+        "last_successful_post": null,
+        "successful_posts": 0
+      },
+      {
+        "image": "unused-03.png",
+        "origin_quote_hash": "quote-03",
+        "last_successful_post": null,
+        "successful_posts": 0
+      },
+      {
+        "image": "unused-04.png",
+        "origin_quote_hash": "quote-04",
+        "last_successful_post": null,
+        "successful_posts": 0
+      },
+      {
+        "image": "unused-05.png",
+        "origin_quote_hash": "quote-05",
+        "last_successful_post": null,
+        "successful_posts": 0
+      },
+      {
+        "image": "unused-06.png",
+        "origin_quote_hash": "quote-06",
+        "last_successful_post": null,
+        "successful_posts": 0
+      },
+      {
+        "image": "unused-07.png",
+        "origin_quote_hash": "quote-07",
+        "last_successful_post": null,
+        "successful_posts": 0
+      },
+      {
+        "image": "unused-08.png",
+        "origin_quote_hash": "quote-08",
+        "last_successful_post": null,
+        "successful_posts": 0
+      },
+      {
+        "image": "unused-09.png",
+        "origin_quote_hash": "quote-09",
+        "last_successful_post": null,
+        "successful_posts": 0
+      },
+      {
+        "image": "unused-10.png",
+        "origin_quote_hash": "quote-10",
+        "last_successful_post": null,
+        "successful_posts": 0
+      },
+      {
+        "image": "unused-11.png",
+        "origin_quote_hash": "quote-11",
+        "last_successful_post": null,
+        "successful_posts": 0
+      }
+    ]
+  },
+  "main_post_recovery": {
+    "receipt_events": [
+      {
+        "kind": "regular_written",
+        "lane": "quote_image",
+        "time": "2026-07-25 10:00:00"
+      },
+      {
+        "kind": "regular_removed",
+        "lane": "quote_image",
+        "time": "2026-07-25 10:00:01"
+      },
+      {
+        "kind": "meme_removed",
+        "lane": "daily_meme",
+        "time": "2026-07-25 11:00:00"
+      },
+      {
+        "kind": "main_post_receipt",
+        "phase": "sending_published",
+        "lane": "daily_meme",
+        "time": "2026-07-25 11:30:00",
+        "file": "fixture.png"
+      }
+    ],
+    "confirmed_post_recovery": [
+      {
+        "time": "2026-07-25 11:30:01",
+        "level": "WARNING",
+        "where": "fixture",
+        "message": "Confirmed | awaiting local persistence"
+      }
+    ]
+  },
+  "single_call_reply": {
+    "candidate_evaluation_count": 3,
+    "reply_decision_count": 1,
+    "replies_posted_count": 1,
+    "editorial_no_reply_count": 1,
+    "operational_failure_count": 1,
+    "posting_failure_count": 0,
+    "recovered_draft_count": 1,
+    "model_attempt_count": 3,
+    "one_call_compliant_count": 3,
+    "one_call_violation_count": 0,
+    "one_call_incomplete_count": 0,
+    "one_call_compliance": "passed",
+    "repeated_model_attempt_candidate_count": 0,
+    "excess_provider_usage_candidate_count": 0,
+    "authorised_pre_execution_retry_count": 0,
+    "provider_request_attempt_metadata_status_counts": {
+      "available": 4
+    },
+    "provider_request_attempt_mismatch_candidate_count": 0,
+    "strategy_version_counts": {
+      "single-sol-reply-20260904": 3
+    },
+    "model_counts": {
+      "gpt-5.6-sol": 3
+    },
+    "lane_counts": {
+      "mention": 1,
+      "quote-tweet": 1,
+      "hot-post": 1
+    },
+    "reply_kind_counts": {
+      "principle": 1
+    },
+    "no_reply_reason_counts": {
+      "completed_exchange": 1
+    },
+    "operational_failure_reason_counts": {
+      "invalid_model_response": 1
+    },
+    "error_category_counts": {
+      "schema_validation": 1
+    },
+    "schema_validation_failure_count": 1,
+    "local_validation_failure_count": 0,
+    "average_visible_turn_count": 4.0,
+    "average_visible_character_count": 640.0,
+    "average_same_author_interaction_count": 2.0,
+    "average_recent_conversational_reply_count": 6.0,
+    "average_trusted_fact_count": 3.0,
+    "average_supplied_image_count": 0.6666666666666666,
+    "provider_usage_event_count": 1,
+    "token_totals": {
+      "input_tokens": 100,
+      "cached_input_tokens": 64,
+      "cache_write_input_tokens": 0,
+      "output_tokens": 20,
+      "reasoning_tokens": 8,
+      "total_tokens": 120
+    },
+    "provider_latency_average_ms": 1200.0,
+    "provider_latency_maximum_ms": 1200,
+    "provider_request_attempt_counts": {
+      "1": 1
+    },
+    "cost_total": {
+      "status": "unavailable_during_log_analysis",
+      "amount": null
+    }
+  },
+  "openai_published_cost": {
+    "available": true,
+    "path": "/fixture/openai-costs.json",
+    "currency": "usd",
+    "updated_at_utc": "2026-08-18T12:30:00Z",
+    "updated_at_display": "2026-08-18 12:30:00 UTC",
+    "age_seconds": 0,
+    "age": "0 seconds",
+    "scope": {
+      "kind": "project",
+      "project_id": "proj_digest_fixture",
+      "description": "configured OpenAI project"
+    },
+    "current_utc_date": "2026-08-18",
+    "current_day": {
+      "available": true,
+      "utc_date": "2026-08-18",
+      "primary_total": "2",
+      "provisional": true,
+      "status": "provisional"
+    },
+    "selected_window": {
+      "status": "complete",
+      "method": "cumulative provider-published cost delta",
+      "requested_start_utc": "2026-08-18T08:05:00Z",
+      "requested_end_utc": "2026-08-18T10:25:00Z",
+      "requested_window": "08:05–10:25 UTC",
+      "segments": [
+        {
+          "utc_date": "2026-08-18",
+          "requested_start_utc": "2026-08-18T08:05:00Z",
+          "requested_end_utc": "2026-08-18T10:25:00Z",
+          "status": "complete",
+          "method": "cumulative provider-published cost delta",
+          "amount": "0.75",
+          "sample_start_utc": "2026-08-18T08:00:00Z",
+          "sample_end_utc": "2026-08-18T10:30:00Z"
+        }
+      ],
+      "reason": null,
+      "amount": "0.75"
+    }
+  },
+  "events": [
+    {
+      "kind": "quote_image_posted",
+      "time": "2026-07-25 10:00:00",
+      "post_id": "12345",
+      "text": "Quoted | text\nSecond line — café",
+      "engagement_question_present": false
+    },
+    {
+      "kind": "historical_context_reply",
+      "time": "2026-07-25 10:01:00",
+      "status": "completed",
+      "parent_post_id": "12345",
+      "reply_text": "A verified reply with a | pipe."
+    }
+  ],
+  "errors_and_warnings": [
+    {
+      "time": "2026-07-25 10:02:00",
+      "level": "WARNING",
+      "source": "fixture",
+      "message": "Long warning: xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
+    }
+  ]
+}
