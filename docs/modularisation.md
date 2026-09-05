@@ -2526,3 +2526,105 @@ no sensible digest modularisation remains; older no-ceiling wording is supersede
 No production/configuration/state/log/image-pool changes, bot execution,
 provider/posting calls, service control, merge, deployment or force-push occurred.
 Previous branches/worktrees are preserved.
+
+## Extracted in stage 28
+
+Base: `ad8a48a99edb3b09e64415cce41c4faf77f31678`, verified against pushed
+`origin/codex/modularisation-stage27`. Work is isolated on
+`codex/modularisation-stage28` in
+`/disks/disk1/research/mrsMThatcher-modularisation-stage28`.
+
+`mrs_log_digest_context.py` owns the ten specified functions:
+`read_resume_data`, `save_resume_time`, `state_context_is_within_window`,
+`strip_internal_context_markers`, `merge_context`, `extract_config_pairs`,
+`merge_context_from_log_backscan`, `find_latest_config_before`,
+`parse_partial_state_from_msg` and `apply_saved_context`, plus
+`INTERNAL_CONTEXT_KEYS`. Inclusive physical signature/body spans at the verified
+base total **308 lines** (the supplied scope estimate was 302). Two independent
+parsers are direct aliases; eight wrappers retain root signatures/defaults and
+supply current named helpers/constants. Annotations use the shared `Record` owner.
+
+Bodies remain exact apart from explicit native-parser/diagnostic calls and the
+save-time clock callback. Recursive helper/key-set lookup, fill-only merges and
+sharing, backscan ordering/deduplication/cutoffs, permissive partial-state parsing,
+conditional old-cursor reads, historical fallback, fingerprint multiplicity and
+bounded tails are preserved. The clock remains at `updated_at` evaluation; JSON
+keys/order/types/bytes and temporary-sibling write/replace behavior are unchanged.
+
+Saved state/config remain historical diagnostics, with the same shallow spacing
+copy and final current `refresh_derived` call. `apply_saved_context.window_end`
+remains unused. Source/window selection, runtime/evidence loading, publication
+checks, schema/producer identity and CLI/locking/delivery/save order stay in root.
+There are no reverse imports, retained callbacks, generic dependency container or
+new import-time I/O or clock sample.
+
+| Physical lines | Before | After |
+| --- | ---: | ---: |
+| Digest file | 3,994 | 3,800 (−194) |
+| `analyse` | 1,477 | 1,477 |
+| Context owner | — | 407 |
+| `run_digest` / Markdown wrapper | 360 / 10 | 360 / 10 |
+
+Validation used `MRS_TEST_MODE=1 PYTEST_DISABLE_PLUGIN_AUTOLOAD=1 python3 -m pytest`
+with the established temporary-HOME/network isolation. Baseline: **186 passed**
+in general digest, safety hardening and runtime. Final: **203 passed**, comprising
+195 in those modules and eight existing digest-only integrations for current
+state after the window, saved/current separation, future historical state,
+spacing carry-forward, resume source identity, schema roots and self-test
+pending/quote/meme isolation. Seven added test functions (eight cases) cover
+current callbacks, recursive key-set changes, copies/shared results, read and
+exception boundaries, backscan ordering, historical-only restoration and late
+clock lookup; the existing import-safety test adds the owner. Every pre-existing
+test body/assertion is retained. No whole bot harness ran.
+
+Two temporary comparison tests also passed. Six complete fixed-path/time
+JSON/Markdown pairs match stage 27:
+
+| Fixture | Records | JSON bytes | Markdown bytes | Cursor bytes |
+| --- | ---: | ---: | ---: | ---: |
+| Quiet window with future retained history | 1 | 34,392 | 12,669 | 1,130 |
+| Resume-boundary seed | 1 | 34,873 | 11,831 | 990 |
+| Same boundary without cursor filtering | 2 | 35,796 | 11,743 | — |
+| Resumed boundary | 1 | 34,967 | 12,079 | 1,209 |
+| Distant-rotation config backscan with quiet heartbeat | 1 | 33,996 | 11,985 | 1,209 |
+| Truncated variant of the existing runtime-state fixture | 2 | 33,382 | 11,508 | 1,027 |
+
+Existing quiet/backscan/resume fixtures and assertions were reused. Stderr and
+saved-cursor bytes match for both report formats; raw pre-save reports also match.
+Producer source hashes and repository HEADs were independently verified; only
+source hashes were substituted, with both HEADs still at the base. Fixture
+bytes/modes/mtimes and versioned Markdown fixtures are preserved. Seven callback/
+sharing/clock cases also pass against the original stage 27 bodies, with a separate
+recursive-key-set comparison. These direct checks cover distinctions omitted by
+schema 3. Scripts/data remain outside the worktree. This is focused synthetic
+preservation evidence, not an exhaustive filesystem-failure or production replay.
+
+Exact text/AST review verifies all ten bodies, eight wrapper calls, original root
+signatures/defaults and marker vocabulary; all **85** remaining root functions
+(including `analyse`, `build_digest_contract` and `run_digest`), the rest of root's
+AST and all **28** existing digest companions are unchanged.
+`python3 tools/check_python_documentation.py` passes for **208 modules**;
+`git diff --check` passes.
+
+Recommended next boundary: `annotate_remote_write_snapshot_window` (**78 lines**)
+is substantive annotation for the existing remote-write owner. Supply current
+timestamp parsing/conversion; preserve nested sharing and unknown-time/current/
+window distinctions while leaving window and authority decisions in root.
+
+Other useful companions are `generated_post_rate_history` (**55 lines**) and
+`load_runway_config` (**20**, plus defaults) for the generated-pool owner, preserving
+contamination exclusions, coverage calculations, current readers/parsers and clock
+timing. `shadow_lifecycle_snapshot` (**23**) is a small runtime observation suitable
+for related runtime-owner work. These implement domain behavior; compatibility
+wrappers already serve their purpose. `discover_logs` (**18**),
+`resolve_explicit_logs` (**32**), `is_selftest_log_path` (**4**) and
+`load_authoritative_state_for_logs` (**22**) coordinate source selection,
+production/self-test eligibility and neighboring-state authority, appropriately
+together in root. Record mechanics already have an owner. Publication checks,
+overall reports and CLI coordination also belong in root; neither wholesale
+coordinator relocation nor a line-count target is useful.
+
+Only stage 28 is implemented. Stop after stage **32** and reassess, or earlier if
+no sensible digest modularisation remains. No production/configuration/state/log/
+image-pool changes, bot execution, provider/posting calls, service control, merge,
+deployment or force-push occurred. Previous branches/worktrees are preserved.

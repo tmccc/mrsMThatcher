@@ -32,6 +32,7 @@ and AppleDouble files.
 | `historical_context_formatter.py` | Canonical research loading, compact context formatting and context-reply persistence | Local state; posting only through an injected callback |
 | `shadow_lifecycle.py` | Strict validation for the versioned shadow-feature lifecycle register | Local file reads only |
 | `mrs_log_digest.py` | Log-input coordination, aggregation and Markdown/JSON reports | Local log and resume-state reads/writes; no provider calls |
+| `mrs_log_digest_context.py` | Historical context, config backscan and digest-cursor persistence | Reads supplied log/cursor paths; saves through a temporary sibling and replacement; explicit current helpers, marker/tail limits, Counter factory, diagnostic and save-time clock; no import-time I/O or publication authority |
 | `mrs_log_digest_input_io.py` | Stable file observations, strict native/Decimal JSON parsing and canonical receipt/history encodings | Reads only supplied paths; explicit current sibling callbacks; ordinary file hashing retains its separate read contract; no writes or import-time runtime access |
 | `mrs_log_digest_records.py` | Shared frozen records, bounded source references, fingerprints, resume-boundary filtering and selected log input reading | Reads/stats supplied log paths and emits existing missing-input warnings; explicit current regex, constructor, parsers, readers and helpers; no import-time runtime access |
 | `mrs_log_digest_legacy_posts.py` | Raw legacy quiet/lane, quote/image, spacing, meme, created-post and conversational reply observations and companion response parsing | Supplied shared records, pending/latest objects, lists, counters, production event identities and current event/literal/ID helpers; explicit handled/state returns; no I/O, clock sample, runtime access or provider/posting actions |
@@ -91,11 +92,49 @@ timestamps.
 
 The owner has no upward import, stored callbacks, home/configuration lookup,
 state write, clock sample or service initialisation. Discovery/explicit-log
-selection, self-test authority, context/backscan policy, `read_resume_data`,
-`save_resume_time`, stable-byte/strict-JSON primitives, locks and `run_digest`/CLI
-remain in the coordinator. Default project/home resolution and producer source
+selection, self-test authority, backscan cutoff/window choice, locks and
+`run_digest`/CLI remain in the coordinator. Context/cursor implementation belongs
+to `mrs_log_digest_context`; stable-byte/strict-JSON primitives belong to
+`mrs_log_digest_input_io`. Default project/home resolution and producer source
 hash/repository provenance remain anchored to the digest entry point; schema 3,
 Markdown and resume persistence are unchanged.
+
+Context/cursor callers retain `read_resume_data`, `save_resume_time`,
+`state_context_is_within_window`, `strip_internal_context_markers`, `merge_context`,
+`extract_config_pairs`, `merge_context_from_log_backscan`,
+`find_latest_config_before`, `parse_partial_state_from_msg` and
+`apply_saved_context` through the digest with their original annotations,
+signatures and defaults. Config-pair and partial-state parsing are direct aliases;
+eight thin wrappers supply current dependencies. `INTERNAL_CONTEXT_KEYS` belongs
+to the context owner and retains its root key-set alias; recursive stripping
+receives both the current set and current root recursive helper. Annotations use
+the shared records owner's `Record`.
+
+Merges retain fill-only behavior, shallow current copies, nested sharing and
+annotations; backscan formatting runs only for a truthy timestamp after nonempty
+prior context. Config scanning receives the current self-test predicate, record
+iterator and config extractor, preserving the `before=None` fast exit, read order,
+duplicate identity, timestamp/path/ordinal ordering and repeated extraction. Root
+still chooses the logs and cutoff. Partial-state parsing retains its fixed fields,
+regexes and permissive JSON/truncation recovery.
+
+Cursor reads use the current strict native parser and diagnostic callback with
+the existing warning and exception boundary. Saving receives current cursor,
+stripping, fingerprint, timestamp and boundary/tail helpers, `Counter`, tail limit
+and a lazy clock callback. It preserves conditional old-cursor reads, historical
+fallback when runtime input is unavailable, clean-context copies, spacing sharing,
+boundary multiplicity and bounded tails. The clock is sampled only while evaluating
+`updated_at`; JSON key order, indentation, Unicode, newline, temporary sibling,
+`write_text`/`replace` order and failures remain unchanged. No parent creation or
+metadata policy is added.
+
+`apply_saved_context` reads history before attaching cursor metadata, retains
+state/config only as historical diagnostics, makes the existing shallow spacing
+copy and finally calls the current `refresh_derived`. Its `window_end` remains
+unused. Restoration confers no publication authority and does not replace current
+runtime/evidence loading. Source/window selection, strict publication checks,
+schema/producer identity and `run_digest` application/save ordering stay in root.
+The owner has no reverse imports, retained callbacks or dependency container.
 
 Legacy response callers retain `try_parse_response_id_text(msg)` and
 `response_post_id_is_canonical_string(msg)` through `mrs_log_digest`, with their

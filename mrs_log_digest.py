@@ -48,6 +48,19 @@ from typing import Any, Dict, Iterable, List, Mapping, Optional, Tuple, Union
 from zoneinfo import ZoneInfo
 
 # Explicit imports preserve the existing digest helper import surface.
+from mrs_log_digest_context import (
+    INTERNAL_CONTEXT_KEYS,
+    read_resume_data as _read_resume_data,
+    save_resume_time as _save_resume_time,
+    state_context_is_within_window as _state_context_is_within_window,
+    strip_internal_context_markers as _strip_internal_context_markers,
+    merge_context as _merge_context,
+    extract_config_pairs,
+    merge_context_from_log_backscan as _merge_context_from_log_backscan,
+    find_latest_config_before as _find_latest_config_before,
+    parse_partial_state_from_msg,
+    apply_saved_context as _apply_saved_context,
+)
 from mrs_log_digest_input_io import (
     file_sha256,
     _stable_file_identity,
@@ -810,15 +823,11 @@ def read_resume_data(state_file: Path) -> Dict[str, Any]:
     observed bot state/config so short quiet windows can still show budget and
     priority context.
     """
-    if not state_file.exists():
-        return {}
-    try:
-        return _strict_native_json_object(
-            state_file.read_bytes(), label="digest resume state"
-        )
-    except Exception as e:
-        print(f"WARNING: could not read state file {state_file}: {e}", file=sys.stderr)
-        return {}
+    return _read_resume_data(
+        state_file,
+        parse_json_object=_strict_native_json_object,
+        diagnostic=lambda message: print(message, file=sys.stderr),
+    )
 
 
 def save_resume_time(
@@ -833,90 +842,26 @@ def save_resume_time(
     cursor_fingerprint_tail: Optional[List[str]] = None,
 ) -> None:
     """Save resume time."""
-    old = read_resume_data(state_file) if preserve_existing_context else {}
-
-    latest_state = dict(report.get("latest_state") or {})
-    latest_config = dict(report.get("latest_config") or {})
-    runtime_state_status = str(
-        (report.get("runtime_state_status") or {}).get("status") or ""
+    _save_resume_time(
+        state_file,
+        last_ts,
+        records,
+        report,
+        logs,
+        preserve_existing_context=preserve_existing_context,
+        merge_existing_boundary_occurrences=merge_existing_boundary_occurrences,
+        cursor_fingerprint_tail=cursor_fingerprint_tail,
+        read_resume_data=read_resume_data,
+        strip_internal_context_markers=strip_internal_context_markers,
+        record_fingerprint=record_fingerprint,
+        parse_dt=parse_dt,
+        resume_boundary_fingerprint_counts=resume_boundary_fingerprint_counts,
+        resume_fingerprint_tail=resume_fingerprint_tail,
+        dt_text=dt_text,
+        Counter=Counter,
+        clock_now=lambda: datetime.now(),
+        RESUME_FINGERPRINT_TAIL_LIMIT=RESUME_FINGERPRINT_TAIL_LIMIT,
     )
-    runtime_config_status = str(
-        (report.get("runtime_config_status") or {}).get("status") or ""
-    )
-    if (
-        preserve_existing_context
-        and runtime_state_status
-        and runtime_state_status != "available"
-    ):
-        retained_state = report.get("historical_retained_state") or old.get(
-            "last_known_latest_state"
-        )
-        if isinstance(retained_state, dict):
-            latest_state = dict(retained_state)
-    if (
-        preserve_existing_context
-        and runtime_config_status
-        and runtime_config_status != "available"
-    ):
-        retained_config = report.get("historical_retained_config") or old.get(
-            "last_known_latest_config"
-        )
-        if isinstance(retained_config, dict):
-            latest_config = dict(retained_config)
-
-    # Persist clean context only; _carried_forward/_filled_from_previous are
-    # rendering annotations for this run, not durable bot facts.
-    latest_state_clean = strip_internal_context_markers(latest_state)
-    latest_config_clean = strip_internal_context_markers(latest_config)
-    latest_generated_image_spacing = report.get("generated_image_spacing", {}).get("latest") or old.get("last_known_generated_image_spacing") or {}
-    if isinstance(latest_generated_image_spacing, dict):
-        latest_generated_image_spacing = {
-            key: value
-            for key, value in latest_generated_image_spacing.items()
-            if not str(key).startswith("_")
-        }
-    boundary_fingerprint_counts = Counter(
-        record_fingerprint(record)
-        for record in records
-        if record.ts == last_ts
-    )
-    try:
-        old_last_ts = parse_dt(old.get("last_log_entry_time"))
-    except Exception:
-        old_last_ts = None
-    if merge_existing_boundary_occurrences and old_last_ts == last_ts:
-        boundary_fingerprint_counts.update(resume_boundary_fingerprint_counts(old))
-    if cursor_fingerprint_tail is None:
-        cursor_fingerprint_tail = [
-            *resume_fingerprint_tail(old),
-            *(record_fingerprint(record) for record in records),
-        ]
-    cursor_fingerprint_tail = cursor_fingerprint_tail[-RESUME_FINGERPRINT_TAIL_LIMIT:]
-
-    data = {
-        "resume_cursor_schema_version": 1,
-        "last_log_entry_time": dt_text(last_ts),
-        "last_log_entry_fingerprints": sorted(boundary_fingerprint_counts),
-        "last_log_entry_fingerprint_counts": dict(sorted(boundary_fingerprint_counts.items())),
-        "last_log_entry_fingerprint_tail": cursor_fingerprint_tail,
-        "last_run_record_count": report.get("summary", {}).get("record_count"),
-        "last_run_time_start": report.get("summary", {}).get("time_start"),
-        "last_run_time_end": report.get("summary", {}).get("time_end"),
-        "last_run_logs": [str(p) for p in logs],
-        "last_known_latest_state": latest_state_clean,
-        "last_known_latest_config": latest_config_clean,
-        "last_known_generated_image_spacing": latest_generated_image_spacing,
-        "last_active_xai_context": report.get("resume_context", {}).get("active_xai_context"),
-        "last_active_xai_call_attempt": report.get("resume_context", {}).get(
-            "active_xai_call_attempt"
-        ),
-        "last_pending_mention": report.get("resume_context", {}).get("pending_mention"),
-        "last_pending_qt": report.get("resume_context", {}).get("pending_qt"),
-        "updated_at": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
-    }
-    tmp = state_file.with_suffix(state_file.suffix + ".tmp")
-    tmp.write_text(json.dumps(data, indent=2, ensure_ascii=False) + "\n", encoding="utf-8")
-    tmp.replace(state_file)
 
 
 def discover_logs(directory: Path, pattern: str) -> List[Path]:
@@ -1313,41 +1258,20 @@ def current_author_no_reply_strike_progress(
 
 def state_context_is_within_window(state: Dict[str, Any], window_end: Optional[datetime]) -> bool:
     """Return whether state context is within window."""
-    if window_end is None:
-        return True
-    try:
-        state_time = parse_dt(state.get("time"))
-    except Exception:
-        state_time = None
-    return state_time is None or state_time <= window_end
-
-
-INTERNAL_CONTEXT_KEYS = {
-    "_carried_forward",
-    "_filled_from_previous",
-    "_filled_from_log_backscan",
-    "_carried_from_log_backscan",
-    "_log_backscan_timestamp",
-    "_partial",
-    "_state_source",
-    "_state_source_path",
-    "_config_source",
-    "_config_source_path",
-    "_config_source_time",
-}
+    return _state_context_is_within_window(
+        state,
+        window_end,
+        parse_dt=parse_dt,
+    )
 
 
 def strip_internal_context_markers(value: Any) -> Any:
     """Remove digest-only annotations before persisting context."""
-    if isinstance(value, dict):
-        return {
-            k: strip_internal_context_markers(v)
-            for k, v in value.items()
-            if k not in INTERNAL_CONTEXT_KEYS
-        }
-    if isinstance(value, list):
-        return [strip_internal_context_markers(v) for v in value]
-    return value
+    return _strip_internal_context_markers(
+        value,
+        strip_internal_context_markers=strip_internal_context_markers,
+        INTERNAL_CONTEXT_KEYS=INTERNAL_CONTEXT_KEYS,
+    )
 
 
 def shadow_lifecycle_snapshot(project_dir: Path) -> Dict[str, Any]:
@@ -1382,36 +1306,12 @@ def merge_context(current: Dict[str, Any], previous: Dict[str, Any]) -> Dict[str
     merges per field, so a quiet or partial window can still show reply budgets
     from the last known config while using the current state snapshot.
     """
-    cur = dict(current or {})
-    prev = strip_internal_context_markers(previous or {})
-    if not prev:
-        return cur
-
-    if not cur:
-        cur = dict(prev)
-        cur["_carried_forward"] = True
-        return cur
-
-    filled = False
-    for k, v in prev.items():
-        if k in INTERNAL_CONTEXT_KEYS:
-            continue
-        if k not in cur or cur.get(k) is None:
-            cur[k] = v
-            filled = True
-    if filled:
-        cur["_filled_from_previous"] = True
-    return cur
-
-
-
-
-def extract_config_pairs(msg: str) -> Dict[str, str]:
-    """Return KEY=VALUE pairs from a bot Config log message."""
-    if not msg.startswith("Config: "):
-        return {}
-    body = msg[len("Config: "):]
-    return {key: val.strip() for key, val in re.findall(r"([A-Z0-9_]+)=([^\s]+)", body)}
+    return _merge_context(
+        current,
+        previous,
+        strip_internal_context_markers=strip_internal_context_markers,
+        INTERNAL_CONTEXT_KEYS=INTERNAL_CONTEXT_KEYS,
+    )
 
 
 def merge_context_from_log_backscan(
@@ -1426,31 +1326,14 @@ def merge_context_from_log_backscan(
     incremental digest can recover the latest startup Config values even when
     .mrs_log_digest_state.json has no stored config yet.
     """
-    cur = dict(current or {})
-    prev = strip_internal_context_markers(previous or {})
-    if not prev:
-        return cur
-
-    ts_text = dt_text(backscan_ts) if backscan_ts else None
-    if not cur:
-        cur = dict(prev)
-        cur["_carried_from_log_backscan"] = True
-        if ts_text:
-            cur["_log_backscan_timestamp"] = ts_text
-        return cur
-
-    filled = False
-    for k, v in prev.items():
-        if k in INTERNAL_CONTEXT_KEYS:
-            continue
-        if k not in cur or cur.get(k) is None:
-            cur[k] = v
-            filled = True
-    if filled:
-        cur["_filled_from_log_backscan"] = True
-        if ts_text:
-            cur["_log_backscan_timestamp"] = ts_text
-    return cur
+    return _merge_context_from_log_backscan(
+        current,
+        previous,
+        backscan_ts=backscan_ts,
+        strip_internal_context_markers=strip_internal_context_markers,
+        INTERNAL_CONTEXT_KEYS=INTERNAL_CONTEXT_KEYS,
+        dt_text=dt_text,
+    )
 
 
 def find_latest_config_before(paths: List[Path], before: Optional[datetime]) -> Tuple[Dict[str, str], Optional[datetime]]:
@@ -1462,36 +1345,13 @@ def find_latest_config_before(paths: List[Path], before: Optional[datetime]) -> 
     path/glob order is not guaranteed to be chronological, and an older rotated
     file must never overwrite newer config from the live log.
     """
-    if before is None:
-        return {}, None
-
-    seen = set()
-    candidates: List[Record] = []
-    for path in paths:
-        if is_selftest_log_path(path):
-            continue
-        if not path.exists():
-            continue
-        for r in iter_records(path):
-            if r.ts >= before:
-                continue
-            if not extract_config_pairs(r.msg):
-                continue
-            key = (r.ts, r.level, r.src, r.line, r.msg)
-            if key in seen:
-                continue
-            seen.add(key)
-            candidates.append(r)
-
-    candidates.sort(key=lambda r: (r.ts, r.path, r.ordinal))
-
-    configs: Dict[str, str] = {}
-    latest_ts: Optional[datetime] = None
-    for r in candidates:
-        configs.update(extract_config_pairs(r.msg))
-        latest_ts = r.ts
-
-    return configs, latest_ts
+    return _find_latest_config_before(
+        paths,
+        before,
+        is_selftest_log_path=is_selftest_log_path,
+        iter_records=iter_records,
+        extract_config_pairs=extract_config_pairs,
+    )
 
 def response_post_id_is_canonical_string(msg: str) -> bool:
     """Return whether a legacy success response stores its ID as a string."""
@@ -1531,44 +1391,6 @@ def try_parse_strict_json_object_from_msg(
         )
     except Exception:
         return None
-
-
-def parse_partial_state_from_msg(msg: str) -> Optional[Dict[str, Any]]:
-    """Best-effort extraction from log_json_debug state dumps that may be truncated."""
-    if "State being saved:" not in msg and "Loaded state:" not in msg:
-        return None
-    keys = [
-        "api_cooldown_reason", "api_cooldown_until_epoch",
-        "quote_api_cooldown_reason", "quote_api_cooldown_until_epoch",
-        "daily_quote_reply_count", "daily_quote_reply_date",
-        "daily_reply_count", "daily_reply_date",
-        "last_main_post_id", "last_meme_post_epoch", "last_quote_post_epoch",
-        "last_quote_tweet_check_epoch", "last_reply_epoch", "last_seen_mention_id",
-        "next_meme_post_epoch", "next_meme_schedule_mode", "next_meme_schedule_date",
-        "meme_anchor_quote_post_epoch", "meme_schedule_version", "next_quote_post_epoch",
-        "next_reply_lane_priority", "skipped_hot_reply_ids",
-    ]
-    out: Dict[str, Any] = {"_partial": True}
-    for key in keys:
-        m = re.search(r'"' + re.escape(key) + r'"\s*:\s*("(?:\\.|[^"])*"|-?\d+|true|false|null)', msg)
-        if not m:
-            continue
-        raw = m.group(1)
-        try:
-            out[key] = json.loads(raw)
-        except Exception:
-            out[key] = raw.strip('"')
-
-    # Count arrays only when their full array appears before truncation.
-    for key in ("quote_spam_author_ids", "posted_meme_filenames", "recent_own_post_ids"):
-        m = re.search(r'"' + re.escape(key) + r'"\s*:\s*(\[[\s\S]*?\])\s*,?\n\s*"', msg)
-        if m:
-            try:
-                val = json.loads(m.group(1))
-                out[key] = val
-            except json.JSONDecodeError:
-                continue
-    return out if len(out) > 1 else None
 
 
 def seconds_between(a: datetime, b: datetime) -> float:
@@ -3481,30 +3303,14 @@ def apply_saved_context(
     window_end: Optional[datetime] = None,
 ) -> None:
     """Load digest-cursor history without presenting it as current bot state."""
-    old = read_resume_data(state_file)
-    report["digest_resume_context"] = {
-        "available": bool(old),
-        "last_log_entry_time": old.get("last_log_entry_time"),
-        "updated_at": old.get("updated_at"),
-    }
-    previous_state = old.get("last_known_latest_state")
-    if isinstance(previous_state, dict) and previous_state:
-        report["historical_retained_state"] = strip_internal_context_markers(
-            previous_state
-        )
-    previous_config = old.get("last_known_latest_config")
-    if isinstance(previous_config, dict) and previous_config:
-        report["historical_retained_config"] = strip_internal_context_markers(
-            previous_config
-        )
-    generated_spacing = report.get("generated_image_spacing")
-    if isinstance(generated_spacing, dict) and not generated_spacing.get("latest"):
-        previous_spacing = old.get("last_known_generated_image_spacing")
-        if isinstance(previous_spacing, dict) and previous_spacing:
-            generated_spacing["latest"] = dict(previous_spacing)
-            generated_spacing["latest"]["_carried_forward"] = True
-
-    refresh_derived(report)
+    _apply_saved_context(
+        report,
+        state_file,
+        window_end=window_end,
+        read_resume_data=read_resume_data,
+        strip_internal_context_markers=strip_internal_context_markers,
+        refresh_derived=refresh_derived,
+    )
 
 
 
