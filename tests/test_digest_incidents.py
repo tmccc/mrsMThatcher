@@ -13,6 +13,243 @@ import mrs_log_digest_snapshot_incidents as snapshot_owner
 from tests.test_mrs_log_digest import BASE, record, reconciled_remote_write_safety
 
 
+def test_association_adapters_forward_prepared_references_and_current_callbacks(monkeypatch):
+    later, attempt_time = BASE + timedelta(seconds=1), BASE - timedelta(seconds=1)
+    root = {"level": "CRITICAL", "message": "ambiguous remote X post outcome", "_time": BASE}
+    symptom = {"level": "CRITICAL", "_time": later,
+               "message": "Normal reply lane stopped by the global remote-write safety barrier"}
+    event = {"kind": "reply_strategy_outcome", "status": "posting_failed_retryable",
+             "failure_reason": "ambiguous_remote_outcome", "lane": "hot_post",
+             "target_id": 123, "_time": BASE}
+    transactions = [
+        {"kind": "tweet_transport", "phase": "request_started", "reply_to_id": 123,
+         "transaction_id": "a" * 64, "lane": "conversational_reply", "_time": attempt_time},
+        {"kind": "media_upload", "phase": "ambiguous", "image": "fixture.png", "_time": BASE},
+    ]
+    matching = incident_owner._matching_ambiguity_identity
+    subordinate = incident_owner._is_subordinate_remote_write_symptom
+    prepared, calls, results = {}, [], []
+    distance = lambda a, b: abs((a - b).total_seconds())
+
+    def reject(*args, **kwargs):
+        raise AssertionError("unexpected helper captured or looked up through the facade")
+
+    def event_time(row):
+        if row is event:
+            monkeypatch.setattr(digest, "seconds_between", reject)
+        return row.get("_time")
+
+    def check(inputs):
+        assert inputs["seconds_between"] is distance
+        for name, value in inputs.items():
+            if name in prepared:
+                assert value is prepared[name]
+            else:
+                prepared[name] = value
+        assert inputs["ambiguous_reply_outcomes"] == [{
+            "time": BASE, "lane": "hot-post", "target_id": "123", "transaction_id": "a" * 64,
+        }]
+        assert inputs["ambiguous_reply_outcomes"][0]["time"] is BASE
+
+    def identity(raw, item_time, **inputs):
+        check(inputs)
+        assert inputs["transport_attempts"] == [{
+            "time": attempt_time, "target_id": "123", "transaction_id": "a" * 64,
+            "lane": "conversational_reply",
+        }]
+        assert inputs["transport_attempts"][0]["time"] is attempt_time
+        assert inputs["ambiguous_media_outcomes"] == [{"time": BASE, "image": "fixture.png"}]
+        calls.append("identity")
+        result = matching(raw, item_time, **inputs)
+        assert result is inputs["ambiguous_reply_outcomes"][0]
+        results.append(result)
+        monkeypatch.setattr(incident_owner, "_is_subordinate_remote_write_symptom", next_symptom)
+        return result
+
+    def first_symptom(*, category, raw, item_time, **inputs):
+        check(inputs)
+        assert inputs["ambiguity_times"] == [BASE] and inputs["ambiguity_times"][0] is BASE
+        assert raw is root["message"] and item_time is BASE
+        calls.append("subordinate")
+        monkeypatch.setattr(incident_owner, "_matching_ambiguity_identity", identity)
+        return subordinate(category=category, raw=raw, item_time=item_time, **inputs)
+
+    def next_symptom(*, category, raw, item_time, **inputs):
+        check(inputs)
+        assert raw is symptom["message"] and item_time is later
+        calls.append("subordinate-next")
+        return subordinate(category=category, raw=raw, item_time=item_time, **inputs)
+
+    monkeypatch.setattr(digest, "seconds_between", distance)
+    monkeypatch.setattr(digest, "_event_time", event_time)
+    monkeypatch.setattr(incident_owner, "_matching_ambiguity_identity", reject)
+    monkeypatch.setattr(incident_owner, "_is_subordinate_remote_write_symptom", first_symptom)
+    report = digest.summarise_operational_error_health(
+        [root, symptom], [event], [], remote_write_transactions=iter(transactions), generation_time=later,
+    )
+    assert calls == ["subordinate", "identity", "subordinate-next", "identity"]
+    assert results[0] is results[1]
+    assert root["_remote_write_identity"] == symptom["_remote_write_identity"]
+    assert report["current_incidents"][0]["record_count"] == 2
+    assert report["current_incidents"][0]["correlated_subordinate_symptom_counts"] == {
+        "normal reply lane stopped by the global remote-write safety barrier": 1,
+    }
+
+
+def test_association_missing_time_does_not_inspect_evidence_or_helpers(monkeypatch):
+    def reject(*args, **kwargs):
+        raise AssertionError("missing time must short-circuit")
+
+    class Unreadable:
+        __iter__ = search = fullmatch = reject
+
+    value = Unreadable()
+    monkeypatch.setattr(incident_owner, "re", value)
+    monkeypatch.setattr(incident_owner, "_normalise_lane", reject)
+    assert incident_owner._matching_ambiguity_identity(
+        value, None, ambiguous_reply_outcomes=value, transport_attempts=value,
+        ambiguous_media_outcomes=value, seconds_between=reject,
+    ) is None
+    assert incident_owner._is_subordinate_remote_write_symptom(
+        category=value, raw=value, item_time=None, ambiguous_reply_outcomes=value,
+        ambiguity_times=value, seconds_between=reject,
+    ) is False
+
+
+def test_association_owner_helpers_direct_ties_transport_fallback_and_sharing(monkeypatch):
+    before, after = BASE - timedelta(seconds=300), BASE + timedelta(seconds=300)
+    first = {"time": before, "lane": "hot-post", "target_id": "123", "transaction_id": "b" * 64}
+    second = {**first, "time": after, "transaction_id": "a" * 64}
+    calls, regex = [], incident_owner.re
+
+    def reject(*args, **kwargs):
+        raise AssertionError("unexpected facade lookup")
+
+    class Regex:
+        @staticmethod
+        def search(pattern, raw):
+            calls.append("search")
+            return regex.search(pattern, raw)
+
+    def lane(value):
+        calls.append(("lane", value))
+        return "hot-post"
+
+    def distance(a, b):
+        calls.append((a, b))
+        return abs((a - b).total_seconds())
+
+    monkeypatch.setattr(incident_owner, "re", Regex)
+    monkeypatch.setattr(incident_owner, "_normalise_lane", lane)
+    monkeypatch.setattr(digest, "re", None)
+    monkeypatch.setattr(digest, "_normalise_lane", reject)
+    inputs = dict(ambiguous_reply_outcomes=[{"lane": "mention"}, first, second],
+                  transport_attempts=[], ambiguous_media_outcomes=[], seconds_between=distance)
+    raw = "lane=alias target_id=123 transaction_id=" + "a" * 64
+    result = incident_owner._matching_ambiguity_identity(raw, BASE, **inputs)
+    assert result is first
+    result["shared"] = []
+    assert inputs["ambiguous_reply_outcomes"][1]["shared"] is result["shared"]
+    assert calls == ["search", ("lane", "alias"), (BASE, before), (BASE, after),
+                     (BASE, before), (BASE, after)]
+
+    calls.clear()
+    outside = BASE - timedelta(seconds=300.001)
+    inputs.update(ambiguous_reply_outcomes=[], transport_attempts=[
+        {"target_id": "other"}, {**first, "time": outside}, first, second,
+    ])
+    fallback = incident_owner._matching_ambiguity_identity(raw, BASE, **inputs)
+    assert fallback == {"time": BASE, "lane": "hot-post", "target_id": "123", "transaction_id": "b" * 64}
+    assert fallback["time"] is BASE and fallback is not first
+    assert calls == ["search", ("lane", "alias"), (BASE, outside), (BASE, before),
+                     (BASE, after), (BASE, before), (BASE, after)]
+
+    calls.clear()
+    assert incident_owner._is_subordinate_remote_write_symptom(
+        category="conversational_reply_receipt_barrier", raw=raw, item_time=BASE,
+        ambiguous_reply_outcomes=[second, {}], ambiguity_times=None, seconds_between=reject,
+    ) is True
+    assert calls == ["search", ("lane", "alias")]
+    failure = ValueError("supplied distance failed")
+
+    def failed_distance(a, b):
+        raise failure
+
+    with pytest.raises(ValueError) as raised:
+        incident_owner._matching_ambiguity_identity(raw, BASE, **{**inputs, "seconds_between": failed_distance})
+    assert raised.value is failure
+
+
+def test_association_transaction_first_match_nearest_uniqueness_and_persistent_ties():
+    far = BASE - timedelta(seconds=301)
+    first = {"time": far, "lane": "mention", "target_id": "123", "transaction_id": "a" * 64}
+    second = {**first, "time": BASE}
+
+    def reject(*args):
+        raise AssertionError("transaction match must not evaluate distance")
+
+    inputs = dict(ambiguous_reply_outcomes=[first, second], transport_attempts=[],
+                  ambiguous_media_outcomes=[], seconds_between=reject)
+    assert incident_owner._matching_ambiguity_identity(
+        "transaction_id=" + "a" * 64 + " transaction_id=" + "b" * 64, BASE, **inputs,
+    ) is first
+    inputs["seconds_between"] = digest.seconds_between
+    assert incident_owner._matching_ambiguity_identity("transaction_id=" + "A" * 64, BASE, **inputs) is second
+
+    before, after = BASE - timedelta(seconds=10), BASE + timedelta(seconds=10)
+    first["time"], second["time"] = before, after
+    assert incident_owner._matching_ambiguity_identity("ambiguous", BASE, **inputs) is first
+    second["target_id"] = "other"
+    media = {"time": before, "image": "fixture.png"}
+    inputs["ambiguous_media_outcomes"].append(media)
+    assert incident_owner._matching_ambiguity_identity("ambiguous", BASE, **inputs) is media
+    inputs["ambiguous_media_outcomes"].append(dict(media))
+    assert incident_owner._matching_ambiguity_identity("ambiguous", BASE, **inputs) is None
+    first["time"] = media["time"] = BASE - timedelta(seconds=11)
+    inputs["ambiguous_media_outcomes"][:] = [media]
+    second["time"] = BASE + timedelta(seconds=11)
+    assert incident_owner._matching_ambiguity_identity(
+        "Normal reply lane stopped by the global remote-write safety barrier\nretained detail",
+        BASE, **inputs,
+    ) is first
+
+
+@pytest.mark.parametrize("category,raw,offsets,expected", [
+    ("conversational_reply_receipt_barrier", "lane=hot_post target_id=123",
+     [-0.001, 0, 300, 300.001], [False, True, True, False]),
+    ("remote_write_transaction_barrier", "transaction barrier",
+     [-5.001, -5, 0, 5, 5.001], [False, True, True, True, False]),
+    ("unclassified", "Normal reply lane stopped by the global remote-write safety barrier",
+     [-5.001, -5, 0, 0.001], [False, True, True, False]),
+])
+def test_subordinate_association_keeps_distinct_directional_boundaries(category, raw, offsets, expected):
+    calls = []
+
+    def distance(a, b):
+        assert category == "remote_write_transaction_barrier"
+        calls.append((a, b))
+        return abs((a - b).total_seconds())
+
+    for offset, matches in zip(offsets, expected):
+        outcome_time = BASE + timedelta(seconds=offset)
+        outcomes = [{"lane": "hot-post", "target_id": "123", "time": outcome_time}]
+        times = [outcome_time]
+        if matches:
+            outcomes.append({})
+            times.append(None)
+        assert incident_owner._is_subordinate_remote_write_symptom(
+            category=category, raw=raw, item_time=BASE, ambiguous_reply_outcomes=outcomes,
+            ambiguity_times=times, seconds_between=distance,
+        ) is matches
+    assert calls == ([(BASE, BASE + timedelta(seconds=offset)) for offset in offsets]
+                     if category == "remote_write_transaction_barrier" else [])
+    if category == "unclassified":
+        assert incident_owner._is_subordinate_remote_write_symptom(
+            category=category, raw=raw + "; unrelated failure", item_time=BASE,
+            ambiguous_reply_outcomes=[{}], ambiguity_times=None, seconds_between=distance,
+        ) is False
+
+
 @pytest.mark.parametrize("algorithm", ["pipeline", "pause"])
 def test_recovery_adapters_forward_prepared_rows_and_current_callbacks(monkeypatch, algorithm):
     later = BASE + timedelta(seconds=10)

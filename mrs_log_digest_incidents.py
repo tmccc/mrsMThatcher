@@ -655,6 +655,179 @@ def _remote_pause_recovery_status(
     return "current_unresolved", "", None
 
 
+def _matching_ambiguity_identity(
+    raw: str,
+    item_time: Optional[datetime],
+    *,
+    ambiguous_reply_outcomes: List[Dict[str, Any]],
+    transport_attempts: List[Dict[str, Any]],
+    ambiguous_media_outcomes: List[Dict[str, Any]],
+    seconds_between: Callable[[datetime, datetime], float],
+) -> Optional[Dict[str, Any]]:
+    """Return the strongest uniquely associated ambiguity identity."""
+
+    if item_time is None:
+        return None
+    direct = re.search(r"\blane=([^\s]+) target_id=([^\s]+)", raw)
+    if direct is not None:
+        lane = _normalise_lane(direct.group(1))
+        target_id = direct.group(2)
+        matches = [
+            outcome
+            for outcome in ambiguous_reply_outcomes
+            if outcome["lane"] == lane and outcome["target_id"] == target_id
+            and seconds_between(item_time, outcome["time"]) <= 300
+        ]
+        if matches:
+            return min(
+                matches,
+                key=lambda outcome: seconds_between(item_time, outcome["time"]),
+            )
+        attempts = [
+            attempt
+            for attempt in transport_attempts
+            if attempt["target_id"] == target_id
+            and seconds_between(item_time, attempt["time"]) <= 300
+        ]
+        attempt = min(
+            attempts,
+            key=lambda value: seconds_between(item_time, value["time"]),
+            default={},
+        )
+        return {
+            "time": item_time,
+            "lane": lane,
+            "target_id": target_id,
+            "transaction_id": str(attempt.get("transaction_id") or ""),
+        }
+
+    transaction_match = re.search(
+        r"\btransaction_id=([0-9a-f]{64})\b", raw
+    )
+    if transaction_match is not None:
+        transaction_id = transaction_match.group(1)
+        for outcome in ambiguous_reply_outcomes:
+            if outcome.get("transaction_id") == transaction_id:
+                return outcome
+
+    near_reply = [
+        outcome
+        for outcome in ambiguous_reply_outcomes
+        if seconds_between(item_time, outcome["time"]) <= 10
+    ]
+    if near_reply:
+        nearest_delta = min(
+            seconds_between(item_time, outcome["time"])
+            for outcome in near_reply
+        )
+        nearest = [
+            outcome
+            for outcome in near_reply
+            if seconds_between(item_time, outcome["time"]) == nearest_delta
+        ]
+        identities = {
+            (
+                str(outcome.get("transaction_id") or ""),
+                outcome["lane"],
+                outcome["target_id"],
+            )
+            for outcome in nearest
+        }
+        if len(identities) == 1:
+            return nearest[0]
+
+    near_media = [
+        outcome
+        for outcome in ambiguous_media_outcomes
+        if seconds_between(item_time, outcome["time"]) <= 10
+    ]
+    if len(near_media) == 1:
+        return near_media[0]
+
+    first_line = raw.splitlines()[0].strip() if raw else ""
+    persistent_barrier = bool(
+        "All remote posting and reply lanes are paused by the durable "
+        "remote-write safety barrier" in first_line
+        or "lane stopped by the global remote-write safety barrier" in first_line
+        or "reply stopped after an ambiguous remote outcome" in first_line
+        or "lane created an ambiguous-post barrier" in first_line
+    )
+    if persistent_barrier:
+        prior = [
+            outcome
+            for outcome in [*ambiguous_reply_outcomes, *ambiguous_media_outcomes]
+            if outcome["time"] <= item_time
+        ]
+        if prior:
+            return max(prior, key=lambda outcome: outcome["time"])
+    return None
+
+
+def _is_subordinate_remote_write_symptom(
+    *,
+    category: str,
+    raw: str,
+    item_time: Optional[datetime],
+    ambiguous_reply_outcomes: List[Dict[str, Any]],
+    ambiguity_times: List[datetime],
+    seconds_between: Callable[[datetime, datetime], float],
+) -> bool:
+    """Bind exact receipt/lane symptoms to a logged reply ambiguity root."""
+
+    if item_time is None:
+        return False
+    if category == "conversational_reply_receipt_barrier":
+        identity = re.search(
+            r"\blane=([^\s]+) target_id=([^\s]+)",
+            raw,
+        )
+        if identity is None:
+            return False
+        lane = _normalise_lane(identity.group(1))
+        target_id = identity.group(2)
+        return any(
+            outcome["lane"] == lane
+            and outcome["target_id"] == target_id
+            and 0
+            <= (outcome["time"] - item_time).total_seconds()
+            <= 300
+            for outcome in ambiguous_reply_outcomes
+        )
+    if category == "remote_write_transaction_barrier":
+        return any(
+            seconds_between(item_time, root_time) <= 5
+            for root_time in ambiguity_times
+        )
+    first_line = raw.splitlines()[0].strip() if raw else ""
+    exact_lane_barrier = bool(
+        re.fullmatch(
+            r"(?:Normal reply|Quote-tweet) lane (?:stopped by the global "
+            r"remote-write safety barrier|created an ambiguous-post barrier; "
+            r"skipping all later lanes)",
+            first_line,
+        )
+        or re.fullmatch(
+            r"Test-cycle (?:normal|quote_tweet) reply lane stopped by the "
+            r"global remote-write safety barrier",
+            first_line,
+        )
+        or first_line
+        == "Test cycle stopped after an ambiguous remote post; no later lane will run"
+        or re.fullmatch(
+            r"(?:Mention|Hot-post|Quote-tweet) reply stopped after an "
+            r"ambiguous remote outcome; the global remote-write safety "
+            r"barrier remains active",
+            first_line,
+        )
+    )
+    if not exact_lane_barrier:
+        return False
+    return any(
+        0 <= (item_time - outcome["time"]).total_seconds() <= 5
+        for outcome in ambiguous_reply_outcomes
+    )
+
+
 def summarise_operational_error_health(
     errors: List[Dict[str, Any]],
     events: List[Dict[str, Any]],
@@ -920,102 +1093,13 @@ def summarise_operational_error_health(
         item_time: Optional[datetime],
     ) -> Optional[Dict[str, Any]]:
         """Return the strongest uniquely associated ambiguity identity."""
-
-        if item_time is None:
-            return None
-        direct = re.search(r"\blane=([^\s]+) target_id=([^\s]+)", raw)
-        if direct is not None:
-            lane = _normalise_lane(direct.group(1))
-            target_id = direct.group(2)
-            matches = [
-                outcome
-                for outcome in ambiguous_reply_outcomes
-                if outcome["lane"] == lane and outcome["target_id"] == target_id
-                and seconds_between(item_time, outcome["time"]) <= 300
-            ]
-            if matches:
-                return min(
-                    matches,
-                    key=lambda outcome: seconds_between(item_time, outcome["time"]),
-                )
-            attempts = [
-                attempt
-                for attempt in transport_attempts
-                if attempt["target_id"] == target_id
-                and seconds_between(item_time, attempt["time"]) <= 300
-            ]
-            attempt = min(
-                attempts,
-                key=lambda value: seconds_between(item_time, value["time"]),
-                default={},
-            )
-            return {
-                "time": item_time,
-                "lane": lane,
-                "target_id": target_id,
-                "transaction_id": str(attempt.get("transaction_id") or ""),
-            }
-
-        transaction_match = re.search(
-            r"\btransaction_id=([0-9a-f]{64})\b", raw
+        return _matching_ambiguity_identity(
+            raw, item_time,
+            ambiguous_reply_outcomes=ambiguous_reply_outcomes,
+            transport_attempts=transport_attempts,
+            ambiguous_media_outcomes=ambiguous_media_outcomes,
+            seconds_between=seconds_between,
         )
-        if transaction_match is not None:
-            transaction_id = transaction_match.group(1)
-            for outcome in ambiguous_reply_outcomes:
-                if outcome.get("transaction_id") == transaction_id:
-                    return outcome
-
-        near_reply = [
-            outcome
-            for outcome in ambiguous_reply_outcomes
-            if seconds_between(item_time, outcome["time"]) <= 10
-        ]
-        if near_reply:
-            nearest_delta = min(
-                seconds_between(item_time, outcome["time"])
-                for outcome in near_reply
-            )
-            nearest = [
-                outcome
-                for outcome in near_reply
-                if seconds_between(item_time, outcome["time"]) == nearest_delta
-            ]
-            identities = {
-                (
-                    str(outcome.get("transaction_id") or ""),
-                    outcome["lane"],
-                    outcome["target_id"],
-                )
-                for outcome in nearest
-            }
-            if len(identities) == 1:
-                return nearest[0]
-
-        near_media = [
-            outcome
-            for outcome in ambiguous_media_outcomes
-            if seconds_between(item_time, outcome["time"]) <= 10
-        ]
-        if len(near_media) == 1:
-            return near_media[0]
-
-        first_line = raw.splitlines()[0].strip() if raw else ""
-        persistent_barrier = bool(
-            "All remote posting and reply lanes are paused by the durable "
-            "remote-write safety barrier" in first_line
-            or "lane stopped by the global remote-write safety barrier" in first_line
-            or "reply stopped after an ambiguous remote outcome" in first_line
-            or "lane created an ambiguous-post barrier" in first_line
-        )
-        if persistent_barrier:
-            prior = [
-                outcome
-                for outcome in [*ambiguous_reply_outcomes, *ambiguous_media_outcomes]
-                if outcome["time"] <= item_time
-            ]
-            if prior:
-                return max(prior, key=lambda outcome: outcome["time"])
-        return None
 
     def is_subordinate_remote_write_symptom(
         *,
@@ -1024,58 +1108,11 @@ def summarise_operational_error_health(
         item_time: Optional[datetime],
     ) -> bool:
         """Bind exact receipt/lane symptoms to a logged reply ambiguity root."""
-
-        if item_time is None:
-            return False
-        if category == "conversational_reply_receipt_barrier":
-            identity = re.search(
-                r"\blane=([^\s]+) target_id=([^\s]+)",
-                raw,
-            )
-            if identity is None:
-                return False
-            lane = _normalise_lane(identity.group(1))
-            target_id = identity.group(2)
-            return any(
-                outcome["lane"] == lane
-                and outcome["target_id"] == target_id
-                and 0
-                <= (outcome["time"] - item_time).total_seconds()
-                <= 300
-                for outcome in ambiguous_reply_outcomes
-            )
-        if category == "remote_write_transaction_barrier":
-            return any(
-                seconds_between(item_time, root_time) <= 5
-                for root_time in ambiguity_times
-            )
-        first_line = raw.splitlines()[0].strip() if raw else ""
-        exact_lane_barrier = bool(
-            re.fullmatch(
-                r"(?:Normal reply|Quote-tweet) lane (?:stopped by the global "
-                r"remote-write safety barrier|created an ambiguous-post barrier; "
-                r"skipping all later lanes)",
-                first_line,
-            )
-            or re.fullmatch(
-                r"Test-cycle (?:normal|quote_tweet) reply lane stopped by the "
-                r"global remote-write safety barrier",
-                first_line,
-            )
-            or first_line
-            == "Test cycle stopped after an ambiguous remote post; no later lane will run"
-            or re.fullmatch(
-                r"(?:Mention|Hot-post|Quote-tweet) reply stopped after an "
-                r"ambiguous remote outcome; the global remote-write safety "
-                r"barrier remains active",
-                first_line,
-            )
-        )
-        if not exact_lane_barrier:
-            return False
-        return any(
-            0 <= (item_time - outcome["time"]).total_seconds() <= 5
-            for outcome in ambiguous_reply_outcomes
+        return _is_subordinate_remote_write_symptom(
+            category=category, raw=raw, item_time=item_time,
+            ambiguous_reply_outcomes=ambiguous_reply_outcomes,
+            ambiguity_times=ambiguity_times,
+            seconds_between=seconds_between,
         )
 
     def pause_scope_for_item(

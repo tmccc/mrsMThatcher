@@ -528,6 +528,27 @@ clearance callbacks and scope-matched success retain their exact behavior.
 The implementations add no reads, clock samples, authority decisions or stored
 callbacks; all other recovery helpers and surrounding summary phases stay put.
 
+The same owner implements ambiguity association in `_matching_ambiguity_identity`
+and exact subordinate correlation in `_is_subordinate_remote_write_symptom`.
+The nested `matching_ambiguity_identity(raw, item_time)` and keyword-only
+`is_subordinate_remote_write_symptom(*, category, raw, item_time)` keep their
+original signatures and positions as direct-return adapters. Identity matching
+receives `ambiguous_reply_outcomes`, `transport_attempts`,
+`ambiguous_media_outcomes` and the supplied `seconds_between`; subordinate
+correlation receives `ambiguous_reply_outcomes`, `ambiguity_times` and that same
+callback. These are the current prepared references, including comprehension
+inputs; `_normalise_lane` and `re` retain incident-owner global lookup.
+Missing-time short-circuiting, direct 300-second matching/transport fallback,
+transaction regex/first match, nearest unique reply and single-media selection
+within 10 seconds, persistent-barrier fallback, candidate/callback order and
+stable ties are unchanged. Matching evidence returns by identity without copying.
+Subordinate rules retain exact categories/messages and distinct time policies:
+receipt evidence uses `0 <= outcome_time - item_time <= 300`, transaction barriers
+use `seconds_between <= 5`, and exact lane barriers use
+`0 <= item_time - outcome_time <= 5` (durations in seconds). Neither implementation
+adds preparation, stored callbacks, reads, clock samples or authority decisions.
+Grouping, pause scopes, recovery, construction and final selection stay in place.
+
 `reconcile_current_snapshot_incidents` in `mrs_log_digest_snapshot_incidents`
 owns the six local evidence helpers and their complete reconciliation loop.
 The incident summary calls it at the original position immediately before sorting,

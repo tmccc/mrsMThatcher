@@ -3070,3 +3070,110 @@ to preserve. These are recommendations only, not started work.
 following worker/session was launched. Previous branches/worktrees are preserved;
 no production/configuration/state/log/image-pool changes, bot execution,
 provider/posting calls, service control, merge, deployment or force-push occurred.
+
+## Extracted in stage 33
+
+Base: `ebab134be212d2e04d9d48cb5e393b135c8999a7`, verified against pushed
+`origin/codex/modularisation-stage32`. Worktree:
+`/disks/disk1/research/mrsMThatcher-modularisation-stage33`; branch:
+`codex/modularisation-stage33`.
+
+**The user has authorised stages 33–36, superseding the historical stop-at-32
+wording above.** This worker implements only stage 33. The supervisor reviews
+each stage and launches a fresh session for the next; it must stop and reassess
+after stage 36. **Stage 37 is not authorised.**
+
+The two adjacent incident-association bodies become `_matching_ambiguity_identity`
+and `_is_subordinate_remote_write_symptom` in the same incident owner. Original
+nested names, signatures (including keyword-only subordinate arguments), positions
+and direct returns remain as small adapters. No new module, class, dependency
+context, stored callback or returned closure is introduced.
+
+Identity matching forwards `ambiguous_reply_outcomes`, `transport_attempts`,
+`ambiguous_media_outcomes` and `seconds_between`; subordinate correlation forwards
+`ambiguous_reply_outcomes`, `ambiguity_times` and `seconds_between`. Free inputs,
+including comprehensions/generators/lambdas, were checked. Both bodies are exact
+moves apart from explicit implementation parameters; `_normalise_lane` and `re`
+keep incident-owner lookup. Missing-time exits, direct 300-second association and
+transport fallback, transaction regex/first match, nearest unique reply/single
+media within 10 seconds, persistent barriers, stable ties, evaluation order and
+original evidence-row identity are preserved. Exact subordinate messages/categories
+retain three separate policies: receipt evidence is 0–300 seconds after the item;
+transaction association uses `seconds_between <= 5`; exact lane barriers are
+0–5 seconds after the outcome.
+
+Preparation, grouping, pause scopes, remaining recovery, per-group construction,
+snapshot reconciliation, sorting/counting and final selection stay in place.
+The stage 30 observer, stage 31 snapshot owner, stage 32 recovery implementations,
+root facade, existing APIs/defaults, schema 3, JSON/Markdown values/types/order,
+sharing, callback/error/clock order and source/window/resume/publication authority
+are unchanged.
+
+| Physical lines | Stage 32 | Stage 33 |
+| --- | ---: | ---: |
+| Root digest | 3,462 | 3,462 |
+| `analyse` | 1,318 | 1,318 |
+| Incident-health implementation | 1,455 | 1,319 (−136) |
+| Incident owner | 2,112 | 2,149 (+37) |
+| Identity nested function / module implementation | 101 / — | 12 / 106 |
+| Subordinate nested function / module implementation | 60 / — | 13 / 63 |
+| Snapshot owner / reconciliation function | 361 / 346 | 361 / 346 |
+| Root health wrapper / `run_digest` / Markdown wrapper | 42 / 360 / 10 | 42 / 360 / 10 |
+
+Validation used `MRS_TEST_MODE=1 PYTEST_DISABLE_PLUGIN_AUTOLOAD=1 python3 -m pytest`
+with the existing temporary-HOME/network isolation, bytecode disabled and
+`-p no:cacheprovider`. Focused baseline: **57 passed**. Final incident-owner and
+nearest association/receipt/source-reference regressions: **68 passed** (including
+four additional existing barrier/reconciliation cases). Five new test functions
+provide **seven cases** for prepared references/current callbacks, owner lookup,
+missing-time exits, direct/transport ties and sharing, transaction/nearest/media/
+persistent selection, callback errors and directional boundaries. All prior
+assertions remain. The unchanged incident-owner import guard and **seven**
+digest-only integrations also pass, covering source-reference bounds, unrelated
+errors, receipt source/self-test isolation, state after the window and resume
+source identity. No whole bot harness or broad historical suite ran.
+
+Three complete fixed-path/time CLI report pairs match stage 32, using the existing
+synthetic pool and reply-ambiguity fixture plus exact/near-miss barrier records:
+
+| Identity route | Records | JSON bytes | Markdown bytes |
+| --- | ---: | ---: | ---: |
+| Direct lane/target | 12 | 47,172 | 14,513 |
+| Transaction ID | 12 | 47,249 | 14,543 |
+| Nearest unique reply | 12 | 47,137 | 14,519 |
+
+Each fixture asserts one resolved five-record ambiguity root with the expected
+transaction/target, receipt/lane/transaction subordinate counts, and one independent
+near-miss error. Raw `analyse` inputs/results, values/types/order, reference graphs
+and stderr also match. **Seven direct comparisons** with the original nested
+bodies preserve identity/transport/transaction/nearest results, row/time sharing,
+all three subordinate boundaries, short-circuiting and exact callback traces.
+Fixture bytes/modes/mtimes are unchanged. Producer source hashes and repository
+HEADs were independently verified: both roots and pre-commit HEADs match, so
+**no substitutions or field normalisation** were used. Temporary scripts/results
+remain outside the worktree in `/tmp/mrs-stage33-e8z74iz9`. This is focused
+synthetic preservation evidence, not a production replay or exhaustive matrix.
+
+Exact text/AST review reconstructs the **entire stage 32 incident owner** by
+restoring the two nested definitions and removing the new implementations. All
+**11** other existing owner definitions, the root and all **29** other digest
+companions are unchanged. `python3 tools/check_python_documentation.py` passes
+for **209 modules**; `git diff --check` passes.
+
+Next bounded recommendation: extract `pause_scope_for_item` (**62 lines**) into
+a named implementation in the same owner, retaining its nested adapter. Its
+cohesive evidence priority is explicit message, nearby structured pause, pending
+lane, then recent transport scope. The complete outer inputs are
+`explicit_remote_pause_scope`, `get_event_time`, `events`,
+`base_remote_control_key`, `remote_control_scope`, `remote_operation_scope_for_lane`
+and `transport_attempts`; keep `re` at the owner boundary. Preserve the 60-second
+candidate ordering, unknown-scope rules and directional 10-second transport check.
+This separates scope inference from grouping without moving authority or adding
+a container. Health still coordinates evidence preparation, grouping, recovery
+and status construction. The 126-line transaction and 134-line category recovery
+algorithms have broader snapshot/time dependencies and deserve separate assessment;
+file size alone does not justify moving that coordination. No next stage is started.
+
+Previous branches/worktrees are preserved. No production/configuration/state/log/
+image-pool changes, bot execution, provider/posting calls, service control, merge,
+deployment or force-push occurred.
