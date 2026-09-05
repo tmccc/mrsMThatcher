@@ -9,7 +9,7 @@ import re
 from collections import Counter
 from datetime import datetime, timezone
 from decimal import Decimal
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, Tuple
 
 
 GENERATED_POLICIES = ("unrestricted", "small_penalty", "strong_penalty", "origin_quote_only")
@@ -245,3 +245,23 @@ def _count_optional(events: List[Dict[str, Any]], field: str, values: tuple[str,
         key = str(value) if value not in (None, "") else "unavailable"
         counts[key if not values or key in values else "unavailable"] += 1
     return dict(sorted(counts.items()))
+
+
+def most_common_with_cutoff_ties(
+    counts: Counter,
+    *,
+    limit: int = 8,
+) -> List[Tuple[str, int]]:
+    """Return a deterministic top list without dropping ties at the cut-off."""
+    ordered = sorted(
+        (
+            (str(name), int(count))
+            for name, count in counts.items()
+            if str(name) and int(count) > 0
+        ),
+        key=lambda item: (-item[1], item[0]),
+    )
+    if len(ordered) <= limit:
+        return ordered
+    cutoff = ordered[limit - 1][1]
+    return [item for item in ordered if item[1] >= cutoff]

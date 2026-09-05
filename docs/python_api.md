@@ -38,6 +38,7 @@ and AppleDouble files.
 | `mrs_log_digest_corpus.py` | Historical-corpus counts, availability, policies and hashes | Reads the existing research/audit paths under an explicit project directory using supplied strict parsing and file hashing; parsing and hashing remain separate reads |
 | `mrs_log_digest_generated_pool.py` | Generated-image discovery, metadata/hash validation, curation and used-history observations | Reads/scans the existing pool locations relative to an explicit base directory; supplied strict parsers, hashing, clock and ISO timestamp parser; no writes or import-time runtime access |
 | `mrs_log_digest_historical_events.py` | Historical-context event field projection, family counters and emitted-event quality summaries | Only supplied invocation-local counters and event insertion callbacks are mutated/called; no I/O or import-time runtime access |
+| `mrs_log_digest_generated_identity.py` | Generated-identity policy/shadow observation parsing and summaries | Mutates only supplied observation/error lists, local counters and the parser result's timestamp; strict parser, diagnostic formatter and lazy source-reference callback supplied by caller; no I/O or import-time runtime access |
 | `mrs_log_digest_values.py` | Shared digest scalar conversions and report vocabulary | None |
 | `mrs_engagement_analytics.py` | Read-only X metrics collection and isolated SQLite reporting | X reads only with explicit flags; writes only under `engagement_analytics/` |
 | `hybrid_reply_retrieval.py` | CLI for local hybrid retrieval experiments and review artefacts | Offline by default; provider-review commands require explicit execution and budgets |
@@ -111,6 +112,39 @@ and regexes, and `_count_optional` belong to the values leaf and remain explicit
 importable through the digest. Durable-history validation retains its distinct
 schema and vocabulary rules. Dependency direction is digest → historical events
 → values; the new module imports no coordinator, renderer, bot or runtime reader.
+
+Generated-identity callers retain `generated_identity_shadow_summary(events)`
+and `generated_identity_policy_summary(events)` as explicit digest re-exports
+with unchanged signatures. Their category definitions, percentage denominators,
+compatibility aliases, ordering and legacy/current counterfactual distinctions
+are unchanged. Summaries do not mutate their inputs, and baseline/shadow winners
+remain observational rather than evidence of publication.
+
+`record_generated_identity_shadow` and `record_generated_identity_policy` handle
+already matched log messages. Each receives the message, record timestamp and
+level, plus the dedicated observation list, local counter, error list, strict
+native JSON-object parser, diagnostic text formatter and a zero-argument
+source-reference callback. The digest retains substring matching at the original
+branch positions and continues after either outcome. Helpers retain first-marker
+splitting, whitespace stripping, native JSON types and the original parser-result
+object, replacing its `time` with the formatted record timestamp. A successful
+observation acquires no generic event counter or provenance fields. Both
+production and self-test observations retain their existing treatment.
+
+Only encoding/parsing is inside the parsing exception handler. Malformed input
+retains the exact error level, exception detail, 240-character escaped raw-text
+limit and source reference; the callback is invoked only on failure. Observation
+schema/count problems accepted by parsing still fail later in summarisation,
+without becoming parse errors or being coerced to zero. All collections belong
+to one `analyse` invocation; no state is accumulated by the module.
+
+Dependency direction: digest → generated identity → values.
+`most_common_with_cutoff_ties` moves unchanged to the values leaf and remains an
+explicit digest import for original-editorial reporting. The generated-identity
+module imports no digest, renderer, bot or snapshot readers. Import performs no
+home lookup, runtime I/O, logging setup or service initialisation. Report assembly,
+original-editorial companion deduplication, generated-image spacing/resume state
+and image-selection algorithms remain with their existing owners.
 
 ## Quotation Corpus Accounting
 

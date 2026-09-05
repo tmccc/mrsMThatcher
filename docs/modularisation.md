@@ -382,13 +382,104 @@ Production files, configuration, logs, durable data, pools and running services
 are untouched. Stage five is committed locally only; it is not pushed, merged or
 deployed.
 
+The stage-five completion-time "local commit only" statement predates its push.
+Stage-six setup fetched and verified `origin/codex/modularisation-stage5` at
+`608b5b730f5da2d36f62bc2db52598a31a48e294` on 2026-09-05.
+
+## Extracted in stage 6
+
+Base: `608b5b730f5da2d36f62bc2db52598a31a48e294`, the fetched stage-five
+tip, whose parent is `a556a7a0cde538499f53e6ee31d87d877296537e`.
+Ancestry checks confirm the completed stage-one through stage-five commits are
+all included. Fetched `origin/master` and production HEAD remain at
+`e08d894d9cd39a07ebe4eeb72205baa864d1a2be`, lacking those stages. Work is on
+`codex/modularisation-stage6` in
+`/disks/disk1/research/mrsMThatcher-modularisation-stage6`; no suffix was needed,
+and existing branches and worktrees are preserved.
+
+`mrs_log_digest_generated_identity.py` owns the two specific observation
+handlers for `GENERATED_IDENTITY_POLICY_SHADOW_RESULT` and
+`GENERATED_IDENTITY_POLICY_APPLIED`, plus `generated_identity_shadow_summary`
+and `generated_identity_policy_summary`. The digest explicitly re-exports both
+summary functions with their original signatures and calls the handlers at the
+original branch positions. Substring precedence and both successful/failed
+`continue` paths are preserved.
+
+Handlers receive only the message, timestamp, level, dedicated observation list,
+local counter, error list, strict native JSON-object parser, text formatter and
+lazy source-reference callback. They preserve first-marker splitting, whitespace
+stripping, timestamp replacement, list order, parser-result mutation, error
+detail/truncation/provenance and exactly-once family counters. The parse exception
+boundary still covers only encoding/parsing; invalid summary inputs accepted by
+parsing remain later failures. These observations still bypass `add_event`,
+without new generic counters or provenance fields, including self-test sources.
+
+Both summary bodies move unchanged: policy relevance, verified causation,
+effects without winner changes, legacy unverified differences, invariant
+failures, neutral ties/downstream differences, origin-only/penalty counts,
+transitions, recovery, denominators, aliases and category/ranking order retain
+their definitions. No baseline or shadow winner becomes evidence of publication.
+`most_common_with_cutoff_ties` moves unchanged to the values leaf, retaining the
+digest import used by original-editorial reporting. Dependency direction:
+digest → generated identity → values. The new module imports no coordinator,
+renderer, bot or snapshot reader and performs no I/O, home lookup, logging setup
+or service initialisation. State remains local to each analysis call.
+
+Original-editorial handling/companion deduplication, generated-image spacing and
+resume persistence, snapshots, utilisation/runway, historical-context handling,
+publication authority/recovery/reconciliation, report assembly, CLI delivery and
+the bot's selection/scoring algorithms and configuration are unchanged.
+
+| Size (physical lines; functions include definition/docstring) | Before | After |
+| --- | ---: | ---: |
+| Digest file | 16,651 | 16,455 |
+| `analyse` | 4,979 | 4,959 |
+| Generated-identity module | — | 254 |
+| Values module | 247 | 267 |
+| `run_digest` / Markdown wrapper | 360 / 10 | unchanged |
+
+Validation uses the host Python 3.10.12 / pytest 9.1.1 environment and committed
+temporary-HOME/subprocess isolation. The pre-edit baseline passes 145 selected
+tests: the relevant identity and original-editorial digest cases, digest,
+Markdown and safety suites, and spacing-resume/source-identity/JSON-contract CLI
+regressions. Another 32 new observation/summary boundary cases pass against the
+unchanged baseline before extraction. The final suite passes 183 tests, including
+those 32 and six new import/re-export/handler/foreign-directory CLI cases. The
+documentation gate passes for 187 modules. No existing assertions were changed.
+
+A temporary replay uses 116 synthetic interleaved records, both source classes,
+legacy/current categories, repeated observations, unknown fields, native numeric
+types, ranking ties, original-editorial companions, historical events, spacing
+and malformed payloads. Twenty complete reports and Markdown renderings match
+exactly across empty/full/first/resumed windows and five text limits. Comparison
+checks every value, type and dictionary/list order; independent repeated analysis
+calls leave inputs unchanged. Eight schema-invalid observations preserve the
+same later summary exception types and details.
+
+Twelve foreign-directory CLI scenarios (24 invocations across both revisions)
+cover primary/secondary and standalone Markdown/JSON, full/first/resumed/empty
+windows, fingerprint cursors and timestamp fallback. Markdown, stderr and saved
+resume bytes match exactly. JSON bytes match after replacing only the two
+independently verified producer source-hash and repository-HEAD fields. The
+comparison is repeated after committing to exercise the final commit identity.
+All 162 other retained digest function/class ASTs and the three moved function
+ASTs are unchanged; unrelated analysis branches, setup and report assembly are
+also unchanged. The full historical/bot-scoring suites and live operational calls
+are outside this focused validation.
+
+Production files, configuration, logs, durable data, image pools and running
+services are untouched. Stage six is committed locally only; it is not pushed,
+merged or deployed.
+
 ## Likely next steps
 
-1. Extract generated-identity policy/shadow observations and their summaries as
-   the next bounded `analyse` family, passing local counters explicitly. Leave
-   remote-write/reconciliation snapshots and cross-event incident reconciliation
-   until their evidence inputs can be separated coherently. An existing corpus-reader finding for later
-   work: parsed content and SHA-256 come from separate reads; changing that
+1. Extract original-editorial selection/shadow observations, their summary and
+   companion deduplication together, passing the dedicated list and local
+   companion counter explicitly. The shared ranking leaf is already available.
+   Leave remote-write/reconciliation snapshots and cross-event incident
+   reconciliation until their evidence inputs can be separated coherently.
+   An existing corpus-reader finding for later work: parsed content and SHA-256
+   come from separate reads; changing that
    binding is a separate behavioural decision, outside these extractions.
 2. In the bot, extract bounded reply-context/history/media preparation around
    the existing `single_call_reply` contract, passing state and fetch functions
