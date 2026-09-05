@@ -1812,3 +1812,116 @@ bot refactor.
 No production checkout, configuration, durable bot state, logs or image pools
 were changed; no bot/provider/posting calls, service control, merge or deployment
 occurred. Earlier worktrees and branches are preserved.
+
+## Extracted in stage 21
+
+Base: `271873045266b4d6af4f2343af3f4c4c4414a46b`, independently verified against
+the pushed `origin/codex/modularisation-stage20`. Work is isolated on
+`codex/modularisation-stage21` in
+`/disks/disk1/research/mrsMThatcher-modularisation-stage21`.
+Only this stage is implemented; the supervisor selects further useful digest
+boundaries in fresh sessions, without a stage-number ceiling.
+
+`mrs_log_digest_provider_observations.py` owns the nine provider observation
+helpers (**187 original lines**): `xai_usage_stage_from_msg`,
+`provider_usage_provider_from_msg`, `parse_xai_call_start`,
+`parse_xai_usage_from_msg`, `xai_usage_context_from_pending`,
+`unknown_xai_usage_context`, `normalise_active_xai_call_attempt`,
+`_cache_input_metric` and `summarize_xai_usage_event`. Six digest aliases and
+three thin wrappers retain the original signatures/defaults and current
+stage/lane/cache/integer-conversion delegation. The owner imports the shared
+`Record`; scalar converters remain in the existing provider-cost/value owners
+and are supplied through current digest callbacks. A separate observation owner
+keeps mutation and parsing out of the read-only provider-cost reporting module.
+
+`observe_provider_message` contains the complete **79-line** pre-EVENT span,
+from Asking-Grok context setup through call-start parsing/attempt creation,
+usage matching/mutation, success counters and malformed-usage recording.
+Explicit selected record/message, pending mention/quote state, active context/
+index, lists, statistics and current helpers replace implicit local dependencies.
+The returned context/index are rebound at the original position. Provider/stage/
+lane/context matching, missing-provider fallback, optional reasoning effort,
+usage-observed mutation and index clearing, timestamps, exact error fields,
+list order and shared objects are preserved. Unknown, partial and cache metrics
+retain their existing values and precedence.
+
+Source switching, later context-clearing/error paths, resume decisions and
+cost/report assembly remain in the coordinator. There are no extra source
+filters, validators, normalisation, stored callbacks, dependency containers,
+reverse imports, clock samples, file/home/configuration access or provider calls.
+Schema 3, Markdown, CLI/defaults/provenance, locking and publication authority
+are unchanged.
+
+| Physical lines | Before | After |
+| --- | ---: | ---: |
+| Digest file | 6,012 | 5,802 (−210) |
+| `analyse` | 3,201 | 3,142 (−59) |
+| Provider-observation owner | — | 336 |
+| `run_digest` / Markdown wrapper | 360 / 10 | 360 / 10 |
+
+Validation: baseline **252 passed**, final **254 passed**, using
+`MRS_TEST_MODE=1 PYTEST_DISABLE_PLUGIN_AUTOLOAD=1 python3 -m pytest` with the
+established temporary-HOME/network isolation. Selection: `test_mrs_log_digest`,
+`test_digest_reply_observability`, `test_digest_markdown`,
+`test_digest_safety_hardening`, `test_digest_costs`, `test_openai_cost_digest` and
+`test_digest_historical_events`; the existing guarded module-import cases; and
+seven selected integration functions (nine cases) for resume/current-state
+separation, source identity across resume filtering, schema roots, production/
+self-test reply identity, self-test pending resume and quote/meme source isolation.
+The legacy-provider resume-clearing regression remains included.
+
+One new boundary test covers current callback delegation, source predicates,
+active context/index transitions, shared attempt/event mutation, unmatched and
+malformed usage, missing-provider matching, cache precedence and counters. The
+existing guarded-import parametrisation includes the new owner. Exact source
+checks confirm all nine moved bodies, six aliases, retained signatures, wrapper/
+observer wiring and the entire observation span; every remaining coordinator
+byte is unchanged. Documentation coverage passes for **203 modules**;
+`git diff --check` passes.
+
+Three complete JSON/Markdown comparisons use shared existing `record`,
+`write_digest_log`, `digest_event_line` and fixed-time cost fixtures at identical
+temporary paths: matched/unmatched usage (**34,815 / 11,396 bytes**), malformed/
+partial metrics (**35,046 / 11,396**) and resumed/source-isolated attempts
+(**36,230 / 12,913**). Per-record transitions, shared attempt/event identity,
+direct parser/context/normalisation/cache projections, usage totals, provider
+cost summaries and seed/final resume state also match. These direct checks matter
+because schema 3 omits the legacy provider-usage arrays. Each producer hash was
+verified independently from source bytes and each HEAD through Git before
+substituting only the producer-source hash; both HEADs were the base at comparison
+time. Markdown, direct/state results and input bytes/modes/mtimes match without
+substitution. Temporary comparison code/data are excluded. This is focused
+preservation evidence; no exhaustive replay or full bot harness was run.
+
+Recommended next boundary: raw X error observation (**68 lines**, starting at
+`x_error_match`) in the transaction owner, and the related provider error/context
+reset span (**17 lines**) in the provider-observation owner, at their existing
+positions. X handling needs the selected source request, exact 300-second window,
+pending lane/target, shared request mutation, restriction predicates, counters
+and source/time/format helpers; retain its early handled-403 `continue` outcome.
+The provider adapter must return the updated context. Adjacent rate-limit
+enrichment/traceback counting is **11 lines** and depends on the latest API error;
+keep its dispatch order explicit and avoid turning these into a general parser.
+
+Other assessed boundaries remain unimplemented: post-scan media ambiguity
+(**81 lines**) consumes transactions, request chronology and supplied archive
+evidence; remaining-error filtering (**40**) needs suppression fingerprints,
+self-test/API times and the five-second restriction window. Pending confirmed
+receipt lifecycle/error preparation (**88**, including
+`clear_latest_reconciliation`) needs source authority and ordered receipt
+identities; prepared receipt recovery (**91**) follows incident classification
+and uses supplied incident/snapshot evidence and receipt-role vocabulary.
+API counters/semantics (**259**) and failure/cooldown summaries (**38**) require
+explicit validated-success selection and production event identity. Legacy
+mention/hot-post (**139**) and quote-reply (**92**) section spans need exact
+pending-state returns, active-context clearing and event callbacks. The enclosing
+quote/image span (**252**) already mixes raw handlers with extracted observer
+dispatch; select its remaining raw subgroups separately. Meme handling (**19**)
+and created-post identity (**20**) are smaller adjacent spans, with the latter
+retaining canonical-response checks and production event-object authority.
+Further extraction should justify each boundary, not move all of `analyse` to
+reduce its line count.
+
+No production checkout, configuration, durable bot data, logs or image pools
+were changed; no bot execution, provider/posting calls, service control, merge
+or deployment occurred. Previous branches and worktrees are preserved.

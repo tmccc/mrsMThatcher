@@ -37,6 +37,7 @@ and AppleDouble files.
 | `mrs_log_digest_markdown.py` | Prepared-report Markdown presentation and section rendering | None; receipt lifecycle analysis is supplied by the caller |
 | `mrs_log_digest_costs.py` | Published-cost cache validation, UTC-window accounting and report preparation | Cache reads only through an explicitly supplied stable reader; paths, clock observations and strict JSON parser supplied by caller |
 | `mrs_log_digest_provider_costs.py` | Pure conversational provider usage totals, cost attribution, cache-metric coverage and currency formatting | None; consumes supplied observations without mutation |
+| `mrs_log_digest_provider_observations.py` | Passive conversational provider call/usage parsing, context selection, attempt matching and observation projection | Supplied records, pending/active state, lists/statistics and current parser/formatter/converter callbacks; returns active context/index and mutates shared attempts; no I/O, clock sample or runtime access |
 | `mrs_log_digest_runtime.py` | Current state/configuration validation and operator pause observations | Reads only through supplied stable readers; explicit project paths, strict JSON parsers, file-time conversion and pause clock; no import-time runtime access |
 | `mrs_log_digest_state_reporting.py` | Prepared current-state, author-strike, cooldown/headline and mention-control reporting | Explicit data, current helpers, vocabulary, epoch conversion and observation clock; refreshes supplied reports and uses the supplied event callback and statistics counter; no I/O or import-time runtime access |
 | `mrs_log_digest_remote_write.py` | Read-only remote-write barrier identities, grouping, safety and reconciliation archive observations | Explicit paths, stable reader, exact-Decimal parser, diagnostic formatter, clock and snapshot/archive-read callbacks; lazy read-only inspectors; no import-time runtime access |
@@ -157,6 +158,33 @@ precedence; it imports no coordinator, renderer, bot or cache reader and perform
 no runtime I/O. Usage parsing/projection, pending-call correlation, `analyse`,
 resume state and operational-health/publication authority stay with their current
 owners. The published-cost cache module and its coordinator wrappers are unchanged.
+
+Provider-observation callers retain `xai_usage_stage_from_msg`,
+`provider_usage_provider_from_msg`, `parse_xai_call_start`,
+`parse_xai_usage_from_msg`, `xai_usage_context_from_pending`,
+`unknown_xai_usage_context`, `normalise_active_xai_call_attempt`,
+`_cache_input_metric` and `summarize_xai_usage_event` through `mrs_log_digest`
+with their original signatures/defaults. The first six are direct aliases from
+`mrs_log_digest_provider_observations`; three thin wrappers supply the current
+lane, stage, cache and integer-conversion helpers. Shared converters remain in
+`mrs_log_digest_provider_costs` and `mrs_log_digest_values`; the observation
+owner imports the shared `Record` from `mrs_log_digest_records`.
+
+`observe_provider_message` receives the selected record/message, pending
+mention/quote dictionaries, active context/index, attempt/usage/error lists,
+statistics and explicit current callbacks. At the original pre-EVENT position it
+sets Asking-Grok context, parses call starts, creates attempts, parses/matches
+usage, mutates the original matched attempt and appends the summariser's original
+event, or records the exact malformed-usage fields. It returns the active context
+and attempt index without copying. Source predicates, provider/stage/lane/context
+matching, missing-provider fallback, optional reasoning effort, timestamps,
+ordering, counters and absent/partial/cache values are unchanged.
+
+Source switching, later context-clearing/error paths, resume decisions and
+cost/report assembly remain in the coordinator. The owner stores no callbacks,
+imports no coordinator and performs no clock, file, home, configuration or
+provider access. Schema 3, Markdown, CLI/defaults/provenance, locking and
+publication authority are unchanged.
 
 Digest runtime callers retain `load_current_runtime_state`,
 `load_current_runtime_config` and `runtime_control_snapshot` with their original

@@ -32,6 +32,127 @@ def structured_record(offset, payload, *, level="INFO"):
     )
 
 
+def test_provider_observation_keeps_active_state_shared_rows_and_current_callbacks(monkeypatch):
+    messages = [
+        ("other_source", "Calling AI-first reply stage=proposer model=ignored"),
+        ("ask_grok_for_reply", "Asking Grok for reply. context_text='fixture'"),
+        ("tested_pipeline_structured_call", "Calling tested reply pipeline stage=proposer provider=OpenAI model=fixture-model reasoning_effort=low"),
+        ("usage_logger", "xAI reply stage=proposer usage={}"),
+        ("usage_logger", "Tested reply stage=proposer provider=OpenAI usage=[]"),
+        ("usage_logger", "Tested reply stage=proposer provider=OpenAI usage={'prompt_tokens': '7', 'prompt_tokens_details': {'cached_tokens': 3}, 'cache_creation_input_tokens': False, 'cache_write_input_tokens': 0}"),
+        ("xai_structured_reply_call", "Calling AI-first reply stage=proposer model=grok-fixture"),
+        ("usage_logger", "xAI reply stage=proposer usage={'cost_in_usd_ticks': 0}"),
+        ("ask_grok_for_reply", "Grok chose to skip"),
+    ]
+    records = [
+        replace(structured_record(i, {}), src=source, msg=message)
+        for i, (source, message) in enumerate(messages)
+    ]
+    calls = {}
+
+    def watch(name):
+        original = getattr(digest, name)
+        calls[name] = []
+
+        def current(*args, **kwargs):
+            result = original(*args, **kwargs)
+            calls[name].append((args, kwargs, result))
+            return result
+
+        monkeypatch.setattr(digest, name, current)
+
+    for name in (
+        "parse_xai_call_start", "parse_xai_usage_from_msg",
+        "xai_usage_context_from_pending", "xai_usage_stage_from_msg",
+        "provider_usage_provider_from_msg", "normalise_reply_lane",
+        "summarize_xai_usage_event", "_cache_input_metric",
+        "int_usage_value", "optional_int_usage_value", "short",
+    ):
+        watch(name)
+
+    boundaries = []
+    original_observe = digest.observe_provider_message
+
+    def observe(r, msg, **inputs):
+        assert r is records[len(boundaries)] and msg == r.msg
+        context, index = original_observe(r, msg, **inputs)
+        boundaries.append((inputs, context, index, [
+            row["usage_observed"] for row in inputs["xai_call_attempts"]
+        ], tuple(inputs["xai_call_attempts"])))
+        return context, index
+
+    monkeypatch.setattr(digest, "observe_provider_message", observe)
+    report = digest.analyse(
+        records,
+        initial_pending_mention={"mention_id": "505", "author_id": "606"},
+        generation_time=records[-1].ts,
+    )
+    assert [item[2] for item in boundaries] == [None, None, 0, 0, 0, None, 1, None, None]
+    assert [item[3] for item in boundaries] == [
+        [], [], [False], [False], [False], [True],
+        [True, False], [True, True], [True, True],
+    ]
+    shared = boundaries[0][0]
+    for inputs, _context, _index, _observed, _attempts in boundaries:
+        for key in ("xai_call_attempts", "xai_usage_events", "xai_usage_parse_errors", "stats"):
+            assert inputs[key] is shared[key]
+    contexts = [entry[2] for entry in calls["xai_usage_context_from_pending"]]
+    assert len(contexts) == 3
+    assert boundaries[1][1] is contexts[0]
+    assert all(boundaries[i][1] is contexts[1] for i in range(2, 6))
+    assert all(boundaries[i][1] is contexts[2] for i in range(6, 9))
+    assert report["resume_context"]["active_xai_context"] is None
+    assert report["resume_context"]["active_xai_call_attempt"] is None
+
+    attempts = shared["xai_call_attempts"]
+    assert boundaries[2][4][0] is attempts[0]
+    assert boundaries[6][4][1] is attempts[1]
+    assert attempts == [
+        {"time": "2026-09-04 12:00:02", "lane": "mention", "context_id": "505",
+         "author_id": "606", "stage": "proposer", "model": "fixture-model",
+         "provider": "OpenAI", "reasoning_effort": "low", "usage_observed": True,
+         "usage_time": "2026-09-04 12:00:05"},
+        {"time": "2026-09-04 12:00:06", "lane": "mention", "context_id": "505",
+         "author_id": "606", "stage": "proposer", "model": "grok-fixture",
+         "usage_observed": True, "usage_time": "2026-09-04 12:00:07"},
+    ]
+    assert [entry[0][0] for entry in calls["parse_xai_call_start"]] == [records[2].msg, records[6].msg]
+    assert [entry[0][0] for entry in calls["parse_xai_usage_from_msg"]] == [r.msg for r in records]
+    summaries = calls["summarize_xai_usage_event"]
+    for i, offset in enumerate((3, 5, 7)):
+        args, _kwargs, result = summaries[i]
+        assert args[0] is records[offset]
+        assert args[1] is calls["parse_xai_usage_from_msg"][offset][2][0]
+        assert args[2] is boundaries[offset][1]
+        assert result is shared["xai_usage_events"][i]
+    events = shared["xai_usage_events"]
+    assert [item["call_start_matched"] for item in events] == [False, True, True]
+    assert [item["model"] for item in events] == ["", "fixture-model", "grok-fixture"]
+    assert events[1]["prompt_tokens"] == 7
+    assert events[1]["cache_read_input_tokens"] == events[1]["cached_tokens"] == 3
+    assert events[1]["cache_creation_input_tokens"] is None
+    assert events[1]["cache_write_input_tokens"] == 0
+    assert events[0]["cost_in_usd_ticks"] is None and events[2]["cost_in_usd_ticks"] == 0
+    assert len(calls["xai_usage_stage_from_msg"]) == 6
+    assert len(calls["provider_usage_provider_from_msg"]) == 3
+    assert len(calls["_cache_input_metric"]) == 9
+    assert any(entry[0] == (False,) for entry in calls["optional_int_usage_value"])
+    assert any(entry[0] == ("7",) for entry in calls["int_usage_value"])
+    assert any(entry[0] == (records[4].msg, 500) for entry in calls["short"])
+    assert shared["xai_usage_parse_errors"] == [{
+        "time": "2026-09-04 12:00:04", "where": "usage_logger:5",
+        "message": records[4].msg, "error": "xAI usage payload was list, not dict",
+    }]
+    assert {key: shared["stats"][key] for key in (
+        "provider_usage_successes", "xai_usage_successes", "openai_usage_successes", "xai_usage_parse_errors",
+    )} == {"provider_usage_successes": 3, "xai_usage_successes": 2,
+           "openai_usage_successes": 1, "xai_usage_parse_errors": 1}
+    lane_calls = len(calls["normalise_reply_lane"])
+    restored = digest.normalise_active_xai_call_attempt({**attempts[1], "usage_observed": False})
+    assert restored["lane"] == "mention"
+    assert len(calls["normalise_reply_lane"]) == lane_calls + 1
+
+
 def test_receipt_builders_keep_field_precedence_callback_order_and_pending_identity():
     r = structured_record(0, {})
     indexes, refs, calls = {r.path: 2}, {"record_number": 1}, []
