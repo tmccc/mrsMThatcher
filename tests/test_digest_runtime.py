@@ -344,6 +344,7 @@ def import_guard(name, *args, **kwargs):
         "mrs_log_digest", "mrs_log_digest_markdown", "mrsMThatcher2",
         "remote_write_safety_protocol", "exact_receipt_retirement",
         "remote_write_transport_journal", "remote_media_upload_receipt",
+        "shadow_lifecycle",
     }, name
     return original_import(name, *args, **kwargs)
 
@@ -440,3 +441,65 @@ assert before == {p: digest._stable_file_identity(os.stat(p)) for p in paths}
     assert result.returncode == 0, result.stderr
     assert result.stdout == b""
     assert {p.name: p.read_bytes() for p in tmp_path.iterdir()} == documents
+
+
+def test_lifecycle_snapshot_keeps_current_lazy_helpers_and_shared_rows(monkeypatch, tmp_path):
+    from types import SimpleNamespace
+
+    features = [{"feature_name": "supplied"}]
+    register = {"schema_version": 7, "features": features}
+    schedule = [{"decision_overdue": False}, {"decision_overdue": True}]
+    calls = []
+
+    def load(path):
+        calls.append(("load", path))
+        return register
+
+    def decide(value):
+        assert value is register
+        calls.append("schedule")
+        return schedule
+
+    monkeypatch.setitem(sys.modules, "shadow_lifecycle", SimpleNamespace(
+        load_lifecycle_register=load, lifecycle_decision_schedule=decide,
+    ))
+    result = digest.shadow_lifecycle_snapshot(tmp_path)
+    assert calls == [("load", tmp_path / "shadow_feature_lifecycle.json"), "schedule"]
+    assert list(result) == ["available", "schema_version", "features", "decision_schedule", "overdue_decisions"]
+    assert result["schema_version"] == 7
+    assert result["features"] is features
+    assert result["decision_schedule"] is schedule
+    assert result["overdue_decisions"] == [schedule[1]]
+    assert result["overdue_decisions"][0] is schedule[1]
+
+
+@pytest.mark.parametrize("phase", ["import", "load", "schedule"])
+def test_lifecycle_snapshot_catches_lazy_import_and_helper_failures(monkeypatch, tmp_path, phase):
+    import builtins
+    from types import SimpleNamespace
+
+    original_import = builtins.__import__
+    calls = []
+
+    def step(name, result):
+        calls.append(name)
+        if name == phase:
+            raise ImportError("supplied failure")
+        return result
+
+    def importing(name, *args, **kwargs):
+        if name == "shadow_lifecycle":
+            step("import", None)
+        return original_import(name, *args, **kwargs)
+
+    monkeypatch.setitem(sys.modules, "shadow_lifecycle", SimpleNamespace(
+        load_lifecycle_register=lambda path: step("load", {}),
+        lifecycle_decision_schedule=lambda value: step("schedule", []),
+    ))
+    monkeypatch.setattr(builtins, "__import__", importing)
+    assert digest.shadow_lifecycle_snapshot(tmp_path) == {
+        "available": False,
+        "reason": "lifecycle register unavailable: ImportError: supplied failure",
+        "features": [],
+    }
+    assert calls == ["import", "load", "schedule"][:["import", "load", "schedule"].index(phase) + 1]

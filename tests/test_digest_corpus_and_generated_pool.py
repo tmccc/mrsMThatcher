@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 import hashlib
 import inspect
 import os
@@ -270,3 +270,134 @@ assert len(opened) == len(paths) + 6  # Corpus parsing and hashing are separate 
     assert result.returncode == 0, result.stderr
     assert result.stdout == b""
     assert before == {str(p): (p.read_bytes(), p.stat().st_mtime_ns) for p in base.rglob("*") if p.is_file()}
+
+
+@pytest.mark.parametrize("explicit_now", [False, True])
+def test_post_rates_keep_current_callbacks_clock_scan_and_first_id(monkeypatch, tmp_path, explicit_now):
+    from types import SimpleNamespace
+
+    now = datetime(2026, 7, 10, 12)
+    paths = [tmp_path / "bot.log"]
+    calls = []
+    records = [digest.Record(now - timedelta(days=days), "INFO", "test", 1, message, paths[0], 1)
+               for days, message in [(40, "EVENT old"), (20, "EVENT middle"),
+                                     (2, "EVENT first"), (2, "EVENT bool_id"),
+                                     (1, "EVENT duplicate"), (1, "heartbeat"),
+                                     (3, "MRS_TEST_MODE"), (3, "EVENT excluded")]]
+    payloads = {name: {"event": "main_post_posted", "lane": "quote_image",
+                       "post_id": identity, "image_basename": basename}
+                for name, identity, basename in [
+                    ("old", "old", "chosen.png"), ("middle", "middle", "regular.jpg"),
+                    ("first", "first", "chosen.png"), ("bool_id", True, "regular.jpg"),
+                    ("duplicate", "first", "regular.jpg"),
+                ]}
+
+    def read(logs, cutoff, end):
+        assert logs is paths
+        assert cutoff == now - timedelta(days=45)
+        assert end == now and end.tzinfo is None
+        calls.append("read")
+        return records
+
+    def parse(message):
+        calls.append(message)
+        return payloads[message.removeprefix("EVENT ")]
+
+    def match(basename):
+        calls.append(("match", basename))
+        return basename == "chosen.png"
+
+    class Clock(datetime):
+        @classmethod
+        def now(cls):
+            calls.append("now")
+            return now
+
+    monkeypatch.setattr(digest, "read_records", read)
+    monkeypatch.setattr(digest, "try_parse_strict_json_object_from_msg", parse)
+    monkeypatch.setattr(digest, "GENERATED_BASENAME_RE", SimpleNamespace(fullmatch=match))
+    monkeypatch.setattr(digest, "datetime", Clock)
+    supplied = now.replace(tzinfo=timezone(timedelta(hours=3))) if explicit_now else None
+    result = digest.generated_post_rate_history(paths, supplied, days=45)
+    assert calls == [*([] if explicit_now else ["now"]), "read",
+                     *[item for name, payload in payloads.items()
+                       for item in ("EVENT " + name, ("match", payload["image_basename"]))]]
+    assert result["scanned_records"] == 8 and result["unique_regular_posts"] == 4
+    assert result["contaminated_seconds_excluded"] == 1
+    assert result["coverage_start"] == "2026-05-31 12:00:00"
+    assert result["coverage_end"] == "2026-07-10 12:00:00"
+    assert list(result["windows"]) == ["trailing_7d", "trailing_30d"]
+    for label, count, days in [("trailing_7d", 2, 7), ("trailing_30d", 3, 30)]:
+        window = result["windows"][label]
+        assert window["regular_posts"] == count
+        assert type(window["generated_posts"]) is int and window["generated_posts"] == 1
+        assert type(window["coverage_days"]) is float and window["coverage_days"] == days
+        assert window["regular_posts_per_day"] == count / days
+        assert window["coverage_quality"] == "gapped"
+    history = result["successful_regular_posts"]
+    assert [row["post_id"] for row in history] == ["old", "middle", "True", "first"]
+    assert history[-1]["generated"] is True and history[-1]["basename"] == "chosen.png"
+    assert history[2]["generated"] is False
+    failure = OSError("current reader failed")
+
+    def failing_read(*args):
+        raise failure
+
+    monkeypatch.setattr(digest, "read_records", failing_read)
+    calls.clear()
+    with pytest.raises(OSError) as caught:
+        digest.generated_post_rate_history(paths)
+    assert caught.value is failure and calls == ["now"]
+
+
+def test_runway_config_keeps_current_defaults_parser_sharing_and_error_boundary(monkeypatch, tmp_path):
+    assert digest.RUNWAY_CONFIG_DEFAULTS is generated_pool.RUNWAY_CONFIG_DEFAULTS
+    shared = {"nested": True}
+    defaults = {"POST_SLEEP_MIN": shared, "POST_SLEEP_MAX": 9000, "extra": False}
+    monkeypatch.setattr(digest, "RUNWAY_CONFIG_DEFAULTS", defaults)
+    path = tmp_path / "mrsMThatcher.local.json"
+    raw = b'{"POST_SLEEP_MAX":8000.5,"ignored":true}'
+    original_parser = digest._strict_native_json_object
+    calls = []
+    failure_at = None
+
+    def step(name, value):
+        calls.append(name)
+        if name == failure_at:
+            raise PermissionError("synthetic local config failure")
+        return value
+
+    def exists(value):
+        assert value == path
+        return step("exists", failure_at != "missing")
+
+    def read(value):
+        assert value == path
+        return step("read", raw)
+
+    def parse(value, *, label):
+        assert value is raw and label == "mrsMThatcher.local.json"
+        return original_parser(step("parse", value), label=label)
+
+    monkeypatch.setattr(Path, "exists", exists)
+    monkeypatch.setattr(Path, "read_bytes", read)
+    monkeypatch.setattr(digest, "_strict_native_json_object", parse)
+    observed = {"POST_SLEEP_MAX": 7000, "extra": ["shared"], "ignored": 1}
+    result = digest.load_runway_config(tmp_path, observed)
+    assert calls == ["exists", "read", "parse"]
+    assert list(result) == list(defaults)
+    assert result["POST_SLEEP_MIN"] is shared and result["extra"] is observed["extra"]
+    assert type(result["POST_SLEEP_MAX"]) is float and result["POST_SLEEP_MAX"] == 8000.5
+    assert defaults["POST_SLEEP_MAX"] == 9000 and observed["POST_SLEEP_MAX"] == 7000
+    for failure_at, expected_calls in [("missing", ["exists"]), ("read", ["exists", "read"]),
+                                       ("parse", ["exists", "read", "parse"]), ("exists", ["exists"])]:
+        calls.clear()
+        if failure_at == "exists":
+            with pytest.raises(PermissionError, match="synthetic local config failure"):
+                digest.load_runway_config(tmp_path, observed)
+        else:
+            result = digest.load_runway_config(tmp_path, observed)
+            assert result == ({**defaults, "POST_SLEEP_MAX": 7000, "extra": observed["extra"]}
+                              if failure_at == "missing" else
+                              {"_runway_config_error": "cannot read valid local config: PermissionError"})
+        assert calls == expected_calls

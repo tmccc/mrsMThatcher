@@ -1,9 +1,11 @@
-"""Read-only snapshots of generated-image pool health and curation history.
+"""Read-only generated-image pool snapshots, post rates and runway inputs.
 
 Paths, strict JSON parsers, file hashing and time dependencies are supplied by
 callers. Import performs no runtime reads, directory scans, home lookup or
-service initialisation. Post rates, utilisation and runway remain in the digest;
-this module imports only the shared values leaf, never the digest or bot.
+service initialisation. Post-rate readers/parsers and runway defaults are current
+named inputs. Utilisation and runway calculation consume these observations in
+the image-usage owner; report assembly stays in the digest. This module imports
+only the shared values leaf, never the digest or bot.
 """
 from __future__ import annotations
 
@@ -261,3 +263,105 @@ def generated_pool_health_snapshot(
         "active_origin_quote_hashes": {name: (GENERATED_BASENAME_RE.fullmatch(name).group(1) if GENERATED_BASENAME_RE.fullmatch(name) else None) for name in sorted(active_names)},
         "warnings": warnings, "warning_count": len(warnings), "health": "OK" if not warnings else "WARNING",
     }
+
+
+def generated_post_rate_history(
+    logs: List[Path],
+    now: Optional[datetime] = None,
+    days: int = 30,
+    *,
+    read_records: Callable[..., List[Any]],
+    try_parse_strict_json_object_from_msg: Callable[[str], Optional[Dict[str, Any]]],
+    GENERATED_BASENAME_RE: re.Pattern[str],
+    clock_now: Callable[[], datetime],
+) -> Dict[str, Any]:
+    """Scan bounded production history once and count structured successful regular posts."""
+    now = now or clock_now()
+    if now.tzinfo is not None: now = now.replace(tzinfo=None)
+    cutoff = now - timedelta(days=days)
+    records = read_records(logs, cutoff, now)
+    marker_fragments = ("/tmp/pytest-", "/tmp/pytest-of-", "mrs_test_mode", "dummy credentials", "127.0.0.1")
+    contaminated_seconds = {record.ts for record in records if any(fragment in record.msg.lower() for fragment in marker_fragments)}
+    posts: Dict[str, Dict[str, Any]] = {}
+    for record in records:
+        if record.ts in contaminated_seconds or not record.msg.startswith("EVENT "):
+            continue
+        event = try_parse_strict_json_object_from_msg(record.msg)
+        if not event or event.get("event") != "main_post_posted" or event.get("lane") != "quote_image":
+            continue
+        post_id = str(event.get("post_id") or "")
+        if not post_id:
+            continue
+        basename = str(event.get("image_basename") or "")
+        posts.setdefault(post_id, {"timestamp": record.ts, "basename": basename, "generated": bool(GENERATED_BASENAME_RE.fullmatch(basename))})
+    clean_timestamps = [record.ts for record in records if record.ts not in contaminated_seconds]
+    earliest = min(clean_timestamps) if clean_timestamps else None
+    windows: Dict[str, Any] = {}
+    for window_days in (7, 30):
+        window_cutoff = now - timedelta(days=window_days)
+        selected = [post for post in posts.values() if post["timestamp"] >= window_cutoff]
+        generated = sum(post["generated"] for post in selected)
+        window_timestamps = sorted(ts for ts in clean_timestamps if ts >= window_cutoff)
+        coverage_start = max(window_cutoff, earliest) if earliest else None
+        coverage_days = max((now - coverage_start).total_seconds() / 86400.0, 0.0) if coverage_start else 0.0
+        gap_threshold_seconds = 15 * 60
+        points = ([coverage_start] if coverage_start else []) + window_timestamps + ([now] if coverage_start else [])
+        gaps = [(later - earlier).total_seconds() for earlier, later in zip(points, points[1:])]
+        largest_gap = max(gaps, default=0.0)
+        material_gaps = sum(gap > gap_threshold_seconds for gap in gaps)
+        observed_seconds = sum(min(max(gap, 0.0), gap_threshold_seconds) for gap in gaps)
+        coverage_quality = "unavailable" if not coverage_start else "continuous" if material_gaps == 0 else "gapped"
+        regular_per_day = len(selected) / coverage_days if coverage_days > 0 else None
+        generated_per_day = generated / coverage_days if coverage_days > 0 else None
+        windows[f"trailing_{window_days}d"] = {
+            "regular_posts": len(selected), "generated_posts": generated,
+            "generated_share_percent": (generated / len(selected) * 100.0) if selected else None,
+            "coverage_days": coverage_days, "calendar_span_days": coverage_days,
+            "observed_logging_days": observed_seconds / 86400.0,
+            "coverage_quality": coverage_quality, "largest_detected_gap_seconds": largest_gap,
+            "material_gap_count": material_gaps, "gap_threshold_seconds": gap_threshold_seconds,
+            "regular_posts_per_day": regular_per_day, "generated_posts_per_day": generated_per_day,
+        }
+    post_history = [
+        {"post_id": post_id, "timestamp": item["timestamp"].isoformat(sep=" "), "basename": item["basename"], "generated": item["generated"]}
+        for post_id, item in sorted(posts.items(), key=lambda pair: (pair[1]["timestamp"], pair[0]))
+    ]
+    return {"windows": windows, "scanned_records": len(records), "unique_regular_posts": len(posts), "contaminated_seconds_excluded": len(contaminated_seconds),
+            "coverage_start": earliest.isoformat(sep=" ") if earliest else None, "coverage_end": now.isoformat(sep=" "), "files_scanned": len(logs),
+            "successful_regular_posts": post_history}
+
+
+RUNWAY_CONFIG_DEFAULTS: Dict[str, Any] = {
+    "ENABLE_GENERATED_IMAGE_POOL": False,
+    "POST_SLEEP_MIN": 7200,
+    "POST_SLEEP_MAX": 9000,
+    "GENERATED_IMAGE_MIN_ORIGINAL_POSTS_BETWEEN": 2,
+}
+
+
+def load_runway_config(
+    project_dir: Path,
+    observed_config: Dict[str, Any],
+    *,
+    RUNWAY_CONFIG_DEFAULTS: Dict[str, Any],
+    parse_json_object: Callable[..., Dict[str, Any]],
+) -> Dict[str, Any]:
+    """Resolve standalone runway inputs without importing production code."""
+    result = dict(RUNWAY_CONFIG_DEFAULTS)
+    result.update({key: value for key, value in observed_config.items() if key in result})
+    local_path = project_dir / "mrsMThatcher.local.json"
+    if not local_path.exists():
+        return result
+    try:
+        local_config = parse_json_object(
+            local_path.read_bytes(), label="mrsMThatcher.local.json"
+        )
+    except Exception as exc:
+        return {
+            "_runway_config_error": (
+                "cannot read valid local config: "
+                f"{type(exc).__name__}"
+            )
+        }
+    result.update({key: value for key, value in local_config.items() if key in result})
+    return result

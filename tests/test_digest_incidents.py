@@ -281,3 +281,102 @@ def test_snapshot_window_annotation_preserves_retirement_evidence_identity(autho
         assert incident["retirement_source_identities"] is component["retirement_source_identities"]
         assert incident["retirement_source_identities"][0] is identity
         assert "blocker_kinds" not in component
+
+
+@pytest.mark.parametrize("observed,window,authoritative,relationship", [
+    ("before", BASE, False, "snapshot_observed_within_selected_window"),
+    ("after", BASE, True, "snapshot_postdates_selected_window"),
+    ("invalid", BASE, False, "unavailable"),
+    ("before", None, True, "unavailable"),
+])
+def test_window_annotation_uses_current_converters_and_shared_rows(
+    monkeypatch, observed, window, authoritative, relationship,
+):
+    class Epoch(int):
+        pass
+
+    shared = {"recorded_at_epoch": 1, "identity": {"shared": True}}
+    later = {"recorded_at_epoch": 2}
+    unknown = [{"recorded_at_epoch": value} for value in (True, 1.0, Epoch(1), None)]
+    entries = [shared, *unknown, "ignored"]
+    safety = {"observed_at": observed, "active_entries": entries,
+              "active_transaction_identities": [later],
+              "snapshot_incident_evidence": [shared]}
+    calls = []
+
+    class Clock(datetime):
+        @classmethod
+        def strptime(cls, value, fmt):
+            assert safety["selected_window_end"] == (digest.dt_text(window) if window else None)
+            assert "selected_window_relationship" not in safety
+            calls.append(("parse", value, fmt))
+            if value == "invalid":
+                raise ValueError("unknown observation time")
+            return BASE + timedelta(seconds=1 if value == "after" else -1)
+
+        @classmethod
+        def fromtimestamp(cls, value):
+            calls.append(("epoch", value))
+            assert safety["current_health_snapshot_authoritative"] is authoritative
+            return BASE + timedelta(seconds=value - 1)
+
+        @classmethod
+        def now(cls):
+            pytest.fail("annotation must not sample a clock")
+
+    monkeypatch.setattr(digest, "datetime", Clock)
+    assert digest.annotate_remote_write_snapshot_window(
+        safety, window, current_snapshot_authoritative=authoritative,
+    ) is None
+    assert calls == [("parse", observed, "%Y-%m-%d %H:%M:%S"),
+                     ("epoch", 1), ("epoch", 2), ("epoch", 1)]
+    assert safety["selected_window_relationship"] == relationship
+    assert safety["active_entries"] is entries
+    assert safety["snapshot_incident_evidence"][0] is shared
+    assert safety["active_transaction_identities"][0] is later
+    assert shared["selected_window_relationship"] == (
+        "recorded_at_or_before_selected_window_end" if window else "unavailable"
+    )
+    assert later["selected_window_relationship"] == (
+        "recorded_after_selected_window_end" if window else "unavailable"
+    )
+    for row in unknown:
+        assert row["selected_window_relationship"] == (
+            "snapshot_observed_at_or_before_selected_window_end"
+            if window and observed == "before" else "unavailable"
+        )
+    for row in (shared, later, *unknown):
+        assert row["current_health_relationship"] == (
+            "authoritative_current_snapshot" if authoritative else row["selected_window_relationship"]
+        )
+
+
+def test_window_annotation_preserves_conversion_exception_and_mutation_order(monkeypatch):
+    first, failing = {"recorded_at_epoch": 1}, {"recorded_at_epoch": 2}
+    safety = {"active_entries": [first, failing]}
+    failure = TypeError("parse callback failed")
+
+    class Clock(datetime):
+        @classmethod
+        def strptime(cls, *_args):
+            raise failure
+
+        @classmethod
+        def fromtimestamp(cls, value):
+            if value == 2:
+                raise failure
+            return BASE
+
+    monkeypatch.setattr(digest, "datetime", Clock)
+    with pytest.raises(TypeError) as caught:
+        digest.annotate_remote_write_snapshot_window(safety, BASE)
+    assert caught.value is failure
+    assert list(safety) == ["active_entries", "selected_window_end"]
+    failure = OverflowError("epoch callback failed")
+    monkeypatch.setattr(Clock, "strptime", lambda *_args: BASE)
+    with pytest.raises(OverflowError) as caught:
+        digest.annotate_remote_write_snapshot_window(safety, BASE)
+    assert caught.value is failure
+    assert first["selected_window_relationship"] == "recorded_at_or_before_selected_window_end"
+    assert failing == {"recorded_at_epoch": 2}
+    assert safety["current_health_snapshot_authoritative"] is False

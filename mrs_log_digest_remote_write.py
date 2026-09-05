@@ -7,8 +7,10 @@ inspection. Archive reads delegate through the supplied private-reader callback
 so the coordinator retains its existing entry points and patch seams.
 
 Protocol, retirement, transport and media inspectors remain lazy and read-only.
-Import performs no runtime I/O or service initialisation; this module owns no
-publication, recovery, report-window annotation or operational-health authority.
+Window annotation uses supplied time converters, cut-off and authority flag,
+mutating shared snapshot rows without further reads or clock samples. Import
+performs no runtime I/O or service initialisation; publication, recovery, window
+selection and operational-health authority stay with the caller.
 """
 from __future__ import annotations
 
@@ -1400,3 +1402,85 @@ def remote_write_safety_snapshot(
         ),
         "media_reconciliation_proven": media_reconciliation_proven,
     }
+
+
+def annotate_remote_write_snapshot_window(
+    safety: Dict[str, Any],
+    selected_window_end: Optional[datetime],
+    *,
+    current_snapshot_authoritative: bool = False,
+    strptime: Callable[[str, str], datetime],
+    fromtimestamp: Callable[[int], datetime],
+) -> None:
+    """Describe, without backdating, how current artefacts relate to a log window."""
+
+    safety["selected_window_end"] = (
+        selected_window_end.strftime("%Y-%m-%d %H:%M:%S")
+        if selected_window_end is not None
+        else None
+    )
+    try:
+        snapshot_observed_at = strptime(
+            str(safety.get("observed_at") or ""),
+            "%Y-%m-%d %H:%M:%S",
+        )
+    except ValueError:
+        snapshot_observed_at = None
+
+    if selected_window_end is None or snapshot_observed_at is None:
+        snapshot_relationship = "unavailable"
+    elif snapshot_observed_at > selected_window_end:
+        snapshot_relationship = "snapshot_postdates_selected_window"
+    else:
+        snapshot_relationship = "snapshot_observed_within_selected_window"
+    safety["selected_window_relationship"] = snapshot_relationship
+    safety["current_health_snapshot_authoritative"] = bool(
+        current_snapshot_authoritative
+    )
+
+    def annotate(item: Dict[str, Any]) -> None:
+        recorded_epoch = item.get("recorded_at_epoch")
+        recorded_at = (
+            fromtimestamp(recorded_epoch)
+            if type(recorded_epoch) is int
+            else None
+        )
+        if selected_window_end is None:
+            relationship = "unavailable"
+            reason = "selected report-window end is unavailable"
+        elif recorded_at is not None:
+            if recorded_at <= selected_window_end:
+                relationship = "recorded_at_or_before_selected_window_end"
+                reason = "reliable transaction time falls inside the selected window"
+            else:
+                relationship = "recorded_after_selected_window_end"
+                reason = "reliable transaction time post-dates the selected window"
+        elif (
+            snapshot_observed_at is not None
+            and snapshot_observed_at <= selected_window_end
+        ):
+            relationship = "snapshot_observed_at_or_before_selected_window_end"
+            reason = "the read-only snapshot itself was observed by the selected cut-off"
+        else:
+            relationship = "unavailable"
+            reason = (
+                "current artefact has no reliable transaction time and the "
+                "filesystem snapshot post-dates the selected window"
+            )
+        item["selected_window_relationship"] = relationship
+        item["selected_window_relationship_reason"] = reason
+        item["current_health_relationship"] = (
+            "authoritative_current_snapshot"
+            if current_snapshot_authoritative
+            else relationship
+        )
+
+    for entry in safety.get("active_entries") or []:
+        if isinstance(entry, dict):
+            annotate(entry)
+    for component in safety.get("active_transaction_identities") or []:
+        if isinstance(component, dict):
+            annotate(component)
+    for blocker in safety.get("snapshot_incident_evidence") or []:
+        if isinstance(blocker, dict):
+            annotate(blocker)

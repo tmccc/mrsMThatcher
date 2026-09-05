@@ -1,8 +1,10 @@
-"""Read-only observations of current bot state, configuration and pause controls.
+"""Read-only state, configuration, pause-control and feature-lifecycle observations.
 
 Project paths, stable readers and strict JSON parsers are explicit dependencies.
 File-time conversion and the pause clock are supplied by the caller. Importing
 this module performs no runtime reads, home lookup or service initialisation.
+Lifecycle loading imports its read-only register helpers lazily inside the
+existing failure boundary, using only the supplied project directory.
 Report assembly, current-health interpretation and state observation timing stay
 with the digest; this module imports neither it, Markdown nor the bot.
 """
@@ -333,3 +335,28 @@ def runtime_control_snapshot(
             "sha256": hashlib.sha256(data).hexdigest(),
             "reason": f"{type(exc).__name__}: {exc}",
         }
+
+
+def shadow_lifecycle_snapshot(project_dir: Path) -> Dict[str, Any]:
+    """Load the compact local lifecycle register without contacting a provider."""
+    path = project_dir / "shadow_feature_lifecycle.json"
+    try:
+        from shadow_lifecycle import lifecycle_decision_schedule, load_lifecycle_register
+
+        value = load_lifecycle_register(path)
+        schedule = lifecycle_decision_schedule(value)
+    except Exception as exc:
+        return {
+            "available": False,
+            "reason": f"lifecycle register unavailable: {type(exc).__name__}: {exc}",
+            "features": [],
+        }
+    return {
+        "available": True,
+        "schema_version": value["schema_version"],
+        "features": value["features"],
+        "decision_schedule": schedule,
+        "overdue_decisions": [
+            row for row in schedule if row["decision_overdue"]
+        ],
+    }

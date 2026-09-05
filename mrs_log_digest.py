@@ -222,6 +222,7 @@ from mrs_log_digest_runtime import (
     load_current_runtime_state as _load_current_runtime_state,
     load_current_runtime_config as _load_current_runtime_config,
     runtime_control_snapshot as _runtime_control_snapshot,
+    shadow_lifecycle_snapshot,
 )
 from mrs_log_digest_state_reporting import (
     AUTHOR_NO_REPLY_PROGRESS_MAX_AUTHORS,
@@ -326,6 +327,7 @@ from mrs_log_digest_remote_write import (
     _read_readonly_archive_bytes as _read_readonly_archive_bytes_impl,
     reconciliation_archive_snapshot as _reconciliation_archive_snapshot,
     remote_write_safety_snapshot as _remote_write_safety_snapshot,
+    annotate_remote_write_snapshot_window as _annotate_remote_write_snapshot_window,
 )
 from mrs_log_digest_corpus import (
     historical_context_corpus_snapshot as _historical_context_corpus_snapshot,
@@ -337,6 +339,9 @@ from mrs_log_digest_generated_pool import (
     GENERATED_AUDIT_SCHEMA_VERSION,
     GENERATED_AUDIT_KIND,
     generated_pool_health_snapshot as _generated_pool_health_snapshot,
+    RUNWAY_CONFIG_DEFAULTS,
+    generated_post_rate_history as _generated_post_rate_history,
+    load_runway_config as _load_runway_config,
 )
 from mrs_log_digest_consistency_events import (
     record_reply_evidence_unavailable,
@@ -635,77 +640,12 @@ def annotate_remote_write_snapshot_window(
     current_snapshot_authoritative: bool = False,
 ) -> None:
     """Describe, without backdating, how current artefacts relate to a log window."""
-
-    safety["selected_window_end"] = (
-        selected_window_end.strftime("%Y-%m-%d %H:%M:%S")
-        if selected_window_end is not None
-        else None
+    _annotate_remote_write_snapshot_window(
+        safety, selected_window_end,
+        current_snapshot_authoritative=current_snapshot_authoritative,
+        strptime=datetime.strptime,
+        fromtimestamp=datetime.fromtimestamp,
     )
-    try:
-        snapshot_observed_at = datetime.strptime(
-            str(safety.get("observed_at") or ""),
-            "%Y-%m-%d %H:%M:%S",
-        )
-    except ValueError:
-        snapshot_observed_at = None
-
-    if selected_window_end is None or snapshot_observed_at is None:
-        snapshot_relationship = "unavailable"
-    elif snapshot_observed_at > selected_window_end:
-        snapshot_relationship = "snapshot_postdates_selected_window"
-    else:
-        snapshot_relationship = "snapshot_observed_within_selected_window"
-    safety["selected_window_relationship"] = snapshot_relationship
-    safety["current_health_snapshot_authoritative"] = bool(
-        current_snapshot_authoritative
-    )
-
-    def annotate(item: Dict[str, Any]) -> None:
-        recorded_epoch = item.get("recorded_at_epoch")
-        recorded_at = (
-            datetime.fromtimestamp(recorded_epoch)
-            if type(recorded_epoch) is int
-            else None
-        )
-        if selected_window_end is None:
-            relationship = "unavailable"
-            reason = "selected report-window end is unavailable"
-        elif recorded_at is not None:
-            if recorded_at <= selected_window_end:
-                relationship = "recorded_at_or_before_selected_window_end"
-                reason = "reliable transaction time falls inside the selected window"
-            else:
-                relationship = "recorded_after_selected_window_end"
-                reason = "reliable transaction time post-dates the selected window"
-        elif (
-            snapshot_observed_at is not None
-            and snapshot_observed_at <= selected_window_end
-        ):
-            relationship = "snapshot_observed_at_or_before_selected_window_end"
-            reason = "the read-only snapshot itself was observed by the selected cut-off"
-        else:
-            relationship = "unavailable"
-            reason = (
-                "current artefact has no reliable transaction time and the "
-                "filesystem snapshot post-dates the selected window"
-            )
-        item["selected_window_relationship"] = relationship
-        item["selected_window_relationship_reason"] = reason
-        item["current_health_relationship"] = (
-            "authoritative_current_snapshot"
-            if current_snapshot_authoritative
-            else relationship
-        )
-
-    for entry in safety.get("active_entries") or []:
-        if isinstance(entry, dict):
-            annotate(entry)
-    for component in safety.get("active_transaction_identities") or []:
-        if isinstance(component, dict):
-            annotate(component)
-    for blocker in safety.get("snapshot_incident_evidence") or []:
-        if isinstance(blocker, dict):
-            annotate(blocker)
 
 
 def historical_context_corpus_snapshot(project_dir: Path) -> Dict[str, Any]:
@@ -731,89 +671,22 @@ def generated_pool_health_snapshot(base_dir: Path, now: Optional[datetime] = Non
 
 def generated_post_rate_history(logs: List[Path], now: Optional[datetime] = None, days: int = 30) -> Dict[str, Any]:
     """Scan bounded production history once and count structured successful regular posts."""
-    now = now or datetime.now()
-    if now.tzinfo is not None: now = now.replace(tzinfo=None)
-    cutoff = now - timedelta(days=days)
-    records = read_records(logs, cutoff, now)
-    marker_fragments = ("/tmp/pytest-", "/tmp/pytest-of-", "mrs_test_mode", "dummy credentials", "127.0.0.1")
-    contaminated_seconds = {record.ts for record in records if any(fragment in record.msg.lower() for fragment in marker_fragments)}
-    posts: Dict[str, Dict[str, Any]] = {}
-    for record in records:
-        if record.ts in contaminated_seconds or not record.msg.startswith("EVENT "):
-            continue
-        event = try_parse_strict_json_object_from_msg(record.msg)
-        if not event or event.get("event") != "main_post_posted" or event.get("lane") != "quote_image":
-            continue
-        post_id = str(event.get("post_id") or "")
-        if not post_id:
-            continue
-        basename = str(event.get("image_basename") or "")
-        posts.setdefault(post_id, {"timestamp": record.ts, "basename": basename, "generated": bool(GENERATED_BASENAME_RE.fullmatch(basename))})
-    clean_timestamps = [record.ts for record in records if record.ts not in contaminated_seconds]
-    earliest = min(clean_timestamps) if clean_timestamps else None
-    windows: Dict[str, Any] = {}
-    for window_days in (7, 30):
-        window_cutoff = now - timedelta(days=window_days)
-        selected = [post for post in posts.values() if post["timestamp"] >= window_cutoff]
-        generated = sum(post["generated"] for post in selected)
-        window_timestamps = sorted(ts for ts in clean_timestamps if ts >= window_cutoff)
-        coverage_start = max(window_cutoff, earliest) if earliest else None
-        coverage_days = max((now - coverage_start).total_seconds() / 86400.0, 0.0) if coverage_start else 0.0
-        gap_threshold_seconds = 15 * 60
-        points = ([coverage_start] if coverage_start else []) + window_timestamps + ([now] if coverage_start else [])
-        gaps = [(later - earlier).total_seconds() for earlier, later in zip(points, points[1:])]
-        largest_gap = max(gaps, default=0.0)
-        material_gaps = sum(gap > gap_threshold_seconds for gap in gaps)
-        observed_seconds = sum(min(max(gap, 0.0), gap_threshold_seconds) for gap in gaps)
-        coverage_quality = "unavailable" if not coverage_start else "continuous" if material_gaps == 0 else "gapped"
-        regular_per_day = len(selected) / coverage_days if coverage_days > 0 else None
-        generated_per_day = generated / coverage_days if coverage_days > 0 else None
-        windows[f"trailing_{window_days}d"] = {
-            "regular_posts": len(selected), "generated_posts": generated,
-            "generated_share_percent": (generated / len(selected) * 100.0) if selected else None,
-            "coverage_days": coverage_days, "calendar_span_days": coverage_days,
-            "observed_logging_days": observed_seconds / 86400.0,
-            "coverage_quality": coverage_quality, "largest_detected_gap_seconds": largest_gap,
-            "material_gap_count": material_gaps, "gap_threshold_seconds": gap_threshold_seconds,
-            "regular_posts_per_day": regular_per_day, "generated_posts_per_day": generated_per_day,
-        }
-    post_history = [
-        {"post_id": post_id, "timestamp": item["timestamp"].isoformat(sep=" "), "basename": item["basename"], "generated": item["generated"]}
-        for post_id, item in sorted(posts.items(), key=lambda pair: (pair[1]["timestamp"], pair[0]))
-    ]
-    return {"windows": windows, "scanned_records": len(records), "unique_regular_posts": len(posts), "contaminated_seconds_excluded": len(contaminated_seconds),
-            "coverage_start": earliest.isoformat(sep=" ") if earliest else None, "coverage_end": now.isoformat(sep=" "), "files_scanned": len(logs),
-            "successful_regular_posts": post_history}
-
-
-RUNWAY_CONFIG_DEFAULTS: Dict[str, Any] = {
-    "ENABLE_GENERATED_IMAGE_POOL": False,
-    "POST_SLEEP_MIN": 7200,
-    "POST_SLEEP_MAX": 9000,
-    "GENERATED_IMAGE_MIN_ORIGINAL_POSTS_BETWEEN": 2,
-}
+    return _generated_post_rate_history(
+        logs, now, days,
+        read_records=read_records,
+        try_parse_strict_json_object_from_msg=try_parse_strict_json_object_from_msg,
+        GENERATED_BASENAME_RE=GENERATED_BASENAME_RE,
+        clock_now=datetime.now,
+    )
 
 
 def load_runway_config(project_dir: Path, observed_config: Dict[str, Any]) -> Dict[str, Any]:
     """Resolve standalone runway inputs without importing production code."""
-    result = dict(RUNWAY_CONFIG_DEFAULTS)
-    result.update({key: value for key, value in observed_config.items() if key in result})
-    local_path = project_dir / "mrsMThatcher.local.json"
-    if not local_path.exists():
-        return result
-    try:
-        local_config = _strict_native_json_object(
-            local_path.read_bytes(), label="mrsMThatcher.local.json"
-        )
-    except Exception as exc:
-        return {
-            "_runway_config_error": (
-                "cannot read valid local config: "
-                f"{type(exc).__name__}"
-            )
-        }
-    result.update({key: value for key, value in local_config.items() if key in result})
-    return result
+    return _load_runway_config(
+        project_dir, observed_config,
+        RUNWAY_CONFIG_DEFAULTS=RUNWAY_CONFIG_DEFAULTS,
+        parse_json_object=_strict_native_json_object,
+    )
 
 
 def read_resume_data(state_file: Path) -> Dict[str, Any]:
@@ -1272,31 +1145,6 @@ def strip_internal_context_markers(value: Any) -> Any:
         strip_internal_context_markers=strip_internal_context_markers,
         INTERNAL_CONTEXT_KEYS=INTERNAL_CONTEXT_KEYS,
     )
-
-
-def shadow_lifecycle_snapshot(project_dir: Path) -> Dict[str, Any]:
-    """Load the compact local lifecycle register without contacting a provider."""
-    path = project_dir / "shadow_feature_lifecycle.json"
-    try:
-        from shadow_lifecycle import lifecycle_decision_schedule, load_lifecycle_register
-
-        value = load_lifecycle_register(path)
-        schedule = lifecycle_decision_schedule(value)
-    except Exception as exc:
-        return {
-            "available": False,
-            "reason": f"lifecycle register unavailable: {type(exc).__name__}: {exc}",
-            "features": [],
-        }
-    return {
-        "available": True,
-        "schema_version": value["schema_version"],
-        "features": value["features"],
-        "decision_schedule": schedule,
-        "overdue_decisions": [
-            row for row in schedule if row["decision_overdue"]
-        ],
-    }
 
 
 def merge_context(current: Dict[str, Any], previous: Dict[str, Any]) -> Dict[str, Any]:

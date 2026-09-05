@@ -2628,3 +2628,102 @@ Only stage 28 is implemented. Stop after stage **32** and reassess, or earlier i
 no sensible digest modularisation remains. No production/configuration/state/log/
 image-pool changes, bot execution, provider/posting calls, service control, merge,
 deployment or force-push occurred. Previous branches/worktrees are preserved.
+
+## Extracted in stage 29
+
+Base: `847dc58844193f7ae317851b4ad1ddff4398e3a6`, verified against pushed
+`origin/codex/modularisation-stage28`. Work is isolated on
+`codex/modularisation-stage29` in
+`/disks/disk1/research/mrsMThatcher-modularisation-stage29`.
+
+Four domain companions move, totalling **176 lines** at the base, plus runway
+defaults. `annotate_remote_write_snapshot_window` belongs to the remote-write
+owner; `generated_post_rate_history`, `load_runway_config` and
+`RUNWAY_CONFIG_DEFAULTS` belong to the generated-pool owner;
+`shadow_lifecycle_snapshot` belongs to the runtime owner. Three thin adapters
+retain root signatures/defaults and pass current named dependencies. Lifecycle
+and runway defaults retain direct root aliases; the rate adapter explicitly
+passes the current root basename regex alias, although its owner was already
+the generated-pool module.
+
+Bodies are exact apart from explicit timestamp conversion, conditional clock
+and native-parser calls. Selected-end assignment, ValueError-only timestamp
+handling, exact-int epochs, every relationship/reason string and supplied
+authority flag retain their order and shared nested mutations. Rates preserve
+timezone stripping, scan cutoff versus fixed 7/30-day outputs, contaminated
+seconds, first-ID deduplication, coverage gaps and types/order. Config retains
+its shallow defaults/observed/local overlays and existence/read/error boundary.
+Lifecycle keeps its lazy import inside `try`, local path, shared feature/schedule
+rows and exact failure response. No reads, clock samples, validation, authority
+inference, retained callbacks or generic dependency containers are added.
+
+`discover_logs`, `resolve_explicit_logs`, `is_selftest_log_path` and
+`load_authoritative_state_for_logs` remain together in root, with unchanged
+implementations and call positions. Image usage remains a pure consumer.
+Source/window/resume/publication policy, schema 3, producer/default `__file__`,
+context/cursor application, CLI/locking, `analyse` and `run_digest` are unchanged.
+
+| Physical lines | Before | After |
+| --- | ---: | ---: |
+| Digest file | 3,800 | 3,648 (−152) |
+| `analyse` | 1,477 | 1,477 |
+| Remote-write owner | 1,402 | 1,486 |
+| Generated-pool owner | 263 | 367 |
+| Runtime owner | 335 | 362 |
+| `run_digest` / Markdown wrapper | 360 / 10 | 360 / 10 |
+
+Validation used `MRS_TEST_MODE=1 PYTEST_DISABLE_PLUGIN_AUTOLOAD=1 python3 -m pytest`
+with the established temporary-HOME/network isolation. Baseline: **252 passed**;
+final: **264 passed**. Selection covers corpus/generated pool, runtime, incidents,
+safety hardening, general digest, generated runway/utilisation/pool health,
+three existing digest-only lifecycle cases and two digest-only integrations for
+current state after/at the window end. Six added test functions (12 cases) cover
+current callbacks/defaults/regex, conditional clock and timezone handling,
+exact epoch types, sharing, mutation/read/error order and lazy import failures.
+The existing import guard additionally rejects eager lifecycle loading; all
+pre-existing assertions remain. No whole bot harness ran.
+
+Three temporary comparison tests passed. Complete fixed-path/time report pairs
+match stage 28, reusing pool/quarantine, log, corpus, lifecycle, protocol and cost
+cache fixtures:
+
+| Fixture | Records | JSON bytes | Markdown bytes |
+| --- | ---: | ---: | ---: |
+| Generated rates and overdue lifecycle, current snapshot | 5 | 44,964 | 13,551 |
+| Bounded window with current barrier | 5 | 47,715 | 14,083 |
+| Quiet window with malformed config/metadata/lifecycle | 0 | 41,572 | 13,743 |
+
+Raw reports, stderr and direct affected results also match, including types and
+dictionary order. Eleven callback/clock/sharing cases pass against the original
+stage 28 bodies; direct comparisons additionally cover eight annotated snapshots
+and four config results/read traces. These cover distinctions omitted by schema
+3. Producer source hashes and repository HEADs were independently verified;
+only source hashes were substituted, with both HEADs still at the base. Fixture
+bytes/modes/mtimes and versioned fixtures are unchanged. Scripts/data stay outside
+the worktree. This is focused synthetic preservation evidence, not an exhaustive
+filesystem-failure or production replay.
+
+Exact text/AST review verifies four moved bodies, the defaults, three adapters,
+original root signatures/defaults, all **89** remaining root definitions, the
+rest of root's AST, every existing function in the three extended owners and
+all **26** other digest companions. `python3 tools/check_python_documentation.py`
+passes for **208 modules**; `git diff --check` passes.
+
+Recommended next boundary: the contiguous **176-line** initial per-record
+error/warning observation group inside `analyse`, from `is_self_test_error`
+through error/recovery routing. Its prepared flags, legacy clarification
+rejection callback and shared error/recovery lists form one coherent observation
+helper. Only `is_asset_metadata_warning` and `is_handled_reply_restriction` need
+returning for later consumers. Preserve predicate/exception/callback order and
+pending-lane diagnostics. Source switching, publication authority, surrounding
+config/state updates and subsequent coordinator dispatch remain separate.
+This candidate is assessed here, not implemented.
+
+Substantial complexity remains inside digest-derived owners: the incident owner
+is **2,184 lines**, including the **1,884-line**
+`summarise_operational_error_health`. Moving code into files does not establish
+completion; any further split needs a useful domain boundary of its own.
+Only stage 29 is implemented. Stop after stage **32** and reassess, or earlier
+if no sensible digest modularisation remains. No production/configuration/state/
+log/image-pool changes, bot execution, provider/posting calls, service control,
+merge, deployment or force-push occurred. Previous branches/worktrees are preserved.
