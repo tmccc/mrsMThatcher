@@ -1,15 +1,16 @@
 """Legacy reply-strategy evidence, observation projections and summaries.
 
-Handlers project parsed payloads through current coordinator callbacks; summaries
-only read supplied events. Parsing, dispatch, insertion, rejection coalescing and
-provenance remain with the coordinator. There is no runtime I/O, publication
-authority or state shared between analyses.
+Handlers project parsed payloads, coalesce local rejections and infer missing
+outcomes through current coordinator callbacks; summaries only read supplied
+events. Parsing, dispatch, event insertion and provenance remain with the
+coordinator. There is no runtime I/O, publication authority or state shared
+between analyses.
 """
 from __future__ import annotations
 
 from collections import Counter
 from datetime import datetime
-from typing import Any, Callable, Dict, Iterable, List, Tuple
+from typing import Any, Callable, Dict, Iterable, List, Optional, Tuple
 
 from mrs_log_digest_values import (
     _count_optional,
@@ -726,3 +727,129 @@ def record_reply_strategy_rejection(
         lane=bounded_event_text(event_obj.get("lane"), default="unavailable", max_characters=100),
         reason=bounded_event_text(event_obj.get("reason"), default="other", max_characters=500),
     )
+
+
+def prepare_inferred_reply_strategy_outcomes(
+    *,
+    events: List[Dict[str, Any]],
+    handled_api_restrictions: List[Dict[str, Any]],
+    _normalise_lane: Callable[[Any], str],
+    parse_dt: Callable[[Any], Optional[datetime]],
+    add_event: Callable[..., Dict[str, Any]],
+) -> None:
+    """Infer missing terminal outcomes from restrictions and the latest decisions."""
+    explicit_strategy_outcome_targets = {
+        (_normalise_lane(event.get("lane")), str(event.get("target_id") or ""))
+        for event in events
+        if event.get("kind") == "reply_strategy_outcome" and event.get("target_id")
+    }
+    strategy_decisions_by_target = {
+        (_normalise_lane(event.get("lane")), str(event.get("target_id") or "")): event
+        for event in events
+        if event.get("kind") == "reply_strategy_decision" and event.get("target_id")
+    }
+    for restriction in handled_api_restrictions:
+        key = (
+            _normalise_lane(restriction.get("lane")),
+            str(restriction.get("target_id") or ""),
+        )
+        if not key[1] or key in explicit_strategy_outcome_targets:
+            continue
+        decision = strategy_decisions_by_target.get(key)
+        if decision is None:
+            continue
+        restriction_time = parse_dt(str(restriction.get("time") or ""))
+        if restriction_time is None:
+            continue
+        add_event(
+            "reply_strategy_outcome",
+            restriction_time,
+            status="posting_failed_terminal",
+            lane=restriction.get("lane") or "unavailable",
+            target_id=key[1],
+            reply_post_id="",
+            mode=decision.get("mode"),
+            humour_tone=decision.get("humour_tone"),
+            tone=decision.get("tone") or decision.get("humour_tone"),
+            evidence_confidence=decision.get("evidence_confidence"),
+            retrieved_count=decision.get("retrieved_count"),
+            factual_claim=decision.get("factual_claim"),
+            grounded=decision.get("grounded"),
+            no_reply_reason=decision.get("no_reply_reason"),
+            failure_reason="reply_not_permitted",
+            legacy_inferred=True,
+        )
+        explicit_strategy_outcome_targets.add(key)
+
+
+
+def add_or_merge_local_rejection(
+    ts: datetime,
+    kwargs: Dict[str, Any],
+    *,
+    lane: Any,
+    target_id: Any,
+    local_rejections_by_identity: Dict[Tuple[str, str], Dict[str, Any]],
+    max_text: int,
+    valid_string_public_post_id: Callable[[Any], bool],
+    _normalise_lane: Callable[[Any], str],
+    bounded_event_text: Callable[..., str],
+    bounded_event_string_list: Callable[..., List[str]],
+    short: Callable[..., str],
+    add_event: Callable[..., Dict[str, Any]],
+) -> Dict[str, Any]:
+    """Keep one enriched effective local-rejection record per target."""
+    target = (
+        target_id if valid_string_public_post_id(target_id) else ""
+    )
+    normalised_lane = _normalise_lane(lane)
+    safe_lane = bounded_event_text(
+        lane, default="unavailable", max_characters=100
+    )
+    safe_kwargs: Dict[str, Any] = {}
+    for field, value in kwargs.items():
+        if type(value) is str:
+            safe_kwargs[field] = short(value, max_text)
+        elif type(value) is bool:
+            safe_kwargs[field] = value
+        elif type(value) is int and 0 <= value <= 1_000_000:
+            safe_kwargs[field] = value
+        elif isinstance(value, list):
+            safe_kwargs[field] = bounded_event_string_list(value)
+        elif value is None:
+            safe_kwargs[field] = None
+    key = (normalised_lane, target)
+    existing = local_rejections_by_identity.get(key)
+    if existing is None and target:
+        existing = next(
+            (
+                item
+                for (item_lane, item_target), item in local_rejections_by_identity.items()
+                if item_target == target
+                and (normalised_lane == "unavailable" or item_lane == "unavailable")
+            ),
+            None,
+        )
+    if existing is None:
+        existing = add_event(
+            "reply_strategy_local_rejection",
+            ts,
+            lane=safe_lane,
+            target_id=target,
+            **safe_kwargs,
+        )
+        local_rejections_by_identity[key] = existing
+        return existing
+    if _normalise_lane(existing.get("lane")) == "unavailable" and normalised_lane != "unavailable":
+        existing["lane"] = safe_lane
+        local_rejections_by_identity.pop(("unavailable", target), None)
+        local_rejections_by_identity[key] = existing
+    for field, value in safe_kwargs.items():
+        existing_value = existing.get(field)
+        if (
+            value is not None
+            and value != ""
+            and (existing_value is None or existing_value == "")
+        ):
+            existing[field] = short(value, max_text) if isinstance(value, str) else value
+    return existing

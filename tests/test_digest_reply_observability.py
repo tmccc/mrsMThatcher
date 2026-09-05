@@ -1693,6 +1693,144 @@ def test_legacy_pipeline_callbacks_keep_coalesced_event_identity(monkeypatch):
     assert stage["pipeline_stage_status"] == "reply"
 
 
+@pytest.mark.parametrize("path", ["mrsMThatcher.log", "selftest_fixture.log"])
+def test_inferred_strategy_outcomes_keep_current_callbacks_order_and_root_identity(monkeypatch, path):
+    captured, calls = {}, []
+    source = replace(structured_record(0, {"event": "unused"}), path=path)
+    latest = event("reply_strategy_decision", lane="alias", target_id="310", mode="latest", humour_tone="dry", tone="", evidence_confidence="high", retrieved_count=0, factual_claim=False, grounded=None, no_reply_reason="")
+    observations = [
+        event("reply_strategy_outcome", lane="mention", target_id="311"),
+        {**latest, "mode": "old"}, latest,
+        event("reply_strategy_decision", lane=None, target_id="312"),
+        event("reply_strategy_decision", lane="mention", target_id=""),
+    ]
+    restrictions = [
+        {"lane": "mention", "target_id": "311", "time": "unused existing outcome"},
+        {"lane": "mention", "target_id": "", "time": "unused missing target"},
+        {"lane": "mention", "target_id": "313", "time": "unused missing decision"},
+        {"lane": "mention", "target_id": "310", "time": "invalid"},
+        {"lane": None, "target_id": "312"},
+        {"lane": None, "target_id": "312", "time": "2026-07-15 12:00:02"},
+        {"lane": "alias", "target_id": "310", "time": "2026-07-15 12:00:01"},
+        {"lane": "mention", "target_id": "310", "time": "unused duplicate"},
+    ]
+    original_normalise, original_parse = digest._normalise_lane, digest.parse_dt
+    original_infer, original_enrich = digest.prepare_inferred_reply_strategy_outcomes, digest.enrich_published_reply_text
+
+    def normalise(value):
+        calls.append(("lane", value))
+        return original_normalise("mention" if value == "alias" else value)
+
+    def parse(value):
+        calls.append(("time", value))
+        if value == "callback unavailable":
+            return None
+        return original_parse(value)
+
+    def infer(**inputs):
+        assert inputs["_normalise_lane"] is normalise and inputs["parse_dt"] is parse
+        inputs["events"].extend(observations)
+        inputs["handled_api_restrictions"].extend(restrictions)
+        with pytest.raises(ValueError, match="Could not parse datetime: 'invalid'"):
+            original_infer(**inputs)
+        assert inputs["events"] == observations
+        restrictions[3]["time"] = "callback unavailable"
+        calls.clear()
+        assert original_infer(**inputs) is None
+        captured["events"] = inputs["events"]
+        assert [value for kind, value in calls if kind == "time"] == ["callback unavailable", "", "2026-07-15 12:00:02", "2026-07-15 12:00:01"]
+        assert [value for kind, value in calls if kind == "lane"] == ["mention", "alias", "alias", None, "mention", "mention", "mention", "mention", None, None, "alias", "mention"]
+
+    def enrich(report, **inputs):
+        captured["production_ids"] = inputs["production_event_object_ids"]
+        return original_enrich(report, **inputs)
+
+    monkeypatch.setattr(digest, "_normalise_lane", normalise)
+    monkeypatch.setattr(digest, "parse_dt", parse)
+    monkeypatch.setattr(digest, "prepare_inferred_reply_strategy_outcomes", infer)
+    monkeypatch.setattr(digest, "enrich_published_reply_text", enrich)
+    report = digest.analyse([source], generation_time=source.ts)
+    assert report["events"] is captured["events"]
+    assert all(report["events"][index] is row for index, row in enumerate(observations))
+    missing, inferred = report["events"][len(observations):]
+    expected = {
+        "time": "2026-07-15 12:00:01", "kind": "reply_strategy_outcome",
+        "status": "posting_failed_terminal", "lane": "alias", "target_id": "310", "reply_post_id": "",
+        "mode": "latest", "humour_tone": "dry", "tone": "dry", "evidence_confidence": "high",
+        "retrieved_count": 0, "factual_claim": False, "grounded": None, "no_reply_reason": "",
+        "failure_reason": "reply_not_permitted", "legacy_inferred": True,
+    }
+    assert inferred == expected
+    assert missing == {**expected, "time": "2026-07-15 12:00:02", "lane": "unavailable", "target_id": "312", **dict.fromkeys(("mode", "humour_tone", "tone", "evidence_confidence", "retrieved_count", "factual_claim", "grounded", "no_reply_reason"))}
+    assert report["summary"]["stats"]["reply_strategy_outcome"] == 2
+    # Post-scan inference runs after the coordinator clears its source record.
+    for row in (missing, inferred):
+        assert id(row) not in captured["production_ids"]
+
+
+def test_local_rejection_adapter_keeps_payload_collisions_current_helpers_and_map_identity(monkeypatch):
+    captured, calls = {}, []
+    dependencies = ("valid_string_public_post_id", "_normalise_lane", "bounded_event_text", "bounded_event_string_list", "short")
+    for name in dependencies:
+        original = getattr(digest, name)
+
+        def helper(*args, _name=name, _original=original, **kwargs):
+            calls.append(_name)
+            return _original(*args, **kwargs)
+
+        monkeypatch.setattr(digest, name, helper)
+    original_merge = digest._add_or_merge_local_rejection
+    payload = {
+        "short": "x" * 90, "max_text": 1_000_000, "add_event": False,
+        "local_rejections_by_identity": ["safe", 1, "also safe"],
+        "valid_string_public_post_id": 0, "_normalise_lane": None,
+        "bounded_event_text": "", "bounded_event_string_list": True,
+        "negative": -1, "too_large": 1_000_001, "float": 0.5, "dict": {},
+    }
+
+    def merge(ts, kwargs, **inputs):
+        for name in dependencies:
+            assert inputs[name] is getattr(digest, name)
+        assert inputs["max_text"] == 40
+        before = copy.deepcopy(kwargs)
+        result = original_merge(ts, kwargs, **inputs)
+        assert kwargs == before
+        captured["map"] = inputs["local_rejections_by_identity"]
+        return result
+
+    def decision(event_obj, ts, **callbacks):
+        add = callbacks["add_or_merge_local_rejection"]
+        calls.clear()
+        row = add(ts, lane="unavailable", target_id="310", **payload)
+        assert set(dependencies) <= set(calls)
+        assert calls[:3] == ["valid_string_public_post_id", "_normalise_lane", "bounded_event_text"]
+        assert captured["map"] == {("unavailable", "310"): row}
+        assert add(ts + timedelta(seconds=1), lane="mention", target_id="310", short="replacement", max_text=0, add_event=True, _normalise_lane="filled", bounded_event_text="filled") is row
+        assert set(captured["map"]) == {("mention", "310")}
+        assert captured["map"][("mention", "310")] is row
+        assert add(ts, lane="unavailable", target_id="310", _normalise_lane="later") is row
+        assert set(captured["map"]) == {("mention", "310")}
+        other = add(ts, lane="quote_tweet", target_id="310")
+        assert other is not row
+        invalid = add(ts, lane="unavailable", target_id=310)
+        assert invalid["target_id"] == ""
+        assert add(ts, lane="mention", target_id=310) is not invalid
+        captured["row"] = row
+
+    monkeypatch.setattr(digest, "_add_or_merge_local_rejection", merge)
+    monkeypatch.setattr(digest, "record_ai_reply_pipeline_decision", decision)
+    report = digest.analyse([structured_record(0, {"event": "ai_reply_pipeline_decision"})], max_text=40)
+    row = captured["row"]
+    assert report["events"][0] is row
+    assert row == {
+        "time": "2026-09-04 12:00:00", "kind": "reply_strategy_local_rejection", "lane": "mention", "target_id": "310",
+        "short": digest.short(payload["short"], 40), "max_text": 1_000_000, "add_event": False,
+        "local_rejections_by_identity": ["safe", "also safe"], "valid_string_public_post_id": 0,
+        "_normalise_lane": "filled", "bounded_event_text": "filled", "bounded_event_string_list": True,
+    }
+    assert report["summary"]["stats"]["reply_strategy_local_rejection"] == 4
+
+
 def test_old_multi_stage_logs_are_only_counted_as_legacy():
     report = digest.analyse([
         structured_record(0, {

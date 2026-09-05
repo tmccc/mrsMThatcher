@@ -1,9 +1,10 @@
-"""Report prepared current state, author progress and mention-control observations.
+"""Prepare state, headline, reply-quality and mention-control reporting.
 
 The digest supplies state/configuration, timestamps, current helper and clock
 callbacks, and vocabulary (including the quote-publication experiment labels).
-Summaries preserve existing copying/sharing; refresh functions mutate the supplied
-report and observations use the supplied event callback and statistics counter.
+Summaries preserve existing copying/sharing and use supplied record/state times;
+refresh functions mutate the supplied report and observations use the supplied
+event callback and statistics counter.
 Loading, saved context, source tracking and report orchestration stay with their
 current owners. This module performs no I/O or import-time runtime work, imports
 no coordinator or bot, and stores no callbacks.
@@ -14,6 +15,8 @@ from collections import Counter
 from datetime import datetime, tzinfo
 from pathlib import Path
 from typing import Any, Callable, Dict, List, Optional, Tuple
+
+from mrs_log_digest_records import Record
 
 
 AUTHOR_NO_REPLY_PROGRESS_MAX_AUTHORS = 25_000
@@ -615,6 +618,327 @@ def current_author_no_reply_strike_progress(
         }
     )
     return result
+
+
+def prepare_headline_and_derived(
+    *,
+    stats: Counter,
+    error_health: Dict[str, Any],
+    current_remote_write_safety: Optional[Dict[str, Any]],
+    handled_api_restrictions: List[Dict[str, Any]],
+    media_upload_incidents: List[Dict[str, Any]],
+    self_test_errors: List[Dict[str, Any]],
+    confirmed_post_recovery: List[Dict[str, Any]],
+    confirmed_reply_recovery: List[Dict[str, Any]],
+    receipt_events: List[Dict[str, Any]],
+    asset_health: List[Dict[str, Any]],
+    latest_state_summary: Dict[str, Any],
+    records: List[Record],
+    configs: Dict[str, Any],
+    plural_count: Callable[..., str],
+    int_or_none: Callable[[Any], Optional[int]],
+    parse_dt: Callable[[Any], Optional[datetime]],
+) -> Tuple[
+    List[str], int, List[Dict[str, Any]], List[Dict[str, Any]],
+    List[Dict[str, Any]], Dict[str, Any],
+]:
+    """Prepare initial health, media, cooldown and budget claims from supplied data."""
+    headline = []
+    headline.append(plural_count(stats.get("quote_image_posted", 0), "quote/image post"))
+    headline.append(plural_count(stats.get("daily_meme_posted", 0), "daily meme"))
+    headline.append(plural_count(stats.get("mention_reply_posted", 0), "mention reply", "mention replies"))
+    headline.append(plural_count(stats.get("hot_post_reply_posted", 0), "hot-post reply", "hot-post replies"))
+    headline.append(plural_count(stats.get("quote_tweet_reply_posted", 0), "quote-tweet reply", "quote-tweet replies"))
+    headline.append(
+        plural_count(
+            stats.get("historical_context_reply_status_completed", 0),
+            "historical-context reply",
+            "historical-context replies",
+        )
+        + " completed"
+    )
+    headline.append(
+        plural_count(
+            stats.get("mention_grok_skip", 0)
+            + stats.get("hot_post_reply_grok_skip", 0)
+            + stats.get("quote_tweet_grok_skip", 0),
+            "Grok skip",
+        )
+    )
+    current_incidents = int(error_health["current_independent_incident_count"])
+    resolved_incidents = int(error_health["historical_resolved_incident_count"])
+    unavailable_incidents = int(
+        error_health.get("resolution_unavailable_incident_count", 0)
+    )
+    transient_provider_timeouts = int(
+        error_health.get("transient_provider_timeout_count", 0)
+    )
+    if current_incidents:
+        headline.append(
+            "current health: "
+            + plural_count(
+                current_incidents,
+                "unresolved operational incident",
+            )
+        )
+    elif unavailable_incidents:
+        headline.append("current health: no active incident established")
+    else:
+        headline.append("current health: no unresolved operational incidents")
+    if unavailable_incidents:
+        headline.append(
+            plural_count(
+                unavailable_incidents,
+                "incident with current status unavailable from retained evidence",
+                "incidents with current status unavailable from retained evidence",
+            )
+        )
+    if transient_provider_timeouts:
+        headline.append(
+            f"{plural_count(transient_provider_timeouts, 'transient provider timeout')} "
+            "observed (provider recovery unverified)"
+        )
+    non_transient_resolved_incidents = resolved_incidents
+    if non_transient_resolved_incidents:
+        headline.append(
+            plural_count(
+                non_transient_resolved_incidents,
+                "historical/resolved incident",
+            )
+            + " in window"
+        )
+    safety = current_remote_write_safety or {}
+    if safety.get("configured") is True and safety.get("available") is True:
+        safety_status = str(safety.get("status") or "unavailable")
+        if safety.get("blocking") is True:
+            headline.append("remote-write safety: BLOCKED")
+        elif safety_status == "paused_fail_closed_control":
+            headline.append("remote writes fail-closed by invalid control")
+        elif safety_status == "operator_paused":
+            headline.append("remote writes operator-paused")
+        else:
+            headline.append("remote-write safety ready")
+    if handled_api_restrictions:
+        deleted_incidents = {
+            (
+                str(item.get("service") or ""),
+                str(item.get("target_id") or item.get("message") or ""),
+            )
+            for item in handled_api_restrictions
+            if item.get("restriction_kind") == "deleted_or_inaccessible_tweet"
+        }
+        other_handled_incidents = {
+            (
+                str(item.get("service") or ""),
+                str(item.get("status") or ""),
+                str(item.get("target_id") or item.get("message") or ""),
+            )
+            for item in handled_api_restrictions
+            if item.get("restriction_kind") != "deleted_or_inaccessible_tweet"
+        }
+        if deleted_incidents:
+            headline.append(
+                plural_count(
+                    len(deleted_incidents),
+                    "deleted/inaccessible-target 403",
+                    "deleted/inaccessible-target 403s",
+                )
+                + " handled"
+            )
+        if other_handled_incidents:
+            headline.append(
+                plural_count(
+                    len(other_handled_incidents),
+                    "handled API restriction incident",
+                )
+            )
+    handled_media_fallbacks = [
+        item
+        for item in media_upload_incidents
+        if item.get("status") == "handled"
+    ]
+    reconciled_media_uploads = [
+        item
+        for item in media_upload_incidents
+        if item.get("status") == "reconciled"
+    ]
+    unrecovered_media = [
+        item
+        for item in media_upload_incidents
+        if item.get("status") not in {"handled", "reconciled"}
+    ]
+    if handled_media_fallbacks:
+        headline.append(plural_count(len(handled_media_fallbacks), "handled media-upload fallback"))
+    if reconciled_media_uploads:
+        headline.append(
+            plural_count(
+                len(reconciled_media_uploads),
+                "durably reconciled media-upload ambiguity",
+                "durably reconciled media-upload ambiguities",
+            )
+        )
+    if unrecovered_media:
+        headline.append(plural_count(len(unrecovered_media), "unrecovered media-upload failure"))
+    if self_test_errors:
+        selftest_fail_checks = sum(1 for e in self_test_errors if str(e.get("message", "")).startswith("SELFTEST FAIL:"))
+        headline.append(f"self-test failures: {selftest_fail_checks} check(s)")
+    if confirmed_post_recovery:
+        headline.append(
+            plural_count(
+                len(confirmed_post_recovery),
+                "confirmed-post recovery record",
+            )
+            + " in window"
+        )
+    if confirmed_reply_recovery:
+        headline.append(
+            plural_count(
+                len(confirmed_reply_recovery),
+                "confirmed-reply recovery record",
+            )
+            + " in window"
+        )
+    blocking_receipts = [
+        item for item in receipt_events
+        if item.get("kind") in {"invalid_or_unresolved_blocked", "simultaneous_receipts_blocked"}
+    ]
+    if blocking_receipts:
+        headline.append(
+            plural_count(len(blocking_receipts), "receipt-block record") + " in window"
+        )
+    if asset_health:
+        headline.append(
+            plural_count(len(asset_health), "asset-metadata warning") + " in window"
+        )
+    cooldown_until_epoch = int_or_none(latest_state_summary.get("api_cooldown_until_epoch"))
+    x_write_cooldown_until_epoch = int_or_none(latest_state_summary.get("x_write_api_cooldown_until_epoch"))
+    openai_cooldown_until_epoch = int_or_none(latest_state_summary.get("openai_api_cooldown_until_epoch"))
+    quote_cooldown_until_epoch = int_or_none(latest_state_summary.get("quote_api_cooldown_until_epoch"))
+    latest_state_time = parse_dt(latest_state_summary.get("time"))
+    window_start_epoch = int(records[0].ts.timestamp()) if records else None
+
+    def cooldown_headline(until_epoch: int | None, *, label: str) -> str | None:
+        if not until_epoch or not latest_state_time:
+            return None
+        latest_state_epoch = int(latest_state_time.timestamp())
+        if latest_state_epoch < until_epoch:
+            return f"{label} cooldown active now"
+        if window_start_epoch is not None and until_epoch >= window_start_epoch:
+            return f"{label} cooldown occurred, now expired"
+        return None
+
+    cooldown_labels = [
+        label
+        for label in (
+            cooldown_headline(cooldown_until_epoch, label="X read API"),
+            cooldown_headline(x_write_cooldown_until_epoch, label="X write API"),
+            cooldown_headline(openai_cooldown_until_epoch, label="OpenAI"),
+            cooldown_headline(quote_cooldown_until_epoch, label="quote API"),
+        )
+        if label
+    ]
+    if cooldown_labels:
+        headline.extend(cooldown_labels)
+    elif stats.get("api_cooldown_entered", 0):
+        headline.append("API cooldown occurred")
+    else:
+        headline.append("no API cooldown")
+
+    max_auto = int_or_none(configs.get("MAX_AUTO_REPLIES_PER_DAY"))
+    max_per_author = int_or_none(
+        configs.get("MAX_REPLIES_PER_AUTHOR_PER_DAY")
+    )
+    max_quote = int_or_none(configs.get("MAX_QUOTE_REPLIES_PER_DAY"))
+    used_auto = int_or_none(latest_state_summary.get("daily_reply_count"))
+    used_quote = int_or_none(latest_state_summary.get("daily_quote_reply_count"))
+    derived = {
+        "reply_budget": {
+            "auto_used": used_auto,
+            "auto_limit": max_auto,
+            "per_author_limit": max_per_author,
+            "auto_remaining": (max_auto - used_auto) if max_auto is not None and used_auto is not None else None,
+            "quote_used": used_quote,
+            "quote_limit": max_quote,
+            "quote_remaining": (max_quote - used_quote) if max_quote is not None and used_quote is not None else None,
+        },
+        "reply_lane_priority": {
+            "current_next_priority": latest_state_summary.get("next_reply_lane_priority"),
+            "flipped_to_quote": stats.get("priority_flipped_to_quote", 0),
+            "flipped_to_normal": stats.get("priority_flipped_to_normal", 0),
+            "forced_normal_before_quote": stats.get("priority_forced_normal_before_quote", 0),
+            "normal_first_refusal_no_post": stats.get("priority_normal_first_refusal_no_post", 0),
+        },
+    }
+
+    return (
+        headline, transient_provider_timeouts, handled_media_fallbacks,
+        reconciled_media_uploads, unrecovered_media, derived,
+    )
+
+
+def prepare_reply_quality_headline(
+    *,
+    events: List[Dict[str, Any]],
+    headline: List[str],
+    single_call_quality: Dict[str, Any],
+    plural_count: Callable[..., str],
+) -> Tuple[Dict[str, int], List[str], List[str]]:
+    """Replace legacy skip claims with reply quality and retain a cooldown-free base."""
+    legacy_multi_stage = {
+        "decision_count": sum(
+            item.get("kind") == "reply_strategy_decision" for item in events
+        ),
+        "stage_summary_event_count": sum(
+            item.get("kind") == "reply_pipeline_stage_summary" for item in events
+        ),
+    }
+    tested_decisions = int(legacy_multi_stage["decision_count"])
+    headline = [
+        item for item in headline
+        if not item.endswith("Grok skip") and not item.endswith("Grok skips")
+    ]
+    health_index = next(
+        (index for index, item in enumerate(headline) if item.startswith("current health:")),
+        len(headline),
+    )
+    single_candidates = int(
+        single_call_quality.get("candidate_evaluation_count", 0) or 0
+    )
+    if single_candidates:
+        headline.insert(
+            health_index,
+            f"{plural_count(single_candidates, 'single-call candidate')} evaluated; "
+            f"{plural_count(single_call_quality.get('replies_posted_count', 0), 'reply', 'replies')} posted; "
+            f"{plural_count(single_call_quality.get('editorial_no_reply_count', 0), 'editorial no-reply decision')}; "
+            f"{plural_count(single_call_quality.get('operational_failure_count', 0), 'operational failure')}; "
+            f"one-call compliance {single_call_quality.get('one_call_compliance')}",
+        )
+        health_index += 1
+    if tested_decisions or legacy_multi_stage["stage_summary_event_count"]:
+        headline.insert(
+            health_index,
+            f"legacy multi-stage decisions {tested_decisions}; "
+            f"legacy stage summaries {legacy_multi_stage['stage_summary_event_count']}",
+        )
+    cooldown_claims = {
+        "API cooldown occurred",
+        "no API cooldown",
+    }
+    cooldown_claim_prefixes = (
+        "X read API cooldown ",
+        "X write API cooldown ",
+        "OpenAI cooldown ",
+        "quote API cooldown ",
+        "current API cooldown state ",
+    )
+    headline_without_current_cooldown = [
+        item
+        for item in headline
+        if item not in cooldown_claims
+        and not item.startswith(cooldown_claim_prefixes)
+    ]
+
+    return legacy_multi_stage, headline, headline_without_current_cooldown
 
 
 def refresh_current_health_headline(

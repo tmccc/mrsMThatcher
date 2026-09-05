@@ -2215,3 +2215,102 @@ implemented here.
 No production/configuration/state/log/image-pool changes, bot execution,
 provider/posting calls, service control, merge or deployment occurred. Previous
 branches/worktrees are preserved; only stage 24 is implemented in this session.
+
+## Extracted in stage 25
+
+Base: `bb361f5fbb1af868a882450920bd0bd0a979f9a9`, verified against pushed
+`origin/codex/modularisation-stage24`. Work is isolated on
+`codex/modularisation-stage25` in
+`/disks/disk1/research/mrsMThatcher-modularisation-stage25`.
+
+The existing state-reporting owner now holds `prepare_headline_and_derived`
+(**226 original body lines**) and `prepare_reply_quality_headline` (**53**).
+The first returns the headline, transient timeout count, three media lists and
+derived budgets/lane priority; media rows remain shared. Supplied state/record
+times drive cooldowns without another clock sample. The temporary Grok-skip text,
+all claims/order and negative or unavailable budgets are preserved. Finalisation
+returns legacy counts, a replacement headline and the cooldown-free base.
+
+The existing strategy owner now holds `prepare_inferred_reply_strategy_outcomes`
+(**42 original body lines**) and the local-rejection builder (**54**). Inference
+preserves indexing order, latest decisions, missing/error cases, deduplication,
+timestamps and copied fields. The nested rejection adapter retains its signature
+and passes the original payload dictionary separately from current named helpers,
+preserving dependency-name payload keys, lane promotion/map replacement, bounded
+types, fill-only enrichment and returned row identity. Root `add_event` still
+owns statistics/provenance; post-scan inference still follows source-record
+clearing and does not acquire production event identity.
+
+All four calls remain at their original positions. API preparation, both quality
+summaries, mention-control preparation, late API materialisation and root schema
+assembly retain their order. Existing owner functions and passive EVENT branches
+are unchanged. No generic state container, stored callbacks, reverse imports or
+framework was introduced; public/private APIs/defaults, schema 3, values/types/
+order/errors, shared objects, clocks and source/publication authority are preserved.
+
+| Physical lines | Before | After |
+| --- | ---: | ---: |
+| Digest file | 4,645 | 4,308 (−337) |
+| `analyse` | 1,990 | 1,649 (−341) |
+| State-reporting owner | 897 | 1,221 |
+| Reply-strategy owner | 728 | 855 |
+| `run_digest` / Markdown wrapper | 360 / 10 | 360 / 10 |
+
+Validation: baseline **220 passed**, final **226 passed**, using
+`MRS_TEST_MODE=1 PYTEST_DISABLE_PLUGIN_AUTOLOAD=1 python3 -m pytest` and the existing
+temporary-HOME/network isolation. Selection: general digest, reply observability,
+Markdown and incidents modules; five state/runtime boundary functions and owner
+import guards; two self-test state/input-isolation functions; and **13 digest-only
+integration functions** for current/saved state, media, receipt/source isolation,
+API counters and reply authority. The existing API late-report callback and
+pipeline/rejection-coalescing regressions pass. Four added functions contribute
+**six cases** for current callback timing/delegation, list/row/map identity,
+cooldown exclusions, inferred outcomes/errors and payload/dependency collisions.
+Existing assertions remain intact; no whole bot harness was run.
+
+Exact text/AST checks verified all moved bodies and existing signatures/defaults.
+Restoring the four spans and removing the four new imports reproduces every
+stage 24 digest byte. Existing owner/test functions remain byte-identical.
+`python3 tools/check_python_documentation.py` passes for **205 modules**;
+`git diff --check` passes.
+
+Five complete JSON/Markdown pairs match stage 24 using shared existing `record`,
+single-call and media/reconciliation fixtures, `write_digest_log`, fixed London
+time and identical paths:
+
+| Comparison | Records | JSON bytes | Markdown bytes |
+| --- | ---: | ---: | ---: |
+| Current health, cooldowns and budgets | 4 | 38,503 | 13,495 |
+| Unavailable media health | 7 | 42,291 | 13,924 |
+| Resolved media and cleared cooldown/budgets | 8 | 46,609 | 15,593 |
+| Single-call outcomes | 6 | 39,792 | 13,395 |
+| Legacy restrictions, inferred/existing outcomes and coalescing | 12 | 45,306 | 14,164 |
+
+The temporary comparison test passed; raw `analyse` reports and stderr also
+match. Producer source hashes and repository HEADs were independently verified;
+only the producer-source hash was substituted, with both HEADs at the base.
+Fixture bytes, modes and mtimes remain unchanged. These synthetic comparisons
+use prepared remote-write snapshots, do not revalidate filesystem inspectors and
+are not an exhaustive replay. Temporary scripts/data are outside the worktree.
+
+Recommended next boundary: the remaining **111-line** passive runtime/reply-control
+EVENT group (`reply_evidence_unavailable`, pause/clear, clarification and repair).
+Named handlers can join existing state/reply owners while the coordinator retains
+parsing, branch order, source tracking and publication acceptance. Posting-state
+(**32 lines**) and meme-failure (**34**) projections are further small candidates;
+none changed here.
+
+Supporting context preparation is substantive: marker stripping, `merge_context`,
+config-pair extraction and backscan merging contain actual merge/annotation rules.
+Payload/partial-state and strict JSON parsing are smaller possible boundaries if
+ownership clarifies their consumers; keep native-number and Decimal contracts
+distinct. Existing input-reader compatibility wrappers are already appropriate.
+Stable/authoritative input reads, source selection/switching, backscan cutoffs,
+snapshot/window decisions, publication checks, saved-context/resume orchestration,
+schema assembly, CLI/default paths and locks remain appropriate coordination.
+Further stages should improve ownership and clarity, without moving all of
+`analyse`, a stage ceiling or a line-count target. No following stage is implemented.
+
+No production/configuration/state/log/image-pool changes, bot execution,
+provider/posting calls, service control, merge or deployment occurred. Previous
+branches/worktrees are preserved; only stage 25 is implemented in this session.

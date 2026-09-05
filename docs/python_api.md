@@ -41,7 +41,7 @@ and AppleDouble files.
 | `mrs_log_digest_provider_costs.py` | Pure conversational provider usage totals, cost attribution, cache-metric coverage and currency formatting | None; consumes supplied observations without mutation |
 | `mrs_log_digest_provider_observations.py` | Passive conversational provider call/usage/error parsing, context selection/reset, attempt matching and observation projection | Supplied records, pending/active state, lists/statistics and current parser/formatter/converter/source callbacks; returns active context/index and mutates shared attempts; later error observation returns context alone; no I/O, clock sample or runtime access |
 | `mrs_log_digest_runtime.py` | Current state/configuration validation and operator pause observations | Reads only through supplied stable readers; explicit project paths, strict JSON parsers, file-time conversion and pause clock; no import-time runtime access |
-| `mrs_log_digest_state_reporting.py` | Prepared current-state, author-strike, cooldown/headline and mention-control reporting | Explicit data, current helpers, vocabulary, epoch conversion and observation clock; refreshes supplied reports and uses the supplied event callback and statistics counter; no I/O or import-time runtime access |
+| `mrs_log_digest_state_reporting.py` | Prepared current-state, author-strike, headline/derived, reply-quality and mention-control reporting | Explicit data, current helpers, vocabulary, epoch conversion and observation clock; preparation preserves media rows and supplied state/record times; refreshes supplied reports and uses the supplied event callback and statistics counter; no I/O or import-time runtime access |
 | `mrs_log_digest_remote_write.py` | Read-only remote-write barrier identities, grouping, safety and reconciliation archive observations | Explicit paths, stable reader, exact-Decimal parser, diagnostic formatter, clock and snapshot/archive-read callbacks; lazy read-only inspectors; no import-time runtime access |
 | `mrs_log_digest_incidents.py` | Operational-error classification, incident grouping/resolution, retirement evidence and remote pause scopes | Supplied observations, current helper/annotation callbacks, scope mappings and conditional clock/epoch conversion; preserves error/event identity and snapshot mutation; no file/home/configuration access or provider calls |
 | `mrs_log_digest_reply_evidence.py` | Durable confirmed conversational receipt and historical reply-history loading/validation | Explicit project paths, stable private reader, native-number parser, canonical encoders, time conversion and validator callbacks; no writes, clock sample or import-time runtime access |
@@ -54,7 +54,7 @@ and AppleDouble files.
 | `mrs_log_digest_original_editorial.py` | Original-editorial selection/shadow observations, companion deduplication and summary | Mutates only supplied observation/error lists, local statistics/companion counters and the parser result's timestamp and event mode; strict parser, diagnostic formatter and lazy source-reference callback supplied by caller; no I/O or import-time runtime access |
 | `mrs_log_digest_single_call.py` | Single-call reply decision, provider usage, posting outcome and recovered-draft observations and summary | Emits only through the supplied `add_event` callback; summary reads emitted events without mutation; no I/O, publication/recovery actions or import-time runtime access |
 | `mrs_log_digest_reply_pipeline.py` | Legacy pipeline observation projections, effective-outcome reconciliation, summaries and strict majority-review telemetry validation/utilisation | Supplied event/rejection callbacks; reconciliation mutates supplied events in place; no I/O |
-| `mrs_log_digest_reply_strategy.py` | Legacy conversational evidence fields, strategy observation projections, summary and no-reply categorisation | Supplied event callbacks; summaries read events without mutation or publication authority; no I/O |
+| `mrs_log_digest_reply_strategy.py` | Legacy conversational evidence fields, strategy observations, inferred outcomes, local-rejection coalescing, summary and no-reply categorisation | Explicit events, rejection map, payload dictionary and current callbacks; summaries read events without mutation or publication authority; no I/O |
 | `mrs_log_digest_visual_context.py` | Pure reply visual-description validation and visual-context correlation/reporting | None; validates supplied dictionaries and summarises prepared observations; no publication authority |
 | `mrs_log_digest_image_usage.py` | Pure generated-image utilisation, current-cycle runway and regular-image selection summaries | None; consumes prepared pool, post-rate, configuration and event observations |
 | `mrs_log_digest_values.py` | Shared digest scalar conversions, reason classifiers and report vocabulary | None |
@@ -293,8 +293,8 @@ It preserves key order, shared list references and late field evaluation,
 including `has_5xx_failures`, sorted Counter conversion and conflict slicing after
 intervening callbacks. Existing digest APIs/signatures/defaults, schema 3, JSON
 and Markdown are unchanged. Source switching/selection, snapshot/window and
-publication authority, strategy inference, report orchestration, resume, CLI,
-clocks and locking remain with their existing owners; the API owner has no
+publication authority, placement of strategy inference, report orchestration,
+resume, CLI, clocks and locking remain with their existing owners; the API owner has no
 reverse imports, stored callbacks, I/O or operational actions.
 
 Digest runtime callers retain `load_current_runtime_state`,
@@ -335,6 +335,23 @@ unchanged. State summaries retain shallow slices and projected-value sharing;
 derived/cooldown/headline refreshes mutate the supplied report at the existing
 call sites. Loading, saved-context application, resume, backscan and overall
 report assembly retain their current owners.
+
+`prepare_headline_and_derived` consumes named prepared statistics, health,
+restrictions, media/recovery/receipt/asset observations, state summary, shared
+`Record` objects and configuration, plus current `plural_count`, `int_or_none`
+and `parse_dt`. Its six-item tuple returns the initial headline, transient timeout
+count, three media lists and derived budgets/lane priority. Media lists retain
+their original rows. Cooldowns use supplied state/record timestamps without a
+new clock sample; the temporary Grok-skip claim retains its original lifetime.
+The digest calls it before API preparation at the original analysis position.
+
+`prepare_reply_quality_headline` runs after the digest's existing historical-context
+and single-call quality summaries. It consumes events, the initial headline,
+single-call quality and current `plural_count`, returning legacy counts, a
+replacement headline list and its cooldown-free base. It preserves insertion
+positions and every cooldown exclusion without mutating the input list. Mention
+control preparation, API report materialisation and report schema assembly remain
+at their original coordinator positions; existing reporting functions are unchanged.
 
 `record_mention_backlog` and `record_author_evaluation_quarantine` consume the
 selected parsed payload, record timestamp, current validation helpers,
@@ -665,6 +682,25 @@ local evidence adapter supplies the current `bounded_event_string_list`; pipelin
 handlers also receive that helper and `normalise_majority_review_telemetry` where
 needed. Shared scalar/text/identity validators retain their values-module owner.
 
+`prepare_inferred_reply_strategy_outcomes` receives events, handled restrictions,
+current `_normalise_lane`/`parse_dt` and the root `add_event` callback. The original
+indexes retain event insertion order, latest-decision lookup and target outcome
+deduplication; missing values, parser errors, timestamps and copied fields are
+unchanged. It runs between API preparation and the two quality summaries. The
+coordinator has already cleared its current source record at this point, so these
+inferred observations retain their existing lack of source references and
+production event identity.
+
+The strategy owner's `add_or_merge_local_rejection` receives the timestamp and
+original kwargs dictionary separately from named lane/target, rejection-map,
+text-limit, validator and event-callback dependencies. The digest retains the
+nested helper's signature through a thin adapter supplying its current helpers.
+Payload keys such as `short` and `max_text` remain ordinary observation fields.
+Valid-target fallback matching, lane promotion/map-key replacement, bounded
+payload types, fill-only enrichment and existing/new returned row identity are
+preserved. Event insertion, statistics and source/provenance still use root
+`add_event`; classification and strategy/pipeline dispatch stay in place.
+
 The digest retains `reconcile_reply_pipeline_effective_outcomes(events) -> None`
 as a thin wrapper supplying its current `_normalise_lane` to the pipeline owner.
 Reconciliation still mutates the same decision/stage dictionaries, with the
@@ -674,7 +710,7 @@ or restore the retired legacy summary sections. Existing public/private summary,
 validator, vocabulary and reason-classifier aliases remain available.
 
 Strict parsing, branch predicates/order, `analyse`, `add_event`, statistics,
-`add_or_merge_local_rejection`, source/self-test tracking, publication authority
+the local rejection adapter, source/self-test tracking, publication authority
 and report assembly remain in the coordinator. Evidence counts and missing/null/
 unknown values, telemetry bounds, callback-return identity, duplicate coalescing,
 event order, JSON schema 3 and Markdown are unchanged. No callbacks or mutable
