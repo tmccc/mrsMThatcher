@@ -539,8 +539,8 @@ authority. No work on that boundary is included in stage seven.
 
 ## Likely next steps
 
-1. Extract the single-call reply report family named above, keeping observation
-   projection and summary separate from publication/recovery authority.
+1. Extract the remaining pure reply pipeline/strategy summaries and their
+   majority-review helpers, as recommended in stage eight below.
    Leave remote-write/reconciliation snapshots and cross-event incident
    reconciliation until their evidence inputs can be separated coherently.
    An existing corpus-reader finding for later work: parsed content and SHA-256
@@ -553,3 +553,72 @@ authority. No work on that boundary is included in stage seven.
 
 Legacy multi-stage reply, image-policy and incident presentation remains for old
 logs. No editorial, prompt, model, JSON-schema or runtime changes belong here.
+
+## Extracted in stage 8
+
+Base: `134b671ac97561d7736cf03b4268729618e48bc0`, verified against the pushed
+`origin/codex/modularisation-stage7` tip. Work is isolated on
+`codex/modularisation-stage8` in
+`/disks/disk1/research/mrsMThatcher-modularisation-stage8`.
+
+`mrs_log_digest_single_call.py` owns the unchanged 293-line
+`single_call_reply_summary` and four specific `record_single_call_reply_*`
+handlers for the `single_call_reply_decision`,
+`single_call_reply_provider_usage`, `single_call_reply_posting_outcome` and
+`single_call_reply_draft_recovered` event branches. This places the active
+conversational report family and its bounded observation projection together,
+removing 228 lines from the coordinator's long analysis scope.
+
+Handlers receive parsed fields, the timestamp and the coordinator's `add_event`
+callback. Branch predicates, precedence, outer parsing and continue flow stay in
+`analyse`; event construction, dictionary identity/order, provenance, `max_text`
+and statistics stay in `add_event`. Field allowlists/defaults, absent-versus-
+invalid aliases, exact type checks, bounds, finite temperature handling, provider
+attempt/status observations and summary deduplication/calculations are retained.
+Publication/recovery authority and durable evidence remain with their existing
+owners; the confirmed-reply rules are unchanged.
+
+Dependency direction: digest → single call → values. The unchanged
+`normalise_reply_lane` and `bounded_event_nonnegative_integer_observation` now
+live in values. Both helpers and the summary remain explicit digest imports.
+There is no dispatcher, global accumulator, reverse import or runtime I/O.
+
+| Size (physical lines; functions include definition/docstring) | Before | After |
+| --- | ---: | ---: |
+| Digest file | 16,353 | 15,813 (−540) |
+| `analyse` | 4,930 | 4,702 (−228) |
+| Single-call module / summary | — / 293 | 592 / 293 |
+| Values module | 267 | 293 |
+| `run_digest` / Markdown wrapper | 360 / 10 | unchanged |
+
+Validation: 182 existing tests pass at the base (179 reply-observability/digest/
+Markdown/safety/historical-event tests and three nearby CLI/resume/contract
+regressions). Nine added cases pass before extraction; the final suite passes
+192 tests, including an independent import/reporting and re-export check. New
+behaviour cases cover native numeric types, explicit null/boolean attempts,
+bounds, alias precedence and summary consumption of original truncated events.
+Existing assertions are unchanged. Runs use
+`MRS_TEST_MODE=1 PYTEST_DISABLE_PLUGIN_AUTOLOAD=1 python3 -m pytest` and the
+existing temporary-HOME/network isolation. The documentation gate passes for
+189 modules; `git diff --check` passes.
+
+One temporary 15-record fixture compares complete CLI JSON and Markdown with
+the unchanged stage-seven worktree using a fixed clock and synthetic paths.
+All values, types and order match; 14,498 Markdown bytes match exactly. The
+45,497-byte JSON differs only in `digest_contract.producer_source_sha256`;
+both source hashes and each `repository_head_sha` are independently checked
+against the source files and Git HEADs (both still at the base during comparison).
+The three moved function ASTs, four projected branch bodies and 157 other
+retained function/class ASTs match. All surrounding non-import module code is
+unchanged. Validation is limited to these focused/synthetic checks; no broad bot
+suites or live provider/posting calls were needed. Production and earlier
+worktrees are untouched; no merge or deployment is included.
+
+The next useful boundary is `reply_pipeline_stage_summary` and
+`reply_strategy_summary`, together with `normalise_majority_review_telemetry`,
+`majority_review_utilisation` and their three private validation/count helpers.
+These seven pure reporting functions total 863 lines and have few dependencies
+beyond shared values, majority-review vocabulary and small reason classifiers.
+Grouping them would remove a substantial legacy reporting block while keeping
+event parsing, cross-event reconciliation and operational authority in their
+current owners. No next-stage implementation is included here.

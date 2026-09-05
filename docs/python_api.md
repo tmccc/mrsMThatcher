@@ -40,6 +40,7 @@ and AppleDouble files.
 | `mrs_log_digest_historical_events.py` | Historical-context event field projection, family counters and emitted-event quality summaries | Only supplied invocation-local counters and event insertion callbacks are mutated/called; no I/O or import-time runtime access |
 | `mrs_log_digest_generated_identity.py` | Generated-identity policy/shadow observation parsing and summaries | Mutates only supplied observation/error lists, local counters and the parser result's timestamp; strict parser, diagnostic formatter and lazy source-reference callback supplied by caller; no I/O or import-time runtime access |
 | `mrs_log_digest_original_editorial.py` | Original-editorial selection/shadow observations, companion deduplication and summary | Mutates only supplied observation/error lists, local statistics/companion counters and the parser result's timestamp and event mode; strict parser, diagnostic formatter and lazy source-reference callback supplied by caller; no I/O or import-time runtime access |
+| `mrs_log_digest_single_call.py` | Single-call reply decision, provider usage, posting outcome and recovered-draft observations and summary | Emits only through the supplied `add_event` callback; summary reads emitted events without mutation; no I/O, publication/recovery actions or import-time runtime access |
 | `mrs_log_digest_values.py` | Shared digest scalar conversions and report vocabulary | None |
 | `mrs_engagement_analytics.py` | Read-only X metrics collection and isolated SQLite reporting | X reads only with explicit flags; writes only under `engagement_analytics/` |
 | `hybrid_reply_retrieval.py` | CLI for local hybrid retrieval experiments and review artefacts | Offline by default; provider-review commands require explicit execution and budgets |
@@ -174,6 +175,34 @@ objects in `severe_disagreements`. It does not mutate observations. Dependency
 direction is digest → original editorial → values; the ranking helper in values
 is unchanged. The new module imports no coordinator, renderer, bot or snapshot
 reader and performs no I/O or runtime initialisation.
+
+Single-call reply callers retain `single_call_reply_summary(events)` as an
+explicit digest re-export with its original signature. The specific handlers
+`record_single_call_reply_decision`, `record_single_call_reply_provider_usage`,
+`record_single_call_reply_posting_outcome` and
+`record_single_call_reply_draft_recovered` accept already parsed fields, the
+record timestamp and a keyword-only `add_event` callback. The digest retains the
+original branch predicates, precedence, outer parsing and continue flow.
+`add_event` still constructs and retains each event dictionary, applies
+`max_text`, attributes provenance/production identity and increments statistics.
+The summary consumes those same emitted objects at the original analysis point.
+
+Field order, allowlists, defaults, exact integer/boolean distinctions and bounds
+are unchanged. An explicitly invalid `recent_conversational_reply_count` does
+not fall back to `recent_reply_count`; that alias applies only when the primary
+field is absent. Temperature keeps the original native int/float finite check.
+Provider attempts retain their missing, malformed, out-of-range and available
+observations, with the existing provider status/reset/retry projections. Summary
+deduplication, object-identity accounting, retry compliance, token totals,
+latencies and averages are unchanged. Posting/recovery observations confer no
+new publication authority; confirmed-reply and durable-evidence handling remain
+with their existing owners.
+
+Dependency direction is digest → single call → values. The unchanged
+`normalise_reply_lane` and `bounded_event_nonnegative_integer_observation` live
+in the values leaf and remain explicitly importable through the digest. The
+single-call reporting module imports no digest, renderer, bot or operational
+`single_call_reply` module and has no shared mutable state.
 
 ## Quotation Corpus Accounting
 

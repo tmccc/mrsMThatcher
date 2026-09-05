@@ -1,8 +1,12 @@
+import copy
 import json
+import os
 import subprocess
 import sys
 from contextlib import contextmanager
+from dataclasses import replace
 from datetime import datetime, timedelta
+from pathlib import Path
 
 import pytest
 
@@ -730,6 +734,214 @@ def test_single_call_digest_reports_retryable_later_attempts_without_failing():
     assert summary["one_call_violation_count"] == 0
     assert summary["repeated_model_attempt_candidate_count"] == 1
     assert summary["excess_provider_usage_candidate_count"] == 0
+
+
+@pytest.mark.parametrize(
+    ("value", "projected", "status"),
+    [
+        (None, None, "malformed"),
+        (True, None, "malformed"),
+        (-1, None, "malformed"),
+        (1_000_000, 1_000_000, "available"),
+        (1_000_001, None, "out_of_range"),
+    ],
+)
+def test_single_call_attempt_projection_keeps_invalid_and_range_observations(
+    value, projected, status,
+):
+    records = [
+        structured_record(0, {
+            "event": "single_call_reply_decision",
+            "target_id": "206",
+            "model_call_count": 1,
+            "provider_request_attempt_count": value,
+        }),
+        structured_record(1, {
+            "event": "single_call_reply_provider_usage",
+            "target_id": "206",
+            "request_attempt_count": value,
+        }),
+    ]
+
+    report = digest.analyse(records)
+
+    for item, field in zip(report["events"], (
+        "provider_request_attempt_count", "request_attempt_count",
+    )):
+        assert item[field] == projected
+        assert type(item[field]) is type(projected)
+        assert item[f"{field}_status"] == status
+    summary = report["single_call_reply"]
+    assert summary["provider_request_attempt_metadata_status_counts"] == {status: 2}
+    assert summary["one_call_compliance"] == (
+        "incomplete" if status == "malformed" else "failed"
+    )
+    assert summary["one_call_compliant_count"] == 0
+
+
+@pytest.mark.parametrize(
+    ("fields", "temperature", "recent_count"),
+    [
+        ({"temperature": 1}, 1, 30),
+        ({"temperature": 1.25, "recent_conversational_reply_count": None}, 1.25, None),
+        ({"temperature": True, "recent_conversational_reply_count": False}, None, None),
+    ],
+)
+def test_single_call_projection_keeps_numeric_types_and_explicit_alias_precedence(
+    fields, temperature, recent_count,
+):
+    report = digest.analyse([structured_record(0, {
+        "event": "single_call_reply_decision",
+        "recent_reply_count": 30,
+        "used_fact_count": True,
+        "visible_turn_count": 13,
+        "provider_status_code": True,
+        "target_id": 207,
+        "private_extra": "not a report field",
+        **fields,
+    })])
+
+    item = report["events"][0]
+    assert item["temperature"] == temperature
+    assert type(item["temperature"]) is type(temperature)
+    assert item["recent_conversational_reply_count"] == recent_count
+    assert type(item["recent_conversational_reply_count"]) is type(recent_count)
+    assert item["used_fact_count"] is None
+    assert item["visible_turn_count"] is None
+    assert item["provider_status_code"] is None
+    assert item["target_id"] == ""
+    assert "private_extra" not in item
+
+
+def test_single_call_summary_consumes_original_emitted_and_truncated_events(monkeypatch):
+    captured = []
+    original_summary = digest.single_call_reply_summary
+
+    def capture(events):
+        captured.extend(events)
+        before = copy.deepcopy(events)
+        result = original_summary(events)
+        assert events == before
+        return result
+
+    monkeypatch.setattr(digest, "single_call_reply_summary", capture)
+    common = {"lane": " HOT_POST_REPLY ", "target_id": "208"}
+    payloads = [
+        {"event": "historical_context_runtime", "status": "disabled"},
+        {
+            "event": "single_call_reply_decision", **common,
+            "strategy_version": "s" * 30, "pipeline_status": "reply",
+            "model_call_count": 1, "provider_request_attempt_count": 1,
+        },
+        {
+            "event": "single_call_reply_provider_usage", **common,
+            "request_attempt_count": 1, "input_tokens": 100,
+        },
+        {
+            "event": "single_call_reply_posting_outcome", **common,
+            "status": "confirmed", "reply_post_id": "908",
+        },
+        {
+            "event": "single_call_reply_posting_outcome", **common,
+            "lane": "hot_post", "status": "confirmed", "reply_post_id": "909",
+        },
+        {"event": "single_call_reply_draft_recovered", **common, "model_call_count": 0},
+        {"event": "ai_reply_pipeline_decision", "status": "no_reply"},
+    ]
+    records = [structured_record(index, payload) for index, payload in enumerate(payloads)]
+    records.append(replace(
+        structured_record(7, payloads[5]), path="mrsMThatcher.selftest.log",
+    ))
+
+    report = digest.analyse(records, max_text=9)
+
+    assert len(captured) == len(report["events"]) == 8
+    assert all(left is right for left, right in zip(captured, report["events"]))
+    assert [item["kind"] for item in captured] == [
+        "historical_context_runtime", "single_call_reply_decision",
+        "single_call_reply_provider_usage", "single_call_reply_posting_outcome",
+        "single_call_reply_posting_outcome", "single_call_reply_draft_recovered",
+        "reply_strategy_decision", "single_call_reply_draft_recovered",
+    ]
+    assert captured[1]["strategy_version"] == "ssssssss…"
+    assert captured[1]["lane"] == "hot-post"
+    assert captured[1]["time"] == "2026-09-04 12:00:01"
+    assert "source_refs" not in captured[1]
+    summary = report["single_call_reply"]
+    assert summary["strategy_version_counts"] == {"ssssssss…": 1}
+    assert summary["replies_posted_count"] == 1
+    assert summary["recovered_draft_count"] == 2
+    assert summary["one_call_compliance"] == "passed"
+    assert report["summary"]["stats"]["single_call_reply_posting_outcome"] == 2
+    assert report["summary"]["stats"]["single_call_reply_draft_recovered"] == 2
+    assert report["summary"]["stats"].get("hot_post_reply_posted", 0) == 0
+
+
+def test_single_call_module_import_and_reporting_have_no_runtime_dependencies(tmp_path):
+    import mrs_log_digest_single_call as single_call
+    import mrs_log_digest_values as values
+
+    assert digest.single_call_reply_summary is single_call.single_call_reply_summary
+    assert digest.normalise_reply_lane is values.normalise_reply_lane
+    assert (
+        digest.bounded_event_nonnegative_integer_observation
+        is values.bounded_event_nonnegative_integer_observation
+    )
+    script = """
+import builtins
+from datetime import datetime
+import logging
+import os
+from pathlib import Path
+import sys
+
+handlers = list(logging.getLogger().handlers)
+loggers = set(logging.Logger.manager.loggerDict)
+original_import = builtins.__import__
+forbidden = {"mrs_log_digest", "mrs_log_digest_markdown", "mrsMThatcher2",
+             "mrs_log_digest_runtime", "mrs_log_digest_corpus",
+             "mrs_log_digest_generated_pool", "single_call_reply"}
+def reject(*args, **kwargs):
+    raise AssertionError((args, kwargs))
+def import_guard(name, *args, **kwargs):
+    assert name not in forbidden, name
+    return original_import(name, *args, **kwargs)
+def audit(event, args):
+    if event == "open":
+        path, mode, flags = args
+        assert not flags & (os.O_WRONLY | os.O_RDWR | os.O_CREAT | os.O_TRUNC), args
+        assert isinstance(path, str) and path.endswith((".py", ".pyc", ".so")), args
+    assert not event.startswith(("socket.", "subprocess.")), event
+    assert event not in {"os.mkdir", "os.remove", "os.rename", "os.system", "os.listdir", "os.scandir"}, event
+Path.home = classmethod(reject)
+logging.basicConfig = reject
+builtins.__import__ = import_guard
+sys.addaudithook(audit)
+import mrs_log_digest_single_call as single_call
+
+events = []
+def add_event(kind, ts, **fields):
+    item = {"kind": kind, **fields}
+    events.append(item)
+    return item
+single_call.record_single_call_reply_draft_recovered(
+    {"lane": "hot_post_reply", "target_id": "209", "model_call_count": 0},
+    datetime(2026, 9, 4, 12), add_event=add_event,
+)
+assert single_call.single_call_reply_summary(events)["recovered_draft_count"] == 1
+assert single_call.single_call_reply_summary([])["recovered_draft_count"] == 0
+assert not forbidden & sys.modules.keys()
+assert list(logging.getLogger().handlers) == handlers
+assert set(logging.Logger.manager.loggerDict) == loggers
+"""
+    result = subprocess.run(
+        [sys.executable, "-B", "-c", script], cwd=tmp_path,
+        env=dict(os.environ, PYTHONPATH=str(Path(digest.__file__).resolve().parent)),
+        capture_output=True, timeout=15,
+    )
+    assert result.returncode == 0, result.stderr
+    assert result.stdout == b""
+    assert list(tmp_path.iterdir()) == []
 
 
 def test_old_multi_stage_logs_are_only_counted_as_legacy():

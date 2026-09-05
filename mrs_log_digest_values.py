@@ -9,7 +9,7 @@ import re
 from collections import Counter
 from datetime import datetime, timezone
 from decimal import Decimal
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any, Dict, List, Mapping, Optional, Tuple
 
 
 GENERATED_POLICIES = ("unrestricted", "small_penalty", "strong_penalty", "origin_quote_only")
@@ -140,6 +140,14 @@ def _normalise_lane(value: Any) -> str:
     return {"hot-post": "hot-post", "quote-tweet": "quote-tweet", "mention": "mention"}.get(lane, "unavailable")
 
 
+def normalise_reply_lane(value: Any) -> str:
+    """Return a stable conversational-reply lane label."""
+    lane = str(value or "unknown").strip().lower().replace("_", "-")
+    if lane == "hot-post-reply":
+        return "hot-post"
+    return lane or "unknown"
+
+
 def _human_snapshot_age(seconds: float) -> str:
     """Return a deterministic, whole-second age for state presentation."""
     remaining = max(0, int(seconds))
@@ -230,6 +238,24 @@ def bounded_event_nonnegative_integer(
     """Project one bounded non-negative structured display integer."""
 
     return value if type(value) is int and 0 <= value <= maximum else None
+
+
+def bounded_event_nonnegative_integer_observation(
+    document: Mapping[str, Any],
+    key: str,
+    *,
+    maximum: int = MAX_REASONABLE_STATE_EPOCH,
+) -> Tuple[Optional[int], str]:
+    """Project an integer while retaining why required telemetry is unavailable."""
+
+    if key not in document:
+        return None, "missing"
+    value = document.get(key)
+    if type(value) is not int or value < 0:
+        return None, "malformed"
+    if value > maximum:
+        return None, "out_of_range"
+    return value, "available"
 
 
 def bounded_event_boolean(value: Any) -> Optional[bool]:
