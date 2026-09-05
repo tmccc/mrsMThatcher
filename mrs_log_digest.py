@@ -249,6 +249,12 @@ from mrs_log_digest_single_call import (
     record_single_call_reply_draft_recovered,
 )
 from mrs_log_digest_reply_pipeline import (
+    record_ai_reply_pipeline_decision,
+    record_ai_reply_pipeline_stage_summary,
+    record_ai_reply_pipeline_effective_outcome,
+    record_ai_reply_pipeline_failure,
+    record_ai_reply_pipeline_outcome,
+    reconcile_reply_pipeline_effective_outcomes as _reconcile_reply_pipeline_effective_outcomes,
     MAJORITY_REVIEW_FAMILIES,
     MAJORITY_REVIEW_SUMMARY_FIELDS,
     _valid_majority_review_summary,
@@ -259,6 +265,11 @@ from mrs_log_digest_reply_pipeline import (
     reply_pipeline_stage_summary,
 )
 from mrs_log_digest_reply_strategy import (
+    record_reply_strategy_decision,
+    record_reply_strategy_outcome,
+    record_reply_target_terminal,
+    record_reply_strategy_rejection,
+    conversational_evidence_fields as _conversational_evidence_fields,
     _no_reply_category,
     reply_strategy_summary,
 )
@@ -3372,115 +3383,9 @@ def reconcile_reply_pipeline_effective_outcomes(
     events: List[Dict[str, Any]],
 ) -> None:
     """Attach later terminal/public observations to stage-only telemetry."""
-    decisions: Dict[Tuple[str, str, str], Dict[str, Any]] = {}
-    local_rejections: Dict[Tuple[str, str], Dict[str, Any]] = {}
-    outcomes: Dict[Tuple[str, str], Dict[str, Any]] = {}
-    for event in events:
-        lane = _normalise_lane(event.get("lane"))
-        target = str(event.get("target_id") or "")
-        if not target:
-            continue
-        kind = event.get("kind")
-        if kind == "reply_strategy_decision":
-            version = str(event.get("strategy_version") or "unavailable")
-            decisions[(version, lane, target)] = event
-        elif kind == "reply_strategy_local_rejection":
-            local_rejections[(lane, target)] = event
-        elif kind == "reply_strategy_outcome":
-            outcomes[(lane, target)] = event
-
-    for decision in decisions.values():
-        lane = _normalise_lane(decision.get("lane"))
-        target = str(decision.get("target_id") or "")
-        local = local_rejections.get((lane, target))
-        outcome = outcomes.get((lane, target))
-        if local is not None:
-            for field in (
-                "effective_status",
-                "effective_reason",
-                "original_local_rejection_reason",
-                "direct_answer_repair_attempted",
-                "direct_answer_repair_outcome",
-            ):
-                if local.get(field) is not None:
-                    decision[field] = local.get(field)
-        elif outcome is not None:
-            outcome_status = str(outcome.get("status") or "confirmed")
-            decision["effective_status"] = (
-                "published"
-                if outcome_status in {"confirmed", "posted"}
-                else outcome_status
-            )
-            decision["effective_reason"] = (
-                outcome.get("failure_reason") or outcome_status
-            )
-        elif decision.get("status") == "no_reply":
-            decision["effective_status"] = "no_reply"
-            decision["effective_reason"] = (
-                decision.get("reason")
-                or decision.get("no_reply_reason")
-                or "no_reply"
-            )
-        elif not decision.get("effective_status"):
-            decision["effective_status"] = "not_observed_in_window"
-            decision["effective_reason"] = (
-                "no_terminal_or_public_outcome_observed"
-            )
-
-    for stage in events:
-        if stage.get("kind") != "reply_pipeline_stage_summary":
-            continue
-        version = str(stage.get("strategy_version") or "unavailable")
-        lane = _normalise_lane(stage.get("lane"))
-        target = str(stage.get("target_id") or "")
-        stage["pipeline_stage_status"] = (
-            stage.get("pipeline_stage_status")
-            or stage.get("status")
-            or "unavailable"
-        )
-        stage["pipeline_stage_reason"] = (
-            stage.get("pipeline_stage_reason")
-            or stage.get("terminal_reason")
-            or ""
-        )
-        decision = decisions.get((version, lane, target))
-        local = local_rejections.get((lane, target))
-        outcome = outcomes.get((lane, target))
-        if local is not None:
-            source = local
-        elif outcome is not None:
-            outcome_status = str(outcome.get("status") or "confirmed")
-            stage["effective_status"] = (
-                "published"
-                if outcome_status in {"confirmed", "posted"}
-                else outcome_status
-            )
-            stage["effective_reason"] = (
-                outcome.get("failure_reason") or outcome_status
-            )
-            source = None
-        elif decision and decision.get("effective_status"):
-            source = decision
-        elif stage.get("effective_status"):
-            source = None
-        elif stage.get("pipeline_stage_status") == "no_reply":
-            stage["effective_status"] = "no_reply"
-            stage["effective_reason"] = stage.get("pipeline_stage_reason")
-            source = None
-        else:
-            stage["effective_status"] = "not_observed_in_window"
-            stage["effective_reason"] = "no_terminal_or_public_outcome_observed"
-            source = None
-        if source is not None:
-            for field in (
-                "effective_status",
-                "effective_reason",
-                "original_local_rejection_reason",
-                "direct_answer_repair_attempted",
-                "direct_answer_repair_outcome",
-            ):
-                if source.get(field) is not None:
-                    stage[field] = source.get(field)
+    _reconcile_reply_pipeline_effective_outcomes(
+        events, _normalise_lane=_normalise_lane,
+    )
 
 
 def analyse(
@@ -3805,89 +3710,11 @@ def analyse(
         evidence_ids: Any,
         factual_claim_count: Any,
     ) -> Dict[str, Any]:
-        factual_claim = (
-            factual_claim_count > 0
-            if type(factual_claim_count) is int
-            else None
+        return _conversational_evidence_fields(
+            event_obj, evidence_ids=evidence_ids,
+            factual_claim_count=factual_claim_count,
+            bounded_event_string_list=bounded_event_string_list,
         )
-        confidence = bounded_event_text(
-            event_obj.get("evidence_confidence"), max_characters=100
-        )
-        if not confidence:
-            confidence = "none" if factual_claim is False else "unavailable"
-        raw_supplied_ids = event_obj.get("trusted_fact_ids_supplied")
-        has_explicit_supply = isinstance(raw_supplied_ids, list)
-        supplied_ids = (
-            bounded_event_string_list(
-                raw_supplied_ids, limit=1000, item_max_characters=200
-            )
-            if has_explicit_supply
-            else None
-        )
-        if not has_explicit_supply:
-            supplied_ids = (
-                bounded_event_string_list(
-                    evidence_ids, limit=1000, item_max_characters=200
-                )
-                if isinstance(evidence_ids, list)
-                else None
-            )
-        supplied_count = event_obj.get("trusted_facts_supplied_count")
-        if (
-            type(supplied_count) is not int
-            or not 0 <= supplied_count <= 1_000_000
-        ):
-            supplied_count = event_obj.get("retrieved_count")
-        if (
-            type(supplied_count) is not int
-            or not 0 <= supplied_count <= 1_000_000
-        ):
-            supplied_count = (
-                len(supplied_ids)
-                if has_explicit_supply and isinstance(supplied_ids, list)
-                else None
-            )
-
-        has_explicit_use = "used_fact_count" in event_obj
-        used_count = event_obj.get("used_fact_count")
-        if not has_explicit_use:
-            used_count = event_obj.get("evidence_reference_count")
-            if type(used_count) is not int or used_count < 0:
-                used_count = (
-                    len(supplied_ids or [])
-                    if isinstance(evidence_ids, list)
-                    else None
-                )
-        elif not (
-            type(used_count) is int and 0 <= used_count <= 1_000_000
-        ):
-            used_count = "unknown"
-        raw_used_ids = (
-            event_obj.get("used_fact_ids") if has_explicit_use else evidence_ids
-        )
-        used_ids = (
-            bounded_event_string_list(
-                raw_used_ids, limit=1000, item_max_characters=200
-            )
-            if isinstance(raw_used_ids, list)
-            else None
-        )
-        reference_count = used_count if type(used_count) is int else None
-        return {
-            "evidence_confidence": confidence,
-            "retrieved_count": supplied_count,
-            "evidence_reference_count": reference_count,
-            "trusted_facts_supplied_count": supplied_count,
-            "trusted_fact_ids_supplied": supplied_ids,
-            "used_fact_count": used_count,
-            "used_fact_ids": used_ids,
-            "factual_claim": factual_claim,
-            "grounded": (
-                used_count > 0
-                if type(used_count) is int
-                else None
-            ),
-        }
 
     for record_index, r in enumerate(records):
         current_source_record = r
@@ -4784,93 +4611,26 @@ def analyse(
                 )
                 stats[f"daily_meme_failure_stage_{stage}"] += 1
             elif event_obj and event_obj.get("event") == "reply_strategy_decision":
-                retrieved_ids = event_obj.get("retrieved_quote_ids")
-                evidence_fields = conversational_evidence_fields(
-                    event_obj,
-                    evidence_ids=event_obj.get("evidence_ids"),
-                    factual_claim_count=(
-                        1 if event_obj.get("factual_claim_made") is True else 0
-                        if event_obj.get("factual_claim_made") is False else None
-                    ),
-                )
-                if type(event_obj.get("retrieved_count")) is not int:
-                    evidence_fields["retrieved_count"] = (
-                        min(len(retrieved_ids), 1_000_000)
-                        if isinstance(retrieved_ids, list)
-                        else None
-                    )
-                evidence_fields["grounded"] = bounded_event_boolean(
-                    event_obj.get("grounded")
-                )
-                decision_event = add_event(
-                    "reply_strategy_decision",
-                    r.ts,
-                    lane=bounded_event_text(
-                        event_obj.get("lane"),
-                        default="unavailable",
-                        max_characters=100,
-                    ),
-                    target_id=(event_obj.get("target_id") if valid_string_public_post_id(event_obj.get("target_id")) else ""),
-                    mode=bounded_event_text(
-                        event_obj.get("mode"), max_characters=100
-                    ),
-                    humour_tone=bounded_event_text(
-                        event_obj.get("humour_tone"), max_characters=100
-                    ),
-                    tone=bounded_event_text(
-                        event_obj.get("humour_tone"), max_characters=100
-                    ),
-                    **evidence_fields,
-                    no_reply_reason=bounded_event_text(
-                        event_obj.get("no_reply_reason"), max_characters=500
-                    ),
+                record_reply_strategy_decision(
+                    event_obj, r.ts,
+                    add_event=add_event,
+                    conversational_evidence_fields=conversational_evidence_fields,
                 )
             elif event_obj and event_obj.get("event") == "reply_strategy_outcome":
-                retrieved_ids = event_obj.get("retrieved_quote_ids")
-                evidence_fields = conversational_evidence_fields(
-                    event_obj,
-                    evidence_ids=event_obj.get("evidence_ids"),
-                    factual_claim_count=(
-                        1 if event_obj.get("factual_claim_made") is True else 0
-                        if event_obj.get("factual_claim_made") is False else None
-                    ),
-                )
-                if type(event_obj.get("retrieved_count")) is not int:
-                    evidence_fields["retrieved_count"] = (
-                        min(len(retrieved_ids), 1_000_000)
-                        if isinstance(retrieved_ids, list)
-                        else None
-                    )
-                evidence_fields["grounded"] = bounded_event_boolean(
-                    event_obj.get("grounded")
-                )
-                add_event(
-                    "reply_strategy_outcome", r.ts,
-                    status=bounded_event_text(event_obj.get("status"), default="confirmed", max_characters=100),
-                    lane=bounded_event_text(event_obj.get("lane"), default="unavailable", max_characters=100),
-                    target_id=(event_obj.get("target_id") if valid_string_public_post_id(event_obj.get("target_id")) else ""),
-                    reply_post_id=(event_obj.get("reply_post_id") if valid_string_public_post_id(event_obj.get("reply_post_id")) else ""),
-                    mode=bounded_event_text(event_obj.get("mode"), max_characters=100),
-                    final_reply_kind=bounded_event_text(event_obj.get("final_reply_kind"), max_characters=100),
-                    humour_tone=bounded_event_text(event_obj.get("humour_tone"), max_characters=100),
-                    tone=bounded_event_text(event_obj.get("humour_tone"), max_characters=100),
-                    **evidence_fields,
-                    no_reply_reason=bounded_event_text(event_obj.get("no_reply_reason"), max_characters=500),
-                    failure_reason=bounded_event_text(event_obj.get("failure_reason"), default="", max_characters=1000),
+                record_reply_strategy_outcome(
+                    event_obj, r.ts,
+                    add_event=add_event,
+                    conversational_evidence_fields=conversational_evidence_fields,
                 )
             elif event_obj and event_obj.get("event") == "reply_target_terminal":
-                add_event(
-                    "reply_target_terminal", r.ts,
-                    lane=bounded_event_text(event_obj.get("lane"), default="unavailable", max_characters=100),
-                    target_id=(event_obj.get("target_id") if valid_string_public_post_id(event_obj.get("target_id")) else ""),
-                    outcome=bounded_event_text(event_obj.get("outcome"), default="reply_not_permitted", max_characters=100),
-                    reason=bounded_event_text(event_obj.get("reason"), default="", max_characters=500),
+                record_reply_target_terminal(
+                    event_obj, r.ts,
+                    add_event=add_event,
                 )
             elif event_obj and event_obj.get("event") == "reply_strategy_rejection":
-                add_event(
-                    "reply_strategy_rejection", r.ts,
-                    lane=bounded_event_text(event_obj.get("lane"), default="unavailable", max_characters=100),
-                    reason=bounded_event_text(event_obj.get("reason"), default="other", max_characters=500),
+                record_reply_strategy_rejection(
+                    event_obj, r.ts,
+                    add_event=add_event,
                 )
             elif event_obj and event_obj.get("event") == "single_call_reply_decision":
                 record_single_call_reply_decision(
@@ -4889,310 +4649,36 @@ def analyse(
                     event_obj, r.ts, add_event=add_event,
                 )
             elif event_obj and event_obj.get("event") == "ai_reply_pipeline_decision":
-                evidence_ids = event_obj.get("evidence_ids")
-                factual_claim_count = event_obj.get("factual_claim_count")
-                evidence_fields = conversational_evidence_fields(
-                    event_obj,
-                    evidence_ids=evidence_ids,
-                    factual_claim_count=factual_claim_count,
+                record_ai_reply_pipeline_decision(
+                    event_obj, r.ts,
+                    add_event=add_event,
+                    add_or_merge_local_rejection=add_or_merge_local_rejection,
+                    conversational_evidence_fields=conversational_evidence_fields,
+                    bounded_event_string_list=bounded_event_string_list,
                 )
-                decision_status = bounded_event_text(
-                    event_obj.get("status"), default="", max_characters=100
-                )
-                final_reply_kind = bounded_event_text(
-                    event_obj.get("final_reply_kind"), max_characters=100
-                )
-                effective_mode = (
-                    bounded_event_text(
-                        event_obj.get("mode"), max_characters=100
-                    )
-                    or ("no_reply" if decision_status == "no_reply" else None)
-                )
-                add_event(
-                    "reply_strategy_decision",
-                    r.ts,
-                    lane=bounded_event_text(event_obj.get("lane"), default="unavailable", max_characters=100),
-                    target_id=(event_obj.get("target_id") if valid_string_public_post_id(event_obj.get("target_id")) else ""),
-                    strategy_version=bounded_event_text(event_obj.get("strategy_version"), default="unavailable", max_characters=200),
-                    status=decision_status or "unavailable",
-                    mode=effective_mode,
-                    proposer_mode=bounded_event_text(event_obj.get("proposer_mode"), max_characters=100) or effective_mode,
-                    final_reply_kind=final_reply_kind,
-                    reply_requirement=bounded_event_text(event_obj.get("reply_requirement"), max_characters=100),
-                    route_source=bounded_event_text(event_obj.get("route_source"), max_characters=100),
-                    claim_risk_categories=bounded_event_string_list(
-                        event_obj.get("claim_risk_categories")
-                    ),
-                    humour_tone=bounded_event_text(event_obj.get("tone"), max_characters=100),
-                    tone=bounded_event_text(event_obj.get("tone"), max_characters=100),
-                    **evidence_fields,
-                    no_reply_reason=bounded_event_text(event_obj.get("reason"), max_characters=500),
-                    reason=bounded_event_text(event_obj.get("reason"), max_characters=500),
-                    reviewer_verdict=bounded_event_text(event_obj.get("reviewer_verdict"), max_characters=100),
-                    model_call_count=bounded_event_nonnegative_integer(event_obj.get("model_call_count"), maximum=1000),
-                    revision_count=bounded_event_nonnegative_integer(event_obj.get("revision_count"), maximum=1000),
-                    author_quarantine_evidence=bounded_event_text(event_obj.get("author_quarantine_evidence"), max_characters=200),
-                    pipeline_stage_status=(
-                        bounded_event_text(event_obj.get("pipeline_stage_status"), max_characters=100)
-                        or decision_status
-                        or "unavailable"
-                    ),
-                    effective_status=bounded_event_text(event_obj.get("effective_status"), max_characters=100),
-                    effective_reason=bounded_event_text(event_obj.get("effective_reason"), max_characters=500),
-                    original_local_rejection_reason=bounded_event_text(event_obj.get("original_local_rejection_reason"), max_characters=500),
-                    direct_answer_repair_attempted=bounded_event_boolean(event_obj.get("direct_answer_repair_attempted")),
-                    direct_answer_repair_outcome=bounded_event_text(event_obj.get("direct_answer_repair_outcome"), max_characters=100),
-                    incoming_contribution=bounded_event_text(event_obj.get("incoming_contribution"), max_characters=25_000),
-                    proposed_draft=bounded_event_text(event_obj.get("proposed_draft"), max_characters=25_000),
-                    repaired_draft=bounded_event_text(event_obj.get("repaired_draft"), max_characters=25_000),
-                )
-                if event_obj.get("effective_status") == "local_rejection":
-                    add_or_merge_local_rejection(
-                        r.ts,
-                        lane=event_obj.get("lane") or "unavailable",
-                        target_id=event_obj.get("target_id") or "",
-                        strategy_version=event_obj.get("strategy_version") or "unavailable",
-                        pipeline_stage_status=(
-                            event_obj.get("pipeline_stage_status")
-                            or decision_status
-                            or "unavailable"
-                        ),
-                        effective_status="local_rejection",
-                        effective_reason=event_obj.get("effective_reason") or "",
-                        reason=(
-                            event_obj.get("original_local_rejection_reason")
-                            or "clarification_not_direct_factual_answer"
-                        ),
-                        original_local_rejection_reason=event_obj.get(
-                            "original_local_rejection_reason"
-                        ),
-                        direct_answer_repair_attempted=event_obj.get(
-                            "direct_answer_repair_attempted"
-                        ),
-                        direct_answer_repair_outcome=event_obj.get(
-                            "direct_answer_repair_outcome"
-                        ),
-                        incoming_contribution=event_obj.get(
-                            "incoming_contribution"
-                        ),
-                        proposed_draft=event_obj.get("proposed_draft"),
-                        repaired_draft=event_obj.get("repaired_draft"),
-                    )
             elif event_obj and event_obj.get("event") == "ai_reply_pipeline_stage_summary":
-                raw_provider_counts = event_obj.get("provider_call_counts")
-                provider_call_counts = {
-                    provider: count
-                    for provider in ("xAI", "OpenAI")
-                    if isinstance(raw_provider_counts, dict)
-                    and type(count := raw_provider_counts.get(provider)) is int
-                    and 0 <= count <= 1_000_000
-                }
-                schema_invalid_stages = event_obj.get("schema_invalid_stages")
-                allegation_categories = event_obj.get(
-                    "allegation_conspiracy_categories"
-                )
-                claim_risk_categories = event_obj.get("claim_risk_categories")
-                raw_claim_outcomes = event_obj.get("claim_audit_outcomes")
-                claim_audit_outcomes = [
-                    {
-                        "stage": stage,
-                        "outcome": outcome,
-                    }
-                    for item in list(
-                        raw_claim_outcomes
-                        if isinstance(raw_claim_outcomes, list)
-                        else []
-                    )[:100]
-                    if isinstance(item, dict)
-                    and (
-                        stage := bounded_event_text(
-                            item.get("stage"), max_characters=100
-                        )
-                    )
-                    and (
-                        outcome := bounded_event_text(
-                            item.get("outcome"), max_characters=100
-                        )
-                    )
-                ]
-                majority_review = normalise_majority_review_telemetry(
-                    event_obj
-                )
-                add_event(
-                    "reply_pipeline_stage_summary",
-                    r.ts,
-                    lane=bounded_event_text(event_obj.get("lane"), default="unavailable", max_characters=100),
-                    target_id=(event_obj.get("target_id") if valid_string_public_post_id(event_obj.get("target_id")) else ""),
-                    strategy_version=bounded_event_text(event_obj.get("strategy_version"), default="unavailable", max_characters=200),
-                    status=bounded_event_text(event_obj.get("status"), default="unavailable", max_characters=100),
-                    pipeline_stage_status=(
-                        bounded_event_text(event_obj.get("pipeline_stage_status"), max_characters=100)
-                        or bounded_event_text(event_obj.get("status"), max_characters=100)
-                        or "unavailable"
-                    ),
-                    pipeline_stage_reason=(
-                        bounded_event_text(event_obj.get("terminal_reason"), default="", max_characters=500)
-                    ),
-                    terminal_reason=bounded_event_text(event_obj.get("terminal_reason"), default="", max_characters=500),
-                    effective_status=bounded_event_text(event_obj.get("effective_status"), max_characters=100),
-                    effective_reason=bounded_event_text(event_obj.get("effective_reason"), max_characters=500),
-                    original_local_rejection_reason=bounded_event_text(event_obj.get("original_local_rejection_reason"), max_characters=500),
-                    direct_answer_repair_attempted=bounded_event_boolean(event_obj.get("direct_answer_repair_attempted")),
-                    direct_answer_repair_outcome=bounded_event_text(event_obj.get("direct_answer_repair_outcome"), max_characters=100),
-                    model_call_count=bounded_event_nonnegative_integer(event_obj.get("model_call_count"), maximum=1000),
-                    revision_count=bounded_event_nonnegative_integer(event_obj.get("revision_count"), maximum=1000),
-                    provider_call_counts=provider_call_counts,
-                    majority_review_telemetry_present=majority_review[
-                        "present"
-                    ],
-                    majority_review_telemetry_present_empty=majority_review[
-                        "present_empty"
-                    ],
-                    majority_review_summaries=(
-                        majority_review["valid_entries"]
-                        if majority_review["present"]
-                        else None
-                    ),
-                    majority_review_malformed_entry_count=majority_review[
-                        "malformed_entry_count"
-                    ],
-                    majority_review_duplicate_family=majority_review[
-                        "duplicate_family"
-                    ],
-                    reply_requirement=bounded_event_text(event_obj.get("reply_requirement"), max_characters=100),
-                    route_source=bounded_event_text(event_obj.get("route_source"), max_characters=100),
-                    trusted_facts_supplied_count=bounded_event_nonnegative_integer(event_obj.get("trusted_facts_supplied_count"), maximum=1_000_000),
-                    trusted_fact_ids_supplied=bounded_event_string_list(event_obj.get("trusted_fact_ids_supplied"), limit=1000, item_max_characters=200),
-                    schema_invalid_stages=bounded_event_string_list(schema_invalid_stages),
-                    deterministic_suppressed=bounded_event_boolean(event_obj.get("deterministic_suppressed")),
-                    deterministic_reason=bounded_event_text(event_obj.get("deterministic_reason"), max_characters=500),
-                    xai_gate_decision=bounded_event_text(event_obj.get("xai_gate_decision"), max_characters=100),
-                    reply_necessity_outcome=bounded_event_text(event_obj.get("reply_necessity_outcome"), max_characters=100),
-                    reply_necessity_majority_resolvable=(
-                        event_obj.get("reply_necessity_majority_resolvable")
-                        if type(
-                            event_obj.get("reply_necessity_majority_resolvable")
-                        ) is bool
-                        else None
-                    ),
-                    reply_necessity_invalid_calls=(
-                        event_obj.get("reply_necessity_invalid_calls")
-                        if type(event_obj.get("reply_necessity_invalid_calls")) is int
-                        and event_obj.get("reply_necessity_invalid_calls") >= 0
-                        else 0
-                    ),
-                    group_hostility_candidate=bounded_event_boolean(event_obj.get("group_hostility_candidate")),
-                    group_hostility_outcome=bounded_event_text(event_obj.get("group_hostility_outcome"), max_characters=100),
-                    allegation_conspiracy_candidate=bounded_event_boolean(event_obj.get("allegation_conspiracy_candidate")),
-                    allegation_conspiracy_categories=bounded_event_string_list(allegation_categories),
-                    allegation_conspiracy_outcome=bounded_event_text(event_obj.get("allegation_conspiracy_outcome"), max_characters=100),
-                    allegation_conspiracy_majority_resolvable=(
-                        event_obj.get(
-                            "allegation_conspiracy_majority_resolvable"
-                        )
-                        if type(
-                            event_obj.get(
-                                "allegation_conspiracy_majority_resolvable"
-                            )
-                        ) is bool
-                        else None
-                    ),
-                    allegation_conspiracy_invalid_calls=(
-                        event_obj.get("allegation_conspiracy_invalid_calls")
-                        if type(event_obj.get("allegation_conspiracy_invalid_calls")) is int
-                        and event_obj.get("allegation_conspiracy_invalid_calls") >= 0
-                        else 0
-                    ),
-                    attribution_route=bounded_event_text(event_obj.get("attribution_route"), max_characters=100),
-                    attribution_reply_requirement=bounded_event_text(event_obj.get("attribution_reply_requirement"), max_characters=100),
-                    authentication_outcome=bounded_event_text(event_obj.get("authentication_outcome"), max_characters=100),
-                    claim_risk_categories=bounded_event_string_list(claim_risk_categories),
-                    claim_audit_outcomes=claim_audit_outcomes,
-                    claim_cleanup_called=bounded_event_boolean(event_obj.get("claim_cleanup_called")),
-                    exact_duplicate_detected=bounded_event_boolean(event_obj.get("exact_duplicate_detected")),
-                    near_duplicate_count=(
-                        event_obj.get("near_duplicate_count")
-                        if type(event_obj.get("near_duplicate_count")) is int
-                        and event_obj.get("near_duplicate_count") >= 0
-                        else None
-                    ),
-                    duplicate_repair_called=bounded_event_boolean(event_obj.get("duplicate_repair_called")),
-                    duplicate_repair_outcome=bounded_event_text(event_obj.get("duplicate_repair_outcome"), max_characters=100),
-                    final_validation=bounded_event_text(event_obj.get("final_validation"), max_characters=100),
+                record_ai_reply_pipeline_stage_summary(
+                    event_obj, r.ts,
+                    add_event=add_event,
+                    bounded_event_string_list=bounded_event_string_list,
+                    normalise_majority_review_telemetry=normalise_majority_review_telemetry,
                 )
             elif event_obj and event_obj.get("event") == "ai_reply_pipeline_effective_outcome":
-                if event_obj.get("effective_status") == "local_rejection":
-                    add_or_merge_local_rejection(
-                        r.ts,
-                        lane=event_obj.get("lane") or "unavailable",
-                        target_id=event_obj.get("target_id") or "",
-                        strategy_version=event_obj.get("strategy_version") or "unavailable",
-                        pipeline_stage_status=(
-                            event_obj.get("pipeline_stage_status") or "unavailable"
-                        ),
-                        effective_status="local_rejection",
-                        effective_reason=event_obj.get("effective_reason") or "",
-                        reason=(
-                            event_obj.get("original_local_rejection_reason")
-                            or event_obj.get("effective_reason")
-                            or "clarification_not_direct_factual_answer"
-                        ),
-                        original_local_rejection_reason=event_obj.get(
-                            "original_local_rejection_reason"
-                        ),
-                        direct_answer_repair_attempted=event_obj.get(
-                            "direct_answer_repair_attempted"
-                        ),
-                        direct_answer_repair_outcome=event_obj.get(
-                            "direct_answer_repair_outcome"
-                        ),
-                        incoming_contribution=event_obj.get(
-                            "incoming_contribution"
-                        ),
-                        proposed_draft=event_obj.get("proposed_draft"),
-                        repaired_draft=event_obj.get("repaired_draft"),
-                    )
+                record_ai_reply_pipeline_effective_outcome(
+                    event_obj, r.ts,
+                    add_or_merge_local_rejection=add_or_merge_local_rejection,
+                )
             elif event_obj and event_obj.get("event") == "ai_reply_pipeline_failure":
-                add_event(
-                    "reply_strategy_failure",
-                    r.ts,
-                    status=bounded_event_text(event_obj.get("status"), default="operational_failure", max_characters=100),
-                    lane=bounded_event_text(event_obj.get("lane"), default="unavailable", max_characters=100),
-                    target_id=(event_obj.get("target_id") if valid_string_public_post_id(event_obj.get("target_id")) else ""),
-                    strategy_version=bounded_event_text(event_obj.get("strategy_version"), default="unavailable", max_characters=200),
-                    reason=bounded_event_text(event_obj.get("reason"), default="unknown_pipeline_failure", max_characters=1000),
-                    model_call_count=bounded_event_nonnegative_integer(event_obj.get("model_call_count"), maximum=1000),
-                    revision_count=bounded_event_nonnegative_integer(event_obj.get("revision_count"), maximum=1000),
-                    author_quarantine_evidence=bounded_event_text(event_obj.get("author_quarantine_evidence"), max_characters=200),
+                record_ai_reply_pipeline_failure(
+                    event_obj, r.ts,
+                    add_event=add_event,
                 )
             elif event_obj and event_obj.get("event") == "ai_reply_pipeline_outcome":
-                evidence_ids = event_obj.get("evidence_ids")
-                factual_claim_count = event_obj.get("factual_claim_count")
-                evidence_fields = conversational_evidence_fields(
-                    event_obj,
-                    evidence_ids=evidence_ids,
-                    factual_claim_count=factual_claim_count,
-                )
-                add_event(
-                    "reply_strategy_outcome",
-                    r.ts,
-                    status=bounded_event_text(event_obj.get("status"), default="confirmed", max_characters=100),
-                    lane=bounded_event_text(event_obj.get("lane"), default="unavailable", max_characters=100),
-                    target_id=(event_obj.get("target_id") if valid_string_public_post_id(event_obj.get("target_id")) else ""),
-                    reply_post_id=(event_obj.get("reply_post_id") if valid_string_public_post_id(event_obj.get("reply_post_id")) else ""),
-                    strategy_version=bounded_event_text(event_obj.get("strategy_version"), default="unavailable", max_characters=200),
-                    mode=bounded_event_text(event_obj.get("mode"), max_characters=100),
-                    final_reply_kind=bounded_event_text(event_obj.get("final_reply_kind"), max_characters=100),
-                    reply_requirement=bounded_event_text(event_obj.get("reply_requirement"), max_characters=100),
-                    route_source=bounded_event_text(event_obj.get("route_source"), max_characters=100),
-                    claim_risk_categories=bounded_event_string_list(event_obj.get("claim_risk_categories")),
-                    humour_tone=bounded_event_text(event_obj.get("tone"), max_characters=100),
-                    tone=bounded_event_text(event_obj.get("tone"), max_characters=100),
-                    **evidence_fields,
-                    reviewer_verdict=bounded_event_text(event_obj.get("reviewer_verdict"), max_characters=100),
-                    model_call_count=bounded_event_nonnegative_integer(event_obj.get("model_call_count"), maximum=1000),
-                    revision_count=bounded_event_nonnegative_integer(event_obj.get("revision_count"), maximum=1000),
-                    failure_reason=bounded_event_text(event_obj.get("failure_reason"), default="", max_characters=1000),
+                record_ai_reply_pipeline_outcome(
+                    event_obj, r.ts,
+                    add_event=add_event,
+                    conversational_evidence_fields=conversational_evidence_fields,
+                    bounded_event_string_list=bounded_event_string_list,
                 )
             elif event_obj and event_obj.get("event") == "quote_pagination_repeated_token":
                 add_event(

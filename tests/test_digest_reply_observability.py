@@ -944,6 +944,96 @@ assert set(logging.Logger.manager.loggerDict) == loggers
     assert list(tmp_path.iterdir()) == []
 
 
+def test_legacy_pipeline_callbacks_keep_coalesced_event_identity(monkeypatch):
+    emitted = []
+    merged = []
+
+    def capture(handler):
+        def record(payload, ts, **callbacks):
+            original_add = callbacks.get("add_event")
+            original_merge = callbacks.get("add_or_merge_local_rejection")
+
+            def add_event(*args, **fields):
+                result = original_add(*args, **fields)
+                emitted.append(result)
+                return result
+
+            def add_or_merge_local_rejection(*args, **fields):
+                result = original_merge(*args, **fields)
+                merged.append(result)
+                return result
+
+            if original_add is not None:
+                callbacks["add_event"] = add_event
+            if original_merge is not None:
+                callbacks["add_or_merge_local_rejection"] = add_or_merge_local_rejection
+            return handler(payload, ts, **callbacks)
+
+        return record
+
+    for name in (
+        "record_ai_reply_pipeline_decision",
+        "record_ai_reply_pipeline_stage_summary",
+        "record_ai_reply_pipeline_effective_outcome",
+    ):
+        monkeypatch.setattr(digest, name, capture(getattr(digest, name)))
+
+    common = {"target_id": "210", "strategy_version": "legacy-test"}
+    payloads = [
+        {
+            "event": "ai_reply_pipeline_decision", **common,
+            "lane": "unavailable", "status": "reply",
+            "effective_status": "local_rejection",
+            "original_local_rejection_reason": "exact_duplicate",
+        },
+        {
+            "event": "ai_reply_pipeline_stage_summary", **common,
+            "lane": "mention", "status": "reply",
+        },
+        {
+            "event": "ai_reply_pipeline_effective_outcome", **common,
+            "lane": "mention", "effective_status": "local_rejection",
+            "effective_reason": "duplicate reply rejected",
+            "direct_answer_repair_attempted": False,
+        },
+    ]
+    records = [structured_record(index, payload) for index, payload in enumerate(payloads)]
+
+    report = digest.analyse(records)
+
+    decision, rejection, stage = report["events"]
+    assert emitted[0] is decision
+    assert emitted[1] is stage
+    assert merged[0] is merged[1] is rejection
+    assert rejection["lane"] == "mention"
+    assert rejection["time"] == decision["time"] == "2026-09-04 12:00:00"
+    assert stage["time"] == "2026-09-04 12:00:01"
+    assert rejection["reason"] == "exact_duplicate"
+    assert rejection["effective_reason"] == "duplicate reply rejected"
+    assert rejection["direct_answer_repair_attempted"] is False
+    assert report["summary"]["stats"]["reply_strategy_local_rejection"] == 1
+    assert stage["effective_status"] is None
+
+    original_normalise = digest._normalise_lane
+    normalised = []
+
+    def normalise_lane(value):
+        normalised.append(value)
+        return original_normalise("mention" if value == "unavailable" else value)
+
+    monkeypatch.setattr(digest, "_normalise_lane", normalise_lane)
+    assert digest.reconcile_reply_pipeline_effective_outcomes(report["events"]) is None
+    assert normalised
+    assert report["events"][0] is decision
+    assert report["events"][1] is rejection
+    assert report["events"][2] is stage
+    for item in (decision, stage):
+        assert item["effective_status"] == "local_rejection"
+        assert item["effective_reason"] == "duplicate reply rejected"
+        assert item["direct_answer_repair_attempted"] is False
+    assert stage["pipeline_stage_status"] == "reply"
+
+
 def test_old_multi_stage_logs_are_only_counted_as_legacy():
     report = digest.analyse([
         structured_record(0, {

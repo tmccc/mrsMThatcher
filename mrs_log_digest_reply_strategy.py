@@ -1,12 +1,15 @@
-"""Pure legacy reply-strategy reporting for the log digest.
+"""Legacy reply-strategy evidence, observation projections and summaries.
 
-These helpers summarise supplied observations without runtime I/O or publication
-authority. Event parsing and cross-event reconciliation remain with the digest.
+Handlers project parsed payloads through current coordinator callbacks; summaries
+only read supplied events. Parsing, dispatch, insertion, rejection coalescing and
+provenance remain with the coordinator. There is no runtime I/O, publication
+authority or state shared between analyses.
 """
 from __future__ import annotations
 
 from collections import Counter
-from typing import Any, Dict, Iterable, List, Tuple
+from datetime import datetime
+from typing import Any, Callable, Dict, Iterable, List, Tuple
 
 from mrs_log_digest_values import (
     _count_optional,
@@ -14,6 +17,9 @@ from mrs_log_digest_values import (
     _is_writer_local_failure,
     _normalise_lane,
     _terminal_local_rejection_outcome,
+    bounded_event_boolean,
+    bounded_event_text,
+    valid_string_public_post_id,
 )
 
 
@@ -504,3 +510,219 @@ def reply_strategy_summary(events: List[Dict[str, Any]]) -> Dict[str, Any]:
         "routine_skip_reason_counts": dict(routine_reasons.most_common()),
         "repetition_control_counts": dict(repetition_controls),
     }
+
+
+def conversational_evidence_fields(
+    event_obj: Dict[str, Any],
+    *,
+    evidence_ids: Any,
+    factual_claim_count: Any,
+    bounded_event_string_list: Callable[..., List[str]],
+) -> Dict[str, Any]:
+    """Project supplied and used conversational evidence with exact unknowns."""
+    factual_claim = (
+        factual_claim_count > 0
+        if type(factual_claim_count) is int
+        else None
+    )
+    confidence = bounded_event_text(
+        event_obj.get("evidence_confidence"), max_characters=100
+    )
+    if not confidence:
+        confidence = "none" if factual_claim is False else "unavailable"
+    raw_supplied_ids = event_obj.get("trusted_fact_ids_supplied")
+    has_explicit_supply = isinstance(raw_supplied_ids, list)
+    supplied_ids = (
+        bounded_event_string_list(
+            raw_supplied_ids, limit=1000, item_max_characters=200
+        )
+        if has_explicit_supply
+        else None
+    )
+    if not has_explicit_supply:
+        supplied_ids = (
+            bounded_event_string_list(
+                evidence_ids, limit=1000, item_max_characters=200
+            )
+            if isinstance(evidence_ids, list)
+            else None
+        )
+    supplied_count = event_obj.get("trusted_facts_supplied_count")
+    if (
+        type(supplied_count) is not int
+        or not 0 <= supplied_count <= 1_000_000
+    ):
+        supplied_count = event_obj.get("retrieved_count")
+    if (
+        type(supplied_count) is not int
+        or not 0 <= supplied_count <= 1_000_000
+    ):
+        supplied_count = (
+            len(supplied_ids)
+            if has_explicit_supply and isinstance(supplied_ids, list)
+            else None
+        )
+
+    has_explicit_use = "used_fact_count" in event_obj
+    used_count = event_obj.get("used_fact_count")
+    if not has_explicit_use:
+        used_count = event_obj.get("evidence_reference_count")
+        if type(used_count) is not int or used_count < 0:
+            used_count = (
+                len(supplied_ids or [])
+                if isinstance(evidence_ids, list)
+                else None
+            )
+    elif not (
+        type(used_count) is int and 0 <= used_count <= 1_000_000
+    ):
+        used_count = "unknown"
+    raw_used_ids = (
+        event_obj.get("used_fact_ids") if has_explicit_use else evidence_ids
+    )
+    used_ids = (
+        bounded_event_string_list(
+            raw_used_ids, limit=1000, item_max_characters=200
+        )
+        if isinstance(raw_used_ids, list)
+        else None
+    )
+    reference_count = used_count if type(used_count) is int else None
+    return {
+        "evidence_confidence": confidence,
+        "retrieved_count": supplied_count,
+        "evidence_reference_count": reference_count,
+        "trusted_facts_supplied_count": supplied_count,
+        "trusted_fact_ids_supplied": supplied_ids,
+        "used_fact_count": used_count,
+        "used_fact_ids": used_ids,
+        "factual_claim": factual_claim,
+        "grounded": (
+            used_count > 0
+            if type(used_count) is int
+            else None
+        ),
+    }
+
+
+def record_reply_strategy_decision(
+    event_obj: Dict[str, Any],
+    ts: datetime,
+    *,
+    add_event: Callable[..., Dict[str, Any]],
+    conversational_evidence_fields: Callable[..., Dict[str, Any]],
+) -> None:
+    """Project reply_strategy_decision through the current coordinator callbacks."""
+    retrieved_ids = event_obj.get("retrieved_quote_ids")
+    evidence_fields = conversational_evidence_fields(
+        event_obj,
+        evidence_ids=event_obj.get("evidence_ids"),
+        factual_claim_count=(
+            1 if event_obj.get("factual_claim_made") is True else 0
+            if event_obj.get("factual_claim_made") is False else None
+        ),
+    )
+    if type(event_obj.get("retrieved_count")) is not int:
+        evidence_fields["retrieved_count"] = (
+            min(len(retrieved_ids), 1_000_000)
+            if isinstance(retrieved_ids, list)
+            else None
+        )
+    evidence_fields["grounded"] = bounded_event_boolean(
+        event_obj.get("grounded")
+    )
+    decision_event = add_event(
+        "reply_strategy_decision",
+        ts,
+        lane=bounded_event_text(
+            event_obj.get("lane"),
+            default="unavailable",
+            max_characters=100,
+        ),
+        target_id=(event_obj.get("target_id") if valid_string_public_post_id(event_obj.get("target_id")) else ""),
+        mode=bounded_event_text(
+            event_obj.get("mode"), max_characters=100
+        ),
+        humour_tone=bounded_event_text(
+            event_obj.get("humour_tone"), max_characters=100
+        ),
+        tone=bounded_event_text(
+            event_obj.get("humour_tone"), max_characters=100
+        ),
+        **evidence_fields,
+        no_reply_reason=bounded_event_text(
+            event_obj.get("no_reply_reason"), max_characters=500
+        ),
+    )
+
+
+def record_reply_strategy_outcome(
+    event_obj: Dict[str, Any],
+    ts: datetime,
+    *,
+    add_event: Callable[..., Dict[str, Any]],
+    conversational_evidence_fields: Callable[..., Dict[str, Any]],
+) -> None:
+    """Project reply_strategy_outcome through the current coordinator callbacks."""
+    retrieved_ids = event_obj.get("retrieved_quote_ids")
+    evidence_fields = conversational_evidence_fields(
+        event_obj,
+        evidence_ids=event_obj.get("evidence_ids"),
+        factual_claim_count=(
+            1 if event_obj.get("factual_claim_made") is True else 0
+            if event_obj.get("factual_claim_made") is False else None
+        ),
+    )
+    if type(event_obj.get("retrieved_count")) is not int:
+        evidence_fields["retrieved_count"] = (
+            min(len(retrieved_ids), 1_000_000)
+            if isinstance(retrieved_ids, list)
+            else None
+        )
+    evidence_fields["grounded"] = bounded_event_boolean(
+        event_obj.get("grounded")
+    )
+    add_event(
+        "reply_strategy_outcome", ts,
+        status=bounded_event_text(event_obj.get("status"), default="confirmed", max_characters=100),
+        lane=bounded_event_text(event_obj.get("lane"), default="unavailable", max_characters=100),
+        target_id=(event_obj.get("target_id") if valid_string_public_post_id(event_obj.get("target_id")) else ""),
+        reply_post_id=(event_obj.get("reply_post_id") if valid_string_public_post_id(event_obj.get("reply_post_id")) else ""),
+        mode=bounded_event_text(event_obj.get("mode"), max_characters=100),
+        final_reply_kind=bounded_event_text(event_obj.get("final_reply_kind"), max_characters=100),
+        humour_tone=bounded_event_text(event_obj.get("humour_tone"), max_characters=100),
+        tone=bounded_event_text(event_obj.get("humour_tone"), max_characters=100),
+        **evidence_fields,
+        no_reply_reason=bounded_event_text(event_obj.get("no_reply_reason"), max_characters=500),
+        failure_reason=bounded_event_text(event_obj.get("failure_reason"), default="", max_characters=1000),
+    )
+
+
+def record_reply_target_terminal(
+    event_obj: Dict[str, Any],
+    ts: datetime,
+    *,
+    add_event: Callable[..., Dict[str, Any]],
+) -> None:
+    """Project reply_target_terminal through the current coordinator callbacks."""
+    add_event(
+        "reply_target_terminal", ts,
+        lane=bounded_event_text(event_obj.get("lane"), default="unavailable", max_characters=100),
+        target_id=(event_obj.get("target_id") if valid_string_public_post_id(event_obj.get("target_id")) else ""),
+        outcome=bounded_event_text(event_obj.get("outcome"), default="reply_not_permitted", max_characters=100),
+        reason=bounded_event_text(event_obj.get("reason"), default="", max_characters=500),
+    )
+
+
+def record_reply_strategy_rejection(
+    event_obj: Dict[str, Any],
+    ts: datetime,
+    *,
+    add_event: Callable[..., Dict[str, Any]],
+) -> None:
+    """Project reply_strategy_rejection through the current coordinator callbacks."""
+    add_event(
+        "reply_strategy_rejection", ts,
+        lane=bounded_event_text(event_obj.get("lane"), default="unavailable", max_characters=100),
+        reason=bounded_event_text(event_obj.get("reason"), default="other", max_characters=500),
+    )

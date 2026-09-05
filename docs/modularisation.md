@@ -1354,3 +1354,108 @@ the existing reply-pipeline/strategy reporting modules, supplying current
 lane/terminal helpers while retaining parsing, source isolation and event
 insertion in the coordinator. Preserve the reconciliation order and local
 rejection/outcome precedence. No following-stage implementation is included.
+
+## Extracted in stage 17
+
+Base: `21e7b5ce49b73c19938e780542c835ceba064cd9`, verified against the pushed
+`origin/codex/modularisation-stage16` tip. Work is isolated on
+`codex/modularisation-stage17` in
+`/disks/disk1/research/mrsMThatcher-modularisation-stage17`.
+This implements stage 17 only. There is no stage-number ceiling; the supervisor
+can continue in fresh sessions until further digest modularisation is no longer
+sensible. Broader bot refactoring remains outside scope.
+
+The existing `mrs_log_digest_reply_strategy.py` now owns
+`conversational_evidence_fields` and the complete `reply_strategy_decision`,
+`reply_strategy_outcome`, `reply_target_terminal` and `reply_strategy_rejection`
+projections. The existing `mrs_log_digest_reply_pipeline.py` owns the complete
+`ai_reply_pipeline_decision`, `ai_reply_pipeline_stage_summary`,
+`ai_reply_pipeline_effective_outcome`, `ai_reply_pipeline_failure` and
+`ai_reply_pipeline_outcome` projections, plus
+`reconcile_reply_pipeline_effective_outcomes`. The original group comprised an
+89-line evidence helper, 386 handler-body lines (395 with dispatch predicates)
+and 113 lines of reconciliation. No new module or dispatch framework was needed.
+
+Handlers receive parsed payloads, timestamps and their current event, rejection,
+evidence, bounded-list or majority-telemetry callbacks. The local evidence adapter
+retains its signature and supplies the current `bounded_event_string_list`;
+shared scalar/text/identity validators retain their values owner. The digest
+reconciliation API retains its signature and delegates its current
+`_normalise_lane`. It remains caller-invoked: the existing report path does not
+call it, and this extraction adds no reconciliation pass.
+
+Strict parsing, all branch predicates/positions, `add_event`, statistics,
+`add_or_merge_local_rejection`, source/provenance tracking and report assembly
+remain in the coordinator. Evidence counts, defaults and missing/null/unknown
+distinctions, telemetry bounds, reason classification, duplicate coalescing,
+callback-return identity/order and later in-place reconciliation are unchanged.
+Public/private aliases, JSON schema 3, Markdown, source/self-test isolation,
+clocks, CLI/defaults and resume retain their existing behaviour. The owners have
+no runtime I/O, upward imports, stored callbacks or shared analysis state.
+
+| Physical lines | Before | After |
+| --- | ---: | ---: |
+| Digest file | 8,066 | 7,552 (−514) |
+| `analyse` | 3,905 | 3,486 (−419) |
+| Reply-pipeline module | 437 | 916 |
+| Reply-strategy module | 506 | 728 |
+| `run_digest` / Markdown wrapper | 360 / 10 | 360 / 10 |
+
+Validation: the baseline passed 183 tests and the final selection passed 184,
+using `MRS_TEST_MODE=1 PYTEST_DISABLE_PLUGIN_AUTOLOAD=1 python3 -m pytest` and the
+established temporary-HOME/network isolation. Both selections cover
+`test_digest_reply_observability.py`, `test_mrs_log_digest.py`,
+`test_digest_markdown.py`, `test_digest_safety_hardening.py` and nine digest-only
+integration cases: schema/source identity, two source-isolated reply/resume
+cases, nested/nonfinite display validation, interleaved reply identity, transport
+counter semantics and structured-only confirmation. One new boundary test checks
+returned-event identity, unavailable-lane rejection coalescing, original
+timestamps/counts and later mutation through the current lane helper. Existing
+assertions are retained; no broad bot harness was run.
+
+All nine moved handler ASTs match after only record-timestamp substitution. The
+evidence/reconciliation bodies match exactly as ASTs; explicit callback arguments,
+original signatures/aliases and existing owner functions were checked. Every
+other coordinator byte matches the base after excluding the extraction sites.
+Three complete JSON/Markdown pairs reuse `pipeline_digest_lines`,
+`digest_event_line` and `write_digest_log` with shared fixed paths/time: published
+outcomes (38,699 / 11,652 bytes), local rejection/duplicates (38,317 / 12,076) and
+unresolved telemetry (38,840 / 12,025). JSON bytes match after replacing only the
+independently verified producer-source hash; independently verified repository
+HEADs were equal at comparison time. Markdown, warnings, typed values, order,
+relationships and fixture bytes/modes/timestamps match without substitution.
+Temporary comparison code/data are excluded. The documentation gate passes for
+199 modules and `git diff --check` passes.
+
+These checks establish focused extraction parity, not an exhaustive bot replay.
+No production checkout, configuration, durable bot state, logs or image pools
+were changed; no bot/provider/posting calls, service control, merge or deployment
+occurred. Earlier branches/worktrees are preserved.
+
+Recommended next boundary: prepared runtime-state and author-progress reporting.
+Give `current_author_no_reply_strike_progress` (320 lines),
+`summarize_latest_state` (92), `summarize_engagement_question_experiment_state`,
+`state_list_count`, `state_list_head`, `state_list_tail`, `epoch_to_human` and
+`epoch_to_london_text` a coherent state-reporting owner alongside the existing
+runtime readers. Include the two backlog/quarantine dispatch bodies and their
+`mention_control_events`/counts/skipped-evaluation projection. Supply prepared
+state/configuration and statuses, source metadata, generation/observation times,
+current clock/conversion helpers, unknown-value and engagement vocabulary,
+`AUTHOR_EVALUATION_QUARANTINE_*` policies and author/epoch bounds. Reuse values
+validators; pass current event callbacks and statistics and preserve both existing
+counter increments. Keep runtime reads, strict parsing, source tracking,
+report attachment and CLI/resume decisions with their current owners.
+
+Record/source-input ownership is another substantial candidate: `Record`,
+`iter_records`, `read_records`, source-reference helpers, input summaries/coverage
+and fingerprint/boundary helpers. Its dependencies on file discovery, physical
+ordering, dataclass identity, source indexes and resume multiplicity make it a
+less immediate boundary than prepared state reporting. Transaction/media/receipt
+observation and report preparation also remain useful: `parse_x_request_start`,
+`classify_x_request_endpoint`, `parse_remote_write_transaction_event` (149 lines),
+`summarise_main_post_receipt_lifecycle` (115), `correlate_media_upload_incidents`
+(71) and adjacent media predicates/path lookup. They need prepared records,
+time-window/text bounds, source-reference callbacks and current classifiers,
+while retaining request/source collection and publication authority in the
+coordinator. These candidates are assessed only; no stage 18 implementation is
+included.

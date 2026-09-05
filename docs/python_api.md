@@ -47,8 +47,8 @@ and AppleDouble files.
 | `mrs_log_digest_generated_identity.py` | Generated-identity policy/shadow observation parsing and summaries | Mutates only supplied observation/error lists, local counters and the parser result's timestamp; strict parser, diagnostic formatter and lazy source-reference callback supplied by caller; no I/O or import-time runtime access |
 | `mrs_log_digest_original_editorial.py` | Original-editorial selection/shadow observations, companion deduplication and summary | Mutates only supplied observation/error lists, local statistics/companion counters and the parser result's timestamp and event mode; strict parser, diagnostic formatter and lazy source-reference callback supplied by caller; no I/O or import-time runtime access |
 | `mrs_log_digest_single_call.py` | Single-call reply decision, provider usage, posting outcome and recovered-draft observations and summary | Emits only through the supplied `add_event` callback; summary reads emitted events without mutation; no I/O, publication/recovery actions or import-time runtime access |
-| `mrs_log_digest_reply_pipeline.py` | Pure legacy reply-pipeline summary and strict majority-review telemetry validation/utilisation | None; consumes supplied events without mutation |
-| `mrs_log_digest_reply_strategy.py` | Pure legacy reply-strategy summary and no-reply categorisation | None; consumes supplied events without mutation or publication authority |
+| `mrs_log_digest_reply_pipeline.py` | Legacy pipeline observation projections, effective-outcome reconciliation, summaries and strict majority-review telemetry validation/utilisation | Supplied event/rejection callbacks; reconciliation mutates supplied events in place; no I/O |
+| `mrs_log_digest_reply_strategy.py` | Legacy conversational evidence fields, strategy observation projections, summary and no-reply categorisation | Supplied event callbacks; summaries read events without mutation or publication authority; no I/O |
 | `mrs_log_digest_visual_context.py` | Pure reply visual-description validation and visual-context correlation/reporting | None; validates supplied dictionaries and summarises prepared observations; no publication authority |
 | `mrs_log_digest_image_usage.py` | Pure generated-image utilisation, current-cycle runway and regular-image selection summaries | None; consumes prepared pool, post-rate, configuration and event observations |
 | `mrs_log_digest_values.py` | Shared digest scalar conversions, reason classifiers and report vocabulary | None |
@@ -403,11 +403,32 @@ calculations are unchanged. The distinct lane normalisers remain separate.
 
 Dependency direction is digest → reply pipeline / reply strategy → values.
 Both reporting modules operate only on supplied observations and import no
-coordinator, renderer, bot or runtime reader. Event parsing, `analyse`,
-`reconcile_reply_pipeline_effective_outcomes` and publication authority remain
-with their existing owners. The CLI still
-reports legacy multi-stage counts under JSON schema 3 without restoring the
-retired legacy summary sections.
+coordinator, renderer, bot or runtime reader. The strategy module also owns
+`conversational_evidence_fields`, `record_reply_strategy_decision`,
+`record_reply_strategy_outcome`, `record_reply_target_terminal` and
+`record_reply_strategy_rejection`. The pipeline module owns
+`record_ai_reply_pipeline_decision`, `record_ai_reply_pipeline_stage_summary`,
+`record_ai_reply_pipeline_effective_outcome`, `record_ai_reply_pipeline_failure`
+and `record_ai_reply_pipeline_outcome`. Each handler receives a parsed payload,
+the record timestamp and only its required current callbacks. The coordinator's
+local evidence adapter supplies the current `bounded_event_string_list`; pipeline
+handlers also receive that helper and `normalise_majority_review_telemetry` where
+needed. Shared scalar/text/identity validators retain their values-module owner.
+
+The digest retains `reconcile_reply_pipeline_effective_outcomes(events) -> None`
+as a thin wrapper supplying its current `_normalise_lane` to the pipeline owner.
+Reconciliation still mutates the same decision/stage dictionaries, with the
+original local-rejection/outcome precedence and unknown distinctions. Its
+invocation remains caller-controlled; the CLI does not add a reconciliation pass
+or restore the retired legacy summary sections. Existing public/private summary,
+validator, vocabulary and reason-classifier aliases remain available.
+
+Strict parsing, branch predicates/order, `analyse`, `add_event`, statistics,
+`add_or_merge_local_rejection`, source/self-test tracking, publication authority
+and report assembly remain in the coordinator. Evidence counts and missing/null/
+unknown values, telemetry bounds, callback-return identity, duplicate coalescing,
+event order, JSON schema 3 and Markdown are unchanged. No callbacks or mutable
+analysis state are stored globally.
 
 Visual-context callers retain `parse_reply_visual_description_event` and
 `reply_visual_context_report` as explicit digest imports from
