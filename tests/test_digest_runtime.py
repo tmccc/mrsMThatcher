@@ -132,7 +132,8 @@ def test_pause_wrapper_samples_patched_clock_at_original_validation_boundary(
         assert result["sha256"] == hashlib.sha256(raw).hexdigest()
 
 
-def test_runtime_module_import_has_no_runtime_effects_or_upward_dependencies(tmp_path):
+@pytest.mark.parametrize("module_name", ["mrs_log_digest_runtime", "mrs_log_digest_remote_write"])
+def test_runtime_module_import_has_no_runtime_effects_or_upward_dependencies(tmp_path, module_name):
     script = """
 import builtins
 import logging
@@ -148,7 +149,11 @@ def reject(*args, **kwargs):
     raise AssertionError((args, kwargs))
 
 def import_guard(name, *args, **kwargs):
-    assert name not in {"mrs_log_digest", "mrs_log_digest_markdown", "mrsMThatcher2"}, name
+    assert name not in {
+        "mrs_log_digest", "mrs_log_digest_markdown", "mrsMThatcher2",
+        "remote_write_safety_protocol", "exact_receipt_retirement",
+        "remote_write_transport_journal", "remote_media_upload_receipt",
+    }, name
     return original_import(name, *args, **kwargs)
 
 def audit(event, args):
@@ -165,14 +170,14 @@ for name in ("expanduser", "stat", "lstat", "exists", "is_file", "is_dir", "open
 os.stat = os.lstat = logging.basicConfig = reject
 builtins.__import__ = import_guard
 sys.addaudithook(audit)
-import mrs_log_digest_runtime
+__import__(sys.argv[1])
 
 assert list(logging.getLogger().handlers) == handlers
 assert set(logging.Logger.manager.loggerDict) == loggers
 assert not {"mrs_log_digest", "mrs_log_digest_markdown", "mrsMThatcher2"} & sys.modules.keys()
 """
     result = subprocess.run(
-        [sys.executable, "-B", "-c", script], cwd=tmp_path,
+        [sys.executable, "-B", "-c", script, module_name], cwd=tmp_path,
         env=dict(os.environ, PYTHONPATH=str(Path(digest.__file__).resolve().parent)),
         capture_output=True, timeout=15,
     )

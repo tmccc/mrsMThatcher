@@ -36,6 +36,7 @@ and AppleDouble files.
 | `mrs_log_digest_costs.py` | Published-cost cache validation, UTC-window accounting and report preparation | Cache reads only through an explicitly supplied stable reader; paths, clock observations and strict JSON parser supplied by caller |
 | `mrs_log_digest_provider_costs.py` | Pure conversational provider usage totals, cost attribution, cache-metric coverage and currency formatting | None; consumes supplied observations without mutation |
 | `mrs_log_digest_runtime.py` | Current state/configuration validation and operator pause observations | Reads only through supplied stable readers; explicit project paths, strict JSON parsers, file-time conversion and pause clock; no import-time runtime access |
+| `mrs_log_digest_remote_write.py` | Read-only remote-write barrier identities, grouping, safety and reconciliation archive observations | Explicit paths, stable reader, exact-Decimal parser, diagnostic formatter, clock and snapshot/archive-read callbacks; lazy read-only inspectors; no import-time runtime access |
 | `mrs_log_digest_corpus.py` | Historical-corpus counts, availability, policies and hashes | Reads the existing research/audit paths under an explicit project directory using supplied strict parsing and file hashing; parsing and hashing remain separate reads |
 | `mrs_log_digest_generated_pool.py` | Generated-image discovery, metadata/hash validation, curation and used-history observations | Reads/scans the existing pool locations relative to an explicit base directory; supplied strict parsers, hashing, clock and ISO timestamp parser; no writes or import-time runtime access |
 | `mrs_log_digest_historical_events.py` | Historical-context event field projection, family counters and emitted-event quality summaries | Only supplied invocation-local counters and event insertion callbacks are mutated/called; no I/O or import-time runtime access |
@@ -93,6 +94,28 @@ sampled in the digest after the state loader returns, separately from report
 generation time and the file mtime. Analysis and current-health overlays remain
 in the digest. Shared `dt_text` and `bounded_exception_status` now live in the
 values leaf and remain explicitly importable through the digest.
+
+Digest remote-write callers retain `remote_write_safety_snapshot`,
+`reconciliation_archive_snapshot` and the private `_read_readonly_archive_bytes`
+with their original signatures. Their thin wrappers supply current digest
+dependencies to `mrs_log_digest_remote_write`, including the root control and
+archive snapshot callbacks and private archive reader. Patching these root entry
+points still affects the next inspection. Safety converts the project path,
+then samples `datetime.now` before control/archive inspection. The archive
+wrapper supplies `reconciliation_inspection_error`; both snapshots use the
+exact-Decimal `_strict_json_object`, not the native-number parser.
+
+The four pure helpers `_remote_write_document_identity`,
+`_group_active_remote_write_artifacts`, `_canonical_retirement_source_identity`
+and `_safe_relative_project_path`, plus ten file/receipt/retirement snapshot
+constants, remain direct digest imports. Stable-file protections, read order,
+size bounds, lexical paths, read-only permissions, canonical identities, hashes,
+grouping and failure results are unchanged. Protocol, retirement, transport and
+media inspectors remain lazy and retain their existing read-only arguments.
+Dependency direction is digest → remote-write snapshots → shared values;
+callbacks preserve delegation without reverse imports or stored dependencies.
+Window annotation, operational-health reconciliation, analysis, report assembly
+and all operational/publication authority remain in the coordinator.
 
 Digest corpus and image-pool callers retain `historical_context_corpus_snapshot`
 and `generated_pool_health_snapshot` with their original signatures and result

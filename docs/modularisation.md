@@ -858,3 +858,104 @@ retirement, transport and media inspectors lazy and read-only. Keep
 `analyse` and report assembly in the coordinator. This is a substantial coherent
 observation boundary; the supervisor selects the next stage within the
 authorised ceiling of stage 15. No next-stage implementation is included here.
+
+## Extracted in stage 12
+
+Base: `62e86390382fc849e9ada7295eceda3a19c417f0`, verified against the pushed
+`origin/codex/modularisation-stage11` tip. Work is isolated on
+`codex/modularisation-stage12` in
+`/disks/disk1/research/mrsMThatcher-modularisation-stage12`.
+The user has removed the old stage-15 ceiling: historical ceiling references
+are superseded, and the sequence continues until further digest modularisation
+is no longer sensible. This change implements stage 12 only.
+
+`mrs_log_digest_remote_write.py` owns the seven recommended functions (1,314
+original function lines): `remote_write_safety_snapshot`,
+`reconciliation_archive_snapshot`, `_remote_write_document_identity`,
+`_group_active_remote_write_artifacts`, `_canonical_retirement_source_identity`,
+`_safe_relative_project_path` and `_read_readonly_archive_bytes`, together with
+ten file/receipt/retirement snapshot constants. They form one read-only
+observation boundary. The four pure helpers and constants remain direct digest
+imports; three thin wrappers retain the original signatures and supply the
+current stable reader, exact-Decimal parser, reconciliation diagnostic formatter,
+clock, root control/archive snapshots and private archive-read callback.
+
+Path conversion still precedes the safety clock sample, which remains before
+control/archive inspection. Read counts/order, stable-file and size protections,
+path/symlink and read-only permission handling, hashes, native/Decimal number
+distinctions, error types/messages/statuses, grouping, evidence identity and
+fail-closed behaviour are preserved. Existing protocol, retirement, transport
+and media inspectors remain lazy and read-only. Dependencies are digest →
+remote-write snapshots → values, with no reverse import, stored callbacks or
+new mutable state. Window annotation, operational-health reconciliation,
+`analyse`, report assembly and all operational/publication authority remain in
+the coordinator. JSON schema 3, Markdown, CLI, defaults, provenance, clocks,
+locks and resume behaviour are unchanged.
+
+| Physical lines | Before | After |
+| --- | ---: | ---: |
+| Digest file | 13,764 | 12,460 (−1,304) |
+| `analyse` | 4,702 | 4,702 |
+| Remote-write snapshot module | — | 1,402 |
+| `run_digest` / Markdown wrapper | 360 / 10 | 360 / 10 |
+| Window annotation | 78 | 78 |
+
+Validation: the focused baseline passed 139 tests. After extraction, 156 tests
+pass using `MRS_TEST_MODE=1 PYTEST_DISABLE_PLUGIN_AUTOLOAD=1 python3 -m pytest`
+and existing temporary-HOME/network isolation: safety hardening, runtime,
+digest and Markdown files, plus 11 integration cases for current snapshots,
+media incidents, receipt recovery/source isolation, source identity/resume,
+schema and copied-digest contracts. Six added cases cover path/clock/read order,
+callback result identity, Decimal parsing, private archive reads, diagnostic and
+exception propagation, and import safety. The offline-adoption file's digest
+assertions are embedded in a startup/recovery workflow; that workflow was not
+run for this extraction.
+
+Four pure function bodies and ten constant definitions are source/AST-identical
+to stage 11. Three callback bodies match structurally after only the explicit
+dependency substitutions; wrapper signatures are retained. All 127 retained
+functions/classes and retained non-import module code match, including analysis,
+health reconciliation and report assembly. All earlier digest leaves are
+byte-identical. Independent import blocks runtime reads, home lookup, services,
+network and subprocess activity, and confirms the inspectors remain lazy.
+
+Two temporary comparison tests pass, replaying the five callback cases against
+stage 11 and comparing 21 exact typed snapshots plus seven complete JSON and
+Markdown report pairs on the same synthetic project. Existing pool/log,
+activation and hash-bound archive fixtures cover unconfigured, paused, active
+marker, valid read-only archive, writable evidence, malformed marker/control and
+symlink-marker states. JSON sizes range from 34,176 to 45,387 bytes; Markdown
+from 11,585 to 13,742 bytes. Only the independently verified producer source hash
+differs; repository SHAs match each worktree's HEAD (both at the base during
+comparison). Fixture file bytes and modes remain unchanged by inspection and
+reporting. No comparison scripts/data are committed. The documentation gate
+passes for 195 modules; `git diff --check` passes.
+
+These are focused boundary/regression checks, not broader bot validation. No
+production/config/state/log/image-pool changes, bot/provider/posting calls,
+service control, merge or deployment are included. Earlier worktrees and
+branches are preserved.
+
+Recommended next boundary: durable reply evidence loading/validation. The actual
+nine-function group is 784 lines: `load_confirmed_reply_receipt_evidence`,
+`load_historical_reply_history_evidence`, `_confirmed_conversational_receipt_evidence`,
+`_valid_durable_ai_reply_draft`, `_structured_value_sha256`,
+`_valid_canonical_utc_timestamp`, `_valid_historical_formatter_metadata`,
+`_valid_historical_completed_item` and `_valid_historical_failed_item`.
+It needs explicit project paths, `read_stable_private_json_bytes`, the strict
+native-number parser, both canonical JSON encoders, timestamp conversion/ISO
+parsing callables and the London timezone, plus the current conversational text
+validator (or its pure definition with a direct re-export). Preserve byte limits,
+schema/identity checks and source-receipt hash reconstruction; no new clock
+sample is needed.
+
+The adjacent text-preparation group is another 876 lines:
+`_public_reply_text_result`, `_durable_public_reply_text_candidates`,
+`_normalised_structured_reply_confirmation` and `enrich_published_reply_text`.
+It consumes prepared evidence and needs explicit `bounded_source_refs` and
+`epoch_to_london_text` callbacks plus existing text/identity validators. Its
+mutation of report events, production-event object identity, bounded warnings,
+conflict handling and synthesis ordering make it a distinct subsequent
+boundary. Keep event collection, `analyse`, pipeline reconciliation and report
+assembly in the coordinator. Neither candidate is implemented here; the
+supervisor selects the next fresh session.

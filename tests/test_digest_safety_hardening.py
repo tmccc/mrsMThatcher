@@ -5,6 +5,7 @@ import os
 import time
 from collections import Counter
 from datetime import datetime, timedelta
+from decimal import Decimal
 from pathlib import Path
 
 import pytest
@@ -114,6 +115,178 @@ def test_remote_write_snapshot_reports_protocol_pause_and_active_marker(tmp_path
     assert blocked["ready_for_remote_writes"] is False
     assert blocked["active_marker_names"] == [marker.name]
     assert blocked["reconciliation_proven"] is False
+
+
+def test_remote_write_wrapper_keeps_path_clock_callback_and_read_order(tmp_path, monkeypatch):
+    events = []
+    control = {"present": True, "valid": True, "global_pause_active": False}
+    archive = {"present": False}
+    marker = tmp_path / digest.REMOTE_WRITE_MARKER_BASENAMES[0]
+    marker.write_bytes(b'{"target_id":1.0000000000000000000000000001,"recorded_at_epoch":2.0}')
+    original_reader = digest.read_stable_regular_bytes
+    original_parser = digest._strict_json_object
+
+    class ProjectPath:
+        def __fspath__(self):
+            events.append("path")
+            return str(tmp_path)
+
+    class SnapshotTime(datetime):
+        @classmethod
+        def now(cls):
+            events.append("now")
+            return NOW
+
+    def control_snapshot(path):
+        events.append("control")
+        assert isinstance(path, Path) and path == tmp_path
+        return control
+
+    def archive_snapshot(path):
+        events.append("archive")
+        assert isinstance(path, Path) and path == tmp_path
+        return archive
+
+    def read_bytes(path, *, maximum):
+        events.append("read")
+        assert path == marker
+        assert maximum == 256 * 1024
+        return original_reader(path, maximum=maximum)
+
+    def parse(data, *, label):
+        events.append("parse")
+        assert label == marker.name
+        value = original_parser(data, label=label)
+        assert value["target_id"] == Decimal("1.0000000000000000000000000001")
+        assert type(value["recorded_at_epoch"]) is Decimal
+        return value
+
+    monkeypatch.setattr(digest, "datetime", SnapshotTime)
+    monkeypatch.setattr(digest, "runtime_control_snapshot", control_snapshot)
+    monkeypatch.setattr(digest, "reconciliation_archive_snapshot", archive_snapshot)
+    monkeypatch.setattr(digest, "read_stable_regular_bytes", read_bytes)
+    monkeypatch.setattr(digest, "_strict_json_object", parse)
+
+    result = digest.remote_write_safety_snapshot(ProjectPath())
+
+    assert events == ["path", "now", "control", "archive", "read", "parse"]
+    assert result["observed_at"] == "2026-07-10 12:00:00"
+    assert result["control"] is control
+    assert result["reconciliation_archive"] is archive
+    assert result["active_entries"][0]["target_id"] == ""
+    assert result["active_entries"][0]["recorded_at_epoch"] is None
+    assert result["status"] == "blocked"
+
+
+@pytest.mark.parametrize("callback", ["runtime_control_snapshot", "reconciliation_archive_snapshot"])
+def test_remote_write_wrapper_preserves_snapshot_callback_failure(tmp_path, monkeypatch, callback):
+    failure = PermissionError("synthetic snapshot failure")
+
+    def fail(path):
+        assert path == tmp_path
+        raise failure
+
+    monkeypatch.setattr(digest, callback, fail)
+    with pytest.raises(PermissionError) as caught:
+        digest.remote_write_safety_snapshot(tmp_path)
+    assert caught.value is failure
+
+
+def test_archive_wrapper_keeps_private_reader_parser_and_diagnostic_callbacks(tmp_path, monkeypatch):
+    archive = tmp_path / digest.REMOTE_WRITE_ARCHIVE_BASENAME
+    archive.mkdir()
+    audit = archive / "marker.reconciliation.json"
+    marker_data = b"malformed marker"
+    marker_relative = f"{archive.name}/marker.json"
+    reference = f"{archive.name}/resolution.json"
+    publish_readonly_json(audit, {
+        "schema_version": 3,
+        "operation": "offline_remote_write_safety_marker_archive",
+        "archived_at_epoch": 2_000_000_001,
+        "archive_path": marker_relative,
+        "marker_sha256": digest.hashlib.sha256(marker_data).hexdigest(),
+        "reconciliation_reference": reference,
+        "archive_and_receipt_durable_before_source_removal": True,
+        "restart_barrier_retired_last": True,
+        "successful_return_requires_source_absent": True,
+        "successful_return_requires_all_active_barriers_absent": True,
+        "fixture_ratio": 1.5,
+    })
+    events = []
+    original_reader = digest.read_stable_regular_bytes
+    original_parser = digest._strict_json_object
+    failure = PermissionError("synthetic reference failure")
+    errors = []
+
+    def read_bytes(path, *, maximum):
+        events.append(("read", path.name))
+        assert path == audit and maximum == 256 * 1024
+        return original_reader(path, maximum=maximum)
+
+    def read_archive(path, value):
+        events.append(("archive", value))
+        assert path == tmp_path
+        if value == marker_relative:
+            return marker_data
+        assert value == reference
+        raise failure
+
+    def parse(data, *, label):
+        events.append(("parse", label))
+        value = original_parser(data, label=label)
+        assert type(value["fixture_ratio"]) is Decimal
+        return value
+
+    def diagnostic(exc):
+        events.append(("diagnostic", type(exc).__name__))
+        errors.append(exc)
+        return f"patched {type(exc).__name__}"
+
+    monkeypatch.setattr(digest, "read_stable_regular_bytes", read_bytes)
+    monkeypatch.setattr(digest, "_read_readonly_archive_bytes", read_archive)
+    monkeypatch.setattr(digest, "_strict_json_object", parse)
+    monkeypatch.setattr(digest, "reconciliation_inspection_error", diagnostic)
+
+    result = digest.reconciliation_archive_snapshot(str(tmp_path))
+
+    assert result["valid"] is True
+    row = result["latest_marker_reconciliation"]
+    assert row["identity_error"] == "patched JSONDecodeError"
+    assert row["reference_identity_error"] == "patched PermissionError"
+    assert errors[1] is failure
+    assert events == [
+        ("read", audit.name), ("parse", audit.name),
+        ("archive", marker_relative), ("parse", marker_relative),
+        ("diagnostic", "JSONDecodeError"), ("archive", reference),
+        ("diagnostic", "PermissionError"),
+    ]
+
+
+def test_private_archive_wrapper_keeps_stable_reader_and_permission_failure(tmp_path, monkeypatch):
+    archive = tmp_path / digest.REMOTE_WRITE_ARCHIVE_BASENAME
+    archive.mkdir()
+    path = archive / "marker.json"
+    data = publish_readonly_json(path, {"fixture": True})
+    relative = str(path.relative_to(tmp_path))
+    calls = []
+    failure = OSError("synthetic stable read failure")
+
+    def read_bytes(requested, *, maximum):
+        calls.append(requested)
+        assert requested == path and maximum == 256 * 1024
+        if len(calls) == 1:
+            return data
+        raise failure
+
+    monkeypatch.setattr(digest, "read_stable_regular_bytes", read_bytes)
+    assert digest._read_readonly_archive_bytes(tmp_path, relative) is data
+    with pytest.raises(OSError) as caught:
+        digest._read_readonly_archive_bytes(tmp_path, relative)
+    assert caught.value is failure
+    path.chmod(0o600)
+    with pytest.raises(ValueError, match="^archive is not a mode-0400 regular file$"):
+        digest._read_readonly_archive_bytes(tmp_path, relative)
+    assert calls == [path, path]
 
 
 def test_reconciliation_archive_requires_readonly_hash_bound_evidence(tmp_path):
