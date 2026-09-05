@@ -35,6 +35,8 @@ and AppleDouble files.
 | `mrs_log_digest_markdown.py` | Prepared-report Markdown presentation and section rendering | None; receipt lifecycle analysis is supplied by the caller |
 | `mrs_log_digest_costs.py` | Published-cost cache validation, UTC-window accounting and report preparation | Cache reads only through an explicitly supplied stable reader; paths, clock observations and strict JSON parser supplied by caller |
 | `mrs_log_digest_runtime.py` | Current state/configuration validation and operator pause observations | Reads only through supplied stable readers; explicit project paths, strict JSON parsers, file-time conversion and pause clock; no import-time runtime access |
+| `mrs_log_digest_corpus.py` | Historical-corpus counts, availability, policies and hashes | Reads the existing research/audit paths under an explicit project directory using supplied strict parsing and file hashing; parsing and hashing remain separate reads |
+| `mrs_log_digest_generated_pool.py` | Generated-image discovery, metadata/hash validation, curation and used-history observations | Reads/scans the existing pool locations relative to an explicit base directory; supplied strict parsers, hashing, clock and ISO timestamp parser; no writes or import-time runtime access |
 | `mrs_log_digest_values.py` | Shared digest scalar conversions and report vocabulary | None |
 | `mrs_engagement_analytics.py` | Read-only X metrics collection and isolated SQLite reporting | X reads only with explicit flags; writes only under `engagement_analytics/` |
 | `hybrid_reply_retrieval.py` | CLI for local hybrid retrieval experiments and review artefacts | Offline by default; provider-review commands require explicit execution and budgets |
@@ -63,6 +65,25 @@ sampled in the digest after the state loader returns, separately from report
 generation time and the file mtime. Analysis and current-health overlays remain
 in the digest. Shared `dt_text` and `bounded_exception_status` now live in the
 values leaf and remain explicitly importable through the digest.
+
+Digest corpus and image-pool callers retain `historical_context_corpus_snapshot`
+and `generated_pool_health_snapshot` with their original signatures and result
+shapes. Their wrappers supply the digest's strict native JSON parsers and
+`file_sha256`; the pool wrapper also supplies `datetime.now` and
+`datetime.fromisoformat`, preserving test patches. The corpus retains separate
+parse/hash reads, including partially loaded counts when hashing fails. Pool
+basename and metadata schema/kind constants belong to the generated-pool module
+and remain explicitly importable through the digest. Shared policy vocabulary
+still comes from the values leaf.
+
+The pool's implicit clock is sampled after active-image validation and before
+curation transaction reads. Explicit times bypass that clock; naive times retain
+host-local timezone handling. `run_digest` still supplies the selected window's
+end (explicit `--until`, otherwise the last selected record), using an implicit
+pool clock only when neither exists. This reference time remains distinct from
+digest generation time. Post rates, utilisation, runway, configuration loading,
+analysis and report assembly stay in the digest. Both snapshot modules have no
+import-time runtime effects or imports back into the digest, Markdown or bot.
 
 ## Quotation Corpus Accounting
 

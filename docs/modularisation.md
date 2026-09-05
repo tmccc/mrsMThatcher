@@ -215,14 +215,91 @@ this focused validation.
 Production files, configuration, durable data and running services were not
 modified. This stage is a local commit only; it is not pushed, merged or deployed.
 
+The stage-three completion-time "local commit only" statement above predates
+its push. Stage-four setup fetched and verified
+`origin/codex/modularisation-stage3` at
+`8077329896f89b6e1e99e5bafe2b92b7c9107af9` on 2026-09-05.
+
+## Extracted in stage 4
+
+Base: `8077329896f89b6e1e99e5bafe2b92b7c9107af9`, the fetched stage-three
+tip. Ancestry checks confirm inclusion of stages one, two and three. Fetched
+`origin/master` and production HEAD remain at
+`e08d894d9cd39a07ebe4eeb72205baa864d1a2be`, lacking these stages. Work is on
+`codex/modularisation-stage4` in
+`/disks/disk1/research/mrsMThatcher-modularisation-stage4`; existing branches and
+worktrees are preserved.
+
+`mrs_log_digest_corpus.py` owns `historical_context_corpus_snapshot`, retaining
+the six research/audit paths, count fallbacks, availability, missing/malformed
+reporting, policy metadata and hash ordering. Parsing and hashing intentionally
+remain separate reads, including retention of parsed counts when hashing fails.
+`mrs_log_digest_generated_pool.py` owns `generated_pool_health_snapshot` and the
+basename and metadata schema/kind constants. Discovery, validation, warning
+order, health/coverage classification, completed quarantine/restore records,
+used-image accounting and seven-/thirty-day curation calculations are unchanged.
+The existing reader steps remain together; no additional helper split is needed
+to establish these observation boundaries.
+
+Dependency direction: digest → corpus; digest → generated pool → values.
+The new modules import neither digest, Markdown nor bot, and perform no runtime
+reads, directory scans, home lookup, logging or service initialisation at import.
+The digest retains both signatures as explicit wrappers and re-exports the moved
+constants. Paths, unchanged strict native JSON parsers and `file_sha256` are
+supplied explicitly. Pool time dependencies are `datetime.now` and
+`datetime.fromisoformat` callbacks, preserving digest patching. The implicit
+clock is sampled after active-image validation, before curation reads; explicit
+times and host-local timezone handling are retained. `run_digest` still supplies
+the selected window end when present, separately from digest generation time.
+Post rates, utilisation, runway/config loading, analysis, report assembly and all
+other snapshot readers remain in place. No parser/hash implementation is copied.
+
+| Size (physical lines; functions include definition/docstring) | Before | After |
+| --- | ---: | ---: |
+| Digest file | 17,453 | 17,149 |
+| Corpus module / reader | — | 128 / 116 |
+| Generated-pool module / reader | — | 263 / 237 |
+| Digest corpus / pool readers | 106 / 221 | 7 / 10 (wrappers) |
+| `analyse` / `run_digest` / Markdown wrapper | 5,233 / 360 / 10 | unchanged |
+| Values / runtime / costs / Markdown modules | 166 / 335 / 430 / 3,347 | unchanged |
+
+Validation uses Python 3.10.12 / pytest 9.1.1 and the committed temporary-HOME/
+subprocess isolation. The pre-change baseline passes 117 tests: the six affected
+digest/pool/Markdown suites and six nearest integration checks for CLI output,
+resume, contract/source identity and current-state/window distinction. The same
+suite plus 13 focused boundary tests passes (130 total). Boundaries cover
+signature/callback compatibility, separate parse/hash observations and hash
+failures, implicit-clock sequencing, UTC/London interpretation, independent
+import and read-only access to explicit synthetic files. The existing corpus
+fixture setup is shared with the new tests; expected outputs are unchanged.
+The documentation prerequisite passes for 185 modules. No failures or warnings
+were observed.
+
+A temporary replay compares 135 typed snapshots over identical synthetic files:
+available, missing, malformed and fallback corpus data; healthy/empty pools;
+discovery, metadata, identity and hash problems; completed/failed quarantine and
+restore records; used history; and explicit/implicit clocks in UTC and London.
+It compares all values, types, dictionary/list order, warnings, hashes and
+timestamps without broad normalisation. Six fixed-clock foreign-directory CLI
+runs cover both primary/secondary Markdown/JSON modes with available, malformed
+and missing observations, including explicit window end, last-record end and
+implicit pool time. Markdown bytes and stderr match exactly. Every JSON value
+is compared, with producer source hash and repository HEAD checked independently
+against each script and Git revision. The replay is also checked after committing
+so the new commit identity is exercised. All 174 retained digest function/class
+ASTs are unchanged; both extracted bodies differ only in explicit dependencies
+and documentation. The full historical suite and live operational calls are
+outside this focused validation.
+
+Production files, configuration, data and running services are untouched. This
+stage is committed locally only; it is not pushed, merged or deployed.
+
 ## Likely next steps
 
-1. Extract `historical_context_corpus_snapshot` next as a small separate
-   observation boundary with explicit project paths and read dependencies.
-   Follow with generated-pool observations, then individual `analyse` event
-   families with their own pending state. Leave remote-write/reconciliation
-   snapshots and cross-event incident reconciliation until their evidence inputs
-   can be separated coherently. An existing corpus-reader finding for later
+1. Extract a bounded `analyse` event family next, starting with historical-context
+   event aggregation and passing its counters/pending state explicitly. Leave
+   remote-write/reconciliation snapshots and cross-event incident reconciliation
+   until their evidence inputs can be separated coherently. An existing corpus-reader finding for later
    work: parsed content and SHA-256 come from separate reads; changing that
    binding is a separate behavioural decision, outside these extractions.
 2. In the bot, extract bounded reply-context/history/media preparation around

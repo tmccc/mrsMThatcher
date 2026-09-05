@@ -965,7 +965,7 @@ def test_new_runtime_pause_evidence_and_repair_events_are_structured():
     assert "Repair replies completed" in rendered
 
 
-def test_current_corpus_snapshot_reports_counts_policies_and_hashes(tmp_path):
+def write_corpus(tmp_path):
     paths = {
         "packets": (
             tmp_path
@@ -1027,6 +1027,11 @@ def test_current_corpus_snapshot_reports_counts_policies_and_hashes(tmp_path):
         )
     )
     paths["ledger"].write_text(json.dumps({"records": []}))
+    return paths
+
+
+def test_current_corpus_snapshot_reports_counts_policies_and_hashes(tmp_path):
+    write_corpus(tmp_path)
 
     snapshot = digest.historical_context_corpus_snapshot(tmp_path)
 
