@@ -2931,3 +2931,142 @@ checkpoint instead. **Stage 33 is not authorised.**
 Only stage 31 is implemented. No production/configuration/state/log/image-pool
 changes, bot execution, provider/posting calls, service control, merge, deployment
 or force-push occurred. Previous branches/worktrees are preserved.
+
+## Extracted in stage 32
+
+Base: `ecbb5d46bd186f9932967fcb9df48827a44a4070`, verified against pushed
+`origin/codex/modularisation-stage31`. Worktree:
+`/disks/disk1/research/mrsMThatcher-modularisation-stage32`; branch:
+`codex/modularisation-stage32`. This is the user's stopping point.
+
+The two cohesive nested recovery bodies become `_pipeline_recovered_after` and
+`_remote_pause_recovery_status` in **the same incident owner**. Their original
+nested names, signatures and positions remain as direct-return adapters. There
+is no new module, dependency context, stored callback or returned closure.
+
+Pipeline recovery forwards `events` and `get_event_time`; `_normalise_lane`,
+`_is_terminal_pipeline_failure` and `_terminal_local_rejection_outcome` retain
+incident-module global lookup. Pause recovery forwards the complete prepared
+input set: `safety`, `events`, `lifecycle`, `remote_operation_successes`,
+`base_remote_control_key`, `remote_control_scope`, `explicit_remote_pause_scope`
+and `get_event_time`, including dependencies inside comprehensions. Both bodies
+are exact moves apart from explicit parameters and the pipeline docstring.
+
+Strict timestamps, lane/target filters, terminal failure exclusion and local,
+no-reply, confirmed and rejection distinctions are unchanged. Candidate order,
+time/reason ties, unknown scope, key normalisation, conditional control hierarchy,
+availability/validity short-circuiting, events/lifecycle expansion, structured and
+legacy clears, time/kind success sorting and scope-matched clearance plus success
+are preserved. Original tuple results, row sharing, helper/exception order and
+mutation remain intact; there are no new copies, casts, reads or clock samples.
+Preparation, remaining recovery helpers, incident construction, snapshot
+reconciliation, sorting and report selection remain in place. The stage 30
+observer, stage 31 snapshot owner, root facade, prior APIs/defaults, schema 3 and
+source/window/resume/publication policies are unchanged.
+
+| Physical lines | Stage 31 | Stage 32 |
+| --- | ---: | ---: |
+| Root digest | 3,462 | 3,462 |
+| `analyse` | 1,318 | 1,318 |
+| Incident-health implementation | 1,566 | 1,455 (−111) |
+| Incident owner | 2,074 | 2,112 (+38) |
+| Pipeline nested function / module implementation | 68 / — | 6 / 72 |
+| Pause nested function / module implementation | 64 / — | 15 / 73 |
+| Snapshot owner / reconciliation function | 361 / 346 | 361 / 346 |
+| Root health wrapper / `run_digest` / Markdown wrapper | 42 / 360 / 10 | 42 / 360 / 10 |
+
+Validation used `MRS_TEST_MODE=1 PYTEST_DISABLE_PLUGIN_AUTOLOAD=1 python3 -m pytest`
+with existing temporary-HOME/network isolation, bytecode disabled and
+`-p no:cacheprovider`. The focused baseline passed **51 tests**; the final
+selection passed **60**, retaining all existing assertions in
+`test_digest_incidents`, the nearest pipeline/health regressions in
+`test_mrs_log_digest`, and pipeline/runtime-pause observations in
+`test_digest_reply_observability`. Five new test functions provide **nine cases**
+for prepared references/current callbacks, owner lookup, live row iteration,
+timestamp/identity filters, reason ties, unknown scope, conditional control
+hierarchy, clearance expansion/order and success ties. **Seven** direct cases
+also pass against the original stage 31 nested bodies, preserving exact tuples,
+timestamp identity, row sharing and callback traces.
+
+A further **seven checks** pass: the unchanged incident-owner import guard and
+six digest-only integrations for media incident source references, unrelated
+errors, self-test receipt isolation, current state after the selected window,
+source identity across resume and confirmed-reply recovery failures. No whole
+bot harness or broad historical suite ran.
+
+Four complete fixed-path/time CLI JSON/Markdown pairs match stage 31:
+
+| Fixture | Records | JSON bytes | Markdown bytes |
+| --- | ---: | ---: | ---: |
+| Terminal local decision, no-reply, published outcome and local rejection recovery | 12 | 49,890 | 14,611 |
+| Unknown and unrecovered pause with unrelated success | 7 | 43,560 | 14,272 |
+| Structured/legacy matched pause recovery, authoritative current snapshot | 11 | 45,494 | 14,607 |
+| Matched recovery, historical window excluding later snapshot incident | 10 | 43,740 | 14,222 |
+
+The fixtures assert the intended recovery reasons/times and current versus
+historical snapshot results. Raw `analyse` inputs/results, values/types/order,
+reference graphs and stderr also match. Fixture bytes/modes/mtimes are unchanged
+across comparisons. Producer source hashes and repository HEADs were independently
+verified: both facades and pre-commit HEADs were identical, so **no substitutions
+or field normalisation** were used. Scripts/data remain outside the worktree in
+`/tmp/mrs-stage32-dkxmnva6`. This is focused synthetic preservation evidence,
+not a production replay or an exhaustive recovery/IO-failure exercise.
+
+Exact text/AST review verifies both moved bodies, original nested arguments and
+defaults, and reconstructs the **entire original incident owner** by removing
+the two implementations and restoring the nested bodies. All nine other existing
+owner definitions, the root and all 29 other digest companions are unchanged.
+`python3 tools/check_python_documentation.py` passes for **209 modules**;
+`git diff --check` passes.
+
+Reassessment at the cap: a read-only inventory of all **31 tracked digest-family
+modules**, including nested definitions, finds **473 functions and two classes**
+across **25,388 physical lines**. This measures where code resides, not whether
+its responsibilities are well separated. Exact `git show` reads of the supervised
+stage 6 commit `f0bb8f8c063a0eef40eb8823b6c75a092aae197e` give:
+
+| Definition | Stage 6 | Stage 32 |
+| --- | ---: | ---: |
+| Root file | 16,455 | 3,462 (−12,993) |
+| `analyse` | 4,959 | 1,318 (−3,641) |
+| Incident-health implementation | 1,868 | 1,455 (−413) |
+
+The root appropriately retains compatibility wrappers and current helper lookup,
+CLI/path/window decisions, resume and output sequencing, and report assembly.
+`analyse` should continue to own scan order, pending state, production/source
+identity, event provenance, counters, dispatch and the order of derived-report
+preparation. Its eleven small nested helpers are now 5–21 lines each. Replacing
+that explicit coordination with a generic dispatcher/context would add coupling
+without an identified benefit. Its remaining direct event-specific projection
+branches are candidates only when a coherent rule group needs independent work.
+
+Substantial derived-owner concentrations remain:
+
+| Owner | Concrete remaining concentration |
+| --- | --- |
+| Incidents (2,112 lines) | Health (1,455) still mixes evidence preparation, identity association, grouping and status selection. Nested identity matching is 101 lines; category recovery 134; transaction recovery 126. |
+| Reply text (917) | `enrich_published_reply_text` (627) combines evidence indexing, identity/conflict resolution, synthesis and report/event enrichment. |
+| Remote write (1,486) | Snapshot construction (602), active-artifact identity grouping (349) and archive inspection (282) remain distinct but substantial algorithms. |
+| Reply strategy (855) | `reply_strategy_summary` (466) combines several strategy outcome/evidence aggregations. |
+| Quote publication (1,167) | `correlated_quote_post_fields` (416) combines candidate resolution and correlated field construction. |
+| Provider costs (602) | `xai_reply_cost_summary` (403) combines call/attempt association, coverage and cost summaries. |
+| State reporting (1,221) | Author strike progress (330) and headline/derived preparation (254) retain policy and aggregation logic. |
+| Markdown (3,347) | Already divided into 32 section renderers and a 44-line dispatcher; its largest sections are event details (401), reply recovery (338) and generated images (306). File length alone does not justify another split. |
+
+Further selective modularisation is worthwhile; stage 32 does **not** exhaust
+sensible work. The most useful next bounded boundary is the incident owner's
+`matching_ambiguity_identity(raw, item_time)` algorithm: direct lane/target and
+transaction matches, followed by nearest unique reply/media evidence. It has
+only four prepared outer inputs (`ambiguous_reply_outcomes`, `transport_attempts`,
+`ambiguous_media_outcomes`, `seconds_between`). A named implementation in the same
+owner with a thin adapter could expose that rule set independently without
+moving preparation or acquiring authority. This is a better immediate candidate
+than the broader category/transaction recovery helpers, which also involve
+snapshot predicates and conditional clock/epoch behavior. Reply-text candidate
+resolution is a larger subsequent investigation, with more sharing and ordering
+to preserve. These are recommendations only, not started work.
+
+**Stage 32 is the stopping point. Stage 33 is not authorised or started.** No
+following worker/session was launched. Previous branches/worktrees are preserved;
+no production/configuration/state/log/image-pool changes, bot execution,
+provider/posting calls, service control, merge, deployment or force-push occurred.

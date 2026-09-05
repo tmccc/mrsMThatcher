@@ -13,6 +13,234 @@ import mrs_log_digest_snapshot_incidents as snapshot_owner
 from tests.test_mrs_log_digest import BASE, record, reconciled_remote_write_safety
 
 
+@pytest.mark.parametrize("algorithm", ["pipeline", "pause"])
+def test_recovery_adapters_forward_prepared_rows_and_current_callbacks(monkeypatch, algorithm):
+    later = BASE + timedelta(seconds=10)
+    event = {"kind": "reply_strategy_failure", "lane": "mention", "target_id": "123", "_time": BASE}
+    success = {"kind": "mention_reply_posted", "_time": later}
+    lifecycle_row = {"message": "fixture lifecycle", "_time": BASE}
+    events, safety, calls = [event, success], {"available": False}, []
+    errors = [] if algorithm == "pipeline" else [
+        {"level": "ERROR", "message": "RemoteOperationsPaused: pause_replies", "_time": BASE},
+    ]
+    current_time = lambda row: row.get("_time")
+    helpers = {name: getattr(digest, name) for name in (
+        "_base_remote_control_key", "_remote_control_scope", "_explicit_remote_pause_scope",
+    )}
+
+    def observations():
+        calls.append("lifecycle")
+        yield lifecycle_row
+
+    def pipeline(identity, last_time, **inputs):
+        assert identity == ("mention", "123") and last_time is BASE
+        assert inputs == {"events": events, "get_event_time": current_time}
+        assert inputs["events"] is events
+        calls.append("pipeline")
+        return True, "supplied recovery", later
+
+    def pause(scope, control_keys, last_time, **inputs):
+        assert scope == "all_replies" and control_keys == ["pause_replies"]
+        assert last_time is BASE and inputs["safety"] is safety
+        assert inputs["events"] is events and inputs["get_event_time"] is current_time
+        assert len(inputs["lifecycle"]) == 1 and inputs["lifecycle"][0] is lifecycle_row
+        assert inputs["remote_operation_successes"] == [{
+            "time": later, "kind": "mention_reply_posted",
+            "scopes": {"normal_replies", "all_replies", "all_remote_writes"},
+        }]
+        assert inputs["remote_operation_successes"][0]["time"] is later
+        for name, helper in helpers.items():
+            assert inputs[name.removeprefix("_")] is helper
+        calls.append("pause")
+        return "historical_resolved", "supplied recovery", later
+
+    def annotate(value, *_args, **_kwargs):
+        assert value is safety
+        calls.append("annotate")
+        # The adapters must receive the already supplied callback even if the
+        # facade changes after preparation has started.
+        monkeypatch.setattr(digest, "_event_time", lambda row: None)
+        monkeypatch.setattr(incident_owner, "_pipeline_recovered_after", pipeline)
+        monkeypatch.setattr(incident_owner, "_remote_pause_recovery_status", pause)
+
+    if algorithm == "pause":
+        events.remove(event)
+    monkeypatch.setattr(digest, "_event_time", current_time)
+    monkeypatch.setattr(digest, "annotate_remote_write_snapshot_window", annotate)
+    result = digest.summarise_operational_error_health(
+        errors, events, [], lifecycle=observations(), current_remote_write_safety=safety,
+        generation_time=later,
+    )
+    assert calls == ["lifecycle", "annotate", algorithm]
+    incident = result["historical_resolved_incidents"][0]
+    assert incident["resolution_reason"] == "supplied recovery"
+    assert incident["resolution_time"] == digest.dt_text(later)
+
+
+def test_pipeline_recovery_keeps_live_rows_owner_helpers_and_reason_tie(monkeypatch):
+    later = BASE + timedelta(seconds=10)
+    seen, calls = [], []
+
+    def row(name, **values):
+        return {"name": name, "kind": "reply_strategy_decision", "lane": "mention",
+                "target_id": "123", "_time": later, **values}
+
+    events = [
+        row("equal", _time=BASE), row("missing", _time=None),
+        row("lane", lane="hot-post"), row("target", target_id="999"),
+        row("failure", mode="no_reply", reason="revision_limit_reached"),
+        row("local", reason="exact_duplicate_reply", no_reply_reason="unused"),
+        row("no_reply", mode="no_reply", no_reply_reason="independent_no_reply_confirmed"),
+        row("rejection", kind="reply_strategy_local_rejection", reason="near_duplicate_reply"),
+    ]
+    outcome = row("outcome", kind="reply_strategy_outcome")
+
+    def reject(*args):
+        raise AssertionError("unexpected facade helper lookup")
+
+    for name in ("_normalise_lane", "_is_terminal_pipeline_failure", "_terminal_local_rejection_outcome"):
+        helper = getattr(incident_owner, name)
+
+        def observed(*args, name=name, helper=helper):
+            calls.append((name, args))
+            return helper(*args)
+
+        monkeypatch.setattr(incident_owner, name, observed)
+        monkeypatch.setattr(digest, name, reject)
+
+    def event_time(value):
+        seen.append(value)
+        if value is events[0]:
+            events.append(outcome)
+        return value["_time"]
+
+    result = incident_owner._pipeline_recovered_after(
+        ("mention", "123"), BASE, events=events, get_event_time=event_time,
+    )
+    assert result == (True, "later confirmed reply outcome observed for mention target 123", later)
+    assert type(result) is tuple and type(result[0]) is bool and result[2] is later
+    assert len(seen) == len(events) and all(a is b for a, b in zip(seen, events))
+    assert calls == [
+        ("_normalise_lane", ("hot-post",)), ("_normalise_lane", ("mention",)),
+        ("_normalise_lane", ("mention",)), ("_is_terminal_pipeline_failure", ("revision_limit_reached", None)),
+        ("_normalise_lane", ("mention",)), ("_is_terminal_pipeline_failure", ("exact_duplicate_reply", None)),
+        ("_terminal_local_rejection_outcome", ("exact_duplicate_reply",)),
+        ("_normalise_lane", ("mention",)), ("_is_terminal_pipeline_failure", ("independent_no_reply_confirmed", None)),
+        ("_terminal_local_rejection_outcome", (None,)),
+        ("_terminal_local_rejection_outcome", ("independent_no_reply_confirmed",)),
+        ("_normalise_lane", ("mention",)), ("_terminal_local_rejection_outcome", ("near_duplicate_reply",)),
+        ("_normalise_lane", ("mention",)),
+    ]
+
+
+def test_remote_pause_recovery_unknown_scope_does_not_inspect_inputs():
+    def reject(*args):
+        raise AssertionError("unknown scope must short-circuit")
+
+    class Unreadable:
+        get = __iter__ = reject
+
+    unreadable = Unreadable()
+    result = incident_owner._remote_pause_recovery_status(
+        "unknown", unreadable, BASE, safety=unreadable, events=unreadable,
+        lifecycle=unreadable, remote_operation_successes=unreadable,
+        base_remote_control_key=reject, remote_control_scope=reject,
+        explicit_remote_pause_scope=reject, get_event_time=reject,
+    )
+    assert result == (
+        "resolution_unavailable",
+        "affected pause scope is unavailable from retained evidence; unrelated remote-write success cannot establish recovery",
+        None,
+    )
+
+
+@pytest.mark.parametrize("available,valid,keys,resolved", [
+    (True, True, [" PAUSE_HOT_POST_REPLIES_UNTIL "], True),
+    (True, True, ["unrecognised"], False),
+    (False, True, ["pause_hot_post_replies"], False),
+    (True, False, ["pause_hot_post_replies"], False),
+])
+def test_remote_pause_recovery_keeps_conditional_control_hierarchy(available, valid, keys, resolved):
+    calls, later = [], BASE + timedelta(seconds=10)
+
+    def normalise(value):
+        calls.append(("key", value))
+        return digest._base_remote_control_key(value)
+
+    def scope(value):
+        calls.append(("scope", value))
+        return digest._remote_control_scope(value)
+
+    result = incident_owner._remote_pause_recovery_status(
+        "hot_post_replies", keys, BASE,
+        safety={"available": available, "control": {"valid": valid, "active_keys": ["pause_replies"]}},
+        events=[], lifecycle=[],
+        remote_operation_successes=[{"time": later, "kind": "hot_post_reply_posted", "scopes": {"hot_post_replies"}}],
+        base_remote_control_key=normalise, remote_control_scope=scope,
+        explicit_remote_pause_scope=digest._explicit_remote_pause_scope, get_event_time=digest._event_time,
+    )
+    assert result == ((
+        "historical_resolved",
+        "the affected control scope cleared and later successful hot post reply posted occurred in the same scope",
+        later,
+    ) if resolved else ("current_unresolved", "", None))
+    assert calls == [("key", keys[0]), *([("scope", "pause_replies")] if available and valid else [])]
+    if resolved:
+        assert result[2] is later
+
+
+def test_remote_pause_recovery_keeps_clear_expansion_callback_order_and_success_tie():
+    early, later = BASE + timedelta(seconds=1), BASE + timedelta(seconds=3)
+    equal = {"kind": "runtime_control_clear", "key": "pause_replies", "_time": BASE}
+    wrong = {"kind": "runtime_control_clear", "key": "pause_meme_posts", "_time": early}
+    missing = {"kind": "runtime_control_clear", "key": "pause_replies", "_time": None}
+    legacy = {"message": "Runtime control pause cleared pause_replies", "_time": later}
+    appended = {"kind": "runtime_control_clear", "key": "pause_replies", "_time": early}
+    events, lifecycle, calls, seen = [equal, wrong, missing], [legacy], [], []
+    successes = [
+        {"time": later, "kind": "z_success", "scopes": {"all_replies"}},
+        {"time": early, "kind": "before_clear", "scopes": {"all_replies"}},
+        {"time": later, "kind": "a_success", "scopes": {"all_replies"}},
+        {"time": early, "kind": "wrong_scope", "scopes": {"daily_meme_posts"}},
+        {"time": BASE, "kind": "equal_time", "scopes": {"all_replies"}},
+    ]
+
+    def event_time(value):
+        seen.append(value)
+        calls.append("time")
+        if value is equal:
+            events.append(appended)
+        return value["_time"]
+
+    def scope(value):
+        calls.append(("scope", value))
+        return digest._remote_control_scope(value)
+
+    def explicit(value):
+        calls.append(("explicit", value))
+        return digest._explicit_remote_pause_scope(value)
+
+    result = incident_owner._remote_pause_recovery_status(
+        "all_replies", [], BASE, safety={"available": False}, events=events, lifecycle=lifecycle,
+        remote_operation_successes=successes, base_remote_control_key=digest._base_remote_control_key,
+        remote_control_scope=scope, explicit_remote_pause_scope=explicit, get_event_time=event_time,
+    )
+    assert result == (
+        "historical_resolved",
+        "the affected control scope cleared and later successful a success occurred in the same scope",
+        later,
+    )
+    assert result[2] is later and events[-1] is appended
+    assert len(seen) == 4 and all(a is b for a, b in zip(seen, [equal, wrong, missing, legacy]))
+    assert calls == [
+        "time", ("scope", "pause_replies"), "time", ("scope", "pause_meme_posts"),
+        "time", ("scope", "pause_replies"), "time", ("explicit", legacy["message"]),
+    ]
+    assert [row["kind"] for row in successes] == [
+        "z_success", "before_clear", "a_success", "wrong_scope", "equal_time",
+    ]
+
+
 @pytest.mark.parametrize("available", [False, True])
 def test_snapshot_reconciliation_receives_prepared_references_and_current_helpers(monkeypatch, available):
     component = {

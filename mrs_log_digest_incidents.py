@@ -506,6 +506,155 @@ def _explicit_remote_pause_scope(
     return "unknown", "", []
 
 
+def _pipeline_recovered_after(
+    identity: Tuple[str, str], last_time: datetime,
+    *,
+    events: List[Dict[str, Any]],
+    get_event_time: Callable[[Dict[str, Any]], Optional[datetime]],
+) -> Tuple[bool, str, Optional[datetime]]:
+    """Find the earliest later terminal recovery for the supplied lane/target."""
+    lane, target_id = identity
+    candidates: List[Tuple[datetime, str]] = []
+    for event in events:
+        ts = get_event_time(event)
+        if ts is None or ts <= last_time:
+            continue
+        if (
+            _normalise_lane(event.get("lane")) != lane
+            or str(event.get("target_id") or "") != target_id
+        ):
+            continue
+        kind = event.get("kind")
+        if kind == "reply_strategy_decision":
+            if _is_terminal_pipeline_failure(
+                event.get("reason") or event.get("no_reply_reason"),
+                event.get("status"),
+            ):
+                continue
+            terminal_local_outcome = _terminal_local_rejection_outcome(
+                event.get("reason")
+            ) or _terminal_local_rejection_outcome(
+                event.get("no_reply_reason")
+            )
+            if terminal_local_outcome is not None:
+                candidates.append(
+                    (
+                        ts,
+                        "later terminal local decision observed for "
+                        f"{lane} target {target_id}",
+                    )
+                )
+            elif event.get("mode") == "no_reply":
+                candidates.append(
+                    (
+                        ts,
+                        "later terminal no-reply decision observed for "
+                        f"{lane} target {target_id}",
+                    )
+                )
+        elif kind == "reply_strategy_outcome" and str(
+            event.get("status") or "confirmed"
+        ) in {"confirmed", "posted"}:
+            candidates.append(
+                (
+                    ts,
+                    "later confirmed reply outcome observed for "
+                    f"{lane} target {target_id}",
+                )
+            )
+        elif (
+            kind == "reply_strategy_local_rejection"
+            and _terminal_local_rejection_outcome(event.get("reason"))
+            is not None
+        ):
+            candidates.append(
+                (
+                    ts,
+                    "later terminal local rejection observed for "
+                    f"{lane} target {target_id}",
+                )
+            )
+    if not candidates:
+        return False, "", None
+    recovery_time, reason = min(candidates, key=lambda item: (item[0], item[1]))
+    return True, reason, recovery_time
+
+
+def _remote_pause_recovery_status(
+    scope: str,
+    control_keys: List[str],
+    last_time: datetime,
+    *,
+    safety: Dict[str, Any],
+    events: List[Dict[str, Any]],
+    lifecycle: List[Dict[str, Any]],
+    remote_operation_successes: List[Dict[str, Any]],
+    base_remote_control_key: Callable[[Any], str],
+    remote_control_scope: Callable[[Any], str],
+    explicit_remote_pause_scope: Callable[[Any], Tuple[str, str, List[str]]],
+    get_event_time: Callable[[Dict[str, Any]], Optional[datetime]],
+) -> Tuple[str, str, Optional[datetime]]:
+    """Require both scope-matched control clearance and later success."""
+
+    if scope == "unknown":
+        return (
+            "resolution_unavailable",
+            "affected pause scope is unavailable from retained evidence; unrelated remote-write success cannot establish recovery",
+            None,
+        )
+
+    normalised_keys = {key for value in control_keys if (key := base_remote_control_key(value))}
+    control = safety.get("control") or {}
+    current_control_clear = bool(
+        safety.get("available") is True
+        and control.get("valid") is True
+        and not any(
+            remote_control_scope(value)
+            in (
+                {scope}
+                if normalised_keys
+                else {
+                    "all_remote_writes": {"all_remote_writes"},
+                    "all_replies": {"all_remote_writes", "all_replies"},
+                    "normal_replies": {"all_remote_writes", "all_replies", "normal_replies"},
+                    "hot_post_replies": {"all_remote_writes", "all_replies", "normal_replies", "hot_post_replies"},
+                    "quote_replies": {"all_remote_writes", "all_replies", "quote_replies"},
+                    "quote_image_posts": {"all_remote_writes", "quote_image_posts"},
+                    "daily_meme_posts": {"all_remote_writes", "daily_meme_posts"},
+                    "historical_context_replies": {"all_remote_writes", "all_replies", "historical_context_replies"},
+                }.get(scope, set())
+            )
+            for value in control.get("active_keys") or []
+        )
+    )
+
+    explicit_clears = []
+    for item in [*events, *lifecycle]:
+        clear_time = get_event_time(item)
+        message = str(item.get("message") or "")
+        if item.get("kind") == "runtime_control_clear":
+            clear_scope = remote_control_scope(item.get("key"))
+        elif "runtime control pause cleared" in message.lower():
+            clear_scope = explicit_remote_pause_scope(message)[0]
+        else:
+            continue
+        if clear_time is not None and clear_time > last_time and clear_scope == scope:
+            explicit_clears.append(clear_time)
+
+    for recovery in sorted(remote_operation_successes, key=lambda item: (item["time"], item["kind"])):
+        if recovery["time"] <= last_time or scope not in recovery["scopes"]:
+            continue
+        if current_control_clear or any(clear <= recovery["time"] for clear in explicit_clears):
+            return (
+                "historical_resolved",
+                "the affected control scope cleared and later successful "
+                + str(recovery["kind"]).replace("_", " ")
+                + " occurred in the same scope",
+                recovery["time"],
+            )
+    return "current_unresolved", "", None
+
+
 def summarise_operational_error_health(
     errors: List[Dict[str, Any]],
     events: List[Dict[str, Any]],
@@ -1428,71 +1577,9 @@ def summarise_operational_error_health(
     def pipeline_recovered_after(
         identity: Tuple[str, str], last_time: datetime
     ) -> Tuple[bool, str, Optional[datetime]]:
-        lane, target_id = identity
-        candidates: List[Tuple[datetime, str]] = []
-        for event in events:
-            ts = get_event_time(event)
-            if ts is None or ts <= last_time:
-                continue
-            if (
-                _normalise_lane(event.get("lane")) != lane
-                or str(event.get("target_id") or "") != target_id
-            ):
-                continue
-            kind = event.get("kind")
-            if kind == "reply_strategy_decision":
-                if _is_terminal_pipeline_failure(
-                    event.get("reason") or event.get("no_reply_reason"),
-                    event.get("status"),
-                ):
-                    continue
-                terminal_local_outcome = _terminal_local_rejection_outcome(
-                    event.get("reason")
-                ) or _terminal_local_rejection_outcome(
-                    event.get("no_reply_reason")
-                )
-                if terminal_local_outcome is not None:
-                    candidates.append(
-                        (
-                            ts,
-                            "later terminal local decision observed for "
-                            f"{lane} target {target_id}",
-                        )
-                    )
-                elif event.get("mode") == "no_reply":
-                    candidates.append(
-                        (
-                            ts,
-                            "later terminal no-reply decision observed for "
-                            f"{lane} target {target_id}",
-                        )
-                    )
-            elif kind == "reply_strategy_outcome" and str(
-                event.get("status") or "confirmed"
-            ) in {"confirmed", "posted"}:
-                candidates.append(
-                    (
-                        ts,
-                        "later confirmed reply outcome observed for "
-                        f"{lane} target {target_id}",
-                    )
-                )
-            elif (
-                kind == "reply_strategy_local_rejection"
-                and _terminal_local_rejection_outcome(event.get("reason"))
-                is not None
-            ):
-                candidates.append(
-                    (
-                        ts,
-                        "later terminal local rejection observed for "
-                        f"{lane} target {target_id}",
-                    )
-                )
-        if not candidates:
-            return False, "", None
-        recovery_time, reason = min(candidates, key=lambda item: (item[0], item[1]))
-        return True, reason, recovery_time
+        return _pipeline_recovered_after(
+            identity, last_time, events=events, get_event_time=get_event_time,
+        )
 
     def remote_pause_recovery_status(
         scope: str,
@@ -1500,64 +1587,15 @@ def summarise_operational_error_health(
         last_time: datetime,
     ) -> Tuple[str, str, Optional[datetime]]:
         """Require both scope-matched control clearance and later success."""
-
-        if scope == "unknown":
-            return (
-                "resolution_unavailable",
-                "affected pause scope is unavailable from retained evidence; unrelated remote-write success cannot establish recovery",
-                None,
-            )
-
-        normalised_keys = {key for value in control_keys if (key := base_remote_control_key(value))}
-        control = safety.get("control") or {}
-        current_control_clear = bool(
-            safety.get("available") is True
-            and control.get("valid") is True
-            and not any(
-                remote_control_scope(value)
-                in (
-                    {scope}
-                    if normalised_keys
-                    else {
-                        "all_remote_writes": {"all_remote_writes"},
-                        "all_replies": {"all_remote_writes", "all_replies"},
-                        "normal_replies": {"all_remote_writes", "all_replies", "normal_replies"},
-                        "hot_post_replies": {"all_remote_writes", "all_replies", "normal_replies", "hot_post_replies"},
-                        "quote_replies": {"all_remote_writes", "all_replies", "quote_replies"},
-                        "quote_image_posts": {"all_remote_writes", "quote_image_posts"},
-                        "daily_meme_posts": {"all_remote_writes", "daily_meme_posts"},
-                        "historical_context_replies": {"all_remote_writes", "all_replies", "historical_context_replies"},
-                    }.get(scope, set())
-                )
-                for value in control.get("active_keys") or []
-            )
+        return _remote_pause_recovery_status(
+            scope, control_keys, last_time,
+            safety=safety, events=events, lifecycle=lifecycle,
+            remote_operation_successes=remote_operation_successes,
+            base_remote_control_key=base_remote_control_key,
+            remote_control_scope=remote_control_scope,
+            explicit_remote_pause_scope=explicit_remote_pause_scope,
+            get_event_time=get_event_time,
         )
-
-        explicit_clears = []
-        for item in [*events, *lifecycle]:
-            clear_time = get_event_time(item)
-            message = str(item.get("message") or "")
-            if item.get("kind") == "runtime_control_clear":
-                clear_scope = remote_control_scope(item.get("key"))
-            elif "runtime control pause cleared" in message.lower():
-                clear_scope = explicit_remote_pause_scope(message)[0]
-            else:
-                continue
-            if clear_time is not None and clear_time > last_time and clear_scope == scope:
-                explicit_clears.append(clear_time)
-
-        for recovery in sorted(remote_operation_successes, key=lambda item: (item["time"], item["kind"])):
-            if recovery["time"] <= last_time or scope not in recovery["scopes"]:
-                continue
-            if current_control_clear or any(clear <= recovery["time"] for clear in explicit_clears):
-                return (
-                    "historical_resolved",
-                    "the affected control scope cleared and later successful "
-                    + str(recovery["kind"]).replace("_", " ")
-                    + " occurred in the same scope",
-                    recovery["time"],
-                )
-        return "current_unresolved", "", None
 
     def recovered_after(category: str, last_time: datetime) -> Tuple[bool, str, Optional[datetime]]:
         candidates: List[Tuple[datetime, str]] = []

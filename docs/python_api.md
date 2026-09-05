@@ -512,6 +512,22 @@ supplied by the classifier wrapper. The summary receives `datetime.now` as
 their ordering and the missing-time fallback are unchanged. Shared time/text/lane
 and terminal-outcome helpers come directly from `mrs_log_digest_values`.
 
+Within the incident owner, `_pipeline_recovered_after` and
+`_remote_pause_recovery_status` implement the two recovery algorithms. The nested
+`pipeline_recovered_after(identity, last_time)` and
+`remote_pause_recovery_status(scope, control_keys, last_time)` retain their
+signatures and original positions as direct-return adapters. Pipeline recovery
+receives the prepared `events` and current `get_event_time`; lane and terminal
+helpers retain incident-module global lookup. Pause recovery receives `safety`,
+`events`, the already materialised `lifecycle`, `remote_operation_successes`,
+`base_remote_control_key`, `remote_control_scope`, `explicit_remote_pause_scope`
+and `get_event_time`. Inputs pass by reference without new copies or casts.
+Strict later-time/identity filters, failure exclusion, terminal distinctions,
+reason tie-breaking, control hierarchy, unknown-scope short-circuit, ordered
+clearance callbacks and scope-matched success retain their exact behavior.
+The implementations add no reads, clock samples, authority decisions or stored
+callbacks; all other recovery helpers and surrounding summary phases stay put.
+
 `reconcile_current_snapshot_incidents` in `mrs_log_digest_snapshot_incidents`
 owns the six local evidence helpers and their complete reconciliation loop.
 The incident summary calls it at the original position immediately before sorting,
