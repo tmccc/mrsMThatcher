@@ -33,6 +33,7 @@ and AppleDouble files.
 | `shadow_lifecycle.py` | Strict validation for the versioned shadow-feature lifecycle register | Local file reads only |
 | `mrs_log_digest.py` | Log-input coordination, aggregation and Markdown/JSON reports | Local log and resume-state reads/writes; no provider calls |
 | `mrs_log_digest_records.py` | Shared frozen records, bounded source references, fingerprints, resume-boundary filtering and selected log input reading | Reads/stats supplied log paths and emits existing missing-input warnings; explicit current regex, constructor, parsers, readers and helpers; no import-time runtime access |
+| `mrs_log_digest_legacy_posts.py` | Raw legacy quiet/lane, quote/image, spacing, meme, created-post and conversational reply observations and companion response parsing | Supplied shared records, pending/latest objects, lists, counters, production event identities and current event/literal/ID helpers; explicit handled/state returns; no I/O, clock sample, runtime access or provider/posting actions |
 | `mrs_log_digest_transactions.py` | Passive X request, transaction, receipt and media observation preparation, legacy matching, receipt/media correlation and post-scan receipt/error reporting preparation | Supplied records, snapshots, health, pending state, lists/statistics and current helper/source callbacks; no I/O, clock sample, runtime access or publication authority |
 | `mrs_log_digest_api_health.py` | Passive X/cooldown observation, latest-error enrichment and API counter/failure/report preparation | Supplied records, shared lists, production event identities and current helpers; separate preparation and report materialisation; no I/O, clock sample, source selection or publication authority |
 | `mrs_log_digest_markdown.py` | Prepared-report Markdown presentation and section rendering | None; receipt lifecycle analysis is supplied by the caller |
@@ -93,6 +94,45 @@ selection, self-test authority, context/backscan policy, `read_resume_data`,
 remain in the coordinator. Default project/home resolution and producer source
 hash/repository provenance remain anchored to the digest entry point; schema 3,
 Markdown and resume persistence are unchanged.
+
+Legacy response callers retain `try_parse_response_id_text(msg)` and
+`response_post_id_is_canonical_string(msg)` through `mrs_log_digest`, with their
+original signatures and return values. The compatibility parser is a direct
+import from `mrs_log_digest_legacy_posts`; the canonical parser has a thin digest
+wrapper supplying the current `valid_string_public_post_id` from the values
+owner. Literal parsing, exception handling, integer display conversion and regex
+salvage remain distinct from canonical string publication authority. The new
+owner imports the existing shared `Record` from `mrs_log_digest_records`.
+
+Eight named handlers own the remaining raw legacy post/reply observations:
+`handle_legacy_quiet_message`, `handle_legacy_quote_image_selection`,
+`handle_legacy_generated_image_spacing`, `handle_legacy_quote_image_posting`,
+`handle_legacy_meme_posting`, `handle_legacy_created_post`,
+`handle_legacy_mention_reply` and `handle_legacy_quote_reply`. The first two return
+only the handled flag; the others return it followed by the latest spacing,
+pending quote, pending meme, latest created-post evidence, or pending reply and
+active provider context, respectively. True corresponds only to an original
+outer `continue`. Quiet counter-only matches still fall through; a fetched
+hot-post result ends dispatch. Creating an X post ends dispatch even without
+quote enrichment. No provider attempt index is changed or passed here.
+
+Supplied pending maps and image rows retain their identities and original
+mutation/replacement points. Spacing status/state updates share their new row
+with the observation list; a blocked row appends without replacing latest state.
+Created-post observation calls the current canonical parser once for the saved
+evidence and again after a numeric success event, removing that exact event
+identity when noncanonical. Mention/hot-post and quote-reply handlers retain
+their separate fallback, underscore filtering, source flags, skip matching,
+routine counters and context-reset rules. Current `add_event`, `lit`, response
+parsers, record sequence and production flags are supplied only where used.
+
+All eight calls retain their coordinator positions, with the four editorial and
+generated-identity observers still between quote/image selection and spacing.
+The record loop, production/self-test state switching, strict EVENT router,
+source/publication authority, final cap/spacing counters, selected-window and
+snapshot decisions, input/resume policy, CLI/defaults, provenance and locking
+remain in the digest. There are no reverse imports, stored callbacks or generic
+state containers; schema 3, JSON and Markdown are unchanged.
 
 Transaction/media callers retain `parse_x_request_start`,
 `classify_x_request_endpoint`, `parse_remote_write_transaction_event`,

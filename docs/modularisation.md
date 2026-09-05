@@ -2109,3 +2109,109 @@ without a stage-number ceiling. No production/configuration/state/log/image-pool
 changes, bot execution, provider/posting calls, service control, merge or deployment
 occurred. Previous branches/worktrees are preserved; only stage 23 is implemented
 in this session.
+
+## Extracted in stage 24
+
+Base: `1291a1e099c147bb861ec67094db32af168745ac`, verified against pushed
+`origin/codex/modularisation-stage23`. Work is isolated on
+`codex/modularisation-stage24` in
+`/disks/disk1/research/mrsMThatcher-modularisation-stage24`.
+
+`mrs_log_digest_legacy_posts.py` owns eight named raw observation handlers:
+quiet/hot-post/alternating-lane diagnostics (**48 original lines**), quote/image
+selection (**85**), generated-image spacing (**53**), quote cycles/text/posting
+(**69**), daily meme (**20**), created-post evidence (**21**), mention/hot-post
+replies (**140**) and quote replies (**93**). The two companion response parsers
+move with created-post evidence: the compatibility parser remains a direct digest
+import, and the canonical parser retains its digest signature through a wrapper
+supplying the current values-owner validator. The shared `Record` is unchanged.
+
+The **32 original outer continues** become handled returns at the same coordinator
+positions. Counter-only quiet observations still fall through. Stateful handlers
+return the exact original/replacement pending maps, latest spacing row and active
+provider context. Blocked spacing only appends; image enrichment updates the last
+matching unenriched row in place. Creating an X post still ends dispatch without
+pending enrichment. Both canonical-parser calls, compatibility display parsing,
+production flags and event-object authority invalidation are preserved. Normal/
+hot-post and quote-reply algorithms retain their distinct matching and resets.
+
+The record loop, source state switching, EVENT router and four interleaved
+editorial/identity calls stay in the coordinator, as do provider attempt indexes,
+earlier source/receipt/error dispatch and final cap/spacing counters. Current
+helpers and only the inputs each handler uses are supplied explicitly. No reverse
+imports, stored callbacks, general state/dispatch framework or behavior fixes
+were introduced. Existing APIs/defaults, values/types/order/errors, counters,
+schema 3, JSON/Markdown, source and publication authority, selected-window/current
+snapshot decisions, resume, CLI, provenance and locking are preserved.
+
+| Physical lines | Before | After |
+| --- | ---: | ---: |
+| Digest file | 5,121 | 4,645 (−476) |
+| `analyse` | 2,450 | 1,990 (−460) |
+| Legacy-post owner | — | 688 |
+| `run_digest` / Markdown wrapper | 360 / 10 | 360 / 10 |
+
+Validation: baseline **208 passed**, final **236 passed** using
+`MRS_TEST_MODE=1 PYTEST_DISABLE_PLUGIN_AUTOLOAD=1 python3 -m pytest` with the
+existing temporary-HOME/network isolation. Selection: `test_mrs_log_digest`,
+`test_digest_reply_observability`, `test_digest_markdown`,
+`test_digest_historical_events`; runtime owner import guards; three safety cases
+for provider resume and self-test state/input isolation; and **19 digest-only
+integration functions** covering quote/image selection, spacing/resume, receipts,
+reply/publication authority, mixed source identities and noncanonical immutable
+success. Eight added boundary functions contribute **27 cases** for handled/
+fallthrough dispatch, interleaved observers, object identity, current callbacks,
+canonical/display parser distinctions, lane-specific matching/resets and exact
+production event identities. The owner also joins the guarded-import test.
+Existing assertions are retained. No whole bot harness was run.
+
+Independent text/AST checks verified every moved body and all original function
+signatures/defaults. Restoring the original helper and loop spans and removing
+the new import reproduces every original coordinator byte; only the explicit
+handled returns differ inside the owner. Manual inspection covered each exact
+body, including both canonical calls and the reverse image-row loop.
+Documentation coverage passes for **205 modules**; `git diff --check` passes.
+
+Five complete JSON/Markdown pairs also match stage 23, using shared existing
+fixture setups, `record`/`write_digest_log`, fixed clocks and identical paths:
+
+| Comparison group | Records | JSON bytes | Markdown bytes |
+| --- | ---: | ---: | ---: |
+| Quote/image/meme, spacing and mixed sources | 24 | 43,755 | 15,815 |
+| Mention/hot-post, mixed sources and noncanonical response | 10 | 36,877 | 12,670 |
+| Quote-reply, mixed sources and noncanonical response | 10 | 36,873 | 12,503 |
+| Pending mention/quote and provider attempt before resume | 3 | 33,653 | 11,378 |
+| Resumed mention and quote replies | 6 | 35,534 | 12,132 |
+
+The temporary comparison test passed; raw `analyse` reports, stderr and saved
+resume bytes also match. Direct checks retain the provider attempt after reply
+context resets, a distinction omitted by schema 3. Producer hashes were verified
+from source bytes and HEADs independently through Git; only the producer-source
+hash was substituted, with both HEADs at the base. Fixture input bytes, modes and
+mtimes remain unchanged across each comparison. The comparisons use a prepared
+unavailable remote-write snapshot and do not revalidate filesystem inspection or
+form an exhaustive replay. Temporary scripts/data are outside the worktree.
+
+Recommended next boundary: remaining passive structured telemetry field
+projections, starting with runtime/reply-control events (`runtime_control_pause`,
+`runtime_control_clear`, clarification/repair observations and
+`reply_evidence_unavailable`). Named family handlers can join the appropriate
+existing owners; posting-state and meme-failure projections are further small
+candidates. Keep strict parsing, branch selection/order, source authority and
+confirmed-publication acceptance in the coordinator.
+
+Headline/derived preparation is another coherent candidate: initial health and
+media/recovery summaries, reply budgets/priority, and later single-call/legacy
+headline insertions have distinct evaluation positions. Extract prepared report
+values with explicit current inputs rather than moving the whole post-scan body.
+Supporting `merge_context`, config-pair/backscan merging and saved-context helpers
+may merit ownership together if their pure preparation becomes clearer; log
+selection/backscan cutoffs, resume reads/writes and advancement, current-snapshot
+authority, CLI/default paths and locks remain appropriate coordination. Thin
+compatibility wrappers are intentional. Further work must improve ownership and
+clarity, without a stage ceiling or line-count target. No following stage is
+implemented here.
+
+No production/configuration/state/log/image-pool changes, bot execution,
+provider/posting calls, service control, merge or deployment occurred. Previous
+branches/worktrees are preserved; only stage 24 is implemented in this session.
