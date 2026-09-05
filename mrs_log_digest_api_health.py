@@ -17,6 +17,36 @@ from typing import Any, Callable, Dict, List, Optional, Tuple
 from mrs_log_digest_records import Record
 
 
+def is_reply_target_eligibility_restriction(message: str) -> bool:
+    """Return whether is reply target eligibility restriction."""
+    text = str(message or "").lower()
+    return any(
+        marker in text
+        for marker in (
+            "only reply to or quote posts where you are mentioned or are the author",
+            "reply to this conversation is not allowed",
+            "not been mentioned or otherwise engaged by the author",
+            "not allowed to reply",
+        )
+    )
+
+
+def is_deleted_or_inaccessible_tweet_403(message: str) -> bool:
+    """Return whether a 403 says the target tweet was deleted or inaccessible."""
+    text = str(message or "").lower()
+    return "403" in text and any(
+        marker in text
+        for marker in (
+            "tweet that is deleted or not visible to you",
+            "post that is deleted or not visible to you",
+            "tweet is deleted or not visible",
+            "post is deleted or not visible",
+            "tweet is unavailable",
+            "post is unavailable",
+        )
+    )
+
+
 def handle_cooldown_message(
     r: Record,
     msg: str,

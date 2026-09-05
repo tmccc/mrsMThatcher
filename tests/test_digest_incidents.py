@@ -1,12 +1,197 @@
 """Check the incident extraction's delegation, clocks and object boundaries."""
 from __future__ import annotations
 
+from dataclasses import replace
 from datetime import datetime, timedelta
 
 import pytest
 
 import mrs_log_digest as digest
-from tests.test_mrs_log_digest import BASE, reconciled_remote_write_safety
+import mrs_log_digest_api_health as api_health_owner
+from tests.test_mrs_log_digest import BASE, record, reconciled_remote_write_safety
+
+
+@pytest.mark.parametrize("failure_at", [None, "rejection", "fingerprint", "classify"])
+def test_error_observation_keeps_clarification_order_and_shared_pause_inputs(failure_at):
+    row = record(0, "WARNING", "normal_reply", (
+        "Clarification reply lacks direct_factual_answer mode; refusing target_id=410"
+    ))
+    errors, selftests, posts, replies, calls = [], [], [], [], []
+    pending = {"source": "mention", "incoming_text": "incoming"}
+    indexes, reference = {row.path: 7}, {"record_number": 1}
+    failure = RuntimeError("observation callback failed")
+
+    def note(name):
+        calls.append(name)
+        if name == failure_at:
+            raise failure
+
+    def eligibility(message):
+        assert message is row.msg
+        note("eligibility")
+        return False
+
+    def deleted(message):
+        assert message is row.msg
+        note("deleted")
+        return False
+
+    def rejection(ts, **fields):
+        assert ts is row.ts and not errors
+        assert fields == {
+            "lane": "mention", "target_id": "410",
+            "reason": "clarification_not_direct_factual_answer",
+            "original_local_rejection_reason": "clarification_not_direct_factual_answer",
+            "pipeline_stage_status": "approved", "effective_status": "local_rejection",
+            "effective_reason": "clarification_not_direct_factual_answer",
+            "direct_answer_repair_attempted": False,
+            "direct_answer_repair_outcome": "not_available_legacy_telemetry",
+            "incoming_contribution": "incoming", "proposed_draft": None,
+            "repaired_draft": None,
+        }
+        note("rejection")
+        return {"ignored": True}
+
+    def shorten(message, limit):
+        assert message is row.msg and limit == 900
+        note("short")
+        return "display"
+
+    def fingerprint(value):
+        assert value is row
+        note("fingerprint")
+        return "fingerprint"
+
+    def source_ref(value, supplied_indexes):
+        assert value is row and supplied_indexes is indexes
+        note("source")
+        return reference
+
+    def classify(message):
+        assert message is row.msg and not errors
+        pending["source"] = "hot_post"
+        note("classify")
+        return "remote_operations_paused"
+
+    def observe():
+        return digest.observe_error_warning(
+            row, row.msg, self_test_errors=selftests, confirmed_post_recovery=posts,
+            confirmed_reply_recovery=replies, errors=errors,
+            pending_mention=pending, pending_qt={}, pending_meme={}, pending_quote={},
+            is_reply_visual_description_event=False, input_file_indexes=indexes,
+            is_reply_target_eligibility_restriction=eligibility,
+            is_deleted_or_inaccessible_tweet_403=deleted,
+            add_or_merge_local_rejection=rejection, short=shorten,
+            record_source_ref=source_ref, record_fingerprint=fingerprint,
+            classify_operational_error=classify,
+        )
+
+    expected = ["eligibility", "deleted", "rejection", "short", "fingerprint", "source", "classify"]
+    if failure_at is not None:
+        with pytest.raises(RuntimeError) as caught:
+            observe()
+        assert caught.value is failure
+        assert calls == expected[:expected.index(failure_at) + 1]
+        assert errors == []
+    else:
+        assert observe() == (False, False)
+        assert calls == expected
+        assert errors == [{
+            "time": digest.dt_text(BASE), "level": "WARNING", "where": "normal_reply:1",
+            "message": "display", "_raw_message": row.msg, "_fingerprint": "fingerprint",
+            "source_refs": [reference], "_pause_pending_lane": "hot_post",
+        }]
+        assert errors[0]["source_refs"][0] is reference
+    assert selftests == posts == replies == []
+
+
+def test_error_observation_wiring_keeps_current_callbacks_sources_and_later_dispatch(monkeypatch):
+    for name in ("is_reply_target_eligibility_restriction", "is_deleted_or_inaccessible_tweet_403"):
+        assert getattr(digest, name) is getattr(api_health_owner, name)
+    messages = [
+        ("normal_reply", "Clarification reply lacks direct_factual_answer mode; refusing target_id=410"),
+        ("normal_reply", "Clarification reply lacks direct_factual_answer mode; refusing target_id=420"),
+        ("normal_reply", "RemoteOperationsPaused: global runtime control pause blocks remote operation"),
+        ("assets", "Quote analysis unavailable"),
+        ("x_request", "X API error 403: only reply to or quote posts where you are mentioned or are the author"),
+        ("x_request", "X API error 503: fixture"),
+        ("post_meme", "Confirmed meme post_id=900 requires local recovery"),
+        ("normal_reply", "Confirmed reply receipt was applied in memory but state save failed"),
+    ]
+    rows = [record(i, "WARNING", src, msg) for i, (src, msg) in enumerate(messages)]
+    rows[0] = replace(rows[0], path="selftest_fixture.log")
+    inputs_seen, pairs, emissions, callback_calls, boundaries = [], [], [], [], []
+    helper_names = (
+        "is_reply_target_eligibility_restriction", "is_deleted_or_inaccessible_tweet_403",
+        "short", "record_source_ref", "record_fingerprint", "classify_operational_error",
+    )
+    for name in helper_names:
+        original = getattr(digest, name)
+
+        def current(*args, _name=name, _original=original, **kwargs):
+            callback_calls.append((_name, args))
+            return _original(*args, **kwargs)
+
+        monkeypatch.setattr(digest, name, current)
+
+    original_rejection = digest._add_or_merge_local_rejection
+    original_observe = digest.observe_error_warning
+    original_provider = digest.observe_provider_message
+    original_prepare = digest.prepare_api_health
+
+    def rejection(*args, **kwargs):
+        assert len(inputs_seen[-1]["errors"]) == len(emissions)
+        result = original_rejection(*args, **kwargs)
+        emissions.append(result)
+        return result
+
+    def observe(r, msg, **inputs):
+        assert r is rows[len(inputs_seen)] and msg is r.msg
+        assert all(inputs[name] is getattr(digest, name) for name in helper_names)
+        inputs_seen.append(inputs)
+        start = len(callback_calls)
+        pair = original_observe(r, msg, **inputs)
+        pairs.append(pair)
+        boundaries.append(callback_calls[start:])
+        return pair
+
+    def provider(r, msg, **inputs):
+        assert len(pairs) == rows.index(r) + 1
+        assert inputs["pending_mention"] is inputs_seen[-1]["pending_mention"]
+        assert inputs["pending_qt"] is inputs_seen[-1]["pending_qt"]
+        return original_provider(r, msg, **inputs)
+
+    def prepare(**inputs):
+        assert id(emissions[0]) not in inputs["production_event_object_ids"]
+        assert id(emissions[1]) in inputs["production_event_object_ids"]
+        return original_prepare(**inputs)
+
+    monkeypatch.setattr(digest, "_add_or_merge_local_rejection", rejection)
+    monkeypatch.setattr(digest, "observe_error_warning", observe)
+    monkeypatch.setattr(digest, "observe_provider_message", provider)
+    monkeypatch.setattr(digest, "prepare_api_health", prepare)
+    indexes = {"fixture.log": 0, "selftest_fixture.log": 1}
+    report = digest.analyse(rows, generation_time=BASE + timedelta(minutes=1),
+                            initial_pending_mention={"source": "hot_post", "incoming_text": "incoming"},
+                            input_file_indexes=indexes)
+    assert pairs == [(False, False)] * 3 + [(True, False), (False, True)] + [(False, False)] * 3
+    assert [name for name, _ in boundaries[4]] == ["is_reply_target_eligibility_restriction"]
+    shared = inputs_seen[0]
+    for inputs in inputs_seen:
+        for key in ("errors", "self_test_errors", "confirmed_post_recovery", "confirmed_reply_recovery",
+                    "input_file_indexes", "add_or_merge_local_rejection"):
+            assert inputs[key] is shared[key]
+    assert inputs_seen[0]["pending_mention"] is not inputs_seen[1]["pending_mention"]
+    assert inputs_seen[1]["pending_mention"] is inputs_seen[2]["pending_mention"]
+    assert [item["lane"] for item in emissions] == ["unavailable", "hot_post"]
+    assert all(any(item is event for event in report["events"]) for item in emissions)
+    assert all("source_refs" not in item for item in emissions)
+    assert [item["source_refs"][0]["input_file_index"] for item in shared["errors"][:2]] == [1, 0]
+    assert shared["errors"][2]["_pause_pending_lane"] == "hot_post"
+    assert report["main_post_recovery"]["confirmed_post_recovery"] is shared["confirmed_post_recovery"]
+    assert report["confirmed_reply_recovery"]["warnings"] is shared["confirmed_reply_recovery"]
+    assert report["api_health"]["handled_restrictions"][0]["restriction_kind"] == "reply_target_eligibility"
+    assert report["summary"]["stats"]["asset_quote_metadata_warning"] == 1
 
 
 def test_classifier_keeps_current_helpers_and_conditional_call_order(monkeypatch):

@@ -2727,3 +2727,110 @@ Only stage 29 is implemented. Stop after stage **32** and reassess, or earlier
 if no sensible digest modularisation remains. No production/configuration/state/
 log/image-pool changes, bot execution, provider/posting calls, service control,
 merge, deployment or force-push occurred. Previous branches/worktrees are preserved.
+
+## Extracted in stage 30
+
+Base: `3924701a9f114e06bfbe6bd48ae1e8e151a26293`, verified against pushed
+`origin/codex/modularisation-stage29`. Work is isolated on
+`codex/modularisation-stage30` in
+`/disks/disk1/research/mrsMThatcher-modularisation-stage30`.
+
+The complete **176-line** per-record observation sequence, from
+`is_self_test_error` through `errors.append(error_item)` immediately before
+provider observation, moves into `observe_error_warning` in the existing
+incident owner. The body is exact apart from indentation and the final explicit
+pair return. Only `is_asset_metadata_warning` and
+`is_handled_reply_restriction` escape the group; name-use inspection confirms
+that its other temporaries have no earlier/later or previous-loop consumers.
+The pair is assigned at the original position, without casts. Later asset and
+X API dispatch remain in place.
+
+Current record/message, four shared error/recovery lists, four pending maps,
+prepared visual-description flag, source indexes and seven current callbacks
+are supplied explicitly. Self-test, restriction, receipt, recovery, asset and
+media predicates retain substring/regex/get/validation and short-circuit order.
+Legacy clarification rejection still calls the root closure immediately before
+error routing. Event identity and production membership, the existing absence
+of source references on those legacy rejection events, error-row references,
+timestamps, fields, suppression order and pending pause-lane hints are retained.
+The observer mutates supplied lists, reads pending maps by reference and adds no
+read, clock, validation, event authority, stored callback or dependency container.
+Its shared-owner `Record` annotation uses `TYPE_CHECKING`; the existing import
+safety guard is unchanged.
+
+The two pure restriction classifiers move unchanged (**12 + 14 lines**) into
+the API-health owner with exact root aliases. All existing functions in both
+owners, especially `summarise_operational_error_health`, are unchanged. Root
+APIs/defaults, source switching, strict EVENT parsing, config/state scanning,
+schema 3, producer identity policy, CLI/locking, report assembly and
+source/window/resume/publication decisions are preserved.
+
+| Physical lines | Before | After |
+| --- | ---: | ---: |
+| Digest file | 3,648 | 3,462 (−186) |
+| `analyse` | 1,477 | 1,318 (−159) |
+| Incident owner | 2,184 | 2,391 |
+| New observation function | — | 200 |
+| `summarise_operational_error_health` | 1,884 | 1,884 |
+| API-health owner | 596 | 626 |
+| `run_digest` / Markdown wrapper | 360 / 10 | 360 / 10 |
+
+Validation used `MRS_TEST_MODE=1 PYTEST_DISABLE_PLUGIN_AUTOLOAD=1 python3 -m pytest`
+with the established temporary-HOME/network isolation. Baseline: **286 passed**.
+Final: **295 passed**, covering the four requested test modules, ten nearest
+digest-only integrations and the existing runtime/evidence import guards.
+Two added test functions (five cases) cover current callbacks, clarification
+before error mutation, callback exceptions, shared rows/maps, source switching,
+event production membership, restriction short-circuiting and later flag use.
+All previous assertions remain. No whole bot harness ran.
+
+Three complete fixed-path/time report pairs match stage 29:
+
+| Fixture | Records | JSON bytes | Markdown bytes |
+| --- | ---: | ---: | ---: |
+| Expected/operational warnings, restrictions and media | 11 | 42,498 | 14,353 |
+| Legacy clarification, self-test/production and receipts | 11 | 46,225 | 14,209 |
+| Recovery, pause/clear and bounded window | 9 | 41,993 | 13,251 |
+
+Full per-record observations, callback/result traces (including types/order)
+and stderr also match. **13 temporary checks passed**: the five new cases
+against the original stage 29 observation body, plus eight direct pending-lane
+comparisons covering historical context, quote tweet, hot-post/default mention,
+meme, quote/image and absent/unrelated pending context. These retain raw hints
+and sharing omitted from the public report. Producer source hashes and repository
+HEADs were independently verified before substitution; both HEADs were still
+at the base. Fixture bytes/modes/mtimes and versioned fixtures are unchanged.
+Scripts/data remain outside the worktree. This is focused synthetic preservation
+evidence, not an exhaustive production replay or filesystem-failure exercise.
+
+Exact text/AST review verifies the observation body, both classifier bodies,
+all named input/result wiring, reconstructed `analyse` and the entire reconstructed
+root file. All **89** untouched root definitions, **15** existing definitions in
+the two extended owners and **27** other digest companions are unchanged.
+`python3 tools/check_python_documentation.py` passes for **208 modules**;
+`git diff --check` passes.
+
+Recommended next boundary: the **331-line** contiguous retirement/current-snapshot
+evidence reconciliation group in `summarise_operational_error_health`, from its
+six nested evidence helpers through the `identity_snapshot_available` block,
+immediately before `incidents.sort`. It is a cohesive candidate for one named
+function in the incident owner. Explicit inputs would be the existing incidents
+list, availability flag, active components, snapshot evidence and safety mapping,
+plus current component/window matching, event-time and epoch-conversion callbacks;
+existing text/time/hash utilities retain their owner. The six local helpers can
+remain nested, including the inner non-conflict predicate.
+
+Preserve in-place incident enrichment/appends and shallow nested sharing, exact
+retirement identity/conflict and unique-ledger-match rules, original evidence
+order and conditional epoch/fallback-time evaluation. Pass the safety mapping
+without eagerly reading `observed_at`. Retain supplied snapshot/window authority
+through the existing window predicate; no new clock/read or authority inference
+is needed. No result besides mutation is required. Earlier incident grouping,
+recovery classification and authority preparation, then final sorting/counting,
+stay with the summary. Moving the whole **1,884-line** function or adding a
+framework would not address this boundary. It is assessed, not implemented here.
+
+Only stage 30 is implemented. Stop after stage **32** and reassess, or earlier
+if no sensible digest modularisation remains. No production/configuration/state/
+log/image-pool changes, bot execution, provider/posting calls, service control,
+merge, deployment or force-push occurred. Previous branches/worktrees are preserved.

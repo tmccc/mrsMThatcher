@@ -130,6 +130,8 @@ from mrs_log_digest_legacy_posts import (
     response_post_id_is_canonical_string as _response_post_id_is_canonical_string,
 )
 from mrs_log_digest_api_health import (
+    is_reply_target_eligibility_restriction,
+    is_deleted_or_inaccessible_tweet_403,
     handle_cooldown_message,
     handle_x_api_error,
     enrich_latest_api_error,
@@ -296,6 +298,7 @@ from mrs_log_digest_reply_text import (
     enrich_published_reply_text as _enrich_published_reply_text,
 )
 from mrs_log_digest_incidents import (
+    observe_error_warning,
     REMOTE_OPERATION_SCOPE_LABELS,
     REMOTE_CONTROL_SCOPE_BY_KEY,
     REMOTE_LANE_SCOPE,
@@ -1246,36 +1249,6 @@ def seconds_between(a: datetime, b: datetime) -> float:
     return abs((a - b).total_seconds())
 
 
-def is_reply_target_eligibility_restriction(message: str) -> bool:
-    """Return whether is reply target eligibility restriction."""
-    text = str(message or "").lower()
-    return any(
-        marker in text
-        for marker in (
-            "only reply to or quote posts where you are mentioned or are the author",
-            "reply to this conversation is not allowed",
-            "not been mentioned or otherwise engaged by the author",
-            "not allowed to reply",
-        )
-    )
-
-
-def is_deleted_or_inaccessible_tweet_403(message: str) -> bool:
-    """Return whether a 403 says the target tweet was deleted or inaccessible."""
-    text = str(message or "").lower()
-    return "403" in text and any(
-        marker in text
-        for marker in (
-            "tweet that is deleted or not visible to you",
-            "post that is deleted or not visible to you",
-            "tweet is deleted or not visible",
-            "post is deleted or not visible",
-            "tweet is unavailable",
-            "post is unavailable",
-        )
-    )
-
-
 def parse_x_request_start(message: str) -> Optional[Dict[str, str]]:
     """Parse the request identity logged immediately before X transport."""
     return _parse_x_request_start(
@@ -2032,182 +2005,23 @@ def analyse(
                 latest_state = state
                 latest_state_ts = r.ts
 
-        is_self_test_error = (
-            msg.startswith("SELFTEST FAIL:")
-            or msg.startswith("Self-test finished with ")
-            or ("Missing X credentials." in msg and any(e.get("message", "").startswith("SELFTEST FAIL:") for e in self_test_errors))
-            or ("ENABLE_AUTO_REPLIES is True, but XAI_API_KEY is not set." in msg and any(e.get("message", "").startswith("SELFTEST FAIL:") for e in self_test_errors))
+        is_asset_metadata_warning, is_handled_reply_restriction = observe_error_warning(
+            r, msg,
+            self_test_errors=self_test_errors,
+            confirmed_post_recovery=confirmed_post_recovery,
+            confirmed_reply_recovery=confirmed_reply_recovery,
+            errors=errors,
+            pending_mention=pending_mention, pending_qt=pending_qt,
+            pending_meme=pending_meme, pending_quote=pending_quote,
+            is_reply_visual_description_event=is_reply_visual_description_event,
+            input_file_indexes=input_file_indexes,
+            is_reply_target_eligibility_restriction=is_reply_target_eligibility_restriction,
+            is_deleted_or_inaccessible_tweet_403=is_deleted_or_inaccessible_tweet_403,
+            add_or_merge_local_rejection=add_or_merge_local_rejection,
+            short=short, record_source_ref=record_source_ref,
+            record_fingerprint=record_fingerprint,
+            classify_operational_error=classify_operational_error,
         )
-        is_handled_reply_restriction = (
-            is_reply_target_eligibility_restriction(msg)
-            or is_deleted_or_inaccessible_tweet_403(msg)
-            or "reply not allowed" in msg.lower()
-            or "marking quote tweet as skipped without consuming reply quota" in msg.lower()
-            or "not allowed to reply" in msg.lower()
-            or "author has restricted who can reply" in msg.lower()
-        )
-        is_receipt_routine = (
-            "Wrote confirmed regular-post receipt pending local reconciliation" in msg
-            or "Wrote confirmed meme-post receipt pending local reconciliation" in msg
-            or "Wrote confirmed reply receipt pending local reconciliation" in msg
-            or "Wrote conversational reply sending receipt" in msg
-            or "Promoted conversational reply receipt to confirmed" in msg
-            or "Removed conversational reply sending receipt after definite non-success" in msg
-            or "Removed conversational reply sending receipt after confirmed identity" in msg
-            or "Removed reconciled regular-post receipt" in msg
-            or "Removed reconciled meme-post receipt" in msg
-            or "Removed reconciled confirmed-reply receipt" in msg
-            or "Reconciling confirmed regular quote/image post receipt" in msg
-            or "Reconciling confirmed meme post receipt" in msg
-            or "Reconciling confirmed reply receipt" in msg
-            or "Reconciled confirmed reply receipt before checking" in msg
-            or "Reconciled regular quote/image receipt; not creating a second regular post" in msg
-            or "Reconciled meme post receipt; not creating a second meme post" in msg
-            or "Wrote main-post sending receipt" in msg
-            or "Handed confirmed media upload to durable main-post attempt" in msg
-            or "Promoted main-post receipt to attempting" in msg
-            or "Removed main-post sending receipt" in msg
-            or "Promoted main-post attempt to confirmed pending-schedule receipt" in msg
-            or "Re-established confirmed pending-schedule receipt durability" in msg
-            or "Finalised confirmed pending-schedule receipt" in msg
-            or "Wrote confirmed regular pending-schedule receipt" in msg
-            or "Finalised regular-post pending schedule" in msg
-            or "Promoted regular-post sending receipt to confirmed" in msg
-            or "Wrote confirmed meme pending-schedule receipt" in msg
-            or "Finalised meme-post pending schedule" in msg
-            or "Promoted meme-post sending receipt to confirmed" in msg
-            or "Removed conversational reply sending receipt disposition=" in msg
-            or "Resumed interrupted exact source-receipt retirement" in msg
-            or "Resumed interrupted confirmed-media fence retirement" in msg
-            or "Recovered crash-left permanent retirement-ledger exchanges" in msg
-        )
-        is_confirmed_post_recovery = (
-            "Confirmed regular quote/image post_id=" in msg
-            or "Confirmed meme post_id=" in msg
-            or "Confirmed regular quote/image post " in msg
-            or "Confirmed meme post " in msg
-            or "REMOTE X POST WAS CONFIRMED; DO NOT RETRY MANUALLY" in msg
-        )
-        is_confirmed_reply_recovery = (
-            "Malformed confirmed-reply receipt blocks" in msg
-            or "Invalid confirmed-reply receipt blocks" in msg
-            or "Semantically invalid confirmed-reply receipt blocks" in msg
-            or "Confirmed reply receipt was applied in memory but state save failed" in msg
-            or "Confirmed reply receipt state was saved but receipt removal failed" in msg
-            or "Confirmed reply id=" in msg
-            or "Confirmed quote-tweet reply id=" in msg
-            or "reply required its durable state fallback" in msg
-        )
-        is_asset_metadata_warning = (
-            "Quote analysis" in msg
-            or "quote analysis" in msg
-            or "Image analysis" in msg
-            or "image analysis" in msg
-            or "Skipping unanalysed current quote" in msg
-            or "Image metadata stale" in msg
-            or "absent from image analysis" in msg
-            or "no valid per-image analysis" in msg
-            or "Could not hash current image" in msg
-            or "No analysed currently eligible regular-post images" in msg
-            or "Image used-history still contains legacy integer entries" in msg
-        )
-        is_reply_media_context = msg.startswith("Reply media context")
-        clarification_mode_refusal = re.search(
-            r"Clarification reply lacks direct_factual_answer mode; refusing target_id=(\d+)",
-            msg,
-        )
-        if clarification_mode_refusal is not None:
-            add_or_merge_local_rejection(
-                r.ts,
-                lane=pending_mention.get("source") or "unavailable",
-                target_id=clarification_mode_refusal.group(1),
-                reason="clarification_not_direct_factual_answer",
-                original_local_rejection_reason=(
-                    "clarification_not_direct_factual_answer"
-                ),
-                pipeline_stage_status="approved",
-                effective_status="local_rejection",
-                effective_reason="clarification_not_direct_factual_answer",
-                direct_answer_repair_attempted=False,
-                direct_answer_repair_outcome="not_available_legacy_telemetry",
-                incoming_contribution=pending_mention.get("incoming_text", ""),
-                proposed_draft=None,
-                repaired_draft=None,
-            )
-
-        # Error/warning collection. Exclude routine KeyboardInterrupt, expected
-        # self-test failures, and handled target restrictions from operational errors.
-        if is_self_test_error:
-            self_test_errors.append({
-                "time": r.ts.strftime("%Y-%m-%d %H:%M:%S"),
-                "level": r.level,
-                "where": f"{r.src}:{r.line}",
-                "message": short(msg, 900),
-                "source_refs": [record_source_ref(r, input_file_indexes)],
-            })
-        elif is_confirmed_post_recovery and r.level in {"ERROR", "CRITICAL", "WARNING"}:
-            confirmed_post_recovery.append({
-                "time": r.ts.strftime("%Y-%m-%d %H:%M:%S"),
-                "level": r.level,
-                "where": f"{r.src}:{r.line}",
-                "message": short(msg, 900),
-                "source_refs": [record_source_ref(r, input_file_indexes)],
-            })
-        elif is_confirmed_reply_recovery and r.level in {"ERROR", "CRITICAL", "WARNING"}:
-            confirmed_reply_recovery.append({
-                "time": r.ts.strftime("%Y-%m-%d %H:%M:%S"),
-                "level": r.level,
-                "where": f"{r.src}:{r.line}",
-                "message": short(msg, 900),
-                "source_refs": [record_source_ref(r, input_file_indexes)],
-            })
-        elif is_receipt_routine and r.level in {"ERROR", "CRITICAL", "WARNING"}:
-            pass
-        elif is_asset_metadata_warning and r.level in {"ERROR", "CRITICAL", "WARNING"}:
-            pass
-        elif is_reply_media_context and r.level in {"ERROR", "CRITICAL", "WARNING"}:
-            pass
-        elif is_reply_visual_description_event and r.level in {
-            "ERROR",
-            "CRITICAL",
-            "WARNING",
-        }:
-            pass
-        elif is_handled_reply_restriction and r.level in {"ERROR", "CRITICAL", "WARNING"}:
-            # The raw X API 403 is classified below. Follow-up warnings such as
-            # "marking skipped without consuming quota" are expected handling.
-            pass
-        elif r.level in {"ERROR", "CRITICAL"} or (r.level == "WARNING" and "Bot stopped by KeyboardInterrupt" not in msg):
-            error_item = {
-                "time": r.ts.strftime("%Y-%m-%d %H:%M:%S"),
-                "level": r.level,
-                "where": f"{r.src}:{r.line}",
-                "message": short(msg, 900),
-                "_raw_message": msg,
-                "_fingerprint": record_fingerprint(r),
-                "source_refs": [record_source_ref(r, input_file_indexes)],
-            }
-            if classify_operational_error(msg) == "remote_operations_paused":
-                source = str(r.src or "").lower()
-                pending_lane = ""
-                if "historical_context" in source:
-                    pending_lane = "historical_context_reply"
-                elif "quote_tweet" in source and pending_qt:
-                    pending_lane = "quote_tweet"
-                elif (
-                    any(token in source for token in ("mention", "normal", "reply"))
-                    and pending_mention
-                ):
-                    pending_lane = str(
-                        pending_mention.get("source") or "mention"
-                    )
-                elif "meme" in source and pending_meme:
-                    pending_lane = "daily_meme"
-                elif "quote" in source and pending_quote:
-                    pending_lane = "quote_image"
-                if pending_lane:
-                    error_item["_pause_pending_lane"] = pending_lane
-            errors.append(error_item)
 
         active_xai_context, active_xai_call_attempt_index = observe_provider_message(
             r, msg,

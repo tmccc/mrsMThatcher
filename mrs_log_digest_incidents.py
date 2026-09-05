@@ -1,8 +1,10 @@
-"""Classify operational errors and report incidents from supplied observations.
+"""Observe errors/warnings, classify operational errors and report incidents.
 
 The coordinator supplies current helper callbacks, scope vocabulary, clock/epoch
 conversion and prepared safety evidence. Reporting preserves input error/event
 identity and mutates supplied snapshot annotations through the caller's callback.
+Per-record observation mutates supplied lists and calls the current root rejection
+callback before error routing, without taking ownership of event provenance.
 
 This module performs no file/home/configuration access or provider calls. Snapshot
 loading, window annotation ownership, transaction parsing, media correlation,
@@ -15,7 +17,10 @@ import json
 import re
 from collections import Counter
 from datetime import datetime, timedelta
-from typing import Any, Callable, Dict, Iterable, List, Mapping, Optional, Tuple
+from typing import TYPE_CHECKING, Any, Callable, Dict, Iterable, List, Mapping, Optional, Tuple
+
+if TYPE_CHECKING:
+    from mrs_log_digest_records import Record
 
 from mrs_log_digest_values import (
     _is_terminal_pipeline_failure,
@@ -202,6 +207,208 @@ def classify_operational_error(
     if exception_line:
         return normalise_incident_text(exception_line).split(":", 1)[0] or "operational_error"
     return "operational_error"
+
+
+def observe_error_warning(
+    r: Record,
+    msg: str,
+    *,
+    self_test_errors: List[Dict[str, Any]],
+    confirmed_post_recovery: List[Dict[str, Any]],
+    confirmed_reply_recovery: List[Dict[str, Any]],
+    errors: List[Dict[str, Any]],
+    pending_mention: Dict[str, Any],
+    pending_qt: Dict[str, Any],
+    pending_meme: Dict[str, Any],
+    pending_quote: Dict[str, Any],
+    is_reply_visual_description_event: bool,
+    input_file_indexes: Optional[Dict[str, int]],
+    is_reply_target_eligibility_restriction: Callable[[str], bool],
+    is_deleted_or_inaccessible_tweet_403: Callable[[str], bool],
+    add_or_merge_local_rejection: Callable[..., Dict[str, Any]],
+    short: Callable[[str, int], str],
+    record_source_ref: Callable[[Record, Optional[Dict[str, int]]], Dict[str, Any]],
+    record_fingerprint: Callable[[Record], str],
+    classify_operational_error: Callable[[str], str],
+) -> Tuple[bool, bool]:
+    """Observe one record's errors/recoveries; return asset and restriction flags."""
+    is_self_test_error = (
+        msg.startswith("SELFTEST FAIL:")
+        or msg.startswith("Self-test finished with ")
+        or ("Missing X credentials." in msg and any(e.get("message", "").startswith("SELFTEST FAIL:") for e in self_test_errors))
+        or ("ENABLE_AUTO_REPLIES is True, but XAI_API_KEY is not set." in msg and any(e.get("message", "").startswith("SELFTEST FAIL:") for e in self_test_errors))
+    )
+    is_handled_reply_restriction = (
+        is_reply_target_eligibility_restriction(msg)
+        or is_deleted_or_inaccessible_tweet_403(msg)
+        or "reply not allowed" in msg.lower()
+        or "marking quote tweet as skipped without consuming reply quota" in msg.lower()
+        or "not allowed to reply" in msg.lower()
+        or "author has restricted who can reply" in msg.lower()
+    )
+    is_receipt_routine = (
+        "Wrote confirmed regular-post receipt pending local reconciliation" in msg
+        or "Wrote confirmed meme-post receipt pending local reconciliation" in msg
+        or "Wrote confirmed reply receipt pending local reconciliation" in msg
+        or "Wrote conversational reply sending receipt" in msg
+        or "Promoted conversational reply receipt to confirmed" in msg
+        or "Removed conversational reply sending receipt after definite non-success" in msg
+        or "Removed conversational reply sending receipt after confirmed identity" in msg
+        or "Removed reconciled regular-post receipt" in msg
+        or "Removed reconciled meme-post receipt" in msg
+        or "Removed reconciled confirmed-reply receipt" in msg
+        or "Reconciling confirmed regular quote/image post receipt" in msg
+        or "Reconciling confirmed meme post receipt" in msg
+        or "Reconciling confirmed reply receipt" in msg
+        or "Reconciled confirmed reply receipt before checking" in msg
+        or "Reconciled regular quote/image receipt; not creating a second regular post" in msg
+        or "Reconciled meme post receipt; not creating a second meme post" in msg
+        or "Wrote main-post sending receipt" in msg
+        or "Handed confirmed media upload to durable main-post attempt" in msg
+        or "Promoted main-post receipt to attempting" in msg
+        or "Removed main-post sending receipt" in msg
+        or "Promoted main-post attempt to confirmed pending-schedule receipt" in msg
+        or "Re-established confirmed pending-schedule receipt durability" in msg
+        or "Finalised confirmed pending-schedule receipt" in msg
+        or "Wrote confirmed regular pending-schedule receipt" in msg
+        or "Finalised regular-post pending schedule" in msg
+        or "Promoted regular-post sending receipt to confirmed" in msg
+        or "Wrote confirmed meme pending-schedule receipt" in msg
+        or "Finalised meme-post pending schedule" in msg
+        or "Promoted meme-post sending receipt to confirmed" in msg
+        or "Removed conversational reply sending receipt disposition=" in msg
+        or "Resumed interrupted exact source-receipt retirement" in msg
+        or "Resumed interrupted confirmed-media fence retirement" in msg
+        or "Recovered crash-left permanent retirement-ledger exchanges" in msg
+    )
+    is_confirmed_post_recovery = (
+        "Confirmed regular quote/image post_id=" in msg
+        or "Confirmed meme post_id=" in msg
+        or "Confirmed regular quote/image post " in msg
+        or "Confirmed meme post " in msg
+        or "REMOTE X POST WAS CONFIRMED; DO NOT RETRY MANUALLY" in msg
+    )
+    is_confirmed_reply_recovery = (
+        "Malformed confirmed-reply receipt blocks" in msg
+        or "Invalid confirmed-reply receipt blocks" in msg
+        or "Semantically invalid confirmed-reply receipt blocks" in msg
+        or "Confirmed reply receipt was applied in memory but state save failed" in msg
+        or "Confirmed reply receipt state was saved but receipt removal failed" in msg
+        or "Confirmed reply id=" in msg
+        or "Confirmed quote-tweet reply id=" in msg
+        or "reply required its durable state fallback" in msg
+    )
+    is_asset_metadata_warning = (
+        "Quote analysis" in msg
+        or "quote analysis" in msg
+        or "Image analysis" in msg
+        or "image analysis" in msg
+        or "Skipping unanalysed current quote" in msg
+        or "Image metadata stale" in msg
+        or "absent from image analysis" in msg
+        or "no valid per-image analysis" in msg
+        or "Could not hash current image" in msg
+        or "No analysed currently eligible regular-post images" in msg
+        or "Image used-history still contains legacy integer entries" in msg
+    )
+    is_reply_media_context = msg.startswith("Reply media context")
+    clarification_mode_refusal = re.search(
+        r"Clarification reply lacks direct_factual_answer mode; refusing target_id=(\d+)",
+        msg,
+    )
+    if clarification_mode_refusal is not None:
+        add_or_merge_local_rejection(
+            r.ts,
+            lane=pending_mention.get("source") or "unavailable",
+            target_id=clarification_mode_refusal.group(1),
+            reason="clarification_not_direct_factual_answer",
+            original_local_rejection_reason=(
+                "clarification_not_direct_factual_answer"
+            ),
+            pipeline_stage_status="approved",
+            effective_status="local_rejection",
+            effective_reason="clarification_not_direct_factual_answer",
+            direct_answer_repair_attempted=False,
+            direct_answer_repair_outcome="not_available_legacy_telemetry",
+            incoming_contribution=pending_mention.get("incoming_text", ""),
+            proposed_draft=None,
+            repaired_draft=None,
+        )
+
+    # Error/warning collection. Exclude routine KeyboardInterrupt, expected
+    # self-test failures, and handled target restrictions from operational errors.
+    if is_self_test_error:
+        self_test_errors.append({
+            "time": r.ts.strftime("%Y-%m-%d %H:%M:%S"),
+            "level": r.level,
+            "where": f"{r.src}:{r.line}",
+            "message": short(msg, 900),
+            "source_refs": [record_source_ref(r, input_file_indexes)],
+        })
+    elif is_confirmed_post_recovery and r.level in {"ERROR", "CRITICAL", "WARNING"}:
+        confirmed_post_recovery.append({
+            "time": r.ts.strftime("%Y-%m-%d %H:%M:%S"),
+            "level": r.level,
+            "where": f"{r.src}:{r.line}",
+            "message": short(msg, 900),
+            "source_refs": [record_source_ref(r, input_file_indexes)],
+        })
+    elif is_confirmed_reply_recovery and r.level in {"ERROR", "CRITICAL", "WARNING"}:
+        confirmed_reply_recovery.append({
+            "time": r.ts.strftime("%Y-%m-%d %H:%M:%S"),
+            "level": r.level,
+            "where": f"{r.src}:{r.line}",
+            "message": short(msg, 900),
+            "source_refs": [record_source_ref(r, input_file_indexes)],
+        })
+    elif is_receipt_routine and r.level in {"ERROR", "CRITICAL", "WARNING"}:
+        pass
+    elif is_asset_metadata_warning and r.level in {"ERROR", "CRITICAL", "WARNING"}:
+        pass
+    elif is_reply_media_context and r.level in {"ERROR", "CRITICAL", "WARNING"}:
+        pass
+    elif is_reply_visual_description_event and r.level in {
+        "ERROR",
+        "CRITICAL",
+        "WARNING",
+    }:
+        pass
+    elif is_handled_reply_restriction and r.level in {"ERROR", "CRITICAL", "WARNING"}:
+        # The raw X API 403 is classified below. Follow-up warnings such as
+        # "marking skipped without consuming quota" are expected handling.
+        pass
+    elif r.level in {"ERROR", "CRITICAL"} or (r.level == "WARNING" and "Bot stopped by KeyboardInterrupt" not in msg):
+        error_item = {
+            "time": r.ts.strftime("%Y-%m-%d %H:%M:%S"),
+            "level": r.level,
+            "where": f"{r.src}:{r.line}",
+            "message": short(msg, 900),
+            "_raw_message": msg,
+            "_fingerprint": record_fingerprint(r),
+            "source_refs": [record_source_ref(r, input_file_indexes)],
+        }
+        if classify_operational_error(msg) == "remote_operations_paused":
+            source = str(r.src or "").lower()
+            pending_lane = ""
+            if "historical_context" in source:
+                pending_lane = "historical_context_reply"
+            elif "quote_tweet" in source and pending_qt:
+                pending_lane = "quote_tweet"
+            elif (
+                any(token in source for token in ("mention", "normal", "reply"))
+                and pending_mention
+            ):
+                pending_lane = str(
+                    pending_mention.get("source") or "mention"
+                )
+            elif "meme" in source and pending_meme:
+                pending_lane = "daily_meme"
+            elif "quote" in source and pending_quote:
+                pending_lane = "quote_image"
+            if pending_lane:
+                error_item["_pause_pending_lane"] = pending_lane
+        errors.append(error_item)
+    return is_asset_metadata_warning, is_handled_reply_restriction
 
 
 def _event_time(value: Dict[str, Any]) -> Optional[datetime]:

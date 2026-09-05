@@ -45,7 +45,7 @@ and AppleDouble files.
 | `mrs_log_digest_runtime.py` | Current state/configuration validation, operator pause and feature-lifecycle observations | Supplied stable readers for state/configuration/controls and a lazy local lifecycle reader; explicit project paths, strict JSON parsers, file-time conversion and pause clock; no import-time runtime access |
 | `mrs_log_digest_state_reporting.py` | Prepared current-state, author-strike, headline/derived, reply-quality and mention-control reporting | Explicit data, current helpers, vocabulary, epoch conversion and observation clock; preparation preserves media rows and supplied state/record times; refreshes supplied reports and uses the supplied event callback and statistics counter; no I/O or import-time runtime access |
 | `mrs_log_digest_remote_write.py` | Read-only remote-write barrier identities, grouping, safety, reconciliation archive and window annotations | Explicit paths, readers/parsers, diagnostic formatter, clock, snapshot callbacks and annotation time converters; supplied window/authority flag; lazy read-only inspectors; no import-time runtime access |
-| `mrs_log_digest_incidents.py` | Operational-error classification, incident grouping/resolution, retirement evidence and remote pause scopes | Supplied observations, current helper/annotation callbacks, scope mappings and conditional clock/epoch conversion; preserves error/event identity and snapshot mutation; no file/home/configuration access or provider calls |
+| `mrs_log_digest_incidents.py` | Per-record error/warning observation, operational-error classification, incident grouping/resolution, retirement evidence and remote pause scopes | Supplied observations, current helper/annotation callbacks, scope mappings and conditional clock/epoch conversion; preserves error/event identity and snapshot mutation; no file/home/configuration access or provider calls |
 | `mrs_log_digest_reply_evidence.py` | Durable confirmed conversational receipt and historical reply-history loading/validation | Explicit project paths, stable private reader, native-number parser, canonical encoders, time conversion and validator callbacks; no writes, clock sample or import-time runtime access |
 | `mrs_log_digest_reply_text.py` | Exact confirmed public reply-text preparation from prepared runtime/receipt/history evidence | Mutates supplied report/events; explicit source-reference, epoch-conversion and helper/validator callbacks and warning limit; no evidence loading, I/O or clock sample |
 | `mrs_log_digest_quote_publication.py` | Quote-publication and engagement-experiment validation, evidence correlation and prepared publication reporting | Mutates supplied evidence, events, invalid-evidence sets and warning/outcome storage; explicit timestamps, source-reference helpers, validators and vocabulary; no files, home/configuration, clock sampling or provider calls |
@@ -305,7 +305,10 @@ provider access. Schema 3, Markdown, CLI/defaults/provenance, locking and
 publication authority are unchanged.
 
 API-health observation and preparation belong to `mrs_log_digest_api_health`,
-with five direct digest imports. `handle_cooldown_message` observes the counter,
+with seven direct digest imports. The pure
+`is_reply_target_eligibility_restriction` and
+`is_deleted_or_inaccessible_tweet_403` classifiers retain exact root aliases,
+signatures and predicate order. `handle_cooldown_message` observes the counter,
 active list and entered event before the unchanged used-history handlers.
 `handle_x_api_error` runs after those handlers with the current record, source
 request index, pending mention/quote state, restriction flag, shared API/error
@@ -473,6 +476,21 @@ adds no clock sample, read or authority inference. Window selection, analysis,
 report assembly and all operational/publication authority remain in the
 coordinator. Operational incident reconciliation belongs
 to `mrs_log_digest_incidents` and consumes the prepared snapshot.
+
+`observe_error_warning` receives the current record/message, the four shared
+error/recovery lists, the four pending maps, prepared visual-description flag,
+source indexes and explicit current restriction, rejection, formatting,
+fingerprint, source-reference and operational-classification callbacks. It
+retains the complete self-test/restriction/receipt/recovery/asset/media predicate
+sequence, including the legacy clarification rejection callback immediately
+before error routing. That callback remains the root closure, preserving event
+identity, source references and production provenance. Suppression order, row
+fields/timestamps, list identity and pending pause-lane hints are unchanged.
+Only `is_asset_metadata_warning` and `is_handled_reply_restriction` return, as an
+explicit pair assigned before provider observation; later asset/X dispatch
+retains its original position. Pending maps are read by reference. The observer
+adds no read, clock, validation or event authority and stores no callbacks.
+Its shared-owner `Record` annotation is imported only under `TYPE_CHECKING`.
 
 Operational-error callers retain `summarise_operational_error_health`,
 `classify_operational_error`, `_base_remote_control_key`, `_remote_control_scope`,
