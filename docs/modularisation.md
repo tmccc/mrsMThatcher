@@ -471,11 +471,76 @@ Production files, configuration, logs, durable data, image pools and running
 services are untouched. Stage six is committed locally only; it is not pushed,
 merged or deployed.
 
+## Extracted in stage 7
+
+Base: `f0bb8f8c063a0eef40eb8823b6c75a092aae197e`, verified against the
+pushed `origin/codex/modularisation-stage6` tip (superseding stage six's earlier
+"local commit only" statement). Work is isolated on
+`codex/modularisation-stage7` in
+`/disks/disk1/research/mrsMThatcher-modularisation-stage7`.
+
+`mrs_log_digest_original_editorial.py` owns `original_editorial_comparison_key`,
+`original_editorial_shadow_summary` and specific handlers for
+`ORIGINAL_EDITORIAL_SELECTION_RESULT` and `ORIGINAL_EDITORIAL_SHADOW_RESULT`.
+The two existing function entry points remain explicit digest re-exports. The
+dedicated observation list and pending-companion counter stay explicit and local
+to `analyse`; handlers remain at the same branch positions with the same continue
+paths. Dependency direction: digest → original editorial → values. No global
+accumulator, dispatcher, runtime I/O or reverse import is introduced.
+
+Encoding/parser exception boundaries, exact diagnostics/counters, lazy source
+references, timestamp/event-mode overwrites and parser-result identity remain
+unchanged. Observations still bypass `add_event`. Each selection suppresses one
+later matching shadow; early shadows and excess companions remain observations.
+The six comparison fields, summary truthiness/type distinctions, conversions,
+ranking ties and severe-disagreement object identity are retained. Invalid
+comparison keys and parseable invalid summary inputs keep their downstream
+failures, including the original partial mutation order. The ranking helper in
+`mrs_log_digest_values.py` is unchanged.
+
+| Size (physical lines; functions include definition/docstring) | Before | After |
+| --- | ---: | ---: |
+| Digest file | 16,455 | 16,353 (−102) |
+| `analyse` | 4,959 | 4,930 (−29) |
+| Original-editorial module | — | 185 |
+| `run_digest` / Markdown wrapper | 360 / 10 | unchanged |
+
+Validation: 175 existing focused tests pass at the base (171 digest/editorial/
+Markdown/safety/stage-six extraction tests and four nearby CLI/resume/contract
+regressions). Another 24 boundary cases pass before source extraction. The final
+suite passes 203 tests, including four new re-export/import/partial-mutation
+cases; 40 unrelated bot-scoring cases are deselected. Runs use
+`MRS_TEST_MODE=1 PYTEST_DISABLE_PLUGIN_AUTOLOAD=1 python3 -m pytest`, Python
+3.10.12 / pytest 9.1.1 and the existing temporary-HOME/network isolation. No
+existing assertions were changed. Documentation coverage passes for 188 modules;
+`git diff --check` passes.
+
+A single temporary 27-record fixture compares full CLI JSON and Markdown with
+the unchanged stage-six worktree, using a fixed clock and synthetic project/home
+paths. It exercises companion order/multiplicity, malformed input, a suppressed
+companion with invalid summary data, native types, ranking ties, self-test
+diagnostics and interleaved identity/historical/spacing events. Markdown bytes
+and all JSON bytes match except the independently verified
+`digest_contract.producer_source_sha256` and `repository_head_sha` fields.
+The two moved function ASTs and 160 other retained function/class ASTs match;
+`analyse` differs only in the two handler bodies. Validation is limited to these
+synthetic/focused regressions; broad bot suites and live provider calls are not
+needed for this extraction. Production and earlier worktrees are untouched;
+the existing separate corpus parse/hash reads remain unchanged.
+
+Further digest extraction still has practical value. The next useful boundary is
+`single_call_reply_summary` and the four structured branches
+`single_call_reply_decision`, `single_call_reply_provider_usage`,
+`single_call_reply_posting_outcome` and `single_call_reply_draft_recovered`.
+They form an active report family with bounded field projection and a substantial
+summary consuming emitted events. Specific helpers can receive `add_event` while
+the digest retains parsing, provenance, truncation and publication/recovery
+authority. No work on that boundary is included in stage seven.
+
 ## Likely next steps
 
-1. Extract original-editorial selection/shadow observations, their summary and
-   companion deduplication together, passing the dedicated list and local
-   companion counter explicitly. The shared ranking leaf is already available.
+1. Extract the single-call reply report family named above, keeping observation
+   projection and summary separate from publication/recovery authority.
    Leave remote-write/reconciliation snapshots and cross-event incident
    reconciliation until their evidence inputs can be separated coherently.
    An existing corpus-reader finding for later work: parsed content and SHA-256

@@ -39,6 +39,7 @@ and AppleDouble files.
 | `mrs_log_digest_generated_pool.py` | Generated-image discovery, metadata/hash validation, curation and used-history observations | Reads/scans the existing pool locations relative to an explicit base directory; supplied strict parsers, hashing, clock and ISO timestamp parser; no writes or import-time runtime access |
 | `mrs_log_digest_historical_events.py` | Historical-context event field projection, family counters and emitted-event quality summaries | Only supplied invocation-local counters and event insertion callbacks are mutated/called; no I/O or import-time runtime access |
 | `mrs_log_digest_generated_identity.py` | Generated-identity policy/shadow observation parsing and summaries | Mutates only supplied observation/error lists, local counters and the parser result's timestamp; strict parser, diagnostic formatter and lazy source-reference callback supplied by caller; no I/O or import-time runtime access |
+| `mrs_log_digest_original_editorial.py` | Original-editorial selection/shadow observations, companion deduplication and summary | Mutates only supplied observation/error lists, local statistics/companion counters and the parser result's timestamp and event mode; strict parser, diagnostic formatter and lazy source-reference callback supplied by caller; no I/O or import-time runtime access |
 | `mrs_log_digest_values.py` | Shared digest scalar conversions and report vocabulary | None |
 | `mrs_engagement_analytics.py` | Read-only X metrics collection and isolated SQLite reporting | X reads only with explicit flags; writes only under `engagement_analytics/` |
 | `hybrid_reply_retrieval.py` | CLI for local hybrid retrieval experiments and review artefacts | Offline by default; provider-review commands require explicit execution and budgets |
@@ -139,12 +140,40 @@ without becoming parse errors or being coerced to zero. All collections belong
 to one `analyse` invocation; no state is accumulated by the module.
 
 Dependency direction: digest → generated identity → values.
-`most_common_with_cutoff_ties` moves unchanged to the values leaf and remains an
-explicit digest import for original-editorial reporting. The generated-identity
+`most_common_with_cutoff_ties` is shared through the values leaf and remains an
+explicit digest import. The generated-identity
 module imports no digest, renderer, bot or snapshot readers. Import performs no
 home lookup, runtime I/O, logging setup or service initialisation. Report assembly,
-original-editorial companion deduplication, generated-image spacing/resume state
-and image-selection algorithms remain with their existing owners.
+generated-image spacing/resume state and image-selection algorithms remain with
+their existing owners.
+
+Original-editorial callers retain `original_editorial_comparison_key(item)` and
+`original_editorial_shadow_summary(events)` as explicit digest re-exports with
+unchanged signatures. `record_original_editorial_selection` and
+`record_original_editorial_shadow` receive the matched message, timestamp, level,
+dedicated observation list, pending-companion counter, statistics, errors, strict
+native JSON-object parser, diagnostic formatter and lazy source-reference
+callback. Both collections and both counters remain local to `analyse`; the
+digest retains the original branch positions and continues after success,
+suppression or a parse error. Observations bypass `add_event` and acquire no
+generic event counters or provenance, including for self-test sources.
+
+The parser result's `time` and `event_mode` are overwritten before companion
+accounting. The comparison key remains the ordered tuple of `quote_hash`,
+`line_no`, `selection_phase`, `production_source`, `production_winner` and
+`shadow_original_winner`, without coercion. Each selection permits suppression
+of one later matching shadow. Earlier shadows remain recorded; repeated
+selections and companions retain their multiplicity. Suppressed shadows still
+increment both the shadow and companion statistics. Only UTF-8 encoding and
+parsing are caught as parse errors; comparison-key failures retain their partial
+mutation order, and parseable invalid summary fields still fail downstream.
+
+The summary preserves boolean identity versus truthiness, native numeric types,
+integer rank conversions, winner/ranking ties, denominators and the original
+objects in `severe_disagreements`. It does not mutate observations. Dependency
+direction is digest → original editorial → values; the ranking helper in values
+is unchanged. The new module imports no coordinator, renderer, bot or snapshot
+reader and performs no I/O or runtime initialisation.
 
 ## Quotation Corpus Accounting
 
