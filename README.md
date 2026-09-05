@@ -30,6 +30,10 @@ All bot state is created under pytest temporary directories. The harness sets:
 - `X_UPLOAD_BASE_URL=<fake server>`
 - `OPENAI_API_BASE_URL=<fake server>/v1`
 
+Before collection, pytest also sets a temporary `HOME` inherited by child CLI
+processes, isolating the digest's default published-cost cache. Cost tests use
+synthetic caches and can still override the digest's path and clock directly.
+
 The complete offline test and research-tool dependency set is recorded in
 `requirements-dev.txt`. Install it when running the full repository suite:
 

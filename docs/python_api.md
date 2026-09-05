@@ -33,6 +33,7 @@ and AppleDouble files.
 | `shadow_lifecycle.py` | Strict validation for the versioned shadow-feature lifecycle register | Local file reads only |
 | `mrs_log_digest.py` | Structured/legacy log parsing, aggregation and Markdown/JSON reports | Local log and resume-state reads/writes; no provider calls |
 | `mrs_log_digest_markdown.py` | Prepared-report Markdown presentation and section rendering | None; receipt lifecycle analysis is supplied by the caller |
+| `mrs_log_digest_costs.py` | Published-cost cache validation, UTC-window accounting and report preparation | Cache reads only through an explicitly supplied stable reader; paths, clock observations and strict JSON parser supplied by caller |
 | `mrs_log_digest_values.py` | Shared digest scalar conversions and report vocabulary | None |
 | `mrs_engagement_analytics.py` | Read-only X metrics collection and isolated SQLite reporting | X reads only with explicit flags; writes only under `engagement_analytics/` |
 | `hybrid_reply_retrieval.py` | CLI for local hybrid retrieval experiments and review artefacts | Offline by default; provider-review commands require explicit execution and budgets |
@@ -41,6 +42,14 @@ and AppleDouble files.
 `mrsMThatcher2.py` is intentionally import-safe: importing it does not load the
 private host configuration, acquire the production lock or enter the posting
 loop. Operational entry points require `production_bootstrap()` first.
+
+Digest cost callers retain `load_openai_cost_cache`,
+`estimate_openai_cost_window` and `openai_published_cost_report` in
+`mrs_log_digest`. The digest resolves cache-path and clock defaults; the costs
+module accepts explicit inputs and has no import-time runtime access.
+`prepare_openai_published_cost_report` consumes an already loaded cache without
+I/O. The digest's historical `provider_usage` argument remains accepted and
+ignored.
 
 ## Quotation Corpus Accounting
 

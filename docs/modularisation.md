@@ -80,23 +80,79 @@ exactly; JSON differs only in the separately verified `producer_source_sha256`,
 which must change with the entry script. Analysis/CLI and moved-helper ASTs are
 unchanged. The documentation gate passes for 181 modules.
 
-Test-isolation finding for later work: existing in-process/CLI tests can read the
+Stage-one test-isolation finding: existing in-process/CLI tests could read the
 host's default published-cost cache. The initial run did so read-only. Both
 baselines and regressions were subsequently rerun with a temporary
 `sitecustomize.py` overriding `Path.home()` for the test processes (inherited via
 `PYTHONPATH`), and committed fixtures contain only synthetic cache data. The
 baseline emitted three existing third-party `blinker` deprecation warnings.
 
+## Extracted in stage 2
+
+Base: `0de0ed6b3f3e617d61ccc680d58bfb185256b927`, the verified completed
+stage-one commit and current fetched `origin/codex/modularisation-stage1` tip
+(2026-09-05). Fetched `origin/master` and the clean production checkout remained
+at `e08d894d9cd39a07ebe4eeb72205baa864d1a2be`, which lacks stage one. Work is
+isolated on `codex/modularisation-stage2` in
+`/disks/disk1/research/mrsMThatcher-modularisation-stage2`; stage one is unchanged.
+
+`mrs_log_digest_costs.py` owns cache schema/scope/money validation, UTC-date
+segmentation, cumulative-sample boundary accounting and prepared current-day/
+selected-window reports. Dependency direction: digest → costs → values.
+Costs imports neither digest, Markdown nor the bot. Its import performs no home
+lookup, cache/runtime access, logging initialisation or service calls.
+
+The digest retains the original `load_openai_cost_cache` and
+`openai_published_cost_report` signatures as wrappers, and explicitly re-exports
+the estimator, conversion helper, money-map validator and constants. It resolves
+the default/explicit cache path (including `expanduser`) and implicit clock, so
+patches to `digest.OPENAI_COST_CACHE_PATH` and `digest.datetime` still work.
+The legacy `provider_usage` argument remains ignored. The costs loader receives
+the unchanged stable regular-file reader and strict JSON parser as two explicit
+callbacks; unrelated snapshot readers remain in the digest. Report preparation
+uses the loaded cache and concrete observation time without further reads.
+
+| Size (physical lines; functions include definition/docstring) | Before | After |
+| --- | ---: | ---: |
+| Digest file | 18,039 | 17,684 |
+| Costs module | — | 430 |
+| Digest cache loader | 153 | 15 (wrapper) |
+| Window estimator | 174 | 174 (re-exported from costs) |
+| Digest published-cost report | 50 | 23 (wrapper) |
+| `analyse` / digest Markdown wrapper | 5,233 / 10 | unchanged |
+| Markdown / values modules | 3,347 / 155 | unchanged |
+
+Before the baseline, the existing pytest bootstrap gained a temporary `HOME`,
+created before test imports and inherited by subprocesses. Tests assert the
+exact isolated default path before reading, exercise missing and synthetic CLI
+caches, and verify explicit path/clock overrides. Production path selection is
+unchanged; no external `sitecustomize.py` is required for these tests.
+
+Validation: 208 existing cost/digest/Markdown/CLI regressions pass before and
+after; seven new boundary/isolation tests bring the total to 215. The original
+23 cost tests replay all 23 captured cache/report results and nine Markdown
+renderings exactly. A further 32 synthetic validation cases in UTC and London
+match 64 cache observations and 704 window reports, including value types.
+Fixed-clock subprocess CLI comparisons from a foreign directory preserve exact
+Markdown bytes and every JSON value in both primary/secondary output modes;
+only `producer_source_sha256` changes, independently checked against both entry
+scripts. These comparisons precede the commit so `repository_head_sha` is also
+compared unchanged. All 177 retained digest function ASTs, including stable
+readers, analysis and CLI, are unchanged; moved accounting and validation bodies
+are unchanged apart from explicit dependencies/default resolution. The
+documentation gate passes for 182 modules. No failures or warnings were observed
+in this focused baseline or final suite.
+
+Production files, configuration, durable data and running services were not
+modified. This stage is a local commit only; it is not pushed, merged or deployed.
+
 ## Likely next steps
 
-1. Extract published-cost cache validation/window accounting next, retaining
-   the existing digest entry points and injecting the cache path and observation
-   time. It is cohesive, has focused tests, and now has no Markdown dependency.
-2. Separate runtime/evidence snapshot readers from log event aggregation, with
+1. Separate runtime/evidence snapshot readers from log event aggregation, with
    explicit project paths and observation times. Then extract individual
    `analyse` event families with their own pending state; leave cross-event
    incident reconciliation until its evidence inputs are explicit.
-3. In the bot, extract bounded reply-context/history/media preparation around
+2. In the bot, extract bounded reply-context/history/media preparation around
    the existing `single_call_reply` contract, passing state and fetch functions
    explicitly. Keep scheduling and transaction/posting authority with the
    coordinator until their dependencies can be separated coherently.

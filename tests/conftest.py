@@ -48,10 +48,16 @@ def initialise_isolated_test_environment() -> Path:
     )
     state_dir = runtime_root / "state"
     state_dir.mkdir()
+    # Resolve digest cache defaults before collection against a temporary home.
+    # Child CLI processes inherit this too; per-test digest path overrides remain
+    # available for synthetic caches. Application default-path logic is unchanged.
+    home_dir = runtime_root / "home"
+    home_dir.mkdir()
     dead_loopback_endpoint = "http://127.0.0.1:9"
     os.environ.pop("MRS_ALLOW_LIVE_ENDPOINTS_IN_TEST", None)
     os.environ.update(
         {
+            "HOME": str(home_dir),
             "MRS_TEST_MODE": "1",
             "MRS_BASE_DIR": str(state_dir),
             "MRS_LOG_FILE": str(state_dir / "test.log"),
