@@ -291,3 +291,38 @@ def most_common_with_cutoff_ties(
         return ordered
     cutoff = ordered[limit - 1][1]
     return [item for item in ordered if item[1] >= cutoff]
+
+
+def _terminal_local_rejection_outcome(reason: Any) -> Optional[str]:
+    """Return the terminal local outcome represented by a pipeline reason."""
+    normalised = str(reason or "").strip().lower()
+    return {
+        "exact_duplicate_reply": "terminal_repetition_rejection",
+        "near_duplicate_reply": "terminal_repetition_rejection",
+        "clarification_not_direct_factual_answer": (
+            "terminal_clarification_mode_rejection"
+        ),
+    }.get(normalised)
+
+
+def _is_terminal_pipeline_failure(reason: Any, status: Any = None) -> bool:
+    """Identify old pipeline terminal failures logged as decision records."""
+    normalised = str(reason or "").strip().lower()
+    return (
+        str(status or "").strip().lower() == "operational_failure"
+        or normalised
+        in {
+            "claim_auditor_detected_unresolved_factual_claim",
+            "revision_limit_reached",
+        }
+    )
+
+
+def _is_writer_local_failure(reason: Any) -> bool:
+    """Identify a terminal failure to obtain locally compliant writer prose."""
+    normalised = str(reason or "").strip().lower()
+    return (
+        normalised.startswith("writer_local_rejection:")
+        or normalised == "writer_link_repair_failed"
+        or normalised.startswith("writer_link_repair_local_rejection:")
+    )

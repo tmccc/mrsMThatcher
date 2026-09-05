@@ -41,7 +41,9 @@ and AppleDouble files.
 | `mrs_log_digest_generated_identity.py` | Generated-identity policy/shadow observation parsing and summaries | Mutates only supplied observation/error lists, local counters and the parser result's timestamp; strict parser, diagnostic formatter and lazy source-reference callback supplied by caller; no I/O or import-time runtime access |
 | `mrs_log_digest_original_editorial.py` | Original-editorial selection/shadow observations, companion deduplication and summary | Mutates only supplied observation/error lists, local statistics/companion counters and the parser result's timestamp and event mode; strict parser, diagnostic formatter and lazy source-reference callback supplied by caller; no I/O or import-time runtime access |
 | `mrs_log_digest_single_call.py` | Single-call reply decision, provider usage, posting outcome and recovered-draft observations and summary | Emits only through the supplied `add_event` callback; summary reads emitted events without mutation; no I/O, publication/recovery actions or import-time runtime access |
-| `mrs_log_digest_values.py` | Shared digest scalar conversions and report vocabulary | None |
+| `mrs_log_digest_reply_pipeline.py` | Pure legacy reply-pipeline summary and strict majority-review telemetry validation/utilisation | None; consumes supplied events without mutation |
+| `mrs_log_digest_reply_strategy.py` | Pure legacy reply-strategy summary and no-reply categorisation | None; consumes supplied events without mutation or publication authority |
+| `mrs_log_digest_values.py` | Shared digest scalar conversions, reason classifiers and report vocabulary | None |
 | `mrs_engagement_analytics.py` | Read-only X metrics collection and isolated SQLite reporting | X reads only with explicit flags; writes only under `engagement_analytics/` |
 | `hybrid_reply_retrieval.py` | CLI for local hybrid retrieval experiments and review artefacts | Offline by default; provider-review commands require explicit execution and budgets |
 | `semantic_alignment/hybrid_reply_retrieval.py` | Local E5 indexing, lexical-versus-hybrid evaluation and historical replay | Offline research files only; it is not imported by the production bot |
@@ -203,6 +205,34 @@ Dependency direction is digest → single call → values. The unchanged
 in the values leaf and remain explicitly importable through the digest. The
 single-call reporting module imports no digest, renderer, bot or operational
 `single_call_reply` module and has no shared mutable state.
+
+Legacy reply-reporting callers retain `reply_pipeline_stage_summary`,
+`normalise_majority_review_telemetry` and `majority_review_utilisation` as explicit
+digest re-exports from `mrs_log_digest_reply_pipeline`. The private
+`_valid_majority_review_summary`, `_majority_review_telemetry_for_event` and
+`_majority_review_utilisation_counts` remain explicitly importable through the
+digest too. The unchanged `MAJORITY_REVIEW_FAMILIES` and
+`MAJORITY_REVIEW_SUMMARY_FIELDS` tuples belong to the pipeline module and retain
+that same compatibility surface. Raw and parser-sanitised telemetry keep their
+distinct presence, empty, malformed and duplicate-family handling, strict native
+type checks, validation rules and reviewer-call calculations.
+
+`reply_strategy_summary` and `_no_reply_category` belong to
+`mrs_log_digest_reply_strategy` and remain explicit digest imports. The three
+shared reason classifiers, `_terminal_local_rejection_outcome`,
+`_is_terminal_pipeline_failure` and `_is_writer_local_failure`, live unchanged in
+values and remain available through the digest for its cost and health callers.
+Signatures, defaults, event dictionary identity, input mutation behaviour,
+deduplication, ordering, missing-value treatment, reason precedence and summary
+calculations are unchanged. The distinct lane normalisers remain separate.
+
+Dependency direction is digest → reply pipeline / reply strategy → values.
+Both reporting modules operate only on supplied observations and import no
+coordinator, renderer, bot or runtime reader. Event parsing, `analyse`,
+`reconcile_reply_pipeline_effective_outcomes`, operational-health reconciliation
+and publication authority remain with their existing owners. The CLI still
+reports legacy multi-stage counts under JSON schema 3 without restoring the
+retired legacy summary sections.
 
 ## Quotation Corpus Accounting
 

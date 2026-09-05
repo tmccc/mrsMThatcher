@@ -622,3 +622,84 @@ beyond shared values, majority-review vocabulary and small reason classifiers.
 Grouping them would remove a substantial legacy reporting block while keeping
 event parsing, cross-event reconciliation and operational authority in their
 current owners. No next-stage implementation is included here.
+
+## Extracted in stage 9
+
+Base: `53936781c791adf4e8d87a086044986bd5c5a187`, verified against the live
+`origin/codex/modularisation-stage8` tip. Work is isolated on
+`codex/modularisation-stage9` in
+`/disks/disk1/research/mrsMThatcher-modularisation-stage9`.
+
+`mrs_log_digest_reply_pipeline.py` owns `reply_pipeline_stage_summary`,
+`normalise_majority_review_telemetry`, `majority_review_utilisation`,
+`_valid_majority_review_summary`, `_majority_review_telemetry_for_event` and
+`_majority_review_utilisation_counts`, plus the unchanged
+`MAJORITY_REVIEW_FAMILIES` and `MAJORITY_REVIEW_SUMMARY_FIELDS` tuples.
+`mrs_log_digest_reply_strategy.py` owns `reply_strategy_summary` and its private
+`_no_reply_category`. The seven reporting functions total 863 lines.
+
+The three shared reason classifiers, `_terminal_local_rejection_outcome`,
+`_is_terminal_pipeline_failure` and `_is_writer_local_failure`, move unchanged to
+values for the remaining cost/health callers. All four supporting reason helpers
+total 48 lines. Every moved entry point, including private helpers and both
+constants, remains an explicit digest import. Dependency direction is digest →
+reply pipeline / reply strategy → values, with no reverse imports, runtime I/O,
+dispatcher or shared mutable state.
+
+Complete bodies, signatures and defaults are unchanged. Event identity and
+mutation behaviour, ordering, strict types, missing values, deduplication, reason
+precedence, majority-review validation/counting and summary calculations retain
+their existing semantics. Parsing, `analyse`, effective-outcome reconciliation,
+operational-health reconciliation and publication authority stay in the digest.
+JSON schema 3, Markdown, CLI, defaults, provenance, clocks, locks and resume
+behaviour are unchanged.
+
+| Size (physical lines; functions include definition/docstring) | Before | After |
+| --- | ---: | ---: |
+| Digest file | 15,813 | 14,884 (−929) |
+| `analyse` | 4,702 | 4,702 (unchanged) |
+| Reply-pipeline module / stage summary | — / 205 | 437 / 205 |
+| Reply-strategy module / strategy summary | — / 466 | 506 / 466 |
+| Values module | 293 | 328 |
+| `run_digest` / Markdown wrapper | 360 / 10 | unchanged |
+
+Validation: 201 existing tests pass with
+`MRS_TEST_MODE=1 PYTEST_DISABLE_PLUGIN_AUTOLOAD=1 python3 -m pytest`: the
+reply-observability, digest, Markdown, safety-hardening, digest-costs and
+OpenAI-cost-digest files, plus the integration harness's
+`test_digest_json_source_identity_is_stable_across_resume_filtering`,
+`test_digest_json_contract_identifies_the_major_versioned_schema_and_retained_roots`
+and `test_copied_digest_without_git_still_emits_valid_contract_json`.
+Existing temporary-HOME/network isolation is reused; no tests or assertions are
+changed. All 11 moved function ASTs and complete source bodies match stage 8,
+as do all 147 retained digest function/class ASTs and source bodies. Both
+constants, all prior values-module ASTs and all remaining non-import digest
+module code are unchanged.
+
+One temporary 12-record fixture compares the complete CLI report against the
+unchanged stage-eight worktree with a fixed clock and synthetic paths. The
+51,408-byte JSON matches in values, types and ordering except for the independently
+verified `digest_contract.producer_source_sha256`; each `repository_head_sha`
+is checked against its worktree HEAD (both still at the base during comparison).
+All 13,080 Markdown bytes match. Direct legacy pipeline/strategy and remaining
+cost summaries also match exactly (11,227 bytes), preserving input event values
+and identities. Independent imports/reporting perform no runtime I/O, home
+lookup, socket/subprocess calls or logging changes; all digest re-exports retain
+owner identity and their type annotations resolve.
+
+The documentation gate passes for 191 modules; `git diff --check` passes.
+Validation is limited to these focused tests and synthetic checks; no broad bot
+suites or live calls were needed. Production and earlier worktrees/branches are
+preserved. No merge, deployment or next-stage implementation is included.
+
+The next useful boundary is the pure legacy provider usage/cost reporting group:
+`xai_reply_cost_summary`, `xai_usage_totals`, `_cache_metric_coverage`,
+`_format_cache_metric_coverage_line`, `int_usage_value`,
+`optional_int_usage_value`, `format_usd_ticks` and `format_reported_cost`
+(564 lines). Its dependencies are shared values, counters and Decimal/currency
+constants. It removes another substantial reporting block before expanding into
+stateful coordination; preserve the distinct usage normalisers and missing-cost
+semantics. Keep usage parsing/projection, pending call correlation, resume state
+and published-cost cache I/O with their current owners. The smaller pure
+`reply_visual_context_report` (253 lines) and image utilisation/runway summaries
+are further options after that group.
