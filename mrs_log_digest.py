@@ -56,6 +56,8 @@ from mrs_log_digest_values import (
     UNKNOWN_MISSING_STATE_FIELD,
     ENGAGEMENT_CORRELATION_WARNING_LIMIT,
     parse_dt,
+    dt_text,
+    bounded_exception_status,
     int_or_none,
     short,
     plural_count,
@@ -78,6 +80,19 @@ from mrs_log_digest_costs import (
     estimate_openai_cost_window,
     load_openai_cost_cache as _load_openai_cost_cache,
     prepare_openai_published_cost_report as _prepare_openai_published_cost_report,
+)
+from mrs_log_digest_runtime import (
+    CURRENT_RUNTIME_STATE_MAX_BYTES,
+    CURRENT_RUNTIME_CONFIG_MAX_BYTES,
+    CURRENT_CONFIG_REPORT_KEYS,
+    REMOTE_WRITE_CONTROL_BOOLEAN_KEYS,
+    REMOTE_WRITE_CONTROL_TIME_KEYS,
+    REMOTE_WRITE_CONTROL_ALLOWED_KEYS,
+    _control_boolean,
+    _control_epoch,
+    load_current_runtime_state as _load_current_runtime_state,
+    load_current_runtime_config as _load_current_runtime_config,
+    runtime_control_snapshot as _runtime_control_snapshot,
 )
 from mrs_log_digest_markdown import (
     format_rank,
@@ -108,8 +123,6 @@ GENERATED_AUDIT_KIND = "generated_image_identity_dependence_audit"
 DIGEST_JSON_SCHEMA_VERSION = 3
 DIGEST_JSON_OUTPUT_KIND = "mrs_log_digest"
 DIGEST_SOURCE_MAX_BYTES = 4 * 1024 * 1024
-CURRENT_RUNTIME_STATE_MAX_BYTES = 64 * 1024 * 1024
-CURRENT_RUNTIME_CONFIG_MAX_BYTES = 64 * 1024
 CONFIRMED_REPLY_RECEIPT_MAX_BYTES = 1024 * 1024
 HISTORICAL_REPLY_HISTORY_MAX_BYTES = 64 * 1024 * 1024
 MAX_REASONABLE_STATE_EPOCH = 4_102_531_200
@@ -184,32 +197,6 @@ REMOTE_WRITE_ARCHIVE_BASENAME = "remote_write_safety_marker_archive"
 REMOTE_WRITE_SNAPSHOT_MAX_BYTES = 256 * 1024
 RETIREMENT_SOURCE_IDENTITY_KEYS = frozenset(
     ("ctime_ns", "device", "inode", "link_count", "mode", "mtime_ns", "owner_uid", "size")
-)
-REMOTE_WRITE_CONTROL_BOOLEAN_KEYS = frozenset(
-    {
-        "disable_all",
-        "pause_all",
-        "disable_replies",
-        "pause_replies",
-        "disable_normal_replies",
-        "pause_normal_replies",
-        "disable_quote_replies",
-        "pause_quote_replies",
-        "disable_hot_post_replies",
-        "pause_hot_post_replies",
-        "disable_quote_posts",
-        "pause_quote_posts",
-        "disable_meme_posts",
-        "pause_meme_posts",
-    }
-)
-REMOTE_WRITE_CONTROL_TIME_KEYS = frozenset(
-    f"{key}_until" for key in REMOTE_WRITE_CONTROL_BOOLEAN_KEYS
-)
-REMOTE_WRITE_CONTROL_ALLOWED_KEYS = (
-    REMOTE_WRITE_CONTROL_BOOLEAN_KEYS
-    | REMOTE_WRITE_CONTROL_TIME_KEYS
-    | {"generation"}
 )
 REMOTE_OPERATION_SCOPE_LABELS = {
     "all_remote_writes": "all remote writes",
@@ -425,12 +412,6 @@ def canonical_private_json_bytes(value: Any) -> bytes:
     ).encode("utf-8")
 
 
-def bounded_exception_status(prefix: str, exc: BaseException) -> str:
-    """Describe a local read failure without echoing private file content."""
-
-    return f"{prefix}: {type(exc).__name__}"[:320]
-
-
 SAFE_RECONCILIATION_INSPECTION_ERRORS = frozenset(
     {
         "archive path is not a safe project-relative path",
@@ -606,136 +587,14 @@ def _canonical_retirement_source_identity(value: Any) -> str:
     )
 
 
-def _control_boolean(value: Any) -> bool:
-    """Return one already-validated runtime-control boolean."""
-
-    if isinstance(value, bool):
-        return value
-    return isinstance(value, str) and value.strip().lower() in {
-        "1",
-        "true",
-        "yes",
-        "on",
-    }
-
-
-def _control_epoch(value: Any) -> int:
-    """Parse the documented runtime-control epoch/date representations."""
-
-    if isinstance(value, bool) or value is None:
-        raise ValueError("control time must not be boolean or null")
-    if type(value) is int:
-        epoch = value
-    elif type(value) is Decimal:
-        if not value.is_finite() or value != value.to_integral_value():
-            raise ValueError("control time exact number must be finite and integral")
-        epoch = int(value)
-    elif type(value) is float and math.isfinite(value) and value.is_integer():
-        epoch = int(value)
-    elif type(value) is str and value.strip() and not value.strip().isdigit():
-        text = value.strip()
-        parsed: Optional[datetime] = None
-        for fmt in (
-            "%Y-%m-%d %H:%M:%S",
-            "%Y-%m-%d %H:%M",
-            "%Y-%m-%dT%H:%M:%S",
-            "%Y-%m-%dT%H:%M",
-        ):
-            try:
-                parsed = datetime.strptime(text, fmt)
-                break
-            except ValueError:
-                pass
-        if parsed is None:
-            parsed = datetime.fromisoformat(text)
-        epoch = int(parsed.timestamp())
-    else:
-        raise ValueError("control time has an unsupported representation")
-    if epoch < 0 or epoch > 4_102_444_800:
-        raise ValueError("control time is outside the supported range")
-    return epoch
-
-
 def runtime_control_snapshot(project_dir: Path) -> Dict[str, Any]:
-    """Return a strict, read-only view of current operator pause controls."""
-
-    path = Path(project_dir) / "mrsMThatcher.control.json"
-    try:
-        data = read_stable_regular_bytes(
-            path,
-            maximum=64 * 1024,
-        )
-    except FileNotFoundError:
-        return {
-            "present": False,
-            "valid": True,
-            "generation": None,
-            "active_keys": [],
-            "global_pause_active": False,
-        }
-    except Exception as exc:
-        return {
-            "present": True,
-            "valid": False,
-            "generation": None,
-            "active_keys": ["fail_closed_invalid_control"],
-            "global_pause_active": True,
-            "reason": f"{type(exc).__name__}: {exc}",
-        }
-    try:
-        value = _strict_json_object(data, label="runtime control")
-        unsupported = sorted(set(value) - REMOTE_WRITE_CONTROL_ALLOWED_KEYS)
-        if unsupported:
-            raise ValueError(
-                "unsupported control key(s): " + ", ".join(unsupported)
-            )
-        generation = value.get("generation")
-        if generation is not None and (
-            type(generation) is not int or generation < 0
-        ):
-            raise ValueError("generation must be a non-negative integer")
-        now_epoch = int(datetime.now().timestamp())
-        active: List[str] = []
-        for key in sorted(REMOTE_WRITE_CONTROL_BOOLEAN_KEYS):
-            if key not in value:
-                continue
-            raw = value[key]
-            if not isinstance(raw, bool) and not (
-                isinstance(raw, str)
-                and raw.strip().lower()
-                in {"1", "true", "yes", "on", "0", "false", "no", "off"}
-            ):
-                raise ValueError(f"{key} must be a boolean")
-            if _control_boolean(raw):
-                active.append(key)
-        for key in sorted(REMOTE_WRITE_CONTROL_TIME_KEYS):
-            if key in value and _control_epoch(value[key]) > now_epoch:
-                active.append(key)
-        return {
-            "present": True,
-            "valid": True,
-            "generation": generation,
-            "active_keys": active,
-            "global_pause_active": bool(
-                {"disable_all", "pause_all"} & set(active)
-                or {
-                    "disable_all_until",
-                    "pause_all_until",
-                }
-                & set(active)
-            ),
-            "sha256": hashlib.sha256(data).hexdigest(),
-        }
-    except Exception as exc:
-        return {
-            "present": True,
-            "valid": False,
-            "generation": None,
-            "active_keys": ["fail_closed_invalid_control"],
-            "global_pause_active": True,
-            "sha256": hashlib.sha256(data).hexdigest(),
-            "reason": f"{type(exc).__name__}: {exc}",
-        }
+    """Read current pause controls, sampling the digest clock inside validation."""
+    return _runtime_control_snapshot(
+        project_dir,
+        read_bytes=read_stable_regular_bytes,
+        parse_json_object=_strict_json_object,
+        now=datetime.now,
+    )
 
 
 def _safe_relative_project_path(project_dir: Path, value: Any) -> Optional[Path]:
@@ -2675,11 +2534,6 @@ def load_runway_config(project_dir: Path, observed_config: Dict[str, Any]) -> Di
     return result
 
 
-def dt_text(value: datetime) -> str:
-    """Return the datetime text."""
-    return value.strftime("%Y-%m-%d %H:%M:%S")
-
-
 def most_common_with_cutoff_ties(
     counts: Counter,
     *,
@@ -3780,113 +3634,28 @@ def load_authoritative_state_for_logs(logs: List[Path]) -> Tuple[Optional[Dict[s
 def load_current_runtime_state(
     project_dir: Path,
 ) -> Tuple[Optional[Dict[str, Any]], Path, Optional[datetime], str]:
-    """Read and minimally validate the production runtime state at generation time."""
-    path = project_dir / "bot_state.json"
-    try:
-        raw, metadata = read_stable_regular_snapshot(
-            path,
-            maximum=CURRENT_RUNTIME_STATE_MAX_BYTES,
-        )
-        data = _strict_native_json_object(raw, label="bot_state.json")
-        if not any(
-            key in data
-            for key in (
-                "daily_reply_count",
-                "last_main_post_id",
-                "last_seen_mention_id",
-                "next_reply_lane_priority",
-                "author_evaluation_quarantines",
-            )
-        ):
-            raise ValueError("state has no recognised runtime fields")
-        for key in ("daily_reply_count", "daily_quote_reply_count"):
-            if key in data and (
-                type(data[key]) is not int or data[key] < 0
-            ):
-                raise ValueError(f"{key} is not a non-negative integer")
-        mtime = datetime.fromtimestamp(metadata.st_mtime)
-        return data, path, mtime, "available"
-    except FileNotFoundError:
-        return None, path, None, "absent"
-    except RuntimeError as exc:
-        status = "unstable" if "changed" in str(exc) else "malformed"
-        return None, path, None, bounded_exception_status(status, exc)
-    except Exception as exc:
-        return None, path, None, bounded_exception_status("malformed", exc)
-
-
-CURRENT_CONFIG_REPORT_KEYS = {
-    "MAX_AUTO_REPLIES_PER_DAY",
-    "MAX_REPLIES_PER_AUTHOR_PER_DAY",
-    "MAX_QUOTE_REPLIES_PER_DAY",
-    "MIN_SECONDS_BETWEEN_REPLIES",
-    "REPLY_CHECK_EVERY_SECONDS",
-    "MAX_MENTIONS_PER_CHECK",
-    "MENTIONS_MAX_PAGES_PER_CHECK",
-    "AUTHOR_NO_REPLY_QUARANTINE_THRESHOLD",
-    "AUTHOR_NO_REPLY_QUARANTINE_WINDOW_SECONDS",
-    "AUTHOR_NO_REPLY_QUARANTINE_SECONDS",
-    "QUOTE_CHECK_EVERY_SECONDS",
-    "QUOTE_LOOKUP_API_MAX_RESULTS",
-    "QUOTE_LOOKUP_MAX_PAGES_PER_POST",
-    "QUOTE_CHECK_SPACING_RETRY_SECONDS",
-    "ENABLE_HOT_POST_REPLY_CHECKS",
-    "MAX_HOT_POST_REPLIES_PER_CHECK",
-    "HOT_POST_REPLY_SEARCH_API_MAX_RESULTS",
-    "HOT_POST_REPLY_SEARCH_MAX_PAGES_PER_CHECK",
-    "ENABLE_DAILY_MEME_POSTS",
-    "MEME_TRIGGER_AFTER_HOUR",
-    "MEME_DELAY_AFTER_MAIN_POST_MIN_SECONDS",
-    "MEME_DELAY_AFTER_MAIN_POST_MAX_SECONDS",
-    "MEME_FALLBACK_HOUR",
-    "MEME_FALLBACK_MINUTE",
-    "MEME_MIN_SECONDS_AFTER_QUOTE_POST",
-    "MEME_SCHEDULE_VERSION",
-    "GENERATED_IMAGE_MIN_ORIGINAL_POSTS_BETWEEN",
-    "POST_SLEEP_MIN",
-    "POST_SLEEP_MAX",
-}
+    """Read current state with the digest's stable reader and file-time conversion."""
+    return _load_current_runtime_state(
+        project_dir,
+        read_snapshot=read_stable_regular_snapshot,
+        parse_json_object=_strict_native_json_object,
+        fromtimestamp=datetime.fromtimestamp,
+        maximum=CURRENT_RUNTIME_STATE_MAX_BYTES,
+    )
 
 
 def load_current_runtime_config(
     project_dir: Path,
 ) -> Tuple[Optional[Dict[str, Any]], Path, Optional[datetime], str]:
-    """Read allow-listed values from the on-disk local override file."""
-    path = project_dir / "mrsMThatcher.local.json"
-    try:
-        raw, metadata = read_stable_regular_snapshot(
-            path,
-            maximum=CURRENT_RUNTIME_CONFIG_MAX_BYTES,
-        )
-        data = _strict_native_json_object(
-            raw,
-            label="mrsMThatcher.local.json",
-        )
-        for key in (
-            "MAX_AUTO_REPLIES_PER_DAY",
-            "MAX_REPLIES_PER_AUTHOR_PER_DAY",
-            "MAX_QUOTE_REPLIES_PER_DAY",
-        ):
-            if key in data and (type(data[key]) is not int or data[key] <= 0):
-                raise ValueError(f"{key} is not a positive integer")
-        config = {
-            key: value
-            for key, value in data.items()
-            if key in CURRENT_CONFIG_REPORT_KEYS
-        }
-        config["_config_source"] = "mrsMThatcher.local.json"
-        config["_config_source_path"] = str(path)
-        config["_config_source_time"] = dt_text(
-            datetime.fromtimestamp(metadata.st_mtime)
-        )
-        return config, path, datetime.fromtimestamp(metadata.st_mtime), "available"
-    except FileNotFoundError:
-        return None, path, None, "absent"
-    except RuntimeError as exc:
-        status = "unstable" if "changed" in str(exc) else "malformed"
-        return None, path, None, bounded_exception_status(status, exc)
-    except Exception as exc:
-        return None, path, None, bounded_exception_status("malformed", exc)
+    """Read allow-listed overrides with the digest's reader and time conversion."""
+    return _load_current_runtime_config(
+        project_dir,
+        read_snapshot=read_stable_regular_snapshot,
+        parse_json_object=_strict_native_json_object,
+        fromtimestamp=datetime.fromtimestamp,
+        maximum=CURRENT_RUNTIME_CONFIG_MAX_BYTES,
+        report_keys=CURRENT_CONFIG_REPORT_KEYS,
+    )
 
 
 def epoch_to_london_text(value: int) -> Optional[str]:

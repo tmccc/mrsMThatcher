@@ -34,6 +34,7 @@ and AppleDouble files.
 | `mrs_log_digest.py` | Structured/legacy log parsing, aggregation and Markdown/JSON reports | Local log and resume-state reads/writes; no provider calls |
 | `mrs_log_digest_markdown.py` | Prepared-report Markdown presentation and section rendering | None; receipt lifecycle analysis is supplied by the caller |
 | `mrs_log_digest_costs.py` | Published-cost cache validation, UTC-window accounting and report preparation | Cache reads only through an explicitly supplied stable reader; paths, clock observations and strict JSON parser supplied by caller |
+| `mrs_log_digest_runtime.py` | Current state/configuration validation and operator pause observations | Reads only through supplied stable readers; explicit project paths, strict JSON parsers, file-time conversion and pause clock; no import-time runtime access |
 | `mrs_log_digest_values.py` | Shared digest scalar conversions and report vocabulary | None |
 | `mrs_engagement_analytics.py` | Read-only X metrics collection and isolated SQLite reporting | X reads only with explicit flags; writes only under `engagement_analytics/` |
 | `hybrid_reply_retrieval.py` | CLI for local hybrid retrieval experiments and review artefacts | Offline by default; provider-review commands require explicit execution and budgets |
@@ -50,6 +51,18 @@ module accepts explicit inputs and has no import-time runtime access.
 `prepare_openai_published_cost_report` consumes an already loaded cache without
 I/O. The digest's historical `provider_usage` argument remains accepted and
 ignored.
+
+Digest runtime callers retain `load_current_runtime_state`,
+`load_current_runtime_config` and `runtime_control_snapshot` with their original
+signatures and result shapes. Their wrappers pass the digest's stable reader,
+strict parser and time dependencies into `mrs_log_digest_runtime`. State and
+configuration retain native JSON number types; controls use the exact Decimal
+parser. The control clock is a callable sampled after document/key/generation
+validation and before boolean/time validation. State observation time remains
+sampled in the digest after the state loader returns, separately from report
+generation time and the file mtime. Analysis and current-health overlays remain
+in the digest. Shared `dt_text` and `bounded_exception_status` now live in the
+values leaf and remain explicitly importable through the digest.
 
 ## Quotation Corpus Accounting
 

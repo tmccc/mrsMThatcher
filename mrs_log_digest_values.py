@@ -153,3 +153,14 @@ def _human_snapshot_age(seconds: float) -> str:
         if value:
             parts.append(plural_count(value, singular))
     return " ".join(parts) if parts else "0 seconds"
+
+
+def dt_text(value: datetime) -> str:
+    """Return the datetime text."""
+    return value.strftime("%Y-%m-%d %H:%M:%S")
+
+
+def bounded_exception_status(prefix: str, exc: BaseException) -> str:
+    """Describe a local read failure without echoing private file content."""
+
+    return f"{prefix}: {type(exc).__name__}"[:320]

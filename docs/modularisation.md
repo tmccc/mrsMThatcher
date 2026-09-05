@@ -146,12 +146,85 @@ in this focused baseline or final suite.
 Production files, configuration, durable data and running services were not
 modified. This stage is a local commit only; it is not pushed, merged or deployed.
 
+## Extracted in stage 3
+
+Base: `24b2ee048952e1a0b4bc8bb1c0db04a7adb82b3f`, verified after fetching
+`origin/codex/modularisation-stage2` on 2026-09-05. Its parent is the completed
+stage-one commit `0de0ed6b3f3e617d61ccc680d58bfb185256b927`; both extractions
+are included. Fetched `origin/master` and production HEAD remained at
+`e08d894d9cd39a07ebe4eeb72205baa864d1a2be`. Work is isolated on
+`codex/modularisation-stage3` in
+`/disks/disk1/research/mrsMThatcher-modularisation-stage3`.
+
+`mrs_log_digest_runtime.py` owns `load_current_runtime_state`,
+`load_current_runtime_config` and `runtime_control_snapshot`, their state/config
+limits, configuration allow-list, control key sets and boolean/epoch validation.
+The digest retains the three original signatures as explicit wrappers and
+re-exports the moved constants and helpers. Dependency direction: digest →
+runtime → values. The new module imports neither digest, Markdown nor the bot;
+importing it performs no runtime reads, home lookup or service initialisation.
+
+Stable snapshot/byte readers, file identity and strict JSON parsers stay in the
+digest, unchanged, and are passed as explicit callbacks. The stage-two costs
+wrapper still receives those same helpers. Only the pure `dt_text` and
+`bounded_exception_status` helpers move to the existing values leaf; their
+digest entry points remain available. No I/O framework or reverse import is
+introduced.
+
+State/config wrappers pass `datetime.fromtimestamp` for the existing host-local
+mtime conversions. The state observation clock remains in `run_digest`, sampled
+immediately after the state loader returns. Report generation time, that
+observation time and bound file metadata remain distinct. Controls receive
+`datetime.now` as a callable, retaining its original position after reading,
+parsing and allowed-key/generation validation, before boolean/time validation
+and expiry comparisons. Missing/invalid behaviour, exact Decimal controls,
+native state/config numbers, pause ordering and timezone semantics are retained.
+Report assembly, health overlays, strike progress and all other snapshots stay
+in the digest; bot runtime behaviour is unchanged.
+
+| Size (physical lines; functions include definition/docstring) | Before | After |
+| --- | ---: | ---: |
+| Digest file | 17,684 | 17,453 |
+| Runtime module | — | 335 |
+| Digest state / config / control readers | 36 / 39 / 80 | 11 / 12 / 8 (wrappers) |
+| Values module | 155 | 166 |
+| Costs / Markdown modules | 430 / 3,347 | unchanged |
+| `analyse` / `run_digest` / Markdown wrapper | 5,233 / 360 / 10 | unchanged |
+
+Validation uses the existing Python 3.10.12 / pytest 9.1.1 environment and
+committed temporary-HOME/subprocess isolation. The focused baseline has 169
+passing tests: digest, safety, Markdown, costs, state-observation sequencing and
+selected CLI/current-state integration regressions. The same suite plus 11 new
+boundary tests passes after extraction (180 total). New tests cover independent
+import, read-only access to explicit synthetic files, patched reader/parser/file
+time compatibility, and control-clock validation order. The documentation gate
+passes for 183 modules. No failures or warnings remain in these suites.
+
+An exact replay compares 184 typed synthetic reader results in UTC and London,
+including available/absent/malformed/unstable observations, symlinks, filtering,
+numeric distinctions and active/expired/invalid controls. Six fixed-clock CLI
+runs from a foreign directory cover both primary/secondary output modes with
+valid, absent and invalid runtime files. Markdown bytes match exactly. Every
+JSON value is compared, with changed producer source/commit identities checked
+independently against each entry script and its Git HEAD. Paths, timestamps and
+errors are not normalised. All 173 retained function/class ASTs and four moved
+helper ASTs are unchanged; the three reader bodies differ only in explicit
+dependencies. The full historical suite and live operational calls are outside
+this focused validation.
+
+Production files, configuration, durable data and running services were not
+modified. This stage is a local commit only; it is not pushed, merged or deployed.
+
 ## Likely next steps
 
-1. Separate runtime/evidence snapshot readers from log event aggregation, with
-   explicit project paths and observation times. Then extract individual
-   `analyse` event families with their own pending state; leave cross-event
-   incident reconciliation until its evidence inputs are explicit.
+1. Extract `historical_context_corpus_snapshot` next as a small separate
+   observation boundary with explicit project paths and read dependencies.
+   Follow with generated-pool observations, then individual `analyse` event
+   families with their own pending state. Leave remote-write/reconciliation
+   snapshots and cross-event incident reconciliation until their evidence inputs
+   can be separated coherently. An existing corpus-reader finding for later
+   work: parsed content and SHA-256 come from separate reads; changing that
+   binding is a separate behavioural decision, outside these extractions.
 2. In the bot, extract bounded reply-context/history/media preparation around
    the existing `single_call_reply` contract, passing state and fetch functions
    explicitly. Keep scheduling and transaction/posting authority with the
