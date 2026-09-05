@@ -959,3 +959,94 @@ conflict handling and synthesis ordering make it a distinct subsequent
 boundary. Keep event collection, `analyse`, pipeline reconciliation and report
 assembly in the coordinator. Neither candidate is implemented here; the
 supervisor selects the next fresh session.
+
+## Extracted in stage 13
+
+Base: `5e872ca0a2af909005bdb2644dc745c1fcf1b0a7`, verified against the pushed
+`origin/codex/modularisation-stage12` tip. Work is isolated on
+`codex/modularisation-stage13` in
+`/disks/disk1/research/mrsMThatcher-modularisation-stage13`.
+This implements stage 13 only. The former stage-15 ceiling remains superseded;
+continue until further digest modularisation is no longer sensible.
+
+`mrs_log_digest_reply_evidence.py` owns the 784-line durable reply-evidence group:
+`_structured_value_sha256`, `_valid_durable_ai_reply_draft`,
+`_confirmed_conversational_receipt_evidence`, `load_confirmed_reply_receipt_evidence`,
+`_valid_canonical_utc_timestamp`, `_valid_historical_formatter_metadata`,
+`_valid_historical_completed_item`, `_valid_historical_failed_item` and
+`load_historical_reply_history_evidence`. The eight-line pure
+`valid_conversational_public_reply_text` definition moves with them. Three pure
+helpers and four receipt/history byte-limit and publication-epoch constants
+remain direct digest imports. Seven thin wrappers retain the original signatures.
+
+Wrappers supply current project paths, the stable private reader, strict native
+JSON parser, distinct atomic/private canonical encoders, timestamp conversion/ISO
+parsing, London timezone and text/validator callbacks. Loader-to-validator,
+receipt-to-draft and draft/failed-row UTC delegation remain dynamic. No clock
+sample is added. Dependencies are digest → reply evidence → shared values;
+there are no reverse imports, stored callbacks or import-time runtime effects.
+
+Private-file limits and read/parse/validation order, native bool/int/float
+distinctions, exact schemas, timestamps, lane/target/conversation bindings,
+draft/formatter validation, source-receipt hash reconstruction, errors/statuses,
+copying/sharing and evidence identity are unchanged. Valid long/multiline
+published text retains its existing bounds without being revalidated against
+current generation policy. The adjacent four text-enrichment functions, event
+collection, `analyse`, pipeline reconciliation and report assembly are unchanged.
+JSON schema 3, Markdown, CLI, defaults, provenance, clocks, locks, resume and
+publication/recovery authority retain their existing behaviour.
+
+| Physical lines | Before | After |
+| --- | ---: | ---: |
+| Digest file | 12,460 | 11,746 (−714) |
+| `analyse` | 4,702 | 4,702 |
+| Reply-evidence module | — | 873 |
+| `run_digest` / Markdown wrapper | 360 / 10 | 360 / 10 |
+| Adjacent text-enrichment group | 876 | 876 |
+
+Validation: the affected baseline passed 208 tests; after extraction, 214 pass
+using `MRS_TEST_MODE=1 PYTEST_DISABLE_PLUGIN_AUTOLOAD=1 python3 -m pytest` with
+existing temporary-HOME/network isolation. Selection covers reply observability,
+digest, Markdown and safety-hardening files plus 21 integration functions for
+durable receipt/history authority, exact text, invalid identities/siblings,
+draft exclusion, source isolation, conflicts, text bounds and CLI/resume/schema
+contracts. Six added cases cover private reader/parser/encoder order, native
+numbers, validator delegation and returned identity, London date rollover and
+source-hash reconstruction, shallow-copy sharing, UTC exception identity and
+inert imports. The five callback cases also pass against stage 12.
+
+Three pure source bodies/ASTs, four constant definitions and all 120 retained
+function/class bodies/ASTs match stage 12. Seven extracted bodies match after
+only the explicit dependency substitutions; all wrapper signatures are retained.
+Retained non-import module code and every earlier digest leaf are unchanged.
+The import check blocks runtime reads/writes, home lookup, directory scans,
+network/subprocess activity and service/logging initialisation.
+
+Two temporary comparison tests pass, including ten exact typed loader results
+and five complete JSON/Markdown pairs on shared synthetic fixtures with fixed
+paths/time: valid v4 conversational evidence with long/multiline text, invalid
+receipt shape, completed history, an invalid failed sibling, and hash-bound
+completed history with a valid failed sibling. JSON bytes (37,620–63,258) and
+Markdown bytes (12,652–16,620) match after only independently verified producer
+source/commit provenance substitutions. Fixture bytes/modes remain unchanged.
+Comparison scripts/data are not committed. The documentation gate passes for
+196 modules; `git diff --check` passes.
+
+These are focused extraction checks, not broader bot validation. No production,
+configuration, durable state, logs or image pools are changed; no bot/provider/
+posting calls, service control, merge or deployment are included. Earlier
+worktrees and branches are preserved.
+
+Recommended next digest boundary: the distinct 876-line public text-enrichment
+group, `_public_reply_text_result` (79), `_durable_public_reply_text_candidates`
+(124), `_normalised_structured_reply_confirmation` (52) and
+`enrich_published_reply_text` (621). It consumes prepared runtime/receipt/history
+evidence and report events. Supply `bounded_source_refs` and
+`epoch_to_london_text` explicitly, retain conversational text validation from the
+new evidence leaf and shared UTF-8/post-ID/hash validators from values, and give
+the warning limit a coherent owner. Preserve dynamic helper delegation where
+needed, production-event object identity, event mutation, bounded warnings,
+conflict handling and synthesis ordering. This remains a useful boundary without
+moving event collection, `analyse`, pipeline reconciliation or report assembly.
+It is assessed here but left for the supervisor's next fresh session; bot
+refactoring remains outside this sequence's current scope.

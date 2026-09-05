@@ -37,6 +37,7 @@ and AppleDouble files.
 | `mrs_log_digest_provider_costs.py` | Pure conversational provider usage totals, cost attribution, cache-metric coverage and currency formatting | None; consumes supplied observations without mutation |
 | `mrs_log_digest_runtime.py` | Current state/configuration validation and operator pause observations | Reads only through supplied stable readers; explicit project paths, strict JSON parsers, file-time conversion and pause clock; no import-time runtime access |
 | `mrs_log_digest_remote_write.py` | Read-only remote-write barrier identities, grouping, safety and reconciliation archive observations | Explicit paths, stable reader, exact-Decimal parser, diagnostic formatter, clock and snapshot/archive-read callbacks; lazy read-only inspectors; no import-time runtime access |
+| `mrs_log_digest_reply_evidence.py` | Durable confirmed conversational receipt and historical reply-history loading/validation | Explicit project paths, stable private reader, native-number parser, canonical encoders, time conversion and validator callbacks; no writes, clock sample or import-time runtime access |
 | `mrs_log_digest_corpus.py` | Historical-corpus counts, availability, policies and hashes | Reads the existing research/audit paths under an explicit project directory using supplied strict parsing and file hashing; parsing and hashing remain separate reads |
 | `mrs_log_digest_generated_pool.py` | Generated-image discovery, metadata/hash validation, curation and used-history observations | Reads/scans the existing pool locations relative to an explicit base directory; supplied strict parsers, hashing, clock and ISO timestamp parser; no writes or import-time runtime access |
 | `mrs_log_digest_historical_events.py` | Historical-context event field projection, family counters and emitted-event quality summaries | Only supplied invocation-local counters and event insertion callbacks are mutated/called; no I/O or import-time runtime access |
@@ -116,6 +117,35 @@ Dependency direction is digest → remote-write snapshots → shared values;
 callbacks preserve delegation without reverse imports or stored dependencies.
 Window annotation, operational-health reconciliation, analysis, report assembly
 and all operational/publication authority remain in the coordinator.
+
+Durable reply-evidence callers retain `load_confirmed_reply_receipt_evidence`,
+`load_historical_reply_history_evidence`, `_confirmed_conversational_receipt_evidence`,
+`_valid_durable_ai_reply_draft`, `_valid_canonical_utc_timestamp`,
+`_valid_historical_completed_item` and `_valid_historical_failed_item` with their
+original digest signatures. Seven thin wrappers supply the current digest
+`read_stable_private_json_bytes`, strict native-number `_strict_native_json_object`,
+`canonical_atomic_json_bytes` or `canonical_private_json_bytes`,
+`datetime.fromtimestamp`, `datetime.fromisoformat`, `LONDON` and text/validator
+callbacks as needed. Loader-to-validator, receipt-to-draft and draft/failed-row
+UTC validation still delegate through the digest entry points. No clock is sampled.
+
+The pure `_structured_value_sha256`, `_valid_historical_formatter_metadata` and
+`valid_conversational_public_reply_text` definitions belong to
+`mrs_log_digest_reply_evidence` and remain direct digest imports, as do the four
+receipt/history byte-limit and publication-epoch constants. Shared post-ID,
+bounded UTF-8 text, hash vocabulary and bounded diagnostics retain their values
+leaf owner. Private-file bounds, read/parse/validation order, native bool/int/float
+distinctions, exact schemas, timestamp rules, identity bindings, formatter/draft
+validation and source-receipt hash reconstruction are unchanged. Encoders retain
+their distinct receipt/history byte formats. Valid long and multiline published
+text is preserved without applying current generation policy to historical text;
+projection copies, shared values and returned evidence identity are retained.
+
+Dependency direction is digest → reply evidence → values, without reverse imports,
+stored callbacks, runtime I/O on import or service initialisation. Public text
+enrichment, event collection, `analyse`, pipeline reconciliation, report assembly
+and all publication/recovery authority retain their existing owners. JSON schema 3,
+Markdown, CLI, defaults, provenance, clocks, locks and resume behaviour are unchanged.
 
 Digest corpus and image-pool callers retain `historical_context_corpus_snapshot`
 and `generated_pool_health_snapshot` with their original signatures and result
