@@ -323,6 +323,7 @@ def test_pause_wrapper_samples_patched_clock_at_original_validation_boundary(
     "mrs_log_digest_provider_observations",
     "mrs_log_digest_api_health",
     "mrs_log_digest_legacy_posts",
+    "mrs_log_digest_snapshot_incidents",
 ])
 def test_runtime_module_import_has_no_runtime_effects_or_upward_dependencies(tmp_path, module_name):
     script = """

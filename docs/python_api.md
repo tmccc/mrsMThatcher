@@ -46,6 +46,7 @@ and AppleDouble files.
 | `mrs_log_digest_state_reporting.py` | Prepared current-state, author-strike, headline/derived, reply-quality and mention-control reporting | Explicit data, current helpers, vocabulary, epoch conversion and observation clock; preparation preserves media rows and supplied state/record times; refreshes supplied reports and uses the supplied event callback and statistics counter; no I/O or import-time runtime access |
 | `mrs_log_digest_remote_write.py` | Read-only remote-write barrier identities, grouping, safety, reconciliation archive and window annotations | Explicit paths, readers/parsers, diagnostic formatter, clock, snapshot callbacks and annotation time converters; supplied window/authority flag; lazy read-only inspectors; no import-time runtime access |
 | `mrs_log_digest_incidents.py` | Per-record error/warning observation, operational-error classification, incident grouping/resolution, retirement evidence and remote pause scopes | Supplied observations, current helper/annotation callbacks, scope mappings and conditional clock/epoch conversion; preserves error/event identity and snapshot mutation; no file/home/configuration access or provider calls |
+| `mrs_log_digest_snapshot_incidents.py` | Prepared current-snapshot and retirement-evidence incident reconciliation | Supplied incident/evidence references and current matching/text/time callbacks; in-place incident enrichment/appends and shallow evidence sharing; no reads, clock samples or provider calls |
 | `mrs_log_digest_reply_evidence.py` | Durable confirmed conversational receipt and historical reply-history loading/validation | Explicit project paths, stable private reader, native-number parser, canonical encoders, time conversion and validator callbacks; no writes, clock sample or import-time runtime access |
 | `mrs_log_digest_reply_text.py` | Exact confirmed public reply-text preparation from prepared runtime/receipt/history evidence | Mutates supplied report/events; explicit source-reference, epoch-conversion and helper/validator callbacks and warning limit; no evidence loading, I/O or clock sample |
 | `mrs_log_digest_quote_publication.py` | Quote-publication and engagement-experiment validation, evidence correlation and prepared publication reporting | Mutates supplied evidence, events, invalid-evidence sets and warning/outcome storage; explicit timestamps, source-reference helpers, validators and vocabulary; no files, home/configuration, clock sampling or provider calls |
@@ -511,6 +512,21 @@ supplied by the classifier wrapper. The summary receives `datetime.now` as
 their ordering and the missing-time fallback are unchanged. Shared time/text/lane
 and terminal-outcome helpers come directly from `mrs_log_digest_values`.
 
+`reconcile_current_snapshot_incidents` in `mrs_log_digest_snapshot_incidents`
+owns the six local evidence helpers and their complete reconciliation loop.
+The incident summary calls it at the original position immediately before sorting,
+passing the actual incidents, availability flag, active components, snapshot
+evidence and intact safety mapping. Current component/window matching, event-time
+and epoch callbacks are explicit inputs, as are the incident owner's current
+`dt_text` and `short` references. JSON/hash operations retain the shared standard
+library behavior. Unique ledger matching, retirement conflicts, conditional exact
+integer epoch conversion and lazy `observed_at` fallback retain their original
+order and exceptions. The helper mutates the supplied incidents, preserves nested
+evidence sharing and returns no result. It adds no input copies, authority
+inference, validation, read, clock sample, returned closure or stored callback.
+Earlier preparation, predicates, recovery and incident construction, then later
+sorting, selection and the final report expression, stay in the incident summary.
+
 Incident categories/signatures, identity grouping, current/historical resolution,
 retirement merging, restrictions versus failures, pause scope and recovery
 chronology, authoritative-window decisions, source references, counts, ordering,
@@ -518,7 +534,8 @@ labels and exception behaviour are unchanged. The summary retains original error
 and event objects, mutates supplied errors and delegates snapshot annotation on
 the original nonempty snapshot; existing empty-snapshot fallback semantics and
 shallow evidence sharing are retained. It performs no file/home/configuration
-access or provider calls. Dependency direction is digest → incidents → values,
+access or provider calls. Dependency direction is digest → incidents → snapshot
+incidents, with shared values used by the incident owner,
 without upward imports, stored callbacks or dependency containers. Snapshot
 loading/window annotation, transaction parsing, media-log correlation, event
 collection, `analyse` and report assembly retain their existing owners. JSON

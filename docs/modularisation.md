@@ -2834,3 +2834,100 @@ Only stage 30 is implemented. Stop after stage **32** and reassess, or earlier
 if no sensible digest modularisation remains. No production/configuration/state/
 log/image-pool changes, bot execution, provider/posting calls, service control,
 merge, deployment or force-push occurred. Previous branches/worktrees are preserved.
+
+## Extracted in stage 31
+
+Base: `5812db44875535e125adbb0d1a106ad5428b7ebd`, verified against pushed
+`origin/codex/modularisation-stage30`. Work is isolated on
+`codex/modularisation-stage31` in
+`/disks/disk1/research/mrsMThatcher-modularisation-stage31`.
+
+The exact **331-line** group at stage 30 incident-owner lines **2019–2349** moves
+into `reconcile_current_snapshot_incidents` in the focused
+`mrs_log_digest_snapshot_incidents.py` owner. All six local evidence helpers,
+including the inner non-conflict predicate, remain together with the complete
+current-snapshot reconciliation loop. A single statement delegates at the old
+position immediately before `incidents.sort`.
+
+The complete free-input set is `incidents`, `identity_snapshot_available`,
+`active_remote_components`, `snapshot_incident_evidence`, `safety`,
+`component_is_related_to_selected_window`, `component_matches_identity`,
+`fromtimestamp`, `get_event_time`, `dt_text` and `short`. The final two are the
+incident owner's current globals, forwarded explicitly; JSON/hash operations use
+the same standard-library modules. All prepared references and callbacks pass
+directly. No span-local result is needed later: later `item` uses bind independently
+inside their comprehensions/lambdas. Loop-local assignments were also reviewed.
+
+In-place incident enrichment/appends, shallow evidence sharing, unique-ledger-match
+and conflict rules, exact integer epoch conversion, lazy `safety.get("observed_at")`
+fallback, callback/exception order and supplied source/window/current authority
+are preserved. No input rebinding, additional copies, validation, authority
+inference, reads, clock samples, returned closures or stored dependencies are
+introduced. Earlier preparation, predicates, recovery and incident construction,
+then sorting, current/resolved/transient selection and the final report expression
+remain in place. The stage 30 observer, all other existing owner functions, root
+facade, APIs/defaults, schema 3 and source/window/resume/publication decisions are
+unchanged.
+
+| Physical lines | Before | After |
+| --- | ---: | ---: |
+| Digest file | 3,462 | 3,462 |
+| `analyse` | 1,318 | 1,318 |
+| `summarise_operational_error_health` implementation | 1,884 | 1,566 (−318) |
+| Incident owner | 2,391 | 2,074 (−317) |
+| Snapshot-incident owner / reconciliation function | — | 361 / 346 |
+| Root health wrapper / `run_digest` / Markdown wrapper | 42 / 360 / 10 | 42 / 360 / 10 |
+
+Validation used `MRS_TEST_MODE=1 PYTEST_DISABLE_PLUGIN_AUTOLOAD=1 python3 -m pytest`
+with the established temporary-HOME/network isolation, bytecode writes disabled
+and no pytest cache. Baseline: **204 passed**. Final: **225 passed**, covering
+`test_digest_incidents`, `test_digest_safety_hardening`, `test_mrs_log_digest`,
+the evidence/runtime import guards and eight digest-only integrations for media
+incident grouping/source-reference bounds, unrelated errors, receipt source
+isolation, self-test isolation and source identity across resume. Two new test
+functions supply ten concrete callback/input/sharing/timing cases; the existing
+import guard gains the new owner. The final selection also includes ten existing
+runtime import cases. All previous assertions remain; no whole bot harness ran.
+
+Four complete fixed-path/time CLI report pairs match stage 30, using existing
+synthetic pool/log fixtures and supplied prepared safety snapshots:
+
+| Snapshot fixture | Records | JSON bytes | Markdown bytes |
+| --- | ---: | ---: | ---: |
+| Matching components, retirement ledger and existing incidents | 7 | 44,324 | 13,862 |
+| Nonmatching component and conflicting retirement hash | 7 | 48,473 | 14,882 |
+| Snapshot unavailable | 7 | 42,990 | 12,791 |
+| Evidence after the selected window | 6 | 42,985 | 14,061 |
+
+Raw `analyse` inputs/results, values/types/order, reference graphs and stderr also
+match. **Eight** new timing/sharing cases pass against the original stage 30 span.
+**Six** direct retirement comparisons match unique/multiple ledger matches, hash
+and snapshot conflicts, existing-row mutation and shallow identity-list copying.
+Producer source hashes and repository HEADs were independently verified before
+the only permitted substitutions; both roots and HEADs were identical at comparison
+time. Comparison fixture bytes/modes/mtimes are unchanged. Scripts/data stay outside
+the worktree. This is focused synthetic preservation evidence, not a production
+replay or new filesystem-failure exercise.
+
+Exact text/AST review restores the span and reproduces the entire original incident
+owner; all **nine** other existing incident definitions and the root plus **28**
+other digest companions are unchanged. `python3 tools/check_python_documentation.py`
+passes for **209 modules**; `git diff --check` passes.
+
+Stage 32 recommendation: give `pipeline_recovered_after` (**68 lines**) and
+`remote_pause_recovery_status` (**64 lines**) named module-level implementations
+in this same incident owner, retaining small explicit-input nested adapters.
+The pipeline algorithm needs only the supplied identity/time plus `events` and
+`get_event_time`; the pause algorithm needs scope/keys/time plus `safety`, `events`,
+`lifecycle`, `remote_operation_successes`, `base_remote_control_key`,
+`remote_control_scope`, `explicit_remote_pause_scope` and `get_event_time`.
+Their cohesive recovery rules and bounded inputs make this a sensible clarity
+improvement without a new owner or framework. Shared value helpers can retain
+their current incident-owner lookup boundary. They are assessed, not implemented
+here. Stage 32 must end with a remaining-complexity assessment and a hard stop;
+if the adapters do not improve clarity, use that stage for the final assessment
+checkpoint instead. **Stage 33 is not authorised.**
+
+Only stage 31 is implemented. No production/configuration/state/log/image-pool
+changes, bot execution, provider/posting calls, service control, merge, deployment
+or force-push occurred. Previous branches/worktrees are preserved.

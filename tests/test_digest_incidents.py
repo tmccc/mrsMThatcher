@@ -8,7 +8,168 @@ import pytest
 
 import mrs_log_digest as digest
 import mrs_log_digest_api_health as api_health_owner
+import mrs_log_digest_incidents as incident_owner
+import mrs_log_digest_snapshot_incidents as snapshot_owner
 from tests.test_mrs_log_digest import BASE, record, reconciled_remote_write_safety
+
+
+@pytest.mark.parametrize("available", [False, True])
+def test_snapshot_reconciliation_receives_prepared_references_and_current_helpers(monkeypatch, available):
+    component = {
+        "artifact_kinds": ["ambiguity_marker"], "artifact_names": ["marker.json"],
+        "document_sha256s": ["a" * 64], "recorded_at_epoch": int(BASE.timestamp()),
+        "selected_window_relationship": "recorded_at_or_before_selected_window_end",
+    }
+    components, evidence = [component], []
+    safety = {"configured": True, "available": available, "identity_snapshot_available": True}
+    calls, boundaries, formatted = [], [], []
+    original = snapshot_owner.reconcile_current_snapshot_incidents
+    original_time, original_short = incident_owner.dt_text, incident_owner.short
+
+    def annotate(value, window, **kwargs):
+        assert value is safety and window is BASE
+        calls.append("annotate")
+        value["active_transaction_identities"] = components
+        value["snapshot_incident_evidence"] = evidence
+
+    def time_text(value):
+        formatted.append(value)
+        return original_time(value)
+
+    def short(value, limit):
+        calls.append("short")
+        return original_short(value, limit)
+
+    def reconcile(incidents, **kwargs):
+        assert kwargs["identity_snapshot_available"] is available
+        assert kwargs["active_remote_components"] is components
+        assert kwargs["snapshot_incident_evidence"] is evidence
+        assert kwargs["safety"] is safety
+        assert kwargs["dt_text"] is time_text and kwargs["short"] is short
+        assert kwargs["get_event_time"] is digest._event_time
+        assert kwargs["fromtimestamp"] == digest.datetime.fromtimestamp
+        assert kwargs["component_is_related_to_selected_window"](component) is True
+        assert kwargs["component_matches_identity"](component, {"document_sha256s": ["a" * 64]}) is True
+        calls.append("reconcile")
+        existing = incidents[0]
+        assert original(incidents, **kwargs) is None
+        assert incidents[0] is existing
+        if available:
+            assert incidents[1]["artifact_names"] is component["artifact_names"]
+        boundaries.extend(incidents)
+
+    monkeypatch.setattr(digest, "annotate_remote_write_snapshot_window", annotate)
+    monkeypatch.setattr(incident_owner, "dt_text", time_text)
+    monkeypatch.setattr(incident_owner, "short", short)
+    monkeypatch.setattr(incident_owner, "reconcile_current_snapshot_incidents", reconcile)
+    result = digest.summarise_operational_error_health(
+        [{"level": "ERROR", "message": "Unrelated fixture error", "time": original_time(BASE + timedelta(seconds=1))}],
+        [], [], generation_time=BASE, selected_window_end=BASE,
+        current_remote_write_safety=safety,
+    )
+    assert calls.index("annotate") < calls.index("reconcile")
+    expected = boundaries[::-1] if available else boundaries
+    assert all(a is b for a, b in zip(result["current_incidents"], expected))
+    assert len(result["current_incidents"]) == 1 + int(available)
+    if available:
+        assert calls[-1] == "short" and formatted.count(BASE) >= 2
+    assert safety["active_transaction_identities"] is components
+    assert safety["snapshot_incident_evidence"] is evidence
+
+
+@pytest.mark.parametrize("case", [
+    "unavailable", "unrelated", "matched", "epoch", "fallback", "missing_time",
+    "epoch_error", "fallback_error",
+])
+def test_snapshot_reconciliation_keeps_lazy_time_callbacks_and_shared_evidence(case):
+    calls = []
+    failure = OverflowError("snapshot conversion failed")
+
+    class Safety(dict):
+        def get(self, key, default=None):
+            calls.append(("safety", key))
+            return super().get(key, default)
+
+    safety = Safety(observed_at="before matching")
+    evidence = {
+        "category": "remote_write_transaction_barrier", "signature": "snapshot:new",
+        "summary": "supplied blocker", "artifact_names": ["original.json"],
+        "recorded_at_epoch": 7 if case.startswith("epoch") else True,
+        "retirement_source_identities": [{"source_basename": "reply.json"}],
+    }
+    existing = {"category": evidence["category"], "signature": "existing"}
+    incidents, supplied = [existing], [evidence]
+
+    def related(value):
+        assert value is evidence
+        calls.append("window")
+        return case != "unrelated"
+
+    def matches(value, item):
+        assert value is not evidence and item is existing
+        assert value["artifact_names"] is evidence["artifact_names"]
+        value["artifact_names"].append("callback.json")
+        safety["observed_at"] = "after matching"
+        calls.append("match")
+        return case == "matched"
+
+    def epoch(value):
+        assert value == 7 and type(value) is int
+        calls.append("epoch")
+        if case == "epoch_error":
+            raise failure
+        return BASE
+
+    def event_time(value):
+        assert value == {"time": "after matching"}
+        calls.append("fallback")
+        if case == "fallback_error":
+            raise failure
+        return None if case == "missing_time" else BASE
+
+    def time_text(value):
+        assert value is BASE
+        calls.append("format")
+        return "formatted time"
+
+    def reject(*args):
+        pytest.fail("unexpected text formatting")
+
+    def run():
+        return snapshot_owner.reconcile_current_snapshot_incidents(
+            incidents, identity_snapshot_available=case != "unavailable",
+            active_remote_components=[], snapshot_incident_evidence=supplied, safety=safety,
+            component_is_related_to_selected_window=related, component_matches_identity=matches,
+            fromtimestamp=epoch, get_event_time=event_time, dt_text=time_text, short=reject,
+        )
+
+    if case.endswith("_error"):
+        with pytest.raises(OverflowError) as caught:
+            run()
+        assert caught.value is failure
+    else:
+        assert run() is None
+    expected = [] if case == "unavailable" else ["window"]
+    if case not in {"unavailable", "unrelated"}:
+        expected.append("match")
+        assert evidence["artifact_names"] == ["original.json", "callback.json"]
+        if case != "matched":
+            expected += ["epoch"] if case.startswith("epoch") else [("safety", "observed_at"), "fallback"]
+        if case in {"epoch", "fallback"}:
+            expected += ["format", "format"]
+    assert calls == expected
+    assert incidents[0] is existing and supplied[0] is evidence
+    assert "transaction_ids" not in evidence
+    if case in {"epoch", "fallback"}:
+        assert len(incidents) == 2
+        assert incidents[1]["artifact_names"] is evidence["artifact_names"]
+        assert incidents[1]["retirement_source_identities"] is evidence["retirement_source_identities"]
+        assert incidents[1]["first_seen"] == incidents[1]["last_seen"] == "formatted time"
+    else:
+        assert incidents == [existing]
+    if case == "matched":
+        assert existing["active_artifact_names"] == ["callback.json", "original.json"]
+        assert existing["active_artifact_count"] == 2
 
 
 @pytest.mark.parametrize("failure_at", [None, "rejection", "fingerprint", "classify"])
