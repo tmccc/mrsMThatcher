@@ -37,6 +37,7 @@ and AppleDouble files.
 | `mrs_log_digest_runtime.py` | Current state/configuration validation and operator pause observations | Reads only through supplied stable readers; explicit project paths, strict JSON parsers, file-time conversion and pause clock; no import-time runtime access |
 | `mrs_log_digest_corpus.py` | Historical-corpus counts, availability, policies and hashes | Reads the existing research/audit paths under an explicit project directory using supplied strict parsing and file hashing; parsing and hashing remain separate reads |
 | `mrs_log_digest_generated_pool.py` | Generated-image discovery, metadata/hash validation, curation and used-history observations | Reads/scans the existing pool locations relative to an explicit base directory; supplied strict parsers, hashing, clock and ISO timestamp parser; no writes or import-time runtime access |
+| `mrs_log_digest_historical_events.py` | Historical-context event field projection, family counters and emitted-event quality summaries | Only supplied invocation-local counters and event insertion callbacks are mutated/called; no I/O or import-time runtime access |
 | `mrs_log_digest_values.py` | Shared digest scalar conversions and report vocabulary | None |
 | `mrs_engagement_analytics.py` | Read-only X metrics collection and isolated SQLite reporting | X reads only with explicit flags; writes only under `engagement_analytics/` |
 | `hybrid_reply_retrieval.py` | CLI for local hybrid retrieval experiments and review artefacts | Offline by default; provider-review commands require explicit execution and budgets |
@@ -84,6 +85,32 @@ pool clock only when neither exists. This reference time remains distinct from
 digest generation time. Post rates, utilisation, runway, configuration loading,
 analysis and report assembly stay in the digest. Both snapshot modules have no
 import-time runtime effects or imports back into the digest, Markdown or bot.
+
+Historical event callers use `record_historical_context_semantic_gate`,
+`record_historical_context_runtime`, `record_historical_context_obligation` and
+`record_historical_context_outbox` with parsed fields, the record timestamp and
+the coordinator's `add_event` callback. Only the latter three need the local
+counter. They preserve generic insertion/counting through that callback and
+update their own status/state counters afterward.
+
+`prepare_historical_context_reply` returns ordered presentation fields; the
+digest emits them through `add_event` and keeps that exact returned object.
+The digest then validates completed/already-completed anchors against the
+original strict structured record before calling `count_historical_context_reply`
+with the projected, pre-truncation status. Preparation confers no publication
+authority. The digest retains `historical_context_reply_posted` validation,
+production/self-test attribution, durable-history/receipt correlation and public
+text enrichment. No pending state or general dispatcher is introduced.
+
+`historical_context_quality_summary` and its verification/confidence count
+helpers now belong to the historical-events module and remain importable through
+the digest, along with their vocabulary. Quality still consumes the same emitted,
+truncated and filtered events at the original point in analysis. The shared
+post-ID/UTF-8 validators, bounded text/integer/boolean projections, their bounds
+and regexes, and `_count_optional` belong to the values leaf and remain explicitly
+importable through the digest. Durable-history validation retains its distinct
+schema and vocabulary rules. Dependency direction is digest → historical events
+→ values; the new module imports no coordinator, renderer, bot or runtime reader.
 
 ## Quotation Corpus Accounting
 

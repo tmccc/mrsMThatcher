@@ -6,9 +6,10 @@ analysis and Markdown presentation use them; neither imports the other here.
 from __future__ import annotations
 
 import re
+from collections import Counter
 from datetime import datetime, timezone
 from decimal import Decimal
-from typing import Any, List, Optional
+from typing import Any, Dict, List, Optional
 
 
 GENERATED_POLICIES = ("unrestricted", "small_penalty", "strong_penalty", "origin_quote_only")
@@ -164,3 +165,83 @@ def bounded_exception_status(prefix: str, exc: BaseException) -> str:
     """Describe a local read failure without echoing private file content."""
 
     return f"{prefix}: {type(exc).__name__}"[:320]
+
+
+MAX_REASONABLE_STATE_EPOCH = 4_102_531_200
+PUBLISHED_REPLY_TEXT_MAX_CHARACTERS = 25_000
+SHA256_LOWER_RE = re.compile(r"[0-9a-f]{64}\Z")
+PUBLIC_POST_ID_RE = re.compile(r"[0-9]{1,30}\Z")
+
+
+def valid_public_post_id(value: Any) -> bool:
+    """Return whether a value is one bounded ASCII decimal post identity."""
+
+    return bool(PUBLIC_POST_ID_RE.fullmatch(str(value or "")))
+
+
+def valid_string_public_post_id(value: Any) -> bool:
+    """Return whether a durable authority stores an exact string post ID."""
+
+    return type(value) is str and valid_public_post_id(value)
+
+
+def valid_bounded_utf8_text(
+    value: Any,
+    *,
+    allow_empty: bool = False,
+) -> bool:
+    """Return whether exact public text is bounded and UTF-8 encodable."""
+
+    if (
+        not isinstance(value, str)
+        or len(value) > PUBLISHED_REPLY_TEXT_MAX_CHARACTERS
+        or (not allow_empty and not value)
+    ):
+        return False
+    try:
+        value.encode("utf-8")
+    except UnicodeEncodeError:
+        return False
+    return True
+
+
+def bounded_event_text(
+    value: Any,
+    *,
+    default: Optional[str] = None,
+    max_characters: int = 1000,
+) -> Optional[str]:
+    """Project one structured display string without coercing nested values."""
+
+    if (
+        type(value) is str
+        and len(value) <= max_characters
+        and valid_bounded_utf8_text(value, allow_empty=True)
+    ):
+        return value
+    return default
+
+
+def bounded_event_nonnegative_integer(
+    value: Any,
+    *,
+    maximum: int = MAX_REASONABLE_STATE_EPOCH,
+) -> Optional[int]:
+    """Project one bounded non-negative structured display integer."""
+
+    return value if type(value) is int and 0 <= value <= maximum else None
+
+
+def bounded_event_boolean(value: Any) -> Optional[bool]:
+    """Project one structured display boolean without truthiness coercion."""
+
+    return value if type(value) is bool else None
+
+
+def _count_optional(events: List[Dict[str, Any]], field: str, values: tuple[str, ...]) -> Dict[str, int]:
+    counts = Counter({value: 0 for value in values})
+    for event in events:
+        value = event.get(field)
+        key = str(value) if value not in (None, "") else "unavailable"
+        counts[key if not values or key in values else "unavailable"] += 1
+    return dict(sorted(counts.items()))

@@ -294,10 +294,98 @@ outside this focused validation.
 Production files, configuration, data and running services are untouched. This
 stage is committed locally only; it is not pushed, merged or deployed.
 
+The stage-four completion-time "local commit only" statement predates its push.
+Stage-five setup fetched and verified `origin/codex/modularisation-stage4` at
+`a556a7a0cde538499f53e6ee31d87d877296537e` on 2026-09-05.
+
+## Extracted in stage 5
+
+Base: `a556a7a0cde538499f53e6ee31d87d877296537e`, the fetched stage-four
+tip. Ancestry checks confirm all four completed stages are included. Fetched
+`origin/master` and production HEAD remain at
+`e08d894d9cd39a07ebe4eeb72205baa864d1a2be`, lacking those stages. Work is on
+`codex/modularisation-stage5` in
+`/disks/disk1/research/mrsMThatcher-modularisation-stage5`; existing branches and
+worktrees are preserved.
+
+`mrs_log_digest_historical_events.py` owns field projection and family counters
+for `historical_context_semantic_gate`, `historical_context_runtime`,
+`historical_context_reply`, `historical_context_obligation` and
+`historical_context_outbox`. Their original branch positions call specific
+helpers. Reply preparation separates rendering and semantic metadata into small
+pure helpers; existing bounded integer validation is reused for lengths.
+`historical_context_quality_summary`, its verification/confidence count helpers
+and associated vocabulary move intact and remain explicitly importable through
+the digest.
+
+Dependency direction: digest → historical events → values. The existing pure
+post-ID/UTF-8 validators, bounded text/integer/boolean projections, associated
+bounds/regexes and `_count_optional` move unchanged to the values leaf, retaining
+digest imports for other consumers. Durable-history validation and its distinct
+rules are unchanged. The new module has no I/O, import-time runtime effects,
+reverse imports, dispatcher or pending-state object. Helpers receive only the
+parsed event, timestamp, needed local counter and insertion callback.
+
+The digest retains ordinary/strict parsing, the entire
+`historical_context_reply_posted` authority branch, completed/already-completed
+canonical-anchor checks and the original emitted event object's identity.
+It still owns truncation, source references, generic counts, production
+attribution, durable/receipt correlation, public text enrichment and incident
+reconciliation. Reply status counting remains after the anchor decision and
+uses the pre-truncation projected status. Quality summarisation consumes the
+same emitted and filtered events at the original point in analysis. Valid
+presentation fields do not confer publication authority. Posting-transaction
+handling, report assembly, schema version, snapshots, CLI and persistence are
+unchanged.
+
+| Size (physical lines; functions include definition/docstring) | Before | After |
+| --- | ---: | ---: |
+| Digest file | 17,149 | 16,651 |
+| `analyse` | 5,233 | 4,979 |
+| Historical-events module / largest helper (quality summary) | — | 543 / 96 |
+| Values module | 166 | 247 |
+| `run_digest` / Markdown wrapper | 360 / 10 | unchanged |
+
+Validation uses Python 3.10.12 / pytest 9.1.1 and the committed temporary-HOME/
+subprocess isolation. The pre-edit baseline passes 171 tests: reply
+observability, digest, safety and Markdown suites plus the specified publication
+authority and resume/source-identity integrations. After extraction, 204 focused
+tests pass, including 21 new boundary tests and the nearest shared-validator,
+nested-field and durable-history regressions. The documentation gate passes for
+186 modules. No existing assertions were changed.
+
+A temporary replay compares 68 complete synthetic analysis reports and Markdown
+renderings against stage four, checking every value, type and dictionary/list
+order. It covers all five families, formatter versions 1–5, missing/malformed
+fields, unknown statuses, interleaved unrelated events, production/self-test
+sources, valid/invalid anchors and confirmations, durable-only text, seven
+`max_text` values, independent repeated calls and full/resumed windows. New
+tests retain the existing very-short-text behavior: confirmation correlation
+can add a `confirmed_public_reply` to the historical section without changing
+structured family counters or the earlier quality summary.
+
+Nine foreign-directory CLI scenarios (36 invocations across the two revisions
+and both primary/secondary output modes) compare exact Markdown bytes, every
+JSON value, stderr and saved resume bytes. These cover full/first/resumed windows,
+two text limits, physical fingerprint cursors and the existing timestamp fallback.
+Two further standalone Markdown/JSON comparisons bring the total to 40 CLI
+invocations, including Markdown without durable-evidence JSON loading.
+Only `producer_source_sha256` and `repository_head_sha` are exempted from direct
+cross-revision equality, after independently checking each against its script
+bytes and Git HEAD. The CLI replay is repeated after committing to exercise the
+new commit identity. All 165 other retained digest function/class ASTs, ten moved
+helper ASTs, unrelated analysis branches and report assembly remain identical.
+The full historical suite and live operational calls are outside this focused
+validation.
+
+Production files, configuration, logs, durable data, pools and running services
+are untouched. Stage five is committed locally only; it is not pushed, merged or
+deployed.
+
 ## Likely next steps
 
-1. Extract a bounded `analyse` event family next, starting with historical-context
-   event aggregation and passing its counters/pending state explicitly. Leave
+1. Extract generated-identity policy/shadow observations and their summaries as
+   the next bounded `analyse` family, passing local counters explicitly. Leave
    remote-write/reconciliation snapshots and cross-event incident reconciliation
    until their evidence inputs can be separated coherently. An existing corpus-reader finding for later
    work: parsed content and SHA-256 come from separate reads; changing that
