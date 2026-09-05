@@ -15,6 +15,7 @@ import pytest
 
 import mrs_log_digest as digest
 import mrs_log_digest_records as record_owner
+import mrs_log_digest_transactions as transaction_owner
 
 
 BASE = datetime(2026, 7, 25, 9, 0, 0)
@@ -827,6 +828,175 @@ def test_x_request_endpoint_classification_is_path_and_method_specific():
         "X bearer request: GET https://api.x.com/2/users/123/mentions"
     )["endpoint"] == "mentions"
     assert digest.parse_x_request_start("unrelated") is None
+
+
+def test_transaction_helpers_keep_current_callbacks_and_shared_record(monkeypatch):
+    assert transaction_owner.Record is record_owner.Record is digest.Record
+    calls = []
+
+    def classify(method, url):
+        calls.append((method, url))
+        return "current-endpoint"
+
+    monkeypatch.setattr(digest, "classify_x_request_endpoint", classify)
+    assert digest.parse_x_request_start("unrelated") is None
+    assert calls == []
+    assert digest.parse_x_request_start("X request: POST https://example.test/2/tweets") == {
+        "method": "POST", "url": "https://example.test/2/tweets",
+        "endpoint": "current-endpoint",
+    }
+    assert calls == [("POST", "https://example.test/2/tweets")]
+    calls.clear()
+
+    def short(value, limit):
+        calls.append((value, limit))
+        return "current-text"
+
+    monkeypatch.setattr(digest, "short", short)
+    unmatched = record(0, "INFO", "fixture", "unrelated")
+    assert digest.parse_remote_write_transaction_event(unmatched) is None
+    matched = record(1, "INFO", "fixture", "Uploading receipt-bound media via X API v2: /tmp/a.png")
+    assert digest.parse_remote_write_transaction_event(matched)["message"] == "current-text"
+    assert calls == [(unmatched.msg, 500), (matched.msg, 500)]
+
+
+def test_media_correlation_keeps_current_callbacks_source_order_and_identity(monkeypatch):
+    records = [
+        record(0, "ERROR", "x_request", "X request failed before receiving response"),
+        record(1, "WARNING", "upload_media", "v2 media upload failed; trying v1.1 fallback"),
+        record(2, "INFO", "upload_media_v1_1", "Uploaded media via v1.1."),
+        record(3, "INFO", "fixture", "Quote/image posted successfully."),
+    ]
+    indexes = {"fixture.log": 7}
+    calls = []
+    refs = [{"record_number": i + 1} for i in range(4)]
+    for name in (
+        "is_media_fallback_warning", "is_media_v2_request_failure",
+        "is_media_v1_success", "is_main_post_success", "is_media_v1_failure",
+    ):
+        original = getattr(digest, name)
+
+        def observe(item, name=name, original=original):
+            assert any(item is r for r in records)
+            calls.append(name)
+            return original(item)
+
+        monkeypatch.setattr(digest, name, observe)
+
+    def recent(items, index):
+        assert items is records and index == 1
+        return "current-path"
+
+    def seconds(left, right):
+        assert right is records[1].ts
+        calls.append("seconds")
+        return 0
+
+    def fingerprint(item):
+        index = next(i for i, r in enumerate(records) if item is r)
+        calls.append(("fingerprint", index))
+        return str(index)
+
+    def source(item, supplied_indexes):
+        assert supplied_indexes is indexes
+        index = next(i for i, r in enumerate(records) if item is r)
+        calls.append(("source", index))
+        return refs[index]
+
+    def bounded(*items):
+        assert all(item is refs[index] for item, index in zip(items, (1, 0, 2, 3)))
+        calls.append("bounded")
+        return list(items), 2
+
+    monkeypatch.setattr(digest, "find_recent_media_path", recent)
+    monkeypatch.setattr(digest, "seconds_between", seconds)
+    monkeypatch.setattr(digest, "record_fingerprint", fingerprint)
+    monkeypatch.setattr(digest, "record_source_ref", source)
+    monkeypatch.setattr(digest, "bounded_source_refs", bounded)
+    monkeypatch.setattr(digest, "short", lambda value, limit: f"{limit}:{value}")
+    incidents, suppressed = digest.correlate_media_upload_incidents(records, 19, indexes)
+    incident = incidents[0]
+    assert suppressed == {"0", "1", "2", "3"}
+    assert incident["status"] == "handled" and incident["media"] == "current-path"
+    assert incident["fallback"] == f"19:{records[1].msg}"
+    assert incident["v2_failure"] == f"19:{records[0].msg}"
+    assert incident["source_ref_omitted_count"] == 2
+    assert incident["source_refs"][0] is refs[1]
+    assert calls.count("seconds") == 3
+    assert {name for name in calls if isinstance(name, str)} >= {
+        "is_media_fallback_warning", "is_media_v2_request_failure",
+        "is_media_v1_success", "is_main_post_success", "is_media_v1_failure",
+    }
+    assert [call for call in calls if isinstance(call, tuple)] == [
+        *(("fingerprint", i) for i in (1, 0, 2, 3)),
+        *(("source", i) for i in (1, 0, 2, 3)),
+    ]
+    assert calls.index("bounded") > calls.index(("source", 3))
+
+
+def test_request_transaction_projection_keeps_parser_event_and_callback_order(monkeypatch):
+    r = record(0, "INFO", "x_request", "X request: POST https://example.test/2/tweets")
+    indexes = {r.path: 3}
+    requests, transactions, receipt_calls, trace = [], [], [], []
+    latest, stats = {}, Counter()
+    source_ref = {"record_number": 1}
+    request = {"endpoint": "tweet/create", "extra": []}
+    transaction = {"kind": "main_post_receipt", "phase": "attempting", "lane": []}
+
+    def source(item, supplied_indexes):
+        assert item is r and supplied_indexes is indexes
+        trace.append("source")
+        return source_ref
+
+    def receipt(kind, item, **kwargs):
+        assert item is r and transactions[-1] is transaction
+        assert stats["remote_write_transaction_attempting"] == 1
+        assert kwargs["lane"] is transaction["lane"]
+        receipt_calls.append((kind, kwargs))
+
+    transaction_owner.record_x_request_start(
+        request, r, input_file_indexes=indexes, x_requests=requests,
+        latest_x_request_by_source=latest, stats=stats, record_source_ref=source,
+    )
+    assert requests[0] is latest[r.src] and requests[0] is not request
+    assert requests[0]["extra"] is request["extra"]
+    transaction_owner.record_remote_write_transaction(
+        transaction, r, input_file_indexes=indexes,
+        remote_write_transactions=transactions, stats=stats,
+        record_source_ref=source, add_receipt_event=receipt,
+    )
+    assert transactions[0] is transaction
+    assert transaction["source_refs"][0] is requests[0]["source_refs"][0] is source_ref
+    assert receipt_calls == [("main_post_receipt", {"phase": "attempting", "lane": []})]
+    assert stats == {"x_request_endpoint_tweet_create": 1, "remote_write_transaction_attempting": 1}
+
+    def parse_request(message):
+        trace.append("parse request")
+        return request
+
+    def project_request(*args, **kwargs):
+        assert args[0] is request and args[1] is r
+        trace.append("project request")
+
+    def parse_transaction(item):
+        assert item is r
+        trace.append("parse transaction")
+        return transaction
+
+    def project_transaction(*args, **kwargs):
+        assert args[0] is transaction and args[1] is r
+        trace.append("project transaction")
+
+    monkeypatch.setattr(digest, "parse_x_request_start", parse_request)
+    monkeypatch.setattr(digest, "record_x_request_start", project_request)
+    monkeypatch.setattr(digest, "parse_remote_write_transaction_event", parse_transaction)
+    monkeypatch.setattr(digest, "record_remote_write_transaction", project_transaction)
+    trace.clear()
+    selftest = digest.Record(
+        r.ts, r.level, r.src, r.line, r.msg, "fixture.selftest.log", r.ordinal,
+    )
+    digest.analyse([r, selftest])
+    assert trace == ["parse request", "project request", "parse transaction", "project transaction"]
 
 
 def test_current_remote_write_transaction_lifecycle_shapes_are_parsed():

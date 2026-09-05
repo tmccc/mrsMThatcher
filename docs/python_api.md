@@ -33,6 +33,7 @@ and AppleDouble files.
 | `shadow_lifecycle.py` | Strict validation for the versioned shadow-feature lifecycle register | Local file reads only |
 | `mrs_log_digest.py` | Log-input coordination, aggregation and Markdown/JSON reports | Local log and resume-state reads/writes; no provider calls |
 | `mrs_log_digest_records.py` | Shared frozen records, bounded source references, fingerprints, resume-boundary filtering and selected log input reading | Reads/stats supplied log paths and emits existing missing-input warnings; explicit current regex, constructor, parsers, readers and helpers; no import-time runtime access |
+| `mrs_log_digest_transactions.py` | Passive X request, transaction, receipt and media observation preparation, legacy matching and receipt/media correlation | Supplied records, pending state, lists/statistics and current helper/source callbacks; no I/O, clock sample, runtime access or publication authority |
 | `mrs_log_digest_markdown.py` | Prepared-report Markdown presentation and section rendering | None; receipt lifecycle analysis is supplied by the caller |
 | `mrs_log_digest_costs.py` | Published-cost cache validation, UTC-window accounting and report preparation | Cache reads only through an explicitly supplied stable reader; paths, clock observations and strict JSON parser supplied by caller |
 | `mrs_log_digest_provider_costs.py` | Pure conversational provider usage totals, cost attribution, cache-metric coverage and currency formatting | None; consumes supplied observations without mutation |
@@ -90,6 +91,45 @@ selection, self-test authority, context/backscan policy, `read_resume_data`,
 remain in the coordinator. Default project/home resolution and producer source
 hash/repository provenance remain anchored to the digest entry point; schema 3,
 Markdown and resume persistence are unchanged.
+
+Transaction/media callers retain `parse_x_request_start`,
+`classify_x_request_endpoint`, `parse_remote_write_transaction_event`,
+`summarise_main_post_receipt_lifecycle`, `is_media_v2_request_failure`,
+`is_media_fallback_warning`, `is_media_v1_success`, `is_media_v1_failure`,
+`is_main_post_success`, `find_recent_media_path` and
+`correlate_media_upload_incidents` through `mrs_log_digest`, with their original
+signatures and defaults. Eight are direct aliases from
+`mrs_log_digest_transactions`; three wrappers supply the current endpoint
+classifier, `short`, `seconds_between`, source-reference/fingerprint/bounding
+helpers, recent-media lookup and media predicates. The owner uses the shared
+`Record` from `mrs_log_digest_records`. Shared scalar helpers remain with their
+existing owners.
+
+`record_x_request_start` shares its new event between the supplied request list
+and latest-request source index; `record_remote_write_transaction` retains and
+annotates the parser's original dictionary before counting and invoking the
+existing receipt callback. `add_receipt_event`,
+`add_confirmed_reply_receipt_event` and `add_reply_media_context_event` consume
+explicit record/field data, source indexes/classification callbacks, observation
+lists, statistics and formatting/source helpers. Field kwargs still override
+defaults, followed by the existing source-reference overwrite. The confirmed
+builder returns the exact pending dictionary: `written` and `reconciled` replace
+it with the truthy identity fields, `removed` fills only absent kwargs from the
+pending identity and returns a new empty dictionary, and other kinds retain the
+original object. The digest's local adapter rebinds the returned state at the
+original call site; pending-lane fallback is unchanged.
+
+`handle_legacy_receipt_message` and
+`handle_legacy_reply_media_context_message` retain ordered legacy matching and
+return true only at an original `continue` outcome. The coordinator retains
+their outer dispatch positions, parser invocation positions, request/source
+selection, production/self-test pending-state switching, event insertion and
+authority. Self-test receipt/media observations remain visible without becoming
+production evidence. Complete helper/handler bodies, chronology, matching
+windows, suppression fingerprints, unresolved receipt matching and object
+sharing are unchanged. The owner has no reverse imports, stored callbacks,
+runtime reads, clock sampling or operational actions; schema 3, Markdown,
+CLI/defaults/provenance, locks and resume are unchanged.
 
 Digest cost callers retain `load_openai_cost_cache`,
 `estimate_openai_cost_window` and `openai_published_cost_report` in

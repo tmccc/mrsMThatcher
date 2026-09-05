@@ -3,6 +3,7 @@ import json
 import os
 import subprocess
 import sys
+from collections import Counter
 from contextlib import contextmanager
 from dataclasses import replace
 from datetime import datetime, timedelta
@@ -12,6 +13,7 @@ import pytest
 
 import historical_context_formatter as formatter
 import mrs_log_digest as digest
+import mrs_log_digest_transactions as transaction_owner
 
 
 def event(kind, **values):
@@ -28,6 +30,141 @@ def structured_record(offset, payload, *, level="INFO"):
         "mrsMThatcher.log",
         offset + 1,
     )
+
+
+def test_receipt_builders_keep_field_precedence_callback_order_and_pending_identity():
+    r = structured_record(0, {})
+    indexes, refs, calls = {r.path: 2}, {"record_number": 1}, []
+    receipts, stats = [], Counter()
+    pending = {"lane": "mention", "target_id": "123", "reply_post_id": "999"}
+    fields = {"lane": "", "target_id": None, "message": "override", "source_class": "override", "source_refs": ["ignored"], "stats": stats}
+
+    def short(message, limit):
+        assert message == r.msg and limit == 500
+        assert fields["reply_post_id"] == "999"
+        calls.append("short")
+        return "shortened"
+
+    def classify(path):
+        assert path == r.path
+        calls.append("classify")
+        return True
+
+    def source(item, supplied_indexes):
+        assert item is r and supplied_indexes is indexes
+        assert receipts == [] and stats == {}
+        calls.append("source")
+        return refs
+
+    after = transaction_owner.add_confirmed_reply_receipt_event(
+        "removed", r, fields, input_file_indexes=indexes, stats=stats,
+        short=short, is_selftest_log_path=classify, record_source_ref=source,
+        confirmed_reply_receipts=receipts, pending_confirmed_reply_receipt=pending,
+    )
+    assert calls == ["short", "classify", "source"]
+    assert after == {} and after is not pending
+    assert pending == {"lane": "mention", "target_id": "123", "reply_post_id": "999"}
+    item = receipts[0]
+    assert item["lane"] == "" and item["target_id"] is None and item["reply_post_id"] == "999"
+    assert item["message"] == item["source_class"] == "override"
+    assert item["source_refs"][0] is refs and item["stats"] is stats
+    assert stats == {"confirmed_reply_receipt_removed": 1}
+
+    receipts.clear()
+    stats.clear()
+    calls.clear()
+    transaction_owner.add_receipt_event(
+        "regular_written", r, fields, input_file_indexes=indexes, stats=stats,
+        short=short, is_selftest_log_path=classify, record_source_ref=source,
+        receipt_events=receipts,
+    )
+    assert calls == ["short", "classify", "source"]
+    assert receipts[0]["source_refs"][0] is refs
+    assert receipts[0]["message"] == "override" and receipts[0]["stats"] is stats
+    assert stats == {"receipt_regular_written": 1}
+
+
+def test_confirmed_receipt_adapter_rebinds_exact_pending_state_across_sources(monkeypatch):
+    original = digest._add_confirmed_reply_receipt_event
+    observations = []
+
+    def observe(kind, r, fields, **kwargs):
+        before = kwargs["pending_confirmed_reply_receipt"]
+        snapshot = dict(before)
+        after = original(kind, r, fields, **kwargs)
+        assert before == snapshot
+        observations.append((kind, before, after, kwargs))
+        return after
+
+    monkeypatch.setattr(digest, "_add_confirmed_reply_receipt_event", observe)
+    messages = [
+        "Wrote confirmed reply receipt pending local reconciliation source=mention target_id=123 reply_post_id=999",
+        "Wrote conversational reply sending receipt source=quote_tweet target_id=456",
+        "Promoted conversational reply receipt to confirmed source=quote_tweet target_id=456 reply_post_id=888",
+        "Wrote confirmed reply receipt pending local reconciliation source=quote_tweet target_id=777 reply_post_id=7777",
+        "Reconciling confirmed reply receipt target_id=321 reply_post_id=111",
+        "Removed reconciled confirmed-reply receipt",
+        "Removed reconciled confirmed-reply receipt",
+    ]
+    records = [replace(structured_record(i, {}), msg=message) for i, message in enumerate(messages)]
+    records[3] = replace(records[3], path="mrsMThatcher.selftest.log")
+    report = digest.analyse(records)
+    receipts = report["confirmed_reply_recovery"]["receipt_events"]
+    for index, (kind, before, after, kwargs) in enumerate(observations):
+        assert kwargs["confirmed_reply_receipts"] is receipts
+        assert kwargs["stats"] is observations[0][3]["stats"]
+        if kind in {"written", "reconciled", "removed"}:
+            assert after is not before
+        else:
+            assert after is before
+        if index in (1, 2, 5, 6):
+            assert before is observations[index - 1][2]
+    assert observations[3][1] is not observations[2][2]
+    assert observations[4][1] is observations[2][2]
+    assert receipts[3]["source_class"] == "selftest"
+    assert receipts[4]["lane"] == receipts[5]["lane"] == "mention"
+    assert receipts[5]["target_id"] == "321" and receipts[5]["reply_post_id"] == "111"
+    assert "lane" not in receipts[6]
+
+
+def test_legacy_observation_handlers_preserve_first_match_and_outer_continue(monkeypatch):
+    regular = "Wrote confirmed regular-post receipt pending local reconciliation"
+    meme = "Wrote confirmed meme-post receipt pending local reconciliation"
+    media = "Reply media context fallback lane=mention target_id=123 photos_expected=2 initial_mode=images final_mode=text status=failed http_status=503"
+    media_later = "Reply media context unavailable lane=quote_tweet target_id=456 photos_expected=3 mode=none status=unavailable"
+    cooldown = "Entering API cooldown after 429 until 2026-09-04 12:10:00"
+    messages = [regular + " " + meme + " " + media, media + "\n" + media_later + "\n" + cooldown, media_later, cooldown]
+    trace = []
+    for name in ("handle_legacy_receipt_message", "handle_legacy_reply_media_context_message"):
+        original = getattr(digest, name)
+
+        def observe(r, msg, name=name, original=original, **kwargs):
+            handled = original(r, msg, **kwargs)
+            trace.append((name, r.ordinal, handled))
+            return handled
+
+        monkeypatch.setattr(digest, name, observe)
+    media_items = []
+    original_media = digest._add_reply_media_context_event
+
+    def observe_media(r, fields, **kwargs):
+        original_media(r, fields, **kwargs)
+        media_items.append(kwargs["reply_media_context"][-1])
+
+    monkeypatch.setattr(digest, "_add_reply_media_context_event", observe_media)
+    report = digest.analyse([replace(structured_record(i, {}), msg=msg) for i, msg in enumerate(messages)])
+    assert [item["kind"] for item in report["main_post_recovery"]["receipt_events"]] == ["regular_written"]
+    assert [(item["lane"], item["photos"], item["mode"]) for item in media_items] == [
+        ("mention", "2", "text"), ("quote_tweet", "3", "none"),
+    ]
+    assert media_items[0]["http_status"] == "503" and "http_status" not in media_items[1]
+    assert len([item for item in report["events"] if item["kind"] == "api_cooldown_entered"]) == 1
+    assert [(name.removeprefix("handle_legacy_"), ordinal, handled) for name, ordinal, handled in trace] == [
+        ("receipt_message", 1, True),
+        ("receipt_message", 2, False), ("reply_media_context_message", 2, True),
+        ("receipt_message", 3, False), ("reply_media_context_message", 3, True),
+        ("receipt_message", 4, False), ("reply_media_context_message", 4, False),
+    ]
 
 
 def test_mention_control_extraction_keeps_event_counter_and_source_identity(monkeypatch):

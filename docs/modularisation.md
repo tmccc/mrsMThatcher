@@ -1697,3 +1697,118 @@ These candidates are assessed only; no following stage is implemented here.
 No production checkout, configuration, durable state, logs or image pools were
 changed; no bot/provider/posting calls, service control, merge or deployment
 occurred. Earlier worktrees and branches are preserved.
+
+## Extracted in stage 20
+
+Base: `0054a8c6dfa9455e03cbaf8400bf5962af42efe0`, verified against the pushed
+`origin/codex/modularisation-stage19`. Work is isolated on
+`codex/modularisation-stage20` in
+`/disks/disk1/research/mrsMThatcher-modularisation-stage20`.
+Only stage 20 is implemented; further stages remain for fresh supervisor-led
+sessions while digest modularisation remains useful, without a stage-number ceiling.
+
+`mrs_log_digest_transactions.py` owns the **414-line** helper group identified
+in stage 19: `parse_x_request_start`, `classify_x_request_endpoint`,
+`parse_remote_write_transaction_event`, `summarise_main_post_receipt_lifecycle`,
+`is_media_v2_request_failure`, `is_media_fallback_warning`, `is_media_v1_success`,
+`is_media_v1_failure`, `is_main_post_success`, `find_recent_media_path` and
+`correlate_media_upload_incidents`. Eight unchanged aliases and three thin
+wrappers retain digest signatures/defaults and current endpoint-classifier,
+`short`, `seconds_between`, source-reference/fingerprint/bounding, recent-media
+lookup and predicate delegation. The owner imports the shared `Record`; shared
+scalar helpers remain with their existing owners.
+
+The owner also contains the two receipt builders, the adjacent legacy receipt
+handler, request/transaction projections, and the reply-media builder and two
+legacy match branches. Explicit records/messages, field dictionaries, source
+indexes/classification, lists/statistics and callbacks preserve all bodies,
+kwargs/default precedence, pending-lane fallback, counts/order and object
+sharing. Request events remain shared with the latest-source index; transaction
+events retain the parser's dictionary. Passing field kwargs separately avoids
+collisions with the new dependency parameter names.
+
+The confirmed-receipt builder returns the exact current or replacement pending
+dictionary. The root closure rebinds it at the original call site: `written` and
+`reconciled` replace it with the existing truthy identity fields, `removed`
+returns a new empty dictionary after filling only missing kwargs, and other
+kinds preserve the original object. Production/self-test state switching,
+request/source selection, parser invocation positions, event insertion/authority
+and outer dispatch/continue order stay in `analyse`. Self-test observations
+remain retained without production authority. No matching window, chronology,
+suppression fingerprint, unresolved receipt identity or validation changed.
+The owner has no reverse import, stored callbacks, dependency container, I/O,
+clock sample or operational actions. Schema 3, Markdown, CLI/defaults/provenance,
+runtime authority, locks and resume remain unchanged.
+
+| Physical lines | Before | After |
+| --- | ---: | ---: |
+| Digest file | 6,614 | 6,012 (−602) |
+| `analyse` | 3,419 | 3,201 (−218) |
+| Transaction/media/receipt owner | — | 826 |
+| `run_digest` / Markdown wrapper | 360 / 10 | 360 / 10 |
+
+Validation: baseline **195 passed**, final **202 passed**, with
+`MRS_TEST_MODE=1 PYTEST_DISABLE_PLUGIN_AUTOLOAD=1 python3 -m pytest` and the
+established temporary-HOME/network isolation. Selection: all affected cases in
+`test_mrs_log_digest.py`, `test_digest_reply_observability.py`,
+`test_digest_safety_hardening.py` and `test_digest_markdown.py`; the guarded import
+cases in `test_digest_runtime.py`; and ten selected digest integration cases for
+correlated/bounded media references, unrecovered fallback counting, source-isolated
+receipt lifecycle, self-test removal without production resolution, source
+identity across resume filtering, schema roots, resume/current-state separation,
+self-test pending identity across resume and quote/meme pending source isolation.
+Existing cases retain transaction shapes, media 503 resolution, unmatched
+barriers, later receipt identity, runtime authority and resume assertions.
+
+Six added boundary tests cover current helper delegation, correlation callback
+and source order, record/event/source/counter identity, lazy parser/projection
+order and source selection, builder field precedence, exact pending-state
+replacement/rebinding across sources, and handled/nonmatched dispatch order.
+The existing guarded import test includes the new owner. All previous assertions
+remain. Exact complete helper bodies, eight aliases, three wrapper calls,
+original signatures, three builder bodies/adapters, two projections and both
+handlers match stage 19 after only extraction signatures/docstrings/indentation,
+the explicit pending-state return/rebind and `continue` → `return True` changes.
+All **22** original handled outcomes remain. All 18 imports/wiring were checked;
+every remaining coordinator byte matches outside extraction sites and the
+removed unused `urlsplit` import. Documentation coverage passes for **202 modules**;
+`git diff --check` passes.
+
+Three complete JSON/Markdown pairs reuse existing `write_digest_log`, `record`,
+`structured_main_post_lifecycle` and integration fixtures at shared fixed paths
+and time: bounded media fallback plus X request/transport/main-post lifecycle
+(**47,238 / 13,771 bytes**), confirmed receipt recovery/replay suppression
+(**35,868 / 11,538**) and production/self-test receipt isolation
+(**36,202 / 12,361**). Direct request/transaction parsing, media predicates/path
+lookup/correlation/suppression and receipt lifecycle results also match. JSON
+bytes match after replacing only independently verified producer-source hashes;
+independently verified repository HEADs were equal at comparison time. Markdown
+and input bytes/modes/mtimes match without substitution. Temporary comparison
+code/data are excluded. These are focused preservation checks, not an exhaustive
+replay; the full bot harness was not run.
+
+Recommended next boundary: the nine provider observation helpers named in stage
+19 (**187 lines**) and their call-start/usage block (**79 lines**), using prepared
+record/pending context, explicit active-attempt state and current lane/usage,
+stage/cache and formatting callbacks. The later raw provider error/context-reset
+block (**17 lines**) is related and can use a small adapter to return the updated
+active context. Keep source switching, parser/dispatch positions, resume decisions
+and cost reporting with their current owners.
+
+Further bounded candidates were assessed without implementing them. Raw X API
+error projection (**68 lines**) depends on the selected source request, the
+300-second matching window, pending lane/target and shared request mutation;
+adjacent rate-limit enrichment/traceback counting is **11 lines**. Post-scan media
+ambiguity (**81 lines**), remaining-error filtering (**40**), pending confirmed
+receipt lifecycle/error preparation (**88**) and prepared receipt recovery
+reporting (**91**) can follow with explicit observations and supplied snapshot/
+incident evidence, preserving source authority, reference identity and matching
+order. API counters/semantics (**259 lines**) and failure/cooldown summaries
+(**38**) are another prepared-report boundary, but validated success selection
+and production event identity must remain explicit. These are separate useful
+boundaries, not a reason to widen the next extraction into a general parser or
+bot refactor.
+
+No production checkout, configuration, durable bot state, logs or image pools
+were changed; no bot/provider/posting calls, service control, merge or deployment
+occurred. Earlier worktrees and branches are preserved.
