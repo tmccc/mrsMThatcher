@@ -2011,3 +2011,101 @@ further digest modularisation remains useful.
 No production/configuration/state/log/image-pool changes, bot execution, provider
 or posting calls, service control, merge or deployment occurred. Previous branches
 and worktrees are preserved; stage 22 is the only stage implemented this session.
+
+## Extracted in stage 23
+
+Base: `6f3e9334b9306d4668395932f7fc1cae1efe7acf`, verified against the pushed
+`origin/codex/modularisation-stage22`. Work is isolated on
+`codex/modularisation-stage23` in
+`/disks/disk1/research/mrsMThatcher-modularisation-stage23`.
+
+`mrs_log_digest_api_health.py` now owns raw cooldown observation (**13 original
+lines**), X error observation (**68**), latest-error enrichment/traceback counting
+(**11**), post-scan API counter/semantics/failure/cooldown preparation (**297**)
+and the API report value (**56**). The provider error/context-reset span (**17**)
+joins `mrs_log_digest_provider_observations.py`. Every call remains at its
+original position: cooldown before used-history handlers, X errors after them,
+provider context rebind before latest-error enrichment, preparation before legacy
+strategy inference, and API field materialisation within the report literal.
+
+Explicit current helpers and shared inputs retain the absolute inclusive
+300-second request window, source eligibility, pending lane/target selection,
+request status/failed mutation, restriction/error row identity and deleted-403
+early exit. Provider reset leaves the attempt index intact. The specific typed
+`ApiHealthPreparation` holds existing computed results; `api_health_report`
+retains late Counter conversion, `has_5xx_failures`, conflict slicing and shared
+lists after intervening callbacks. Production event-object authority, validated
+publication evidence, literal immutable IDs, transport/lane conflict deduplication,
+media handoff predicates, durable-only exclusions and counter-semantics strings
+are unchanged. Source switching, snapshot/window/publication authority, strategy
+inference, report orchestration, resume, CLI/defaults, clocks and locking remain
+with their existing owners. No reverse imports or stored callbacks were added.
+
+| Physical lines | Before | After |
+| --- | ---: | ---: |
+| Digest file | 5,531 | 5,121 (−410) |
+| `analyse` | 2,868 | 2,450 (−418) |
+| API-health owner | — | 596 |
+| Provider-observation owner | 336 | 369 (+33) |
+| `run_digest` / Markdown wrapper | 360 / 10 | 360 / 10 |
+
+Validation: baseline **213 passed**, final **228 passed**, with
+`MRS_TEST_MODE=1 PYTEST_DISABLE_PLUGIN_AUTOLOAD=1 python3 -m pytest` and the
+existing temporary-HOME/network isolation. Selection: `test_mrs_log_digest`,
+`test_digest_reply_observability`, `test_digest_markdown`,
+`test_digest_historical_events`; runtime owner import guards; three safety cases
+for provider resume and self-test input/state isolation; and 23 selected digest
+integration functions covering API/transport counters, media/receipt handling,
+lane conflicts, source isolation and valid/invalid publication authority. Four
+new boundary functions contribute 14 cases for request age/source/parser errors,
+current callbacks, handled dispatch exits, shared request/error mutation,
+provider context identity/reset with retained attempts, production event-object
+identity and report evaluation after callback mutations. The API owner joins
+the existing guarded-import test. Existing assertions are retained.
+
+Exact source checks confirm all five moved statement bodies with only handled
+returns and explicit Counter/strptime/min substitutions; the report dictionary
+has the same AST after replacing named preparation-field access. Every coordinator
+byte outside the import/call substitutions is unchanged, preserving existing
+APIs/signatures/defaults. Pre-existing provider code is unchanged except its
+module docstring. Documentation coverage passes for **204 modules**;
+`git diff --check` passes.
+
+Four complete JSON/Markdown comparisons against stage 22 match using the existing
+`record`/`write_digest_log` helpers, fixed clocks and shared input paths:
+handled/deleted 403s (**34,981 / 12,491 bytes**), 429/503 latest-error enrichment
+(**38,753 / 13,015**), provider reset with source isolation (**36,637 / 12,680**)
+and conflicting transport/success authority (**39,709 / 12,905**). Raw `analyse`
+reports also match, including provider resume details omitted by schema 3.
+Producer hashes were independently verified from source bytes and HEADs through
+Git; only the producer-source hash was substituted, with both HEADs at the base.
+Markdown and fixture input bytes/modes/mtimes match without substitution.
+Temporary comparison scripts/data are excluded. These entry-point comparisons
+use a prepared unavailable snapshot in place of the snapshot loader; they do not
+revalidate filesystem inspection or form an exhaustive replay. No whole bot
+harness was run.
+
+Recommended next boundary: raw quote/image observations, as two separate named
+handlers at their existing positions. The remaining concrete candidates are
+(sizes include boundary comments/blank lines):
+
+- Quote/image selection (**85 lines**, starting at 3401) mutates pending quote
+  and regular-image observations and emits through the existing event callback.
+  Cycle/publication observation (**69**, at 3585) also rebinds pending quote and
+  updates the latest matching regular-image row. Keep the intervening editorial,
+  generated-identity and image-spacing dispatch in the coordinator.
+- Daily meme observation (**20**, at 3654) can return pending meme plus a handled
+  flag, preserving its three ordered matches and event fields.
+- Created-post identity (**21**, at 3674) can return the last-created-post row
+  and handled flag; retain both response-parser calls, canonical/source flags
+  and exact emitted-event identity when removing publication authority.
+- Mention/hot-post (**140**, at 3695) and quote-reply (**93**, at 3835) are separate
+  later handlers: retain pending/context rebinding, response identity fallback,
+  production flags, skip counters and handled exits. Source switching stays in
+  the coordinator.
+
+None of these later boundaries is implemented here. Further stages remain useful
+without a stage-number ceiling. No production/configuration/state/log/image-pool
+changes, bot execution, provider/posting calls, service control, merge or deployment
+occurred. Previous branches/worktrees are preserved; only stage 23 is implemented
+in this session.

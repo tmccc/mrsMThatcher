@@ -34,10 +34,11 @@ and AppleDouble files.
 | `mrs_log_digest.py` | Log-input coordination, aggregation and Markdown/JSON reports | Local log and resume-state reads/writes; no provider calls |
 | `mrs_log_digest_records.py` | Shared frozen records, bounded source references, fingerprints, resume-boundary filtering and selected log input reading | Reads/stats supplied log paths and emits existing missing-input warnings; explicit current regex, constructor, parsers, readers and helpers; no import-time runtime access |
 | `mrs_log_digest_transactions.py` | Passive X request, transaction, receipt and media observation preparation, legacy matching, receipt/media correlation and post-scan receipt/error reporting preparation | Supplied records, snapshots, health, pending state, lists/statistics and current helper/source callbacks; no I/O, clock sample, runtime access or publication authority |
+| `mrs_log_digest_api_health.py` | Passive X/cooldown observation, latest-error enrichment and API counter/failure/report preparation | Supplied records, shared lists, production event identities and current helpers; separate preparation and report materialisation; no I/O, clock sample, source selection or publication authority |
 | `mrs_log_digest_markdown.py` | Prepared-report Markdown presentation and section rendering | None; receipt lifecycle analysis is supplied by the caller |
 | `mrs_log_digest_costs.py` | Published-cost cache validation, UTC-window accounting and report preparation | Cache reads only through an explicitly supplied stable reader; paths, clock observations and strict JSON parser supplied by caller |
 | `mrs_log_digest_provider_costs.py` | Pure conversational provider usage totals, cost attribution, cache-metric coverage and currency formatting | None; consumes supplied observations without mutation |
-| `mrs_log_digest_provider_observations.py` | Passive conversational provider call/usage parsing, context selection, attempt matching and observation projection | Supplied records, pending/active state, lists/statistics and current parser/formatter/converter callbacks; returns active context/index and mutates shared attempts; no I/O, clock sample or runtime access |
+| `mrs_log_digest_provider_observations.py` | Passive conversational provider call/usage/error parsing, context selection/reset, attempt matching and observation projection | Supplied records, pending/active state, lists/statistics and current parser/formatter/converter/source callbacks; returns active context/index and mutates shared attempts; later error observation returns context alone; no I/O, clock sample or runtime access |
 | `mrs_log_digest_runtime.py` | Current state/configuration validation and operator pause observations | Reads only through supplied stable readers; explicit project paths, strict JSON parsers, file-time conversion and pause clock; no import-time runtime access |
 | `mrs_log_digest_state_reporting.py` | Prepared current-state, author-strike, cooldown/headline and mention-control reporting | Explicit data, current helpers, vocabulary, epoch conversion and observation clock; refreshes supplied reports and uses the supplied event callback and statistics counter; no I/O or import-time runtime access |
 | `mrs_log_digest_remote_write.py` | Read-only remote-write barrier identities, grouping, safety and reconciliation archive observations | Explicit paths, stable reader, exact-Decimal parser, diagnostic formatter, clock and snapshot/archive-read callbacks; lazy read-only inspectors; no import-time runtime access |
@@ -208,11 +209,53 @@ and attempt index without copying. Source predicates, provider/stage/lane/contex
 matching, missing-provider fallback, optional reasoning effort, timestamps,
 ordering, counters and absent/partial/cache values are unchanged.
 
-Source switching, later context-clearing/error paths, resume decisions and
-cost/report assembly remain in the coordinator. The owner stores no callbacks,
+`observe_provider_error` runs at the later, original raw-error position after X
+observation. It receives the selected record/message, active context, API-error
+list, statistics, source indexes and current `short`/`record_source_ref` helpers.
+It appends the existing xAI error fields and returns the context, clearing it for
+the same provider-error and Grok-completion messages. It does not receive or
+clear the attempt index. Provider usage parsing remains at its earlier position;
+latest-error enrichment still follows this context rebind.
+
+Source switching, resume decisions and cost/report assembly remain in the
+coordinator. The owner stores no callbacks,
 imports no coordinator and performs no clock, file, home, configuration or
 provider access. Schema 3, Markdown, CLI/defaults/provenance, locking and
 publication authority are unchanged.
+
+API-health observation and preparation belong to `mrs_log_digest_api_health`,
+with five direct digest imports. `handle_cooldown_message` observes the counter,
+active list and entered event before the unchanged used-history handlers.
+`handle_x_api_error` runs after those handlers with the current record, source
+request index, pending mention/quote state, restriction flag, shared API/error
+lists, statistics, source indexes and named parser/time/formatter/source/403
+helpers. It retains source eligibility, the inclusive absolute 300-second
+request window, endpoint fallback and pending lane/target selection. Request
+status/failed fields mutate the original request after error formatting/source
+projection and before 403 classification. Only the deleted/inaccessible 403
+returns handled; target-eligibility restrictions continue to provider observation
+and `enrich_latest_api_error`. Enrichment mutates the latest error row before the
+existing traceback and later observation counters.
+
+`prepare_api_health` runs at the original post-scan position before legacy
+strategy-outcome inference. Explicit selected observations, production event
+object IDs, prepared publication evidence, restriction times, timeout count and
+current Counter/bounded-text/ID/confirmation/time helpers preserve transport-ID
+deduplication, literal-lane conflicts, media handoffs, immutable success IDs,
+historical durable-only exclusions and exact counter-semantics strings. It
+returns `ApiHealthPreparation`, a typed collection of these existing computed
+results, retaining original transaction/error rows and Counter objects. It does
+not store callbacks or acquire/validate new evidence.
+
+`api_health_report` consumes that result and the current error, restriction,
+cooldown and request lists at the original `api_health` report-literal position.
+It preserves key order, shared list references and late field evaluation,
+including `has_5xx_failures`, sorted Counter conversion and conflict slicing after
+intervening callbacks. Existing digest APIs/signatures/defaults, schema 3, JSON
+and Markdown are unchanged. Source switching/selection, snapshot/window and
+publication authority, strategy inference, report orchestration, resume, CLI,
+clocks and locking remain with their existing owners; the API owner has no
+reverse imports, stored callbacks, I/O or operational actions.
 
 Digest runtime callers retain `load_current_runtime_state`,
 `load_current_runtime_config` and `runtime_control_snapshot` with their original

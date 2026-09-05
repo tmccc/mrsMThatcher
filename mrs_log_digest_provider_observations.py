@@ -1,10 +1,11 @@
-"""Parse and correlate passive conversational provider call and usage observations.
+"""Parse and correlate passive conversational provider call, usage and errors.
 
 The digest supplies the selected record, source-local pending/active state,
 observation lists, statistics and current helpers, including shared cost/value
 converters. Observation returns the active context and attempt index for the
 coordinator's source switching and resume decisions. No I/O, clock sampling,
-runtime access or publication authority belongs here.
+runtime access or publication authority belongs here. Later error/completion
+observation returns the active context alone without clearing the attempt index.
 """
 from __future__ import annotations
 
@@ -334,3 +335,35 @@ def observe_provider_message(
         })
         stats["xai_usage_parse_errors"] += 1
     return active_xai_context, active_xai_call_attempt_index
+
+
+def observe_provider_error(
+    r: Record,
+    msg: str,
+    *,
+    active_xai_context: Optional[Dict[str, Any]],
+    api_errors: List[Dict[str, Any]],
+    stats: Counter,
+    input_file_indexes: Optional[Dict[str, int]],
+    short: Callable[..., str],
+    record_source_ref: Callable[..., Dict[str, Any]],
+) -> Optional[Dict[str, Any]]:
+    """Observe provider errors/completion and return the current context."""
+    if r.src in {"ask_grok_for_reply", "xai_request"} and msg.startswith("xAI error"):
+        stats["xai_errors"] += 1
+        m = re.search(r"xAI error (\d+):", msg)
+        api_errors.append({
+            "time": r.ts.strftime("%Y-%m-%d %H:%M:%S"),
+            "service": "xAI",
+            "endpoint": "chat",
+            "status": m.group(1) if m else "",
+            "message": short(msg, 240),
+            "source_refs": [record_source_ref(r, input_file_indexes)],
+        })
+        active_xai_context = None
+    if r.src == "ask_grok_for_reply" and (
+        msg.startswith("Grok generated usable reply:")
+        or msg.startswith("Grok chose to skip")
+    ):
+        active_xai_context = None
+    return active_xai_context
