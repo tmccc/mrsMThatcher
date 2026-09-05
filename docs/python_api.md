@@ -33,7 +33,7 @@ and AppleDouble files.
 | `shadow_lifecycle.py` | Strict validation for the versioned shadow-feature lifecycle register | Local file reads only |
 | `mrs_log_digest.py` | Log-input coordination, aggregation and Markdown/JSON reports | Local log and resume-state reads/writes; no provider calls |
 | `mrs_log_digest_records.py` | Shared frozen records, bounded source references, fingerprints, resume-boundary filtering and selected log input reading | Reads/stats supplied log paths and emits existing missing-input warnings; explicit current regex, constructor, parsers, readers and helpers; no import-time runtime access |
-| `mrs_log_digest_transactions.py` | Passive X request, transaction, receipt and media observation preparation, legacy matching and receipt/media correlation | Supplied records, pending state, lists/statistics and current helper/source callbacks; no I/O, clock sample, runtime access or publication authority |
+| `mrs_log_digest_transactions.py` | Passive X request, transaction, receipt and media observation preparation, legacy matching, receipt/media correlation and post-scan receipt/error reporting preparation | Supplied records, snapshots, health, pending state, lists/statistics and current helper/source callbacks; no I/O, clock sample, runtime access or publication authority |
 | `mrs_log_digest_markdown.py` | Prepared-report Markdown presentation and section rendering | None; receipt lifecycle analysis is supplied by the caller |
 | `mrs_log_digest_costs.py` | Published-cost cache validation, UTC-window accounting and report preparation | Cache reads only through an explicitly supplied stable reader; paths, clock observations and strict JSON parser supplied by caller |
 | `mrs_log_digest_provider_costs.py` | Pure conversational provider usage totals, cost attribution, cache-metric coverage and currency formatting | None; consumes supplied observations without mutation |
@@ -131,6 +131,34 @@ windows, suppression fingerprints, unresolved receipt matching and object
 sharing are unchanged. The owner has no reverse imports, stored callbacks,
 runtime reads, clock sampling or operational actions; schema 3, Markdown,
 CLI/defaults/provenance, locks and resume are unchanged.
+
+Three post-scan functions also belong to `mrs_log_digest_transactions` and are
+direct digest imports. `prepare_media_incidents_and_errors` consumes the selected
+records, request/transaction observations, prepared snapshot, original errors and
+self-test list, and coordinator-prepared self-test/API/restriction times. Current
+`correlate_media_upload_incidents`, `parse_dt`, `datetime.strptime` and
+`seconds_between` callbacks retain correlation/filter ordering. It returns the
+correlator's incident list and a new remaining-errors list; retained errors and
+self-test appends share the original error objects. Conditional archive fallback,
+exact integer epoch checks, later-request predicates and suppression fingerprints
+are unchanged. Restriction-time preparation stays in the coordinator for later
+API reporting.
+
+`append_unresolved_reply_receipt_errors` consumes the coordinator's confirmed
+receipt and error lists, appending unresolved sending/reconciliation errors in
+the original order. Its local pending collections and `clear_latest_reconciliation`
+retain self-test exclusion, lane/target/reply identities, reverse latest-match
+removal and unmatched cases. Source-reference lists are copied shallowly, keeping
+their original nested objects; existing errors and receipt rows are retained.
+
+`prepare_reply_receipt_recovery_reporting` follows the unchanged operational-health
+call and returns three explicit lists: durably reconciled receipts, unavailable
+receipt status and active snapshot receipts. It consumes the prepared health,
+snapshot and receipt data with current `parse_dt`, `_normalise_lane` and
+`REMOTE_WRITE_RECEIPT_ROLE_LABELS`. Parsing exceptions, time comparisons, fallback
+receipt evidence and nonempty nested snapshot-list sharing are preserved. All
+three calls remain at their original positions; scanning/source restoration,
+incident classification, report assembly and API counters retain their owners.
 
 Digest cost callers retain `load_openai_cost_cache`,
 `estimate_openai_cost_window` and `openai_published_cost_report` in

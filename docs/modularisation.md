@@ -1925,3 +1925,89 @@ reduce its line count.
 No production checkout, configuration, durable bot data, logs or image pools
 were changed; no bot execution, provider/posting calls, service control, merge
 or deployment occurred. Previous branches and worktrees are preserved.
+
+## Extracted in stage 22
+
+Base: `56c73adc475088632c14e196002e3e46f0e2debe`, verified against the pushed
+`origin/codex/modularisation-stage21`. Work is isolated on
+`codex/modularisation-stage22` in
+`/disks/disk1/research/mrsMThatcher-modularisation-stage22`.
+
+Three post-scan groups now belong to `mrs_log_digest_transactions.py`:
+`prepare_media_incidents_and_errors` moves media correlation, receipt-bound
+ambiguity preparation and error filtering (**128 original lines**, including
+error rebinding); `append_unresolved_reply_receipt_errors` moves the pending
+sending/reconciliation lifecycle and ordered unresolved errors (**88**);
+`prepare_reply_receipt_recovery_reporting` moves the reconciled, unavailable and
+active snapshot receipt projections (**91**). Their three direct-import calls
+remain at the original positions, with `summarise_operational_error_health`
+unchanged between the second and third calls.
+
+Named prepared inputs and current callbacks/mapping preserve archive fallback,
+integer epoch checks, request chronology, suppression, error rebinding/identity,
+self-test appends, latest receipt matching, ordering, exceptions and nested list
+sharing. Timestamp preparation stays in the coordinator, including
+`handled_restriction_times` reused by API reporting; other moved temporaries need
+no later reads. Scanning/source restoration, incident classification, report
+assembly, API counters and legacy observations remain in place. There are no new
+time reads, input/snapshot calls, reverse imports or stored callbacks. Existing
+APIs/signatures/defaults, schema 3, Markdown, source/self-test and snapshot/window
+authority, CLI/provenance, locking and resume are preserved.
+
+| Physical lines | Before | After |
+| --- | ---: | ---: |
+| Digest file | 5,802 | 5,531 (−271) |
+| `analyse` | 3,142 | 2,868 (−274) |
+| Transaction owner | 826 | 1,179 (+353) |
+| `run_digest` / Markdown wrapper | 360 / 10 | 360 / 10 |
+
+Validation: baseline **164 passed**, final **167 passed**, using
+`MRS_TEST_MODE=1 PYTEST_DISABLE_PLUGIN_AUTOLOAD=1 python3 -m pytest` with the
+existing temporary-HOME/network isolation. Selection: `test_mrs_log_digest`,
+`test_digest_reply_observability`, `test_digest_markdown`, `test_digest_incidents`;
+four archive/self-test isolation cases in `test_digest_safety_hardening`; the
+transaction-owner guarded import in `test_digest_runtime`; and fourteen selected
+integration functions covering media fallback/source references, receipt
+lifecycle/recovery/source isolation, resume/current-state separation, stable
+source identity and schema roots. Three new boundary tests establish current
+callback/mapping delegation, error-list rebinding and row identity, reverse
+receipt matching/order, shallow source references, post-health snapshot use,
+recovery-list identity, nested snapshot-list sharing and parser exceptions.
+
+Exact source checks confirm all three moved bodies (only the supplied `strptime`
+name and explicit returns/rebinding differ), unchanged pre-existing owner bytes,
+and every surrounding coordinator byte outside the three imports/call replacements.
+Documentation coverage passes for **203 modules**; `git diff --check` passes.
+
+Six complete JSON/Markdown comparisons match stage 21 using existing `record`,
+media/reply ambiguity, reconciliation, structured main-post lifecycle and
+`write_digest_log` fixtures with shared fixed times/paths: unresolved media
+(**43,184 / 14,223 bytes**), reconciled media (**43,440 / 14,403**), sending/
+promotion/removal/replay lifecycles with unavailable status (**47,671 / 14,537**),
+reconciled reply receipts (**44,755 / 14,592**), authoritative active snapshot
+(**46,179 / 15,619**) and stale active snapshot (**46,559 / 15,797**). Each producer
+hash was independently verified from source bytes and each HEAD through Git;
+only the producer-source hash was substituted, with both HEADs still at the base.
+Markdown and fixture input bytes/modes/mtimes match without substitution.
+Temporary comparison code/data are excluded. These full entry-point comparisons
+use prepared snapshot fixtures in place of the snapshot loader; they do not
+revalidate filesystem inspection or constitute exhaustive replay. No whole bot
+harness was run.
+
+Recommended next boundary: assess raw X/provider errors **together with API
+counter reporting**. X observation (**68 lines**) needs source request identity,
+the 300-second window, shared request mutation, restrictions and the handled-403
+`continue`; provider observation/reset (**17**) returns its current context.
+Adjacent rate-limit enrichment/tracebacks (**11**) retain latest-error ordering.
+API counters/semantics (**259**) and failure/cooldown summaries (**38**) require
+production event-object authority, validated success IDs, literal lane/conflict
+accounting, current helpers, restriction times and shared error rows. Keep every
+call at its current position and report assembly in the coordinator; existing
+transaction/provider owners supply the observation boundaries. Legacy mention/
+hot-post (**139**) and quote-reply (**92**) handlers remain another substantive
+candidate. None is implemented here; continue in fresh sessions only while
+further digest modularisation remains useful.
+
+No production/configuration/state/log/image-pool changes, bot execution, provider
+or posting calls, service control, merge or deployment occurred. Previous branches
+and worktrees are preserved; stage 22 is the only stage implemented this session.

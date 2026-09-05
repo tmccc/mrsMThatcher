@@ -88,6 +88,9 @@ from mrs_log_digest_transactions import (
     record_remote_write_transaction,
     handle_legacy_receipt_message,
     handle_legacy_reply_media_context_message,
+    prepare_media_incidents_and_errors,
+    append_unresolved_reply_receipt_errors,
+    prepare_reply_receipt_recovery_reporting,
 )
 from mrs_log_digest_values import (
     MAX_REASONABLE_STATE_EPOCH,
@@ -4072,223 +4075,28 @@ def analyse(
         for item in handled_api_restrictions
         if item.get("time")
     ]
-    media_upload_incidents, media_suppressed_fingerprints = (
-        correlate_media_upload_incidents(
-            records,
-            max_text,
-            input_file_indexes,
-        )
+    media_upload_incidents, errors = prepare_media_incidents_and_errors(
+        records=records,
+        max_text=max_text,
+        input_file_indexes=input_file_indexes,
+        remote_write_transactions=remote_write_transactions,
+        x_requests=x_requests,
+        current_remote_write_safety=current_remote_write_safety,
+        errors=errors,
+        self_test_errors=self_test_errors,
+        self_test_times=self_test_times,
+        api_error_times=api_error_times,
+        handled_restriction_times=handled_restriction_times,
+        correlate_media_upload_incidents=correlate_media_upload_incidents,
+        parse_dt=parse_dt,
+        strptime=datetime.strptime,
+        seconds_between=seconds_between,
     )
-    for event in remote_write_transactions:
-        if event.get("kind") != "media_upload" or event.get("phase") != "ambiguous":
-            continue
-        incident_time = parse_dt(str(event.get("time") or ""))
-        later_tweet_create = any(
-            request.get("endpoint") == "tweet/create"
-            and (
-                incident_time is None
-                or (
-                    (parse_dt(str(request.get("time") or "")) or incident_time)
-                    >= incident_time
-                )
-            )
-            for request in x_requests
-        )
-        reconciliation_archive = (
-            (current_remote_write_safety or {}).get("reconciliation_archive")
-            or {}
-        )
-        media_reconciliations = (
-            reconciliation_archive.get("media_reconciliations") or []
-        )
-        if not media_reconciliations:
-            latest_media_reconciliation = reconciliation_archive.get(
-                "latest_media_reconciliation"
-            )
-            media_reconciliations = (
-                [latest_media_reconciliation]
-                if latest_media_reconciliation
-                else []
-            )
-        matching_media_reconciliations = [
-            item
-            for item in media_reconciliations
-            if type(item.get("archived_at_epoch")) is int
-            and incident_time is not None
-            and item["archived_at_epoch"] >= int(incident_time.timestamp())
-            and item.get("image_basename") == event.get("image")
-        ]
-        reconciled = bool(
-            (current_remote_write_safety or {}).get(
-                "media_reconciliation_proven"
-            )
-            and (current_remote_write_safety or {}).get("blocking") is False
-            and matching_media_reconciliations
-        )
-        media_upload_incidents.append(
-            {
-                "time": event.get("time"),
-                "status": "reconciled" if reconciled else "blocked",
-                "media": event.get("image") or "",
-                "v2_failure": event.get("message") or "",
-                "fallback": "legacy fallback prohibited by receipt-bound v2 protocol",
-                "v1_result": "not applicable",
-                "post_result": (
-                    "tweet-create request observed"
-                    if later_tweet_create
-                    else "no tweet-create request observed"
-                ),
-                "summary": (
-                    "ambiguous receipt-bound media upload was durably reconciled offline"
-                    if reconciled
-                    else "ambiguous receipt-bound media upload remains blocked"
-                ),
-                "protocol": "receipt_bound_v2",
-                **(
-                    {"source_refs": list(event.get("source_refs") or [])}
-                    if event.get("source_refs")
-                    else {}
-                ),
-                **(
-                    {
-                        "source_ref_omitted_count": int(
-                            event["source_ref_omitted_count"]
-                        )
-                    }
-                    if event.get("source_ref_omitted_count")
-                    else {}
-                ),
-            }
-        )
-    remaining_errors: List[Dict[str, Any]] = []
-    for item in errors:
-        message = str(item.get("message", ""))
-        timestamp = str(item.get("time", ""))
-        if item.get("_fingerprint") in media_suppressed_fingerprints:
-            continue
-        if timestamp in self_test_times and (
-            "Missing X credentials." in message
-            or "ENABLE_AUTO_REPLIES is True, but XAI_API_KEY is not set." in message
-        ):
-            self_test_errors.append(item)
-            continue
-        if timestamp in api_error_times and (
-            message.startswith("Failed to get mention")
-            or message.startswith("Failed to get quote")
-            or message.startswith("Failed to fetch quote")
-        ):
-            continue
-        if message.startswith(("Failed to post generated reply", "Unexpected failure posting generated reply")):
-            try:
-                error_time = datetime.strptime(timestamp, "%Y-%m-%d %H:%M:%S")
-            except ValueError:
-                error_time = None
-            if error_time is not None and any(
-                seconds_between(error_time, restriction_time) <= 5
-                for restriction_time in handled_restriction_times
-            ):
-                continue
-        if message.startswith("Entering API cooldown after repeated errors"):
-            try:
-                error_time = datetime.strptime(timestamp, "%Y-%m-%d %H:%M:%S")
-            except ValueError:
-                error_time = None
-            if error_time is not None and any(
-                seconds_between(error_time, restriction_time) <= 5
-                for restriction_time in handled_restriction_times
-            ):
-                continue
-        remaining_errors.append(item)
-    errors = remaining_errors
 
-    pending_sending_lifecycle: Dict[
-        Tuple[str, str], List[Dict[str, Any]]
-    ] = {}
-    pending_reconciliations: List[
-        Tuple[Tuple[str, str, str], Dict[str, Any]]
-    ] = []
-
-    def clear_latest_reconciliation(
-        *,
-        identity: Tuple[str, str, str] | None = None,
-        lane: str | None = None,
-    ) -> Tuple[str, str, str] | None:
-        for index in range(len(pending_reconciliations) - 1, -1, -1):
-            candidate_identity, _item = pending_reconciliations[index]
-            if identity is not None and candidate_identity != identity:
-                continue
-            if lane is not None and candidate_identity[0] != lane:
-                continue
-            pending_reconciliations.pop(index)
-            return candidate_identity
-        return None
-
-    for item in confirmed_reply_receipts:
-        if item.get("source_class") == "selftest":
-            continue
-        sending_identity = (
-            str(item.get("lane") or ""),
-            str(item.get("target_id") or ""),
-        )
-        identity = (
-            *sending_identity,
-            str(item.get("reply_post_id") or ""),
-        )
-        kind = str(item.get("kind") or "")
-        if kind == "sending":
-            pending_sending_lifecycle.setdefault(sending_identity, []).append(item)
-        elif kind in {
-            "promoted",
-            "sending_removed",
-            "confirmed_state_fallback_removed",
-        }:
-            pending_for_identity = pending_sending_lifecycle.get(
-                sending_identity, []
-            )
-            if pending_for_identity:
-                pending_for_identity.pop()
-        if kind == "reconciled":
-            pending_reconciliations.append((identity, item))
-        elif kind == "removed":
-            clear_latest_reconciliation(identity=identity)
-        elif kind in {
-            "replay_suppressed_mention_check",
-            "replay_suppressed_quote_tweet_check",
-        }:
-            clear_latest_reconciliation(lane=sending_identity[0])
-    for identity, pending_events in sorted(pending_sending_lifecycle.items()):
-        for source in pending_events:
-            raw_message = (
-                "Unresolved conversational reply sending receipt remains at the end "
-                f"of the observed window lane={identity[0]} target_id={identity[1]}"
-            )
-            errors.append(
-                {
-                    "time": str(source.get("time") or ""),
-                    "level": "CRITICAL",
-                    "where": "confirmed_reply_receipt_lifecycle",
-                    "message": raw_message,
-                    "_raw_message": raw_message,
-                    "source_refs": list(source.get("source_refs") or []),
-                }
-            )
-    for identity, source in pending_reconciliations:
-        raw_message = (
-            "Unresolved confirmed reply receipt reconciliation remains at the "
-            "end of the observed window "
-            f"lane={identity[0]} target_id={identity[1]} "
-            f"reply_post_id={identity[2]}"
-        )
-        errors.append(
-            {
-                "time": str(source.get("time") or ""),
-                "level": "CRITICAL",
-                "where": "confirmed_reply_receipt_lifecycle",
-                "message": raw_message,
-                "_raw_message": raw_message,
-                "source_refs": list(source.get("source_refs") or []),
-            }
-        )
+    append_unresolved_reply_receipt_errors(
+        confirmed_reply_receipts=confirmed_reply_receipts,
+        errors=errors,
+    )
 
     error_health = summarise_operational_error_health(
         errors,
@@ -4303,97 +4111,18 @@ def analyse(
         selected_window_end=selected_window_end,
         current_snapshot_authoritative=current_snapshot_authoritative,
     )
-    durably_reconciled_reply_receipts: List[Dict[str, Any]] = []
-    for incident in error_health.get("historical_resolved_incidents") or []:
-        if incident.get("category") != "remote_write_ambiguity_barrier":
-            continue
-        resolution_time = str(incident.get("resolution_time") or "")
-        try:
-            resolved_at = parse_dt(resolution_time)
-        except ValueError:
-            continue
-        for receipt_event in incident.get("correlated_reply_receipt_events") or []:
-            if not isinstance(receipt_event, dict):
-                continue
-            source_time = str(receipt_event.get("source_time") or "")
-            try:
-                source_at = parse_dt(source_time)
-            except ValueError:
-                continue
-            if source_at > resolved_at:
-                continue
-            durably_reconciled_reply_receipts.append(
-                {
-                    "lane": str(receipt_event.get("lane") or ""),
-                    "target_id": str(receipt_event.get("target_id") or ""),
-                    "source_time": source_time,
-                    "resolution_time": resolution_time,
-                    "resolution_reason": incident.get("resolution_reason"),
-                }
-            )
-    status_unavailable_reply_receipts: List[Dict[str, Any]] = []
-    for incident in error_health.get("resolution_unavailable_incidents") or []:
-        receipt_evidence = list(
-            incident.get("correlated_reply_receipt_events") or []
-        )
-        if (
-            not receipt_evidence
-            and incident.get("target_id")
-            and incident.get("lane")
-        ):
-            receipt_evidence = [
-                {
-                    "lane": str(item.get("lane") or ""),
-                    "target_id": str(item.get("target_id") or ""),
-                    "source_time": str(item.get("time") or ""),
-                }
-                for item in confirmed_reply_receipts
-                if item.get("kind") == "sending"
-                and str(item.get("target_id") or "")
-                == str(incident.get("target_id") or "")
-                and _normalise_lane(item.get("lane"))
-                == _normalise_lane(incident.get("lane"))
-            ]
-        for receipt_event in receipt_evidence:
-            status_unavailable_reply_receipts.append(
-                {
-                    "lane": str(receipt_event.get("lane") or ""),
-                    "target_id": str(receipt_event.get("target_id") or ""),
-                    "source_time": str(receipt_event.get("source_time") or ""),
-                    "reason": incident.get("resolution_reason"),
-                }
-            )
-    active_snapshot_reply_receipts: List[Dict[str, Any]] = []
-    for component in (
-        (current_remote_write_safety or {}).get(
-            "active_transaction_identities", []
-        )
-        or []
-    ):
-        if "conversational_confirmed_reply" not in (
-            component.get("receipt_roles") or []
-        ):
-            continue
-        lanes = [
-            str(lane)
-            for lane in component.get("lanes") or []
-            if str(lane) != "conversational_reply"
-        ] or [str(lane) for lane in component.get("lanes") or []]
-        active_snapshot_reply_receipts.append(
-            {
-                "transaction_ids": component.get("transaction_ids") or [],
-                "target_ids": component.get("target_ids") or [],
-                "lane": lanes[0] if len(lanes) == 1 else ", ".join(lanes),
-                "artifact_names": component.get("artifact_names") or [],
-                "receipt_role": "conversational_confirmed_reply",
-                "receipt_role_label": REMOTE_WRITE_RECEIPT_ROLE_LABELS[
-                    "conversational_confirmed_reply"
-                ],
-                "selected_window_relationship": component.get(
-                    "selected_window_relationship"
-                ),
-            }
-        )
+    (
+        durably_reconciled_reply_receipts,
+        status_unavailable_reply_receipts,
+        active_snapshot_reply_receipts,
+    ) = prepare_reply_receipt_recovery_reporting(
+        error_health=error_health,
+        current_remote_write_safety=current_remote_write_safety,
+        confirmed_reply_receipts=confirmed_reply_receipts,
+        parse_dt=parse_dt,
+        _normalise_lane=_normalise_lane,
+        REMOTE_WRITE_RECEIPT_ROLE_LABELS=REMOTE_WRITE_RECEIPT_ROLE_LABELS,
+    )
 
     # Build a short automatic headline around current health, not raw traceback volume.
     headline = []
