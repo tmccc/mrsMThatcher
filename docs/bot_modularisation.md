@@ -5004,3 +5004,64 @@ Production Git metadata remains `master` at
 configuration/state/credential or log-content reads, live providers, service or
 deployment actions occurred. Configured Astra/max is unchanged. Stage60 ends here
 for supervisor acceptance.
+
+## Stage 61 — Remote-write incident latching
+
+Baseline: `e81742f82460fa7d376d115db88ae058841dec56`, clean on
+`codex/bot-modularisation-stage61`; origin stage60 matched and stage61 was absent.
+Read all four supervisor inputs, the complete scope, three immutable originals,
+all 17 curated test bodies/decorators and required isolation/marker/lock helpers.
+Reused the checked stage60 extraction, reverse proof and test machinery.
+
+`mrs_bot_remote_write_incidents.py` owns **three bodies/docstrings, 124 original
+lines**. Three `_remote_write_incidents` adapters supply **7/7/8** current root
+dependencies with exact public signatures/defaults/deferred annotations. Both
+flags remain root; the two exact plain setters replace **seven assignments** at
+their original positions, removing **five global declarations**. Observation and
+incident latching precede acknowledgement, conversion and file work. Marker,
+incident identity, repeated conversions, hash/clock/log ordering, narrow catches
+and uncertainty clearing before retained SIGINT release remain exact. Existing
+primitive callbacks, resource ownership, durability/receipt/lock/protocol policy
+and unrelated root behavior are unchanged. README/API register the companion.
+
+Evidence: `/tmp/mrs-bot-stage61-BZqRcn1A`. Pre-edit documentation passed for **269
+modules**. Baseline: **19 explicit nodes across five files; 30 collected in 2.48s;
+30 passed in 3.76s**. Current: **31 explicit nodes across six files; 52 collected
+in 2.49s; 52 passed in 4.42s**, first run. The **12 new contract functions / 22
+cases** cover guarded import, current adapters/signatures/references, exact
+setters, mutation-before-error and marker/identity/hash/clock/release/log order.
+New tests reuse established receipt isolation. All curated assertions,
+parameterization, fixtures, temporary lock/socket and signal cleanup remain
+unchanged; loop ticks use mocked sleep and remote lanes.
+
+Both collections and runs used the preceding metadata-only production-log plugin;
+**all four metadata equality checks passed**, with open-FD assertions and other
+fixtures unchanged. Nonempty AST-validated selections and successful nonempty
+collection preceded pytest under `set -euo pipefail`, required Python/pytest flags,
+stage-local TMPDIR, temporary HOME/state, dummy credentials, dead proxies, denied
+external sockets and explicit loopback. No production log contents were read.
+
+`verify_stage61.py` / `comparison.txt` prove exact reversed body ASTs and body
+source, signatures, compiled dependencies, adapter forwarding and both exact
+setters without importing the bot. Reversing seven calls, reinserting the five
+declarations and removing only the verified helpers/import reconstructs the
+**entire immutable parent root byte for byte**, including **514 unaffected
+functions**. All **60 prior owners** and existing tests/fixtures are byte-identical.
+Post-edit documentation passed for **270 modules**; whitespace checks passed.
+This section is appended at actual EOF with the complete immutable parent report
+verified as a byte prefix. Passing runtime tests were not repeated after this
+report-only append.
+
+| Runtime file | Before lines / bytes | After lines / bytes |
+|---|---:|---:|
+| `mrsMThatcher2.py` | 10,793 / 435,430 | 10,732 / 433,566 |
+| `mrs_bot_remote_write_incidents.py` | absent | 160 / 5,959 |
+
+Root reduction: **61 lines / 1,864 bytes**. Combined runtime growth: **99 lines /
+4,095 bytes**. New tests: **473 lines / 21,664 bytes**. Full selections, logs,
+metadata, adapted proof machinery and sizes remain in the evidence directory.
+Production Git metadata remains `master` at
+`af5eda7c163a8174ec1365060aa923d21787e7bd`. No production execution, private
+configuration/state/credential reads, production locks/signals, live providers,
+service or deployment actions occurred. Configured Astra/max is unchanged.
+Stage61 ends for supervisor acceptance; no successor was launched.

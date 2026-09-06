@@ -216,6 +216,7 @@ deployed as a coherent set:
 - `mrs_bot_local_config.py`
 - `mrs_bot_observability.py`
 - `mrs_bot_safety_marker_snapshots.py`
+- `mrs_bot_remote_write_incidents.py`
 - `mrs_bot_instance_lock_checks.py`
 - `mrs_bot_installation_lifecycle.py`
 - `mrs_bot_transaction_recovery.py`
