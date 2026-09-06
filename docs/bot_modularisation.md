@@ -697,3 +697,111 @@ Review quotation/image used-history normalization and legacy migration checks,
 including catalog completeness and source identity checks. Keep durable I/O and
 receipt authority separate when deciding that boundary. The supervisor chooses
 the next stage in a fresh invocation; stage 6 implements none of it.
+
+## Stage 7 — ordinary quotation posting orchestration
+
+Baseline: `ea616adbd7b15038fa015d73d9d08b3ec13b3734` (2026-09-06).
+On `big-nas-2` as `tonym`, worktree
+`/disks/disk1/research/mrsMThatcher-bot-modularisation-stage7` started clean on
+`codex/bot-modularisation-stage7`; HEAD and the verified remote stage 6 branch
+matched that parent. Inspection reused the runtime map and followed the named
+workflow, its callers and affected tests.
+
+### Extraction and compatibility
+
+`mrs_bot_quote_posting.py` owns the complete original 711-line
+`post_random_quote` function. Its body is byte-identical, without dependency
+renames or branch/recovery refactoring. One root adapter preserves the public
+signature, defaults and annotations and passes 76 current dependencies:
+callbacks, configuration, logger, root exception/type authorities and the
+existing `engagement_question_trial` module. Standard-library `random` shares
+the existing stream. No callback retention, reverse import, dependency bag,
+provider client, new state/cache or import-time runtime work was introduced.
+
+The initial barrier, preflight clock/reconciliation and history snapshots retain
+their order. Experiment invalidation/defer/fallback, reservations and canonical
+versus public text remain intact. The nested upload validator retains its
+captured objects and all revalidation points. Three ordinary selection phases,
+random draws, upload shapes, payload/recovery fields, receipt handoff and SIGINT
+deferral are unchanged. Exact-body verification also preserves BaseException
+versus Exception handling, all six conditional `locals()` keys, pre-confirmation
+history restoration, pending-schedule/emergency recovery, context disposition,
+experiment evidence, event order and final receipt retirement.
+
+All six previous owners are byte-identical. Configuration, exception/type
+authority, bootstrap/CLI, transaction/transport/receipt/persistence implementations
+and scheduling helpers stay root. README's companion list and the Python API
+table include the new owner; digest documentation is unchanged.
+
+### Validation
+
+Evidence: `/tmp/mrs-bot-stage7-jMhZ3U`. The validated, nonempty
+`selected-tests.txt` contains **138 file/node arguments**, expanding to **268
+existing cases**: 81 unit-helper nodes (117 cases), outcome conservatism,
+unwritable-outbox preflight, engagement plan/binding/revalidation helpers and
+bot-review cases, cross-lane ambiguity/pending-receipt/SIGINT barriers,
+bootstrap/control and one-shot entry points, all six previous owner files,
+19 regular-lane adversarial transport/restart cases, and the loopback fake-server
+successful quote/image posting test. Unit coverage includes the three selection
+phases, AI flags, history restoration/invalid IDs, persistence and hard-death
+boundaries, emergency component/backup/fsync/latch failures, bound schedules,
+context disposition and no-second-post replay. Existing assertions and fixtures
+are unchanged; the huge unit file and broad README suite were not run wholesale.
+
+Before editing: documentation passed for **215 modules**, and **268 passed in
+44.17s**. After extraction: documentation passed for **216 modules**, and **275
+passed in 46.48s**. Four new tests expand to seven cases in
+`tests/test_bot_quote_posting.py`: guarded import/shared RNG, current adapter
+dependencies and argument/result/error identity, preflight/snapshot references,
+and ordinary/control/treatment posting through existing helpers with real
+binding/revalidation and local transaction persistence. They check closure object
+identity, all three validator calls, upload shape, random draw order and
+publication/context/retirement ordering. An initial new-test run failed because
+the existing receipt-isolation fixture was not imported; importing that fixture
+fixed all three failures without changing runtime code. The standalone corrected
+new-test run passed **7 cases in 2.59s**.
+
+All runs used conftest's temporary HOME/state, dummy credentials, dead external
+proxies, denied external network and explicitly allowed loopback fake APIs.
+Disposable scripts, fixtures and test TMPDIR stayed under the evidence directory.
+No production environment was sourced, live provider called, production state or
+credentials accessed, service controlled, or deployment performed.
+
+```bash
+set -euo pipefail
+export TMPDIR=/tmp/mrs-bot-stage7-jMhZ3U PYTHONUSERBASE=/home/tonym/.local
+export MRS_TEST_MODE=1 PYTEST_DISABLE_PLUGIN_AUTOLOAD=1 PYTHONDONTWRITEBYTECODE=1
+python3 tools/check_python_documentation.py
+python3 "$TMPDIR/select_tests.py"
+mapfile -t stage7_tests < "$TMPDIR/selected-tests.txt"
+(( ${#stage7_tests[@]} > 0 ))
+python3 -m pytest -q -p no:cacheprovider "${stage7_tests[@]}" tests/test_bot_quote_posting.py
+python3 "$TMPDIR/verify_stage7.py"
+git diff --check
+```
+
+Baseline omitted only the new test file and was preceded by successful selected
+collection (**268 cases**, `selected-collection.txt`). Logs use `baseline-` and
+`current-` prefixes. `comparison.txt` records the compact structural check adapted
+from stage 6: exact moved body, identical public signature, unshadowed conditional
+locals, explicit adapter references, standard-library-only imports, and the
+**entire parent root reconstructed byte-for-byte**, including **582 unaffected
+definitions**. Six prior owners, existing tests and digest documentation are
+unchanged. Comparison uses immutable `git show` and static source/ASTs; it never
+imports or runs the bot. Documentation and `git diff --check` passed.
+
+| Runtime file | Before lines / bytes | After lines / bytes |
+|---|---:|---:|
+| `mrsMThatcher2.py` | 27,720 / 1,074,171 | 27,091 / 1,048,165 |
+| `mrs_bot_quote_posting.py` | absent | 812 / 36,376 |
+
+The root loses **629 lines / 26,006 bytes**. Combined runtime source grows by
+**183 lines / 10,370 bytes** for explicit dependencies, the adapter and owner
+documentation. The six prior owners retain their stage 6 sizes.
+
+### Recommended next scope
+
+Consider daily meme posting orchestration (`post_next_meme`) as the next coherent
+workflow boundary, retaining root transaction, receipt, persistence and scheduling
+authority. The supervisor chooses the next scope in a fresh invocation; stage 7
+implements none of it.

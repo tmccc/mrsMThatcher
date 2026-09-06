@@ -170,6 +170,7 @@ deployed as a coherent set:
 - `mrs_bot_asset_metadata.py`
 - `mrs_bot_quote_candidates.py`
 - `mrs_bot_image_selection.py`
+- `mrs_bot_quote_posting.py`
 - `remote_write_safety_protocol.py`
 - `remote_media_upload_receipt.py`
 - `remote_write_transport_journal.py`
