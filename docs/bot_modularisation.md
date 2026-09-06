@@ -2977,3 +2977,82 @@ Next useful domain for supervisor assessment: tweet ID parsing/ordering around
 `parse_tweet_id` and `valid_tweets_sorted_by_id`, preserving validation, numeric
 deduplication and original tweet references. Only stage 31 is implemented;
 supervisor review precedes any further stage.
+
+## Stage 32 — Durable JSON file I/O primitives
+
+Baseline: `c0613d19a66ebcb503177e414847759258550d87` (2026-09-06).
+Worktree `/disks/disk1/research/mrsMThatcher-bot-modularisation-stage32` started
+clean on `codex/bot-modularisation-stage32`, matching the pushed stage 31 parent.
+The scope/dependency notes, all 29 candidate test bodies and relevant callers
+informed the selection.
+
+`mrs_bot_durable_json_io.py` owns **seven functions / 350 original definition
+lines**: `durable_state_namespace_is_owned_single_link_file`,
+`read_stable_owned_json_bytes_no_follow`, `fsync_parent_dir`, `atomic_write_json`,
+`_strict_receipt_json_bytes`, `load_receipt_json_no_follow` and
+`durable_create_receipt_json`. Seven explicit adapters pass **2, 5, 2, 5, 2, 6
+and 6 current root dependencies**, preserving exact bodies/docstrings and root
+signatures/defaults/annotations. The root predicate retains its definition-time
+`maximum_bytes=DURABLE_RUNTIME_JSON_MAX_BYTES`; the owner requires that parameter.
+Other modules, callbacks, limits, logger and exception classes remain current
+per call. No constants/classes move or runtime dependencies/descriptors persist.
+
+State and receipt permissions and metadata/byte checks remain distinct. Receipt
+JSON still rejects duplicates/nonfinite constants and requires exact canonical
+bytes; ordinary atomic JSON keeps its existing serializer behavior. Native
+errors/causes, finally-close, partial writes, cleanup on BaseException, replacement
+and fsync order remain exact, including strict parent fsync before exclusive
+receipt acknowledgement reads. Canonical serialization and all state, receipt,
+marker, business and persistence authority stay in their existing locations.
+The owner has no reverse application import or import-time runtime work.
+
+Evidence: `/tmp/mrs-bot-stage32-Q4ko5TWs`. Before editing, documentation passed for
+**240 modules**, **46 tests collected in 3.55s**, and **46 passed in 7.80s**
+(`baseline-pytest.txt`; **30 explicit nodes across seven files**). The 24 supplied
+candidates cover direct I/O, protected persistence/replay, state/backup loading,
+bootstrap rollback/sentinel, marker mutation/recovery and real blocked daemon
+ticks, including all three supplied loopbacks. Five overlapping or separately
+owned outbox/retirement candidates were omitted; used-history round trip and
+guarded bootstrap/process/network isolation complete the selection.
+
+After extraction, documentation passed for **241 modules**, **63 tests collected
+in 3.50s**, and **63 passed in 8.23s** (`current-pytest.txt`; **41 explicit nodes
+across eight files**). Eleven new tests / 17 cases cover guarded import, current
+dependencies/reference/error identity, the frozen default, distinct permissions,
+strict JSON causes, short reads/writes, descriptor closure and callback/fsync
+ordering. They register the existing autouse `isolate_regular_post_receipt`
+fixture. The first run had 60 passes and three new-test directory assumptions:
+the fixture creates protocol files in `tmp_path`. Dedicated subdirectories fixed
+those assertions without changing runtime code, existing tests or barriers
+(`current-initial-pytest.txt`).
+
+The reused `run_selected.sh` requires successful AST-validated nonempty selection
+and collection under `set -euo pipefail` before explicit pytest arguments. Runs
+use `PYTHONUSERBASE=/home/tonym/.local MRS_TEST_MODE=1
+PYTEST_DISABLE_PLUGIN_AUTOLOAD=1 PYTHONDONTWRITEBYTECODE=1 python3 -m pytest -q
+-p no:cacheprovider`, TMPDIR beneath the evidence root, temporary HOME/state,
+dummy credentials, dead proxies, denied external sockets and loopback APIs.
+Passing logs are retained; no broad suite or whole enormous test file ran, and
+passing tests were not repeated after documentation-only edits.
+
+`verify_stage32.py` / `comparison.txt` verify exact moved bodies, root signatures,
+required owner maximum and dependency inventories without importing the bot.
+Restoring the definitions and removing the new import reconstructs the complete
+parent root byte for byte, including **519 unaffected functions** and unrelated
+statements. All **31 earlier owners**, existing tests/fixtures and digest docs
+remain unchanged; README/API only add the companion and this report is appended.
+Final documentation and `git diff --check` pass.
+
+| Runtime file | Before lines / bytes | After lines / bytes |
+|---|---:|---:|
+| `mrsMThatcher2.py` | 19,100 / 750,287 | 18,829 / 740,593 |
+| `mrs_bot_durable_json_io.py` | absent | 432 / 14,671 |
+
+The root loses **271 lines / 9,694 bytes**; combined runtime source grows by
+**161 lines / 4,977 bytes**. The new test file has **377 lines / 16,603 bytes**.
+Production remains `master` at `af5eda7c163a8174ec1365060aa923d21787e7bd` per
+worktree metadata; no production changes, deployment or restart occurred.
+Next useful domain for supervisor assessment: tweet ID parsing/ordering around
+`parse_tweet_id` and `valid_tweets_sorted_by_id`, retaining numeric deduplication,
+validation/logging order and original tweet references. Only stage 32 is
+implemented; supervisor review precedes any further stage.
