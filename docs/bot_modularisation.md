@@ -363,3 +363,112 @@ current configuration/callback lookups and same-object filter return. Keep
 state updates, persistence and selector orchestration outside that proposed
 boundary. The supervisor chooses the next scope in a fresh invocation; stage3
 implements none of it.
+
+## Stage 4 — asset metadata and catalog
+
+Baseline: `768285697aed472fd4f3f56ec469be5d5438492c` (2026-09-06).
+On `big-nas-2` as `tonym`, worktree
+`/disks/disk1/research/mrsMThatcher-bot-modularisation-stage4` started clean on
+`codex/bot-modularisation-stage4`; HEAD and remote
+`origin/codex/bot-modularisation-stage3` matched that parent. The initial runtime
+map above remains applicable.
+
+### Extraction and compatibility
+
+`mrs_bot_asset_metadata.py` owns the sixteen selected helpers: JSON loading;
+quote whitespace/hash, recursive merge, overrides, analysis loading/lookup and
+source validation; image analysis loading/merging/lookup; original/configured
+generated image discovery; generated-basename origin identity; and meme indexing.
+Bodies retain parent order from lines 12723–13131, 18408–18423, 19674–19710 and
+20859–20887. Two aliases and fourteen explicit adapters retain every root name,
+signature, default and annotation. Current root helper/configuration/logger and
+`StaleImageMetadata` references are supplied per call, including recursive merge
+and quote normalisation/hash callbacks. The existing root `glob` seam remains;
+other standard-library dependencies use ordinary imports.
+
+JSON coercions/copy boundaries, exact override matching, ordinary schema
+equality, lazy fallbacks, sorted discovery/merge order, collisions, nested
+references and original log/error boundaries remain unchanged. Meme indexing
+retains default encoding and filename/path-basename/output-filename assignment
+order; source-hash warnings remain nonfatal.
+
+Eligibility, seasonal candidates, history migration, spacing/state updates,
+publishing and persistence stay in the root, including the excluded research,
+quote-lines and file/current-image hash helpers, all exceptions and configuration/
+cache authority. The three earlier owners are byte-identical. The new owner has
+no reverse bot import, stored callbacks, cache/state object or import-time work.
+README and `docs/python_api.md` include it; digest documentation is unchanged.
+
+### Validation
+
+Evidence is confined to `/tmp/mrs-bot-stage4-wxIg8q`. `selected-tests.txt` records
+51 file/node arguments covering metadata/overrides/hash/discovery/stale images,
+meme context, nearby selector/editorial/generated-policy interactions, all
+stage1–3 adapter/import tests, selection-harness identity/cache checks, production
+consistency identity, real-selector simulation, ordinary eligibility whitespace
+integrity, guarded bootstrap and loopback fake-server quote-image/meme posting.
+Existing assertions are unchanged; no complete broad suite was run.
+
+Before editing: documentation passed for **212 modules**; **77 tests passed in
+11.09s**. After extraction: documentation passed for **213 modules**; the same
+selection plus eleven new tests in `tests/test_bot_asset_metadata.py` produced
+**88 passed in 11.04s**. Added cases cover import safety, current adapters and
+recursive callbacks, lazy loading, schema equality, ordered discovery/logging,
+references and exception boundaries. Conftest retained temporary HOME/state,
+dummy credentials, dead proxies, denied external network and loopback fake APIs.
+Production environment/private state/configuration/credentials and service were
+untouched; no live provider calls occurred.
+
+```bash
+TMPDIR=/tmp/mrs-bot-stage4-wxIg8q PYTHONDONTWRITEBYTECODE=1 \
+  python3 tools/check_python_documentation.py
+mapfile -t stage4_tests < /tmp/mrs-bot-stage4-wxIg8q/selected-tests.txt
+TMPDIR=/tmp/mrs-bot-stage4-wxIg8q PYTHONUSERBASE=/home/tonym/.local \
+  MRS_TEST_MODE=1 PYTEST_DISABLE_PLUGIN_AUTOLOAD=1 PYTHONDONTWRITEBYTECODE=1 \
+  python3 -m pytest -q -p no:cacheprovider "${stage4_tests[@]}" \
+  tests/test_bot_asset_metadata.py
+TMPDIR=/tmp/mrs-bot-stage4-wxIg8q PYTHONDONTWRITEBYTECODE=1 \
+  python3 /tmp/mrs-bot-stage4-wxIg8q/verify_stage4.py
+git diff --check
+```
+
+The baseline omitted only the new test file. Logs are `baseline-documentation.txt`,
+`baseline-pytest.txt`, `current-documentation.txt` and `current-pytest.txt`.
+Adapted `verify_stage4.py` uses immutable `git show` source and private AST
+namespaces, never a live bot import. `comparison.txt` records:
+
+- All **16 moved bodies** match byte-for-byte after reversing nine configuration
+  names. All root signatures/defaults/annotations match. Restoring the definitions
+  and removing the import reconstructs the **entire parent root exactly**;
+  **571 unaffected definitions**, other root statements, all three prior owners,
+  existing tests and digest documentation are unchanged.
+- Four exact whitespace/UTF-8 hash cases and three generated-basename results;
+  partial overrides/warning order, JSON coercions/copy boundaries/native error;
+  metadata references, stale/hash-failure messages/context and nonfatal source
+  warning; ordered discovery/merge results, collisions, nested references and
+  error chaining; meme indexing/reference/default-encoding/error boundaries all
+  match. Assertions confirm the intended branches ran.
+- Documentation and `git diff --check` passed.
+
+| Runtime file | Before lines / bytes | After lines / bytes |
+|---|---:|---:|
+| `mrsMThatcher2.py` | 28,408 / 1,103,252 | 28,224 / 1,094,191 |
+| `mrs_bot_asset_metadata.py` | absent | 432 / 15,942 |
+| `mrs_bot_image_scoring.py` | 312 / 12,579 | 312 / 12,579 |
+| `mrs_bot_original_editorial.py` | 497 / 22,065 | 497 / 22,065 |
+| `mrs_bot_generated_identity.py` | 482 / 23,694 | 482 / 23,694 |
+
+The root loses **184 lines / 9,061 bytes**. Combined runtime source grows by
+**248 lines / 6,881 bytes** for explicit dependency signatures, adapters and owner
+documentation.
+
+### Recommended next scope
+
+Consider the remaining read-only image source/spacing helpers:
+`image_selection_observability`, `generated_image_spacing_required`,
+`original_posts_since_generated_image`, `generated_images_allowed_by_spacing`
+and `filter_generated_images_by_spacing`. They share source classification and
+spacing calculations; retain current root callbacks/settings and the same-object
+filter return. Keep state updates, persistence and selector orchestration outside
+that boundary. The supervisor selects the next scope in a fresh invocation;
+stage4 implements none of it.

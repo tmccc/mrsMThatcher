@@ -223,6 +223,7 @@ import engagement_question_experiment as engagement_question_trial
 import mrs_bot_image_scoring as _image_scoring
 import mrs_bot_original_editorial as _original_editorial
 import mrs_bot_generated_identity as _generated_identity
+import mrs_bot_asset_metadata as _asset_metadata
 
 from single_call_reply import (
     MAX_IMAGE_BYTES as SINGLE_CALL_MAX_IMAGE_BYTES,
@@ -12722,29 +12723,19 @@ TOKEN_STOPWORDS = {
 
 def load_json_object(path: Path, *, label: str) -> dict | None:
     """Load JSON object."""
-    try:
-        with open(path, "r", encoding="utf-8") as f:
-            data = json.load(f)
-    except FileNotFoundError:
-        log.warning("%s file missing: %s", label, path)
-        return None
-    except Exception:
-        log.exception("Failed loading %s file: %s", label, path)
-        return None
-    if not isinstance(data, dict):
-        log.warning("%s file is not a JSON object: %s", label, path)
-        return None
-    return data
+    return _asset_metadata.load_json_object(
+        path,
+        label=label,
+        log=log,
+    )
 
 
-def collapse_quote_whitespace(text: str) -> str:
-    """Collapse quote whitespace."""
-    return re.sub(r"\s+", " ", str(text or "").strip())
+collapse_quote_whitespace = _asset_metadata.collapse_quote_whitespace
 
 
 def quote_text_hash(text: str) -> str:
     """Return whether quote text hash."""
-    return hashlib.sha256(collapse_quote_whitespace(text).encode("utf-8")).hexdigest()
+    return _asset_metadata.quote_text_hash(text, collapse_quote_whitespace=collapse_quote_whitespace)
 
 
 def file_sha256(path: Path) -> str:
@@ -12758,149 +12749,63 @@ def file_sha256(path: Path) -> str:
 
 def deep_merge_dict(base: dict, patch: dict) -> dict:
     """Return the deep merge dict."""
-    merged = json.loads(json.dumps(base))
-    for key, value in patch.items():
-        if isinstance(value, dict) and isinstance(merged.get(key), dict):
-            merged[key] = deep_merge_dict(merged[key], value)
-        else:
-            merged[key] = json.loads(json.dumps(value))
-    return merged
+    return _asset_metadata.deep_merge_dict(
+        base,
+        patch,
+        deep_merge_dict=deep_merge_dict,
+    )
 
 
 def apply_quote_analysis_overrides(raw_analysis: dict, overrides: dict | None) -> dict:
     """Apply quote analysis overrides."""
-    if not overrides:
-        return raw_analysis
-
-    merged = json.loads(json.dumps(raw_analysis))
-    quote_overrides = overrides.get("quote_overrides", {})
-    if not isinstance(quote_overrides, dict):
-        log.warning("Quote analysis override file has invalid quote_overrides")
-        return merged
-
-    items = merged.get("items", {})
-    for quote_hash, override in quote_overrides.items():
-        if not isinstance(override, dict):
-            log.warning("Skipping quote override %s: override is not an object", quote_hash)
-            continue
-
-        item = items.get(str(quote_hash))
-        if not isinstance(item, dict):
-            log.warning("Skipping quote override %s: quote hash does not exist", quote_hash)
-            continue
-
-        expected_text = override.get("expected_text")
-        if expected_text is not None and expected_text != item.get("text"):
-            log.warning("Skipping quote override %s: expected_text does not match current quote text", quote_hash)
-            continue
-
-        line_numbers = {int(value) for value in item.get("line_numbers", []) if str(value).isdigit()}
-        expected_lines = override.get("expected_line_numbers", [])
-        try:
-            expected_line_numbers = {int(value) for value in expected_lines}
-        except Exception:
-            log.warning("Skipping quote override %s: expected_line_numbers is invalid", quote_hash)
-            continue
-        if not expected_line_numbers.issubset(line_numbers):
-            log.warning(
-                "Skipping quote override %s: expected lines %s not present in record lines %s",
-                quote_hash,
-                sorted(expected_line_numbers),
-                sorted(line_numbers),
-            )
-            continue
-
-        patch = override.get("analysis_patch")
-        if not isinstance(patch, dict):
-            log.warning("Skipping quote override %s: analysis_patch is not an object", quote_hash)
-            continue
-
-        analysis = item.get("analysis")
-        if not isinstance(analysis, dict):
-            log.warning("Skipping quote override %s: raw analysis is not an object", quote_hash)
-            continue
-        item["analysis"] = deep_merge_dict(analysis, patch)
-        log.info("Applied quote analysis override for hash=%s reason=%s", quote_hash, override.get("reason"))
-
-    return merged
+    return _asset_metadata.apply_quote_analysis_overrides(
+        raw_analysis,
+        overrides,
+        deep_merge_dict=deep_merge_dict,
+        log=log,
+    )
 
 
 def load_quote_analysis() -> dict | None:
     """Load validated quotation-analysis metadata and local overrides."""
-    raw = load_json_object(QUOTE_ANALYSIS_FILE, label="quote analysis")
-    if raw is None:
-        return None
-    if raw.get("analysis_kind") != "quotes":
-        log.error("Quote analysis file has unsupported analysis_kind=%r", raw.get("analysis_kind"))
-        return None
-    if raw.get("schema_version") != 2:
-        log.error("Quote analysis file has unsupported schema_version=%r", raw.get("schema_version"))
-        return None
-    if not isinstance(raw.get("items"), dict):
-        log.error("Quote analysis file has invalid or missing items object: %s", QUOTE_ANALYSIS_FILE)
-        return None
-    overrides = load_json_object(QUOTE_ANALYSIS_OVERRIDES_FILE, label="quote analysis override")
-    return apply_quote_analysis_overrides(raw, overrides)
+    return _asset_metadata.load_quote_analysis(
+        quote_analysis_file=QUOTE_ANALYSIS_FILE,
+        quote_analysis_overrides_file=QUOTE_ANALYSIS_OVERRIDES_FILE,
+        load_json_object=load_json_object,
+        apply_quote_analysis_overrides=apply_quote_analysis_overrides,
+        log=log,
+    )
 
 
 def load_image_analysis_file(path: Path, *, label: str) -> dict | None:
     """Load image analysis file."""
-    raw = load_json_object(path, label=label)
-    if raw is None:
-        return None
-    if raw.get("analysis_kind") != "images":
-        log.error("%s file has unsupported analysis_kind=%r", label, raw.get("analysis_kind"))
-        return None
-    if raw.get("schema_version") != 3:
-        log.error("%s file has unsupported schema_version=%r", label, raw.get("schema_version"))
-        return None
-    if not isinstance(raw.get("items"), dict) or not isinstance(raw.get("path_index"), dict):
-        log.error("%s file has invalid required structure: %s", label, path)
-        return None
-    return raw
+    return _asset_metadata.load_image_analysis_file(
+        path,
+        label=label,
+        load_json_object=load_json_object,
+        log=log,
+    )
 
 
 def merge_image_analysis(primary: dict, generated: dict | None) -> dict:
     """Merge image analysis."""
-    if not isinstance(generated, dict):
-        return primary
-
-    merged = dict(primary)
-    merged_path_index = dict(primary.get("path_index") or {})
-    merged_items = dict(primary.get("items") or {})
-    primary_paths = set(merged_path_index)
-
-    for basename, image_hash in sorted((generated.get("path_index") or {}).items()):
-        basename = str(basename)
-        image_hash = str(image_hash)
-        if basename in primary_paths:
-            log.warning("Skipping generated image metadata with basename collision: %s", basename)
-            continue
-        item = (generated.get("items") or {}).get(image_hash)
-        if not isinstance(item, dict):
-            log.warning("Skipping generated image metadata with missing item hash=%s basename=%s", image_hash, basename)
-            continue
-        merged_path_index[basename] = image_hash
-        merged_items.setdefault(image_hash, item)
-
-    merged["path_index"] = merged_path_index
-    merged["items"] = merged_items
-    return merged
+    return _asset_metadata.merge_image_analysis(
+        primary,
+        generated,
+        log=log,
+    )
 
 
 def load_image_analysis() -> dict | None:
     """Load original and, when enabled, generated image metadata."""
-    primary = load_image_analysis_file(IMAGE_ANALYSIS_FILE, label="image analysis")
-    if primary is None or not ENABLE_GENERATED_IMAGE_POOL:
-        return primary
-
-    generated_path = Path(str(GENERATED_IMAGE_ANALYSIS_FILE)).expanduser()
-    generated = load_image_analysis_file(generated_path, label="generated image analysis")
-    if generated is None:
-        log.warning("Generated image pool enabled but generated image analysis is unavailable; using original image pool only")
-        return primary
-
-    return merge_image_analysis(primary, generated)
+    return _asset_metadata.load_image_analysis(
+        image_analysis_file=IMAGE_ANALYSIS_FILE,
+        pool_enabled=ENABLE_GENERATED_IMAGE_POOL,
+        generated_image_analysis_file=GENERATED_IMAGE_ANALYSIS_FILE,
+        load_image_analysis_file=load_image_analysis_file,
+        merge_image_analysis=merge_image_analysis,
+        log=log,
+    )
 
 
 def mm_dd_in_window(mm_dd: str, start_mm_dd: str, end_mm_dd: str) -> bool:
@@ -12988,21 +12893,14 @@ def weighted_random_choice(candidates: list[dict]) -> dict:
 
 def quote_metadata_for_hash(quote_analysis: dict | None, quote_hash: str, text: str = "") -> dict | None:
     """Return whether quote metadata for hash."""
-    if not isinstance(quote_analysis, dict):
-        return None
-    item = (quote_analysis.get("items") or {}).get(str(quote_hash), {})
-    if not isinstance(item, dict):
-        log.warning("Quote metadata missing for current quote hash=%s text=%r", quote_hash, collapse_quote_whitespace(text)[:120])
-        return None
-    analysed_text = item.get("text")
-    if analysed_text is not None and quote_text_hash(str(analysed_text)) != quote_hash:
-        log.warning("Quote metadata stale for hash=%s: analysed text does not match hash", quote_hash)
-        return None
-    analysis = item.get("analysis")
-    if not isinstance(analysis, dict):
-        log.warning("Quote metadata missing analysis object for hash=%s", quote_hash)
-        return None
-    return analysis
+    return _asset_metadata.quote_metadata_for_hash(
+        quote_analysis,
+        quote_hash,
+        text,
+        collapse_quote_whitespace=collapse_quote_whitespace,
+        quote_text_hash=quote_text_hash,
+        log=log,
+    )
 
 
 def current_quote_hashes_by_line(lines: list[str]) -> dict[int, str]:
@@ -13086,49 +12984,24 @@ def save_quote_used_hashes(path: Path, value: set[str], *, durable: bool = False
 
 def validate_quote_analysis_against_lines(quote_analysis: dict, lines: list[str]) -> None:
     """Validate quote analysis against lines."""
-    source = quote_analysis.get("source", {}) if isinstance(quote_analysis.get("source"), dict) else {}
-    expected_source_sha = source.get("source_sha256")
-    if expected_source_sha:
-        current_source_sha = hashlib.sha256("".join(lines).encode("utf-8")).hexdigest()
-        if str(expected_source_sha) != current_source_sha:
-            log.warning(
-                "Quote source SHA differs from analysed source: current=%s analysed=%s; per-quote hashes will be used",
-                current_source_sha,
-                expected_source_sha,
-            )
+    return _asset_metadata.validate_quote_analysis_against_lines(
+        quote_analysis,
+        lines,
+        log=log,
+    )
 
 
 def current_image_paths() -> list[str]:
     """Return the current image paths."""
-    images = glob(IMAGE_GLOB)
-    images.sort()
-    result = [path for path in images if Path(path).is_file()]
-    if not ENABLE_GENERATED_IMAGE_POOL:
-        return result
-
-    generated_dir = Path(str(GENERATED_IMAGE_DIR)).expanduser()
-    generated_glob = str(generated_dir / str(GENERATED_IMAGE_GLOB))
-    try:
-        configured_generated = configured_generated_image_paths()
-    except ValueError as exc:
-        raise RuntimeError(
-            "Generated image pool contains an unsafe or unclassifiable file; "
-            "refusing to select from the pool"
-        ) from exc
-    generated_images = [str(path) for path in configured_generated.values()]
-    if not generated_images:
-        log.warning("Generated image pool enabled but no generated images found matching %s", generated_glob)
-        return result
-
-    seen_basenames = {Path(path).name for path in result}
-    for path in generated_images:
-        basename = Path(path).name
-        if basename in seen_basenames:
-            log.warning("Skipping generated image with basename collision: %s path=%s", basename, path)
-            continue
-        result.append(path)
-        seen_basenames.add(basename)
-    return result
+    return _asset_metadata.current_image_paths(
+        image_glob=IMAGE_GLOB,
+        pool_enabled=ENABLE_GENERATED_IMAGE_POOL,
+        generated_image_dir=GENERATED_IMAGE_DIR,
+        generated_image_glob=GENERATED_IMAGE_GLOB,
+        glob=glob,
+        configured_generated_image_paths=configured_generated_image_paths,
+        log=log,
+    )
 
 
 def save_image_used_basenames(path: Path, value: set[str], *, durable: bool = False) -> None:
@@ -18407,20 +18280,13 @@ generated_identity_numeric = _generated_identity.generated_identity_numeric
 
 def configured_generated_image_paths() -> dict[str, Path]:
     """Return the configured generated image paths."""
-    generated_dir = Path(str(GENERATED_IMAGE_DIR)).expanduser()
-    generated_glob = str(generated_dir / str(GENERATED_IMAGE_GLOB))
-    result: dict[str, Path] = {}
-    for path_text in sorted(glob(generated_glob)):
-        path = Path(path_text)
-        if not path.is_file() or not path_is_same_or_child(path, generated_dir):
-            continue
-        basename = path.name
-        if not generated_image_origin_quote_hash(basename):
-            raise ValueError(f"invalid generated image basename in configured pool: {basename}")
-        if basename in result:
-            raise ValueError(f"duplicate generated image basename in configured pool: {basename}")
-        result[basename] = path
-    return result
+    return _asset_metadata.configured_generated_image_paths(
+        generated_image_dir=GENERATED_IMAGE_DIR,
+        generated_image_glob=GENERATED_IMAGE_GLOB,
+        glob=glob,
+        path_is_same_or_child=path_is_same_or_child,
+        generated_image_origin_quote_hash=generated_image_origin_quote_hash,
+    )
 
 
 def validate_generated_identity_audit_item(basename: str, item: object, image_by_name: dict[str, Path]) -> dict:
@@ -19673,41 +19539,17 @@ def current_image_sha256(path: str) -> str:
 
 def image_metadata_for_basename(image_analysis: dict | None, basename: str, path: str | None = None) -> tuple[str | None, dict | None]:
     """Return the image metadata for basename."""
-    if not isinstance(image_analysis, dict):
-        return None, None
-    image_hash = (image_analysis.get("path_index") or {}).get(basename)
-    if not image_hash:
-        log.warning("Image %s is absent from image analysis; excluding until analysed", basename)
-        raise StaleImageMetadata(f"Image metadata missing for {basename}")
-    image_hash = str(image_hash)
-    if path is not None:
-        try:
-            current_hash = current_image_sha256(path)
-        except Exception:
-            log.exception("Could not hash current image for metadata validation: %s", path)
-            raise StaleImageMetadata(f"Image content could not be verified for {basename}")
-        if current_hash != image_hash:
-            log.warning(
-                "Image metadata stale for basename=%s: current_hash=%s analysed_hash=%s; excluding until reanalysed",
-                basename,
-                current_hash,
-                image_hash,
-            )
-            raise StaleImageMetadata(f"Image metadata stale for {basename}")
-    item = (image_analysis.get("items") or {}).get(str(image_hash), {})
-    analysis = item.get("analysis") if isinstance(item, dict) else None
-    if not isinstance(analysis, dict):
-        log.warning("Image %s has no valid per-image analysis for hash=%s; excluding until reanalysed", basename, image_hash)
-        raise StaleImageMetadata(f"Image analysis missing or invalid for {basename}")
-    return str(image_hash), analysis
+    return _asset_metadata.image_metadata_for_basename(
+        image_analysis,
+        basename,
+        path,
+        current_image_sha256=current_image_sha256,
+        StaleImageMetadata=StaleImageMetadata,
+        log=log,
+    )
 
 
-def generated_image_origin_quote_hash(basename: str) -> str | None:
-    """Return whether generated image origin quote hash."""
-    match = re.fullmatch(r"tg_([0-9a-fA-F]{64})\.[A-Za-z0-9]+", str(basename))
-    if not match:
-        return None
-    return match.group(1).lower()
+generated_image_origin_quote_hash = _asset_metadata.generated_image_origin_quote_hash
 
 
 def image_selection_observability(basename: str, quote_hash: object = None, origin_quote_boost: float = 0.0) -> dict:
@@ -20858,33 +20700,7 @@ def post_random_quote(lines_used: set, images_used: set, state: dict) -> None:
 
 def load_meme_analysis_index() -> dict[str, dict]:
     """Load meme analysis index."""
-    log.debug("Loading meme analysis from %s", MEME_ANALYSIS_FILE)
-
-    try:
-        with open(MEME_ANALYSIS_FILE, "r") as f:
-            data = json.load(f)
-    except Exception:
-        log.exception("Failed loading meme analysis file: %s", MEME_ANALYSIS_FILE)
-        return {}
-
-    index: dict[str, dict] = {}
-
-    for item in data.get("results", []):
-        filename = item.get("filename")
-        path = item.get("path")
-        output_filename = item.get("output_filename")
-
-        if filename:
-            index[str(filename)] = item
-
-        if path:
-            index[Path(str(path)).name] = item
-
-        if output_filename:
-            index[str(output_filename)] = item
-
-    log.info("Loaded meme analysis entries=%d", len(index))
-    return index
+    return _asset_metadata.load_meme_analysis_index(meme_analysis_file=MEME_ANALYSIS_FILE, log=log)
 
 
 def original_meme_filename(shortlist_path: Path) -> str:
