@@ -4355,3 +4355,70 @@ selections, source comparison, helper adaptations and metadata evidence remain
 in the evidence root. No production state/configuration/credential changes,
 service actions or live-provider calls occurred; configured Astra/max is
 unchanged. Only stage50 is implemented; supervisor review precedes the next stage.
+
+
+## Stage 51 — Installation setup, establishment and startup ledger recovery
+
+Baseline: `8eb76e4a1fff8999f96cbc4f25db44bf760baa57`, verified clean on
+`codex/bot-modularisation-stage51`; origin's stage50 matched and stage51 was
+absent. Only scoped supervisor inputs, immutable parent source and relevant
+stage50 helpers were reused; no prior conversations were loaded.
+
+`mrs_bot_installation_lifecycle.py` owns five exact bodies/docstrings spanning
+**344 original definition lines**. Five ordinary `_installation_lifecycle`
+adapters preserve public signatures/defaults/deferred annotations and forward
+**12/1/7/3/46** current dependencies. README/API add the companion. Establishment
+retains ordered repeated namespace probes, store-specific limits, backup fallback
+and deduplication. Recovery retains eager inspection, exact exchange states,
+activation-only narrow catches, one current authority and original path references;
+warning precedes establishment. Initialization retains its local formatter import,
+bootstrap/singleton-before-inventory order, exact namespace inventory, sentinel and
+rollback registration, state/history/outbox/genesis sequence, final durable marker,
+sentinel removal and strict sync. Exception-only rollback preserves reverse
+nonrecursive unlink, continued OSError diagnostics and native failure precedence.
+Root acquisition/bootstrap/store globals and protocol/receipt/storage/transport
+owners remain unchanged; no new activation, locks, policy, retries, catches,
+cleanup, retained authority, reverse imports or import-time runtime work.
+
+Evidence: `/tmp/mrs-bot-stage51-6xc0SPWM`. Pre-edit documentation passed for
+**259 modules**. All **21 curated candidates** plus three bootstrap/isolation
+checks formed an AST-validated baseline: **24 explicit nodes across four files;
+42 collected in 0.97s; 42 passed in 3.09s**. Current selection added **14 contract
+functions / 49 cases**: **38 explicit nodes across five files; 91 collected in
+2.28s; 91 passed in 5.64s**. Coverage includes actual temporary initialization,
+existing/unsafe namespace refusal, interruption, rollback and markerless legacy
+compatibility, exact recovery and invalid activation, actual main startup and a
+second interpreter that recovers the ledger while preserving owning retirement
+barriers and blocked remote lanes. Existing assertions, parametrization, fixtures
+and cleanup are unchanged; new contracts import autouse
+`isolate_regular_post_receipt`.
+
+Both baseline/current collection and pytest used the reviewed metadata-only guard
+with stage51 names and separate evidence. All four production-log metadata records
+have equal device/inode/size/mtime; open-descriptor assertions passed. Nonempty
+AST selection and collection preceded each run under `set -euo pipefail`, with the
+required user base/test mode and disabled plugin autoload/bytecode/cache. TMPDIR
+is beneath the evidence root; temporary HOME/state, dummy credentials, dead
+proxies, external socket denial and explicit loopback policy remain intact.
+
+`verify_stage51.py` / `comparison.txt` prove exact source/signatures/defaults,
+compiled dependency inventory and explicit forwarding without importing the bot.
+Whole-parent-root reconstruction is byte-identical, including **514 unaffected
+functions** and unrelated statements. All **50 earlier owners**, existing tests,
+fixtures and digest docs are unchanged. Post-edit documentation passed for
+**260 modules**; whitespace validation passed. Runtime/source checks were not
+repeated for this report-only edit.
+
+| Runtime file | Before lines / bytes | After lines / bytes |
+|---|---:|---:|
+| `mrsMThatcher2.py` | 12,956 / 516,497 | 12,711 / 508,197 |
+| `mrs_bot_installation_lifecycle.py` | absent | 441 / 16,990 |
+
+The root loses **245 lines / 8,300 bytes**; combined runtime source grows by
+**196 lines / 8,690 bytes**. New tests: **665 lines / 34,082 bytes**. Full logs,
+selections, source comparison, helper adaptations and metadata evidence remain in
+the evidence root. Production git metadata remains `master` at
+`af5eda7c163a8174ec1365060aa923d21787e7bd`; no production state/configuration/
+credential changes, log-content reads, service actions or live-provider calls
+occurred. Configured Astra/max is unchanged. Only stage51 is implemented;
+supervisor review precedes the next stage.
