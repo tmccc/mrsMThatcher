@@ -1,0 +1,703 @@
+"""Deliver conversational replies and manage their durable receipt lifecycle.
+
+Root adapters supply current helpers, paths, logger and exception authority on
+every call. Original bodies retain exact receipt/source binding, operation and
+error order, shallow references, conservative confirmation and fallback state
+completeness, and the existing SIGINT deferral boundaries.
+
+No-follow/create/replace/retire primitives, transport journals and mutation
+authority, create_post, runtime barriers, SIGINT guard implementation, state
+persistence, receipt values and reconciliation remain in their existing owners
+and are invoked through current root callbacks. Import uses only the standard
+library and performs no file, environment, provider or RNG work; no callbacks
+or configuration are retained.
+"""
+
+from __future__ import annotations
+
+import logging
+from collections.abc import Callable
+from pathlib import Path
+from types import ModuleType
+
+
+def load_confirmed_reply_receipt(
+    *,
+    load_receipt_json_no_follow: Callable,
+    CONFIRMED_REPLY_RECEIPT_FILE: Path,
+    log: logging.Logger,
+    sending_reply_receipt_is_semantically_valid: Callable,
+    _legacy_sending_reply_receipt_is_semantically_valid: Callable,
+    confirmed_reply_receipt_is_semantically_valid: Callable,
+    _legacy_confirmed_reply_receipt_is_semantically_valid: Callable,
+) -> tuple[str, dict | None]:
+    """Load confirmed reply receipt."""
+    try:
+        present, data = load_receipt_json_no_follow(
+            CONFIRMED_REPLY_RECEIPT_FILE
+        )
+    except Exception:
+        log.exception(
+            "Malformed or unsafe confirmed-reply receipt blocks auto-reply "
+            "processing until repaired: %s",
+            CONFIRMED_REPLY_RECEIPT_FILE,
+        )
+        return "invalid", None
+    if not present:
+        return "absent", None
+    if not isinstance(data, dict):
+        log.critical(
+            "Invalid confirmed-reply receipt blocks auto-reply processing until repaired: %s",
+            CONFIRMED_REPLY_RECEIPT_FILE,
+        )
+        return "invalid", None
+    if sending_reply_receipt_is_semantically_valid(data):
+        return "sending", data
+    if _legacy_sending_reply_receipt_is_semantically_valid(data):
+        return "legacy_sending", data
+    if not (
+        confirmed_reply_receipt_is_semantically_valid(data)
+        or _legacy_confirmed_reply_receipt_is_semantically_valid(data)
+    ):
+        log.critical(
+            "Semantically invalid confirmed-reply receipt blocks auto-reply processing until repaired: %s",
+            CONFIRMED_REPLY_RECEIPT_FILE,
+        )
+        return "invalid", data
+    return "valid", data
+
+
+def write_confirmed_reply_receipt(
+    receipt: dict,
+    *,
+    remote_receipt_retirement_is_blocking: Callable,
+    InvalidConfirmedReplyReceipt: type[Exception],
+    receipt_namespace_entry_exists: Callable,
+    CONFIRMED_REPLY_RECEIPT_FILE: Path,
+    confirmed_reply_receipt_is_semantically_valid: Callable,
+    durable_create_receipt_json: Callable,
+    log: logging.Logger,
+) -> None:
+    """Write confirmed reply receipt."""
+    if remote_receipt_retirement_is_blocking():
+        raise InvalidConfirmedReplyReceipt(
+            "Refusing confirmed-reply publication during source-receipt retirement"
+        )
+    if receipt_namespace_entry_exists(CONFIRMED_REPLY_RECEIPT_FILE):
+        raise InvalidConfirmedReplyReceipt(
+            f"Refusing to overwrite unresolved confirmed-reply receipt: {CONFIRMED_REPLY_RECEIPT_FILE}"
+        )
+    if not confirmed_reply_receipt_is_semantically_valid(receipt):
+        raise RuntimeError("Internal error: generated confirmed-reply receipt failed semantic validation")
+    try:
+        durable_create_receipt_json(CONFIRMED_REPLY_RECEIPT_FILE, receipt)
+    except FileExistsError as exc:
+        raise InvalidConfirmedReplyReceipt(
+            "Refusing to overwrite a confirmed-reply namespace entry which "
+            "appeared during publication"
+        ) from exc
+    log.warning(
+        "Wrote confirmed reply receipt pending local reconciliation source=%s target_id=%s reply_post_id=%s path=%s",
+        receipt.get("candidate_source", "mention"),
+        receipt.get("target_id"),
+        receipt.get("reply_post_id"),
+        CONFIRMED_REPLY_RECEIPT_FILE,
+    )
+
+
+def write_sending_reply_receipt(
+    receipt: dict,
+    *,
+    remote_receipt_retirement_is_blocking: Callable,
+    InvalidConfirmedReplyReceipt: type[Exception],
+    receipt_namespace_entry_exists: Callable,
+    CONFIRMED_REPLY_RECEIPT_FILE: Path,
+    sending_reply_receipt_is_semantically_valid: Callable,
+    durable_create_receipt_json: Callable,
+    log: logging.Logger,
+) -> None:
+    """Durably record a reply transaction before its remote create request."""
+    if remote_receipt_retirement_is_blocking():
+        raise InvalidConfirmedReplyReceipt(
+            "Refusing conversational-reply publication during source-receipt retirement"
+        )
+    if receipt_namespace_entry_exists(CONFIRMED_REPLY_RECEIPT_FILE):
+        raise InvalidConfirmedReplyReceipt(
+            "Refusing to overwrite unresolved conversational-reply receipt: "
+            f"{CONFIRMED_REPLY_RECEIPT_FILE}"
+        )
+    if not sending_reply_receipt_is_semantically_valid(receipt):
+        raise RuntimeError(
+            "Internal error: generated sending-reply receipt failed validation"
+        )
+    try:
+        durable_create_receipt_json(CONFIRMED_REPLY_RECEIPT_FILE, receipt)
+    except FileExistsError as exc:
+        raise InvalidConfirmedReplyReceipt(
+            "Refusing to overwrite a conversational-reply namespace entry "
+            "which appeared during publication"
+        ) from exc
+    log.warning(
+        "Wrote conversational reply sending receipt source=%s target_id=%s path=%s",
+        receipt.get("candidate_source", "mention"),
+        receipt.get("target_id"),
+        CONFIRMED_REPLY_RECEIPT_FILE,
+    )
+
+
+def promote_sending_reply_receipt(
+    sending_receipt: dict,
+    *,
+    reply_post_id: str,
+    confirmation_epoch: int,
+    load_confirmed_reply_receipt: Callable,
+    UnresolvedSendingReplyReceipt: type[Exception],
+    bind_confirmed_transport_source: Callable,
+    journal_path_for_receipt: Callable,
+    CONFIRMED_REPLY_RECEIPT_FILE: Path,
+    TRANSPORT_SOURCE_VALIDATOR_ID: str,
+    transport_source_semantic_validator: Callable,
+    canonical_atomic_json_bytes: Callable,
+    TransportJournalError: type[Exception],
+    _confirmed_reply_receipt_from_sending: Callable,
+    confirmed_reply_receipt_is_semantically_valid: Callable,
+    replace_bound_source_receipt: Callable,
+    transaction_mutation_authority: Callable,
+    log: logging.Logger,
+) -> dict:
+    """Atomically promote the exact prepared transaction to confirmed."""
+    status, current = load_confirmed_reply_receipt()
+    if status != "sending" or current != sending_receipt:
+        raise UnresolvedSendingReplyReceipt(
+            "Conversational reply sending receipt changed before confirmation"
+        )
+    recovery = bind_confirmed_transport_source(
+        journal_path=journal_path_for_receipt(CONFIRMED_REPLY_RECEIPT_FILE),
+        receipt_path=CONFIRMED_REPLY_RECEIPT_FILE,
+        validator_id=TRANSPORT_SOURCE_VALIDATOR_ID,
+        validator=transport_source_semantic_validator,
+    )
+    if (
+        recovery.details.lane != "conversational_reply"
+        or recovery.details.post_id != str(reply_post_id)
+        or recovery.details.confirmation_epoch != int(confirmation_epoch)
+        or recovery.source_binding.receipt_document != sending_receipt
+        or recovery.source_binding.receipt_bytes
+        != canonical_atomic_json_bytes(sending_receipt)
+    ):
+        raise TransportJournalError(
+            "confirmed conversational transport/source lineage changed"
+        )
+    confirmed = _confirmed_reply_receipt_from_sending(
+        sending_receipt,
+        reply_post_id=reply_post_id,
+        confirmation_epoch=confirmation_epoch,
+    )
+    if not confirmed_reply_receipt_is_semantically_valid(confirmed):
+        raise RuntimeError(
+            "Internal error: promoted confirmed-reply receipt failed validation"
+        )
+    replace_bound_source_receipt(
+        recovery.source_binding,
+        canonical_atomic_json_bytes(confirmed),
+        mutation_authority=transaction_mutation_authority(
+            "confirmed conversational source receipt promotion"
+        ),
+    )
+    log.warning(
+        "Promoted conversational reply receipt to confirmed source=%s "
+        "target_id=%s reply_post_id=%s path=%s",
+        confirmed.get("candidate_source", "mention"),
+        confirmed.get("target_id"),
+        confirmed.get("reply_post_id"),
+        CONFIRMED_REPLY_RECEIPT_FILE,
+    )
+    return confirmed
+
+
+def _promote_legacy_sending_reply_receipt_from_confirmed_transport(
+    sending_receipt: dict,
+    *,
+    reply_post_id: str,
+    confirmation_epoch: int,
+    load_confirmed_reply_receipt: Callable,
+    UnresolvedSendingReplyReceipt: type[Exception],
+    bind_confirmed_transport_source: Callable,
+    journal_path_for_receipt: Callable,
+    CONFIRMED_REPLY_RECEIPT_FILE: Path,
+    TRANSPORT_SOURCE_VALIDATOR_ID: str,
+    _legacy_conversational_transport_source_semantic_validator: Callable,
+    canonical_atomic_json_bytes: Callable,
+    TransportJournalError: type[Exception],
+    _confirmed_reply_receipt_from_sending: Callable,
+    _legacy_confirmed_reply_receipt_is_semantically_valid: Callable,
+    replace_bound_source_receipt: Callable,
+    transaction_mutation_authority: Callable,
+    log: logging.Logger,
+) -> dict:
+    """Promote a frozen source only when its exact journal proves success."""
+
+    status, current = load_confirmed_reply_receipt()
+    if status != "legacy_sending" or current != sending_receipt:
+        raise UnresolvedSendingReplyReceipt(
+            "Legacy conversational sending receipt changed before recovery"
+        )
+    recovery = bind_confirmed_transport_source(
+        journal_path=journal_path_for_receipt(CONFIRMED_REPLY_RECEIPT_FILE),
+        receipt_path=CONFIRMED_REPLY_RECEIPT_FILE,
+        validator_id=TRANSPORT_SOURCE_VALIDATOR_ID,
+        validator=_legacy_conversational_transport_source_semantic_validator,
+    )
+    if (
+        recovery.details.lane != "conversational_reply"
+        or recovery.details.post_id != str(reply_post_id)
+        or recovery.details.confirmation_epoch != int(confirmation_epoch)
+        or recovery.source_binding.receipt_document != sending_receipt
+        or recovery.source_binding.receipt_bytes
+        != canonical_atomic_json_bytes(sending_receipt)
+    ):
+        raise TransportJournalError(
+            "confirmed legacy conversational transport/source lineage changed"
+        )
+    confirmed = _confirmed_reply_receipt_from_sending(
+        sending_receipt,
+        reply_post_id=reply_post_id,
+        confirmation_epoch=confirmation_epoch,
+    )
+    if not _legacy_confirmed_reply_receipt_is_semantically_valid(confirmed):
+        raise RuntimeError(
+            "Internal error: promoted legacy reply receipt failed recovery validation"
+        )
+    replace_bound_source_receipt(
+        recovery.source_binding,
+        canonical_atomic_json_bytes(confirmed),
+        mutation_authority=transaction_mutation_authority(
+            "confirmed legacy conversational source receipt promotion"
+        ),
+    )
+    log.warning(
+        "Promoted legacy conversational reply receipt from exact confirmed "
+        "transport source=%s target_id=%s reply_post_id=%s path=%s",
+        confirmed.get("candidate_source", "mention"),
+        confirmed.get("target_id"),
+        confirmed.get("reply_post_id"),
+        CONFIRMED_REPLY_RECEIPT_FILE,
+    )
+    return confirmed
+
+
+def remove_confirmed_reply_receipt(
+    receipt: dict,
+    *,
+    sending_disposition: str | None = None,
+    CONFIRMED_REPLY_RECEIPT_FILE: Path,
+    json: ModuleType,
+    InvalidConfirmedReplyReceipt: type[Exception],
+    retire_current_source_receipt: Callable,
+    canonical_atomic_json_bytes: Callable,
+    log: logging.Logger,
+) -> None:
+    """Retire one exact conversational-reply source receipt."""
+
+    with open(CONFIRMED_REPLY_RECEIPT_FILE, "r", encoding="utf-8") as handle:
+        current = json.load(handle)
+    if current != receipt:
+        raise InvalidConfirmedReplyReceipt(
+            "Refusing to remove a conversational-reply receipt whose "
+            "transaction identity changed"
+        )
+    if receipt.get("lifecycle_state") == "sending":
+        if sending_disposition not in {
+            "definite_non_success",
+            "confirmed_state_fallback",
+        }:
+            raise ValueError(
+                "Removing a sending reply receipt requires an explicit disposition"
+            )
+    elif sending_disposition is not None:
+        raise ValueError("A confirmed reply receipt cannot use a sending disposition")
+    retire_current_source_receipt(
+        CONFIRMED_REPLY_RECEIPT_FILE,
+        canonical_atomic_json_bytes(receipt),
+    )
+    if receipt.get("lifecycle_state") == "sending":
+        log.warning(
+            "Removed conversational reply sending receipt disposition=%s "
+            "source=%s target_id=%s path=%s",
+            sending_disposition,
+            receipt.get("candidate_source", "mention"),
+            receipt.get("target_id"),
+            CONFIRMED_REPLY_RECEIPT_FILE,
+        )
+    else:
+        log.info(
+            "Removed reconciled confirmed-reply receipt source=%s target_id=%s "
+            "reply_post_id=%s path=%s",
+            receipt.get("candidate_source", "mention"),
+            receipt.get("target_id"),
+            receipt.get("reply_post_id"),
+            CONFIRMED_REPLY_RECEIPT_FILE,
+        )
+
+
+def retire_proved_rejected_conversational_reply_receipt(
+    receipt: dict,
+    error: ProvedRemotePostNonSuccess,
+    *,
+    ProvedRemotePostNonSuccess: type[Exception],
+    api_error_is_reply_not_allowed: Callable,
+    sending_reply_receipt_is_semantically_valid: Callable,
+    reply_create_rejection_payload: Callable,
+    claim_reply_create_rejection_for_receipt_retirement: Callable,
+    CONFIRMED_REPLY_RECEIPT_FILE: Path,
+    remove_confirmed_reply_receipt: Callable,
+    record_ambiguous_remote_post: Callable,
+    ConfirmedReplyLocalPersistenceError: type[Exception],
+) -> None:
+    """Retire the exact sending receipt after terminal state is durable."""
+
+    if (
+        not isinstance(error, ProvedRemotePostNonSuccess)
+        or not api_error_is_reply_not_allowed(error)
+        or not sending_reply_receipt_is_semantically_valid(receipt)
+    ):
+        raise ValueError(
+            "conversational receipt retirement requires a proved target rejection"
+        )
+    payload = reply_create_rejection_payload(
+        error.remote_non_success_proof
+    )
+    if (
+        payload is None
+        or str(payload.get("text") or "") != str(receipt.get("reply_text") or "")
+        or str((payload.get("reply") or {}).get("in_reply_to_tweet_id") or "")
+        != str(receipt.get("target_id") or "")
+        or payload.get("media") is not None
+    ):
+        raise ValueError(
+            "proved target rejection no longer binds the conversational receipt"
+        )
+    try:
+        if not claim_reply_create_rejection_for_receipt_retirement(
+            error.remote_non_success_proof,
+            target_id=str(receipt.get("target_id") or ""),
+            receipt_path=CONFIRMED_REPLY_RECEIPT_FILE,
+            receipt=receipt,
+        ):
+            raise ValueError(
+                "proved target rejection was not retired by its exact transport"
+            )
+        remove_confirmed_reply_receipt(
+            receipt,
+            sending_disposition="definite_non_success",
+        )
+    except BaseException as retirement_error:
+        # Terminal state was saved before this call, so the target cannot be
+        # retried.  Still preserve a durable global barrier for any uncertain
+        # receipt namespace transition instead of pretending the transaction
+        # is wholly clear.
+        record_ambiguous_remote_post(payload)
+        if not isinstance(retirement_error, Exception):
+            raise
+        raise ConfirmedReplyLocalPersistenceError(
+            "A proved-rejected conversational reply left its sending receipt "
+            "retirement unresolved"
+        ) from retirement_error
+
+
+def post_conversational_reply_with_durable_identity(
+    *,
+    state: dict,
+    receipt_template: dict,
+    reply_text: str,
+    reply_to_id: str,
+    made_with_ai: bool,
+    lane: str,
+    sending_reply_receipt_is_semantically_valid: Callable,
+    receipt_namespace_entry_exists: Callable,
+    CONFIRMED_REPLY_RECEIPT_FILE: Path,
+    InvalidConfirmedReplyReceipt: type[Exception],
+    block_if_ambiguous_remote_post: Callable,
+    write_sending_reply_receipt: Callable,
+    begin_confirmed_post_sigint_deferral: Callable,
+    create_post: Callable,
+    AmbiguousRemotePostOutcome: type[Exception],
+    end_confirmed_post_sigint_deferral: Callable,
+    record_api_error: Callable,
+    save_state: Callable,
+    log: logging.Logger,
+    RemoteOperationsPaused: type[Exception],
+    remove_confirmed_reply_receipt: Callable,
+    ConfirmedReplyLocalPersistenceError: type[Exception],
+    ProvedRemotePostNonSuccess: type[Exception],
+    ApiError: type[Exception],
+    inspect_confirmed_transport_transaction: Callable,
+    journal_path_for_receipt: Callable,
+    _reply_confirmation_epoch_after_remote_success: Callable,
+    _confirmed_reply_receipt_from_sending: Callable,
+    confirmed_reply_receipt_is_semantically_valid: Callable,
+    promote_sending_reply_receipt: Callable,
+    apply_confirmed_reply_receipt: Callable,
+    StateBackupWriteError: type[Exception],
+    json_file_matches: Callable,
+    STATE_FILE: Path,
+    confirmed_reply_emergency_representation_is_complete: Callable,
+    latch_confirmed_post_persistence_failure: Callable,
+    load_confirmed_reply_receipt: Callable,
+    retain_sigint_deferral_without_durable_barrier: Callable,
+    UnrecoverableConfirmedReplyPersistenceError: type[Exception],
+    retire_lane_transport_journal_if_present: Callable,
+) -> tuple[dict, dict]:
+    """Create a conversational reply and durably bind its remote identity.
+
+    A controlled SIGINT is deferred from the first remote-create instruction
+    until either the confirmed-reply receipt, a complete canonical state
+    fallback, or the global manual-reconciliation barrier is durable.
+    """
+    if "reply_post_id" in receipt_template:
+        raise ValueError("reply receipt template must not contain reply_post_id")
+    if (
+        type(receipt_template.get("schema_version")) is not int
+        or receipt_template.get("schema_version") != 4
+    ):
+        raise RuntimeError(
+            "Conversational X writes require a current schema-v4 source receipt"
+        )
+    # The reply text may be an ``AIReply`` string subclass whose constructor
+    # requires provenance arguments, so ``deepcopy`` cannot reconstruct it.
+    # Callers have already copied every mutable nested payload placed in the
+    # template; a fresh outer mapping is sufficient and preserves the exact
+    # reviewed string object for draft validation.
+    receipt_template = dict(receipt_template)
+    if (
+        not sending_reply_receipt_is_semantically_valid(receipt_template)
+        or str(receipt_template.get("candidate_source") or "") != str(lane)
+    ):
+        raise RuntimeError(
+            "Refusing conversational X write with an invalid reply receipt template"
+        )
+
+    # Preserve the receipt-specific error for an already unresolved reply, but
+    # do not create a new competing reply receipt while a confirmed main post
+    # is represented by a local-only pending-schedule obligation.
+    if receipt_namespace_entry_exists(CONFIRMED_REPLY_RECEIPT_FILE):
+        raise InvalidConfirmedReplyReceipt(
+            "Refusing to overwrite unresolved conversational-reply receipt: "
+            f"{CONFIRMED_REPLY_RECEIPT_FILE}"
+        )
+    block_if_ambiguous_remote_post()
+    write_sending_reply_receipt(receipt_template)
+    sigint_guard = begin_confirmed_post_sigint_deferral()
+    try:
+        response = create_post(
+            # ``AIReply`` is a provenance-bearing ``str`` subclass.  The
+            # transport journal intentionally accepts only exact JSON scalar
+            # types, so cross this authority boundary with an ordinary string.
+            text=str(reply_text),
+            media_ids=None,
+            reply_to_id=reply_to_id,
+            made_with_ai=made_with_ai,
+            prepared_conversational_reply_receipt=receipt_template,
+        )
+    except AmbiguousRemotePostOutcome as exc:
+        # The pre-send receipt is itself the restart-safe ambiguity barrier,
+        # including when create_post could not write its global marker.
+        end_confirmed_post_sigint_deferral(sigint_guard)
+        try:
+            record_api_error(state, exc, "x", scope="write")
+            save_state(state)
+        except Exception:
+            log.critical(
+                "The conversational reply sending receipt is durable, but "
+                "write-error bookkeeping could not be persisted",
+                exc_info=True,
+            )
+        raise
+    except RemoteOperationsPaused:
+        # The runtime-control check is local and occurs before transmission.
+        try:
+            remove_confirmed_reply_receipt(
+                receipt_template,
+                sending_disposition="definite_non_success",
+            )
+        except Exception as removal_error:
+            end_confirmed_post_sigint_deferral(sigint_guard)
+            raise ConfirmedReplyLocalPersistenceError(
+                "A definitely failed conversational reply left its durable "
+                "sending receipt unresolved"
+            ) from removal_error
+        end_confirmed_post_sigint_deferral(sigint_guard)
+        raise
+    except ProvedRemotePostNonSuccess:
+        # create_post has already retired the exact consumed journal/fence.
+        # Keep the sending receipt until the lane durably records its terminal
+        # target outcome, then let that lane retire the receipt explicitly.
+        end_confirmed_post_sigint_deferral(sigint_guard)
+        raise
+    except ApiError as remote_error:
+        # No provider-contract evidence makes a post-transmission HTTP status a
+        # proof of non-creation.  Preserve the durable sending receipt and
+        # require reconciliation rather than authorising another reply.
+        end_confirmed_post_sigint_deferral(sigint_guard)
+        try:
+            record_api_error(state, remote_error, "x", scope="write")
+            save_state(state)
+        except Exception:
+            log.critical(
+                "The conversational reply sending receipt is durable, but "
+                "write-error bookkeeping could not be persisted",
+                exc_info=True,
+            )
+        raise AmbiguousRemotePostOutcome(
+            "Conversational reply received a post-transmission error whose "
+            "remote-create outcome is unproved; its sending receipt remains",
+            service="x",
+            status_code=remote_error.status_code,
+            request_method=remote_error.request_method,
+            request_path=remote_error.request_path,
+        ) from remote_error
+    except BaseException as remote_error:
+        # Any unclassified interruption may have happened after bytes reached
+        # X. Preserve the pre-send receipt as a restart-safe manual
+        # reconciliation barrier. In particular, never discard it for
+        # KeyboardInterrupt/SystemExit or an unexpected transport exception.
+        end_confirmed_post_sigint_deferral(sigint_guard)
+        if not isinstance(remote_error, Exception):
+            raise
+        raise AmbiguousRemotePostOutcome(
+            "Conversational reply execution was interrupted with an unclassified "
+            "remote outcome; its durable sending receipt requires reconciliation",
+            service="x",
+        ) from remote_error
+
+    try:
+        own_reply_id = str(response.get("data", {}).get("id") or "")
+        transport_confirmation = inspect_confirmed_transport_transaction(
+            journal_path_for_receipt(CONFIRMED_REPLY_RECEIPT_FILE)
+        )
+        if transport_confirmation.post_id != own_reply_id:
+            raise AmbiguousRemotePostOutcome(
+                "Confirmed conversational reply identity differs from its journal",
+                service="x",
+            )
+        confirmation_epoch = _reply_confirmation_epoch_after_remote_success(
+            receipt_template,
+            transport_confirmation.confirmation_epoch,
+        )
+        receipt = _confirmed_reply_receipt_from_sending(
+            receipt_template,
+            reply_post_id=own_reply_id,
+            confirmation_epoch=confirmation_epoch,
+        )
+    except BaseException as identity_error:
+        # create_post has already left the exact sending receipt and confirmed
+        # transport journal durable.  Restore controlled-stop handling without
+        # permitting an automatic retry of this remote outcome.
+        end_confirmed_post_sigint_deferral(sigint_guard)
+        if not isinstance(identity_error, Exception):
+            raise
+        raise AmbiguousRemotePostOutcome(
+            "Conversational reply returned from transport but its confirmed "
+            "identity could not be derived safely; durable barriers remain",
+            service="x",
+        ) from identity_error
+    try:
+        if not confirmed_reply_receipt_is_semantically_valid(receipt):
+            raise RuntimeError(
+                "Internal error: confirmed reply representation failed validation"
+            )
+        receipt = promote_sending_reply_receipt(
+            receipt_template,
+            reply_post_id=own_reply_id,
+            confirmation_epoch=confirmation_epoch,
+        )
+    except BaseException as receipt_error:
+        fallback_error: BaseException | None = None
+        fallback_complete = False
+        try:
+            if not confirmed_reply_receipt_is_semantically_valid(receipt):
+                raise InvalidConfirmedReplyReceipt(
+                    "Refusing to apply an invalid confirmed reply representation"
+                )
+            apply_confirmed_reply_receipt(state, receipt)
+            try:
+                save_state(state, durable=True)
+            except StateBackupWriteError:
+                if not json_file_matches(STATE_FILE, state):
+                    raise
+                log.warning(
+                    "Confirmed conversational reply canonical state was committed, "
+                    "but its latest backup write failed; using canonical state as "
+                    "the durable replay barrier",
+                    exc_info=True,
+                )
+            fallback_complete = bool(
+                confirmed_reply_emergency_representation_is_complete(
+                    receipt,
+                    state,
+                )
+                and json_file_matches(STATE_FILE, state)
+            )
+        except BaseException as exc:
+            fallback_error = exc
+            log.critical(
+                "Confirmed conversational reply id=%s target=%s lost its receipt "
+                "and emergency state save",
+                own_reply_id,
+                reply_to_id,
+                exc_info=True,
+            )
+
+        if not fallback_complete:
+            durable_marker_written = latch_confirmed_post_persistence_failure(
+                lane=lane,
+                post_id=own_reply_id,
+                failure_components=[
+                    "confirmed_reply_receipt",
+                    "reply_state",
+                ],
+            )
+            status, current_receipt = load_confirmed_reply_receipt()
+            if (
+                durable_marker_written
+                or status == "invalid"
+                or (status == "sending" and current_receipt == receipt_template)
+            ):
+                end_confirmed_post_sigint_deferral(sigint_guard)
+            else:
+                retain_sigint_deferral_without_durable_barrier(
+                    lane=lane,
+                    guard=sigint_guard,
+                )
+            raise UnrecoverableConfirmedReplyPersistenceError(
+                f"Confirmed conversational reply {own_reply_id} to "
+                f"{reply_to_id} has no complete durable recovery representation"
+            ) from (fallback_error or receipt_error)
+
+        try:
+            retire_lane_transport_journal_if_present(
+                receipt_path=CONFIRMED_REPLY_RECEIPT_FILE,
+                receipt=receipt_template,
+                lane="conversational_reply",
+                post_id=own_reply_id,
+            )
+            remove_confirmed_reply_receipt(
+                receipt_template,
+                sending_disposition="confirmed_state_fallback",
+            )
+        except Exception as removal_error:
+            end_confirmed_post_sigint_deferral(sigint_guard)
+            raise ConfirmedReplyLocalPersistenceError(
+                f"Confirmed conversational reply {own_reply_id} to {reply_to_id} "
+                "was preserved in canonical state but its sending receipt remains"
+            ) from removal_error
+        end_confirmed_post_sigint_deferral(sigint_guard)
+        if not isinstance(receipt_error, Exception):
+            raise
+        raise ConfirmedReplyLocalPersistenceError(
+            f"Confirmed conversational reply {own_reply_id} to {reply_to_id} "
+            "but failed writing its recovery receipt"
+        ) from receipt_error
+
+    end_confirmed_post_sigint_deferral(sigint_guard)
+    return response, receipt

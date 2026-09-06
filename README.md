@@ -177,6 +177,7 @@ deployed as a coherent set:
 - `mrs_bot_reply_generation.py`
 - `mrs_bot_reply_receipt_values.py`
 - `mrs_bot_reply_reconciliation.py`
+- `mrs_bot_reply_delivery.py`
 - `remote_write_safety_protocol.py`
 - `remote_media_upload_receipt.py`
 - `remote_write_transport_journal.py`

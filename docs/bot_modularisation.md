@@ -1490,3 +1490,107 @@ Next useful domain: review `terminal_reply_evaluation`,
 `record_terminal_reply_evaluation` and `prune_reply_evaluation_records`, retaining
 mention-quarantine policy and durable persistence authority in their existing
 locations. The supervisor chooses the next stage in a fresh invocation.
+
+## Stage 14 — conversational reply delivery and receipt lifecycle
+
+Baseline: `d7a5d69d574384a613800502e34b92514f96b590` (2026-09-06).
+Worktree `/disks/disk1/research/mrsMThatcher-bot-modularisation-stage14` started
+clean on `codex/bot-modularisation-stage14`, matching the verified pushed stage
+13 parent. Inspection used the supervisor's eight-function dependency inventory,
+all fifty-six direct test candidates and the indirect namespace, promotion,
+source-lineage, recovery and mention/quote-tweet callers.
+
+`mrs_bot_reply_delivery.py` owns `load_confirmed_reply_receipt`,
+`write_confirmed_reply_receipt`, `write_sending_reply_receipt`,
+`promote_sending_reply_receipt`,
+`_promote_legacy_sending_reply_receipt_from_confirmed_transport`,
+`remove_confirmed_reply_receipt`,
+`retire_proved_rejected_conversational_reply_receipt` and
+`post_conversational_reply_with_durable_identity`. All **559 original definition
+lines** retain byte-identical bodies/docstrings. Eight explicit root adapters
+preserve names, signatures, defaults and annotations, passing current callbacks,
+paths, JSON module, logger and exception authority on each call. Import uses
+only the standard library, performs no file/environment/provider/RNG work and
+retains no callbacks or configuration.
+
+The move preserves no-follow loading and validation order, namespace/retirement
+checks before publication, exact current/legacy confirmed-source binding,
+projection/validation/replacement order, and the original `open`/`json.load`
+removal design. Proved rejection still claims before removal and records
+ambiguity before native interrupts or errors with their original causes.
+Delivery retains schema4/lane restrictions, shallow templates and reviewed
+string references, ordinary transport text, durable sending before SIGINT
+deferral, distinct remote-error handling, journal identity/time confirmation,
+canonical fallback and backup completeness, guard retention/release conditions,
+and journal-before-receipt retirement. Normal return keeps the original objects.
+
+Shared I/O primitives, journals/source binding and mutation authority,
+`create_post`, runtime barriers, SIGINT implementation, persistence, receipt
+values and state application/reconciliation stay in their existing locations.
+All thirteen previous owners and existing tests/fixtures remain unchanged;
+README and the Python API table add the companion. Digest documentation is
+unchanged. No I/O strategy, retry policy, configuration, state/schema or
+transaction authority changed.
+
+Evidence: `/tmp/mrs-bot-stage14-htmwFN`. The validated nonempty baseline has
+**87 file/node arguments across 21 files**: all thirteen prior owner files
+(**145 cases**), full legacy conversational recovery using all four data fixtures
+(**31**), affected unit cases (**64**), write outcomes (**20**), lineage (**4**),
+namespace (**9**), guarded bootstrap (**8**), four conversational crash/restart
+nodes (**4**) and loopback integrations (**5**). These include normal mention
+and quote-tweet delivery, both restart duplicate-suppression paths, target
+rejection, generic403/invalid-envelope outcomes, SIGINT recovery, exact-source
+ABA/replacement and cleanup fsync barriers. Large unit/integration files were selected only by affected
+nodes; no complete broad suite ran.
+
+Before editing: documentation passed for **222 modules**, **290 cases** collected
+in **5.15s**, and **290 passed in 24.34s**. After extraction: documentation passed
+for **223 modules**, **310 cases** collected in **5.09s**, and **310 passed in
+25.73s**, on the first run. Twelve new tests expand to **20 cases** for guarded
+import, current dependencies, receipt references/operation order, shallow
+`AIReply` delivery, pause/rejection error causes, canonical backup fallback and
+retained SIGINT when receipt/marker durability is lost. They reuse
+`unit_sending_v4_reply_receipt`, `install_receipt_bound_x_request_stub` and the
+real transaction authorities, with both relevant autouse isolation/reset
+fixtures registered. Existing assertions and barriers were preserved.
+
+```bash
+set -euo pipefail
+bash /tmp/mrs-bot-stage14-htmwFN/run_selected.sh baseline  # before editing
+bash /tmp/mrs-bot-stage14-htmwFN/run_selected.sh current-initial
+PYTHONDONTWRITEBYTECODE=1 python3 /tmp/mrs-bot-stage14-htmwFN/verify_stage14.py
+PYTHONDONTWRITEBYTECODE=1 python3 tools/check_python_documentation.py
+git diff --check
+```
+
+The runner sets `PYTHONUSERBASE=/home/tonym/.local`, `MRS_TEST_MODE=1`,
+`PYTEST_DISABLE_PLUGIN_AUTOLOAD=1`, `PYTHONDONTWRITEBYTECODE=1` and an evidence-root
+`TMPDIR`; selection generation, nonempty validation and successful collection
+precede `python3 -m pytest -q -p no:cacheprovider` with explicit selected nodes.
+Temporary HOME/state, dummy credentials, dead proxies, denied external sockets
+and explicit loopback fake APIs remain active. Production remains `master` at
+`af5eda7c163a8174ec1365060aa923d21787e7bd` per worktree metadata; its private
+configuration/state/credentials and service were not accessed or operated on.
+No live provider calls, production deployment/restart or next-stage work ran.
+
+`comparison.txt` verifies exact moved bodies/docstrings, signatures/defaults/
+annotations, dependency inventory and current-root forwarding. Restoring the
+eight definitions and removing one import reconstructs the **entire immutable
+parent root byte-for-byte**, including **567 unaffected definitions** and every
+unrelated statement. All thirteen previous owners, existing tests/fixtures and
+unrelated files match the parent. Verification uses static source/AST and
+`git show`, without importing the bot. Documentation and `git diff --check` pass.
+
+| Runtime file | Before lines / bytes | After lines / bytes |
+|---|---:|---:|
+| `mrsMThatcher2.py` | 24,687 / 962,579 | 24,306 / 948,149 |
+| `mrs_bot_reply_delivery.py` | absent | 703 / 29,657 |
+
+The root loses **381 lines / 14,430 bytes**; combined runtime source grows by
+**322 lines / 15,227 bytes** for explicit dependency signatures, adapters and
+owner documentation. All thirteen previous owner sizes remain unchanged.
+
+Next useful domain: review `terminal_reply_evaluation`,
+`record_terminal_reply_evaluation` and `prune_reply_evaluation_records`, keeping
+mention-quarantine policy and durable persistence authority in their existing
+locations. Supervisor review precedes any next stage in a fresh invocation.
