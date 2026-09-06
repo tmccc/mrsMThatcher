@@ -2379,3 +2379,80 @@ Next useful domain: supervisor review of native reply-media preparation around
 `reply_media_context_for_candidate`, preserving the existing cache, image fetching,
 canonical context and provider authorities. Supervisor review precedes a fresh
 invocation; this stage launches no successor.
+
+## Stage 24 — native reply-media attachment and bounded photo selection
+
+Baseline: `8a24214a7ec6420f19d54d63141b167b69af9bf1` (2026-09-06).
+Worktree `/disks/disk1/research/mrsMThatcher-bot-modularisation-stage24` started
+clean on `codex/bot-modularisation-stage24`, matching the verified pushed stage
+23 parent. The supervisor's `stage24-scope-notes.md`, three-function dependency
+inventory and all 25 curated nodes informed this extraction; normal/quote cycles,
+discovery, context, lookup, state recovery and guarded bootstrap were inspected.
+
+`mrs_bot_reply_native_media.py` owns **187 original definition lines** across
+`attach_media_to_tweets`, `candidate_native_photo_media` and
+`reply_media_context_for_candidate`. The attachment helper is a dependency-free
+root alias; two explicit adapters supply the current root photo cap, candidate
+callback and logger (one and three dependencies). Root names, signatures,
+defaults and annotations and original implementation bodies/docstrings remain
+exact. No constants or classes moved.
+
+Compatibility preserves original expansion records attached in place, later-key
+precedence, duplicate order and no-clear behavior; declared, unresolved and
+unclassified accounting; malformed versus absent attachment metadata; photo URL
+and key conversions and the existing cap, including its native edge behavior.
+Target photos precede quotes, target duplicates survive, quote keys deduplicate,
+incomplete metadata yields unavailable, and expected counts, fresh selected
+records, log fields/levels and return dictionaries remain exact. Discovery,
+context, pipeline and actual image fetching/validation retain authority. The
+standard-library-only owner retains no callbacks, configuration, clients or state
+and adds no import-time runtime work, network/provider/image work or saves.
+
+Evidence: `/tmp/mrs-bot-stage24-9cjho1_q`. Before editing, documentation passed
+for **232 modules**, **50 tests** collected in **3.99s**, and **50 passed in
+7.09s**. The validated baseline has **41 explicit nodes across 13 files**,
+including all 25 supplied nodes, prior context/lookup/discovery/reply owners,
+state recovery and guarded bootstrap. Existing loopback tests verify one
+multimodal request with no URL payload/image-byte logs, and a photo-fetch 404
+with zero model/post calls, terminal operational failure and no breaker/author
+strike; hot-post attachment and target/direct-quote priority regressions pass.
+
+After extraction, documentation passed for **233 modules**, **55 tests**
+collected in **4.00s**, and **55 passed in 7.30s** on the first run
+(`current-pytest.txt`; **46 explicit nodes across 14 files**). Five new contracts
+cover guarded import, current adapters/defaults/references/errors, attachment
+identity and fresh photo records, target duplicates/quote deduplication and
+current callback/log order, and incomplete metadata counts. They reuse the
+existing `image_case` fixture and explicitly register the imported autouse
+`isolate_regular_post_receipt` reset fixture; existing tests/assertions are intact.
+
+`run_selected.sh` uses `set -euo pipefail`, successful AST-validated nonempty
+selection and collection before pytest. Both runs use the required installed
+user dependencies, test mode, disabled plugin autoload/bytecode/cache provider,
+and TMPDIR under the evidence root. Existing temporary HOME/state, dummy
+credentials, dead proxies, denied external sockets and explicit loopback fake
+APIs remain active. No broad suite ran; the passing run was retained after the
+documentation-only edits.
+
+`verify_stage24.py` / `comparison.txt` prove exact bodies, signatures and
+dependencies against immutable `git show` using AST and symbol tables. Restoring
+the three originals and removing one import reconstructs the **entire parent
+root byte for byte**, including **529 unaffected definitions** and every
+unrelated statement. All **23 prior owners**, existing tests/fixtures and digest
+docs remain unchanged; README/API only add the companion and this report is
+appended. Final documentation and `git diff --check` pass.
+
+| Runtime file | Before lines / bytes | After lines / bytes |
+|---|---:|---:|
+| `mrsMThatcher2.py` | 20,362 / 797,987 | 20,200 / 792,625 |
+| `mrs_bot_reply_native_media.py` | absent | 214 / 7,152 |
+
+The root loses **162 lines / 5,362 bytes**; combined runtime source grows by
+**52 lines / 1,790 bytes**. The focused test file has **205 lines / 9,933 bytes**.
+Production remains `master` at `af5eda7c163a8174ec1365060aa923d21787e7bd` per
+worktree metadata; no production configuration/state/credentials, service action,
+live provider call, deployment or restart was involved.
+Next useful domain: supervisor review of shared tweet ID parsing/ordering and
+direct reply eligibility around `parse_tweet_id`, `valid_tweets_sorted_by_id`
+and `reply_target_is_directly_eligible`. Supervisor review precedes any further
+stage; this invocation implements only stage 24 and launches no successor.
