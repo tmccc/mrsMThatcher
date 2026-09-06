@@ -334,6 +334,157 @@ def _index_reply_confirmations(
     return confirmations_by_reply
 
 
+def _enrich_selected_historical_reply_text(
+    *,
+    historical_reply_text_evidence: List[Dict[str, Any]],
+    events: List[Dict[str, Any]],
+    production_ids: set[int],
+    consumed_historical_evidence: set[int],
+    enriched_records: set[int],
+    resolve_text: Callable[..., Dict[str, Any]],
+    bounded_source_refs: Callable[..., Tuple[List[Dict[str, Any]], int]],
+    warn: Callable[..., None],
+) -> None:
+    """Index canonical evidence and enrich selected historical reply rows in place."""
+
+    evidence_by_identity: Dict[
+        Tuple[str, str], List[Dict[str, Any]]
+    ] = {}
+    historical_evidence_by_reply: Dict[str, List[Dict[str, Any]]] = {}
+    for evidence in historical_reply_text_evidence:
+        if evidence.get("authoritative") is not True:
+            continue
+        parent_id = evidence.get("parent_post_id")
+        quote_id = evidence.get("quote_id")
+        reply_post_id = evidence.get("reply_post_id")
+        if (
+            not valid_string_public_post_id(parent_id)
+            or not valid_string_public_post_id(reply_post_id)
+            or not isinstance(quote_id, str)
+            or SHA256_LOWER_RE.fullmatch(quote_id) is None
+        ):
+            continue
+        evidence_by_identity.setdefault((parent_id, quote_id), []).append(
+            evidence
+        )
+        historical_evidence_by_reply.setdefault(reply_post_id, []).append(
+            evidence
+        )
+    for event in events:
+        if (
+            not isinstance(event, dict)
+            or event.get("kind") != "historical_context_reply"
+            or event.get("status") not in {"completed", "already_completed"}
+            or id(event) not in production_ids
+        ):
+            continue
+        parent_value = event.get("parent_post_id")
+        quote_value = event.get("quote_id")
+        selected_identity_valid = bool(
+            valid_string_public_post_id(parent_value)
+            and isinstance(quote_value, str)
+            and SHA256_LOWER_RE.fullmatch(quote_value) is not None
+        )
+        parent_id = parent_value if selected_identity_valid else ""
+        quote_id = quote_value if selected_identity_valid else ""
+        evidence = (
+            evidence_by_identity.get((parent_id, quote_id), [])
+            if selected_identity_valid
+            else []
+        )
+        reply_ids = {
+            item["reply_post_id"] for item in evidence
+        }
+        identity_conflict = False
+        if len(reply_ids) == 1:
+            evidence = historical_evidence_by_reply.get(
+                next(iter(reply_ids)),
+                evidence,
+            )
+            identity_conflict = len(
+                {
+                    (
+                        item.get("parent_post_id"),
+                        item.get("quote_id"),
+                    )
+                    for item in evidence
+                }
+            ) != 1
+        elif reply_ids:
+            evidence = [
+                item
+                for reply_post_id in reply_ids
+                for item in historical_evidence_by_reply.get(
+                    reply_post_id,
+                    [],
+                )
+            ]
+        consumed_historical_evidence.update(id(item) for item in evidence)
+        candidates = [
+            {
+                "text": item.get("reply_text"),
+                "source": str(
+                    item.get("source")
+                    or "structured historical_context_reply_posted"
+                ),
+                "source_refs": item.get("source_refs"),
+            }
+            for item in evidence
+        ]
+        text_result = resolve_text(
+            candidates,
+            unavailable_reason=(
+                "selected historical-context identity is not canonical"
+                if not selected_identity_valid
+                else "no retained exact historical_context_reply_posted evidence"
+            ),
+        )
+        if len(reply_ids) > 1 or identity_conflict:
+            text_result.update(
+                {
+                    "public_reply_text": None,
+                    "public_reply_text_sha256": None,
+                    "public_reply_text_character_count": None,
+                    "public_reply_text_complete": False,
+                    "public_reply_text_status": "conflict",
+                    "public_reply_text_reason": (
+                        "structured historical-context evidence disagrees on "
+                        "reply or parent identity"
+                    ),
+                    "correlation_status": "conflict",
+                }
+            )
+        event["reply_post_id"] = (
+            next(iter(reply_ids)) if len(reply_ids) == 1 else None
+        )
+        combined_refs, omitted = bounded_source_refs(
+            event.get("source_refs"),
+            text_result.get("source_refs"),
+        )
+        event.update(
+            {
+                key: value
+                for key, value in text_result.items()
+                if key not in {"source_refs", "source_ref_omitted_count"}
+            }
+        )
+        if combined_refs:
+            event["source_refs"] = combined_refs
+        total_omitted = omitted + int(
+            text_result.get("source_ref_omitted_count") or 0
+        )
+        if total_omitted:
+            event["source_ref_omitted_count"] = total_omitted
+        if event["public_reply_text_status"] == "conflict":
+            warn(
+                reply_post_id=str(event.get("reply_post_id") or ""),
+                target_id=parent_id,
+                lane="historical_context_reply",
+                reason=str(event["public_reply_text_reason"]),
+            )
+        enriched_records.add(id(event))
+
+
 def enrich_published_reply_text(
     report: Dict[str, Any],
     *,
@@ -667,142 +818,16 @@ def enrich_published_reply_text(
         )
         enriched_records.add(id(event))
 
-    evidence_by_identity: Dict[
-        Tuple[str, str], List[Dict[str, Any]]
-    ] = {}
-    historical_evidence_by_reply: Dict[str, List[Dict[str, Any]]] = {}
-    for evidence in historical_reply_text_evidence:
-        if evidence.get("authoritative") is not True:
-            continue
-        parent_id = evidence.get("parent_post_id")
-        quote_id = evidence.get("quote_id")
-        reply_post_id = evidence.get("reply_post_id")
-        if (
-            not valid_string_public_post_id(parent_id)
-            or not valid_string_public_post_id(reply_post_id)
-            or not isinstance(quote_id, str)
-            or SHA256_LOWER_RE.fullmatch(quote_id) is None
-        ):
-            continue
-        evidence_by_identity.setdefault((parent_id, quote_id), []).append(
-            evidence
-        )
-        historical_evidence_by_reply.setdefault(reply_post_id, []).append(
-            evidence
-        )
-    for event in events:
-        if (
-            not isinstance(event, dict)
-            or event.get("kind") != "historical_context_reply"
-            or event.get("status") not in {"completed", "already_completed"}
-            or id(event) not in production_ids
-        ):
-            continue
-        parent_value = event.get("parent_post_id")
-        quote_value = event.get("quote_id")
-        selected_identity_valid = bool(
-            valid_string_public_post_id(parent_value)
-            and isinstance(quote_value, str)
-            and SHA256_LOWER_RE.fullmatch(quote_value) is not None
-        )
-        parent_id = parent_value if selected_identity_valid else ""
-        quote_id = quote_value if selected_identity_valid else ""
-        evidence = (
-            evidence_by_identity.get((parent_id, quote_id), [])
-            if selected_identity_valid
-            else []
-        )
-        reply_ids = {
-            item["reply_post_id"] for item in evidence
-        }
-        identity_conflict = False
-        if len(reply_ids) == 1:
-            evidence = historical_evidence_by_reply.get(
-                next(iter(reply_ids)),
-                evidence,
-            )
-            identity_conflict = len(
-                {
-                    (
-                        item.get("parent_post_id"),
-                        item.get("quote_id"),
-                    )
-                    for item in evidence
-                }
-            ) != 1
-        elif reply_ids:
-            evidence = [
-                item
-                for reply_post_id in reply_ids
-                for item in historical_evidence_by_reply.get(
-                    reply_post_id,
-                    [],
-                )
-            ]
-        consumed_historical_evidence.update(id(item) for item in evidence)
-        candidates = [
-            {
-                "text": item.get("reply_text"),
-                "source": str(
-                    item.get("source")
-                    or "structured historical_context_reply_posted"
-                ),
-                "source_refs": item.get("source_refs"),
-            }
-            for item in evidence
-        ]
-        text_result = resolve_text(
-            candidates,
-            unavailable_reason=(
-                "selected historical-context identity is not canonical"
-                if not selected_identity_valid
-                else "no retained exact historical_context_reply_posted evidence"
-            ),
-        )
-        if len(reply_ids) > 1 or identity_conflict:
-            text_result.update(
-                {
-                    "public_reply_text": None,
-                    "public_reply_text_sha256": None,
-                    "public_reply_text_character_count": None,
-                    "public_reply_text_complete": False,
-                    "public_reply_text_status": "conflict",
-                    "public_reply_text_reason": (
-                        "structured historical-context evidence disagrees on "
-                        "reply or parent identity"
-                    ),
-                    "correlation_status": "conflict",
-                }
-            )
-        event["reply_post_id"] = (
-            next(iter(reply_ids)) if len(reply_ids) == 1 else None
-        )
-        combined_refs, omitted = bounded_source_refs(
-            event.get("source_refs"),
-            text_result.get("source_refs"),
-        )
-        event.update(
-            {
-                key: value
-                for key, value in text_result.items()
-                if key not in {"source_refs", "source_ref_omitted_count"}
-            }
-        )
-        if combined_refs:
-            event["source_refs"] = combined_refs
-        total_omitted = omitted + int(
-            text_result.get("source_ref_omitted_count") or 0
-        )
-        if total_omitted:
-            event["source_ref_omitted_count"] = total_omitted
-        if event["public_reply_text_status"] == "conflict":
-            warn(
-                reply_post_id=str(event.get("reply_post_id") or ""),
-                target_id=parent_id,
-                lane="historical_context_reply",
-                reason=str(event["public_reply_text_reason"]),
-            )
-        enriched_records.add(id(event))
+    _enrich_selected_historical_reply_text(
+        historical_reply_text_evidence=historical_reply_text_evidence,
+        events=events,
+        production_ids=production_ids,
+        consumed_historical_evidence=consumed_historical_evidence,
+        enriched_records=enriched_records,
+        resolve_text=resolve_text,
+        bounded_source_refs=bounded_source_refs,
+        warn=warn,
+    )
 
     remaining_historical_by_reply: Dict[str, List[Dict[str, Any]]] = {}
     for evidence in historical_reply_text_evidence:

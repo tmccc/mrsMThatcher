@@ -751,7 +751,22 @@ conversion and normalization even when its reply key already exists. Both
 authority flags, `None` short-circuits, native errors and callback order. No
 collection is copied or callback retained by this extraction. Legacy preparation,
 warnings, the coupled identity/conflict and event-mutation loop, synthesis,
-historical enrichment and health aggregation remain in enrichment.
+and health aggregation remain coordinated by enrichment.
+
+`_enrich_selected_historical_reply_text` keeps canonical historical evidence
+indexing and the complete selected historical-event enrichment phase together in
+the same owner. Its eight explicit inputs are `historical_reply_text_evidence`,
+`events`, `production_ids`, `consumed_historical_evidence`, `enriched_records`,
+`resolve_text`, `bounded_source_refs` and `warn`. The call stays after legacy-record
+enrichment and before remaining-historical synthesis. It mutates the current sets
+and event rows in place, returns no state and retains no callback. Both indexes
+are local; post-ID validation and `SHA256_LOWER_RE` retain current same-owner
+lookup. Authoritative `is True`, strict canonical selectors, production/status
+filters, ordered cross-parent/reply expansion and consumption before resolution
+are unchanged. Candidate defaults, exact unavailable reasons, conflict overrides,
+reply-ID mutation, shared references, omission conversion/native errors, warnings
+and enriched-ID updates retain their original order. Remaining-historical
+synthesis, final event insertion and health aggregation stay in the coordinator.
 
 Prepared structured confirmations retain precedence over receipt-derived
 confirmations. Exact long/multiline published text, unavailable versus conflicting

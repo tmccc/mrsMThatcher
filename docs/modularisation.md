@@ -3813,3 +3813,128 @@ lookup. Keep conflict expansion, source references/omissions, warning order and
 mutations coupled; remaining-evidence synthesis, final insertion and health
 aggregation stay outside. This is a coherent boundary, not a reason for narrower
 splits. Stage 40 is not implemented here; no next session or stage 41 is started.
+
+## Extracted in stage 40
+
+Base: `809cca71f34bf617df9f8a544356f99126220a27`, verified against pushed
+`origin/codex/modularisation-stage39` and the clean previous worktree. Worktree:
+`/disks/disk1/research/mrsMThatcher-modularisation-stage40`; branch:
+`codex/modularisation-stage40`. This completes the authorised stages 37–40;
+historical stopping instructions are superseded by **cap 40 plus supervisor broad
+validation**. README's complete offline suite is **pending the supervisor's run
+after verifying stage 40**, not passed by this worker.
+
+`mrs_log_digest_reply_text._enrich_selected_historical_reply_text` receives the
+exact **four statements / 136 lines** formerly at parent lines 670–805: both
+index allocations, the complete authoritative canonical indexing loop and the
+complete selected historical-event loop. The ten-line call stays after legacy
+enrichment and before `remaining_historical_by_reply` allocation. Eight prepared
+inputs are explicit: `historical_reply_text_evidence`, `events`, `production_ids`,
+`consumed_historical_evidence`, `enriched_records`, `resolve_text`,
+`bounded_source_refs` and `warn`. Existing sets and rows mutate in place; no state
+is returned. Both indexes are local. Later evidence, parent/quote/reply IDs,
+conflict, result and event names are rebound by their subsequent loops/assignments;
+`item` is comprehension/lambda-local.
+
+Authoritative `is True`, strict identifier/hash checks, production/status filters,
+cross-parent/reply expansion and set/list iteration order remain intact.
+Consumption still precedes resolution. Candidate defaults, exact unavailable
+reasons, identity-conflict overrides, reply-ID mutation, bounded references,
+omission merging and integer/native errors, warnings and enriched-ID updates keep
+their lookup, sharing and partial-mutation order. Validators and `SHA256_LOWER_RE`
+remain current same-owner globals. Confirmation indexing, structured/receipt
+conflict and synthesis, preceding legacy enrichment, remaining-history synthesis,
+final insertion and health aggregation retain their original coordination.
+No module, reverse import, retained callback, collection copy, generic state,
+returned closure, prebinding, normalization or incidental repair was introduced.
+
+Removing the helper and restoring the span reconstructs the **complete original
+owner exactly in text and AST**. All existing signatures/annotations/defaults,
+four other owner definitions and six existing test definitions are unchanged.
+The root and all 29 other digest companions are byte-identical to stage 39.
+
+| Physical lines / AST definition spans | Stage 36 | Stage 39 | Stage 40 |
+| --- | ---: | ---: | ---: |
+| Root digest / `analyse` | 3,462 / 1,318 | 3,462 / 1,318 | 3,462 / 1,318 |
+| Reply-text owner / enrichment | 917 / 627 | 937 / 601 | 962 / 475 |
+| Selected historical helper | — | — | 149 |
+| Provider-cost owner / reply-cost summary | 602 / 403 | 615 / 360 | 615 / 360 |
+| Remote-write owner / snapshot | 1,486 / 602 | 1,513 / 524 | 1,513 / 524 |
+
+Stage 36 is `85f7cd6d584acfad71827d7fa7e4b8367d9e4daf`, read with `git show`.
+Definition spans include signatures/docstrings. Stage 40 reduces enrichment by
+126 lines; across stages 37–40 it falls by 152 lines. Owner growth reflects named
+boundaries, not deleted behavior; root size alone is not the measure of benefit.
+
+Validation used established temporary-HOME, dummy-endpoint and default-deny
+network isolation with:
+
+```bash
+MRS_TEST_MODE=1 PYTEST_DISABLE_PLUGIN_AUTOLOAD=1 PYTHONDONTWRITEBYTECODE=1 \
+python3 -m pytest -q -p no:cacheprovider
+```
+
+- Reply-text, reply-evidence, quote-publication and historical-event files:
+  baseline **45 passed**, final **53 passed**, including inert import/alias checks.
+  Three new functions supply eight cases for current inputs/callbacks, shared
+  sets/rows, source references, live membership/indexed-row changes, canonical
+  parent/reply conflicts and resolver/source/integer/warning failure prefixes.
+  All existing assertions are retained.
+- **39 passed** across 18 selected digest-only integration functions and the
+  Markdown tests: immutable/interleaved identities, structured and durable text,
+  source/authority exclusion, strict historical selectors, malformed history,
+  bounded provenance and nearby conflict/synthesis behavior. No bot run occurred.
+- **Eight original-body cases passed** using the existing temporary comparison
+  machinery: seven direct conflict/error cases against the original four
+  statements, plus the existing delegation/sharing trace against the complete
+  original owner.
+
+Three complete fixed-path/time report pairs match stage 39:
+
+| Asserted fixture | Records | JSON bytes | Markdown bytes |
+| --- | ---: | ---: | ---: |
+| Canonical history match excluding nonauthoritative posted text | 2 | 37,536 | 12,620 |
+| One reply with conflicting parents; separate unselected synthesis | 4 | 40,731 | 12,567 |
+| One parent with conflicting replies; separate unselected synthesis | 4 | 40,714 | 12,557 |
+
+Existing fixture builders and fixed-clock/reference-graph capture were reused.
+Assertions require the selected match/conflict, warning, provenance and absence
+of duplicate synthesis from consumed evidence. Complete JSON/Markdown bytes, raw
+`analyse` values/types/order/reference graphs and stderr match. Producer source
+hashes and pre-commit HEADs were independently verified equal: **no substitutions
+or normalization**. Fixture bytes/modes/mtimes remain unchanged across comparisons.
+An initial synthetic conflict anchor omitted mandatory `character_count`; corrected
+fixtures exercise the intended phase, with the failed fixture preserved and no
+product change. Scripts, fixtures and outputs are outside the worktree at
+`/tmp/mrs-stage40-zdu4j8pb`. These are focused synthetic checks, not production
+replay or an exhaustive matrix. `python3 tools/check_python_documentation.py`
+passes for **209 modules**; `git diff --check` passes.
+
+Checkpoint assessment uses the existing stage-32/36 inventories and selective
+review of the remaining reply-text, provider-cost, remote-write, reply-strategy
+and quote-publication coordinators. Stages 37–40 expose confirmation precedence,
+candidate disposition, artifact observation and selected historical enrichment
+as coherent algorithms. Keep root CLI/path/window/resume/output sequencing and
+`analyse` scan order, pending state, source identity, provenance, counters and
+report preparation together. Keep reply conflict decisions, shared event mutation,
+synthesis and warning/health accounting coordinated; splitting individual index,
+conflict or reference operations would obscure their order. Incident authority,
+recovery and per-group construction still belong together (health remains 683
+lines); remote-write acquisition must retain its strict read/error order, and
+cost association/coverage must retain missing-spend semantics.
+
+The other domain owners already separate acquisition, validation, observation and
+presentation usefully. Quote-field conflict checking remains tied to immutable
+publication identity; legacy strategy/state summaries retain shared outcome and
+snapshot policy. Markdown already has section renderers and a short dispatcher.
+Further extraction could help a specific future rule change or independently
+testable algorithm, but this review identifies no additional boundary with a
+clear immediate benefit that warrants continuing now. This is not a claim that
+all possible modularisation is exhausted. The practical recommendation is to
+**stop here, let the supervisor verify the commit and run README's complete offline
+suite, and revisit only for a concrete development need**.
+
+This session ends after the ordinary stage-40 commit/push verification. **No stage
+41 or next session is started.** Production/configuration/state/log/image-pool
+files remain untouched; no live bot execution, provider/posting calls, service
+control, merge, deployment or force-push occurred.

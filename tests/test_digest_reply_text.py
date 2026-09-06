@@ -312,3 +312,221 @@ def test_enrichment_uses_current_index_callbacks_inputs_and_returned_dictionary(
         assert calls == ["epoch", "normalise"]
     assert len(visited) == len(returned) == 2
     assert all(actual is expected for actual, expected in zip(visited, returned))
+
+
+def test_enrichment_passes_current_historical_inputs_after_legacy_and_shares_sets(monkeypatch):
+    original_phase = reply_text._enrich_selected_historical_reply_text
+    observed = []
+
+    def phase(**inputs):
+        assert inputs["historical_reply_text_evidence"] is history
+        assert inputs["events"] is events
+        assert inputs["production_ids"] is production_ids
+        assert inputs["resolve_text"] is resolve
+        assert inputs["bounded_source_refs"] is sources
+        assert callable(inputs["warn"])
+        assert inputs["consumed_historical_evidence"] == set()
+        assert inputs["enriched_records"] == {id(legacy)}
+        assert legacy["public_reply_text_status"] == "unavailable"
+        observed.append(inputs)
+        assert original_phase(**inputs) is None
+        assert inputs["consumed_historical_evidence"] == {id(history[0])}
+        assert inputs["enriched_records"] == {id(legacy), id(selected)}
+        # The following synthesis pass must consume this same set.
+        inputs["consumed_historical_evidence"].add(id(history[1]))
+
+    monkeypatch.setattr(reply_text, "_enrich_selected_historical_reply_text", phase)
+    for exact_text in ("Current evidence", "Replacement callback evidence"):
+        legacy = {"kind": "mention_reply_posted", "mention_id": "123"}
+        selected = {"kind": "historical_context_reply", "status": "completed",
+                    "parent_post_id": "789", "quote_id": "a" * 64}
+        excluded = dict(selected)
+        events = [legacy, selected, excluded]
+        production_ids = {id(legacy), id(selected)}
+        refs, combined = [{"record_number": 1}], [{"record_number": 2}]
+        history = [
+            {"authoritative": True, "parent_post_id": "789", "quote_id": "a" * 64,
+             "reply_post_id": "987", "reply_text": "Before legacy callback", "source_refs": refs},
+            {"authoritative": True, "parent_post_id": "321", "quote_id": "b" * 64,
+             "reply_post_id": "654", "reply_text": "Would otherwise be synthesized"},
+        ]
+        calls = []
+
+        def resolve(candidates, *, unavailable_reason):
+            calls.append("resolve")
+            if not candidates:
+                history[0]["reply_text"] = exact_text
+                return {"public_reply_text_status": "unavailable"}
+            assert observed[-1]["consumed_historical_evidence"] == {id(history[0])}
+            assert candidates[0]["text"] is exact_text
+            assert candidates[0]["source_refs"] is refs
+            assert unavailable_reason == "no retained exact historical_context_reply_posted evidence"
+            return {"public_reply_text_status": "confirmed", "public_reply_text": exact_text,
+                    "public_reply_text_complete": True, "source_refs": refs}
+
+        def sources(*collections):
+            calls.append("sources")
+            assert collections[0] is None and collections[1] is refs
+            assert selected["reply_post_id"] == "987"
+            return combined, 0
+
+        monkeypatch.setattr(digest, "_public_reply_text_result", resolve)
+        monkeypatch.setattr(digest, "bounded_source_refs", sources)
+        section = {}
+        report = {"events": events, "historical_context_replies": section}
+        assert digest.enrich_published_reply_text(
+            report, runtime_state={}, structured_reply_confirmations=[],
+            historical_reply_text_evidence=history, production_event_object_ids=production_ids,
+        ) is None
+        assert report["events"] is events and len(events) == 3
+        assert events[0] is legacy and events[1] is selected and events[2] is excluded
+        assert "public_reply_text_status" not in excluded
+        assert selected["public_reply_text"] is exact_text
+        assert selected["source_refs"] is combined
+        assert section["events"][0] is selected and section["events"][1] is excluded
+        assert report["published_reply_text_health"]["confirmed_record_count"] == 2
+        assert report["published_reply_text_health"]["complete_text_record_count"] == 1
+        assert calls == ["resolve", "resolve", "sources"]
+    assert len(observed) == 2
+    assert observed[0]["consumed_historical_evidence"] is not observed[1]["consumed_historical_evidence"]
+    assert observed[0]["enriched_records"] is not observed[1]["enriched_records"]
+
+
+@pytest.mark.parametrize("conflict", ["parent", "reply"])
+def test_selected_historical_conflicts_expand_shared_evidence_before_resolution(conflict):
+    refs, merged, shared = [{"record_number": 1}], [{"record_number": 2}], []
+    first = {"authoritative": True, "parent_post_id": "123", "quote_id": "a" * 64,
+             "reply_post_id": "456", "reply_text": "First exact text", "source_refs": refs}
+    other = dict(first, parent_post_id="789", reply_text="Cross-parent text", source=7)
+    history = [first, other, first]
+    if conflict == "reply":
+        second = dict(first, reply_post_id="987", reply_text="Second reply text")
+        history.append(second)
+        expected = [first, other, first, second] if next(iter({"456", "987"})) == "456" else [second, first, other, first]
+    else:
+        expected = [first, other, first]
+    selected = {"kind": "historical_context_reply", "status": "completed",
+                "parent_post_id": "123", "quote_id": "a" * 64, "source_refs": refs}
+    later = dict(selected, status="already_completed")
+    skipped = dict(selected, status="dry_run")
+    events = [selected, skipped, later]
+    skipped_before = copy.deepcopy(skipped)
+    production_ids = {id(selected), id(skipped)}
+    consumed, enriched, calls, results = {17}, {19}, [], []
+    reason = "structured historical-context evidence disagrees on reply or parent identity"
+
+    def resolve(candidates, *, unavailable_reason):
+        calls.append("resolve")
+        assert consumed == {17, *(id(item) for item in history)}
+        assert enriched == ({19} if len(results) == 0 else {19, id(selected)})
+        assert unavailable_reason == "no retained exact historical_context_reply_posted evidence"
+        assert len(candidates) == len(expected)
+        for candidate, evidence in zip(candidates, expected):
+            assert candidate is not evidence
+            assert candidate["text"] is evidence["reply_text"]
+            assert candidate["source_refs"] is refs
+        assert [item["source"] for item in candidates] == [
+            "7" if item is other else "structured historical_context_reply_posted" for item in expected
+        ]
+        result = {"public_reply_text": "Resolver choice", "public_reply_text_status": "confirmed",
+                  "public_reply_text_source": "resolver source", "source_refs": refs,
+                  "source_ref_omitted_count": "4", "shared": shared}
+        results.append(result)
+        return result
+
+    def sources(*collections):
+        calls.append("sources")
+        assert all(value is refs for value in collections) and len(collections) == 2
+        event = selected if len(results) == 1 else later
+        assert event["reply_post_id"] == ("456" if conflict == "parent" else None)
+        assert results[-1]["public_reply_text_status"] == "conflict"
+        return merged, 3
+
+    def warn(**warning):
+        calls.append("warn")
+        event = selected if len(results) == 1 else later
+        assert id(event) not in enriched
+        assert event["source_refs"] is merged and event["source_ref_omitted_count"] == 7
+        assert warning == {"reply_post_id": "456" if conflict == "parent" else "",
+                           "target_id": "123", "lane": "historical_context_reply", "reason": reason}
+        # Later iterations must see current membership and the same indexed row.
+        production_ids.add(id(later))
+        first["reply_text"] = "Changed by the first warning callback"
+
+    assert reply_text._enrich_selected_historical_reply_text(
+        historical_reply_text_evidence=history, events=events, production_ids=production_ids,
+        consumed_historical_evidence=consumed, enriched_records=enriched,
+        resolve_text=resolve, bounded_source_refs=sources, warn=warn,
+    ) is None
+    assert calls == ["resolve", "sources", "warn"] * 2
+    assert enriched == {19, id(selected), id(later)} and skipped == skipped_before
+    assert events[0] is selected and events[1] is skipped and events[2] is later
+    for event in (selected, later):
+        assert event["public_reply_text"] is event["public_reply_text_sha256"] is None
+        assert event["public_reply_text_character_count"] is None
+        assert event["public_reply_text_complete"] is False
+        assert event["public_reply_text_status"] == event["correlation_status"] == "conflict"
+        assert event["public_reply_text_reason"] == reason
+        assert event["public_reply_text_source"] == "resolver source"
+        assert event["shared"] is shared and event["source_refs"] is merged
+
+
+@pytest.mark.parametrize("boundary", ["resolve", "sources", "integer-value", "integer-type", "warn"])
+def test_selected_historical_failure_preserves_consumption_and_partial_row(boundary):
+    refs, merged, shared = [{"record_number": 1}], [{"record_number": 2}], []
+    evidence = {"authoritative": True, "parent_post_id": "123", "quote_id": "a" * 64,
+                "reply_post_id": "456", "reply_text": "Exact text", "source_refs": refs}
+    event = {"kind": "historical_context_reply", "status": "completed",
+             "parent_post_id": "123", "quote_id": "a" * 64, "reply_post_id": "old",
+             "source_refs": refs, "source_ref_omitted_count": 11}
+    later = dict(event)
+    before = copy.deepcopy(event)
+    consumed, enriched, calls = {17}, {19}, []
+    failure = RuntimeError("callback failure")
+    result = {"public_reply_text_status": "conflict", "public_reply_text_reason": "text conflict",
+              "source_refs": refs, "shared": shared,
+              "source_ref_omitted_count": "bad" if boundary == "integer-value"
+              else [1] if boundary == "integer-type" else "4"}
+
+    def resolve(candidates, *, unavailable_reason):
+        calls.append("resolve")
+        assert consumed == {17, id(evidence)} and enriched == {19}
+        assert event == before
+        if boundary == "resolve":
+            raise failure
+        return result
+
+    def sources(*collections):
+        calls.append("sources")
+        assert event == dict(before, reply_post_id="456")
+        assert collections[0] is refs and collections[1] is refs
+        if boundary == "sources":
+            raise failure
+        return merged, 3
+
+    def warn(**warning):
+        calls.append("warn")
+        assert enriched == {19} and event["source_ref_omitted_count"] == 7
+        assert event["shared"] is shared and event["source_refs"] is merged
+        raise failure
+
+    error = ValueError if boundary == "integer-value" else TypeError if boundary == "integer-type" else RuntimeError
+    with pytest.raises(error) as caught:
+        reply_text._enrich_selected_historical_reply_text(
+            historical_reply_text_evidence=[evidence], events=[event, later],
+            production_ids={id(event), id(later)}, consumed_historical_evidence=consumed,
+            enriched_records=enriched, resolve_text=resolve, bounded_source_refs=sources, warn=warn,
+        )
+    assert calls == (["resolve"] if boundary == "resolve" else ["resolve", "sources", "warn"]
+                     if boundary == "warn" else ["resolve", "sources"])
+    assert consumed == {17, id(evidence)} and enriched == {19}
+    assert later == before
+    if error is RuntimeError:
+        assert caught.value is failure
+    if boundary in {"resolve", "sources"}:
+        assert event == (before if boundary == "resolve" else dict(before, reply_post_id="456"))
+        assert event["source_refs"] is refs
+    else:
+        assert event["reply_post_id"] == "456" and event["shared"] is shared
+        assert event["source_refs"] is merged and event["public_reply_text_status"] == "conflict"
+        assert event["source_ref_omitted_count"] == (7 if boundary == "warn" else 11)
