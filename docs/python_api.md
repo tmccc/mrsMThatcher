@@ -513,7 +513,7 @@ their ordering and the missing-time fallback are unchanged. Shared time/text/lan
 and terminal-outcome helpers come directly from `mrs_log_digest_values`.
 
 Within the incident owner, `_pipeline_recovered_after` and
-`_remote_pause_recovery_status` implement the two recovery algorithms. The nested
+`_remote_pause_recovery_status` implement pipeline and pause recovery. The nested
 `pipeline_recovered_after(identity, last_time)` and
 `remote_pause_recovery_status(scope, control_keys, last_time)` retain their
 signatures and original positions as direct-return adapters. Pipeline recovery
@@ -526,7 +526,33 @@ Strict later-time/identity filters, failure exclusion, terminal distinctions,
 reason tie-breaking, control hierarchy, unknown-scope short-circuit, ordered
 clearance callbacks and scope-matched success retain their exact behavior.
 The implementations add no reads, clock samples, authority decisions or stored
-callbacks; all other recovery helpers and surrounding summary phases stay put.
+callbacks; surrounding summary phases stay put.
+
+Identified transaction recovery uses `_remote_write_recovery_status` in the same
+owner. Its nested `remote_write_recovery_status(category, identity, first_time,
+last_time)` retains its signature and definition position as a direct-return
+adapter. It forwards `identity_snapshot_available`, `active_component_matches`,
+`active_remote_components`, `component_is_related_to_selected_window`,
+`component_is_relevant_to_category`, `identity_snapshot_explicitly_unavailable`,
+the intact `safety`, `terminal_reply_receipts`, `handled_api_restrictions`,
+`remote_write_success_times`, `fromtimestamp` and `get_event_time`. The unidentified
+active scan retains its position even with unavailable snapshots, after the
+matched-active early return. The nested `audit_matches` body, archive fallback,
+native-int checks, transaction/target rules, six-hour target fallback, audit ties,
+handled-403 window, shared terminal receipt rows and strict later-success rule
+are unchanged. `_normalise_lane` and `timedelta` retain incident-owner lookup.
+
+Category recovery uses `_recovered_after`, with the original nested
+`recovered_after(category, last_time)` signature and position. It receives
+`events`, `event_times`, `receipt_removed_times`, `successful_restart_times`,
+`safety`, `get_event_time`, `fromtimestamp` and `clock_now`. Both historical-event
+passes, recovery-kind/candidate order, strict timestamps, time/reason ties and
+empty results are preserved. Current-clear protocol recovery remains distinct
+from authoritative namespace-clear ambiguity recovery. Audit validity, native-int
+epochs, fallback and ordering are unchanged. Epoch conversion remains conditional;
+`clock_now` is invoked only in the successful protocol-clear branch, independently
+of `generated_at`. Both implementations consume current prepared references and
+callbacks without new reads, copies, casts, authority or stored dependencies.
 
 The same owner implements ambiguity association in `_matching_ambiguity_identity`
 and exact subordinate correlation in `_is_subordinate_remote_write_symptom`.

@@ -3177,3 +3177,108 @@ file size alone does not justify moving that coordination. No next stage is star
 Previous branches/worktrees are preserved. No production/configuration/state/log/
 image-pool changes, bot execution, provider/posting calls, service control, merge,
 deployment or force-push occurred.
+
+## Extracted in stage 34
+
+Base: `51846ced81934d599dd42612584e654349e4f1cb`, verified against pushed
+`origin/codex/modularisation-stage33`. Worktree:
+`/disks/disk1/research/mrsMThatcher-modularisation-stage34`; branch:
+`codex/modularisation-stage34`.
+
+The two remaining substantial nested recovery algorithms become
+`_remote_write_recovery_status` and `_recovered_after` in the same incident owner.
+Their original nested names, signatures, defaults and definition positions remain
+as direct-return adapters. The bodies are exact moves, apart from explicit
+implementation parameters and the category implementation's docstring. All twelve
+identified-recovery and eight category-recovery inputs, including nested and
+comprehension dependencies, were checked and documented in `python_api.md`.
+
+The unidentified-active scan still runs at its original position when snapshots
+are unavailable; the matched-active return still precedes it. The intact safety
+mapping, current predicates/time callbacks, owner lane/timedelta lookup and nested
+`audit_matches` retain their boundaries. Audit fallback/native-int checks,
+transaction/target matching, six-hour fallback, time/path ties, handled-403 window,
+terminal receipt sharing and later-success rules are unchanged. Category recovery
+keeps both historical passes, candidate/kind ordering, strict timestamps,
+time/reason ties, empty results and the current-clear/namespace-clear distinction.
+Clock sampling remains exclusive to successful protocol clearance within category
+recovery; epoch conversion remains conditional. No new reads, copies, casts,
+authority, module, context object or stored callbacks are introduced.
+
+Preparation, association, pause/pipeline recovery, predicates, grouping,
+construction, snapshot reconciliation and final selection remain unchanged.
+Restoring both nested definitions and removing both implementations reconstructs
+the **entire stage 33 incident owner exactly**, in text and AST. All 13 other
+existing owner definitions, the root and all 29 other digest companions are
+unchanged, including the observer and stages 31–33 implementations. Prior APIs,
+schema 3, values/types/order, sharing and source/window/resume/publication policy
+are preserved.
+
+| Physical lines | Stage 33 | Stage 34 |
+| --- | ---: | ---: |
+| Root digest / `analyse` | 3,462 / 1,318 | 3,462 / 1,318 |
+| Incident-health implementation | 1,319 | 1,088 (−231) |
+| Incident owner | 2,149 | 2,208 (+59) |
+| Identified recovery: nested / module implementation | 126 / — | 20 / 139 |
+| Category recovery: nested / module implementation | 134 / — | 9 / 147 |
+| Snapshot owner / reconciliation function | 361 / 346 | 361 / 346 |
+
+Validation used `MRS_TEST_MODE=1 PYTEST_DISABLE_PLUGIN_AUTOLOAD=1 python3 -m pytest`
+with established temporary-HOME/network isolation, bytecode disabled and
+`-p no:cacheprovider`. Baseline: **70 passed**. Final incident and nearest
+transaction/audit/receipt, protocol/legacy and category regressions: **84 passed**.
+Seven new test functions provide **11 cases** for prepared references/current
+helpers, early returns/predicate order, audit and clock/epoch timing, ties and
+sharing; all existing assertions remain. **Ten direct cases** also pass unchanged
+against the original stage 33 nested bodies, checking exact tuples, timestamp
+identity, live receipt/event rows, callback traces and exception identity.
+The unchanged incident import guard and **seven digest-only integrations** pass,
+covering source-reference bounds, unrelated errors, receipt/source/self-test
+isolation, pending receipts, state after the window and resume source identity.
+No whole bot harness or broad historical suite ran.
+
+Four complete fixed-path/time CLI report pairs match stage 33:
+
+| Asserted route | Records | JSON bytes | Markdown bytes |
+| --- | ---: | ---: | ---: |
+| Matched active identity | 10 | 45,487 | 14,671 |
+| Explicitly unavailable identity snapshot | 10 | 45,881 | 13,729 |
+| Durable audit and handled-403/terminal-receipt recovery | 13 | 47,354 | 14,623 |
+| Legacy audit, category recovery and protocol clearance | 19 | 52,588 | 16,119 |
+
+The existing synthetic pool/reply fixtures and comparison machinery were reused;
+the handled-403 fixture includes the pending mention needed to establish its
+target. Expected statuses, identities, reasons and times are asserted. Complete
+output bytes, raw `analyse` values/types/order/reference graphs and stderr match.
+Fixture bytes/modes/mtimes remain unchanged across comparisons. Root source hashes
+and pre-commit HEADs were independently verified identical, so **no substitutions
+or normalisation** were needed. Temporary scripts/results are outside the worktree
+in `/tmp/mrs-stage34-n8pxdc5l`. This is focused synthetic preservation evidence,
+not a production replay or exhaustive recovery matrix.
+
+`python3 tools/check_python_documentation.py` passes for **209 modules**;
+`git diff --check` passes.
+
+Next bounded recommendation: the **68-line recovery-evidence preparation block**
+from `event_times` through `terminal_reply_receipts`, before safety annotation.
+It has five explicit inputs: `events`, `receipt_events`, the already materialised
+`lifecycle`, `confirmed_reply_receipt_events` and current `get_event_time`. Return
+six explicit results: `event_times`, `receipt_removed_times`,
+`successful_restart_times`, `remote_write_success_times`,
+`remote_operation_successes` and `terminal_reply_receipts`. Preserve the two event
+passes, kind/scope ordering, self-test filtering and existing shallow receipt/set
+sharing; no general mutable state object is needed.
+
+Remaining orchestration still includes pipeline/ambiguity evidence preparation,
+the 113-line grouping loop and the 321-line per-group status/construction loop.
+Those coordinate error mutation, identity/subordinate association, resolution and
+source/snapshot enrichment; a broad group move would obscure those dependencies.
+The 62-line pause-scope candidate remains reserved beside later grouping work.
+No next recommendation is implemented.
+
+The authorisation for **stages 33–36 supersedes historical stop-at-32 wording**.
+This worker completes only stage 34 and ends for supervisor review; it launches no
+new session. The supervisor must **stop and reassess after stage 36**.
+**Stage 37 is not authorised.** Prior branches/worktrees and production data are
+preserved; no production/configuration/state/log/image-pool changes, bot execution,
+provider/posting calls, service control, merge, deployment or force-push occurred.

@@ -828,6 +828,296 @@ def _is_subordinate_remote_write_symptom(
     )
 
 
+def _remote_write_recovery_status(
+    category: str,
+    identity: Dict[str, Any],
+    first_time: datetime,
+    last_time: datetime,
+    *,
+    identity_snapshot_available: bool,
+    active_component_matches: Callable[[str, Dict[str, Any]], bool],
+    active_remote_components: List[Dict[str, Any]],
+    component_is_related_to_selected_window: Callable[[Dict[str, Any]], bool],
+    component_is_relevant_to_category: Callable[[Dict[str, Any], str], bool],
+    identity_snapshot_explicitly_unavailable: bool,
+    safety: Dict[str, Any],
+    terminal_reply_receipts: List[Dict[str, Any]],
+    handled_api_restrictions: List[Dict[str, Any]],
+    remote_write_success_times: List[datetime],
+    fromtimestamp: Callable[[int], datetime],
+    get_event_time: Callable[[Dict[str, Any]], Optional[datetime]],
+) -> Tuple[str, str, Optional[datetime]]:
+    """Reconcile one identified receipt/ambiguity transaction conservatively."""
+
+    if identity_snapshot_available and active_component_matches(
+        category,
+        identity,
+    ):
+        return "current_unresolved", "", None
+    unidentified_active = any(
+        component.get("identity_available") is not True
+        for component in active_remote_components
+        if component_is_related_to_selected_window(component)
+        and component_is_relevant_to_category(component, category)
+    )
+    if identity_snapshot_available and unidentified_active:
+        return (
+            "resolution_unavailable",
+            "current barrier artefacts lack enough identity to establish whether they match this transaction",
+            None,
+        )
+    if identity_snapshot_explicitly_unavailable:
+        return (
+            "resolution_unavailable",
+            "current status cannot be established from retained evidence because no usable filesystem snapshot is available",
+            None,
+        )
+    if not identity_snapshot_available:
+        return "legacy_fallback", "", None
+
+    transaction_id = str(identity.get("transaction_id") or "")
+    target_id = str(identity.get("target_id") or "")
+    lane = _normalise_lane(identity.get("lane"))
+    archive = safety.get("reconciliation_archive") or {}
+    marker_audits = archive.get("marker_reconciliations") or []
+    if not marker_audits:
+        latest_audit = archive.get("latest_marker_reconciliation")
+        marker_audits = [latest_audit] if latest_audit else []
+    def audit_matches(audit: Dict[str, Any]) -> bool:
+        audit_epoch = audit.get("archived_at_epoch")
+        if (
+            archive.get("valid") is not True
+            or type(audit_epoch) is not int
+            or audit_epoch < int(last_time.timestamp())
+        ):
+            return False
+        audit_transaction_id = str(audit.get("transaction_id") or "")
+        audit_target_id = str(audit.get("target_id") or "")
+        if transaction_id and audit_transaction_id:
+            return bool(
+                transaction_id == audit_transaction_id
+                and (
+                    not target_id
+                    or not audit_target_id
+                    or target_id == audit_target_id
+                )
+            )
+        return bool(
+            target_id
+            and audit_target_id == target_id
+            and audit_epoch
+            <= int((last_time + timedelta(hours=6)).timestamp())
+        )
+
+    matching_audits = [audit for audit in marker_audits if audit_matches(audit)]
+    if category == "remote_write_ambiguity_barrier" and matching_audits:
+        resolution_audit = min(
+            matching_audits,
+            key=lambda audit: (
+                audit["archived_at_epoch"],
+                str(audit.get("audit_path") or ""),
+            ),
+        )
+        return (
+            "historical_resolved",
+            "matching durable offline reconciliation audit retired this transaction; current active barriers belong to another identity",
+            fromtimestamp(resolution_audit["archived_at_epoch"]),
+        )
+
+    terminal_matches = [
+        item
+        for item in terminal_reply_receipts
+        if str(item.get("target_id") or "") == target_id
+        and (
+            lane == "unavailable"
+            or _normalise_lane(item.get("lane")) == lane
+        )
+        and item["_time"] >= first_time
+    ]
+    handled_deleted = [
+        item
+        for item in handled_api_restrictions
+        if item.get("restriction_kind") == "deleted_or_inaccessible_tweet"
+        and str(item.get("target_id") or "") == target_id
+        and (
+            lane == "unavailable"
+            or _normalise_lane(item.get("lane")) == lane
+        )
+        and (restriction_time := get_event_time(item)) is not None
+        # The handled 403 is logged immediately before the ambiguity
+        # wrapper, so allow it to precede the root record narrowly.
+        and first_time - timedelta(minutes=5)
+        <= restriction_time
+        <= last_time + timedelta(minutes=5)
+    ]
+    if terminal_matches and handled_deleted:
+        terminal_time = min(item["_time"] for item in terminal_matches)
+        later_successes = [
+            ts for ts in remote_write_success_times if ts > terminal_time
+        ]
+        if later_successes:
+            return (
+                "historical_resolved",
+                "deleted/inaccessible target was handled, its sending receipt was retired, and a later remote write succeeded",
+                terminal_time,
+            )
+
+    return (
+        "resolution_unavailable",
+        "no matching active artefact remains, but terminal resolution is unavailable from retained evidence",
+        None,
+    )
+
+
+def _recovered_after(
+    category: str,
+    last_time: datetime,
+    *,
+    events: List[Dict[str, Any]],
+    event_times: Dict[str, List[datetime]],
+    receipt_removed_times: List[datetime],
+    successful_restart_times: List[datetime],
+    safety: Dict[str, Any],
+    get_event_time: Callable[[Dict[str, Any]], Optional[datetime]],
+    fromtimestamp: Callable[[int], datetime],
+    clock_now: Callable[[], datetime],
+) -> Tuple[bool, str, Optional[datetime]]:
+    """Find category recovery from prepared history and conditional safety evidence."""
+    candidates: List[Tuple[datetime, str]] = []
+    recovery_kinds: Tuple[str, ...] = ()
+    if category in {
+        "historical_context_source_role_incompatibility",
+        "historical_context_reply_failure",
+    }:
+        for event in events:
+            ts = get_event_time(event)
+            if (
+                ts is not None
+                and ts > last_time
+                and event.get("kind") == "historical_context_reply"
+                and event.get("status") in {"completed", "already_completed"}
+            ):
+                candidates.append((ts, "later historical-context reply completed"))
+        for event in events:
+            ts = get_event_time(event)
+            if (
+                ts is not None
+                and ts > last_time
+                and event.get("kind") == "historical_context_semantic_gate"
+                and event.get("status") == "loaded"
+            ):
+                candidates.append(
+                    (ts, "later historical-context semantic gate loaded successfully")
+                )
+    elif category == "legacy_regular_receipt_barrier":
+        candidates.extend(
+            (ts, "regular receipt reconciled or retired")
+            for ts in receipt_removed_times
+            if ts > last_time
+        )
+        recovery_kinds = ("daily_meme_posted", "quote_image_posted")
+    elif category == "daily_meme_failure":
+        recovery_kinds = ("daily_meme_posted",)
+    elif category == "quote_image_posting_failure":
+        recovery_kinds = ("quote_image_posted",)
+    elif category == "conversational_reply_posting_failure":
+        recovery_kinds = (
+            "mention_reply_posted",
+            "hot_post_reply_posted",
+            "quote_tweet_reply_posted",
+        )
+    elif category == "quote_pagination_protocol_anomaly":
+        recovery_kinds = (
+            "quote_lane_activity_succeeded",
+            "quote_pagination_repeated_token",
+        )
+    elif category == "process_crash":
+        candidates.extend(
+            (ts, "later successful bot startup observed")
+            for ts in successful_restart_times
+            if ts > last_time
+        )
+    elif category == "instance_lock_conflict":
+        candidates.extend(
+            (ts, "later successful single-instance bot startup observed")
+            for ts in successful_restart_times
+            if ts > last_time
+        )
+    elif category in {
+        "remote_write_ambiguity_barrier",
+        "remote_write_protocol_barrier",
+    }:
+        if safety.get("configured") is True and safety.get("available") is True:
+            protocol_valid = (
+                (safety.get("protocol") or {}).get("valid") is True
+            )
+            active_entries = safety.get("active_entries")
+            active_marker_names = safety.get("active_marker_names")
+            transport = safety.get("transport") or {}
+            current_clear = safety.get("blocking") is False
+            authoritative_barrier_namespace_clear = bool(
+                safety.get("blocking") is False
+                and isinstance(active_entries, list)
+                and not active_entries
+                and isinstance(active_marker_names, list)
+                and not active_marker_names
+                and transport.get("blocking") is False
+                and transport.get("classification") == "clear"
+            )
+            if category == "remote_write_ambiguity_barrier":
+                proved = safety.get("reconciliation_proven") is True
+                archive = safety.get("reconciliation_archive") or {}
+                marker_audits = archive.get("marker_reconciliations") or []
+                if not marker_audits:
+                    latest = archive.get("latest_marker_reconciliation")
+                    marker_audits = [latest] if latest else []
+                following_audits = [
+                    item
+                    for item in marker_audits
+                    if type(item.get("archived_at_epoch")) is int
+                    and item["archived_at_epoch"]
+                    >= int(last_time.timestamp())
+                ]
+                if (
+                    authoritative_barrier_namespace_clear
+                    and protocol_valid
+                    and proved
+                    and archive.get("valid") is True
+                    and following_audits
+                ):
+                    resolution_audit = min(
+                        following_audits,
+                        key=lambda item: (
+                            item["archived_at_epoch"],
+                            str(item.get("audit_path") or ""),
+                        ),
+                    )
+                    resolved_at = fromtimestamp(
+                        resolution_audit["archived_at_epoch"]
+                    )
+                    return (
+                        True,
+                        "durable offline reconciliation audit is valid and the current barrier namespace is clear",
+                        resolved_at,
+                    )
+            elif current_clear and protocol_valid:
+                return (
+                    True,
+                    "current protocol snapshot is valid with no active transaction barrier",
+                    clock_now(),
+                )
+    for kind in recovery_kinds:
+        candidates.extend(
+            (ts, f"later {kind.replace('_', ' ')} observed")
+            for ts in event_times.get(kind, [])
+            if ts > last_time
+        )
+    if not candidates:
+        return False, "", None
+    recovery_time, reason = min(candidates, key=lambda item: (item[0], item[1]))
+    return True, reason, recovery_time
+
+
 def summarise_operational_error_health(
     errors: List[Dict[str, Any]],
     events: List[Dict[str, Any]],
@@ -1491,124 +1781,18 @@ def summarise_operational_error_health(
         last_time: datetime,
     ) -> Tuple[str, str, Optional[datetime]]:
         """Reconcile one identified receipt/ambiguity transaction conservatively."""
-
-        if identity_snapshot_available and active_component_matches(
-            category,
-            identity,
-        ):
-            return "current_unresolved", "", None
-        unidentified_active = any(
-            component.get("identity_available") is not True
-            for component in active_remote_components
-            if component_is_related_to_selected_window(component)
-            and component_is_relevant_to_category(component, category)
-        )
-        if identity_snapshot_available and unidentified_active:
-            return (
-                "resolution_unavailable",
-                "current barrier artefacts lack enough identity to establish whether they match this transaction",
-                None,
-            )
-        if identity_snapshot_explicitly_unavailable:
-            return (
-                "resolution_unavailable",
-                "current status cannot be established from retained evidence because no usable filesystem snapshot is available",
-                None,
-            )
-        if not identity_snapshot_available:
-            return "legacy_fallback", "", None
-
-        transaction_id = str(identity.get("transaction_id") or "")
-        target_id = str(identity.get("target_id") or "")
-        lane = _normalise_lane(identity.get("lane"))
-        archive = safety.get("reconciliation_archive") or {}
-        marker_audits = archive.get("marker_reconciliations") or []
-        if not marker_audits:
-            latest_audit = archive.get("latest_marker_reconciliation")
-            marker_audits = [latest_audit] if latest_audit else []
-        def audit_matches(audit: Dict[str, Any]) -> bool:
-            audit_epoch = audit.get("archived_at_epoch")
-            if (
-                archive.get("valid") is not True
-                or type(audit_epoch) is not int
-                or audit_epoch < int(last_time.timestamp())
-            ):
-                return False
-            audit_transaction_id = str(audit.get("transaction_id") or "")
-            audit_target_id = str(audit.get("target_id") or "")
-            if transaction_id and audit_transaction_id:
-                return bool(
-                    transaction_id == audit_transaction_id
-                    and (
-                        not target_id
-                        or not audit_target_id
-                        or target_id == audit_target_id
-                    )
-                )
-            return bool(
-                target_id
-                and audit_target_id == target_id
-                and audit_epoch
-                <= int((last_time + timedelta(hours=6)).timestamp())
-            )
-
-        matching_audits = [audit for audit in marker_audits if audit_matches(audit)]
-        if category == "remote_write_ambiguity_barrier" and matching_audits:
-            resolution_audit = min(
-                matching_audits,
-                key=lambda audit: (
-                    audit["archived_at_epoch"],
-                    str(audit.get("audit_path") or ""),
-                ),
-            )
-            return (
-                "historical_resolved",
-                "matching durable offline reconciliation audit retired this transaction; current active barriers belong to another identity",
-                fromtimestamp(resolution_audit["archived_at_epoch"]),
-            )
-
-        terminal_matches = [
-            item
-            for item in terminal_reply_receipts
-            if str(item.get("target_id") or "") == target_id
-            and (
-                lane == "unavailable"
-                or _normalise_lane(item.get("lane")) == lane
-            )
-            and item["_time"] >= first_time
-        ]
-        handled_deleted = [
-            item
-            for item in handled_api_restrictions
-            if item.get("restriction_kind") == "deleted_or_inaccessible_tweet"
-            and str(item.get("target_id") or "") == target_id
-            and (
-                lane == "unavailable"
-                or _normalise_lane(item.get("lane")) == lane
-            )
-            and (restriction_time := get_event_time(item)) is not None
-            # The handled 403 is logged immediately before the ambiguity
-            # wrapper, so allow it to precede the root record narrowly.
-            and first_time - timedelta(minutes=5)
-            <= restriction_time
-            <= last_time + timedelta(minutes=5)
-        ]
-        if terminal_matches and handled_deleted:
-            terminal_time = min(item["_time"] for item in terminal_matches)
-            later_successes = [
-                ts for ts in remote_write_success_times if ts > terminal_time
-            ]
-            if later_successes:
-                return (
-                    "historical_resolved",
-                    "deleted/inaccessible target was handled, its sending receipt was retired, and a later remote write succeeded",
-                    terminal_time,
-                )
-
-        return (
-            "resolution_unavailable",
-            "no matching active artefact remains, but terminal resolution is unavailable from retained evidence",
-            None,
+        return _remote_write_recovery_status(
+            category, identity, first_time, last_time,
+            identity_snapshot_available=identity_snapshot_available,
+            active_component_matches=active_component_matches,
+            active_remote_components=active_remote_components,
+            component_is_related_to_selected_window=component_is_related_to_selected_window,
+            component_is_relevant_to_category=component_is_relevant_to_category,
+            identity_snapshot_explicitly_unavailable=identity_snapshot_explicitly_unavailable,
+            safety=safety, terminal_reply_receipts=terminal_reply_receipts,
+            handled_api_restrictions=handled_api_restrictions,
+            remote_write_success_times=remote_write_success_times,
+            fromtimestamp=fromtimestamp, get_event_time=get_event_time,
         )
 
     def pipeline_recovered_after(
@@ -1635,139 +1819,14 @@ def summarise_operational_error_health(
         )
 
     def recovered_after(category: str, last_time: datetime) -> Tuple[bool, str, Optional[datetime]]:
-        candidates: List[Tuple[datetime, str]] = []
-        recovery_kinds: Tuple[str, ...] = ()
-        if category in {
-            "historical_context_source_role_incompatibility",
-            "historical_context_reply_failure",
-        }:
-            for event in events:
-                ts = get_event_time(event)
-                if (
-                    ts is not None
-                    and ts > last_time
-                    and event.get("kind") == "historical_context_reply"
-                    and event.get("status") in {"completed", "already_completed"}
-                ):
-                    candidates.append((ts, "later historical-context reply completed"))
-            for event in events:
-                ts = get_event_time(event)
-                if (
-                    ts is not None
-                    and ts > last_time
-                    and event.get("kind") == "historical_context_semantic_gate"
-                    and event.get("status") == "loaded"
-                ):
-                    candidates.append(
-                        (ts, "later historical-context semantic gate loaded successfully")
-                    )
-        elif category == "legacy_regular_receipt_barrier":
-            candidates.extend(
-                (ts, "regular receipt reconciled or retired")
-                for ts in receipt_removed_times
-                if ts > last_time
-            )
-            recovery_kinds = ("daily_meme_posted", "quote_image_posted")
-        elif category == "daily_meme_failure":
-            recovery_kinds = ("daily_meme_posted",)
-        elif category == "quote_image_posting_failure":
-            recovery_kinds = ("quote_image_posted",)
-        elif category == "conversational_reply_posting_failure":
-            recovery_kinds = (
-                "mention_reply_posted",
-                "hot_post_reply_posted",
-                "quote_tweet_reply_posted",
-            )
-        elif category == "quote_pagination_protocol_anomaly":
-            recovery_kinds = (
-                "quote_lane_activity_succeeded",
-                "quote_pagination_repeated_token",
-            )
-        elif category == "process_crash":
-            candidates.extend(
-                (ts, "later successful bot startup observed")
-                for ts in successful_restart_times
-                if ts > last_time
-            )
-        elif category == "instance_lock_conflict":
-            candidates.extend(
-                (ts, "later successful single-instance bot startup observed")
-                for ts in successful_restart_times
-                if ts > last_time
-            )
-        elif category in {
-            "remote_write_ambiguity_barrier",
-            "remote_write_protocol_barrier",
-        }:
-            if safety.get("configured") is True and safety.get("available") is True:
-                protocol_valid = (
-                    (safety.get("protocol") or {}).get("valid") is True
-                )
-                active_entries = safety.get("active_entries")
-                active_marker_names = safety.get("active_marker_names")
-                transport = safety.get("transport") or {}
-                current_clear = safety.get("blocking") is False
-                authoritative_barrier_namespace_clear = bool(
-                    safety.get("blocking") is False
-                    and isinstance(active_entries, list)
-                    and not active_entries
-                    and isinstance(active_marker_names, list)
-                    and not active_marker_names
-                    and transport.get("blocking") is False
-                    and transport.get("classification") == "clear"
-                )
-                if category == "remote_write_ambiguity_barrier":
-                    proved = safety.get("reconciliation_proven") is True
-                    archive = safety.get("reconciliation_archive") or {}
-                    marker_audits = archive.get("marker_reconciliations") or []
-                    if not marker_audits:
-                        latest = archive.get("latest_marker_reconciliation")
-                        marker_audits = [latest] if latest else []
-                    following_audits = [
-                        item
-                        for item in marker_audits
-                        if type(item.get("archived_at_epoch")) is int
-                        and item["archived_at_epoch"]
-                        >= int(last_time.timestamp())
-                    ]
-                    if (
-                        authoritative_barrier_namespace_clear
-                        and protocol_valid
-                        and proved
-                        and archive.get("valid") is True
-                        and following_audits
-                    ):
-                        resolution_audit = min(
-                            following_audits,
-                            key=lambda item: (
-                                item["archived_at_epoch"],
-                                str(item.get("audit_path") or ""),
-                            ),
-                        )
-                        resolved_at = fromtimestamp(
-                            resolution_audit["archived_at_epoch"]
-                        )
-                        return (
-                            True,
-                            "durable offline reconciliation audit is valid and the current barrier namespace is clear",
-                            resolved_at,
-                        )
-                elif current_clear and protocol_valid:
-                    return (
-                        True,
-                        "current protocol snapshot is valid with no active transaction barrier",
-                        clock_now(),
-                    )
-        for kind in recovery_kinds:
-            candidates.extend(
-                (ts, f"later {kind.replace('_', ' ')} observed")
-                for ts in event_times.get(kind, [])
-                if ts > last_time
-            )
-        if not candidates:
-            return False, "", None
-        recovery_time, reason = min(candidates, key=lambda item: (item[0], item[1]))
-        return True, reason, recovery_time
+        return _recovered_after(
+            category, last_time,
+            events=events, event_times=event_times,
+            receipt_removed_times=receipt_removed_times,
+            successful_restart_times=successful_restart_times,
+            safety=safety, get_event_time=get_event_time,
+            fromtimestamp=fromtimestamp, clock_now=clock_now,
+        )
 
     incidents: List[Dict[str, Any]] = []
     for (category, signature), rows in groups.items():

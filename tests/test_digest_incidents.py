@@ -13,6 +13,361 @@ import mrs_log_digest_snapshot_incidents as snapshot_owner
 from tests.test_mrs_log_digest import BASE, record, reconciled_remote_write_safety
 
 
+def test_transaction_and_category_adapters_keep_prepared_inputs_and_current_helpers(monkeypatch):
+    later = BASE + timedelta(seconds=10)
+    events = [{"kind": "remote_write_succeeded", "_time": later}]
+    receipt = {"kind": "regular_removed", "_time": later}
+    restart = {"message": "Bot started successfully", "_time": later}
+    shared = {"fixture": "shared receipt evidence"}
+    terminal = {"kind": "sending_removed", "target_id": "123", "_time": later, "evidence": shared}
+    restriction = {"restriction_kind": "deleted_or_inaccessible_tweet", "_time": BASE}
+    components, calls = [], []
+    safety = {"configured": True, "available": True, "blocking": False,
+              "protocol": {"valid": True}, "active_transaction_identities": components}
+    identified, category_recovery = incident_owner._remote_write_recovery_status, incident_owner._recovered_after
+    event_time = lambda row: row.get("_time")
+
+    def reject(*args, **kwargs):
+        raise AssertionError("unexpected helper lookup or eager clock/epoch call")
+
+    def clock():
+        calls.append("clock")
+        return later
+
+    class Clock(datetime):
+        now = staticmethod(clock)
+        fromtimestamp = staticmethod(reject)
+
+    def category_callback(category, last_time, **inputs):
+        assert last_time is BASE
+        assert inputs["events"] is events and inputs["safety"] is safety
+        assert inputs["event_times"] == {"remote_write_succeeded": [later]}
+        assert inputs["event_times"]["remote_write_succeeded"][0] is later
+        for name in ("receipt_removed_times", "successful_restart_times"):
+            assert inputs[name] == [later] and inputs[name][0] is later
+        assert inputs["get_event_time"] is event_time
+        assert inputs["fromtimestamp"] is reject and inputs["clock_now"] is clock
+        calls.append(category)
+        return category_recovery(category, last_time, **inputs)
+
+    def transaction(category, identity, first_time, last_time, **inputs):
+        assert identity == {"lane": "mention", "target_id": "123"}
+        assert first_time is last_time is BASE
+        assert inputs["identity_snapshot_available"] is False
+        assert inputs["identity_snapshot_explicitly_unavailable"] is False
+        assert inputs["safety"] is safety and inputs["active_remote_components"] is components
+        assert inputs["handled_api_restrictions"][0] is restriction
+        assert inputs["terminal_reply_receipts"][0]["evidence"] is shared
+        assert inputs["terminal_reply_receipts"][0]["_time"] is later
+        assert inputs["remote_write_success_times"] == [later]
+        assert inputs["remote_write_success_times"][0] is later
+        assert inputs["fromtimestamp"] is reject and inputs["get_event_time"] is event_time
+        component = {"target_ids": ["123"], "artifact_kinds": ["ambiguity_marker"],
+                     "selected_window_relationship": "recorded_at_or_before_selected_window_end"}
+        assert inputs["component_is_related_to_selected_window"](component) is True
+        assert inputs["component_is_relevant_to_category"](component, category) is True
+        assert inputs["component_is_relevant_to_category"](component, "conversational_reply_receipt_barrier") is False
+        components.append(component)
+        assert inputs["active_component_matches"](category, identity) is True
+        components.clear()
+        calls.append("identified")
+        # This lookup must still be current when the legacy fallback runs.
+        monkeypatch.setattr(incident_owner, "_recovered_after", category_callback)
+        return identified(category, identity, first_time, last_time, **inputs)
+
+    def annotate(value, *_args, **_kwargs):
+        assert value is safety
+        calls.append("annotate")
+        monkeypatch.setattr(digest, "_event_time", reject)
+        monkeypatch.setattr(digest, "datetime", None)
+        monkeypatch.setattr(incident_owner, "_remote_write_recovery_status", transaction)
+
+    monkeypatch.setattr(digest, "datetime", Clock)
+    monkeypatch.setattr(digest, "_event_time", event_time)
+    monkeypatch.setattr(digest, "annotate_remote_write_snapshot_window", annotate)
+    monkeypatch.setattr(incident_owner, "_remote_write_recovery_status", reject)
+    monkeypatch.setattr(incident_owner, "_recovered_after", reject)
+    result = digest.summarise_operational_error_health(
+        [{"level": "CRITICAL", "message": "ambiguous remote X post outcome lane=mention target_id=123", "_time": BASE},
+         {"level": "ERROR", "message": "remote-write protocol is not activated", "_time": BASE}],
+        events, [receipt], lifecycle=iter([restart]), handled_api_restrictions=iter([restriction]),
+        confirmed_reply_receipt_events=iter([terminal]), current_remote_write_safety=safety, generation_time=BASE,
+    )
+    assert calls == ["annotate", "identified", "remote_write_ambiguity_barrier", "remote_write_protocol_barrier", "clock"]
+    assert result["current_incidents"][0]["category"] == "remote_write_ambiguity_barrier"
+    assert result["historical_resolved_incidents"][0]["resolution_time"] == digest.dt_text(later)
+
+
+def _identified_recovery_inputs(**overrides):
+    def reject(*args, **kwargs):
+        raise AssertionError("unexpected conditional dependency access")
+
+    return dict({
+        "identity_snapshot_available": True, "active_component_matches": lambda *args: False,
+        "active_remote_components": [], "component_is_related_to_selected_window": reject,
+        "component_is_relevant_to_category": reject, "identity_snapshot_explicitly_unavailable": False,
+        "safety": {}, "terminal_reply_receipts": [], "handled_api_restrictions": [],
+        "remote_write_success_times": [], "fromtimestamp": reject, "get_event_time": reject,
+    }, **overrides)
+
+
+@pytest.mark.parametrize("available,matched,explicit,status,reason", [
+    (True, True, False, "current_unresolved", ""),
+    (True, False, False, "resolution_unavailable", "current barrier artefacts lack enough identity to establish whether they match this transaction"),
+    (False, False, True, "resolution_unavailable", "current status cannot be established from retained evidence because no usable filesystem snapshot is available"),
+    (False, False, False, "legacy_fallback", ""),
+])
+def test_identified_recovery_keeps_unavailable_scan_and_predicate_order(available, matched, explicit, status, reason):
+    calls = []
+    rows = [{"name": "outside"}, {"name": "other-category"}, {"name": "unknown"}, {"name": "unvisited"}]
+
+    def active(category, identity):
+        calls.append("active")
+        return matched
+
+    def related(row):
+        assert row is rows[len([call for call in calls if isinstance(call, tuple) and call[0] == "related"])]
+        calls.append(("related", row["name"]))
+        return row["name"] != "outside"
+
+    def relevant(row, category):
+        calls.append(("relevant", row["name"]))
+        return row["name"] != "other-category"
+
+    inputs = _identified_recovery_inputs(
+        identity_snapshot_available=available, active_component_matches=active, active_remote_components=rows,
+        component_is_related_to_selected_window=related, component_is_relevant_to_category=relevant,
+        identity_snapshot_explicitly_unavailable=explicit, safety=None,
+    )
+    assert incident_owner._remote_write_recovery_status("remote_write_ambiguity_barrier", None, BASE, BASE, **inputs) == (status, reason, None)
+    assert calls == (["active"] if available else []) + ([] if matched else [
+        ("related", "outside"), ("related", "other-category"), ("relevant", "other-category"),
+        ("related", "unknown"), ("relevant", "unknown"),
+    ])
+    if not available and explicit:
+        failure = LookupError("unavailable snapshots still run the scan")
+
+        def fail(row):
+            raise failure
+
+        inputs["component_is_related_to_selected_window"] = fail
+        with pytest.raises(LookupError) as caught:
+            incident_owner._remote_write_recovery_status("remote_write_ambiguity_barrier", None, BASE, BASE, **inputs)
+        assert caught.value is failure
+
+
+@pytest.mark.parametrize("algorithm", ["identified", "category"])
+def test_recovery_audits_keep_native_epochs_ties_fallback_and_conditional_conversion(algorithm):
+    epoch, converted, calls = int(BASE.timestamp()), BASE + timedelta(seconds=11), []
+
+    class Epoch(int):
+        pass
+
+    class Audit(dict):
+        def __getitem__(self, key):
+            if key == "archived_at_epoch":
+                calls.append(self["name"])
+            return super().__getitem__(key)
+
+    audits = [Audit(name=name, archived_at_epoch=value, audit_path=path, target_id="123")
+              for name, value, path in [
+                  ("subclass", Epoch(epoch), "0"), ("boolean", True, "0"), ("string", str(epoch), "0"),
+                  ("float", float(epoch), "0"), ("stale", epoch - 1, "0"),
+                  ("later", epoch + 1, "0"), ("z", epoch, "z"), ("a", epoch, "a"), ("tied", epoch, "a"),
+              ]]
+    safety = reconciled_remote_write_safety()
+    archive = safety["reconciliation_archive"]
+    archive["marker_reconciliations"] = audits
+
+    def convert(value):
+        assert value == epoch and calls[-1] == "a"
+        calls.append("convert")
+        return converted
+
+    def recover():
+        if algorithm == "identified":
+            return incident_owner._remote_write_recovery_status(
+                "remote_write_ambiguity_barrier", {"target_id": "123"}, BASE, BASE,
+                **_identified_recovery_inputs(safety=safety, fromtimestamp=convert),
+            )
+        return incident_owner._recovered_after(
+            "remote_write_ambiguity_barrier", BASE, events=None, event_times={}, receipt_removed_times=None,
+            successful_restart_times=None, safety=safety, get_event_time=None, fromtimestamp=convert, clock_now=None,
+        )
+
+    result = recover()
+    assert result[0] == ("historical_resolved" if algorithm == "identified" else True)
+    assert result[2] is converted
+    assert calls == ([] if algorithm == "identified" else ["stale", "later", "z", "a", "tied"]) + ["later", "z", "a", "tied", "a", "convert"]
+    calls.clear()
+    archive["marker_reconciliations"] = []
+    archive["latest_marker_reconciliation"] = audits[-2]
+    assert recover() == result
+    assert calls == (["a"] if algorithm == "category" else []) + ["a", "a", "convert"]
+    archive["valid"] = False
+    calls.clear()
+    empty = recover()
+    assert empty[0] == ("resolution_unavailable" if algorithm == "identified" else False)
+    assert empty[2] is None and "convert" not in calls
+    archive["valid"] = True
+    failure = OverflowError("selected audit conversion")
+
+    def convert(value):
+        raise failure
+
+    with pytest.raises(OverflowError) as caught:
+        recover()
+    assert caught.value is failure
+
+
+def test_identified_recovery_keeps_current_owner_helpers_and_transaction_target_window(monkeypatch):
+    calls, epoch = [], int(BASE.timestamp())
+    original_lane = incident_owner._normalise_lane
+
+    def lane(value):
+        calls.append(("lane", value))
+        return original_lane(value)
+
+    def duration(**values):
+        calls.append(("duration", values))
+        return timedelta(**values)
+
+    monkeypatch.setattr(incident_owner, "_normalise_lane", lane)
+    monkeypatch.setattr(incident_owner, "timedelta", duration)
+    monkeypatch.setattr(digest, "_normalise_lane", None)
+    audit = {"archived_at_epoch": epoch + 6 * 3600, "target_id": "123"}
+    inputs = _identified_recovery_inputs(
+        safety={"reconciliation_archive": {"valid": True, "marker_reconciliations": [audit]}},
+        fromtimestamp=lambda value: BASE,
+    )
+    identity = {"transaction_id": "tx", "target_id": "123", "lane": "hot_post"}
+
+    def recover():
+        return incident_owner._remote_write_recovery_status("remote_write_ambiguity_barrier", identity, BASE, BASE, **inputs)
+
+    assert recover()[0] == "historical_resolved"
+    assert calls == [("lane", "hot_post"), ("duration", {"hours": 6})]
+    audit["archived_at_epoch"] += 1
+    assert recover()[0] == "resolution_unavailable"
+    audit["transaction_id"] = "tx"
+    calls.clear()
+    assert recover()[0] == "historical_resolved"
+    assert calls == [("lane", "hot_post")]
+    audit["target_id"] = "other"
+    assert recover()[0] == "resolution_unavailable"
+    audit["target_id"], audit["transaction_id"] = "123", "other-tx"
+    assert recover()[0] == "resolution_unavailable"
+    audit["transaction_id"] = "tx"
+    del audit["target_id"]
+    assert recover()[0] == "historical_resolved"
+
+
+def test_identified_recovery_keeps_handled_window_later_success_and_receipt_time_sharing():
+    last = BASE + timedelta(seconds=10)
+    terminal_time, tied_time = BASE + timedelta(seconds=11), BASE + timedelta(seconds=11)
+    receipts = [{"target_id": "123", "lane": "hot_post", "_time": BASE},
+                {"target_id": "123", "lane": "hot-post", "_time": tied_time}]
+    handled = {"restriction_kind": "deleted_or_inaccessible_tweet", "target_id": "123", "lane": "hot_post"}
+    calls = []
+
+    def event_time(row):
+        assert row is handled
+        calls.append(row["_time"])
+        # terminal_matches already exists: its rows must remain shared, and
+        # terminal time has a lower boundary only (it may follow last_time).
+        receipts[0]["_time"] = terminal_time
+        return row["_time"]
+
+    inputs = _identified_recovery_inputs(
+        terminal_reply_receipts=receipts, handled_api_restrictions=[handled], get_event_time=event_time,
+        remote_write_success_times=[terminal_time],
+    )
+
+    def recover():
+        receipts[0]["_time"] = BASE
+        return incident_owner._remote_write_recovery_status(
+            "conversational_reply_receipt_barrier", {"target_id": "123", "lane": "hot-post"}, BASE, last, **inputs,
+        )
+
+    handled["_time"] = BASE - timedelta(minutes=5)
+    assert recover()[0] == "resolution_unavailable"  # Equal success is insufficient.
+    inputs["remote_write_success_times"].append(terminal_time + timedelta(microseconds=1))
+    for ts, expected in [(BASE - timedelta(minutes=5), True), (last + timedelta(minutes=5), True),
+                         (BASE - timedelta(minutes=5, microseconds=1), False),
+                         (last + timedelta(minutes=5, microseconds=1), False)]:
+        handled["_time"] = ts
+        result = recover()
+        assert calls[-1] is ts
+        if expected:
+            assert result == ("historical_resolved", "deleted/inaccessible target was handled, its sending receipt was retired, and a later remote write succeeded", terminal_time)
+            assert result[2] is terminal_time and result[2] is not tied_time
+        else:
+            assert result == ("resolution_unavailable", "no matching active artefact remains, but terminal resolution is unavailable from retained evidence", None)
+
+
+def test_category_recovery_keeps_both_event_passes_kind_order_and_time_reason_ties():
+    reply_time, gate_time = BASE + timedelta(seconds=1), BASE + timedelta(seconds=1)
+    gate = {"kind": "historical_context_semantic_gate", "_time": gate_time}
+    reply = {"kind": "historical_context_reply", "status": "completed", "_time": reply_time}
+    events, calls = [gate, reply], []
+
+    def event_time(row):
+        calls.append(row["kind"])
+        if row is reply:
+            gate["status"] = "loaded"
+        return row["_time"]
+
+    inputs = dict(events=events, event_times={}, receipt_removed_times=[reply_time], successful_restart_times=[],
+                  safety=None, get_event_time=event_time, fromtimestamp=None, clock_now=None)
+    result = incident_owner._recovered_after("historical_context_reply_failure", BASE, **inputs)
+    assert result == (True, "later historical-context reply completed", reply_time)
+    assert result[2] is reply_time
+    assert calls == ["historical_context_semantic_gate", "historical_context_reply"] * 2
+    reply["status"] = "failed"
+    assert incident_owner._recovered_after("historical_context_reply_failure", BASE, **inputs)[2] is gate_time
+
+    class Times(dict):
+        def get(self, key, default):
+            calls.append(key)
+            return super().get(key, default)
+
+    calls.clear()
+    inputs["event_times"] = Times(mention_reply_posted=[BASE, reply_time], hot_post_reply_posted=[gate_time])
+    result = incident_owner._recovered_after("conversational_reply_posting_failure", BASE, **inputs)
+    assert result == (True, "later hot post reply posted observed", gate_time) and result[2] is gate_time
+    assert calls == ["mention_reply_posted", "hot_post_reply_posted", "quote_tweet_reply_posted"]
+    calls.clear()
+    inputs["event_times"] = Times(daily_meme_posted=[gate_time])
+    result = incident_owner._recovered_after("legacy_regular_receipt_barrier", BASE, **inputs)
+    assert result == (True, "later daily meme posted observed", gate_time) and result[2] is gate_time
+    assert calls == ["daily_meme_posted", "quote_image_posted"]
+    assert incident_owner._recovered_after("legacy_regular_receipt_barrier", gate_time, **inputs) == (False, "", None)
+    assert incident_owner._recovered_after("unknown", BASE, **inputs) == (False, "", None)
+
+
+def test_category_protocol_clear_keeps_conditional_clock_and_namespace_distinction():
+    calls, sampled = [], BASE + timedelta(hours=1)
+    safety = {"configured": True, "available": True, "blocking": False, "protocol": {"valid": True}}
+
+    def clock():
+        calls.append("clock")
+        return sampled
+
+    inputs = dict(events=None, event_times={}, receipt_removed_times=None, successful_restart_times=None,
+                  safety=safety, get_event_time=None, fromtimestamp=None, clock_now=clock)
+    result = incident_owner._recovered_after("remote_write_protocol_barrier", BASE, **inputs)
+    assert result == (True, "current protocol snapshot is valid with no active transaction barrier", sampled)
+    assert result[2] is sampled and calls == ["clock"]
+    calls.clear()
+    assert incident_owner._recovered_after("remote_write_ambiguity_barrier", BASE, **inputs) == (False, "", None)
+    safety["protocol"]["valid"] = False
+    assert incident_owner._recovered_after("remote_write_protocol_barrier", BASE, **inputs) == (False, "", None)
+    safety["protocol"]["valid"] = True
+    safety["available"] = False
+    assert incident_owner._recovered_after("remote_write_protocol_barrier", BASE, **inputs) == (False, "", None)
+    assert calls == []
+
+
 def test_association_adapters_forward_prepared_references_and_current_callbacks(monkeypatch):
     later, attempt_time = BASE + timedelta(seconds=1), BASE - timedelta(seconds=1)
     root = {"level": "CRITICAL", "message": "ambiguous remote X post outcome", "_time": BASE}
