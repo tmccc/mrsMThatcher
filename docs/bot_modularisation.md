@@ -1874,3 +1874,94 @@ operations, live provider calls, deployment/restart or next-stage work ran.
 Next useful domain: supervisor review of `get_hot_post_reply_candidates`, keeping
 shared pagination, request/authentication, persistence and reply-cycle authority
 in their current locations. Supervisor review precedes a fresh invocation.
+
+## Stage 18 — hot-post discovery and candidate handoff
+
+Baseline: `1541bd5520c57f152f8a405a0a13f8f877bf69bc` (2026-09-06).
+Worktree `/disks/disk1/research/mrsMThatcher-bot-modularisation-stage18` started
+clean on `codex/bot-modularisation-stage18`; the parent matched the verified
+remote stage 17 branch. The supervisor's scope/dependency review and all fourteen
+curated direct/indirect test nodes guided the extraction and affected selection.
+
+`mrs_bot_hot_post_discovery.py` owns **482 original definition lines** across
+`get_hot_post_reply_candidates`, `mark_hot_post_reply_skipped`,
+`maybe_mark_hot_post_reply_skipped` and `dedupe_reply_candidates`. Four explicit
+root adapters retain names, signatures, defaults and annotations, passing
+**26, 3, 1 and 2** current dependencies. Original bodies/docstrings and the nested
+invalid-cursor closure are byte-identical. No constants move; standard-library
+imports perform no runtime work or retained dependency setup.
+
+Compatibility preserves early flags/watch failures, local pruning/check-map
+copies, full-rescan cadence, cursor-only durable clearing before retry and native
+request-error propagation. Eligibility still precedes the candidate cap; pending
+outcome/clear, terminal evaluation, skip marker and terminal event order remain
+exact. Candidate annotations/cache handoff preserve references; soft watermarks
+and continuation remain conservative. Skip IDs/records retain bounds, native
+malformed-state errors and in-place versus trimmed-map identity. Merging retains
+first mention/unique hot objects, annotation precedence and deep copies only for
+missing mention references, preventing a second model decision for duplicates.
+Watched-ID reading, shared pagination/authentication, eligibility, pending drafts,
+terminal evaluation, cache/persistence, mention authority/watermarks and normal
+reply-cycle authority remain in their current root/owners. All seventeen earlier
+owners, existing tests/fixtures and digest docs are unchanged.
+
+Evidence: `/tmp/mrs-bot-stage18-dgpSxi`. Before editing, documentation passed for
+**226 modules**, **48 cases** collected in **4.14s**, and **48 passed in 17.38s**.
+The validated nonempty baseline has **25 file/node arguments across 8 files**:
+all fourteen supplied nodes, five relevant prior owners (**24 cases**), guarded
+bootstrap (**8**) and two indirect normal-cycle draft/restart recovery callers.
+The loopback scenarios cover full rescan after restart, watermark edges,
+duplicate one-model-call/one-post behavior, pagination/truncation/final unusable
+pages, optional search failure and the quote breaker.
+
+After extraction, documentation passed for **227 modules**, **59 cases**
+collected in **4.22s**, and **59 passed in 17.74s** on the first run
+(`current-initial-pytest.txt`; **26 arguments across 9 files**). Nine new tests
+expand to eleven cases covering guarded import, current dependencies/defaults,
+early exits, draft/terminal/media/cache/save order and identity, cursor-save and
+request error boundaries, marker bounds/native errors, handoff callbacks and
+merge/copy identity. They reuse the existing bot/draft fixtures and register
+autouse `isolate_regular_post_receipt`; transaction and network guards remain active.
+
+```bash
+set -euo pipefail
+bash /tmp/mrs-bot-stage18-dgpSxi/run_selected.sh baseline
+bash /tmp/mrs-bot-stage18-dgpSxi/run_selected.sh current-initial
+PYTHONDONTWRITEBYTECODE=1 python3 /tmp/mrs-bot-stage18-dgpSxi/verify_stage18.py
+PYTHONDONTWRITEBYTECODE=1 python3 tools/check_python_documentation.py
+git diff --check
+```
+
+The reused runner requires successful selection generation, nonempty validation
+and collection before pytest. It supplies `PYTHONUSERBASE=/home/tonym/.local`,
+`MRS_TEST_MODE=1`, `PYTEST_DISABLE_PLUGIN_AUTOLOAD=1`, `PYTHONDONTWRITEBYTECODE=1`,
+evidence-root `TMPDIR` and explicit arguments to
+`python3 -m pytest -q -p no:cacheprovider`. Temporary HOME/state, dummy credentials,
+dead proxies, denied external sockets and explicit loopback fake APIs remain in
+effect. No broad suite or whole enormous test file ran. The actual passing run
+is retained; unchanged tests were not repeated after documentation-only edits.
+
+`comparison.txt` checks exact bodies/docstrings, signatures and current dependency
+forwarding using immutable `git show`, AST and symbol tables. Restoring the four
+originals and removing one import reconstructs the **entire parent root
+byte-for-byte**, including **535 unaffected definitions** and unrelated statements.
+It verifies all seventeen earlier owners and all unrelated tracked files without
+importing the bot. The final documentation gate and `git diff --check` pass.
+
+| Runtime file | Before lines / bytes | After lines / bytes |
+|---|---:|---:|
+| `mrsMThatcher2.py` | 22,412 / 875,616 | 21,997 / 859,029 |
+| `mrs_bot_hot_post_discovery.py` | absent | 556 / 21,756 |
+
+The root loses **415 lines / 16,587 bytes**; combined runtime source grows by
+**141 lines / 5,169 bytes** for explicit dependencies, forwarding and owner docs.
+The new focused test file has **365 lines / 17,784 bytes**. README's companion
+list and the Python API table add the owner.
+
+Production remains `master` at `af5eda7c163a8174ec1365060aa923d21787e7bd` per
+worktree metadata. No production configuration/state/credentials, service
+operations, live provider calls, deployment/restart or next-stage work ran.
+Next useful domain: supervisor review of reply-context/media preparation around
+`build_context_for_reply_ai` and `reply_media_context_for_candidate`, keeping
+provider, cache/persistence and reply-cycle authority in their current locations.
+Supervisor review precedes a fresh invocation.
