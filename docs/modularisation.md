@@ -3821,8 +3821,8 @@ Base: `809cca71f34bf617df9f8a544356f99126220a27`, verified against pushed
 `/disks/disk1/research/mrsMThatcher-modularisation-stage40`; branch:
 `codex/modularisation-stage40`. This completes the authorised stages 37–40;
 historical stopping instructions are superseded by **cap 40 plus supervisor broad
-validation**. README's complete offline suite is **pending the supervisor's run
-after verifying stage 40**, not passed by this worker.
+validation**. README's complete offline suite was left pending by this worker. The
+supervisor's subsequent broad and targeted results are recorded below.
 
 `mrs_log_digest_reply_text._enrich_selected_historical_reply_text` receives the
 exact **four statements / 136 lines** formerly at parent lines 670–805: both
@@ -3938,3 +3938,56 @@ This session ends after the ordinary stage-40 commit/push verification. **No sta
 41 or next session is started.** Production/configuration/state/log/image-pool
 files remain untouched; no live bot execution, provider/posting calls, service
 control, merge, deployment or force-push occurred.
+
+### Supervisor validation after stage 40
+
+All four stage commits were independently reviewed, verified clean and pushed.
+The supervisor then ran README's complete offline four-worker suite against
+code commit `cf734a663f23170a8aacae7442d11c5f08b1d8b3`:
+
+```bash
+python3 -B tools/check_python_documentation.py
+MRS_TEST_MODE=1 PYTEST_DISABLE_PLUGIN_AUTOLOAD=1 PYTHONDONTWRITEBYTECODE=1 \
+python3 -m pytest -q -p no:cacheprovider -p xdist.plugin -n 4 \
+  --dist=worksteal --max-worker-restart=0
+```
+
+Documentation passed for 209 modules. The complete run finished with **6,039
+passed, one failed, 873 warnings in 461.39 seconds** (exit 1). The sole failure
+was `tests/test_discovered_image_preparation.py::test_status_cli_stdout_is_machine_readable_json`:
+its child CLI could not import `imagehash`. The same targeted failure reproduced
+on the unchanged stage-36 checkpoint, establishing that it predates this batch.
+The installed ImageHash package resides under `/home/tonym/.local`; pytest's
+temporary HOME hid that user package directory from child Python processes.
+
+A process-only `PYTHONUSERBASE=/home/tonym/.local` setting preserves the installed
+package location while retaining the temporary HOME, state/cache isolation, dummy
+credentials and network controls. The previously failing test and all seven
+`tests/test_pytest_safety_bootstrap.py` checks then **passed: eight tests in
+4.14 seconds**. No product code, existing assertion, dependency installation or
+safety bootstrap was changed. The targeted command was:
+
+```bash
+PYTHONUSERBASE=/home/tonym/.local MRS_TEST_MODE=1 \
+PYTEST_DISABLE_PLUGIN_AUTOLOAD=1 PYTHONDONTWRITEBYTECODE=1 \
+python3 -m pytest -q -p no:cacheprovider \
+  tests/test_discovered_image_preparation.py::test_status_cli_stdout_is_machine_readable_json \
+  tests/test_pytest_safety_bootstrap.py
+```
+
+A complete rerun with that environment setting had started, but the user then
+requested only the failing test be rerun. The supervisor stopped the full rerun
+and verified its workers exited: **1,363 passed, 470 warnings before interruption
+at 64.35 seconds**, exit 2. This interrupted run is not a full-suite pass. The
+requested failing-test rerun had already succeeded; no further tests were run.
+The 873 warnings in the completed run were FastAPI/Starlette and BeautifulSoup/lxml
+deprecation warnings.
+
+Logs and exact broad commands are in
+`/disks/disk1/research/mrsMThatcher-modularisation-supervision/`:
+`stage40-broad-tests.log`, `stage40-broad-tests-command.txt`,
+`stage40-broad-tests-env-fixed.log`, and
+`stage40-broad-tests-env-fixed-command.txt`; corresponding `.exit` files record
+exit status. README now notes user-site package preservation for isolated tests.
+Only documentation changed after the tested code commit. Work stops at stage 40;
+no stage 41, merge, deployment or production run occurred.

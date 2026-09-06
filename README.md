@@ -34,6 +34,16 @@ Before collection, pytest also sets a temporary `HOME` inherited by child CLI
 processes, isolating the digest's default published-cost cache. Cost tests use
 synthetic caches and can still override the digest's path and clock directly.
 
+If development dependencies are installed in the Python user site, preserve that
+package location for child CLI processes before running pytest:
+
+```bash
+export PYTHONUSERBASE="$(python3 -m site --user-base)"
+```
+
+This keeps installed packages available after pytest changes `HOME`; temporary
+home, state/cache and network isolation remain in effect.
+
 The complete offline test and research-tool dependency set is recorded in
 `requirements-dev.txt`. Install it when running the full repository suite:
 
