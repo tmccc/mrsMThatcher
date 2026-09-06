@@ -244,6 +244,7 @@ import mrs_bot_reply_evaluation_state as _reply_evaluation_state
 import mrs_bot_tweet_lookup_cache as _tweet_lookup_cache
 import mrs_bot_reply_context as _reply_context
 import mrs_bot_reply_native_media as _reply_native_media
+import mrs_bot_reply_lane_policy as _reply_lane_policy
 
 from single_call_reply import (
     MAX_IMAGE_BYTES as SINGLE_CALL_MAX_IMAGE_BYTES,
@@ -5293,128 +5294,80 @@ def save_state(state: dict, *, durable: bool = False) -> None:
 
 
 def reset_daily_reply_count_if_needed(state: dict) -> None:
-    """Reset daily reply count if needed."""
-    today = reply_cap_date_str()
-
-    if state.get("daily_reply_date") != today:
-        log.info(
-            "Resetting daily reply count. Previous date=%s new date=%s previous count=%s",
-            state.get("daily_reply_date"),
-            today,
-            state.get("daily_reply_count"),
-        )
-        state["daily_reply_date"] = today
-        state["daily_reply_count"] = 0
-        state["daily_replied_author_ids"] = []
-        state["daily_replied_author_counts"] = {}
-
-
-def reset_daily_quote_reply_count_if_needed(state: dict) -> None:
-    """Reset daily quote reply count if needed."""
-    today = reply_cap_date_str()
-
-    if state.get("daily_quote_reply_date") != today:
-        log.info(
-            "Resetting daily quote-reply count. Previous date=%s new date=%s previous count=%s",
-            state.get("daily_quote_reply_date"),
-            today,
-            state.get("daily_quote_reply_count"),
-        )
-        state["daily_quote_reply_date"] = today
-        state["daily_quote_reply_count"] = 0
-
-
-def daily_author_reply_counts(state: dict) -> dict[str, int]:
-    """Return the daily author reply counts."""
-    counts = state.get("daily_replied_author_counts", {})
-    if isinstance(counts, dict):
-        cleaned: dict[str, int] = {}
-        for author_id, count in counts.items():
-            try:
-                cleaned[str(author_id)] = max(0, int(count))
-            except Exception:
-                continue
-        if not cleaned:
-            legacy_authors = set(str(x) for x in state.get("daily_replied_author_ids", []))
-            cleaned = {author_id: 1 for author_id in legacy_authors}
-        state["daily_replied_author_counts"] = cleaned
-        return cleaned
-
-    legacy_authors = set(str(x) for x in state.get("daily_replied_author_ids", []))
-    cleaned = {author_id: 1 for author_id in legacy_authors}
-    state["daily_replied_author_counts"] = cleaned
-    return cleaned
-
-
-def daily_author_reply_count(state: dict, author_id: str) -> int:
-    """Return the daily author reply count."""
-    return daily_author_reply_counts(state).get(str(author_id), 0)
-
-
-def mark_daily_author_replied(state: dict, author_id: str) -> None:
-    """Mark daily author replied."""
-    author_id = str(author_id)
-    counts = daily_author_reply_counts(state)
-    counts[author_id] = counts.get(author_id, 0) + 1
-    state["daily_replied_author_counts"] = counts
-
-    state["daily_replied_author_ids"] = append_unique_capped(
-        state.get("daily_replied_author_ids", []),
-        author_id,
-        1000,
+    """Delegate reply-lane policy with current root dependencies."""
+    return _reply_lane_policy.reset_daily_reply_count_if_needed(
+        state,
+        log=log,
+        reply_cap_date_str=reply_cap_date_str,
     )
 
 
-CLARIFICATION_CUE_RE = re.compile(
-    r"\b(?:you\s+)?(?:did(?:n't|\s+not)|does(?:n't|\s+not)|have(?:n't|\s+not))\s+answer(?:ed)?\b"
-    r"|\b(?:your|that|the)\s+(?:reply|answer)\s+(?:did(?:n't|\s+not)|does(?:n't|\s+not))\s+answer\b"
-    r"|\b(?:that(?:'s|\s+is|\s+was)\s+)?not\s+(?:what|the\s+question)\s+(?:i\s+)?asked\b"
-    r"|\banswer\s+(?:my|the)\s+question\b"
-    r"|\b(?:you\s+)?(?:avoided|evaded)\s+(?:my|the)\s+question\b",
-    re.IGNORECASE,
-)
-CLARIFICATION_TOKEN_RE = re.compile(r"[A-Za-z0-9][A-Za-z0-9'-]{2,}")
-CLARIFICATION_TOKEN_STOPWORDS = {
-    "answer", "asked", "did", "does", "from", "have", "people", "question",
-    "that", "the", "their", "then", "they", "this", "towards", "what", "when",
-    "where", "which", "who", "with", "you", "your",
-}
+def reset_daily_quote_reply_count_if_needed(state: dict) -> None:
+    """Delegate reply-lane policy with current root dependencies."""
+    return _reply_lane_policy.reset_daily_quote_reply_count_if_needed(
+        state,
+        log=log,
+        reply_cap_date_str=reply_cap_date_str,
+    )
 
 
-def clarification_thread_id(candidate: dict) -> str:
-    """Return the clarification thread ID."""
-    return str(candidate.get("conversation_id") or candidate.get("id") or "")
+daily_author_reply_counts = _reply_lane_policy.daily_author_reply_counts
+
+
+def daily_author_reply_count(state: dict, author_id: str) -> int:
+    """Delegate reply-lane policy with current root dependencies."""
+    return _reply_lane_policy.daily_author_reply_count(
+        state,
+        author_id,
+        daily_author_reply_counts=daily_author_reply_counts,
+    )
+
+
+def mark_daily_author_replied(state: dict, author_id: str) -> None:
+    """Delegate reply-lane policy with current root dependencies."""
+    return _reply_lane_policy.mark_daily_author_replied(
+        state,
+        author_id,
+        append_unique_capped=append_unique_capped,
+        daily_author_reply_counts=daily_author_reply_counts,
+    )
+
+
+CLARIFICATION_CUE_RE = _reply_lane_policy.CLARIFICATION_CUE_RE
+CLARIFICATION_TOKEN_RE = _reply_lane_policy.CLARIFICATION_TOKEN_RE
+CLARIFICATION_TOKEN_STOPWORDS = _reply_lane_policy.CLARIFICATION_TOKEN_STOPWORDS
+
+
+clarification_thread_id = _reply_lane_policy.clarification_thread_id
 
 
 def clarification_thread_is_terminal(state: dict, candidate: dict) -> bool:
-    """Return whether clarification thread is terminal."""
-    records = state.get("clarification_reply_records", {})
-    return isinstance(records, dict) and clarification_thread_id(candidate) in records
+    """Delegate reply-lane policy with current root dependencies."""
+    return _reply_lane_policy.clarification_thread_is_terminal(
+        state,
+        candidate,
+        clarification_thread_id=clarification_thread_id,
+    )
 
 
 def author_used_clarification_recently(state: dict, author_id: str, *, current: int) -> bool:
-    """Return the author used clarification recently."""
-    records = state.get("clarification_reply_records", {})
-    if not isinstance(records, dict):
-        return False
-    cutoff = int(current) - CLARIFICATION_REPLY_WINDOW_SECONDS
-    for record in records.values():
-        if not isinstance(record, dict) or str(record.get("author_id") or "") != str(author_id):
-            continue
-        try:
-            if int(record.get("completed_epoch", 0) or 0) > cutoff:
-                return True
-        except (TypeError, ValueError):
-            continue
-    return False
+    """Delegate reply-lane policy with current root dependencies."""
+    return _reply_lane_policy.author_used_clarification_recently(
+        state,
+        author_id,
+        current=current,
+        CLARIFICATION_REPLY_WINDOW_SECONDS=CLARIFICATION_REPLY_WINDOW_SECONDS,
+    )
 
 
 def _clarification_tokens(text: object) -> set[str]:
-    without_handles = re.sub(r"(?<![A-Za-z0-9_])@[A-Za-z0-9_]+", " ", str(text or ""))
-    return {
-        token.lower() for token in CLARIFICATION_TOKEN_RE.findall(without_handles)
-        if token.lower() not in CLARIFICATION_TOKEN_STOPWORDS
-    }
+    """Delegate reply-lane policy with current root dependencies."""
+    return _reply_lane_policy._clarification_tokens(
+        text,
+        CLARIFICATION_TOKEN_RE=CLARIFICATION_TOKEN_RE,
+        CLARIFICATION_TOKEN_STOPWORDS=CLARIFICATION_TOKEN_STOPWORDS,
+        re=re,
+    )
 
 
 def clarification_reply_context(
@@ -5423,62 +5376,21 @@ def clarification_reply_context(
     *,
     current: int,
 ) -> dict | None:
-    """Return bounded repair metadata only for a direct follow-up to our confirmed reply."""
-    if not conversational_reply_pipeline_enabled() or clarification_thread_is_terminal(state, candidate):
-        return None
-    author_id = str(candidate.get("author_id") or "")
-    if not author_id or author_used_clarification_recently(state, author_id, current=current):
-        return None
-
-    try:
-        prior_bot_reply_id = get_immediate_parent_id(candidate)
-    except ApiError:
-        return None
-    if not prior_bot_reply_id or prior_bot_reply_id not in {
-        str(item) for item in state.get("own_auto_reply_ids", [])
-    }:
-        return None
-
-    cache = state.get("tweet_cache", {})
-    if not isinstance(cache, dict):
-        return None
-    prior_bot_reply = cache.get(prior_bot_reply_id)
-    if not is_our_auto_reply(prior_bot_reply, state):
-        return None
-    try:
-        original_question_id = get_immediate_parent_id(prior_bot_reply)
-    except ApiError:
-        return None
-    original_question = cache.get(str(original_question_id or ""))
-    if not isinstance(original_question, dict):
-        return None
-    if str(original_question.get("author_id") or "") != author_id:
-        return None
-
-    thread_id = clarification_thread_id(candidate)
-    if not thread_id or str(original_question.get("conversation_id") or original_question_id) != thread_id:
-        return None
-    question_text = str(original_question.get("text") or "")
-    incoming_text = str(candidate.get("text") or "")
-    if "?" not in question_text:
-        return None
-
-    explicit_correction = bool(CLARIFICATION_CUE_RE.search(incoming_text))
-    restated_question = "?" in incoming_text
-    if restated_question:
-        restated_question = bool(
-            _clarification_tokens(question_text) & _clarification_tokens(incoming_text)
-        )
-    if not explicit_correction and not restated_question:
-        return None
-
-    return {
-        "thread_id": thread_id,
-        "prior_bot_reply_id": prior_bot_reply_id,
-        "original_question_id": str(original_question_id),
-        "question_text": question_text,
-        "trigger": "explicit_correction" if explicit_correction else "restated_question",
-    }
+    """Delegate reply-lane policy with current root dependencies."""
+    return _reply_lane_policy.clarification_reply_context(
+        state,
+        candidate,
+        current=current,
+        ApiError=ApiError,
+        CLARIFICATION_CUE_RE=CLARIFICATION_CUE_RE,
+        _clarification_tokens=_clarification_tokens,
+        author_used_clarification_recently=author_used_clarification_recently,
+        clarification_thread_id=clarification_thread_id,
+        clarification_thread_is_terminal=clarification_thread_is_terminal,
+        conversational_reply_pipeline_enabled=conversational_reply_pipeline_enabled,
+        get_immediate_parent_id=get_immediate_parent_id,
+        is_our_auto_reply=is_our_auto_reply,
+    )
 
 
 # ---------------------------------------------------------------------
@@ -7456,32 +7368,13 @@ def build_context_for_reply_ai(
 # ---------------------------------------------------------------------
 
 def reply_target_is_directly_eligible(tweet: dict) -> bool:
-    """Check only the target post itself for X reply eligibility evidence."""
-    if str(tweet.get("author_id") or "") == str(MY_USER_ID):
-        return True
-
-    entities = tweet.get("entities")
-    if isinstance(entities, dict):
-        mentions = entities.get("mentions")
-        if isinstance(mentions, list):
-            for mention in mentions:
-                if not isinstance(mention, dict):
-                    continue
-                if str(mention.get("id") or "") == str(MY_USER_ID):
-                    return True
-                username = str(mention.get("username") or "").lstrip("@")
-                if MY_USERNAME and username.casefold() == MY_USERNAME.casefold():
-                    return True
-        return False
-
-    text = str(tweet.get("text") or "")
-    if MY_USERNAME and re.search(
-        rf"(?<![A-Za-z0-9_])@{re.escape(MY_USERNAME)}(?![A-Za-z0-9_])",
-        text,
-        flags=re.IGNORECASE,
-    ):
-        return True
-    return False
+    """Delegate reply-lane policy with current root dependencies."""
+    return _reply_lane_policy.reply_target_is_directly_eligible(
+        tweet,
+        MY_USERNAME=MY_USERNAME,
+        MY_USER_ID=MY_USER_ID,
+        re=re,
+    )
 
 
 def pending_mention_candidates(state: dict) -> list[dict]:
@@ -17664,30 +17557,13 @@ SPAMMY_PATTERNS = [
 ]
 
 def is_probably_spam_or_not_worth_replying(text: str) -> bool:
-    """Return whether is probably spam or not worth replying."""
-    low = text.lower().strip()
-    log.debug("Spam check for text=%r", text)
-
-    for pattern in SPAMMY_PATTERNS:
-        if re.search(pattern, low):
-            log.info("Ignoring post: matched spam pattern %s", pattern)
-            return True
-
-    if text.count("!") >= 5:
-        log.info("Ignoring post: too many exclamation marks")
-        return True
-
-    words = low.split()
-    if words:
-        link_or_mention_count = sum(1 for w in words if w.startswith("@") or w.startswith("http"))
-        ratio = link_or_mention_count / len(words)
-        log.debug("Post link/mention ratio=%s", ratio)
-        if ratio > 0.5:
-            log.info("Ignoring post: mostly links/mentions")
-            return True
-
-    log.debug("Post passed spam check")
-    return False
+    """Delegate reply-lane policy with current root dependencies."""
+    return _reply_lane_policy.is_probably_spam_or_not_worth_replying(
+        text,
+        SPAMMY_PATTERNS=SPAMMY_PATTERNS,
+        log=log,
+        re=re,
+    )
 
 
 pending_ai_reply_draft_key = _reply_state.pending_ai_reply_draft_key

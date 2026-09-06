@@ -2456,3 +2456,86 @@ Next useful domain: supervisor review of shared tweet ID parsing/ordering and
 direct reply eligibility around `parse_tweet_id`, `valid_tweets_sorted_by_id`
 and `reply_target_is_directly_eligible`. Supervisor review precedes any further
 stage; this invocation implements only stage 24 and launches no successor.
+
+## Stage 25 — reply-lane counters, clarification eligibility and deterministic gates
+
+Baseline: `5a5ed3087b4224eb0f78e899fb8ce95f6a0f56a1` (2026-09-06).
+Worktree `/disks/disk1/research/mrsMThatcher-bot-modularisation-stage25` started
+clean on `codex/bot-modularisation-stage25`, matching the verified pushed stage
+24 parent. The supervisor's scope/dependency review and all 31 supplied test
+nodes informed the extraction; normal/quote cycles, reconciliation, state
+recovery and guarded bootstrap callers were inspected.
+
+`mrs_bot_reply_lane_policy.py` owns **12 functions / 205 original definition
+lines**: both daily resets, three daily author counter helpers, thread ID and
+terminal/recent clarification checks, clarification tokens/context, direct
+target eligibility and deterministic spam filtering. Exactly three fixed
+clarification regex/stopword definitions (**14 lines**) move with unchanged
+initializer source, types and order. Root constants initially share owner
+objects; ten explicit adapters pass current root dependencies, including rebound
+regexes/stopwords. `daily_author_reply_counts` and `clarification_thread_id`
+remain dependency-free aliases. Root names/signatures/defaults/annotations and
+implementation bodies/docstrings are preserved.
+
+Compatibility retains current cap-date sampling and logging before reset;
+permissive legacy count cleaning/fallback, fresh mapping identity and increment
+before capped-ID helper failure; terminal-thread membership and the strict
+clarification window; cached confirmed-reply/question proof, original question
+text and correction/restatement token gates. Own-author precedence, structured
+entities suppressing text fallback, ordered spam patterns, exclamation/ratio
+thresholds, raw logging, native errors and mutation order remain exact.
+Configurable `SPAMMY_PATTERNS` and other settings, persistence/save points,
+context/lookup, own-reply identity and pipeline authority stay in existing
+locations. The standard-library-only owner retains no dependencies or runtime
+state and performs no import-time file/environment/provider/RNG work.
+
+Evidence: `/tmp/mrs-bot-stage25-Ihn7Hr8F`. Before editing, documentation passed
+for **233 modules**, **67 tests collected in 3.90s**, and **67 passed in 18.21s**
+(`baseline-pytest.txt`; **53 explicit nodes across 10 files**). The selection
+includes all 31 supplied nodes, receipt/reconciliation/context/history owners,
+guarded bootstrap and actual indirect cap, clarification and spam cases.
+Loopback regressions cover both daily caps across midnight/restart, per-author
+caps in both lanes, deterministic rejection before model calls, cross-lane
+receipt recovery and normal/quote priority after restart. Existing tests retain
+timezone-independent resets, exact 24-hour expiry, durable clarification replay
+protection, author caps and terminal threads after later cap reset.
+
+After extraction, documentation passed for **234 modules**, **79 tests collected
+in 3.94s**, and **79 passed in 18.39s** on the first run (`current-pytest.txt`;
+**64 explicit nodes across 11 files**). Eleven new tests (12 cases) cover guarded
+import, current dependency/reference/error forwarding, shared fixed objects and
+rebinding, legacy counts, reset/increment order, cached clarification proof and
+current exception/token authority, terminal/window rules and deterministic gate
+ordering. They reuse existing mention/confirmed-receipt helpers, cache and
+reconciliation implementations and explicitly register the imported autouse
+`isolate_regular_post_receipt` fixture; existing fixtures/assertions are intact.
+
+`run_selected.sh` requires successful AST-validated nonempty selection and
+collection under `set -euo pipefail`. Both runs use installed user dependencies,
+test mode, disabled plugin autoload/bytecode/cache provider and TMPDIR under the
+evidence root. Temporary HOME/state, dummy credentials, dead proxies, denied
+external sockets and explicit loopback fake APIs remain active. No broad suite
+ran; passing tests were retained after documentation-only edits.
+
+`verify_stage25.py` / `comparison.txt` prove exact moved bodies, signatures and
+dependencies against immutable `git show` using AST/symbol tables. Restoring
+original definitions and removing the one new import reconstructs the **entire
+parent root byte for byte**, including **519 unaffected function definitions**
+and all unrelated statements. All **24 prior owners**, existing tests/fixtures
+and digest docs are unchanged; README/API only add the companion and this report
+is appended. Final documentation and `git diff --check` pass.
+
+| Runtime file | Before lines / bytes | After lines / bytes |
+|---|---:|---:|
+| `mrsMThatcher2.py` | 20,200 / 792,625 | 20,076 / 787,567 |
+| `mrs_bot_reply_lane_policy.py` | absent | 323 / 11,051 |
+
+The root loses **124 lines / 5,058 bytes**; combined runtime source grows by
+**199 lines / 5,993 bytes**. The focused test file has **352 lines / 17,993 bytes**.
+Production remains `master` at `af5eda7c163a8174ec1365060aa923d21787e7bd` per
+worktree metadata; production configuration/state/credentials and service
+controls were not accessed or changed. No live provider work, deployment,
+restart or next-stage launch occurred.
+Next useful domain: supervisor review of shared tweet ID parsing/ordering around
+`parse_tweet_id`, `valid_tweets_sorted_by_id` and their bounded-ID dependency.
+Only stage 25 is implemented; supervisor review precedes any further stage.

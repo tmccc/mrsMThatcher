@@ -188,6 +188,7 @@ deployed as a coherent set:
 - `mrs_bot_tweet_lookup_cache.py`
 - `mrs_bot_reply_context.py`
 - `mrs_bot_reply_native_media.py`
+- `mrs_bot_reply_lane_policy.py`
 - `remote_write_safety_protocol.py`
 - `remote_media_upload_receipt.py`
 - `remote_write_transport_journal.py`
