@@ -1438,172 +1438,96 @@ def _prepare_recovery_evidence(
     )
 
 
-def summarise_operational_error_health(
-    errors: List[Dict[str, Any]],
-    events: List[Dict[str, Any]],
-    receipt_events: List[Dict[str, Any]],
-    lifecycle: Iterable[Dict[str, Any]] = (),
-    remote_write_transactions: Iterable[Dict[str, Any]] = (),
-    handled_api_restrictions: Iterable[Dict[str, Any]] = (),
-    confirmed_reply_receipt_events: Iterable[Dict[str, Any]] = (),
-    current_remote_write_safety: Optional[Dict[str, Any]] = None,
-    generation_time: Optional[datetime] = None,
-    selected_window_end: Optional[datetime] = None,
-    current_snapshot_authoritative: bool = False,
+def _pause_scope_for_item(
+    item: Dict[str, Any],
     *,
-    bounded_source_refs: Callable[..., Tuple[List[Dict[str, Any]], int]],
-    seconds_between: Callable[[datetime, datetime], float],
-    annotate_remote_write_snapshot_window: Callable[..., None],
-    classify_operational_error: Callable[[str], str],
-    incident_exception_line: Callable[[str], str],
-    normalise_incident_text: Callable[[str], str],
+    events: List[Dict[str, Any]],
+    transport_attempts: List[Dict[str, Any]],
+    explicit_remote_pause_scope: Callable[[Any], Tuple[str, str, List[str]]],
     get_event_time: Callable[[Dict[str, Any]], Optional[datetime]],
     base_remote_control_key: Callable[[Any], str],
     remote_control_scope: Callable[[Any], str],
     remote_operation_scope_for_lane: Callable[[Any], str],
-    explicit_remote_pause_scope: Callable[[Any], Tuple[str, str, List[str]]],
-    remote_operation_scope_labels: Mapping[str, str],
-    clock_now: Callable[[], datetime],
-    fromtimestamp: Callable[[int], datetime],
-    datetime_min: datetime,
-) -> Dict[str, Any]:
-    """Group traceback cascades and distinguish recovered from current incidents."""
-    generated_at = generation_time or clock_now()
-    lifecycle = list(lifecycle)
-    remote_write_transactions = list(remote_write_transactions)
-    handled_api_restrictions = list(handled_api_restrictions)
-    confirmed_reply_receipt_events = list(confirmed_reply_receipt_events)
-    serious = [item for item in errors if item.get("level") in {"ERROR", "CRITICAL"}]
-    operational = [
-        item
-        for item in serious
-        if classify_operational_error(
-            str(item.get("_raw_message") or item.get("message") or "")
+) -> Tuple[str, str, List[str]]:
+    """Use ordered, transaction-local evidence to scope one pause error."""
+
+    raw = str(item.get("_raw_message") or item.get("message") or "")
+    explicit = explicit_remote_pause_scope(raw)
+    if explicit[0] != "unknown":
+        return explicit
+
+    item_time = get_event_time(item)
+    if item_time is not None:
+        nearby = sorted(
+            (
+                (abs((item_time - event_time).total_seconds()), event)
+                for event in events
+                if event.get("kind") == "runtime_control_pause"
+                and (event_time := get_event_time(event)) is not None
+                and abs((item_time - event_time).total_seconds()) <= 60
+            ),
+            key=lambda pair: (pair[0], str(pair[1].get("time") or "")),
         )
-        != "clarification_mode_local_rejection"
-    ]
-    pipeline_failures_by_identity, raw_pipeline_evidence = (
-        _prepare_pipeline_incident_evidence(
-            events, operational, get_event_time=get_event_time,
+    else:
+        nearby = []
+    for _distance, event in nearby:
+        key = base_remote_control_key(event.get("key"))
+        if key:
+            return remote_control_scope(key), "nearby structured runtime_control_pause event", [key]
+        raw_lanes = event.get("control_lanes") or event.get("lanes")
+        lanes = (
+            raw_lanes
+            if isinstance(raw_lanes, list)
+            else re.split(r"\s*,\s*", str(raw_lanes or ""))
         )
-    )
-
-    groups: Dict[Tuple[str, str], List[Dict[str, Any]]] = {}
-    stable_root_categories = {
-        "historical_context_source_role_incompatibility",
-        "historical_context_reply_failure",
-        "legacy_regular_receipt_barrier",
-        "conversational_reply_receipt_barrier",
-        "remote_operations_paused",
-        "process_crash",
-        "remote_write_ambiguity_barrier",
-        "remote_write_protocol_barrier",
-        "remote_write_transaction_barrier",
-        "instance_lock_conflict",
-        "x_api_transient_failure",
-        "x_api_rate_limit",
-        "quote_pagination_protocol_anomaly",
-        "xai_provider_timeout",
-    }
-    (
-        ambiguity_times, transport_attempts,
-        ambiguous_reply_outcomes, ambiguous_media_outcomes,
-    ) = _prepare_remote_ambiguity_evidence(
-        serious, events, remote_write_transactions,
-        classify_operational_error=classify_operational_error,
-        get_event_time=get_event_time, seconds_between=seconds_between,
-    )
-
-    def matching_ambiguity_identity(
-        raw: str,
-        item_time: Optional[datetime],
-    ) -> Optional[Dict[str, Any]]:
-        """Return the strongest uniquely associated ambiguity identity."""
-        return _matching_ambiguity_identity(
-            raw, item_time,
-            ambiguous_reply_outcomes=ambiguous_reply_outcomes,
-            transport_attempts=transport_attempts,
-            ambiguous_media_outcomes=ambiguous_media_outcomes,
-            seconds_between=seconds_between,
-        )
-
-    def is_subordinate_remote_write_symptom(
-        *,
-        category: str,
-        raw: str,
-        item_time: Optional[datetime],
-    ) -> bool:
-        """Bind exact receipt/lane symptoms to a logged reply ambiguity root."""
-        return _is_subordinate_remote_write_symptom(
-            category=category, raw=raw, item_time=item_time,
-            ambiguous_reply_outcomes=ambiguous_reply_outcomes,
-            ambiguity_times=ambiguity_times,
-            seconds_between=seconds_between,
-        )
-
-    def pause_scope_for_item(
-        item: Dict[str, Any],
-    ) -> Tuple[str, str, List[str]]:
-        """Use ordered, transaction-local evidence to scope one pause error."""
-
-        raw = str(item.get("_raw_message") or item.get("message") or "")
-        explicit = explicit_remote_pause_scope(raw)
-        if explicit[0] != "unknown":
-            return explicit
-
-        item_time = get_event_time(item)
-        if item_time is not None:
-            nearby = sorted(
-                (
-                    (abs((item_time - event_time).total_seconds()), event)
-                    for event in events
-                    if event.get("kind") == "runtime_control_pause"
-                    and (event_time := get_event_time(event)) is not None
-                    and abs((item_time - event_time).total_seconds()) <= 60
-                ),
-                key=lambda pair: (pair[0], str(pair[1].get("time") or "")),
+        event_scopes = set()
+        for lane in lanes:
+            scope = remote_control_scope(lane)
+            event_scopes.add(
+                remote_operation_scope_for_lane(lane)
+                if scope == "unknown"
+                else scope
             )
-        else:
-            nearby = []
-        for _distance, event in nearby:
-            key = base_remote_control_key(event.get("key"))
-            if key:
-                return remote_control_scope(key), "nearby structured runtime_control_pause event", [key]
-            raw_lanes = event.get("control_lanes") or event.get("lanes")
-            lanes = (
-                raw_lanes
-                if isinstance(raw_lanes, list)
-                else re.split(r"\s*,\s*", str(raw_lanes or ""))
-            )
-            event_scopes = set()
-            for lane in lanes:
-                scope = remote_control_scope(lane)
-                event_scopes.add(
-                    remote_operation_scope_for_lane(lane)
-                    if scope == "unknown"
-                    else scope
-                )
-            event_scopes.discard("unknown")
-            if len(event_scopes) == 1:
-                return event_scopes.pop(), "nearby structured runtime_control_pause lane", []
+        event_scopes.discard("unknown")
+        if len(event_scopes) == 1:
+            return event_scopes.pop(), "nearby structured runtime_control_pause lane", []
 
-        pending_lane = str(item.get("_pause_pending_lane") or "")
-        pending_scope = remote_operation_scope_for_lane(pending_lane)
-        if pending_scope != "unknown":
-            return pending_scope, f"exact pending lane {pending_lane} associated with the exception", []
+    pending_lane = str(item.get("_pause_pending_lane") or "")
+    pending_scope = remote_operation_scope_for_lane(pending_lane)
+    if pending_scope != "unknown":
+        return pending_scope, f"exact pending lane {pending_lane} associated with the exception", []
 
-        if item_time is not None:
-            attempt_scopes = {
-                remote_operation_scope_for_lane(attempt.get("lane"))
-                for attempt in transport_attempts
-                if 0
-                <= (item_time - attempt["time"]).total_seconds()
-                <= 10
-            } - {"unknown"}
-            if len(attempt_scopes) == 1:
-                return attempt_scopes.pop(), "exact pending transport-request lane associated with the exception", []
-        return "unknown", "scope unavailable from retained evidence", []
+    if item_time is not None:
+        attempt_scopes = {
+            remote_operation_scope_for_lane(attempt.get("lane"))
+            for attempt in transport_attempts
+            if 0
+            <= (item_time - attempt["time"]).total_seconds()
+            <= 10
+        } - {"unknown"}
+        if len(attempt_scopes) == 1:
+            return attempt_scopes.pop(), "exact pending transport-request lane associated with the exception", []
+    return "unknown", "scope unavailable from retained evidence", []
 
+
+def _group_operational_incidents(
+    groups: Dict[Tuple[str, str], List[Dict[str, Any]]],
+    operational: List[Dict[str, Any]],
+    raw_pipeline_evidence: Dict[int, Tuple[Tuple[str, str], str]],
+    ambiguity_times: List[datetime],
+    stable_root_categories: set[str],
+    pipeline_failures_by_identity: Dict[Tuple[str, str], List[Dict[str, Any]]],
+    *,
+    classify_operational_error: Callable[[str], str],
+    get_event_time: Callable[[Dict[str, Any]], Optional[datetime]],
+    seconds_between: Callable[[datetime, datetime], float],
+    is_subordinate_remote_write_symptom: Callable[..., bool],
+    incident_exception_line: Callable[[str], str],
+    matching_ambiguity_identity: Callable[..., Optional[Dict[str, Any]]],
+    pause_scope_for_item: Callable[[Dict[str, Any]], Tuple[str, str, List[str]]],
+    normalise_incident_text: Callable[[str], str],
+) -> Dict[Tuple[str, str], Tuple[str, str]]:
+    """Mutate incident groups and shared error rows, then seed pipeline-only groups."""
     for item in operational:
         raw = str(item.get("_raw_message") or item.get("message") or "")
         pipeline_evidence = raw_pipeline_evidence.get(id(item))
@@ -1726,6 +1650,136 @@ def summarise_operational_error_health(
         )
         groups.setdefault(group_key, [])
         pipeline_identity_by_group[group_key] = identity
+    return pipeline_identity_by_group
+
+
+def summarise_operational_error_health(
+    errors: List[Dict[str, Any]],
+    events: List[Dict[str, Any]],
+    receipt_events: List[Dict[str, Any]],
+    lifecycle: Iterable[Dict[str, Any]] = (),
+    remote_write_transactions: Iterable[Dict[str, Any]] = (),
+    handled_api_restrictions: Iterable[Dict[str, Any]] = (),
+    confirmed_reply_receipt_events: Iterable[Dict[str, Any]] = (),
+    current_remote_write_safety: Optional[Dict[str, Any]] = None,
+    generation_time: Optional[datetime] = None,
+    selected_window_end: Optional[datetime] = None,
+    current_snapshot_authoritative: bool = False,
+    *,
+    bounded_source_refs: Callable[..., Tuple[List[Dict[str, Any]], int]],
+    seconds_between: Callable[[datetime, datetime], float],
+    annotate_remote_write_snapshot_window: Callable[..., None],
+    classify_operational_error: Callable[[str], str],
+    incident_exception_line: Callable[[str], str],
+    normalise_incident_text: Callable[[str], str],
+    get_event_time: Callable[[Dict[str, Any]], Optional[datetime]],
+    base_remote_control_key: Callable[[Any], str],
+    remote_control_scope: Callable[[Any], str],
+    remote_operation_scope_for_lane: Callable[[Any], str],
+    explicit_remote_pause_scope: Callable[[Any], Tuple[str, str, List[str]]],
+    remote_operation_scope_labels: Mapping[str, str],
+    clock_now: Callable[[], datetime],
+    fromtimestamp: Callable[[int], datetime],
+    datetime_min: datetime,
+) -> Dict[str, Any]:
+    """Group traceback cascades and distinguish recovered from current incidents."""
+    generated_at = generation_time or clock_now()
+    lifecycle = list(lifecycle)
+    remote_write_transactions = list(remote_write_transactions)
+    handled_api_restrictions = list(handled_api_restrictions)
+    confirmed_reply_receipt_events = list(confirmed_reply_receipt_events)
+    serious = [item for item in errors if item.get("level") in {"ERROR", "CRITICAL"}]
+    operational = [
+        item
+        for item in serious
+        if classify_operational_error(
+            str(item.get("_raw_message") or item.get("message") or "")
+        )
+        != "clarification_mode_local_rejection"
+    ]
+    pipeline_failures_by_identity, raw_pipeline_evidence = (
+        _prepare_pipeline_incident_evidence(
+            events, operational, get_event_time=get_event_time,
+        )
+    )
+
+    groups: Dict[Tuple[str, str], List[Dict[str, Any]]] = {}
+    stable_root_categories = {
+        "historical_context_source_role_incompatibility",
+        "historical_context_reply_failure",
+        "legacy_regular_receipt_barrier",
+        "conversational_reply_receipt_barrier",
+        "remote_operations_paused",
+        "process_crash",
+        "remote_write_ambiguity_barrier",
+        "remote_write_protocol_barrier",
+        "remote_write_transaction_barrier",
+        "instance_lock_conflict",
+        "x_api_transient_failure",
+        "x_api_rate_limit",
+        "quote_pagination_protocol_anomaly",
+        "xai_provider_timeout",
+    }
+    (
+        ambiguity_times, transport_attempts,
+        ambiguous_reply_outcomes, ambiguous_media_outcomes,
+    ) = _prepare_remote_ambiguity_evidence(
+        serious, events, remote_write_transactions,
+        classify_operational_error=classify_operational_error,
+        get_event_time=get_event_time, seconds_between=seconds_between,
+    )
+
+    def matching_ambiguity_identity(
+        raw: str,
+        item_time: Optional[datetime],
+    ) -> Optional[Dict[str, Any]]:
+        """Return the strongest uniquely associated ambiguity identity."""
+        return _matching_ambiguity_identity(
+            raw, item_time,
+            ambiguous_reply_outcomes=ambiguous_reply_outcomes,
+            transport_attempts=transport_attempts,
+            ambiguous_media_outcomes=ambiguous_media_outcomes,
+            seconds_between=seconds_between,
+        )
+
+    def is_subordinate_remote_write_symptom(
+        *,
+        category: str,
+        raw: str,
+        item_time: Optional[datetime],
+    ) -> bool:
+        """Bind exact receipt/lane symptoms to a logged reply ambiguity root."""
+        return _is_subordinate_remote_write_symptom(
+            category=category, raw=raw, item_time=item_time,
+            ambiguous_reply_outcomes=ambiguous_reply_outcomes,
+            ambiguity_times=ambiguity_times,
+            seconds_between=seconds_between,
+        )
+
+    def pause_scope_for_item(
+        item: Dict[str, Any],
+    ) -> Tuple[str, str, List[str]]:
+        """Use ordered, transaction-local evidence to scope one pause error."""
+        return _pause_scope_for_item(
+            item, events=events, transport_attempts=transport_attempts,
+            explicit_remote_pause_scope=explicit_remote_pause_scope,
+            get_event_time=get_event_time,
+            base_remote_control_key=base_remote_control_key,
+            remote_control_scope=remote_control_scope,
+            remote_operation_scope_for_lane=remote_operation_scope_for_lane,
+        )
+
+    pipeline_identity_by_group = _group_operational_incidents(
+        groups, operational, raw_pipeline_evidence, ambiguity_times,
+        stable_root_categories, pipeline_failures_by_identity,
+        classify_operational_error=classify_operational_error,
+        get_event_time=get_event_time, seconds_between=seconds_between,
+        is_subordinate_remote_write_symptom=is_subordinate_remote_write_symptom,
+        incident_exception_line=incident_exception_line,
+        matching_ambiguity_identity=matching_ambiguity_identity,
+        pause_scope_for_item=pause_scope_for_item,
+        normalise_incident_text=normalise_incident_text,
+    )
 
     (
         event_times, receipt_removed_times, successful_restart_times,

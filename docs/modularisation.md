@@ -3368,3 +3368,139 @@ is launched. Authorised stage 36 must be followed by **reassessment and a stop**
 stage 37 is not authorised. Prior worktrees/branches and production data are
 preserved; no production/configuration/state/log/image-pool changes, bot execution,
 provider/posting calls, service control, merge, deployment or force-push occurred.
+
+## Extracted in stage 36
+
+Base: `fb1d495b839207b105225eff44ed60aed16a8ce8`, verified against pushed
+`origin/codex/modularisation-stage35` and the clean previous worktree. Worktree:
+`/disks/disk1/research/mrsMThatcher-modularisation-stage36`; branch:
+`codex/modularisation-stage36`. This is the user's final authorised stage before
+reassessment. Historical stop-at-32/no-ceiling wording is superseded.
+
+Two bounded algorithms move within `mrs_log_digest_incidents`:
+
+- `_pause_scope_for_item` receives the exact body of the original 62-line nested
+  definition. Its original-name/signature adapter stays in position and directly
+  returns the result with seven prepared inputs. Explicit evidence retains its
+  tuple/key-list identity; missing times, the inclusive 60-second structured
+  candidate window, distance/text sorting and stable ties, key/list/string lane
+  interpretation, unknown scopes, pending-lane priority and the directional
+  inclusive 10-second transport fallback are unchanged.
+- `_group_operational_incidents` receives the complete operational loop followed
+  by pipeline identity-map initialisation and pipeline-only group seeding:
+  **three statements, 122 original lines**. Its fourteen inputs comprise six
+  prepared collections and eight current callbacks, fully listed in the API
+  documentation. It mutates the existing groups/shared rows and returns only
+  `pipeline_identity_by_group`, directly bound immediately after the pause adapter
+  and before recovery preparation. Pipeline precedence, transient reclassification,
+  subordinate/identity/pause annotations, root/signature selection, reverse group
+  traversal, distinct 10/5-second ambiguity/provider windows, stable categories,
+  insertion order, empty groups and exception/mutation order are unchanged.
+
+`groups` and `stable_root_categories` remain allocated at their original earlier
+positions. `dt_text`, `_normalise_lane` and `re` retain current same-owner lookup.
+Dependency review includes nested/comprehension scopes; later reused temporary
+names are rebound by their own loops, assignments, walrus filters or parameters,
+with no additional live result needed. All earlier preparation, stages 32–35,
+remaining adapters/predicates, safety/authority handling, recovery selection,
+the complete **321-line per-group construction loop**, snapshot reconciliation,
+sorting/counts and final report remain in place. No new module, state object,
+stored callback, closure return, copy, normalisation or behavioral repair is added.
+
+Restoring the original pause definition and grouping span and removing the two
+implementations reconstructs the **entire stage 35 incident owner exactly in text
+and AST**. All 18 other existing owner definitions and all existing incident test
+assertions remain unchanged. The root and all 29 other digest companions are
+byte-identical to stage 35; public signatures/defaults and schema-3 report
+values/types/order, sharing, clocks and source/window/resume/publication policy
+retain their boundaries.
+
+| Physical lines | Stage 6 | Stage 32 | Stage 35 | Stage 36 |
+| --- | ---: | ---: | ---: | ---: |
+| Root digest | 16,455 | 3,462 | 3,462 | 3,462 |
+| `analyse` | 4,959 | 1,318 | 1,318 | 1,318 |
+| Incident-health implementation | 1,868 | 1,455 | 844 | 683 |
+| Incident owner | in root | 2,112 | 2,284 | 2,338 |
+
+Sizes use AST definition spans, including signatures/docstrings, and physical
+file lines. Stage 6 is `f0bb8f8c063a0eef40eb8823b6c75a092aae197e`; stage 32 is
+`ebab134be212d2e04d9d48cb5e393b135c8999a7`, both read with `git show`.
+Stage 36 reduces incident health by 161 lines; its new pause/grouping functions
+are 70/141 lines, with a 12-line pause adapter and 11-line grouping call.
+
+Validation used `MRS_TEST_MODE=1 PYTEST_DISABLE_PLUGIN_AUTOLOAD=1 python3 -m pytest`
+with established temporary-HOME/network isolation, `PYTHONDONTWRITEBYTECODE=1`
+and `-p no:cacheprovider`. Baseline: **82 passed**. Final focused incident,
+pipeline/wrapper, ambiguity/subordinate, pause/recovery and nearby category
+regressions: **92 passed**. Six new functions supply ten cases for current-input
+and result references, sequence, evidence priority, shared row/key annotations,
+failure prefixes, stable structured-event ties and inclusive/directional time
+boundaries. Two initial new boundary cases exposed a synthetic timestamp fixture
+mistake; correcting its supplied time callback required no implementation change.
+All **nine direct cases also pass unchanged against the original stage 35 bodies**,
+including exact results, callback traces, sharing and exception identity. The
+unchanged incident import guard and **seven digest-only integrations pass** for
+bounded media source references, unrelated errors, receipt/source/self-test
+isolation, pending receipts, state after the window and resume source identity.
+No whole bot harness or broad historical suite ran.
+
+Three complete fixed-path/time report pairs match stage 35:
+
+| Asserted fixture | Records | JSON bytes | Markdown bytes |
+| --- | ---: | ---: | ---: |
+| Pipeline/raw wrappers, unrelated raw error and empty pipeline-only group | 9 | 45,212 | 13,274 |
+| Reply ambiguity/transport, subordinate symptoms and media ambiguity | 17 | 53,884 | 15,647 |
+| Generic/lane pause scopes, restart and regular/filtered reply receipt recovery | 27 | 57,972 | 16,771 |
+
+Existing synthetic fixtures and fixed-clock capture/reference-graph machinery
+were reused, adding one structured-only pipeline failure. Assertions require
+the intended identities, grouping/counts, scopes, statuses, reasons and times.
+Complete JSON/Markdown bytes, raw `analyse` values/types/order/reference graphs
+and stderr match. Fixture bytes/modes/mtimes remain unchanged. Root hashes and
+pre-commit HEADs were independently verified identical, so **no substitutions or
+normalisation** were used. Temporary scripts/data/results are outside the worktree
+at `/tmp/mrs-stage36-ek624sys`. This is focused synthetic preservation evidence,
+not a production replay or exhaustive matrix. `python3 tools/check_python_documentation.py`
+passes for **209 modules**; `git diff --check` passes.
+
+Checkpoint reassessment: a read-only review of all **31 digest-family modules**,
+their imports, definitions and remaining algorithm boundaries finds 482 functions,
+two classes and 25,614 physical lines. Root/`analyse` have stayed fixed since
+stage 32 while incident health has fallen from 1,455 to 683 lines. That reduction
+exposes preparation, association, recovery and grouping as independently callable
+algorithms; it does not establish that the remaining coordination should move.
+Keep root CLI/path/window/resume/output sequencing and `analyse` scan order,
+pending state, source identity, provenance, counters and report assembly together.
+Keep incident authority predicates, recovery selection and per-group report
+construction coordinated around the same evidence. A generic dispatcher/context
+or further adapter-only moves would add indirection without a demonstrated benefit.
+
+The input/record/context/runtime and corpus/pool owners, scalar/image/cost
+utilities, legacy/event/provider/pipeline/single-call observers, durable evidence
+validators, publication/visual correlation, API/state reports and snapshot
+reconciliation already have useful domain ownership. Preserve their acquisition,
+validation and ordered mutation boundaries. Markdown's 3,347 lines already have
+32 section renderers and a short dispatcher; its length alone warrants no split.
+Quote-field conflict checking should stay with immutable publication identity,
+and remote-write acquisition should retain its read/error order and strict
+artifact checks. None of these findings warrants broad restructuring.
+
+Useful further work remains, subject to a new user decision. The strongest
+concrete candidate is the confirmation-indexing/source-priority phase inside
+`enrich_published_reply_text` (627 lines overall): structured confirmations and
+durable-receipt fallback build one ordered index before event mutation/synthesis.
+Separating that phase would let source precedence and insertion metadata be
+checked independently of public-text enrichment; warning/conflict handling and
+synthesized-event insertion should remain coordinated. Another bounded candidate
+is per-candidate disposition selection in `xai_reply_cost_summary` (403 lines):
+published, failed, locally rejected and declined outcome precedence can be
+understood/tested independently of usage coverage and cost arithmetic. Keep its
+evidence association and missing-spend semantics in the cost owner. These benefits,
+rather than file length or the stage cap, justify considering those boundaries.
+Neither recommendation is started, and useful modularisation is not declared
+exhausted.
+
+**Stop after stage 36 for supervisor review. Stage 37 is not authorised.** No
+following worker or session is launched. Prior worktrees/branches are preserved;
+no production/configuration/state/log/image-pool changes, bot execution,
+provider/posting calls, service control, merge, deployment or force-push occurred.

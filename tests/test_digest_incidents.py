@@ -13,6 +13,263 @@ import mrs_log_digest_snapshot_incidents as snapshot_owner
 from tests.test_mrs_log_digest import BASE, record, reconciled_remote_write_safety
 
 
+def test_grouping_and_pause_adapters_keep_current_inputs_result_identity_and_sequence(monkeypatch):
+    pause = {"level": "ERROR", "message": "RemoteOperationsPaused: pause_replies", "time": digest.dt_text(BASE)}
+    errors = [pause]
+    failure = {"kind": "reply_strategy_failure", "lane": "mention", "target_id": "123", "time": digest.dt_text(BASE)}
+    events, prepared, phases, lookups = [failure], {}, [], []
+    keys = ["pause_replies"]
+    pause_result = ("all_replies", "prepared scope", keys)
+    grouping, recovery = incident_owner._group_operational_incidents, incident_owner._prepare_recovery_evidence
+    helper_names = ("classify_operational_error", "_event_time", "seconds_between", "_incident_exception_line",
+                    "_normalise_incident_text", "_explicit_remote_pause_scope", "_base_remote_control_key",
+                    "_remote_control_scope", "_remote_operation_scope_for_lane")
+    for name in helper_names:
+        original = getattr(digest, name)
+        monkeypatch.setattr(digest, name, lambda *args, _original=original, **kwargs: _original(*args, **kwargs))
+
+    def capture_preparation(name, original):
+        def capture(*args, **kwargs):
+            phases.append(name)
+            prepared[name] = original(*args, **kwargs)
+            if name == "pipeline":
+                prepared["operational"] = args[1]
+            return prepared[name]
+        return capture
+
+    class IdentityMap(dict):
+        def get(self, key, default=None):
+            assert self is prepared["result"]
+            lookups.append(key)
+            return super().get(key, default)
+
+    def pause_inputs(item, **inputs):
+        phases.append("pause")
+        assert item is pause and inputs["events"] is events
+        assert inputs["transport_attempts"] is prepared["ambiguity"][1]
+        for name in ("explicit_remote_pause_scope", "base_remote_control_key", "remote_control_scope", "remote_operation_scope_for_lane"):
+            assert inputs[name] is getattr(digest, "_" + name)
+        assert inputs["get_event_time"] is digest._event_time
+        return pause_result
+
+    def group_inputs(groups, operational, raw, times, stable, failures, **callbacks):
+        phases.append("grouping")
+        assert not groups and operational is prepared["operational"] and operational[0] is pause
+        assert raw is prepared["pipeline"][1] and failures is prepared["pipeline"][0]
+        assert times is prepared["ambiguity"][0] and "remote_operations_paused" in stable
+        for name, facade_name in (("classify_operational_error", "classify_operational_error"), ("get_event_time", "_event_time"),
+                                  ("seconds_between", "seconds_between"), ("incident_exception_line", "_incident_exception_line"),
+                                  ("normalise_incident_text", "_normalise_incident_text")):
+            assert callbacks[name] is getattr(digest, facade_name)
+        result = grouping(groups, operational, raw, times, stable, failures, **callbacks)
+        assert pause["_pause_control_keys"] is keys
+        assert next(iter(result.values())) is next(iter(failures))
+        prepared.update(groups=groups, result=IdentityMap(result))
+        return prepared["result"]
+
+    def recovery_inputs(*args, **kwargs):
+        phases.append("recovery")
+        assert list(prepared["groups"].values())[0][0] is pause
+        return recovery(*args, **kwargs)
+
+    monkeypatch.setattr(incident_owner, "_prepare_pipeline_incident_evidence", capture_preparation("pipeline", incident_owner._prepare_pipeline_incident_evidence))
+    monkeypatch.setattr(incident_owner, "_prepare_remote_ambiguity_evidence", capture_preparation("ambiguity", incident_owner._prepare_remote_ambiguity_evidence))
+    monkeypatch.setattr(incident_owner, "_pause_scope_for_item", pause_inputs)
+    monkeypatch.setattr(incident_owner, "_group_operational_incidents", group_inputs)
+    monkeypatch.setattr(incident_owner, "_prepare_recovery_evidence", recovery_inputs)
+    report = digest.summarise_operational_error_health(errors, events, [], generation_time=BASE)
+    assert phases == ["pipeline", "ambiguity", "grouping", "pause", "recovery"]
+    assert lookups == list(prepared["groups"])
+    pipeline = next(row for row in report["current_incidents"] if row["category"] == "reply_strategy_pipeline_failure")
+    assert pipeline["record_count"] == 0 and pipeline["pipeline_failure_event_count"] == 1
+
+
+def _pause_inputs():
+    return dict(events=[], transport_attempts=[], explicit_remote_pause_scope=digest._explicit_remote_pause_scope,
+                get_event_time=lambda item: item.get("_time"), base_remote_control_key=digest._base_remote_control_key,
+                remote_control_scope=digest._remote_control_scope,
+                remote_operation_scope_for_lane=digest._remote_operation_scope_for_lane)
+
+
+def test_pause_scope_keeps_explicit_tuple_and_missing_time_pending_priority():
+    calls, keys = [], ["pause_replies"]
+    explicit = ("all_replies", "explicit", keys)
+
+    class Unreadable:
+        def __iter__(self):
+            pytest.fail("lower-priority evidence was inspected")
+
+    def event_time(item):
+        calls.append("time")
+        return None
+
+    def scope(lane):
+        calls.append(("lane", lane))
+        return digest._remote_operation_scope_for_lane(lane)
+
+    inputs = _pause_inputs()
+    inputs.update(events=Unreadable(), transport_attempts=Unreadable(), get_event_time=event_time,
+                  explicit_remote_pause_scope=lambda raw: calls.append(("explicit", raw)) or explicit,
+                  remote_operation_scope_for_lane=scope)
+    item = {"_raw_message": "raw pause", "message": "display", "_pause_pending_lane": "mention"}
+    assert incident_owner._pause_scope_for_item(item, **inputs) is explicit
+    assert calls == [("explicit", "raw pause")]
+    explicit = ("unknown", "unavailable", [])
+    result = incident_owner._pause_scope_for_item(item, **inputs)
+    assert result == ("normal_replies", "exact pending lane mention associated with the exception", [])
+    assert calls == [("explicit", "raw pause"), ("explicit", "raw pause"), "time", ("lane", "mention")]
+
+
+def test_pause_scope_keeps_structured_boundary_sort_ties_key_priority_and_owner_re(monkeypatch):
+    from types import SimpleNamespace
+
+    calls, splits = [], []
+    item = {"message": "RemoteOperationsPaused", "_time": BASE, "_pause_pending_lane": "quote_tweet"}
+    first = {"kind": "runtime_control_pause", "name": "first", "_time": BASE - timedelta(seconds=60),
+             "time": "a", "control_lanes": ["unrecognised", "mention"]}
+    events = [{"kind": "other", "name": "ignored"},
+              dict(first, name="missing", _time=None), dict(first, name="outside", _time=BASE - timedelta(seconds=60.001)),
+              dict(first, name="text-later", time="z", key="pause_all"), first,
+              dict(first, name="stable-tie", key="pause_quote_replies")]
+    split = incident_owner.re.split
+    monkeypatch.setattr(incident_owner, "re", SimpleNamespace(split=lambda *args: splits.append(args) or split(*args)))
+    monkeypatch.setattr(digest, "re", None)
+    inputs = _pause_inputs()
+    inputs.update(events=events, explicit_remote_pause_scope=lambda raw: ("unknown", "", []),
+                  get_event_time=lambda row: calls.append(row.get("name", "item")) or row.get("_time"))
+    result = incident_owner._pause_scope_for_item(item, **inputs)
+    assert result == ("normal_replies", "nearby structured runtime_control_pause lane", [])
+    assert calls == ["item", "missing", "outside", "text-later", "first", "stable-tie"] and not splits
+    first["control_lanes"] = "mention, unrecognised"
+    assert incident_owner._pause_scope_for_item(item, **inputs) == result
+    assert splits == [(r"\s*,\s*", first["control_lanes"])]
+    first["key"] = "future-control"
+    inputs.update(base_remote_control_key=lambda key: key or "", remote_control_scope=lambda key: "unknown")
+    assert incident_owner._pause_scope_for_item(item, **inputs) == (
+        "unknown", "nearby structured runtime_control_pause event", ["future-control"],
+    )
+
+
+@pytest.mark.parametrize("offset,scope", [(-10, "normal_replies"), (-10.001, "unknown"), (0, "normal_replies"), (0.001, "unknown")])
+def test_pause_scope_keeps_directional_transport_boundary(offset, scope):
+    inputs = _pause_inputs()
+    inputs["transport_attempts"] = [{"time": BASE + timedelta(seconds=offset), "lane": "mention"}]
+    result = incident_owner._pause_scope_for_item({"_time": BASE}, **inputs)
+    assert result == (scope, "exact pending transport-request lane associated with the exception"
+                      if scope != "unknown" else "scope unavailable from retained evidence", [])
+
+
+def _grouping_callbacks(**overrides):
+    inputs = dict(classify_operational_error=digest.classify_operational_error, get_event_time=digest._event_time,
+                  seconds_between=digest.seconds_between, is_subordinate_remote_write_symptom=lambda **kwargs: False,
+                  incident_exception_line=digest._incident_exception_line, matching_ambiguity_identity=lambda *args: None,
+                  pause_scope_for_item=lambda item: ("unknown", "unavailable", []), normalise_incident_text=digest._normalise_incident_text)
+    inputs.update(overrides)
+    return inputs
+
+
+def test_grouping_keeps_evidence_priority_annotation_order_shared_rows_and_failed_prefix(monkeypatch):
+    calls, groups, keys = [], {}, ["pause_replies"]
+    pipeline_identity, empty_identity = ("mention", "123"), ("quote-tweet", "456")
+    rows = [{"message": raw, "_time": BASE, "time": "retained time"} for raw in (
+        "pipeline", "transient", "receipt lane=hot_post target_id=789", "pause", "unrelated")]
+    categories = {"transient": "x_api_transient_failure", rows[2]["message"]: "conversational_reply_receipt_barrier",
+                  "pause": "remote_operations_paused", "unrelated": "custom"}
+    lane = incident_owner._normalise_lane
+    monkeypatch.setattr(incident_owner, "_normalise_lane", lambda value: calls.append(("lane", value)) or lane(value))
+    monkeypatch.setattr(digest, "_normalise_lane", None)
+
+    def classify(raw):
+        calls.append(("classify", raw))
+        return categories[raw]
+
+    def subordinate(**inputs):
+        calls.append(("subordinate", inputs["raw"]))
+        return inputs["category"] == "conversational_reply_receipt_barrier"
+
+    def root(raw):
+        calls.append(("root", raw))
+        if raw == rows[2]["message"]:
+            assert rows[2]["_remote_write_subordinate_category"] == "conversational_reply_receipt_barrier"
+            assert rows[2]["_remote_write_subordinate_reply_identity"] == {
+                "lane": "hot-post", "target_id": "789", "source_time": "retained time",
+            }
+        return "root " + raw
+
+    def match(raw, item_time):
+        calls.append(("match", raw))
+        return {"transaction_id": "tx", "lane": "hot-post", "target_id": "789"}
+
+    def pause_scope(item):
+        assert item is rows[3] and sum(map(len, groups.values())) == 3
+        calls.append(("pause", item["message"]))
+        return "all_replies", "prepared evidence", keys
+
+    callbacks = _grouping_callbacks(classify_operational_error=classify, is_subordinate_remote_write_symptom=subordinate,
+                                    incident_exception_line=root, matching_ambiguity_identity=match, pause_scope_for_item=pause_scope,
+                                    get_event_time=lambda row: calls.append(("time", row["message"])) or row["_time"],
+                                    seconds_between=lambda a, b: calls.append(("distance", a, b)) or abs((a - b).total_seconds()),
+                                    normalise_incident_text=lambda text: calls.append(("normalise", text)) or text)
+    result = incident_owner._group_operational_incidents(
+        groups, rows, {id(rows[0]): (pipeline_identity, "outer_wrapper")}, [BASE + timedelta(seconds=10)],
+        {"remote_operations_paused"}, {pipeline_identity: [], empty_identity: []}, **callbacks,
+    )
+    pipeline_key = ("reply_strategy_pipeline_failure", "mention:123")
+    remote_key = ("remote_write_ambiguity_barrier", "transaction:tx")
+    pause_key = ("remote_operations_paused", "remote_operations_paused:all_replies")
+    empty_key = ("reply_strategy_pipeline_failure", "quote-tweet:456")
+    assert list(groups) == [pipeline_key, remote_key, pause_key, ("custom", "root unrelated"), empty_key]
+    assert groups[pipeline_key][0] is rows[0] and groups[remote_key][0] is rows[1] and groups[remote_key][1] is rows[2]
+    assert rows[3]["_pause_control_keys"] is keys and not groups[empty_key]
+    assert list(result) == [pipeline_key, empty_key] and result[pipeline_key] is pipeline_identity and result[empty_key] is empty_identity
+    assert "_remote_write_subordinate_category" not in rows[1]
+    assert rows[2]["_remote_write_identity"] == {"transaction_id": "tx", "lane": "hot-post", "target_id": "789", "image": ""}
+    assert calls == [
+        ("time", "pipeline"), ("subordinate", "pipeline"), ("root", "pipeline"),
+        ("classify", "transient"), ("time", "transient"), ("distance", BASE, BASE + timedelta(seconds=10)), ("root", "transient"), ("match", "transient"),
+        ("classify", rows[2]["message"]), ("time", rows[2]["message"]), ("subordinate", rows[2]["message"]), ("lane", "hot_post"), ("root", rows[2]["message"]), ("match", rows[2]["message"]),
+        ("classify", "pause"), ("time", "pause"), ("subordinate", "pause"), ("root", "pause"), ("pause", "pause"),
+        ("classify", "unrelated"), ("time", "unrelated"), ("subordinate", "unrelated"), ("root", "unrelated"), ("normalise", "root unrelated"),
+    ]
+    partial, failure = {}, RuntimeError("root failed after subordinate annotation")
+    for name in ("_remote_write_subordinate_category", "_remote_write_subordinate_reply_identity", "_remote_write_identity"):
+        rows[2].pop(name)
+
+    def fail_root(raw):
+        if raw == rows[2]["message"]:
+            assert rows[2]["_remote_write_subordinate_category"] == "conversational_reply_receipt_barrier"
+            raise failure
+        return raw
+
+    callbacks["incident_exception_line"] = fail_root
+    with pytest.raises(RuntimeError) as caught:
+        incident_owner._group_operational_incidents(partial, [rows[0], rows[2]], {id(rows[0]): (pipeline_identity, "outer_wrapper")},
+                                                    [], set(), {empty_identity: []}, **callbacks)
+    assert caught.value is failure and list(partial) == [pipeline_key] and partial[pipeline_key][0] is rows[0]
+
+
+@pytest.mark.parametrize("category,boundary", [("remote_write_ambiguity_barrier", 10), ("xai_provider_timeout", 5)])
+def test_grouping_keeps_reverse_traversal_and_distinct_inclusive_windows(monkeypatch, category, boundary):
+    calls = []
+    old, newest = {"_time": BASE, "name": "old"}, {"_time": BASE, "name": "newest"}
+    unrelated = {"_time": BASE, "name": "unrelated"}
+    groups = {(category, "old"): [old], (category, "newest"): [newest], ("other", "other"): [unrelated]}
+    item = {"_time": BASE + timedelta(seconds=boundary), "name": "boundary"}
+    monkeypatch.setattr(incident_owner, "dt_text", lambda value: calls.append(("format", value)) or "owner-time")
+    monkeypatch.setattr(digest, "dt_text", None)
+    callbacks = _grouping_callbacks(classify_operational_error=lambda raw: category,
+                                    get_event_time=lambda row: calls.append(("time", row["name"])) or row["_time"])
+    assert incident_owner._group_operational_incidents(groups, [item], {}, [], set(), {}, **callbacks) == {}
+    assert groups[(category, "newest")][-1] is item
+    assert [value for kind, value in calls if kind == "time"] == ["boundary", "unrelated", "newest"]
+    groups[(category, "newest")].pop()
+    item["_time"] += timedelta(microseconds=1)
+    incident_owner._group_operational_incidents(groups, [item], {}, [], set(), {}, **callbacks)
+    assert list(groups)[-1] == (category, category + ":owner-time") and groups[list(groups)[-1]][0] is item
+    assert [value for kind, value in calls if kind == "time"][-4:] == ["boundary", "unrelated", "newest", "old"]
+    assert ("format", item["_time"]) in calls
+
+
 def test_preparation_keeps_input_result_references_and_summary_sequence(monkeypatch):
     later = BASE + timedelta(seconds=10)
     root = {"level": "CRITICAL", "message": "ambiguous remote X post outcome lane=mention target_id=123", "_time": BASE}

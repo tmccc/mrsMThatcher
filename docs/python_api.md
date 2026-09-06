@@ -530,6 +530,34 @@ transport/media filters, causal windows, stable time/transaction ordering, nativ
 field types and timestamp sharing. Lane normalisation retains owner lookup.
 `groups` and `stable_root_categories` are still initialised before this call.
 
+`_pause_scope_for_item` implements ordered pause-scope inference in the same
+owner. The nested `pause_scope_for_item(item)` keeps its signature and position
+as a direct-return adapter, forwarding the original item, `events`,
+`transport_attempts`, `explicit_remote_pause_scope`, `get_event_time`,
+`base_remote_control_key`, `remote_control_scope` and
+`remote_operation_scope_for_lane`. Explicit evidence returns its original tuple
+and key list. Missing-time behavior, the inclusive 60-second structured-event
+window, distance/text sorting and stable ties, key-before-lane interpretation,
+unknown scopes, pending-lane priority and the directional inclusive 10-second
+transport fallback are unchanged. `re` retains incident-owner lookup.
+
+Immediately after that adapter, `_group_operational_incidents` receives `groups`,
+`operational`, `raw_pipeline_evidence`, `ambiguity_times`,
+`stable_root_categories`, `pipeline_failures_by_identity` and the current
+`classify_operational_error`, `get_event_time`, `seconds_between`,
+`is_subordinate_remote_write_symptom`, `incident_exception_line`,
+`matching_ambiguity_identity`, `pause_scope_for_item` and
+`normalise_incident_text`. It mutates the existing groups and shared operational
+rows, including subordinate/identity/pause annotations, and seeds empty
+pipeline-only groups in the original order. Only `pipeline_identity_by_group`
+returns, directly bound for later construction with its original identity tuples.
+Pipeline evidence priority, exception/root selection, signatures, stable categories,
+reverse group traversal and the distinct ambiguity/provider windows retain their
+original callback and mutation order. `dt_text`, `_normalise_lane` and `re` remain
+current same-owner globals. Group/category allocation, recovery preparation and
+the complete per-group incident-construction loop stay in the summary; neither
+implementation stores callbacks, returns closures or introduces copies.
+
 `_prepare_recovery_evidence` receives `events`, `receipt_events`, the materialised
 `lifecycle` and `confirmed_reply_receipt_events`, and `get_event_time`. After
 `pipeline_identity_by_group` and before safety annotation, it returns `event_times`,
