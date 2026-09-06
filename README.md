@@ -185,6 +185,7 @@ deployed as a coherent set:
 - `mrs_bot_mention_discovery.py`
 - `mrs_bot_mention_authority.py`
 - `mrs_bot_reply_evaluation_state.py`
+- `mrs_bot_tweet_lookup_cache.py`
 - `remote_write_safety_protocol.py`
 - `remote_media_upload_receipt.py`
 - `remote_write_transport_journal.py`

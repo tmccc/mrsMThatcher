@@ -2216,3 +2216,81 @@ Next useful domain: supervisor review of reply-context/media preparation around
 `build_context_for_reply_ai` and `reply_media_context_for_candidate`, keeping
 provider, cache/persistence and cycle authority in their existing locations.
 Supervisor review precedes a fresh invocation.
+
+## Stage 22 — tweet lookup, cache and recent own-post index
+
+Baseline: `fd51f03ab515a398d7cf3f710a40201b6c9d7029` (2026-09-06).
+Worktree `/disks/disk1/research/mrsMThatcher-bot-modularisation-stage22` started
+clean on `codex/bot-modularisation-stage22`, matching the verified pushed stage
+21 parent. The supervisor's scope/dependency notes and all 55 curated nodes were
+used; normal/quote cycles, state recovery, receipt application, discovery/context
+and guarded bootstrap callers were inspected.
+
+`mrs_bot_tweet_lookup_cache.py` owns **348 original definition lines** across
+`normalise_tweet_cache_entry`, `normalise_tweet_cache`, `prune_tweet_cache`,
+`record_recent_own_post`, `seed_recent_own_post_ids_from_cache`, `cache_tweet`,
+`_verified_tweet_lookup_row`, `get_tweet_by_id`,
+`reply_target_is_available_immediately_before_send` and `get_tweet_by_id_cached`.
+Ten explicit adapters retain root names/signatures/defaults/annotations and pass
+**2, 2, 4, 2, 3, 6, 1, 5, 4 and 7** current dependencies. Original implementation
+bodies/docstrings are unchanged; no constants or classes moved.
+
+Compatibility preserves permissive scalar/reference normalization, pruning before
+cached reads/writes, stable cap order and original records, own-post seeding and
+fallback, exact direct identity checks, fresh pre-send lookup and permanent-target
+versus global errors. Media refresh merges into a deep copy without replacing the
+cached record or saving; a miss saves canonical state before copying/decorating
+the return. Native failures, clock/log/callback authority and mutation/save order
+remain intact. Shared state epochs, request/authentication/error classification,
+media attachment, configuration, persistence and orchestration remain in existing
+locations; `get_immediate_parent_id` stays root for context. The standard-library
+owner retains no callbacks/configuration/clients/state and adds no persistence,
+validation policy or import-time runtime work.
+
+Evidence: `/tmp/mrs-bot-stage22-GYrhdL`. Before editing, documentation passed for
+**230 modules**, **101 tests** collected in **4.17s**, and **101 passed in 16.14s**.
+The validated baseline has **75 explicit nodes across 15 files**, including all
+55 supplied nodes, relevant prior-owner and guarded-bootstrap tests, indirect
+loader/regular/meme/reply receipt/discovery/context callers, deleted-target no-write
+regressions and nine loopback normal/quote/pagination/posting/restart integrations.
+
+After extraction, **115 tests** collected in **4.22s** and **115 passed in 16.20s**
+(`current-final-pytest.txt`; **76 file/node arguments across 16 files**).
+The **12 new tests / 14 cases** cover import safety, current dependencies,
+normalization/copy/reference boundaries, pruning and own-post index order, direct
+media attachment, cache-hit/media-refresh identity and no-save behavior, and a
+real isolated canonical save before return copying plus provider/save errors.
+The initial run had **114 passes and one new-test assertion failure**: its
+`cache_tweet` dependency count was corrected from seven to the inventory's six;
+implementation and existing assertions were unchanged. The imported autouse
+`isolate_regular_post_receipt` fixture remains registered.
+
+`run_selected.sh` requires successful selection generation, a validated nonempty
+list and collection before pytest. Runs use `PYTHONUSERBASE=/home/tonym/.local`,
+`MRS_TEST_MODE=1`, `PYTEST_DISABLE_PLUGIN_AUTOLOAD=1`, `PYTHONDONTWRITEBYTECODE=1`,
+`-p no:cacheprovider` and evidence-root `TMPDIR`, retaining temporary HOME/state,
+dummy credentials, dead proxies, denied external sockets and explicit loopback
+fake APIs. No broad suite or whole enormous test file ran. The passing run was
+preserved after documentation-only edits; final documentation and diff checks pass.
+
+`verify_stage22.py` / `comparison.txt` verify exact bodies/signatures/dependencies
+against immutable `git show`, AST and symbol tables. Restoring the ten originals
+and removing one import reconstructs the **whole parent root byte for byte**,
+including **523 unaffected definitions** and all unrelated statements. All 21
+prior owners, existing tests/fixtures and digest docs are unchanged. README/API
+only add the companion and this report is appended.
+
+| Runtime file | Before lines / bytes | After lines / bytes |
+|---|---:|---:|
+| `mrsMThatcher2.py` | 20,882 / 815,842 | 20,661 / 808,138 |
+| `mrs_bot_tweet_lookup_cache.py` | absent | 446 / 14,326 |
+
+The root loses **221 lines / 7,704 bytes**; combined runtime source grows by
+**225 lines / 6,622 bytes**. The focused test file has **346 lines / 17,207 bytes**.
+Production remains `master` at `af5eda7c163a8174ec1365060aa923d21787e7bd` per
+worktree metadata; no production configuration/state/credentials, service action,
+live provider call, deployment/restart or next-stage work occurred.
+Next useful domain: supervisor review of reply-context/media preparation around
+`build_parent_chain`, `build_context_for_reply_ai` and
+`reply_media_context_for_candidate`, keeping cache/persistence, provider and cycle
+authority in their existing locations. Supervisor review precedes a fresh invocation.
