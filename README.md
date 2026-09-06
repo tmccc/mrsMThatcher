@@ -183,6 +183,7 @@ deployed as a coherent set:
 - `mrs_bot_quote_discovery.py`
 - `mrs_bot_hot_post_discovery.py`
 - `mrs_bot_mention_discovery.py`
+- `mrs_bot_mention_authority.py`
 - `remote_write_safety_protocol.py`
 - `remote_media_upload_receipt.py`
 - `remote_write_transport_journal.py`
