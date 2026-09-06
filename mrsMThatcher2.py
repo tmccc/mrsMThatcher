@@ -249,6 +249,7 @@ import mrs_bot_runtime_control as _runtime_control
 import mrs_bot_api_cooldowns as _api_cooldowns
 import mrs_bot_x_pagination as _x_pagination
 import mrs_bot_request_route_values as _request_route_values
+import mrs_bot_x_response_diagnostics as _x_response_diagnostics
 
 from single_call_reply import (
     MAX_IMAGE_BYTES as SINGLE_CALL_MAX_IMAGE_BYTES,
@@ -5407,88 +5408,38 @@ def print_rate_limit_headers(response: requests.Response) -> int | None:
         return None
 
 
-X_CREATE_RESPONSE_ANOMALY_EVENT = "X_CREATE_RESPONSE_ANOMALY_V1"
-X_CREATE_RESPONSE_ANOMALY_SCHEMA_VERSION = 1
-X_CREATE_RESPONSE_ANOMALY_BODY_MAX_BYTES = 16 * 1024
-X_CREATE_RESPONSE_SAFE_CORRELATION_HEADERS = (
-    "request-id",
-    "traceparent",
-    "x-correlation-id",
-    "x-request-id",
-    "x-transaction-id",
-)
-_X_CREATE_RESPONSE_HEADER_MAX_CHARACTERS = 512
-_X_CREATE_RESPONSE_ID_VALUE_MAX_CHARACTERS = 256
-_X_CREATE_RESPONSE_TOP_LEVEL_KEY_LIMIT = 64
-_X_CREATE_RESPONSE_TOP_LEVEL_KEY_MAX_CHARACTERS = 256
+X_CREATE_RESPONSE_ANOMALY_EVENT = _x_response_diagnostics.X_CREATE_RESPONSE_ANOMALY_EVENT
+X_CREATE_RESPONSE_ANOMALY_SCHEMA_VERSION = _x_response_diagnostics.X_CREATE_RESPONSE_ANOMALY_SCHEMA_VERSION
+X_CREATE_RESPONSE_ANOMALY_BODY_MAX_BYTES = _x_response_diagnostics.X_CREATE_RESPONSE_ANOMALY_BODY_MAX_BYTES
+X_CREATE_RESPONSE_SAFE_CORRELATION_HEADERS = _x_response_diagnostics.X_CREATE_RESPONSE_SAFE_CORRELATION_HEADERS
+_X_CREATE_RESPONSE_HEADER_MAX_CHARACTERS = _x_response_diagnostics._X_CREATE_RESPONSE_HEADER_MAX_CHARACTERS
+_X_CREATE_RESPONSE_ID_VALUE_MAX_CHARACTERS = _x_response_diagnostics._X_CREATE_RESPONSE_ID_VALUE_MAX_CHARACTERS
+_X_CREATE_RESPONSE_TOP_LEVEL_KEY_LIMIT = _x_response_diagnostics._X_CREATE_RESPONSE_TOP_LEVEL_KEY_LIMIT
+_X_CREATE_RESPONSE_TOP_LEVEL_KEY_MAX_CHARACTERS = _x_response_diagnostics._X_CREATE_RESPONSE_TOP_LEVEL_KEY_MAX_CHARACTERS
 
 
 def x_create_response_anomaly_reason(decoded: object) -> str | None:
     """Return why one decoded tweet-create response cannot confirm success."""
 
-    if not isinstance(decoded, dict):
-        return "decoded_top_level_not_object"
-    if "data" not in decoded:
-        return "data_absent"
-    data = decoded["data"]
-    if not isinstance(data, dict):
-        return "data_not_object"
-    if "id" not in data:
-        return "data_id_absent"
-    post_id = data["id"]
-    if type(post_id) is str and not post_id.strip():
-        return "data_id_blank"
-    if not valid_post_id(post_id):
-        return "data_id_non_numeric"
-    return None
+    return _x_response_diagnostics.x_create_response_anomaly_reason(
+        decoded,
+        valid_post_id=valid_post_id,
+    )
 
 
-def _x_create_diagnostic_json_type(value: object) -> str:
-    """Return a stable JSON-oriented type name for decoded evidence."""
-
-    if value is None:
-        return "null"
-    if type(value) is bool:
-        return "boolean"
-    if type(value) in {int, float}:
-        return "number"
-    if type(value) is str:
-        return "string"
-    if type(value) is list:
-        return "array"
-    if type(value) is dict:
-        return "object"
-    return f"python:{type(value).__module__}.{type(value).__qualname__}"
+_x_create_diagnostic_json_type = _x_response_diagnostics._x_create_diagnostic_json_type
 
 
-def _bounded_x_create_diagnostic_text(
-    value: object,
-    *,
-    maximum_characters: int,
-) -> str | None:
-    """Return one bounded control-free diagnostic string, or no value."""
-
-    if value is None:
-        return None
-    text = str(value)
-    if (
-        len(text) > maximum_characters
-        or any(ord(character) < 0x20 or ord(character) == 0x7F for character in text)
-    ):
-        return None
-    return text
+_bounded_x_create_diagnostic_text = _x_response_diagnostics._bounded_x_create_diagnostic_text
 
 
 def _x_create_response_elapsed_ms(response: requests.Response) -> int | None:
     """Return a finite non-negative Requests elapsed duration in milliseconds."""
 
-    try:
-        seconds = float(response.elapsed.total_seconds())
-    except (AttributeError, TypeError, ValueError, OverflowError):
-        return None
-    if not math.isfinite(seconds) or seconds < 0:
-        return None
-    return int(round(seconds * 1000))
+    return _x_response_diagnostics._x_create_response_elapsed_ms(
+        response,
+        math=math,
+    )
 
 
 def emit_x_create_response_anomaly(
@@ -5509,174 +5460,33 @@ def emit_x_create_response_anomaly(
     when it is no larger than ``X_CREATE_RESPONSE_ANOMALY_BODY_MAX_BYTES``.
     """
 
-    raw_body = bytes(raw_body)
-    raw_body_complete = (
-        len(raw_body) <= X_CREATE_RESPONSE_ANOMALY_BODY_MAX_BYTES
+    return _x_response_diagnostics.emit_x_create_response_anomaly(
+        response=response,
+        transport_authority=transport_authority,
+        request_payload=request_payload,
+        reason=reason,
+        raw_body=raw_body,
+        json_decode_succeeded=json_decode_succeeded,
+        decoded=decoded,
+        json_error=json_error,
+        X_CREATE_RESPONSE_ANOMALY_BODY_MAX_BYTES=X_CREATE_RESPONSE_ANOMALY_BODY_MAX_BYTES,
+        X_CREATE_RESPONSE_ANOMALY_EVENT=X_CREATE_RESPONSE_ANOMALY_EVENT,
+        X_CREATE_RESPONSE_ANOMALY_SCHEMA_VERSION=X_CREATE_RESPONSE_ANOMALY_SCHEMA_VERSION,
+        X_CREATE_RESPONSE_SAFE_CORRELATION_HEADERS=X_CREATE_RESPONSE_SAFE_CORRELATION_HEADERS,
+        _X_CREATE_RESPONSE_HEADER_MAX_CHARACTERS=_X_CREATE_RESPONSE_HEADER_MAX_CHARACTERS,
+        _X_CREATE_RESPONSE_ID_VALUE_MAX_CHARACTERS=_X_CREATE_RESPONSE_ID_VALUE_MAX_CHARACTERS,
+        _X_CREATE_RESPONSE_TOP_LEVEL_KEY_LIMIT=_X_CREATE_RESPONSE_TOP_LEVEL_KEY_LIMIT,
+        _X_CREATE_RESPONSE_TOP_LEVEL_KEY_MAX_CHARACTERS=_X_CREATE_RESPONSE_TOP_LEVEL_KEY_MAX_CHARACTERS,
+        _bounded_x_create_diagnostic_text=_bounded_x_create_diagnostic_text,
+        _x_create_diagnostic_json_type=_x_create_diagnostic_json_type,
+        _x_create_response_elapsed_ms=_x_create_response_elapsed_ms,
+        base64=base64,
+        hashlib=hashlib,
+        json=json,
+        log=log,
+        math=math,
+        now_epoch=now_epoch,
     )
-    safe_correlation_headers: dict[str, str] = {}
-    for header_name in X_CREATE_RESPONSE_SAFE_CORRELATION_HEADERS:
-        header_value = _bounded_x_create_diagnostic_text(
-            response.headers.get(header_name),
-            maximum_characters=_X_CREATE_RESPONSE_HEADER_MAX_CHARACTERS,
-        )
-        if header_value is not None:
-            safe_correlation_headers[header_name] = header_value
-
-    target_id: str | None = None
-    reply = request_payload.get("reply")
-    if isinstance(reply, dict) and type(reply.get("in_reply_to_tweet_id")) is str:
-        target_id = reply["in_reply_to_tweet_id"]
-
-    decoded_top_level_type = (
-        _x_create_diagnostic_json_type(decoded)
-        if json_decode_succeeded
-        else None
-    )
-    decoded_top_level_keys: list[str] | None = None
-    decoded_top_level_keys_complete: bool | None = None
-    if json_decode_succeeded and isinstance(decoded, dict):
-        keys = list(decoded.keys())
-        if (
-            len(keys) <= _X_CREATE_RESPONSE_TOP_LEVEL_KEY_LIMIT
-            and all(
-                type(key) is str
-                and len(key) <= _X_CREATE_RESPONSE_TOP_LEVEL_KEY_MAX_CHARACTERS
-                for key in keys
-            )
-        ):
-            decoded_top_level_keys = sorted(keys)
-            decoded_top_level_keys_complete = True
-        else:
-            decoded_top_level_keys_complete = False
-
-    data_present = (
-        json_decode_succeeded
-        and isinstance(decoded, dict)
-        and "data" in decoded
-    )
-    data_value = decoded["data"] if data_present else None
-    data_type = (
-        _x_create_diagnostic_json_type(data_value) if data_present else None
-    )
-    data_is_object = isinstance(data_value, dict) if data_present else False
-    data_id_present = data_is_object and "id" in data_value
-    data_id_value = data_value["id"] if data_id_present else None
-    data_text_present = data_is_object and "text" in data_value
-    data_text_value = data_value["text"] if data_text_present else None
-    edit_history_present = data_is_object and "edit_history_tweet_ids" in data_value
-    edit_history_value = (
-        data_value["edit_history_tweet_ids"] if edit_history_present else None
-    )
-
-    diagnostic_data_id_value: object = None
-    data_id_value_complete: bool | None = None
-    if data_id_present:
-        if type(data_id_value) is str:
-            if len(data_id_value) <= _X_CREATE_RESPONSE_ID_VALUE_MAX_CHARACTERS:
-                diagnostic_data_id_value = data_id_value
-                data_id_value_complete = True
-            else:
-                data_id_value_complete = False
-        elif data_id_value is None or type(data_id_value) in {bool, int}:
-            diagnostic_data_id_value = data_id_value
-            data_id_value_complete = True
-        elif type(data_id_value) is float and math.isfinite(data_id_value):
-            diagnostic_data_id_value = data_id_value
-            data_id_value_complete = True
-        else:
-            data_id_value_complete = False
-
-    event_without_hash: dict[str, object] = {
-        "canonical_payload_sha256": transport_authority.payload_sha256,
-        "content_length_header": _bounded_x_create_diagnostic_text(
-            response.headers.get("Content-Length"),
-            maximum_characters=_X_CREATE_RESPONSE_HEADER_MAX_CHARACTERS,
-        ),
-        "content_type": _bounded_x_create_diagnostic_text(
-            response.headers.get("Content-Type"),
-            maximum_characters=_X_CREATE_RESPONSE_HEADER_MAX_CHARACTERS,
-        ),
-        "data_id_character_length": (
-            len(data_id_value) if type(data_id_value) is str else None
-        ),
-        "data_id_type": (
-            _x_create_diagnostic_json_type(data_id_value)
-            if data_id_present
-            else None
-        ),
-        "data_id_value": diagnostic_data_id_value,
-        "data_id_value_complete": data_id_value_complete,
-        "data_text_character_length": (
-            len(data_text_value) if type(data_text_value) is str else None
-        ),
-        "data_text_type": (
-            _x_create_diagnostic_json_type(data_text_value)
-            if data_text_present
-            else None
-        ),
-        "data_type": data_type,
-        "decoded_top_level_keys": decoded_top_level_keys,
-        "decoded_top_level_keys_complete": decoded_top_level_keys_complete,
-        "decoded_top_level_type": decoded_top_level_type,
-        "edit_history_tweet_ids_count": (
-            len(edit_history_value) if type(edit_history_value) is list else None
-        ),
-        "edit_history_tweet_ids_type": (
-            _x_create_diagnostic_json_type(edit_history_value)
-            if edit_history_present
-            else None
-        ),
-        "event": X_CREATE_RESPONSE_ANOMALY_EVENT,
-        "http_status": int(response.status_code),
-        "json_decode_succeeded": json_decode_succeeded,
-        "json_error_position": (
-            json_error.pos
-            if json_error is not None and type(getattr(json_error, "pos", None)) is int
-            else None
-        ),
-        "json_error_type": type(json_error).__name__ if json_error is not None else None,
-        "raw_body_base64": (
-            base64.b64encode(raw_body).decode("ascii")
-            if raw_body_complete
-            else None
-        ),
-        "raw_body_complete": raw_body_complete,
-        "raw_body_encoding": "base64" if raw_body_complete else None,
-        "raw_body_length": len(raw_body),
-        "raw_body_sha256": hashlib.sha256(raw_body).hexdigest(),
-        "reason": reason,
-        "recorded_at": now_epoch(),
-        "request_method": "POST",
-        "request_path": "/2/tweets",
-        "response_elapsed_ms": _x_create_response_elapsed_ms(response),
-        "response_encoding": _bounded_x_create_diagnostic_text(
-            response.encoding,
-            maximum_characters=_X_CREATE_RESPONSE_HEADER_MAX_CHARACTERS,
-        ),
-        "safe_correlation_headers": safe_correlation_headers,
-        "schema_version": X_CREATE_RESPONSE_ANOMALY_SCHEMA_VERSION,
-        "target_id": target_id,
-        "transaction_id": transport_authority.transaction_id,
-        "transport_lane": transport_authority.lane,
-    }
-    canonical_without_hash = json.dumps(
-        event_without_hash,
-        ensure_ascii=False,
-        sort_keys=True,
-        separators=(",", ":"),
-        allow_nan=False,
-    ).encode("utf-8")
-    diagnostic_sha256 = hashlib.sha256(canonical_without_hash).hexdigest()
-    event = {**event_without_hash, "diagnostic_sha256": diagnostic_sha256}
-    canonical_event = json.dumps(
-        event,
-        ensure_ascii=False,
-        sort_keys=True,
-        separators=(",", ":"),
-        allow_nan=False,
-    )
-    log.error("%s %s", X_CREATE_RESPONSE_ANOMALY_EVENT, canonical_event)
-    return event
 
 
 def x_request(

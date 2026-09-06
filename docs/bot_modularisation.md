@@ -2828,3 +2828,77 @@ worktree metadata; no production changes, deployment or restart occurred.
 Next useful domain for supervisor assessment: tweet ID parsing/ordering around
 `parse_tweet_id` and `valid_tweets_sorted_by_id`, retaining their current policies.
 Only stage 29 is implemented; supervisor review precedes any further stage.
+
+## Stage 30 — Bounded tweet-create response diagnostics
+
+Baseline: `a8fe5b7318e07b3882f8e45b5314a988f1ad8303` (2026-09-06).
+Worktree `/disks/disk1/research/mrsMThatcher-bot-modularisation-stage30` started
+clean on `codex/bot-modularisation-stage30`, matching the pushed stage 29 parent.
+The supplied scope notes, dependency inventory and eight transaction-test bodies
+were checked against that immutable parent before editing.
+
+`mrs_bot_x_response_diagnostics.py` owns **five functions / 246 original
+definition lines** and **eight fixed constants / 14 lines**. Three explicit
+adapters supply current root dependencies; the diagnostic type and bounded-text
+helpers are aliases. Root signatures/defaults/annotations and original bodies/
+docstrings remain exact. Constants initially share root/owner objects, and the
+emitter receives current root constant values on every call. Postponed owner
+annotations preserve syntax without importing Requests or `TransportAuthority`.
+
+Classification/type distinctions, native conversion and elapsed failures,
+inclusive body/header/key/ID limits, completeness fields, references and event
+evaluation order remain exact. Canonical JSON without the diagnostic hash is
+hashed before final canonical serialization; one ERROR log precedes returning
+the original event. Rate-limit logging, annotation authorities, actual modules,
+clock, logging, transport and error policy retain their existing locations.
+No classes move, and no new retries, decodes, filtering, persistence or request
+authority are introduced.
+The owner performs no import-time runtime work and retains no callbacks,
+configuration, clients or state.
+
+Evidence: `/tmp/mrs-bot-stage30-zkSj100L`. Before editing, documentation passed
+for **238 modules**, **26 tests collected in 3.40s**, and **26 passed in 6.41s**
+(`baseline-pytest.txt`; 16 explicit nodes across four files). All eight supplied
+transaction nodes retain their real isolated receipts/journals/fences and mocked
+responses. Nearby checks cover guarded bootstrap and process/network isolation;
+three existing loopbacks cover normal reply success, quote/media success and a
+missing-created-ID failure without asset retirement.
+
+After extraction, documentation passed for **239 modules**, **32 tests collected
+in 3.40s**, and **32 passed in 6.84s** (`current-pytest.txt`; 22 explicit nodes
+across five files). Six new tests cover guarded import, current dependencies/
+constants and reference identity, type distinctions, native conversion/elapsed
+failures, inclusive bounds, callback order, canonical hashing and JSON/logging
+failure boundaries. The new test module registers the existing autouse
+`isolate_regular_post_receipt` fixture. Existing assertions and barriers remain
+unchanged; no broad suite ran.
+
+The reused `run_selected.sh` requires successful AST-validated nonempty selection
+and collection under `set -euo pipefail` before invoking explicit arguments to
+`python3 -m pytest -q -p no:cacheprovider`. Runs use
+`PYTHONUSERBASE=/home/tonym/.local`, `MRS_TEST_MODE=1`, disabled plugin autoload
+and bytecode, TMPDIR/disposable fixtures under the evidence root, temporary
+HOME/state, dummy credentials, dead proxies, denied external sockets and explicit
+loopback APIs. Passing logs are retained after docs-only edits.
+
+`verify_stage30.py` / `comparison.txt` verify exact moved bodies/docstrings,
+signatures/defaults/annotations, constants and dependencies without importing the
+bot. Restoring the original definitions/constants and removing the owner import
+reconstructs the whole parent root byte for byte, including **523 unaffected
+functions** and all unrelated statements. All **29 earlier owners**, existing
+tests/fixtures and digest docs remain unchanged. README/API only add the
+companion; this report is appended. Final documentation and `git diff --check`
+pass.
+
+| Runtime file | Before lines / bytes | After lines / bytes |
+|---|---:|---:|
+| `mrsMThatcher2.py` | 19,451 / 762,848 | 19,261 / 756,498 |
+| `mrs_bot_x_response_diagnostics.py` | absent | 314 / 11,781 |
+
+The root loses **190 lines / 6,350 bytes**; combined runtime source grows by
+**124 lines / 5,431 bytes**. The new test file has **298 lines / 14,193 bytes**.
+Production remains `master` at `af5eda7c163a8174ec1365060aa923d21787e7bd` per
+worktree metadata; no production changes, deployment or restart occurred.
+Next useful domain for supervisor assessment: tweet ID parsing/ordering around
+`parse_tweet_id` and `valid_tweets_sorted_by_id`, retaining their current policies.
+Only stage 30 is implemented; supervisor review precedes any further stage.
