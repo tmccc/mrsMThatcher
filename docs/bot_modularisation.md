@@ -4797,3 +4797,74 @@ Complete logs, selections, adapted helpers and metadata evidence remain on disk;
 access, log-content reads, service actions or live-provider calls occurred.
 Configured Astra/max is unchanged. Only stage57 is implemented; supervisor review
 precedes the next stage.
+
+
+## Stage 58 — Historical-context queue processing
+
+Baseline: `23d8701435dd46221230a695bc882039dd95e631`, clean on
+`codex/bot-modularisation-stage58`; origin stage57 matched and stage58 was absent.
+The four supervisor inputs, immutable scoped sources and checked stage57 machinery
+were reused without conversations or prior transcripts.
+
+`mrs_bot_historical_context_queue.py` owns **three bodies/docstrings, 675 original
+lines**, behind three explicit `_historical_context_queue` adapters with **7/22/4**
+current dependencies. Public signatures/defaults/deferred annotations stay exact.
+Two exact private root accessors retain the shared unavailable-reason global:
+only **two loads/eight assignments** become getter/setter calls at their original
+positions with exact RHS expressions; only three global declarations are removed.
+
+Enqueue retains pre-gate conversion, canonical quote/source identity, disabled
+versus unavailable behavior and mutation-before-diagnostics fallback. The worker
+retains its local import, two live latch observations, gate/clock/selection/claim
+order, callback captures, source-before-remote sequencing, distinct interrupted,
+ambiguous, proved/unproved and confirmed outcomes, cooldown/save scopes and local
+verification/tick stop. Exception-only auxiliary isolation retains its mutation,
+logging, nested event catch and result order. Locking, outbox persistence,
+formatter/delivery/transport/receipt policy and all 57 earlier owners stay unchanged.
+No constants/classes/aliases/global storage move, new policy, normalization,
+catch/retry, retained authority or import-time runtime work is introduced.
+README and API inventory register the companion.
+
+Evidence: `/tmp/mrs-bot-stage58-xBPV2OCJ`. Pre-edit documentation passed for
+**266 modules**. All **20 curated candidates plus two isolation checks** passed:
+baseline **22 explicit nodes across five files; 32 collected in 2.64s; 32 passed
+in 4.04s**. Current adds **10 contract functions / 35 cases**: **32 explicit nodes
+across six files; 67 collected in 2.65s; 67 passed in 5.69s**, first run.
+Existing assertions/parameterization/fixtures are unchanged. New contracts import
+the established autouse isolated receipt/incident fixtures and cover guarded
+import, current adapters/signatures/references, shared accessors, live gate reads,
+enqueue fallback, delayed callback captures and native exception/diagnostic order;
+the reviewed real integration cases retain transport/outbox/history coverage.
+
+Both baseline/current collection and pytest used the preceding metadata-only
+production-log guard with stage-local evidence and unchanged equality/open-FD
+assertions. All four metadata comparisons passed. Nonempty AST-validated selection
+and successful nonempty collection preceded pytest under `set -euo pipefail`,
+required Python/pytest flags, temporary HOME/state/TMPDIR, dummy credentials,
+dead proxies, external socket denial and existing explicit loopback policy.
+
+`verify_stage58.py` / `comparison.txt` prove exact original body ASTs by reversing
+the access substitutions and reinserting each original global declaration, exact
+helpers, public/owner signatures/defaults/annotations and compiled dependencies/
+forwarding without importing the bot. Removing only the helpers/import and
+restoring adapters reconstructs the entire immutable parent root byte for byte,
+including **509 unaffected definitions** and all unrelated statements. All **57
+earlier owners**, existing tests/fixtures and digest docs remain unchanged.
+Post-edit documentation passed for **267 modules**; whitespace checks passed.
+This section is appended at actual EOF with the complete immutable parent report
+verified as a byte prefix. Passing runtime checks were not repeated after this
+documentation-only append.
+
+| Runtime file | Before lines / bytes | After lines / bytes |
+|---|---:|---:|
+| `mrsMThatcher2.py` | 11,727 / 471,190 | 11,131 / 447,793 |
+| `mrs_bot_historical_context_queue.py` | absent | 722 / 29,042 |
+
+The root loses **596 lines / 23,397 bytes**; combined runtime source grows by
+**126 lines / 5,645 bytes**. New tests: **554 lines / 26,897 bytes**.
+Complete selections, logs, adapted machinery and metadata evidence remain on disk;
+`final-sizes.json` records final sizes. Production Git metadata remains `master`
+at `af5eda7c163a8174ec1365060aa923d21787e7bd`; no production execution,
+configuration/state/credential access, log-content reads, service actions or live
+provider calls occurred. Configured Astra/max is unchanged. Only stage58 is
+implemented; supervisor review precedes the next stage.
