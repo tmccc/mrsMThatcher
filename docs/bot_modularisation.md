@@ -579,3 +579,121 @@ Consider the remaining read-only image source/spacing helpers:
 and `filter_generated_images_by_spacing`. Keep state updates, persistence and
 selector orchestration outside that boundary. The supervisor chooses the next
 stage in a fresh invocation; stage 5 implements none of it.
+
+## Stage 6 — image selection and generated-image spacing
+
+Baseline: `0086d48f43a955574a785893b8e1e7a7c766adc8` (2026-09-06).
+On `big-nas-2` as `tonym`, worktree
+`/disks/disk1/research/mrsMThatcher-bot-modularisation-stage6` started clean on
+`codex/bot-modularisation-stage6`; HEAD and remote
+`origin/codex/bot-modularisation-stage5` matched that parent. The existing runtime
+map guided focused inspection of the selected functions and affected tests.
+
+### Extraction and compatibility
+
+`mrs_bot_image_selection.py` owns all fourteen requested functions: eligible
+image availability; source observability; spacing validation, allowance,
+filtering, counters, receipt reflection and logs; `choose_matched_unused_image`;
+`choose_regular_quote_image_pair`; and `choose_engagement_question_image`.
+Fourteen explicit adapters retain every root name, signature, default and
+annotation and supply current helpers, configuration, logger and exception
+classes. The central selector's callback dependencies remain explicit.
+
+Bodies retain their original order. Strict integer validation, caught/default
+conversion, counter caps/resets, source classification and exact logs remain
+unchanged. Disabled/allowed filtering returns the original set. Cycle resets and
+counter updates mutate caller objects. Legacy normalization clears/updates the
+caller set and invokes the current root save callback **before** checking for
+remaining legacy entries, including the original save-failure boundary.
+
+Selection preserves catalog order/index identity, metadata rechecks, distinct
+stale/global/quote-specific/unsafe/exhaustion exceptions, seasonal and spacing
+exclusions, eligible-only resets and persistent last-image boundaries. Scoring,
+origin boost arithmetic, component copy boundaries, candidate references,
+identity filtering before ties/editorial selection, shared RNG state/choice,
+shadow/applied callback order and sorted five-item diagnostics are unchanged.
+Pair retries retain initial exclusions, attempt limits, phase names, the one-time
+reset cleared in `finally` and exhaustion arguments. Fixed experimental quotes
+restore images only in their existing quote-specific mismatch handler.
+
+All five previous owners are byte-identical. `current_image_sha256`, exception
+classes, durable history/receipt/persistence implementations, publishing and
+configuration authority stay root. The owner has no reverse bot import, retained
+callbacks, dependency framework, new state/cache abstraction or import-time work.
+README and `docs/python_api.md` include the companion; digest documentation is
+unchanged.
+
+### Validation
+
+Evidence is confined to `/tmp/mrs-bot-stage6-d9Y0zi`. `selected-tests.txt` records
+**71 file/node arguments**, including **48 targeted unit-helper nodes**, all five
+previous owner adapter/import files, the complete generated-identity production
+and shadow scoring files and original-editorial scoring/selection file, affected
+harness cases, six futures nodes (spacing transitions, RNG, candidate capture,
+receipt selection state and safe import), fixed-quote mismatch restoration,
+guarded bootstrap and loopback fake-server quote/image posting. Unit coverage
+includes seasonal/stale/missing metadata, unsafe migration, origin boost,
+spacing expiry/counters, cycle recovery and last-image fallback, global failures
+without quote retries, failed-post history/counter restoration, all four spacing
+receipt reconciliation/reapply nodes, and observer removal.
+
+Before editing: documentation passed for **214 modules**; **232 passed in
+15.63s**. After extraction: documentation passed for **215 modules**; **243
+passed in 15.75s**, including nine new tests expanding to eleven cases in
+`tests/test_bot_image_selection.py`. They address current callbacks, references,
+import safety and exception/order gaps; existing assertions are unchanged.
+An initial selection-file generation error started unselected collection; it was
+interrupted before tests ran (`aborted-collection.txt`). The corrected commands
+require a nonempty selection. No broad test suite or duplicate behavioural
+comparison suite was run.
+
+Both completed runs retained conftest's temporary HOME/state, dummy credentials,
+dead external proxies, denied external network and explicit loopback fake APIs.
+No production environment was sourced, live provider called or service
+controlled; production installation, durable state and credentials were untouched.
+
+```bash
+TMPDIR=/tmp/mrs-bot-stage6-d9Y0zi PYTHONDONTWRITEBYTECODE=1 \
+  python3 tools/check_python_documentation.py
+set -e
+mapfile -t stage6_tests < /tmp/mrs-bot-stage6-d9Y0zi/selected-tests.txt
+(( ${#stage6_tests[@]} > 0 ))
+TMPDIR=/tmp/mrs-bot-stage6-d9Y0zi PYTHONUSERBASE=/home/tonym/.local \
+  MRS_TEST_MODE=1 PYTEST_DISABLE_PLUGIN_AUTOLOAD=1 PYTHONDONTWRITEBYTECODE=1 \
+  python3 -m pytest -q -p no:cacheprovider "${stage6_tests[@]}" \
+  tests/test_bot_image_selection.py
+TMPDIR=/tmp/mrs-bot-stage6-d9Y0zi PYTHONDONTWRITEBYTECODE=1 \
+  python3 /tmp/mrs-bot-stage6-d9Y0zi/verify_stage6.py
+git diff --check
+```
+
+The baseline omitted only the new test file. Documentation/pytest logs use the
+`baseline-` and `current-` prefixes. `comparison.txt` records the compact
+structural check adapted from stage 5: all **14 moved bodies** match exactly
+after reversing six explicit dependency names; all root signatures match.
+Restoring definitions and removing the import reconstructs the **entire parent
+root byte-for-byte**, including **569 unaffected definitions** and all other
+statements. Five prior owners, existing tests and digest documentation are
+unchanged. The comparison uses immutable `git show` source and ASTs, never a bot
+runtime import. Documentation and `git diff --check` passed.
+
+| Runtime file | Before lines / bytes | After lines / bytes |
+|---|---:|---:|
+| `mrsMThatcher2.py` | 27,959 / 1,083,964 | 27,720 / 1,074,171 |
+| `mrs_bot_image_selection.py` | absent | 581 / 23,074 |
+| `mrs_bot_image_scoring.py` | 312 / 12,579 | 312 / 12,579 |
+| `mrs_bot_original_editorial.py` | 497 / 22,065 | 497 / 22,065 |
+| `mrs_bot_generated_identity.py` | 482 / 23,694 | 482 / 23,694 |
+| `mrs_bot_asset_metadata.py` | 432 / 15,942 | 432 / 15,942 |
+| `mrs_bot_quote_candidates.py` | 481 / 17,457 | 481 / 17,457 |
+
+The root loses **239 lines / 9,793 bytes**. Combined runtime source grows by
+**342 lines / 13,281 bytes** for explicit dependencies, adapters and owner
+documentation.
+
+### Recommended next scope
+
+Review quotation/image used-history normalization and legacy migration checks,
+including catalog completeness and source identity checks. Keep durable I/O and
+receipt authority separate when deciding that boundary. The supervisor chooses
+the next stage in a fresh invocation; stage 6 implements none of it.
