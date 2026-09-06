@@ -4736,3 +4736,64 @@ Complete logs, selections, adapted helpers and metadata evidence remain on disk;
 access, log-content reads, service actions or live-provider calls occurred.
 Configured Astra/max is unchanged. Only stage56 is implemented; supervisor review
 precedes the next stage.
+
+
+## Stage 57 — Runtime state defaults and scheduling helpers
+
+Baseline: `3cb4e483c1f3702e24276375ce5762d79d4680e6`, clean on
+`codex/bot-modularisation-stage57`; origin stage56 matched and stage57 was absent.
+The four supervisor inputs, immutable scoped sources and checked stage56 helpers
+were reused without conversations or prior transcripts.
+
+`mrs_bot_runtime_state_helpers.py` owns **nine exact bodies/docstrings, 147
+original lines**. Three dependency-free `_runtime_state_helpers` aliases and six
+explicit current-root adapters preserve public signatures/defaults/deferred
+annotations and **2/0/0/2/3/0/4/5/2** dependencies. Complete ordered defaults and
+fresh containers, capped versus durable lists, individual field writes, scheduler
+conversion/warnings, load maintenance and lazy quote scheduling retain exact
+references, mutation/error boundaries and callback/save/format/log order. No
+constants/classes/globals moved; configuration, lifecycle, state loading/storage/
+normalization, receipt and lane policy stay in their existing owners. README/API
+add the companion; no new policy, coercion, catches, copies or retained state.
+
+Evidence: `/tmp/mrs-bot-stage57-oBK7pBgS`. Pre-edit documentation passed for
+**265 modules**. All **17 curated candidates** plus two isolation checks passed:
+baseline **19 explicit nodes across nine files; 28 collected in 3.48s; 28 passed
+in 5.73s**. Current adds **20 contract functions / 100 cases**: **39 explicit nodes
+across ten files; 128 collected in 3.58s; 128 passed in 8.92s**, first run.
+Coverage includes CLI current references, quote-trigger order, reply-list partial
+mutation, repair failure/load identity, complete emergency state, both main restart
+recoveries/no-second-post, installation defaults and quote-image/daily-meme
+loopbacks. New contracts cover guarded import, three aliases/current adapters,
+public signatures, complete state freshness and exact native branch/order/reference/
+mutation behavior; they import autouse `isolate_regular_post_receipt`.
+
+Both baseline/current collection and pytest used the reviewed metadata-only log
+guard with stage57 names and separate evidence. All four metadata equality checks
+and open-descriptor assertions passed. Nonempty AST-validated selections and
+successful nonempty collection preceded pytest under `set -euo pipefail`, required
+Python/pytest flags, temporary HOME/state/TMPDIR, dummy credentials, dead proxies,
+external socket denial and explicit loopback providers. Existing assertions,
+parameterization, fixtures and cleanup remain unchanged.
+
+`verify_stage57.py` / `comparison.txt` confirm exact bodies/signatures/defaults,
+compiled dependencies and forwarding without importing the bot. Whole-parent-root
+reconstruction is byte-identical, including **506 unaffected function definitions**
+and all unrelated statements. All **56 earlier owners**, existing tests/fixtures
+and digest docs are unchanged. Post-edit documentation passed for **266 modules**;
+whitespace checks passed. This section is appended at actual EOF; the entire
+immutable parent report is a verified byte prefix. Source/runtime checks were not
+repeated for this documentation-only append.
+
+| Runtime file | Before lines / bytes | After lines / bytes |
+|---|---:|---:|
+| `mrsMThatcher2.py` | 11,819 / 474,507 | 11,727 / 471,190 |
+| `mrs_bot_runtime_state_helpers.py` | absent | 212 / 6,589 |
+
+The root loses **92 lines / 3,317 bytes**; combined runtime source grows by
+**120 lines / 3,272 bytes**. New tests: **755 lines / 29,939 bytes**.
+Complete logs, selections, adapted helpers and metadata evidence remain on disk;
+`final-sizes.json` records final sizes. No production configuration/state/credential
+access, log-content reads, service actions or live-provider calls occurred.
+Configured Astra/max is unchanged. Only stage57 is implemented; supervisor review
+precedes the next stage.
