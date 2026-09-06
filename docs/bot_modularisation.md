@@ -3324,3 +3324,86 @@ Next useful domain for supervisor assessment: `parse_tweet_id` and
 `valid_tweets_sorted_by_id` (two functions / 21 definition lines), preserving
 coercion, numeric deduplication, validation/logging order and original tweet
 references. Only stage 36 is implemented; supervisor review precedes further work.
+
+
+## Stage 37 — Main-post receipt validation and bound schedule materialization
+
+Baseline: `8414d604f929219e269c7a2abae69b1537bbb36d` (2026-09-06), verified
+clean on `codex/bot-modularisation-stage37` in
+`/disks/disk1/research/mrsMThatcher-bot-modularisation-stage37`; origin's stage 36
+branch matched and the stage 37 remote branch was absent. Scope/dependency notes,
+the stage 36 report, relevant API rows, scoped immutable parent bodies/callers and
+selected test bodies/decorators informed this combined receipt extraction.
+
+`mrs_bot_main_post_receipts.py` owns **six functions / 726 original definition
+lines**: `main_post_attempt_is_semantically_valid`,
+`regular_post_receipt_is_semantically_valid`,
+`confirmed_pending_schedule_receipt_is_semantically_valid`,
+`materialize_bound_regular_schedule_receipt`,
+`materialize_bound_meme_schedule_receipt` and
+`meme_post_receipt_is_semantically_valid`. Six explicit `_main_post_receipts`
+adapters pass **14/18/4/9/8/13 current root dependencies**, respectively. Exact
+bodies/docstrings, root signatures/defaults/annotations, the local date closure
+and `_validate_result=True` remain unchanged. Sibling validators/materializers
+remain current root callbacks; `_validate_result=False` still avoids recursion.
+
+Compatibility preserves type/schema/field/key/history/hash validation order and
+native errors, including attempt set/sort failures versus confirmed-history
+rejection and full validators' native `data.get` errors. Legacy and lineage
+rules, pending lane/summary/schema/calendar gates and current settings/exception
+authority remain exact. Schedule materialization uses the durable plan with
+calendar-day/DST behavior, shallow history lists retaining children, deep source
+and experiment copies, canonical hashing of the original source and final
+validation gates. No constants/classes move or new validation policy, catches,
+normalization, scheduling/state writes or cleanup are introduced. Builders,
+stores, transport, recovery, application and primitives remain in place; the
+owner has no reverse import, retained runtime dependencies/state or import-time
+runtime work.
+
+Evidence: `/tmp/mrs-bot-stage37-6rpnIKag`. Before editing, documentation passed for
+**245 modules**. A proportionate selection of **25 of 42 candidate functions**
+plus three bootstrap/isolation checks produced **28 explicit nodes across six
+files**, **45 tests collected in 3.29s**, and **45 passed in 9.47s**
+(`baseline-pytest.txt`). Coverage includes both lanes, legacy/current/lineage
+validation, configuration and ambient-timezone replay through both DST changes,
+experiment identity, failure-after-confirmation recovery and all four real
+upload/post/missing-ID/restart-once-only loopbacks.
+
+After extraction, **37 explicit nodes across seven files** collected **64 tests
+in 3.38s**; **64 passed in 9.90s** (`current-pytest.txt`). Nine new contract
+functions / 19 cases cover guarded import, all current adapters/defaults/reference
+returns/errors, native validation boundaries, eager conversions and the current
+date closure, source/hash/copy/pending/materialization order, current final
+validation and exception authority, recursion avoidance and copy boundaries. The
+new module registers the imported autouse `isolate_regular_post_receipt` fixture;
+all existing assertions, fixtures and barriers are unchanged.
+
+The reused `run_selected.sh` requires successful AST-validated nonempty selection
+and nonempty collection under `set -euo pipefail` before explicit pytest arguments.
+Both runs use `PYTHONUSERBASE=/home/tonym/.local MRS_TEST_MODE=1
+PYTEST_DISABLE_PLUGIN_AUTOLOAD=1 PYTHONDONTWRITEBYTECODE=1 python3 -m pytest -q
+-p no:cacheprovider`, TMPDIR beneath the evidence root, temporary HOME/state,
+dummy credentials, dead proxies, denied external sockets and explicit loopback
+providers. No broad suite, whole enormous test file or unrelated earlier-owner
+contract selection ran. Complete evidence and actual logs are retained; passing
+tests were not repeated after documentation-only edits.
+
+`verify_stage37.py` / `comparison.txt` prove exact source bodies, root and owner
+signatures/defaults/annotations, compiled runtime dependency loads and forwarding
+without importing the bot. Restoring the six definitions and removing the new
+import reconstructs the entire immutable parent root byte for byte, including
+**520 unaffected functions** and all unrelated statements. All **36 previous
+owners**, existing tests/fixtures and digest docs are unchanged. README/API only
+add this owner; the report is append-only. Final documentation (**246 modules**)
+and `git diff --check` pass.
+
+| Runtime file | Before lines / bytes | After lines / bytes |
+|---|---:|---:|
+| `mrsMThatcher2.py` | 18,292 / 719,067 | 17,678 / 695,119 |
+| `mrs_bot_main_post_receipts.py` | absent | 830 / 33,689 |
+
+The root loses **614 lines / 23,948 bytes**; combined runtime source grows by
+**216 lines / 9,741 bytes**. New tests: **364 lines / 16,678 bytes**.
+Production remains `master` at `af5eda7c163a8174ec1365060aa923d21787e7bd` per
+worktree metadata; no production change, deployment or restart occurred. Only
+stage 37 is implemented; supervisor review precedes any further stage.
