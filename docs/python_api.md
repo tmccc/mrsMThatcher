@@ -512,6 +512,37 @@ supplied by the classifier wrapper. The summary receives `datetime.now` as
 their ordering and the missing-time fallback are unchanged. Shared time/text/lane
 and terminal-outcome helpers come directly from `mrs_log_digest_values`.
 
+Evidence preparation stays in the incident owner at three original sequence
+positions, with direct named unpacking of the existing results.
+`_prepare_pipeline_incident_evidence` receives `events`, `operational` and current
+`get_event_time`; it returns `pipeline_failures_by_identity` and
+`raw_pipeline_evidence`. Event rows remain shared and raw evidence keeps `id(item)`
+keys. Fullmatch/hint rules, exact failure counts, unique nearest causal matching,
+no-match branches and callback order are unchanged; `_normalise_lane`, `re` and
+builtins retain owner lookup.
+
+`_prepare_remote_ambiguity_evidence` receives `serious`, `events`, already
+materialised `remote_write_transactions`, `classify_operational_error`,
+`get_event_time` and `seconds_between`. It returns `ambiguity_times`,
+`transport_attempts`, `ambiguous_reply_outcomes` and `ambiguous_media_outcomes`.
+Both ambiguity-time passes and repeated classifications remain, along with
+transport/media filters, causal windows, stable time/transaction ordering, native
+field types and timestamp sharing. Lane normalisation retains owner lookup.
+`groups` and `stable_root_categories` are still initialised before this call.
+
+`_prepare_recovery_evidence` receives `events`, `receipt_events`, the materialised
+`lifecycle` and `confirmed_reply_receipt_events`, and `get_event_time`. After
+`pipeline_identity_by_group` and before safety annotation, it returns `event_times`,
+`receipt_removed_times`, `successful_restart_times`, `remote_write_success_times`,
+`remote_operation_successes` and `terminal_reply_receipts`. Both event passes and
+callback order remain, with exact scope vocabulary and shared per-kind scope sets;
+generic transport success has only `all_remote_writes` scope. Receipt kind and
+self-test filters and deliberate shallow receipt-row copies are unchanged.
+`success_scopes` remains local to preparation. These functions add no copies beyond
+the existing bodies, stored callbacks, clock samples or acquisition. Iterable
+materialisation, classification, grouping, adapters, snapshot authority,
+construction and final selection stay in the summary.
+
 Within the incident owner, `_pipeline_recovered_after` and
 `_remote_pause_recovery_status` implement pipeline and pause recovery. The nested
 `pipeline_recovered_after(identity, last_time)` and

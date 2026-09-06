@@ -3282,3 +3282,89 @@ new session. The supervisor must **stop and reassess after stage 36**.
 **Stage 37 is not authorised.** Prior branches/worktrees and production data are
 preserved; no production/configuration/state/log/image-pool changes, bot execution,
 provider/posting calls, service control, merge, deployment or force-push occurred.
+
+## Extracted in stage 35
+
+Base: `ae5ed10c5bad1c34903de4d0755dd9c18057457a`, verified against pushed
+`origin/codex/modularisation-stage34`. Worktree:
+`/disks/disk1/research/mrsMThatcher-modularisation-stage35`; branch:
+`codex/modularisation-stage35`.
+
+Three evidence-preparation spans become functions in `mrs_log_digest_incidents`:
+`_prepare_pipeline_incident_evidence` (four statements, 105 original lines),
+`_prepare_remote_ambiguity_evidence` (eight statements, 92 lines), and
+`_prepare_recovery_evidence` (twelve statements, 68 lines). Their bodies are exact
+moves with explicit inputs, descriptive docstrings and tuple returns, directly
+unpacked at the original positions. The complete three/six/five input sets and
+two/four/six results are documented in `python_api.md`; nested/comprehension
+dependencies and all later temporary-variable uses were checked. `success_scopes`
+is local, while operation rows retain shared per-kind sets and terminal receipts
+retain deliberate shallow copies. Original classification, iterable/clock order,
+groups/category initialisation, adapters, safety acquisition/annotation/authority,
+construction and final selection remain in place. No additional copies, modules,
+state objects, stored callbacks, normalisation or behavioural fixes are introduced.
+
+Replacing the three calls with their original spans and removing the functions
+reconstructs the **entire stage 34 incident owner exactly in text and AST**.
+All 15 other existing owner definitions, the root and all 29 other digest
+companions remain unchanged. APIs/defaults, schema 3, values/types/order, shared
+references, callback/global lookup and source/window/resume/publication policy
+retain their boundaries.
+
+| Physical lines | Stage 34 | Stage 35 |
+| --- | ---: | ---: |
+| Root digest / `analyse` | 3,462 / 1,318 | 3,462 / 1,318 |
+| Incident-health implementation | 1,088 | 844 (−244) |
+| Incident owner | 2,208 | 2,284 (+76) |
+| Pipeline / ambiguity / recovery preparation functions | — | 116 / 110 / 88 |
+
+Validation used `MRS_TEST_MODE=1 PYTEST_DISABLE_PLUGIN_AUTOLOAD=1 python3 -m pytest`
+with established temporary-HOME/network isolation, bytecode disabled and
+`-p no:cacheprovider`. Baseline: **57 passed**. Final focused incident,
+pipeline/raw-wrapper, ambiguity/transport and recovery/scope/receipt selection:
+**63 passed**. Four new tests cover prepared references and sequence/repeated
+classification, duplicate failure counts and causal ties/hints, native stable
+transport ties/filter order, and shared scopes/shallow receipt filtering. The
+three direct preparation tests also pass unchanged against the original stage 34
+statement spans. All existing assertions remain. The unchanged import guard and
+**seven digest-only integrations pass**, covering bounded media source references,
+unrelated errors, receipt/source/self-test isolation, pending receipts, state after
+the selected window and resume source identity. No whole bot harness ran.
+
+Three complete fixed-path/time report pairs match stage 34:
+
+| Asserted route | Records | JSON bytes | Markdown bytes |
+| --- | ---: | ---: | ---: |
+| Pipeline/raw-wrapper associations, terminal recovery and unmatched raw error | 8 | 44,146 | 13,113 |
+| Reply ambiguity/transport identity, subordinate symptoms and media ambiguity | 17 | 53,884 | 15,647 |
+| Generic versus lane-scoped recovery, restart/regular receipt and filtered reply receipts | 27 | 57,972 | 16,771 |
+
+Existing synthetic pool/reply/media fixtures and comparison machinery were reused.
+Assertions require the intended identities, counts, scopes, statuses, reasons and
+times, including the unresolved quote scope and exclusion of self-test/wrong-target
+receipts from matching recovery. Complete JSON/Markdown bytes, raw `analyse`
+values/types/order/reference graphs and stderr match; fixture bytes/modes/mtimes
+remain unchanged across the final comparisons. Independently verified root hashes
+and pre-commit HEADs are identical, so **no substitutions or normalisation** were
+used. Temporary scripts/results are outside the worktree at
+`/tmp/mrs-stage35-muf3zzju`. This is focused synthetic preservation evidence,
+not a production replay or exhaustive matrix. Documentation coverage passes for
+**209 modules**; `git diff --check` passes.
+
+Best bounded stage 36 recommendation: the **113-line `for item in operational`
+grouping loop**, currently incident-owner lines **1607–1719**. One same-owner
+function can mutate the existing errors/groups at that position, with no returned
+state: pass the five current collections (`operational`, `groups`,
+`raw_pipeline_evidence`, `ambiguity_times`, `stable_root_categories`) and eight
+current callbacks (`classify_operational_error`, `get_event_time`, `seconds_between`,
+`is_subordinate_remote_write_symptom`, `incident_exception_line`,
+`matching_ambiguity_identity`, `pause_scope_for_item`, `normalise_incident_text`).
+Keep owner `re`/lane/text/builtin lookup, the preceding 62-line pause-scope helper,
+following pipeline group seeding and 321-line construction loop in place. This
+boundary is assessed only, not implemented.
+
+This worker completes only stage 35 and ends for supervisor review; no new session
+is launched. Authorised stage 36 must be followed by **reassessment and a stop**;
+stage 37 is not authorised. Prior worktrees/branches and production data are
+preserved; no production/configuration/state/log/image-pool changes, bot execution,
+provider/posting calls, service control, merge, deployment or force-push occurred.

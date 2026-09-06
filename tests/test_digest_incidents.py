@@ -13,6 +13,264 @@ import mrs_log_digest_snapshot_incidents as snapshot_owner
 from tests.test_mrs_log_digest import BASE, record, reconciled_remote_write_safety
 
 
+def test_preparation_keeps_input_result_references_and_summary_sequence(monkeypatch):
+    later = BASE + timedelta(seconds=10)
+    root = {"level": "CRITICAL", "message": "ambiguous remote X post outcome lane=mention target_id=123", "_time": BASE}
+    wrapper = {"level": "ERROR", "message": "Failed to ask Grok for reply APIError lane=hot_post target_id=456", "_time": BASE}
+    errors = [root, wrapper,
+              {"level": "ERROR", "message": "RemoteOperationsPaused: pause_replies", "_time": BASE},
+              {"level": "ERROR", "message": "Bot crashed with unhandled exception", "_time": BASE}]
+    failure = {"kind": "reply_strategy_failure", "lane": "hot_post", "target_id": "456", "_time": BASE}
+    events = [failure, {"kind": "mention_reply_posted", "_time": later}]
+    receipts = [{"kind": "regular_removed", "_time": later}]
+    restart = {"message": "Bot started successfully", "_time": later}
+    terminal = {"kind": "sending_removed", "target_id": "123", "_time": later}
+    transaction = {"kind": "tweet_transport", "phase": "request_started", "reply_to_id": "123", "_time": BASE}
+    safety, phases, prepared, consumed = {"available": False}, [], {}, set()
+    pipeline = incident_owner._prepare_pipeline_incident_evidence
+    ambiguity = incident_owner._prepare_remote_ambiguity_evidence
+    recovery = incident_owner._prepare_recovery_evidence
+    original_classifier, distance = digest.classify_operational_error, digest.seconds_between
+    classifications = []
+    event_time = lambda row: row.get("_time")
+
+    def classifier(raw):
+        classifications.append(raw)
+        return original_classifier(raw)
+
+    def materialise(name, row):
+        phases.append(name)
+        yield row
+
+    class Clock(datetime):
+        @staticmethod
+        def now():
+            phases.append("clock")
+            return later
+
+    def pipeline_inputs(actual_events, operational, **inputs):
+        assert actual_events is events
+        assert all(a is b for a, b in zip(operational, errors)) and len(operational) == len(errors)
+        assert inputs["get_event_time"] is event_time
+        phases.append("pipeline")
+        result = pipeline(actual_events, operational, **inputs)
+        assert result[0][("hot-post", "456")][0] is failure
+        assert result[1] == {id(wrapper): (("hot-post", "456"), "outer_wrapper")}
+        return result
+
+    def ambiguity_inputs(serious, actual_events, transactions, **inputs):
+        assert actual_events is events and transactions == [transaction] and transactions[0] is transaction
+        assert len(serious) == len(errors) and all(a is b for a, b in zip(serious, errors))
+        assert inputs == {"classify_operational_error": classifier, "get_event_time": event_time, "seconds_between": distance}
+        phases.append("ambiguity")
+        result = ambiguity(serious, actual_events, transactions, **inputs)
+        prepared.update(zip(("ambiguity_times", "transport_attempts", "ambiguous_reply_outcomes", "ambiguous_media_outcomes"), result))
+        return result
+
+    def recovery_inputs(actual_events, actual_receipts, lifecycle, confirmed, **inputs):
+        assert actual_events is events and actual_receipts is receipts
+        assert lifecycle == [restart] and lifecycle[0] is restart
+        assert confirmed == [terminal] and confirmed[0] is terminal
+        assert inputs["get_event_time"] is event_time
+        assert root["_remote_write_identity"]["target_id"] == "123"
+        phases.append("recovery")
+        result = recovery(actual_events, actual_receipts, lifecycle, confirmed, **inputs)
+        prepared.update(zip(("event_times", "receipt_removed_times", "successful_restart_times", "remote_write_success_times", "remote_operation_successes", "terminal_reply_receipts"), result))
+        return result
+
+    def check_consumer(original):
+        def check(*args, **inputs):
+            for name in prepared.keys() & inputs.keys():
+                assert inputs[name] is prepared[name]
+                consumed.add(name)
+            return original(*args, **inputs)
+        return check
+
+    def annotate(value, *_args, **_kwargs):
+        assert value is safety
+        phases.append("annotate")
+
+    monkeypatch.setattr(digest, "datetime", Clock)
+    monkeypatch.setattr(digest, "classify_operational_error", classifier)
+    monkeypatch.setattr(digest, "_event_time", event_time)
+    monkeypatch.setattr(digest, "annotate_remote_write_snapshot_window", annotate)
+    monkeypatch.setattr(incident_owner, "_prepare_pipeline_incident_evidence", pipeline_inputs)
+    monkeypatch.setattr(incident_owner, "_prepare_remote_ambiguity_evidence", ambiguity_inputs)
+    monkeypatch.setattr(incident_owner, "_prepare_recovery_evidence", recovery_inputs)
+    for name in ("_matching_ambiguity_identity", "_is_subordinate_remote_write_symptom", "_remote_write_recovery_status", "_remote_pause_recovery_status", "_recovered_after"):
+        monkeypatch.setattr(incident_owner, name, check_consumer(getattr(incident_owner, name)))
+    result = digest.summarise_operational_error_health(
+        errors, events, receipts, lifecycle=materialise("lifecycle", restart),
+        remote_write_transactions=materialise("transactions", transaction),
+        handled_api_restrictions=materialise("handled", {}),
+        confirmed_reply_receipt_events=materialise("confirmed", terminal),
+        current_remote_write_safety=safety,
+    )
+    assert phases == ["clock", "lifecycle", "transactions", "handled", "confirmed", "pipeline", "ambiguity", "recovery", "annotate"]
+    assert classifications == [row["message"] for row in errors] * 2 + [root["message"], errors[2]["message"], errors[3]["message"]]
+    assert consumed == prepared.keys()
+    incident = next(row for row in result["current_incidents"] if row["category"] == "reply_strategy_pipeline_failure")
+    assert incident["pipeline_failure_event_count"] == incident["wrapper_record_count"] == 1
+
+
+def test_pipeline_preparation_keeps_exact_counts_hints_causal_ties_and_callback_order(monkeypatch):
+    calls = []
+    normalise = incident_owner._normalise_lane
+
+    def lane(value):
+        calls.append(("lane", value))
+        return normalise(value)
+
+    def event_time(row):
+        calls.append(("time", row["name"]))
+        return row.get("_time")
+
+    a = {"name": "a", "kind": "reply_strategy_failure", "lane": "hot_post", "target_id": 123, "reason": "invalid", "_time": BASE}
+    b = dict(a, name="b", lane="quote_tweet", target_id=456)
+    events = [{"kind": "unrelated"}, dict(a, target_id=""), a, a, b]
+    ended = "AI-first reply pipeline ended status=operational_failure lane={lane} target_id={target} reason=invalid calls=1 revisions=0"
+    raw = [
+        ("duplicate", ended.format(lane="hot_post", target=123), "worker", BASE),
+        ("single", ended.format(lane="quote_tweet", target=456), "worker", BASE),
+        ("tied", "Failed to ask Grok for reply APIError", "maybe_reply_to_mentions", BASE),
+        ("hint", "Failed to ask Grok for reply APIError", "maybe_reply_to_hot_posts", BASE),
+        ("target", "Failed to ask Grok for reply APIError target_id=456", "maybe_reply_to_hot_posts", BASE),
+        ("future", "Failed to ask Grok for reply APIError", "worker", BASE - timedelta(seconds=1)),
+        ("stale", "Failed to ask Grok for reply APIError", "worker", BASE + timedelta(seconds=6)),
+        ("extended", ended.format(lane="quote_tweet", target=456) + " extra", "worker", BASE),
+        ("missing-time", ended.format(lane="quote_tweet", target=456), "worker", None),
+    ]
+    errors = [{"name": name, "message": message, "where": where, "_time": ts} for name, message, where, ts in raw]
+    monkeypatch.setattr(incident_owner, "_normalise_lane", lane)
+    monkeypatch.setattr(digest, "_normalise_lane", None)
+    failures, evidence = incident_owner._prepare_pipeline_incident_evidence(events, errors, get_event_time=event_time)
+    assert list(failures) == [("hot-post", "123"), ("quote-tweet", "456")]
+    assert failures[("hot-post", "123")][0] is failures[("hot-post", "123")][1] is a
+    assert failures[("quote-tweet", "456")][0] is b
+    assert evidence == {
+        id(errors[1]): (("quote-tweet", "456"), "pipeline_error"),
+        id(errors[3]): (("hot-post", "123"), "outer_wrapper"),
+        id(errors[4]): (("quote-tweet", "456"), "outer_wrapper"),
+    }
+    assert calls == [("lane", "hot_post")] * 3 + [("lane", "quote_tweet")] + [
+        ("time", "duplicate"), ("lane", "hot_post"), ("time", "a"), ("time", "a"),
+        ("time", "single"), ("lane", "quote_tweet"), ("time", "b"),
+        ("time", "tied"), ("time", "a"), ("time", "a"), ("time", "b"),
+        ("time", "hint"), ("time", "a"), ("time", "a"),
+        ("time", "target"), ("time", "b"),
+        ("time", "future"), ("time", "a"), ("time", "a"), ("time", "b"),
+        ("time", "stale"), ("time", "a"), ("time", "a"), ("time", "b"),
+        ("time", "extended"), ("time", "missing-time"),
+    ]
+    older = dict(a, _time=BASE - timedelta(seconds=1))
+    _, nearest = incident_owner._prepare_pipeline_incident_evidence([older, b], [errors[2]], get_event_time=event_time)
+    assert nearest == {id(errors[2]): (("quote-tweet", "456"), "outer_wrapper")}
+
+
+def test_ambiguity_preparation_keeps_filters_stable_transport_ties_and_shared_times(monkeypatch):
+    calls = []
+    normalise = incident_owner._normalise_lane
+
+    class Token(str):
+        def __str__(self):
+            return self
+
+    def classify(message):
+        calls.append(("classify", message))
+        return "remote_write_ambiguity_barrier" if message != "other" else "other"
+
+    def event_time(row):
+        calls.append(("time", row["name"]))
+        return row.get("_time")
+
+    def lane(value):
+        calls.append(("lane", value))
+        return normalise(value)
+
+    def distance(a, b):
+        calls.append(("distance", a, b))
+        return abs((a - b).total_seconds())
+
+    serious = [{"name": "missing", "message": "missing"}, {"name": "other", "message": "other", "_time": BASE},
+               {"name": "root", "message": "root", "_time": BASE}]
+    first_token, second_token = Token("a"), Token("a")
+    attempt = {"kind": "tweet_transport", "phase": "request_started", "reply_to_id": 123, "lane": "hot_post", "_time": BASE}
+    transactions = [dict(attempt, name="wrong-phase", phase="confirmed"), dict(attempt, name="null", reply_to_id="NuLl"),
+                    dict(attempt, name="untimed", _time=None), dict(attempt, name="z", transaction_id="z"),
+                    dict(attempt, name="a", transaction_id=first_token), dict(attempt, name="tie", transaction_id=second_token),
+                    dict(attempt, name="future", _time=BASE + timedelta(seconds=1)),
+                    dict(attempt, name="stale", _time=BASE - timedelta(seconds=11)),
+                    {"name": "media", "kind": "media_upload", "phase": "ambiguous", "image": 321, "_time": BASE},
+                    {"name": "media-missing", "kind": "media_upload", "phase": "ambiguous"},
+                    {"name": "media-confirmed", "kind": "media_upload", "phase": "confirmed"}]
+    outcome = {"kind": "reply_strategy_outcome", "status": "posting_failed_retryable", "failure_reason": "ambiguous_remote_outcome",
+               "lane": "hot_post", "target_id": 123, "_time": BASE}
+    events = [dict(outcome, name="posted", status="posted"), dict(outcome, name="untimed", _time=None),
+              dict(outcome, name="invalid-lane", lane="invalid"), dict(outcome, name="missing-target", target_id=""),
+              dict(outcome, name="distant", _time=BASE + timedelta(seconds=6)), dict(outcome, name="accepted")]
+    monkeypatch.setattr(incident_owner, "_normalise_lane", lane)
+    monkeypatch.setattr(digest, "_normalise_lane", None)
+    times, attempts, outcomes, media = incident_owner._prepare_remote_ambiguity_evidence(
+        serious, events, transactions, classify_operational_error=classify, get_event_time=event_time, seconds_between=distance,
+    )
+    assert times == [BASE] and times[0] is BASE
+    assert [row["transaction_id"] for row in attempts] == ["z", "a", "a", "", ""]
+    assert attempts[1]["transaction_id"] is first_token and attempts[2]["transaction_id"] is second_token
+    assert attempts[0]["lane"] == "hot_post" and attempts[0]["target_id"] == "123"
+    assert outcomes == [{"time": BASE, "lane": "hot-post", "target_id": "123", "transaction_id": "a"}]
+    assert outcomes[0]["transaction_id"] is first_token and outcomes[0]["time"] is BASE
+    assert media == [{"time": BASE, "image": "321"}] and media[0]["time"] is BASE
+    assert calls == [
+        ("classify", "missing"), ("time", "missing"), ("classify", "other"), ("classify", "root"), ("time", "root"),
+        *[("time", name) for name in ("null", "untimed", "z", "a", "tie", "future", "stale")],
+        ("time", "untimed"), ("lane", "hot_post"), ("time", "invalid-lane"), ("lane", "invalid"),
+        ("time", "missing-target"), ("lane", "hot_post"), ("time", "distant"), ("lane", "hot_post"),
+        ("distance", events[4]["_time"], BASE), ("time", "accepted"), ("lane", "hot_post"), ("distance", BASE, BASE),
+        ("time", "media"), ("time", "media-missing"),
+    ]
+
+
+def test_recovery_preparation_keeps_two_passes_scope_sharing_and_shallow_receipt_filters():
+    later, calls, nested = BASE + timedelta(seconds=10), [], {"shared": []}
+    events = [{"name": "generic", "kind": "remote_write_succeeded", "_time": later},
+              {"name": "hot", "kind": "hot_post_reply_posted", "_time": BASE},
+              {"name": "hot-again", "kind": "hot_post_reply_posted", "_time": BASE},
+              {"name": "historical", "kind": "historical_context_reply", "status": "already_completed", "_time": later},
+              {"name": "historical-again", "kind": "historical_context_reply", "status": "completed", "_time": later},
+              {"name": "historical-failed", "kind": "historical_context_reply", "status": "failed", "_time": later},
+              {"name": "untimed", "kind": "mention_reply_posted"}]
+    receipts = [{"name": "regular", "kind": "regular_removed", "_time": later},
+                {"name": "reconciled-missing", "kind": "regular_reconciled"},
+                {"name": "other", "kind": "sending_removed", "_time": later}]
+    lifecycle = [{"name": "restart", "message": "Bot started successfully", "_time": later},
+                 {"name": "not-restart", "message": "starting", "_time": later}]
+    terminal = {"name": "terminal", "kind": "sending_removed", "source_class": "production", "_time": BASE, "evidence": nested}
+    confirmed = [dict(terminal, name="selftest", source_class="selftest"), dict(terminal, name="wrong-kind", kind="sending_written"),
+                 dict(terminal, name="untimed", _time=None), terminal,
+                 dict(terminal, name="fallback", kind="confirmed_state_fallback_removed"), dict(terminal, name="removed", kind="removed")]
+
+    def event_time(row):
+        calls.append(row["name"])
+        return later if row is terminal else row.get("_time")
+
+    times, removed, restarted, successes, operations, terminals = incident_owner._prepare_recovery_evidence(
+        events, receipts, lifecycle, confirmed, get_event_time=event_time,
+    )
+    assert list(times) == ["remote_write_succeeded", "hot_post_reply_posted", "historical_context_reply"]
+    assert removed == restarted == [later] and removed[0] is restarted[0] is later
+    assert successes == [BASE, BASE, later] and successes[-1] is later
+    assert [row["kind"] for row in operations] == ["remote_write_succeeded", "hot_post_reply_posted", "hot_post_reply_posted", "historical_context_reply", "historical_context_reply"]
+    assert operations[0]["scopes"] == {"all_remote_writes"}
+    assert operations[1]["scopes"] == {"hot_post_replies", "normal_replies", "all_replies", "all_remote_writes"}
+    assert operations[1]["scopes"] is operations[2]["scopes"]
+    assert operations[3]["scopes"] == operations[4]["scopes"] == {"historical_context_replies", "all_replies", "all_remote_writes"}
+    assert operations[3]["scopes"] is not operations[4]["scopes"]
+    assert [row["name"] for row in terminals] == ["terminal", "fallback", "removed"]
+    assert terminals[0] is not terminal and terminals[0]["_time"] is later and terminal["_time"] is BASE
+    assert all(row["evidence"] is nested for row in terminals)
+    assert calls == [row["name"] for row in events] + ["regular", "reconciled-missing", "restart", "not-restart"] + [row["name"] for row in events] + ["untimed", "terminal", "fallback", "removed"]
+
+
 def test_transaction_and_category_adapters_keep_prepared_inputs_and_current_helpers(monkeypatch):
     later = BASE + timedelta(seconds=10)
     events = [{"kind": "remote_write_succeeded", "_time": later}]

@@ -1118,50 +1118,16 @@ def _recovered_after(
     return True, reason, recovery_time
 
 
-def summarise_operational_error_health(
-    errors: List[Dict[str, Any]],
+def _prepare_pipeline_incident_evidence(
     events: List[Dict[str, Any]],
-    receipt_events: List[Dict[str, Any]],
-    lifecycle: Iterable[Dict[str, Any]] = (),
-    remote_write_transactions: Iterable[Dict[str, Any]] = (),
-    handled_api_restrictions: Iterable[Dict[str, Any]] = (),
-    confirmed_reply_receipt_events: Iterable[Dict[str, Any]] = (),
-    current_remote_write_safety: Optional[Dict[str, Any]] = None,
-    generation_time: Optional[datetime] = None,
-    selected_window_end: Optional[datetime] = None,
-    current_snapshot_authoritative: bool = False,
+    operational: List[Dict[str, Any]],
     *,
-    bounded_source_refs: Callable[..., Tuple[List[Dict[str, Any]], int]],
-    seconds_between: Callable[[datetime, datetime], float],
-    annotate_remote_write_snapshot_window: Callable[..., None],
-    classify_operational_error: Callable[[str], str],
-    incident_exception_line: Callable[[str], str],
-    normalise_incident_text: Callable[[str], str],
     get_event_time: Callable[[Dict[str, Any]], Optional[datetime]],
-    base_remote_control_key: Callable[[Any], str],
-    remote_control_scope: Callable[[Any], str],
-    remote_operation_scope_for_lane: Callable[[Any], str],
-    explicit_remote_pause_scope: Callable[[Any], Tuple[str, str, List[str]]],
-    remote_operation_scope_labels: Mapping[str, str],
-    clock_now: Callable[[], datetime],
-    fromtimestamp: Callable[[int], datetime],
-    datetime_min: datetime,
-) -> Dict[str, Any]:
-    """Group traceback cascades and distinguish recovered from current incidents."""
-    generated_at = generation_time or clock_now()
-    lifecycle = list(lifecycle)
-    remote_write_transactions = list(remote_write_transactions)
-    handled_api_restrictions = list(handled_api_restrictions)
-    confirmed_reply_receipt_events = list(confirmed_reply_receipt_events)
-    serious = [item for item in errors if item.get("level") in {"ERROR", "CRITICAL"}]
-    operational = [
-        item
-        for item in serious
-        if classify_operational_error(
-            str(item.get("_raw_message") or item.get("message") or "")
-        )
-        != "clarification_mode_local_rejection"
-    ]
+) -> Tuple[
+    Dict[Tuple[str, str], List[Dict[str, Any]]],
+    Dict[int, Tuple[Tuple[str, str], str]],
+]:
+    """Associate structured pipeline failures and their exact raw error evidence."""
     pipeline_failures_by_identity: Dict[
         Tuple[str, str], List[Dict[str, Any]]
     ] = {}
@@ -1267,24 +1233,21 @@ def summarise_operational_error_health(
                     nearest_identities[0],
                     "outer_wrapper",
                 )
+    return pipeline_failures_by_identity, raw_pipeline_evidence
 
-    groups: Dict[Tuple[str, str], List[Dict[str, Any]]] = {}
-    stable_root_categories = {
-        "historical_context_source_role_incompatibility",
-        "historical_context_reply_failure",
-        "legacy_regular_receipt_barrier",
-        "conversational_reply_receipt_barrier",
-        "remote_operations_paused",
-        "process_crash",
-        "remote_write_ambiguity_barrier",
-        "remote_write_protocol_barrier",
-        "remote_write_transaction_barrier",
-        "instance_lock_conflict",
-        "x_api_transient_failure",
-        "x_api_rate_limit",
-        "quote_pagination_protocol_anomaly",
-        "xai_provider_timeout",
-    }
+
+def _prepare_remote_ambiguity_evidence(
+    serious: List[Dict[str, Any]],
+    events: List[Dict[str, Any]],
+    remote_write_transactions: List[Dict[str, Any]],
+    *,
+    classify_operational_error: Callable[[str], str],
+    get_event_time: Callable[[Dict[str, Any]], Optional[datetime]],
+    seconds_between: Callable[[datetime, datetime], float],
+) -> Tuple[
+    List[datetime], List[Dict[str, Any]], List[Dict[str, Any]], List[Dict[str, Any]],
+]:
+    """Prepare ambiguity times and causal reply, transport and media evidence."""
     ambiguity_times = [
         get_event_time(item)
         for item in serious
@@ -1377,6 +1340,179 @@ def summarise_operational_error_health(
                 "image": str(transaction.get("image") or ""),
             }
         )
+    return (
+        ambiguity_times,
+        transport_attempts,
+        ambiguous_reply_outcomes,
+        ambiguous_media_outcomes,
+    )
+
+
+def _prepare_recovery_evidence(
+    events: List[Dict[str, Any]],
+    receipt_events: List[Dict[str, Any]],
+    lifecycle: List[Dict[str, Any]],
+    confirmed_reply_receipt_events: List[Dict[str, Any]],
+    *,
+    get_event_time: Callable[[Dict[str, Any]], Optional[datetime]],
+) -> Tuple[
+    Dict[str, List[datetime]], List[datetime], List[datetime], List[datetime],
+    List[Dict[str, Any]], List[Dict[str, Any]],
+]:
+    """Prepare timed recovery evidence, shared operation scopes and terminal receipts."""
+    event_times: Dict[str, List[datetime]] = {}
+    for event in events:
+        ts = get_event_time(event)
+        if ts is not None:
+            event_times.setdefault(str(event.get("kind") or ""), []).append(ts)
+    receipt_removed_times: List[datetime] = []
+    for item in receipt_events:
+        if item.get("kind") not in {"regular_removed", "regular_reconciled"}:
+            continue
+        ts = get_event_time(item)
+        if ts is not None:
+            receipt_removed_times.append(ts)
+    successful_restart_times: List[datetime] = []
+    for item in lifecycle:
+        message = str(item.get("message") or "")
+        ts = get_event_time(item)
+        if ts is not None and "Bot started successfully" in message:
+            successful_restart_times.append(ts)
+
+    remote_write_success_times = sorted(
+        ts
+        for kind in (
+            "remote_write_succeeded",
+            "daily_meme_posted",
+            "quote_image_posted",
+            "mention_reply_posted",
+            "hot_post_reply_posted",
+            "quote_tweet_reply_posted",
+        )
+        for ts in event_times.get(kind, [])
+    )
+    remote_operation_successes: List[Dict[str, Any]] = []
+    success_scopes = {
+        "daily_meme_posted": {"daily_meme_posts", "all_remote_writes"},
+        "quote_image_posted": {"quote_image_posts", "all_remote_writes"},
+        "mention_reply_posted": {"normal_replies", "all_replies", "all_remote_writes"},
+        "hot_post_reply_posted": {"hot_post_replies", "normal_replies", "all_replies", "all_remote_writes"},
+        "quote_tweet_reply_posted": {"quote_replies", "all_replies", "all_remote_writes"},
+        # This generic transport confirmation has no lane identity.  It can
+        # prove only that a process-wide pause cleared, never a lane pause.
+        "remote_write_succeeded": {"all_remote_writes"},
+    }
+    for event in events:
+        event_time = get_event_time(event)
+        kind = str(event.get("kind") or "")
+        scopes = success_scopes.get(kind)
+        if (
+            kind == "historical_context_reply"
+            and event.get("status") in {"completed", "already_completed"}
+        ):
+            scopes = {"historical_context_replies", "all_replies", "all_remote_writes"}
+        if event_time is not None and scopes:
+            remote_operation_successes.append(
+                {"time": event_time, "kind": kind, "scopes": scopes}
+            )
+    terminal_reply_receipts: List[Dict[str, Any]] = []
+    for item in confirmed_reply_receipt_events:
+        if item.get("source_class") == "selftest":
+            continue
+        if item.get("kind") not in {
+            "sending_removed",
+            "confirmed_state_fallback_removed",
+            "removed",
+        }:
+            continue
+        ts = get_event_time(item)
+        if ts is not None:
+            terminal_reply_receipts.append({**item, "_time": ts})
+    return (
+        event_times,
+        receipt_removed_times,
+        successful_restart_times,
+        remote_write_success_times,
+        remote_operation_successes,
+        terminal_reply_receipts,
+    )
+
+
+def summarise_operational_error_health(
+    errors: List[Dict[str, Any]],
+    events: List[Dict[str, Any]],
+    receipt_events: List[Dict[str, Any]],
+    lifecycle: Iterable[Dict[str, Any]] = (),
+    remote_write_transactions: Iterable[Dict[str, Any]] = (),
+    handled_api_restrictions: Iterable[Dict[str, Any]] = (),
+    confirmed_reply_receipt_events: Iterable[Dict[str, Any]] = (),
+    current_remote_write_safety: Optional[Dict[str, Any]] = None,
+    generation_time: Optional[datetime] = None,
+    selected_window_end: Optional[datetime] = None,
+    current_snapshot_authoritative: bool = False,
+    *,
+    bounded_source_refs: Callable[..., Tuple[List[Dict[str, Any]], int]],
+    seconds_between: Callable[[datetime, datetime], float],
+    annotate_remote_write_snapshot_window: Callable[..., None],
+    classify_operational_error: Callable[[str], str],
+    incident_exception_line: Callable[[str], str],
+    normalise_incident_text: Callable[[str], str],
+    get_event_time: Callable[[Dict[str, Any]], Optional[datetime]],
+    base_remote_control_key: Callable[[Any], str],
+    remote_control_scope: Callable[[Any], str],
+    remote_operation_scope_for_lane: Callable[[Any], str],
+    explicit_remote_pause_scope: Callable[[Any], Tuple[str, str, List[str]]],
+    remote_operation_scope_labels: Mapping[str, str],
+    clock_now: Callable[[], datetime],
+    fromtimestamp: Callable[[int], datetime],
+    datetime_min: datetime,
+) -> Dict[str, Any]:
+    """Group traceback cascades and distinguish recovered from current incidents."""
+    generated_at = generation_time or clock_now()
+    lifecycle = list(lifecycle)
+    remote_write_transactions = list(remote_write_transactions)
+    handled_api_restrictions = list(handled_api_restrictions)
+    confirmed_reply_receipt_events = list(confirmed_reply_receipt_events)
+    serious = [item for item in errors if item.get("level") in {"ERROR", "CRITICAL"}]
+    operational = [
+        item
+        for item in serious
+        if classify_operational_error(
+            str(item.get("_raw_message") or item.get("message") or "")
+        )
+        != "clarification_mode_local_rejection"
+    ]
+    pipeline_failures_by_identity, raw_pipeline_evidence = (
+        _prepare_pipeline_incident_evidence(
+            events, operational, get_event_time=get_event_time,
+        )
+    )
+
+    groups: Dict[Tuple[str, str], List[Dict[str, Any]]] = {}
+    stable_root_categories = {
+        "historical_context_source_role_incompatibility",
+        "historical_context_reply_failure",
+        "legacy_regular_receipt_barrier",
+        "conversational_reply_receipt_barrier",
+        "remote_operations_paused",
+        "process_crash",
+        "remote_write_ambiguity_barrier",
+        "remote_write_protocol_barrier",
+        "remote_write_transaction_barrier",
+        "instance_lock_conflict",
+        "x_api_transient_failure",
+        "x_api_rate_limit",
+        "quote_pagination_protocol_anomaly",
+        "xai_provider_timeout",
+    }
+    (
+        ambiguity_times, transport_attempts,
+        ambiguous_reply_outcomes, ambiguous_media_outcomes,
+    ) = _prepare_remote_ambiguity_evidence(
+        serious, events, remote_write_transactions,
+        classify_operational_error=classify_operational_error,
+        get_event_time=get_event_time, seconds_between=seconds_between,
+    )
 
     def matching_ambiguity_identity(
         raw: str,
@@ -1591,74 +1727,14 @@ def summarise_operational_error_health(
         groups.setdefault(group_key, [])
         pipeline_identity_by_group[group_key] = identity
 
-    event_times: Dict[str, List[datetime]] = {}
-    for event in events:
-        ts = get_event_time(event)
-        if ts is not None:
-            event_times.setdefault(str(event.get("kind") or ""), []).append(ts)
-    receipt_removed_times: List[datetime] = []
-    for item in receipt_events:
-        if item.get("kind") not in {"regular_removed", "regular_reconciled"}:
-            continue
-        ts = get_event_time(item)
-        if ts is not None:
-            receipt_removed_times.append(ts)
-    successful_restart_times: List[datetime] = []
-    for item in lifecycle:
-        message = str(item.get("message") or "")
-        ts = get_event_time(item)
-        if ts is not None and "Bot started successfully" in message:
-            successful_restart_times.append(ts)
-
-    remote_write_success_times = sorted(
-        ts
-        for kind in (
-            "remote_write_succeeded",
-            "daily_meme_posted",
-            "quote_image_posted",
-            "mention_reply_posted",
-            "hot_post_reply_posted",
-            "quote_tweet_reply_posted",
-        )
-        for ts in event_times.get(kind, [])
+    (
+        event_times, receipt_removed_times, successful_restart_times,
+        remote_write_success_times, remote_operation_successes,
+        terminal_reply_receipts,
+    ) = _prepare_recovery_evidence(
+        events, receipt_events, lifecycle, confirmed_reply_receipt_events,
+        get_event_time=get_event_time,
     )
-    remote_operation_successes: List[Dict[str, Any]] = []
-    success_scopes = {
-        "daily_meme_posted": {"daily_meme_posts", "all_remote_writes"},
-        "quote_image_posted": {"quote_image_posts", "all_remote_writes"},
-        "mention_reply_posted": {"normal_replies", "all_replies", "all_remote_writes"},
-        "hot_post_reply_posted": {"hot_post_replies", "normal_replies", "all_replies", "all_remote_writes"},
-        "quote_tweet_reply_posted": {"quote_replies", "all_replies", "all_remote_writes"},
-        # This generic transport confirmation has no lane identity.  It can
-        # prove only that a process-wide pause cleared, never a lane pause.
-        "remote_write_succeeded": {"all_remote_writes"},
-    }
-    for event in events:
-        event_time = get_event_time(event)
-        kind = str(event.get("kind") or "")
-        scopes = success_scopes.get(kind)
-        if (
-            kind == "historical_context_reply"
-            and event.get("status") in {"completed", "already_completed"}
-        ):
-            scopes = {"historical_context_replies", "all_replies", "all_remote_writes"}
-        if event_time is not None and scopes:
-            remote_operation_successes.append(
-                {"time": event_time, "kind": kind, "scopes": scopes}
-            )
-    terminal_reply_receipts: List[Dict[str, Any]] = []
-    for item in confirmed_reply_receipt_events:
-        if item.get("source_class") == "selftest":
-            continue
-        if item.get("kind") not in {
-            "sending_removed",
-            "confirmed_state_fallback_removed",
-            "removed",
-        }:
-            continue
-        ts = get_event_time(item)
-        if ts is not None:
-            terminal_reply_receipts.append({**item, "_time": ts})
 
     safety = current_remote_write_safety or {}
     if current_remote_write_safety is not None:
