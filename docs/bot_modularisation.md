@@ -4610,3 +4610,66 @@ logs, selections, adapted helpers and metadata evidence remain in the evidence
 root. No production state/configuration/credential access, log-content reads,
 service actions or live-provider calls occurred. Configured Astra/max is
 unchanged. Only stage54 is implemented; supervisor review precedes the next stage.
+
+## Stage 55 — Durable quote and image used history
+
+Baseline: `40f97f8a9ae54b1f0fcbc9c943532bb152c64e69`, verified clean on
+`codex/bot-modularisation-stage55`; origin's stage54 matched and stage55 was
+absent. The four supervisor inputs, scoped immutable sources and checked stage54
+helpers were reused; no conversations or prior transcripts were loaded.
+
+`mrs_bot_used_history.py` owns **fourteen exact bodies/docstrings, 178 original
+lines**. Two dependency-free `_used_history` aliases and twelve explicit
+current-root adapters preserve signatures/defaults/deferred annotations and
+**0/0/8/3/1/1/4/8/1/1/1/2/3/8** dependencies, including the numeric-first sorting
+closure. Set identity, list-only coercion, no-follow read/decode/coercion/rewrite
+order, missing-only legacy refusal and original exception scopes/context remain
+exact. Quote-source and complete image-corpus proofs, generated-pool refusal,
+original-item retention, distinct changed comparisons, lazy existence probes and
+empty-scan preservation are unchanged. Durable I/O, paths/configuration,
+analysis/selection, receipt transactions and state persistence keep their existing
+owners. README/API add the owner; no policy, catches, retries, copying, globals,
+retained state or import-time runtime work were added.
+
+Evidence: `/tmp/mrs-bot-stage55-vBs7egkR`. Pre-edit documentation passed for
+**263 modules**. All **21 reviewed candidates**, covering distinct used-history
+and caller boundaries, plus two isolation checks were selected. Baseline:
+**23 explicit nodes across five files; 28 collected in 3.27s; 28 passed in 6.06s**.
+Current adds **22 contract functions / 64 cases**: **45 explicit nodes across six
+files; 92 collected in 3.31s; 92 passed in 7.52s**, on the first run.
+Coverage includes roundtrip/order/missing/legacy refusal, no-follow and temporary
+symlinks, interrupted initialization, source/corpus migration gates, empty scans
+and missing basenames, confirmed-post persistence failure/emergency recovery,
+and both quote-image and daily-meme loopback integrations. New contracts cover
+guarded import, aliases/current dependencies, public signatures/defaults,
+reference/native-error behavior and original branch/order/legacy contracts;
+they import autouse `isolate_regular_post_receipt`.
+
+Both collection and pytest used the reviewed metadata-only log guard with
+stage55 names and separate baseline/current evidence. All four metadata equality
+checks and open-descriptor assertions passed. Nonempty AST-validated selection
+and successful nonempty collection preceded pytest under `set -euo pipefail`,
+required Python/pytest flags, temporary HOME/state/TMPDIR, dummy credentials,
+dead proxies, external socket denial and explicit loopback providers. Existing
+assertions, parameterization, fixtures and process/server cleanup remain intact.
+
+`verify_stage55.py` / `comparison.txt` verify exact bodies, signatures/defaults,
+nested compiled dependencies and forwarding without importing the bot. Whole
+parent-root reconstruction is byte-identical, including **505 unaffected
+function definitions** and all unrelated statements. All **54 previous owners**,
+existing tests/fixtures and digest docs are unchanged. Post-edit documentation
+passed for **264 modules**; whitespace checks passed. Source/runtime checks were
+not repeated for this report append; the entire immutable parent report is a
+verified byte prefix, with this section appended at the actual EOF.
+
+| Runtime file | Before lines / bytes | After lines / bytes |
+|---|---:|---:|
+| `mrsMThatcher2.py` | 11,899 / 479,312 | 11,838 / 475,586 |
+| `mrs_bot_used_history.py` | absent | 305 / 10,172 |
+
+The root loses **61 lines / 3,726 bytes**; combined runtime source grows by
+**244 lines / 6,446 bytes**. New tests: **591 lines / 28,415 bytes**. Complete logs,
+selections, adapted helpers and metadata evidence remain in the evidence root.
+No production state/configuration/credential access, log-content reads, service
+actions or live-provider calls occurred. Configured Astra/max is unchanged.
+Only stage55 is implemented; supervisor review precedes the next stage.

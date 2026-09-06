@@ -274,6 +274,7 @@ import mrs_bot_installation_lifecycle as _installation_lifecycle
 import mrs_bot_transaction_recovery as _transaction_recovery
 import mrs_bot_transport_source_preparation as _transport_source_preparation
 import mrs_bot_cli_execution as _cli_execution
+import mrs_bot_used_history as _used_history
 
 from single_call_reply import (
     MAX_IMAGE_BYTES as SINGLE_CALL_MAX_IMAGE_BYTES,
@@ -2809,66 +2810,38 @@ def read_stable_owned_json_bytes_no_follow(
         stat=stat,
     )
 
-def coerce_used_set(value: object, *, path: Path) -> set:
-    """Normalise persisted used-history data to a set."""
-    if isinstance(value, set):
-        return value
-    if isinstance(value, list):
-        return set(value)
-
-    raise ValueError(f"Used-history file {path} must contain a JSON list")
+coerce_used_set = _used_history.coerce_used_set
 
 
-def used_set_to_sorted_list(value: set) -> list:
-    """Return deterministic JSON-safe used-history values."""
-    def sort_key(item: object) -> tuple[int, int | str]:
-        try:
-            return (0, int(item))
-        except Exception:
-            return (1, str(item))
-
-    return sorted(value, key=sort_key)
+used_set_to_sorted_list = _used_history.used_set_to_sorted_list
 
 
 def load_used_set(path: Path, *, legacy_pickle_path: Path | None = None) -> set:
     """Load a fail-closed durable used-history set."""
-    log.debug("Loading used-history set from %s", path)
-
-    try:
-        present, data = read_stable_owned_json_bytes_no_follow(path)
-        if not present or data is None:
-            raise FileNotFoundError(path)
-        value = json.loads(data.decode("utf-8"))
-        converted = coerce_used_set(value, path=path)
-        if isinstance(value, list) and value != used_set_to_sorted_list(converted):
-            save_used_set(path, converted)
-            log.info("Normalized used-history JSON ordering in %s", path)
-        log.debug("Loaded %d entries from %s", len(converted), path)
-        return converted
-    except FileNotFoundError:
-        log.warning("Used-history JSON file does not exist yet: %s", path)
-    except (OSError, UnsafeDurableStateNamespace):
-        log.exception("OS error loading existing used-history JSON file %s; refusing stale legacy fallback", path)
-        raise CorruptUsedHistoryError(f"Existing used-history JSON is unreadable: {path}")
-    except Exception:
-        log.exception("Failed loading existing used-history JSON file %s; refusing stale legacy fallback", path)
-        raise CorruptUsedHistoryError(f"Existing used-history JSON is corrupt or invalid: {path}")
-
-    if legacy_pickle_path is not None and legacy_pickle_path.exists():
-        log.critical(
-            "Used-history JSON %s is missing but legacy pickle %s exists; refusing unsafe pickle fallback. "
-            "Restore the JSON history or migrate manually from a trusted backup.",
-            path,
-            legacy_pickle_path,
-        )
-        raise CorruptUsedHistoryError(f"Used-history JSON missing while legacy pickle exists: {path}")
-    return set()
+    return _used_history.load_used_set(
+        path,
+        legacy_pickle_path=legacy_pickle_path,
+        CorruptUsedHistoryError=CorruptUsedHistoryError,
+        UnsafeDurableStateNamespace=UnsafeDurableStateNamespace,
+        coerce_used_set=coerce_used_set,
+        json=json,
+        log=log,
+        read_stable_owned_json_bytes_no_follow=read_stable_owned_json_bytes_no_follow,
+        save_used_set=save_used_set,
+        used_set_to_sorted_list=used_set_to_sorted_list,
+    )
 
 
 def save_used_set(path: Path, value: set, *, durable: bool = False) -> None:
     """Persist a used-history set atomically."""
-    log.debug("Saving %d entries to used-history JSON %s", len(value), path)
-    atomic_write_json(path, used_set_to_sorted_list(value), durable=durable)
+    return _used_history.save_used_set(
+        path,
+        value,
+        durable=durable,
+        atomic_write_json=atomic_write_json,
+        log=log,
+        used_set_to_sorted_list=used_set_to_sorted_list,
+    )
 
 
 def default_state() -> dict:
@@ -6025,72 +5998,57 @@ def current_quote_hashes_by_line(lines: list[str]) -> dict[int, str]:
 
 def quote_used_history_has_legacy_indices(value: set) -> bool:
     """Return whether quote used history has legacy indices."""
-    return any(re.fullmatch(r"-?\d+", str(item)) for item in value)
+    return _used_history.quote_used_history_has_legacy_indices(
+        value,
+        re=re,
+    )
 
 
 def quote_source_matches_analysis(quote_analysis: dict | None, lines: list[str]) -> bool:
     """Return whether quote source matches analysis."""
-    if not isinstance(quote_analysis, dict):
-        return False
-    source = quote_analysis.get("source", {}) if isinstance(quote_analysis.get("source"), dict) else {}
-    expected = source.get("source_sha256")
-    if not expected:
-        return False
-    current = hashlib.sha256("".join(lines).encode("utf-8")).hexdigest()
-    return str(expected) == current
+    return _used_history.quote_source_matches_analysis(
+        quote_analysis,
+        lines,
+        hashlib=hashlib,
+    )
 
 
 def normalise_quote_used_hashes(raw_used: set, lines: list[str], quote_analysis: dict | None = None) -> tuple[set, bool]:
     """Return whether normalise quote used hashes."""
-    hashes_by_line = current_quote_hashes_by_line(lines)
-    normalised: set[str] = set()
-    changed = False
-    can_migrate_indices = quote_source_matches_analysis(quote_analysis, lines)
-
-    for item in raw_used:
-        item_text = str(item)
-        if re.fullmatch(r"[0-9a-fA-F]{64}", item_text):
-            normalised.add(item_text.lower())
-            if item_text != item_text.lower():
-                changed = True
-            continue
-        try:
-            line_no = int(item)
-        except Exception:
-            log.warning("Dropping unrecognised quote used-history entry: %r", item)
-            changed = True
-            continue
-        if not can_migrate_indices:
-            normalised.add(item)
-            continue
-        if line_no in hashes_by_line:
-            normalised.add(hashes_by_line[line_no])
-        else:
-            log.warning("Dropping out-of-range quote line used-history entry: %r", item)
-        changed = True
-
-    return normalised, changed or normalised != {str(item) for item in raw_used}
+    return _used_history.normalise_quote_used_hashes(
+        raw_used,
+        lines,
+        quote_analysis,
+        current_quote_hashes_by_line=current_quote_hashes_by_line,
+        log=log,
+        quote_source_matches_analysis=quote_source_matches_analysis,
+        re=re,
+    )
 
 
 def load_quote_used_hashes(lines: list[str]) -> set[str]:
     """Return whether load quote used hashes."""
-    raw = load_used_set(LINES_USED_FILE, legacy_pickle_path=PICKLE_FILE)
-    quote_analysis = load_quote_analysis()
-    normalised, changed = normalise_quote_used_hashes(raw, lines, quote_analysis)
-    if quote_used_history_has_legacy_indices(normalised):
-        log.critical(
-            "Quote used-history contains legacy integer entries but current quote source does not match analysed source; refusing destructive migration"
-        )
-        return normalised
-    if changed or LINES_USED_FILE.exists():
-        save_used_set(LINES_USED_FILE, normalised)
-        log.info("Quote used-history normalised to %d quote hash(es)", len(normalised))
-    return normalised
+    return _used_history.load_quote_used_hashes(
+        lines,
+        LINES_USED_FILE=LINES_USED_FILE,
+        PICKLE_FILE=PICKLE_FILE,
+        load_quote_analysis=load_quote_analysis,
+        load_used_set=load_used_set,
+        log=log,
+        normalise_quote_used_hashes=normalise_quote_used_hashes,
+        quote_used_history_has_legacy_indices=quote_used_history_has_legacy_indices,
+        save_used_set=save_used_set,
+    )
 
 
 def save_quote_used_hashes(path: Path, value: set[str], *, durable: bool = False) -> None:
     """Return whether save quote used hashes."""
-    save_used_set(path, {str(item) for item in value}, durable=durable)
+    return _used_history.save_quote_used_hashes(
+        path,
+        value,
+        durable=durable,
+        save_used_set=save_used_set,
+    )
 
 
 def validate_quote_analysis_against_lines(quote_analysis: dict, lines: list[str]) -> None:
@@ -6117,10 +6075,11 @@ def current_image_paths() -> list[str]:
 
 def save_image_used_basenames(path: Path, value: set[str], *, durable: bool = False) -> None:
     """Save image used basenames."""
-    atomic_write_json(
+    return _used_history.save_image_used_basenames(
         path,
-        sorted(str(item) for item in value),
+        value,
         durable=durable,
+        atomic_write_json=atomic_write_json,
     )
 
 
@@ -8191,67 +8150,47 @@ def reconcile_confirmed_transactions_before_global_barrier(
 
 def image_used_history_has_legacy_indices(images_used: set) -> bool:
     """Return whether image used history has legacy indices."""
-    return any(re.fullmatch(r"-?\d+", str(item)) for item in images_used)
+    return _used_history.image_used_history_has_legacy_indices(
+        images_used,
+        re=re,
+    )
 
 
 def image_corpus_verified_for_legacy_migration(images: list[str], image_analysis: dict | None) -> bool:
     """Return the image corpus verified for legacy migration."""
-    if ENABLE_GENERATED_IMAGE_POOL:
-        return False
-    if not isinstance(image_analysis, dict):
-        return False
-    expected = set(str(name) for name in (image_analysis.get("path_index") or {}).keys())
-    visible = {Path(path).name for path in images}
-    return bool(expected) and visible == expected
+    return _used_history.image_corpus_verified_for_legacy_migration(
+        images,
+        image_analysis,
+        ENABLE_GENERATED_IMAGE_POOL=ENABLE_GENERATED_IMAGE_POOL,
+        Path=Path,
+    )
 
 
 def normalise_image_used_basenames(images_used: set, images: list[str], image_analysis: dict | None = None) -> tuple[set, bool]:
     """Normalise image used basenames."""
-    basenames = [Path(path).name for path in images]
-    migrated: set = set()
-    changed = False
-    can_migrate_indices = image_corpus_verified_for_legacy_migration(images, image_analysis)
-
-    for item in images_used:
-        item_text = str(item)
-        if not re.fullmatch(r"-?\d+", item_text):
-            migrated.add(item_text)
-            continue
-        if not can_migrate_indices:
-            migrated.add(item)
-            continue
-        try:
-            index = int(item)
-        except Exception:
-            migrated.add(item)
-            continue
-        if 0 <= index < len(basenames):
-            migrated.add(basenames[index])
-            changed = True
-        else:
-            migrated.add(item)
-
-    if {str(item) for item in migrated} != {str(item) for item in images_used}:
-        changed = True
-    return migrated, changed
+    return _used_history.normalise_image_used_basenames(
+        images_used,
+        images,
+        image_analysis,
+        Path=Path,
+        image_corpus_verified_for_legacy_migration=image_corpus_verified_for_legacy_migration,
+        re=re,
+    )
 
 
 def load_image_used_basenames(images: list[str]) -> set:
     """Load image used basenames."""
-    raw = load_used_set(IMAGES_USED_FILE, legacy_pickle_path=IMAGE_PICKLE_FILE)
-    image_analysis = load_image_analysis()
-    normalised, changed = normalise_image_used_basenames(raw, images, image_analysis)
-    if image_used_history_has_legacy_indices(normalised) and images:
-        log.critical(
-            "Image used-history contains legacy integer entries but current image corpus is not verified complete; refusing destructive migration"
-        )
-        return normalised
-    if images and (changed or IMAGES_USED_FILE.exists()):
-        save_image_used_basenames(IMAGES_USED_FILE, normalised)
-        log.info("Image used-history normalised to %d basename(s)", len(normalised))
-    elif not images and changed:
-        log.warning("Image scan is empty; preserving image used-history without rewriting %s", IMAGES_USED_FILE)
-    return normalised
+    return _used_history.load_image_used_basenames(
+        images,
+        IMAGES_USED_FILE=IMAGES_USED_FILE,
+        IMAGE_PICKLE_FILE=IMAGE_PICKLE_FILE,
+        image_used_history_has_legacy_indices=image_used_history_has_legacy_indices,
+        load_image_analysis=load_image_analysis,
+        load_used_set=load_used_set,
+        log=log,
+        normalise_image_used_basenames=normalise_image_used_basenames,
+        save_image_used_basenames=save_image_used_basenames,
+    )
 
 
 # Keep the public helper API here; resolve configuration and sibling helpers
