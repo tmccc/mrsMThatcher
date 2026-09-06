@@ -198,6 +198,7 @@ deployed as a coherent set:
 - `mrs_bot_durable_json_io.py`
 - `mrs_bot_state_value_normalisation.py`
 - `mrs_bot_state_persistence.py`
+- `mrs_bot_state_candidate_validation.py`
 - `remote_write_safety_protocol.py`
 - `remote_media_upload_receipt.py`
 - `remote_write_transport_journal.py`
