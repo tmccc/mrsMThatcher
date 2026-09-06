@@ -4080,3 +4080,77 @@ remains `master` at `af5eda7c163a8174ec1365060aa923d21787e7bd`; production,
 services, private configuration/state/credentials and live providers were
 untouched. Configured Astra/max remains unchanged. Only stage46 is implemented;
 supervisor review precedes the next stage.
+
+## Stage 47 — Strict runtime JSON and local-configuration loading/coercion
+
+Baseline: `d913fc902121cf92d2e31370209cd31392bde981`, verified clean on
+`codex/bot-modularisation-stage47`; origin's stage46 matched and stage47 was
+absent. This invocation used the scoped supervisor inputs and immutable parent
+source without loading prior conversations.
+
+`mrs_bot_local_config.py` owns five exact bodies/docstrings spanning **296
+original definition lines**: `load_strict_runtime_json`,
+`_coerce_local_config_value`, `_local_config_stat_identity`,
+`_read_stable_local_config_bytes` and `load_validated_local_config_overrides`.
+Four `_local_config` adapters preserve public signatures/defaults/deferred
+annotations and forward **3/3/6/9** current dependencies. The stat helper is an
+exact pure alias with nine ordered fields and standard-library annotation
+support. Checked stage46 helper adaptations retain the existing alias branch,
+remove the all-dependent assumption and handle the coercer's absent docstring.
+
+Compatibility preserves strict input/UTF-8 gates, nested duplicate/nonfinite
+callbacks and distinct current float/Decimal parsing; exact typed coercion,
+ordered key sets, narrow numeric checks and string/reference behavior; no-follow
+bounded reads, positional reread, descriptor/finally/error scopes and ordered
+length/byte/identity comparisons. Missing/empty documents, parser causes,
+retired-schema rejection, provider-limit migration, ordered coercion errors and
+deep-copied defaults retain their original behavior. The current root validator
+is forwarded explicitly. Both `globals()`-dependent functions,
+`validate_runtime_config_values` and `apply_local_config`, remain in root, as do
+classes, key/range constants, source-default snapshots/errors, import-time
+validation, settings and bootstrap. No policy, retries, normalization, catches,
+retained state or reverse imports were added.
+
+Evidence: `/tmp/mrs-bot-stage47-PngAjEF1`. Pre-edit documentation passed for
+**255 modules**. Selection retained **24 of 28** curated candidates plus three
+bootstrap/isolation checks: **27 explicit nodes across eight files; 57 collected
+in 3.49s; 57 passed in 4.73s**. Coverage includes the public example, atomic
+application, strict JSON, unsafe/changing files and size/error boundaries,
+coercion, migration/conflicts, retired/unknown schema, self-test/source-default
+independence and the real quote-image loopback.
+
+Current validation: **43 explicit nodes across nine files; 94 collected in
+3.61s; 94 passed in 5.94s**. Sixteen new contract functions / **37 cases** cover
+guarded import, current dependencies/signatures/alias/reference identity, native
+errors and parser/read/migration/validation ordering. They reuse the autouse
+receipt isolation; existing assertions, parametrization and fixtures are
+unchanged. Every pytest run followed AST-validated nonempty selection and
+successful nonempty collection under `set -euo pipefail`, using
+`PYTHONUSERBASE=/home/tonym/.local MRS_TEST_MODE=1
+PYTEST_DISABLE_PLUGIN_AUTOLOAD=1 PYTHONDONTWRITEBYTECODE=1 python3 -m pytest -q
+-p no:cacheprovider` with explicit selected arguments. TMPDIR stays beneath the
+evidence root; temporary HOME/state, dummy credentials, dead proxies, external
+socket denial and explicit loopback providers remain in effect.
+
+`verify_stage47.py` / `comparison.txt` verify exact bodies/docstrings, signatures,
+defaults/annotations, nested compiled dependencies and forwarding without bot
+import. Whole-parent-root reconstruction is byte-identical, including **517
+unaffected functions** and all unrelated statements. All **46 earlier owners**,
+existing tests/fixtures and digest docs remain unchanged. README/API add only
+the owner; this report is append-only. Post-edit documentation passed for **256
+modules** and whitespace validation passed. Passing runtime/documentation
+checks were not repeated for this report-only edit.
+
+| Runtime file | Before lines / bytes | After lines / bytes |
+|---|---:|---:|
+| `mrsMThatcher2.py` | 13,873 / 550,465 | 13,630 / 541,351 |
+| `mrs_bot_local_config.py` | absent | 345 / 12,232 |
+
+The root loses **243 lines / 9,114 bytes**; combined runtime source grows by
+**102 lines / 3,118 bytes**. New tests: **457 lines / 22,342 bytes**. Full logs,
+checked helper adaptations and source comparison remain in the evidence root.
+Production metadata remains `master` at
+`af5eda7c163a8174ec1365060aa923d21787e7bd`; production, services, private
+configuration/state/credentials and live providers were untouched. Configured
+Astra/max remains unchanged. Only stage47 is implemented; supervisor review
+precedes the next stage.
