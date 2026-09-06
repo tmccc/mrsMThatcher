@@ -192,6 +192,7 @@ deployed as a coherent set:
 - `mrs_bot_runtime_control.py`
 - `mrs_bot_api_cooldowns.py`
 - `mrs_bot_x_pagination.py`
+- `mrs_bot_request_route_values.py`
 - `remote_write_safety_protocol.py`
 - `remote_media_upload_receipt.py`
 - `remote_write_transport_journal.py`

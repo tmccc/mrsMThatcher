@@ -2758,3 +2758,73 @@ worktree metadata, without production modification, deployment or restart.
 Next useful domain for supervisor assessment: shared tweet ID parsing/ordering
 around `parse_tweet_id`, `valid_tweets_sorted_by_id` and their bounded-ID dependency.
 Only stage 28 is implemented; supervisor review precedes any further stage.
+
+## Stage 29 — Endpoint and X request-route values
+
+Baseline: `8daa5ce96499d199e439c4819a6893389e850011` (2026-09-06).
+Worktree `/disks/disk1/research/mrsMThatcher-bot-modularisation-stage29` started
+clean on `codex/bot-modularisation-stage29`, matching the pushed stage 28 parent.
+The supplied scope notes, dependency inventory and all fourteen candidate bodies
+informed the extraction and nearest configuration, bootstrap and transport checks.
+
+`mrs_bot_request_route_values.py` owns **ten functions / 177 original definition
+lines**: base normalization, endpoint host/loopback checks, literal X base
+selection, prepared path normalization, tweet/media predicates, prepared/exact
+route classification and strict JSON copying. Nine explicit adapters supply
+current root modules, callbacks, configured bases and exception authority; the
+dependency-free `exact_x_create_route` is an alias. Root signatures, defaults,
+annotations and original docstrings remain. The early origin primitive stays
+root, and the owner import precedes configuration-time base normalization.
+
+Exact bodies preserve immediate `require_origin` delegation and dead branches,
+validation/error order, exact hostname policy, literal upload-origin selection,
+prepared versus exact-authority predicates, four decoding passes and separator/
+path normalization order, native failures/current exception chains and isolated
+strict JSON copies. No constants/classes, timeouts, authentication or transaction
+orchestration move. The owner retains no dependencies or runtime state and
+performs no import-time file/environment/provider/RNG work; preparation never sends.
+
+Evidence: `/tmp/mrs-bot-stage29-4G8sqLgG`. Before editing, documentation passed
+for **237 modules**, **55 tests collected in 3.48s**, and **55 passed in 12.09s**
+(`baseline-pytest.txt`; 25 explicit nodes across five files). Selection includes
+all fourteen supplied candidates, guarded bootstrap, test-environment/network
+isolation and seven existing loopbacks: normal/quote/hot-post replies, distinct
+and inherited upload origins, daily meme posting and native-photo fetching.
+
+After extraction, documentation passed for **238 modules**, **64 tests collected
+in 3.44s**, and **64 passed in 12.09s** (`current-pytest.txt`; 34 explicit nodes
+across six files). Nine new tests cover guarded import, current module/dependency
+authority, origin/hostname/route callback order, decoding limits, native failures,
+JSON references and exception chains. They register the existing autouse
+`isolate_regular_post_receipt` fixture. The initial run had 63 passes and one
+new-test expectation error: the unchanged `ApiError` stores the method uppercase.
+Only that assertion was corrected; existing tests and barriers are unchanged.
+
+The reused runner requires successful AST-validated nonempty selection and
+collection under `set -euo pipefail`, then explicit arguments to
+`python3 -m pytest -q -p no:cacheprovider`. Runs use
+`PYTHONUSERBASE=/home/tonym/.local`, `MRS_TEST_MODE=1`, disabled plugin autoload
+and bytecode, TMPDIR/disposable fixtures under the evidence root, temporary
+HOME/state, dummy credentials, dead proxies, denied external sockets and explicit
+loopback APIs. No broad suite ran; passing logs were retained after docs-only edits.
+
+`verify_stage29.py` / `comparison.txt` verify exact bodies/docstrings, signatures,
+defaults, annotations and dependencies against immutable `git show`. Replacing
+the nine adapters and alias with the original definitions and removing the import
+reconstructs the whole parent root byte for byte, including **519 unaffected
+functions** and all unrelated statements. All **28 earlier owners**, existing
+tests/fixtures and digest docs remain unchanged. README/API only add the companion;
+this report is appended. Final documentation and `git diff --check` pass.
+
+| Runtime file | Before lines / bytes | After lines / bytes |
+|---|---:|---:|
+| `mrsMThatcher2.py` | 19,533 / 765,753 | 19,451 / 762,848 |
+| `mrs_bot_request_route_values.py` | absent | 268 / 8,725 |
+
+The root loses **82 lines / 2,905 bytes**; combined runtime source grows by
+**186 lines / 5,820 bytes**. The new test file has **364 lines / 16,791 bytes**.
+Production remains `master` at `af5eda7c163a8174ec1365060aa923d21787e7bd` per
+worktree metadata; no production changes, deployment or restart occurred.
+Next useful domain for supervisor assessment: tweet ID parsing/ordering around
+`parse_tweet_id` and `valid_tweets_sorted_by_id`, retaining their current policies.
+Only stage 29 is implemented; supervisor review precedes any further stage.

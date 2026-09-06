@@ -248,6 +248,7 @@ import mrs_bot_reply_lane_policy as _reply_lane_policy
 import mrs_bot_runtime_control as _runtime_control
 import mrs_bot_api_cooldowns as _api_cooldowns
 import mrs_bot_x_pagination as _x_pagination
+import mrs_bot_request_route_values as _request_route_values
 
 from single_call_reply import (
     MAX_IMAGE_BYTES as SINGLE_CALL_MAX_IMAGE_BYTES,
@@ -3306,60 +3307,30 @@ def normalise_base_url(raw: str, *, require_origin: bool = False) -> str:
     its explicit ``/v1`` base because it does not participate in X route
     classification.
     """
-
-    if require_origin:
-        return _normalise_x_origin_before_runtime_configuration(raw)
-
-    value = str(raw or "").strip()
-    if not value or any(ord(character) < 0x20 for character in value):
-        raise ValueError("API base URL is empty or contains control characters")
-    parsed = urlsplit(value)
-    try:
-        port = parsed.port
-    except ValueError as exc:
-        raise ValueError("API base URL has an invalid port") from exc
-    if parsed.scheme not in {"http", "https"}:
-        raise ValueError("API base URL must use http or https")
-    if not parsed.hostname or parsed.username is not None or parsed.password is not None:
-        raise ValueError("API base URL must be an origin without user information")
-    if (
-        (require_origin and parsed.path not in {"", "/"})
-        or parsed.query
-        or parsed.fragment
-    ):
-        raise ValueError(
-            "API base URL must not contain a query or fragment, and X API "
-            "bases must be origin-only"
-        )
-    if not require_origin:
-        return value.rstrip("/")
-    host = parsed.hostname
-    if ":" in host and not host.startswith("["):
-        host = f"[{host}]"
-    netloc = host if port is None else f"{host}:{port}"
-    return urlunsplit((parsed.scheme.lower(), netloc, "", "", ""))
+    return _request_route_values.normalise_base_url(
+        raw,
+        require_origin=require_origin,
+        _normalise_x_origin_before_runtime_configuration=_normalise_x_origin_before_runtime_configuration,
+        urlsplit=urlsplit,
+        urlunsplit=urlunsplit,
+    )
 
 
 def endpoint_host(url: str) -> str:
     """Return the normalised host from an API endpoint URL."""
-    try:
-        return (urlsplit(url).hostname or "").lower()
-    except Exception:
-        return ""
+    return _request_route_values.endpoint_host(
+        url,
+        urlsplit=urlsplit,
+    )
 
 
 def endpoint_is_loopback(url: str) -> bool:
     """Return whether one configured endpoint is an explicit loopback host."""
-
-    host = endpoint_host(url)
-    if host in {"localhost", "localhost.localdomain"} or host.endswith(
-        ".localhost"
-    ):
-        return True
-    try:
-        return ipaddress.ip_address(host).is_loopback
-    except ValueError:
-        return False
+    return _request_route_values.endpoint_is_loopback(
+        url,
+        endpoint_host=endpoint_host,
+        ipaddress=ipaddress,
+    )
 
 
 X_BASE = normalise_base_url(
@@ -5313,10 +5284,12 @@ def x_request_base_url(method: str, path: str) -> str:
     origin.  Reads, tweet creation and every non-literal spelling stay on the
     primary X API origin.
     """
-
-    if str(method) == "POST" and str(path) == "/2/media/upload":
-        return X_UPLOAD_BASE
-    return X_BASE
+    return _request_route_values.x_request_base_url(
+        method,
+        path,
+        X_BASE=X_BASE,
+        X_UPLOAD_BASE=X_UPLOAD_BASE,
+    )
 
 
 def normalised_prepared_x_request_path(method: str, path: str) -> str:
@@ -5329,112 +5302,57 @@ def normalised_prepared_x_request_path(method: str, path: str) -> str:
     another decoding pass, normalise separators/dot segments, and collapse
     repeated slashes before comparing protected endpoints.
     """
-
-    try:
-        prepared = requests.Request(
-            method=str(method).upper(),
-            url=f"{x_request_base_url(method, path)}{path}",
-        ).prepare()
-    except requests.RequestException as exc:
-        raise AmbiguousRemotePostOutcome(
-            "X request target could not be prepared safely",
-            service="x",
-            request_method=method,
-            request_path=path,
-        ) from exc
-    prepared_url = prepared.url
-    if not isinstance(prepared_url, str) or not prepared_url:
-        raise AmbiguousRemotePostOutcome(
-            "X request target preparation returned no usable URL",
-            service="x",
-            request_method=method,
-            request_path=path,
-        )
-    normalised = urlsplit(prepared_url).path
-    for _pass in range(4):
-        decoded = unquote(normalised)
-        if decoded == normalised:
-            break
-        normalised = decoded
-    normalised = normalised.replace("\\", "/")
-    normalised = posixpath.normpath(normalised)
-    normalised = re.sub(r"/+", "/", normalised)
-    if not normalised.startswith("/"):
-        normalised = f"/{normalised}"
-    return normalised
+    return _request_route_values.normalised_prepared_x_request_path(
+        method,
+        path,
+        AmbiguousRemotePostOutcome=AmbiguousRemotePostOutcome,
+        posixpath=posixpath,
+        re=re,
+        requests=requests,
+        unquote=unquote,
+        urlsplit=urlsplit,
+        x_request_base_url=x_request_base_url,
+    )
 
 
 def x_request_targets_tweet_create(method: str, path: str) -> bool:
     """Return whether one prepared X request targets the tweet-create route."""
-
-    return prepared_x_create_route(method, path) == "tweet"
+    return _request_route_values.x_request_targets_tweet_create(
+        method,
+        path,
+        prepared_x_create_route=prepared_x_create_route,
+    )
 
 
 def x_request_targets_media_upload(method: str, path: str) -> bool:
     """Return whether one prepared X request targets the v2 media-create route."""
-
-    return prepared_x_create_route(method, path) == "media"
+    return _request_route_values.x_request_targets_media_upload(
+        method,
+        path,
+        prepared_x_create_route=prepared_x_create_route,
+    )
 
 
 def prepared_x_create_route(method: str, path: str) -> str | None:
     """Classify the create route produced by Requests preparation."""
-
-    if str(method).upper() != "POST":
-        return None
-    prepared_path = normalised_prepared_x_request_path(method, path).rstrip("/")
-    if prepared_path == "/2/tweets":
-        return "tweet"
-    if prepared_path == "/2/media/upload":
-        return "media"
-    return None
+    return _request_route_values.prepared_x_create_route(
+        method,
+        path,
+        normalised_prepared_x_request_path=normalised_prepared_x_request_path,
+    )
 
 
-def exact_x_create_route(method: str, path: str) -> str | None:
-    """Return the exact authorised create route, without URL normalisation.
-
-    URL decoding and path normalisation are useful for recognising a route that
-    must be rejected, but they are not authority: an authorised create must use
-    one literal method/path pair with no query, fragment, alternate spelling or
-    legacy endpoint.
-    """
-
-    if str(method) != "POST":
-        return None
-    if str(path) == "/2/tweets":
-        return "tweet"
-    if str(path) == "/2/media/upload":
-        return "media"
-    return None
+exact_x_create_route = _request_route_values.exact_x_create_route
 
 
 def frozen_strict_json_object(value: object, *, label: str) -> dict:
     """Return an isolated strict-JSON copy suitable for request transport."""
-
-    if not isinstance(value, dict):
-        raise AmbiguousRemotePostOutcome(
-            f"{label} must be one JSON object",
-            service="x",
-        )
-    try:
-        encoded = json.dumps(
-            value,
-            ensure_ascii=False,
-            sort_keys=True,
-            separators=(",", ":"),
-            allow_nan=False,
-        )
-        decoded = json.loads(encoded)
-    except (TypeError, ValueError, json.JSONDecodeError) as exc:
-        raise AmbiguousRemotePostOutcome(
-            f"{label} is not strict JSON",
-            service="x",
-        ) from exc
-    if not isinstance(decoded, dict):
-        raise AmbiguousRemotePostOutcome(
-            f"{label} must remain one JSON object",
-            service="x",
-        )
-    return decoded
+    return _request_route_values.frozen_strict_json_object(
+        value,
+        label=label,
+        AmbiguousRemotePostOutcome=AmbiguousRemotePostOutcome,
+        json=json,
+    )
 
 
 if _X_REQUEST_PROVIDER_RELOAD_RECORD_STATE == "unconfigured":
