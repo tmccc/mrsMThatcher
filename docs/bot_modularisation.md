@@ -4673,3 +4673,66 @@ selections, adapted helpers and metadata evidence remain in the evidence root.
 No production state/configuration/credential access, log-content reads, service
 actions or live-provider calls occurred. Configured Astra/max is unchanged.
 Only stage55 is implemented; supervisor review precedes the next stage.
+
+
+## Stage 56 — Receipt scalar values, calendars and confirmation time
+
+Baseline: `3d68860f016de8c6b1a166c5366c1556705e1374`, verified clean on
+`codex/bot-modularisation-stage56`; origin's stage55 matched and stage56 was
+absent. The four supervisor inputs, scoped immutable sources and checked stage55
+helpers were reused without loading conversations or prior transcripts.
+
+`mrs_bot_receipt_primitives.py` owns **fourteen exact bodies/docstrings, 119
+original lines**. Two dependency-free `_receipt_primitives` aliases and twelve
+explicit current-root adapters preserve signatures/defaults/deferred annotations
+and **1/1/2/0/0/1/1/3/2/1/1/5/2/4** dependencies. Unicode digit matching, exact
+scalar/basename gates, membership/equality/default/result references, distinct
+ambient-local and bound calendars, lazy clock/constructor order, narrow date
+catches and conservative confirmation fallback/logging remain exact. Policy,
+timezone, current callbacks, receipt/transport behavior and all earlier owners
+retain their authority. README/API add the owner; no constants/classes/globals
+were moved, and no new policy, catches, retries, normalization, copies or
+retained state were added.
+
+Evidence: `/tmp/mrs-bot-stage56-HfLkxXCW`. Pre-edit documentation passed for
+**264 modules**. All **20 reviewed candidates** plus two isolation checks were
+selected: baseline **22 explicit nodes across four files; 50 collected in 1.91s;
+50 passed in 3.56s**. Current adds **18 contract functions / 53 cases**:
+**40 explicit nodes across five files; 103 collected in 2.00s; 103 passed in
+5.41s**, on the first run. Coverage includes pending/reply callback order,
+scalar/ID/policy/optional-field validation and durable writer refusal,
+cross-midnight main/reply confirmation, both-lane DST replay, ambient-zone
+independence, rollback and post-success clock-failure recovery. New contracts
+cover guarded import, aliases/current adapters, public signatures, references,
+native failures and exact scalar/calendar/fallback branches; they import autouse
+`isolate_regular_post_receipt`.
+
+Both baseline/current collection and pytest used the reviewed metadata-only log
+guard with stage56 names and separate evidence. All four metadata equality checks
+and open-descriptor assertions passed. Nonempty AST-validated selection and
+successful nonempty collection preceded pytest under `set -euo pipefail`, the
+required Python/pytest flags, temporary HOME/state/TMPDIR, dummy credentials,
+dead proxies, external socket denial and explicit loopback providers. Existing
+assertions, parameterization, temporary paths and TZ/tzset restoration remain intact.
+
+`verify_stage56.py` / `comparison.txt` verify exact bodies, signatures/defaults,
+compiled dependencies and forwarding without importing the bot. Whole-parent-root
+reconstruction is byte-identical, including **503 unaffected function definitions**
+and all unrelated statements. All **55 previous owners**, existing tests/fixtures
+and digest docs are unchanged. Post-edit documentation passed for **265 modules**;
+whitespace checks passed. This section is appended at the actual EOF and the
+entire immutable parent report is a verified byte prefix; unchanged source/runtime
+checks were not repeated for this documentation-only append.
+
+| Runtime file | Before lines / bytes | After lines / bytes |
+|---|---:|---:|
+| `mrsMThatcher2.py` | 11,838 / 475,586 | 11,819 / 474,507 |
+| `mrs_bot_receipt_primitives.py` | absent | 214 / 6,103 |
+
+The root loses **19 lines / 1,079 bytes**; combined runtime source grows by
+**195 lines / 5,024 bytes**. New tests: **741 lines / 29,141 bytes**.
+Complete logs, selections, adapted helpers and metadata evidence remain on disk;
+`final-sizes.json` records final sizes. No production state/configuration/credential
+access, log-content reads, service actions or live-provider calls occurred.
+Configured Astra/max is unchanged. Only stage56 is implemented; supervisor review
+precedes the next stage.

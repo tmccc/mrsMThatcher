@@ -219,6 +219,7 @@ deployed as a coherent set:
 - `mrs_bot_transport_source_preparation.py`
 - `mrs_bot_cli_execution.py`
 - `mrs_bot_used_history.py`
+- `mrs_bot_receipt_primitives.py`
 - `remote_write_safety_protocol.py`
 - `remote_media_upload_receipt.py`
 - `remote_write_transport_journal.py`

@@ -275,6 +275,7 @@ import mrs_bot_transaction_recovery as _transaction_recovery
 import mrs_bot_transport_source_preparation as _transport_source_preparation
 import mrs_bot_cli_execution as _cli_execution
 import mrs_bot_used_history as _used_history
+import mrs_bot_receipt_primitives as _receipt_primitives
 
 from single_call_reply import (
     MAX_IMAGE_BYTES as SINGLE_CALL_MAX_IMAGE_BYTES,
@@ -5647,32 +5648,14 @@ def confirmation_epoch_after_remote_success(source_receipt: dict) -> int:
     supported sending receipt already contains a durable pre-request epoch;
     that is a conservative lower-bound fallback.
     """
-
-    fallback = receipt_int(source_receipt.get("attempt_epoch"))
-    if fallback is None:
-        fallback = receipt_int(source_receipt.get("reply_epoch"))
-    if fallback is None or not valid_receipt_epoch(fallback):
-        raise TransportJournalError(
-            "transport source has no durable confirmation-time fallback"
-        )
-    try:
-        observed = int(now_epoch())
-    except Exception:
-        log.critical(
-            "Wall-clock observation failed after X returned a confirmed post "
-            "identity; using the durable pre-request epoch so the confirmed "
-            "transport identity remains restart-recoverable",
-            exc_info=True,
-        )
-        return fallback
-    if not valid_receipt_epoch(observed):
-        log.critical(
-            "Wall-clock observation was outside the supported receipt range "
-            "after X returned a confirmed post identity; using the durable "
-            "pre-request epoch"
-        )
-        return fallback
-    return max(fallback, observed)
+    return _receipt_primitives.confirmation_epoch_after_remote_success(
+        source_receipt,
+        TransportJournalError=TransportJournalError,
+        log=log,
+        now_epoch=now_epoch,
+        receipt_int=receipt_int,
+        valid_receipt_epoch=valid_receipt_epoch,
+    )
 
 
 def create_post(
@@ -6178,74 +6161,69 @@ def atomic_json_file_exactly_matches(path: Path, value: object) -> bool:
 
 def valid_post_id(value: object) -> bool:
     """Return whether valid post ID."""
-    return bool(re.fullmatch(r"\d{1,30}", str(value or "")))
+    return _receipt_primitives.valid_post_id(
+        value,
+        re=re,
+    )
 
 
 def valid_string_post_id(value: object) -> bool:
     """Return whether a durable receipt stores an exact string post ID."""
-    return type(value) is str and valid_post_id(value)
+    return _receipt_primitives.valid_string_post_id(
+        value,
+        valid_post_id=valid_post_id,
+    )
 
 
 def valid_receipt_epoch(value: object) -> bool:
     """Return whether valid receipt epoch."""
-    if type(value) is not int:
-        return False
-    epoch = value
-    return MIN_CONFIRMATION_EPOCH <= epoch <= MAX_CONFIRMATION_EPOCH
+    return _receipt_primitives.valid_receipt_epoch(
+        value,
+        MAX_CONFIRMATION_EPOCH=MAX_CONFIRMATION_EPOCH,
+        MIN_CONFIRMATION_EPOCH=MIN_CONFIRMATION_EPOCH,
+    )
 
 
-def receipt_int(value: object, default: int | None = None) -> int | None:
-    """Return the receipt int."""
-    if value in (None, "") and default is not None:
-        return default
-    return value if type(value) is int else None
+receipt_int = _receipt_primitives.receipt_int
 
 
-def receipt_bool(value: object) -> bool | None:
-    """Return the receipt bool."""
-    if isinstance(value, bool):
-        return value
-    return None
+receipt_bool = _receipt_primitives.receipt_bool
 
 
 def safe_epoch_date_str(epoch: int) -> str | None:
     """Return the safe epoch date str."""
-    try:
-        return epoch_date_str(epoch)
-    except (TypeError, ValueError, OverflowError, OSError):
-        return None
+    return _receipt_primitives.safe_epoch_date_str(
+        epoch,
+        epoch_date_str=epoch_date_str,
+    )
 
 
 def safe_reply_cap_date_str(epoch: int) -> str | None:
     """Return a safe Europe/London conversational daily-cap date."""
-    try:
-        return reply_cap_date_str(epoch)
-    except (TypeError, ValueError, OverflowError, OSError):
-        return None
+    return _receipt_primitives.safe_reply_cap_date_str(
+        epoch,
+        reply_cap_date_str=reply_cap_date_str,
+    )
 
 
 def main_post_schedule_zone(timezone_name: object) -> ZoneInfo:
     """Return the sole calendar zone accepted by current main-post receipts."""
-
-    if (
-        type(timezone_name) is not str
-        or timezone_name != MAIN_POST_SCHEDULE_TIMEZONE
-    ):
-        raise ValueError("unsupported main-post schedule timezone")
-    try:
-        return ZoneInfo(timezone_name)
-    except ZoneInfoNotFoundError as exc:
-        raise RuntimeError(
-            "the bound main-post schedule timezone is unavailable"
-        ) from exc
+    return _receipt_primitives.main_post_schedule_zone(
+        timezone_name,
+        MAIN_POST_SCHEDULE_TIMEZONE=MAIN_POST_SCHEDULE_TIMEZONE,
+        ZoneInfo=ZoneInfo,
+        ZoneInfoNotFoundError=ZoneInfoNotFoundError,
+    )
 
 
 def bound_schedule_datetime(epoch: int, timezone_name: object) -> datetime:
     """Interpret one durable epoch in its exact receipt-bound calendar zone."""
-
-    if type(epoch) is not int:
-        raise TypeError("bound schedule epoch must be an integer")
-    return datetime.fromtimestamp(epoch, tz=main_post_schedule_zone(timezone_name))
+    return _receipt_primitives.bound_schedule_datetime(
+        epoch,
+        timezone_name,
+        datetime=datetime,
+        main_post_schedule_zone=main_post_schedule_zone,
+    )
 
 
 def safe_bound_schedule_date_str(
@@ -6253,19 +6231,19 @@ def safe_bound_schedule_date_str(
     timezone_name: object,
 ) -> str | None:
     """Return a bound calendar date, or ``None`` for invalid receipt input."""
-
-    try:
-        return bound_schedule_datetime(epoch, timezone_name).strftime("%Y-%m-%d")
-    except (TypeError, ValueError, RuntimeError, OverflowError, OSError):
-        return None
+    return _receipt_primitives.safe_bound_schedule_date_str(
+        epoch,
+        timezone_name,
+        bound_schedule_datetime=bound_schedule_datetime,
+    )
 
 
 def valid_receipt_basename(value: object) -> bool:
     """Return whether valid receipt basename."""
-    if type(value) is not str:
-        return False
-    basename = value
-    return bool(basename) and Path(basename).name == basename and basename not in {".", ".."}
+    return _receipt_primitives.valid_receipt_basename(
+        value,
+        Path=Path,
+    )
 
 
 def canonical_remote_post_payload_sha256(payload: dict) -> str:
@@ -9432,19 +9410,22 @@ def choose_next_meme(state: dict) -> Path | None:
 
 def epoch_date_str(epoch: int | None = None) -> str:
     """Return the epoch date str."""
-    if epoch is None:
-        epoch = now_epoch()
-    return datetime.fromtimestamp(int(epoch)).strftime("%Y-%m-%d")
+    return _receipt_primitives.epoch_date_str(
+        epoch,
+        datetime=datetime,
+        now_epoch=now_epoch,
+    )
 
 
 def reply_cap_date_str(epoch: int | None = None) -> str:
     """Return the conversational daily-cap date in Europe/London."""
-    if epoch is None:
-        epoch = now_epoch()
-    return datetime.fromtimestamp(
-        int(epoch),
-        tz=ZoneInfo(MAIN_POST_SCHEDULE_TIMEZONE),
-    ).strftime("%Y-%m-%d")
+    return _receipt_primitives.reply_cap_date_str(
+        epoch,
+        MAIN_POST_SCHEDULE_TIMEZONE=MAIN_POST_SCHEDULE_TIMEZONE,
+        ZoneInfo=ZoneInfo,
+        datetime=datetime,
+        now_epoch=now_epoch,
+    )
 
 
 def meme_schedule_datetime(epoch: int) -> datetime:
