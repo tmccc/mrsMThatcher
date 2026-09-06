@@ -1594,3 +1594,97 @@ Next useful domain: review `terminal_reply_evaluation`,
 `record_terminal_reply_evaluation` and `prune_reply_evaluation_records`, keeping
 mention-quarantine policy and durable persistence authority in their existing
 locations. Supervisor review precedes any next stage in a fresh invocation.
+
+## Stage 15 — normal mention and hot-post reply cycle
+
+Baseline: `4525efff67f722383953a637647b6662d66389d5` (2026-09-06).
+Worktree `/disks/disk1/research/mrsMThatcher-bot-modularisation-stage15` started
+clean on `codex/bot-modularisation-stage15`, matching the verified pushed stage
+14 parent. Inspection used the supervisor's 88-reference inventory and all 49
+direct test candidates, plus indirect scheduler/control, backlog, recovery and
+local mention/hot-post/restart callers.
+
+`mrs_bot_normal_reply_cycle.py` owns the complete `maybe_reply_to_mentions`
+definition: **893 original definition lines**, including its **887-line body**
+and unchanged docstring. One explicit root adapter preserves the name, signature,
+defaults and annotations and supplies all **88 current root dependencies** on
+every invocation, including the recursive root callback, copy module, logger,
+configuration, application classes and exceptions. The owner imports only the
+standard library, does no runtime I/O on import and retains no dependencies.
+
+The unchanged body preserves daily reset/reconciliation before the write
+barrier; control/cooldown/cap/spacing and discovery failure order; candidate
+sorting, direct skips and nested quarantine batching/nonlocals; context/media,
+clarification and evidence routing; recovered drafts and actual-model-call
+budget/refunds; draft-before-send durability and pagination provenance; distinct
+delivery errors, terminal retirement and confirmed receipt cleanup. Backlog
+continuation follows queue drainage and remaining budget, calling the current
+root callback with the original state, current evaluation count and
+`_skip_hot_post_fetch=True`. One successful reply still ends the cycle.
+Discovery/pagination, watermark/counter/quarantine policy, pipeline/evidence,
+context/media, persistence, reconciliation and delivery implementations remain
+in their existing locations. All fourteen earlier owners, existing tests and
+digest documentation are unchanged; README and the Python API table add the owner.
+
+Evidence: `/tmp/mrs-bot-stage15-RASNa4`. The validated nonempty baseline selection
+has **95 file/node arguments across 13 files**: six relevant prior reply-owner
+files (**96 cases**), selected mention backlog/quarantine (**30**), single-call
+failure routing (**7**), unit recovery/delivery/scheduling (**37**), ambiguity
+barriers (**21**), proved-rejection outcomes (**5**), guarded bootstrap (**8**)
+and local loopback integrations (**24**). All 49 supplied direct nodes are
+included. Large unit, integration and backlog files were selected by affected
+nodes; no complete broad suite ran.
+
+Before editing: documentation passed for **223 modules**, **228 cases** collected
+in **4.43s**, and **228 passed in 30.05s**. After extraction: documentation passed
+for **224 modules**, **236 cases** collected in **4.46s**, and **236 passed in
+30.13s**, on the first run (`current-initial-pytest.txt`). Five new tests expand
+to **8 cases**: guarded import, current dependency/argument/result/error forwarding
+on later invocations, current-root recursive continuation with unchanged state
+identity and model-call/refund/cap values, durable reconciliation before the
+barrier even when disabled, and distinct native context/generation error routing.
+They reuse the active-page, editorial-outcome, canonical-context and schema4
+receipt helpers with `isolate_regular_post_receipt` registered as autouse;
+real local persistence and transaction barriers remain active.
+
+```bash
+set -euo pipefail
+bash /tmp/mrs-bot-stage15-RASNa4/run_selected.sh baseline  # before editing
+bash /tmp/mrs-bot-stage15-RASNa4/run_selected.sh current-initial
+PYTHONDONTWRITEBYTECODE=1 python3 /tmp/mrs-bot-stage15-RASNa4/verify_stage15.py
+PYTHONDONTWRITEBYTECODE=1 python3 tools/check_python_documentation.py
+git diff --check
+```
+
+The runner requires successful selection generation, a validated nonempty list
+and nonempty collection before `python3 -m pytest -q -p no:cacheprovider` with
+explicit selected arguments. It sets `PYTHONUSERBASE=/home/tonym/.local`,
+`MRS_TEST_MODE=1`, `PYTEST_DISABLE_PLUGIN_AUTOLOAD=1`,
+`PYTHONDONTWRITEBYTECODE=1` and evidence-root `TMPDIR`. Temporary HOME/state,
+dummy credentials, dead proxies, denied external sockets and explicit loopback
+fake APIs remain active. The successful affected run is retained; tests were not
+repeated after documentation-only edits.
+
+`comparison.txt` proves exact body/docstring/signature/dependency forwarding,
+nested closures/nonlocals and recursive callback keywords. Restoring the original
+definition and removing one import reconstructs the **entire immutable parent
+root byte-for-byte**, including **574 unaffected definitions** and all unrelated
+statements. All fourteen previous owners and unrelated tracked files match the
+parent. These checks use static source/AST and `git show`, without importing the
+bot. The final documentation gate and `git diff --check` pass.
+
+| Runtime file | Before lines / bytes | After lines / bytes |
+|---|---:|---:|
+| `mrsMThatcher2.py` | 24,306 / 948,149 | 23,514 / 917,584 |
+| `mrs_bot_normal_reply_cycle.py` | absent | 1,004 / 41,594 |
+
+The root loses **792 lines / 30,565 bytes**; combined runtime source grows by
+**212 lines / 11,029 bytes** for explicit dependency declarations/forwarding and
+owner documentation. Prior owner sizes are unchanged.
+
+Production remains `master` at `af5eda7c163a8174ec1365060aa923d21787e7bd` per
+worktree metadata. No production configuration/state/credentials or service
+operations, live provider calls, deployment/restart or next-stage work ran.
+Next useful domain: supervisor review of the complete `maybe_reply_to_quote_tweets`
+cycle as a separate orchestration boundary. Any next stage requires supervisor
+review and a fresh invocation.
