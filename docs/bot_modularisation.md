@@ -4001,3 +4001,82 @@ Production metadata remains `master` at
 configuration/state/credentials and live providers were untouched. Configured
 Astra/max remains unchanged. Only stage45 is implemented; supervisor review
 precedes the next stage.
+
+## Stage 46 — Global remote-write barrier checks
+
+Baseline: `c63ec4dbbfa45a00371f43d1660de0e7187c566e`, verified clean on
+`codex/bot-modularisation-stage46`; origin's stage45 matched and stage46 was
+absent. This invocation used the scoped supervisor inputs and immutable parent
+source without loading prior conversations.
+
+`mrs_bot_remote_write_barriers.py` owns nineteen exact bodies/docstrings spanning
+**616 original definition lines**: receipt, incident/protocol, historical outbox
+and exact sending checks, local recovery eligibility, journal/retirement/media
+checks and the raising/boolean global barriers. Nineteen `_remote_write_barriers`
+adapters retain public signatures/defaults/deferred annotations and forward
+**1/2/2/4/3/8/1/1/4/7/2/3/2/2/13/2/2/24/11** current dependencies.
+
+Compatibility preserves raw OR values, eager main readers, lazy path checks and
+the distinct raising/boolean order. Historical journal/fence/source identity,
+required prepared-attempt observation, risky phases and single-parent local
+exceptions retain their original gates and catches; parent selection does not
+deduplicate. Formatter imports remain call-time. Exact sending checks retain
+pre-filesystem schema/canonical gates, no-follow private namespace inspection,
+bounded reads, descriptor cleanup and all metadata/byte comparisons. Marker
+probing precedes the current latch reread; sole-main recovery retains eager
+namespace/journal observations, the legacy allowance and narrow lineage catch.
+Prepared authority, durable receipt equality and per-lane exceptions remain
+exact. Paths, latch setters, marker synchronization, transport/receipt engines,
+protocol/lock/configuration and global prebarrier reconciliation stay unchanged.
+
+Evidence: `/tmp/mrs-bot-stage46-clHNHGNF`. Checked stage45 helper adaptations
+retain the normal explicit forwarding branch. Pre-edit documentation passed
+for **254 modules**. The selection uses **20 of 25** curated candidates plus
+three bootstrap/isolation checks: **23 explicit nodes across ten files;
+40 collected in 4.35s; 40 passed in 10.99s**. It covers unsafe/missing ledgers,
+unsafe/duplicate/pending/simultaneous receipts, marker failures and latches,
+inactive protocol, exact historical source/outbox phases and local recovery,
+main-loop lane stopping, durable prepared receipts, real historical-store
+boundaries, fresh-process media recovery in both main lanes and quote-image
+loopback.
+
+Current validation: **41 explicit nodes across eleven files; 106 collected in
+4.39s; 106 passed in 13.48s**. Eighteen new contract functions / **66 cases**
+cover guarded import, current dependency/signature/reference forwarding, native
+errors, lazy imports/reads, raw values and ordered boundaries. They reuse the
+autouse receipt isolation and historical receipt builder. The first current
+run had **105 passes and one new fixture failure**: lane receipts in one
+directory share a canonical journal. The fixture now explicitly models distinct
+unrelated journals; runtime code was unchanged. Both runs' full logs remain in
+the evidence directory. Existing assertions, parametrization and fixtures are
+unchanged.
+
+Every pytest run followed AST-validated nonempty selection and successful
+nonempty collection under `set -euo pipefail`, using
+`PYTHONUSERBASE=/home/tonym/.local MRS_TEST_MODE=1
+PYTEST_DISABLE_PLUGIN_AUTOLOAD=1 PYTHONDONTWRITEBYTECODE=1 python3 -m pytest -q
+-p no:cacheprovider` with explicit selected arguments. TMPDIR is beneath the
+evidence root; temporary HOME/state, dummy credentials, dead proxies, external
+socket denial and explicit loopback providers remain in effect.
+
+`verify_stage46.py` / `comparison.txt` prove exact bodies/docstrings, signatures,
+defaults/annotations, nested compiled dependencies and forwarding without
+importing the bot. Whole-parent-root reconstruction is byte-identical, including
+**503 unaffected functions** and all unrelated statements. All **45 earlier
+owners**, existing tests/fixtures and digest docs remain unchanged. README/API
+add only the owner; this report is append-only. Post-edit documentation passed
+for **255 modules**; the final staged whitespace check passed. Passing runtime
+and documentation checks were not repeated for this report-only edit.
+
+| Runtime file | Before lines / bytes | After lines / bytes |
+|---|---:|---:|
+| `mrsMThatcher2.py` | 14,273 / 562,960 | 13,873 / 550,465 |
+| `mrs_bot_remote_write_barriers.py` | absent | 788 / 30,388 |
+
+The root loses **400 lines / 12,495 bytes**; combined runtime source grows by
+**388 lines / 17,893 bytes**. Final new tests: **577 lines / 35,120 bytes**;
+`sizes.txt` records final sizes after the fixture correction. Production metadata
+remains `master` at `af5eda7c163a8174ec1365060aa923d21787e7bd`; production,
+services, private configuration/state/credentials and live providers were
+untouched. Configured Astra/max remains unchanged. Only stage46 is implemented;
+supervisor review precedes the next stage.
