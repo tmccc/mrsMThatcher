@@ -166,6 +166,7 @@ deployed as a coherent set:
 - `mrsMThatcher2.py`
 - `mrs_bot_image_scoring.py`
 - `mrs_bot_original_editorial.py`
+- `mrs_bot_generated_identity.py`
 - `remote_write_safety_protocol.py`
 - `remote_media_upload_receipt.py`
 - `remote_write_transport_journal.py`

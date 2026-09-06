@@ -248,3 +248,118 @@ Review the adjacent generated-identity audit input family:
 hash and cache responsibilities; review startup's current policy-enable
 predicates alongside them. Candidate/winner and saved-RNG handling remain a
 separate supervisor decision. Stage 2 implements only the editorial family.
+
+## Stage 3 — generated-image identity audit and policy helpers
+
+Baseline: `acbcb31f29ac4ad4f965b8505ab49baf364504b5` (2026-09-06).
+On `big-nas-2` as `tonym`, worktree
+`/disks/disk1/research/mrsMThatcher-bot-modularisation-stage3` started clean on
+`codex/bot-modularisation-stage3`; HEAD and remote
+`origin/codex/bot-modularisation-stage2` matched the verified parent. The initial
+runtime map above remains applicable.
+
+### Extraction and compatibility
+
+`mrs_bot_generated_identity.py` owns the eleven specified functions from parent
+lines 18404–18847: numeric validation, audit item validation/loading, startup
+validation, candidate policy rows, shadow results, policy selection, private RNG
+replay, applied results and both policy loggers. Two aliases retain the numeric
+and private-choice root names; nine adapters supply current settings, schema and
+policy sets, root cache, logger and sibling callbacks without copying them.
+All root signatures, defaults and annotations remain identical.
+
+Numeric type/range checks, audit schema/hash/origin/coverage errors and chaining,
+expanded cache keys and same-object hits before I/O remain unchanged. Failed
+validation never inserts a cache entry. Discovery and audit loading remain lazy;
+disabled startup branches retain their distinct logs. Penalties are converted
+at the original branch points. Selection preserves caller order and shallow
+candidate copies with shared nested components/analysis. Counterfactual tie
+lists, private RNG replay, causation/mismatch flags, float/None fields, rounding,
+payload order and diagnostic bounds retain their original behaviour. Both JSON
+log formats and the shadow logger's catch-and-log boundary are unchanged.
+
+`configured_generated_image_paths`, both policy-enable predicates, all
+`GENERATED_IDENTITY_*` settings/schema/policy sets, enable flags and
+`_GENERATED_IDENTITY_AUDIT_CACHE` authority stay in the root. The owner uses
+ordinary standard-library imports and has no reverse bot import, retained
+callbacks, separate cache or import-time work. Both prior owners are
+byte-identical; discovery, actual selector/random-choice calls, editorial
+behaviour, publishing, bootstrap and durable state/transport are unchanged.
+README's companion list and `docs/python_api.md` include the new owner; digest
+documentation is unchanged.
+
+### Validation
+
+Evidence is confined to `/tmp/mrs-bot-stage3-9hHtMO`. `selected-tests.txt` records
+29 file/node arguments: both complete generated-policy files, all stage1/stage2
+adapter/import tests, nearby generated-pool discovery and selector/editorial
+interactions, selection-harness/backtest/import regressions, guarded bootstrap
+and the fake-server quote-image posting integration. Parametrization produces
+107 baseline cases. Existing assertions are unchanged; no broad suite was run.
+
+Before editing: documentation passed for **211 modules**; **107 passed in
+6.14s**. After extraction: documentation passed for **212 modules**; **115 passed
+in 6.14s**, including eight new tests in `tests/test_bot_generated_identity.py`.
+These cover import safety, current cache/configuration/helper references, lazy
+loading/conversion and flags, shallow-copy boundaries, tied callbacks/RNG and
+exact logger serialization/failure handling. Conftest retained temporary
+HOME/state, dummy credentials, dead proxies, external-network denial and
+explicit loopback fake APIs. No production environment was sourced, private
+state/configuration/credentials read, provider called, or service controlled.
+
+Exact commands (the baseline omitted only the new test file):
+
+```bash
+TMPDIR=/tmp/mrs-bot-stage3-9hHtMO PYTHONDONTWRITEBYTECODE=1 \
+  python3 tools/check_python_documentation.py
+mapfile -t stage3_tests < /tmp/mrs-bot-stage3-9hHtMO/selected-tests.txt
+TMPDIR=/tmp/mrs-bot-stage3-9hHtMO PYTHONUSERBASE=/home/tonym/.local \
+  MRS_TEST_MODE=1 PYTEST_DISABLE_PLUGIN_AUTOLOAD=1 PYTHONDONTWRITEBYTECODE=1 \
+  python3 -m pytest -q -p no:cacheprovider "${stage3_tests[@]}" \
+  tests/test_bot_generated_identity.py
+TMPDIR=/tmp/mrs-bot-stage3-9hHtMO PYTHONDONTWRITEBYTECODE=1 \
+  python3 /tmp/mrs-bot-stage3-9hHtMO/verify_stage3.py
+git diff --check
+```
+
+Logs are `baseline-documentation.txt`, `baseline-pytest.txt`,
+`current-documentation.txt`, `current-pytest.txt` and `comparison.txt`.
+Adapted `verify_stage3.py` uses immutable `git show` source, private AST
+namespaces and existing data-only fixtures; it never imports the bot runtime:
+
+- All **11 moved bodies** match byte-for-byte after reversing eleven explicit
+  dependency names. Restoring the eleven definitions and removing the import
+  reconstructs the **entire parent root exactly**; **578 unaffected definitions**
+  match in source and AST. Both prior owners and existing tests are unchanged.
+- Six complete ordered policy rows and eligible candidates match, including
+  all actions, exact scores, origin boost and shared nested references. Seven
+  numeric errors match types/messages/causes. Cache success, callback order and
+  three schema/stale-hash/coverage failures match, with no failed insertion.
+- Neutral, exclusion-caused and zero-penalty tied cases match complete ordered
+  payloads, logs, callback order and RNG state, including missing-state and
+  tie-count mismatches. Four native missing/empty-input errors and both payloads'
+  sorted 12-item diagnostic bounds match. Intended branches are asserted.
+- Documentation and `git diff --check` passed.
+
+| Runtime file | Before lines / bytes | After lines / bytes |
+|---|---:|---:|
+| `mrsMThatcher2.py` | 28,686 / 1,119,849 | 28,408 / 1,103,252 |
+| `mrs_bot_generated_identity.py` | absent | 482 / 23,694 |
+| `mrs_bot_image_scoring.py` | 312 / 12,579 | 312 / 12,579 |
+| `mrs_bot_original_editorial.py` | 497 / 22,065 | 497 / 22,065 |
+
+The root loses **278 lines / 16,597 bytes**. Combined runtime source grows by
+**204 lines / 7,097 bytes** for explicit dependency signatures, adapters and
+owner documentation.
+
+### Recommended next scope
+
+Consider the read-only generated-image source/spacing helpers:
+`generated_image_origin_quote_hash`, `image_selection_observability`,
+`generated_image_spacing_required`, `original_posts_since_generated_image`,
+`generated_images_allowed_by_spacing` and `filter_generated_images_by_spacing`.
+They share basename classification and spacing calculations; inspect their
+current configuration/callback lookups and same-object filter return. Keep
+state updates, persistence and selector orchestration outside that proposed
+boundary. The supervisor chooses the next scope in a fresh invocation; stage3
+implements none of it.
