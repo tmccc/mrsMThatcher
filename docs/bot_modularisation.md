@@ -917,3 +917,118 @@ Consider confirmed conversational reply history/context selection:
 helpers. Keep durable history writes, draft handling, provider calls and reply
 dispatch in their current owners. The supervisor chooses the next scope in a
 fresh invocation; stage 8 implements none of it.
+
+## Stage 9 — retired reply-draft validation and fixed schemas
+
+Baseline: `e6a61aed1e93589452994e6f8658dba7aa16c550` (2026-09-06).
+On `big-nas-2` as `tonym`, worktree
+`/disks/disk1/research/mrsMThatcher-bot-modularisation-stage9` started clean on
+`codex/bot-modularisation-stage9`; HEAD matched the pushed stage 8 parent.
+Inspection reused the runtime map and supervisor's
+`legacy-validation-dependencies.json`, whose twelve function dependency lists
+and seventeen-constant inventory matched static symbol/source inspection.
+
+### Extraction and compatibility
+
+`mrs_bot_legacy_reply_validation.py` owns the contiguous compatibility block
+between `ai_reply_receipt_draft_is_valid` and
+`mention_pagination_provenance_is_valid`: twelve functions covering hashing,
+timestamps, multi-model context, tested-pipeline drafts, AI-first v3 claims and
+drafts, single-Sol schemas 1/2 and family dispatch. All **527 original function
+definition lines** retain byte-identical bodies and original docstrings, including
+absent private-helper docstrings. The **17 constant definitions / 188 lines**
+retain their exact names, initializers, types and order without duplication.
+
+Eight explicit root adapters and four function aliases preserve
+names, signatures, defaults and annotations. All root constants directly alias
+the owner objects. Adapters pass current root constant references, sibling/helper
+callbacks, `MAX_TRUSTED_FACTS`, `MAX_SUPPLIED_IMAGES` and
+`SINGLE_CALL_MAX_IMAGE_BYTES` on every call. The owner imports only standard
+libraries and constructs fixed strings/frozensets; it performs no file,
+environment, provider or RNG work and retains no callbacks or mutable state.
+
+Compact sorted non-ASCII JSON hashing, strict UTF-8/error boundaries, lowercase
+hash matching, UTC parsing, exact fields and historical prompt/model contracts,
+optional repair/retrieved-count/schema-2 author fields, integer/boolean versus
+equality-only checks, unsigned payloads, identity/context binding, ordered visible
+conversation, claims/evidence/assessment constraints and dispatch short-circuiting
+are unchanged. Native malformed-input errors still reach the existing outer
+receipt boundary. Current draft validation, lifecycle wrappers, receipt loading,
+promotion/reconciliation/transport, `bound_visible_conversation`, configuration
+and exception authority stay in their existing locations. Frozen validation
+grants no outbound authority and cannot make legacy drafts current pending drafts.
+All eight prior owners and existing tests/fixtures are byte-identical; README's
+companion list and the Python API table include the owner. Digest docs are intact.
+
+### Validation
+
+Evidence: `/tmp/mrs-bot-stage9-UK74KZ`. Validated `selected-tests.txt` contains
+**20 nonempty unique file/node arguments across 12 files**, expanding as follows:
+
+| Existing selection | Cases |
+|---|---:|
+| Entire `tests/test_legacy_conversational_reply_recovery.py`, using all four existing data fixtures | 31 |
+| Seven requested nearest current unit-helper regressions | 7 |
+| All eight previous owner adapter/import test files | 69 |
+| Foreign-cwd import, explicit/idempotent bootstrap and six guarded entry points | 8 |
+| `tests/test_integration_harness.py::test_normal_mention_reply`, with loopback fake APIs | 1 |
+
+Before editing: documentation passed for **217 modules**, selected collection
+found **116 cases in 3.96s**, and **116 passed in 8.24s**. After extraction:
+documentation passed for **218 modules**, selected collection found **131 cases
+in 3.97s**, and **131 passed in 9.15s**. The **15 new cases** in
+`tests/test_bot_legacy_reply_validation.py` cover guarded import and alias identity,
+current dependency/argument/result/error references, four-case dispatch and
+short-circuiting, nested context callbacks, visible-conversation references,
+current size limits, and native TypeError/IndexError/UTF-8 boundaries. They reuse
+the existing recovery helpers and register the `isolated_recovery_paths` autouse
+fixture. Existing assertions, fixtures and sending barriers were preserved.
+
+Both runs retained conftest temporary HOME/state, dummy credentials, dead proxies,
+denied external sockets and explicit loopback fake APIs. All disposable scripts
+and test TMPDIR stayed under the evidence root. No production configuration,
+credentials or state were read, production bot run, provider called, service
+controlled or deployment performed. No broad suite was run.
+
+```bash
+set -euo pipefail
+export TMPDIR=/tmp/mrs-bot-stage9-UK74KZ PYTHONUSERBASE=/home/tonym/.local
+export MRS_TEST_MODE=1 PYTEST_DISABLE_PLUGIN_AUTOLOAD=1 PYTHONDONTWRITEBYTECODE=1
+python3 tools/check_python_documentation.py
+python3 "$TMPDIR/select_tests.py"
+mapfile -t stage9_tests < "$TMPDIR/selected-tests.txt"
+(( ${#stage9_tests[@]} > 0 ))
+python3 -m pytest -q -p no:cacheprovider --collect-only "${stage9_tests[@]}" tests/test_bot_legacy_reply_validation.py
+python3 -m pytest -q -p no:cacheprovider "${stage9_tests[@]}" tests/test_bot_legacy_reply_validation.py
+python3 "$TMPDIR/verify_stage9.py"
+git diff --check
+```
+
+Baseline omitted only the new file. Selection generation and collection succeeded
+before each run; failure or an empty list stops before execution. Logs use
+`baseline-` and `current-` prefixes. `comparison.txt` records the reused compact
+stage 8 structural check, extended for the seventeen constants: exact moved
+bodies/initializers, correct direct aliases and current-dependency adapters,
+**570 unaffected root definitions**, and **the entire parent root reconstructed
+byte-for-byte** by restoring constants/functions and removing the new import.
+All other root statements, eight prior owners, existing tests and digest docs
+match the immutable parent. Comparison uses static source/ASTs and `git show`,
+without importing the bot. Documentation and `git diff --check` passed.
+
+| Runtime file | Before lines / bytes | After lines / bytes |
+|---|---:|---:|
+| `mrsMThatcher2.py` | 26,581 / 1,030,150 | 25,995 / 1,011,096 |
+| `mrs_bot_legacy_reply_validation.py` | absent | 820 / 29,885 |
+
+The root loses **586 lines / 19,054 bytes**. Combined runtime source grows by
+**234 lines / 10,831 bytes** for explicit dependency signatures, adapters, aliases
+and owner documentation. The eight previous owners retain their stage 8 sizes.
+
+### Recommended next scope
+
+Consider the confirmed conversational history/context selection family:
+`recent_confirmed_account_replies`, `recovery_comparison_account_replies`,
+`recent_same_author_account_interactions` and their filtering/sorting/exclusion
+helpers. Keep durable history writes, draft validation, provider calls and reply
+dispatch in their existing owners. The supervisor chooses the next scope in a
+fresh invocation; stage 9 implements none of it.

@@ -172,6 +172,7 @@ deployed as a coherent set:
 - `mrs_bot_image_selection.py`
 - `mrs_bot_quote_posting.py`
 - `mrs_bot_daily_meme.py`
+- `mrs_bot_legacy_reply_validation.py`
 - `remote_write_safety_protocol.py`
 - `remote_media_upload_receipt.py`
 - `remote_write_transport_journal.py`
