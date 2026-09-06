@@ -27,6 +27,7 @@ and AppleDouble files.
 | Module | Responsibility | External effects |
 |---|---|---|
 | `mrsMThatcher2.py` | Production scheduling, quotation/image selection, replies, receipts and recovery | X and OpenAI only after explicit production bootstrap; durable production state |
+| `mrs_bot_image_scoring.py` | Quotation/image lexical matching, topic IDF, visual energy, seasonal exclusion and component scoring | Explicit current coordinator values and helper callbacks; no I/O, retained callbacks, cache or runtime initialisation |
 | `single_call_reply.py` | Frozen Sol prompt/schema, bounded context and facts, one-call orchestration, mechanical validation and durable-draft validation | One injected OpenAI Responses call; local validation and hashing |
 | `reply_evidence.py` | Lexically shortlist validated local passages for compact trusted facts | Local corpus reads only |
 | `historical_context_formatter.py` | Canonical research loading, compact context formatting and context-reply persistence | Local state; posting only through an injected callback |
@@ -69,6 +70,22 @@ and AppleDouble files.
 `mrsMThatcher2.py` is intentionally import-safe: importing it does not load the
 private host configuration, acquire the production lock or enter the posting
 loop. Operational entry points require `production_bootstrap()` first.
+
+The bot retains the original names, signatures and defaults for `normalise_tag`,
+`as_string_list`, `meaningful_tokens`, `phrase_matches_text`,
+`hard_mismatch_tokens`, `hard_mismatch_phrase_matches_text`, `image_text_corpus`,
+`build_image_topic_idf`, `visual_energy_score`, `image_is_out_of_season` and
+`score_image_for_quote`. Their implementations live in
+`mrs_bot_image_scoring.py`. `as_string_list` and `visual_energy_score` are direct
+aliases; nine thin wrappers pass current root dependencies on each call,
+including `re.sub`, `re.findall`, `TOKEN_STOPWORDS`,
+`IMAGE_STRONG_MISMATCH_PENALTY`, `mm_dd_in_window` and the sibling helpers used
+inside comprehensions and the historical-reference generator. Configuration
+authority remains in the bot. The companion never imports the bot or stores
+callbacks. Arguments and results pass through without copying; component order,
+strict mismatch exclusion, ordinary rounding versus strict ceiling, and existing
+exceptions are preserved. See [bot modularisation](bot_modularisation.md) for
+the stage 1 boundary and validation.
 
 Record/input callers retain `Record`, `safe_source_logger`, `record_source_ref`,
 `bounded_source_refs`, `record_fingerprint`, `resume_fingerprint_tail`,

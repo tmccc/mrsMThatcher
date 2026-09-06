@@ -164,6 +164,7 @@ The production runtime and its operational support assume these files are
 deployed as a coherent set:
 
 - `mrsMThatcher2.py`
+- `mrs_bot_image_scoring.py`
 - `remote_write_safety_protocol.py`
 - `remote_media_upload_receipt.py`
 - `remote_write_transport_journal.py`
