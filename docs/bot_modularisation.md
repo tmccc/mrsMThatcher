@@ -4154,3 +4154,71 @@ Production metadata remains `master` at
 configuration/state/credentials and live providers were untouched. Configured
 Astra/max remains unchanged. Only stage47 is implemented; supervisor review
 precedes the next stage.
+
+## Stage 48 — Logging and descriptive observability
+
+Baseline: `ef2f699b0bb3ab2114c817ecbdcd24006645d5b7`, verified clean on
+`codex/bot-modularisation-stage48`; origin's stage47 matched and stage48 was
+absent. This invocation used the four scoped supervisor inputs and immutable
+parent source without loading prior conversations.
+
+`mrs_bot_observability.py` owns seventeen exact bodies/docstrings in inventory
+order, spanning **370 original definition lines**. Fifteen `_observability`
+adapters supply **1/1/12/1/0/3/0/2/1/2/2/1/2/2/2/1/3** dependencies; the zero
+entries are exact pure aliases for `redact_secret` and `state_debug_summary`.
+Public signatures/defaults/deferred annotations remain exact. Checked stage47
+helpers use the stage40 transfer pattern only for `log_event`: root keeps
+`(event: str, **fields: object)` and forwards the same collected dictionary as
+required keyword-only `fields: object`, plus current `json`/`log`. Payload keys
+and nested references remain intact. The no-docstring failure helper has only
+a forwarding return in root.
+
+Compatibility retains handler snapshot/marking/detach-close and setup ordering,
+rotation/formatter/production guard, health snapshot and narrow catches, bounded
+redaction and counts-only diagnostics, event update/JSON/repr/log ordering,
+publication text precedence and identity/authority fields, history/store gates
+and failures, rate-header catch scopes, strict UTF-8/hash counts, and experiment
+references/member-before-completed events/current trial target. No constants,
+classes or globals move; initialization, logger/reporter state and publication,
+storage and trial authority stay with their current owners. No policy, retries,
+catches, retained state or import-time setup were added. README/API add the owner.
+
+Evidence: `/tmp/mrs-bot-stage48-XPWy6PNS`. Pre-edit documentation passed for
+**256 modules**. Selection retained **17 of 22** curated candidates plus three
+bootstrap/isolation checks: **20 explicit nodes across eight files; 22 collected
+in 3.39s; 22 passed in 4.76s**. Current validation added **20 contract functions /
+47 cases**: **40 explicit nodes across nine files; 69 collected in 3.55s;
+69 passed in 6.80s**. Coverage includes temporary handler isolation/rotation,
+diagnostics, descriptive failures, publication/recovery contracts, experiment
+identity and the real quote-image loopback. Existing assertions, parametrization
+and fixtures are unchanged; new tests import the autouse receipt isolation.
+
+Every pytest run followed AST-validated nonempty selection and successful
+nonempty collection under `set -euo pipefail`, using the specified user base,
+test mode, disabled plugin autoload/bytecode/cache and explicit selected nodes.
+TMPDIR remains beneath the evidence root; temporary HOME/state, dummy
+credentials, dead proxies, socket denial and explicit loopback providers remain.
+The baseline inherited the existing production-log appended-byte teardown read,
+contrary to the stage's read restriction. Current validation substitutes an
+evidence-only metadata/FD guard for that fixture; production log metadata was
+unchanged. No production writes, service actions or live-provider calls occurred.
+
+`verify_stage48.py` / `comparison.txt` prove exact bodies, signatures, defaults,
+annotations, compiled nested dependencies and forwarding without bot import.
+Whole-parent-root reconstruction is byte-identical, including **504 unaffected
+functions** and all unrelated statements. All **47 earlier owners**, existing
+tests/fixtures and digest docs are unchanged. Post-edit documentation passed for
+**257 modules** and whitespace validation passed. Passing source/runtime checks
+were not repeated for this report-only edit.
+
+| Runtime file | Before lines / bytes | After lines / bytes |
+|---|---:|---:|
+| `mrsMThatcher2.py` | 13,630 / 541,351 | 13,430 / 533,620 |
+| `mrs_bot_observability.py` | absent | 482 / 15,630 |
+
+The root loses **200 lines / 7,731 bytes**; combined runtime source grows by
+**282 lines / 7,899 bytes**. New tests: **643 lines / 32,546 bytes**. Full logs,
+source comparison, helper adaptations and the validation safety note remain in
+the evidence root. Production metadata remains `master` at
+`af5eda7c163a8174ec1365060aa923d21787e7bd`. Configured Astra/max is unchanged.
+Only stage48 is implemented; supervisor review precedes the next stage.
