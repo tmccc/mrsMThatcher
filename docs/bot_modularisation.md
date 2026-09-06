@@ -2133,3 +2133,86 @@ Next useful domain: supervisor review of reply-context/media preparation around
 `build_context_for_reply_ai` and `reply_media_context_for_candidate`, keeping
 provider, cache/persistence and reply-cycle authority in their current locations.
 Supervisor review precedes a fresh invocation.
+
+## Stage 21 — reply evaluation retention and author quarantine
+
+Baseline: `a8992f6d3b1bdb235347010fb4d5b5d533f8e492` (2026-09-06).
+Worktree `/disks/disk1/research/mrsMThatcher-bot-modularisation-stage21` started
+clean on `codex/bot-modularisation-stage21`, matching the verified pushed stage
+20 parent. Supervisor scope/dependency notes and all 44 curated nodes were used;
+normal/quote cycles, discovery, state recovery and guarded bootstrap were inspected.
+
+`mrs_bot_reply_evaluation_state.py` owns **510 original definition lines** across
+`completed_mention_watermark_covers_target`,
+`prune_completed_mention_quarantine_evaluations`, `prune_reply_evaluation_records`,
+`author_no_reply_epoch_limit`, `prune_author_evaluation_quarantines`,
+`active_author_evaluation_quarantine`, `record_qualifying_author_no_reply`,
+`clear_author_evaluation_quarantine_history`, `normalise_author_evaluation_quarantines`,
+`terminal_reply_evaluation` and `record_terminal_reply_evaluation`.
+Eight explicit adapters pass **3, 6, 1, 6, 2, 8, 8 and 2** current dependencies;
+the dependency-free watermark, clear-history and terminal-lookup helpers are
+aliases. Original bodies/docstrings and root signatures/defaults/annotations
+remain exact; no constants or classes moved.
+
+Compatibility retains recent/bad-epoch replay protection while bounding evictable
+mention quarantine skips, cutoff/tie ordering, live threshold-sized strike history,
+strict qualifying flag/current policy, exact old-policy migrations, expiration
+and event-before-assignment order, shallow copies versus in-place terminal batches,
+returned record references and native failures. Shared mention authority/discovery/
+watermark commits, configuration, clock/log/event implementation, persistence and
+orchestration stay in existing locations. The standard-library-only owner retains
+no callbacks/configuration/clients/state and adds no saves, provider calls or
+import-time runtime work.
+
+Evidence: `/tmp/mrs-bot-stage21-9Ybdxu`. Before editing, documentation passed for
+**229 modules**, **97 tests** collected in **4.37s**, and **97 passed in 15.21s**.
+The validated baseline has **78 explicit nodes across 12 files**, including all
+44 supplied nodes and relevant prior-owner, loader/receipt/discovery/cycle/bootstrap
+regressions and seven loopback normal/quote/pagination/restart integrations.
+It covers all four terminal retention/cap/tie/replay cases, configured threshold
+101/cap 404, quarantine reload/expiry, real f909 writer migration, old active
+quarantine without live strikes, completed-watermark pruning and incomplete-backlog
+volume bounding.
+
+After extraction, documentation passed for **230 modules**, **110 tests** collected
+in **4.48s**, and **110 passed in 15.95s** on the first run
+(`current-initial-pytest.txt`; **79 file/node arguments across 13 files**).
+A concrete missing durable-batch reload contract was then added using the existing
+normal-cycle/queue fixtures, real state writer/loader and transaction barriers:
+**1 passed in 2.20s** (`durable-batch-pytest.txt`). Thus **111 distinct affected
+cases passed**. The **13 new tests / 14 cases** cover import safety, current root
+dependencies, copy/record references, strict flags, log/event/assignment order and
+native errors, plus two quarantine skips persisted in one durable batch and
+reloaded with the incomplete traversal and watermark intact. Imported autouse
+`isolate_regular_post_receipt` remains registered; existing assertions are unchanged.
+
+The reused `run_selected.sh` and supplemental selection require successful
+selection generation, a validated nonempty list and collection before pytest.
+Runs use `PYTHONUSERBASE=/home/tonym/.local`, `MRS_TEST_MODE=1`,
+`PYTEST_DISABLE_PLUGIN_AUTOLOAD=1`, `PYTHONDONTWRITEBYTECODE=1`, `-p no:cacheprovider`
+and evidence-root `TMPDIR`, retaining temporary HOME/state, dummy credentials,
+dead proxies, denied external sockets and explicit loopback fake APIs. No broad
+suite or whole enormous test file ran; passing runs were retained after docs edits.
+
+`verify_stage21.py` / `comparison.txt` verify exact bodies, signatures and current
+dependencies with immutable `git show`, AST and symbol tables. Restoring the eleven
+originals and removing one import reconstructs the **whole parent root byte for
+byte**, including **525 unaffected definitions** and all unrelated statements.
+All twenty prior owners, existing tests/fixtures and digest docs remain unchanged;
+README/API only add the companion and this report is appended. Documentation and
+`git diff --check` pass.
+
+| Runtime file | Before lines / bytes | After lines / bytes |
+|---|---:|---:|
+| `mrsMThatcher2.py` | 21,273 / 829,824 | 20,882 / 815,842 |
+| `mrs_bot_reply_evaluation_state.py` | absent | 596 / 22,061 |
+
+The root loses **391 lines / 13,982 bytes**; combined runtime source grows by
+**205 lines / 8,079 bytes**. The focused test file has **376 lines / 19,064 bytes**.
+Production remains `master` at `af5eda7c163a8174ec1365060aa923d21787e7bd` per
+worktree metadata; no production configuration/state/credentials, service action,
+live provider call, deployment/restart or next-stage work occurred.
+Next useful domain: supervisor review of reply-context/media preparation around
+`build_context_for_reply_ai` and `reply_media_context_for_candidate`, keeping
+provider, cache/persistence and cycle authority in their existing locations.
+Supervisor review precedes a fresh invocation.
