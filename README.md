@@ -194,6 +194,7 @@ deployed as a coherent set:
 - `mrs_bot_x_pagination.py`
 - `mrs_bot_request_route_values.py`
 - `mrs_bot_x_response_diagnostics.py`
+- `mrs_bot_tick_coordination.py`
 - `remote_write_safety_protocol.py`
 - `remote_media_upload_receipt.py`
 - `remote_write_transport_journal.py`

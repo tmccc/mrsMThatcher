@@ -2902,3 +2902,78 @@ worktree metadata; no production changes, deployment or restart occurred.
 Next useful domain for supervisor assessment: tweet ID parsing/ordering around
 `parse_tweet_id` and `valid_tweets_sorted_by_id`, retaining their current policies.
 Only stage 30 is implemented; supervisor review precedes any further stage.
+
+## Stage 31 — Reply arbitration and blocked-tick coordination
+
+Baseline: `e16260132fc44f9828d2c3398f9c90ae5ed794f5` (2026-09-06).
+Worktree `/disks/disk1/research/mrsMThatcher-bot-modularisation-stage31` started
+clean on `codex/bot-modularisation-stage31`, matching the pushed stage 30 parent.
+The supplied scope notes, dependency inventory, all nineteen candidate test
+bodies and relevant callers were read before selecting the affected baseline.
+
+`mrs_bot_tick_coordination.py` owns **three functions / 212 original definition
+lines**: `sanitize_next_reply_lane_priority`, `run_reply_lane_checks_for_tick`
+and `maintain_global_remote_write_barrier_tick`. Three explicit adapters pass
+**1, 19 and 4 current root dependencies**, retaining root signatures/defaults/
+annotations and exact original bodies/docstrings. No constants/classes move.
+
+Scheduler repair still precedes arbitration. Priority/due/spacing predicates,
+forced-normal precedence, state identity and native failures remain exact.
+Safety exceptions and post-result barriers stop siblings before scheduler
+updates. Normal posting saves its interval before separately saving priority;
+quote status events precede priority/save/log and interval/save. Normal spacing
+keeps its interval; quote spacing saves the exact retry epoch. Every blocked
+tick rechecks durability before the already-logged return, retaining the
+Exception-only catch, critical `exc_info` log and retained SIGINT delivery.
+Main/test loops, state loading, scheduler/persistence, lanes, durable barriers
+and signal authority stay in their existing locations. The owner has no reverse
+application import, retained dependencies or import-time runtime work.
+
+Evidence: `/tmp/mrs-bot-stage31-FKcWy5LL`. Before editing, documentation passed
+for **239 modules**, **41 tests collected in 3.38s**, and **41 passed in 11.30s**
+(`baseline-pytest.txt`; **24 explicit nodes across five files**). Sixteen supplied
+candidates include all seven loopbacks and the real blocked-daemon fsync/SIGINT
+tests. Three incidental receipt/retry-policy candidates stub arbitration and
+were omitted. Nearby checks exercise scheduler coercion, actual main/cycle
+sibling safety, the one-shot completion barrier and guarded bootstrap/isolation.
+
+After extraction, documentation passed for **240 modules**, **51 tests collected
+in 3.43s**, and **51 passed in 11.51s** (`current-pytest.txt`; **32 explicit nodes
+across six files**). Eight new tests / ten cases cover guarded import, current
+dependencies and references, sanitizer warning/assignment order, real canonical
+repair/posting saves, forced priority and spacing retry, real receipt barriers
+after lane results, and native callback/error/signal boundaries. They register
+the existing autouse `isolate_regular_post_receipt` fixture. The initial run had
+50 passes and one new-test counting error: arbitration has 19 dependencies,
+not 20. That assertion was corrected; existing assertions/barriers are unchanged.
+
+The reused `run_selected.sh` requires successful AST-validated nonempty selection
+and collection under `set -euo pipefail` before explicit arguments to
+`python3 -m pytest -q -p no:cacheprovider`. Runs use
+`PYTHONUSERBASE=/home/tonym/.local`, `MRS_TEST_MODE=1`, disabled plugin autoload
+and bytecode, TMPDIR/disposable fixtures under the evidence root, temporary
+HOME/state, dummy credentials, dead proxies, denied external sockets and explicit
+loopback APIs. No broad suite or whole enormous test file ran; passing logs are
+retained without repeating unchanged tests after documentation-only edits.
+
+`verify_stage31.py` / `comparison.txt` verify exact moved bodies/docstrings,
+signatures/defaults/annotations and dependencies without importing the bot.
+Restoring the original definitions and removing the owner import reconstructs
+the whole parent root byte for byte, including **523 unaffected functions** and
+all unrelated statements. All **30 earlier owners**, existing tests/fixtures and
+digest docs remain unchanged. README/API only add the companion; this report is
+appended. Final documentation and `git diff --check` pass.
+
+| Runtime file | Before lines / bytes | After lines / bytes |
+|---|---:|---:|
+| `mrsMThatcher2.py` | 19,261 / 756,498 | 19,100 / 750,287 |
+| `mrs_bot_tick_coordination.py` | absent | 263 / 10,559 |
+
+The root loses **161 lines / 6,211 bytes**; combined runtime source grows by
+**102 lines / 4,348 bytes**. The new test file has **356 lines / 16,977 bytes**.
+Production remains `master` at `af5eda7c163a8174ec1365060aa923d21787e7bd` per
+worktree metadata; no production changes, deployment or restart occurred.
+Next useful domain for supervisor assessment: tweet ID parsing/ordering around
+`parse_tweet_id` and `valid_tweets_sorted_by_id`, preserving validation, numeric
+deduplication and original tweet references. Only stage 31 is implemented;
+supervisor review precedes any further stage.

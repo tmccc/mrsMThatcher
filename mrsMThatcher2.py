@@ -250,6 +250,7 @@ import mrs_bot_api_cooldowns as _api_cooldowns
 import mrs_bot_x_pagination as _x_pagination
 import mrs_bot_request_route_values as _request_route_values
 import mrs_bot_x_response_diagnostics as _x_response_diagnostics
+import mrs_bot_tick_coordination as _tick_coordination
 
 from single_call_reply import (
     MAX_IMAGE_BYTES as SINGLE_CALL_MAX_IMAGE_BYTES,
@@ -5215,16 +5216,10 @@ def clear_expired_api_cooldowns(state: dict) -> bool:
 
 def sanitize_next_reply_lane_priority(state: dict) -> bool:
     """Sanitise next reply lane priority."""
-    priority = str(state.get("next_reply_lane_priority", "normal") or "normal")
-    if priority in {"normal", "quote"}:
-        if state.get("next_reply_lane_priority") != priority:
-            state["next_reply_lane_priority"] = priority
-            return True
-        return False
-
-    log.warning("Invalid next_reply_lane_priority=%r; using normal", state.get("next_reply_lane_priority"))
-    state["next_reply_lane_priority"] = "normal"
-    return True
+    return _tick_coordination.sanitize_next_reply_lane_priority(
+        state,
+        log=log,
+    )
 
 
 def load_runtime_state() -> dict:
@@ -18120,156 +18115,31 @@ def run_reply_lane_checks_for_tick(
     last_quote_tweet_check_epoch: int,
 ) -> tuple[int, int]:
     """Run one scheduled reply-lane arbitration tick."""
-    ambiguity_blocked = False
-    last_reply_check_epoch, reply_epoch_changed = scheduler_epoch_from_state(
+    return _tick_coordination.run_reply_lane_checks_for_tick(
         state,
-        "last_reply_check_epoch",
-        current=current,
+        current,
+        last_reply_check_epoch,
+        last_quote_tweet_check_epoch,
+        AmbiguousRemotePostOutcome=AmbiguousRemotePostOutcome,
+        ENABLE_AUTO_REPLIES=ENABLE_AUTO_REPLIES,
+        ENABLE_QUOTE_TWEET_CHECKS=ENABLE_QUOTE_TWEET_CHECKS,
+        MIN_SECONDS_BETWEEN_REPLIES=MIN_SECONDS_BETWEEN_REPLIES,
+        NORMAL_CHECK_STATUS_POSTED=NORMAL_CHECK_STATUS_POSTED,
+        NORMAL_CHECK_STATUS_SKIPPED_SPACING=NORMAL_CHECK_STATUS_SKIPPED_SPACING,
+        QUOTE_CHECK_EVERY_SECONDS=QUOTE_CHECK_EVERY_SECONDS,
+        QUOTE_CHECK_SPACING_RETRY_SECONDS=QUOTE_CHECK_SPACING_RETRY_SECONDS,
+        QUOTE_CHECK_STATUS_POSTED=QUOTE_CHECK_STATUS_POSTED,
+        QUOTE_CHECK_STATUS_SKIPPED_SPACING=QUOTE_CHECK_STATUS_SKIPPED_SPACING,
+        REPLY_CHECK_EVERY_SECONDS=REPLY_CHECK_EVERY_SECONDS,
+        UnrecoverableConfirmedReplyPersistenceError=UnrecoverableConfirmedReplyPersistenceError,
+        ambiguous_remote_post_is_blocking=ambiguous_remote_post_is_blocking,
+        log=log,
+        log_event=log_event,
+        maybe_reply_to_mentions=maybe_reply_to_mentions,
+        maybe_reply_to_quote_tweets=maybe_reply_to_quote_tweets,
+        save_state=save_state,
+        scheduler_epoch_from_state=scheduler_epoch_from_state,
     )
-    last_quote_tweet_check_epoch, quote_epoch_changed = scheduler_epoch_from_state(
-        state,
-        "last_quote_tweet_check_epoch",
-        current=current,
-    )
-    if reply_epoch_changed or quote_epoch_changed:
-        save_state(state)
-
-    reply_lane_priority = str(state.get("next_reply_lane_priority", "normal") or "normal")
-
-    seconds_since_last_reply = current - int(state.get("last_reply_epoch", 0) or 0)
-    reply_spacing_open = seconds_since_last_reply >= MIN_SECONDS_BETWEEN_REPLIES
-    mention_check_due = ENABLE_AUTO_REPLIES and current - last_reply_check_epoch >= REPLY_CHECK_EVERY_SECONDS
-    quote_check_due = (
-        ENABLE_QUOTE_TWEET_CHECKS
-        and current - last_quote_tweet_check_epoch >= QUOTE_CHECK_EVERY_SECONDS
-    )
-
-    def run_normal_check(*, forced: bool = False) -> bool:
-        nonlocal last_reply_check_epoch, ambiguity_blocked
-
-        if forced:
-            log.info(
-                "Quote-tweet check is due, but normal/hot-post reply lane has priority; "
-                "running normal reply check first"
-            )
-        else:
-            log.info("Due to check mentions")
-
-        try:
-            normal_check_status = maybe_reply_to_mentions(state)
-        except (
-            AmbiguousRemotePostOutcome,
-            UnrecoverableConfirmedReplyPersistenceError,
-        ):
-            ambiguity_blocked = True
-            log.critical(
-                "Normal reply lane stopped by the global remote-write safety barrier"
-            )
-            return False
-        log.info("Normal/hot-post reply check status=%s", normal_check_status)
-        if ambiguous_remote_post_is_blocking():
-            ambiguity_blocked = True
-            log.critical("Normal reply lane created an ambiguous-post barrier; skipping all later lanes")
-            return False
-
-        if normal_check_status != NORMAL_CHECK_STATUS_SKIPPED_SPACING:
-            last_reply_check_epoch = current
-            state["last_reply_check_epoch"] = current
-            save_state(state)
-        else:
-            log.info(
-                "Normal/hot-post reply check skipped only because of reply spacing; "
-                "normal check interval not consumed"
-            )
-
-        if normal_check_status == NORMAL_CHECK_STATUS_POSTED:
-            state["next_reply_lane_priority"] = "quote"
-            save_state(state)
-            log.info("Normal/hot-post reply lane posted; next reply-lane priority=quote")
-            return True
-
-        if forced:
-            log.info("Normal/hot-post reply lane did not post; quote-tweet lane may use this slot")
-
-        return False
-
-    def run_quote_check() -> bool:
-        nonlocal last_quote_tweet_check_epoch, ambiguity_blocked
-
-        log.info("Due to check quote tweets")
-        priority_at_check = str(state.get("next_reply_lane_priority", reply_lane_priority) or reply_lane_priority)
-        try:
-            quote_check_status = maybe_reply_to_quote_tweets(state)
-        except (
-            AmbiguousRemotePostOutcome,
-            UnrecoverableConfirmedReplyPersistenceError,
-        ):
-            ambiguity_blocked = True
-            log.critical(
-                "Quote-tweet lane stopped by the global remote-write safety barrier"
-            )
-            return False
-
-        log.info("Quote-tweet check status=%s", quote_check_status)
-        if ambiguous_remote_post_is_blocking():
-            ambiguity_blocked = True
-            log.critical("Quote-tweet lane created an ambiguous-post barrier; skipping all later lanes")
-            return False
-        log_event("quote_check_status", status=quote_check_status, priority=priority_at_check)
-
-        if quote_check_status == QUOTE_CHECK_STATUS_POSTED:
-            state["next_reply_lane_priority"] = "normal"
-            save_state(state)
-            log.info("Quote-tweet reply lane posted; next reply-lane priority=normal")
-
-        if quote_check_status != QUOTE_CHECK_STATUS_SKIPPED_SPACING:
-            last_quote_tweet_check_epoch = current
-            state["last_quote_tweet_check_epoch"] = current
-            save_state(state)
-        else:
-            retry_epoch = current - QUOTE_CHECK_EVERY_SECONDS + QUOTE_CHECK_SPACING_RETRY_SECONDS
-            last_quote_tweet_check_epoch = retry_epoch
-            state["last_quote_tweet_check_epoch"] = retry_epoch
-            save_state(state)
-
-            log.info(
-                "Quote-tweet check skipped only because of reply spacing; "
-                "will retry in about %d seconds",
-                QUOTE_CHECK_SPACING_RETRY_SECONDS,
-            )
-
-        return quote_check_status == QUOTE_CHECK_STATUS_POSTED
-
-    if reply_spacing_open and quote_check_due and reply_lane_priority == "quote":
-        quote_posted = run_quote_check()
-        if not quote_posted and mention_check_due and not ambiguity_blocked:
-            run_normal_check()
-    elif mention_check_due:
-        normal_posted = run_normal_check()
-        if not normal_posted and quote_check_due and not ambiguity_blocked:
-            run_quote_check()
-    elif (
-        reply_spacing_open
-        and quote_check_due
-        and reply_lane_priority == "normal"
-        and ENABLE_AUTO_REPLIES
-    ):
-        normal_posted = run_normal_check(forced=True)
-        if not normal_posted and not ambiguity_blocked:
-            run_quote_check()
-    elif quote_check_due:
-        run_quote_check()
-    else:
-        log.debug(
-            "Not due to check mentions. seconds_until_next=%s",
-            max(0, REPLY_CHECK_EVERY_SECONDS - (current - last_reply_check_epoch)),
-        )
-        log.debug(
-            "Not due to check quote tweets. seconds_until_next=%s",
-            max(0, QUOTE_CHECK_EVERY_SECONDS - (current - last_quote_tweet_check_epoch)),
-        )
-
-    return last_reply_check_epoch, last_quote_tweet_check_epoch
 
 
 def maintain_global_remote_write_barrier_tick(
@@ -18277,44 +18147,13 @@ def maintain_global_remote_write_barrier_tick(
     already_logged: bool,
 ) -> tuple[bool, bool]:
     """Maintain one fail-closed barrier tick and its one-shot logging state."""
-
-    if not ambiguous_remote_post_is_blocking():
-        return False, False
-    protocol_active = remote_write_safety_protocol_is_active()
-    try:
-        # Recheck durability on every blocked tick. A previous marker-directory
-        # fsync may have failed transiently, and this helper also restores and
-        # delivers retained SIGINT after a restart-safe barrier is durable.
-        durable_marker_confirmed = durable_remote_write_safety_barrier_exists()
-    except Exception:
-        durable_marker_confirmed = False
-        log.critical(
-            "The remote-write safety marker could not be inspected; the "
-            "process will remain latched and must not be restarted",
-            exc_info=True,
-        )
-    if already_logged:
-        return True, True
-    if not protocol_active:
-        log.critical(
-            "All remote posting and reply lanes are paused because the "
-            "restart-persistent remote-write protocol is not activated or its "
-            "sentinel is invalid; stopped clean-state activation or repair is "
-            "required"
-        )
-    elif durable_marker_confirmed:
-        log.critical(
-            "All remote posting and reply lanes are paused by the durable "
-            "remote-write safety barrier; manual reconciliation is required "
-            "before a controlled restart"
-        )
-    else:
-        log.critical(
-            "All remote posting and reply lanes are paused by an unresolved "
-            "transaction receipt, marker, or process latch; do not restart "
-            "before exact reconciliation"
-        )
-    return True, True
+    return _tick_coordination.maintain_global_remote_write_barrier_tick(
+        already_logged=already_logged,
+        ambiguous_remote_post_is_blocking=ambiguous_remote_post_is_blocking,
+        durable_remote_write_safety_barrier_exists=durable_remote_write_safety_barrier_exists,
+        log=log,
+        remote_write_safety_protocol_is_active=remote_write_safety_protocol_is_active,
+    )
 
 
 def main() -> None:
