@@ -3056,3 +3056,68 @@ Next useful domain for supervisor assessment: tweet ID parsing/ordering around
 `parse_tweet_id` and `valid_tweets_sorted_by_id`, retaining numeric deduplication,
 validation/logging order and original tweet references. Only stage 32 is
 implemented; supervisor review precedes any further stage.
+
+## Stage 33 — Durable state scalar and collection normalization
+
+Baseline: `aa2820937a4c3738c3512d0cd42b5191836ed154` (2026-09-06).
+Worktree `/disks/disk1/research/mrsMThatcher-bot-modularisation-stage33` started
+clean on `codex/bot-modularisation-stage33`, matching the pushed stage 32 parent.
+The supplied scope/dependency notes, all 18 candidate bodies and relevant
+state, cache, mention, receipt and durability callers informed the selection.
+
+`mrs_bot_state_value_normalisation.py` owns **eleven functions / 114 original
+definition lines**: bounded tweet ID parsing; state integer/epoch, string/int/
+epoch list, string/int/record map and optional scalar/numeric ID normalization.
+Eleven explicit adapters retain exact root signatures/defaults/annotations and
+docstrings, passing current regex, math, logger, epoch cap and nested normalizers
+per call. Original bodies preserve exact-string versus optional-ID/scalar
+coercions, equality shortcuts, truth/int conversion, inclusive caps, narrow
+error boundaries, key conversion/collision/insertion order, first-error stops,
+shallow record copies and original epoch-list identity. No constants/classes
+move. Full state/schema/reader validation, higher-level mention/cache/receipt
+policy, durable I/O and recovery authority remain in their existing locations.
+The owner retains no dependencies/configuration/paths/state and performs no
+import-time runtime work or reverse application import.
+
+Evidence: `/tmp/mrs-bot-stage33-n1NrEjn9`. Documentation passed before editing
+for **241 modules**. The baseline selected **28 explicit nodes across eight
+files**: all 18 supplied candidates (including six real recovery/restart
+loopbacks), numeric/default/encoded-state regressions, two nearest stage 32 I/O
+contracts and guarded bootstrap/process/network isolation. **46 tests collected
+in 3.74s; 46 passed in 9.54s** (`baseline-pytest.txt`). After extraction,
+**39 explicit nodes across nine files** produced **57 tests collected in 3.95s;
+57 passed in 10.06s** (`current-pytest.txt`). Eleven new contracts cover guarded
+import, current dependencies/references, coercion/type/cap, shallow identity,
+collisions, early stops and native failures, registering the existing autouse
+`isolate_regular_post_receipt` fixture. Existing assertions/barriers are unchanged.
+
+The reused `run_selected.sh` requires successful AST-validated nonempty selection
+and nonempty collection under `set -euo pipefail` before explicit pytest arguments.
+Runs use `PYTHONUSERBASE=/home/tonym/.local MRS_TEST_MODE=1
+PYTEST_DISABLE_PLUGIN_AUTOLOAD=1 PYTHONDONTWRITEBYTECODE=1 python3 -m pytest -q
+-p no:cacheprovider`, TMPDIR under the evidence root, temporary HOME/state,
+dummy credentials, dead proxies, denied external sockets and explicit loopback
+APIs. Passing logs are retained; no broad suite or whole enormous test file ran,
+and passing tests were not repeated after documentation-only edits.
+
+`verify_stage33.py` / `comparison.txt` verify exact bodies/docstrings,
+signatures/defaults/annotations and dependency inventories without importing the
+bot. Restoring definitions and removing the new import reconstructs the whole
+parent root byte for byte, including **515 unaffected functions** and unrelated
+statements. All **32 earlier owners**, existing tests/fixtures and digest docs
+are unchanged; README/API only add the companion and this report is appended.
+Final documentation (**242 modules**) and `git diff --check` pass.
+
+| Runtime file | Before lines / bytes | After lines / bytes |
+|---|---:|---:|
+| `mrsMThatcher2.py` | 18,829 / 740,593 | 18,811 / 738,764 |
+| `mrs_bot_state_value_normalisation.py` | absent | 226 / 6,640 |
+
+The root loses **18 lines / 1,829 bytes**; combined runtime source grows by
+**208 lines / 4,811 bytes**. New tests: **347 lines / 14,748 bytes**.
+Production remains `master` at `af5eda7c163a8174ec1365060aa923d21787e7bd` per
+worktree metadata; no production changes, deployment or restart occurred.
+Next useful domain for supervisor assessment: `parse_tweet_id` and
+`valid_tweets_sorted_by_id`, preserving permissive coercion, numeric deduplication,
+validation/logging order and original tweet references. Only stage 33 is
+implemented; supervisor review precedes any further stage.

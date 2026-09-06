@@ -252,6 +252,7 @@ import mrs_bot_request_route_values as _request_route_values
 import mrs_bot_x_response_diagnostics as _x_response_diagnostics
 import mrs_bot_tick_coordination as _tick_coordination
 import mrs_bot_durable_json_io as _durable_json_io
+import mrs_bot_state_value_normalisation as _state_value_normalisation
 
 from single_call_reply import (
     MAX_IMAGE_BYTES as SINGLE_CALL_MAX_IMAGE_BYTES,
@@ -3773,117 +3774,98 @@ def append_unique_durable(values: object, item: object) -> list[str]:
 
 def bounded_tweet_id_value(value: object, *, allow_empty: bool = False) -> int | None:
     """Parse one bounded string tweet ID without unbounded integer conversion."""
-    if allow_empty and value == "":
-        return 0
-    if type(value) is not str or not re.fullmatch(r"\d{1,30}", value):
-        return None
-    return int(value)
+    return _state_value_normalisation.bounded_tweet_id_value(
+        value,
+        allow_empty=allow_empty,
+        re=re,
+    )
 
 
 def normalise_state_int(value: object, *, key: str, path: Path) -> int | None:
     """Normalise state int."""
-    if isinstance(value, bool):
-        log.error("State candidate %s has invalid %s boolean value %r; ignoring", path, key, value)
-        return None
-    if isinstance(value, float) and (not math.isfinite(value) or not value.is_integer()):
-        log.error("State candidate %s has invalid %s numeric value %r; ignoring", path, key, value)
-        return None
-    try:
-        number = int(value or 0)
-    except (TypeError, ValueError, OverflowError):
-        log.error("State candidate %s has invalid %s value %r; ignoring", path, key, value)
-        return None
-    if number < 0:
-        log.error("State candidate %s has negative %s value %r; ignoring", path, key, value)
-        return None
-    return number
+    return _state_value_normalisation.normalise_state_int(
+        value,
+        key=key,
+        path=path,
+        log=log,
+        math=math,
+    )
 
 
 def normalise_state_epoch(value: object, *, key: str, path: Path) -> int | None:
     """Normalise state epoch."""
-    number = normalise_state_int(value, key=key, path=path)
-    if number is None:
-        return None
-    if number > MAX_REASONABLE_STATE_EPOCH:
-        log.error("State candidate %s has impossible epoch %s=%r; ignoring", path, key, value)
-        return None
-    return number
+    return _state_value_normalisation.normalise_state_epoch(
+        value,
+        key=key,
+        path=path,
+        MAX_REASONABLE_STATE_EPOCH=MAX_REASONABLE_STATE_EPOCH,
+        log=log,
+        normalise_state_int=normalise_state_int,
+    )
 
 
 def normalise_string_list(value: object, *, key: str, path: Path) -> list[str] | None:
     """Normalise string list."""
-    if not isinstance(value, list):
-        log.error("State candidate %s has invalid %s type %s; ignoring", path, key, type(value).__name__)
-        return None
-    return [str(item) for item in value if item is not None]
+    return _state_value_normalisation.normalise_string_list(
+        value,
+        key=key,
+        path=path,
+        log=log,
+    )
 
 
 def normalise_int_list(value: object, *, key: str, path: Path) -> list[int] | None:
     """Normalise int list."""
-    if not isinstance(value, list):
-        log.error("State candidate %s has invalid %s type %s; ignoring", path, key, type(value).__name__)
-        return None
-    out: list[int] = []
-    for item in value:
-        number = normalise_state_int(item, key=key, path=path)
-        if number is None:
-            return None
-        out.append(number)
-    return out
+    return _state_value_normalisation.normalise_int_list(
+        value,
+        key=key,
+        path=path,
+        log=log,
+        normalise_state_int=normalise_state_int,
+    )
 
 
 def normalise_epoch_list(value: object, *, key: str, path: Path) -> list[int] | None:
     """Normalise epoch list."""
-    out = normalise_int_list(value, key=key, path=path)
-    if out is None:
-        return None
-    for number in out:
-        if number > MAX_REASONABLE_STATE_EPOCH:
-            log.error("State candidate %s has impossible %s epoch item %r; ignoring", path, key, number)
-            return None
-    return out
+    return _state_value_normalisation.normalise_epoch_list(
+        value,
+        key=key,
+        path=path,
+        MAX_REASONABLE_STATE_EPOCH=MAX_REASONABLE_STATE_EPOCH,
+        log=log,
+        normalise_int_list=normalise_int_list,
+    )
 
 
 def normalise_string_map(value: object, *, key: str, path: Path) -> dict[str, str] | None:
     """Normalise string map."""
-    if not isinstance(value, dict):
-        log.error("State candidate %s has invalid %s type %s; ignoring", path, key, type(value).__name__)
-        return None
-    return {str(k): str(v) for k, v in value.items() if v is not None}
+    return _state_value_normalisation.normalise_string_map(
+        value,
+        key=key,
+        path=path,
+        log=log,
+    )
 
 
 def normalise_int_map(value: object, *, key: str, path: Path) -> dict[str, int] | None:
     """Normalise int map."""
-    if not isinstance(value, dict):
-        log.error("State candidate %s has invalid %s type %s; ignoring", path, key, type(value).__name__)
-        return None
-    out: dict[str, int] = {}
-    for item_key, item_value in value.items():
-        number = normalise_state_int(item_value, key=f"{key}.{item_key}", path=path)
-        if number is None:
-            return None
-        out[str(item_key)] = number
-    return out
+    return _state_value_normalisation.normalise_int_map(
+        value,
+        key=key,
+        path=path,
+        log=log,
+        normalise_state_int=normalise_state_int,
+    )
 
 
 def normalise_record_map(value: object, *, key: str, path: Path) -> dict[str, dict] | None:
     """Normalise record map."""
-    if not isinstance(value, dict):
-        log.error("State candidate %s has invalid %s type %s; ignoring", path, key, type(value).__name__)
-        return None
-    out: dict[str, dict] = {}
-    for item_key, item_value in value.items():
-        if not isinstance(item_value, dict):
-            log.error(
-                "State candidate %s has invalid %s.%s type %s; ignoring",
-                path,
-                key,
-                item_key,
-                type(item_value).__name__,
-            )
-            return None
-        out[str(item_key)] = dict(item_value)
-    return out
+    return _state_value_normalisation.normalise_record_map(
+        value,
+        key=key,
+        path=path,
+        log=log,
+    )
 
 
 def quote_repeated_cursor_suppression_record(
@@ -4180,23 +4162,23 @@ def normalise_author_evaluation_quarantines(value: object, *, path: Path) -> dic
 
 def normalise_optional_scalar(value: object, *, key: str, path: Path) -> str | None:
     """Normalise optional scalar."""
-    if value is None:
-        return ""
-    if isinstance(value, (str, int)):
-        return str(value)
-    log.error("State candidate %s has invalid %s type %s; ignoring", path, key, type(value).__name__)
-    return None
+    return _state_value_normalisation.normalise_optional_scalar(
+        value,
+        key=key,
+        path=path,
+        log=log,
+    )
 
 
 def normalise_optional_numeric_id(value: object, *, key: str, path: Path) -> str | None:
     """Normalise optional numeric ID."""
-    if value in (None, ""):
-        return ""
-    text = str(value)
-    if bounded_tweet_id_value(text) is not None:
-        return text
-    log.error("State candidate %s has invalid %s value %r; ignoring", path, key, value)
-    return None
+    return _state_value_normalisation.normalise_optional_numeric_id(
+        value,
+        key=key,
+        path=path,
+        bounded_tweet_id_value=bounded_tweet_id_value,
+        log=log,
+    )
 
 
 def validate_meme_schedule_state(state: dict, *, path: Path) -> bool:
