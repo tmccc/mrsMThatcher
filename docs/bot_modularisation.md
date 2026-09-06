@@ -1778,3 +1778,99 @@ worktree metadata. No production configuration/state/credentials, service
 operations, live provider calls, deployment/restart or next-stage work ran.
 Next useful domain: quote-tweet discovery and watched own-post lookup, subject
 to supervisor review and a fresh invocation.
+
+## Stage 17 — watched own-post selection and quote discovery/pagination
+
+Baseline: `5ad078342de911c730ed225e1b1fa99f67f8a71b` (2026-09-06).
+Worktree `/disks/disk1/research/mrsMThatcher-bot-modularisation-stage17` started
+clean on `codex/bot-modularisation-stage17`, matching the verified pushed stage
+16 parent. The supervisor's six-function inventory and fourteen direct test
+candidates were used with affected state, watched-post, hot-post and quote-cycle
+callers and actual loopback scenarios.
+
+`mrs_bot_quote_discovery.py` owns **435 original definition lines** across
+`quote_repeated_cursor_suppression_record`,
+`normalise_quote_repeated_cursor_suppressions`, `load_extra_quote_watch_post_ids`,
+`build_quote_lookup_post_ids`, `get_recent_own_post_ids_for_quote_lookup` and
+`get_quote_tweets_for_post`. Six explicit root adapters preserve signatures,
+defaults and annotations, forwarding respectively **4, 3, 3, 5, 2 and 14** current
+dependencies. All original bodies/docstrings, nested pagination closures and
+nonlocal variables are byte-identical. Import uses only the standard library,
+performs no runtime work and retains no callbacks, configuration, client or state.
+
+Compatibility retains exact cursor-record types, hashes, epoch/backoff/expiration
+boundaries, canonical copies, reverse sorting/cap and discarded-change accounting;
+fresh UTF-8 watch reads, original comments/isdigit/deduplication/cap/error behavior;
+recent seeding before extras, watched-post priority, logging and original slicing.
+Discovery retains token canonicalization, expiry inspection before pruning,
+durable matching-token cleanup before requests, active-suppression head fetches,
+one expiry probe, renewal only on repetition and changed/finished cursor clearing.
+Callback order, partial results, hashed-only cursor diagnostics, final token-map
+references without an added save, media-before-author expansion, includes-user
+identity, original data-list return and native errors remain exact.
+
+Shared `x_paginated_get`, request/authentication, numeric ID validation, recent
+own-post cache seeding, media attachment, durable persistence and reply cycles
+remain in their existing locations. Discovery acquires no write authority; state
+cleanup uses the current root save callback. All sixteen earlier owners, existing
+tests/fixtures and digest docs are unchanged. README's companion list and the
+Python API table add the owner.
+
+Evidence: `/tmp/mrs-bot-stage17-PbURdD`. Before editing, documentation passed for
+**225 modules**, **145 cases** collected in **4.45s**, and **145 passed in 19.46s**.
+The validated nonempty baseline contains **44 file/node arguments across 10
+files**: seven relevant prior owners (**99 cases**), all fourteen supplied direct
+candidates plus state normalization, fresh-head quote processing, shared paginator
+invalid/repeated-cursor and hot-post tests (**30**), guarded bootstrap (**8**), and
+local loopback quote/watch/hot-post discovery and reply scenarios (**8**).
+
+After extraction, documentation passed for **226 modules**, **155 cases**
+collected in **4.44s**, and **155 passed in 19.85s** on the first run
+(`current-initial-pytest.txt`; **45 arguments across 11 files**). Ten new contracts
+cover guarded import, current dependency/argument/default/result/error forwarding,
+watch-file parsing/rereads/read failures, lookup ordering/references/logs,
+normalization boundaries/copies/accounting, paginator callback arguments,
+media/author/data identity, native malformed-result errors and cleanup-save failure
+before requests. Tests register the existing autouse `isolate_regular_post_receipt`
+fixture; old assertions and guards are unchanged.
+
+```bash
+set -euo pipefail
+bash /tmp/mrs-bot-stage17-PbURdD/run_selected.sh baseline
+bash /tmp/mrs-bot-stage17-PbURdD/run_selected.sh current-initial
+PYTHONDONTWRITEBYTECODE=1 python3 /tmp/mrs-bot-stage17-PbURdD/verify_stage17.py
+PYTHONDONTWRITEBYTECODE=1 python3 tools/check_python_documentation.py
+git diff --check
+```
+
+The reused runner requires successful selection generation, nonempty validation
+and collection before pytest. It uses `PYTHONUSERBASE=/home/tonym/.local`,
+`MRS_TEST_MODE=1`, `PYTEST_DISABLE_PLUGIN_AUTOLOAD=1`,
+`PYTHONDONTWRITEBYTECODE=1`, evidence-root `TMPDIR` and explicit selected arguments
+to `python3 -m pytest -q -p no:cacheprovider`. Temporary HOME/state, dummy
+credentials, dead proxies, denied external sockets and explicit loopback APIs
+remain in effect. No broad suite or whole enormous test file ran. The actual
+passing run is retained; tests were not repeated after documentation-only edits.
+
+`comparison.txt` verifies exact bodies/docstrings, signatures and dependency
+forwarding using immutable `git show` and AST/symbol-table checks. Restoring the
+six originals and removing one import reconstructs the **entire parent root
+byte-for-byte**, including **533 unaffected definitions** and unrelated statements.
+It also verifies all sixteen earlier owners and unchanged unrelated files without
+importing the bot. The final documentation gate and `git diff --check` pass.
+
+| Runtime file | Before lines / bytes | After lines / bytes |
+|---|---:|---:|
+| `mrsMThatcher2.py` | 22,771 / 887,943 | 22,412 / 875,616 |
+| `mrs_bot_quote_discovery.py` | absent | 511 / 17,978 |
+
+The root loses **359 lines / 12,327 bytes**; combined runtime source grows by
+**152 lines / 5,651 bytes** for explicit dependencies, forwarding and owner docs.
+The new focused test file has **331 lines / 15,654 bytes**.
+
+Production remains `master` at `af5eda7c163a8174ec1365060aa923d21787e7bd` per
+worktree metadata. No production configuration/state/credentials, service
+operations, live provider calls, deployment/restart or next-stage work ran.
+Next useful domain: supervisor review of `get_hot_post_reply_candidates`, keeping
+shared pagination, request/authentication, persistence and reply-cycle authority
+in their current locations. Supervisor review precedes a fresh invocation.

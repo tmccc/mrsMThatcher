@@ -236,6 +236,7 @@ import mrs_bot_reply_reconciliation as _reply_reconciliation
 import mrs_bot_reply_delivery as _reply_delivery
 import mrs_bot_normal_reply_cycle as _normal_reply_cycle
 import mrs_bot_quote_reply_cycle as _quote_reply_cycle
+import mrs_bot_quote_discovery as _quote_discovery
 
 from single_call_reply import (
     MAX_IMAGE_BYTES as SINGLE_CALL_MAX_IMAGE_BYTES,
@@ -4235,37 +4236,17 @@ def quote_repeated_cursor_suppression_record(
     current_epoch: int,
     allow_expired: bool = False,
 ) -> dict[str, object] | None:
-    """Return one canonical exact-cursor suppression record when usable."""
-    if (
-        type(post_id) is not str
-        or bounded_tweet_id_value(post_id) is None
-        or not isinstance(value, dict)
-        or set(value)
-        != {"cursor_sha256", "detected_epoch", "retry_after_epoch"}
-    ):
-        return None
-    cursor_sha256 = value.get("cursor_sha256")
-    detected_epoch = value.get("detected_epoch")
-    retry_after_epoch = value.get("retry_after_epoch")
-    if (
-        type(cursor_sha256) is not str
-        or re.fullmatch(r"[0-9a-f]{64}", cursor_sha256) is None
-        or type(detected_epoch) is not int
-        or detected_epoch < 0
-        or detected_epoch > current_epoch
-        or detected_epoch > MAX_REASONABLE_STATE_EPOCH
-        or type(retry_after_epoch) is not int
-        or retry_after_epoch
-        != detected_epoch + QUOTE_REPEATED_CURSOR_BACKOFF_SECONDS
-        or retry_after_epoch > MAX_REASONABLE_STATE_EPOCH
-        or (not allow_expired and retry_after_epoch <= current_epoch)
-    ):
-        return None
-    return {
-        "cursor_sha256": cursor_sha256,
-        "detected_epoch": detected_epoch,
-        "retry_after_epoch": retry_after_epoch,
-    }
+    """Delegate to quote discovery with current root dependencies."""
+    return _quote_discovery.quote_repeated_cursor_suppression_record(
+        post_id,
+        value,
+        current_epoch=current_epoch,
+        allow_expired=allow_expired,
+        MAX_REASONABLE_STATE_EPOCH=MAX_REASONABLE_STATE_EPOCH,
+        QUOTE_REPEATED_CURSOR_BACKOFF_SECONDS=QUOTE_REPEATED_CURSOR_BACKOFF_SECONDS,
+        bounded_tweet_id_value=bounded_tweet_id_value,
+        re=re,
+    )
 
 
 def normalise_quote_repeated_cursor_suppressions(
@@ -4273,36 +4254,14 @@ def normalise_quote_repeated_cursor_suppressions(
     *,
     current_epoch: int | None = None,
 ) -> tuple[dict[str, dict[str, object]], int]:
-    """Discard malformed, expired, and excess quote-cursor suppressions."""
-    if current_epoch is None:
-        current_epoch = now_epoch()
-    if not isinstance(value, dict):
-        return {}, 1
-
-    retained: list[tuple[str, dict[str, object]]] = []
-    for post_id, record in value.items():
-        canonical = quote_repeated_cursor_suppression_record(
-            post_id,
-            record,
-            current_epoch=current_epoch,
-        )
-        if canonical is not None:
-            retained.append((post_id, canonical))
-
-    retained.sort(
-        key=lambda item: (
-            int(item[1]["detected_epoch"]),
-            int(item[1]["retry_after_epoch"]),
-            item[0],
-        ),
-        reverse=True,
+    """Delegate to quote discovery with current root dependencies."""
+    return _quote_discovery.normalise_quote_repeated_cursor_suppressions(
+        value,
+        current_epoch=current_epoch,
+        QUOTE_REPEATED_CURSOR_SUPPRESSION_MAX_ENTRIES=QUOTE_REPEATED_CURSOR_SUPPRESSION_MAX_ENTRIES,
+        now_epoch=now_epoch,
+        quote_repeated_cursor_suppression_record=quote_repeated_cursor_suppression_record,
     )
-    retained = retained[:QUOTE_REPEATED_CURSOR_SUPPRESSION_MAX_ENTRIES]
-    normalised = dict(retained)
-    discarded = max(0, len(value) - len(normalised))
-    if normalised != value and discarded == 0:
-        discarded = 1
-    return normalised, discarded
 
 
 def completed_mention_watermark_covers_target(state: dict, target_id: str) -> bool:
@@ -21062,373 +21021,55 @@ def maybe_reply_to_mentions(
 # ---------------------------------------------------------------------
 
 def load_extra_quote_watch_post_ids() -> list[str]:
-    """
-    Read extra own-post IDs to include in quote-tweet checks.
-
-    This is deliberately read immediately before each quote-tweet check,
-    not just at startup, so the file can be edited while the bot is running.
-
-    File format:
-      - one post ID per line
-      - blank lines ignored
-      - lines beginning with # ignored
-      - inline comments allowed after whitespace + #
-    """
-    path = EXTRA_QUOTE_WATCH_FILE
-
-    if not path.exists():
-        return []
-
-    post_ids: list[str] = []
-
-    try:
-        for raw_line in path.read_text(encoding="utf-8").splitlines():
-            line = raw_line.strip()
-
-            if not line or line.startswith("#"):
-                continue
-
-            # Allow:
-            # 2070843320310419627  # hot meme post
-            if " #" in line:
-                line = line.split(" #", 1)[0].strip()
-
-            if not line.isdigit():
-                log.warning("Ignoring invalid extra quote-watch post ID in %s: %r", path, raw_line)
-                continue
-
-            if line not in post_ids:
-                post_ids.append(line)
-
-            if len(post_ids) >= MAX_EXTRA_QUOTE_WATCH_POSTS:
-                break
-
-    except Exception as exc:
-        log.warning("Could not read extra quote-watch post IDs from %s: %s", path, exc)
-        return []
-
-    return post_ids
+    """Delegate to quote discovery with current root dependencies."""
+    return _quote_discovery.load_extra_quote_watch_post_ids(
+        EXTRA_QUOTE_WATCH_FILE=EXTRA_QUOTE_WATCH_FILE,
+        MAX_EXTRA_QUOTE_WATCH_POSTS=MAX_EXTRA_QUOTE_WATCH_POSTS,
+        log=log,
+    )
 
 
 def build_quote_lookup_post_ids(state: dict) -> list[str]:
-    """
-    Build the list of own posts to inspect for quote-tweets.
-
-    Extra watched posts are loaded fresh for every quote-tweet check and
-    are given priority, so a hot older meme does not fall behind the last
-    five ordinary quote/image posts.
-    """
-    recent_ids = get_recent_own_post_ids_for_quote_lookup(state)
-    extra_ids = load_extra_quote_watch_post_ids()
-
-    clean_ids: list[str] = []
-    seen: set[str] = set()
-
-    # Extra watched posts first: these are explicitly selected hot posts.
-    for tweet_id in extra_ids + recent_ids:
-        tweet_id = str(tweet_id).strip()
-        if not tweet_id or tweet_id in seen:
-            continue
-        seen.add(tweet_id)
-        clean_ids.append(tweet_id)
-
-        if len(clean_ids) >= MAX_QUOTE_POSTS_PER_CHECK:
-            break
-
-    if extra_ids:
-        log.info(
-            "Quote-tweet check loaded %d extra watched post(s) from %s: %s",
-            len(extra_ids),
-            EXTRA_QUOTE_WATCH_FILE,
-            ", ".join(extra_ids),
-        )
-
-    log.info("Own posts for quote lookup: %s", clean_ids)
-
-    return clean_ids
+    """Delegate to quote discovery with current root dependencies."""
+    return _quote_discovery.build_quote_lookup_post_ids(
+        state,
+        EXTRA_QUOTE_WATCH_FILE=EXTRA_QUOTE_WATCH_FILE,
+        MAX_QUOTE_POSTS_PER_CHECK=MAX_QUOTE_POSTS_PER_CHECK,
+        get_recent_own_post_ids_for_quote_lookup=get_recent_own_post_ids_for_quote_lookup,
+        load_extra_quote_watch_post_ids=load_extra_quote_watch_post_ids,
+        log=log,
+    )
 
 
 def get_recent_own_post_ids_for_quote_lookup(state: dict) -> list[str]:
-    """Return recent own post IDs for quote lookup."""
-    seed_recent_own_post_ids_from_cache(state)
-
-    ids = [str(x) for x in state.get("recent_own_post_ids", [])]
-
-    if state.get("last_main_post_id"):
-        last_id = str(state["last_main_post_id"])
-        if last_id not in ids:
-            ids.insert(0, last_id)
-
-    clean_ids: list[str] = []
-    seen: set[str] = set()
-
-    for tweet_id in ids:
-        if tweet_id in seen:
-            continue
-        seen.add(tweet_id)
-        clean_ids.append(tweet_id)
-
-    return clean_ids[:QUOTE_POST_LOOKBACK_MAIN_POSTS]
+    """Delegate to quote discovery with current root dependencies."""
+    return _quote_discovery.get_recent_own_post_ids_for_quote_lookup(
+        state,
+        QUOTE_POST_LOOKBACK_MAIN_POSTS=QUOTE_POST_LOOKBACK_MAIN_POSTS,
+        seed_recent_own_post_ids_from_cache=seed_recent_own_post_ids_from_cache,
+    )
 
 
 def get_quote_tweets_for_post(post_id: str, state: dict | None = None) -> list[dict]:
-    """Return quote tweets for post."""
-    post_id = str(post_id)
-    log.info("Fetching quote tweets for post_id=%s", post_id)
-
-    params = {
-        "max_results": QUOTE_LOOKUP_API_MAX_RESULTS,
-        "tweet.fields": "author_id,created_at,conversation_id,referenced_tweets,attachments",
-        "expansions": "author_id,attachments.media_keys",
-        "user.fields": "description,username,name,public_metrics",
-        "media.fields": "media_key,type,url,preview_image_url",
-    }
-    pagination_tokens: dict[str, str] = {}
-    suppressions: dict[str, dict[str, object]] = {}
-    current_epoch = now_epoch()
-    expired_probe_sha256 = ""
-    suppression_state_changed = False
-    if state is not None:
-        raw_tokens = state.get("quote_lookup_pagination_tokens", {})
-        if isinstance(raw_tokens, dict):
-            pagination_tokens = {str(key): str(value) for key, value in raw_tokens.items() if str(value)}
-
-        raw_suppressions = state.get(
-            "quote_lookup_repeated_cursor_suppressions",
-            {},
-        )
-        if isinstance(raw_suppressions, dict):
-            expired_probe = quote_repeated_cursor_suppression_record(
-                post_id,
-                raw_suppressions.get(post_id),
-                current_epoch=current_epoch,
-                allow_expired=True,
-            )
-            if (
-                expired_probe is not None
-                and int(expired_probe["retry_after_epoch"]) <= current_epoch
-            ):
-                expired_probe_sha256 = str(expired_probe["cursor_sha256"])
-        suppressions, discarded_suppressions = (
-            normalise_quote_repeated_cursor_suppressions(
-                raw_suppressions,
-                current_epoch=current_epoch,
-            )
-        )
-        if discarded_suppressions:
-            state["quote_lookup_repeated_cursor_suppressions"] = dict(
-                suppressions
-            )
-            suppression_state_changed = True
-            log.debug(
-                "Pruned %d malformed, expired, or excess quote cursor "
-                "suppression entry or entries",
-                discarded_suppressions,
-            )
-
-    active_suppression = suppressions.get(post_id)
-    active_suppression_sha256 = (
-        str(active_suppression.get("cursor_sha256") or "")
-        if isinstance(active_suppression, dict)
-        else ""
+    """Delegate to quote discovery with current root dependencies."""
+    return _quote_discovery.get_quote_tweets_for_post(
+        post_id,
+        state,
+        QUOTE_LOOKUP_API_MAX_RESULTS=QUOTE_LOOKUP_API_MAX_RESULTS,
+        QUOTE_LOOKUP_MAX_PAGES_PER_POST=QUOTE_LOOKUP_MAX_PAGES_PER_POST,
+        QUOTE_REPEATED_CURSOR_BACKOFF_SECONDS=QUOTE_REPEATED_CURSOR_BACKOFF_SECONDS,
+        attach_media_to_tweets=attach_media_to_tweets,
+        hashlib=hashlib,
+        log=log,
+        log_event=log_event,
+        log_json_debug=log_json_debug,
+        normalise_quote_repeated_cursor_suppressions=normalise_quote_repeated_cursor_suppressions,
+        now_epoch=now_epoch,
+        quote_repeated_cursor_suppression_record=quote_repeated_cursor_suppression_record,
+        save_state=save_state,
+        x_paginated_get=x_paginated_get,
+        x_quote_lookup_request=x_quote_lookup_request,
     )
-    known_suppression_sha256 = (
-        active_suppression_sha256 or expired_probe_sha256
-    )
-    suppression_is_active = bool(active_suppression_sha256)
-
-    saved_pagination_token = pagination_tokens.get(post_id, "")
-    if (
-        saved_pagination_token
-        and known_suppression_sha256
-        and hashlib.sha256(saved_pagination_token.encode("utf-8")).hexdigest()
-        == known_suppression_sha256
-    ):
-        pagination_tokens.pop(post_id, None)
-        if state is not None:
-            state["quote_lookup_pagination_tokens"] = dict(pagination_tokens)
-        suppression_state_changed = True
-        saved_pagination_token = ""
-        log.debug(
-            "Removed ordinary quote continuation matching a repeated-cursor "
-            "suppression for post_id=%s token_fingerprint=%s",
-            post_id,
-            known_suppression_sha256[:16],
-        )
-
-    if state is not None and suppression_state_changed:
-        save_state(state, durable=True)
-
-    if saved_pagination_token:
-        params["pagination_token"] = saved_pagination_token
-        log.info(
-            "Quote lookup for post_id=%s resuming with pagination_token_fingerprint=%s",
-            post_id,
-            hashlib.sha256(saved_pagination_token.encode("utf-8")).hexdigest()[:16],
-        )
-
-    def clear_invalid_quote_lookup_cursor() -> None:
-        if state is None or post_id not in pagination_tokens:
-            return
-        pagination_tokens.pop(post_id, None)
-        state["quote_lookup_pagination_tokens"] = dict(pagination_tokens)
-        save_state(state, durable=True)
-
-    def clear_known_repeated_cursor_suppression(reason: str) -> None:
-        nonlocal known_suppression_sha256, suppression_is_active
-        if not known_suppression_sha256:
-            return
-        token_fingerprint = known_suppression_sha256[:16]
-        existing = suppressions.get(post_id)
-        if (
-            state is not None
-            and isinstance(existing, dict)
-            and existing.get("cursor_sha256") == known_suppression_sha256
-        ):
-            suppressions.pop(post_id, None)
-            state["quote_lookup_repeated_cursor_suppressions"] = dict(
-                suppressions
-            )
-            save_state(state, durable=True)
-        known_suppression_sha256 = ""
-        suppression_is_active = False
-        log.info(
-            "Quote pagination cursor suppression cleared post_id=%s "
-            "token_fingerprint=%s reason=%s",
-            post_id,
-            token_fingerprint,
-            reason,
-        )
-
-    def observe_quote_lookup_page(
-        _page_data: list[dict],
-        _includes: dict,
-        next_token: str,
-        _request_token: str,
-        _pages_fetched: int,
-    ) -> None:
-        if not known_suppression_sha256:
-            return
-        if not next_token:
-            clear_known_repeated_cursor_suppression("pagination_complete")
-            return
-        next_token_sha256 = hashlib.sha256(
-            next_token.encode("utf-8")
-        ).hexdigest()
-        if next_token_sha256 != known_suppression_sha256:
-            clear_known_repeated_cursor_suppression("continuation_changed")
-
-    def should_request_quote_cursor(cursor: str) -> bool:
-        if (
-            not suppression_is_active
-            or not known_suppression_sha256
-            or hashlib.sha256(cursor.encode("utf-8")).hexdigest()
-            != known_suppression_sha256
-        ):
-            return True
-        retry_after_epoch = int(
-            suppressions.get(post_id, {}).get("retry_after_epoch", 0) or 0
-        )
-        log.debug(
-            "Skipping actively suppressed quote continuation post_id=%s "
-            "token_fingerprint=%s retry_after_epoch=%s",
-            post_id,
-            known_suppression_sha256[:16],
-            retry_after_epoch,
-        )
-        return False
-
-    def retain_partial_quote_lookup(
-        repeated_token: str,
-        pages_completed: int,
-        results_retained: int,
-    ) -> None:
-        nonlocal suppressions, known_suppression_sha256, suppression_is_active
-        detected_epoch = now_epoch()
-        retry_after_epoch = (
-            detected_epoch + QUOTE_REPEATED_CURSOR_BACKOFF_SECONDS
-        )
-        token_sha256 = hashlib.sha256(
-            repeated_token.encode("utf-8")
-        ).hexdigest()
-        if state is not None:
-            pagination_tokens.pop(post_id, None)
-            state["quote_lookup_pagination_tokens"] = dict(pagination_tokens)
-            suppressions[post_id] = {
-                "cursor_sha256": token_sha256,
-                "detected_epoch": detected_epoch,
-                "retry_after_epoch": retry_after_epoch,
-            }
-            suppressions, _discarded = normalise_quote_repeated_cursor_suppressions(
-                suppressions,
-                current_epoch=detected_epoch,
-            )
-            state["quote_lookup_repeated_cursor_suppressions"] = dict(
-                suppressions
-            )
-            save_state(state, durable=True)
-        known_suppression_sha256 = token_sha256
-        suppression_is_active = state is not None
-        token_fingerprint = token_sha256[:16]
-        log.warning(
-            "Quote pagination stopped after repeated token post_id=%s "
-            "token_fingerprint=%s pages_completed=%d results_retained=%d "
-            "retry_after_epoch=%d",
-            post_id,
-            token_fingerprint,
-            pages_completed,
-            results_retained,
-            retry_after_epoch,
-        )
-        log_event(
-            "quote_pagination_repeated_token",
-            post_id=post_id,
-            token_fingerprint=token_fingerprint,
-            pages_completed=pages_completed,
-            results_retained=results_retained,
-            backoff_seconds=QUOTE_REPEATED_CURSOR_BACKOFF_SECONDS,
-            retry_after_epoch=retry_after_epoch,
-        )
-
-    result = x_paginated_get(
-        x_quote_lookup_request,
-        f"/2/tweets/{post_id}/quote_tweets",
-        params,
-        max_pages=QUOTE_LOOKUP_MAX_PAGES_PER_POST,
-        label=f"quote tweets for {post_id}",
-        on_invalid_cursor=clear_invalid_quote_lookup_cursor,
-        on_repeated_cursor=retain_partial_quote_lookup,
-        on_page=observe_quote_lookup_page,
-        should_request_cursor=should_request_quote_cursor,
-    )
-    pagination = result.get("_pagination", {}) if isinstance(result.get("_pagination", {}), dict) else {}
-    if state is not None:
-        next_token = str(pagination.get("next_token") or "")
-        if next_token:
-            pagination_tokens[post_id] = next_token
-            state["quote_lookup_pagination_tokens"] = pagination_tokens
-            log.warning("Quote lookup for post_id=%s truncated; saved pagination continuation token", post_id)
-        elif post_id in pagination_tokens:
-            pagination_tokens.pop(post_id, None)
-            state["quote_lookup_pagination_tokens"] = pagination_tokens
-            log.info("Quote lookup for post_id=%s reached end of pagination; cleared continuation token", post_id)
-
-    quote_tweets = result.get("data", [])
-    attach_media_to_tweets(quote_tweets, result.get("includes", {}))
-
-    users_by_id = {
-        str(user.get("id")): user
-        for user in result.get("includes", {}).get("users", [])
-    }
-
-    for quote_tweet in quote_tweets:
-        author_id = str(quote_tweet.get("author_id", ""))
-        quote_tweet["_author_user"] = users_by_id.get(author_id, {})
-
-    log.info("Fetched %d quote tweet(s) for post_id=%s", len(quote_tweets), post_id)
-    log_json_debug("Quote tweets returned", quote_tweets)
-
-    return quote_tweets
 
 
 def quote_tweet_is_old_enough(quote_tweet: dict) -> bool:

@@ -180,6 +180,7 @@ deployed as a coherent set:
 - `mrs_bot_reply_delivery.py`
 - `mrs_bot_normal_reply_cycle.py`
 - `mrs_bot_quote_reply_cycle.py`
+- `mrs_bot_quote_discovery.py`
 - `remote_write_safety_protocol.py`
 - `remote_media_upload_receipt.py`
 - `remote_write_transport_journal.py`
