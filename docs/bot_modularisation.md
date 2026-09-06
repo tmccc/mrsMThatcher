@@ -3713,3 +3713,71 @@ Production remains `master` at `af5eda7c163a8174ec1365060aa923d21787e7bd` per
 worktree metadata. No production/private-state access, provider call, deployment
 or restart occurred. Only stage41 is implemented; supervisor review precedes
 the next stage.
+
+## Stage 42 — Main-post receipt application and local recovery
+
+Baseline: `78b650fa6e277b2fd79bc9f50da29e74e2386a83` (2026-09-06), verified
+clean on `codex/bot-modularisation-stage42`; origin's stage41 matched and stage42
+was absent. This fresh invocation used the four scoped supervisor inputs,
+bounded project guidance and immutable parent source, without prior transcripts.
+
+`mrs_bot_main_post_reconciliation.py` owns eight exact bodies/docstrings:
+regular/meme application and reconciliation, confirmed experiment application,
+both emergency completeness predicates and main-receipt reconciliation. Eight
+`_main_post_reconciliation` adapters retain exact root signatures/defaults/
+annotations and supply **7/12/3/10/6/6/19/7 current dependencies**. The moved
+original definitions total **554 lines**.
+
+Compatibility preserves mutable state/history identity, authoritative versus
+stale/legacy histories, tied timestamp guards, generated-spacing idempotence,
+exact bound and empty schedules, experiment plan fallback and callback order.
+Emergency predicates retain eager work outside the narrow builder/materializer
+Exception boundary. Recovery keeps lineage before finalization/application,
+protected persistence and experiment events before obligation enqueue, journal
+and receipt retirement, notification/emission/logging and optional auxiliary
+work. The simultaneous-receipt gate precedes regular then meme callbacks, with
+exact options/references and native errors. All underlying owners stay in place;
+no new policy, retries, cleanup, aliases, constants/classes or retained authority.
+
+Evidence: `/tmp/mrs-bot-stage42-eWsTnk2U`. Checked stage-local adaptations reuse
+the stage41 selection, runner, extraction and comparison helpers. Pre-edit
+documentation passed for **250 modules**. **24 of 31 candidates**, plus three
+bootstrap/isolation checks, produced **27 explicit nodes across eight files**:
+**34 collected in 3.70s; 34 passed in 8.94s**. Selection covers both lanes,
+histories/spacing/stale replay, bound timezone/DST schedules, emergency/pending
+recovery, lineage, protected save failure, outbox order/auxiliary faults and three
+real loopbacks; overlapping protocol matrices were omitted.
+
+Current validation: **39 explicit nodes across nine files; 59 collected in
+3.73s; 59 passed in 9.74s** (`current-pytest.txt`). Twelve new contract functions /
+25 cases cover guarded import, all current dependencies/public signatures,
+references, native errors and missing ordered boundaries. Existing tests and
+assertions are unchanged; new tests import autouse `isolate_regular_post_receipt`.
+Both runs used AST-validated nonempty selections and successful nonempty
+collection before explicit pytest arguments under `set -euo pipefail`, with
+`PYTHONUSERBASE=/home/tonym/.local MRS_TEST_MODE=1 PYTEST_DISABLE_PLUGIN_AUTOLOAD=1
+PYTHONDONTWRITEBYTECODE=1 python3 -m pytest -q -p no:cacheprovider`. TMPDIR is
+beneath the evidence root; temporary HOME/state, dummy credentials, dead proxies,
+external socket denial and explicit loopback providers remain in effect.
+
+`verify_stage42.py` / `comparison.txt` prove exact bodies, signatures/defaults/
+annotations, nested expressions, compiled dependency loads and explicit
+forwarding without importing the bot. Whole-parent-root reconstruction is
+byte-identical, including **516 unaffected functions** and all unrelated
+statements. All **41 earlier owners**, existing tests/fixtures and digest docs
+are unchanged. README/API only add this owner; this report is append-only.
+Post-edit documentation (**251 modules**) and `git diff --check` pass. No pytest
+failures or broad suites occurred; passing tests and module documentation checks
+were not repeated for this report-only edit.
+
+| Runtime file | Before lines / bytes | After lines / bytes |
+|---|---:|---:|
+| `mrsMThatcher2.py` | 16,129 / 636,893 | 15,744 / 621,211 |
+| `mrs_bot_main_post_reconciliation.py` | absent | 662 / 26,602 |
+
+The root loses **385 lines / 15,682 bytes**; combined runtime source grows by
+**277 lines / 10,920 bytes**. New tests: **544 lines / 30,566 bytes**.
+Production worktree metadata remains `master` at
+`af5eda7c163a8174ec1365060aa923d21787e7bd`. No production changes, service
+operations, live provider calls or private configuration/state/credential reads
+occurred. Only stage42 is implemented; supervisor review precedes the next stage.

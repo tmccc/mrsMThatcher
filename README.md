@@ -205,6 +205,7 @@ deployed as a coherent set:
 - `mrs_bot_main_post_attempt_values.py`
 - `mrs_bot_x_request.py`
 - `mrs_bot_post_creation.py`
+- `mrs_bot_main_post_reconciliation.py`
 - `remote_write_safety_protocol.py`
 - `remote_media_upload_receipt.py`
 - `remote_write_transport_journal.py`
