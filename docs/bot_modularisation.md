@@ -4422,3 +4422,68 @@ the evidence root. Production git metadata remains `master` at
 credential changes, log-content reads, service actions or live-provider calls
 occurred. Configured Astra/max is unchanged. Only stage51 is implemented;
 supervisor review precedes the next stage.
+## Stage 52 — Local transaction recovery and startup receipt gates
+
+Baseline: `5c4a12f1f036de1e6f9a6c0da058613d1e4b6dda`, verified clean on
+`codex/bot-modularisation-stage52`; origin's stage51 matched and stage52 was
+absent. Only scoped supervisor inputs, immutable parent files and relevant
+stage51 helpers were reused; no prior conversations were loaded.
+
+`mrs_bot_transaction_recovery.py` owns four exact bodies/docstrings spanning
+**561 original definition lines**. Four ordinary `_transaction_recovery`
+adapters preserve public signatures/defaults/deferred annotations and forward
+**2/4/3/36** current dependencies. README/API add the owner. Schedule, receipt,
+pause and short-circuit policy gates retain their order; namespace inspection
+and both final main loaders remain eager. Journal inspection precedes lane
+loading. Historical recovery keeps exact legacy/current/source-bound/terminal
+lineage checks, independent source/outbox ordinals, lock/re-get/recovery/log
+order, function-local formatter imports and original receipt/document/bytes/
+store references. Validator selection, source binding, lane promotion and outbox
+update order remain exact. Final reconciliation retains the preloaded historical
+tuple, raw result/observation behavior, repeated conversational load, lazy epoch
+and `process_auxiliary_context=False`. The large reconciler is unsplit; no new
+remote work, policy, retries, catches, cleanup, globals or retained authority.
+
+Evidence: `/tmp/mrs-bot-stage52-6lTTKuWI`. Pre-edit documentation passed for
+**260 modules**. All **28 curated candidates** plus three isolation checks formed
+an AST-validated baseline: **31 explicit nodes across seven files; 48 collected
+in 2.44s; 48 passed in 5.64s**. Current selection added **15 contract functions /
+55 cases**: **46 explicit nodes across eight files; 103 collected in 2.51s;
+103 passed in 7.66s**. Coverage includes exact/conflicting recovery, missing
+outbox and receipt replacement, independent source ordinal, completed history
+without receipt, multiple risky rows, uninspectable namespace, worker persistence
+failure, pause/unpause, nearest callers and actual regular/meme restart without a
+second post. New contracts cover guarded import, current dependencies, public
+signatures, reference identity, native errors and exact guard/call order; they
+import autouse `isolate_regular_post_receipt`. Existing tests and fixtures remain
+unchanged.
+
+Both baseline/current collection and pytest used the reviewed metadata-only
+guard with stage52 names and separate evidence. All four device/inode/size/mtime
+comparisons and open-descriptor assertions passed. Nonempty AST selection and
+successful nonempty collection preceded each run under `set -euo pipefail`, with
+the required user base/test mode and disabled plugin autoload/bytecode/cache.
+TMPDIR is beneath the evidence root; temporary HOME/state, dummy credentials,
+dead proxies, external socket denial and explicit loopback policy remain intact.
+
+`verify_stage52.py` / `comparison.txt` verify exact bodies/signatures/defaults,
+compiled dependency inventory and forwarding without importing the bot.
+Whole-parent-root reconstruction is byte-identical, including **515 unaffected
+functions** and all unrelated statements. All **51 earlier owners**, existing
+tests/fixtures and digest docs are unchanged. Post-edit documentation passed for
+**261 modules**; whitespace validation passed. Source/runtime checks were not
+repeated for this report-only edit.
+
+| Runtime file | Before lines / bytes | After lines / bytes |
+|---|---:|---:|
+| `mrsMThatcher2.py` | 12,711 / 508,197 | 12,247 / 489,309 |
+| `mrs_bot_transaction_recovery.py` | absent | 627 / 26,355 |
+
+The root loses **464 lines / 18,888 bytes**; combined runtime source grows by
+**163 lines / 7,467 bytes**. New tests: **664 lines / 38,587 bytes**. Complete
+logs, selections, adapted helpers, comparison and metadata evidence remain in the
+evidence root. Production git metadata remains `master` at
+`af5eda7c163a8174ec1365060aa923d21787e7bd`; no production state/configuration/
+credential changes, log-content reads, service actions or live-provider calls
+occurred. Configured Astra/max is unchanged. Only stage52 is implemented;
+supervisor review precedes the next stage.
