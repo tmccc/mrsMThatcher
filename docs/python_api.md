@@ -470,6 +470,27 @@ then samples `datetime.now` before control/archive inspection. The archive
 wrapper supplies `reconciliation_inspection_error`; both snapshots use the
 exact-Decimal `_strict_json_object`, not the native-number parser.
 
+Within the remote-write owner, `_observe_remote_write_artifact` implements the
+complete artifact observation algorithm. The nested `observe_name(name, kind,
+*, receipt_role=None, retirement_source_basename="", retirement_path_phase="")`
+keeps its signature and position, forwarding those inputs and the current
+`project_dir`, `active_entries`, `read_bytes` and `parse_json_object` references.
+The implementation appends to the original list and returns no state; the
+adapter retains its `None` result. Missing paths return early, lstat errors append
+their existing unbounded reason, and nonregular artifacts are never read. Mode
+and size conversion remain outside the broad identity-inspection exception
+boundary. Stable reading retains the current 256 KiB limit, followed by hashing,
+parsing and identity projection; failures retain fields already populated.
+
+Retirement source/path checks, exact positive-int expected sizes, cleanup
+hash/size fallbacks, document phase, canonical source identity and its hash stay
+together. OS/stat/hash/regex helpers, constants, identity helpers and
+`bounded_exception_status` retain current same-owner lookup. Diagnostic failures
+and the final append still propagate in their original order. No callback is
+stored or collection copied by this extraction. Configured probing, snapshot
+coordination, lazy inspectors, existing grouping copies, blockers and result
+construction remain in `remote_write_safety_snapshot`.
+
 The four pure helpers `_remote_write_document_identity`,
 `_group_active_remote_write_artifacts`, `_canonical_retirement_source_identity`
 and `_safe_relative_project_path`, plus ten file/receipt/retirement snapshot

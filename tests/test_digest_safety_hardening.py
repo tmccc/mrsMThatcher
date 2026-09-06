@@ -2,15 +2,18 @@ from __future__ import annotations
 
 import json
 import os
+import stat
 import time
 from collections import Counter
 from datetime import datetime, timedelta
 from decimal import Decimal
 from pathlib import Path
+from types import SimpleNamespace
 
 import pytest
 
 import mrs_log_digest as digest
+import mrs_log_digest_remote_write as remote_write
 import remote_write_safety_protocol as remote_protocol
 from tests.helpers.protocol_activation import create_test_protocol_activation
 from tests.test_generated_image_pool_health_digest import pool
@@ -282,6 +285,290 @@ def test_remote_write_wrapper_preserves_snapshot_callback_failure(tmp_path, monk
     with pytest.raises(PermissionError) as caught:
         digest.remote_write_safety_snapshot(tmp_path)
     assert caught.value is failure
+
+
+@pytest.mark.parametrize("artifact", ["absent", "directory", "symlink", "fifo"])
+def test_artifact_observation_does_not_read_absent_or_nonregular_paths(tmp_path, artifact):
+    path = tmp_path / "artifact.json"
+    if artifact == "directory":
+        path.mkdir()
+    elif artifact == "symlink":
+        target = tmp_path / "target.json"
+        target.write_bytes(b"{}")
+        path.symlink_to(target)
+    elif artifact == "fifo":
+        os.mkfifo(path)
+    sentinel = {"existing": []}
+    entries = [sentinel]
+
+    def reject(*args, **kwargs):
+        pytest.fail("absent/nonregular artifact reached the reader or parser")
+
+    assert remote_write._observe_remote_write_artifact(
+        path.name, "source_receipt", project_dir=tmp_path, active_entries=entries,
+        read_bytes=reject, parse_json_object=reject,
+    ) is None
+    assert entries[0] is sentinel
+    if artifact == "absent":
+        assert entries == [sentinel]
+    else:
+        metadata = path.lstat()
+        assert entries[1:] == [{
+            "name": path.name, "kind": "source_receipt", "receipt_role": None,
+            "retirement_source_basename": "", "retirement_phase": "",
+            "safe_regular": False, "mode": oct(stat.S_IMODE(metadata.st_mode)),
+            "size": int(metadata.st_size),
+        }]
+
+
+@pytest.mark.parametrize("failure_at", ["lstat", "size"])
+def test_artifact_observation_keeps_metadata_error_boundary(tmp_path, monkeypatch, failure_at):
+    failure = PermissionError("synthetic metadata failure " + "x" * 300)
+    entries = []
+    calls = []
+
+    class Size:
+        def __int__(self):
+            calls.append("size")
+            raise failure
+
+    def lstat(path):
+        assert path == tmp_path / "artifact.json"
+        calls.append("lstat")
+        if failure_at == "lstat":
+            raise failure
+        return SimpleNamespace(st_mode=stat.S_IFREG | 0o640, st_size=Size())
+
+    def reject(*args, **kwargs):
+        pytest.fail("metadata failure reached identity inspection")
+
+    monkeypatch.setattr(remote_write, "os", SimpleNamespace(lstat=lstat))
+    inputs = dict(project_dir=tmp_path, active_entries=entries, read_bytes=reject,
+                  parse_json_object=reject, receipt_role="role",
+                  retirement_source_basename="source.json", retirement_path_phase="cleanup")
+    if failure_at == "size":
+        with pytest.raises(PermissionError) as caught:
+            remote_write._observe_remote_write_artifact("artifact.json", "source_receipt", **inputs)
+        assert caught.value is failure
+        assert entries == [] and calls == ["lstat", "size"]
+    else:
+        assert remote_write._observe_remote_write_artifact("artifact.json", "source_receipt", **inputs) is None
+        assert calls == ["lstat"]
+        assert entries == [{
+            "name": "artifact.json", "kind": "source_receipt", "receipt_role": "role",
+            "retirement_source_basename": "source.json", "retirement_phase": "cleanup",
+            "safe_regular": False, "reason": f"PermissionError: {failure}",
+        }]
+
+
+@pytest.mark.parametrize("failure_at", [None, "read", "parse", "diagnostic", "append"])
+def test_artifact_observation_keeps_current_helpers_partial_fields_and_error_order(
+    tmp_path, monkeypatch, failure_at,
+):
+    path = tmp_path / "artifact.json"
+    raw = b'{"fixture":true}'
+    path.write_bytes(raw)
+    path.chmod(0o640)
+    metadata = path.lstat()
+    calls, diagnostics = [], []
+    failure = RuntimeError("synthetic artifact failure")
+    diagnostic_failure = LookupError("diagnostic failed")
+    shared = []
+    document = {"fixture": True}
+    diagnostic_result = "current diagnostic"
+    sha256 = remote_write.hashlib.sha256
+
+    class Entries(list):
+        def append(self, entry):
+            calls.append("append")
+            if failure_at == "append":
+                raise failure
+            super().append(entry)
+
+    sentinel = {"existing": shared}
+    entries = Entries([sentinel])
+
+    def diagnostic(prefix, exc):
+        calls.append("diagnostic")
+        assert prefix == "inspection failed" and exc is failure
+        diagnostics.append(exc)
+        if failure_at == "diagnostic":
+            raise diagnostic_failure
+        return diagnostic_result
+
+    def lstat(requested):
+        calls.append("lstat")
+        assert requested == path
+        monkeypatch.setattr(remote_write, "REMOTE_WRITE_SNAPSHOT_MAX_BYTES", 17)
+        return metadata
+
+    def hash_data(data):
+        calls.append("hash")
+        assert data is raw
+        return sha256(data)
+
+    def identity(value):
+        calls.append("identity")
+        assert value is document
+        return {"shared": shared}
+
+    def read_bytes(requested, *, maximum):
+        calls.append("read")
+        assert requested == path and maximum == 17
+        monkeypatch.setattr(remote_write, "hashlib", SimpleNamespace(sha256=hash_data))
+        monkeypatch.setattr(remote_write, "bounded_exception_status", diagnostic)
+        if failure_at == "read":
+            raise failure
+        return raw
+
+    def parse(data, *, label):
+        calls.append("parse")
+        assert data is raw and label == path.name
+        monkeypatch.setattr(remote_write, "_remote_write_document_identity", identity)
+        if failure_at in {"parse", "diagnostic"}:
+            raise failure
+        return document
+
+    monkeypatch.setattr(remote_write, "os", SimpleNamespace(lstat=lstat))
+    monkeypatch.setattr(digest, "_remote_write_document_identity", None)
+    inputs = dict(project_dir=tmp_path, active_entries=entries,
+                  read_bytes=read_bytes, parse_json_object=parse)
+    if failure_at in {"diagnostic", "append"}:
+        with pytest.raises((LookupError, RuntimeError)) as caught:
+            remote_write._observe_remote_write_artifact(path.name, "source_receipt", **inputs)
+        assert caught.value is (diagnostic_failure if failure_at == "diagnostic" else failure)
+        assert entries == [sentinel]
+    else:
+        assert remote_write._observe_remote_write_artifact(path.name, "source_receipt", **inputs) is None
+        entry = entries[1]
+        assert entry["mode"] == "0o640" and entry["size"] == len(raw)
+        assert entry["safe_regular"] is True
+        assert ("artifact_sha256" in entry) is (failure_at != "read")
+        assert ("document_sha256" in entry) is (failure_at is None)
+        if failure_at is None:
+            assert entry["document_sha256"] == entry["artifact_sha256"] == sha256(raw).hexdigest()
+            assert entry["shared"] is shared
+            assert "identity_error" not in entry
+        else:
+            assert entry["identity_error"] is diagnostic_result
+            assert diagnostics == [failure]
+    assert entries[0] is sentinel
+    expected = ["lstat", "read"]
+    if failure_at != "read":
+        expected += ["hash", "parse"]
+    expected += ["diagnostic"] if failure_at in {"read", "parse", "diagnostic"} else ["identity"]
+    if failure_at != "diagnostic":
+        expected += ["append"]
+    assert calls == expected
+
+
+@pytest.mark.parametrize("case", ["bound", "cleanup", "fractional_size", "wrong_source", "invalid_identity"])
+def test_artifact_observation_keeps_retirement_binding_and_partial_identity(tmp_path, case):
+    source = "confirmed_reply_receipt.json"
+    path = tmp_path / "auxiliary.json"
+    source_identity = {key: index for index, key in enumerate(sorted(remote_write.RETIREMENT_SOURCE_IDENTITY_KEYS))}
+    document = {
+        "source_basename": source, "expected_sha256": "a" * 64, "expected_size": 7,
+        "phase": "prepared", "source_identity": source_identity, "target_id": "123",
+    }
+    phase = "prepared"
+    if case == "cleanup":
+        phase = "cleanup"
+        document.update(source_basename="", expected_sha256="invalid", expected_size=True)
+    elif case == "fractional_size":
+        document["expected_size"] = 7.0
+    elif case == "wrong_source":
+        document["source_basename"] = "other.json"
+    elif case == "invalid_identity":
+        source_identity["size"] = True
+    raw = publish_readonly_json(path, document)
+    entries = []
+    assert remote_write._observe_remote_write_artifact(
+        path.name, "receipt_retirement_auxiliary", project_dir=tmp_path, active_entries=entries,
+        read_bytes=digest.read_stable_regular_bytes, parse_json_object=lambda *a, **k: document,
+        receipt_role="conversational_confirmed_reply", retirement_source_basename=source,
+        retirement_path_phase=phase,
+    ) is None
+    entry, = entries
+    document_hash = digest.hashlib.sha256(raw).hexdigest()
+    assert entry["artifact_sha256"] == entry["document_sha256"] == document_hash
+    assert entry["target_id"] == "123" and entry["retirement_source_basename"] == source
+    assert entry["retirement_phase"] == phase
+    if case == "wrong_source":
+        assert entry["identity_error"] == "inspection failed: ValueError"
+        assert "retirement_expected_sha256" not in entry and "retirement_document_phase" not in entry
+        return
+    assert entry["retirement_expected_sha256"] == (document_hash if case == "cleanup" else "a" * 64)
+    if case == "fractional_size":
+        assert "retirement_expected_size" not in entry
+    else:
+        assert entry["retirement_expected_size"] == (len(raw) if case == "cleanup" else 7)
+        assert type(entry["retirement_expected_size"]) is int
+    assert entry["retirement_document_phase"] == "prepared"
+    if case == "invalid_identity":
+        assert entry["identity_error"] == "inspection failed: ValueError"
+        assert "retirement_source_identity" not in entry
+    else:
+        canonical = json.dumps(source_identity, sort_keys=True, separators=(",", ":"))
+        assert entry["retirement_source_identity"] is source_identity
+        assert entry["retirement_source_identity_canonical"] == canonical
+        assert entry["retirement_source_identity_sha256"] == digest.hashlib.sha256(canonical.encode()).hexdigest()
+        assert "identity_error" not in entry
+
+
+def test_artifact_adapter_keeps_prepared_references_current_implementation_and_grouping(tmp_path, monkeypatch):
+    from exact_receipt_retirement import retirement_auxiliary_paths
+
+    create_test_protocol_activation(tmp_path / remote_protocol.ACTIVATION_BASENAME)
+    source = remote_write.REMOTE_WRITE_SOURCE_RECEIPT_BASENAMES[0]
+    auxiliary = retirement_auxiliary_paths(tmp_path / source)[2]
+    auxiliary.write_bytes(b"{}")
+    observe = remote_write._observe_remote_write_artifact
+    group = remote_write._group_active_remote_write_artifacts
+    calls, prepared = [], {}
+
+    def reader(*args, **kwargs):
+        return digest.read_stable_regular_bytes(*args, **kwargs)
+
+    def parser(*args, **kwargs):
+        return digest._strict_json_object(*args, **kwargs)
+
+    def current(name, kind, **inputs):
+        calls.append((name, kind, inputs["receipt_role"], inputs["retirement_source_basename"], inputs["retirement_path_phase"]))
+        assert inputs["project_dir"] is prepared.setdefault("path", inputs["project_dir"])
+        assert inputs["project_dir"] == tmp_path
+        assert inputs["active_entries"] is prepared.setdefault("entries", inputs["active_entries"])
+        assert inputs["read_bytes"] is reader and inputs["parse_json_object"] is parser
+        assert observe(name, kind, **inputs) is None
+
+    def first(*args, **kwargs):
+        assert not calls
+        monkeypatch.setattr(remote_write, "_observe_remote_write_artifact", current)
+        current(*args, **kwargs)
+
+    def grouping(entries):
+        assert entries is not prepared["entries"]
+        assert entries[0] is not prepared["entries"][0]
+        assert entries[0] == prepared["entries"][0]
+        assert entries[0]["name"] == auxiliary.name
+        calls.append("grouping")
+        return group(entries)
+
+    monkeypatch.setattr(remote_write, "_observe_remote_write_artifact", first)
+    monkeypatch.setattr(remote_write, "_group_active_remote_write_artifacts", grouping)
+    result = remote_write.remote_write_safety_snapshot(
+        tmp_path, read_bytes=reader, parse_json_object=parser, now=lambda: NOW,
+        control_snapshot=digest.runtime_control_snapshot, archive_snapshot=digest.reconciliation_archive_snapshot,
+    )
+    assert calls == [
+        *((name, "ambiguity_marker", None, "", "") for name in remote_write.REMOTE_WRITE_MARKER_BASENAMES),
+        *((name, "source_receipt", remote_write.REMOTE_WRITE_SOURCE_RECEIPT_ROLES[name], "", "")
+          for name in remote_write.REMOTE_WRITE_SOURCE_RECEIPT_BASENAMES),
+        (auxiliary.name, "receipt_retirement_auxiliary", remote_write.REMOTE_WRITE_SOURCE_RECEIPT_ROLES[source], source, "cleanup"),
+        "grouping",
+    ]
+    assert result["active_entries"] is prepared["entries"]
+    assert result["status"] == "blocked" and result["blocking"] is True
 
 
 def test_archive_wrapper_keeps_private_reader_parser_and_diagnostic_callbacks(tmp_path, monkeypatch):

@@ -3704,3 +3704,112 @@ Read-only next-stage assessment:
   conflict and mutation steps separately would be less clear.
 
 Neither recommendation is implemented here. No next session or stage 41 is started.
+
+## Extracted in stage 39
+
+Base: `698adcaed800d1c7304c28d08b3eb48ecee2a014`, verified against
+`origin/codex/modularisation-stage38` and the clean previous worktree. Worktree:
+`/disks/disk1/research/mrsMThatcher-modularisation-stage39`; branch:
+`codex/modularisation-stage39`. The stages 37–40 authorisation supersedes the
+historical stop-at-36 instruction. This session implements only stage 39;
+README's broad offline suite remains for the supervisor after stage 40.
+
+`mrs_log_digest_remote_write._observe_remote_write_artifact` contains the exact
+**89-line body** of the original nested `observe_name` (parent lines 854–950:
+**97 definition lines**). Symbol-table inspection confirms four closure inputs:
+`project_dir`, `active_entries`, `read_bytes` and `parse_json_object`. They pass
+explicitly alongside the existing name/kind/receipt-role/retirement-source/phase
+arguments. The nested adapter retains its original signature, defaults and
+position after `active_entries` allocation, with an implicit `None` result.
+The implementation mutates that original list and returns no state.
+
+Missing-file return, lstat error append/unbounded reason, lstat-before-read order,
+nonregular-file exclusion, mode/size conversions, current 256 KiB read limit,
+hash-before-parse order and partial fields remain exact. Retirement path/source
+checks, strict positive-int expected sizes, cleanup fallbacks, document phase,
+canonical source identity and its hash remain inside the original broad
+`Exception` boundary. Current `bounded_exception_status` still omits exception
+content; diagnostic failures and final-append errors retain their ordering.
+OS/stat/hash/regex helpers, constants and identity helpers remain current
+same-owner globals. No prebinding, facade lookup, retained callback, new collection
+copy, generic state object, module, reverse import or incidental repair was added.
+Configured probing, protocol/media/transport/retirement inspection, grouping's
+existing copies, blockers and final snapshot construction stay in the coordinator.
+
+Removing the implementation and restoring the nested definition reconstructs the
+entire original owner exactly in text and AST. The moved body, nested signature
+and all existing owner signatures/annotations/defaults match. All 50 pre-existing
+test/helper definitions in the edited test file are AST-identical. The root and
+all 29 other digest companions are byte-identical to stage 38.
+
+| Physical lines / AST definition spans | Stage 38 | Stage 39 |
+| --- | ---: | ---: |
+| Remote-write owner | 1,486 | 1,513 |
+| `remote_write_safety_snapshot` | 602 | 524 |
+| Nested `observe_name` | 97 | 19 |
+| `_observe_remote_write_artifact` | — | 103 |
+| Root digest / `analyse` | 3,462 / 1,318 | 3,462 / 1,318 |
+
+Validation retained temporary-HOME, dummy endpoints and default-deny network
+isolation, using this command prefix for both focused selections:
+
+```bash
+MRS_TEST_MODE=1 PYTEST_DISABLE_PLUGIN_AUTOLOAD=1 PYTHONDONTWRITEBYTECODE=1 \
+python3 -m pytest -q -p no:cacheprovider
+```
+
+- `tests/test_digest_safety_hardening.py tests/test_digest_runtime.py`:
+  baseline **89 passed**, final **106 passed**, including inert remote-write-owner
+  import isolation. Five new test functions provide 17 concrete artifact/file,
+  metadata/read/parse/diagnostic/append error, partial-entry, retirement-binding
+  and current adapter/reference cases. Existing assertions remain unchanged.
+- `tests/test_mrs_log_digest.py tests/test_digest_incidents.py -k 'receipt or
+  reconciliation or snapshot or remote_write or barrier or media_503'`:
+  **45 passed, 139 deselected**. These cover the nearest digest-only receipt,
+  retirement annotation, barrier, snapshot and reconciliation regressions.
+- **Eight original-body cases passed**: seven selected direct callback/result/
+  error/retirement cases execute the original nested definition with its original
+  closures; the existing wrapper trace also runs against the complete original
+  owner. New-test expectations were corrected to the existing content-free
+  diagnostic and shallow grouping copies; no product behavior was changed.
+
+Direct checks also confirm all 14 pure-helper/constant aliases and both snapshot
+implementation references retain identity, without importing the bot.
+
+Three complete fixed-path/time JSON/Markdown pairs reuse the existing pool/log,
+protocol-activation and read-only JSON fixtures plus capture/reference-graph
+machinery. Each pair asserts the intended artifact fields and blocking behavior:
+
+| Fixture | Records | JSON bytes | Markdown bytes |
+| --- | ---: | ---: | ---: |
+| Matching ambiguity marker and source receipt | 1 | 44,874 | 13,417 |
+| Bound retirement guard and displaced cleanup receipt | 1 | 48,787 | 13,588 |
+| Malformed marker, nonregular receipt and mismatched retirement source | 1 | 54,857 | 14,324 |
+
+Complete output bytes, raw `analyse` values/types/order/reference graphs and
+stderr match stage 38. Producer source hashes and pre-commit HEADs were verified
+equal; no substitutions or normalization were used. Fixture bytes/modes/mtimes
+remain unchanged across comparisons. Temporary scripts, fixtures and results
+are outside the worktree at `/tmp/mrs-stage39-gyf1ty6d`. These are focused synthetic
+preservation checks, not production replay or an exhaustive matrix.
+`python3 tools/check_python_documentation.py` passes for **209 modules**;
+`git diff --check` passes. No broad bot suite or bot execution ran. Production,
+configuration, durable state, logs and image pools remain untouched; no provider/
+posting calls, service control, merge, deployment or force-push occurred.
+
+Next recommendation, assessed only: stage 40 should extract **canonical historical
+evidence indexing and the complete selected historical-event enrichment** within
+`mrs_log_digest_reply_text.enrich_published_reply_text` (lines 670–805:
+**four statements / 136 lines**; enrichment 601, owner 937). The eight inputs are
+`historical_reply_text_evidence`, `events`, `production_ids`,
+`consumed_historical_evidence`, `enriched_records`, `resolve_text`,
+`bounded_source_refs` and `warn`. Both index allocations, authoritative canonical
+indexing and the entire event loop belong together. Indexes do not escape;
+shared sets and event rows mutate in place without returned state. Later
+`evidence`, `parent_id`, `quote_id`, `reply_post_id`, `identity_conflict`,
+`text_result` and `event` uses are rebound in their subsequent loops/assignments;
+`item` is comprehension/lambda-local. Validators and the hash regex retain owner
+lookup. Keep conflict expansion, source references/omissions, warning order and
+mutations coupled; remaining-evidence synthesis, final insertion and health
+aggregation stay outside. This is a coherent boundary, not a reason for narrower
+splits. Stage 40 is not implemented here; no next session or stage 41 is started.

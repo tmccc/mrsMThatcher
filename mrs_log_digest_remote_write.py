@@ -800,6 +800,111 @@ def _group_active_remote_write_artifacts(
     )
 
 
+def _observe_remote_write_artifact(
+    name: str,
+    kind: str,
+    *,
+    project_dir: Path,
+    active_entries: List[Dict[str, Any]],
+    read_bytes: Callable[..., bytes],
+    parse_json_object: Callable[..., Dict[str, Any]],
+    receipt_role: Optional[str] = None,
+    retirement_source_basename: str = "",
+    retirement_path_phase: str = "",
+) -> None:
+    """Append one present artifact's identity or inspection failure in place."""
+
+    path = project_dir / name
+    try:
+        metadata = os.lstat(path)
+    except FileNotFoundError:
+        return
+    except OSError as exc:
+        active_entries.append(
+            {
+                "name": name,
+                "kind": kind,
+                "receipt_role": receipt_role,
+                "retirement_source_basename": retirement_source_basename,
+                "retirement_phase": retirement_path_phase,
+                "safe_regular": False,
+                "reason": f"{type(exc).__name__}: {exc}",
+            }
+        )
+        return
+    entry = {
+        "name": name,
+        "kind": kind,
+        "receipt_role": receipt_role,
+        "retirement_source_basename": retirement_source_basename,
+        "retirement_phase": retirement_path_phase,
+        "safe_regular": stat.S_ISREG(metadata.st_mode),
+        "mode": oct(stat.S_IMODE(metadata.st_mode)),
+        "size": int(metadata.st_size),
+    }
+    if entry["safe_regular"]:
+        try:
+            data = read_bytes(
+                path,
+                maximum=REMOTE_WRITE_SNAPSHOT_MAX_BYTES,
+            )
+            entry["artifact_sha256"] = hashlib.sha256(data).hexdigest()
+            document = parse_json_object(data, label=name)
+            entry.update(_remote_write_document_identity(document))
+            entry["document_sha256"] = entry["artifact_sha256"]
+            if kind == "receipt_retirement_auxiliary":
+                payload_source = document.get("source_basename")
+                if (
+                    isinstance(payload_source, str)
+                    and payload_source
+                    and payload_source != retirement_source_basename
+                ):
+                    raise ValueError(
+                        "retirement source basename does not match its "
+                        "canonical auxiliary path"
+                    )
+                expected_sha256 = document.get("expected_sha256")
+                if (
+                    isinstance(expected_sha256, str)
+                    and re.fullmatch(r"[0-9a-f]{64}", expected_sha256)
+                ):
+                    entry["retirement_expected_sha256"] = expected_sha256
+                elif retirement_path_phase == "cleanup":
+                    # A cleanup entry without a marker binding is the
+                    # displaced exact source receipt itself.
+                    entry["retirement_expected_sha256"] = entry[
+                        "document_sha256"
+                    ]
+                expected_size = document.get("expected_size")
+                if type(expected_size) is int and expected_size > 0:
+                    entry["retirement_expected_size"] = expected_size
+                elif retirement_path_phase == "cleanup":
+                    entry["retirement_expected_size"] = len(data)
+                phase = document.get("phase")
+                if isinstance(phase, str) and phase:
+                    entry["retirement_document_phase"] = phase
+                source_identity = document.get("source_identity")
+                if source_identity is not None:
+                    canonical_identity = (
+                        _canonical_retirement_source_identity(source_identity)
+                    )
+                    entry["retirement_source_identity"] = source_identity
+                    entry["retirement_source_identity_canonical"] = (
+                        canonical_identity
+                    )
+                    entry["retirement_source_identity_sha256"] = (
+                        hashlib.sha256(
+                            canonical_identity.encode("utf-8")
+                        ).hexdigest()
+                    )
+        except Exception as exc:
+            entry["identity_error"] = bounded_exception_status(
+                "inspection failed",
+                exc,
+            )
+    active_entries.append(entry)
+
+
 def remote_write_safety_snapshot(
     project_dir: Path,
     *,
@@ -859,95 +964,17 @@ def remote_write_safety_snapshot(
         retirement_source_basename: str = "",
         retirement_path_phase: str = "",
     ) -> None:
-        path = project_dir / name
-        try:
-            metadata = os.lstat(path)
-        except FileNotFoundError:
-            return
-        except OSError as exc:
-            active_entries.append(
-                {
-                    "name": name,
-                    "kind": kind,
-                    "receipt_role": receipt_role,
-                    "retirement_source_basename": retirement_source_basename,
-                    "retirement_phase": retirement_path_phase,
-                    "safe_regular": False,
-                    "reason": f"{type(exc).__name__}: {exc}",
-                }
-            )
-            return
-        entry = {
-            "name": name,
-            "kind": kind,
-            "receipt_role": receipt_role,
-            "retirement_source_basename": retirement_source_basename,
-            "retirement_phase": retirement_path_phase,
-            "safe_regular": stat.S_ISREG(metadata.st_mode),
-            "mode": oct(stat.S_IMODE(metadata.st_mode)),
-            "size": int(metadata.st_size),
-        }
-        if entry["safe_regular"]:
-            try:
-                data = read_bytes(
-                    path,
-                    maximum=REMOTE_WRITE_SNAPSHOT_MAX_BYTES,
-                )
-                entry["artifact_sha256"] = hashlib.sha256(data).hexdigest()
-                document = parse_json_object(data, label=name)
-                entry.update(_remote_write_document_identity(document))
-                entry["document_sha256"] = entry["artifact_sha256"]
-                if kind == "receipt_retirement_auxiliary":
-                    payload_source = document.get("source_basename")
-                    if (
-                        isinstance(payload_source, str)
-                        and payload_source
-                        and payload_source != retirement_source_basename
-                    ):
-                        raise ValueError(
-                            "retirement source basename does not match its "
-                            "canonical auxiliary path"
-                        )
-                    expected_sha256 = document.get("expected_sha256")
-                    if (
-                        isinstance(expected_sha256, str)
-                        and re.fullmatch(r"[0-9a-f]{64}", expected_sha256)
-                    ):
-                        entry["retirement_expected_sha256"] = expected_sha256
-                    elif retirement_path_phase == "cleanup":
-                        # A cleanup entry without a marker binding is the
-                        # displaced exact source receipt itself.
-                        entry["retirement_expected_sha256"] = entry[
-                            "document_sha256"
-                        ]
-                    expected_size = document.get("expected_size")
-                    if type(expected_size) is int and expected_size > 0:
-                        entry["retirement_expected_size"] = expected_size
-                    elif retirement_path_phase == "cleanup":
-                        entry["retirement_expected_size"] = len(data)
-                    phase = document.get("phase")
-                    if isinstance(phase, str) and phase:
-                        entry["retirement_document_phase"] = phase
-                    source_identity = document.get("source_identity")
-                    if source_identity is not None:
-                        canonical_identity = (
-                            _canonical_retirement_source_identity(source_identity)
-                        )
-                        entry["retirement_source_identity"] = source_identity
-                        entry["retirement_source_identity_canonical"] = (
-                            canonical_identity
-                        )
-                        entry["retirement_source_identity_sha256"] = (
-                            hashlib.sha256(
-                                canonical_identity.encode("utf-8")
-                            ).hexdigest()
-                        )
-            except Exception as exc:
-                entry["identity_error"] = bounded_exception_status(
-                    "inspection failed",
-                    exc,
-                )
-        active_entries.append(entry)
+        _observe_remote_write_artifact(
+            name,
+            kind,
+            project_dir=project_dir,
+            active_entries=active_entries,
+            read_bytes=read_bytes,
+            parse_json_object=parse_json_object,
+            receipt_role=receipt_role,
+            retirement_source_basename=retirement_source_basename,
+            retirement_path_phase=retirement_path_phase,
+        )
 
     for name in REMOTE_WRITE_MARKER_BASENAMES:
         observe_name(name, "ambiguity_marker")
