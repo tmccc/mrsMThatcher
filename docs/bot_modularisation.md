@@ -1269,3 +1269,119 @@ Next useful domain: consider the bounded terminal reply evaluation query,
 recording and pruning helpers, keeping lane-cycle/quarantine policy and durable
 persistence authority explicit. The supervisor selects the next scope in a
 fresh invocation; stage 11 implements none of it.
+
+## Stage 12 — conversational reply receipt values and validation
+
+Baseline: `b3456fc1427cd1aba1792d6238b6f582ef0831d4` (2026-09-06).
+On `big-nas-2` as `tonym`, worktree
+`/disks/disk1/research/mrsMThatcher-bot-modularisation-stage12` started clean on
+`codex/bot-modularisation-stage12`, matching the pushed stage 11 parent.
+Inspection used the supervisor's eleven-function dependency inventory and forty
+direct test candidates, plus transport/source-lineage, receipt lifecycle,
+emergency recovery, counter/watermark and mention/quote-tweet callers.
+
+`mrs_bot_reply_receipt_values.py` owns
+`mention_pagination_provenance_is_valid`,
+`_conversational_reply_receipt_is_semantically_valid`,
+`conversational_sending_receipt_from_confirmed`,
+`confirmed_reply_receipt_is_semantically_valid`,
+`sending_reply_receipt_is_semantically_valid`,
+`_legacy_confirmed_reply_receipt_is_semantically_valid`,
+`_legacy_sending_reply_receipt_is_semantically_valid`,
+`bind_conversational_reply_attempt_time`,
+`_confirmed_reply_receipt_from_sending`,
+`_reply_confirmation_epoch_after_remote_success` and
+`conversational_reply_confirmation_epoch`. Their **375 original definition
+lines** retain byte-identical bodies and docstrings. Eleven explicit adapters
+preserve root names, signatures, defaults and annotations, supplying current
+validators, JSON/date/clock helpers, legacy versions, logger and exception class
+on each call. Current and legacy dispatch, including reconstructed-source
+validation, continue through root callbacks.
+
+Exact pagination/schema/lane/identifier restrictions, current context/author and
+quote binding, frozen legacy exceptions, clarification constraints and native
+error/short-circuit order are unchanged. Source projection/reconstruction retain
+shallow outer copies, immutable AIReply and nested references, exact removed
+fields, lowercase hashes of canonical sending bytes and quote-lane date rules.
+Current confirmed receipts may still omit source hashes; legacy v4 recovery
+still requires them. Attempt binding, confirmation-time coercion, rollback
+clamping/warning and existing version comparisons are unchanged. Legacy
+validation grants no new sending authority.
+
+No constants, schemas, retained callbacks, reverse imports, configuration loader
+or provider clients were added. Import uses only standard libraries, with no
+file/environment/provider/RNG work. Shared integer/epoch/date/JSON and draft
+validators, `InvalidConfirmedReplyReceipt`, durable receipt load/write/promotion/
+removal/retirement, state application/reconciliation/emergency handling, counters,
+watermarks and `post_conversational_reply_with_durable_identity` remain in their
+existing locations. All eleven prior owners and existing tests/fixtures are
+unchanged. README's companion list and the Python API table include the owner;
+digest documentation is unchanged.
+
+Evidence: `/tmp/mrs-bot-stage12-RxmvhG`. Validated baseline selection contains
+**62 unique nonempty file/node arguments across 17 files**, covering all forty
+direct candidates. It runs the full legacy recovery file (**31 cases**), all
+eleven prior owner files (**111**), selected current unit receipt/restart/
+adversarial cases (**65**), source-lineage/promotion (**3**), replaced-source
+rejection (**1**), guarded bootstrap (**8**) and normal mention/quote-tweet
+loopback integrations (**2**). The existing same-post-ID/different-source and
+unchanged-state/source-byte rejection fixtures are reused without alteration.
+
+Before editing: documentation passed for **220 modules**, **221 cases** collected
+in **4.87s**, and **221 passed in 14.10s**. After extraction: documentation passed
+for **221 modules**, **239 cases** collected in **4.93s**, and **239 passed in
+14.83s**. The **18 new cases** cover guarded import, current dependencies,
+argument/result references, family callback/error order, shallow copies, exact
+hash inputs, attempt-time ordering and current clock/exception identity. They
+reuse the current receipt helpers, all four legacy fixture families and the
+registered `isolate_regular_post_receipt` autouse fixture. The first run had
+**237 passes and two new-test failures**: those fixtures incorrectly supplied
+string attempt epochs. Correcting them to the existing strict-integer contract
+resolved both; runtime code and existing assertions/barriers were unchanged.
+
+All runs retained temporary HOME/state, dummy credentials, dead proxies, denied
+external sockets and explicit loopback fake APIs. Disposable scripts/fixtures
+and test TMPDIR stayed under the evidence root. Production remained on
+`master` at `af5eda7c163a8174ec1365060aa923d21787e7bd` per worktree metadata;
+production configuration/state, live providers and service controls were not
+used. No broad suite, live bot run, deployment or next-stage work was performed.
+
+```bash
+set -euo pipefail
+export TMPDIR=/tmp/mrs-bot-stage12-RxmvhG PYTHONUSERBASE=/home/tonym/.local
+export MRS_TEST_MODE=1 PYTEST_DISABLE_PLUGIN_AUTOLOAD=1 PYTHONDONTWRITEBYTECODE=1
+python3 tools/check_python_documentation.py
+python3 "$TMPDIR/select_tests.py" --current
+mapfile -t stage12_tests < "$TMPDIR/current-selected-tests.txt"
+(( ${#stage12_tests[@]} > 0 ))
+python3 -m pytest -q -p no:cacheprovider --collect-only "${stage12_tests[@]}"
+python3 -m pytest -q -p no:cacheprovider "${stage12_tests[@]}"
+python3 "$TMPDIR/verify_stage12.py"
+git diff --check
+```
+
+Baseline omitted `--current` and used `selected-tests.txt`; the current list adds
+only the new test file. Generation and nonempty validation precede pytest and
+failures stop execution. Logs use `baseline-`/`current-` prefixes, with the first
+post-extraction failure retained in `current-initial-pytest.txt`.
+`comparison.txt` checks exact bodies/docstrings, signatures/defaults/annotations,
+the parent dependency inventory and explicit current-root forwarding. Restoring
+original definitions and removing the single import reconstructs the **entire
+immutable parent root byte-for-byte**, including **564 unaffected definitions**
+and all other statements. All eleven prior owners, unrelated files and digest
+documentation match the parent. This comparison uses source/AST and `git show`,
+without importing the bot. Documentation and `git diff --check` passed.
+
+| Runtime file | Before lines / bytes | After lines / bytes |
+|---|---:|---:|
+| `mrsMThatcher2.py` | 25,290 / 986,011 | 25,025 / 976,419 |
+| `mrs_bot_reply_receipt_values.py` | absent | 469 / 17,402 |
+
+The root loses **265 lines / 9,592 bytes**. Combined runtime source grows by
+**204 lines / 7,810 bytes** for explicit dependencies, adapters and owner
+documentation. All eleven previous owner sizes are unchanged.
+
+Next useful domain: consider bounded terminal reply evaluation queries,
+recording and pruning, retaining lane/quarantine policy and durable persistence
+authority in the root. The supervisor selects the next scope in a fresh
+invocation; stage 12 implements none of it.

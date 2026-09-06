@@ -231,6 +231,7 @@ import mrs_bot_daily_meme as _daily_meme
 import mrs_bot_legacy_reply_validation as _legacy_reply_validation
 import mrs_bot_reply_state as _reply_state
 import mrs_bot_reply_generation as _reply_generation
+import mrs_bot_reply_receipt_values as _reply_receipt_values
 
 from single_call_reply import (
     MAX_IMAGE_BYTES as SINGLE_CALL_MAX_IMAGE_BYTES,
@@ -20507,25 +20508,10 @@ def _legacy_ai_reply_receipt_draft_is_valid(data: dict, text: object) -> bool:
 
 def mention_pagination_provenance_is_valid(value: object) -> bool:
     """Validate the exact mention continuation bound to a reply receipt."""
-    if not isinstance(value, dict):
-        return False
-    if set(value) != {"base_since_id", "next_token"}:
-        return False
-    base_since_id = value.get("base_since_id")
-    next_token = value.get("next_token")
-    if (
-        not isinstance(base_since_id, str)
-        or bounded_tweet_id_value(base_since_id, allow_empty=True) is None
-    ):
-        return False
-    if (
-        not isinstance(next_token, str)
-        or not next_token
-        or next_token != next_token.strip()
-        or any(character.isspace() for character in next_token)
-    ):
-        return False
-    return True
+    return _reply_receipt_values.mention_pagination_provenance_is_valid(
+        value,
+        bounded_tweet_id_value=bounded_tweet_id_value,
+    )
 
 
 def _conversational_reply_receipt_is_semantically_valid(
@@ -20535,186 +20521,24 @@ def _conversational_reply_receipt_is_semantically_valid(
     legacy_recovery: bool = False,
 ) -> bool:
     """Validate one current receipt or a frozen lifecycle-recovery receipt."""
-    if not isinstance(data, dict):
-        return False
-    if lifecycle_state not in {"sending", "confirmed"}:
-        return False
-    schema_version = data.get("schema_version")
-    if type(schema_version) is not int or schema_version not in {2, 3, 4}:
-        return False
-    if schema_version == 2:
-        if lifecycle_state != "confirmed" or "lifecycle_state" in data:
-            return False
-    elif data.get("lifecycle_state") != lifecycle_state:
-        return False
-    if not valid_string_post_id(data.get("target_id")):
-        return False
-    if lifecycle_state == "confirmed" and not valid_string_post_id(
-        data.get("reply_post_id")
-    ):
-        return False
-    if lifecycle_state == "sending" and "reply_post_id" in data:
-        return False
-    author_id = data.get("author_id")
-    if not valid_string_post_id(author_id):
-        return False
-    source = data.get("candidate_source")
-    if type(source) is not str:
-        return False
-    if source not in {"mention", "hot_post_reply", "quote_tweet"}:
-        return False
-    reply_epoch = receipt_int(data.get("reply_epoch"))
-    if reply_epoch is None or not valid_receipt_epoch(reply_epoch):
-        return False
-    if schema_version == 4:
-        attempt_epoch = receipt_int(data.get("attempt_epoch"))
-        if attempt_epoch is None or not valid_receipt_epoch(attempt_epoch):
-            return False
-        if lifecycle_state == "sending":
-            if "confirmation_epoch" in data or reply_epoch != attempt_epoch:
-                return False
-            effective_epoch = attempt_epoch
-        else:
-            confirmation_epoch = receipt_int(data.get("confirmation_epoch"))
-            if (
-                confirmation_epoch is None
-                or not valid_receipt_epoch(confirmation_epoch)
-                or confirmation_epoch < attempt_epoch
-                or reply_epoch != confirmation_epoch
-            ):
-                return False
-            effective_epoch = confirmation_epoch
-        expected_date = safe_reply_cap_date_str(effective_epoch)
-        if expected_date is None or data.get("daily_reply_date") != expected_date:
-            return False
-        if source == "quote_tweet":
-            if data.get("daily_quote_reply_date") != expected_date:
-                return False
-        elif "daily_quote_reply_date" in data:
-            return False
-    if "mention_pagination" in data:
-        mention_pagination = data.get("mention_pagination")
-        if schema_version not in {3, 4} or source != "mention":
-            return False
-        if not mention_pagination_provenance_is_valid(mention_pagination):
-            return False
-    text = data.get("reply_text")
-    if not isinstance(text, str) or not text:
-        return False
-    conversation_id = data.get("conversation_id")
-    if not valid_string_post_id(conversation_id):
-        return False
-    if schema_version in {2, 3}:
-        daily_reply_date = data.get("daily_reply_date")
-        if daily_reply_date is not None and not isinstance(daily_reply_date, str):
-            return False
-        daily_quote_reply_date = data.get("daily_quote_reply_date")
-        if daily_quote_reply_date is not None and not isinstance(
-            daily_quote_reply_date,
-            str,
-        ):
-            return False
-    original_post_id = data.get("original_post_id")
-    if original_post_id is not None and isinstance(original_post_id, (dict, list)):
-        return False
-    context = data.get("reply_context")
-    if not isinstance(context, dict):
-        return False
-    if (
-        type(context.get("target_id")) is not str
-        or type(context.get("thread_id")) is not str
-        or context.get("target_id") != data["target_id"]
-        or context.get("thread_id") != conversation_id
-        or context.get("lane") != source
-    ):
-        return False
-    if not legacy_recovery and (
-        type(context.get("target_author_id")) is not str
-        or context.get("target_author_id") != author_id
-    ):
-        return False
-    if source == "quote_tweet":
-        quoted_post = context.get("quoted_post")
-        if (
-            not valid_string_post_id(original_post_id)
-            or not isinstance(quoted_post, dict)
-            or type(quoted_post.get("post_id")) is not str
-            or quoted_post.get("post_id") != original_post_id
-        ):
-            return False
-    elif original_post_id is not None:
-        return False
-    if legacy_recovery:
-        try:
-            legacy_draft_is_valid = _legacy_ai_reply_receipt_draft_is_valid(
-                data,
-                text,
-            )
-        except (
-            IndexError,
-            KeyError,
-            OverflowError,
-            TypeError,
-            UnicodeError,
-            ValueError,
-        ):
-            return False
-        if not legacy_draft_is_valid:
-            return False
-    elif not ai_reply_receipt_draft_is_valid(data, text):
-        return False
-    clarification = data.get("clarification_reply")
-    if clarification is not None:
-        if source not in {"mention", "hot_post_reply"} or not isinstance(clarification, dict):
-            return False
-        if set(clarification) != {
-            "thread_id", "prior_bot_reply_id", "original_question_id", "trigger",
-        }:
-            return False
-        if any(
-            not valid_string_post_id(clarification.get(field))
-            for field in ("thread_id", "prior_bot_reply_id", "original_question_id")
-        ):
-            return False
-        if clarification.get("trigger") not in {"explicit_correction", "restated_question"}:
-            return False
-        if clarification.get("thread_id") != conversation_id:
-            return False
-        if legacy_recovery:
-            draft = data.get("ai_reply_draft")
-            if (
-                isinstance(draft, dict)
-                and draft.get("strategy_version")
-                in {
-                    _LEGACY_TESTED_REPLY_STRATEGY_VERSION,
-                    _LEGACY_AI_FIRST_REPLY_STRATEGY_VERSION,
-                }
-                and draft.get("mode") != "direct_factual_answer"
-            ):
-                return False
-    if schema_version == 4 and lifecycle_state == "confirmed":
-        if legacy_recovery and "source_receipt_sha256" not in data:
-            return False
-        if "source_receipt_sha256" not in data:
-            return True
-        try:
-            source_receipt = conversational_sending_receipt_from_confirmed(data)
-        except (TypeError, ValueError):
-            return False
-        source_is_valid = (
-            _legacy_sending_reply_receipt_is_semantically_valid(source_receipt)
-            if legacy_recovery
-            else sending_reply_receipt_is_semantically_valid(source_receipt)
-        )
-        if (
-            not source_is_valid
-            or hashlib.sha256(
-                canonical_atomic_json_bytes(source_receipt)
-            ).hexdigest()
-            != data.get("source_receipt_sha256")
-        ):
-            return False
-    return True
+    return _reply_receipt_values._conversational_reply_receipt_is_semantically_valid(
+        data,
+        lifecycle_state=lifecycle_state,
+        legacy_recovery=legacy_recovery,
+        valid_string_post_id=valid_string_post_id,
+        receipt_int=receipt_int,
+        valid_receipt_epoch=valid_receipt_epoch,
+        safe_reply_cap_date_str=safe_reply_cap_date_str,
+        mention_pagination_provenance_is_valid=mention_pagination_provenance_is_valid,
+        _legacy_ai_reply_receipt_draft_is_valid=_legacy_ai_reply_receipt_draft_is_valid,
+        ai_reply_receipt_draft_is_valid=ai_reply_receipt_draft_is_valid,
+        _LEGACY_TESTED_REPLY_STRATEGY_VERSION=_LEGACY_TESTED_REPLY_STRATEGY_VERSION,
+        _LEGACY_AI_FIRST_REPLY_STRATEGY_VERSION=_LEGACY_AI_FIRST_REPLY_STRATEGY_VERSION,
+        conversational_sending_receipt_from_confirmed=conversational_sending_receipt_from_confirmed,
+        _legacy_sending_reply_receipt_is_semantically_valid=_legacy_sending_reply_receipt_is_semantically_valid,
+        sending_reply_receipt_is_semantically_valid=sending_reply_receipt_is_semantically_valid,
+        canonical_atomic_json_bytes=canonical_atomic_json_bytes,
+    )
 
 
 def conversational_sending_receipt_from_confirmed(
@@ -20726,77 +20550,42 @@ def conversational_sending_receipt_from_confirmed(
     remain readable for local reconciliation, but cannot use this function to
     retire a current transport journal.
     """
-
-    if (
-        not isinstance(confirmed_receipt, dict)
-        or type(confirmed_receipt.get("schema_version")) is not int
-        or confirmed_receipt.get("schema_version") != 4
-        or confirmed_receipt.get("lifecycle_state") != "confirmed"
-        or type(confirmed_receipt.get("source_receipt_sha256")) is not str
-        or not re.fullmatch(
-            r"[0-9a-f]{64}", confirmed_receipt["source_receipt_sha256"]
-        )
-    ):
-        raise ValueError(
-            "confirmed conversational receipt lacks exact source lineage"
-        )
-    attempt_epoch = receipt_int(confirmed_receipt.get("attempt_epoch"))
-    # ``reply_text`` can be an ``AIReply`` string subclass whose constructor
-    # requires provenance arguments.  No nested value is mutated here, so a
-    # shallow outer copy preserves exact content without trying to reconstruct
-    # that immutable subclass.
-    source = dict(confirmed_receipt)
-    source.pop("reply_post_id", None)
-    source.pop("confirmation_epoch", None)
-    source.pop("source_receipt_sha256", None)
-    source["lifecycle_state"] = "sending"
-    if attempt_epoch is None:
-        raise ValueError("confirmed conversational receipt lacks attempt time")
-    attempt_date = safe_reply_cap_date_str(attempt_epoch)
-    if attempt_date is None:
-        raise ValueError("confirmed conversational attempt time is invalid")
-    source["reply_epoch"] = attempt_epoch
-    source["daily_reply_date"] = attempt_date
-    if source.get("candidate_source") == "quote_tweet":
-        source["daily_quote_reply_date"] = attempt_date
-    else:
-        source.pop("daily_quote_reply_date", None)
-    return source
+    return _reply_receipt_values.conversational_sending_receipt_from_confirmed(
+        confirmed_receipt,
+        receipt_int=receipt_int,
+        safe_reply_cap_date_str=safe_reply_cap_date_str,
+    )
 
 
 def confirmed_reply_receipt_is_semantically_valid(data: dict) -> bool:
     """Return whether a confirmed-reply receipt is internally consistent."""
-    return _conversational_reply_receipt_is_semantically_valid(
+    return _reply_receipt_values.confirmed_reply_receipt_is_semantically_valid(
         data,
-        lifecycle_state="confirmed",
+        _conversational_reply_receipt_is_semantically_valid=_conversational_reply_receipt_is_semantically_valid,
     )
 
 
 def sending_reply_receipt_is_semantically_valid(data: dict) -> bool:
     """Return whether a pre-send conversational-reply receipt is complete."""
-    return _conversational_reply_receipt_is_semantically_valid(
+    return _reply_receipt_values.sending_reply_receipt_is_semantically_valid(
         data,
-        lifecycle_state="sending",
+        _conversational_reply_receipt_is_semantically_valid=_conversational_reply_receipt_is_semantically_valid,
     )
 
 
 def _legacy_confirmed_reply_receipt_is_semantically_valid(data: dict) -> bool:
     """Accept a frozen draft only for local recovery after remote confirmation."""
-
-    return _conversational_reply_receipt_is_semantically_valid(
+    return _reply_receipt_values._legacy_confirmed_reply_receipt_is_semantically_valid(
         data,
-        lifecycle_state="confirmed",
-        legacy_recovery=True,
+        _conversational_reply_receipt_is_semantically_valid=_conversational_reply_receipt_is_semantically_valid,
     )
 
 
 def _legacy_sending_reply_receipt_is_semantically_valid(data: dict) -> bool:
     """Recognise a frozen sending receipt as a barrier, never send authority."""
-
-    return _conversational_reply_receipt_is_semantically_valid(
+    return _reply_receipt_values._legacy_sending_reply_receipt_is_semantically_valid(
         data,
-        lifecycle_state="sending",
-        legacy_recovery=True,
+        _conversational_reply_receipt_is_semantically_valid=_conversational_reply_receipt_is_semantically_valid,
     )
 
 
@@ -20897,35 +20686,12 @@ def write_sending_reply_receipt(receipt: dict) -> None:
 
 def bind_conversational_reply_attempt_time(receipt_template: dict) -> dict:
     """Bind a schema-v4 reply template to its immediately pre-send time."""
-    if (
-        not isinstance(receipt_template, dict)
-        or type(receipt_template.get("schema_version")) is not int
-        or receipt_template.get("schema_version") != 4
-        or receipt_template.get("lifecycle_state") != "sending"
-    ):
-        raise RuntimeError("A reply attempt time can only bind a schema-v4 sending template")
-    timing_fields = {
-        "attempt_epoch",
-        "confirmation_epoch",
-        "reply_epoch",
-        "daily_reply_date",
-        "daily_quote_reply_date",
-    }
-    if timing_fields.intersection(receipt_template):
-        raise RuntimeError("Reply attempt template already contains timing fields")
-    attempt_epoch = now_epoch()
-    attempt_date = reply_cap_date_str(attempt_epoch)
-    prepared = {
-        **receipt_template,
-        "attempt_epoch": attempt_epoch,
-        "reply_epoch": attempt_epoch,
-        "daily_reply_date": attempt_date,
-    }
-    if receipt_template.get("candidate_source") == "quote_tweet":
-        prepared["daily_quote_reply_date"] = attempt_date
-    if not sending_reply_receipt_is_semantically_valid(prepared):
-        raise RuntimeError("Internal error: prepared reply attempt failed validation")
-    return prepared
+    return _reply_receipt_values.bind_conversational_reply_attempt_time(
+        receipt_template,
+        now_epoch=now_epoch,
+        reply_cap_date_str=reply_cap_date_str,
+        sending_reply_receipt_is_semantically_valid=sending_reply_receipt_is_semantically_valid,
+    )
 
 
 def _confirmed_reply_receipt_from_sending(
@@ -20935,26 +20701,13 @@ def _confirmed_reply_receipt_from_sending(
     confirmation_epoch: int,
 ) -> dict:
     """Build the confirmed form without mutating its durable sending input."""
-    confirmed = {
-        **sending_receipt,
-        "lifecycle_state": "confirmed",
-        "reply_post_id": str(reply_post_id),
-    }
-    if sending_receipt.get("schema_version") == 4:
-        confirmed_date = reply_cap_date_str(confirmation_epoch)
-        confirmed.update(
-            {
-                "confirmation_epoch": confirmation_epoch,
-                "reply_epoch": confirmation_epoch,
-                "daily_reply_date": confirmed_date,
-            }
-        )
-        if sending_receipt.get("candidate_source") == "quote_tweet":
-            confirmed["daily_quote_reply_date"] = confirmed_date
-        confirmed["source_receipt_sha256"] = hashlib.sha256(
-            canonical_atomic_json_bytes(sending_receipt)
-        ).hexdigest()
-    return confirmed
+    return _reply_receipt_values._confirmed_reply_receipt_from_sending(
+        sending_receipt,
+        reply_post_id=reply_post_id,
+        confirmation_epoch=confirmation_epoch,
+        reply_cap_date_str=reply_cap_date_str,
+        canonical_atomic_json_bytes=canonical_atomic_json_bytes,
+    )
 
 
 def _reply_confirmation_epoch_after_remote_success(
@@ -20962,22 +20715,12 @@ def _reply_confirmation_epoch_after_remote_success(
     observed_epoch: int | None = None,
 ) -> int:
     """Return a conservative monotonic wall time after remote confirmation."""
-    if observed_epoch is None:
-        observed_epoch = now_epoch()
-    observed_epoch = int(observed_epoch)
-    if sending_receipt.get("schema_version") != 4:
-        return observed_epoch
-    attempt_epoch = receipt_int(sending_receipt.get("attempt_epoch"))
-    if attempt_epoch is None or observed_epoch >= attempt_epoch:
-        return observed_epoch
-    log.warning(
-        "Wall clock moved backward during conversational reply creation; "
-        "using durable attempt epoch as conservative confirmation time "
-        "attempt_epoch=%s observed_epoch=%s",
-        attempt_epoch,
-        observed_epoch,
+    return _reply_receipt_values._reply_confirmation_epoch_after_remote_success(
+        sending_receipt, observed_epoch,
+        now_epoch=now_epoch,
+        receipt_int=receipt_int,
+        log=log,
     )
-    return attempt_epoch
 
 
 def promote_sending_reply_receipt(
@@ -21143,19 +20886,11 @@ def remove_confirmed_reply_receipt(
 
 def conversational_reply_confirmation_epoch(receipt: dict) -> int:
     """Return the best available confirmed time for a reply receipt."""
-    if receipt.get("schema_version") == 4:
-        confirmation_epoch = receipt_int(receipt.get("confirmation_epoch"))
-        if confirmation_epoch is None:
-            raise InvalidConfirmedReplyReceipt(
-                "Schema-v4 confirmed reply receipt lacks a confirmation epoch"
-            )
-        return confirmation_epoch
-    reply_epoch = receipt_int(receipt.get("reply_epoch"))
-    if reply_epoch is None:
-        raise InvalidConfirmedReplyReceipt(
-            "Legacy confirmed reply receipt lacks its best-known reply epoch"
-        )
-    return reply_epoch
+    return _reply_receipt_values.conversational_reply_confirmation_epoch(
+        receipt,
+        receipt_int=receipt_int,
+        InvalidConfirmedReplyReceipt=InvalidConfirmedReplyReceipt,
+    )
 
 
 def _valid_iso_date(value: object) -> bool:
