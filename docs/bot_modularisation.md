@@ -2539,3 +2539,88 @@ restart or next-stage launch occurred.
 Next useful domain: supervisor review of shared tweet ID parsing/ordering around
 `parse_tweet_id`, `valid_tweets_sorted_by_id` and their bounded-ID dependency.
 Only stage 25 is implemented; supervisor review precedes any further stage.
+
+## Stage 26 — runtime-control reading and pause policy
+
+Baseline: `b3736460e9b52675b370f91ed4f711a3741cfbb4` (2026-09-06).
+Worktree `/disks/disk1/research/mrsMThatcher-bot-modularisation-stage26` started
+clean on `codex/bot-modularisation-stage26`, matching the verified pushed stage
+25 parent. The supervisor's scope notes, dependency inventory and all 78 supplied
+test nodes informed this extraction; normal/quote/hot-post cycles, state/receipt
+recovery, guarded bootstrap and remote-boundary callers were inspected.
+
+`mrs_bot_runtime_control.py` owns **10 functions / 301 original definition
+lines**: `parse_control_time`, `validate_control_document`,
+`control_failure_result`, `_runtime_control_stat_identity`,
+`_read_stable_runtime_control`, `load_control`, `control_bool`,
+`control_pause_active`, `lane_paused` and `global_remote_writes_paused`.
+Exactly four fixed key definitions (**23 lines**) move with unchanged initializer
+source, types and order. Root aliases initially share the owner's frozen objects;
+ten explicit adapters pass current root dependencies, including rebound key sets
+and the original mutable root cache. Root names/signatures/defaults/annotations,
+including `os.stat_result`, and all implementation bodies/docstrings are exact.
+Both variadic adapters forward their original `*keys` / `*lane_keys` before
+dependency keywords, without regrouping arguments.
+
+Compatibility retains strict exact Decimal/integral numeric timestamps and date
+string representation; key/type/error checks; bounded nofollow/nonblock repeated
+reads, syscall/finally-close order and initial absence versus disappearance during
+reading; private byte-bound cached copies, failure-signature deduplication and
+repair; one pause-clock sample, boolean-before-time precedence and ordered lane
+aliases. The root keeps `_CONTROL_CACHE` and its lifecycle, `_RuntimeControlAbsent`,
+size/path configuration, strict JSON parsing, clock/logger/event authority and
+existing remote-write checks with unchanged timing. The standard-library-only
+owner retains no runtime cache, callbacks, configuration or clients and performs
+no import-time file/environment/provider/clock/RNG work.
+
+Evidence: `/tmp/mrs-bot-stage26-XMd2IkU2`. Before editing, documentation passed
+for **234 modules**, **160 tests collected in 4.81s**, and **160 passed in 14.13s**
+(`baseline-pytest.txt`; **100 explicit nodes across 13 files**). Selection includes
+all 78 supplied nodes, prior normal/quote/hot-post owner contracts, guarded
+bootstrap, startup receipt preservation/recovery, real loopback lane pauses,
+malformed controls failing closed globally, expired pauses and state recovery.
+Existing cases retain strict duplicate/nonfinite/fractional JSON handling,
+same-inode/size/mtime mutation, byte-bound private cache and repair, symlink/FIFO
+and other nonregular entries, intermediate/final disappearance, ABA substitution,
+short reads, premature EOF, repeated-read rewrite and rechecked provider/media/
+post boundaries, including prospective pauses after durable write authority.
+
+After extraction, documentation passed for **235 modules**, **169 tests collected
+in 4.83s**, and **169 passed in 14.27s** on the first run (`current-pytest.txt`;
+**108 explicit nodes across 14 files**). Eight new tests (nine cases) cover guarded
+import, current dependency and variadic argument/reference/error forwarding,
+shared fixed objects and rebinding, current mutable cache replacement/lifecycle,
+logging-before-mutation, clock/boolean/time and lane/log/event ordering, and real
+temporary-file syscall/finally-close order on success and final-path failure.
+They explicitly register the existing autouse `isolate_regular_post_receipt`
+fixture; existing fixtures, barriers and assertions are unchanged.
+
+The reused `run_selected.sh` requires successful AST-validated nonempty selection
+and collection under `set -euo pipefail`. Both runs use installed user dependencies,
+test mode, disabled plugin autoload/bytecode/cache provider and TMPDIR under the
+evidence root. Temporary HOME/state, dummy credentials, dead proxies, denied
+external sockets and explicit loopback fake APIs remain active. No broad suite
+ran; the passing run was retained after documentation-only edits.
+
+`verify_stage26.py` / `comparison.txt` check exact moved bodies, signatures and
+dependencies against immutable `git show` using AST/symbol tables. Restoring the
+original definitions and removing the one new import reconstructs the **entire
+parent root byte for byte**, including **519 unaffected function definitions**
+and all unrelated statements. All **25 prior owners**, existing tests/fixtures
+and digest docs are unchanged; README/API only add the companion and this report
+is appended. Final documentation and `git diff --check` pass.
+
+| Runtime file | Before lines / bytes | After lines / bytes |
+|---|---:|---:|
+| `mrsMThatcher2.py` | 20,076 / 787,567 | 19,848 / 778,533 |
+| `mrs_bot_runtime_control.py` | absent | 443 / 15,210 |
+
+The root loses **228 lines / 9,034 bytes**; combined runtime source grows by
+**215 lines / 6,176 bytes**. The focused test file has **276 lines / 13,842 bytes**.
+Production remains `master` at `af5eda7c163a8174ec1365060aa923d21787e7bd` per
+worktree metadata; production configuration/state/credentials and service
+controls were not accessed or changed. No live provider work, deployment,
+restart or next-stage launch occurred.
+Next useful domain: supervisor review of shared tweet ID parsing/ordering around
+`parse_tweet_id`, `valid_tweets_sorted_by_id` and their bounded-ID dependency.
+Only stage 26 is implemented; supervisor review precedes any further stage.

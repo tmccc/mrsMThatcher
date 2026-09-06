@@ -245,6 +245,7 @@ import mrs_bot_tweet_lookup_cache as _tweet_lookup_cache
 import mrs_bot_reply_context as _reply_context
 import mrs_bot_reply_native_media as _reply_native_media
 import mrs_bot_reply_lane_policy as _reply_lane_policy
+import mrs_bot_runtime_control as _runtime_control
 
 from single_call_reply import (
     MAX_IMAGE_BYTES as SINGLE_CALL_MAX_IMAGE_BYTES,
@@ -3127,350 +3128,121 @@ RUNTIME_CONTROL_MAX_BYTES = 64 * 1024
 class _RuntimeControlAbsent(FileNotFoundError):
     """The optional control pathname was absent before a read began."""
 
-CONTROL_BOOLEAN_KEYS = frozenset({
-    "disable_all",
-    "pause_all",
-    "disable_replies",
-    "pause_replies",
-    "disable_normal_replies",
-    "pause_normal_replies",
-    "disable_quote_replies",
-    "pause_quote_replies",
-    "disable_hot_post_replies",
-    "pause_hot_post_replies",
-    "disable_quote_posts",
-    "pause_quote_posts",
-    "disable_meme_posts",
-    "pause_meme_posts",
-})
-CONTROL_TIME_KEYS = frozenset(
-    f"{key}_until" for key in CONTROL_BOOLEAN_KEYS
-)
-CONTROL_METADATA_KEYS = frozenset({"generation"})
-CONTROL_ALLOWED_KEYS = (
-    CONTROL_BOOLEAN_KEYS | CONTROL_TIME_KEYS | CONTROL_METADATA_KEYS
-)
+CONTROL_BOOLEAN_KEYS = _runtime_control.CONTROL_BOOLEAN_KEYS
+CONTROL_TIME_KEYS = _runtime_control.CONTROL_TIME_KEYS
+CONTROL_METADATA_KEYS = _runtime_control.CONTROL_METADATA_KEYS
+CONTROL_ALLOWED_KEYS = _runtime_control.CONTROL_ALLOWED_KEYS
 
 
 def parse_control_time(value: object) -> int:
     """Parse a runtime-control timestamp into an epoch value."""
-    if isinstance(value, bool) or value is None:
-        raise ValueError("control timestamp must not be a boolean or null")
-    if type(value) is int:
-        epoch = value
-    elif type(value) is Decimal:
-        if not value.is_finite() or value != value.to_integral_value():
-            raise ValueError(
-                "control timestamp exact number must be finite and integral"
-            )
-        if value < 0 or value > MAX_REASONABLE_STATE_EPOCH:
-            raise ValueError(
-                f"control timestamp is outside the supported epoch range: {value}"
-            )
-        epoch = int(value)
-    elif type(value) is float:
-        if not math.isfinite(value) or not value.is_integer():
-            raise ValueError("control timestamp float must be finite and integral")
-        epoch = int(value)
-    else:
-        if type(value) is not str:
-            raise ValueError("control timestamp must be an integer epoch or documented date string")
-        text = value.strip()
-        if not text or text.isdigit():
-            raise ValueError("control timestamp string must use a documented date format")
-        for fmt in ("%Y-%m-%d %H:%M:%S", "%Y-%m-%d %H:%M", "%Y-%m-%dT%H:%M:%S", "%Y-%m-%dT%H:%M"):
-            try:
-                epoch = int(datetime.strptime(text, fmt).timestamp())
-                break
-            except ValueError:
-                pass
-        else:
-            try:
-                epoch = int(datetime.fromisoformat(text).timestamp())
-            except ValueError as exc:
-                raise ValueError(f"Cannot parse control time {value!r}") from exc
-    if epoch < 0 or epoch > MAX_REASONABLE_STATE_EPOCH:
-        raise ValueError(f"control timestamp is outside the supported epoch range: {epoch}")
-    return epoch
+    return _runtime_control.parse_control_time(
+        value,
+        Decimal=Decimal,
+        MAX_REASONABLE_STATE_EPOCH=MAX_REASONABLE_STATE_EPOCH,
+        datetime=datetime,
+        math=math,
+    )
 
 
 def validate_control_document(data: object) -> dict:
     """Validate control document."""
-    if not isinstance(data, dict):
-        raise ValueError("control document must be a JSON object")
-    validated = dict(data)
-    for key, value in data.items():
-        if type(key) is not str or key not in CONTROL_ALLOWED_KEYS:
-            raise ValueError(
-                f"unsupported runtime-control key {key!r}; "
-                "refusing to ignore a possible safety-setting typo"
-            )
-        key_text = key
-        if key_text in CONTROL_TIME_KEYS:
-            parsed_epoch = parse_control_time(value)
-            if type(value) is Decimal:
-                validated[key_text] = parsed_epoch
-        elif key_text in CONTROL_BOOLEAN_KEYS:
-            if isinstance(value, bool):
-                continue
-            if isinstance(value, str) and value.strip().lower() in {"1", "true", "yes", "on", "0", "false", "no", "off"}:
-                continue
-            raise ValueError(f"{key_text} must be a boolean")
-        elif key_text == "generation":
-            if type(value) is not int or value < 0:
-                raise ValueError("generation must be a non-negative integer")
-    return validated
+    return _runtime_control.validate_control_document(
+        data,
+        CONTROL_ALLOWED_KEYS=CONTROL_ALLOWED_KEYS,
+        CONTROL_BOOLEAN_KEYS=CONTROL_BOOLEAN_KEYS,
+        CONTROL_TIME_KEYS=CONTROL_TIME_KEYS,
+        Decimal=Decimal,
+        parse_control_time=parse_control_time,
+    )
 
 
 def control_failure_result(reason: str, *, signature: object) -> dict:
     """Build the fail-closed result for an invalid runtime-control document."""
-    if _CONTROL_CACHE.get("failure_signature") != signature:
-        log.error("Runtime control file %s is unavailable or invalid; failing safe: %s", CONTROL_FILE, reason)
-        _CONTROL_CACHE["failure_signature"] = signature
-    if _CONTROL_CACHE.get("has_valid"):
-        cached = _CONTROL_CACHE.get("data", {})
-        log.debug("Continuing with last valid runtime control document")
-        fail_closed = dict(cached) if isinstance(cached, dict) else {}
-        fail_closed["disable_all"] = True
-        fail_closed["_control_fail_closed"] = True
-        return fail_closed
-    return {"disable_all": True, "_control_fail_closed": True}
+    return _runtime_control.control_failure_result(
+        reason,
+        signature=signature,
+        CONTROL_FILE=CONTROL_FILE,
+        _CONTROL_CACHE=_CONTROL_CACHE,
+        log=log,
+    )
 
 
 def _runtime_control_stat_identity(file_stat: os.stat_result) -> tuple[int, ...]:
     """Return the fields which must remain stable for one control snapshot."""
-
-    return (
-        file_stat.st_dev,
-        file_stat.st_ino,
-        stat.S_IFMT(file_stat.st_mode),
-        file_stat.st_size,
-        file_stat.st_mtime_ns,
-        file_stat.st_ctime_ns,
+    return _runtime_control._runtime_control_stat_identity(
+        file_stat,
+        stat=stat,
     )
 
 
 def _read_stable_runtime_control() -> tuple[bytes, tuple[object, ...]]:
     """Read one regular, non-symlink control file as a stable byte snapshot."""
-
-    control_path = os.path.abspath(os.fspath(CONTROL_FILE))
-    try:
-        before_path = os.lstat(control_path)
-    except FileNotFoundError as exc:
-        raise _RuntimeControlAbsent(control_path) from exc
-    if not stat.S_ISREG(before_path.st_mode):
-        raise ValueError("runtime control must be a regular file")
-
-    nonblock = getattr(os, "O_NONBLOCK", 0)
-    nofollow = getattr(os, "O_NOFOLLOW", 0)
-    if not nofollow or not nonblock:
-        raise RuntimeError(
-            "runtime control requires O_NOFOLLOW and O_NONBLOCK support"
-        )
-    flags = os.O_RDONLY | getattr(os, "O_CLOEXEC", 0) | nonblock
-    descriptor = os.open(control_path, flags | nofollow)
-    try:
-        before_fd = os.fstat(descriptor)
-        if not stat.S_ISREG(before_fd.st_mode):
-            raise ValueError("runtime control must be a regular file")
-        if _runtime_control_stat_identity(before_path) != _runtime_control_stat_identity(
-            before_fd
-        ):
-            raise RuntimeError("runtime control changed before it was opened")
-        if before_fd.st_size > RUNTIME_CONTROL_MAX_BYTES:
-            raise ValueError(
-                f"runtime control exceeds {RUNTIME_CONTROL_MAX_BYTES} bytes"
-            )
-
-        def read_document() -> bytes:
-            chunks: list[bytes] = []
-            observed = 0
-            while observed <= RUNTIME_CONTROL_MAX_BYTES:
-                chunk = os.read(
-                    descriptor,
-                    min(8192, RUNTIME_CONTROL_MAX_BYTES + 1 - observed),
-                )
-                if not chunk:
-                    break
-                chunks.append(chunk)
-                observed += len(chunk)
-            return b"".join(chunks)
-
-        document = read_document()
-        middle_fd = os.fstat(descriptor)
-        if _runtime_control_stat_identity(before_fd) != _runtime_control_stat_identity(
-            middle_fd
-        ):
-            raise RuntimeError("runtime control changed during its first read")
-        if len(document) != before_fd.st_size:
-            raise ValueError(
-                "runtime control length did not match its stable file identity"
-            )
-        os.lseek(descriptor, 0, os.SEEK_SET)
-        repeated_document = read_document()
-        after_fd = os.fstat(descriptor)
-        after_path = os.lstat(control_path)
-    finally:
-        os.close(descriptor)
-
-    if (
-        len(document) > RUNTIME_CONTROL_MAX_BYTES
-        or len(document) != before_fd.st_size
-    ):
-        raise ValueError(
-            "runtime control length did not match its stable file identity"
-        )
-    if repeated_document != document:
-        raise RuntimeError("runtime control bytes changed during stable read")
-    if _runtime_control_stat_identity(middle_fd) != _runtime_control_stat_identity(
-        after_fd
-    ):
-        raise RuntimeError("runtime control changed while it was read")
-
-    if _runtime_control_stat_identity(after_fd) != _runtime_control_stat_identity(
-        after_path
-    ):
-        raise RuntimeError("runtime control path changed while it was read")
-
-    signature: tuple[object, ...] = (
-        control_path,
-        *_runtime_control_stat_identity(after_fd),
-        hashlib.sha256(document).hexdigest(),
+    return _runtime_control._read_stable_runtime_control(
+        CONTROL_FILE=CONTROL_FILE,
+        RUNTIME_CONTROL_MAX_BYTES=RUNTIME_CONTROL_MAX_BYTES,
+        _RuntimeControlAbsent=_RuntimeControlAbsent,
+        _runtime_control_stat_identity=_runtime_control_stat_identity,
+        hashlib=hashlib,
+        os=os,
+        stat=stat,
     )
-    return document, signature
 
 
 def load_control() -> dict:
     """Load and validate the optional fail-safe runtime-control document."""
-    try:
-        document, signature = _read_stable_runtime_control()
-    except _RuntimeControlAbsent:
-        _CONTROL_CACHE["signature"] = None
-        _CONTROL_CACHE["data"] = {}
-        _CONTROL_CACHE["has_valid"] = False
-        _CONTROL_CACHE["failure_signature"] = None
-        return {}
-    except OSError as exc:
-        return control_failure_result(
-            str(exc),
-            signature=("read", type(exc).__name__, str(exc)),
-        )
-    except Exception as exc:
-        return control_failure_result(
-            str(exc),
-            signature=("snapshot", type(exc).__name__, str(exc)),
-        )
-
-    try:
-        data = load_strict_runtime_json(
-            document,
-            label="runtime control",
-            parse_floats_as_decimal=True,
-        )
-        data = validate_control_document(data)
-    except Exception as exc:
-        return control_failure_result(str(exc), signature=("content", signature, type(exc).__name__, str(exc)))
-
-    changed = (
-        _CONTROL_CACHE.get("signature") != signature
-        or _CONTROL_CACHE.get("data") != data
+    return _runtime_control.load_control(
+        CONTROL_FILE=CONTROL_FILE,
+        _CONTROL_CACHE=_CONTROL_CACHE,
+        _RuntimeControlAbsent=_RuntimeControlAbsent,
+        _read_stable_runtime_control=_read_stable_runtime_control,
+        control_failure_result=control_failure_result,
+        load_strict_runtime_json=load_strict_runtime_json,
+        log=log,
+        log_json_debug=log_json_debug,
+        validate_control_document=validate_control_document,
     )
-    _CONTROL_CACHE["signature"] = signature
-    _CONTROL_CACHE["data"] = dict(data)
-    _CONTROL_CACHE["has_valid"] = True
-    _CONTROL_CACHE["failure_signature"] = None
-    if changed:
-        log.info("Loaded runtime control file %s", CONTROL_FILE)
-        log_json_debug("Runtime control", data)
-    return dict(data)
 
 
 def control_bool(data: dict, key: str) -> bool:
     """Return a validated boolean runtime-control value."""
-    value = data.get(key)
-    if value in (None, ""):
-        return False
-    if isinstance(value, bool):
-        return value
-    if isinstance(value, str):
-        normalized = value.strip().lower()
-        if not normalized:
-            return False
-        if normalized in {"1", "true", "yes", "on"}:
-            return True
-        if normalized in {"0", "false", "no", "off"}:
-            return False
-    log.warning("Ignoring invalid runtime control boolean %s=%r; failing open", key, value)
-    return False
+    return _runtime_control.control_bool(
+        data,
+        key,
+        log=log,
+    )
 
 
 def control_pause_active(data: dict, *keys: str) -> tuple[bool, str, int]:
     """Return whether the runtime-control document currently pauses a lane."""
-    current = now_epoch()
-
-    for key in keys:
-        if control_bool(data, key):
-            return True, key, 0
-
-    for key in [f"{key}_until" for key in keys]:
-        if key in data:
-            try:
-                until_epoch = parse_control_time(data.get(key))
-            except ValueError as exc:
-                log.error("Ignoring invalid control pause %s=%r: %s", key, data.get(key), exc)
-                continue
-            if until_epoch > current:
-                return True, key, until_epoch
-
-    return False, "", 0
+    return _runtime_control.control_pause_active(
+        data,
+        *keys,
+        control_bool=control_bool,
+        log=log,
+        now_epoch=now_epoch,
+        parse_control_time=parse_control_time,
+    )
 
 
 def lane_paused(*lane_keys: str) -> bool:
     """Return whether a named posting lane is paused."""
-    data = load_control()
-    if not data:
-        return False
-
-    expanded_keys = ["disable_all", "pause_all"]
-    expanded_keys.extend(lane_keys)
-
-    if any("replies" in key for key in lane_keys):
-        expanded_keys.append("pause_replies")
-    if "disable_normal_replies" in lane_keys:
-        expanded_keys.append("pause_normal_replies")
-    if "disable_quote_replies" in lane_keys:
-        expanded_keys.append("pause_quote_replies")
-    if "disable_hot_post_replies" in lane_keys:
-        expanded_keys.append("pause_hot_post_replies")
-    if "disable_quote_posts" in lane_keys:
-        expanded_keys.append("pause_quote_posts")
-    if "disable_meme_posts" in lane_keys:
-        expanded_keys.append("pause_meme_posts")
-
-    # Preserve order while de-duplicating aliases.
-    expanded_keys = list(dict.fromkeys(expanded_keys))
-
-    active, key, until_epoch = control_pause_active(data, *expanded_keys)
-    if active:
-        human_until = datetime.fromtimestamp(until_epoch).strftime("%Y-%m-%d %H:%M:%S") if until_epoch else "until cleared"
-        log.warning("Runtime control active: %s pauses %s (%s)", key, ",".join(lane_keys), human_until)
-        log_event("runtime_control_pause", key=key, lanes=list(lane_keys), until_epoch=until_epoch)
-        return True
-
-    return False
+    return _runtime_control.lane_paused(
+        *lane_keys,
+        control_pause_active=control_pause_active,
+        datetime=datetime,
+        load_control=load_control,
+        log=log,
+        log_event=log_event,
+    )
 
 
 def global_remote_writes_paused() -> bool:
     """Return whether the runtime control pauses every remote-write lane."""
-    data = load_control()
-    if not data:
-        return False
-    active, _key, _until_epoch = control_pause_active(
-        data,
-        "disable_all",
-        "pause_all",
+    return _runtime_control.global_remote_writes_paused(
+        control_pause_active=control_pause_active,
+        load_control=load_control,
     )
-    return active
 
 
 # ---------------------------------------------------------------------
