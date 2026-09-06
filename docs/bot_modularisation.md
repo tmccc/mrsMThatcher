@@ -2294,3 +2294,88 @@ Next useful domain: supervisor review of reply-context/media preparation around
 `build_parent_chain`, `build_context_for_reply_ai` and
 `reply_media_context_for_candidate`, keeping cache/persistence, provider and cycle
 authority in their existing locations. Supervisor review precedes a fresh invocation.
+
+## Stage 23 — verified reply-context construction
+
+Baseline: `3082adea58c5fd89567018c6aeaf9beb63d4a958` (2026-09-06).
+Worktree `/disks/disk1/research/mrsMThatcher-bot-modularisation-stage23` started
+clean on `codex/bot-modularisation-stage23`, matching the verified pushed stage
+22 parent. The supervisor's scope notes, fourteen-function inventory and all 40
+supplied nodes informed the extraction; normal/quote cycles, clarification,
+state recovery, guarded bootstrap, native media and actual integration callers
+were inspected.
+
+`mrs_bot_reply_context.py` owns **446 original definition lines** across
+`get_immediate_parent_id`, `clean_text_for_reply_context`, `tweet_context_text`,
+`trim_context_text`, `build_parent_chain`, `is_our_auto_reply`,
+`_reply_context_post`, `_log_single_call_context_summary`,
+`_directly_quoted_tweet_for_reply_context`, `_direct_quote_id`,
+`_quoted_post_for_reply_context`, `_parent_path_is_contiguous`,
+`_parent_path_is_chronological` and `build_context_for_reply_ai`.
+Thirteen explicit adapters supply **49 current root dependencies**; the pure
+`_direct_quote_id` is an alias. Root names/signatures/defaults/annotations and
+original implementation bodies/docstrings remain exact. Only the owner's
+`_reply_context_post.maximum_chars` becomes required: the adapter explicitly
+forwards the original root definition-time `MAX_VISIBLE_TEXT_CHARACTERS` default.
+No constants or classes moved.
+
+Compatibility retains parent reference validation and lookup/depth budgets,
+actual contiguous suffixes and verified chronology (excluding cached observation
+timestamps), the own immediate auto-reply check, bounded incoming contribution,
+declared target/ancestor quotes, native media before structural summary, metadata,
+deep copies and original references. Canonical JSON options/fallback bytes,
+prose/URL-free summary hashes and native error boundaries are unchanged.
+Cache/lookup/pruning, media preparation, canonical bounds/schema/exceptions,
+parsing, configuration, clock/logging and orchestration remain in existing
+locations. The standard-library-only owner retains no callbacks, configuration,
+clients or state and performs no import-time runtime work.
+
+Evidence: `/tmp/mrs-bot-stage23-ykwtqr`. Before editing, documentation passed for
+**231 modules**, **82 tests** collected in **4.22s**, and **82 passed in 13.50s**.
+The validated baseline contains **65 explicit nodes across 11 files**, including
+all 40 supplied nodes, prior quote/normal cycle and generation contracts, stage
+22 cache/media tests, recovery and guarded-bootstrap checks, context/media/evidence
+regressions and eight loopback normal/quote/pagination/restart integrations.
+
+After extraction, documentation passed for **232 modules**, **96 tests** collected
+in **4.18s**, and **96 passed in 14.26s** on the first run (`current-pytest.txt`;
+**66 arguments across 12 files**). The **10 new tests / 14 cases** cover guarded
+import, current adapters/defaults/references/errors, the rebound-config fixed
+default, parent order/identity, quote container distinctions, cached chronology,
+usable suffix/raw ancestor quote preservation, media/copy/metadata order and
+canonical rejection/encoding versus native failures. Existing fixtures and native
+media/bounding implementations are reused; the imported autouse
+`isolate_regular_post_receipt` fixture remains registered.
+
+`run_selected.sh` uses `set -euo pipefail`, successful selection generation,
+validated nonempty arguments and collection before pytest. Both runs use
+`PYTHONUSERBASE=/home/tonym/.local`, `MRS_TEST_MODE=1`,
+`PYTEST_DISABLE_PLUGIN_AUTOLOAD=1`, `PYTHONDONTWRITEBYTECODE=1` and
+`python3 -m pytest -q -p no:cacheprovider`, with TMPDIR under the evidence root.
+Temporary HOME/state, dummy credentials, dead proxies, denied external sockets
+and explicit loopback fake APIs remain active. No broad suite or whole enormous
+test file ran; the passing run was retained after documentation-only edits.
+
+`verify_stage23.py` / `comparison.txt` prove exact moved bodies, signatures and
+dependencies using immutable `git show`, AST and symbol tables. Restoring the
+fourteen originals and removing one import reconstructs the **whole parent root
+byte for byte**, including **519 unaffected definitions** and every unrelated
+statement. All 22 prior owners, existing tests/fixtures and digest docs remain
+unchanged; README/API only add the companion and this report is appended. Final
+documentation and `git diff --check` pass.
+
+| Runtime file | Before lines / bytes | After lines / bytes |
+|---|---:|---:|
+| `mrsMThatcher2.py` | 20,661 / 808,138 | 20,362 / 797,987 |
+| `mrs_bot_reply_context.py` | absent | 576 / 18,855 |
+
+The root loses **299 lines / 10,151 bytes**; combined runtime source grows by
+**277 lines / 8,704 bytes**. The focused test file has **303 lines / 15,869 bytes**.
+Production remains `master` at `af5eda7c163a8174ec1365060aa923d21787e7bd` per
+worktree metadata. No production configuration/state/credentials, service action,
+live provider call, deployment/restart or next-stage work occurred.
+Next useful domain: supervisor review of native reply-media preparation around
+`attach_media_to_tweets`, `candidate_native_photo_media` and
+`reply_media_context_for_candidate`, preserving the existing cache, image fetching,
+canonical context and provider authorities. Supervisor review precedes a fresh
+invocation; this stage launches no successor.

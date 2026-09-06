@@ -242,6 +242,7 @@ import mrs_bot_mention_discovery as _mention_discovery
 import mrs_bot_mention_authority as _mention_authority
 import mrs_bot_reply_evaluation_state as _reply_evaluation_state
 import mrs_bot_tweet_lookup_cache as _tweet_lookup_cache
+import mrs_bot_reply_context as _reply_context
 
 from single_call_reply import (
     MAX_IMAGE_BYTES as SINGLE_CALL_MAX_IMAGE_BYTES,
@@ -7165,23 +7166,12 @@ def cache_tweet(
 
 
 def get_immediate_parent_id(tweet: dict) -> str | None:
-    """Return immediate parent ID."""
-    referenced_tweets = tweet.get("referenced_tweets", [])
-    if referenced_tweets is None:
-        return None
-    if not isinstance(referenced_tweets, list):
-        raise ApiError("X tweet returned malformed referenced_tweets", service="x")
-
-    for ref in referenced_tweets:
-        if not isinstance(ref, dict):
-            raise ApiError("X tweet returned malformed referenced_tweets", service="x")
-        if ref.get("type") == "replied_to":
-            parent_id = parse_tweet_id(ref.get("id"), context="parent reference")
-            if parent_id is None:
-                raise ApiError("X tweet returned malformed referenced_tweets", service="x")
-            return str(parent_id)
-
-    return None
+    """Delegate to the context owner with current root dependencies."""
+    return _reply_context.get_immediate_parent_id(
+        tweet,
+        ApiError=ApiError,
+        parse_tweet_id=parse_tweet_id,
+    )
 
 
 def _verified_tweet_lookup_row(
@@ -7247,11 +7237,12 @@ def get_tweet_by_id_cached(
 
 
 def clean_text_for_reply_context(text: str) -> str:
-    """Return normalised text for a bounded AI reply context."""
-    text = html.unescape(text or "")
-    text = re.sub(r"https?://\S+", "", text)
-    text = " ".join(text.split())
-    return text.strip()
+    """Delegate to the context owner with current root dependencies."""
+    return _reply_context.clean_text_for_reply_context(
+        text,
+        html=html,
+        re=re,
+    )
 
 
 def attach_media_to_tweets(tweets: list[dict], includes: dict | None) -> None:
@@ -7448,97 +7439,46 @@ def reply_media_context_for_candidate(
 
 
 def tweet_context_text(tweet: dict) -> str:
-    """Return the tweet context text."""
-    cleaned = clean_text_for_reply_context(tweet.get("text", ""))
-
-    if cleaned:
-        return cleaned
-
-    image_summary = clean_text_for_reply_context(tweet.get("image_summary", ""))
-    if image_summary:
-        return f"[Image/meme summary: {image_summary}]"
-
-    return ""
+    """Delegate to the context owner with current root dependencies."""
+    return _reply_context.tweet_context_text(
+        tweet,
+        clean_text_for_reply_context=clean_text_for_reply_context,
+    )
 
 
 def trim_context_text(text: str, max_chars: int) -> str:
-    """Trim context text."""
-    text = clean_text_for_reply_context(text)
-
-    if max_chars <= 0:
-        return ""
-    if len(text) <= max_chars:
-        return text
-    if max_chars <= 3:
-        return text[:max_chars]
-    prefix = text[:max_chars - 3].rsplit(" ", 1)[0].rstrip(".,;:")
-    if not prefix:
-        prefix = text[:max_chars - 3]
-    return prefix + "..."
+    """Delegate to the context owner with current root dependencies."""
+    return _reply_context.trim_context_text(
+        text,
+        max_chars,
+        clean_text_for_reply_context=clean_text_for_reply_context,
+    )
 
 
 def build_parent_chain(mention: dict, state: dict) -> list[dict]:
-    """Build bounded earlier-thread context for a reply candidate."""
-    chain: list[dict] = []
-    seen_ids: set[str] = set()
-    network_fetches = 0
-
-    parent_id = get_immediate_parent_id(mention)
-    prune_tweet_cache(state)
-
-    while parent_id and len(chain) < THREAD_CONTEXT_MAX_DEPTH:
-        if parent_id in seen_ids:
-            log.warning("Detected parent-chain loop at tweet_id=%s", parent_id)
-            break
-
-        seen_ids.add(parent_id)
-        cache = state.get("tweet_cache", {})
-        parent_is_cached = bool(
-            isinstance(cache, dict) and cache.get(parent_id)
-        )
-        if not parent_is_cached:
-            if network_fetches >= THREAD_CONTEXT_MAX_NETWORK_FETCHES:
-                log.info(
-                    "Stopping parent-chain network expansion after %d "
-                    "uncached lookup(s)",
-                    network_fetches,
-                )
-                break
-            network_fetches += 1
-
-        try:
-            parent = get_tweet_by_id_cached(parent_id, state)
-        except ApiError as exc:
-            if api_error_is_permanent_target_failure(exc):
-                log.warning(
-                    "Parent tweet_id=%s is permanently unavailable with status=%s; continuing without it",
-                    parent_id,
-                    getattr(exc, "status_code", None),
-                )
-                break
-            raise
-        if not parent:
-            log.info("Could not fetch/cache parent tweet_id=%s", parent_id)
-            break
-
-        chain.append(parent)
-        parent_id = get_immediate_parent_id(parent)
-
-    chain.reverse()
-    log.info("Built parent chain with %d item(s)", len(chain))
-    log_json_debug("Parent chain", chain)
-
-    return chain
+    """Delegate to the context owner with current root dependencies."""
+    return _reply_context.build_parent_chain(
+        mention,
+        state,
+        ApiError=ApiError,
+        THREAD_CONTEXT_MAX_DEPTH=THREAD_CONTEXT_MAX_DEPTH,
+        THREAD_CONTEXT_MAX_NETWORK_FETCHES=THREAD_CONTEXT_MAX_NETWORK_FETCHES,
+        api_error_is_permanent_target_failure=api_error_is_permanent_target_failure,
+        get_immediate_parent_id=get_immediate_parent_id,
+        get_tweet_by_id_cached=get_tweet_by_id_cached,
+        log=log,
+        log_json_debug=log_json_debug,
+        prune_tweet_cache=prune_tweet_cache,
+    )
 
 
 def is_our_auto_reply(tweet: dict | None, state: dict) -> bool:
-    """Return whether a post is one of this account's conversational replies."""
-
-    if not tweet or str(tweet.get("author_id")) != str(MY_USER_ID):
-        return False
-    return str(tweet.get("id")) in {
-        str(value) for value in state.get("own_auto_reply_ids", [])
-    }
+    """Delegate to the context owner with current root dependencies."""
+    return _reply_context.is_our_auto_reply(
+        tweet,
+        state,
+        MY_USER_ID=MY_USER_ID,
+    )
 
 
 def _reply_context_post(
@@ -7547,60 +7487,25 @@ def _reply_context_post(
     principal_author_id: str,
     maximum_chars: int = MAX_VISIBLE_TEXT_CHARACTERS,
 ) -> dict[str, str]:
-    """Return one bounded visible post with its canonical participant role."""
-
-    author_id = str(tweet.get("author_id") or "")
-    if author_id == str(MY_USER_ID):
-        role = "account"
-    elif author_id and author_id == str(principal_author_id):
-        role = "user"
-    else:
-        role = "other_user"
-    return {
-        "post_id": str(tweet.get("id") or ""),
-        "author_role": role,
-        "text": trim_context_text(tweet_context_text(tweet), maximum_chars),
-    }
+    """Delegate to the context owner with current root dependencies."""
+    return _reply_context._reply_context_post(
+        tweet,
+        principal_author_id=principal_author_id,
+        maximum_chars=maximum_chars,
+        MY_USER_ID=MY_USER_ID,
+        trim_context_text=trim_context_text,
+        tweet_context_text=tweet_context_text,
+    )
 
 
 def _log_single_call_context_summary(label: str, context: dict[str, object]) -> None:
-    """Log only bounded structure and a digest, never model-facing prose or URLs."""
-
-    visible = context.get("visible_conversation")
-    visible_rows = visible if isinstance(visible, list) else []
-    visible_character_count = sum(
-        len(str(row.get("text") or ""))
-        for row in visible_rows
-        if isinstance(row, dict)
-    )
-    media_context = context.get("_prepared_media_context")
-    photos = (
-        media_context.get("photos")
-        if isinstance(media_context, dict)
-        else None
-    )
-    media_count = len(photos) if isinstance(photos, list) else 0
-    try:
-        encoded = json.dumps(
-            context,
-            ensure_ascii=False,
-            sort_keys=True,
-            separators=(",", ":"),
-            allow_nan=False,
-        ).encode("utf-8")
-    except (TypeError, ValueError, UnicodeError):
-        encoded = b"non-canonical-single-call-context"
-    log.debug(
-        "%s summary target_id=%s visible_turn_count=%d "
-        "visible_character_count=%d quoted_subject_present=%s "
-        "media_count=%d context_sha256=%s",
+    """Delegate to the context owner with current root dependencies."""
+    return _reply_context._log_single_call_context_summary(
         label,
-        str(context.get("target_id") or ""),
-        len(visible_rows),
-        visible_character_count,
-        bool(context.get("quoted_post_id") or context.get("quoted_post")),
-        media_count,
-        hashlib.sha256(encoded).hexdigest(),
+        context,
+        hashlib=hashlib,
+        json=json,
+        log=log,
     )
 
 
@@ -7631,45 +7536,18 @@ def _directly_quoted_tweet_for_reply_context(
     *,
     include_media: bool = True,
 ) -> dict | None:
-    """Return one directly quoted post with native media metadata when available."""
-
-    references = candidate.get("referenced_tweets", []) or []
-    for reference in references:
-        if not isinstance(reference, dict) or reference.get("type") != "quoted":
-            continue
-        quoted_id = str(reference.get("id") or "")
-        if not quoted_id:
-            continue
-        try:
-            quoted = get_tweet_by_id_cached(
-                quoted_id,
-                state,
-                # Parent-cache records omit native attachment expansions.  A
-                # direct quote must refresh once with media fields rather than
-                # treating a text-only cache hit as proof of no image.
-                include_media=include_media,
-            )
-        except ApiError as exc:
-            if not api_error_is_permanent_target_failure(exc):
-                raise
-            return None
-        return quoted
-    return None
+    """Delegate to the context owner with current root dependencies."""
+    return _reply_context._directly_quoted_tweet_for_reply_context(
+        candidate,
+        state,
+        include_media=include_media,
+        ApiError=ApiError,
+        api_error_is_permanent_target_failure=api_error_is_permanent_target_failure,
+        get_tweet_by_id_cached=get_tweet_by_id_cached,
+    )
 
 
-def _direct_quote_id(candidate: dict) -> str | None:
-    """Return the candidate's one valid directly quoted post identity."""
-
-    references = candidate.get("referenced_tweets", []) or []
-    if not isinstance(references, list):
-        return None
-    for reference in references:
-        if not isinstance(reference, dict) or reference.get("type") != "quoted":
-            continue
-        quoted_id = str(reference.get("id") or "")
-        if quoted_id:
-            return quoted_id
-    return None
+_direct_quote_id = _reply_context._direct_quote_id
 
 
 def _quoted_post_for_reply_context(
@@ -7678,240 +7556,63 @@ def _quoted_post_for_reply_context(
     *,
     principal_author_id: str,
 ) -> dict[str, str] | None:
-    """Return one directly quoted post for local fact retrieval."""
-
-    quoted = _directly_quoted_tweet_for_reply_context(candidate, state)
-    if quoted is None:
-        return None
-    post = _reply_context_post(
-        quoted,
+    """Delegate to the context owner with current root dependencies."""
+    return _reply_context._quoted_post_for_reply_context(
+        candidate,
+        state,
         principal_author_id=principal_author_id,
+        _directly_quoted_tweet_for_reply_context=_directly_quoted_tweet_for_reply_context,
+        _reply_context_post=_reply_context_post,
     )
-    return post if post["post_id"] and post["text"] else None
 
 
 def _parent_path_is_contiguous(path: list[dict], target: dict) -> bool:
-    """Return whether every retained turn directly parents the next turn."""
-
-    complete = [*path, target]
-    return all(
-        str(get_immediate_parent_id(complete[index]) or "")
-        == str(complete[index - 1].get("id") or "")
-        for index in range(1, len(complete))
+    """Delegate to the context owner with current root dependencies."""
+    return _reply_context._parent_path_is_contiguous(
+        path,
+        target,
+        get_immediate_parent_id=get_immediate_parent_id,
     )
 
 
 def _parent_path_is_chronological(path: list[dict], target: dict) -> bool:
-    """Reject a verified parent path whose available timestamps run forward."""
-
-    def verified_created_epoch(post: dict) -> int | None:
-        epoch = parse_x_datetime_to_epoch(post.get("created_at"))
-        cached_epoch = post.get("cached_epoch")
-        # ``cache_tweet`` historically supplied the observation time when X
-        # omitted created_at.  Do not mistake that local fallback for verified
-        # post chronology.
-        if type(cached_epoch) is int and epoch == cached_epoch:
-            return None
-        return epoch
-
-    complete = [*path, target]
-    for older, newer in zip(complete, complete[1:]):
-        older_epoch = verified_created_epoch(older)
-        newer_epoch = verified_created_epoch(newer)
-        if (
-            older_epoch is not None
-            and newer_epoch is not None
-            and older_epoch > newer_epoch
-        ):
-            return False
-    return True
+    """Delegate to the context owner with current root dependencies."""
+    return _reply_context._parent_path_is_chronological(
+        path,
+        target,
+        parse_x_datetime_to_epoch=parse_x_datetime_to_epoch,
+    )
 
 
 def build_context_for_reply_ai(
     mention: dict,
     state: dict,
 ) -> tuple[dict[str, object], bool]:
-    """Build the verified parent-contiguous canonical single-call context."""
-
-    mention_id = str(mention.get("id") or "")
-    mention_text = trim_context_text(
-        str(mention.get("text") or "").strip(),
-        REPLY_INCOMING_MAX_CHARS,
-    )
-    author_id = str(mention.get("author_id") or "")
-    root_id = str(mention.get("conversation_id") or mention_id)
-    if not mention_id or not mention_text or not author_id or not root_id:
-        log.warning("Reply candidate lacks usable identity or text target_id=%s", mention_id)
-        return {}, False
-
-    chain: list[dict] = []
-    if ALWAYS_FETCH_PARENT_FOR_CONTEXT:
-        chain = build_parent_chain(mention, state)
-
-    immediate_parent = chain[-1] if chain else None
-    if SKIP_REPLIES_TO_OWN_AUTO_REPLIES and is_our_auto_reply(
-        immediate_parent,
+    """Delegate to the context owner with current root dependencies."""
+    return _reply_context.build_context_for_reply_ai(
+        mention,
         state,
-    ):
-        log.info(
-            "Skipping target_id=%s because its immediate parent is an own "
-            "conversational reply",
-            mention_id,
-        )
-        return {}, False
-
-    if root_id != mention_id:
-        if not chain or str(chain[0].get("id") or "") != root_id:
-            log.warning(
-                "Verified parent path did not reach root; retaining the longest "
-                "available contiguous suffix target_id=%s root_id=%s traversals=%s",
-                mention_id,
-                root_id,
-                THREAD_CONTEXT_MAX_DEPTH,
-            )
-        if not _parent_path_is_contiguous(chain, mention):
-            log.warning(
-                "Verified parent path is not contiguous target_id=%s",
-                mention_id,
-            )
-            return {}, False
-        if not _parent_path_is_chronological(chain, mention):
-            log.warning(
-                "Verified parent path contains a post later than its child "
-                "target_id=%s",
-                mention_id,
-            )
-            return {}, False
-    elif chain:
-        log.warning(
-            "Root target unexpectedly has a parent path target_id=%s",
-            mention_id,
-        )
-        return {}, False
-
-    visible: list[dict[str, str]] = []
-    for tweet in chain:
-        post = _reply_context_post(
-            tweet,
-            principal_author_id=author_id,
-        )
-        if not post["post_id"] or not post["text"]:
-            log.warning(
-                "Discarding older context through an unusable parent turn "
-                "target_id=%s",
-                mention_id,
-            )
-            visible = []
-            continue
-        visible.append(post)
-    target_turn = _reply_context_post(
-        mention,
-        principal_author_id=author_id,
-        maximum_chars=REPLY_INCOMING_MAX_CHARS,
+        ALWAYS_FETCH_PARENT_FOR_CONTEXT=ALWAYS_FETCH_PARENT_FOR_CONTEXT,
+        ContextValidationError=ContextValidationError,
+        REPLY_INCOMING_MAX_CHARS=REPLY_INCOMING_MAX_CHARS,
+        SKIP_REPLIES_TO_OWN_AUTO_REPLIES=SKIP_REPLIES_TO_OWN_AUTO_REPLIES,
+        THREAD_CONTEXT_MAX_DEPTH=THREAD_CONTEXT_MAX_DEPTH,
+        _direct_quote_id=_direct_quote_id,
+        _directly_quoted_tweet_for_reply_context=_directly_quoted_tweet_for_reply_context,
+        _log_single_call_context_summary=_log_single_call_context_summary,
+        _parent_path_is_chronological=_parent_path_is_chronological,
+        _parent_path_is_contiguous=_parent_path_is_contiguous,
+        _reply_context_post=_reply_context_post,
+        bound_visible_conversation=bound_visible_conversation,
+        build_parent_chain=build_parent_chain,
+        copy=copy,
+        current_datetime=current_datetime,
+        get_immediate_parent_id=get_immediate_parent_id,
+        is_our_auto_reply=is_our_auto_reply,
+        log=log,
+        reply_media_context_for_candidate=reply_media_context_for_candidate,
+        trim_context_text=trim_context_text,
     )
-    if not target_turn["post_id"] or not target_turn["text"]:
-        return {}, False
-    visible.append(target_turn)
-
-    directly_quoted_candidate = _directly_quoted_tweet_for_reply_context(
-        mention, state
-    )
-    if _direct_quote_id(mention) and directly_quoted_candidate is None:
-        log.warning(
-            "Directly quoted post is unavailable; refusing incomplete context "
-            "target_id=%s quoted_id=%s",
-            mention_id,
-            _direct_quote_id(mention),
-        )
-        return {}, False
-    quoted_candidate = directly_quoted_candidate
-    if quoted_candidate is None and chain:
-        ancestor_quote_id = _direct_quote_id(chain[0])
-        quoted_candidate = _directly_quoted_tweet_for_reply_context(
-            chain[0], state, include_media=True
-        )
-        if ancestor_quote_id and quoted_candidate is None:
-            log.warning(
-                "Ancestor quoted post is unavailable; refusing incomplete "
-                "context target_id=%s quoted_id=%s",
-                mention_id,
-                ancestor_quote_id,
-            )
-            return {}, False
-    quoted_post = None
-    quoted_post_id = None
-    if quoted_candidate is not None:
-        candidate_post = _reply_context_post(
-            quoted_candidate,
-            principal_author_id=author_id,
-        )
-        quoted_post_id = candidate_post["post_id"] or None
-        if candidate_post["post_id"] and candidate_post["text"]:
-            quoted_post = candidate_post
-
-    quoted_post_relationship = None
-    if directly_quoted_candidate is not None:
-        quoted_post_relationship = "target_quote"
-    elif quoted_candidate is not None:
-        quoted_post_relationship = "root_quote"
-
-    try:
-        bounded_visible = bound_visible_conversation(
-            visible,
-            target_post_id=mention_id,
-        )
-    except ContextValidationError as exc:
-        log.warning(
-            "Verified parent path could not be bounded target_id=%s reason=%s",
-            mention_id,
-            exc,
-        )
-        return {}, False
-    visible = [
-        {
-            "post_id": turn["post_id"],
-            "author_role": turn["role"],
-            "text": turn["text"],
-        }
-        for turn in bounded_visible
-    ]
-
-    parent_thread = copy.deepcopy(visible[:-1])
-    prepared_media_context = reply_media_context_for_candidate(
-        mention,
-        lane=str(mention.get("_source") or "mention"),
-        target_id=mention_id,
-        quoted_candidate=quoted_candidate,
-    )
-    context: dict[str, object] = {
-        "target_id": mention_id,
-        "thread_id": root_id,
-        "root_post_id": root_id,
-        "parent_post_id": get_immediate_parent_id(mention),
-        "lane": str(mention.get("_source") or "mention"),
-        "incoming_contribution": mention_text,
-        "quoted_post": quoted_post,
-        "quoted_post_id": quoted_post_id,
-        "quoted_post_relationship": quoted_post_relationship,
-        "parent_thread": parent_thread,
-        "visible_conversation": visible,
-        "visual_description": None,
-        "clarification_request": None,
-        "current_date": current_datetime().strftime("%Y-%m-%d"),
-        "target_author_id": author_id,
-        "target_created_at": str(mention.get("created_at") or ""),
-        "_prepared_media_context": prepared_media_context,
-    }
-    log.info(
-        "Built single-call reply context target_id=%s turns=%d root_id=%s "
-        "parent_id=%s",
-        mention_id,
-        len(visible),
-        root_id,
-        get_immediate_parent_id(mention),
-    )
-    _log_single_call_context_summary("Single-call reply context", context)
-    return context, True
 # ---------------------------------------------------------------------
 # Mentions
 # ---------------------------------------------------------------------
