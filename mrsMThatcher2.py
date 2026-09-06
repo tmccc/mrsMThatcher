@@ -229,6 +229,7 @@ import mrs_bot_image_selection as _image_selection
 import mrs_bot_quote_posting as _quote_posting
 import mrs_bot_daily_meme as _daily_meme
 import mrs_bot_legacy_reply_validation as _legacy_reply_validation
+import mrs_bot_reply_state as _reply_state
 
 from single_call_reply import (
     MAX_IMAGE_BYTES as SINGLE_CALL_MAX_IMAGE_BYTES,
@@ -19904,10 +19905,7 @@ def is_probably_spam_or_not_worth_replying(text: str) -> bool:
     return False
 
 
-def pending_ai_reply_draft_key(target_id: object, candidate_source: object) -> str:
-    """Return the current single-call pending reply draft key."""
-
-    return f"{str(candidate_source or 'mention')}:{str(target_id)}"
+pending_ai_reply_draft_key = _reply_state.pending_ai_reply_draft_key
 
 
 def validate_current_ai_reply_draft(
@@ -19916,13 +19914,13 @@ def validate_current_ai_reply_draft(
     context: dict[str, object],
     recent_replies: list[object] | None = None,
 ) -> dict:
-    """Validate only a current single-call durable reply draft."""
-
-    return validate_single_call_persisted_draft(
+    """Delegate reply state with current root dependencies."""
+    return _reply_state.validate_current_ai_reply_draft(
         draft,
         context=context,
-        repository=reply_evidence_repository(),
-        recent_account_replies=recent_replies or [],
+        recent_replies=recent_replies,
+        validate_single_call_persisted_draft=validate_single_call_persisted_draft,
+        reply_evidence_repository=reply_evidence_repository,
     )
 
 
@@ -19934,39 +19932,15 @@ def store_pending_ai_reply(
     *,
     context: dict[str, object],
 ) -> bool:
-    """Store a mechanically validated single-call draft."""
-
-    if not isinstance(reply, ValidatedReply):
-        return False
-    try:
-        validated = validate_current_ai_reply_draft(
-            reply.draft_record,
-            context=context,
-        )
-    except (KeyError, OSError, RuntimeError, TypeError, ValueError) as exc:
-        log.warning(
-            "Refusing invalid single-call pending reply draft target_id=%s "
-            "source=%s reason=%s",
-            target_id,
-            candidate_source,
-            exc,
-        )
-        return False
-    if (
-        validated["target_id"] != str(target_id)
-        or validated["candidate_source"] != str(candidate_source)
-        or validated["proposed_reply"] != str(reply)
-    ):
-        return False
-    drafts = state.setdefault("pending_ai_reply_drafts", {})
-    if not isinstance(drafts, dict):
-        return False
-    drafts[pending_ai_reply_draft_key(target_id, candidate_source)] = (
-        copy.deepcopy(validated)
+    """Delegate reply state with current root dependencies."""
+    return _reply_state.store_pending_ai_reply(
+        state, target_id, candidate_source, reply,
+        context=context,
+        ValidatedReply=ValidatedReply,
+        validate_current_ai_reply_draft=validate_current_ai_reply_draft,
+        log=log,
+        pending_ai_reply_draft_key=pending_ai_reply_draft_key,
     )
-    while len(drafts) > 100:
-        drafts.pop(next(iter(drafts)))
-    return True
 
 
 def pending_ai_reply(
@@ -19978,123 +19952,32 @@ def pending_ai_reply(
     recent_replies: list[object] | None = None,
     evaluation_outcome: dict[str, object] | None = None,
 ) -> str | None:
-    """Recover a valid current draft without another provider request."""
-
-    drafts = state.get("pending_ai_reply_drafts", {})
-    if not isinstance(drafts, dict):
-        return None
-    key = pending_ai_reply_draft_key(target_id, candidate_source)
-    record = drafts.get(key)
-    try:
-        validated = validate_current_ai_reply_draft(
-            record,
-            context=context,
-            recent_replies=recent_replies,
-        )
-    except ReplyEvidenceUnavailable:
-        raise
-    except ReplyValidationError as exc:
-        if record is not None:
-            log.warning(
-                "Retiring pending reply draft that fails current local "
-                "validation target_id=%s source=%s reason=%s",
-                target_id,
-                candidate_source,
-                exc,
-            )
-            drafts.pop(key, None)
-            if not drafts:
-                state.pop("pending_ai_reply_drafts", None)
-        if evaluation_outcome is not None:
-            evaluation_outcome.update(
-                {
-                    "status": "operational_failure",
-                    "reason": "persisted_draft_local_validation_failed",
-                    "error_category": "local_validation",
-                    "model_call_count": 0,
-                }
-            )
-        visible = [
-            turn
-            for turn in (context.get("visible_conversation") or [])
-            if isinstance(turn, dict)
-        ]
-        _record_single_call_result(
-            PipelineResult(
-                status="operational_failure",
-                reason="persisted_draft_local_validation_failed",
-                error_category="local_validation",
-                model_call_count=0,
-                local_validation_status="failed",
-                payload_sha256=(
-                    str(record.get("model_payload_sha256"))
-                    if isinstance(record, dict)
-                    else None
-                ),
-                visible_turn_count=len(visible),
-                visible_character_count=sum(
-                    len(str(turn.get("text") or "")) for turn in visible
-                ),
-                recent_conversational_reply_count=len(recent_replies or []),
-                supplied_image_count=(
-                    len(record.get("supplied_images") or [])
-                    if isinstance(record, dict)
-                    else 0
-                ),
-            ),
-            lane=candidate_source,
-            target_id=target_id,
-        )
-        return None
-    except (KeyError, OSError, RuntimeError, TypeError, ValueError) as exc:
-        if record is not None:
-            log.warning(
-                "Discarding obsolete or invalid pending reply draft "
-                "target_id=%s source=%s reason=%s",
-                target_id,
-                candidate_source,
-                exc,
-            )
-            drafts.pop(key, None)
-            if not drafts:
-                state.pop("pending_ai_reply_drafts", None)
-        return None
-    metadata = {
-        "strategy_version": validated["strategy_version"],
-        "reply_kind": validated["reply_kind"],
-        "reason_code": validated["reason_code"],
-        "used_fact_ids": list(validated["used_fact_ids"]),
-        "used_fact_count": len(validated["used_fact_ids"]),
-        "trusted_fact_count": len(validated["trusted_fact_ids"]),
-        "model_call_count": validated["model_call_count"],
-        "validated_draft_hash": validated["validated_draft_hash"],
-        "recovered_without_provider_call": True,
-    }
-    log_event(
-        "single_call_reply_draft_recovered",
-        lane=str(candidate_source),
-        target_id=str(target_id),
-        strategy_version=SINGLE_CALL_STRATEGY_VERSION,
-        model=SINGLE_CALL_MODEL,
-        validated_draft_hash=validated["validated_draft_hash"],
-        model_call_count=0,
-    )
-    return ValidatedReply(
-        validated["proposed_reply"],
-        copy.deepcopy(validated),
-        metadata,
+    """Delegate reply state with current root dependencies."""
+    return _reply_state.pending_ai_reply(
+        state, target_id, candidate_source,
+        context=context,
+        recent_replies=recent_replies,
+        evaluation_outcome=evaluation_outcome,
+        pending_ai_reply_draft_key=pending_ai_reply_draft_key,
+        validate_current_ai_reply_draft=validate_current_ai_reply_draft,
+        ReplyEvidenceUnavailable=ReplyEvidenceUnavailable,
+        ReplyValidationError=ReplyValidationError,
+        log=log,
+        _record_single_call_result=_record_single_call_result,
+        PipelineResult=PipelineResult,
+        log_event=log_event,
+        SINGLE_CALL_STRATEGY_VERSION=SINGLE_CALL_STRATEGY_VERSION,
+        SINGLE_CALL_MODEL=SINGLE_CALL_MODEL,
+        ValidatedReply=ValidatedReply,
     )
 
 
 def clear_pending_ai_reply(state: dict, target_id: str, candidate_source: str) -> None:
-    """Clear one pending reply draft after a terminal outcome or reconciliation."""
-
-    drafts = state.get("pending_ai_reply_drafts")
-    if not isinstance(drafts, dict):
-        return
-    drafts.pop(pending_ai_reply_draft_key(target_id, candidate_source), None)
-    if not drafts:
-        state.pop("pending_ai_reply_drafts", None)
+    """Delegate reply state with current root dependencies."""
+    return _reply_state.clear_pending_ai_reply(
+        state, target_id, candidate_source,
+        pending_ai_reply_draft_key=pending_ai_reply_draft_key,
+    )
 
 
 def log_ai_reply_posting_outcome(
@@ -20126,52 +20009,20 @@ def log_ai_reply_posting_outcome(
     )
 
 
-CONVERSATIONAL_REPLY_HISTORY_LANES = frozenset(
-    {"mention", "hot_post_reply", "quote_tweet", "conversational_reply"}
-)
+CONVERSATIONAL_REPLY_HISTORY_LANES = _reply_state.CONVERSATIONAL_REPLY_HISTORY_LANES
 
 
 def _confirmed_conversational_history_rows(state: dict) -> list[dict]:
-    """Return positively identified rows from the durable confirmation history."""
-
-    history = state.get("ai_reply_history", [])
-    if not isinstance(history, list):
-        return []
-    rows: list[dict] = []
-    for raw in history:
-        if not isinstance(raw, dict):
-            continue
-        if str(raw.get("candidate_source") or "") not in (
-            CONVERSATIONAL_REPLY_HISTORY_LANES
-        ):
-            continue
-        if raw.get("deleted") is True or str(raw.get("status") or "") in {
-            "deleted",
-            "failed",
-            "pending",
-        }:
-            continue
-        target_id = str(raw.get("target_id") or "")
-        reply_post_id = str(raw.get("reply_post_id") or "")
-        reply = str(raw.get("proposed_reply") or "").strip()
-        epoch = raw.get("reply_epoch")
-        if (
-            not valid_string_post_id(target_id)
-            or not valid_string_post_id(reply_post_id)
-            or not reply
-            or type(epoch) is not int
-            or epoch <= 0
-            or epoch > MAX_REASONABLE_STATE_EPOCH
-        ):
-            continue
-        rows.append(raw)
-    return rows
+    """Delegate reply state with current root dependencies."""
+    return _reply_state._confirmed_conversational_history_rows(
+        state,
+        CONVERSATIONAL_REPLY_HISTORY_LANES=CONVERSATIONAL_REPLY_HISTORY_LANES,
+        valid_string_post_id=valid_string_post_id,
+        MAX_REASONABLE_STATE_EPOCH=MAX_REASONABLE_STATE_EPOCH,
+    )
 
 
-def _confirmed_history_sort_key(row: dict) -> tuple[int, int]:
-    """Order confirmed replies by time and numeric X post identity."""
-
-    return (int(row["reply_epoch"]), int(str(row["reply_post_id"])))
+_confirmed_history_sort_key = _reply_state._confirmed_history_sort_key
 
 
 def recent_confirmed_account_replies(
@@ -20182,56 +20033,26 @@ def recent_confirmed_account_replies(
     excluded_post_ids: set[str] | None = None,
     excluded_reply_post_ids: set[str] | None = None,
 ) -> list[dict[str, str]]:
-    """Return only prior remotely confirmed conversational account replies."""
-
-    if before_epoch is None:
-        return []
-    excluded = {str(value) for value in (excluded_post_ids or set())}
-    excluded.update(str(value) for value in (excluded_reply_post_ids or set()))
-    rows = []
-    for row in _confirmed_conversational_history_rows(state):
-        reply_post_id = str(row["reply_post_id"])
-        if reply_post_id in excluded:
-            continue
-        if row["reply_epoch"] >= before_epoch:
-            continue
-        rows.append(row)
-    rows.sort(key=_confirmed_history_sort_key)
-    by_reply_id: dict[str, dict] = {}
-    for row in rows:
-        by_reply_id[str(row["reply_post_id"])] = row
-    rows = sorted(by_reply_id.values(), key=_confirmed_history_sort_key)
-    bounded_limit = max(0, min(int(limit), MAX_RECENT_ACCOUNT_REPLIES))
-    return [
-        {
-            "post_id": str(row["reply_post_id"]),
-            "text": str(row["proposed_reply"]).strip(),
-        }
-        for row in rows[-bounded_limit:]
-    ] if bounded_limit else []
+    """Delegate reply state with current root dependencies."""
+    return _reply_state.recent_confirmed_account_replies(
+        state, limit,
+        before_epoch=before_epoch,
+        excluded_post_ids=excluded_post_ids,
+        excluded_reply_post_ids=excluded_reply_post_ids,
+        _confirmed_conversational_history_rows=_confirmed_conversational_history_rows,
+        _confirmed_history_sort_key=_confirmed_history_sort_key,
+        MAX_RECENT_ACCOUNT_REPLIES=MAX_RECENT_ACCOUNT_REPLIES,
+    )
 
 
 def _reply_context_history_excluded_post_ids(
     context: dict[str, object],
 ) -> set[str]:
-    """Return every current subject identity excluded from history fields."""
-
-    excluded_post_ids = {
-        str(turn.get("post_id") or "")
-        for turn in (context.get("visible_conversation") or [])
-        if isinstance(turn, dict)
-    }
-    excluded_post_ids.update(
-        {
-            str(context.get("thread_id") or ""),
-            str(context.get("root_post_id") or ""),
-        }
+    """Delegate reply state with current root dependencies."""
+    return _reply_state._reply_context_history_excluded_post_ids(
+        context,
+        quoted_post_reference_id=quoted_post_reference_id,
     )
-    quoted_post_id = quoted_post_reference_id(context)
-    if quoted_post_id is not None:
-        excluded_post_ids.add(quoted_post_id)
-    excluded_post_ids.discard("")
-    return excluded_post_ids
 
 
 def recovery_comparison_account_replies(
@@ -20239,49 +20060,17 @@ def recovery_comparison_account_replies(
     *,
     context: dict[str, object],
 ) -> list[dict[str, str]]:
-    """Return current confirmed prose used only to revalidate an unsent draft."""
-
-    excluded_post_ids = _reply_context_history_excluded_post_ids(context)
-    before_epoch = min(now_epoch() + 1, MAX_REASONABLE_STATE_EPOCH + 1)
-    recent = recent_confirmed_account_replies(
+    """Delegate reply state with current root dependencies."""
+    return _reply_state.recovery_comparison_account_replies(
         state,
-        before_epoch=before_epoch,
-        excluded_post_ids=excluded_post_ids,
+        context=context,
+        _reply_context_history_excluded_post_ids=_reply_context_history_excluded_post_ids,
+        now_epoch=now_epoch,
+        MAX_REASONABLE_STATE_EPOCH=MAX_REASONABLE_STATE_EPOCH,
+        recent_confirmed_account_replies=recent_confirmed_account_replies,
+        _same_author_confirmed_history_rows=_same_author_confirmed_history_rows,
+        _confirmed_conversational_history_rows=_confirmed_conversational_history_rows,
     )
-    same_author_rows = _same_author_confirmed_history_rows(
-        state,
-        author_id=context.get("target_author_id"),
-        current_thread_post_ids=excluded_post_ids,
-        target_id=str(context.get("target_id") or ""),
-        before_epoch=before_epoch,
-    )
-    by_reply_id = {
-        str(row.get("post_id") or ""): row
-        for row in recent
-        if isinstance(row, dict)
-    }
-    for row in same_author_rows:
-        reply_id = str(row.get("reply_post_id") or "")
-        if reply_id and reply_id not in by_reply_id:
-            by_reply_id[reply_id] = {
-                "post_id": reply_id,
-                "text": str(row.get("proposed_reply") or ""),
-                "_reply_epoch": int(row.get("reply_epoch") or 0),
-            }
-    history_epochs = {
-        str(row.get("reply_post_id") or ""): int(row.get("reply_epoch") or 0)
-        for row in _confirmed_conversational_history_rows(state)
-    }
-    return [
-        {"post_id": reply_id, "text": str(row.get("text") or "")}
-        for reply_id, row in sorted(
-            by_reply_id.items(),
-            key=lambda item: (
-                int(item[1].get("_reply_epoch") or history_epochs.get(item[0], 0)),
-                item[0],
-            ),
-        )
-    ]
 
 
 def _same_author_confirmed_history_rows(
@@ -20292,53 +20081,18 @@ def _same_author_confirmed_history_rows(
     target_id: object,
     before_epoch: int | None,
 ) -> list[dict]:
-    """Select genuine prior same-author pairs before dropping local identity."""
-
-    wanted_author = str(author_id or "")
-    current_target = str(target_id or "")
-    if not wanted_author or before_epoch is None:
-        return []
-    latest_allowed = before_epoch
-    earliest_allowed = latest_allowed - AI_REPLY_HISTORY_MAX_AGE_SECONDS
-    rows: list[dict] = []
-    for row in _confirmed_conversational_history_rows(state):
-        if str(row.get("author_id") or "") != wanted_author:
-            continue
-        identity_fields = {
-            str(row.get("target_id") or ""),
-            str(row.get("reply_post_id") or ""),
-            str(row.get("conversation_id") or ""),
-            str(row.get("root_post_id") or ""),
-        }
-        identity_fields.discard("")
-        if (
-            str(row.get("target_id") or "") == current_target
-            or identity_fields.intersection(current_thread_post_ids)
-        ):
-            continue
-        epoch = int(row["reply_epoch"])
-        if epoch < earliest_allowed:
-            continue
-        if epoch >= before_epoch:
-            continue
-        contributor = str(row.get("incoming_contribution") or "").strip()
-        if (
-            not str(row.get("conversation_id") or "")
-            or not contributor
-            or hashlib.sha256(contributor.encode("utf-8")).hexdigest()
-            != row.get("incoming_contribution_sha256")
-        ):
-            continue
-        rows.append(row)
-    rows.sort(key=_confirmed_history_sort_key)
-    by_interaction: dict[tuple[str, str], dict] = {}
-    for row in rows:
-        identity = (str(row["target_id"]), str(row["reply_post_id"]))
-        by_interaction[identity] = row
-    return sorted(
-        by_interaction.values(),
-        key=_confirmed_history_sort_key,
-    )[-MAX_SAME_AUTHOR_INTERACTIONS:]
+    """Delegate reply state with current root dependencies."""
+    return _reply_state._same_author_confirmed_history_rows(
+        state,
+        author_id=author_id,
+        current_thread_post_ids=current_thread_post_ids,
+        target_id=target_id,
+        before_epoch=before_epoch,
+        AI_REPLY_HISTORY_MAX_AGE_SECONDS=AI_REPLY_HISTORY_MAX_AGE_SECONDS,
+        _confirmed_conversational_history_rows=_confirmed_conversational_history_rows,
+        _confirmed_history_sort_key=_confirmed_history_sort_key,
+        MAX_SAME_AUTHOR_INTERACTIONS=MAX_SAME_AUTHOR_INTERACTIONS,
+    )
 
 
 def recent_same_author_account_interactions(
@@ -20350,40 +20104,20 @@ def recent_same_author_account_interactions(
     before_epoch: int | None = None,
     visible_post_ids: set[str] | None = None,
 ) -> list[dict[str, str]]:
-    """Return confirmed pairs from earlier conversations by this contributor."""
-
-    current_thread_post_ids = {
-        str(value) for value in (visible_post_ids or set()) if str(value)
-    }
-    current_thread_post_ids.add(str(conversation_id or ""))
-    current_thread_post_ids.discard("")
-    rows = _same_author_confirmed_history_rows(
+    """Delegate reply state with current root dependencies."""
+    return _reply_state.recent_same_author_account_interactions(
         state,
         author_id=author_id,
-        current_thread_post_ids=current_thread_post_ids,
+        conversation_id=conversation_id,
         target_id=target_id,
         before_epoch=before_epoch,
+        visible_post_ids=visible_post_ids,
+        _same_author_confirmed_history_rows=_same_author_confirmed_history_rows,
+        MAX_SAME_AUTHOR_INTERACTIONS=MAX_SAME_AUTHOR_INTERACTIONS,
     )
-    return [
-        {
-            "contributor": str(row["incoming_contribution"]).strip(),
-            "account_reply": str(row["proposed_reply"]).strip(),
-        }
-        for row in rows[-MAX_SAME_AUTHOR_INTERACTIONS:]
-    ]
 
 
-def _reply_target_epoch(context: dict[str, object]) -> int | None:
-    value = context.get("target_created_at")
-    if not isinstance(value, str) or not value:
-        return None
-    try:
-        parsed = datetime.fromisoformat(value.replace("Z", "+00:00"))
-    except ValueError:
-        return None
-    if parsed.tzinfo is None:
-        return None
-    return int(parsed.timestamp())
+_reply_target_epoch = _reply_state._reply_target_epoch
 
 
 _REPLY_IMAGE_MIME_TYPES = {
@@ -21044,16 +20778,11 @@ def record_terminal_reply_evaluation(
 
 
 def ai_reply_receipt_draft_is_valid(data: dict, text: object) -> bool:
-    """Return whether a receipt carries a valid current single-call draft."""
-    context = data.get("reply_context")
-    draft = data.get("ai_reply_draft")
-    if not isinstance(context, dict) or not isinstance(draft, dict):
-        return False
-    try:
-        validated = validate_current_ai_reply_draft(draft, context=context)
-    except (KeyError, OSError, RuntimeError, TypeError, ValueError):
-        return False
-    return validated["proposed_reply"] == text
+    """Delegate reply state with current root dependencies."""
+    return _reply_state.ai_reply_receipt_draft_is_valid(
+        data, text,
+        validate_current_ai_reply_draft=validate_current_ai_reply_draft,
+    )
 
 
 _LEGACY_TESTED_REPLY_STRATEGY_VERSION = _legacy_reply_validation._LEGACY_TESTED_REPLY_STRATEGY_VERSION

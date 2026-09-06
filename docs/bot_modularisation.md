@@ -1032,3 +1032,133 @@ Consider the confirmed conversational history/context selection family:
 helpers. Keep durable history writes, draft validation, provider calls and reply
 dispatch in their existing owners. The supervisor chooses the next scope in a
 fresh invocation; stage 9 implements none of it.
+
+## Stage 10 — current reply drafts and confirmed-history queries
+
+Baseline: `b9814d493ef0b096f4bb962ad573498828b8ca89` (2026-09-06).
+On `big-nas-2` as `tonym`, worktree
+`/disks/disk1/research/mrsMThatcher-bot-modularisation-stage10` started clean on
+`codex/bot-modularisation-stage10`; HEAD matched the pushed stage 9 parent.
+Inspection reused the runtime map and supervisor's fourteen-function dependency
+inventory and nineteen direct test candidates, then inspected generation,
+receipt reconciliation and mention/quote-tweet callers and nearby regressions.
+
+### Extraction and compatibility
+
+`mrs_bot_reply_state.py` owns fourteen functions: `pending_ai_reply_draft_key`,
+`validate_current_ai_reply_draft`, `store_pending_ai_reply`, `pending_ai_reply`,
+`clear_pending_ai_reply`, `_confirmed_conversational_history_rows`,
+`_confirmed_history_sort_key`, `recent_confirmed_account_replies`,
+`_reply_context_history_excluded_post_ids`, `recovery_comparison_account_replies`,
+`_same_author_confirmed_history_rows`, `recent_same_author_account_interactions`,
+`_reply_target_epoch` and `ai_reply_receipt_draft_is_valid`. Their **433 original
+definition lines** retain byte-identical bodies and original docstrings,
+including the absent `_reply_target_epoch` docstring. The fixed
+`CONVERSATIONAL_REPLY_HISTORY_LANES` frozenset retains its exact three-line
+definition; the root name directly aliases the same object.
+
+Eleven explicit adapters and three function aliases retain root names,
+signatures, defaults and annotations. Adapters pass current root helpers,
+lane-set reference, limits, logger, exception/result classes and configuration
+on each call. The sole internal original-argument signature difference is that
+the owner's `recent_confirmed_account_replies` requires `limit` explicitly:
+the root always forwards it, preserving the original definition-time default
+while the body reads the current root cap. There is no dynamic sentinel.
+
+Recovery preserves current evidence lookup, caller context/recent-list
+references, validation/type/identity checks, deep copies, insertion-order
+eviction and malformed-container handling. Evidence unavailability propagates
+without retiring the draft; local validation failure retires it and emits the
+same zero-model-call result; obsolete/invalid errors retire without inventing
+an evaluation. Warnings, metadata and exception boundaries are unchanged.
+History queries retain original row references, filters, strict integer/epoch
+bounds, numeric sorting, stable duplicate replacement, exclusions, exclusive
+upper bounds and age-cutoff inclusion. Recovery's final string-ID tie order,
+whitespace differences, same-author zero-cap slice semantics, timezone parsing
+and receipt text equality are unchanged.
+
+The owner imports only standard libraries, constructs the fixed frozenset and
+retains no callbacks or mutable state. It performs no import-time file,
+environment, provider or RNG work. Logging/result recording implementations,
+generation, media collection, transport, evaluation/quarantine/pruning,
+durable history writes, state persistence/normalisation and current/legacy
+receipt lifecycle/reconciliation authority stay in their existing locations.
+All nine previous owners, existing tests/fixtures and digest docs are unchanged.
+README's companion list and the Python API table include the new owner.
+
+### Validation
+
+Evidence: `/tmp/mrs-bot-stage10-p9Vu7v`. Validated `selected-tests.txt` contains
+**48 unique, nonempty file/node arguments across 13 files**, covering all
+nineteen direct candidates (the legacy candidate is covered by its full file):
+
+| Existing selection | Cases |
+|---|---:|
+| Entire `tests/test_legacy_conversational_reply_recovery.py` | 31 |
+| 33 selected unit-helper nodes: draft/evidence recovery, confirmed history, three generation exclusion guards, receipt validation/clearing and mention/quote-tweet reconciliation/restart paths | 37 |
+| All nine previous owner import/adapter files | 84 |
+| Foreign-cwd import, explicit/idempotent bootstrap and guarded entry points | 8 |
+| Loopback `test_normal_mention_reply` and `test_author_cap_context_survives_restart_in_newer_target_prompt` | 2 |
+
+The author-cap restart case guards retained context reaching later generation
+exactly once; it is an indirect context/generation check, not a confirmed-history
+fixture. Before editing: documentation passed for **218 modules**, collection
+found **162 cases in 4.06s**, and **162 passed in 11.33s**. After extraction:
+documentation passed for **219 modules**, collection found **178 cases in
+3.97s**, and **178 passed in 11.70s**. The **16 new cases** in
+`tests/test_bot_reply_state.py` cover import/alias identity, current dependency
+and argument/result references, fixed default/current cap, deep-copy boundaries,
+current exception/result classes, exact recovery telemetry/warnings, ordering
+and native receipt/time error boundaries. They reuse `unit_reply_context`,
+`unit_approved_reply`, the current evidence and confirmed-receipt helpers, and
+register the existing `isolate_regular_post_receipt` autouse fixture.
+
+Both runs retained conftest temporary HOME/state, dummy credentials, dead
+proxies, denied external sockets and explicit loopback fake APIs. Disposable
+scripts, fixtures and test TMPDIR stayed under the recorded evidence root.
+No production configuration/state was read, production bot run, provider called,
+service controlled or deployment performed. No broad suite was run.
+
+```bash
+set -euo pipefail
+export TMPDIR=/tmp/mrs-bot-stage10-p9Vu7v PYTHONUSERBASE=/home/tonym/.local
+export MRS_TEST_MODE=1 PYTEST_DISABLE_PLUGIN_AUTOLOAD=1 PYTHONDONTWRITEBYTECODE=1
+python3 tools/check_python_documentation.py
+python3 "$TMPDIR/select_tests.py" --current
+mapfile -t stage10_tests < "$TMPDIR/current-selected-tests.txt"
+(( ${#stage10_tests[@]} > 0 ))
+python3 -m pytest -q -p no:cacheprovider --collect-only "${stage10_tests[@]}"
+python3 -m pytest -q -p no:cacheprovider "${stage10_tests[@]}"
+python3 "$TMPDIR/verify_stage10.py"
+git diff --check
+```
+
+Baseline omitted `--current` and used `selected-tests.txt`; the current list
+adds only the new test file. Selection generation and collection succeeded
+before execution; failures or empty lists stop the command. Logs use
+`baseline-` and `current-` prefixes. The compact stage 9 structural proof was
+adapted for fourteen functions, one constant and the internal required limit.
+`comparison.txt` proves exact moved bodies/constant, direct aliases, current
+dependency forwarding, unchanged root signatures/defaults and **564 unaffected
+root definitions**. Restoring originals and removing the one new import
+reconstructs **the entire immutable parent root byte-for-byte**, preserving all
+other statements. All nine prior owners and unrelated files match the parent.
+The comparison uses static source/ASTs and `git show`, without runtime imports.
+Documentation and `git diff --check` passed.
+
+| Runtime file | Before lines / bytes | After lines / bytes |
+|---|---:|---:|
+| `mrsMThatcher2.py` | 25,995 / 1,011,096 | 25,724 / 1,002,016 |
+| `mrs_bot_reply_state.py` | absent | 536 / 18,244 |
+
+The root loses **271 lines / 9,080 bytes**. Combined runtime source grows by
+**265 lines / 9,164 bytes** for explicit dependency signatures, adapters and
+owner documentation. All nine previous owner sizes are unchanged.
+
+### Recommended next scope
+
+Consider bounded reply-media preparation, beginning with `_safe_reply_image_url`
+and `collect_reply_images`. Keep transport implementation, provider orchestration,
+receipt lifecycle and persistence authority in their current owners. The
+supervisor chooses the next scope in a fresh invocation; stage 10 implements
+none of it.
