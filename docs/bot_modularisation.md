@@ -3487,3 +3487,79 @@ The root loses **265 lines / 9,636 bytes**; combined runtime source grows by
 Production remains `master` at `af5eda7c163a8174ec1365060aa923d21787e7bd` per
 worktree metadata; no production change, deployment or restart occurred. Only
 stage 38 is implemented; supervisor review precedes the next stage.
+
+## Stage 39 — Main-post attempt, payload and bound-plan values
+
+Baseline: `21cf5c1d20abea13a3791413ed7a598d5082982c` (2026-09-06), verified clean
+on `codex/bot-modularisation-stage39` in the requested stage39 worktree. Origin's
+stage38 branch matched; stage39 was absent. Applicable AGENTS instructions,
+bounded README/API guidance, the stage38 report, supervisor scope/dependency
+notes, immutable parent bodies/callers and selected tests/decorators were read.
+
+`mrs_bot_main_post_attempt_values.py` owns **twelve functions / 345 original
+definition lines**: payload hashing/reconstruction, bound meme-plan snapshot and
+validation, experiment-envelope validation/extraction, writable/payload-binding
+predicates, attempt construction, confirmed-receipt matching, pending receipt
+construction and confirmation epoch clamping. Ten explicit
+`_main_post_attempt_values` adapters supply current root dependencies;
+`main_post_attempt_payload` and `engagement_experiment_envelope_from_attempt`
+are exact zero-dependency aliases. The inventory is
+**2/0/3/6/4/0/3/1/7/1/5/1**; bodies/docstrings, root signatures/defaults/annotations
+and sibling callbacks remain exact. No constants or classes move.
+
+Compatibility preserves JSON settings, UTF-8 and hash order; payload coercions,
+list gates and AI identity versus builder truthiness; bound timezone/date
+conversion, fallback and validator closure order; exact schema/type/version,
+epoch/anchor and experiment binding/hash/weight/arm gates. Envelope extraction
+returns the original reference; the experiment validator retains its narrow
+exception tuple. Writable, payload and matching short circuits remain exact.
+Builders keep validation before entropy, original entropy/clock/hash/coercion/
+deep-copy evaluation order, current final validation, and pending source-copy
+versus original-lane ordering. Confirmation keeps conversion/log/clamp behavior.
+Storage, transitions, I/O, journals, transport, semantic validation/materialization,
+recovery/application and scheduling/experiment primitives remain in place. No
+new validation, catches, normalization or retained runtime authority is added.
+
+Evidence: `/tmp/mrs-bot-stage39-9rbZlChu`. Pre-edit documentation passed for
+**247 modules**. **21 of 26 candidates** plus three bootstrap/isolation checks
+produced **24 explicit nodes across seven files**: **41 collected in 3.74s;
+41 passed in 9.15s** (`baseline-pytest.txt`). Coverage includes both lanes,
+current/legacy/bound plans, single-use authority, timezone/DST/cross-midnight
+behavior, experiment identity, rollback/confirmation, durable source identity
+including peer ABA, emergency recovery, and all four real loopbacks. Five
+unchanged storage/validator/startup candidates were omitted.
+
+After extraction, **38 explicit nodes across eight files** produced **70 collected
+in 3.75s; 70 passed in 10.12s** (`current-pytest.txt`). Fourteen new contract
+functions / 29 cases cover guarded import, all current adapters and aliases,
+reference/error behavior and ordered payload/plan/attempt/pending construction
+boundaries. The new module registers imported autouse
+`isolate_regular_post_receipt`; all existing assertions, fixtures and barriers
+are unchanged. The reused runner uses `set -euo pipefail`, AST-validated nonempty
+selection and successful nonempty collection before explicit pytest arguments.
+Both runs use `PYTHONUSERBASE=/home/tonym/.local MRS_TEST_MODE=1
+PYTEST_DISABLE_PLUGIN_AUTOLOAD=1 PYTHONDONTWRITEBYTECODE=1 python3 -m pytest -q
+-p no:cacheprovider`, TMPDIR beneath the evidence root, temporary HOME/state,
+dummy credentials, dead proxies, external socket denial and explicit loopback
+providers. Complete selections, source excerpts, proof and actual logs remain
+in the evidence directory; no broad suite or unrelated owner contracts ran.
+
+`verify_stage39.py` / `comparison.txt` prove exact bodies/signatures/defaults,
+annotations, compiled dependency loads and forwarding without importing the bot.
+Restoring the twelve definitions and removing the new import reconstructs the
+whole immutable parent root byte for byte, including **514 unaffected functions**
+and all unrelated statements. All **38 prior owners**, existing tests/fixtures
+and digest docs are unchanged. README/API only add the owner; this report is
+append-only. Final documentation (**248 modules**) and `git diff --check` pass;
+passing tests were not repeated after documentation-only edits.
+
+| Runtime file | Before lines / bytes | After lines / bytes |
+|---|---:|---:|
+| `mrsMThatcher2.py` | 17,413 / 685,483 | 17,202 / 677,306 |
+| `mrs_bot_main_post_attempt_values.py` | absent | 429 / 15,693 |
+
+The root loses **211 lines / 8,177 bytes**; combined runtime source grows by
+**218 lines / 7,516 bytes**. New tests: **486 lines / 25,933 bytes**.
+Production remains `master` at `af5eda7c163a8174ec1365060aa923d21787e7bd` per
+worktree metadata. No production change, deployment or restart occurred.
+Only stage39 is implemented; supervisor review precedes the next stage.

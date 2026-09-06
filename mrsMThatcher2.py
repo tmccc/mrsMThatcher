@@ -258,6 +258,7 @@ import mrs_bot_state_candidate_validation as _state_candidate_validation
 import mrs_bot_state_loading as _state_loading
 import mrs_bot_main_post_receipts as _main_post_receipts
 import mrs_bot_main_post_receipt_storage as _main_post_receipt_storage
+import mrs_bot_main_post_attempt_values as _main_post_attempt_values
 
 from single_call_reply import (
     MAX_IMAGE_BYTES as SINGLE_CALL_MAX_IMAGE_BYTES,
@@ -9384,30 +9385,14 @@ def valid_receipt_basename(value: object) -> bool:
 
 def canonical_remote_post_payload_sha256(payload: dict) -> str:
     """Return the stable identity of one exact X create payload."""
-    encoded = json.dumps(
+    return _main_post_attempt_values.canonical_remote_post_payload_sha256(
         payload,
-        ensure_ascii=False,
-        separators=(",", ":"),
-        sort_keys=True,
-    ).encode("utf-8")
-    return hashlib.sha256(encoded).hexdigest()
+        hashlib=hashlib,
+        json=json,
+    )
 
 
-def main_post_attempt_payload(attempt: dict) -> dict:
-    """Reconstruct the exact remote payload bound by a main-post attempt."""
-    payload: dict = {}
-    text = str(attempt.get("text") or "")
-    media_ids = attempt.get("media_ids")
-    reply_to_id = str(attempt.get("reply_to_id") or "")
-    if text:
-        payload["text"] = text
-    if isinstance(media_ids, list) and media_ids:
-        payload["media"] = {"media_ids": [str(value) for value in media_ids]}
-    if reply_to_id:
-        payload["reply"] = {"in_reply_to_tweet_id": reply_to_id}
-    if attempt.get("made_with_ai") is True:
-        payload["made_with_ai"] = True
-    return payload
+main_post_attempt_payload = _main_post_attempt_values.main_post_attempt_payload
 
 
 BOUND_MEME_SCHEDULE_STATE_KEYS = {
@@ -9431,35 +9416,13 @@ def bound_meme_schedule_state(
     schedule_timezone: str | None = None,
 ) -> dict:
     """Capture the exact meme-schedule inputs bound before a regular X write."""
-    next_epoch = int(state.get("next_meme_post_epoch", 0) or 0)
-    next_mode = str(state.get("next_meme_schedule_mode", "") or "")
-    next_date = str(state.get("next_meme_schedule_date", "") or "")
-    schedule_version = int(state.get("meme_schedule_version", 0) or 0)
-    if next_epoch:
-        # Older state can predate the descriptive schedule fields.  Bind its
-        # effective fallback interpretation explicitly rather than leaving
-        # reconciliation dependent on later defaults.
-        next_mode = next_mode or "fallback"
-        derived_date = safe_bound_schedule_date_str(
-            next_epoch,
-            MAIN_POST_SCHEDULE_TIMEZONE
-            if schedule_timezone is None
-            else schedule_timezone,
-        )
-        if not next_date and derived_date is None:
-            raise ValueError("meme schedule epoch has no valid calendar date")
-        next_date = next_date or str(derived_date)
-        schedule_version = schedule_version or MEME_SCHEDULE_VERSION
-    return {
-        "last_meme_post_epoch": int(state.get("last_meme_post_epoch", 0) or 0),
-        "next_meme_post_epoch": next_epoch,
-        "meme_schedule_version": schedule_version,
-        "next_meme_schedule_mode": next_mode,
-        "next_meme_schedule_date": next_date,
-        "meme_anchor_quote_post_epoch": int(
-            state.get("meme_anchor_quote_post_epoch", 0) or 0
-        ),
-    }
+    return _main_post_attempt_values.bound_meme_schedule_state(
+        state,
+        schedule_timezone=schedule_timezone,
+        MAIN_POST_SCHEDULE_TIMEZONE=MAIN_POST_SCHEDULE_TIMEZONE,
+        MEME_SCHEDULE_VERSION=MEME_SCHEDULE_VERSION,
+        safe_bound_schedule_date_str=safe_bound_schedule_date_str,
+    )
 
 
 def bound_meme_schedule_state_is_valid(
@@ -9468,60 +9431,16 @@ def bound_meme_schedule_state_is_valid(
     schedule_timezone: str | None = None,
 ) -> bool:
     """Return whether a pre-send meme-schedule snapshot is self-consistent."""
-    if not isinstance(value, dict) or set(value) != BOUND_MEME_SCHEDULE_STATE_KEYS:
-        return False
-    integer_keys = {
-        "last_meme_post_epoch",
-        "next_meme_post_epoch",
-        "meme_schedule_version",
-        "meme_anchor_quote_post_epoch",
-    }
-    if any(type(value.get(key)) is not int or int(value[key]) < 0 for key in integer_keys):
-        return False
-    if int(value["meme_schedule_version"]) > MEME_SCHEDULE_VERSION:
-        return False
-    next_epoch = int(value["next_meme_post_epoch"])
-    last_epoch = int(value["last_meme_post_epoch"])
-    anchor_epoch = int(value["meme_anchor_quote_post_epoch"])
-    if any(
-        epoch and not valid_receipt_epoch(epoch)
-        for epoch in (next_epoch, last_epoch, anchor_epoch)
-    ):
-        return False
-    mode = value["next_meme_schedule_mode"]
-    schedule_date = value["next_meme_schedule_date"]
-    if type(mode) is not str or type(schedule_date) is not str:
-        return False
-    effective_timezone = (
-        MAIN_POST_SCHEDULE_TIMEZONE
-        if schedule_timezone is None
-        else schedule_timezone
+    return _main_post_attempt_values.bound_meme_schedule_state_is_valid(
+        value,
+        schedule_timezone=schedule_timezone,
+        BOUND_MEME_SCHEDULE_STATE_KEYS=BOUND_MEME_SCHEDULE_STATE_KEYS,
+        MAIN_POST_SCHEDULE_TIMEZONE=MAIN_POST_SCHEDULE_TIMEZONE,
+        MEME_SCHEDULE_MODES=MEME_SCHEDULE_MODES,
+        MEME_SCHEDULE_VERSION=MEME_SCHEDULE_VERSION,
+        safe_bound_schedule_date_str=safe_bound_schedule_date_str,
+        valid_receipt_epoch=valid_receipt_epoch,
     )
-
-    def date_for_epoch(epoch: int) -> str | None:
-        return safe_bound_schedule_date_str(epoch, effective_timezone)
-    if next_epoch:
-        if (
-            int(value["meme_schedule_version"]) < 1
-            or mode not in MEME_SCHEDULE_MODES
-            or not mode
-        ):
-            return False
-        if mode == "after_first_quote_after_midday":
-            if (
-                anchor_epoch <= 0
-                or next_epoch <= anchor_epoch
-                or schedule_date != date_for_epoch(anchor_epoch)
-            ):
-                return False
-        elif (
-            anchor_epoch
-            or schedule_date != date_for_epoch(next_epoch)
-        ):
-            return False
-    elif mode or schedule_date or anchor_epoch:
-        return False
-    return True
 
 
 ENGAGEMENT_EXPERIMENT_ATTEMPT_FIELDS = {
@@ -9541,76 +9460,19 @@ def engagement_experiment_attempt_envelope_is_valid(
     plan: dict | None = None,
 ) -> bool:
     """Validate the self-contained experiment authority bound before X."""
-
-    if (
-        not isinstance(value, dict)
-        or set(value) != ENGAGEMENT_EXPERIMENT_ATTEMPT_FIELDS
-        or type(public_text) is not str
-        or type(quote_hash) is not str
-    ):
-        return False
-    canonical_quote_text = value.get("canonical_quote_text")
-    question_body = value.get("approved_question_body")
-    treatment_sha256 = value.get("complete_treatment_sha256")
-    treatment_length = value.get("complete_treatment_weighted_length")
-    binding = value.get("binding")
-    if (
-        type(canonical_quote_text) is not str
-        or not canonical_quote_text
-        or type(question_body) is not str
-        or type(treatment_sha256) is not str
-        or re.fullmatch(r"[0-9a-f]{64}", treatment_sha256) is None
-        or type(treatment_length) is not int
-    ):
-        return False
-    try:
-        engagement_question_trial.validate_attempt_binding(
-            binding,
-            plan=plan,
-            exact_quote_text=canonical_quote_text,
-            public_text=public_text,
-        )
-        treatment_text = engagement_question_trial.complete_treatment_text(
-            canonical_quote_text,
-            question_body,
-        )
-        if (
-            engagement_question_trial.sha256_text(canonical_quote_text)
-            != quote_hash
-            or quote_text_hash(canonical_quote_text) != quote_hash
-            or engagement_question_trial.sha256_text(question_body)
-            != binding["approved_question_sha256"]
-            or engagement_question_trial.sha256_text(treatment_text)
-            != treatment_sha256
-            or engagement_question_trial.x_weighted_length(treatment_text)
-            != treatment_length
-            or treatment_length > engagement_question_trial.MAX_ROOT_WEIGHTED_LENGTH
-            or public_text
-            != (
-                treatment_text
-                if binding["arm"] == "treatment"
-                else canonical_quote_text
-            )
-        ):
-            return False
-    except (KeyError, TypeError, engagement_question_trial.ExperimentValidationError):
-        return False
-    return True
+    return _main_post_attempt_values.engagement_experiment_attempt_envelope_is_valid(
+        value,
+        public_text=public_text,
+        quote_hash=quote_hash,
+        plan=plan,
+        ENGAGEMENT_EXPERIMENT_ATTEMPT_FIELDS=ENGAGEMENT_EXPERIMENT_ATTEMPT_FIELDS,
+        engagement_question_trial=engagement_question_trial,
+        quote_text_hash=quote_text_hash,
+        re=re,
+    )
 
 
-def engagement_experiment_envelope_from_attempt(
-    attempt: object,
-) -> dict | None:
-    """Return one validated-looking envelope only for schema-v6 quote attempts."""
-
-    if (
-        isinstance(attempt, dict)
-        and attempt.get("lane") == "quote_image"
-        and attempt.get("schema_version") == 6
-        and isinstance(attempt.get("engagement_question_experiment"), dict)
-    ):
-        return attempt["engagement_question_experiment"]
-    return None
+engagement_experiment_envelope_from_attempt = _main_post_attempt_values.engagement_experiment_envelope_from_attempt
 
 
 def main_post_attempt_is_semantically_valid(data: object) -> bool:
@@ -9636,22 +9498,20 @@ def main_post_attempt_is_semantically_valid(data: object) -> bool:
 
 def main_post_attempt_binds_payload(attempt: dict, payload: dict) -> bool:
     """Return whether an attempt authorises exactly one remote payload."""
-    return bool(
-        current_main_post_attempt_is_semantically_valid(attempt)
-        and main_post_attempt_payload(attempt) == payload
-        and type(attempt.get("payload_sha256")) is str
-        and canonical_remote_post_payload_sha256(payload)
-        == attempt["payload_sha256"]
+    return _main_post_attempt_values.main_post_attempt_binds_payload(
+        attempt,
+        payload,
+        canonical_remote_post_payload_sha256=canonical_remote_post_payload_sha256,
+        current_main_post_attempt_is_semantically_valid=current_main_post_attempt_is_semantically_valid,
+        main_post_attempt_payload=main_post_attempt_payload,
     )
 
 
 def current_main_post_attempt_is_semantically_valid(data: object) -> bool:
     """Return whether an attempt belongs to the current writable generation."""
-
-    return bool(
-        main_post_attempt_is_semantically_valid(data)
-        and isinstance(data, dict)
-        and data.get("schema_version") in {5, 6}
+    return _main_post_attempt_values.current_main_post_attempt_is_semantically_valid(
+        data,
+        main_post_attempt_is_semantically_valid=main_post_attempt_is_semantically_valid,
     )
 
 
@@ -9667,46 +9527,23 @@ def build_main_post_attempt(
     engagement_experiment: dict | None = None,
 ) -> dict:
     """Build a durable pre-send identity for one main-post transaction."""
-    if lane not in {"quote_image", "daily_meme"}:
-        raise ValueError(f"Unsupported main-post lane: {lane}")
-    payload: dict = {}
-    if text:
-        payload["text"] = str(text)
-    payload["media"] = {"media_ids": [str(value) for value in media_ids]}
-    if made_with_ai:
-        payload["made_with_ai"] = True
-    if (
-        type(recovery_plan.get("schedule_timezone")) is not str
-        or recovery_plan["schedule_timezone"] != MAIN_POST_SCHEDULE_TIMEZONE
-    ):
-        raise ValueError(
-            "new main-post attempts must bind the production schedule timezone"
-        )
-    if engagement_experiment is not None and lane != "quote_image":
-        raise ValueError("experiment metadata is valid only for quote/image posts")
-    attempt = {
-        "schema_version": 6 if engagement_experiment is not None else 5,
-        "lifecycle_state": "sending",
-        "lane": lane,
-        "attempt_id": hashlib.sha256(os.urandom(32)).hexdigest(),
-        "attempt_epoch": now_epoch() if attempt_epoch is None else int(attempt_epoch),
-        "payload_revision": 1,
-        "payload_sha256": canonical_remote_post_payload_sha256(payload),
-        "text": str(text),
-        "text_sha256": hashlib.sha256(str(text).encode("utf-8")).hexdigest(),
-        "media_ids": [str(value) for value in media_ids],
-        "reply_to_id": "",
-        "made_with_ai": bool(made_with_ai),
-        "selected_identity": copy.deepcopy(selected_identity),
-        "recovery_plan": copy.deepcopy(recovery_plan),
-    }
-    if engagement_experiment is not None:
-        attempt["engagement_question_experiment"] = copy.deepcopy(
-            engagement_experiment
-        )
-    if not current_main_post_attempt_is_semantically_valid(attempt):
-        raise RuntimeError("Internal error: generated main-post attempt is invalid")
-    return attempt
+    return _main_post_attempt_values.build_main_post_attempt(
+        lane=lane,
+        text=text,
+        media_ids=media_ids,
+        made_with_ai=made_with_ai,
+        selected_identity=selected_identity,
+        recovery_plan=recovery_plan,
+        attempt_epoch=attempt_epoch,
+        engagement_experiment=engagement_experiment,
+        MAIN_POST_SCHEDULE_TIMEZONE=MAIN_POST_SCHEDULE_TIMEZONE,
+        canonical_remote_post_payload_sha256=canonical_remote_post_payload_sha256,
+        copy=copy,
+        current_main_post_attempt_is_semantically_valid=current_main_post_attempt_is_semantically_valid,
+        hashlib=hashlib,
+        now_epoch=now_epoch,
+        os=os,
+    )
 
 
 def main_post_attempt_path(attempt: dict) -> Path:
@@ -9885,35 +9722,10 @@ def remove_main_post_attempt(
 
 def confirmed_receipt_matches_main_attempt(receipt: dict, attempt: dict) -> bool:
     """Return whether a confirmed receipt atomically promotes one attempt."""
-    if (
-        not main_post_attempt_is_semantically_valid(attempt)
-        or str(receipt.get("attempt_id") or "") != str(attempt["attempt_id"])
-        or str(receipt.get("attempt_payload_sha256") or "")
-        != str(attempt["payload_sha256"])
-    ):
-        return False
-    selected = attempt["selected_identity"]
-    if attempt["lane"] == "quote_image":
-        return bool(
-            type(receipt.get("line_no")) is int
-            and type(receipt.get("source_line_number")) is int
-            and type(receipt.get("image_no")) is int
-            and str(receipt.get("quote_hash") or "") == selected["quote_hash"]
-            and receipt.get("line_no") == selected["line_no"]
-            and receipt.get("source_line_number")
-            == selected["source_line_number"]
-            and str(receipt.get("image_basename") or "")
-            == selected["image_basename"]
-            and receipt.get("image_no") == selected["image_no"]
-            and str(receipt.get("text") or "") == str(attempt["text"])
-            and receipt.get("quote_history_after")
-            == attempt["recovery_plan"]["quote_history_after"]
-            and receipt.get("image_history_after")
-            == attempt["recovery_plan"]["image_history_after"]
-        )
-    return bool(
-        str(receipt.get("meme_basename") or "") == selected["meme_basename"]
-        and str(receipt.get("text") or "") == str(attempt["text"])
+    return _main_post_attempt_values.confirmed_receipt_matches_main_attempt(
+        receipt,
+        attempt,
+        main_post_attempt_is_semantically_valid=main_post_attempt_is_semantically_valid,
     )
 
 
@@ -9941,49 +9753,26 @@ def build_confirmed_pending_schedule_receipt(
     image_summary: str = "",
 ) -> dict:
     """Build a versioned confirmed receipt without deriving local schedules."""
-    if (
-        not main_post_attempt_is_semantically_valid(attempt)
-        or attempt.get("lifecycle_state") != "attempting"
-        or not valid_post_id(post_id)
-        or not valid_receipt_epoch(int(confirmation_epoch))
-        or int(confirmation_epoch) < int(attempt["attempt_epoch"])
-    ):
-        raise RuntimeError(
-            "Refusing an invalid main-post attempt or confirmation"
-        )
-    pending = {
-        "schema_version": 1,
-        "receipt_type": "confirmed_pending_schedule",
-        "post_id": str(post_id),
-        "confirmation_epoch": int(confirmation_epoch),
-        "source_attempt": copy.deepcopy(attempt),
-        "image_summary": str(image_summary),
-    }
-    if not confirmed_pending_schedule_receipt_is_semantically_valid(
-        pending,
-        expected_lane=str(attempt["lane"]),
-    ):
-        raise RuntimeError(
-            "Internal error: confirmed pending-schedule receipt is invalid"
-        )
-    return pending
+    return _main_post_attempt_values.build_confirmed_pending_schedule_receipt(
+        attempt,
+        post_id=post_id,
+        confirmation_epoch=confirmation_epoch,
+        image_summary=image_summary,
+        confirmed_pending_schedule_receipt_is_semantically_valid=confirmed_pending_schedule_receipt_is_semantically_valid,
+        copy=copy,
+        main_post_attempt_is_semantically_valid=main_post_attempt_is_semantically_valid,
+        valid_post_id=valid_post_id,
+        valid_receipt_epoch=valid_receipt_epoch,
+    )
 
 
 def confirmation_epoch_for_main_attempt(attempt: dict, observed_epoch: int) -> int:
     """Return a confirmation epoch which cannot precede its durable attempt."""
-    attempt_epoch = int(attempt["attempt_epoch"])
-    observed_epoch = int(observed_epoch)
-    if observed_epoch < attempt_epoch:
-        log.warning(
-            "Wall clock moved backwards after X confirmation; clamping "
-            "confirmation epoch lane=%s attempt_id=%s observed=%s attempt=%s",
-            attempt.get("lane"),
-            attempt.get("attempt_id"),
-            observed_epoch,
-            attempt_epoch,
-        )
-        return attempt_epoch
-    return observed_epoch
+    return _main_post_attempt_values.confirmation_epoch_for_main_attempt(
+        attempt,
+        observed_epoch,
+        log=log,
+    )
 
 
 def promote_main_post_attempt_to_confirmed_pending_schedule(
