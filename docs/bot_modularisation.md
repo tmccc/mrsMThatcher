@@ -4222,3 +4222,73 @@ source comparison, helper adaptations and the validation safety note remain in
 the evidence root. Production metadata remains `master` at
 `af5eda7c163a8174ec1365060aa923d21787e7bd`. Configured Astra/max is unchanged.
 Only stage48 is implemented; supervisor review precedes the next stage.
+
+## Stage 49 — Safety-marker snapshots and durability acknowledgement
+
+Baseline: `02d60c6e8aa4660bf152d64ded616a51b67e0e96`, verified clean on
+`codex/bot-modularisation-stage49`; origin's stage48 matched and stage49 was
+absent. Only the scoped supervisor inputs, immutable parent source and relevant
+established helpers were reused; no prior conversations were loaded.
+
+`mrs_bot_safety_marker_snapshots.py` owns seven exact bodies/docstrings spanning
+**386 original definition lines**. Seven ordinary `_safety_marker_snapshots`
+adapters preserve public signatures/defaults/deferred annotations and supply
+**5/1/6/6/4/8/11** current dependencies. No aliases, constants, classes or globals
+move. README and the API inventory add the owner alongside the source change.
+
+Compatibility retains original/successor probe order and latching before later
+failures, exact bounded no-follow snapshot flags/read/metadata/fsync/close checks,
+legacy-only rejection, successor survival and exact two-link pair rules. Lock
+checks bracket acknowledgement; expected bytes, strict parent fsync,
+protocol-before-canonicalization and successor-first write/acknowledge/link/final
+acknowledge order remain exact. Durable evidence preserves marker-first short
+circuiting, individual journal/media catches, call-time historical validators,
+eager main receipt reads, exact status sets and the nested SIGINT-release scopes.
+Scalar latches, durable-marker existence, SIGINT ownership/release, incident
+writers, protocol/lock/path/configuration, storage/receipt/journal, preflight and
+reconciliation authority remain in their existing owners. No flags, policies,
+retries, catches, cleanup, retained snapshots or import-time runtime work were added.
+
+Evidence: `/tmp/mrs-bot-stage49-BW3tBYO0`. Pre-edit documentation passed for
+**257 modules**. AST-validated baseline selection retained **15 of 17** curated
+candidates plus three bootstrap/isolation checks: **18 explicit nodes across six
+files; 30 collected in 3.67s; 30 passed in 5.97s**. Current validation added
+**20 contract functions / 69 cases**: **38 explicit nodes across seven files;
+99 collected in 3.53s; 99 passed in 7.62s**. Coverage includes pending-exchange
+authority, namespace mutations and hard links, write failures, inactive protocol,
+latching/SIGINT and later main-loop recovery, the single literal second-process
+hard-exit restart, media timeout and the real quote-image loopback. Existing
+assertions, parametrization, isolation and signal restoration remain unchanged;
+new contracts import the autouse receipt-isolation fixture.
+
+Baseline and current collection/runs used the reviewed stage48 metadata-only
+pytest guard with checked stage-local naming/output-path adaptation. Separate
+baseline/current evidence records equal production-log device/inode/size/mtime
+before and after each run; descriptor checks passed. The content-reading
+appended-byte teardown was replaced in both runs without relaxing its replacement
+guard. Every pytest run followed successful nonempty selection and collection
+under `set -euo pipefail`, using the required user base/test mode and disabled
+plugin autoload/bytecode/cache. TMPDIR stays beneath the evidence root; temporary
+HOME/state, dummy credentials, dead proxies, socket denial and explicit loopback
+providers remain. No production bot state/configuration/credential reads or writes,
+service actions or live-provider calls occurred.
+
+`verify_stage49.py` / `comparison.txt` prove exact bodies, signatures, defaults,
+annotations, compiled nested dependencies and explicit forwarding without bot
+import. Whole-parent-root reconstruction is byte-identical, including **512
+unaffected functions** and unrelated statements. All **48 earlier owners**,
+existing tests/fixtures and digest docs are unchanged. Post-edit documentation
+passed for **258 modules**; whitespace validation passed. Passing source/runtime
+checks were not repeated for this report-only edit.
+
+| Runtime file | Before lines / bytes | After lines / bytes |
+|---|---:|---:|
+| `mrsMThatcher2.py` | 13,430 / 533,620 | 13,145 / 522,877 |
+| `mrs_bot_safety_marker_snapshots.py` | absent | 459 / 18,314 |
+
+The root loses **285 lines / 10,743 bytes**; combined runtime source grows by
+**174 lines / 7,571 bytes**. New tests: **605 lines / 30,922 bytes**. Complete
+logs, selections, metadata evidence, source comparison and helper adaptations
+remain in the evidence root. Production Git metadata remains `master` at
+`af5eda7c163a8174ec1365060aa923d21787e7bd`; configured Astra/max is unchanged.
+Only stage49 is implemented; supervisor review precedes the next stage.
