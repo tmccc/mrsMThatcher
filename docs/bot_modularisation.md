@@ -805,3 +805,115 @@ Consider daily meme posting orchestration (`post_next_meme`) as the next coheren
 workflow boundary, retaining root transaction, receipt, persistence and scheduling
 authority. The supervisor chooses the next scope in a fresh invocation; stage 7
 implements none of it.
+
+## Stage 8 — daily meme selection, scheduling and posting
+
+Baseline: `e19b8b36088f15868f2f32ba38ed1b00410a317d` (2026-09-06).
+On `big-nas-2` as `tonym`, worktree
+`/disks/disk1/research/mrsMThatcher-bot-modularisation-stage8` started clean on
+`codex/bot-modularisation-stage8`; HEAD matched the verified remote stage 7
+parent. Inspection reused the runtime map, supervisor dependency/candidate aids,
+and the named functions, direct callers and indirect receipt/scheduler tests.
+
+### Extraction and compatibility
+
+`mrs_bot_daily_meme.py` owns all eighteen requested functions: filename recovery,
+cache summary, catalog/cycle selection, meme calendar/schedule producers and
+updates, stage logging, post-ID validation and the complete `post_next_meme`
+workflow. Their **720 original definition lines** retain byte-identical bodies
+and original order, without dependency renames or branch splitting. Seventeen
+explicit root adapters and the regex-only `original_meme_filename` alias preserve
+all public signatures, defaults and annotations. Adapters supply current root
+callbacks, settings, logger and exception authority; ordinary standard-library
+imports preserve the shared RNG and ambient human-readable datetime logs.
+
+The original regexes, missing-analysis fallback, metadata composition, catalog
+extensions/order and first-unused/cycle-reset-save behavior remain intact.
+Calendar boundaries, timezone/DST handling, same-date guards, version/mode/anchor
+fields, conditional random draws, early returns and optional saves are unchanged.
+Stage operation results and original exceptions, stage names and 500-character
+event reasons remain intact. Posting retains closure/state/path/item references,
+barriers and reconciliation order, prepared transport/upload handoff, SIGINT
+handling, pending-schedule promotion and local recovery, emergency completeness
+and backup checks, distinct state/receipt failure events and journal-before-receipt
+retirement. The three conditional `locals()` names remain unshadowed.
+
+All seven prior owners, including ordinary quotation posting, are byte-identical.
+Shared date/state helpers, the asset metadata loader, configuration, exceptions,
+`json_file_matches` and durable state/receipt/transport implementations remain in
+the root or their existing owners. No reverse import, retained callback, new
+state/cache/schema, provider client or retry policy was introduced. README's
+companion list and Python API table include the owner; digest documentation is
+unchanged.
+
+### Validation
+
+Evidence: `/tmp/mrs-bot-stage8-o4aRNb`. The validated nonempty
+`selected-tests.txt` contains **128 file/node arguments** across 15 files,
+expanding to **258 existing cases**. It includes 71 unit-helper nodes (106 cases),
+all requested daily-meme atomic-save/ID/midnight/replay/SIGINT/hard-death/remote-
+outcome/promotion/emergency/backup/latch/retirement families, calendar/version/
+mode/anchor tests and actual ordinary-post schedule interactions. Other selected
+cases cover outcome conservatism (3), context-outbox isolation (2), pending-receipt
+fsync/recovery and cross-lane barriers (18), bootstrap/control and fail-safe
+initialisation (42), all seven prior owners (60), 19 daily-meme adversarial
+transport/restart cases, and eight loopback integrations: successful meme upload,
+missing ID, midday quote/restart/single meme, midnight fallback, missing assets,
+ordinary quote scheduling, reply-priority isolation and read cooldown.
+
+Before editing: documentation passed for **216 modules**; selected collection
+found **258 cases in 4.48s**; **258 passed in 53.23s**. After extraction:
+documentation passed for **217 modules**; **267 passed in 53.63s**. The nine new
+cases in `tests/test_bot_daily_meme.py` also passed separately in **2.20s**. They
+add guarded import/shared-library checks, current adapter callback/configuration
+and argument/result/error identity, exact regex callback order, metadata/path/
+state references, cycle-save failure order, DST fallback short-circuiting,
+conditional RNG/save order, stage error identity/truncation and posting closure/
+prepared-transport references. Existing tests and assertions were unchanged.
+
+Both runs used conftest isolation: temporary HOME/state, dummy credentials, dead
+proxies, denied external sockets and explicitly permitted loopback fake APIs.
+Disposable scripts, fixtures and test TMPDIR stayed under the evidence directory.
+No production configuration, credentials or state were accessed, production bot
+run, provider called, service controlled or deployment performed.
+
+```bash
+set -euo pipefail
+export TMPDIR=/tmp/mrs-bot-stage8-o4aRNb PYTHONUSERBASE=/home/tonym/.local
+export MRS_TEST_MODE=1 PYTEST_DISABLE_PLUGIN_AUTOLOAD=1 PYTHONDONTWRITEBYTECODE=1
+python3 tools/check_python_documentation.py
+python3 "$TMPDIR/select_tests.py"
+mapfile -t stage8_tests < "$TMPDIR/selected-tests.txt"
+(( ${#stage8_tests[@]} > 0 ))
+python3 -m pytest -q -p no:cacheprovider "${stage8_tests[@]}" tests/test_bot_daily_meme.py
+python3 "$TMPDIR/verify_stage8.py"
+git diff --check
+```
+
+Baseline omitted only the new file and followed successful selected collection;
+selection failure or an empty list stops before pytest. Logs use `baseline-` and
+`current-` prefixes. `comparison.txt` records the compact stage 7 structural check
+adapted for eighteen functions: exact moved bodies, explicit adapters/alias,
+unchanged signatures and conditional locals, standard-library-only imports,
+**565 unaffected root definitions** and the **entire parent root reconstructed
+byte-for-byte**. Seven prior owners, existing tests and digest documentation also
+match the immutable parent. Comparison uses static source/ASTs and `git show`;
+it never imports or runs the bot. Documentation and `git diff --check` passed.
+
+| Runtime file | Before lines / bytes | After lines / bytes |
+|---|---:|---:|
+| `mrsMThatcher2.py` | 27,091 / 1,048,165 | 26,581 / 1,030,150 |
+| `mrs_bot_daily_meme.py` | absent | 961 / 34,246 |
+
+The root loses **510 lines / 18,015 bytes**. Combined runtime source grows by
+**451 lines / 16,231 bytes** for explicit dependency signatures, adapters and
+owner documentation. The seven prior owners retain their stage 7 sizes.
+
+### Recommended next scope
+
+Consider confirmed conversational reply history/context selection:
+`recent_confirmed_account_replies`, `recovery_comparison_account_replies`,
+`recent_same_author_account_interactions` and their private filtering/sorting
+helpers. Keep durable history writes, draft handling, provider calls and reply
+dispatch in their current owners. The supervisor chooses the next scope in a
+fresh invocation; stage 8 implements none of it.
