@@ -1,0 +1,600 @@
+"""Focused contracts for receipt-bound media and public-post creation adapters."""
+from __future__ import annotations
+
+import copy
+import inspect
+from pathlib import Path
+import subprocess
+import sys
+from types import SimpleNamespace
+from unittest.mock import Mock, call
+
+import pytest
+
+import mrs_bot_post_creation as owner
+from tests.test_unit_helpers import bot, isolate_regular_post_receipt
+
+
+DEPENDENCIES = {'validate_media_upload_payload_metadata': ['copy',
+                                            'engagement_experiment_attempt_envelope_is_valid',
+                                            'engagement_question_trial'],
+ 'media_upload_payload_metadata': ['copy', 'validate_media_upload_payload_metadata'],
+ 'upload_media_v2': ['AmbiguousRemotePostOutcome',
+                     'log',
+                     'validate_media_upload_payload_metadata',
+                     'x_request'],
+ 'upload_media': ['AmbiguousRemotePostOutcome',
+                  'MEDIA_UPLOAD_RECEIPT_FILE',
+                  'MediaUploadReceiptError',
+                  'Path',
+                  'RemoteOperationsPaused',
+                  'abort_untransmitted_media_upload',
+                  'begin_confirmed_post_sigint_deferral',
+                  'begin_media_upload',
+                  'bind_media_upload_payload',
+                  'block_if_ambiguous_remote_post',
+                  'confirm_media_upload',
+                  'end_confirmed_post_sigint_deferral',
+                  'log',
+                  'media_upload_payload_metadata',
+                  'mimetypes',
+                  'record_ambiguous_remote_post',
+                  'require_remote_operation_unpaused',
+                  'transaction_mutation_authority',
+                  'upload_media_v2'],
+ 'create_post': ['AmbiguousRemotePostOutcome',
+                 'CONFIRMED_REPLY_RECEIPT_FILE',
+                 'HISTORICAL_CONTEXT_REPLY_RECEIPT_FILE',
+                 'Path',
+                 'ProvedRemotePostNonSuccess',
+                 'RemoteOperationsPaused',
+                 'TransportJournalError',
+                 'abort_untransmitted_transport_transaction',
+                 'arm_transport_transaction',
+                 'begin_transport_transaction',
+                 'bind_lane_transport_source',
+                 'block_if_ambiguous_remote_post',
+                 'block_if_remote_write_safety_incident_latched',
+                 'confirm_transport_transaction',
+                 'confirmation_epoch_after_remote_success',
+                 'current_main_post_attempt_is_semantically_valid',
+                 'freeze_tweet_request',
+                 'global_remote_writes_paused',
+                 'journal_path_for_receipt',
+                 'log',
+                 'main_post_attempt_binds_payload',
+                 'main_post_attempt_path',
+                 'mark_main_post_attempt_attempting',
+                 'record_ambiguous_remote_post',
+                 'require_instance_lock_for_remote_write',
+                 'retire_consumed_transport_transaction_after_proved_remote_non_success',
+                 'sending_reply_receipt_is_semantically_valid',
+                 'transaction_mutation_authority',
+                 'valid_post_id',
+                 'x_request'],
+ 'handoff_confirmed_media_upload_to_main_attempt': ['MEDIA_UPLOAD_RECEIPT_FILE',
+                                                    'MediaUploadReceiptError',
+                                                    'Path',
+                                                    'bind_media_handoff_to_transport',
+                                                    'confirmed_media_upload_experiment_envelope',
+                                                    'engagement_experiment_envelope_from_attempt',
+                                                    'load_confirmed_media_upload',
+                                                    'log',
+                                                    'main_post_attempt_path',
+                                                    'retire_confirmed_media_upload',
+                                                    'transaction_mutation_authority']}
+
+SIGNATURES = {'validate_media_upload_payload_metadata': "(value: 'object', *, form: 'dict[str, "
+                                           "object]') -> 'dict[str, object]'",
+ 'media_upload_payload_metadata': "(form: 'dict[str, object]', *, engagement_experiment: "
+                                  "'dict | None' = None) -> 'dict[str, object]'",
+ 'upload_media_v2': "(*, authority: 'MediaUploadAuthority', payload: "
+                    "'ReceiptBoundMediaPayload', payload_metadata: 'dict[str, object] | "
+                    "None' = None) -> 'str'",
+ 'upload_media': "(image_path: 'str', *, lane: 'str', engagement_experiment: 'dict | "
+                 "None' = None, pre_transport_validation: 'Callable[[], None] | None' = "
+                 "None) -> 'str'",
+ 'create_post': "(text: 'str', media_ids: 'list[str] | None' = None, reply_to_id: 'str | "
+                "None' = None, made_with_ai: 'bool' = False, *, "
+                "prepared_conversational_reply_receipt: 'dict | None' = None, "
+                "prepared_historical_context_reply_receipt: 'dict | None' = None, "
+                "prepared_main_post_attempt: 'dict | None' = None, "
+                "prepared_transport_authority: 'TransportAuthority | None' = None, "
+                "prepared_transport_source: 'SourceReceiptBinding | None' = None, "
+                "on_remote_transaction_started: 'Callable[[], None] | None' = None) -> "
+                "'dict'",
+ 'handoff_confirmed_media_upload_to_main_attempt': "(attempt: 'dict', "
+                                                   'transport_authority: '
+                                                   "'TransportAuthority') -> 'None'"}
+
+
+def test_import_needs_no_runtime_access():
+    code = """
+import builtins, collections.abc, io, logging, os, random, socket, sys, time, typing
+from pathlib import Path
+
+def forbidden(*args, **kwargs):
+    raise AssertionError('Post creation import attempted runtime access')
+
+original_import = builtins.__import__
+def guarded_import(name, *args, **kwargs):
+    if name in {'mrsMThatcher2', 'requests', 'openai', 'single_call_reply', 'historical_context_formatter'} or name.startswith('mrs_bot_') and name != 'mrs_bot_post_creation':
+        forbidden()
+    return original_import(name, *args, **kwargs)
+
+builtins.__import__ = guarded_import
+builtins.open = io.open = os.open = os.lstat = os.stat = forbidden
+os.getenv = os._Environ.__getitem__ = os.urandom = forbidden
+Path.home = logging.getLogger = forbidden
+socket.socket = socket.create_connection = socket.getaddrinfo = forbidden
+time.time = time.monotonic = forbidden
+before = random.getstate()
+random.Random = random.seed = random.random = forbidden
+import mrs_bot_post_creation
+assert random.getstate() == before
+assert 'mrsMThatcher2' not in sys.modules
+assert 'requests' not in sys.modules
+assert 'single_call_reply' not in sys.modules
+"""
+    result = subprocess.run(
+        [sys.executable, "-c", code], cwd=Path(__file__).resolve().parents[1],
+        capture_output=True, text=True, timeout=20,
+    )
+    assert result.returncode == 0, result.stderr + result.stdout
+
+
+@pytest.mark.parametrize("name", DEPENDENCIES)
+def test_adapters_preserve_signatures_current_dependencies_references_and_errors(monkeypatch, name):
+    adapter = getattr(bot, name)
+    signature = inspect.signature(adapter)
+    assert str(signature) == SIGNATURES[name]
+    positional = [p.name for p in signature.parameters.values()
+                  if p.kind is inspect.Parameter.POSITIONAL_OR_KEYWORD]
+    keyword_only = [p.name for p in signature.parameters.values()
+                    if p.kind is inspect.Parameter.KEYWORD_ONLY]
+    for _ in range(2):
+        with monkeypatch.context() as patch:
+            current = {dep: object() for dep in DEPENDENCIES[name]}
+            for dep, value in current.items():
+                patch.setattr(bot, dep, value)
+            result = {"original": []}
+            expected = {}
+
+            def capture(*args, **kwargs):
+                assert len(args) == len(positional)
+                assert all(value is expected[key] for key, value in zip(positional, args))
+                supplied = {key: expected[key] for key in keyword_only} | current
+                assert kwargs.keys() == supplied.keys()
+                assert all(kwargs[key] is value for key, value in supplied.items())
+                return result
+
+            patch.setattr(bot, "_post_creation", SimpleNamespace(**{name: capture}))
+            for include_defaults in (True, False):
+                provided = {key: object() for key, param in signature.parameters.items()
+                            if include_defaults or param.default is inspect.Parameter.empty}
+                bound = signature.bind(**provided)
+                bound.apply_defaults()
+                expected = bound.arguments
+                assert adapter(**provided) is result
+            with pytest.raises(TypeError, match="not_a_public_option"):
+                adapter(**provided, not_a_public_option={})
+            failure = TypeError("current owner failure")
+            patch.setattr(bot, "_post_creation", SimpleNamespace(**{name: Mock(side_effect=failure)}))
+            with pytest.raises(TypeError) as caught:
+                adapter(**provided)
+            assert caught.value is failure
+
+
+@pytest.mark.parametrize("arm", [None, "control", "treatment"])
+def test_metadata_validation_orders_current_callbacks_before_deepcopy(monkeypatch, arm):
+    form = {"media_category": "tweet_image", "media_type": "image/png"}
+    envelope = None if arm is None else {
+        "binding": {"arm": arm, "canonical_quote_sha256": "hash"},
+        "canonical_quote_text": "Canonical quote.",
+        "approved_question_body": "Question?",
+    }
+    value = {"request_method": "POST", "request_path": "/2/media/upload",
+             "form": dict(form), "engagement_question_experiment": envelope}
+    events = Mock()
+    events.complete.return_value = object()
+    events.validate.return_value = True
+    events.deepcopy.side_effect = copy.deepcopy
+    monkeypatch.setattr(bot, "copy", SimpleNamespace(deepcopy=events.deepcopy))
+    monkeypatch.setattr(bot, "engagement_question_trial", SimpleNamespace(complete_treatment_text=events.complete))
+    monkeypatch.setattr(bot, "engagement_experiment_attempt_envelope_is_valid", events.validate)
+    result = bot.validate_media_upload_payload_metadata(value, form=form)
+    expected = []
+    if arm == "treatment":
+        expected.append(call.complete("Canonical quote.", "Question?"))
+    if arm is not None:
+        expected.append(call.validate(envelope, public_text=(events.complete.return_value
+                        if arm == "treatment" else "Canonical quote."), quote_hash="hash"))
+        assert events.validate.call_args.args[0] is envelope
+        assert result["engagement_question_experiment"] is not envelope
+        assert result["engagement_question_experiment"]["binding"] is not envelope["binding"]
+    expected.append(call.deepcopy(value))
+    assert events.mock_calls == expected
+    assert events.deepcopy.call_args.args[0] is value
+    assert result == value and result is not value
+    assert result["form"] is not value["form"]
+
+
+def test_metadata_form_copy_precedes_value_validation_and_preserves_native_errors():
+    failure = OSError("form iteration failed")
+
+    class BrokenForm:
+        def __iter__(self):
+            raise failure
+
+    with pytest.raises(OSError) as caught:
+        bot.validate_media_upload_payload_metadata(object(), form=BrokenForm())
+    assert caught.value is failure
+    with pytest.raises(TypeError, match="is not an object"):
+        bot.validate_media_upload_payload_metadata(object(), form={})
+    with pytest.raises(ValueError, match="fields are invalid"):
+        bot.validate_media_upload_payload_metadata({"request_method": "wrong"}, form={})
+
+
+@pytest.mark.parametrize("experimental", [False, True])
+def test_metadata_builder_keeps_shallow_form_and_original_validator_reference(monkeypatch, experimental):
+    form = {"nested": []}
+    experiment = {"nested": []} if experimental else None
+    events = Mock()
+    events.deepcopy.side_effect = copy.deepcopy
+    result = object()
+
+    def validate(value, *, form):
+        assert form is original_form
+        assert value["form"] is not form
+        assert value["form"]["nested"] is form["nested"]
+        if experimental:
+            assert value["engagement_question_experiment"] == experiment
+            assert value["engagement_question_experiment"] is not experiment
+            assert value["engagement_question_experiment"]["nested"] is not experiment["nested"]
+        else:
+            assert "engagement_question_experiment" not in value
+        return result
+
+    original_form = form
+    events.validate.side_effect = validate
+    monkeypatch.setattr(bot, "copy", SimpleNamespace(deepcopy=events.deepcopy))
+    monkeypatch.setattr(bot, "validate_media_upload_payload_metadata", events.validate)
+    assert bot.media_upload_payload_metadata(form, engagement_experiment=experiment) is result
+    assert [c[0] for c in events.mock_calls] == (["deepcopy", "validate"] if experimental else ["validate"])
+    if experimental:
+        assert events.deepcopy.call_args.args[0] is experiment
+
+
+@pytest.mark.parametrize("metadata, raw_id", [(None, 0), ({"local": []}, " nonnumeric-id ")])
+def test_v2_upload_keeps_optional_metadata_multipart_and_authority_references(monkeypatch, metadata, raw_id):
+    events = Mock()
+    payload = SimpleNamespace(basename="image.png", data=b"image", mime_type="image/png")
+    authority = object()
+    validated = {"validated": []}
+    events.validate.return_value = validated
+    events.request.return_value = {"data": {"id": raw_id}}
+    monkeypatch.setattr(bot, "log", events.log)
+    monkeypatch.setattr(bot, "validate_media_upload_payload_metadata", events.validate)
+    monkeypatch.setattr(bot, "x_request", events.request)
+    assert bot.upload_media_v2(authority=authority, payload=payload, payload_metadata=metadata) == str(raw_id).strip()
+    assert [c[0] for c in events.mock_calls] == (["log.info", "validate", "request", "log.info"]
+            if metadata is not None else ["log.info", "request", "log.info"])
+    args, options = events.request.call_args
+    assert args == ("POST", "/2/media/upload")
+    assert options["files"] == {"media": (payload.basename, payload.data, payload.mime_type)}
+    assert all(a is b for a, b in zip(options["files"]["media"], (payload.basename, payload.data, payload.mime_type)))
+    assert options["data"] == {"media_category": "tweet_image", "media_type": payload.mime_type}
+    assert options["_remote_write_authorization"] is authority
+    assert options["_remote_media_payload"] is payload
+    assert options["ambiguous_write"] is True
+    if metadata is None:
+        assert set(options) == {"files", "data", "ambiguous_write", "_remote_write_authorization", "_remote_media_payload"}
+        events.validate.assert_not_called()
+    else:
+        assert options["_remote_media_payload_metadata"] is validated
+        assert events.validate.call_args.args[0] is metadata
+        assert events.validate.call_args.kwargs["form"] is options["data"]
+
+
+def test_v2_upload_rejects_boolean_id_and_preserves_native_string_error(monkeypatch):
+    payload = SimpleNamespace(basename="image", data=b"image", mime_type="image/jpeg")
+    request = Mock(return_value={"data": {"id": True}})
+    monkeypatch.setattr(bot, "x_request", request)
+    with pytest.raises(bot.AmbiguousRemotePostOutcome, match="valid data.id"):
+        bot.upload_media_v2(authority=object(), payload=payload)
+    failure = OSError("id conversion failed")
+
+    class BrokenId(str):
+        def __str__(self):
+            raise failure
+
+    request.return_value = {"data": {"id": BrokenId("id")}}
+    with pytest.raises(OSError) as caught:
+        bot.upload_media_v2(authority=object(), payload=payload)
+    assert caught.value is failure
+    assert request.call_count == 2
+
+
+def _media_boundary(monkeypatch, tmp_path):
+    events = Mock()
+    state = SimpleNamespace(path=tmp_path / "media.json", image=str(tmp_path / "image.unknown"),
+                            metadata={"local": []}, authority=object(), payload=object(),
+                            guard=object(), mutation=object(), media_id="media-id")
+    callbacks = {
+        "require_remote_operation_unpaused": ("pause", None),
+        "block_if_ambiguous_remote_post": ("barrier", None),
+        "media_upload_payload_metadata": ("metadata", state.metadata),
+        "begin_media_upload": ("begin", state.authority),
+        "bind_media_upload_payload": ("bind", state.payload),
+        "begin_confirmed_post_sigint_deferral": ("guard", state.guard),
+        "end_confirmed_post_sigint_deferral": ("end", None),
+        "upload_media_v2": ("upload", state.media_id),
+        "transaction_mutation_authority": ("mutation", state.mutation),
+        "confirm_media_upload": ("confirm", None),
+        "abort_untransmitted_media_upload": ("abort", None),
+        "record_ambiguous_remote_post": ("marker", None),
+    }
+    for root_name, (name, value) in callbacks.items():
+        callback = getattr(events, name)
+        callback.return_value = value
+        monkeypatch.setattr(bot, root_name, callback)
+    events.mime.return_value = (None, None)
+    monkeypatch.setattr(bot, "mimetypes", SimpleNamespace(guess_type=events.mime))
+    monkeypatch.setattr(bot, "log", events.log)
+    monkeypatch.setattr(bot, "MEDIA_UPLOAD_RECEIPT_FILE", state.path)
+    return events, state
+
+
+@pytest.mark.parametrize("experimental", [False, True])
+def test_outer_media_binding_validation_guard_confirmation_order(monkeypatch, tmp_path, experimental):
+    events, state = _media_boundary(monkeypatch, tmp_path)
+    experiment = {} if experimental else None
+    callback = events.prevalidate if experimental else None
+    assert bot.upload_media(state.image, lane="quote_image", engagement_experiment=experiment,
+                            pre_transport_validation=callback) is state.media_id
+    form = {"media_category": "tweet_image", "media_type": "image/jpeg"}
+    upload = {"authority": state.authority, "payload": state.payload}
+    if experimental:
+        upload["payload_metadata"] = state.metadata
+    assert events.mock_calls == [
+        call.pause("X media upload"), call.barrier(), call.mime(state.image),
+        call.metadata(form, engagement_experiment=experiment),
+        call.begin(receipt_path=state.path, image_path=Path(state.image), lane="quote_image",
+                   mime_type="image/jpeg", payload_metadata=state.metadata),
+        call.bind(state.path, state.authority, image_path=Path(state.image), lane="quote_image",
+                  mime_type="image/jpeg", payload_metadata=state.metadata),
+        *([call.prevalidate()] if experimental else []), call.guard(), call.upload(**upload),
+        call.mutation("media upload confirmation"),
+        call.confirm(state.path, state.authority, mutation_authority=state.mutation, media_id=state.media_id),
+        call.end(state.guard),
+    ]
+    assert events.metadata.call_args.kwargs["engagement_experiment"] is experiment
+    assert events.begin.call_args.kwargs["payload_metadata"] is state.metadata
+    assert events.bind.call_args.kwargs["payload_metadata"] is state.metadata
+    assert events.upload.call_args.kwargs["payload"] is state.payload
+
+
+@pytest.mark.parametrize("abort_error", [None, OSError("abort failed"), KeyboardInterrupt("abort interrupted")])
+def test_pretransport_baseexception_abort_scope_precedes_sigint_guard(monkeypatch, tmp_path, abort_error):
+    events, state = _media_boundary(monkeypatch, tmp_path)
+    failure = KeyboardInterrupt("validation interrupted")
+    events.prevalidate.side_effect = failure
+    events.abort.side_effect = abort_error
+    expected = bot.AmbiguousRemotePostOutcome if isinstance(abort_error, Exception) else type(abort_error or failure)
+    with pytest.raises(expected) as caught:
+        bot.upload_media(state.image, lane="quote_image", engagement_experiment={},
+                         pre_transport_validation=events.prevalidate)
+    assert [c[0] for c in events.mock_calls] == ["pause", "barrier", "mime", "metadata", "begin", "bind",
+            "prevalidate", "mutation", "abort"] + (["marker"] if isinstance(abort_error, Exception) else [])
+    events.abort.assert_called_once_with(state.path, state.authority, mutation_authority=state.mutation)
+    if isinstance(abort_error, Exception):
+        assert caught.value.__cause__ is abort_error
+        events.marker.assert_called_once_with({"text": "", "media": {"media_ids": []}})
+    else:
+        assert caught.value is (abort_error or failure)
+    events.guard.assert_not_called()
+    events.end.assert_not_called()
+
+
+@pytest.mark.parametrize("boundary", ["guard", "confirm"])
+def test_media_guard_start_and_confirmation_keep_original_error_scopes(monkeypatch, tmp_path, boundary):
+    events, state = _media_boundary(monkeypatch, tmp_path)
+    failure = bot.MediaUploadReceiptError("injected receipt failure")
+    getattr(events, boundary).side_effect = failure
+    with pytest.raises(bot.MediaUploadReceiptError if boundary == "guard" else bot.AmbiguousRemotePostOutcome) as caught:
+        bot.upload_media(state.image, lane="daily_meme")
+    if boundary == "guard":
+        assert caught.value is failure
+        events.marker.assert_not_called()
+        events.end.assert_not_called()
+        events.upload.assert_not_called()
+    else:
+        assert caught.value.__cause__ is failure
+        assert events.mock_calls[-2:] == [call.marker({"text": "", "media": {"media_ids": []}}), call.end(state.guard)]
+
+
+def test_handoff_checks_confirmation_and_experiment_before_binding_exact_references(monkeypatch, tmp_path):
+    events = Mock()
+    path, source_path = tmp_path / "media.json", tmp_path / "main.json"
+    attempt = {"lane": "quote_image", "attempt_id": "attempt"}
+    confirmation = SimpleNamespace(media_id="media-id")
+    authority = SimpleNamespace(journal_path=str(tmp_path / "journal"), fence_path=str(tmp_path / "fence"))
+    events.load.return_value = confirmation
+    events.media_experiment.return_value = {"nested": []}
+    events.attempt_experiment.return_value = {"nested": []}
+    events.path.return_value = source_path
+    handoff, mutation = object(), object()
+    events.bind.return_value, events.mutation.return_value = handoff, mutation
+    for root_name, name in {
+        "load_confirmed_media_upload": "load", "confirmed_media_upload_experiment_envelope": "media_experiment",
+        "engagement_experiment_envelope_from_attempt": "attempt_experiment", "main_post_attempt_path": "path",
+        "bind_media_handoff_to_transport": "bind", "transaction_mutation_authority": "mutation",
+        "retire_confirmed_media_upload": "retire", "log": "log",
+    }.items():
+        monkeypatch.setattr(bot, root_name, getattr(events, name))
+    monkeypatch.setattr(bot, "MEDIA_UPLOAD_RECEIPT_FILE", path)
+    assert bot.handoff_confirmed_media_upload_to_main_attempt(attempt, authority) is None
+    assert [c[0] for c in events.mock_calls] == ["load", "media_experiment", "attempt_experiment", "path", "bind", "mutation", "retire", "log.warning"]
+    events.bind.assert_called_once_with(path, confirmation, transport_journal_path=Path(authority.journal_path),
+                                       transport_fence_path=Path(authority.fence_path), source_receipt_path=source_path)
+    assert events.bind.call_args.args[1] is confirmation
+    assert events.path.call_args.args[0] is attempt
+    assert events.bind.call_args.kwargs["source_receipt_path"] is source_path
+    events.retire.assert_called_once_with(path, handoff, mutation_authority=mutation)
+    events.reset_mock()
+    events.attempt_experiment.return_value = {"changed": True}
+    with pytest.raises(bot.MediaUploadReceiptError, match="does not match"):
+        bot.handoff_confirmed_media_upload_to_main_attempt(attempt, object())
+    assert [c[0] for c in events.mock_calls] == ["load", "media_experiment", "attempt_experiment"]
+    events.reset_mock()
+    events.load.return_value = None
+    with pytest.raises(bot.MediaUploadReceiptError, match="no confirmed"):
+        bot.handoff_confirmed_media_upload_to_main_attempt(attempt, object())
+    assert events.mock_calls == [call.load(path)]
+
+
+def _public_boundary(monkeypatch, tmp_path):
+    events = Mock()
+
+    class TrackedAttempt(dict):
+        def clear(self):
+            events.clear()
+            super().clear()
+
+        def update(self, value):
+            events.update(value)
+            super().update(value)
+
+    state = SimpleNamespace(attempt=TrackedAttempt(lifecycle_state="sending", lane="quote_image", old=[]),
+                            promoted={"lifecycle_state": "attempting", "lane": "quote_image"},
+                            path=tmp_path / "main.json", source=object(), text=object(),
+                            frozen={"text": "frozen", "media": {"media_ids": ["17"]}},
+                            prepared=SimpleNamespace(journal_path=str(tmp_path / "journal")),
+                            armed=SimpleNamespace(journal_path=str(tmp_path / "journal"), transaction_id="transaction"),
+                            response={"data": {"id": 123}}, mutations=[object(), object()])
+    callbacks = {
+        "current_main_post_attempt_is_semantically_valid": ("validate", True),
+        "block_if_ambiguous_remote_post": ("barrier", None),
+        "freeze_tweet_request": ("freeze", SimpleNamespace(payload=events.payload)),
+        "main_post_attempt_binds_payload": ("binds", True),
+        "require_instance_lock_for_remote_write": ("lock", None),
+        "block_if_remote_write_safety_incident_latched": ("latch", None),
+        "global_remote_writes_paused": ("pause", False),
+        "mark_main_post_attempt_attempting": ("promote", state.promoted),
+        "main_post_attempt_path": ("path", state.path),
+        "bind_lane_transport_source": ("source", state.source),
+        "begin_transport_transaction": ("begin", state.prepared),
+        "arm_transport_transaction": ("arm", state.armed),
+        "transaction_mutation_authority": ("mutation", None),
+        "x_request": ("request", state.response),
+        "valid_post_id": ("valid_id", True),
+        "confirmation_epoch_after_remote_success": ("epoch", 2_000_000_000),
+        "confirm_transport_transaction": ("confirm", None),
+        "record_ambiguous_remote_post": ("marker", None),
+        "retire_consumed_transport_transaction_after_proved_remote_non_success": ("retire", None),
+        "abort_untransmitted_transport_transaction": ("abort", None),
+    }
+    for root_name, (name, value) in callbacks.items():
+        callback = getattr(events, name)
+        callback.return_value = value
+        monkeypatch.setattr(bot, root_name, callback)
+    events.payload.return_value = state.frozen
+    events.mutation.side_effect = state.mutations
+    monkeypatch.setattr(bot, "log", events.log)
+    return events, state
+
+
+def test_public_create_preserves_freeze_attempt_mutation_and_confirmation_order(monkeypatch, tmp_path):
+    events, state = _public_boundary(monkeypatch, tmp_path)
+    assert bot.create_post(state.text, [17], made_with_ai=object(), prepared_main_post_attempt=state.attempt) is state.response
+    assert [c[0] for c in events.mock_calls] == ["validate", "barrier", "freeze", "payload", "binds", "lock", "latch", "pause",
+            "promote", "clear", "update", "path", "source", "begin", "mutation", "arm", "log.info", "request",
+            "valid_id", "mutation", "epoch", "confirm", "log.info"]
+    raw = events.freeze.call_args.kwargs
+    assert raw == {"method": "POST", "request_path": "/2/tweets",
+                   "payload": {"text": state.text, "media": {"media_ids": ["17"]}, "made_with_ai": True}}
+    assert raw["payload"]["text"] is state.text
+    assert state.attempt == state.promoted and "old" not in state.attempt
+    for callback in (events.validate, events.promote, events.path, events.epoch):
+        assert callback.call_args.args[0] is state.attempt
+    assert events.update.call_args.args[0] is state.promoted
+    assert events.binds.call_args.args[1] is state.frozen
+    assert events.source.call_args.kwargs["receipt"] is state.attempt
+    assert events.source.call_args.kwargs["payload"] is state.frozen
+    assert events.begin.call_args.kwargs["source_binding"] is state.source
+    events.arm.assert_called_once_with(Path(state.prepared.journal_path), state.prepared, mutation_authority=state.mutations[0])
+    events.request.assert_called_once_with("POST", "/2/tweets", json=state.frozen, ambiguous_write=True, _remote_write_authorization=state.armed)
+    assert events.request.call_args.kwargs["json"] is state.frozen
+    assert events.request.call_args.kwargs["_remote_write_authorization"] is state.armed
+    events.valid_id.assert_called_once_with(123)
+    events.confirm.assert_called_once_with(Path(state.armed.journal_path), state.armed,
+                                           mutation_authority=state.mutations[1], post_id="123", confirmation_epoch=2_000_000_000)
+    assert events.log.info.call_args.args[-1] is state.response
+
+
+def test_public_count_and_callback_gates_and_call_time_historical_import(monkeypatch):
+    barrier = Mock(side_effect=ValueError("existing barrier"))
+    monkeypatch.setattr(bot, "block_if_ambiguous_remote_post", barrier)
+    with pytest.raises(ValueError, match="existing barrier"):
+        bot.create_post("text", prepared_conversational_reply_receipt={}, prepared_main_post_attempt={},
+                        on_remote_transaction_started=object())
+    barrier.assert_called_once_with()
+    with pytest.raises(bot.AmbiguousRemotePostOutcome, match="Only a historical-context"):
+        bot.create_post("text", prepared_main_post_attempt={}, on_remote_transaction_started=object())
+    validator = Mock(return_value=False)
+    monkeypatch.setitem(sys.modules, "historical_context_formatter",
+                        SimpleNamespace(HistoricalContextReplyStore=SimpleNamespace(_valid_sending_receipt=validator)))
+    receipt = {"parent_post_id": "11", "reply_text": "text"}
+    with pytest.raises(bot.AmbiguousRemotePostOutcome, match="Prepared historical-context"):
+        bot.create_post("text", reply_to_id="11", prepared_historical_context_reply_receipt=receipt)
+    assert validator.call_args.args[0] is receipt
+    assert barrier.call_count == 1
+
+
+@pytest.mark.parametrize("retirement_error", [None, OSError("retirement failed"), KeyboardInterrupt("retirement interrupted")])
+def test_public_rejection_retirement_preserves_proof_marker_and_baseexception(monkeypatch, tmp_path, retirement_error):
+    events, state = _public_boundary(monkeypatch, tmp_path)
+
+    class Rejection(Exception):
+        pass
+
+    rejection = Rejection("issued rejection")
+    rejection.remote_non_success_proof = object()
+    monkeypatch.setattr(bot, "ProvedRemotePostNonSuccess", Rejection)
+    events.request.side_effect = rejection
+    events.retire.side_effect = retirement_error
+    expected = bot.AmbiguousRemotePostOutcome if isinstance(retirement_error, Exception) else type(retirement_error or rejection)
+    with pytest.raises(expected) as caught:
+        bot.create_post(state.text, [17], prepared_main_post_attempt=state.attempt)
+    options = events.retire.call_args.kwargs
+    assert options["source_binding"] is state.source
+    assert options["authority"] is state.armed
+    assert options["remote_non_success_proof"] is rejection.remote_non_success_proof
+    assert options["mutation_authority"] is state.mutations[1]
+    assert [c[0] for c in events.mock_calls][-3:] == (["mutation", "retire", "marker"] if retirement_error else ["request", "mutation", "retire"])
+    if retirement_error:
+        assert events.marker.call_args.args[0] is state.frozen
+    else:
+        events.marker.assert_not_called()
+    if isinstance(retirement_error, Exception):
+        assert caught.value.__cause__ is retirement_error
+    else:
+        assert caught.value is (retirement_error or rejection)
+    events.confirm.assert_not_called()
+    events.abort.assert_not_called()
+
+
+@pytest.mark.parametrize("boundary", ["freeze", "confirm"])
+def test_public_native_freeze_and_confirmation_error_scopes(monkeypatch, tmp_path, boundary):
+    events, state = _public_boundary(monkeypatch, tmp_path)
+    failure = TypeError("native freeze failure") if boundary == "freeze" else bot.TransportJournalError("confirmation failed")
+    getattr(events, boundary).side_effect = failure
+    with pytest.raises(TypeError if boundary == "freeze" else bot.AmbiguousRemotePostOutcome) as caught:
+        bot.create_post(state.text, [17], prepared_main_post_attempt=state.attempt)
+    if boundary == "freeze":
+        assert caught.value is failure
+        assert [c[0] for c in events.mock_calls] == ["validate", "barrier", "freeze"]
+    else:
+        assert caught.value.__cause__ is failure
+        assert [c[0] for c in events.mock_calls][-4:] == ["mutation", "epoch", "confirm", "marker"]
+        assert events.marker.call_args.args[0] is state.frozen
