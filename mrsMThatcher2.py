@@ -253,6 +253,7 @@ import mrs_bot_x_response_diagnostics as _x_response_diagnostics
 import mrs_bot_tick_coordination as _tick_coordination
 import mrs_bot_durable_json_io as _durable_json_io
 import mrs_bot_state_value_normalisation as _state_value_normalisation
+import mrs_bot_state_persistence as _state_persistence
 
 from single_call_reply import (
     MAX_IMAGE_BYTES as SINGLE_CALL_MAX_IMAGE_BYTES,
@@ -4293,35 +4294,17 @@ def require_compatible_state_reader(
 
 def state_document_for_persistence(state: dict) -> dict:
     """Return state with the reader declaration and pre-reader rollback fence."""
-    minimum = require_compatible_state_reader(state, path=STATE_FILE)
-    legacy_drafts = state.get("pending_reply_drafts")
-    if legacy_drafts not in (
-        None,
-        {},
-        STATE_READER_COMPATIBILITY_FENCE,
-        *STATE_PREVIOUS_READER_COMPATIBILITY_FENCES,
-    ):
-        raise RuntimeError(
-            "Legacy V1 reply drafts remain in runtime state; refusing to "
-            "overwrite them with the reader compatibility fence"
-        )
-    document = dict(state)
-    experiment_state = document.get("engagement_question_experiment")
-    if experiment_state is not None:
-        engagement_question_trial.validate_experiment_state(experiment_state)
-    document["minimum_reader_version"] = max(
-        minimum,
-        STATE_MINIMUM_READER_VERSION,
-        (
-            ENGAGEMENT_QUESTION_EXPERIMENT_STATE_MINIMUM_READER_VERSION
-            if experiment_state is not None
-            else STATE_MINIMUM_READER_VERSION
-        ),
+    return _state_persistence.state_document_for_persistence(
+        state,
+        ENGAGEMENT_QUESTION_EXPERIMENT_STATE_MINIMUM_READER_VERSION=ENGAGEMENT_QUESTION_EXPERIMENT_STATE_MINIMUM_READER_VERSION,
+        STATE_FILE=STATE_FILE,
+        STATE_MINIMUM_READER_VERSION=STATE_MINIMUM_READER_VERSION,
+        STATE_PREVIOUS_READER_COMPATIBILITY_FENCES=STATE_PREVIOUS_READER_COMPATIBILITY_FENCES,
+        STATE_READER_COMPATIBILITY_FENCE=STATE_READER_COMPATIBILITY_FENCE,
+        copy=copy,
+        engagement_question_trial=engagement_question_trial,
+        require_compatible_state_reader=require_compatible_state_reader,
     )
-    document["pending_reply_drafts"] = copy.deepcopy(
-        STATE_READER_COMPATIBILITY_FENCE
-    )
-    return document
 
 
 def normalise_state_candidate(
@@ -4820,62 +4803,39 @@ def scheduler_epoch_from_state(state: dict, key: str, *, current: int | None = N
 
 def copy_state_backup(src: Path, dst: Path, *, durable: bool = False) -> None:
     """Copy one exact stable state generation without following links."""
-
-    present, data = read_stable_owned_json_bytes_no_follow(src)
-    if not present or data is None:
-        raise UnsafeDurableStateNamespace(
-            f"state backup source disappeared before copying: {src}"
-        )
-    dst.parent.mkdir(parents=True, exist_ok=True)
-    descriptor, temporary_name = tempfile.mkstemp(
-        prefix=f".{dst.name}.",
-        dir=dst.parent,
+    return _state_persistence.copy_state_backup(
+        src,
+        dst,
+        durable=durable,
+        Path=Path,
+        UnsafeDurableStateNamespace=UnsafeDurableStateNamespace,
+        fsync_parent_dir=fsync_parent_dir,
+        os=os,
+        read_stable_owned_json_bytes_no_follow=read_stable_owned_json_bytes_no_follow,
+        tempfile=tempfile,
     )
-    temporary = Path(temporary_name)
-    try:
-        with os.fdopen(descriptor, "wb") as handle:
-            os.fchmod(handle.fileno(), 0o600)
-            handle.write(data)
-            if durable:
-                handle.flush()
-                os.fsync(handle.fileno())
-        os.replace(temporary, dst)
-        if durable:
-            fsync_parent_dir(dst, strict=True)
-    except BaseException:
-        try:
-            temporary.unlink()
-        except FileNotFoundError:
-            pass
-        raise
 
 
 def rotate_state_backups_before_commit(*, durable: bool = False) -> None:
     """Rotate state backups before commit."""
-    if STATE_BACKUP_COUNT <= 1 or not STATE_FILE.exists():
-        return
-
-    try:
-        for i in range(STATE_BACKUP_COUNT, 2, -1):
-            older = STATE_FILE.with_name(f"{STATE_FILE.name}.bak{i - 1}")
-            newer = STATE_FILE.with_name(f"{STATE_FILE.name}.bak{i}")
-            if older.exists():
-                older.replace(newer)
-
-        bak2 = STATE_FILE.with_name(f"{STATE_FILE.name}.bak2")
-        copy_state_backup(STATE_FILE, bak2, durable=durable)
-        log.debug("Previous state backup written: %s", bak2)
-    except Exception:
-        log.exception("Failed rotating state backups; continuing with state save")
+    return _state_persistence.rotate_state_backups_before_commit(
+        durable=durable,
+        STATE_BACKUP_COUNT=STATE_BACKUP_COUNT,
+        STATE_FILE=STATE_FILE,
+        copy_state_backup=copy_state_backup,
+        log=log,
+    )
 
 
 def write_latest_state_backup(*, durable: bool = False) -> None:
     """Write latest state backup."""
-    if STATE_BACKUP_COUNT <= 0 or not STATE_FILE.exists():
-        return
-    bak1 = STATE_FILE.with_name(f"{STATE_FILE.name}.bak1")
-    copy_state_backup(STATE_FILE, bak1, durable=durable)
-    log.debug("Latest committed state backup written: %s", bak1)
+    return _state_persistence.write_latest_state_backup(
+        durable=durable,
+        STATE_BACKUP_COUNT=STATE_BACKUP_COUNT,
+        STATE_FILE=STATE_FILE,
+        copy_state_backup=copy_state_backup,
+        log=log,
+    )
 
 
 class StateBackupWriteError(RuntimeError):
@@ -4885,43 +4845,24 @@ class StateBackupWriteError(RuntimeError):
 
 def save_state(state: dict, *, durable: bool = False) -> None:
     """Persist state atomically, logging only a value-free structural summary."""
-    if test_process_production_state_write_blocked(STATE_FILE):
-        raise RuntimeError(f"Refusing test-process write to production state: {STATE_FILE}")
-    log.debug("Saving state to %s", STATE_FILE)
-    log_json_debug("State summary being saved", state_debug_summary(state))
-    persisted_state = state_document_for_persistence(state)
-
-    STATE_FILE.parent.mkdir(parents=True, exist_ok=True)
-
-    descriptor, temporary_name = tempfile.mkstemp(
-        prefix=f".{STATE_FILE.name}.",
-        dir=STATE_FILE.parent,
+    return _state_persistence.save_state(
+        state,
+        durable=durable,
+        Path=Path,
+        STATE_FILE=STATE_FILE,
+        StateBackupWriteError=StateBackupWriteError,
+        fsync_parent_dir=fsync_parent_dir,
+        json=json,
+        log=log,
+        log_json_debug=log_json_debug,
+        os=os,
+        rotate_state_backups_before_commit=rotate_state_backups_before_commit,
+        state_debug_summary=state_debug_summary,
+        state_document_for_persistence=state_document_for_persistence,
+        tempfile=tempfile,
+        test_process_production_state_write_blocked=test_process_production_state_write_blocked,
+        write_latest_state_backup=write_latest_state_backup,
     )
-    temporary = Path(temporary_name)
-    try:
-        with os.fdopen(descriptor, "w", encoding="utf-8") as handle:
-            os.fchmod(handle.fileno(), 0o600)
-            json.dump(persisted_state, handle, indent=2, sort_keys=True)
-            if durable:
-                handle.flush()
-                os.fsync(handle.fileno())
-
-        rotate_state_backups_before_commit(durable=durable)
-        os.replace(temporary, STATE_FILE)
-        if durable:
-            fsync_parent_dir(STATE_FILE, strict=durable)
-    except BaseException:
-        try:
-            temporary.unlink()
-        except FileNotFoundError:
-            pass
-        raise
-    try:
-        write_latest_state_backup(durable=durable)
-    except Exception as exc:
-        raise StateBackupWriteError(
-            f"Canonical state committed but latest backup write failed: {STATE_FILE}"
-        ) from exc
 
 
 def reset_daily_reply_count_if_needed(state: dict) -> None:
