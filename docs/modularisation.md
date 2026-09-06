@@ -3504,3 +3504,92 @@ exhausted.
 following worker or session is launched. Prior worktrees/branches are preserved;
 no production/configuration/state/log/image-pool changes, bot execution,
 provider/posting calls, service control, merge, deployment or force-push occurred.
+
+## Extracted in stage 37
+
+Base: `85f7cd6d584acfad71827d7fa7e4b8367d9e4daf`, verified against
+`origin/codex/modularisation-stage36` and the clean previous worktree. Worktree:
+`/disks/disk1/research/mrsMThatcher-modularisation-stage37`; branch:
+`codex/modularisation-stage37`. The user's authorisation of stages 37–40
+supersedes historical stage-36 stopping instructions. This session implements
+only stage 37; the supervisor will run README's broad offline suite after stage 40.
+
+`mrs_log_digest_reply_text._index_reply_confirmations` receives the unchanged
+dictionary initialisation and two complete following loops: **three statements,
+33 original lines**. Its five explicit inputs are the current `events` list,
+`structured_reply_confirmations`, `confirmed_receipt_evidence`,
+`normalise_confirmation` and `epoch_to_london_text`. The seven-line invocation
+stays after `legacy_identity` and before `enriched_records`; it binds the original
+returned dictionary directly. Dependency/later-use review found no other live
+result: `raw_confirmation`, `confirmation`, `receipt_index` and `receipt` have no
+later uses, and later `reply_post_id` uses are rebound by their own loops/assignments.
+
+Structured order, duplicates, normalized references and `None` short-circuits
+remain exact. Receipts still normalize even for existing keys, fill only absent
+keys, retain enumeration gaps, and evaluate integer/epoch conversion and both
+`len(events)` calls inside each iteration. Native errors, callback order/current
+lookup, insertion metadata and authority flags are unchanged. Legacy preparation,
+warnings, identity conflicts, the later coupled confirmation/event mutation loop,
+synthesis/insertion, historical enrichment and health aggregation stay together.
+No module, reverse import, generic state object, collection copy, precomputation,
+retained callback or incidental repair is introduced.
+
+Removing the helper and restoring the original span reconstructs the entire
+stage-36 owner exactly in text and AST. All existing test assertions and public
+signatures/annotations/defaults are preserved. The root and all 29 other digest
+companions are byte-identical to stage 36.
+
+| Physical lines / AST definition spans | Stage 36 | Stage 37 |
+| --- | ---: | ---: |
+| Reply-text owner | 917 | 937 |
+| `enrich_published_reply_text` implementation | 627 | 601 |
+| `_index_reply_confirmations` | — | 44 |
+| Root digest / `analyse` | 3,462 / 1,318 | 3,462 / 1,318 |
+
+Validation used `MRS_TEST_MODE=1 PYTEST_DISABLE_PLUGIN_AUTOLOAD=1
+PYTHONDONTWRITEBYTECODE=1 python3 -m pytest -q -p no:cacheprovider`, retaining
+temporary-HOME and network isolation. Baseline reply-text/evidence/publication
+checks: **17 passed**. Final same focused files, including inert import/alias
+checks: **24 passed**. Three new test functions supply seven cases for ordered
+source priority, duplicate/shared references, dynamic event lengths, current
+callbacks and returned-dictionary consumption, and native key/integer/epoch errors.
+All **six direct cases pass unchanged against the original stage-36 span**; the
+existing enrichment callback/reference trace also passes against the complete
+original owner (**seven original-body cases**). **22 digest-only integrations
+passed** for reply lanes, interleaved/immutable identities, structured-only and
+receipt fallback, invalid-source priority, conflicts/warning bounds, self-test
+authority exclusion, historical text and bounded event scans. No bot execution
+or broad suite ran.
+
+Three complete fixed-path/time report pairs match stage 36 without substitutions
+or normalization, reusing existing integration fixtures and capture/reference-graph
+machinery:
+
+| Asserted fixture | Records | JSON bytes | Markdown bytes |
+| --- | ---: | ---: | ---: |
+| Structured-only confirmation and unidentified legacy reply | 5 | 38,278 | 12,962 |
+| Validated v4 receipt fallback with multiline text | 1 | 61,762 | 16,304 |
+| Conflicting cache/history text | 5 | 37,425 | 12,778 |
+
+Complete output bytes, raw `analyse` values/types/order/reference graphs and stderr
+match. Producer source hashes and pre-commit HEADs were verified equal. Fixture
+bytes/modes/mtimes are unchanged across comparisons. Temporary scripts, fixtures
+and results are outside the worktree at `/tmp/mrs-stage37-bzcwfa6s`. These are
+focused synthetic preservation checks, not a production replay or exhaustive
+matrix. `python3 tools/check_python_documentation.py` passes for **209 modules**;
+`git diff --check` passes. Production/configuration/state/log/image-pool files
+are untouched; no provider/posting calls, service control, merge or deployment
+occurred.
+
+Next recommendation: extract the **46-line candidate outcome-selection block**
+in `mrs_log_digest_provider_costs.xai_reply_cost_summary` (lines 294–339; function
+403 lines, owner 602) within that owner. After the existing local-rejection lookup,
+it needs four prepared rows (`decision`, `outcome`, `failure`, `local_rejection`)
+and the current three reason classifiers, with only `disposition` needed later.
+Preserve eager classification and predicate order, including published/posting
+failure priority over writer/local rejection, deliberate decline, pipeline failure
+and unavailable outcomes. Keep evidence association, target fallback, candidate
+sorting, call coverage, cost arithmetic and missing-spend semantics in place.
+This makes source/outcome precedence independently understandable; line counts
+alone do not justify further splits or establish that modularisation is exhausted.
+That boundary is assessed only, not implemented here. No next session is launched.

@@ -706,6 +706,20 @@ post-ID and hash validators retain their values-module owner.
 `PUBLISHED_REPLY_WARNING_LIMIT` belongs to the text module, remains `100` and is a
 direct digest alias passed explicitly to enrichment on each call.
 
+Within that owner, `_index_reply_confirmations` receives the current `events`
+list, `structured_reply_confirmations`, `confirmed_receipt_evidence`,
+`normalise_confirmation` and `epoch_to_london_text` explicitly. Enrichment calls
+it immediately after `legacy_identity` and before allocating `enriched_records`,
+then consumes its original dictionary directly. Structured confirmations retain
+their order, duplicates and normalized object references; receipts fill only
+absent reply keys in enumeration order. Each receipt still undergoes integer/epoch
+conversion and normalization even when its reply key already exists. Both
+`len(events)` calls remain inside each iteration, preserving insertion metadata,
+authority flags, `None` short-circuits, native errors and callback order. No
+collection is copied or callback retained by this extraction. Legacy preparation,
+warnings, the coupled identity/conflict and event-mutation loop, synthesis,
+historical enrichment and health aggregation remain in enrichment.
+
 Prepared structured confirmations retain precedence over receipt-derived
 confirmations. Exact long/multiline published text, unavailable versus conflicting
 evidence, immutable lane/target/reply identities, duplicates, source bounds and

@@ -288,6 +288,52 @@ def _normalised_structured_reply_confirmation(
     }
 
 
+def _index_reply_confirmations(
+    *,
+    events: List[Dict[str, Any]],
+    structured_reply_confirmations: List[Dict[str, Any]],
+    confirmed_receipt_evidence: Optional[List[Dict[str, Any]]],
+    normalise_confirmation: Callable[[Any], Optional[Dict[str, Any]]],
+    epoch_to_london_text: Callable[[int], Optional[str]],
+) -> Dict[str, List[Dict[str, Any]]]:
+    """Index structured confirmations in order, then fill absent replies from receipts."""
+
+    confirmations_by_reply: Dict[str, List[Dict[str, Any]]] = {}
+    for raw_confirmation in structured_reply_confirmations:
+        confirmation = normalise_confirmation(
+            raw_confirmation
+        )
+        if confirmation is None:
+            continue
+        reply_post_id = str(confirmation["reply_post_id"])
+        confirmations_by_reply.setdefault(reply_post_id, []).append(
+            confirmation
+        )
+    for receipt_index, receipt in enumerate(confirmed_receipt_evidence or []):
+        confirmation = normalise_confirmation(
+            {
+                "time": epoch_to_london_text(
+                    int(receipt.get("reply_epoch") or 0)
+                )
+                or "",
+                "lane": receipt.get("lane"),
+                "target_id": receipt.get("target_id"),
+                "reply_post_id": receipt.get("reply_post_id"),
+                "original_post_id": receipt.get("original_post_id"),
+                "publication_authority": "confirmed_reply_receipt.json",
+                "current_snapshot_authority": True,
+                "_event_insertion_index": len(events),
+                "_source_sequence": len(events) + receipt_index,
+            }
+        )
+        if confirmation is None:
+            continue
+        reply_post_id = str(confirmation["reply_post_id"])
+        if reply_post_id not in confirmations_by_reply:
+            confirmations_by_reply[reply_post_id] = [confirmation]
+    return confirmations_by_reply
+
+
 def enrich_published_reply_text(
     report: Dict[str, Any],
     *,
@@ -370,39 +416,13 @@ def enrich_published_reply_text(
             ),
         )
 
-    confirmations_by_reply: Dict[str, List[Dict[str, Any]]] = {}
-    for raw_confirmation in structured_reply_confirmations:
-        confirmation = normalise_confirmation(
-            raw_confirmation
-        )
-        if confirmation is None:
-            continue
-        reply_post_id = str(confirmation["reply_post_id"])
-        confirmations_by_reply.setdefault(reply_post_id, []).append(
-            confirmation
-        )
-    for receipt_index, receipt in enumerate(confirmed_receipt_evidence or []):
-        confirmation = normalise_confirmation(
-            {
-                "time": epoch_to_london_text(
-                    int(receipt.get("reply_epoch") or 0)
-                )
-                or "",
-                "lane": receipt.get("lane"),
-                "target_id": receipt.get("target_id"),
-                "reply_post_id": receipt.get("reply_post_id"),
-                "original_post_id": receipt.get("original_post_id"),
-                "publication_authority": "confirmed_reply_receipt.json",
-                "current_snapshot_authority": True,
-                "_event_insertion_index": len(events),
-                "_source_sequence": len(events) + receipt_index,
-            }
-        )
-        if confirmation is None:
-            continue
-        reply_post_id = str(confirmation["reply_post_id"])
-        if reply_post_id not in confirmations_by_reply:
-            confirmations_by_reply[reply_post_id] = [confirmation]
+    confirmations_by_reply = _index_reply_confirmations(
+        events=events,
+        structured_reply_confirmations=structured_reply_confirmations,
+        confirmed_receipt_evidence=confirmed_receipt_evidence,
+        normalise_confirmation=normalise_confirmation,
+        epoch_to_london_text=epoch_to_london_text,
+    )
 
     enriched_records: set[int] = set()
     for reply_post_id, confirmations in confirmations_by_reply.items():
