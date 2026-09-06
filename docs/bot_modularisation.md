@@ -2624,3 +2624,69 @@ restart or next-stage launch occurred.
 Next useful domain: supervisor review of shared tweet ID parsing/ordering around
 `parse_tweet_id`, `valid_tweets_sorted_by_id` and their bounded-ID dependency.
 Only stage 26 is implemented; supervisor review precedes any further stage.
+
+## Stage 27 — API cooldown and error-window policy
+
+Baseline: `989d32625a6431f33dfeca5492c97d4f9af3e22a` (2026-09-06).
+Worktree `/disks/disk1/research/mrsMThatcher-bot-modularisation-stage27` started
+clean on `codex/bot-modularisation-stage27`, matching the pushed stage 26 parent.
+Supervisor scope notes, dependency inventory and 46 curated candidates informed
+the focused selection and caller inspection.
+
+`mrs_bot_api_cooldowns.py` owns **five functions / 156 original definition
+lines**: `in_api_cooldown`, `clear_expired_api_cooldowns`, `prune_error_epochs`,
+`cooldown_until_for_rate_limit` and `record_api_error`. Five explicit adapters
+retain public root signatures/defaults/annotations and exact bodies/docstrings,
+supplying current settings, limits, classification, clock, datetime, logger and
+persistence. No constants or classes move. The owner retains no dependencies or
+runtime state and performs no import-time file/environment/provider/clock/RNG work.
+
+Compatibility retains scope routing/read fallback and original scope labels;
+native coercion/errors; read/write/OpenAI/quote expiry order and log-before-clear;
+inclusive error cutoff, original ordering and repeated conversions; future reset
+plus 60 versus current fallback; terminal target restrictions before the clock
+and unsupported services after it; prune-list identity and mutation before
+diagnostic reads; separate clock samples, exact logs/reasons, inclusive threshold
+and ordinary saves only after 429 or threshold. Policy and durability are unchanged.
+
+Evidence: `/tmp/mrs-bot-stage27-RcGUTotB`. Before editing, documentation passed
+for **235 modules**, **37 tests collected in 4.08s**, and **37 passed in 15.83s**
+(`baseline-pytest.txt`; 27 explicit nodes across eight files). The selection uses
+20 supplied candidates, including direct cooldown/target-restriction cases and
+all seven required loopbacks, plus nearest normal/quote/reply-generation,
+runtime scheduling, historical-context and guarded-bootstrap checks.
+After extraction, documentation passed for **236 modules**, **51 tests collected
+in 3.95s**, and **51 passed in 16.34s** on the first run (`current-pytest.txt`;
+37 explicit nodes across nine files). Ten new tests (14 cases) cover guarded
+import, current dependencies/references, scope and native failure boundaries,
+clock/conversion multiplicity, partial mutation and diagnostic/log/save order.
+They register the existing autouse `isolate_regular_post_receipt` fixture.
+
+The reused runner requires successful AST-validated nonempty selection and
+collection under `set -euo pipefail`, with explicit pytest arguments. Both runs
+retain temporary HOME/state/TMPDIR, dummy credentials, dead proxies, denied
+external sockets, explicit loopback APIs, disabled plugin autoload/bytecode/cache
+provider and `PYTHONUSERBASE=/home/tonym/.local`. No broad suite ran; passing logs
+were retained after documentation-only edits.
+
+`verify_stage27.py` / `comparison.txt` verify exact bodies, signatures and
+dependencies against immutable `git show`. Restoring the five definitions and
+removing the new import reconstructs the entire parent root byte for byte,
+including **524 unaffected functions** and all unrelated statements. All **26
+prior owners**, existing tests/fixtures and digest docs are unchanged; README/API
+only add the companion and this report is appended. Final documentation and
+`git diff --check` pass.
+
+| Runtime file | Before lines / bytes | After lines / bytes |
+|---|---:|---:|
+| `mrsMThatcher2.py` | 19,848 / 778,533 | 19,742 / 773,987 |
+| `mrs_bot_api_cooldowns.py` | absent | 221 / 7,940 |
+
+The root loses **106 lines / 4,546 bytes**; combined runtime source grows by
+**115 lines / 3,394 bytes**. The focused test file has **304 lines / 14,801 bytes**.
+Production remains `master` at `af5eda7c163a8174ec1365060aa923d21787e7bd` per
+worktree metadata. No production modification, deployment, restart or next-stage
+launch occurred. Next useful domain: supervisor review of shared tweet ID
+parsing/ordering around `parse_tweet_id`, `valid_tweets_sorted_by_id` and the
+bounded-ID dependency. Only stage 27 is implemented; supervisor review precedes
+any further stage.

@@ -190,6 +190,7 @@ deployed as a coherent set:
 - `mrs_bot_reply_native_media.py`
 - `mrs_bot_reply_lane_policy.py`
 - `mrs_bot_runtime_control.py`
+- `mrs_bot_api_cooldowns.py`
 - `remote_write_safety_protocol.py`
 - `remote_media_upload_receipt.py`
 - `remote_write_transport_journal.py`
