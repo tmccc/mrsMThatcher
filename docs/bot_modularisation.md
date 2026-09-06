@@ -1162,3 +1162,110 @@ and `collect_reply_images`. Keep transport implementation, provider orchestratio
 receipt lifecycle and persistence authority in their current owners. The
 supervisor chooses the next scope in a fresh invocation; stage 10 implements
 none of it.
+
+## Stage 11 — reply generation and its image/provider boundary
+
+Baseline: `13a73ae1a72474024eaa350ee61881436aae34ed` (2026-09-06).
+Worktree `/disks/disk1/research/mrsMThatcher-bot-modularisation-stage11` on
+`big-nas-2`, user `tonym`, started clean on `codex/bot-modularisation-stage11`;
+HEAD matched the pushed stage 10 parent. Inspection used the supervisor's
+eleven-function dependency inventory and eighteen direct test candidates,
+plus current mention/quote-tweet callers and generation/recovery regressions.
+
+`mrs_bot_reply_generation.py` owns `log_ai_reply_posting_outcome`,
+`_safe_reply_image_url`, `collect_reply_images`,
+`_definite_connection_failure_before_transmission`, `_openai_api_error`,
+`_openai_retry_metadata`, `_is_openai_provider_health_failure`,
+`_is_terminal_candidate_local_failure`, `openai_responses_reply_call`,
+`_record_single_call_result` and `generate_single_call_reply`. The **574 original
+definition lines** have byte-identical bodies in original function order.
+Eleven explicit adapters preserve root signatures/defaults/annotations,
+including deferred request/result-class annotation strings, and pass current
+root callbacks, settings, application classes and the requests object per call.
+The three fixed definitions retain their exact **30 lines**, initializer order
+and types: `_REPLY_IMAGE_MIME_TYPES` is still a mutable set; the provider-health
+and terminal-local category collections remain separate frozensets. Root names
+directly alias the owner objects and adapters forward current root references.
+
+Image origin/shape/identity rules, pause checks, request arguments, MIME/byte
+bounds, chunk filtering, exception causes, response closure and final validation
+remain exact. Responses transport retains its two-attempt policy, proved
+pre-transmission retry, first-429 closure/sleep and metadata carry-through,
+second-429 precedence, health progress, latency rounding and error boundaries.
+Retry-After parsing retains the current clock, Mapping check, finite numeric or
+aware HTTP-date parsing, ceiling and inclusive seven-day bounds. Generation
+keeps images before history/preparation, caller references and exclusions,
+the current pipeline/evidence/config/transport, decision/usage/evaluation order
+and provider-health accounting. Recovered valid decisions remain successful;
+image/local failures retain zero-call/local handling without invented cooldowns.
+
+The owner imports only standard libraries, constructs the fixed sets and does
+no import-time file/environment/provider/RNG work or retained callback setup.
+Root exception/result authorities, all ten previous owners, the actual pipeline
+and evidence implementation, draft/history adapters, cooldown persistence,
+terminal evaluation/pruning, posting/receipts and durable state are unchanged.
+README's companion list and the Python API table include the owner; digest
+documentation and existing tests/fixtures are unchanged.
+
+Evidence: `/tmp/mrs-bot-stage11-kXeIsd`. Validated baseline selection contains
+**48 unique nonempty file/node arguments across 16 files**, covering all eighteen
+direct candidates. It includes the full failure-routing file (**27 cases**),
+all ten previous owner test files (**100**), guarded bootstrap/pause (**12**),
+selected unit generation/recovery (**16**), durability transport guard (**1**),
+current pipeline/recovery (**11**) and ten loopback integration nodes (**13**).
+Integration covers normal mention and quote-tweet replies, native image success
+and failure, provider/malformed envelopes, terminal local rejection and restart
+context. No entire broad unit/integration suite was run.
+
+Before editing: documentation passed for **219 modules**, collection found
+**180 cases in 4.83s**, and **180 passed in 21.51s**. After extraction:
+documentation passed for **220 modules**, collection found **191 cases in
+4.81s**, and **191 passed in 22.13s**. The **11 new cases** cover guarded import,
+constant aliases/current dependencies, request/result/reference identity,
+response cleanup and original causes, retry and generation/logging order, and
+metadata fallback. They reuse `FakeHttpResponse` and its image bytes,
+`FakeRepository`, `enabled_config`, `raw_decision`, `response_envelope`, the
+current pipeline and the registered `isolate_regular_post_receipt` fixture.
+Conftest retained temporary HOME/state, dummy credentials, dead proxies, denied
+external sockets and explicit loopback APIs. Disposable scripts, fixtures and
+test TMPDIR remained under the evidence root. Production configuration/durable
+state and service were not operated on; no deployment or live provider call ran.
+
+```bash
+set -euo pipefail
+export TMPDIR=/tmp/mrs-bot-stage11-kXeIsd PYTHONUSERBASE=/home/tonym/.local
+export MRS_TEST_MODE=1 PYTEST_DISABLE_PLUGIN_AUTOLOAD=1 PYTHONDONTWRITEBYTECODE=1
+python3 tools/check_python_documentation.py
+python3 "$TMPDIR/select_tests.py" --current
+mapfile -t stage11_tests < "$TMPDIR/current-selected-tests.txt"
+(( ${#stage11_tests[@]} > 0 ))
+python3 -m pytest -q -p no:cacheprovider --collect-only "${stage11_tests[@]}"
+python3 -m pytest -q -p no:cacheprovider "${stage11_tests[@]}"
+python3 "$TMPDIR/verify_stage11.py"
+git diff --check
+```
+
+Baseline omitted `--current` and used `selected-tests.txt`; the current list adds
+only the new test file. Selection generation and nonempty validation succeeded
+before both collection and execution. Logs use `baseline-`/`current-` prefixes.
+`comparison.txt` verifies exact moved bodies/constants, aliases and dependency
+forwarding, signatures and **564 unaffected root definitions**. Restoring the
+original definitions/aliases and removing the one new import reconstructs the
+**entire immutable parent root byte-for-byte**, including all other statements.
+All ten previous owners and unrelated files match the parent. The comparison
+uses static source/AST and `git show`, without importing the bot. Documentation
+and `git diff --check` passed.
+
+| Runtime file | Before lines / bytes | After lines / bytes |
+|---|---:|---:|
+| `mrsMThatcher2.py` | 25,724 / 1,002,016 | 25,290 / 986,011 |
+| `mrs_bot_reply_generation.py` | absent | 727 / 26,262 |
+
+The root loses **434 lines / 16,005 bytes**. Combined runtime source grows by
+**293 lines / 10,257 bytes** for explicit dependency signatures, adapters and
+owner documentation. All ten previous owner sizes remain unchanged.
+
+Next useful domain: consider the bounded terminal reply evaluation query,
+recording and pruning helpers, keeping lane-cycle/quarantine policy and durable
+persistence authority explicit. The supervisor selects the next scope in a
+fresh invocation; stage 11 implements none of it.
