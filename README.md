@@ -213,6 +213,7 @@ deployed as a coherent set:
 - `mrs_bot_local_config.py`
 - `mrs_bot_observability.py`
 - `mrs_bot_safety_marker_snapshots.py`
+- `mrs_bot_instance_lock_checks.py`
 - `remote_write_safety_protocol.py`
 - `remote_media_upload_receipt.py`
 - `remote_write_transport_journal.py`

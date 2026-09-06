@@ -4292,3 +4292,66 @@ logs, selections, metadata evidence, source comparison and helper adaptations
 remain in the evidence root. Production Git metadata remains `master` at
 `af5eda7c163a8174ec1365060aa923d21787e7bd`; configured Astra/max is unchanged.
 Only stage49 is implemented; supervisor review precedes the next stage.
+
+## Stage 50 — Instance-lock checks and mutation-authority issuance
+
+Baseline: `1c1652ea3c925be64bf08fa3e9bbaa909c6ed22e`, verified clean on
+`codex/bot-modularisation-stage50`; origin's stage49 matched and stage50 was
+absent. Only the scoped supervisor inputs, immutable parent source and relevant
+stage49 helpers were reused; no prior conversations were loaded.
+
+`mrs_bot_instance_lock_checks.py` owns seven exact bodies/docstrings spanning
+**283 original definition lines**. Seven ordinary `_instance_lock_checks`
+adapters preserve signatures/defaults/deferred annotations and forward
+**4/1/3/2/9/17/2** current dependencies. README/API add the companion.
+Directory singleton hash bytes, OFD packing, fdinfo read/parser/conversion
+boundaries and eager endpoint/test-bypass policy remain exact. Ordered singleton,
+directory, designated-fd flock, file/PID/bytes, own OFD, separate excluded
+write/read probes and final pathname checks preserve flags, unlock-before-refusal,
+finally-close and native error precedence. Authority issuance retains the current
+issuer, verifier/operation/result references and subsequent live revalidation.
+Acquisition and all handle/socket/directory state, paths/constants/bootstrap and
+protocol/storage/receipt/transport remain in their existing owners. No extra
+locks, retries, catches, policy, cleanup, retained authority or import-time runtime
+work were introduced; the deferred authority annotation imports no engine.
+
+Evidence: `/tmp/mrs-bot-stage50-Wllm3zno`. Pre-edit documentation passed for
+**258 modules**. All **17 curated candidates**, plus three bootstrap/isolation
+checks, formed an AST-validated baseline selection: **20 explicit nodes across
+seven files; 22 collected in 3.60s; 22 passed in 5.15s**. Current selection added
+**17 contract functions / 68 cases**: **37 explicit nodes across eight files;
+90 collected in 3.62s; 90 passed in 7.18s**. Coverage includes real temporary
+successful ownership, replacement/unlocked/shared/other-fd refusals, fdinfo failure,
+live-override/custom-endpoint denial, singleton continuity, acquisition cleanup,
+authority revalidation, owned storage/context creation and real quote-image
+loopback. Existing assertions, parametrization, fixtures and finally cleanup
+remain unchanged; new contracts import autouse `isolate_regular_post_receipt`.
+
+Both baseline/current collection and pytest used the reviewed metadata-only
+guard with stage-local naming. Four separate metadata records confirm equal
+production-log device/inode/size/mtime; open-descriptor assertions passed and no
+log contents were read. Successful nonempty selection and collection preceded
+each run under `set -euo pipefail`, with the required user base/test mode and
+disabled plugin autoload/bytecode/cache. TMPDIR is beneath the evidence root;
+temporary HOME/state, dummy credentials, dead proxies, socket denial and explicit
+loopback providers remain intact.
+
+`verify_stage50.py` / `comparison.txt` prove exact source/signatures/defaults,
+compiled dependencies and explicit forwarding without importing the bot.
+Whole-parent-root reconstruction is byte-identical, including **512 unaffected
+functions** and unrelated statements. All **49 earlier owners**, existing tests,
+fixtures and digest docs are unchanged. Post-edit documentation passed for
+**259 modules**; whitespace validation passed. Source/runtime checks were not
+repeated for this report-only edit.
+
+| Runtime file | Before lines / bytes | After lines / bytes |
+|---|---:|---:|
+| `mrsMThatcher2.py` | 13,145 / 522,877 | 12,956 / 516,497 |
+| `mrs_bot_instance_lock_checks.py` | absent | 356 / 11,558 |
+
+The root loses **189 lines / 6,380 bytes**; combined runtime source grows by
+**167 lines / 5,178 bytes**. New tests: **538 lines / 28,531 bytes**. Full logs,
+selections, source comparison, helper adaptations and metadata evidence remain
+in the evidence root. No production state/configuration/credential changes,
+service actions or live-provider calls occurred; configured Astra/max is
+unchanged. Only stage50 is implemented; supervisor review precedes the next stage.
