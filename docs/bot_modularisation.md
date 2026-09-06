@@ -4941,3 +4941,66 @@ the evidence directory. Production Git metadata remains `master` at
 configuration/state/credential access, log-content reads, service actions or live
 provider calls occurred. Configured Astra/max is unchanged. Only stage59 is
 implemented; supervisor review precedes the next stage.
+
+## Stage 60 — Engagement runtime inputs and local notifications
+
+Baseline: `f4fff9faa5cb996789a28b7b13eabc05c09d15ea`, clean on
+`codex/bot-modularisation-stage60`; origin stage59 matched and stage60 was absent.
+The complete scope, four supervisor inputs, immutable scoped sources and checked
+stage59 extraction/reverse-proof/test machinery were reused without transcripts.
+
+`mrs_bot_engagement_runtime.py` owns **five bodies/docstrings, 148 original lines**,
+with one envelope alias and four `_engagement_runtime` adapters supplying
+**0/2/2/9/15** current root dependencies. Public signatures/defaults/deferred
+annotations remain exact. Both cache globals stay in root; the four exact plain
+accessors preserve **two loads/three assignments**, removing only the two original
+global declarations. Envelope reference/lazy schema gates, path construction,
+strict UTF-8/LF source text and insertion order, live-plan validation/reference
+identity and repeated event-before-cache observations remain exact. Notification
+truth gates, local replacement pacing, durable output verification, snapshot/save
+rollback and Exception-only scopes preserve callback ordering and native failures.
+No constants/classes/storage, publication policy or unrelated behavior move.
+README and API inventory register the companion.
+
+Evidence: `/tmp/mrs-bot-stage60-HDqSUQhV`. Pre-edit documentation passed for
+**268 modules**. The **nine curated tests plus two isolation checks** gave **11
+explicit nodes across five files; 13 collected in 3.31s; 13 passed in 4.81s**.
+Current adds **16 contract functions / 43 cases**: **27 explicit nodes across six
+files; 56 collected in 3.68s; 56 passed in 6.51s**, first run. New tests import the
+established autouse receipt/incident isolation and cover guarded import, alias,
+current adapters/signatures/references, shared access, exact synthetic source and
+plan inputs, event/cache order, pacing, rollback and native error boundaries.
+Existing assertions, parameterization, fixtures and loopback cleanup are unchanged.
+
+Baseline/current collection and pytest both used the preceding metadata-only
+production-log plugin with unchanged equality/open-FD assertions; **all four
+metadata comparisons passed**. Nonempty AST-validated explicit selections and
+successful nonempty collection preceded pytest under `set -euo pipefail`, required
+Python/pytest flags, stage-local TMPDIR, temporary HOME/state, dummy credentials,
+dead proxies, denied external sockets and explicit loopback. All plan/source/
+notification work used temporary synthetic files or mocks.
+
+`verify_stage60.py` / `comparison.txt` prove exact reversed body ASTs, signatures,
+compiled dependencies and adapter forwarding without importing the bot. The
+separate body-source check also preserves comments/whitespace except the approved
+access substitutions. Exact helper verification and removal, restored definitions
+and removal of the sole import reconstruct the **entire immutable parent root byte
+for byte**, including **509 unaffected definitions**. All **59 prior owners** and
+existing tests/fixtures remain byte-identical. Post-edit documentation passed for
+**269 modules**; whitespace checks passed. This section is appended at actual EOF
+and the complete immutable parent report is verified as a byte prefix. Passing
+runtime tests were not repeated after this documentation-only append.
+
+| Runtime file | Before lines / bytes | After lines / bytes |
+|---|---:|---:|
+| `mrsMThatcher2.py` | 10,874 / 438,189 | 10,793 / 435,430 |
+| `mrs_bot_engagement_runtime.py` | absent | 202 / 7,708 |
+
+The root loses **81 lines / 2,759 bytes**; combined runtime source grows by
+**121 lines / 4,949 bytes**. New tests: **462 lines / 25,936 bytes**. Full selections,
+logs, adapted machinery, metadata and sizes remain in the evidence directory.
+Production Git metadata remains `master` at
+`af5eda7c163a8174ec1365060aa923d21787e7bd`; no production execution, private
+configuration/state/credential or log-content reads, live providers, service or
+deployment actions occurred. Configured Astra/max is unchanged. Stage60 ends here
+for supervisor acceptance.

@@ -207,6 +207,7 @@ deployed as a coherent set:
 - `mrs_bot_post_creation.py`
 - `mrs_bot_main_post_reconciliation.py`
 - `mrs_bot_engagement_publication.py`
+- `mrs_bot_engagement_runtime.py`
 - `mrs_bot_historical_context_delivery.py`
 - `mrs_bot_historical_context_queue.py`
 - `mrs_bot_historical_context_runtime.py`

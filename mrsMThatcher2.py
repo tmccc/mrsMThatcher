@@ -263,6 +263,7 @@ import mrs_bot_x_request as _x_request
 import mrs_bot_post_creation as _post_creation
 import mrs_bot_main_post_reconciliation as _main_post_reconciliation
 import mrs_bot_engagement_publication as _engagement_publication
+import mrs_bot_engagement_runtime as _engagement_runtime
 import mrs_bot_historical_context_delivery as _historical_context_delivery
 import mrs_bot_historical_context_queue as _historical_context_queue
 import mrs_bot_historical_context_runtime as _historical_context_runtime
@@ -6604,15 +6605,7 @@ def reconcile_meme_post_receipt(state: dict) -> bool:
     )
 
 
-def engagement_experiment_envelope_from_receipt(
-    receipt: object,
-) -> dict | None:
-    """Return the experiment envelope from one validated regular receipt."""
-
-    if not isinstance(receipt, dict) or receipt.get("schema_version") != 4:
-        return None
-    value = receipt.get("engagement_question_experiment")
-    return value if isinstance(value, dict) else None
+engagement_experiment_envelope_from_receipt = _engagement_runtime.engagement_experiment_envelope_from_receipt
 
 
 def engagement_experiment_event_fields(receipt: dict) -> dict[str, object]:
@@ -7703,68 +7696,55 @@ _ENGAGEMENT_QUESTION_LAST_NOTIFICATION_FAILURE_POST_ID: str | None = None
 ENGAGEMENT_QUESTION_NOTIFICATION_REPLACEMENT_MIN_AGE_SECONDS = 60
 
 
+def _get_engagement_question_last_loaded_plan_sha256() -> str | None:
+    """Return the last engagement plan hash recorded by the root."""
+    return _ENGAGEMENT_QUESTION_LAST_LOADED_PLAN_SHA256
+
+def _set_engagement_question_last_loaded_plan_sha256(value: str | None) -> None:
+    """Set the last engagement plan hash recorded by the root."""
+    global _ENGAGEMENT_QUESTION_LAST_LOADED_PLAN_SHA256
+    _ENGAGEMENT_QUESTION_LAST_LOADED_PLAN_SHA256 = value
+
+def _get_engagement_question_last_notification_failure_post_id() -> str | None:
+    """Return the last engagement notification failure recorded by the root."""
+    return _ENGAGEMENT_QUESTION_LAST_NOTIFICATION_FAILURE_POST_ID
+
+def _set_engagement_question_last_notification_failure_post_id(value: str | None) -> None:
+    """Set the last engagement notification failure recorded by the root."""
+    global _ENGAGEMENT_QUESTION_LAST_NOTIFICATION_FAILURE_POST_ID
+    _ENGAGEMENT_QUESTION_LAST_NOTIFICATION_FAILURE_POST_ID = value
+
+
 def configured_engagement_question_path(raw_path: str) -> Path:
     """Resolve one deployment-local experiment path without writing it."""
-
-    path = Path(raw_path)
-    return path if path.is_absolute() else BASE_DIR / path
+    return _engagement_runtime.configured_engagement_question_path(
+        raw_path,
+        BASE_DIR=BASE_DIR,
+        Path=Path,
+    )
 
 
 def current_exact_quote_text_by_sha256() -> dict[str, str]:
     """Load exact quotation bodies without production-text normalisation."""
-
-    source = LINES_FILE.read_bytes().decode("utf-8", errors="strict")
-    if "\r" in source:
-        raise RuntimeError(
-            "engagement experiment requires an LF-only canonical quotation source"
-        )
-    result: dict[str, str] = {}
-    for exact_text in source.split("\n"):
-        if not exact_text:
-            continue
-        quote_id = engagement_question_trial.sha256_text(exact_text)
-        if quote_id in result and result[quote_id] != exact_text:
-            raise RuntimeError("canonical quotation SHA-256 collision")
-        result[quote_id] = exact_text
-    return result
+    return _engagement_runtime.current_exact_quote_text_by_sha256(
+        LINES_FILE=LINES_FILE,
+        engagement_question_trial=engagement_question_trial,
+    )
 
 
 def load_engagement_question_runtime_plan() -> tuple[dict, dict, dict[str, str]]:
     """Load and fully validate the immutable mode-0600 live plan."""
-
-    global _ENGAGEMENT_QUESTION_LAST_LOADED_PLAN_SHA256
-    plan_path = configured_engagement_question_path(
-        engagement_question_experiment_plan_path
+    return _engagement_runtime.load_engagement_question_runtime_plan(
+        BASE_DIR=BASE_DIR,
+        _get_engagement_question_last_loaded_plan_sha256=_get_engagement_question_last_loaded_plan_sha256,
+        _set_engagement_question_last_loaded_plan_sha256=_set_engagement_question_last_loaded_plan_sha256,
+        configured_engagement_question_path=configured_engagement_question_path,
+        current_exact_quote_text_by_sha256=current_exact_quote_text_by_sha256,
+        engagement_question_experiment_plan_path=engagement_question_experiment_plan_path,
+        engagement_question_trial=engagement_question_trial,
+        load_receipt_json_no_follow=load_receipt_json_no_follow,
+        log_event=log_event,
     )
-    present, plan_document = load_receipt_json_no_follow(plan_path)
-    if not present or not isinstance(plan_document, dict):
-        raise RuntimeError(f"engagement experiment plan unavailable: {plan_path}")
-    quote_text_by_id = current_exact_quote_text_by_sha256()
-    catalogue_path = (
-        BASE_DIR
-        / "engagement_question_experiment"
-        / "approved_question_catalogue.json"
-    )
-    catalogue, catalogue_sha256 = engagement_question_trial.load_approved_catalogue(
-        catalogue_path,
-        quote_text_by_id,
-    )
-    plan = engagement_question_trial.validate_plan_document(
-        plan_document,
-        catalogue=catalogue,
-        catalogue_sha256=catalogue_sha256,
-        quote_text_by_id=quote_text_by_id,
-        require_plan_kind="live",
-    )
-    if _ENGAGEMENT_QUESTION_LAST_LOADED_PLAN_SHA256 != plan["plan_sha256"]:
-        log_event(
-            "engagement_question_experiment_plan_loaded",
-            experiment_id=plan["experiment_id"],
-            plan_sha256=plan["plan_sha256"],
-            pair_count=plan["pair_count"],
-        )
-        _ENGAGEMENT_QUESTION_LAST_LOADED_PLAN_SHA256 = plan["plan_sha256"]
-    return plan, catalogue, quote_text_by_id
 
 
 def invalidate_engagement_question_experiment(
@@ -7935,85 +7915,24 @@ def defer_engagement_question_member(
 
 def publish_pending_engagement_question_notification(state: dict) -> bool:
     """Atomically publish the oldest pending treatment observation."""
-
-    global _ENGAGEMENT_QUESTION_LAST_NOTIFICATION_FAILURE_POST_ID
-    experiment_state = state.get("engagement_question_experiment")
-    if not isinstance(experiment_state, dict):
-        return False
-    output_setting = engagement_question_notification_output_path
-    if not output_setting:
-        return False
-    post_id = ""
-    try:
-        identity = engagement_question_trial.pending_treatment_notification(
-            experiment_state
-        )
-        if identity is None:
-            return False
-        post_id = str(identity.get("post_id") or "")
-        document = engagement_question_trial.validate_notification_document(
-            copy.deepcopy(identity["document"])
-        )
-        if (
-            engagement_question_trial.canonical_sha256(document)
-            != identity["document_sha256"]
-        ):
-            raise RuntimeError("pending treatment notification identity changed")
-        output_path = configured_engagement_question_path(output_setting)
-        output_already_matches = json_file_matches(output_path, document)
-        if not output_already_matches:
-            try:
-                output_metadata = os.lstat(output_path)
-            except FileNotFoundError:
-                output_metadata = None
-            if output_metadata is not None:
-                if not stat.S_ISREG(output_metadata.st_mode):
-                    raise RuntimeError(
-                        "treatment notification output is not a regular file"
-                    )
-                output_age_seconds = now_epoch() - output_metadata.st_mtime
-                if (
-                    output_age_seconds
-                    < ENGAGEMENT_QUESTION_NOTIFICATION_REPLACEMENT_MIN_AGE_SECONDS
-                ):
-                    # Home Assistant polls this single-document file every 30
-                    # seconds.  Preserve each queued post for two complete poll
-                    # intervals before replacing it with the next identity.
-                    return False
-            atomic_write_json(output_path, document, durable=True)
-        if not json_file_matches(output_path, document):
-            raise RuntimeError("treatment notification output verification failed")
-        state_before_delivery = copy.deepcopy(experiment_state)
-        try:
-            if not engagement_question_trial.mark_notification_delivered(
-                experiment_state,
-                post_id,
-            ):
-                raise RuntimeError(
-                    "pending treatment notification was not marked delivered"
-                )
-            state["engagement_question_experiment"] = experiment_state
-            save_state(state, durable=True)
-        except Exception:
-            experiment_state.clear()
-            experiment_state.update(state_before_delivery)
-            raise
-        _ENGAGEMENT_QUESTION_LAST_NOTIFICATION_FAILURE_POST_ID = None
-        return True
-    except Exception:
-        log.error(
-            "Confirmed treatment notification write failed for post_id=%s",
-            post_id,
-            exc_info=True,
-        )
-        if _ENGAGEMENT_QUESTION_LAST_NOTIFICATION_FAILURE_POST_ID != post_id:
-            log_event(
-                "engagement_question_treatment_notification_write_failed",
-                experiment_id=engagement_question_trial.EXPERIMENT_ID,
-                post_id=post_id or None,
-            )
-            _ENGAGEMENT_QUESTION_LAST_NOTIFICATION_FAILURE_POST_ID = post_id
-        return False
+    return _engagement_runtime.publish_pending_engagement_question_notification(
+        state,
+        ENGAGEMENT_QUESTION_NOTIFICATION_REPLACEMENT_MIN_AGE_SECONDS=ENGAGEMENT_QUESTION_NOTIFICATION_REPLACEMENT_MIN_AGE_SECONDS,
+        _get_engagement_question_last_notification_failure_post_id=_get_engagement_question_last_notification_failure_post_id,
+        _set_engagement_question_last_notification_failure_post_id=_set_engagement_question_last_notification_failure_post_id,
+        atomic_write_json=atomic_write_json,
+        configured_engagement_question_path=configured_engagement_question_path,
+        copy=copy,
+        engagement_question_notification_output_path=engagement_question_notification_output_path,
+        engagement_question_trial=engagement_question_trial,
+        json_file_matches=json_file_matches,
+        log=log,
+        log_event=log_event,
+        now_epoch=now_epoch,
+        os=os,
+        save_state=save_state,
+        stat=stat,
+    )
 
 
 def build_quote_candidates(
