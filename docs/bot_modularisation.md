@@ -3854,3 +3854,79 @@ Production Git metadata remains `master` at
 `af5eda7c163a8174ec1365060aa923d21787e7bd`. No production changes, service
 operations, live provider calls or private configuration/state/credential reads
 occurred. Only stage43 is implemented; supervisor review precedes the next stage.
+
+## Stage 44 — Historical-context delivery and interrupted-attempt recovery
+
+Baseline: `0b360629ead13b71f339e2be0b470fbfb3e42433` (2026-09-06), verified
+clean on `codex/bot-modularisation-stage44`; origin's stage43 matched and stage44
+was absent. This fresh invocation used the scoped supervisor files, bounded
+project guidance and immutable parent source, without prior transcripts.
+
+`mrs_bot_historical_context_delivery.py` owns eight exact bodies/docstrings:
+`maybe_post_historical_context_reply`, both historical-context store factories,
+`canonical_context_obligation_quote_id`, `_record_context_outbox_failure`,
+`_record_or_verify_proved_context_failure`,
+`recover_interrupted_historical_context_attempt` and
+`process_due_historical_context_obligations`. Seven `_historical_context_delivery`
+adapters retain exact public signatures/defaults/annotations and forward current
+dependencies; the pure failure recorder is an exact alias. Dependency counts are
+**17/5/2/1/0/2/8/10**, spanning **817 original definition lines**.
+
+Compatibility preserves the prebarrier outside the outer try, reconciliation
+before policy exits, call-time formatter/outbox imports, snapshot/gate/formatting,
+dry-run callbacks, authoritative/legacy metadata and publication/result identity.
+Guard start/store/finally and exception ordering remain exact. Factories retain
+production existence flags, current paths and mutation/retirement callbacks.
+Recovery preserves eager observations, exact source rebinding, independent
+ordinals, outbox-before-history-before-receipt persistence, journal/disappearance
+barriers and separate completed/pre-remote/current-failure/stale/missing branches.
+Processing retains parent gates, narrow barrier catches, store creation outside
+the worker try and current callback/worker-lock/OutboxWorkerBusy ownership.
+Global-mutating workers, constants/classes/globals and all earlier owners stay
+in place; no new policy, retries, normalization, cleanup or broader catches.
+
+Evidence: `/tmp/mrs-bot-stage44-LcHGfEX6`. Checked adaptations reuse stage43's
+selector, runner, extractor and source verifier, retaining the existing alias
+branch and preserving unannotated factory returns. Pre-edit documentation passed
+for **252 modules**. **32 of 37 curated candidates** plus three safety checks
+produced **35 explicit nodes across seven files: 37 collected in 3.73s;
+37 passed in 6.16s**. Selection spans delivery and interrupted recovery,
+production factories, policy/dry-run/metadata, source/history/journal/ordinal
+barriers, persistence faults, real worker callbacks, locking/recovery-only ticks
+and one real quote-image loopback. Existing assertions/parametrization are unchanged.
+
+Current validation: **45 explicit nodes across eight files: 80 collected in
+3.76s; 80 passed in 7.75s**. Ten new contract functions / **43 cases** cover
+guarded import, current dependencies/public signatures, alias/reference/native
+errors, call-time factories/lookup, delivery ordering, exact failure proofs,
+durable recovery ordering and narrow worker boundaries. New tests import autouse
+`isolate_regular_post_receipt` and reuse semantic-gate and production-incident
+fixtures/source binding with their isolation. Both runs used AST-validated
+nonempty selection and successful nonempty collection before explicit pytest
+arguments under `set -euo pipefail`, with `PYTHONUSERBASE=/home/tonym/.local
+MRS_TEST_MODE=1 PYTEST_DISABLE_PLUGIN_AUTOLOAD=1 PYTHONDONTWRITEBYTECODE=1
+python3 -m pytest -q -p no:cacheprovider`. TMPDIR is beneath the evidence root;
+temporary HOME/state, dummy credentials, dead proxies, external socket denial
+and explicit loopback providers remain in effect. No pytest run failed.
+
+`verify_stage44.py` / `comparison.txt` prove exact bodies, signatures/defaults/
+annotations, compiled dependency loads and forwarding without importing the bot.
+Whole-parent-root reconstruction is byte-identical, including **516 unaffected
+functions** and all unrelated statements. All **43 earlier owners**, existing
+tests/fixtures and digest docs are unchanged. README/API only add this owner;
+the report is append-only. Post-edit documentation (**253 modules**) and
+`git diff --check` pass; passing tests and the module documentation check were
+not repeated for this report-only edit. Preliminary read/helper corrections are in
+`helper-adaptation-notes.txt`; full selections, logs and adaptations are retained.
+
+| Runtime file | Before lines / bytes | After lines / bytes |
+|---|---:|---:|
+| `mrsMThatcher2.py` | 15,377 / 607,508 | 14,686 / 577,001 |
+| `mrs_bot_historical_context_delivery.py` | absent | 895 / 38,914 |
+
+The root loses **691 lines / 30,507 bytes**; combined runtime source grows by
+**204 lines / 8,407 bytes**. New tests: **617 lines / 33,316 bytes**.
+Production Git metadata remains `master` at
+`af5eda7c163a8174ec1365060aa923d21787e7bd`. No production changes, service
+operations, live provider calls or private configuration/state/credential reads
+occurred. Only stage44 is implemented; supervisor review precedes the next stage.
