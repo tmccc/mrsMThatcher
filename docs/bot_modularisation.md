@@ -3781,3 +3781,76 @@ Production worktree metadata remains `master` at
 `af5eda7c163a8174ec1365060aa923d21787e7bd`. No production changes, service
 operations, live provider calls or private configuration/state/credential reads
 occurred. Only stage42 is implemented; supervisor review precedes the next stage.
+
+
+## Stage 43 — Engagement experiment opportunity and publication validation
+
+Baseline: `0512b0c64fa7ccbdb2db45904e5fc191a881b645` (2026-09-06), verified
+clean on `codex/bot-modularisation-stage43`; origin's stage42 matched and stage43
+was absent. This fresh invocation used the scoped supervisor inputs, bounded
+project guidance and immutable parent source, without prior transcripts.
+
+`mrs_bot_engagement_publication.py` owns eight exact bodies/docstrings:
+invalidation, initialization, opportunity, quotation resolution, publication
+authority revalidation, bounded failure diagnostic, revalidate-or-invalidate
+and member deferral. Eight `_engagement_publication` adapters retain exact root
+signatures/defaults/annotations and supply **3/7/5/9/4/3/6/3 current dependencies**.
+The original definitions total **505 lines**; no constants/classes or aliases move.
+
+Compatibility preserves disabled/terminal gates, narrow loader/engine catches,
+pause/start/member/reservation references and durable-save-before-log order.
+Exact quote scanning, newline/CR handling, hashes, attribution and call-time
+historical formatting precede unchanged metadata/season/catalogue/public-text
+checks. Publication authority retains current state/binding/progress/history
+gates, narrow member-retrieval catch/cause, current resolution and rebuilt-envelope
+short circuits. Diagnostic limits/type checks/category precedence, Exception-only
+revalidation logging/diagnostic/clock/invalidation/cause order and same-state
+deferral remain exact. Scalar-global loader/notifier, configuration/paths/constants/
+snapshot, experiment engine, scheduling, images, receipts/recovery and transport
+stay in their existing locations. No new catches, retries, policy, cleanup,
+normalization, reverse import, retained authority or import-time runtime work.
+
+Evidence: `/tmp/mrs-bot-stage43-ks64QKLO`. Checked stage-local adaptations reuse
+the stage42 selection, runner, extraction and comparison helpers. Pre-edit
+documentation passed for **251 modules**. The **18 curated candidates**, plus
+three bootstrap/isolation checks, produced **21 explicit nodes across five files**:
+**34 collected in 3.40s; 34 passed in 6.24s**. Selection covers ordinary/control/
+treatment posting, valid/changed/unavailable authority, payload/binding/progress/
+history gates, invalidation and durable media abort, disabled/paused/terminal
+state and reservations, and two real loopbacks; no broad suites were run.
+
+Current validation: **33 explicit nodes across six files; 82 collected in
+3.35s; 82 passed in 7.64s** (`current-pytest.txt`). Twelve new contract functions /
+48 cases cover guarded import, all current dependencies/public signatures,
+references/native errors, ordered transitions, call-time formatter/scan authority,
+envelope short circuits and bounded diagnostics. Existing tests/assertions are
+unchanged; new tests import autouse `isolate_regular_post_receipt`. Both runs
+used AST-validated nonempty selection and successful nonempty collection before
+explicit pytest arguments under `set -euo pipefail`, with
+`PYTHONUSERBASE=/home/tonym/.local MRS_TEST_MODE=1 PYTEST_DISABLE_PLUGIN_AUTOLOAD=1
+PYTHONDONTWRITEBYTECODE=1 python3 -m pytest -q -p no:cacheprovider`. TMPDIR remains
+beneath the evidence root; temporary HOME/state, dummy credentials, dead proxies,
+external socket denial and explicit loopback providers remain in effect.
+
+`verify_stage43.py` / `comparison.txt` prove exact bodies, signatures/defaults/
+annotations, compiled dependency loads and explicit forwarding without importing
+the bot. Whole-parent-root reconstruction is byte-identical, including **516
+unaffected functions** and all unrelated statements. All **42 earlier owners**,
+existing tests/fixtures and digest docs are unchanged. README/API only add this
+owner; this report is append-only. Post-edit documentation (**252 modules**) and
+`git diff --check` pass. Neither pytest run failed; passing tests and the module
+documentation check were not repeated for this report-only edit. An initial
+helper-adaptation assertion stopped before selection and was corrected; details
+remain in `helper-adaptation-notes.txt`.
+
+| Runtime file | Before lines / bytes | After lines / bytes |
+|---|---:|---:|
+| `mrsMThatcher2.py` | 15,744 / 621,211 | 15,377 / 607,508 |
+| `mrs_bot_engagement_publication.py` | absent | 570 / 21,078 |
+
+The root loses **367 lines / 13,703 bytes**; combined runtime source grows by
+**203 lines / 7,375 bytes**. New tests: **589 lines / 34,464 bytes**.
+Production Git metadata remains `master` at
+`af5eda7c163a8174ec1365060aa923d21787e7bd`. No production changes, service
+operations, live provider calls or private configuration/state/credential reads
+occurred. Only stage43 is implemented; supervisor review precedes the next stage.
