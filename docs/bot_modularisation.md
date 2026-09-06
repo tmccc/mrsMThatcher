@@ -4487,3 +4487,65 @@ evidence root. Production git metadata remains `master` at
 credential changes, log-content reads, service actions or live-provider calls
 occurred. Configured Astra/max is unchanged. Only stage52 is implemented;
 supervisor review precedes the next stage.
+
+## Stage 53 — Transport source preparation and final receipt gates
+
+Baseline: `dd04a865468f50ff5b50dad74607b66e4de4ec61`, verified clean on
+`codex/bot-modularisation-stage53`; origin's stage52 matched and stage53 was
+absent. Only relevant immutable files, supervisor inputs and accepted stage52
+helpers were reused; no conversations or prior transcripts were loaded.
+
+`mrs_bot_transport_source_preparation.py` owns **ten exact bodies/docstrings,
+244 original definition lines**. Ten ordinary `_transport_source_preparation`
+adapters preserve public signatures/defaults/deferred annotations and forward
+**5/4/4/2/1/4/9/8/7/6** current dependencies. README/API add the owner. Four-path
+order/references, journal deduplication/sorting, canonical string lane mapping,
+current/legacy payload validation and local historical formatter imports remain
+exact. Binding retains current bytes/validator references; final retirement,
+journal, other-receipt and media gates retain order and narrow OSError causes.
+Main preparation preserves validation/mark/path/payload/bind/begin order, then
+original clear/update and tuple identities, including aliasing and native errors.
+Media envelopes retain current type and ordered generation checks, metadata/form
+references, exact error scopes and dictionary-only deepcopy. No new policy,
+normalization, rollback, copying/reloads, catches, globals or retained authority.
+
+Evidence: `/tmp/mrs-bot-stage53-dps88bCc`. Pre-edit documentation passed for **261 modules**.
+**15 of 17 curated candidates**, omitting the broader missing-file/outbox-worker
+matrices, plus three isolation checks gave **18 explicit nodes across nine
+files: 30 collected in 3.80s; 30 passed in 6.10s**. Current selection adds
+**16 contract functions / 53 cases**: **34 explicit nodes across ten files;
+83 collected in 3.87s; 83 passed in 7.84s**. Coverage includes main/meme caller
+preparation, live-schema/single-use refusal, both-lane hard-death replacement,
+durable experimental media/cross-binding/safe handoff, final namespace failure,
+noncanonical/unbound/missing authority, exact historical and legacy recovery,
+path enumeration and real quote-image loopback. New contracts import autouse
+`isolate_regular_post_receipt`; original tests/decorators/fixtures remain intact.
+
+Both collection and pytest used the reviewed metadata-only guard with stage53
+names and separate baseline/current evidence. All four metadata comparisons and
+open-descriptor assertions passed. Successful nonempty AST selection and
+collection preceded each pytest run under `set -euo pipefail`, required flags,
+temporary HOME/state/TMPDIR, dummy credentials, dead proxies, external socket
+denial and explicit loopback providers.
+
+`verify_stage53.py` / `comparison.txt` prove exact bodies, signatures/defaults,
+compiled dependencies and forwarding without importing the bot. Whole-parent-root
+reconstruction is byte-identical, including **509 unaffected definitions** and
+all unrelated statements. All **52 earlier owners**, existing tests/fixtures and
+digest docs are unchanged. Post-edit documentation passed for **262 modules**;
+whitespace checks passed. Runtime/source checks were not repeated for this
+report-only append; the complete immutable parent report is a verified byte prefix.
+
+| Runtime file | Before lines / bytes | After lines / bytes |
+|---|---:|---:|
+| `mrsMThatcher2.py` | 12,247 / 489,309 | 12,128 / 486,252 |
+| `mrs_bot_transport_source_preparation.py` | absent | 336 / 11,772 |
+
+The root loses **119 lines / 3,057 bytes**; combined runtime source grows by
+**217 lines / 8,715 bytes**. New tests: **659 lines / 35,660 bytes**. Complete
+logs, selections, adapted helpers and metadata evidence remain in the evidence
+root. Production git metadata remains `master` at
+`af5eda7c163a8174ec1365060aa923d21787e7bd`; no production state/configuration/
+credential access, log-content reads, service actions or live-provider calls
+occurred. Configured Astra/max is unchanged. Only stage53 is implemented;
+supervisor review precedes the next stage.

@@ -272,6 +272,7 @@ import mrs_bot_safety_marker_snapshots as _safety_marker_snapshots
 import mrs_bot_instance_lock_checks as _instance_lock_checks
 import mrs_bot_installation_lifecycle as _installation_lifecycle
 import mrs_bot_transaction_recovery as _transaction_recovery
+import mrs_bot_transport_source_preparation as _transport_source_preparation
 
 from single_call_reply import (
     MAX_IMAGE_BYTES as SINGLE_CALL_MAX_IMAGE_BYTES,
@@ -4866,43 +4867,34 @@ def block_if_remote_write_safety_incident_latched() -> None:
 
 def remote_write_transport_journal_paths() -> tuple[Path, ...]:
     """Return every distinct transaction-journal path used by active lanes."""
-
-    return tuple(
-        sorted(
-            {
-                journal_path_for_receipt(path)
-                for path in (
-                    REGULAR_POST_RECEIPT_FILE,
-                    MEME_POST_RECEIPT_FILE,
-                    CONFIRMED_REPLY_RECEIPT_FILE,
-                    HISTORICAL_CONTEXT_REPLY_RECEIPT_FILE,
-                )
-            },
-            key=str,
-        )
+    return _transport_source_preparation.remote_write_transport_journal_paths(
+        CONFIRMED_REPLY_RECEIPT_FILE=CONFIRMED_REPLY_RECEIPT_FILE,
+        HISTORICAL_CONTEXT_REPLY_RECEIPT_FILE=HISTORICAL_CONTEXT_REPLY_RECEIPT_FILE,
+        MEME_POST_RECEIPT_FILE=MEME_POST_RECEIPT_FILE,
+        REGULAR_POST_RECEIPT_FILE=REGULAR_POST_RECEIPT_FILE,
+        journal_path_for_receipt=journal_path_for_receipt,
     )
 
 
 def remote_source_receipt_paths() -> tuple[Path, ...]:
     """Return the four current public-create source receipt paths."""
-
-    return (
-        REGULAR_POST_RECEIPT_FILE,
-        MEME_POST_RECEIPT_FILE,
-        CONFIRMED_REPLY_RECEIPT_FILE,
-        HISTORICAL_CONTEXT_REPLY_RECEIPT_FILE,
+    return _transport_source_preparation.remote_source_receipt_paths(
+        CONFIRMED_REPLY_RECEIPT_FILE=CONFIRMED_REPLY_RECEIPT_FILE,
+        HISTORICAL_CONTEXT_REPLY_RECEIPT_FILE=HISTORICAL_CONTEXT_REPLY_RECEIPT_FILE,
+        MEME_POST_RECEIPT_FILE=MEME_POST_RECEIPT_FILE,
+        REGULAR_POST_RECEIPT_FILE=REGULAR_POST_RECEIPT_FILE,
     )
 
 
 def canonical_transport_receipt_path_for_lane(lane: str) -> Path | None:
     """Return the only receipt pathname allowed to authorise one public lane."""
-
-    return {
-        "quote_image": REGULAR_POST_RECEIPT_FILE,
-        "daily_meme": MEME_POST_RECEIPT_FILE,
-        "conversational_reply": CONFIRMED_REPLY_RECEIPT_FILE,
-        "historical_context_reply": HISTORICAL_CONTEXT_REPLY_RECEIPT_FILE,
-    }.get(str(lane))
+    return _transport_source_preparation.canonical_transport_receipt_path_for_lane(
+        lane,
+        CONFIRMED_REPLY_RECEIPT_FILE=CONFIRMED_REPLY_RECEIPT_FILE,
+        HISTORICAL_CONTEXT_REPLY_RECEIPT_FILE=HISTORICAL_CONTEXT_REPLY_RECEIPT_FILE,
+        MEME_POST_RECEIPT_FILE=MEME_POST_RECEIPT_FILE,
+        REGULAR_POST_RECEIPT_FILE=REGULAR_POST_RECEIPT_FILE,
+    )
 
 
 TRANSPORT_SOURCE_VALIDATOR_ID = LANE_SOURCE_VALIDATOR_ID
@@ -4914,35 +4906,13 @@ def transport_source_semantic_validator(
     payload: dict,
 ) -> bool:
     """Prove that one lane-owned source receipt authorises one tweet body."""
-
-    if lane in {"quote_image", "daily_meme"}:
-        return bool(
-            receipt.get("lane") == lane
-            and receipt.get("lifecycle_state") == "attempting"
-            and main_post_attempt_binds_payload(receipt, payload)
-        )
-    if lane == "conversational_reply":
-        expected_keys = {"text", "reply"}
-        if payload.get("made_with_ai") is True:
-            expected_keys.add("made_with_ai")
-        return bool(
-            sending_reply_receipt_is_semantically_valid(receipt)
-            and set(payload) == expected_keys
-            and payload.get("text") == receipt.get("reply_text")
-            and payload.get("reply")
-            == {"in_reply_to_tweet_id": str(receipt.get("target_id"))}
-        )
-    if lane == "historical_context_reply":
-        from historical_context_formatter import HistoricalContextReplyStore
-
-        return bool(
-            HistoricalContextReplyStore._valid_sending_receipt(receipt)
-            and set(payload) == {"text", "reply"}
-            and payload.get("text") == receipt.get("reply_text")
-            and payload.get("reply")
-            == {"in_reply_to_tweet_id": str(receipt.get("parent_post_id"))}
-        )
-    return False
+    return _transport_source_preparation.transport_source_semantic_validator(
+        lane,
+        receipt,
+        payload,
+        main_post_attempt_binds_payload=main_post_attempt_binds_payload,
+        sending_reply_receipt_is_semantically_valid=sending_reply_receipt_is_semantically_valid,
+    )
 
 
 def _legacy_conversational_transport_source_semantic_validator(
@@ -4951,18 +4921,11 @@ def _legacy_conversational_transport_source_semantic_validator(
     payload: dict,
 ) -> bool:
     """Validate a frozen reply source solely for confirmed-journal recovery."""
-
-    if lane != "conversational_reply":
-        return False
-    expected_keys = {"text", "reply"}
-    if payload.get("made_with_ai") is True:
-        expected_keys.add("made_with_ai")
-    return bool(
-        _legacy_sending_reply_receipt_is_semantically_valid(receipt)
-        and set(payload) == expected_keys
-        and payload.get("text") == receipt.get("reply_text")
-        and payload.get("reply")
-        == {"in_reply_to_tweet_id": str(receipt.get("target_id"))}
+    return _transport_source_preparation._legacy_conversational_transport_source_semantic_validator(
+        lane,
+        receipt,
+        payload,
+        _legacy_sending_reply_receipt_is_semantically_valid=_legacy_sending_reply_receipt_is_semantically_valid,
     )
 
 
@@ -4974,24 +4937,15 @@ def bind_lane_transport_source(
     payload: dict,
 ) -> SourceReceiptBinding:
     """Create the only accepted semantic source binding for a public tweet."""
-
-    if lane == "historical_context_reply":
-        from historical_context_formatter import (
-            canonical_json_bytes as canonical_context_receipt_bytes,
-        )
-
-        expected_receipt_bytes = canonical_context_receipt_bytes(receipt)
-    else:
-        expected_receipt_bytes = canonical_atomic_json_bytes(receipt)
-
-    return bind_transport_source(
+    return _transport_source_preparation.bind_lane_transport_source(
         receipt_path=receipt_path,
-        expected_receipt=receipt,
-        expected_receipt_bytes=expected_receipt_bytes,
+        receipt=receipt,
         lane=lane,
         payload=payload,
-        validator_id=TRANSPORT_SOURCE_VALIDATOR_ID,
-        validator=transport_source_semantic_validator,
+        TRANSPORT_SOURCE_VALIDATOR_ID=TRANSPORT_SOURCE_VALIDATOR_ID,
+        bind_transport_source=bind_transport_source,
+        canonical_atomic_json_bytes=canonical_atomic_json_bytes,
+        transport_source_semantic_validator=transport_source_semantic_validator,
     )
 
 
@@ -4999,66 +4953,32 @@ def block_if_unrelated_receipt_appeared_for_tweet_transport(
     expected_receipt_path: Path,
 ) -> None:
     """Reject a lane which appeared after the transaction's initial preflight."""
-
-    if remote_receipt_retirement_is_blocking():
-        raise TransportJournalError(
-            "a source-receipt retirement appeared before tweet transport"
-        )
-
-    for path in (
-        REGULAR_POST_RECEIPT_FILE,
-        MEME_POST_RECEIPT_FILE,
-        CONFIRMED_REPLY_RECEIPT_FILE,
-        HISTORICAL_CONTEXT_REPLY_RECEIPT_FILE,
-    ):
-        if path == expected_receipt_path:
-            continue
-        try:
-            receipt_present = receipt_namespace_entry_exists(path)
-        except OSError as exc:
-            raise TransportJournalError(
-                "an unrelated receipt namespace could not be inspected "
-                "before tweet transport"
-            ) from exc
-        if receipt_present:
-            raise TransportJournalError(
-                "an unrelated durable receipt appeared before tweet transport"
-            )
-    if media_upload_receipt_is_blocking(MEDIA_UPLOAD_RECEIPT_FILE):
-        raise TransportJournalError(
-            "an unresolved media receipt appeared before tweet transport"
-        )
+    return _transport_source_preparation.block_if_unrelated_receipt_appeared_for_tweet_transport(
+        expected_receipt_path,
+        CONFIRMED_REPLY_RECEIPT_FILE=CONFIRMED_REPLY_RECEIPT_FILE,
+        HISTORICAL_CONTEXT_REPLY_RECEIPT_FILE=HISTORICAL_CONTEXT_REPLY_RECEIPT_FILE,
+        MEDIA_UPLOAD_RECEIPT_FILE=MEDIA_UPLOAD_RECEIPT_FILE,
+        MEME_POST_RECEIPT_FILE=MEME_POST_RECEIPT_FILE,
+        REGULAR_POST_RECEIPT_FILE=REGULAR_POST_RECEIPT_FILE,
+        TransportJournalError=TransportJournalError,
+        media_upload_receipt_is_blocking=media_upload_receipt_is_blocking,
+        receipt_namespace_entry_exists=receipt_namespace_entry_exists,
+        remote_receipt_retirement_is_blocking=remote_receipt_retirement_is_blocking,
+    )
 
 
 def block_if_unrelated_receipt_appeared_for_media_transport() -> None:
     """Reject media transport if any other transaction owns remote writes."""
-
-    if remote_receipt_retirement_is_blocking():
-        raise MediaUploadReceiptError(
-            "a source-receipt retirement appeared before media transport"
-        )
-
-    if remote_write_transport_journal_is_blocking():
-        raise MediaUploadReceiptError(
-            "a public-create transport journal appeared before media upload"
-        )
-    for path in (
-        REGULAR_POST_RECEIPT_FILE,
-        MEME_POST_RECEIPT_FILE,
-        CONFIRMED_REPLY_RECEIPT_FILE,
-        HISTORICAL_CONTEXT_REPLY_RECEIPT_FILE,
-    ):
-        try:
-            receipt_present = receipt_namespace_entry_exists(path)
-        except OSError as exc:
-            raise MediaUploadReceiptError(
-                "an unrelated receipt namespace could not be inspected "
-                "before media upload"
-            ) from exc
-        if receipt_present:
-            raise MediaUploadReceiptError(
-                "an unrelated durable receipt appeared before media upload"
-            )
+    return _transport_source_preparation.block_if_unrelated_receipt_appeared_for_media_transport(
+        CONFIRMED_REPLY_RECEIPT_FILE=CONFIRMED_REPLY_RECEIPT_FILE,
+        HISTORICAL_CONTEXT_REPLY_RECEIPT_FILE=HISTORICAL_CONTEXT_REPLY_RECEIPT_FILE,
+        MEME_POST_RECEIPT_FILE=MEME_POST_RECEIPT_FILE,
+        MediaUploadReceiptError=MediaUploadReceiptError,
+        REGULAR_POST_RECEIPT_FILE=REGULAR_POST_RECEIPT_FILE,
+        receipt_namespace_entry_exists=receipt_namespace_entry_exists,
+        remote_receipt_retirement_is_blocking=remote_receipt_retirement_is_blocking,
+        remote_write_transport_journal_is_blocking=remote_write_transport_journal_is_blocking,
+    )
 
 
 def remote_write_transport_journal_is_blocking() -> bool:
@@ -6582,70 +6502,31 @@ def prepare_main_tweet_transport(
     attempt: dict,
 ) -> tuple[dict, SourceReceiptBinding, TransportAuthority]:
     """Publish a prepared tweet owner before retiring confirmed media state."""
-
-    if (
-        not current_main_post_attempt_is_semantically_valid(attempt)
-        or attempt.get("lifecycle_state") != "sending"
-    ):
-        raise TransportJournalError(
-            "only a current-schema sending main-post attempt may prepare transport"
-        )
-    attempting = mark_main_post_attempt_attempting(attempt)
-    if (
-        attempting.get("lifecycle_state") != "attempting"
-        or not current_main_post_attempt_is_semantically_valid(attempting)
-    ):
-        raise TransportJournalError("main post attempt is not transport-ready")
-    path = main_post_attempt_path(attempting)
-    payload = main_post_attempt_payload(attempting)
-    source = bind_lane_transport_source(
-        receipt_path=path,
-        receipt=attempting,
-        lane=str(attempting["lane"]),
-        payload=payload,
+    return _transport_source_preparation.prepare_main_tweet_transport(
+        attempt,
+        TransportJournalError=TransportJournalError,
+        begin_transport_transaction=begin_transport_transaction,
+        bind_lane_transport_source=bind_lane_transport_source,
+        current_main_post_attempt_is_semantically_valid=current_main_post_attempt_is_semantically_valid,
+        main_post_attempt_path=main_post_attempt_path,
+        main_post_attempt_payload=main_post_attempt_payload,
+        mark_main_post_attempt_attempting=mark_main_post_attempt_attempting,
     )
-    authority = begin_transport_transaction(
-        receipt_path=path,
-        source_binding=source,
-    )
-    attempt.clear()
-    attempt.update(attempting)
-    return attempt, source, authority
 
 
 def confirmed_media_upload_experiment_envelope(
     confirmation: ConfirmedMediaUpload,
 ) -> dict | None:
     """Return trial authority from the exact confirmed media generation."""
-
-    if not isinstance(confirmation, ConfirmedMediaUpload):
-        raise MediaUploadReceiptError("confirmed media identity is invalid")
-    snapshot = inspect_media_upload_receipt(Path(confirmation.receipt_path))
-    if snapshot is None or (
-        snapshot.device != confirmation.receipt_device
-        or snapshot.inode != confirmation.receipt_inode
-        or snapshot.ctime_ns != confirmation.receipt_ctime_ns
-        or snapshot.sha256 != confirmation.receipt_sha256
-        or snapshot.document.get("transaction_id")
-        != confirmation.transaction_id
-        or snapshot.document.get("lifecycle_state") != "confirmed"
-        or snapshot.document.get("remote_media_id") != confirmation.media_id
-    ):
-        raise MediaUploadReceiptError(
-            "confirmed media receipt changed before main-post handoff"
-        )
-    metadata = snapshot.document.get("payload_metadata")
-    form = metadata.get("form") if isinstance(metadata, dict) else None
-    if not isinstance(form, dict):
-        raise MediaUploadReceiptError("confirmed media receipt form is invalid")
-    try:
-        validated = validate_media_upload_payload_metadata(metadata, form=form)
-    except (TypeError, ValueError) as exc:
-        raise MediaUploadReceiptError(
-            "confirmed media receipt payload authority is invalid"
-        ) from exc
-    envelope = validated.get("engagement_question_experiment")
-    return copy.deepcopy(envelope) if isinstance(envelope, dict) else None
+    return _transport_source_preparation.confirmed_media_upload_experiment_envelope(
+        confirmation,
+        ConfirmedMediaUpload=ConfirmedMediaUpload,
+        MediaUploadReceiptError=MediaUploadReceiptError,
+        Path=Path,
+        copy=copy,
+        inspect_media_upload_receipt=inspect_media_upload_receipt,
+        validate_media_upload_payload_metadata=validate_media_upload_payload_metadata,
+    )
 
 
 def handoff_confirmed_media_upload_to_main_attempt(
