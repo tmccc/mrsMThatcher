@@ -132,3 +132,119 @@ and can be reviewed separately from metadata loading, policy application and
 winner/RNG handling. Review their recursive helper lookups and current weight/cap
 configuration before extracting them. This recommendation is for a fresh
 supervisor-selected invocation; stage 1 implements none of it.
+
+## Stage 2 — original-editorial analysis, scoring and selection
+
+Baseline: `f24883c9b4d66aba1db1d5b64a468cb91b307254` (2026-09-06).
+The worktree `/disks/disk1/research/mrsMThatcher-bot-modularisation-stage2`
+started clean on `codex/bot-modularisation-stage2`; HEAD and
+`origin/codex/bot-modularisation-stage1` matched this verified parent.
+
+### Extraction and compatibility
+
+`mrs_bot_original_editorial.py` owns the complete thirteen-function family from
+parent lines 18315–18523 and 18972–19168: numeric validation; concepts, quote/image
+and avoid concepts; quote dimension profiles; item validation and analysis
+loading; startup validation; shadow scoring/results/logging; and winner
+application. The existing runtime map above remains applicable.
+
+All root names, signatures, defaults and annotations remain. Numeric validation
+is a direct alias; twelve concise adapters pass current root configuration,
+vocabulary/dimension references, cache, logger and sibling callbacks. Recursive,
+comprehension and nested-helper calls retain their original order. Standard
+library imports remain ordinary imports. The owner has no reverse bot import,
+retained callbacks, configuration authority, separate cache or import-time work.
+
+The bodies preserve numeric errors/chaining, profile arithmetic and rounding,
+invalid-editorial early return, conditional defaults, caps/affinities/penalties,
+field ordering and log serialization. Loading retains expanded path keys,
+cache-hit identity before I/O/discovery, strict integer schema checks, current
+image/hash callbacks, complete dimensions/original coverage and no cache entry
+on failure. Selection retains basename ties, generated-winner and same-object
+baseline returns, and the selected-row/component shallow-copy boundary. Disabled
+startup/logging/selection still perform no loading, scoring or logging.
+
+The stage 1 scoring owner is byte-identical. All other runtime modules and root
+statements, generated-identity policy, discovery/selector orchestration and RNG
+code are unchanged. README's companion list and `docs/python_api.md` describe
+the new owner. The completed digest report is unchanged.
+
+### Validation
+
+Evidence is confined to `/tmp/mrs-bot-stage2-8xv6CI`. `selected-tests.txt` records
+26 file/node arguments: the full original-editorial test file, all eight stage 1
+adapter/import tests, nine nearby unit selector/bootstrap regressions, six
+generated-identity score/tie/spacing interactions, two selection-harness
+import/cache tests, two editorial-backtest baseline/determinism tests, the safe
+simulation import, three guarded bootstrap nodes, and one existing fake-server
+quote/image posting integration. Parametrization expands these to 82 cases.
+Existing test assertions were unchanged; no broad suite was run.
+
+Before editing: documentation passed for **210 modules**; **82 passed in 5.74s**.
+After extraction: documentation passed for **211 modules**; **90 passed in
+5.97s**, including eight new tests in `tests/test_bot_original_editorial.py`.
+These add import safety, current mutable vocabulary/dimensions and recursive
+callbacks, ordered helper calls, lazy conversion/defaults, cache path/identity,
+current validation/hash callbacks, failure non-insertion, disabled branches and
+selection reference/copy boundaries.
+
+Both pytest runs retained conftest's temporary HOME/state, dummy credentials,
+dead proxies, denied external sockets and explicit loopback fake-server policy.
+No production environment was sourced, private production state/configuration
+or credentials read, live API/provider calls made, or service controlled.
+Commands (the baseline omitted only the new test file):
+
+```bash
+TMPDIR=/tmp/mrs-bot-stage2-8xv6CI PYTHONDONTWRITEBYTECODE=1 \
+  python3 tools/check_python_documentation.py
+mapfile -t stage2_tests < /tmp/mrs-bot-stage2-8xv6CI/selected-tests.txt
+TMPDIR=/tmp/mrs-bot-stage2-8xv6CI PYTHONUSERBASE=/home/tonym/.local \
+  MRS_TEST_MODE=1 PYTEST_DISABLE_PLUGIN_AUTOLOAD=1 PYTHONDONTWRITEBYTECODE=1 \
+  python3 -m pytest -q -p no:cacheprovider "${stage2_tests[@]}" \
+  tests/test_bot_original_editorial.py
+TMPDIR=/tmp/mrs-bot-stage2-8xv6CI PYTHONDONTWRITEBYTECODE=1 \
+  python3 /tmp/mrs-bot-stage2-8xv6CI/verify_stage2.py
+git diff --check
+```
+
+`baseline-documentation.txt`, `baseline-pytest.txt`, `current-documentation.txt`
+and `current-pytest.txt` retain the actual results. Adapted `verify_stage2.py`
+uses immutable `git show` source, isolated AST namespaces and the existing
+data-only fixtures; it never imports the bot runtime. `comparison.txt` records:
+
+- All **13 moved bodies** match byte-for-byte after reversing only ten explicit
+  dependency names. All root signatures match. Restoring the thirteen definitions
+  and removing the import reconstructs the **entire parent root exactly**;
+  **577 unaffected definitions** match in source and AST.
+- An exact ordered profile and three full score/detail tuples match:
+  **5.93688888888889, 2.0, -2.0**, including both tension terms, affinity ceiling,
+  penalties, uncapped arithmetic and positive/negative caps. Six numeric errors
+  match exception types, messages and causes.
+- Synthetic valid/cached metadata preserves result/analysis identity and callback
+  order; cached startup does no I/O. Four invalid files (boolean schema, stale
+  hash, missing dimension, missing original) match errors/causes and leave no
+  cache entry. Disabled branches and invalid-editorial conversion remain lazy.
+- Changed/unchanged original winners, generated winners, basename ties and no
+  original candidates match ordered payloads/types, exact JSON logs, reference
+  and copy boundaries, callback counts and unchanged RNG state. Assertions verify
+  each intended path occurred. Documentation and `git diff --check` passed.
+
+| Runtime file | Before lines / bytes | After lines / bytes |
+|---|---:|---:|
+| `mrsMThatcher2.py` | 28,933 / 1,132,837 | 28,686 / 1,119,849 |
+| `mrs_bot_original_editorial.py` | absent | 497 / 22,065 |
+| `mrs_bot_image_scoring.py` | 312 / 12,579 | 312 / 12,579 |
+
+The root loses **247 lines / 12,988 bytes**. Combined runtime source grows by
+**250 lines / 9,077 bytes** for the explicit dependency signatures, adapters and
+owner documentation.
+
+### Recommended next scope
+
+Review the adjacent generated-identity audit input family:
+`generated_identity_numeric`, `configured_generated_image_paths`,
+`validate_generated_identity_audit_item`, `load_generated_identity_audit` and
+`validate_generated_identity_shadow_startup`. These share audit schema, corpus
+hash and cache responsibilities; review startup's current policy-enable
+predicates alongside them. Candidate/winner and saved-RNG handling remain a
+separate supervisor decision. Stage 2 implements only the editorial family.

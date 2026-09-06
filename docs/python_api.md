@@ -28,6 +28,7 @@ and AppleDouble files.
 |---|---|---|
 | `mrsMThatcher2.py` | Production scheduling, quotation/image selection, replies, receipts and recovery | X and OpenAI only after explicit production bootstrap; durable production state |
 | `mrs_bot_image_scoring.py` | Quotation/image lexical matching, topic IDF, visual energy, seasonal exclusion and component scoring | Explicit current coordinator values and helper callbacks; no I/O, retained callbacks, cache or runtime initialisation |
+| `mrs_bot_original_editorial.py` | Original-editorial concepts/profiles, metadata validation/loading, scoring, comparison logs and winner application | Reads metadata and discovers/hashes images only through explicit runtime loader calls; uses the supplied root cache and logger; no import-time work or retained callbacks |
 | `single_call_reply.py` | Frozen Sol prompt/schema, bounded context and facts, one-call orchestration, mechanical validation and durable-draft validation | One injected OpenAI Responses call; local validation and hashing |
 | `reply_evidence.py` | Lexically shortlist validated local passages for compact trusted facts | Local corpus reads only |
 | `historical_context_formatter.py` | Canonical research loading, compact context formatting and context-reply persistence | Local state; posting only through an injected callback |
@@ -86,6 +87,19 @@ callbacks. Arguments and results pass through without copying; component order,
 strict mismatch exclusion, ordinary rounding versus strict ceiling, and existing
 exceptions are preserved. See [bot modularisation](bot_modularisation.md) for
 the stage 1 boundary and validation.
+
+The thirteen original-editorial helpers retain their root names, signatures,
+defaults and annotations. `original_editorial_numeric` is an alias to
+`mrs_bot_original_editorial.py`; twelve adapters pass current root settings,
+vocabulary/dimension objects, `_ORIGINAL_EDITORIAL_ANALYSIS_CACHE`, logger and
+sibling helpers, including recursive and comprehension lookups. The root remains
+the configuration and cache authority. The owner neither imports the bot nor
+retains callbacks or a separate cache. Loading preserves expanded path keys,
+cache-hit identity before I/O, current image/hash validation and chained errors.
+Scoring and selection preserve arithmetic, ordering, basename ties, generated
+winner handling, log serialization and the existing selected-row/component copy
+boundary. Disabled startup, logging and selection still do no work. See
+[bot modularisation](bot_modularisation.md) for stage 2 validation.
 
 Record/input callers retain `Record`, `safe_source_logger`, `record_source_ref`,
 `bounded_source_refs`, `record_fingerprint`, `resume_fingerprint_tail`,
