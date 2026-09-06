@@ -1688,3 +1688,93 @@ operations, live provider calls, deployment/restart or next-stage work ran.
 Next useful domain: supervisor review of the complete `maybe_reply_to_quote_tweets`
 cycle as a separate orchestration boundary. Any next stage requires supervisor
 review and a fresh invocation.
+
+## Stage 16 — quote-tweet reply cycle, eligibility, context and markers
+
+Baseline: `6042ef6d4f2a3e901bc34416977af55ba79d9d38` (2026-09-06).
+Worktree `/disks/disk1/research/mrsMThatcher-bot-modularisation-stage16` started
+clean on `codex/bot-modularisation-stage16`, matching the verified pushed stage
+15 parent. The supervisor's eight-function inventory and fifteen direct test
+nodes were used alongside indirect quote-lane and local loopback coverage.
+
+`mrs_bot_quote_reply_cycle.py` owns **892 original definition lines**: the
+complete `maybe_reply_to_quote_tweets` (**723 definition lines; 722 body lines**)
+and seven eligibility,
+profile, canonical-context and marker helpers. Seven explicit root adapters
+retain signatures/defaults/annotations and pass current dependencies on each
+call, including **78** for the cycle; the dependency-free profile formatter is
+an alias. All original bodies and docstrings are byte-identical. The owner
+imports only standard-library types and retains no callbacks or runtime state.
+
+Compatibility preserves retryable missing timestamps, structured retweet/direct
+quote precedence and native malformed-profile errors; target-first text budgets,
+independent context copies and media-before-summary order; bounded 2000-entry
+markers versus the durable replied ledger; both daily resets and reconciliation
+before barriers/controls; discovery, cooldown, sorting and candidate-limit order;
+zero-call failures consuming the quote candidate budget; draft reuse and
+pre-send availability; distinct retirement/defer/error paths; durable state
+before journal/receipt cleanup and one success per cycle. Watch-list/own-post
+lookup, quote discovery, shared context/media/evidence, counters, pipeline,
+persistence, reconciliation and delivery remain in their existing locations.
+All fifteen earlier owners, existing tests/fixtures and digest docs are unchanged.
+README's companion list and the Python API table add the new owner.
+
+Evidence: `/tmp/mrs-bot-stage16-4uQu46`. Before editing, documentation passed for
+**224 modules**, **181 cases** collected in **4.48s**, and **181 passed in 37.59s**.
+The validated nonempty selection contains **55 file/node arguments across 12
+files**: six relevant prior owners (**89 cases**), supplied/nearby unit context,
+media, scheduler and receipt recovery (**28**), ambiguity barriers (**21**),
+proved quote rejection (**1**), guarded bootstrap (**8**), single-call failure
+routing (**9**) and local loopback integrations (**25**). All fifteen supplied
+nodes and actual parametrized quote fixtures, per-author caps and cross-lane
+spacing cases are included. No broad suite or whole enormous test file ran.
+
+After extraction, documentation passed for **225 modules**, **191 cases**
+collected in **4.43s**, and **191 passed in 38.27s** on the first run
+(`current-initial-pytest.txt`). Ten new contracts cover guarded import, current
+dependency/argument/result/error forwarding, eligibility/profile native behavior,
+context references/budgets/copies/media order, marker mutation boundaries, real
+confirmed reconciliation before a disabled lane, numeric candidate caps despite
+zero model calls, and reused-draft durability/context/pre-send availability.
+They reuse the quote scenario, local evidence/draft/receipt validation helpers
+and registered autouse `isolate_regular_post_receipt`; barriers remain active.
+
+```bash
+set -euo pipefail
+bash /tmp/mrs-bot-stage16-4uQu46/run_selected.sh baseline
+bash /tmp/mrs-bot-stage16-4uQu46/run_selected.sh current-initial
+PYTHONDONTWRITEBYTECODE=1 python3 /tmp/mrs-bot-stage16-4uQu46/verify_stage16.py
+PYTHONDONTWRITEBYTECODE=1 python3 tools/check_python_documentation.py
+git diff --check
+```
+
+The runner requires successful selection generation and nonempty validation and
+collection before pytest. It uses `PYTHONUSERBASE=/home/tonym/.local`,
+`MRS_TEST_MODE=1`, `PYTEST_DISABLE_PLUGIN_AUTOLOAD=1`,
+`PYTHONDONTWRITEBYTECODE=1`, evidence-root `TMPDIR` and
+`python3 -m pytest -q -p no:cacheprovider` with explicit selected arguments.
+Temporary HOME/state, dummy credentials, dead proxies, denied external sockets
+and explicit loopback APIs stay in effect. The passing run is retained; tests
+were not repeated after documentation-only edits.
+
+`comparison.txt` verifies exact bodies/docstrings, signatures and dependency
+forwarding. Restoring all eight originals and removing one import reconstructs
+the **entire immutable parent root byte-for-byte**, including **567 unaffected
+definitions** and unrelated statements. Static `git show`/AST checks also verify
+all fifteen previous owners and unrelated files without importing the bot.
+The final documentation gate and `git diff --check` pass.
+
+| Runtime file | Before lines / bytes | After lines / bytes |
+|---|---:|---:|
+| `mrsMThatcher2.py` | 23,514 / 917,584 | 22,771 / 887,943 |
+| `mrs_bot_quote_reply_cycle.py` | absent | 1,050 / 42,552 |
+
+The root loses **743 lines / 29,641 bytes**; combined runtime source grows by
+**307 lines / 12,911 bytes** for explicit dependency declarations, forwarding
+and owner documentation. Prior owner sizes remain unchanged.
+
+Production remains `master` at `af5eda7c163a8174ec1365060aa923d21787e7bd` per
+worktree metadata. No production configuration/state/credentials, service
+operations, live provider calls, deployment/restart or next-stage work ran.
+Next useful domain: quote-tweet discovery and watched own-post lookup, subject
+to supervisor review and a fresh invocation.
