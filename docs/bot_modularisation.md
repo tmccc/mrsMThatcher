@@ -2690,3 +2690,71 @@ launch occurred. Next useful domain: supervisor review of shared tweet ID
 parsing/ordering around `parse_tweet_id`, `valid_tweets_sorted_by_id` and the
 bounded-ID dependency. Only stage 27 is implemented; supervisor review precedes
 any further stage.
+
+## Stage 28 — Shared bounded X pagination and cursor-error classification
+
+Baseline: `340731218d186013a09553eae74c4e73a5dd65dc` (2026-09-06).
+Worktree `/disks/disk1/research/mrsMThatcher-bot-modularisation-stage28` started
+clean on `codex/bot-modularisation-stage28`, matching the pushed stage 27 parent.
+Supervisor scope notes, dependency inventory and curated candidates informed
+the caller inspection and focused selection.
+
+`mrs_bot_x_pagination.py` owns **two functions / 260 original definition lines**:
+`api_error_is_invalid_pagination_cursor` and `x_paginated_get`. Two explicit root
+adapters preserve signatures/defaults/annotations and original docstrings, passing
+current exception classes, JSON module, classifier, logger and supplied callbacks
+to exact original bodies. No classes/constants move or dependencies/state remain
+in the owner between calls. Import performs no file/environment/provider/clock/RNG
+work. Authentication, bearer selection, discovery and persistence remain in their
+existing locations; no retries or saves are added.
+
+Compatibility retains structured-message precedence and parameter-echo exclusion;
+once-only invalidation before optional head recovery; requested-token history
+across retries and fresh per-traversal results; repetition before suppression;
+strict response-section validation order; original data/user/media references and
+duplicate-map insertion positions; logging/accumulation before `on_page`, then
+repeated-token handling; callback errors/partial mutations, exact metadata and
+mentions-info versus other-warning truncation logs.
+
+Evidence: `/tmp/mrs-bot-stage28-teeufs4x`. Before editing, documentation passed
+for **236 modules**, **39 cases collected in 3.74s**, and **39 passed in 12.32s**
+(`baseline-pytest.txt`; 29 explicit nodes across nine files). The selection uses
+25 of 29 supplied candidates: all nine direct classifier/paginator nodes, eight
+cross-lane loopbacks, four mention persistence/recovery cases and four nearest
+discovery contracts, plus guarded-bootstrap and isolation checks. Four supplied
+early-exit/stub-failure cases that do not exercise pagination were omitted.
+After extraction, documentation passed for **237 modules**, **55 cases collected
+in 3.72s**, and **55 passed in 12.88s** on the first run (`current-pytest.txt`;
+38 explicit nodes across ten files). Nine new tests / 16 cases cover import and
+current dependencies, structured precedence, merge/reference contracts, retry
+history/results, callback/error order, conflicting malformed sections and native
+failures. They register the existing autouse `isolate_regular_post_receipt` fixture.
+
+The reused runner requires successful AST-validated nonempty selection and
+collection under `set -euo pipefail`, then explicit pytest arguments. Both runs
+use the recorded evidence root for TMPDIR and disposable fixtures, temporary
+HOME/state, dummy credentials, dead proxies, denied external sockets, explicit
+loopback APIs, disabled plugin autoload/bytecode/cache provider and
+`PYTHONUSERBASE=/home/tonym/.local`. No broad suite ran; passing logs were retained
+after documentation-only edits.
+
+`verify_stage28.py` / `comparison.txt` verify exact bodies/docstrings, signatures
+and dependencies against immutable `git show`. Restoring the two definitions and
+removing the new import reconstructs the whole parent root byte for byte,
+including **527 unaffected functions** and every unrelated statement. All **27
+earlier owners**, existing tests/fixtures and digest docs are unchanged. README/API
+only add the companion; this report is appended. Final documentation and
+`git diff --check` pass.
+
+| Runtime file | Before lines / bytes | After lines / bytes |
+|---|---:|---:|
+| `mrsMThatcher2.py` | 19,742 / 773,987 | 19,533 / 765,753 |
+| `mrs_bot_x_pagination.py` | absent | 291 / 11,379 |
+
+The root loses **209 lines / 8,234 bytes**; combined runtime source grows by
+**82 lines / 3,145 bytes**. The focused test file has **360 lines / 17,454 bytes**.
+Production remains `master` at `af5eda7c163a8174ec1365060aa923d21787e7bd` per
+worktree metadata, without production modification, deployment or restart.
+Next useful domain for supervisor assessment: shared tweet ID parsing/ordering
+around `parse_tweet_id`, `valid_tweets_sorted_by_id` and their bounded-ID dependency.
+Only stage 28 is implemented; supervisor review precedes any further stage.
