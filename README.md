@@ -217,6 +217,7 @@ deployed as a coherent set:
 - `mrs_bot_installation_lifecycle.py`
 - `mrs_bot_transaction_recovery.py`
 - `mrs_bot_transport_source_preparation.py`
+- `mrs_bot_cli_execution.py`
 - `remote_write_safety_protocol.py`
 - `remote_media_upload_receipt.py`
 - `remote_write_transport_journal.py`

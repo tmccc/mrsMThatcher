@@ -4549,3 +4549,64 @@ root. Production git metadata remains `master` at
 credential access, log-content reads, service actions or live-provider calls
 occurred. Configured Astra/max is unchanged. Only stage53 is implemented;
 supervisor review precedes the next stage.
+
+
+## Stage 54 — Command-line dispatch and one-shot execution
+
+Baseline: `720b8edf73fa51abe89693e1df4b00ce5b7d48ee`, verified clean on
+`codex/bot-modularisation-stage54`; origin's stage53 matched and stage54 was
+absent. Relevant immutable files, the four supervisor inputs and checked stage53
+helpers were reused; no conversations or prior transcripts were loaded.
+
+`mrs_bot_cli_execution.py` owns **seven exact bodies/docstrings, 359 original
+lines**. Seven ordinary `_cli_execution` adapters preserve public signatures,
+defaults and deferred annotations, forwarding **22/15/2/4/22/18/15** current
+dependencies, including nested reply-cycle closures. Frozen CLI/test-mode
+validation, bootstrap/lock/recovery/barrier order, reply priorities and late state
+references, tick health/scheduler order, quote context/history preflight, ordered
+confirmation/API catches and incident-specific durable waits remain exact.
+Early parsing/import-time authority, self-test diagnostics, main/bootstrap and
+the script handler stay in root. README/API add the owner; no policy, catches,
+retries, copying, globals or retained runtime authority were added.
+
+Evidence: `/tmp/mrs-bot-stage54-HNGqRnro`. Pre-edit documentation passed for
+**262 modules**. Selection uses **25 of 27 candidates**, omitting two direct argv
+checks covered by literal subprocess cases, plus two isolation checks. Baseline:
+**27 explicit nodes across five files; 53 collected in 3.24s; 53 passed in 18.39s**.
+Current adds **20 contract functions / 75 cases**: **47 explicit nodes across six
+files; 128 collected in 3.35s; 128 passed in 21.13s**, on the first run.
+Coverage includes literal valid/invalid/mutated dispatch, frozen authority and
+real-script no-write rejection, every one-shot mode, both reply priorities,
+health/barrier ordering, synthetic durable waits, confirmation errors, state
+migration and no-second-post replay. New contracts cover guarded import, current
+dependency/signature/reference forwarding, branch/closure/order and native-error
+scopes, and import autouse `isolate_regular_post_receipt`.
+
+Both collection and pytest used the reviewed metadata-only guard with stage54
+names and separate baseline/current evidence. All four metadata comparisons and
+open-descriptor assertions passed. Nonempty AST selection and successful nonempty
+collection preceded each run under `set -euo pipefail`, required Python/pytest
+flags, temporary HOME/state/TMPDIR, dummy credentials, dead proxies, external
+socket denial and explicit loopback providers. Existing assertions, decorators,
+fixtures and process/server cleanup remain unchanged; no live waits were used.
+
+`verify_stage54.py` / `comparison.txt` prove exact bodies, signatures/defaults,
+nested compiled dependencies and forwarding without importing the bot. Whole
+parent-root reconstruction is byte-identical, including **512 unaffected
+definitions** and all unrelated statements. All **53 previous owners**, existing
+tests/fixtures and digest docs are unchanged. Post-edit documentation passed for
+**263 modules**; whitespace checks passed. Source/runtime checks were not repeated
+for this report append; the entire immutable parent report is a verified byte
+prefix.
+
+| Runtime file | Before lines / bytes | After lines / bytes |
+|---|---:|---:|
+| `mrsMThatcher2.py` | 12,128 / 486,252 | 11,899 / 479,312 |
+| `mrs_bot_cli_execution.py` | absent | 496 / 17,403 |
+
+The root loses **229 lines / 6,940 bytes**; combined runtime source grows by
+**267 lines / 10,463 bytes**. New tests: **719 lines / 35,376 bytes**. Complete
+logs, selections, adapted helpers and metadata evidence remain in the evidence
+root. No production state/configuration/credential access, log-content reads,
+service actions or live-provider calls occurred. Configured Astra/max is
+unchanged. Only stage54 is implemented; supervisor review precedes the next stage.

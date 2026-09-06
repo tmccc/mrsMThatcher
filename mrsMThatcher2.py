@@ -273,6 +273,7 @@ import mrs_bot_instance_lock_checks as _instance_lock_checks
 import mrs_bot_installation_lifecycle as _installation_lifecycle
 import mrs_bot_transaction_recovery as _transaction_recovery
 import mrs_bot_transport_source_preparation as _transport_source_preparation
+import mrs_bot_cli_execution as _cli_execution
 
 from single_call_reply import (
     MAX_IMAGE_BYTES as SINGLE_CALL_MAX_IMAGE_BYTES,
@@ -11738,179 +11739,60 @@ def run_self_test() -> int:
 
 def run_test_cycle() -> int:
     """Run one local integration-test pass without entering the posting loop."""
-    if not require_test_mode("--test-cycle"):
-        return 2
-    require_production_bootstrap()
-
-    acquire_instance_lock()
-    require_established_installation_after_ledger_recovery()
-    reconcile_runtime_historical_context_state()
-    block_if_ambiguous_remote_post()
-
-    log.info("Running one test cycle")
-    log.info("Base dir=%s", BASE_DIR)
-    log.info("State file=%s", STATE_FILE)
-    log.info("Log file=%s", LOG_FILE)
-    log.info("X base=%s", X_BASE)
-    log.info("X upload base=%s", X_UPLOAD_BASE)
-    log.info("OpenAI base=%s", OPENAI_BASE)
-
-    state = load_runtime_state()
-
-    reply_lane_priority = str(state.get("next_reply_lane_priority", "normal") or "normal")
-
-    quote_status = None
-    before_reply_epoch = int(state.get("last_reply_epoch", 0) or 0)
-
-    def finish_if_ambiguity_blocked() -> bool:
-        if not ambiguous_remote_post_is_blocking():
-            return False
-        log.critical("Test cycle stopped after an ambiguous remote post; no later lane will run")
-        save_state(state)
-        return True
-
-    def run_test_reply_action(lane: str, action) -> tuple[object | None, bool]:
-        try:
-            return action(state), False
-        except (
-            AmbiguousRemotePostOutcome,
-            UnrecoverableConfirmedReplyPersistenceError,
-        ):
-            log.critical(
-                "Test-cycle %s reply lane stopped by the global remote-write "
-                "safety barrier",
-                lane,
-                exc_info=True,
-            )
-            wait_for_durable_barrier_before_one_shot_exit(
-                lane=f"{lane}_reply",
-            )
-            return None, True
-
-    if reply_lane_priority == "quote":
-        quote_status, safety_stopped = run_test_reply_action(
-            "quote_tweet",
-            maybe_reply_to_quote_tweets,
-        )
-        if safety_stopped:
-            return 0
-        if finish_if_ambiguity_blocked():
-            return 0
-        log.info("Test-cycle quote-tweet check status=%s", quote_status)
-        log_event("quote_check_status", status=quote_status, priority="test_cycle")
-        after_quote_epoch = int(state.get("last_reply_epoch", 0) or 0)
-
-        if after_quote_epoch != before_reply_epoch:
-            state["next_reply_lane_priority"] = "normal"
-            save_state(state)
-            log.info("Test-cycle quote-tweet lane posted; next reply-lane priority=normal")
-        else:
-            _normal_status, safety_stopped = run_test_reply_action(
-                "normal",
-                maybe_reply_to_mentions,
-            )
-            if safety_stopped:
-                return 0
-            if finish_if_ambiguity_blocked():
-                return 0
-            after_reply_epoch = int(state.get("last_reply_epoch", 0) or 0)
-            if after_reply_epoch != after_quote_epoch:
-                state["next_reply_lane_priority"] = "quote"
-                save_state(state)
-                log.info("Test-cycle normal/hot-post lane posted; next reply-lane priority=quote")
-    else:
-        _normal_status, safety_stopped = run_test_reply_action(
-            "normal",
-            maybe_reply_to_mentions,
-        )
-        if safety_stopped:
-            return 0
-        if finish_if_ambiguity_blocked():
-            return 0
-        after_reply_epoch = int(state.get("last_reply_epoch", 0) or 0)
-
-        if after_reply_epoch != before_reply_epoch:
-            state["next_reply_lane_priority"] = "quote"
-            save_state(state)
-            log.info("Test-cycle normal/hot-post lane posted; next reply-lane priority=quote")
-        else:
-            quote_status, safety_stopped = run_test_reply_action(
-                "quote_tweet",
-                maybe_reply_to_quote_tweets,
-            )
-            if safety_stopped:
-                return 0
-            if finish_if_ambiguity_blocked():
-                return 0
-            log.info("Test-cycle quote-tweet check status=%s", quote_status)
-            log_event("quote_check_status", status=quote_status, priority="test_cycle")
-            after_quote_epoch = int(state.get("last_reply_epoch", 0) or 0)
-            if after_quote_epoch != after_reply_epoch:
-                state["next_reply_lane_priority"] = "normal"
-                save_state(state)
-                log.info("Test-cycle quote-tweet lane posted; next reply-lane priority=normal")
-
-    save_state(state)
-    log.info("Test cycle finished")
-    return 0
+    return _cli_execution.run_test_cycle(
+        AmbiguousRemotePostOutcome=AmbiguousRemotePostOutcome,
+        BASE_DIR=BASE_DIR,
+        LOG_FILE=LOG_FILE,
+        OPENAI_BASE=OPENAI_BASE,
+        STATE_FILE=STATE_FILE,
+        UnrecoverableConfirmedReplyPersistenceError=UnrecoverableConfirmedReplyPersistenceError,
+        X_BASE=X_BASE,
+        X_UPLOAD_BASE=X_UPLOAD_BASE,
+        acquire_instance_lock=acquire_instance_lock,
+        ambiguous_remote_post_is_blocking=ambiguous_remote_post_is_blocking,
+        block_if_ambiguous_remote_post=block_if_ambiguous_remote_post,
+        load_runtime_state=load_runtime_state,
+        log=log,
+        log_event=log_event,
+        maybe_reply_to_mentions=maybe_reply_to_mentions,
+        maybe_reply_to_quote_tweets=maybe_reply_to_quote_tweets,
+        reconcile_runtime_historical_context_state=reconcile_runtime_historical_context_state,
+        require_established_installation_after_ledger_recovery=require_established_installation_after_ledger_recovery,
+        require_production_bootstrap=require_production_bootstrap,
+        require_test_mode=require_test_mode,
+        save_state=save_state,
+        wait_for_durable_barrier_before_one_shot_exit=wait_for_durable_barrier_before_one_shot_exit,
+    )
 
 
 def run_test_main_tick() -> int:
     """Run the production reply-lane tick once for local integration tests."""
-    if not require_test_mode("--test-main-tick"):
-        return 2
-    require_production_bootstrap()
-    report_bot_health_progress("startup")
-
-    acquire_instance_lock()
-    report_bot_health_progress("recovery")
-    require_established_installation_after_ledger_recovery()
-    reconcile_runtime_historical_context_state()
-    block_if_ambiguous_remote_post()
-
-    log.info("Running one test production reply-lane tick")
-    state = load_runtime_state()
-    current = now_epoch()
-    last_reply_check_epoch, reply_epoch_changed = scheduler_epoch_from_state(
-        state,
-        "last_reply_check_epoch",
-        current=current,
+    return _cli_execution.run_test_main_tick(
+        acquire_instance_lock=acquire_instance_lock,
+        ambiguous_remote_post_is_blocking=ambiguous_remote_post_is_blocking,
+        block_if_ambiguous_remote_post=block_if_ambiguous_remote_post,
+        load_runtime_state=load_runtime_state,
+        log=log,
+        now_epoch=now_epoch,
+        reconcile_runtime_historical_context_state=reconcile_runtime_historical_context_state,
+        report_bot_health_progress=report_bot_health_progress,
+        require_established_installation_after_ledger_recovery=require_established_installation_after_ledger_recovery,
+        require_production_bootstrap=require_production_bootstrap,
+        require_test_mode=require_test_mode,
+        run_reply_lane_checks_for_tick=run_reply_lane_checks_for_tick,
+        save_state=save_state,
+        scheduler_epoch_from_state=scheduler_epoch_from_state,
+        wait_for_durable_barrier_before_one_shot_exit=wait_for_durable_barrier_before_one_shot_exit,
     )
-    last_quote_tweet_check_epoch, quote_epoch_changed = scheduler_epoch_from_state(
-        state,
-        "last_quote_tweet_check_epoch",
-        current=current,
-    )
-    if reply_epoch_changed or quote_epoch_changed:
-        save_state(state)
-
-    report_bot_health_progress("main_loop", loop_started=True)
-    report_bot_health_progress("reply_checks")
-    run_reply_lane_checks_for_tick(
-        state,
-        current,
-        last_reply_check_epoch=last_reply_check_epoch,
-        last_quote_tweet_check_epoch=last_quote_tweet_check_epoch,
-    )
-    report_bot_health_progress("main_loop")
-    if ambiguous_remote_post_is_blocking():
-        wait_for_durable_barrier_before_one_shot_exit(
-            lane="production_reply_tick",
-        )
-        return 0
-
-    save_state(state)
-    log.info("Test production reply-lane tick finished")
-    report_bot_health_progress("shutdown", loop_completed=True)
-    return 0
 
 
 def require_test_mode(command_name: str) -> bool:
     """Require the immutable import-time test-mode safety configuration."""
-    if not IMPORT_TIME_TEST_MODE:
-        log.error("%s requires MRS_TEST_MODE=1 before bot import", command_name)
-        return False
-    return True
+    return _cli_execution.require_test_mode(
+        command_name,
+        IMPORT_TIME_TEST_MODE=IMPORT_TIME_TEST_MODE,
+        log=log,
+    )
 
 
 def prepare_test_main_post_state(state: dict) -> None:
@@ -11921,198 +11803,87 @@ def prepare_test_main_post_state(state: dict) -> None:
 
 def wait_for_durable_barrier_before_one_shot_exit(*, lane: str) -> None:
     """Keep a one-shot posting process alive while its only barrier is memory."""
-    if (
-        not remote_write_safety_incident_is_latched()
-        or durable_remote_write_safety_barrier_exists()
-    ):
-        return
-    log.critical(
-        "The one-shot %s command cannot exit because its only remote-write safety "
-        "barrier is process-local. Create and verify a durable reconciliation "
-        "marker before terminating this process.",
-        lane,
-    )
-    while not durable_remote_write_safety_barrier_exists():
-        sleep(60)
-    log.critical(
-        "A durable remote-write safety marker is now present for one-shot lane=%s; "
-        "process exit is restart-safe",
-        lane,
+    return _cli_execution.wait_for_durable_barrier_before_one_shot_exit(
+        lane=lane,
+        durable_remote_write_safety_barrier_exists=durable_remote_write_safety_barrier_exists,
+        log=log,
+        remote_write_safety_incident_is_latched=remote_write_safety_incident_is_latched,
+        sleep=sleep,
     )
 
 
 def run_test_post_quote() -> int:
     """Run one quote/image post cycle for local integration tests."""
-    if not require_test_mode("--test-post-quote"):
-        return 2
-    require_production_bootstrap()
-
-    acquire_instance_lock()
-    require_established_installation_after_ledger_recovery()
-    reconcile_runtime_historical_context_state()
-    block_if_ambiguous_remote_post(
-        allow_confirmed_pending_schedule_reconciliation=True
+    return _cli_execution.run_test_post_quote(
+        AmbiguousRemotePostOutcome=AmbiguousRemotePostOutcome,
+        ApiError=ApiError,
+        ConfirmedPostLocalPersistenceError=ConfirmedPostLocalPersistenceError,
+        LINES_FILE=LINES_FILE,
+        UnrecoverableConfirmedPostPersistenceError=UnrecoverableConfirmedPostPersistenceError,
+        acquire_instance_lock=acquire_instance_lock,
+        block_if_ambiguous_remote_post=block_if_ambiguous_remote_post,
+        current_image_paths=current_image_paths,
+        lane_paused=lane_paused,
+        load_image_used_basenames=load_image_used_basenames,
+        load_quote_used_hashes=load_quote_used_hashes,
+        load_runtime_state=load_runtime_state,
+        log=log,
+        post_random_quote=post_random_quote,
+        prepare_test_main_post_state=prepare_test_main_post_state,
+        reconcile_runtime_historical_context_state=reconcile_runtime_historical_context_state,
+        record_api_error=record_api_error,
+        require_established_installation_after_ledger_recovery=require_established_installation_after_ledger_recovery,
+        require_production_bootstrap=require_production_bootstrap,
+        require_test_mode=require_test_mode,
+        save_state=save_state,
+        wait_for_durable_barrier_before_one_shot_exit=wait_for_durable_barrier_before_one_shot_exit,
     )
-
-    log.info("Running one test quote/image post cycle")
-    state = load_runtime_state()
-    prepare_test_main_post_state(state)
-
-    if lane_paused("disable_quote_posts"):
-        log.warning("Skipping test quote/image post due to runtime control file")
-        save_state(state)
-        return 0
-
-    with open(LINES_FILE, encoding="utf-8") as f:
-        quote_lines_for_history = f.readlines()
-    lines_used = load_quote_used_hashes(quote_lines_for_history)
-    images_used = load_image_used_basenames(current_image_paths())
-
-    try:
-        post_random_quote(lines_used, images_used, state)
-    except UnrecoverableConfirmedPostPersistenceError:
-        log.critical(
-            "REMOTE X POST WAS CONFIRMED WITHOUT A COMPLETE DURABLE LOCAL "
-            "REPRESENTATION. The one-shot quote process must not exit while only "
-            "its in-memory safety latch survives.",
-            exc_info=True,
-        )
-        wait_for_durable_barrier_before_one_shot_exit(lane="quote_image")
-        return 3
-    except ConfirmedPostLocalPersistenceError:
-        log.critical(
-            "REMOTE X POST WAS CONFIRMED; DO NOT RETRY MANUALLY. "
-            "Test quote/image local persistence/recovery needs attention.",
-            exc_info=True,
-        )
-        save_state(state)
-        return 3
-    except AmbiguousRemotePostOutcome as exc:
-        log.critical(
-            "The one-shot quote remote outcome is ambiguous; refusing normal exit "
-            "while only an in-memory safety latch survives.",
-            exc_info=True,
-        )
-        wait_for_durable_barrier_before_one_shot_exit(lane="quote_image")
-        record_api_error(state, exc, "x", scope="write")
-        save_state(state)
-        return 1
-    except ApiError as exc:
-        log.exception("Test quote/image post failed due to API error")
-        record_api_error(state, exc, "x", scope="write")
-        save_state(state)
-        return 1
-    except Exception:
-        log.exception("Test quote/image post failed unexpectedly")
-        save_state(state)
-        return 1
-
-    log.info("Test quote/image post cycle finished")
-    return 0
 
 
 def run_test_post_meme() -> int:
     """Run one daily meme post cycle for local integration tests."""
-    if not require_test_mode("--test-post-meme"):
-        return 2
-    require_production_bootstrap()
-
-    acquire_instance_lock()
-    require_established_installation_after_ledger_recovery()
-    reconcile_runtime_historical_context_state()
-    block_if_ambiguous_remote_post()
-
-    log.info("Running one test daily meme post cycle")
-    state = load_runtime_state()
-    prepare_test_main_post_state(state)
-
-    if lane_paused("disable_meme_posts"):
-        log.warning("Skipping test daily meme post due to runtime control file")
-        save_state(state)
-        return 0
-
-    try:
-        post_next_meme(state)
-    except UnrecoverableConfirmedPostPersistenceError:
-        log.critical(
-            "REMOTE X POST WAS CONFIRMED WITHOUT A COMPLETE DURABLE LOCAL "
-            "REPRESENTATION. The one-shot meme process must not exit while only "
-            "its in-memory safety latch survives.",
-            exc_info=True,
-        )
-        wait_for_durable_barrier_before_one_shot_exit(lane="daily_meme")
-        return 3
-    except ConfirmedPostLocalPersistenceError:
-        log.critical(
-            "REMOTE X POST WAS CONFIRMED; DO NOT RETRY MANUALLY. "
-            "Test daily meme local persistence/recovery needs attention.",
-            exc_info=True,
-        )
-        save_state(state)
-        return 3
-    except AmbiguousRemotePostOutcome as exc:
-        log.critical(
-            "The one-shot meme remote outcome is ambiguous; refusing normal exit "
-            "while only an in-memory safety latch survives.",
-            exc_info=True,
-        )
-        wait_for_durable_barrier_before_one_shot_exit(lane="daily_meme")
-        record_api_error(state, exc, "x", scope="write")
-        save_state(state)
-        return 1
-    except ApiError as exc:
-        log.exception("Test daily meme post failed due to API error")
-        record_api_error(state, exc, "x", scope="write")
-        save_state(state)
-        return 1
-    except Exception:
-        log.exception("Test daily meme post failed unexpectedly")
-        save_state(state)
-        return 1
-
-    log.info("Test daily meme post cycle finished")
-    return 0
+    return _cli_execution.run_test_post_meme(
+        AmbiguousRemotePostOutcome=AmbiguousRemotePostOutcome,
+        ApiError=ApiError,
+        ConfirmedPostLocalPersistenceError=ConfirmedPostLocalPersistenceError,
+        UnrecoverableConfirmedPostPersistenceError=UnrecoverableConfirmedPostPersistenceError,
+        acquire_instance_lock=acquire_instance_lock,
+        block_if_ambiguous_remote_post=block_if_ambiguous_remote_post,
+        lane_paused=lane_paused,
+        load_runtime_state=load_runtime_state,
+        log=log,
+        post_next_meme=post_next_meme,
+        prepare_test_main_post_state=prepare_test_main_post_state,
+        reconcile_runtime_historical_context_state=reconcile_runtime_historical_context_state,
+        record_api_error=record_api_error,
+        require_established_installation_after_ledger_recovery=require_established_installation_after_ledger_recovery,
+        require_production_bootstrap=require_production_bootstrap,
+        require_test_mode=require_test_mode,
+        save_state=save_state,
+        wait_for_durable_barrier_before_one_shot_exit=wait_for_durable_barrier_before_one_shot_exit,
+    )
 
 
 def run_cli(argv: list[str] | tuple[str, ...] | None = None) -> int | None:
     """Validate one complete command line, then bootstrap and dispatch it."""
-
-    process_arguments = tuple(sys.argv[1:])
-    arguments = process_arguments if argv is None else tuple(argv)
-    try:
-        if process_arguments != IMPORT_TIME_CLI_ARGUMENTS:
-            raise CliUsageError("process argv changed after module import")
-        if argv is not None and arguments != IMPORT_TIME_CLI_ARGUMENTS:
-            raise CliUsageError(
-                "explicit argv must exactly match the import-time command line"
-            )
-        mode = parse_cli_mode(IMPORT_TIME_CLI_ARGUMENTS)
-        if mode in TEST_MODE_REQUIRED_CLI_FLAGS and not IMPORT_TIME_TEST_MODE:
-            raise CliUsageError(
-                f"{mode} requires MRS_TEST_MODE=1 before bot import"
-            )
-    except CliUsageError as exc:
-        print(f"{CLI_USAGE}\nmrsMThatcher2.py: error: {exc}", file=sys.stderr)
-        return 2
-
-    # Argument validation is deliberately complete before this call.  No
-    # invalid or ambiguous argv may reach configuration loading, the instance
-    # lock, durable state, or any remote-operation boundary.
-    production_bootstrap()
-    if mode == "--initialise":
-        return initialise_installation()
-    if mode == "--self-test":
-        return run_self_test()
-    if mode == "--test-cycle":
-        return run_test_cycle()
-    if mode == "--test-main-tick":
-        return run_test_main_tick()
-    if mode == "--test-post-quote":
-        return run_test_post_quote()
-    if mode == "--test-post-meme":
-        return run_test_post_meme()
-    main()
-    return None
+    return _cli_execution.run_cli(
+        argv,
+        CLI_USAGE=CLI_USAGE,
+        CliUsageError=CliUsageError,
+        IMPORT_TIME_CLI_ARGUMENTS=IMPORT_TIME_CLI_ARGUMENTS,
+        IMPORT_TIME_TEST_MODE=IMPORT_TIME_TEST_MODE,
+        TEST_MODE_REQUIRED_CLI_FLAGS=TEST_MODE_REQUIRED_CLI_FLAGS,
+        initialise_installation=initialise_installation,
+        main=main,
+        parse_cli_mode=parse_cli_mode,
+        production_bootstrap=production_bootstrap,
+        run_self_test=run_self_test,
+        run_test_cycle=run_test_cycle,
+        run_test_main_tick=run_test_main_tick,
+        run_test_post_meme=run_test_post_meme,
+        run_test_post_quote=run_test_post_quote,
+        sys=sys,
+    )
 
 
 if __name__ == "__main__":
