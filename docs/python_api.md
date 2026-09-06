@@ -257,11 +257,23 @@ Provider usage/cost callers retain `xai_reply_cost_summary`, `xai_usage_totals`,
 explicit digest imports from `mrs_log_digest_provider_costs`. The unchanged
 `USD_TICKS_PER_DOLLAR` and `USD_DISPLAY_QUANTUM` constants belong to that module
 and retain their digest aliases, as does the Decimal `ROUND_HALF_UP` constant.
-Complete signatures, defaults and bodies are
+Complete public signatures, defaults and behaviour are
 unchanged, including the permissive integer conversion versus strict native
 nonnegative integer observation, missing/invalid versus zero cost, nullable
 cache-metric coverage, call matching/counting, attribution, ordering, input
 identity and mutation behaviour, and Decimal rounding/currency formatting.
+
+Within the same owner, `_candidate_reply_disposition` receives the prepared
+`decision`, `outcome`, `failure` and `local_rejection` rows. Its result binds
+directly after the existing local-rejection lookup and before call-count
+coverage. The five original statements retain eager terminal/writer/pipeline
+classification, current owner-global classifier lookup, short-circuits, native
+errors and exact status interpretation even when publication wins. Publication,
+posting failure, writer-local failure, terminal local outcome, deliberate decline,
+pipeline failure, approval and unavailable precedence are unchanged. Evidence
+association, target fallback, sorting, coverage, arithmetic and report construction
+remain in `xai_reply_cost_summary`. This legacy helper remains importable; schema 3
+reports do not call it or restore retired per-candidate cost sections.
 
 Dependency direction is digest → provider costs → values. The module uses the
 existing lane normaliser and three shared reason classifiers without changing

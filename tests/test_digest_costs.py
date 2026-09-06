@@ -13,6 +13,7 @@ import pytest
 
 import mrs_log_digest as digest
 import mrs_log_digest_costs as costs
+import mrs_log_digest_provider_costs as provider_costs
 from tests.test_openai_cost_digest import NOW, cost_report, current_day, write_cache
 
 
@@ -183,7 +184,10 @@ raise SystemExit(digest.main())
             cache.unlink()
 
 
-def test_cost_module_import_has_no_runtime_effects_or_upward_dependencies(tmp_path):
+@pytest.mark.parametrize("module_name", [
+    "mrs_log_digest_costs", "mrs_log_digest_provider_costs",
+])
+def test_cost_module_import_has_no_runtime_effects_or_upward_dependencies(tmp_path, module_name):
     script = """
 import builtins
 from datetime import datetime, timezone
@@ -223,6 +227,7 @@ assert list(logging.getLogger().handlers) == handlers
 assert set(logging.Logger.manager.loggerDict) == loggers
 assert not {"mrs_log_digest", "mrs_log_digest_markdown", "mrsMThatcher2"} & sys.modules.keys()
 """
+    script = script.replace("import mrs_log_digest_costs as costs", f"import {module_name} as costs")
     result = subprocess.run(
         [sys.executable, "-B", "-c", script], cwd=tmp_path,
         env=dict(os.environ, PYTHONPATH=str(Path(digest.__file__).resolve().parent)),
@@ -231,3 +236,146 @@ assert not {"mrs_log_digest", "mrs_log_digest_markdown", "mrsMThatcher2"} & sys.
     assert result.returncode == 0, result.stderr
     assert result.stdout == b""
     assert list(tmp_path.iterdir()) == []
+
+
+@pytest.mark.parametrize("decision,outcome,failure,local_rejection,expected", [
+    ({"no_reply_reason": "exact_duplicate_reply"}, {"status": "confirmed"}, {}, {"reason": "writer_link_repair_failed"}, "published"),
+    ({"status": "operational_failure"}, {"status": "posted"}, {}, None, "published"),
+    ({"no_reply_reason": "exact_duplicate_reply"}, {"status": "posting_failed_retryable"}, {}, {"reason": "writer_link_repair_failed"}, "posting_failed"),
+    ({"mode": "no_reply"}, {"status": " Confirmed "}, None, None, "posting_failed"),
+    ({"no_reply_reason": "exact_duplicate_reply"}, {"status": 0}, {}, {"reason": "writer_link_repair_failed"}, "writer_local_failure"),
+    ({"no_reply_reason": " EXACT_DUPLICATE_REPLY ", "status": "operational_failure"}, None, {}, None, "terminal_repetition_rejection"),
+    ({"mode": "no_reply"}, {}, {}, {"reason": "clarification_not_direct_factual_answer"}, "terminal_clarification_mode_rejection"),
+    ({"mode": "no_reply"}, None, {}, None, "deliberately_declined"),
+    ({"status": "no_reply", "reason": "revision_limit_reached"}, None, None, None, "pipeline_failed"),
+    (None, None, {}, None, "pipeline_failed"),
+    ({}, {"status": ""}, None, None, "approved_not_confirmed_in_window"),
+    (None, {}, None, None, "outcome_unavailable"),
+])
+def test_candidate_disposition_preserves_competing_outcomes(decision, outcome, failure, local_rejection, expected):
+    inputs = (decision, outcome, failure, local_rejection)
+    before = copy.deepcopy(inputs)
+    assert provider_costs._candidate_reply_disposition(*inputs) == expected
+    assert inputs == before
+
+
+@pytest.mark.parametrize("case", ["short_circuit", "fallback", "pipeline_exception"])
+def test_candidate_disposition_uses_current_globals_in_eager_order(monkeypatch, case):
+    calls = []
+
+    class Row(dict):
+        def __init__(self, label, **fields):
+            super().__init__(fields)
+            self.label = label
+
+        def get(self, key, default=None):
+            calls.append((self.label, key))
+            return super().get(key, default)
+
+    class Status:
+        def __str__(self):
+            calls.append(("status", "str"))
+            monkeypatch.setattr(provider_costs, "_is_terminal_pipeline_failure", pipeline)
+            return "confirmed"
+
+    def current_terminal(reason):
+        calls.append(("current_terminal", reason))
+        return "terminal_clarification_mode_rejection"
+
+    def terminal(reason):
+        calls.append(("terminal", reason))
+        monkeypatch.setattr(provider_costs, "_terminal_local_rejection_outcome", current_terminal)
+        return "terminal_repetition_rejection" if case == "short_circuit" else None
+
+    def current_writer(reason):
+        calls.append(("current_writer", reason))
+        return reason == "decline"
+
+    def writer(reason):
+        calls.append(("writer", reason))
+        monkeypatch.setattr(provider_costs, "_is_writer_local_failure", current_writer)
+        return case == "short_circuit"
+
+    error = KeyError("pipeline classifier")
+
+    def pipeline(reason, status):
+        calls.append(("pipeline", reason, status))
+        if case == "pipeline_exception":
+            raise error
+        return True
+
+    def stale_pipeline(*args):
+        pytest.fail("pipeline classifier was bound before outcome status conversion")
+
+    monkeypatch.setattr(provider_costs, "_terminal_local_rejection_outcome", terminal)
+    monkeypatch.setattr(provider_costs, "_is_writer_local_failure", writer)
+    monkeypatch.setattr(provider_costs, "_is_terminal_pipeline_failure", stale_pipeline)
+    inputs = (
+        Row("decision", effective_reason="effective", reason="", no_reply_reason="decline", status="no_reply"),
+        Row("outcome", status=Status()),
+        {},
+        Row("local", effective_reason="local-effective", reason="local-reason"),
+    )
+    if case == "pipeline_exception":
+        with pytest.raises(KeyError) as raised:
+            provider_costs._candidate_reply_disposition(*inputs)
+        assert raised.value is error
+    else:
+        assert provider_costs._candidate_reply_disposition(*inputs) == "published"
+    expected = [("decision", "no_reply_reason"), ("terminal", "decline")]
+    if case != "short_circuit":
+        expected += [("local", "reason"), ("current_terminal", "local-reason")]
+    expected += [
+        ("decision", "effective_reason"), ("decision", "reason"),
+        ("decision", "no_reply_reason"), ("local", "effective_reason"),
+        ("local", "reason"), ("writer", "effective"),
+    ]
+    if case != "short_circuit":
+        expected += [("current_writer", ""), ("current_writer", "decline")]
+    expected += [
+        ("outcome", "status"), ("status", "str"), ("decision", "reason"),
+        ("decision", "no_reply_reason"), ("decision", "status"),
+        ("pipeline", "decline", "no_reply"),
+    ]
+    assert calls == expected
+
+
+def test_cost_summary_delegates_prepared_rows_before_call_coverage(monkeypatch):
+    decision = {"kind": "reply_strategy_decision", "lane": "mention", "target_id": "101", "model_call_count": 1}
+    outcome = {"kind": "reply_strategy_outcome", "lane": "mention", "target_id": "101", "status": "confirmed", "model_call_count": 1}
+    failure = {"kind": "reply_strategy_failure", "lane": "mention", "target_id": "101"}
+    local = {"kind": "reply_strategy_local_rejection", "lane": "unknown", "target_id": "101", "reason": "writer_link_repair_failed"}
+    usage = [{"lane": "mention", "context_id": "101", "cost_in_usd_ticks": None, "call_start_matched": True}]
+    calls = []
+    selected = "published"
+    classify = provider_costs._candidate_reply_disposition
+    integer = provider_costs.optional_int_usage_value
+
+    def disposition(*rows):
+        assert all(actual is expected for actual, expected in zip(rows, (decision, outcome, failure, local)))
+        assert classify(*rows) == selected
+        calls.append("disposition")
+        return selected
+
+    def observed_integer(value):
+        calls.append(("integer", value))
+        return integer(value)
+
+    monkeypatch.setattr(provider_costs, "_candidate_reply_disposition", disposition)
+    monkeypatch.setattr(provider_costs, "optional_int_usage_value", observed_integer)
+    inputs = (usage, [decision, outcome, failure, local])
+    before = copy.deepcopy(inputs)
+    summary = digest.xai_reply_cost_summary(*inputs)
+    assert digest.xai_reply_cost_summary is provider_costs.xai_reply_cost_summary
+    assert not hasattr(digest, "_candidate_reply_disposition")
+    assert calls[:5] == [("integer", 1), ("integer", 1), ("integer", None), "disposition", ("integer", 1)]
+    candidate = summary["candidates"][0]
+    assert candidate["outcome"] is selected
+    assert candidate["call_coverage"] == "multiple_pipeline_executions"
+    assert candidate["uncosted_successful_calls"] == 1
+    assert provider_costs.format_reported_cost(candidate) == "unknown"
+    assert summary["effective_per_published_reply"] is None
+    assert summary["per_reviewed_candidate"] is None
+    assert summary["known_cost_per_costed_call"] is None
+    assert summary["known_cost_in_usd_ticks"] == 0
+    assert inputs == before

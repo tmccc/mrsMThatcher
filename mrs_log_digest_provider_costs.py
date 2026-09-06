@@ -197,6 +197,62 @@ def xai_usage_totals(events: List[Dict[str, Any]]) -> Dict[str, Any]:
     }
 
 
+def _candidate_reply_disposition(
+    decision: Optional[Dict[str, Any]],
+    outcome: Optional[Dict[str, Any]],
+    failure: Optional[Dict[str, Any]],
+    local_rejection: Optional[Dict[str, Any]],
+) -> str:
+    """Select candidate disposition with eager classification and ordered precedence."""
+    terminal_local_outcome = _terminal_local_rejection_outcome(
+        (decision or {}).get("no_reply_reason")
+    ) or _terminal_local_rejection_outcome(
+        (local_rejection or {}).get("reason")
+    )
+    writer_local_failure = any(
+        _is_writer_local_failure(value)
+        for value in (
+            (decision or {}).get("effective_reason"),
+            (decision or {}).get("reason"),
+            (decision or {}).get("no_reply_reason"),
+            (local_rejection or {}).get("effective_reason"),
+            (local_rejection or {}).get("reason"),
+        )
+    )
+    outcome_status = str((outcome or {}).get("status") or "")
+    decision_terminal_failure = _is_terminal_pipeline_failure(
+        (decision or {}).get("reason")
+        or (decision or {}).get("no_reply_reason"),
+        (decision or {}).get("status"),
+    )
+    if outcome_status in {"confirmed", "posted"}:
+        disposition = "published"
+    elif outcome is not None and (
+        "fail" in outcome_status or outcome_status not in {"", "confirmed"}
+    ):
+        disposition = "posting_failed"
+    elif writer_local_failure:
+        disposition = "writer_local_failure"
+    elif terminal_local_outcome is not None:
+        disposition = terminal_local_outcome
+    elif (
+        decision is not None
+        and (
+            decision.get("mode") == "no_reply"
+            or decision.get("status") == "no_reply"
+        )
+        and not decision_terminal_failure
+    ):
+        disposition = "deliberately_declined"
+    elif decision_terminal_failure or failure is not None:
+        disposition = "pipeline_failed"
+    elif decision is not None:
+        disposition = "approved_not_confirmed_in_window"
+    else:
+        disposition = "outcome_unavailable"
+    return disposition
+
+
 def xai_reply_cost_summary(
     usage_events: List[Dict[str, Any]],
     reply_events: List[Dict[str, Any]],
@@ -291,52 +347,9 @@ def xai_reply_cost_summary(
         local_rejection = local_rejections.get(key) or local_rejections_by_target.get(
             context_id
         )
-        terminal_local_outcome = _terminal_local_rejection_outcome(
-            (decision or {}).get("no_reply_reason")
-        ) or _terminal_local_rejection_outcome(
-            (local_rejection or {}).get("reason")
+        disposition = _candidate_reply_disposition(
+            decision, outcome, failure, local_rejection
         )
-        writer_local_failure = any(
-            _is_writer_local_failure(value)
-            for value in (
-                (decision or {}).get("effective_reason"),
-                (decision or {}).get("reason"),
-                (decision or {}).get("no_reply_reason"),
-                (local_rejection or {}).get("effective_reason"),
-                (local_rejection or {}).get("reason"),
-            )
-        )
-        outcome_status = str((outcome or {}).get("status") or "")
-        decision_terminal_failure = _is_terminal_pipeline_failure(
-            (decision or {}).get("reason")
-            or (decision or {}).get("no_reply_reason"),
-            (decision or {}).get("status"),
-        )
-        if outcome_status in {"confirmed", "posted"}:
-            disposition = "published"
-        elif outcome is not None and (
-            "fail" in outcome_status or outcome_status not in {"", "confirmed"}
-        ):
-            disposition = "posting_failed"
-        elif writer_local_failure:
-            disposition = "writer_local_failure"
-        elif terminal_local_outcome is not None:
-            disposition = terminal_local_outcome
-        elif (
-            decision is not None
-            and (
-                decision.get("mode") == "no_reply"
-                or decision.get("status") == "no_reply"
-            )
-            and not decision_terminal_failure
-        ):
-            disposition = "deliberately_declined"
-        elif decision_terminal_failure or failure is not None:
-            disposition = "pipeline_failed"
-        elif decision is not None:
-            disposition = "approved_not_confirmed_in_window"
-        else:
-            disposition = "outcome_unavailable"
 
         reported_call_count: Optional[int] = None
         for source in (outcome, decision, failure):

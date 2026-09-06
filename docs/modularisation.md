@@ -3593,3 +3593,114 @@ sorting, call coverage, cost arithmetic and missing-spend semantics in place.
 This makes source/outcome precedence independently understandable; line counts
 alone do not justify further splits or establish that modularisation is exhausted.
 That boundary is assessed only, not implemented here. No next session is launched.
+
+## Extracted in stage 38
+
+Base: `7189f17a9a35728d4be5c68a45e5974612318cb7`, verified against
+`origin/codex/modularisation-stage37` and the clean previous worktree. Worktree:
+`/disks/disk1/research/mrsMThatcher-modularisation-stage38`; branch:
+`codex/modularisation-stage38`. The user's stages 37–40 authorisation supersedes
+historical stop-at-36 instructions. This session implements only stage 38;
+README's complete offline suite remains deferred to the supervisor after stage 40.
+
+`mrs_log_digest_provider_costs._candidate_reply_disposition` receives the four
+prepared rows `decision`, `outcome`, `failure` and `local_rejection`. It contains
+the exact **five statements / 46 lines** formerly at owner lines 294–339, dedented
+and followed only by `return disposition`. The three-line call binds that result
+directly after local-rejection lookup and before `reported_call_count` initialisation.
+Dependency/later-use checks confirm the four temporary flags have no later uses.
+The three reason classifiers remain current same-owner globals: eager evaluation,
+field-access order, `or`/`any` short-circuits and exceptions still occur before a
+higher-priority published outcome can win. Exact status interpretation and
+publication/posting-failure, writer-local, terminal-local, deliberate-decline,
+pipeline-failure, approval and unavailable precedence are unchanged.
+
+Evidence association, target fallback, sorting, call coverage, missing-spend
+semantics, arithmetic and result construction remain in the summary. No module,
+reverse import, callback parameter/storage, generic state object, prebinding or
+unrelated cleanup was added. Removing the helper and restoring the original span
+reconstructs the entire original owner exactly in text and AST. Public signatures,
+annotations/defaults and every existing test assertion are preserved. The root and
+all 29 other digest companions are byte-identical to stage 37.
+
+| Physical lines / AST definition spans | Stage 37 | Stage 38 |
+| --- | ---: | ---: |
+| Provider-cost owner | 602 | 615 |
+| `xai_reply_cost_summary` | 403 | 360 |
+| `_candidate_reply_disposition` | — | 54 |
+| Root digest / `analyse` | 3,462 / 1,318 | 3,462 / 1,318 |
+
+Baseline cost tests: **30 passed**. Final focused validation: **69 passed,
+167 deselected**, using the established temporary-HOME, dummy endpoints and
+default-deny network isolation:
+
+```bash
+MRS_TEST_MODE=1 PYTEST_DISABLE_PLUGIN_AUTOLOAD=1 PYTHONDONTWRITEBYTECODE=1 \
+python3 -m pytest -q -p no:cacheprovider \
+  tests/test_digest_costs.py tests/test_openai_cost_digest.py \
+  tests/test_digest_reply_observability.py tests/test_mrs_log_digest.py \
+  -k 'cost or candidate_disposition or provider_observation or single_call_digest or old_multi_stage or reply_summary or pipeline_failure or provider_error_reset'
+```
+
+Three new test functions supply 12 concrete precedence/status cases, three
+current-global/eager-order/error cases, and one prepared-row/target-fallback/direct
+result-binding case before call coverage. Existing inert import isolation also
+runs against the provider-cost owner; root aliases remain exact. All three
+call-order cases pass against the original stage-37 span, including replacement
+of all three classifiers during evaluation and the original exception object
+despite a confirmed outcome.
+
+Three fixed-path/time full report pairs reuse the existing capture/reference-graph
+machinery, provider log forms and published-cache fixture builder:
+
+| Asserted fixture | Records | JSON bytes | Markdown bytes |
+| --- | ---: | ---: | ---: |
+| Publication over writer/local/pipeline outcomes; partial call costs, available cache | 11 | 38,915 | 12,687 |
+| Posting failure over writer/local/pipeline outcomes; zero call cost, absent cache | 9 | 37,524 | 12,035 |
+| Terminal local over pipeline failure; unavailable outcome, missing/unattributed costs | 13 | 35,919 | 11,935 |
+
+Complete bytes, raw `analyse` values/types/order/reference graphs and stderr match.
+Schema 3 does not invoke this legacy summary or expose its retired cost sections,
+so each comparison separately calls `xai_reply_cost_summary` on the same parsed
+usage/events/attempts and compares its complete result against the original owner.
+These three original-owner cases also assert known/zero/unknown distinctions,
+missing-spend suppression and unchanged input graphs. Producer hashes and
+pre-commit HEADs were independently verified equal; no substitutions or
+normalisation were used. Fixture bytes/modes/mtimes remain unchanged. Temporary
+scripts, fixtures and outputs are outside the worktree at
+`/tmp/mrs-stage38-i7868nje`. Two temporary-script expectations were corrected to
+the existing `US$0E-8` zero display and absent `amount` key for an unavailable cache;
+no product change followed. These are focused synthetic checks, not production
+replay or an exhaustive matrix. `python3 tools/check_python_documentation.py`
+passes for **209 modules**; `git diff --check` passes. No broad suite or bot
+execution ran; production/configuration/state/log/image-pool files remain untouched.
+No provider/posting calls, service control, merge, deployment or force-push occurred.
+
+Read-only next-stage assessment:
+
+- **Stage 39 recommendation:** extract the complete nested `observe_name`
+  algorithm in `mrs_log_digest_remote_write.remote_write_safety_snapshot`
+  (lines 854–950: **97 definition lines / 89 body lines**; snapshot 602, owner
+  1,486). Symbol-table inspection confirms exactly four closure inputs:
+  `project_dir`, `active_entries`, `read_bytes`, `parse_json_object`. A same-owner
+  implementation can receive these alongside the existing name/kind/role/phase
+  parameters, retaining the nested signature/position as a thin adapter. Keep
+  lstat absence/error handling, partial-entry append, read/hash/parse order,
+  retirement bindings and broad identity-error boundary together. Constants,
+  classifiers and OS/hash helpers retain current owner lookup. Coupling is bounded;
+  no separate module or narrower acquisition/error split is warranted.
+- **Stage 40 candidate:** keep canonical historical evidence indexing and the
+  complete selected historical-event enrichment together in the reply-text owner
+  (lines 670–805: **four statements / 136 lines**; enrichment 601, owner 937).
+  The eight prepared inputs are `historical_reply_text_evidence`, `events`,
+  `production_ids`, `consumed_historical_evidence`, `enriched_records`, `resolve_text`,
+  `bounded_source_refs` and `warn`. The two local indexes have no later uses;
+  the existing consumed/enriched sets and event rows must be mutated in place,
+  with no returned state. Keep authority/canonical checks, cross-parent/reply
+  conflicts, candidate expansion, source-reference/omission merging, warning order
+  and mutations intact. Shared validators/hash regex remain same-owner globals;
+  remaining-evidence synthesis and final health aggregation stay outside. This is
+  more coupled than stage 39, but a coherent complete phase; splitting its index,
+  conflict and mutation steps separately would be less clear.
+
+Neither recommendation is implemented here. No next session or stage 41 is started.
