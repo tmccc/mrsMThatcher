@@ -3930,3 +3930,74 @@ Production Git metadata remains `master` at
 `af5eda7c163a8174ec1365060aa923d21787e7bd`. No production changes, service
 operations, live provider calls or private configuration/state/credential reads
 occurred. Only stage44 is implemented; supervisor review precedes the next stage.
+
+## Stage 45 — Receipt retirement and exact transport source verification
+
+Baseline: `6929c30e7350f65e9983c051df6f835da19617dd`, verified clean on
+`codex/bot-modularisation-stage45`; origin's stage44 matched and stage45 was
+absent. This invocation used the scoped inputs and immutable parent source.
+
+`mrs_bot_receipt_retirement.py` owns eight exact bodies/docstrings spanning
+**570 original definition lines**: the confirmed-context matcher and historical
+retirement authority, interrupted source and media resumers, current source
+retirement, source-byte reconstruction, lineage verification and journal
+retirement. Seven `_receipt_retirement` adapters and one exact pure matcher
+alias retain public signatures/defaults/annotations and forward **0/12/20/3/
+14/8/8/7** current dependencies. Historical formatter imports remain call-time.
+
+Compatibility preserves current/legacy source-field and ordinal distinctions,
+unique marker-bound terminal history, durable outbox authority before source
+resume, active-lane and owning-journal checks, and journal-before-source
+retirement. Media recovery retains the initial lock, narrow lstat errors,
+canonical prepared owner and exact retired result. Exact bytes, validators,
+serializers, digests, lane-specific confirmation epochs and separately issued
+mutation authorities retain their references and order. Scalar state, paths,
+locks/configuration, the control-snapshot resumer and uncertainty latch remain
+in root; low-level engines and all 44 earlier owners remain unchanged.
+
+Evidence: `/tmp/mrs-bot-stage45-1b6YX6GT`. Checked stage44 helper adaptations
+retain the standard alias branch. Pre-edit documentation passed for **253
+modules**. Selected **15 of 17** curated candidates plus three safety checks:
+**18 explicit nodes across nine files; 28 collected in 3.72s; 28 passed in
+10.13s**. Coverage includes wrong-source rejection before mutation, exact
+failed/confirmed/legacy context authority, paused four-lane resume, multiple
+lanes and prepared source/journal overlap, literal fresh-process media crash,
+recovery and idempotence for both main lanes, verified mutation authority,
+conversational durable state before retirement and real quote-image loopback.
+
+Current validation: **30 explicit nodes across ten files; 81 collected in
+3.75s; 81 passed in 11.82s**. Twelve new contract functions / **53 cases** cover
+guarded import, current dependencies/signatures, alias and reference identity,
+call-time imports, native errors and ordered authority/retirement boundaries.
+They reuse the existing autouse receipt isolation and production lane builders.
+Existing assertions, parametrization and fixtures are unchanged. Both runs
+used AST-validated nonempty selection and successful nonempty collection before
+explicit pytest arguments under `set -euo pipefail`, with
+`PYTHONUSERBASE=/home/tonym/.local MRS_TEST_MODE=1
+PYTEST_DISABLE_PLUGIN_AUTOLOAD=1 PYTHONDONTWRITEBYTECODE=1 python3 -m pytest -q
+-p no:cacheprovider`. TMPDIR is beneath the evidence root; temporary HOME/state,
+dummy credentials, dead proxies, external socket denial and explicit loopback
+providers remain in effect. No pytest run failed.
+
+`verify_stage45.py` / `comparison.txt` prove exact bodies, signatures/defaults/
+annotations, nested compiled dependencies and forwarding without importing the
+bot. Whole-parent-root reconstruction is byte-identical, including **515
+unaffected functions** and all unrelated statements. All earlier owners,
+existing tests/fixtures and digest docs are unchanged. README/API add only the
+owner; this report is append-only. Post-edit documentation (**254 modules**)
+and `git diff --check` pass. Passing tests and documentation coverage were not
+repeated for this report-only edit; complete selections, logs and helpers remain
+in the evidence directory.
+
+| Runtime file | Before lines / bytes | After lines / bytes |
+|---|---:|---:|
+| `mrsMThatcher2.py` | 14,686 / 577,001 | 14,273 / 562,960 |
+| `mrs_bot_receipt_retirement.py` | absent | 674 / 25,626 |
+
+The root loses **413 lines / 14,041 bytes**; combined runtime source grows by
+**261 lines / 11,585 bytes**. New tests: **600 lines / 36,345 bytes**.
+Production metadata remains `master` at
+`af5eda7c163a8174ec1365060aa923d21787e7bd`; production, services, private
+configuration/state/credentials and live providers were untouched. Configured
+Astra/max remains unchanged. Only stage45 is implemented; supervisor review
+precedes the next stage.
