@@ -472,3 +472,110 @@ spacing calculations; retain current root callbacks/settings and the same-object
 filter return. Keep state updates, persistence and selector orchestration outside
 that boundary. The supervisor selects the next scope in a fresh invocation;
 stage4 implements none of it.
+
+## Stage 5 — ordinary quotation eligibility and candidates
+
+Baseline: `92d666f9961aa37c2716402ae81eb7ad5a3e0ecf` (2026-09-06).
+On `big-nas-2` as `tonym`, worktree
+`/disks/disk1/research/mrsMThatcher-bot-modularisation-stage5` started clean on
+`codex/bot-modularisation-stage5`; HEAD and remote
+`origin/codex/bot-modularisation-stage4` matched that parent. The existing runtime
+map remains applicable; inspection focused on this family and its callers.
+
+### Extraction and compatibility
+
+`mrs_bot_quote_candidates.py` owns the thirteen requested helpers for seasonal
+windows/weights, source/hash preparation, canonical ordinary eligibility and
+candidate/cycle selection. Bodies retain their parent order. `mm_dd_in_window`
+and `weighted_random_choice` are aliases; eleven explicit adapters retain all
+root names, signatures, defaults and annotations, supplying current root helpers,
+configuration and logger on each call.
+
+Window/type handling, arithmetic/clamping, source blank/duplicate/exclusion order,
+first matching duplicate, counters, metadata/season-status/candidate references
+and exact logs remain unchanged. Weighted choice uses the shared production RNG
+stream, including nonpositive-total choice, `>=`, final fallback and native
+errors. Source loading retains default encoding, validation order and the root
+clock. Canonical eligibility keeps its deferred formatter import, core/schema/
+rule/count/alias validation, exact source/packet hashes and attribution partition;
+it remains uncached and independent of context-only sidecars. Cycle resets clear
+the caller's existing set at the original points and preserve fallback ordering.
+
+The four previous owners are byte-identical. Configuration, exception authority,
+durable histories/persistence, image matching/spacing, research implementation,
+publishing and scheduling remain outside the owner. There is no reverse bot
+import, retained callback, new cache/state abstraction or import-time runtime
+work. README and `docs/python_api.md` include the companion; digest documentation
+is unchanged.
+
+### Validation
+
+Evidence is confined to `/tmp/mrs-bot-stage5-tRaXvC`. `selected-tests.txt` records
+36 file/node arguments: all five ordinary-eligibility integrity tests, the
+fourteen requested seasonal/cycle/duplicate/history/missing-analysis/bootstrap
+unit nodes, disabled experiment RNG and context-semantic independence, relevant
+harness canonical/alias/history/cache cases, real-selector futures/RNG cases,
+all four prior owner adapter/import files, guarded bootstrap and loopback
+fake-server quote-image posting. Existing assertions are unchanged; no broad
+suite or duplicate behavioural comparison suite was added.
+
+Before editing: documentation passed for **213 modules**; **81 passed in 13.61s**.
+After extraction: documentation passed for **214 modules**; **88 passed in
+14.05s**, including seven new tests in `tests/test_bot_quote_candidates.py`.
+They cover import safety, callbacks/settings, RNG/reference boundaries, ordering,
+default encoding, loader errors and reset/exclusion identity. The initial run had
+87 passes and one failure in 13.81s: a new assertion expected another Python
+version's empty-choice message. Comparing with native `random.choice([])` fixed the
+test without changing runtime code (`current-pytest-initial.txt`).
+
+Both runs retained repository conftest isolation: temporary HOME/state, dummy
+credentials, dead external proxies, denied external sockets and explicit
+loopback fake APIs. No production environment was sourced or live provider
+called; production code, configuration, credentials, durable state and service
+were untouched.
+
+```bash
+TMPDIR=/tmp/mrs-bot-stage5-tRaXvC PYTHONDONTWRITEBYTECODE=1 \
+  python3 tools/check_python_documentation.py
+mapfile -t stage5_tests < /tmp/mrs-bot-stage5-tRaXvC/selected-tests.txt
+TMPDIR=/tmp/mrs-bot-stage5-tRaXvC PYTHONUSERBASE=/home/tonym/.local \
+  MRS_TEST_MODE=1 PYTEST_DISABLE_PLUGIN_AUTOLOAD=1 PYTHONDONTWRITEBYTECODE=1 \
+  python3 -m pytest -q -p no:cacheprovider "${stage5_tests[@]}" \
+  tests/test_bot_quote_candidates.py
+TMPDIR=/tmp/mrs-bot-stage5-tRaXvC PYTHONDONTWRITEBYTECODE=1 \
+  python3 /tmp/mrs-bot-stage5-tRaXvC/verify_stage5.py
+git diff --check
+```
+
+The baseline omitted only the new test file. Logs are `baseline-documentation.txt`,
+`baseline-pytest.txt`, `current-documentation.txt`, `current-pytest.txt` and
+`comparison.txt`. The compact verification script adapts only stage 4's source
+equivalence check, using immutable `git show` text and ASTs without importing the
+bot: all **13 moved bodies** match byte-for-byte after reversing eight explicit
+dependency names; all root signatures/defaults/annotations match. Restoring the
+definitions and removing the import reconstructs the **entire parent root
+exactly**, including **572 unaffected definitions** and other root statements.
+All four prior owners, existing tests and digest documentation are unchanged.
+Documentation and `git diff --check` passed.
+
+| Runtime file | Before lines / bytes | After lines / bytes |
+|---|---:|---:|
+| `mrsMThatcher2.py` | 28,224 / 1,094,191 | 27,959 / 1,083,964 |
+| `mrs_bot_quote_candidates.py` | absent | 481 / 17,457 |
+| `mrs_bot_image_scoring.py` | 312 / 12,579 | 312 / 12,579 |
+| `mrs_bot_original_editorial.py` | 497 / 22,065 | 497 / 22,065 |
+| `mrs_bot_generated_identity.py` | 482 / 23,694 | 482 / 23,694 |
+| `mrs_bot_asset_metadata.py` | 432 / 15,942 | 432 / 15,942 |
+
+The root loses **265 lines / 10,227 bytes**. Combined runtime source grows by
+**216 lines / 7,230 bytes** for explicit dependency signatures, adapters and
+owner documentation.
+
+### Recommended next scope
+
+Consider the remaining read-only image source/spacing helpers:
+`image_selection_observability`, `generated_image_spacing_required`,
+`original_posts_since_generated_image`, `generated_images_allowed_by_spacing`
+and `filter_generated_images_by_spacing`. Keep state updates, persistence and
+selector orchestration outside that boundary. The supervisor chooses the next
+stage in a fresh invocation; stage 5 implements none of it.
