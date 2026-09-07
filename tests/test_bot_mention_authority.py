@@ -139,7 +139,8 @@ def test_active_guard_keeps_original_reference_and_reset_only_replaces_authority
     assert state["mention_backlog_reset_guard"] == {"base_since_id": "99", "head_traversal_started": False}
 
 
-def test_pending_copies_are_shallow_and_validation_assigns_only_on_inequality():
+@pytest.mark.parametrize("history_key", ["replied_to_ids", "replied_to_quote_post_ids"])
+def test_pending_copies_are_shallow_and_validation_assigns_only_on_inequality(history_key):
     candidate = mention(105, 205)
     raw = {"105": candidate}
     canonical = bot.canonical_mention_pending_candidates(raw, path=bot.STATE_FILE)
@@ -156,7 +157,7 @@ def test_pending_copies_are_shallow_and_validation_assigns_only_on_inequality():
     ) == (True, False)
     assert all(state[key] is value for key, value in before.items())
 
-    state["replied_to_ids"] = ["103"]
+    state[history_key] = ["103"]
     bot.record_terminal_reply_evaluation(state, target_id="104", lane="mention", reason="confirmed_no_reply")
     assert bot.validate_pending_mention_candidate_authority(
         state, path=bot.STATE_FILE, recover_pending_identity=True,

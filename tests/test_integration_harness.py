@@ -3673,9 +3673,9 @@ def test_local_config_validation_rejects_bad_values_and_cannot_override_paths_or
         assert server.posts == []
         assert "Unsupported local config key" in result.stdout
         assert "refusing to ignore a possible safety-setting typo" in result.stdout
-        assert "Ignoring invalid local config override ENABLE_AUTO_REPLIES" in result.stdout
-        assert "Ignoring invalid local config override MIN_SECONDS_BETWEEN_REPLIES" in result.stdout
-        assert "Ignoring invalid local config override MAX_MENTIONS_PER_CHECK" in result.stdout
+        assert "Rejecting local config due to invalid override ENABLE_AUTO_REPLIES" in result.stdout
+        assert "Rejecting local config due to invalid override MIN_SECONDS_BETWEEN_REPLIES" in result.stdout
+        assert "Rejecting local config due to invalid override MAX_MENTIONS_PER_CHECK" in result.stdout
         assert "LocalConfigError: Unsupported local config key" in result.stderr
         assert (base_dir / "bot_state.json").read_bytes() == state_before
     finally:

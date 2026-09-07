@@ -541,7 +541,12 @@ an installation marker but does not start posting or call an API.
 `mrs_log_digest.py` resolves project metadata through `--project-dir` (the
 repository/script directory by default), including when logs are passed by
 absolute path from another working directory. `--output PATH` atomically writes
-a report; otherwise output is written and flushed to stdout. Resume state is
+a report; explicit relative output paths resolve against the current working
+directory, independently of `--project-dir`. Otherwise output is written and
+flushed to stdout. Markdown and JSON both use bounded durable receipt/history evidence. Markdown
+shows confirmed public text previews and text-health conflicts; `--verbose-replies`
+also includes full exact confirmed text. Snapshot-only evidence does not count as
+a new publication in the selected log window. Resume state is
 advanced only after complete analysis, rendering, and successful report
 delivery.
 Supplying the canonical `mrsMThatcher.log` explicitly also includes numeric

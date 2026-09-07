@@ -201,9 +201,9 @@ Provider latency average/max: **1200.0 / 1200 ms**; published selected-window co
 | 2026-07-25 10:00:00 | 12345 |  |  |  |  |  |  |  | no |  | Quoted \| text\nSecond line — café |
 
 ## Historical context replies
-| time | status | parent_post_id | quote_id | weighted_character_count | verification_label | source_class | overall_reply_confidence | formatter_version | rendering_mode | shortening_applied | reason |
-| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
-| 2026-07-25 10:01:00 | completed | 12345 |  |  |  |  |  |  |  |  |  |
+| time | status | parent_post_id | quote_id | reply_post_id | public_reply_text | public_reply_text_status | public_reply_text_source | public_reply_text_reason | weighted_character_count | verification_label | source_class | overall_reply_confidence | formatter_version | rendering_mode | shortening_applied | reason |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| 2026-07-25 10:01:00 | completed | 12345 |  |  |  |  |  |  |  |  |  |  |  |  |  |  |
 
 Per-reply semantic-review disposition and ledger/projection hashes were not supplied reliably by these events; empty columns are omitted.
 

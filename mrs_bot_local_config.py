@@ -322,7 +322,7 @@ def load_validated_local_config_overrides(
                 SOURCE_DEFAULT_CONFIG_VALUES[key],
             )
         except Exception as exc:
-            log.error("Ignoring invalid local config override %s=%r: %s", key, value, exc)
+            log.error("Rejecting local config due to invalid override %s=%r: %s", key, value, exc)
             coercion_errors.append(f"{key}: {exc}")
             continue
 

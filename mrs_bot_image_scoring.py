@@ -172,7 +172,7 @@ def image_is_out_of_season(
     if "christmas" in occasions:
         return not mm_dd_in_window(today_mm_dd, "12-10", "12-28")
     if visible_season == "winter":
-        return not mm_dd_in_window(today_mm_dd, "12-01", "02-28")
+        return not mm_dd_in_window(today_mm_dd, "12-01", "02-29")
     if visible_season == "spring":
         return not mm_dd_in_window(today_mm_dd, "03-01", "05-31")
     if visible_season == "summer":

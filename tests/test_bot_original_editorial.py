@@ -263,7 +263,7 @@ def test_disabled_empty_and_selected_paths_keep_lazy_work_and_copy_boundaries(mo
     monkeypatch.setattr(bot, "original_editorial_shadow_result", lambda *args, **kwargs: (None, None))
     assert bot.apply_original_editorial_selection(quote, baseline, candidates, selection_phase="normal") is baseline
     assert bot.log_original_editorial_shadow_result(quote, baseline, candidates, selection_phase="normal") is None
-    payload = {"production_source": "original"}
+    payload = {"production_source": "original", "production_shadow_rank": 2}
     winner = {"basename": "t01.jpg", "baseline_score": 9, "editorial_adjustment": 2, "shadow_score": 11}
     logs = []
 

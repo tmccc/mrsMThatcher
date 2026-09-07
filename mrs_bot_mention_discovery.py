@@ -251,7 +251,9 @@ def get_mentions(
                 else ""
             )
             replied_ids = {
-                str(value) for value in state.get("replied_to_ids", [])
+                str(value)
+                for key in ("replied_to_ids", "replied_to_quote_post_ids")
+                for value in state.get(key, [])
             }
             for mention in valid_page:
                 mention_id = str(mention["id"])

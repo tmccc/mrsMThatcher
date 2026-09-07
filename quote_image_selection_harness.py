@@ -1038,7 +1038,7 @@ def configured_boundaries(ctx: HarnessContext, years: Sequence[int]) -> list[dic
         if "christmas" in occasions:
             windows.add(("12-10", "12-28", f"image:{basename}:christmas"))
         elif visible == "winter":
-            windows.add(("12-01", "02-28", f"image:{basename}:winter"))
+            windows.add(("12-01", "02-29", f"image:{basename}:winter"))
         elif visible == "spring":
             windows.add(("03-01", "05-31", f"image:{basename}:spring"))
         elif visible == "summer":
@@ -1051,7 +1051,10 @@ def configured_boundaries(ctx: HarnessContext, years: Sequence[int]) -> list[dic
             for kind, mm_dd in (("start", start), ("end", end)):
                 try:
                     month, day = (int(value) for value in mm_dd.split("-"))
-                    boundary = date(year, month, day)
+                    if kind == "end" and mm_dd == "02-29" and rule.startswith("image:"):
+                        boundary = date(year, 3, 1) - timedelta(days=1)
+                    else:
+                        boundary = date(year, month, day)
                 except ValueError:
                     continue
                 rows.append({"year": year, "rule": rule, "window_start": start, "window_end": end, "boundary_kind": kind, "boundary_date": boundary.isoformat()})

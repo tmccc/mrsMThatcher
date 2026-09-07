@@ -1,8 +1,9 @@
 """Historical context, configuration backscan and digest-cursor persistence.
 
 Only supplied log/cursor paths are read. Saving writes an indented UTF-8 cursor
-through its temporary sibling and replaces the supplied path, without creating
-parents or imposing a metadata policy. Current helpers, marker/tail constants,
+through a unique private temporary sibling, synchronises it and its parent,
+and atomically replaces the supplied path without creating parents. Current
+helpers, marker/tail constants,
 Counter factory, diagnostics and the save-time clock are explicit inputs; no
 callbacks are retained and importing this module performs no I/O or clock sample.
 Restored state/configuration remain history without current publication authority.
@@ -11,7 +12,9 @@ Source/window selection and save-after-delivery coordination stay in the digest.
 from __future__ import annotations
 
 import json
+import os
 import re
+import tempfile
 from collections import Counter
 from datetime import datetime
 from pathlib import Path
@@ -40,6 +43,7 @@ def read_resume_data(
     *,
     parse_json_object: Callable[..., Dict[str, Any]],
     diagnostic: Callable[[str], None],
+    read_bytes: Callable[..., bytes],
 ) -> Dict[str, Any]:
     """Read the digest resume file.
 
@@ -47,12 +51,12 @@ def read_resume_data(
     observed bot state/config so short quiet windows can still show budget and
     priority context.
     """
-    if not state_file.exists():
-        return {}
     try:
         return parse_json_object(
-            state_file.read_bytes(), label="digest resume state"
+            read_bytes(state_file, maximum=8 * 1024 * 1024), label="digest resume state"
         )
+    except FileNotFoundError:
+        return {}
     except Exception as e:
         diagnostic(f"WARNING: could not read state file {state_file}: {e}")
         return {}
@@ -161,9 +165,26 @@ def save_resume_time(
         "last_pending_qt": report.get("resume_context", {}).get("pending_qt"),
         "updated_at": clock_now().strftime("%Y-%m-%d %H:%M:%S"),
     }
-    tmp = state_file.with_suffix(state_file.suffix + ".tmp")
-    tmp.write_text(json.dumps(data, indent=2, ensure_ascii=False) + "\n", encoding="utf-8")
-    tmp.replace(state_file)
+    fd, name = tempfile.mkstemp(prefix=f".{state_file.name}.", suffix=".tmp", dir=state_file.parent)
+    tmp = Path(name)
+    try:
+        try:
+            handle = os.fdopen(fd, "w", encoding="utf-8")
+        except BaseException:
+            os.close(fd)
+            raise
+        with handle:
+            handle.write(json.dumps(data, indent=2, ensure_ascii=False) + "\n")
+            handle.flush()
+            os.fsync(handle.fileno())
+        os.replace(tmp, state_file)
+        directory_fd = os.open(state_file.parent, os.O_RDONLY | os.O_DIRECTORY)
+        try:
+            os.fsync(directory_fd)
+        finally:
+            os.close(directory_fd)
+    finally:
+        tmp.unlink(missing_ok=True)
 
 
 def state_context_is_within_window(
@@ -375,7 +396,6 @@ def apply_saved_context(
     report: Dict[str, Any],
     state_file: Path,
     *,
-    window_end: Optional[datetime] = None,
     read_resume_data: Callable[[Path], Dict[str, Any]],
     strip_internal_context_markers: Callable[[Any], Any],
     refresh_derived: Callable[[Dict[str, Any]], None],

@@ -636,6 +636,7 @@ def test_editorial_selection_keeps_adjusted_score_when_winner_is_unchanged(
     }
     payload = {
         "production_source": "original",
+        "production_shadow_rank": 1,
         "winner_changed": False,
     }
     monkeypatch.setattr(bot, "ENABLE_ORIGINAL_EDITORIAL_SHADOW_SCORING", True)

@@ -60,7 +60,7 @@ def x_request(
     x_create_response_anomaly_reason: Any,
     x_request_base_url: Any,
 ) -> dict:
-    """Send an authenticated X API request with bounded retries."""
+    """Send an authenticated X API request without automatic retries."""
     url = f"{x_request_base_url(method, path)}{path}"
     prepared_create_route = prepared_x_create_route(method, path)
     exact_create_route = exact_x_create_route(method, path)
@@ -620,7 +620,7 @@ def x_bearer_request(
     request_timeout: Any,
     requests: Any,
 ) -> dict:
-    """Send a bearer-authenticated X API request with bounded retries."""
+    """Send a bearer-authenticated X API request without automatic retries."""
     if str(method).upper() not in {"GET", "HEAD", "OPTIONS"}:
         raise AmbiguousRemotePostOutcome(
             "Bearer-authenticated X writes have no durable transaction authority",

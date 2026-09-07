@@ -103,6 +103,7 @@ def validate_runtime_config_values(
         "TWEET_CACHE_MAX_ITEMS",
         "ERROR_WINDOW_SECONDS",
         "MAX_X_ERRORS_PER_WINDOW",
+        "MAX_OPENAI_ERRORS_PER_WINDOW",
         "COOLDOWN_AFTER_REPEATED_ERRORS_SECONDS",
         "COOLDOWN_AFTER_429_SECONDS",
     }
@@ -213,15 +214,20 @@ def validate_production_credentials(
     single_call_reply: Any,
 ) -> None:
     """Validate required credentials without logging their values."""
-    if not all([CONSUMER_KEY, CONSUMER_SECRET, ACCESS_TOKEN, ACCESS_SECRET, MY_USER_ID]):
+    if not all(
+        isinstance(value, str) and value.strip()
+        for value in (CONSUMER_KEY, CONSUMER_SECRET, ACCESS_TOKEN, ACCESS_SECRET, MY_USER_ID)
+    ):
         raise RuntimeError(
             "Missing X credentials. Set X_CONSUMER_KEY, X_CONSUMER_SECRET, "
             "X_ACCESS_TOKEN, X_ACCESS_SECRET, X_MY_USER_ID"
         )
+    if not MY_USER_ID.isascii() or not MY_USER_ID.isdigit():
+        raise RuntimeError("X_MY_USER_ID must be a numeric X account ID")
     if (
         ENABLE_AUTO_REPLIES
         and single_call_reply.get("enabled") is True
-        and not OPENAI_API_KEY
+        and not (isinstance(OPENAI_API_KEY, str) and OPENAI_API_KEY.strip())
     ):
         raise RuntimeError(
             "single_call_reply is enabled, but OPENAI_API_KEY is not set"

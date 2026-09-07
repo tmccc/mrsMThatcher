@@ -823,7 +823,7 @@ def test_bootstrap_is_explicit_valid_and_idempotent(tmp_path, monkeypatch):
         "MY_USER_ID",
         "OPENAI_API_KEY",
     ):
-        monkeypatch.setattr(bot, key, "test-value")
+        monkeypatch.setattr(bot, key, "12345" if key == "MY_USER_ID" else "test-value")
     bot.production_bootstrap(configure_file_logging=False)
     path.write_text("{")
     bot.production_bootstrap(configure_file_logging=False)

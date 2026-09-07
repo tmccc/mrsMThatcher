@@ -352,7 +352,7 @@ def control_bool(
             return True
         if normalized in {"0", "false", "no", "off"}:
             return False
-    log.warning("Ignoring invalid runtime control boolean %s=%r; failing open", key, value)
+    log.warning("Invalid boolean passed directly to control_bool for %s=%r; returning false (runtime loader rejects invalid controls)", key, value)
     return False
 
 
@@ -376,7 +376,7 @@ def control_pause_active(
             try:
                 until_epoch = parse_control_time(data.get(key))
             except ValueError as exc:
-                log.error("Ignoring invalid control pause %s=%r: %s", key, data.get(key), exc)
+                log.error("Invalid pause passed directly to control_pause_active for %s=%r; runtime loader rejects invalid controls: %s", key, data.get(key), exc)
                 continue
             if until_epoch > current:
                 return True, key, until_epoch

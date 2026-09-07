@@ -17,3 +17,8 @@ newline. No fields or text are normalised during comparison.
 Paths and time values are synthetic and fixed; loading these reports performs
 no state reads or provider calls. Keep expected Markdown independent of the
 current renderer when making deliberate presentation changes.
+
+The populated historical-reply table was deliberately updated for the combined
+bot/digest review fixes to include public post identity and confirmed-text
+status/source columns. Its legacy synthetic row leaves these unavailable fields
+empty; the source JSON remains unchanged.

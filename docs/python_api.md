@@ -198,8 +198,9 @@ Context/cursor callers retain `read_resume_data`, `save_resume_time`,
 `state_context_is_within_window`, `strip_internal_context_markers`, `merge_context`,
 `extract_config_pairs`, `merge_context_from_log_backscan`,
 `find_latest_config_before`, `parse_partial_state_from_msg` and
-`apply_saved_context` through the digest with their original annotations,
-signatures and defaults. Config-pair and partial-state parsing are direct aliases;
+`apply_saved_context` through the digest. The unused `window_end` argument on
+`apply_saved_context` has been removed. Config-pair and partial-state parsing are
+direct aliases;
 eight thin wrappers supply current dependencies. `INTERNAL_CONTEXT_KEYS` belongs
 to the context owner and retains its root key-set alias; recursive stripping
 receives both the current set and current root recursive helper. Annotations use
@@ -209,24 +210,27 @@ Merges retain fill-only behavior, shallow current copies, nested sharing and
 annotations; backscan formatting runs only for a truthy timestamp after nonempty
 prior context. Config scanning receives the current self-test predicate, record
 iterator and config extractor, preserving the `before=None` fast exit, read order,
-duplicate identity, timestamp/path/ordinal ordering and repeated extraction. Root
-still chooses the logs and cutoff. Partial-state parsing retains its fixed fields,
+duplicate identity, timestamp/path/ordinal ordering and repeated extraction. These
+compatibility helpers remain available; routine digest runs no longer backscan
+historical logs to populate current configuration. Partial-state parsing retains
+its fixed fields,
 regexes and permissive JSON/truncation recovery.
 
 Cursor reads use the current strict native parser and diagnostic callback with
-the existing warning and exception boundary. Saving receives current cursor,
+bounded no-follow regular-file reads. Missing or corrupt cursors remain fail-open
+with diagnostics for inspection or parse failures. Saving receives current cursor,
 stripping, fingerprint, timestamp and boundary/tail helpers, `Counter`, tail limit
 and a lazy clock callback. It preserves conditional old-cursor reads, historical
 fallback when runtime input is unavailable, clean-context copies, spacing sharing,
 boundary multiplicity and bounded tails. The clock is sampled only while evaluating
-`updated_at`; JSON key order, indentation, Unicode, newline, temporary sibling,
-`write_text`/`replace` order and failures remain unchanged. No parent creation or
-metadata policy is added.
+`updated_at`; JSON key order, indentation, Unicode and newline remain unchanged.
+A unique private temporary sibling is flushed and fsynced, then atomically
+replaced and the parent directory fsynced. Parents are not created.
 
 `apply_saved_context` reads history before attaching cursor metadata, retains
 state/config only as historical diagnostics, makes the existing shallow spacing
-copy and finally calls the current `refresh_derived`. Its `window_end` remains
-unused. Restoration confers no publication authority and does not replace current
+copy and finally calls the current `refresh_derived`. Restoration confers no
+publication authority and does not replace current
 runtime/evidence loading. Source/window selection, strict publication checks,
 schema/producer identity and `run_digest` application/save ordering stay in root.
 The owner has no reverse imports, retained callbacks or dependency container.
@@ -1153,10 +1157,11 @@ unknown values, telemetry bounds, callback-return identity, duplicate coalescing
 event order, JSON schema 3 and Markdown are unchanged. No callbacks or mutable
 analysis state are stored globally.
 
-Visual-context callers retain `parse_reply_visual_description_event` and
-`reply_visual_context_report` as explicit digest imports from
-`mrs_log_digest_visual_context`. All six `REPLY_VISUAL_DESCRIPTION_*` constants
-move with the parser and retain their digest aliases. The unchanged
+The digest retains `parse_reply_visual_description_event` from
+`mrs_log_digest_visual_context` for schema-3 compatibility validation/counts.
+Unused visual-event collection and imports are removed. The retired report
+helper and its constants remain in the visual module for legacy callers. The
+unchanged
 `SHA256_LOWER_RE` already belongs to `mrs_log_digest_values`; the visual leaf and
 other digest validators share that definition. The visual leaf uses the existing
 `_normalise_lane` without merging the distinct lane normalisers.

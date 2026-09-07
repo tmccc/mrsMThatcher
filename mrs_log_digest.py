@@ -13,8 +13,9 @@ Examples:
   # JSON output:
   ./mrs_log_digest.py --json > digest.json
 
-By default this expects to be run in the directory containing mrsMThatcher*.log*
-files. It stores its resume timestamp in .mrs_log_digest_state.json.
+Logs and the default .mrs_log_digest_state.json cursor are discovered through
+--project-dir (the script directory by default). Explicit relative output paths
+resolve against the current working directory.
 
 No third-party dependencies.
 
@@ -419,16 +420,7 @@ from mrs_log_digest_reply_strategy import (
     _no_reply_category,
     reply_strategy_summary,
 )
-from mrs_log_digest_visual_context import (
-    REPLY_VISUAL_DESCRIPTION_EVENT_FIELDS,
-    REPLY_VISUAL_DESCRIPTION_STATUSES,
-    REPLY_VISUAL_DESCRIPTION_MAX_SUPPORTED_IMAGES,
-    REPLY_VISUAL_DESCRIPTION_MAX_REPORTED_IMAGES,
-    REPLY_VISUAL_DESCRIPTION_MAX_CALL_COUNT,
-    REPLY_VISUAL_DESCRIPTION_MAX_SCHEMA_VERSION,
-    parse_reply_visual_description_event,
-    reply_visual_context_report,
-)
+from mrs_log_digest_visual_context import parse_reply_visual_description_event
 from mrs_log_digest_image_usage import (
     generated_image_utilisation,
     generated_pool_runway,
@@ -702,6 +694,7 @@ def read_resume_data(state_file: Path) -> Dict[str, Any]:
     return _read_resume_data(
         state_file,
         parse_json_object=_strict_native_json_object,
+        read_bytes=read_stable_regular_bytes,
         diagnostic=lambda message: print(message, file=sys.stderr),
     )
 
@@ -804,13 +797,20 @@ def resolve_explicit_logs(paths: Iterable[Path], project_dir: Path) -> List[Path
 def digest_execution_lock(path: Path):
     """Hold a separate, nonblocking lock for one stateful/output digest run."""
     path.parent.mkdir(parents=True, exist_ok=True)
-    handle = path.open("a+", encoding="utf-8")
+    fd = os.open(path, os.O_RDWR | os.O_CREAT | os.O_NOFOLLOW | os.O_NONBLOCK, 0o600)
+    try:
+        if not stat.S_ISREG(os.fstat(fd).st_mode):
+            raise RuntimeError(f"Digest lock is not a regular file: {path}")
+        handle = os.fdopen(fd, "r+", encoding="utf-8")
+    except BaseException:
+        os.close(fd)
+        raise
     try:
         try:
             fcntl.flock(handle.fileno(), fcntl.LOCK_EX | fcntl.LOCK_NB)
         except BlockingIOError as exc:
             handle.seek(0)
-            owner = handle.read().strip() or "owner unavailable"
+            owner = handle.read(4096).strip() or "owner unavailable"
             raise RuntimeError(f"Another digest process holds {path}: {owner}") from exc
         handle.seek(0)
         handle.truncate()
@@ -1653,7 +1653,6 @@ def analyse(
     confirmed_reply_recovery: List[Dict[str, Any]] = []
     asset_health: List[Dict[str, Any]] = []
     reply_media_context: List[Dict[str, Any]] = []
-    reply_visual_description_events: List[Dict[str, Any]] = []
     media_upload_incidents: List[Dict[str, Any]] = []
     remote_write_transactions: List[Dict[str, Any]] = []
     x_requests: List[Dict[str, Any]] = []
@@ -2057,12 +2056,6 @@ def analyse(
                 if visual_event is None:
                     stats["reply_visual_description_malformed_events"] += 1
                 else:
-                    reply_visual_description_events.append(
-                        {
-                            **visual_event,
-                            "time": r.ts.strftime("%Y-%m-%d %H:%M:%S"),
-                        }
-                    )
                     stats["reply_visual_description_events"] += 1
             elif event_obj and event_obj.get("event") == "main_post_posted":
                 record_main_post_publication(
@@ -2899,7 +2892,7 @@ def analyse(
                     for key, value in pending_mention.items()
                     if not key.startswith("_")
                 }
-                if active_xai_context
+                if pending_mention
                 else None
             ),
             "pending_qt": (
@@ -2908,7 +2901,7 @@ def analyse(
                     for key, value in pending_qt.items()
                     if not key.startswith("_")
                 }
-                if active_xai_context
+                if pending_qt
                 else None
             ),
         },
@@ -2961,14 +2954,11 @@ def refresh_derived(report: Dict[str, Any]) -> None:
 def apply_saved_context(
     report: Dict[str, Any],
     state_file: Path,
-    *,
-    window_end: Optional[datetime] = None,
 ) -> None:
     """Load digest-cursor history without presenting it as current bot state."""
     _apply_saved_context(
         report,
         state_file,
-        window_end=window_end,
         read_resume_data=read_resume_data,
         strip_internal_context_markers=strip_internal_context_markers,
         refresh_derived=refresh_derived,
@@ -3046,15 +3036,15 @@ def main(argv: Optional[List[str]] = None) -> int:
         "logs",
         nargs="*",
         type=Path,
-        help="Optional explicit log files. If omitted, logs are auto-discovered in the current directory.",
+        help="Optional explicit log files. If omitted, logs are auto-discovered in --project-dir (the script directory by default).",
     )
     ap.add_argument("--since", help="Only include records at/after this local timestamp, e.g. '2026-06-25 08:00'. Overrides saved resume time.")
     ap.add_argument("--until", help="Only include records at/before this local timestamp.")
     ap.add_argument("--json", action="store_true", help="Emit machine-readable JSON instead of Markdown.")
-    ap.add_argument("--output", type=Path, help="Atomically write the report to this file instead of stdout.")
-    ap.add_argument("--markdown-output", type=Path, help="Also atomically write Markdown to this file.")
-    ap.add_argument("--json-output", type=Path, help="Also atomically write structured JSON to this file.")
-    ap.add_argument("--verbose-replies", action="store_true", help="Include truncated context-reply previews in Markdown event detail.")
+    ap.add_argument("--output", type=Path, help="Atomically write the report to this file instead of stdout; relative paths resolve against CWD.")
+    ap.add_argument("--markdown-output", type=Path, help="Also atomically write Markdown to this file; relative paths resolve against CWD.")
+    ap.add_argument("--json-output", type=Path, help="Also atomically write structured JSON to this file; relative paths resolve against CWD.")
+    ap.add_argument("--verbose-replies", action="store_true", help="Include full exact confirmed reply text and truncated context-reply previews in Markdown.")
     ap.add_argument(
         "--detailed-appendix",
         action="store_true",
@@ -3168,7 +3158,8 @@ def run_digest(args: argparse.Namespace, *, project_dir: Path, state_file: Path)
         if saved_resume_tail:
             print(
                 "WARNING: saved physical resume cursor was not found in retained logs; "
-                "falling back to the timestamp boundary",
+                "falling back to the timestamp boundary, which can omit newly appended "
+                "records after a backward clock jump",
                 file=sys.stderr,
             )
         records = filter_records_by_time(
@@ -3189,20 +3180,16 @@ def run_digest(args: argparse.Namespace, *, project_dir: Path, state_file: Path)
     runtime_config, runtime_config_path, runtime_config_ts, runtime_config_status = (
         load_current_runtime_config(project_dir)
     )
-    confirmed_receipt_evidence: List[Dict[str, Any]] = []
-    historical_history_evidence: List[Dict[str, Any]] = []
-    durable_reply_evidence_status: Dict[str, Any] = {}
-    if args.json or args.json_output is not None:
-        confirmed_receipt_evidence, confirmed_receipt_status = (
-            load_confirmed_reply_receipt_evidence(project_dir)
-        )
-        historical_history_evidence, historical_history_status = (
-            load_historical_reply_history_evidence(project_dir)
-        )
-        durable_reply_evidence_status = {
-            "confirmed_reply_receipt": confirmed_receipt_status,
-            "historical_context_reply_history": historical_history_status,
-        }
+    confirmed_receipt_evidence, confirmed_receipt_status = (
+        load_confirmed_reply_receipt_evidence(project_dir)
+    )
+    historical_history_evidence, historical_history_status = (
+        load_historical_reply_history_evidence(project_dir)
+    )
+    durable_reply_evidence_status = {
+        "confirmed_reply_receipt": confirmed_receipt_status,
+        "historical_context_reply_history": historical_history_status,
+    }
     initial_active_xai_context = None
     initial_active_xai_call_attempt = None
     initial_pending_mention = None
@@ -3268,6 +3255,12 @@ def run_digest(args: argparse.Namespace, *, project_dir: Path, state_file: Path)
             "selected log sources contain timestamped records inside the requested window, "
             "but 0 records survived filtering"
         )
+    if saved_resume_tail and tail_match is None:
+        report["input_warning"] = combine_input_warnings(
+            report["input_warning"],
+            "saved physical resume cursor was not found; timestamp fallback can "
+            "omit newly appended records after a backward clock jump",
+        )
     report["input_retention_coverage"] = input_retention_coverage(input_files, since)
     report["input_warning"] = combine_input_warnings(
         report["input_warning"],
@@ -3310,23 +3303,8 @@ def run_digest(args: argparse.Namespace, *, project_dir: Path, state_file: Path)
         }
     report["shadow_feature_lifecycle"] = shadow_lifecycle_snapshot(project_dir)
 
-    # v5: if this incremental window has no startup Config lines, scan earlier
-    # records in the same log files for the most recent Config values before
-    # the window. This avoids "5 / ?" budget output after quiet windows, even
-    # when the digest resume state has not yet stored config context.
-    cutoff_for_backscan = records[0].ts if records else since
-    if cutoff_for_backscan is not None:
-        backscan_config, backscan_ts = find_latest_config_before(logs, cutoff_for_backscan)
-        if backscan_config:
-            report["latest_config"] = merge_context_from_log_backscan(
-                report.get("latest_config") or {},
-                backscan_config,
-                backscan_ts=backscan_ts,
-            )
-            report["config_backscan_timestamp"] = dt_text(backscan_ts) if backscan_ts else None
-
     if not args.no_state and not args.reset_state:
-        apply_saved_context(report, state_file, window_end=report_window_end)
+        apply_saved_context(report, state_file)
 
     report["runtime_state_status"] = {
         "status": runtime_state_status,

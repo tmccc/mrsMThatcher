@@ -102,42 +102,9 @@ def _normalise_incident_text(value: str) -> str:
     return re.sub(r"\s+", " ", text).strip()
 
 
-def classify_operational_error(
-    message: str,
-    *,
-    incident_exception_line: Callable[[str], str],
-    normalise_incident_text: Callable[[str], str],
-    is_deleted_or_inaccessible_tweet_403: Callable[[str], bool],
-) -> str:
-    """Classify a traceback/error by its root operational concern."""
-    text = str(message or "")
-    lowered = text.lower()
-    exception_line = incident_exception_line(text).lower()
-    if "clarification reply lacks direct_factual_answer mode" in lowered:
-        return "clarification_mode_local_rejection"
-    if (
-        any(marker in lowered for marker in ("readtimeout", "read timed out"))
-        and any(marker in lowered for marker in ("xai", "grok", "api.x.ai"))
-    ):
-        return "xai_provider_timeout"
-    if (
-        re.search(r"\bx(?: bearer)? api error 429\b", lowered)
-        or "entering api cooldown after 429" in lowered
-    ):
-        return "x_api_rate_limit"
-    if (
-        "paginationcursorprotocolerror" in lowered
-        and "quote tweets" in lowered
-        and "repeated pagination token" in lowered
-    ):
-        return "quote_pagination_protocol_anomaly"
-    if is_deleted_or_inaccessible_tweet_403(text):
-        return "deleted_or_inaccessible_tweet"
-    if (
-        "remoteoperationspaused" in lowered
-        or "global runtime control pause blocks remote operation" in lowered
-    ):
-        return "remote_operations_paused"
+def _remote_write_barrier_category(message: str) -> Optional[str]:
+    """Recognise outer safety diagnoses before handled errors in chained tracebacks."""
+    lowered = str(message or "").lower()
     if any(
         marker in lowered
         for marker in (
@@ -173,6 +140,48 @@ def classify_operational_error(
         )
     ):
         return "remote_write_transaction_barrier"
+    return None
+
+
+def classify_operational_error(
+    message: str,
+    *,
+    incident_exception_line: Callable[[str], str],
+    normalise_incident_text: Callable[[str], str],
+    is_deleted_or_inaccessible_tweet_403: Callable[[str], bool],
+) -> str:
+    """Classify a traceback/error by its root operational concern."""
+    text = str(message or "")
+    lowered = text.lower()
+    exception_line = incident_exception_line(text).lower()
+    barrier_category = _remote_write_barrier_category(text)
+    if barrier_category is not None:
+        return barrier_category
+    if "clarification reply lacks direct_factual_answer mode" in lowered:
+        return "clarification_mode_local_rejection"
+    if (
+        any(marker in lowered for marker in ("readtimeout", "read timed out"))
+        and any(marker in lowered for marker in ("xai", "grok", "api.x.ai"))
+    ):
+        return "xai_provider_timeout"
+    if (
+        re.search(r"\bx(?: bearer)? api error 429\b", lowered)
+        or "entering api cooldown after 429" in lowered
+    ):
+        return "x_api_rate_limit"
+    if (
+        "paginationcursorprotocolerror" in lowered
+        and "quote tweets" in lowered
+        and "repeated pagination token" in lowered
+    ):
+        return "quote_pagination_protocol_anomaly"
+    if is_deleted_or_inaccessible_tweet_403(text):
+        return "deleted_or_inaccessible_tweet"
+    if (
+        "remoteoperationspaused" in lowered
+        or "global runtime control pause blocks remote operation" in lowered
+    ):
+        return "remote_operations_paused"
     if any(
         marker in lowered
         for marker in (
@@ -239,7 +248,8 @@ def observe_error_warning(
         or ("Missing X credentials." in msg and any(e.get("message", "").startswith("SELFTEST FAIL:") for e in self_test_errors))
         or ("ENABLE_AUTO_REPLIES is True, but XAI_API_KEY is not set." in msg and any(e.get("message", "").startswith("SELFTEST FAIL:") for e in self_test_errors))
     )
-    is_handled_reply_restriction = (
+    is_remote_write_barrier = _remote_write_barrier_category(msg) is not None
+    is_handled_reply_restriction = not is_remote_write_barrier and (
         is_reply_target_eligibility_restriction(msg)
         or is_deleted_or_inaccessible_tweet_403(msg)
         or "reply not allowed" in msg.lower()

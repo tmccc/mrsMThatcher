@@ -465,7 +465,12 @@ def apply_original_editorial_selection(
     if payload is None or editorial_winner is None:
         return baseline_choice
 
-    selection_applied = payload["production_source"] == "original"
+    # The process cache may predate a newly catalogued baseline. An absent
+    # editorial row is not evidence that an older original is a better choice.
+    selection_applied = (
+        payload["production_source"] == "original"
+        and payload.get("production_shadow_rank") is not None
+    )
     payload["selection_applied"] = selection_applied
     payload["selected_winner"] = (
         editorial_winner["basename"]

@@ -1,7 +1,6 @@
 """Focused contracts for current runtime configuration and synthetic credentials."""
 from __future__ import annotations
 
-import builtins
 import inspect
 from pathlib import Path
 import subprocess
@@ -32,7 +31,7 @@ POSITIVE_KEYS = (
     "AUTHOR_NO_REPLY_QUARANTINE_WINDOW_SECONDS", "COOLDOWN_AFTER_429_SECONDS",
     "COOLDOWN_AFTER_REPEATED_ERRORS_SECONDS", "ERROR_WINDOW_SECONDS",
     "HOT_POST_REPLY_SEARCH_MAX_PAGES_PER_CHECK", "MAX_AUTO_REPLIES_PER_DAY",
-    "MAX_HOT_POST_REPLIES_PER_CHECK", "MAX_QUOTE_REPLIES_PER_DAY",
+    "MAX_HOT_POST_REPLIES_PER_CHECK", "MAX_OPENAI_ERRORS_PER_WINDOW", "MAX_QUOTE_REPLIES_PER_DAY",
     "MAX_REPLIES_PER_AUTHOR_PER_DAY", "MAX_X_ERRORS_PER_WINDOW",
     "MENTIONS_MAX_PAGES_PER_CHECK", "MIN_SECONDS_BETWEEN_REPLIES",
     "POST_SLEEP_MAX", "POST_SLEEP_MIN", "QUOTE_CHECK_EVERY_SECONDS",
@@ -486,11 +485,21 @@ def _credentials(monkeypatch, *, stop=None, auto=True, enabled=True, api=True, f
             observe(self.label)
             return self.value
 
-    credentials = [Truth(key, index != stop) for index, key in enumerate(CREDENTIAL_KEYS)]
+    class Credential(str):
+        def __new__(cls, label, valid):
+            value = super().__new__(cls, "12345" if label == "MY_USER_ID" else "synthetic")
+            value.label, value.valid = label, valid
+            return value
+
+        def strip(self):
+            observe(self.label)
+            return str(self) if self.valid else ""
+
+    credentials = [Credential(key, index != stop) for index, key in enumerate(CREDENTIAL_KEYS)]
     for key, value in zip(CREDENTIAL_KEYS, credentials):
         monkeypatch.setattr(bot, key, value)
     monkeypatch.setattr(bot, "ENABLE_AUTO_REPLIES", Truth("auto", auto))
-    monkeypatch.setattr(bot, "OPENAI_API_KEY", Truth("openai", api))
+    monkeypatch.setattr(bot, "OPENAI_API_KEY", Credential("openai", api))
 
     def get(key):
         assert key == "enabled"
@@ -502,27 +511,15 @@ def _credentials(monkeypatch, *, stop=None, auto=True, enabled=True, api=True, f
 
 
 @pytest.mark.parametrize("stop", [None, 0, 3])
-def test_credentials_eager_five_member_list_and_ordered_all_truth(monkeypatch, stop):
-    credentials, trace, _ = _credentials(monkeypatch, stop=stop)
-    received = []
-
-    def observed_all(values):
-        received.append(values)
-        assert type(values) is list and len(values) == 5
-        assert all(a is b for a, b in zip(values, credentials))
-        assert trace == []
-        return builtins.all(values)
-
-    monkeypatch.setattr(owner, "all", observed_all, raising=False)
+def test_credentials_strip_required_strings_in_order(monkeypatch, stop):
+    _, trace, _ = _credentials(monkeypatch, stop=stop)
     if stop is None:
         assert bot.validate_production_credentials() is None
         assert trace == [*CREDENTIAL_KEYS, "auto", "get", "openai"]
     else:
-        with pytest.raises(RuntimeError) as caught:
+        with pytest.raises(RuntimeError, match="Missing X credentials"):
             bot.validate_production_credentials()
-        assert str(caught.value) == X_ERROR
         assert trace == list(CREDENTIAL_KEYS[:stop + 1])
-    assert len(received) == 1
 
 
 @pytest.mark.parametrize("auto,enabled,api,tail,message", [
@@ -544,7 +541,7 @@ def test_credential_gate_short_circuits_and_requires_literal_true(monkeypatch, a
 
 
 @pytest.mark.parametrize("boundary", ["ACCESS_TOKEN", "auto", "get", "openai"])
-def test_credential_native_truth_and_get_errors_keep_exact_progress(monkeypatch, boundary):
+def test_credential_native_strip_truth_and_get_errors_keep_exact_progress(monkeypatch, boundary):
     _, trace, error = _credentials(monkeypatch, failure=boundary)
     with pytest.raises(ValueError) as caught:
         bot.validate_production_credentials()

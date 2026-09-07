@@ -907,9 +907,9 @@ def prepare_media_incidents_and_errors(
                 "fallback": "legacy fallback prohibited by receipt-bound v2 protocol",
                 "v1_result": "not applicable",
                 "post_result": (
-                    "tweet-create request observed"
+                    "uncorrelated tweet-create request observed in window"
                     if later_tweet_create
-                    else "no tweet-create request observed"
+                    else "no later tweet-create request observed in window (uncorrelated)"
                 ),
                 "summary": (
                     "ambiguous receipt-bound media upload was durably reconciled offline"

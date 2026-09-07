@@ -185,7 +185,7 @@ def test_pause_samples_clock_before_boolean_priority_then_ordered_times_and_nati
     assert trace.mock_calls == [
         call.clock(), call.boolean(data, "alpha"), call.boolean(data, "beta"), call.boolean(data, "gamma"),
         call.parse("bad"),
-        call.log.error("Ignoring invalid control pause %s=%r: %s", "alpha_until", "bad", parse_error),
+        call.log.error("Invalid pause passed directly to control_pause_active for %s=%r; runtime loader rejects invalid controls: %s", "alpha_until", "bad", parse_error),
         call.parse(200), call.parse(201),
     ]
     trace.reset_mock()

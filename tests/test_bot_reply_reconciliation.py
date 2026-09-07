@@ -167,7 +167,10 @@ def test_application_keeps_queue_draft_pagination_and_cache_reference_order(monk
     pagination = state["mention_pagination"]
     receipt["mention_pagination"] = pagination
     sibling_draft = {"reply_text": "Retain this other draft."}
-    drafts = {"mention:105": receipt["ai_reply_draft"], "mention:104": sibling_draft}
+    drafts = {
+        **{f"{lane}:105": receipt["ai_reply_draft"] for lane in bot.CONVERSATIONAL_REPLY_HISTORY_LANES},
+        "mention:104": sibling_draft,
+    }
     state["pending_ai_reply_drafts"] = drafts
     own_ids = [str(10_000 + number) for number in range(1000)]
     state["own_auto_reply_ids"] = own_ids
@@ -213,12 +216,14 @@ def test_application_keeps_queue_draft_pagination_and_cache_reference_order(monk
     monkeypatch.setattr(bot, "cache_tweet", trace.cache)
     bot.apply_confirmed_reply_receipt(state, receipt)
     assert [entry[0] for entry in trace.mock_calls] == [
-        "authority", "ownership", "clear", "remove", "cache", "event",
+        "authority", "ownership", "clear", "clear", "clear", "clear", "remove", "cache", "event",
     ]
     assert trace.ownership.call_args.args[0] is state
     assert trace.ownership.call_args.args[1] is pagination
     assert trace.ownership.call_args.kwargs == {"target_id": "105"}
-    assert trace.clear.call_args.args == (state, "105", "mention")
+    assert {entry.args[2] for entry in trace.clear.call_args_list} == bot.CONVERSATIONAL_REPLY_HISTORY_LANES
+    assert all(entry.args[:2] == (state, "105") for entry in trace.clear.call_args_list)
+    assert drafts == {"mention:104": sibling_draft}
     assert trace.remove.call_args.args == (state, "105")
     assert "105" in pending and "mention:105" not in drafts
     assert state["mention_pending_candidates"] is not pending
@@ -389,7 +394,9 @@ def test_emergency_completeness_uses_current_lane_and_pending_key(monkeypatch, l
     monkeypatch.setattr(bot, "pending_ai_reply_draft_key", pending_key)
     state["pending_ai_reply_drafts"] = {"current-pending-key": {}}
     assert not bot.confirmed_reply_emergency_representation_is_complete(receipt, state)
-    pending_key.assert_called_once_with("100", lane)
+    assert {entry.args for entry in pending_key.call_args_list} == {
+        ("100", source) for source in bot.CONVERSATIONAL_REPLY_HISTORY_LANES
+    }
     state["pending_ai_reply_drafts"] = {}
     if lane == "quote_tweet":
         state["seen_quote_post_ids"] = []

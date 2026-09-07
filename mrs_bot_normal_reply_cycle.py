@@ -250,7 +250,13 @@ def maybe_reply_to_mentions(
 
     mentions = valid_tweets_sorted_by_id(mentions, context="mention/hot-post candidate")
 
-    replied_to_ids = set(str(x) for x in state.get("replied_to_ids", []))
+    # Admission includes legacy quote-only targets; keep durable ledgers separate
+    # because the normal ledger also records terminal outcomes without a post.
+    replied_to_ids = {
+        str(value)
+        for key in ("replied_to_ids", "replied_to_quote_post_ids")
+        for value in state.get(key, [])
+    }
     log.debug("replied_to_ids count=%d", len(replied_to_ids))
 
     progress = _ReplyCycleProgress(int(_fresh_mention_ai_evaluations))

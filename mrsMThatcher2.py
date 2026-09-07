@@ -3475,7 +3475,7 @@ def x_request(
     _remote_media_payload_metadata: dict[str, object] | None = None,
     **kwargs,
 ) -> dict:
-    """Send an authenticated X API request with bounded retries."""
+    """Send an authenticated X API request without automatic retries."""
     return _x_request.x_request(
         method,
         path,
@@ -3529,7 +3529,7 @@ def x_request(
 
 
 def x_bearer_request(method: str, path: str, **kwargs) -> dict:
-    """Send a bearer-authenticated X API request with bounded retries."""
+    """Send a bearer-authenticated X API request without automatic retries."""
     return _x_request.x_bearer_request(
         method,
         path,

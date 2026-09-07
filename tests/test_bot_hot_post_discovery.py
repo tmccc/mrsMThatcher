@@ -363,3 +363,19 @@ def test_merge_keeps_first_objects_annotation_precedence_and_nested_copy_boundar
     log.reset_mock()
     assert bot.dedupe_reply_candidates([first], [unique]) == [first, unique]
     log.info.assert_not_called()
+
+
+def test_discovery_skips_legacy_quote_only_target_before_eligibility(tmp_path, monkeypatch):
+    _configure_watch(tmp_path, monkeypatch)
+    state = bot.default_state()
+    state["replied_to_quote_post_ids"] = ["101"]
+    monkeypatch.setattr(bot, "x_paginated_get", Mock(return_value={"data": [{
+        "id": "101", "author_id": "200", "conversation_id": "700", "text": "Synthetic reply",
+        "referenced_tweets": [{"type": "replied_to", "id": "700"}],
+    }], "includes": {}, "_pagination": {}}))
+    eligible = Mock(side_effect=AssertionError("confirmed target reached eligibility"))
+    monkeypatch.setattr(bot, "reply_target_is_directly_eligible", eligible)
+    assert bot.get_hot_post_reply_candidates(state) == []
+    eligible.assert_not_called()
+    assert state["replied_to_ids"] == []
+    assert state["daily_reply_count"] == state["daily_quote_reply_count"] == 0

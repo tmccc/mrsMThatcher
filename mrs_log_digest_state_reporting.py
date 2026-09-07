@@ -673,7 +673,13 @@ def prepare_headline_and_derived(
     transient_provider_timeouts = int(
         error_health.get("transient_provider_timeout_count", 0)
     )
-    if current_incidents:
+    safety = current_remote_write_safety or {}
+    safety_authoritative = safety.get("current_health_snapshot_authoritative") is True
+    if safety_authoritative and safety.get("configured") is True and safety.get("available") is not True:
+        headline.append("current health: remote-write safety unknown (inspection unavailable)")
+    elif safety_authoritative and safety.get("blocking") is True and not current_incidents:
+        headline.append("current health: remote writes blocked; no independent operational incident established")
+    elif current_incidents:
         headline.append(
             "current health: "
             + plural_count(
@@ -708,7 +714,9 @@ def prepare_headline_and_derived(
             + " in window"
         )
     safety = current_remote_write_safety or {}
-    if safety.get("configured") is True and safety.get("available") is True:
+    if safety.get("configured") is True and safety.get("available") is not True:
+        headline.append("current remote-write safety: UNKNOWN / unavailable")
+    elif safety.get("configured") is True and safety.get("available") is True:
         safety_status = str(safety.get("status") or "unavailable")
         if safety.get("blocking") is True:
             headline.append("remote-write safety: BLOCKED")
@@ -981,6 +989,12 @@ def refresh_current_health_headline(
         if unavailable_incidents
         else "current health: no unresolved operational incidents"
     )
+    safety = report.get("remote_write_safety") or {}
+    if safety.get("current_health_snapshot_authoritative") is True:
+        if safety.get("configured") is True and safety.get("available") is not True:
+            health_claim = "current health: remote-write safety unknown (inspection unavailable)"
+        elif safety.get("blocking") is True and not current_incidents:
+            health_claim = "current health: remote writes blocked; no independent operational incident established"
     rebuilt_base = [
         health_claim if str(item).startswith("current health:") else item
         for item in base

@@ -88,7 +88,13 @@ def get_hot_post_reply_candidates(
         return []
 
     skipped_hot_reply_ids = set(str(x) for x in state.get("skipped_hot_reply_ids", []))
-    replied_to_ids = set(str(x) for x in state.get("replied_to_ids", []))
+    # Admission includes legacy quote-only targets; keep durable ledgers separate
+    # because the normal ledger also records terminal outcomes without a post.
+    replied_to_ids = {
+        str(value)
+        for key in ("replied_to_ids", "replied_to_quote_post_ids")
+        for value in state.get(key, [])
+    }
 
     since_ids = state.get("hot_post_reply_since_ids", {})
     if not isinstance(since_ids, dict):

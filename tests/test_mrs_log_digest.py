@@ -158,40 +158,34 @@ def test_config_backscan_keeps_current_callbacks_duplicate_and_read_order(monkey
 
 def test_resume_reader_keeps_current_parser_warning_and_exception_boundary(monkeypatch):
     calls = []
-    path = SimpleNamespace(
-        exists=lambda: (calls.append("exists"), True)[1],
-        read_bytes=lambda: (calls.append("read"), b"cursor")[1],
-    )
+    path = Path("unused-cursor")
+    def read(value, *, maximum):
+        assert value is path and maximum == 8 * 1024 * 1024
+        calls.append("read")
+        return b"cursor"
+    monkeypatch.setattr(digest, "read_stable_regular_bytes", read)
     for result in ({"first": []}, {"second": []}):
         def parse(raw, *, label):
             calls.append((raw, label))
             return result
-
         monkeypatch.setattr(digest, "_strict_native_json_object", parse)
         assert digest.read_resume_data(path) is result
-        assert calls[-3:] == ["exists", "read", (b"cursor", "digest resume state")]
-
+        assert calls[-2:] == ["read", (b"cursor", "digest resume state")]
     warning = io.StringIO()
-    failure = ValueError("bad cursor")
-
-    def fail(raw, *, label):
-        monkeypatch.setattr(digest.sys, "stderr", warning)
-        raise failure
-
+    monkeypatch.setattr(digest.sys, "stderr", warning)
+    def fail(*args, **kwargs):
+        raise ValueError("bad cursor")
     monkeypatch.setattr(digest, "_strict_native_json_object", fail)
     assert digest.read_resume_data(path) == {}
     assert warning.getvalue() == f"WARNING: could not read state file {path}: bad cursor\n"
-    path.exists = lambda: False
-    calls.clear()
-    assert digest.read_resume_data(path) == {} and calls == []
-
-    def exists_failure():
-        raise failure
-
-    path.exists = exists_failure
-    with pytest.raises(ValueError) as caught:
-        digest.read_resume_data(path)
-    assert caught.value is failure
+    monkeypatch.setattr(digest, "read_stable_regular_bytes", fail)
+    assert digest.read_resume_data(path) == {}
+    def absent(*args, **kwargs):
+        raise FileNotFoundError(path)
+    monkeypatch.setattr(digest, "read_stable_regular_bytes", absent)
+    warning.seek(0)
+    warning.truncate()
+    assert digest.read_resume_data(path) == {} and warning.getvalue() == ""
 
 
 def test_state_window_uses_current_parser_only_when_bounded(monkeypatch):
@@ -238,14 +232,14 @@ def test_saved_context_keeps_current_helpers_historical_identity_and_refresh_ord
 
         monkeypatch.setattr(digest, "refresh_derived", refresh)
         monkeypatch.setattr(digest, "state_context_is_within_window", lambda *args: pytest.fail("unused window filter"))
-        assert digest.apply_saved_context(report, path, window_end=BASE) is None
+        assert digest.apply_saved_context(report, path) is None
         assert calls[-4:] == [("read", path), ("strip", previous_state), ("strip", previous_config), ("refresh", report)]
         assert report["digest_resume_context"] == {"available": True, "last_log_entry_time": "cursor time", "updated_at": "save time"}
         assert report["latest_state"] == report["latest_config"] == {}
         assert "_carried_forward" not in previous_spacing
 
 
-def test_cursor_save_keeps_current_callbacks_sharing_and_late_clock(monkeypatch):
+def test_cursor_save_keeps_current_callbacks_sharing_and_late_clock(tmp_path, monkeypatch):
     calls = []
     nested = {"shared": []}
     old = {"last_log_entry_time": "old", "last_known_latest_state": {"old": nested},
@@ -258,11 +252,7 @@ def test_cursor_save_keeps_current_callbacks_sharing_and_late_clock(monkeypatch)
     rows = [record(0, "INFO", "worker", "boundary"), record(-1, "INFO", "worker", "earlier")]
     encoded = []
     dumps = json.dumps
-    output = SimpleNamespace(
-        write_text=lambda value, **kwargs: calls.append(("write", value, kwargs)),
-        replace=lambda value: calls.append(("replace", value)),
-    )
-    path = SimpleNamespace(suffix=".json", with_suffix=lambda value: (calls.append(("suffix", value)), output)[1])
+    path = tmp_path / "resume.json"
 
     class EarlyClock:
         @classmethod
@@ -335,9 +325,9 @@ def test_cursor_save_keeps_current_callbacks_sharing_and_late_clock(monkeypatch)
         assert data["last_log_entry_fingerprint_tail"] == (["boundary", "earlier"] if preserve else ["supplied-b"])
         assert tail is None or tail == ["supplied-a", "supplied-b"]
         names = [call[0] for call in calls]
-        assert names == (["read"] if preserve else []) + ["strip", "strip", "counter", "fingerprint", "parse"] + (["boundary", "tail", "fingerprint", "fingerprint"] if preserve else []) + ["format", "context", "context", "context", "context", "clock", "suffix", "encode", "write", "replace"]
-        assert calls[-4:] == [("suffix", ".json.tmp"), ("encode", {"indent": 2, "ensure_ascii": False}),
-                              ("write", dumps(data, indent=2, ensure_ascii=False) + "\n", {"encoding": "utf-8"}), ("replace", path)]
+        assert names == (["read"] if preserve else []) + ["strip", "strip", "counter", "fingerprint", "parse"] + (["boundary", "tail", "fingerprint", "fingerprint"] if preserve else []) + ["format", "context", "context", "context", "context", "clock", "encode"]
+        assert path.read_text() == dumps(data, indent=2, ensure_ascii=False) + "\n"
+        assert not list(tmp_path.glob(".resume.json.*.tmp"))
 
     failure = RuntimeError("counter failed")
 
@@ -881,7 +871,7 @@ def test_media_503_uses_exact_endpoint_and_one_durably_resolved_incident():
     assert len(report["media_upload"]["reconciled_incidents"]) == 1
     assert report["media_upload"]["unrecovered_failures"] == []
     assert report["media_upload"]["incidents"][0]["post_result"] == (
-        "no tweet-create request observed"
+        "no later tweet-create request observed in window (uncorrelated)"
     )
     assert [item["phase"] for item in report["remote_write_transactions"]] == [
         "request_started",

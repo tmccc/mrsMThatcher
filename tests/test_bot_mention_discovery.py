@@ -136,7 +136,8 @@ def test_queue_authority_and_current_queue_precede_clock_settings_and_provider_w
     blocked.assert_not_called()
 
 
-def test_real_pages_keep_media_cache_queue_references_and_final_commit_order(monkeypatch):
+@pytest.mark.parametrize("history_key", ["replied_to_ids", "replied_to_quote_post_ids"])
+def test_real_pages_keep_media_cache_queue_references_and_final_commit_order(monkeypatch, history_key):
     original_save = bot.save_state
     first = mention(105, 205, "first page")
     first["attachments"] = {"media_keys": ["photo"]}
@@ -148,7 +149,7 @@ def test_real_pages_keep_media_cache_queue_references_and_final_commit_order(mon
     monkeypatch.setattr(bot, "save_state", original_save)
     state = bot.default_state()
     state["last_seen_mention_id"] = "99"
-    state["replied_to_ids"] = ["104"]
+    state[history_key] = ["104"]
     bot.record_terminal_reply_evaluation(state, target_id="103", lane="mention", reason="confirmed_no_reply")
     old_pending = state["mention_pending_candidates"]
     trace, responses, saved, page_queues = [], [], [], []

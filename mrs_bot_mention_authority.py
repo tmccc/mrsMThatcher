@@ -338,7 +338,11 @@ def validate_pending_mention_candidate_authority(
         return True, True
 
     changed = pending != raw_pending
-    replied_ids = {str(value) for value in state.get("replied_to_ids", [])}
+    replied_ids = {
+        str(value)
+        for key in ("replied_to_ids", "replied_to_quote_post_ids")
+        for value in state.get(key, [])
+    }
     deduplicated = {
         mention_id: candidate
         for mention_id, candidate in pending.items()

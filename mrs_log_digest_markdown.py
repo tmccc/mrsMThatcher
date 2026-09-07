@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import json
 import math
+import re
 from collections import Counter
 from decimal import Decimal
 from typing import Any, Dict, List, Mapping, Optional
@@ -586,7 +587,7 @@ def _render_remote_write_safety(report: Dict[str, Any], out: List[str]) -> None:
                 f"retirement_ledgers       = {healthy_ledgers} / {len(ledgers)} valid and nonblocking"
             )
             out.append(
-                f"active_barrier_entries   = {len(safety.get('active_entries') or [])}"
+                f"source_marker_entries    = {len(safety.get('active_entries') or [])}"
             )
             out.append(
                 f"control_generation       = {control.get('generation')}"
@@ -598,6 +599,9 @@ def _render_remote_write_safety(report: Dict[str, Any], out: List[str]) -> None:
             out.append(
                 "ready_for_remote_writes  = "
                 + str(safety.get("ready_for_remote_writes") is True).lower()
+            )
+            out.append(
+                f"active_safety_components = {len(safety.get('active_transaction_identities') or [])}"
             )
             out.append("```")
             active_entries = safety.get("active_entries") or []
@@ -653,12 +657,13 @@ def _render_remote_write_safety(report: Dict[str, Any], out: List[str]) -> None:
                             "lane",
                             "target",
                             "receipt roles",
+                            "kind / state",
                             "selected-window relationship",
                             "artefacts",
                         ]
                     )
                 )
-                out.append(md_table_row(["---"] * 6))
+                out.append(md_table_row(["---"] * 7))
                 for item in active_identities:
                     out.append(
                         md_table_row(
@@ -669,6 +674,8 @@ def _render_remote_write_safety(report: Dict[str, Any], out: List[str]) -> None:
                                 ", ".join(
                                     item.get("receipt_role_labels") or []
                                 ),
+                                ", ".join(item.get("artifact_kinds") or [])
+                                + " / " + ", ".join(item.get("transaction_states") or []),
                                 str(
                                     item.get("selected_window_relationship")
                                     or "unavailable"
@@ -2320,9 +2327,60 @@ def _render_event_details(report: Dict[str, Any], out: List[str]) -> None:
     )
     section("image_cycle_status", "Image cycle status", ["time", "used_count", "currently_eligible", "remaining_count", "seasonally_excluded", "stale_excluded", "cycle_reset"])
     section("quote_cycle_reset", "Quote cycle resets", ["time", "reason", "affected", "full_selectable", "full_hard_excluded"])
-    section("mention_reply_posted", "Mention replies", ["time", "mention_id", "author_id", "incoming_text", "reply", "reply_post_id"])
-    section("hot_post_reply_posted", "Hot-post replies", ["time", "hot_post_reply_id", "author_id", "incoming_text", "reply", "reply_post_id"])
-    section("quote_tweet_reply_posted", "Quote-tweet replies", ["time", "quote_tweet_id", "author_id", "original_post_id", "incoming_text", "reply", "reply_post_id"])
+    section("mention_reply_posted", "Mention replies", ["time", "mention_id", "author_id", "incoming_text", "public_reply_text", "reply_post_id", "public_reply_text_status", "public_reply_text_source", "public_reply_text_reason"])
+    section("hot_post_reply_posted", "Hot-post replies", ["time", "hot_post_reply_id", "author_id", "incoming_text", "public_reply_text", "reply_post_id", "public_reply_text_status", "public_reply_text_source", "public_reply_text_reason"])
+    section("quote_tweet_reply_posted", "Quote-tweet replies", ["time", "quote_tweet_id", "author_id", "original_post_id", "incoming_text", "public_reply_text", "reply_post_id", "public_reply_text_status", "public_reply_text_source", "public_reply_text_reason"])
+    section(
+        "confirmed_public_reply", "Confirmed reply evidence",
+        ["time", "lane", "target_id", "reply_post_id", "public_reply_text",
+         "public_reply_text_status", "public_reply_text_source", "public_reply_text_reason",
+         "evidence_scope"],
+    )
+    text_health = report.get("published_reply_text_health") or {}
+    evidence_failures = {
+        name: status for name, status in (text_health.get("durable_evidence") or {}).items()
+        if status.get("available") is not True and status.get("status") not in {"absent", None}
+    }
+    if text_health.get("confirmed_record_count") or text_health.get("warnings") or evidence_failures:
+        out.append("## Published reply text health")
+        total = int(text_health.get("confirmed_record_count") or 0)
+        complete = int(text_health.get("complete_text_record_count") or 0)
+        out.append(
+            f"{complete}/{total} confirmation records have complete text; "
+            f"{total - complete} incomplete or unavailable, including "
+            f"{text_health.get('conflict_count', 0)} conflicts. "
+            "Drafts are not confirmed public text. Durable snapshot evidence is "
+            "independent of the log window and does not add to its publication counts."
+        )
+        if evidence_failures:
+            out.append("Durable reply evidence unavailable:")
+            out.append(md_table_row(["source", "status", "reason"]))
+            out.append(md_table_row(["---"] * 3))
+            for name, status in evidence_failures.items():
+                out.append(md_table_row([name, status.get("status"), status.get("reason", "")]))
+        if text_health.get("warnings"):
+            out.append("")
+            out.append(md_table_row(["reply_post_id", "text health warning"]))
+            out.append(md_table_row(["---", "---"]))
+        for warning in text_health.get("warnings") or []:
+            out.append(md_table_row([
+                warning.get("reply_post_id", ""), warning.get("reason", "")
+            ], cell_limit=500))
+        out.append("")
+        if report.get("verbose_replies"):
+            for event in events:
+                text = event.get("public_reply_text")
+                if not text or event.get("public_reply_text_complete") is not True:
+                    continue
+                out.append(
+                    "### Exact confirmed reply " + str(event.get("reply_post_id") or "unknown")
+                    + " (" + str(event.get("public_reply_text_source") or "source unavailable") + ")"
+                )
+                # A fence longer than any run in the text preserves exact prose,
+                # including newlines, without interpreting it as Markdown.
+                fence = "`" * max(3, 1 + max((len(run) for run in re.findall(r"`+", text)), default=0))
+                out.extend([fence + "text", text, fence, ""])
+        out.append("")
     section(
         "historical_context_semantic_gate",
         "Historical context semantic gate",
@@ -2370,8 +2428,9 @@ def _render_event_details(report: Dict[str, Any], out: List[str]) -> None:
             for row in historical_rows
         )
         cols = [
-            "time", "status", "parent_post_id", "quote_id",
-            "weighted_character_count", "verification_label", "source_class",
+            "time", "status", "parent_post_id", "quote_id", "reply_post_id",
+            "public_reply_text", "public_reply_text_status", "public_reply_text_source",
+            "public_reply_text_reason", "weighted_character_count", "verification_label", "source_class",
             "historical_confidence", "formatter_version", "rendering_mode",
             "shortening_applied", "reason",
         ]
@@ -3097,8 +3156,21 @@ def _render_operational_errors(report: Dict[str, Any], out: List[str]) -> None:
     out.append("")
 
     out.append("## Current independent errors")
+    safety = report.get("remote_write_safety") or {}
+    if safety.get("configured") is True and safety.get("available") is not True:
+        out.append("Current remote-write safety is **unknown / unavailable**; incident absence cannot establish readiness.")
+    elif safety.get("blocking") is True:
+        out.append(
+            "Current remote writes are **blocked**; see the active components in Remote-write safety. "
+            "Valid in-flight receipts, media and transport transactions block other writes "
+            "without themselves establishing an operational incident. This is a current "
+            "snapshot; historical-cutoff incident attribution is unchanged."
+        )
     if not current_incidents:
-        out.append("None unresolved in the selected window.")
+        if safety.get("configured") is True and (safety.get("available") is not True or safety.get("blocking") is True):
+            out.append("No independent operational incident established in the selected window.")
+        else:
+            out.append("None unresolved in the selected window.")
     else:
         out.append(
             md_table_row(
