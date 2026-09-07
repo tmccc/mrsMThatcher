@@ -16,6 +16,393 @@ from collections.abc import Callable
 from logging import Logger
 from pathlib import Path
 from types import ModuleType
+from typing import NamedTuple
+
+
+def _select_regular_quote_image_pair(
+    lines_used: set,
+    images_used: set,
+    state: dict,
+    reserved_quote_hashes: set,
+    *,
+    log: Logger,
+    choose_regular_quote_image_pair: Callable,
+    NoViableQuoteImagePair: type[Exception],
+) -> tuple[dict, dict]:
+    """Select an ordinary pair with the existing bounded image-cycle fallbacks."""
+    ordinary_selection_options = (
+        {"excluded_quote_hashes": reserved_quote_hashes}
+        if reserved_quote_hashes
+        else {}
+    )
+    try:
+        quote_choice, image_choice, attempts = choose_regular_quote_image_pair(
+            lines_used,
+            images_used,
+            state,
+            **ordinary_selection_options,
+        )
+    except NoViableQuoteImagePair as exc:
+        log.warning(
+            "No viable regular quote/image pair found within current image cycle after %d attempt(s); "
+            "resetting image cycle and retrying once",
+            exc.attempts,
+        )
+        try:
+            quote_choice, image_choice, attempts = choose_regular_quote_image_pair(
+                lines_used,
+                images_used,
+                state,
+                force_image_cycle_reset=True,
+                **ordinary_selection_options,
+            )
+        except NoViableQuoteImagePair as reset_exc:
+            if not reset_exc.excluded_last_image:
+                log.error("No viable regular quote/image pair found after image-cycle recovery; giving up for this post attempt")
+                raise RuntimeError(str(reset_exc)) from reset_exc
+            log.warning(
+                "No viable regular quote/image pair found after image-cycle recovery while excluding last regular image %s; "
+                "retrying once with last image permitted",
+                reset_exc.excluded_last_image,
+            )
+            try:
+                quote_choice, image_choice, attempts = choose_regular_quote_image_pair(
+                    lines_used,
+                    images_used,
+                    state,
+                    force_image_cycle_reset=True,
+                    avoid_last_image_at_cycle_boundary=False,
+                    **ordinary_selection_options,
+                )
+            except NoViableQuoteImagePair as final_exc:
+                log.error(
+                    "No viable regular quote/image pair found after final last-image recovery fallback; "
+                    "giving up for this post attempt"
+                )
+                raise RuntimeError(str(final_exc)) from final_exc
+            log.info("Regular quote/image pairing succeeded after permitting last regular image as final recovery fallback")
+        else:
+            log.info("Regular quote/image pairing succeeded after image-cycle recovery")
+    return quote_choice, image_choice
+
+
+def _select_quote_image_pair(
+    lines_used: set,
+    images_used: set,
+    state: dict,
+    transaction_preflight_epoch: int,
+    *,
+    log: Logger,
+    engagement_question_opportunity: Callable,
+    load_engagement_question_runtime_plan: Callable,
+    invalidate_engagement_question_experiment: Callable,
+    engagement_question_trial: ModuleType,
+    resolve_engagement_question_quote_choice: Callable,
+    engagement_experiment_attempt_envelope_is_valid: Callable,
+    choose_engagement_question_image: Callable,
+    QuoteSpecificImageMismatch: type[Exception],
+    defer_engagement_question_member: Callable,
+    choose_regular_quote_image_pair: Callable,
+    NoViableQuoteImagePair: type[Exception],
+) -> tuple[dict, dict, str | None, dict | None]:
+    """Try the planned experimental member, then ordinary selection if needed."""
+    experiment_plan, experiment_member, reserved_quote_hashes = (
+        engagement_question_opportunity(
+            state,
+            current_epoch=transaction_preflight_epoch,
+        )
+    )
+    engagement_experiment_envelope: dict | None = None
+    experimental_public_text: str | None = None
+    quote_choice: dict | None = None
+    image_choice: dict | None = None
+
+    if experiment_member is not None and experiment_plan is not None:
+        try:
+            current_plan, catalogue, _quote_text_by_id = (
+                load_engagement_question_runtime_plan()
+            )
+            if current_plan["plan_sha256"] != experiment_plan["plan_sha256"]:
+                raise RuntimeError("active plan changed during opportunity")
+        except Exception:
+            invalidate_engagement_question_experiment(
+                state,
+                code="active_plan_changed_during_opportunity",
+                recorded_epoch=transaction_preflight_epoch,
+            )
+            experiment_plan = None
+            experiment_member = None
+            reserved_quote_hashes = set()
+        else:
+            try:
+                if str(experiment_member["quote_id"]) in lines_used:
+                    raise engagement_question_trial.ExperimentValidationError(
+                        "pending planned quotation is already in used history"
+                    )
+                quote_choice, experimental_public_text = (
+                    resolve_engagement_question_quote_choice(
+                        experiment_member,
+                        catalogue=catalogue,
+                    )
+                )
+                binding = engagement_question_trial.build_attempt_binding(
+                    plan=experiment_plan,
+                    state=state["engagement_question_experiment"],
+                    member=experiment_member,
+                    exact_quote_text=str(quote_choice["text"]),
+                    public_text=experimental_public_text,
+                )
+                engagement_experiment_envelope = {
+                    "binding": binding,
+                    "canonical_quote_text": str(quote_choice["text"]),
+                    "approved_question_body": str(
+                        experiment_member["approved_question_body"]
+                    ),
+                    "complete_treatment_sha256": str(
+                        experiment_member["complete_treatment_sha256"]
+                    ),
+                    "complete_treatment_weighted_length": int(
+                        experiment_member[
+                            "complete_treatment_weighted_length"
+                        ]
+                    ),
+                }
+                if not engagement_experiment_attempt_envelope_is_valid(
+                    engagement_experiment_envelope,
+                    public_text=experimental_public_text,
+                    quote_hash=quote_choice["quote_hash"],
+                    plan=experiment_plan,
+                ):
+                    raise engagement_question_trial.ExperimentValidationError(
+                        "experimental pre-write envelope validation failed"
+                    )
+                image_choice = choose_engagement_question_image(
+                    images_used,
+                    quote_choice,
+                    state,
+                )
+            except QuoteSpecificImageMismatch:
+                defer_engagement_question_member(
+                    state,
+                    code="quote_specific_image_unavailable",
+                    recorded_epoch=transaction_preflight_epoch,
+                )
+                quote_choice = None
+                image_choice = None
+                experimental_public_text = None
+                engagement_experiment_envelope = None
+            except engagement_question_trial.ExperimentValidationError:
+                log.error(
+                    "Experimental member failed immediate pre-post validation",
+                    exc_info=True,
+                )
+                defer_engagement_question_member(
+                    state,
+                    code="immediate_member_validation_failed",
+                    recorded_epoch=transaction_preflight_epoch,
+                )
+                quote_choice = None
+                image_choice = None
+                experimental_public_text = None
+                engagement_experiment_envelope = None
+
+    if quote_choice is None or image_choice is None:
+        quote_choice, image_choice = _select_regular_quote_image_pair(
+            lines_used, images_used, state, reserved_quote_hashes,
+            log=log,
+            choose_regular_quote_image_pair=choose_regular_quote_image_pair,
+            NoViableQuoteImagePair=NoViableQuoteImagePair,
+        )
+    return quote_choice, image_choice, experimental_public_text, engagement_experiment_envelope
+
+
+class _QuotePostPreparation(NamedTuple):
+    """Derived publication content, image identity and sampled schedule delays."""
+
+    line_no: int
+    quote_hash: str
+    canonical_quote_text: str
+    tweet: str
+    image_no: int
+    image: str
+    image_basename: str
+    image_made_with_ai: bool
+    quote_delay: int
+    meme_delay: int | None
+
+
+def _prepare_quote_post(
+    quote_choice: dict,
+    image_choice: dict,
+    experimental_public_text: str | None,
+    engagement_experiment_envelope: dict | None,
+    *,
+    log: Logger,
+    POST_SLEEP_MIN: int,
+    POST_SLEEP_MAX: int,
+    MEME_DELAY_AFTER_MAIN_POST_MIN_SECONDS: int,
+    MEME_DELAY_AFTER_MAIN_POST_MAX_SECONDS: int,
+    ENABLE_DAILY_MEME_POSTS: bool,
+) -> _QuotePostPreparation:
+    """Derive and log the publication inputs before any upload or attempt write."""
+    line_no = int(quote_choice["line_no"])
+    quote_hash = str(quote_choice["quote_hash"])
+    canonical_quote_text = str(quote_choice["text"])
+    tweet = (
+        experimental_public_text
+        if engagement_experiment_envelope is not None
+        else canonical_quote_text
+    )
+    image_no = int(image_choice["image_no"])
+    image = str(image_choice["path"])
+    image_basename = str(image_choice["basename"])
+    image_made_with_ai = image_choice.get("image_source") == "generated"
+    quote_delay = random.randint(POST_SLEEP_MIN, POST_SLEEP_MAX)
+    meme_delay = (
+        random.randint(MEME_DELAY_AFTER_MAIN_POST_MIN_SECONDS, MEME_DELAY_AFTER_MAIN_POST_MAX_SECONDS)
+        if ENABLE_DAILY_MEME_POSTS
+        else None
+    )
+
+    log.info(
+        "Posting quote/image. line_no=%d quote_hash=%s image_no=%d image=%s image_score=%s",
+        line_no,
+        quote_hash,
+        image_no,
+        image,
+        image_choice.get("score"),
+    )
+    log.debug("Quote text=%r", tweet)
+    return _QuotePostPreparation(
+        line_no,
+        quote_hash,
+        canonical_quote_text,
+        tweet,
+        image_no,
+        image,
+        image_basename,
+        image_made_with_ai,
+        quote_delay,
+        meme_delay,
+    )
+
+
+def _complete_quote_post(
+    lines_used: set,
+    images_used: set,
+    state: dict,
+    *,
+    quote_hash: str,
+    image_basename: str,
+    posted_id: str,
+    quote_post_epoch: int,
+    quote_schedule_fields: dict,
+    meme_schedule_fields: dict,
+    tweet: str,
+    receipt: dict,
+    line_no: int,
+    image_no: int,
+    image_choice: dict,
+    canonical_quote_text: str,
+    log: Logger,
+    update_regular_generated_image_spacing_state: Callable,
+    apply_state_fields: Callable,
+    cache_tweet: Callable,
+    MY_USER_ID: str,
+    record_recent_own_post: Callable,
+    apply_confirmed_engagement_experiment_receipt: Callable,
+    save_regular_post_protected_state: Callable,
+    log_confirmed_engagement_experiment_receipt: Callable,
+    engagement_experiment_envelope_from_receipt: Callable,
+    log_event: Callable,
+    engagement_experiment_event_fields: Callable,
+    enqueue_historical_context_obligation: Callable,
+    retire_lane_transport_journal_if_present: Callable,
+    REGULAR_POST_RECEIPT_FILE: Path,
+    remove_regular_post_receipt: Callable,
+    publish_pending_engagement_question_notification: Callable,
+    ConfirmedPostLocalPersistenceError: type[Exception],
+    emit_account_root_posted: Callable,
+    safely_process_due_historical_context_obligations: Callable,
+) -> None:
+    """Persist confirmed state and retire recovery authority before final events."""
+    try:
+        lines_used.add(quote_hash)
+        images_used.add(image_basename)
+        state["last_main_post_id"] = str(posted_id)
+        state["last_quote_post_epoch"] = quote_post_epoch
+        state["last_regular_image_filename"] = image_basename
+        update_regular_generated_image_spacing_state(state, image_basename)
+        apply_state_fields(state, quote_schedule_fields)
+        apply_state_fields(state, meme_schedule_fields)
+        cache_tweet(
+            state,
+            tweet_id=str(posted_id),
+            text=tweet,
+            author_id=str(MY_USER_ID),
+            conversation_id=str(posted_id),
+            referenced_tweets=[],
+            post_type="quote",
+        )
+        record_recent_own_post(state, str(posted_id))
+        apply_confirmed_engagement_experiment_receipt(receipt, state)
+        save_regular_post_protected_state(lines_used, images_used, state, durable=True)
+        log_confirmed_engagement_experiment_receipt(receipt)
+        if engagement_experiment_envelope_from_receipt(receipt) is not None:
+            # Keep confirmed experiment evidence recoverable until after its
+            # structured analytics event has been emitted.
+            log_event(
+                "main_post_posted",
+                lane="quote_image",
+                post_id=posted_id,
+                line_no=line_no,
+                image_no=image_no,
+                image_basename=image_basename,
+                image_hash=image_choice.get("image_hash"),
+                image_score=image_choice.get("score"),
+                quote_hash=quote_hash,
+                **engagement_experiment_event_fields(receipt),
+            )
+        enqueue_historical_context_obligation(receipt)
+        retire_lane_transport_journal_if_present(
+            receipt_path=REGULAR_POST_RECEIPT_FILE,
+            receipt=receipt,
+            lane="quote_image",
+            post_id=str(posted_id),
+        )
+        remove_regular_post_receipt(receipt)
+        publish_pending_engagement_question_notification(state)
+    except Exception as exc:
+        log.critical("Confirmed regular quote/image post_id=%s but protected local persistence failed", posted_id, exc_info=True)
+        raise ConfirmedPostLocalPersistenceError(
+            f"Confirmed regular quote/image post {posted_id} but protected local persistence failed"
+        ) from exc
+
+    if engagement_experiment_envelope_from_receipt(receipt) is None:
+        # Preserve the ordinary-post event path and fields byte-for-byte.
+        log_event(
+            "main_post_posted",
+            lane="quote_image",
+            post_id=posted_id,
+            line_no=line_no,
+            image_no=image_no,
+            image_basename=image_basename,
+            image_hash=image_choice.get("image_hash"),
+            image_score=image_choice.get("score"),
+            quote_hash=quote_hash,
+        )
+    emit_account_root_posted(
+        lane="quote_image",
+        post_id=posted_id,
+        public_text=tweet,
+        quote_id=quote_hash,
+        quote_text=canonical_quote_text,
+    )
+    safely_process_due_historical_context_obligations(
+        parent_post_id=str(posted_id),
+        runtime_state=state,
+    )
+    log.info("Quote/image posted successfully. posted_id=%s", posted_id)
 
 
 def post_random_quote(
@@ -127,191 +514,48 @@ def post_random_quote(
                 "Quote used-history still contains legacy integer entries; refusing regular quote posting until source-verified migration is possible"
             )
 
-        experiment_plan, experiment_member, reserved_quote_hashes = (
-            engagement_question_opportunity(
-                state,
-                current_epoch=transaction_preflight_epoch,
-            )
-        )
-        engagement_experiment_envelope: dict | None = None
-        experimental_public_text: str | None = None
-        quote_choice: dict | None = None
-        image_choice: dict | None = None
-
-        if experiment_member is not None and experiment_plan is not None:
-            try:
-                current_plan, catalogue, _quote_text_by_id = (
-                    load_engagement_question_runtime_plan()
-                )
-                if current_plan["plan_sha256"] != experiment_plan["plan_sha256"]:
-                    raise RuntimeError("active plan changed during opportunity")
-            except Exception:
-                invalidate_engagement_question_experiment(
-                    state,
-                    code="active_plan_changed_during_opportunity",
-                    recorded_epoch=transaction_preflight_epoch,
-                )
-                experiment_plan = None
-                experiment_member = None
-                reserved_quote_hashes = set()
-            else:
-                try:
-                    if str(experiment_member["quote_id"]) in lines_used:
-                        raise engagement_question_trial.ExperimentValidationError(
-                            "pending planned quotation is already in used history"
-                        )
-                    quote_choice, experimental_public_text = (
-                        resolve_engagement_question_quote_choice(
-                            experiment_member,
-                            catalogue=catalogue,
-                        )
-                    )
-                    binding = engagement_question_trial.build_attempt_binding(
-                        plan=experiment_plan,
-                        state=state["engagement_question_experiment"],
-                        member=experiment_member,
-                        exact_quote_text=str(quote_choice["text"]),
-                        public_text=experimental_public_text,
-                    )
-                    engagement_experiment_envelope = {
-                        "binding": binding,
-                        "canonical_quote_text": str(quote_choice["text"]),
-                        "approved_question_body": str(
-                            experiment_member["approved_question_body"]
-                        ),
-                        "complete_treatment_sha256": str(
-                            experiment_member["complete_treatment_sha256"]
-                        ),
-                        "complete_treatment_weighted_length": int(
-                            experiment_member[
-                                "complete_treatment_weighted_length"
-                            ]
-                        ),
-                    }
-                    if not engagement_experiment_attempt_envelope_is_valid(
-                        engagement_experiment_envelope,
-                        public_text=experimental_public_text,
-                        quote_hash=quote_choice["quote_hash"],
-                        plan=experiment_plan,
-                    ):
-                        raise engagement_question_trial.ExperimentValidationError(
-                            "experimental pre-write envelope validation failed"
-                        )
-                    image_choice = choose_engagement_question_image(
-                        images_used,
-                        quote_choice,
-                        state,
-                    )
-                except QuoteSpecificImageMismatch:
-                    defer_engagement_question_member(
-                        state,
-                        code="quote_specific_image_unavailable",
-                        recorded_epoch=transaction_preflight_epoch,
-                    )
-                    quote_choice = None
-                    image_choice = None
-                    experimental_public_text = None
-                    engagement_experiment_envelope = None
-                except engagement_question_trial.ExperimentValidationError:
-                    log.error(
-                        "Experimental member failed immediate pre-post validation",
-                        exc_info=True,
-                    )
-                    defer_engagement_question_member(
-                        state,
-                        code="immediate_member_validation_failed",
-                        recorded_epoch=transaction_preflight_epoch,
-                    )
-                    quote_choice = None
-                    image_choice = None
-                    experimental_public_text = None
-                    engagement_experiment_envelope = None
-
-        if quote_choice is None or image_choice is None:
-            ordinary_selection_options = (
-                {"excluded_quote_hashes": reserved_quote_hashes}
-                if reserved_quote_hashes
-                else {}
-            )
-            try:
-                quote_choice, image_choice, attempts = choose_regular_quote_image_pair(
-                    lines_used,
-                    images_used,
-                    state,
-                    **ordinary_selection_options,
-                )
-            except NoViableQuoteImagePair as exc:
-                log.warning(
-                    "No viable regular quote/image pair found within current image cycle after %d attempt(s); "
-                    "resetting image cycle and retrying once",
-                    exc.attempts,
-                )
-                try:
-                    quote_choice, image_choice, attempts = choose_regular_quote_image_pair(
-                        lines_used,
-                        images_used,
-                        state,
-                        force_image_cycle_reset=True,
-                        **ordinary_selection_options,
-                    )
-                except NoViableQuoteImagePair as reset_exc:
-                    if not reset_exc.excluded_last_image:
-                        log.error("No viable regular quote/image pair found after image-cycle recovery; giving up for this post attempt")
-                        raise RuntimeError(str(reset_exc)) from reset_exc
-                    log.warning(
-                        "No viable regular quote/image pair found after image-cycle recovery while excluding last regular image %s; "
-                        "retrying once with last image permitted",
-                        reset_exc.excluded_last_image,
-                    )
-                    try:
-                        quote_choice, image_choice, attempts = choose_regular_quote_image_pair(
-                            lines_used,
-                            images_used,
-                            state,
-                            force_image_cycle_reset=True,
-                            avoid_last_image_at_cycle_boundary=False,
-                            **ordinary_selection_options,
-                        )
-                    except NoViableQuoteImagePair as final_exc:
-                        log.error(
-                            "No viable regular quote/image pair found after final last-image recovery fallback; "
-                            "giving up for this post attempt"
-                        )
-                        raise RuntimeError(str(final_exc)) from final_exc
-                    log.info("Regular quote/image pairing succeeded after permitting last regular image as final recovery fallback")
-                else:
-                    log.info("Regular quote/image pairing succeeded after image-cycle recovery")
-        else:
-            attempts = 1
-
-        line_no = int(quote_choice["line_no"])
-        quote_hash = str(quote_choice["quote_hash"])
-        canonical_quote_text = str(quote_choice["text"])
-        tweet = (
-            experimental_public_text
-            if engagement_experiment_envelope is not None
-            else canonical_quote_text
-        )
-        image_no = int(image_choice["image_no"])
-        image = str(image_choice["path"])
-        image_basename = str(image_choice["basename"])
-        image_made_with_ai = image_choice.get("image_source") == "generated"
-        quote_delay = random.randint(POST_SLEEP_MIN, POST_SLEEP_MAX)
-        meme_delay = (
-            random.randint(MEME_DELAY_AFTER_MAIN_POST_MIN_SECONDS, MEME_DELAY_AFTER_MAIN_POST_MAX_SECONDS)
-            if ENABLE_DAILY_MEME_POSTS
-            else None
+        (
+            quote_choice,
+            image_choice,
+            experimental_public_text,
+            engagement_experiment_envelope,
+        ) = _select_quote_image_pair(
+            lines_used, images_used, state, transaction_preflight_epoch,
+            log=log,
+            engagement_question_opportunity=engagement_question_opportunity,
+            load_engagement_question_runtime_plan=load_engagement_question_runtime_plan,
+            invalidate_engagement_question_experiment=invalidate_engagement_question_experiment,
+            engagement_question_trial=engagement_question_trial,
+            resolve_engagement_question_quote_choice=resolve_engagement_question_quote_choice,
+            engagement_experiment_attempt_envelope_is_valid=engagement_experiment_attempt_envelope_is_valid,
+            choose_engagement_question_image=choose_engagement_question_image,
+            QuoteSpecificImageMismatch=QuoteSpecificImageMismatch,
+            defer_engagement_question_member=defer_engagement_question_member,
+            choose_regular_quote_image_pair=choose_regular_quote_image_pair,
+            NoViableQuoteImagePair=NoViableQuoteImagePair,
         )
 
-        log.info(
-            "Posting quote/image. line_no=%d quote_hash=%s image_no=%d image=%s image_score=%s",
+        (
             line_no,
             quote_hash,
+            canonical_quote_text,
+            tweet,
             image_no,
             image,
-            image_choice.get("score"),
+            image_basename,
+            image_made_with_ai,
+            quote_delay,
+            meme_delay,
+        ) = _prepare_quote_post(
+            quote_choice, image_choice, experimental_public_text,
+            engagement_experiment_envelope,
+            log=log,
+            POST_SLEEP_MIN=POST_SLEEP_MIN,
+            POST_SLEEP_MAX=POST_SLEEP_MAX,
+            MEME_DELAY_AFTER_MAIN_POST_MIN_SECONDS=MEME_DELAY_AFTER_MAIN_POST_MIN_SECONDS,
+            MEME_DELAY_AFTER_MAIN_POST_MAX_SECONDS=MEME_DELAY_AFTER_MAIN_POST_MAX_SECONDS,
+            ENABLE_DAILY_MEME_POSTS=ENABLE_DAILY_MEME_POSTS,
         )
-        log.debug("Quote text=%r", tweet)
 
         if engagement_experiment_envelope is None:
             # Keep the ordinary path's call shape and receipt bytes unchanged.
@@ -733,80 +977,38 @@ def post_random_quote(
     end_confirmed_post_sigint_deferral(confirmed_post_sigint_guard)
     confirmed_post_sigint_guard = None
 
-    try:
-        lines_used.add(quote_hash)
-        images_used.add(image_basename)
-        state["last_main_post_id"] = str(posted_id)
-        state["last_quote_post_epoch"] = quote_post_epoch
-        state["last_regular_image_filename"] = image_basename
-        update_regular_generated_image_spacing_state(state, image_basename)
-        apply_state_fields(state, quote_schedule_fields)
-        apply_state_fields(state, meme_schedule_fields)
-        cache_tweet(
-            state,
-            tweet_id=str(posted_id),
-            text=tweet,
-            author_id=str(MY_USER_ID),
-            conversation_id=str(posted_id),
-            referenced_tweets=[],
-            post_type="quote",
-        )
-        record_recent_own_post(state, str(posted_id))
-        apply_confirmed_engagement_experiment_receipt(receipt, state)
-        save_regular_post_protected_state(lines_used, images_used, state, durable=True)
-        log_confirmed_engagement_experiment_receipt(receipt)
-        if engagement_experiment_envelope_from_receipt(receipt) is not None:
-            # Keep confirmed experiment evidence recoverable until after its
-            # structured analytics event has been emitted.
-            log_event(
-                "main_post_posted",
-                lane="quote_image",
-                post_id=posted_id,
-                line_no=line_no,
-                image_no=image_no,
-                image_basename=image_basename,
-                image_hash=image_choice.get("image_hash"),
-                image_score=image_choice.get("score"),
-                quote_hash=quote_hash,
-                **engagement_experiment_event_fields(receipt),
-            )
-        enqueue_historical_context_obligation(receipt)
-        retire_lane_transport_journal_if_present(
-            receipt_path=REGULAR_POST_RECEIPT_FILE,
-            receipt=receipt,
-            lane="quote_image",
-            post_id=str(posted_id),
-        )
-        remove_regular_post_receipt(receipt)
-        publish_pending_engagement_question_notification(state)
-    except Exception as exc:
-        log.critical("Confirmed regular quote/image post_id=%s but protected local persistence failed", posted_id, exc_info=True)
-        raise ConfirmedPostLocalPersistenceError(
-            f"Confirmed regular quote/image post {posted_id} but protected local persistence failed"
-        ) from exc
-
-    if engagement_experiment_envelope_from_receipt(receipt) is None:
-        # Preserve the ordinary-post event path and fields byte-for-byte.
-        log_event(
-            "main_post_posted",
-            lane="quote_image",
-            post_id=posted_id,
-            line_no=line_no,
-            image_no=image_no,
-            image_basename=image_basename,
-            image_hash=image_choice.get("image_hash"),
-            image_score=image_choice.get("score"),
-            quote_hash=quote_hash,
-        )
-    emit_account_root_posted(
-        lane="quote_image",
-        post_id=posted_id,
-        public_text=tweet,
-        quote_id=quote_hash,
-        quote_text=canonical_quote_text,
+    _complete_quote_post(
+        lines_used, images_used, state,
+        quote_hash=quote_hash,
+        image_basename=image_basename,
+        posted_id=posted_id,
+        quote_post_epoch=quote_post_epoch,
+        quote_schedule_fields=quote_schedule_fields,
+        meme_schedule_fields=meme_schedule_fields,
+        tweet=tweet,
+        receipt=receipt,
+        line_no=line_no,
+        image_no=image_no,
+        image_choice=image_choice,
+        canonical_quote_text=canonical_quote_text,
+        log=log,
+        update_regular_generated_image_spacing_state=update_regular_generated_image_spacing_state,
+        apply_state_fields=apply_state_fields,
+        cache_tweet=cache_tweet,
+        MY_USER_ID=MY_USER_ID,
+        record_recent_own_post=record_recent_own_post,
+        apply_confirmed_engagement_experiment_receipt=apply_confirmed_engagement_experiment_receipt,
+        save_regular_post_protected_state=save_regular_post_protected_state,
+        log_confirmed_engagement_experiment_receipt=log_confirmed_engagement_experiment_receipt,
+        engagement_experiment_envelope_from_receipt=engagement_experiment_envelope_from_receipt,
+        log_event=log_event,
+        engagement_experiment_event_fields=engagement_experiment_event_fields,
+        enqueue_historical_context_obligation=enqueue_historical_context_obligation,
+        retire_lane_transport_journal_if_present=retire_lane_transport_journal_if_present,
+        REGULAR_POST_RECEIPT_FILE=REGULAR_POST_RECEIPT_FILE,
+        remove_regular_post_receipt=remove_regular_post_receipt,
+        publish_pending_engagement_question_notification=publish_pending_engagement_question_notification,
+        ConfirmedPostLocalPersistenceError=ConfirmedPostLocalPersistenceError,
+        emit_account_root_posted=emit_account_root_posted,
+        safely_process_due_historical_context_obligations=safely_process_due_historical_context_obligations,
     )
-    safely_process_due_historical_context_obligations(
-        parent_post_id=str(posted_id),
-        runtime_state=state,
-    )
-    log.info("Quote/image posted successfully. posted_id=%s", posted_id)

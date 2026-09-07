@@ -248,3 +248,217 @@ def test_posting_keeps_closure_objects_upload_shape_and_publication_order(
         assert (captured["public_text"] != canonical) is (arm == "treatment")
         assert captured["quote"]["quote_hash"] in lines_used
         assert state["engagement_question_experiment"]["confirmed_publications"][-1]["post_id"] == "950001"
+
+
+@pytest.mark.parametrize("failure_point", ["plan_change", "image_mismatch", "validation"])
+def test_experimental_fallback_keeps_only_the_applicable_reservations(
+    tmp_path, monkeypatch, synthetic_plan_bundle, failure_point,
+):
+    lines_used, images_used, state, *_ = configure_simple_quote_post(tmp_path, monkeypatch)
+    bundle = _live_synthetic_bundle(synthetic_plan_bundle)
+    _install_synthetic_runtime_authority(bundle, monkeypatch)
+    experiment_state, epoch = _state_at_first_member_with_arm(bundle, "treatment")
+    state["engagement_question_experiment"] = experiment_state
+    monkeypatch.setattr(bot, "engagement_question_experiment_enabled", True)
+    monkeypatch.setattr(bot, "now_epoch", lambda: epoch)
+    original_opportunity = bot.engagement_question_opportunity
+    original_load_plan = bot.load_engagement_question_runtime_plan
+    original_select = bot.choose_regular_quote_image_pair
+    captured = {}
+    invalidate = Mock(wraps=bot.invalidate_engagement_question_experiment)
+    defer = Mock(wraps=bot.defer_engagement_question_member)
+    upload = Mock(return_value="media-1")
+    create = Mock(wraps=bot.create_post)
+
+    def opportunity(current_state, **kwargs):
+        result = original_opportunity(current_state, **kwargs)
+        plan, member, reserved = result
+        assert plan is not None and member is not None and reserved
+        captured["reserved"] = reserved
+        return result
+
+    def load_plan():
+        if failure_point == "plan_change" and "reserved" in captured:
+            return {"plan_sha256": "changed"}, {}, {}
+        return original_load_plan()
+
+    def mismatch(*args, **kwargs):
+        raise bot.QuoteSpecificImageMismatch("planned image unavailable")
+
+    def ordinary(lines, images, current_state, **kwargs):
+        assert lines is lines_used and images is images_used and current_state is state
+        if failure_point == "plan_change":
+            assert kwargs == {}
+        else:
+            assert kwargs.keys() == {"excluded_quote_hashes"}
+            assert kwargs["excluded_quote_hashes"] is captured["reserved"]
+        result = original_select(lines, images, current_state, **kwargs)
+        captured["ordinary_quote"] = result[0]
+        return result
+
+    monkeypatch.setattr(bot, "engagement_question_opportunity", opportunity)
+    monkeypatch.setattr(bot, "load_engagement_question_runtime_plan", load_plan)
+    monkeypatch.setattr(bot, "choose_regular_quote_image_pair", ordinary)
+    monkeypatch.setattr(bot, "invalidate_engagement_question_experiment", invalidate)
+    monkeypatch.setattr(bot, "defer_engagement_question_member", defer)
+    monkeypatch.setattr(bot, "upload_media", upload)
+    monkeypatch.setattr(bot, "create_post", create)
+    if failure_point == "image_mismatch":
+        monkeypatch.setattr(bot, "choose_engagement_question_image", mismatch)
+    elif failure_point == "validation":
+        monkeypatch.setattr(bot, "engagement_experiment_attempt_envelope_is_valid", lambda *a, **kw: False)
+
+    bot.post_random_quote(lines_used, images_used, state)
+
+    quote = captured["ordinary_quote"]
+    upload.assert_called_once_with(str(tmp_path / "images" / "t01.jpg"), lane="quote_image")
+    assert create.call_count == 1 and create.call_args.kwargs["text"] == quote["text"]
+    assert lines_used == {quote["quote_hash"]}
+    assert images_used == {"t01.jpg"}
+    if failure_point == "plan_change":
+        invalidate.assert_called_once_with(state, code="active_plan_changed_during_opportunity", recorded_epoch=epoch)
+        defer.assert_not_called()
+    else:
+        invalidate.assert_not_called()
+        assert quote["quote_hash"] not in captured["reserved"]
+        defer.assert_called_once_with(
+            state,
+            code=("quote_specific_image_unavailable" if failure_point == "image_mismatch" else "immediate_member_validation_failed"),
+            recorded_epoch=epoch,
+        )
+
+
+@pytest.mark.parametrize("failure_point", ["meme_delay", "quote_log", "attempt_build", "attempt_write"])
+def test_prepublication_interrupt_preserves_draws_rollback_and_attempt_ownership(
+    tmp_path, monkeypatch, failure_point,
+):
+    lines_used, images_used, state, *_ = configure_simple_quote_post(tmp_path, monkeypatch)
+    lines_used.add("old quote")
+    images_used.add("old image")
+    failure = KeyboardInterrupt(failure_point)
+    draws = []
+    log = Mock()
+    upload = Mock(return_value="media-1")
+    proof = Mock(return_value=False)
+    remove = Mock()
+    release = Mock()
+    transport = Mock(side_effect=AssertionError("unexpected transport preparation"))
+    original_write = bot.write_main_post_attempt
+
+    def choose(lines, images, current_state, **kwargs):
+        assert lines is lines_used and images is images_used and current_state is state
+        lines.clear()
+        images.clear()
+        return (
+            {"line_no": 0, "quote_hash": bot.quote_text_hash("Good quote."), "text": "Good quote."},
+            {"image_no": 0, "path": str(tmp_path / "images" / "t01.jpg"), "basename": "t01.jpg"},
+            1,
+        )
+
+    def randint(low, high):
+        draws.append((low, high))
+        if failure_point == "meme_delay" and len(draws) == 2:
+            raise failure
+        return low
+
+    def interrupt(*args, **kwargs):
+        raise failure
+
+    def write_then_interrupt(attempt):
+        original_write(attempt)
+        raise failure
+
+    monkeypatch.setattr(bot, "engagement_question_opportunity", lambda *a, **kw: (None, None, set()))
+    monkeypatch.setattr(bot, "choose_regular_quote_image_pair", choose)
+    monkeypatch.setattr(bot, "ENABLE_DAILY_MEME_POSTS", True)
+    monkeypatch.setattr(bot.random, "randint", randint)
+    monkeypatch.setattr(bot, "log", log)
+    monkeypatch.setattr(bot, "upload_media", upload)
+    monkeypatch.setattr(bot, "api_error_proves_remote_non_success", proof)
+    monkeypatch.setattr(bot, "remove_main_post_attempt", remove)
+    monkeypatch.setattr(bot, "end_confirmed_post_sigint_deferral", release)
+    monkeypatch.setattr(bot, "prepare_main_tweet_transport", transport)
+    if failure_point == "quote_log":
+        log.debug.side_effect = interrupt
+    elif failure_point == "attempt_build":
+        monkeypatch.setattr(bot, "build_main_post_attempt", interrupt)
+    elif failure_point == "attempt_write":
+        monkeypatch.setattr(bot, "write_main_post_attempt", write_then_interrupt)
+
+    with pytest.raises(KeyboardInterrupt) as caught:
+        bot.post_random_quote(lines_used, images_used, state)
+
+    assert caught.value is failure
+    assert draws == [
+        (bot.POST_SLEEP_MIN, bot.POST_SLEEP_MAX),
+        (bot.MEME_DELAY_AFTER_MAIN_POST_MIN_SECONDS, bot.MEME_DELAY_AFTER_MAIN_POST_MAX_SECONDS),
+    ]
+    assert lines_used == {"old quote"} and images_used == {"old image"}
+    assert "last_main_post_id" not in state
+    release.assert_called_once_with(None)
+    remove.assert_not_called()
+    transport.assert_not_called()
+    assert upload.call_count == int(failure_point in {"attempt_build", "attempt_write"})
+    if failure_point == "attempt_write":
+        proof.assert_called_once_with(failure)
+        assert bot.load_regular_post_receipt()[0] == "sending"
+    else:
+        proof.assert_not_called()
+        assert not bot.REGULAR_POST_RECEIPT_FILE.exists()
+
+
+@pytest.mark.parametrize("failure_point", ["protected_interrupt", "notification", "post_event"])
+def test_completion_keeps_signal_release_exception_scope_and_receipt_disposition(
+    tmp_path, monkeypatch, failure_point,
+):
+    lines_used, images_used, state, *_ = configure_simple_quote_post(tmp_path, monkeypatch)
+    monkeypatch.setattr(bot, "engagement_question_experiment_enabled", False)
+    guard = object()
+    release = Mock()
+    begin = Mock(return_value=guard)
+    create = Mock(wraps=bot.create_post)
+    root_event = Mock()
+    context = Mock()
+    failure = KeyboardInterrupt("completion interrupted") if failure_point == "protected_interrupt" else RuntimeError(failure_point)
+
+    def fail(*args, **kwargs):
+        release.assert_called_once_with(guard)
+        assert bot.REGULAR_POST_RECEIPT_FILE.exists() is (failure_point == "protected_interrupt")
+        raise failure
+
+    def event(name, **fields):
+        if name == "main_post_posted":
+            fail()
+
+    monkeypatch.setattr(bot, "begin_confirmed_post_sigint_deferral", begin)
+    monkeypatch.setattr(bot, "end_confirmed_post_sigint_deferral", release)
+    monkeypatch.setattr(bot, "create_post", create)
+    monkeypatch.setattr(bot, "emit_account_root_posted", root_event)
+    monkeypatch.setattr(bot, "safely_process_due_historical_context_obligations", context)
+    if failure_point == "protected_interrupt":
+        monkeypatch.setattr(bot, "save_regular_post_protected_state", fail)
+    elif failure_point == "notification":
+        monkeypatch.setattr(bot, "publish_pending_engagement_question_notification", fail)
+    else:
+        monkeypatch.setattr(bot, "log_event", event)
+
+    expected = bot.ConfirmedPostLocalPersistenceError if failure_point == "notification" else type(failure)
+    with pytest.raises(expected) as caught:
+        bot.post_random_quote(lines_used, images_used, state)
+
+    if failure_point == "notification":
+        assert type(caught.value) is bot.ConfirmedPostLocalPersistenceError
+        assert caught.value.__cause__ is failure
+        assert str(caught.value) == "Confirmed regular quote/image post 950001 but protected local persistence failed"
+    else:
+        assert caught.value is failure
+    assert create.call_count == 1
+    begin.assert_called_once_with()
+    release.assert_called_once_with(guard)
+    root_event.assert_not_called()
+    context.assert_not_called()
+    assert lines_used == {bot.quote_text_hash("Good quote.")}
+    assert images_used == {"t01.jpg"}
+    assert state["last_main_post_id"] == "950001"
+    assert state["next_quote_post_epoch"] > state["last_quote_post_epoch"]
+    assert bot.REGULAR_POST_RECEIPT_FILE.exists() is (failure_point == "protected_interrupt")

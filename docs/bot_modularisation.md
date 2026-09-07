@@ -5585,3 +5585,98 @@ supervisor review and LIVE usage checks; no production checkout execution,
 configuration/state/credential/log-content read, production lock, live provider,
 quote-posting change, deployment/service mutation, merge or successor launch was
 performed.
+
+
+## Stage69 — quote selection, preparation and completion (2026-09-07)
+
+Started clean on `codex/bot-modularisation-stage69` at accepted parent
+`211dc17e0dc6b698ccf9500cb9df32e9167fc843`; origin's stage68 branch matched.
+Origin remains `https://github.com/tmccc/mrsMThatcher.git`.
+Only `mrs_bot_quote_posting.py`, its owner tests and this EOF append changed.
+
+The private responsibilities now have these actual spans, including signatures:
+
+| Function | Lines | Responsibility |
+| --- | ---: | --- |
+| `_select_quote_image_pair` | 128 | Experimental opportunity validation and ordinary fallback decision |
+| `_select_regular_quote_image_pair` | 65 | Initial selection, image-cycle reset, conditional last-image fallback |
+| `_prepare_quote_post` | 54 | Canonical/public text, image identity, shared random delays and preparation logs |
+| `_complete_quote_post` | 116 | Protected state, experiment evidence, context disposition, retirement and final events |
+| `post_random_quote` | 607 (was 792) | Preflight, publication, central rollback/recovery and interruption ownership |
+
+Preparation returns ten named content/image/delay values, with no dependencies,
+caller containers or recovery authority stored in that result. Selection returns
+its original quote/image/envelope references. Neither helper can hide a bound
+attempt or signal guard on failure. Upload and experimental closure construction,
+both revalidations, attempt construction/binding/write, transport/media handoff
+and SIGINT acquisition remain explicit in the main function.
+
+The original public signature and all 76 dependencies are unchanged. AST review
+confirmed the preflight/snapshot sequence, upload-through-ID-validation block,
+first `BaseException` handler, entire confirmed-receipt try and 241-line recovery
+handler, signal-release sequence and moved completion body are unchanged. All
+nine `locals()` checks and their independently assigned attempt, receipt, epoch
+and schedule bindings remain central. Completion keeps its original `Exception`
+wrapper and the ordinary event/account-root/context tail outside that wrapper.
+The root adapter and both accepted reply owners are byte-for-byte unchanged;
+root SHA256 remains
+`17955f57fb7c42539c80888e239efcd21c8c6724df8820bf7e7ea8e811280e77`.
+
+Validation used all 69 supplied selectors: four owner/nearest-regression files
+and 65 direct unit functions, recorded in `focused-selection.txt`. The same
+selection ran before and after. Ten added cases reuse existing fixtures and
+cover plan-change versus member-failure reservations, interrupted random/log
+preparation and attempt build/write, and completion signal/error/receipt scope.
+All parent owner-test bytes and all 7,860 existing full-suite cases were retained.
+
+Evidence: `/tmp/mrs-bot-stage69-xv67vazc`. The reviewed stage68 runner and guard
+were copied there with stage identifiers alone changed. Every phase ran docs
+coverage and successful nonempty collection before four-worker execution under
+`set -euo pipefail`. The full run used the complete `pytest.ini` selection:
+
+```bash
+python3 tools/check_python_documentation.py
+MRS_TEST_MODE=1 PYTEST_DISABLE_PLUGIN_AUTOLOAD=1 python3 -m pytest -q \
+  -p xdist.plugin -n 4 --dist=worksteal --max-worker-restart=0 \
+  -p no:cacheprovider -p stage69_metadata_guard
+```
+
+`run_suite.sh` and each `*-commands.txt` record the exact collection/execution
+commands and guard evidence prefixes. Collection and every worker loaded the
+metadata-only override. Stage-local TMPDIR, temporary HOME/state/cache, dummy
+credentials, dead proxies, denied external sockets with explicit loopback,
+`PYTHONUSERBASE=/home/tonym/.local`, disabled bytecode/plugin autoload/cache and
+all other fixtures were preserved. No concurrent suites or package changes.
+
+| Phase | Collected; collection wall | Pytest result/time | Execution wall |
+| --- | --- | --- | --- |
+| `focused-before` | 277; 4.37s | 277 passed in 50.51s | 52.30s |
+| `focused-after` | 287; 4.28s | 3 failed, 284 passed in 50.56s | 52.33s |
+| `focused-after-fixed` | 287; 4.19s | 287 passed, 4 errors in 52.17s | 53.97s |
+| `focused-after-quiet-retry` | 287; 4.18s | 287 passed in 51.05s | 52.84s |
+| `broad` | 7870; 22.32s | 7870 passed, 873 warnings in 503.28s (0:08:23) | 505.28s |
+
+The three initial post-refactor failures were confined to the new fallback test:
+its synthetic fixture replaces the quote catalogue, and a callback changed after
+adapter invocation was already captured. The correction asserts the exact
+ordinary-selected fixture text/hash and installs the plan-change loader before
+invocation. No runtime fix, weakened existing assertion or source-location test
+change was needed; details remain in `focused-failure-fix.txt`.
+
+The next run passed all 287 bodies but four teardown guards detected production
+log size changing from 61,373 to 64,629 bytes, with mtime changed and device/inode
+unchanged. No contents were read and no writer was attributed. All failed records
+remain. A subsequent 55.45-second metadata-only quiet window justified the
+unchanged focused retry, which passed. Equality continued for 180.33 seconds
+before the broad run, which passed on its first attempt. Every successful phase
+passed exact `[device, inode, size, mtime_ns]` equality and no-open-log-FD checks;
+no guard was relaxed. See the quiet-window samples/reasons and per-worker JSON.
+
+Actual diff/public-signature/runtime-scope review is recorded in
+`refactor-review.json`. Final documentation coverage passed for 274 modules and
+`git diff --check` passed. This appendix preserves every parent report byte;
+no unchanged passing suite was repeated for the documentation-only append.
+Stage69 ends after normal commit/push for supervisor review and LIVE usage checks.
+No production execution/modification, private configuration/state/credential/log
+content read, production lock, live provider, model-setting change, extra agent,
+successor, force push, merge, deployment or service mutation was performed.
