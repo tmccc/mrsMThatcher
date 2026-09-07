@@ -5128,3 +5128,74 @@ Production Git metadata remains `master` at
 configuration/state/credential reads, production locks/signals, live providers,
 service or deployment actions occurred. Configured Astra/max is unchanged.
 Stage62 ends for supervisor acceptance; no successor was launched.
+
+
+## Stage 63 — Runtime service initialisation and lazy evidence loading
+
+Baseline: `ee0497474db92e97edbbadfdf8a0ba342f45f098`, clean on
+`codex/bot-modularisation-stage63`; origin stage62 matched and stage63 was absent.
+Read all four corrected supervisor inputs, the complete scope, three immutable
+originals, all six curated test bodies/decorators, bounded callers and required
+SDK-free/bootstrap/gate and receipt/incident/protocol isolation helpers. Reused
+the checked stage62 extraction, reverse proof and test machinery.
+
+`mrs_bot_runtime_service_initialisation.py` owns **three bodies/docstrings,
+133 original definition lines**. Three `_runtime_service_initialisation`
+adapters preserve public signatures/defaults/deferred annotations and supply
+**11/9/6** current dependencies. The **ten exact plain root accessors** preserve
+five cache globals and the live logger through **22 loads / five assignments**
+at their original expression positions. Seven of those loads resolve the current
+logger, including the delayed health warning callback. Three original global
+declarations, including both multi-name lists, are removed from the owner.
+Health gating, deferred warnings and partial assignments; lazy evidence failure
+caching and separate live property observations; and gate import, formatter,
+store, log and event order retain their native exception scopes and references.
+No storage, constants/classes, earlier owners or unrelated root behavior move;
+no new policy, catches, retries, normalization, retained authority or import-time
+runtime work. README/API register the companion.
+
+Evidence: `/tmp/mrs-bot-stage63-Vs7yKI1t`. Pre-edit documentation passed for **271
+modules**. Baseline: **eight explicit nodes across four files; 11 collected in
+1.95s; 11 passed in 2.98s**. Current: **24 explicit nodes across five files;
+71 collected in 2.00s; 71 passed in 4.75s**, first run. The **16 new contract
+functions / 60 cases** cover guarded import, current adapters/signatures and
+references, exact root accessors, delayed logger replacement, lazy gates,
+assignment and property observation order, cached failure causes, diagnostic
+failures and native constructor/import/conversion/log/event boundaries. All six
+curated selections, assertions, parameterization and fixtures remain unchanged;
+new tests reuse autouse receipt/incident isolation and mocks/synthetic paths.
+No real health destinations, research corpus, gate matrices or providers were used
+by the new contracts.
+
+Both collections and runs used the preceding reviewed metadata-only production-
+log plugin and unchanged runner, differing only in stage identifiers. **All four
+metadata equality checks passed**; open-FD assertions and other fixtures remain
+unchanged. AST-validated nonempty explicit selections and successful nonempty
+collection preceded pytest under `set -euo pipefail`, required Python/pytest
+flags, stage-local TMPDIR, temporary HOME/state, dummy credentials, dead proxies,
+denied external sockets and explicit loopback policy. No log contents were read.
+
+`verify_stage63.py` / `comparison.txt` verify exact transformed body source,
+reversed body ASTs, signatures and compiled dependency inventories without
+importing the bot. All ten helper definitions/signatures match the full corrected
+scope exactly. Reverse restoration retains each original declaration's names and
+order at **body[1]**. Restoring the three adapters and removing only the helpers
+and companion import reconstructs the **entire immutable parent root byte for
+byte**, including **516 unaffected functions**. All **62 prior owners**, existing
+tests/fixtures and unrelated files remain unchanged. Post-edit documentation
+passed for **272 modules**; whitespace checks passed. This section is appended
+at actual EOF with the entire immutable parent report verified as a byte prefix.
+Passing runtime tests were not repeated after the report append.
+
+| Runtime file | Before lines / bytes | After lines / bytes |
+|---|---:|---:|
+| `mrsMThatcher2.py` | 10,636 / 429,602 | 10,591 / 428,355 |
+| `mrs_bot_runtime_service_initialisation.py` | absent | 175 / 6,473 |
+
+Root reduction: **45 lines / 1,247 bytes**. Combined runtime growth: **130 lines /
+5,226 bytes**. New tests: **644 lines / 29,766 bytes**. Full selections, test
+outputs, metadata, adapted proof machinery and sizes remain in the evidence
+root. Production was not modified or run; no private configuration/state/
+credential/log-content reads, production namespaces/locks, live providers,
+service, deployment or restart actions occurred. Configured Astra/max is
+unchanged. Stage63 ends for supervisor acceptance; no successor was launched.

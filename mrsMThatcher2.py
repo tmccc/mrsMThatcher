@@ -272,6 +272,7 @@ import mrs_bot_receipt_retirement as _receipt_retirement
 import mrs_bot_remote_write_barriers as _remote_write_barriers
 import mrs_bot_local_config as _local_config
 import mrs_bot_observability as _observability
+import mrs_bot_runtime_service_initialisation as _runtime_service_initialisation
 import mrs_bot_safety_marker_snapshots as _safety_marker_snapshots
 import mrs_bot_remote_write_incidents as _remote_write_incidents
 import mrs_bot_instance_lock_checks as _instance_lock_checks
@@ -814,36 +815,67 @@ _BOT_HEALTH_REPORTER: BotHealthReporter | None = None
 _BOT_HEALTH_LOGGING_OBSERVER: HealthLoggingObserver | None = None
 
 
+def _get_bot_health_reporter() -> BotHealthReporter | None:
+    """Return the root's bot health reporter."""
+    return _BOT_HEALTH_REPORTER
+
+def _set_bot_health_reporter(value: BotHealthReporter | None) -> None:
+    """Set the root's bot health reporter."""
+    global _BOT_HEALTH_REPORTER
+    _BOT_HEALTH_REPORTER = value
+
+def _set_bot_health_logging_observer(value: HealthLoggingObserver | None) -> None:
+    """Set the root's bot health logging observer."""
+    global _BOT_HEALTH_LOGGING_OBSERVER
+    _BOT_HEALTH_LOGGING_OBSERVER = value
+
+def _get_reply_evidence_repository_cache() -> object | None:
+    """Return the root's cached reply evidence repository."""
+    return _REPLY_EVIDENCE_REPOSITORY
+
+def _set_reply_evidence_repository_cache(value: object | None) -> None:
+    """Set the root's cached reply evidence repository."""
+    global _REPLY_EVIDENCE_REPOSITORY
+    _REPLY_EVIDENCE_REPOSITORY = value
+
+def _get_reply_evidence_load_error() -> str | None:
+    """Return the root's cached reply evidence load error."""
+    return _REPLY_EVIDENCE_LOAD_ERROR
+
+def _set_reply_evidence_load_error(value: str | None) -> None:
+    """Set the root's cached reply evidence load error."""
+    global _REPLY_EVIDENCE_LOAD_ERROR
+    _REPLY_EVIDENCE_LOAD_ERROR = value
+
+def _get_historical_context_semantic_gate() -> object | None:
+    """Return the root's historical-context semantic gate."""
+    return _HISTORICAL_CONTEXT_SEMANTIC_GATE
+
+def _set_historical_context_semantic_gate(value: object | None) -> None:
+    """Set the root's historical-context semantic gate."""
+    global _HISTORICAL_CONTEXT_SEMANTIC_GATE
+    _HISTORICAL_CONTEXT_SEMANTIC_GATE = value
+
+def _get_bot_logger() -> logging.Logger:
+    """Return the current root logger."""
+    return log
+
+
 def initialise_bot_health_reporting() -> None:
     """Initialise fail-open telemetry after production logging is ready."""
-
-    global _BOT_HEALTH_LOGGING_OBSERVER, _BOT_HEALTH_REPORTER
-    if _BOT_HEALTH_REPORTER is not None:
-        return
-    if SELF_TEST_REQUESTED or INITIALISE_REQUESTED:
-        return
-    try:
-        health_path = health_file_path_from_environment(
-            test_mode=TEST_MODE,
-            test_base_dir=BASE_DIR if TEST_MODE else None,
-        )
-        if health_path is None:
-            return
-        reporter = BotHealthReporter(
-            health_path,
-            write_failure_callback=lambda message: log.warning("%s", message),
-        )
-        observer = HealthLoggingObserver(reporter)
-        _BOT_HEALTH_REPORTER = reporter
-        _BOT_HEALTH_LOGGING_OBSERVER = observer
-        log.addHandler(observer)
-    except Exception:
-        if TEST_MODE:
-            raise
-        log.warning(
-            "Bot health telemetry could not be initialised; bot operation continues",
-            exc_info=True,
-        )
+    return _runtime_service_initialisation.initialise_bot_health_reporting(
+        BASE_DIR=BASE_DIR,
+        BotHealthReporter=BotHealthReporter,
+        HealthLoggingObserver=HealthLoggingObserver,
+        INITIALISE_REQUESTED=INITIALISE_REQUESTED,
+        SELF_TEST_REQUESTED=SELF_TEST_REQUESTED,
+        TEST_MODE=TEST_MODE,
+        _get_bot_health_reporter=_get_bot_health_reporter,
+        _get_bot_logger=_get_bot_logger,
+        _set_bot_health_logging_observer=_set_bot_health_logging_observer,
+        _set_bot_health_reporter=_set_bot_health_reporter,
+        health_file_path_from_environment=health_file_path_from_environment,
+    )
 
 
 def report_bot_health_progress(
@@ -1747,109 +1779,32 @@ def conversational_reply_pipeline_enabled() -> bool:
 
 def reply_evidence_repository():
     """Load claim evidence on first use and cache a fail-closed load failure."""
-    global _REPLY_EVIDENCE_REPOSITORY, _REPLY_EVIDENCE_LOAD_ERROR
-    if _REPLY_EVIDENCE_REPOSITORY is not None:
-        return _REPLY_EVIDENCE_REPOSITORY
-    if _REPLY_EVIDENCE_LOAD_ERROR is not None:
-        raise ReplyEvidenceUnavailable(_REPLY_EVIDENCE_LOAD_ERROR)
-
-    from reply_evidence import EvidenceRepository
-
-    research_path = Path(SINGLE_CALL_REPLY_RESEARCH_CORPUS_PATH)
-    if not research_path.is_absolute():
-        research_path = BASE_DIR / research_path
-    factual_evidence_path = BASE_DIR / "reply_factual_evidence.json"
-    try:
-        _REPLY_EVIDENCE_REPOSITORY = EvidenceRepository(
-            research_path,
-            factual_evidence_path=factual_evidence_path,
-        )
-    except Exception as exc:
-        _REPLY_EVIDENCE_LOAD_ERROR = (
-            f"reply evidence unavailable at {research_path}: "
-            f"{type(exc).__name__}: {exc}"
-        )
-        log.critical(
-            "%s; conversational replies are disabled until a controlled restart",
-            _REPLY_EVIDENCE_LOAD_ERROR,
-        )
-        raise ReplyEvidenceUnavailable(_REPLY_EVIDENCE_LOAD_ERROR) from exc
-    log.info(
-        "Reply evidence loaded lazily. completed=%d unresolved=%d attribution_eligible=%d factual=%d passages=%d",
-        _REPLY_EVIDENCE_REPOSITORY.completed_packet_count,
-        _REPLY_EVIDENCE_REPOSITORY.unresolved_packet_count,
-        _REPLY_EVIDENCE_REPOSITORY.attribution_eligible_packet_count,
-        _REPLY_EVIDENCE_REPOSITORY.factual_evidence_count,
-        len(_REPLY_EVIDENCE_REPOSITORY.passages),
+    return _runtime_service_initialisation.reply_evidence_repository(
+        BASE_DIR=BASE_DIR,
+        Path=Path,
+        ReplyEvidenceUnavailable=ReplyEvidenceUnavailable,
+        SINGLE_CALL_REPLY_RESEARCH_CORPUS_PATH=SINGLE_CALL_REPLY_RESEARCH_CORPUS_PATH,
+        _get_bot_logger=_get_bot_logger,
+        _get_reply_evidence_load_error=_get_reply_evidence_load_error,
+        _get_reply_evidence_repository_cache=_get_reply_evidence_repository_cache,
+        _set_reply_evidence_load_error=_set_reply_evidence_load_error,
+        _set_reply_evidence_repository_cache=_set_reply_evidence_repository_cache,
     )
-    return _REPLY_EVIDENCE_REPOSITORY
 
 
 def initialise_historical_context_semantic_gate(
     packets: dict[str, dict],
 ) -> object:
     """Load the reviewed gate without failing the independent main-post lane."""
-    global _HISTORICAL_CONTEXT_SEMANTIC_GATE
-    if _HISTORICAL_CONTEXT_SEMANTIC_GATE is not None:
-        return _HISTORICAL_CONTEXT_SEMANTIC_GATE
-
-    from historical_context_formatter import (
-        packet_is_attributed_to_margaret_thatcher,
+    return _runtime_service_initialisation.initialise_historical_context_semantic_gate(
+        packets,
+        BASE_DIR=BASE_DIR,
+        _get_bot_logger=_get_bot_logger,
+        _get_historical_context_semantic_gate=_get_historical_context_semantic_gate,
+        _set_historical_context_semantic_gate=_set_historical_context_semantic_gate,
+        historical_context_reply=historical_context_reply,
+        log_event=log_event,
     )
-    from historical_context_reply_semantic_gate import (
-        POLICY_VERSION,
-        load_historical_context_semantic_gate,
-    )
-
-    eligible_quote_ids = {
-        quote_id
-        for quote_id, packet in packets.items()
-        if packet_is_attributed_to_margaret_thatcher(packet)
-    }
-    gate = load_historical_context_semantic_gate(
-        root=BASE_DIR,
-        eligible_quote_ids=eligible_quote_ids,
-        formatter_options={
-            "maximum_length": int(historical_context_reply["maximum_length"]),
-            "include_meaning": bool(historical_context_reply["include_meaning"]),
-            "include_source": bool(historical_context_reply["include_source"]),
-            "include_verification": bool(
-                historical_context_reply["include_verification"]
-            ),
-        },
-    )
-    _HISTORICAL_CONTEXT_SEMANTIC_GATE = gate
-    if gate.available:
-        log.info(
-            "Historical-context semantic gate loaded. policy=%s ledger_sha256=%s "
-            "projection_sha256=%s blocked=%d regular_post_eligibility_unchanged=true",
-            POLICY_VERSION,
-            gate.ledger_sha256,
-            gate.projection_sha256,
-            len(gate.blocked_dispositions),
-        )
-        log_event(
-            "historical_context_semantic_gate",
-            status="loaded",
-            policy_version=POLICY_VERSION,
-            ledger_sha256=gate.ledger_sha256,
-            projection_sha256=gate.projection_sha256,
-            blocked_quote_count=len(gate.blocked_dispositions),
-        )
-    else:
-        log.critical(
-            "Historical-context semantic gate unavailable; only public context "
-            "replies are fail-closed until a controlled restart. reason=%s",
-            gate.reason,
-        )
-        log_event(
-            "historical_context_semantic_gate",
-            status="unavailable",
-            policy_version=POLICY_VERSION,
-            ledger_sha256=gate.ledger_sha256,
-            reason=gate.reason,
-        )
-    return gate
 
 
 def production_bootstrap(
