@@ -259,6 +259,7 @@ import mrs_bot_state_loading as _state_loading
 import mrs_bot_main_post_receipts as _main_post_receipts
 import mrs_bot_main_post_receipt_storage as _main_post_receipt_storage
 import mrs_bot_main_post_attempt_values as _main_post_attempt_values
+import mrs_bot_main_post_confirmation_persistence as _main_post_confirmation_persistence
 import mrs_bot_x_request as _x_request
 import mrs_bot_post_creation as _post_creation
 import mrs_bot_main_post_reconciliation as _main_post_reconciliation
@@ -5756,10 +5757,11 @@ def durable_create_receipt_json(path: Path, value: object) -> None:
 
 def atomic_json_file_exactly_matches(path: Path, value: object) -> bool:
     """Compare a receipt with its expected canonical bytes without JSON parsing."""
-    try:
-        return path.read_bytes() == canonical_atomic_json_bytes(value)
-    except Exception:
-        return False
+    return _main_post_confirmation_persistence.atomic_json_file_exactly_matches(
+        path,
+        value,
+        canonical_atomic_json_bytes=canonical_atomic_json_bytes,
+    )
 
 
 def valid_post_id(value: object) -> bool:
@@ -6191,130 +6193,34 @@ def promote_main_post_attempt_to_confirmed_pending_schedule(
     image_summary: str = "",
 ) -> dict:
     """Atomically bind a confirmed remote identity before fallible local work."""
-    pending = build_confirmed_pending_schedule_receipt(
+    return _main_post_confirmation_persistence.promote_main_post_attempt_to_confirmed_pending_schedule(
         attempt,
         post_id=post_id,
         confirmation_epoch=confirmation_epoch,
         image_summary=image_summary,
+        AmbiguousRemotePostOutcome=AmbiguousRemotePostOutcome,
+        BoundSourceReceiptTransitionError=BoundSourceReceiptTransitionError,
+        ConfirmedPendingScheduleDurabilityUncertain=ConfirmedPendingScheduleDurabilityUncertain,
+        REGULAR_POST_RECEIPT_FILE=REGULAR_POST_RECEIPT_FILE,
+        TRANSPORT_SOURCE_VALIDATOR_ID=TRANSPORT_SOURCE_VALIDATOR_ID,
+        TransportJournalError=TransportJournalError,
+        _set_ambiguous_remote_post_seen=_set_ambiguous_remote_post_seen,
+        atomic_json_file_exactly_matches=atomic_json_file_exactly_matches,
+        bind_confirmed_transport_source=bind_confirmed_transport_source,
+        build_confirmed_pending_schedule_receipt=build_confirmed_pending_schedule_receipt,
+        canonical_atomic_json_bytes=canonical_atomic_json_bytes,
+        fsync_parent_dir=fsync_parent_dir,
+        journal_path_for_receipt=journal_path_for_receipt,
+        latch_confirmed_post_persistence_failure=latch_confirmed_post_persistence_failure,
+        load_meme_post_receipt=load_meme_post_receipt,
+        load_regular_post_receipt=load_regular_post_receipt,
+        log=log,
+        main_post_attempt_path=main_post_attempt_path,
+        remote_write_safety_incident_is_latched=remote_write_safety_incident_is_latched,
+        replace_bound_source_receipt=replace_bound_source_receipt,
+        transaction_mutation_authority=transaction_mutation_authority,
+        transport_source_semantic_validator=transport_source_semantic_validator,
     )
-    path = main_post_attempt_path(attempt)
-    status, current = (
-        load_regular_post_receipt()
-        if path == REGULAR_POST_RECEIPT_FILE
-        else load_meme_post_receipt()
-    )
-    if status != "sending" or current != attempt:
-        raise AmbiguousRemotePostOutcome(
-            "Main-post attempt changed before remote-confirmation promotion",
-            service="x",
-        )
-    recovery = bind_confirmed_transport_source(
-        journal_path=journal_path_for_receipt(path),
-        receipt_path=path,
-        validator_id=TRANSPORT_SOURCE_VALIDATOR_ID,
-        validator=transport_source_semantic_validator,
-    )
-    if (
-        recovery.details.lane != str(attempt["lane"])
-        or recovery.details.post_id != str(post_id)
-        or recovery.details.confirmation_epoch != int(confirmation_epoch)
-        or recovery.source_binding.receipt_document != attempt
-        or recovery.source_binding.receipt_bytes
-        != canonical_atomic_json_bytes(attempt)
-    ):
-        raise TransportJournalError(
-            "confirmed main-post transport/source lineage changed"
-        )
-    try:
-        replace_bound_source_receipt(
-            recovery.source_binding,
-            canonical_atomic_json_bytes(pending),
-            mutation_authority=transaction_mutation_authority(
-                "confirmed main-post source receipt promotion"
-            ),
-        )
-    except BaseException as write_error:
-        # ``atomic_write_json`` replaces the receipt before synchronising its
-        # parent directory.  A failure at that final boundary can therefore
-        # leave the exact pending receipt visible even though the writer did
-        # not return.  Latch first: every inspection and recovery operation
-        # below is fallible, and no unrelated remote lane may proceed while
-        # durability is uncertain.
-        global _AMBIGUOUS_REMOTE_POST_SEEN
-        latch_was_already_set = remote_write_safety_incident_is_latched()
-        _AMBIGUOUS_REMOTE_POST_SEEN = True
-
-        if isinstance(write_error, BoundSourceReceiptTransitionError):
-            raise ConfirmedPendingScheduleDurabilityUncertain(
-                "Confirmed main-post source receipt changed or its exact "
-                "promotion did not complete; the transport journal remains "
-                "a durable global barrier",
-                durable_barrier=True,
-            ) from write_error
-
-        if atomic_json_file_exactly_matches(path, pending):
-            try:
-                fsync_parent_dir(path, strict=True)
-                if not atomic_json_file_exactly_matches(path, pending):
-                    raise RuntimeError(
-                        "Pending-schedule receipt changed during durability recheck"
-                    )
-            except BaseException as durability_error:
-                durable_barrier = latch_confirmed_post_persistence_failure(
-                    lane=str(attempt["lane"]),
-                    post_id=str(post_id),
-                    failure_components=[
-                        "pending_schedule_parent_fsync",
-                        type(durability_error).__name__,
-                    ],
-                )
-                raise ConfirmedPendingScheduleDurabilityUncertain(
-                    "Confirmed main-post pending-schedule receipt is visible but "
-                    "its parent-directory durability could not be re-established",
-                    durable_barrier=durable_barrier,
-                ) from write_error
-
-            if not latch_was_already_set:
-                _AMBIGUOUS_REMOTE_POST_SEEN = False
-            log.warning(
-                "Re-established confirmed pending-schedule receipt durability "
-                "after its initial parent-directory fsync failed lane=%s "
-                "attempt_id=%s post_id=%s path=%s",
-                attempt["lane"],
-                attempt["attempt_id"],
-                post_id,
-                path,
-            )
-        elif atomic_json_file_exactly_matches(path, attempt):
-            # The replace did not occur.  The previously durable sending
-            # attempt remains the restart-safe barrier, so the caller's
-            # existing confirmed-state fallback may proceed.
-            if not latch_was_already_set:
-                _AMBIGUOUS_REMOTE_POST_SEEN = False
-            raise
-        else:
-            durable_barrier = latch_confirmed_post_persistence_failure(
-                lane=str(attempt["lane"]),
-                post_id=str(post_id),
-                failure_components=[
-                    "pending_schedule_receipt_identity",
-                    type(write_error).__name__,
-                ],
-            )
-            raise ConfirmedPendingScheduleDurabilityUncertain(
-                "Confirmed main-post receipt identity changed or could not be "
-                "verified after pending-schedule promotion failed",
-                durable_barrier=durable_barrier,
-            ) from write_error
-    log.warning(
-        "Promoted main-post attempt to confirmed pending-schedule receipt "
-        "lane=%s attempt_id=%s post_id=%s path=%s",
-        attempt["lane"],
-        attempt["attempt_id"],
-        post_id,
-        path,
-    )
-    return pending
 
 
 def materialize_bound_regular_schedule_receipt(
@@ -6601,9 +6507,17 @@ def apply_regular_post_receipt(receipt: dict, lines_used: set, images_used: set,
 
 def save_regular_post_protected_state(lines_used: set, images_used: set, state: dict, *, durable: bool) -> None:
     """Save regular post protected state."""
-    save_quote_used_hashes(LINES_USED_FILE, lines_used, durable=durable)
-    save_image_used_basenames(IMAGES_USED_FILE, {str(item) for item in images_used}, durable=durable)
-    save_state(state, durable=durable)
+    return _main_post_confirmation_persistence.save_regular_post_protected_state(
+        lines_used,
+        images_used,
+        state,
+        durable=durable,
+        IMAGES_USED_FILE=IMAGES_USED_FILE,
+        LINES_USED_FILE=LINES_USED_FILE,
+        save_image_used_basenames=save_image_used_basenames,
+        save_quote_used_hashes=save_quote_used_hashes,
+        save_state=save_state,
+    )
 
 
 def json_file_matches(path: Path, expected: object) -> bool:
@@ -6622,30 +6536,20 @@ def json_file_matches(path: Path, expected: object) -> bool:
 
 def emergency_persist_confirmed_regular_post(lines_used: set, images_used: set, state: dict) -> list[str]:
     """Return the emergency persist confirmed regular post."""
-    failures: list[str] = []
-    for name, func in (
-        ("quote_history", lambda: save_quote_used_hashes(LINES_USED_FILE, lines_used, durable=True)),
-        ("image_history", lambda: save_image_used_basenames(IMAGES_USED_FILE, {str(item) for item in images_used}, durable=True)),
-        ("state", lambda: save_state(state, durable=True)),
-    ):
-        try:
-            func()
-        except Exception as exc:
-            if (
-                name == "state"
-                and isinstance(exc, StateBackupWriteError)
-                and json_file_matches(STATE_FILE, state)
-            ):
-                log.warning(
-                    "Emergency canonical state was committed after confirmed regular "
-                    "post, but a later backup/finalisation step failed; treating the "
-                    "canonical durable state as the recovery representation",
-                    exc_info=True,
-                )
-                continue
-            failures.append(name)
-            log.critical("Emergency persistence component failed after confirmed regular post: %s", name, exc_info=True)
-    return failures
+    return _main_post_confirmation_persistence.emergency_persist_confirmed_regular_post(
+        lines_used,
+        images_used,
+        state,
+        IMAGES_USED_FILE=IMAGES_USED_FILE,
+        LINES_USED_FILE=LINES_USED_FILE,
+        STATE_FILE=STATE_FILE,
+        StateBackupWriteError=StateBackupWriteError,
+        json_file_matches=json_file_matches,
+        log=log,
+        save_image_used_basenames=save_image_used_basenames,
+        save_quote_used_hashes=save_quote_used_hashes,
+        save_state=save_state,
+    )
 
 
 def confirmed_regular_emergency_representation_is_complete(

@@ -5065,3 +5065,66 @@ Production Git metadata remains `master` at
 configuration/state/credential reads, production locks/signals, live providers,
 service or deployment actions occurred. Configured Astra/max is unchanged.
 Stage61 ends for supervisor acceptance; no successor was launched.
+
+## Stage 62 — Main-post confirmation promotion and protected persistence
+
+Baseline: `f74128620421a5d0afe28bd2cd10103a29cba4e3`, clean on
+`codex/bot-modularisation-stage62`; origin stage61 matched and stage62 was absent.
+Read all four supervisor inputs and the complete scope, four immutable originals,
+all 14 curated test bodies/decorators, relevant callers and required isolation,
+source-lineage/peer and pending-transaction helpers. Reused the checked stage61
+extraction, reverse proof and test machinery.
+
+`mrs_bot_main_post_confirmation_persistence.py` owns **four bodies/docstrings,
+169 original lines**. Four `_main_post_confirmation_persistence` adapters supply
+**1/22/5/9** current dependencies with exact public signatures/defaults/deferred
+annotations. Three promotion assignments use the **unchanged existing root
+setter** at their original positions; the single nested handler global is
+removed. Shared storage remains root. Exact bytes, source binding and ordered
+lineage checks, latch-before-inspection, strict fsync repair, conditional clearing,
+original causes/barriers, protected save order and emergency component/backup
+semantics remain exact. No new helpers, policy, catches, retries, normalization,
+retained authority or import-time runtime work. README/API register the companion.
+
+Evidence: `/tmp/mrs-bot-stage62-TMIYtLkd`. Pre-edit documentation passed for **270
+modules**. Baseline: **16 explicit nodes across six files; 31 collected in 2.25s;
+31 passed in 4.22s**. Current: **34 explicit nodes across seven files; 88 collected
+in 2.36s; 88 passed in 6.09s**, first run. The **18 new contract functions / 57
+cases** cover guarded import, current adapters/signatures/references, exact byte
+comparison, source and lineage gates, native pre-write errors, write-expression
+failures, repair/latch/cause boundaries and protected/emergency persistence order.
+All 14 curated selections, assertions, parameterization, fixtures and SIGINT
+cleanup are unchanged; new tests import established receipt/incident isolation.
+
+Both collections and runs used the preceding metadata-only production-log plugin;
+**all four metadata equality checks passed**, with unchanged open-FD assertions
+and other fixtures. Nonempty AST-validated explicit selections and successful
+nonempty collection preceded pytest under `set -euo pipefail`, required Python/
+pytest flags, stage-local TMPDIR, temporary HOME/state, dummy credentials, dead
+proxies, denied external sockets and explicit loopback. No log contents were read.
+
+`verify_stage62.py` / `comparison.txt` prove exact transformed body source,
+reversed body ASTs, signatures, compiled dependencies and adapter forwarding
+without importing the bot. Reversing the three calls and restoring the global
+at **body[7].handlers[0].body[0]** preserves its exact nested position and comments.
+Restoring the four adapters and removing only the new import reconstructs the
+**entire immutable parent root byte for byte**, including **515 unaffected
+functions**. The existing setter and all **61 prior owners** are byte-identical;
+existing tests/fixtures and unrelated files remain unchanged. Post-edit
+documentation passed for **271 modules**; whitespace checks passed. This section
+is appended at actual EOF with the complete immutable parent report verified as
+a byte prefix. Passing runtime tests were not repeated after this report append.
+
+| Runtime file | Before lines / bytes | After lines / bytes |
+|---|---:|---:|
+| `mrsMThatcher2.py` | 10,732 / 433,566 | 10,636 / 429,602 |
+| `mrs_bot_main_post_confirmation_persistence.py` | absent | 236 / 9,225 |
+
+Root reduction: **96 lines / 3,964 bytes**. Combined runtime growth: **140 lines /
+5,261 bytes**. New tests: **564 lines / 30,446 bytes**. Full selections, logs,
+metadata, adapted proof machinery and sizes remain in the evidence directory.
+Production Git metadata remains `master` at
+`af5eda7c163a8174ec1365060aa923d21787e7bd`. No production execution, private
+configuration/state/credential reads, production locks/signals, live providers,
+service or deployment actions occurred. Configured Astra/max is unchanged.
+Stage62 ends for supervisor acceptance; no successor was launched.
