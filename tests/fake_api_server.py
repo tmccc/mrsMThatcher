@@ -490,8 +490,7 @@ class FakeApiServer:
             ) -> dict[str, Any]:
                 body: dict[str, Any] = dict(extra or {})
                 if not self._pagination_enabled(path):
-                    if items:
-                        body["data"] = items
+                    body["data"] = items
                     return body
 
                 try:
@@ -506,8 +505,7 @@ class FakeApiServer:
                     start = 0
 
                 page = items[start : start + max_results]
-                if page:
-                    body["data"] = page
+                body["data"] = page
 
                 next_start = start + max_results
                 if next_start < len(items):

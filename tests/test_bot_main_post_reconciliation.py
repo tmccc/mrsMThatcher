@@ -265,7 +265,7 @@ def test_meme_tied_application_keeps_schedule_guard_and_current_cache_order(monk
         assert state["next_meme_schedule_date"] == "bound date"
         assert events.mock_calls == [
             call.cache_tweet(
-                state, tweet_id="970001", text="current default",
+                state, tweet_id="970001", text="",
                 author_id=str(bot.MY_USER_ID), conversation_id="970001",
                 referenced_tweets=[], image_summary="7", post_type="daily_meme",
             ),
@@ -503,7 +503,7 @@ def test_meme_pending_recovery_preserves_references_and_save_failure_boundary(mo
     )
     assert events.remove_meme_post_receipt.call_args.args[0] is receipt
     events.emit_account_root_posted.assert_called_once_with(
-        lane="daily_meme", post_id="970001", public_text=bot.MEME_POST_TEXT, image_summary=None,
+        lane="daily_meme", post_id="970001", public_text="", image_summary=None,
     )
     events.reset_mock()
     failure = OSError("durable save failed")
@@ -512,6 +512,53 @@ def test_meme_pending_recovery_preserves_references_and_save_failure_boundary(mo
         bot.reconcile_meme_post_receipt(state)
     assert caught.value is failure
     assert [entry[0] for entry in events.mock_calls] == expected_order[:7]
+
+
+@pytest.mark.parametrize("caption", ["", "Published caption"])
+def test_bound_meme_replay_preserves_caption_in_cache_and_observation(monkeypatch, caption):
+    monkeypatch.setattr(bot, "MEME_POST_TEXT", caption)
+    attempt = schema_current_main_attempt("daily_meme")
+    attempt["lifecycle_state"] = "attempting"
+    epoch = attempt["attempt_epoch"] + 1
+    pending = bot.build_confirmed_pending_schedule_receipt(
+        attempt, post_id="970001", confirmation_epoch=epoch,
+    )
+    receipt = bot.materialize_bound_meme_schedule_receipt(pending)
+    assert bot.meme_post_receipt_is_semantically_valid(receipt)
+    bot.write_meme_post_receipt(receipt)
+    monkeypatch.setattr(bot, "MEME_POST_TEXT", "New caption for future memes")
+    observed = Mock()
+    monkeypatch.setattr(bot, "emit_account_root_posted", observed)
+    state = bot.default_state()
+
+    assert bot.reconcile_meme_post_receipt(state) is True
+
+    assert state["tweet_cache"]["970001"]["text"] == caption
+    observed.assert_called_once_with(
+        lane="daily_meme", post_id="970001", public_text=caption,
+        image_summary=receipt.get("image_summary"),
+    )
+    assert bot.confirmed_meme_emergency_representation_is_complete(
+        post_id="970001", post_epoch=epoch, meme_basename="001_meme.png",
+        state=state, main_post_attempt=attempt,
+    )
+    assert not bot.MEME_POST_RECEIPT_FILE.exists()
+
+
+def test_legacy_meme_text_fallback_requires_an_absent_field(monkeypatch):
+    receipt = {
+        "post_id": "970001", "meme_basename": "001_meme.png",
+        "meme_post_epoch": 100, "next_meme_post_epoch": 200,
+    }
+    monkeypatch.setattr(bot, "MEME_POST_TEXT", "legacy default")
+    monkeypatch.setattr(bot, "load_meme_post_receipt", Mock(return_value=("valid", receipt)))
+    observed = Mock()
+    monkeypatch.setattr(bot, "emit_account_root_posted", observed)
+    monkeypatch.setattr(bot, "remove_meme_post_receipt", Mock())
+    state = bot.default_state()
+    assert bot.reconcile_meme_post_receipt(state) is True
+    assert state["tweet_cache"]["970001"]["text"] == "legacy default"
+    assert observed.call_args.kwargs["public_text"] == "legacy default"
 
 
 def test_main_recovery_gate_precedes_current_regular_then_meme_callbacks(monkeypatch):

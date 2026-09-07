@@ -346,7 +346,8 @@ def test_pair_retries_keep_current_exceptions_limit_exclusions_and_one_time_rese
     spacing = Mock(return_value=False)
     monkeypatch.setattr(bot, "log_generated_image_spacing_status", spacing)
 
-    def quote(used, *, excluded_quote_hashes):
+    def quote(used, *, excluded_quote_hashes, allow_cycle_reset):
+        assert allow_cycle_reset is (len(seen) == 0)
         assert used is lines and excluded_quote_hashes is not excluded
         seen.append(set(excluded_quote_hashes))
         return quotes[len(seen) - 1]

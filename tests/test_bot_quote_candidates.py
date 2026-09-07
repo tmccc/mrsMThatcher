@@ -258,7 +258,9 @@ def test_cycle_and_selection_keep_current_callbacks_set_and_candidate_identity(m
         assert current_pool.call_args.kwargs["excluded_quote_hashes"] is exclusion
         assert select.call_args.args[0] is weighted.call_args.args[0] is pool
     assert bot.choose_unused_line_candidate(used) is pool[0]
-    assert current_pool.call_args.kwargs == {"excluded_quote_hashes": None}
+    assert current_pool.call_args.kwargs == {"excluded_quote_hashes": None, "allow_cycle_reset": True}
+    assert bot.choose_unused_line_candidate(used, allow_cycle_reset=False) is pool[0]
+    assert current_pool.call_args.kwargs == {"excluded_quote_hashes": None, "allow_cycle_reset": False}
     log.info.assert_called_with(
         "Selected quote line_no=%d quote_hash=%s weight=%.2f seasonal_boost=%s", 0, "a", 1.0, False,
     )

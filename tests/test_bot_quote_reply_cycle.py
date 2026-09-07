@@ -14,6 +14,7 @@ import pytest
 import mrs_bot_quote_reply_cycle as cycle
 from tests.test_unit_helpers import (
     SCENARIOS,
+    SOURCE_GET_TWEET_BY_ID,
     bot,
     isolate_regular_post_receipt,
     load_scenario,
@@ -405,6 +406,62 @@ def test_lookup_failure_continues_only_when_fetching_the_original(monkeypatch, b
     assert health.call_args_list == ([call(state, failure, "x", scope="quote")] if api_failure else [])
     generate.assert_not_called()
     assert not state["skipped_quote_post_ids"]
+
+
+@pytest.mark.parametrize("status,expected_calls,expected_cooldown", [
+    (404, 4, False), (429, 1, True), (503, 3, True),
+])
+def test_original_http_errors_skip_targets_or_stop_at_shared_cooldown(
+    monkeypatch, status, expected_calls, expected_cooldown,
+):
+    """Exercise classification and cooldown through uncached original lookups."""
+    monkeypatch.setattr(bot, "now_epoch", lambda: 2_000_000_000)
+    monkeypatch.setattr(bot, "single_call_reply", {**bot.single_call_reply, "enabled": True})
+    monkeypatch.setattr(bot, "ENABLE_AUTO_REPLIES", True)
+    monkeypatch.setattr(bot, "ENABLE_QUOTE_TWEET_CHECKS", True)
+    monkeypatch.setattr(bot, "build_quote_lookup_post_ids", lambda _state: ["900", "901", "902", "903"])
+    monkeypatch.setattr(bot, "get_tweet_by_id", SOURCE_GET_TWEET_BY_ID)
+    discoveries = Mock(return_value=[])
+    monkeypatch.setattr(bot, "get_quote_tweets_for_post", discoveries)
+    health = Mock(wraps=bot.record_api_error)
+    monkeypatch.setattr(bot, "record_api_error", health)
+
+    def respond(method, url, **kwargs):
+        assert method == "GET"
+        assert url.startswith("http://127.0.0.1:9/2/tweets/")
+        target = url.rsplit("/", 1)[-1]
+        response = bot.requests.Response()
+        response.status_code = status
+        if status == 404 and target == "903":
+            response.status_code = 200
+            document = {"data": {"id": target, "text": "Available own post", "author_id": str(bot.MY_USER_ID)}}
+        elif status == 404:
+            document = {"errors": [{
+                "resource_type": "tweet", "parameter": "id", "resource_id": target,
+                "title": "Not Found Error", "detail": f"Could not find tweet with id: [{target}].",
+                "type": "https://api.twitter.com/2/problems/resource-not-found",
+            }]}
+        else:
+            document = {"title": "Too Many Requests" if status == 429 else "Service Unavailable"}
+            if status == 429:
+                response.headers["x-rate-limit-reset"] = "2000003600"
+        response._content = json.dumps(document).encode()
+        return response
+
+    transport = Mock(side_effect=respond)
+    monkeypatch.setattr(bot.requests, "request", transport)
+    state = bot.default_state()
+    assert bot.maybe_reply_to_quote_tweets(state) == bot.QUOTE_CHECK_STATUS_CHECKED
+    assert transport.call_count == expected_calls
+    assert bot.in_api_cooldown(state, scope="quote") is expected_cooldown
+    persisted = json.loads(bot.STATE_FILE.read_text())
+    assert persisted["quote_api_cooldown_until_epoch"] == state["quote_api_cooldown_until_epoch"]
+    if status == 404:
+        health.assert_not_called()
+        discoveries.assert_called_once_with("903", state)
+    else:
+        assert health.call_count == expected_calls
+        discoveries.assert_not_called()
 
 
 @pytest.mark.parametrize("boundary", ["refetch", "cache"])

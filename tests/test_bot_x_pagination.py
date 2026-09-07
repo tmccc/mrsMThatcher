@@ -345,6 +345,40 @@ def test_conflicting_malformed_sections_keep_validation_and_read_order(monkeypat
             page[section] = [] if section == "data" else {}
 
 
+@pytest.mark.parametrize("page", [
+    {}, {"meta": {}}, {"meta": {"result_count": 1}},
+    {"meta": {"result_count": False}},
+    {"errors": [{"detail": "Temporarily unavailable"}]},
+    {"meta": {"result_count": 0}, "errors": [{"detail": "Temporarily unavailable"}]},
+    {"data": [], "meta": {}, "errors": [{"detail": "Temporarily unavailable"}]},
+])
+def test_incomplete_pages_cannot_advance_page_or_cursor_callbacks(page):
+    callbacks = Mock()
+    params = {"pagination_token": "older-page", "since_id": "100"}
+    with pytest.raises(bot.ApiError, match="incomplete paginated response"):
+        bot.x_paginated_get(
+            Mock(return_value=page), "/2/test", params, max_pages=1, label="test",
+            on_page=callbacks.page, on_invalid_cursor=callbacks.clear,
+            on_repeated_cursor=callbacks.repeat,
+        )
+    assert callbacks.mock_calls == []
+    assert params == {"pagination_token": "older-page", "since_id": "100"}
+
+
+@pytest.mark.parametrize("page", [
+    {"data": [], "meta": {}}, {"data": []}, {"meta": {"result_count": 0}},
+])
+def test_legitimate_empty_collections_complete_the_page(page):
+    observed = Mock()
+    result = bot.x_paginated_get(
+        Mock(return_value=page), "/2/test", {}, max_pages=1, label="test", on_page=observed,
+    )
+    observed.assert_called_once_with([], {}, "", "", 1)
+    assert result["data"] == []
+    assert result["_pagination"]["pages_fetched"] == 1
+    assert result["_pagination"]["truncated"] is False
+
+
 def test_native_parameter_and_budget_errors_precede_requests_and_response_errors(monkeypatch):
     trace = Mock()
     monkeypatch.setattr(bot, "log", trace.log)

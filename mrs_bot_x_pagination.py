@@ -115,6 +115,8 @@ def x_paginated_get(
     twice. A caller may instead supply ``on_repeated_cursor`` to retain the
     bounded partial result and stop normally. ``should_request_cursor`` may
     optionally stop before a continuation request as a bounded partial success.
+    Missing data is valid only with an explicit zero result count. Incomplete
+    or error-only pages raise before any page-completion callback.
     """
     base_params = dict(params)
     recovered_invalid_cursor = False
@@ -208,6 +210,11 @@ def x_paginated_get(
                 raise ApiError(f"X {label} returned malformed paginated response media", service="x")
             if not isinstance(meta, dict):
                 raise ApiError(f"X {label} returned malformed paginated response meta", service="x")
+            if (
+                "data" not in result
+                and not (type(meta.get("result_count")) is int and meta["result_count"] == 0)
+            ) or (not page_data and result.get("errors")):
+                raise ApiError(f"X {label} returned an incomplete paginated response", service="x")
             pages_fetched = page
             combined["data"].extend(page_data)
 

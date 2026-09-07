@@ -427,8 +427,10 @@ def maybe_reply_to_quote_tweets(
             state,
             ApiError=ApiError,
             QUOTE_CHECK_STATUS_CHECKED=QUOTE_CHECK_STATUS_CHECKED,
+            api_error_is_permanent_target_failure=api_error_is_permanent_target_failure,
             get_quote_tweets_for_post=get_quote_tweets_for_post,
             get_tweet_by_id_cached=get_tweet_by_id_cached,
+            in_api_cooldown=in_api_cooldown,
             log=log,
             record_api_error=record_api_error,
             save_state=save_state,
@@ -635,8 +637,10 @@ def _lookup_quote_candidates(
     *,
     ApiError: type[Exception],
     QUOTE_CHECK_STATUS_CHECKED: str,
+    api_error_is_permanent_target_failure: Callable,
     get_quote_tweets_for_post: Callable,
     get_tweet_by_id_cached: Callable,
+    in_api_cooldown: Callable,
     log: Logger,
     record_api_error: Callable,
     save_state: Callable,
@@ -645,9 +649,14 @@ def _lookup_quote_candidates(
     try:
         original_tweet = get_tweet_by_id_cached(original_post_id, state)
     except ApiError as e:
+        if api_error_is_permanent_target_failure(e):
+            log.info("Original own post %s is unavailable; skipping quote lookup", original_post_id)
+            return _QuoteCandidateStop()
         log.exception("Failed to fetch original own post %s", original_post_id)
         record_api_error(state, e, "x", scope="quote")
         save_state(state)
+        if in_api_cooldown(state, scope="quote"):
+            return _QuoteCandidateStop(QUOTE_CHECK_STATUS_CHECKED)
         return _QuoteCandidateStop()
     except Exception:
         log.exception("Unexpected failure fetching original own post %s", original_post_id)

@@ -1972,6 +1972,44 @@ def test_post_random_quote_recovers_when_remaining_generated_cycle_image_cannot_
     assert "last image permitted" not in caplog.text
 
 
+@pytest.mark.parametrize("seasonal_tail", [False, True])
+def test_image_pair_retry_recovers_unused_quote_without_resetting_quote_history(
+    tmp_path, monkeypatch, caplog, seasonal_tail,
+):
+    """Recover an unused quote's image before repeating a posted quotation."""
+    texts = ["Already posted quotation.", "Still unused quotation."]
+    analyses = {0: {}, 1: quote_rejecting_crowd_scenes()}
+    if seasonal_tail:
+        texts.append("Christmas quotation.")
+        analyses[2] = {"seasonality": {
+            "hard_exclude_outside_windows": True,
+            "preferred_windows": [{"start_mm_dd": "12-10", "end_mm_dd": "12-28"}],
+        }}
+    used_hash, unused_hash = map(bot.quote_text_hash, texts[:2])
+    generated_name = "tg_" + "a" * 64 + ".png"
+    used, images_used, state, _, _ = configure_generated_cycle_recovery_post(
+        tmp_path, monkeypatch,
+        original_analyses={"t01.jpg": portrait_analysis()},
+        generated_analyses={generated_name: crowd_scene_analysis()},
+        quote_analyses=analyses, quotes=texts,
+    )
+    used.add(used_hash)
+    images_used.add("t01.jpg")
+    monkeypatch.setattr(bot, "completed_research_quote_hashes", lambda: set(map(bot.quote_text_hash, texts)))
+    caplog.set_level(logging.INFO, logger=bot.log.name)
+    calls = capture_create_post_calls(monkeypatch)
+
+    bot.post_random_quote(used, images_used, state)
+
+    assert [item["text"] for item in calls] == [texts[1]]
+    assert used == {used_hash, unused_hash}
+    assert bot.load_used_set(bot.LINES_USED_FILE) == used
+    assert images_used == {"t01.jpg"}
+    assert state["last_regular_image_filename"] == "t01.jpg"
+    assert "Regular quote/image pairing succeeded after image-cycle recovery" in caplog.text
+    assert "resetting quote cycle" not in caplog.text
+
+
 def test_image_cycle_recovery_does_not_reenable_spacing_blocked_generated_images(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
@@ -8030,7 +8068,8 @@ def test_pre_confirmation_failures_restore_histories_after_quote_cycle_reset(
     monkeypatch.setattr(bot, "reconcile_main_post_receipts", lambda *args, **kwargs: {"regular": False, "meme": False})
     monkeypatch.setattr(bot, "quote_used_history_has_legacy_indices", lambda used: False)
 
-    def reset_then_quote(used: set, *, excluded_quote_hashes: set[str] | None = None) -> dict:
+    def reset_then_quote(used: set, *, excluded_quote_hashes: set[str] | None = None, allow_cycle_reset: bool = True) -> dict:
+        assert allow_cycle_reset is True
         used.clear()
         return {"line_no": 0, "quote_hash": bot.quote_text_hash("Good quote."), "text": "Good quote.", "analysis": {}}
 
@@ -16410,7 +16449,8 @@ def test_global_image_failure_is_not_retried_across_quotes(
 ) -> None:
     calls = 0
 
-    def fake_quote(lines_used: set, *, excluded_quote_hashes: set[str] | None = None) -> dict:
+    def fake_quote(lines_used: set, *, excluded_quote_hashes: set[str] | None = None, allow_cycle_reset: bool = True) -> dict:
+        assert allow_cycle_reset is True
         nonlocal calls
         calls += 1
         return {"line_no": calls - 1, "quote_hash": f"{calls:064x}", "text": f"Quote {calls}.", "analysis": {}}

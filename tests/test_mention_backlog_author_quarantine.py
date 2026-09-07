@@ -66,6 +66,50 @@ def mention(tweet_id: int, author_id: int, text: str = "@MrsMThatcher A contribu
     }
 
 
+@pytest.mark.parametrize("body", [
+    b"", b"{}", b'{"errors":[{"detail":"Temporarily unavailable"}]}',
+])
+def test_incomplete_http_continuation_preserves_durable_unread_mentions(monkeypatch, body):
+    """An invalid 2xx continuation must remain retryable across state reload."""
+    from unittest.mock import Mock
+
+    monkeypatch.setattr(bot, "MENTIONS_MAX_PAGES_PER_CHECK", 1)
+    first = bot.requests.Response()
+    first.status_code = 200
+    first._content = json.dumps({
+        "data": [mention(300, 400)], "meta": {"next_token": "older-page"},
+    }).encode()
+    incomplete = bot.requests.Response()
+    incomplete.status_code = 200
+    incomplete._content = body
+    empty = bot.requests.Response()
+    empty.status_code = 200
+    empty._content = b'{"meta":{"result_count":0}}'
+    transport = Mock(side_effect=[first, incomplete, empty])
+    monkeypatch.setattr(bot.requests, "request", transport)
+    state = bot.default_state()
+    state["last_seen_mention_id"] = "100"
+    assert [row["id"] for row in bot.get_mentions(state)] == ["300"]
+    bot.mark_mention_seen_if_applicable(state, {"id": "300"})
+    bot.save_state(state, durable=True)
+    before = json.loads(bot.STATE_FILE.read_text())
+    with pytest.raises(bot.ApiError, match="incomplete paginated response"):
+        bot.get_mentions(state)
+    persisted = json.loads(bot.STATE_FILE.read_text())
+    for key in ("last_seen_mention_id", "mention_backlog", "mention_pagination"):
+        assert state[key] == persisted[key] == before[key]
+    assert persisted["last_seen_mention_id"] == "100"
+    assert persisted["mention_backlog"]["next_token"] == "older-page"
+
+    bot.get_mentions(persisted)
+    completed = json.loads(bot.STATE_FILE.read_text())
+    assert completed["last_seen_mention_id"] == "300"
+    assert completed["mention_backlog"] == completed["mention_pagination"] == {}
+    assert [call.kwargs["params"].get("pagination_token") for call in transport.call_args_list] == [
+        None, "older-page", "older-page",
+    ]
+
+
 def queue_active_mention(state: dict, candidate: dict, *, base_since_id: str) -> None:
     """Install one pending test candidate with exact active-page ownership."""
     state["last_seen_mention_id"] = base_since_id

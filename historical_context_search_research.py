@@ -5804,8 +5804,9 @@ def _paths_from_args(
         inside_temporary_root = _is_relative_to(path, temporary_root)
         # Explicit temporary outputs remain available to isolated tests and
         # dry-run fixtures, including fixtures whose synthetic ``root`` is the
-        # same temporary directory.
-        if inside_temporary_root:
+        # same temporary directory. A checkout under /tmp still owns protected
+        # source data and must pass the normal code-root checks below.
+        if inside_temporary_root and not inside_code_root:
             continue
         if (
             project_root_resolved != code_root_resolved

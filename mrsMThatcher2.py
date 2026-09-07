@@ -3595,6 +3595,8 @@ def x_paginated_get(
     twice. A caller may instead supply ``on_repeated_cursor`` to retain the
     bounded partial result and stop normally. ``should_request_cursor`` may
     optionally stop before a continuation request as a bounded partial success.
+    Missing data is valid only with an explicit zero result count. Incomplete
+    or error-only pages raise before any page-completion callback.
     """
     return _x_pagination.x_paginated_get(
         request_func,
@@ -7635,11 +7637,15 @@ def completed_research_quote_hashes() -> set[str]:
     )
 
 
-def quote_candidates_for_current_cycle(lines_used: set, *, excluded_quote_hashes: set[str] | None = None) -> list[dict]:
-    """Build the unused runtime-eligible quotation pool for the current cycle."""
+def quote_candidates_for_current_cycle(
+    lines_used: set, *, excluded_quote_hashes: set[str] | None = None,
+    allow_cycle_reset: bool = True,
+) -> list[dict]:
+    """Build unused candidates; disable cycle resets during image-pair retries."""
     return _quote_candidates.quote_candidates_for_current_cycle(
         lines_used,
         excluded_quote_hashes=excluded_quote_hashes,
+        allow_cycle_reset=allow_cycle_reset,
         load_quote_lines_and_analysis=load_quote_lines_and_analysis,
         current_quote_hashes_by_line=current_quote_hashes_by_line,
         completed_research_quote_hashes=completed_research_quote_hashes,
@@ -7658,11 +7664,15 @@ def select_quote_candidate(candidates: list[dict]) -> dict:
     )
 
 
-def choose_unused_line_candidate(lines_used: set, *, excluded_quote_hashes: set[str] | None = None) -> dict:
-    """Select unused line candidate."""
+def choose_unused_line_candidate(
+    lines_used: set, *, excluded_quote_hashes: set[str] | None = None,
+    allow_cycle_reset: bool = True,
+) -> dict:
+    """Select an unused quotation, optionally preserving history during retries."""
     return _quote_candidates.choose_unused_line_candidate(
         lines_used,
         excluded_quote_hashes=excluded_quote_hashes,
+        allow_cycle_reset=allow_cycle_reset,
         quote_candidates_for_current_cycle=quote_candidates_for_current_cycle,
         select_quote_candidate=select_quote_candidate,
     )

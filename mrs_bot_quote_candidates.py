@@ -353,6 +353,7 @@ def quote_candidates_for_current_cycle(
     lines_used: set,
     *,
     excluded_quote_hashes: set[str] | None = None,
+    allow_cycle_reset: bool = True,
     load_quote_lines_and_analysis: Callable[[], tuple[list[str], dict | None, str]],
     current_quote_hashes_by_line: Callable[[list[str]], dict[int, str]],
     completed_research_quote_hashes: Callable[[], set[str]],
@@ -360,7 +361,7 @@ def quote_candidates_for_current_cycle(
     lines_file: Path,
     log: Logger,
 ) -> list[dict]:
-    """Build the unused runtime-eligible quotation pool for the current cycle."""
+    """Build unused candidates; disable cycle resets during image-pair retries."""
     log.debug("Choosing unused line. Already used=%d", len(lines_used))
 
     lines, quote_analysis, today_mm_dd = load_quote_lines_and_analysis()
@@ -382,7 +383,7 @@ def quote_candidates_for_current_cycle(
 
     log.debug("Available unused lines=%d", len(available_lines))
 
-    if not unused_research_eligible_lines:
+    if allow_cycle_reset and not unused_research_eligible_lines:
         log.info("All attribution-eligible researched quotations used; clearing line history")
         lines_used.clear()
         available_lines = list(hashes_by_line)
@@ -401,7 +402,7 @@ def quote_candidates_for_current_cycle(
         hard_excluded,
     )
 
-    if not candidates and non_empty > 0 and hard_excluded == non_empty:
+    if allow_cycle_reset and not candidates and non_empty > 0 and hard_excluded == non_empty:
         log.warning(
             "Quote cycle is seasonally exhausted: %d unused quote(s) are hard-excluded today; resetting quote cycle",
             hard_excluded,
@@ -421,7 +422,7 @@ def quote_candidates_for_current_cycle(
             hard_excluded,
         )
 
-    if not candidates and non_empty > 0:
+    if allow_cycle_reset and not candidates and non_empty > 0:
         full_candidates, full_hard_excluded, full_non_empty = build_quote_candidates(
             lines,
             list(hashes_by_line),
@@ -474,8 +475,12 @@ def choose_unused_line_candidate(
     lines_used: set,
     *,
     excluded_quote_hashes: set[str] | None = None,
+    allow_cycle_reset: bool = True,
     quote_candidates_for_current_cycle: Callable[..., list[dict]],
     select_quote_candidate: Callable[[list[dict]], dict],
 ) -> dict:
-    """Select unused line candidate."""
-    return select_quote_candidate(quote_candidates_for_current_cycle(lines_used, excluded_quote_hashes=excluded_quote_hashes))
+    """Select an unused quotation, optionally preserving history during retries."""
+    return select_quote_candidate(quote_candidates_for_current_cycle(
+        lines_used, excluded_quote_hashes=excluded_quote_hashes,
+        allow_cycle_reset=allow_cycle_reset,
+    ))

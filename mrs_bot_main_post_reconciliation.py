@@ -25,7 +25,7 @@ def apply_meme_post_receipt(
     meme_basename = str(receipt["meme_basename"])
     meme_post_epoch = int(receipt["meme_post_epoch"])
     next_meme_post_epoch = int(receipt["next_meme_post_epoch"])
-    text = str(receipt.get("text") or MEME_POST_TEXT)
+    text = str(receipt.get("text", MEME_POST_TEXT))
     image_summary = str(receipt.get("image_summary") or "")
 
     last_quote_epoch = int(state.get("last_quote_post_epoch", 0) or 0)
@@ -174,7 +174,7 @@ def reconcile_meme_post_receipt(
     emit_account_root_posted(
         lane="daily_meme",
         post_id=receipt["post_id"],
-        public_text=receipt.get("text") or MEME_POST_TEXT,
+        public_text=receipt.get("text", MEME_POST_TEXT),
         image_summary=receipt.get("image_summary"),
     )
     return True

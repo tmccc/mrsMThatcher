@@ -3432,6 +3432,24 @@ def test_output_paths_cannot_target_authoritative_research_packets(tmp_path: Pat
     assert research.file_sha256(protected) == before
 
 
+def test_temporary_checkout_is_protected_but_external_scratch_remains_allowed(
+    tmp_path: Path, monkeypatch,
+) -> None:
+    checkout = tmp_path / "checkout"
+    checkout.mkdir()
+    protected = checkout / "research_packets.json"
+    protected.write_bytes(b"authoritative fixture")
+    monkeypatch.setattr(research, "CODE_ROOT", checkout)
+    args = research.build_argument_parser().parse_args(["plan"])
+    args.manifest = str(protected)
+    with pytest.raises(research.ResearchError, match="protected project output path"):
+        research._paths_from_args(args, project_root=checkout)
+    assert protected.read_bytes() == b"authoritative fixture"
+
+    args.manifest = str(tmp_path / "scratch-manifest.json")
+    assert research._paths_from_args(args, project_root=checkout)["manifest"] == Path(args.manifest)
+
+
 def test_real_default_paths_accept_the_private_cache_symlink() -> None:
     args = research.build_argument_parser().parse_args(["plan"])
 

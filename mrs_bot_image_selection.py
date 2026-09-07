@@ -496,7 +496,13 @@ def choose_regular_quote_image_pair(
     while attempts < max_quote_image_pair_attempts:
         attempts += 1
         try:
-            quote_choice = choose_unused_line_candidate(lines_used, excluded_quote_hashes=attempted_quote_hashes)
+            # Only lasting exclusions can justify resetting the quote cycle.
+            # Failed pairings must reach image recovery with history intact.
+            quote_choice = choose_unused_line_candidate(
+                lines_used,
+                excluded_quote_hashes=attempted_quote_hashes,
+                allow_cycle_reset=attempts == 1,
+            )
         except RuntimeError:
             if len(attempted_quote_hashes) > initial_excluded_count:
                 break
