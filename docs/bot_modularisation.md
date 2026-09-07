@@ -5199,3 +5199,66 @@ root. Production was not modified or run; no private configuration/state/
 credential/log-content reads, production namespaces/locks, live providers,
 service, deployment or restart actions occurred. Configured Astra/max is
 unchanged. Stage63 ends for supervisor acceptance; no successor was launched.
+
+## Stage 64 — Runtime configuration validation, application and credential checks
+
+Baseline: `253ad96097e33ebfb50939a523e62209885fbf3f`, clean on
+`codex/bot-modularisation-stage64`; origin stage63 matched and stage64 was absent.
+Read the complete scope, dependency inventory, all three immutable originals,
+all 13 curated test bodies/decorators, bounded callers and the self-test
+setup/cache and established isolation helpers. Reused the checked stage63
+extraction, reverse proof and test machinery.
+
+`mrs_bot_runtime_configuration.py` owns **three bodies/docstrings, 191 original
+definition lines**. Three `_runtime_configuration` adapters preserve public
+signatures/defaults/deferred annotations and supply **3/5/8** current dependencies.
+The single exact root `_runtime_config_namespace()` helper returns `globals()`;
+only the original **eight validation / one application** calls are substituted
+at their existing expression positions. Eager defaults and live observations,
+ordered validation/type checks and native catches, per-item partial writes,
+loader/log/debug order, and eager credential-list truth and literal-True gating
+remain intact. No global declarations, storage, constants/classes, source-default
+or loader/bootstrap ownership change. README/API register the companion.
+
+Evidence: `/tmp/mrs-bot-stage64-lwuQMXZl`. Pre-edit documentation passed for **272
+modules**. Baseline: **15 explicit nodes across eight files; 43 collected in
+2.57s; 43 passed in 3.07s**. Current: **28 explicit nodes across nine files;
+84 collected in 2.64s; 84 passed in 4.39s**, first run. The **13 new contract
+functions / 41 cases** cover guarded import, current adapters/signatures and
+references, actual namespace identity, eager/current defaults, ordered errors
+and native conversion boundaries, application progress and partial writes,
+and synthetic credential truth/get/gate contracts. All 13 curated selections,
+assertions, parameterization, fixtures and finally restoration remain unchanged;
+new tests import the established autouse receipt/incident/protocol isolation.
+Configuration inputs are the tracked public example and temporary synthetic files.
+
+Both collections and runs used the preceding reviewed metadata-only production-
+log plugin and unchanged runner, with stage identifiers adapted. **All four
+metadata equality checks passed**; open-FD assertions and other fixtures remain
+unchanged. AST-validated nonempty explicit selections and successful nonempty
+collection preceded pytest under `set -euo pipefail`, required Python/pytest
+flags, stage-local TMPDIR, temporary HOME/state, dummy credentials, dead proxies,
+denied external sockets and explicit loopback policy. No log contents were read.
+
+`verify_stage64.py` / `comparison.txt` verify exact transformed body source,
+all nine reversed substitutions against full original function ASTs, signatures,
+the exact helper, and compiled dependencies without importing the bot. Restoring
+the three adapters and removing only the helper/import reconstructs the **entire
+immutable parent root byte for byte**, including **526 unaffected functions**.
+All **63 prior owners**, existing tests/fixtures and unrelated files are unchanged.
+Post-edit documentation passed for **273 modules**; whitespace checks passed.
+This section is appended at actual EOF, preserving the entire immutable parent
+report as a verified byte prefix. Passing tests were not repeated after this append.
+
+| Runtime file | Before lines / bytes | After lines / bytes |
+|---|---:|---:|
+| `mrsMThatcher2.py` | 10,591 / 428,355 | 10,439 / 422,084 |
+| `mrs_bot_runtime_configuration.py` | absent | 228 / 8,891 |
+
+Root reduction: **152 lines / 6,271 bytes**. Combined runtime growth: **76 lines /
+2,620 bytes**. New tests: **553 lines / 24,239 bytes**. Full selections, outputs,
+metadata, adapted proof machinery and sizes remain in the evidence root.
+Production was not modified or run; no private configuration/state/credential/
+log-content reads, production namespaces/locks, live providers, service,
+deployment or restart actions occurred. Configured Astra/max is unchanged.
+Stage64 ends for supervisor acceptance; no successor was launched.
