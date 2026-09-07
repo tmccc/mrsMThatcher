@@ -377,3 +377,137 @@ def test_reused_draft_keeps_context_references_durability_and_pre_send_availabil
     assert not state.get("pending_ai_reply_drafts")
     assert state["daily_reply_count"] == state["daily_quote_reply_count"] == 0
     assert state["reply_evaluation_records"]["910"]["reason"] == "x_target_unavailable_pre_send"
+
+
+@pytest.mark.parametrize("boundary", ["original", "discovery"])
+@pytest.mark.parametrize("api_failure", [False, True])
+def test_lookup_failure_continues_only_when_fetching_the_original(monkeypatch, boundary, api_failure):
+    original, _ = _configure_cycle(monkeypatch)
+    state = bot.default_state()
+    failure = (bot.ApiError("lookup failed", service="x", status_code=503)
+               if api_failure else ValueError("lookup failed"))
+    bot.build_quote_lookup_post_ids.return_value = ["900", "901"]
+    bot.get_quote_tweets_for_post.return_value = []
+    if boundary == "original":
+        bot.get_tweet_by_id_cached.side_effect = [failure, original]
+    else:
+        bot.get_quote_tweets_for_post.side_effect = failure
+    save, health, generate = Mock(), Mock(), Mock()
+    monkeypatch.setattr(bot, "save_state", save)
+    monkeypatch.setattr(bot, "record_api_error", health)
+    monkeypatch.setattr(bot, "generate_single_call_reply", generate)
+
+    assert bot.maybe_reply_to_quote_tweets(state) == bot.QUOTE_CHECK_STATUS_CHECKED
+    expected_originals = ["900", "901"] if boundary == "original" else ["900"]
+    assert bot.get_tweet_by_id_cached.call_args_list == [call(target, state) for target in expected_originals]
+    bot.get_quote_tweets_for_post.assert_called_once_with("901" if boundary == "original" else "900", state)
+    assert save.call_args_list == [call(state)] * (2 if boundary == "original" else 1)
+    assert health.call_args_list == ([call(state, failure, "x", scope="quote")] if api_failure else [])
+    generate.assert_not_called()
+    assert not state["skipped_quote_post_ids"]
+
+
+@pytest.mark.parametrize("boundary", ["refetch", "cache"])
+def test_native_context_preparation_failures_escape_without_retirement(monkeypatch, boundary):
+    original, _ = _configure_cycle(monkeypatch)
+    state = bot.default_state()
+    failure = ValueError("outside canonical context construction")
+    if boundary == "refetch":
+        bot.get_tweet_by_id_cached.side_effect = [original, failure]
+    else:
+        monkeypatch.setattr(bot, "cache_tweet", Mock(side_effect=failure))
+    save, retire, generate = Mock(), Mock(), Mock()
+    monkeypatch.setattr(bot, "save_state", save)
+    monkeypatch.setattr(bot, "record_terminal_reply_evaluation", retire)
+    monkeypatch.setattr(bot, "generate_single_call_reply", generate)
+
+    with pytest.raises(ValueError) as caught:
+        bot.maybe_reply_to_quote_tweets(state)
+    assert caught.value is failure
+    bot.get_tweet_by_id_cached.assert_has_calls([call("900", state), call("900", state, include_media=True)])
+    save.assert_not_called()
+    retire.assert_not_called()
+    generate.assert_not_called()
+    assert not state["skipped_quote_post_ids"]
+
+
+def test_context_rejection_is_free_but_evaluation_budget_spans_original_posts(monkeypatch):
+    original, quotes = _configure_cycle(monkeypatch)
+    state = bot.default_state()
+    bot.build_quote_lookup_post_ids.return_value = ["900", "901", "902"]
+    quotes_by_original = {
+        source: [dict(quotes[0], id=target, conversation_id=target,
+                      referenced_tweets=[{"type": "quoted", "id": source}]) for target in targets]
+        for source, targets in [("900", ["910", "911"]), ("901", ["921"]), ("902", ["931"])]
+    }
+    bot.get_tweet_by_id_cached.side_effect = lambda target, _state, **kwargs: dict(original, id=target)
+    bot.get_quote_tweets_for_post.side_effect = lambda target, _state: quotes_by_original[target]
+    monkeypatch.setattr(bot, "MAX_QUOTE_POSTS_PER_CHECK", 2)
+    build_context = bot.build_quote_tweet_reply_context
+
+    def context_for_candidate(original_tweet, quote_tweet):
+        if quote_tweet["id"] == "910":
+            raise ValueError("invalid canonical context")
+        return build_context(original_tweet, quote_tweet)
+
+    evaluated = []
+
+    def zero_call_failure(context, media, *, state, evaluation_outcome):
+        assert "_prepared_media_context" not in context
+        assert media is bot.reply_media_context_for_candidate.return_value
+        evaluated.append(context["target_id"])
+        evaluation_outcome.update(status="operational_failure", error_category="image_input",
+                                  reason="unusable_image", model_call_count=0)
+
+    monkeypatch.setattr(bot, "build_quote_tweet_reply_context", context_for_candidate)
+    monkeypatch.setattr(bot, "generate_single_call_reply", zero_call_failure)
+    save = Mock(wraps=bot.save_state)
+    monkeypatch.setattr(bot, "save_state", save)
+
+    assert bot.maybe_reply_to_quote_tweets(state) == bot.QUOTE_CHECK_STATUS_CHECKED
+    assert evaluated == ["911", "921"]
+    assert bot.get_quote_tweets_for_post.call_args_list == [call("900", state), call("901", state)]
+    assert bot.get_tweet_by_id_cached.call_args_list == [
+        call("900", state), call("900", state, include_media=True), call("900", state, include_media=True),
+        call("901", state), call("901", state, include_media=True),
+    ]
+    assert [c.kwargs for c in save.call_args_list] == [
+        {}, {"durable": True}, {}, {"durable": True}, {}, {"durable": True}, {},
+    ]
+    saved = json.loads(bot.STATE_FILE.read_text())
+    assert saved["skipped_quote_post_ids"] == ["910", "911", "921"]
+    assert saved["reply_evaluation_records"]["910"]["reason"] == "canonical_context_unavailable"
+    assert saved["daily_reply_count"] == saved["daily_quote_reply_count"] == 0
+    bot.create_post.assert_not_called()
+
+
+@pytest.mark.parametrize("boundary", [
+    "reply_evidence_repository", "reply_media_context_for_candidate",
+    "recovery_comparison_account_replies", "pending_ai_reply",
+])
+def test_pre_generation_failures_keep_their_own_exception_boundary(monkeypatch, boundary):
+    original, quotes = _configure_cycle(monkeypatch)
+    context = bot.build_quote_tweet_reply_context(original, quotes[0])
+    context.pop("_prepared_media_context")
+    monkeypatch.setattr(bot, "build_quote_tweet_reply_context", Mock(return_value=context))
+    evidence_failure = boundary == "reply_evidence_repository"
+    failure = (bot.ReplyEvidenceUnavailable("evidence unavailable")
+               if evidence_failure else ValueError("outside generation"))
+    monkeypatch.setattr(bot, boundary, Mock(side_effect=failure))
+    save, health, generate = Mock(), Mock(), Mock()
+    monkeypatch.setattr(bot, "save_state", save)
+    monkeypatch.setattr(bot, "record_api_error", health)
+    monkeypatch.setattr(bot, "generate_single_call_reply", generate)
+    state = bot.default_state()
+
+    if evidence_failure:
+        assert bot.maybe_reply_to_quote_tweets(state) == bot.QUOTE_CHECK_STATUS_CHECKED
+    else:
+        with pytest.raises(ValueError) as caught:
+            bot.maybe_reply_to_quote_tweets(state)
+        assert caught.value is failure
+    save.assert_called_once_with(state)
+    assert not state["skipped_quote_post_ids"]
+    assert "reply_evaluation_records" not in state
+    generate.assert_not_called()
+    health.assert_not_called()

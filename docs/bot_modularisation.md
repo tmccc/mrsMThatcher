@@ -5469,3 +5469,119 @@ report EOF with the complete parent byte prefix preserved. Quote replies/posting
 remain for their separate session; the final README broad suite remains planned
 thereafter. No production checkout execution, live provider calls, deployment or
 successor launch occurred.
+
+
+## Stage 68 — quote-reply responsibilities
+
+Split `maybe_reply_to_quote_tweets` inside its existing owner, based on accepted,
+clean, pushed stage67 `1030e0e0ca1131f5198022d5af21ae52d93259b5`.
+The public cycle shrank from 804 to 364 lines, including its unchanged 78 injected
+dependencies. The owner grew from 1,050 to 1,475 lines through explicit helper
+signatures and forwarding. Private responsibilities (signature and body lines):
+
+| Helper | Responsibility | Lines |
+| --- | --- | ---: |
+| `_lookup_quote_candidates` | Original lookup and quote discovery | 41 |
+| `_candidate_is_eligible` | Identity, prior handling, relationship and age | 91 |
+| `_author_allows_evaluation` | Text/profile usability, author cap, context caching and spam | 87 |
+| `_prepare_reply_context` | Media refetch, quote cache and canonical context | 143 |
+| `_evaluate_reply` | Evidence, media fallback, recovered draft and generation | 102 |
+| `_resolve_reply_evaluation` | Terminal/retryable decisions and validated-output gate | 75 |
+| `_prepare_reply_receipt` | Durable draft, copied context/draft and attempt binding | 74 |
+| `_deliver_reply` | Pre-send availability, transport and failure routing | 159 |
+| `_finalise_confirmed_reply` | Confirmed application/save and recovery-record retirement | 56 |
+
+`_QuoteCandidate` holds only the original candidate reference and its once-read
+ID, author and text. `_QuoteCandidateStop` distinguishes continuation from a
+returned cycle status. The shared integer budget remains in the cycle: both
+loops check it before further work; successful context construction and the
+prepared-media pop precede its increment, while evidence/model preparation
+follow it. Zero-model-call evaluation failures still consume that budget.
+Seen/replied/skipped/normal-replied sets remain snapshots; only the existing
+spam snapshot gains newly rejected authors.
+
+Preserved original-fetch failure continuation versus discovery failure return,
+reset/reconciliation/barrier and cooldown order, eligibility gates, cache order,
+exception scopes, exact statuses, diagnostics/event fields, ordinary/durable
+saves, terminal/retryable choices and receipt schemas. Evidence, media fallback
+and pending-draft retrieval remain outside generation's catch scope. Draft save
+and receipt copying/binding remain outside delivery's catch scope; confirmed
+application/save still precede journal/receipt retirement. All eight public
+signatures/defaults and seven existing helper bodies are unchanged. Root's seven
+adapters/formatter alias, the accepted normal owner and all unrelated runtime
+files remain byte-for-byte unchanged. No shared normal/quote engine was added.
+
+Validation evidence: `/tmp/mrs-bot-stage68-lj19g6za`. The reviewed stage67
+`run_suite.sh` and metadata plugin were copied with stage identifiers alone
+changed. Every collection/run loaded `stage68_metadata_guard` and disabled the
+cache provider. Stage-local `TMPDIR`, temporary HOME/state/cache, dummy
+credentials, dead proxies, external-socket denial with explicit loopback opt-in,
+`PYTHONUSERBASE=/home/tonym/.local`, `MRS_TEST_MODE=1`,
+`PYTEST_DISABLE_PLUGIN_AUTOLOAD=1` and `PYTHONDONTWRITEBYTECODE=1` were retained.
+All executions followed successful nonempty collection under `set -euo pipefail`;
+no suites ran concurrently and no packages were installed or upgraded.
+
+The actual baseline selection was the quote owner, single-call failure routing
+and the eight supervisor-listed unit-helper nodes (`baseline-selection.txt`).
+The post-change selection added the normal owner and four new behavioral test
+functions (11 cases): original/discovery error routing, native context-boundary
+errors, context rejection versus budget shared across originals, and failures
+before generation (`refactored-selection.txt`). Existing contracts were retained.
+Commands were:
+
+```bash
+set -euo pipefail
+STAGE_EVIDENCE=/tmp/mrs-bot-stage68-lj19g6za
+mapfile -t stage68_selection < "$STAGE_EVIDENCE/baseline-selection.txt"
+bash "$STAGE_EVIDENCE/run_suite.sh" baseline "${stage68_selection[@]}"
+mapfile -t stage68_selection < "$STAGE_EVIDENCE/refactored-selection.txt"
+bash "$STAGE_EVIDENCE/run_suite.sh" refactored "${stage68_selection[@]}"
+bash "$STAGE_EVIDENCE/run_suite.sh" refactored-fixed "${stage68_selection[@]}"
+bash "$STAGE_EVIDENCE/run_suite.sh" broad
+bash "$STAGE_EVIDENCE/run_suite.sh" broad-quiet
+```
+
+Each runner invocation first ran `python3 tools/check_python_documentation.py`,
+then `python3 -m pytest -q -p no:cacheprovider -p stage68_metadata_guard
+--collect-only` with the recorded selection, then the README fast path:
+`MRS_TEST_MODE=1 PYTEST_DISABLE_PLUGIN_AUTOLOAD=1 python3 -m pytest -q
+-p xdist.plugin -n 4 --dist=worksteal --max-worker-restart=0
+-p no:cacheprovider -p stage68_metadata_guard` with that selection.
+Expanded commands, environment, collection logs/counts and per-worker metadata
+are retained under each run label. Both broad invocations used full `pytest.ini`
+selection with no deselection.
+
+| Run | Collected; collection wall time | Pytest result; pytest time | Process wall time |
+| --- | --- | --- | ---: |
+| Baseline | 51; 5.54s | 51 passed; 9.31s | 11.08s |
+| Refactored | 76; 5.54s | 72 passed, 4 failed; 9.43s | 11.23s |
+| Refactored fixed | 76; 5.51s | 76 passed; 9.52s | 11.31s |
+| Broad initial | 7,860; 21.83s | 7,860 passed, 4 teardown errors, 873 warnings; 506.04s | 508.07s |
+| Broad quiet-window retry | 7,860; 22.07s | 7,860 passed, 873 warnings; 505.01s | 507.05s |
+
+The four focused failures were in one newly added parametrized test: it assumed
+`default_state()` supplied an empty `reply_evaluation_records` key. The key is
+absent at these boundaries; the correction asserts its absence explicitly.
+The subsequent complete focused run passed; no existing assertion was weakened.
+
+The initial broad run passed all test bodies but all four metadata teardown
+comparisons failed: size changed from 34,947 to 35,664 bytes and mtime changed,
+with device/inode unchanged. No production-log contents were read and no writer
+was attributed. Original results and all four records remain intact. Two
+metadata-only observations 85.21 seconds apart were exactly equal, providing the
+concrete quiet window for the unchanged full retry; see
+`quiet-window-samples.jsonl` and `broad-quiet-retry-reason.txt`. The retry passed
+all four exact `[device, inode, size, mtime_ns]` comparisons and no-open-log-FD
+assertions. All collection metadata comparisons and both successful focused
+runs also passed their guards. No guard or fixture was relaxed.
+
+Final review compared the actual diff, public signatures, unchanged helper
+bodies, preflight/loop guards and no-post epilogue, plus all nine moved operation
+blocks after explicit control-flow translation (`refactor-review.json`).
+Documentation coverage passed for 274 modules and `git diff --check` passed.
+This report was appended at actual EOF with all parent report bytes preserved;
+no test rerun was needed for this documentation-only append. Stage68 is for
+supervisor review and LIVE usage checks; no production checkout execution,
+configuration/state/credential/log-content read, production lock, live provider,
+quote-posting change, deployment/service mutation, merge or successor launch was
+performed.
