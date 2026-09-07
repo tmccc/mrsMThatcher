@@ -216,6 +216,7 @@ deployed as a coherent set:
 - `mrs_bot_remote_write_barriers.py`
 - `mrs_bot_local_config.py`
 - `mrs_bot_runtime_configuration.py`
+- `mrs_bot_self_test.py`
 - `mrs_bot_observability.py`
 - `mrs_bot_runtime_service_initialisation.py`
 - `mrs_bot_safety_marker_snapshots.py`

@@ -272,6 +272,7 @@ import mrs_bot_receipt_retirement as _receipt_retirement
 import mrs_bot_remote_write_barriers as _remote_write_barriers
 import mrs_bot_local_config as _local_config
 import mrs_bot_runtime_configuration as _runtime_configuration
+import mrs_bot_self_test as _self_test
 import mrs_bot_observability as _observability
 import mrs_bot_runtime_service_initialisation as _runtime_service_initialisation
 import mrs_bot_safety_marker_snapshots as _safety_marker_snapshots
@@ -10146,132 +10147,64 @@ def main() -> None:
 # ---------------------------------------------------------------------
 
 def _self_test_ok(label: str, ok: bool, detail: str = "") -> bool:
-    status = "OK" if ok else "FAIL"
-    message = f"SELFTEST {status}: {label}"
-    if detail:
-        message += f" - {detail}"
-    if ok:
-        log.info(message)
-    else:
-        log.error(message)
-    return ok
+    return _self_test._self_test_ok(
+        label,
+        ok,
+        detail,
+        log=log,
+    )
 
 
 def _self_test_warn(label: str, ok: bool, detail: str = "") -> None:
-    status = "OK" if ok else "WARN"
-    message = f"SELFTEST {status}: {label}"
-    if detail:
-        message += f" - {detail}"
-    if ok:
-        log.info(message)
-    else:
-        log.warning(message)
+    return _self_test._self_test_warn(
+        label,
+        ok,
+        detail,
+        log=log,
+    )
 
 
 def run_self_test() -> int:
     """Run local checks without posting or calling X or OpenAI."""
-    require_production_bootstrap()
-    log.info("Running self-test only; no X or OpenAI API calls will be made")
-    failures = 0
-
-    def require(label: str, ok: bool, detail: str = "") -> None:
-        nonlocal failures
-        if not _self_test_ok(label, ok, detail):
-            failures += 1
-
-    require("base directory exists", BASE_DIR.exists(), str(BASE_DIR))
-    require("lines file exists", LINES_FILE.exists(), str(LINES_FILE))
-    if LINES_FILE.exists():
-        try:
-            with open(LINES_FILE, "r") as f:
-                non_empty_lines = sum(1 for line in f if line.strip())
-            require("lines file has non-empty lines", non_empty_lines > 0, f"non_empty_lines={non_empty_lines}")
-        except Exception as exc:
-            require("lines file readable", False, str(exc))
-
-    images = glob(IMAGE_GLOB)
-    require("quote/image image glob has files", len(images) > 0, f"count={len(images)} glob={IMAGE_GLOB}")
-
-    try:
-        overrides = load_validated_local_config_overrides()
-        _self_test_warn(
-            "local config file present",
-            overrides is not None,
-            str(LOCAL_CONFIG_FILE),
-        )
-        if overrides is not None:
-            require(
-                "local config validates",
-                True,
-                f"overrides={len(overrides)}",
-            )
-    except Exception as exc:
-        _self_test_warn("local config file present", True, str(LOCAL_CONFIG_FILE))
-        require("local config validates", False, str(exc))
-
-    _self_test_warn("runtime control file absent", not CONTROL_FILE.exists(), str(CONTROL_FILE))
-    ctrl = load_control()
-    require(
-        "runtime control validates",
-        not bool(ctrl.get("_control_fail_closed", False)),
-        str(CONTROL_FILE),
+    return _self_test.run_self_test(
+        ACCESS_SECRET=ACCESS_SECRET,
+        ACCESS_TOKEN=ACCESS_TOKEN,
+        BASE_DIR=BASE_DIR,
+        CONSUMER_KEY=CONSUMER_KEY,
+        CONSUMER_SECRET=CONSUMER_SECRET,
+        CONTROL_FILE=CONTROL_FILE,
+        ENABLE_AUTO_REPLIES=ENABLE_AUTO_REPLIES,
+        ENABLE_DAILY_MEME_POSTS=ENABLE_DAILY_MEME_POSTS,
+        EXTRA_QUOTE_WATCH_FILE=EXTRA_QUOTE_WATCH_FILE,
+        IMAGE_GLOB=IMAGE_GLOB,
+        LINES_FILE=LINES_FILE,
+        LOCAL_CONFIG_ALLOWED_KEYS=LOCAL_CONFIG_ALLOWED_KEYS,
+        LOCAL_CONFIG_FILE=LOCAL_CONFIG_FILE,
+        MAX_AUTO_REPLIES_PER_DAY=MAX_AUTO_REPLIES_PER_DAY,
+        MAX_QUOTE_REPLIES_PER_DAY=MAX_QUOTE_REPLIES_PER_DAY,
+        MEME_ANALYSIS_FILE=MEME_ANALYSIS_FILE,
+        MEME_DIR=MEME_DIR,
+        MIN_SECONDS_BETWEEN_REPLIES=MIN_SECONDS_BETWEEN_REPLIES,
+        MY_USER_ID=MY_USER_ID,
+        OPENAI_API_KEY=OPENAI_API_KEY,
+        QUOTE_CHECK_EVERY_SECONDS=QUOTE_CHECK_EVERY_SECONDS,
+        REPLY_CHECK_EVERY_SECONDS=REPLY_CHECK_EVERY_SECONDS,
+        STATE_FILE=STATE_FILE,
+        X_BEARER_TOKEN=X_BEARER_TOKEN,
+        _runtime_config_namespace=_runtime_config_namespace,
+        _self_test_ok=_self_test_ok,
+        _self_test_warn=_self_test_warn,
+        glob=glob,
+        json=json,
+        list_meme_candidates=list_meme_candidates,
+        load_control=load_control,
+        load_extra_quote_watch_post_ids=load_extra_quote_watch_post_ids,
+        load_validated_local_config_overrides=load_validated_local_config_overrides,
+        log=log,
+        require_production_bootstrap=require_production_bootstrap,
+        single_call_reply=single_call_reply,
+        validate_runtime_config_values=validate_runtime_config_values,
     )
-
-    if STATE_FILE.exists():
-        try:
-            with open(STATE_FILE, "r") as f:
-                state = json.load(f)
-            require("state file parses", isinstance(state, dict), str(STATE_FILE))
-            _self_test_warn("state has next_reply_lane_priority", "next_reply_lane_priority" in state)
-            _self_test_warn("state has hot-post since_id map", isinstance(state.get("hot_post_reply_since_ids", {}), dict))
-        except Exception as exc:
-            require("state file parses", False, str(exc))
-    else:
-        _self_test_warn("state file present", False, str(STATE_FILE))
-
-    if ENABLE_DAILY_MEME_POSTS:
-        _self_test_warn("meme directory present", MEME_DIR.exists(), str(MEME_DIR))
-        if MEME_DIR.exists():
-            meme_count = len(list_meme_candidates())
-            _self_test_warn("meme candidates available", meme_count > 0, f"count={meme_count}")
-        _self_test_warn("meme analysis file present", MEME_ANALYSIS_FILE.exists(), str(MEME_ANALYSIS_FILE))
-
-    _self_test_warn("extra quote watch file present", EXTRA_QUOTE_WATCH_FILE.exists(), str(EXTRA_QUOTE_WATCH_FILE))
-    if EXTRA_QUOTE_WATCH_FILE.exists():
-        try:
-            watch_ids = load_extra_quote_watch_post_ids()
-            _self_test_warn("extra quote watch IDs loaded", True, f"count={len(watch_ids)}")
-        except Exception as exc:
-            require("extra quote watch file readable", False, str(exc))
-
-    require("X_CONSUMER_KEY set", bool(CONSUMER_KEY))
-    require("X_CONSUMER_SECRET set", bool(CONSUMER_SECRET))
-    require("X_ACCESS_TOKEN set", bool(ACCESS_TOKEN))
-    require("X_ACCESS_SECRET set", bool(ACCESS_SECRET))
-    require("X_MY_USER_ID set", bool(MY_USER_ID))
-    if ENABLE_AUTO_REPLIES and single_call_reply.get("enabled") is True:
-        require(
-            "OPENAI_API_KEY set when single-call replies enabled",
-            bool(OPENAI_API_KEY),
-        )
-    _self_test_warn("X_BEARER_TOKEN set", bool(X_BEARER_TOKEN), "needed/preferred for quote/hot search")
-
-    require("MAX_AUTO_REPLIES_PER_DAY positive", int(MAX_AUTO_REPLIES_PER_DAY) > 0, str(MAX_AUTO_REPLIES_PER_DAY))
-    require("MAX_QUOTE_REPLIES_PER_DAY positive", int(MAX_QUOTE_REPLIES_PER_DAY) > 0, str(MAX_QUOTE_REPLIES_PER_DAY))
-    require("MIN_SECONDS_BETWEEN_REPLIES positive", int(MIN_SECONDS_BETWEEN_REPLIES) > 0, str(MIN_SECONDS_BETWEEN_REPLIES))
-    require("REPLY_CHECK_EVERY_SECONDS positive", int(REPLY_CHECK_EVERY_SECONDS) > 0, str(REPLY_CHECK_EVERY_SECONDS))
-    require("QUOTE_CHECK_EVERY_SECONDS positive", int(QUOTE_CHECK_EVERY_SECONDS) > 0, str(QUOTE_CHECK_EVERY_SECONDS))
-    runtime_config_errors = validate_runtime_config_values(
-        {name: globals()[name] for name in LOCAL_CONFIG_ALLOWED_KEYS if name in globals()}
-    )
-    require("runtime config validates", not runtime_config_errors, "; ".join(runtime_config_errors))
-
-    if failures:
-        log.error("Self-test finished with %d failure(s)", failures)
-        return 1
-
-    log.info("Self-test finished successfully")
-    return 0
 
 
 def run_test_cycle() -> int:
