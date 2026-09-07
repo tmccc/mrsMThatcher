@@ -5391,3 +5391,81 @@ Only the two source-location tests and this report changed. No production
 checkout/service commands, private configuration/state/credential/log-content
 reads, live-provider calls, merge/deployment/restart or successor launch occurred.
 Configured Astra/max is unchanged. Stage66 ends for supervisor review.
+
+
+## Stage 67 — normal reply responsibilities (2026-09-07)
+
+Refactored only `mrs_bot_normal_reply_cycle.py` from the clean, pushed Stage 66
+parent `ce08ea77f87e9d9f4924e6feb536bcc4ab2aff97`. The public owner retains its
+88 injected dependencies and two original options, with current root callback
+resolution and backlog continuation unchanged. The root adapter and every other
+runtime file remain byte-for-byte identical; root SHA256 remains
+`17955f57fb7c42539c80888e239efcd21c8c6724df8820bf7e7ea8e811280e77`.
+
+The owner now orchestrates separate candidate eligibility, author/quarantine
+gates, context preparation, draft recovery/model evaluation, no-reply disposition,
+draft/receipt preparation, transport handling and confirmed-state finalisation.
+Physical function spans (including signatures) changed as follows:
+
+| Function | Before | After |
+| --- | ---: | ---: |
+| `maybe_reply_to_mentions` | 981 | 409 |
+| `_candidate_is_eligible` | inline | 122 |
+| `_author_allows_evaluation` | inline | 99 |
+| `_prepare_reply_context` | inline | 120 |
+| `_evaluate_reply` | inline | 104 |
+| `_retire_or_defer_no_reply` | inline | 94 |
+| `_prepare_reply_receipt` | inline | 123 |
+| `_deliver_reply` | inline | 174 |
+| `_finalise_confirmed_reply` | inline | 50 |
+
+The candidate loop shrank from 738 to 170 lines; the module is 1,364 lines
+(previously 1,004), including explicit helper dependency forwarding. A candidate
+record preserves once-read identity/source values and the original mapping
+reference. Three progress fields carry the fresh-model count and both quarantine
+flags; a small stop result distinguishes candidate continuation from cycle return.
+Quarantine pruning and save boundaries, including flag updates after successful
+saves, remain ordered as before. Recovery lookup stays outside generation catches;
+receipt provenance validation and attempt binding stay outside transport catches;
+confirmed finalisation keeps its separate persistence/removal error boundaries.
+Diagnostic text, callback order, receipt fields and deep copies are preserved.
+Review compared all eight moved blocks against the parent AST after explicit
+name/control mapping, checked the public signature and retained every existing
+owner test function unchanged.
+
+Validation used the supplied 25-entry selection unchanged (three complete test
+files and 22 specific unit tests), recorded in the evidence directory. Six new
+behavioral cases cover recovery lookup errors, receipt binding/confirmed-state
+errors, and mixed quarantine/direct-ineligible retirements with successful and
+failed durable saves. Actual commands from this worktree:
+
+```bash
+set -euo pipefail
+mapfile -t stage67_tests < /tmp/mrs-bot-stage67-pf2qzjr7/selection.txt
+/tmp/mrs-bot-stage67-pf2qzjr7/run_suite.sh baseline "${stage67_tests[@]}"
+/tmp/mrs-bot-stage67-pf2qzjr7/run_suite.sh refactored "${stage67_tests[@]}"
+python3 tools/check_python_documentation.py
+git diff --check
+```
+
+| Run | Collection | Test result | Runner wall time |
+| --- | --- | --- | --- |
+| Before edits | 174 in 5.46s | 174 passed in 10.03s | 11.79s |
+| After edits | 180 in 5.57s | 180 passed in 10.13s | 11.93s |
+
+No test failures, errors or skips. Documentation coverage passed for 274 modules;
+`git diff --check` passed. The copied Stage 66 runner and metadata-only override
+change only stage identifiers. Collection and tests both load that override;
+nonempty successful collection precedes four-worker execution. All four workers
+received tests, retained exact production-log `[device,inode,size,mtime_ns]`
+equality and passed the no-open-production-log-FD assertions. Stage-local TMPDIR,
+temporary HOME/state/cache, dummy credentials, dead proxies, denied external
+sockets, explicit loopback, `PYTHONUSERBASE=/home/tonym/.local`, `MRS_TEST_MODE=1`,
+plugin autoload/bytecode/cache disabling and all other fixtures were preserved.
+No packages were installed or upgraded; suites ran sequentially. Evidence:
+`/tmp/mrs-bot-stage67-pf2qzjr7` (commands, collection/test logs, timings, worker
+metadata and signature/source review). This section was appended at the actual
+report EOF with the complete parent byte prefix preserved. Quote replies/posting
+remain for their separate session; the final README broad suite remains planned
+thereafter. No production checkout execution, live provider calls, deployment or
+successor launch occurred.

@@ -19,6 +19,7 @@ from tests.test_mention_backlog_author_quarantine import (
 from tests.test_unit_helpers import (
     bot,
     isolate_regular_post_receipt,
+    unit_approved_reply,
     unit_confirmed_v4_reply_receipt,
     unit_reply_context,
 )
@@ -152,6 +153,127 @@ def test_backlog_continuation_uses_current_root_state_and_budget(monkeypatch, in
         assert state["mention_pending_candidates"] == {}
         assert state["last_seen_mention_id"] == "99"
     assert bot.get_hot_post_reply_candidates.call_count == 2
+    bot.x_request.assert_not_called()
+    bot.create_post.assert_not_called()
+
+
+@pytest.mark.parametrize("callback", ["recovery_comparison_account_replies", "pending_ai_reply"])
+def test_draft_recovery_errors_propagate_before_generation(monkeypatch, callback):
+    _configure_cycle(monkeypatch)
+    state = bot.default_state()
+    queue_active_mention(state, mention(105, 205), base_since_id="99")
+    failure = RuntimeError("draft recovery failed locally")
+    monkeypatch.setattr(bot, callback, Mock(side_effect=failure))
+    saved = Mock(wraps=bot.save_state)
+    accounted = Mock(wraps=bot.record_api_error)
+    monkeypatch.setattr(bot, "save_state", saved)
+    monkeypatch.setattr(bot, "record_api_error", accounted)
+
+    with pytest.raises(RuntimeError) as caught:
+        bot.maybe_reply_to_mentions(state)
+
+    assert caught.value is failure
+    assert "105" in state["mention_pending_candidates"]
+    assert state["daily_reply_count"] == 0
+    assert state.get("reply_evaluation_records", {}) == {}
+    saved.assert_not_called()
+    accounted.assert_not_called()
+    bot.generate_single_call_reply.assert_not_called()
+    bot.x_request.assert_not_called()
+    bot.create_post.assert_not_called()
+
+
+@pytest.mark.parametrize("boundary", ["attempt_binding", "confirmed_state"])
+def test_receipt_preparation_and_confirmed_state_errors_are_not_transport_errors(
+    monkeypatch, boundary,
+):
+    _configure_cycle(monkeypatch)
+    state = bot.default_state()
+    queue_active_mention(state, mention(105, 205), base_since_id="99")
+    monkeypatch.setattr(
+        bot, "generate_single_call_reply",
+        lambda context, *_args, **_kwargs: unit_approved_reply(context),
+    )
+    failure = RuntimeError("receipt boundary failed locally")
+    callback = (
+        "bind_conversational_reply_attempt_time"
+        if boundary == "attempt_binding" else "apply_confirmed_reply_receipt"
+    )
+    monkeypatch.setattr(bot, callback, Mock(side_effect=failure))
+    transport = Mock(return_value=({}, {"reply_post_id": "900"}))
+    monkeypatch.setattr(bot, "post_conversational_reply_with_durable_identity", transport)
+    accounted = Mock(wraps=bot.record_api_error)
+    outcomes = Mock(wraps=bot.log_ai_reply_posting_outcome)
+    cleanup = Mock(wraps=bot.remove_confirmed_reply_receipt)
+    monkeypatch.setattr(bot, "record_api_error", accounted)
+    monkeypatch.setattr(bot, "log_ai_reply_posting_outcome", outcomes)
+    monkeypatch.setattr(bot, "remove_confirmed_reply_receipt", cleanup)
+
+    with pytest.raises(RuntimeError) as caught:
+        bot.maybe_reply_to_mentions(state)
+
+    assert caught.value is failure
+    saved = json.loads(bot.STATE_FILE.read_text())
+    assert "mention:105" in saved["pending_ai_reply_drafts"]
+    assert "105" in saved["mention_pending_candidates"]
+    assert saved["daily_reply_count"] == state["daily_reply_count"] == 0
+    assert transport.call_count == int(boundary == "confirmed_state")
+    accounted.assert_not_called()
+    outcomes.assert_not_called()
+    cleanup.assert_not_called()
+    bot.x_request.assert_not_called()
+    bot.create_post.assert_not_called()
+
+
+@pytest.mark.parametrize("fail_first_save", [False, True])
+def test_mixed_quarantine_retirements_are_durable_before_later_context(
+    monkeypatch, fail_first_save,
+):
+    _configure_cycle(monkeypatch)
+    state = bot.default_state()
+    candidates = [mention(105, 205), mention(106, 206), mention(107, 205), mention(108, 208)]
+    candidates[1]["entities"] = {"mentions": []}
+    queue_active_mention(state, candidates[0], base_since_id="99")
+    state["mention_pending_candidates"].update({item["id"]: item for item in candidates[1:]})
+    state["mention_backlog"]["highest_mention_id"] = "108"
+    for offset in range(3):
+        bot.record_qualifying_author_no_reply(state, "205", current_epoch=bot.now_epoch() - 3 + offset)
+    original_save = bot.save_state
+    snapshots = []
+    failure = OSError("retirement save failed")
+
+    def save(actual_state, *, durable=False):
+        assert durable is True
+        if fail_first_save:
+            raise failure
+        original_save(actual_state, durable=durable)
+        snapshots.append(json.loads(bot.STATE_FILE.read_text()))
+
+    context_failure = RuntimeError("stop at later context")
+    context = Mock(side_effect=context_failure)
+    monkeypatch.setattr(bot, "save_state", save)
+    monkeypatch.setattr(bot, "build_context_for_reply_ai", context)
+
+    with pytest.raises((OSError, RuntimeError)) as caught:
+        bot.maybe_reply_to_mentions(state)
+
+    if fail_first_save:
+        assert caught.value is failure
+        context.assert_not_called()
+        assert set(state["mention_pending_candidates"]) == {"107", "108"}
+        assert snapshots == []
+    else:
+        assert caught.value is context_failure
+        assert [set(item["mention_pending_candidates"]) for item in snapshots] == [
+            {"107", "108"}, {"108"},
+        ]
+        assert set(snapshots[-1]["reply_evaluation_records"]) == {"105", "106", "107"}
+        assert snapshots[-1]["reply_evaluation_records"]["106"]["outcome"] == "reply_not_permitted"
+        assert snapshots[-1]["last_seen_mention_id"] == "99"
+        assert context.call_count == 1
+        assert context.call_args.args[0]["id"] == "108"
+    assert state["daily_reply_count"] == 0
+    bot.generate_single_call_reply.assert_not_called()
     bot.x_request.assert_not_called()
     bot.create_post.assert_not_called()
 
