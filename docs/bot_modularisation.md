@@ -5325,3 +5325,69 @@ not modified or run; no private configuration/state/credential/log-content reads
 production namespaces/locks, live providers, service/deployment/restart actions
 occurred. Configured Astra/max is unchanged. Stage65 ends for supervisor acceptance;
 no successor was launched.
+
+## Stage 66 — Full project validation after stage65
+
+Baseline: `d5b92990a976b40642e48808df64562677feaed7`, clean on
+`codex/bot-modularisation-stage66`; origin stage65 matched and stage66 was absent.
+Read applicable AGENTS.md, the full README local testing section, the stage65
+report section and stage66 scope notes. Evidence: `/tmp/mrs-bot-stage66-9kXvDvlt`.
+All requirements-dev.txt entries, including nested requirements, were satisfied;
+no packages were installed or upgraded and shared Python dependencies are unchanged.
+
+Actual commands below used `PYTHONUSERBASE=/home/tonym/.local`,
+`PYTHONDONTWRITEBYTECODE=1`, `MRS_TEST_MODE=1`,
+`PYTEST_DISABLE_PLUGIN_AUTOLOAD=1`, evidence-local `TMPDIR=.../tmp` and
+`PYTHONPATH=<evidence>:$PWD`. The existing temporary HOME/state/cache, dummy
+credentials, dead proxies, denied external sockets and explicit loopback policy
+were preserved. Expanded commands, per-invocation metadata prefixes and the seven
+focused node IDs are in `{baseline,focused-baseline,focused-fixed,fixed-full}-commands.txt`.
+
+```bash
+python3 tools/check_python_documentation.py
+python3 -m pytest -q -p no:cacheprovider -p stage66_metadata_guard --collect-only
+python3 -m pytest -q -p xdist.plugin -n 4 --dist=worksteal --max-worker-restart=0 \
+  -p no:cacheprovider -p stage66_metadata_guard
+```
+
+`run_suite.sh` required successful nonempty collection under `set -euo pipefail`
+before every execution. Both full runs used pytest.ini's complete `tests`
+selection and collected the same **7,843 node IDs**, without deselection.
+Focused runs appended the recorded seven explicit nodes. Runs never overlapped.
+
+| Run | Collected (seconds) | Passed / failed / errors / skipped | Run seconds (pytest / wall) |
+|---|---:|---:|---:|
+| Initial full | 7,843 (20.95) | 7,841 / 2 / 4 / 0 | 612.23 / 614.17 |
+| Focused reproduction | 7 (1.88) | 5 / 2 / 0 / 0 | 4.91 / 7.05 |
+| Focused fixed | 7 (1.92) | 7 / 0 / 0 / 0 | 4.91 / 6.85 |
+| Final full | 7,843 (21.92) | **7,843 / 0 / 0 / 0** | **589.93 / 592.31** |
+
+The two failures in `tests/test_quote_attribution_cleanup.py` still searched
+`mrsMThatcher2.py` for moved implementation text. Corrected the history checks to
+`mrs_bot_quote_posting.py` / `mrs_bot_used_history.py`, and the completed-research
+gate checks to `mrs_bot_quote_candidates.py`. All five original assertion strings
+remain. Five nearby behavior tests cover eligibility/integrity, cycle reset,
+duplicate-quote history and migration/reordering. No runtime code or fixture changed.
+
+The initial full run also failed all four metadata-only teardown guards: the log
+kept its device/inode but size changed **10,972 → 11,689 bytes**, with changed
+mtime_ns. The writer was not determined; no log contents were read and no
+assertion was relaxed. These errors are separate from the source-location fix.
+The reused stage65 plugin changed only its stage identifier and worker-suffixed
+evidence filename. All **16 distinct worker records** were verified: the initial
+four equality failures were retained; all twelve focused/final records passed
+exact `[device,inode,size,mtime_ns]` equality. All four collection snapshots were
+unchanged, and no open-log-FD assertion failed. Every other fixture is preserved.
+
+Final result: the complete guarded offline suite passed. Both full runs emitted
+873 existing FastAPI/BeautifulSoup deprecation warnings. Total collection and
+execution wall time was **1,277.12s (21m 17s)**; complete outputs, timings, metadata
+and diffs remain in the evidence directory. Documentation coverage passed for
+**274 modules** before every run and after this report; `git diff --check` passed.
+This section is appended at actual EOF with the immutable parent report verified
+as an exact byte prefix. No passing suite was repeated for the report-only edit.
+
+Only the two source-location tests and this report changed. No production
+checkout/service commands, private configuration/state/credential/log-content
+reads, live-provider calls, merge/deployment/restart or successor launch occurred.
+Configured Astra/max is unchanged. Stage66 ends for supervisor review.

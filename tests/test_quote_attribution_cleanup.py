@@ -204,13 +204,14 @@ def test_complete_all_veto_coverage_is_reported_as_global_no_safe_image() -> Non
 
 
 def test_production_history_uses_quote_hashes_not_shifted_line_indices() -> None:
-    source = (cleanup.ROOT / "mrsMThatcher2.py").read_text(encoding="utf-8")
-    assert "lines_used.add(quote_hash)" in source
-    assert "def normalise_quote_used_hashes" in source
+    posting_source = (cleanup.ROOT / "mrs_bot_quote_posting.py").read_text(encoding="utf-8")
+    history_source = (cleanup.ROOT / "mrs_bot_used_history.py").read_text(encoding="utf-8")
+    assert "lines_used.add(quote_hash)" in posting_source
+    assert "def normalise_quote_used_hashes" in history_source
 
 
 def test_production_regular_selector_has_completed_research_gate() -> None:
-    source = (cleanup.ROOT / "mrsMThatcher2.py").read_text(encoding="utf-8")
+    source = (cleanup.ROOT / "mrs_bot_quote_candidates.py").read_text(encoding="utf-8")
     assert "def completed_research_quote_hashes" in source
     assert "research_ineligible_hashes" in source
     assert "excluded_quote_hashes = set(excluded_quote_hashes or set()).union(research_ineligible_hashes)" in source
