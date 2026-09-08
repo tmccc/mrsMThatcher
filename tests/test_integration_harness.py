@@ -1303,7 +1303,7 @@ def test_bad_quote_check_epoch_falls_back_safely_and_polls(tmp_path: Path, bad_v
         )
 
         assert result.returncode == 0, result.stderr + result.stdout
-        assert server.path_counts.get("/2/tweets/900/quote_tweets") == 1
+        assert len(quote_search_requests(server)) == 1
         state = read_json(base_dir / "bot_state.json")
         assert state["last_quote_tweet_check_epoch"] == 2_000_000_000
     finally:
@@ -1586,7 +1586,7 @@ def test_quote_lookup_errors_cool_down_quote_lane_only(tmp_path: Path) -> None:
                 }
             ],
             "grok_replies": ["The point is plain enough."],
-            "error_paths": {"/2/tweets/900/quote_tweets": 503},
+            "error_paths": {"/2/tweets/search/recent": 503},
         }
     ).start()
     try:
@@ -1616,7 +1616,7 @@ def test_quote_lookup_errors_cool_down_quote_lane_only(tmp_path: Path) -> None:
             )
             assert result.returncode == 0, result.stderr + result.stdout
 
-        assert server.path_counts.get("/2/tweets/900/quote_tweets") == 3
+        assert len(quote_search_requests(server)) == 3
         assert server.path_counts.get("/2/users/12345/mentions") == 4
         assert len(server.posts) == 1
         assert server.posts[0]["reply"]["in_reply_to_tweet_id"] == "100"
@@ -1750,7 +1750,7 @@ def test_restart_quote_priority_posts_once_then_suppresses_duplicate_quote(tmp_p
         )
         assert restarted.returncode == 0, restarted.stderr + restarted.stdout
         assert len(server.posts) == 1
-        assert server.path_counts.get("/2/tweets/900/quote_tweets") == 1
+        assert len(quote_search_requests(server)) == 1
         state = read_json(base_dir / "bot_state.json")
         assert state["next_reply_lane_priority"] == "normal"
     finally:
@@ -1847,7 +1847,7 @@ def test_fake_clock_sequence_does_not_duplicate_or_overpoll(tmp_path: Path) -> N
         assert reply_targets.count("910") == 1
         assert len(server.posts) == 2
         assert server.path_counts.get("/2/users/12345/mentions", 0) <= 8
-        assert server.path_counts.get("/2/tweets/900/quote_tweets", 0) <= 8
+        assert len(quote_search_requests(server)) <= 8
         state = read_json(base_dir / "bot_state.json")
         assert state["next_reply_lane_priority"] == "normal"
         assert state["replied_to_ids"].count("100") == 1
@@ -2086,7 +2086,7 @@ def test_two_day_fake_clock_soak_with_posts_pauses_cooldown_and_rollover(tmp_pat
         assert state["posted_meme_filenames"] == ["001_test_meme.png"]
         assert state["next_reply_lane_priority"] in {"normal", "quote"}
         assert server.path_counts.get("/2/users/12345/mentions", 0) < len(tick_epochs)
-        assert server.path_counts.get("/2/tweets/900/quote_tweets", 0) < len(tick_epochs)
+        assert len(quote_search_requests(server)) < len(tick_epochs)
     finally:
         server.stop()
 
@@ -2132,7 +2132,7 @@ def test_clock_rollback_normalizes_both_scheduler_epochs_and_polls(tmp_path: Pat
 
         assert result.returncode == 0, result.stderr + result.stdout
         assert server.path_counts.get("/2/users/12345/mentions") == 1
-        assert server.path_counts.get("/2/tweets/900/quote_tweets") == 1
+        assert len(quote_search_requests(server)) == 1
         state = read_json(base_dir / "bot_state.json")
         assert state["last_reply_check_epoch"] == 2_000_000_000
         assert state["last_quote_tweet_check_epoch"] == 2_000_000_000
@@ -2300,7 +2300,7 @@ def test_daily_quote_cap_survives_restarts_then_resets_after_midnight(tmp_path: 
         assert before_midnight.returncode == 0, before_midnight.stderr + before_midnight.stdout
         assert restart_before_midnight.returncode == 0, restart_before_midnight.stderr + restart_before_midnight.stdout
         assert after_midnight.returncode == 0, after_midnight.stderr + after_midnight.stdout
-        assert server.path_counts.get("/2/tweets/900/quote_tweets") == 1
+        assert len(quote_search_requests(server)) == 1
         assert len(server.posts) == 1
         assert server.posts[0]["reply"]["in_reply_to_tweet_id"] == "910"
         state = read_json(base_dir / "bot_state.json")
@@ -3729,7 +3729,9 @@ def test_instance_lock_refuses_second_process_on_same_state_dir(tmp_path: Path) 
 
 
 def test_quote_tweet_bad_watch_id_and_inaccessible_original_do_not_call_grok(tmp_path: Path) -> None:
-    server = FakeApiServer({"tweets": {}, "quote_tweets": {}}).start()
+    server = FakeApiServer({"tweets": {}, "quote_tweets": {"999": {"data": [{
+        "id": "1000", "referenced_tweets": [{"type": "quoted", "id": "999"}],
+    }]}}}).start()
     try:
         base_dir = prepare_base_dir(
             tmp_path,
@@ -3912,9 +3914,9 @@ def test_quote_tweet_pagination_reaches_unseen_candidate_on_second_page(tmp_path
     ]
     quote_tweets.append(
         {
-            "id": "1010",
+            "id": "999",
             "author_id": "3010",
-            "conversation_id": "1010",
+            "conversation_id": "999",
             "created_at": "2026-01-01T00:00:00.000Z",
             "text": "This quote deserves a reply",
             "referenced_tweets": [{"type": "quoted", "id": "900"}],
@@ -3945,8 +3947,8 @@ def test_quote_tweet_pagination_reaches_unseen_candidate_on_second_page(tmp_path
         result = run_cycle(base_dir, server)
         assert result.returncode == 0, result.stderr + result.stdout
 
-        assert fake_server_post_replies(server) == ["1010"]
-        quote_requests = [r for r in server.requests if r["path"] == "/2/tweets/900/quote_tweets"]
+        assert fake_server_post_replies(server) == ["999"]
+        quote_requests = quote_search_requests(server)
         assert len(quote_requests) == 2
         assert quote_requests[1]["query"]["pagination_token"] == ["10"]
     finally:
@@ -4006,7 +4008,7 @@ def test_hot_post_pagination_reaches_candidate_on_second_page(tmp_path: Path) ->
         assert result.returncode == 0, result.stderr + result.stdout
 
         assert fake_server_post_replies(server) == ["311"]
-        search_requests = [r for r in server.requests if r["path"] == "/2/tweets/search/recent"]
+        search_requests = [r for r in server.requests if r["path"] == "/2/tweets/search/recent" and "conversation_id:" in r["query"].get("query", [""])[0]]
         assert len(search_requests) == 2
         assert search_requests[1]["query"]["pagination_token"] == ["10"]
     finally:
@@ -4324,7 +4326,7 @@ def test_hot_post_truncated_pagination_resumes_on_next_check(tmp_path: Path) -> 
         assert fake_server_post_replies(server) == ["330"]
         state = read_json(base_dir / "bot_state.json")
         assert state["hot_post_reply_pagination_tokens"] == {}
-        search_requests = [r for r in server.requests if r["path"] == "/2/tweets/search/recent"]
+        search_requests = [r for r in server.requests if r["path"] == "/2/tweets/search/recent" and "conversation_id:" in r["query"].get("query", [""])[0]]
         assert search_requests[3]["query"]["pagination_token"] == ["30"]
     finally:
         server.stop()
@@ -4355,7 +4357,7 @@ def test_api_page_size_is_not_bypassed_by_processing_caps(tmp_path: Path) -> Non
         assert result.returncode == 0, result.stderr + result.stdout
 
         search_request = next(req for req in server.requests if req["path"] == "/2/tweets/search/recent")
-        quote_request = next(req for req in server.requests if req["path"] == "/2/tweets/900/quote_tweets")
+        quote_request = quote_search_requests(server)[0]
         assert search_request["query"]["max_results"] == ["10"]
         assert quote_request["query"]["max_results"] == ["10"]
     finally:
@@ -4376,9 +4378,9 @@ def test_quote_lookup_truncated_pagination_resumes_on_next_check(tmp_path: Path)
     ]
     quote_tweets.append(
         {
-            "id": "1030",
+            "id": "999",
             "author_id": "3030",
-            "conversation_id": "1030",
+            "conversation_id": "999",
             "created_at": "2026-01-01T00:00:00.000Z",
             "text": "Fourth page quote deserves a reply",
             "referenced_tweets": [{"type": "quoted", "id": "900"}],
@@ -4410,15 +4412,15 @@ def test_quote_lookup_truncated_pagination_resumes_on_next_check(tmp_path: Path)
         first = run_bot_command(base_dir, server, "--test-cycle", extra_env={"MRS_FAKE_NOW_EPOCH": "2000000000"})
         assert first.returncode == 0, first.stderr + first.stdout
         state = read_json(base_dir / "bot_state.json")
-        assert state["quote_lookup_pagination_tokens"]["900"] == "30"
+        assert state["quote_search_pagination_tokens"]["(quotes_of_tweet_id:900) -is:retweet"] == "30"
         assert fake_server_post_replies(server) == []
 
         second = run_bot_command(base_dir, server, "--test-cycle", extra_env={"MRS_FAKE_NOW_EPOCH": "2000000002"})
         assert second.returncode == 0, second.stderr + second.stdout
-        assert fake_server_post_replies(server) == ["1030"]
+        assert fake_server_post_replies(server) == ["999"]
         state = read_json(base_dir / "bot_state.json")
-        assert state["quote_lookup_pagination_tokens"] == {}
-        quote_requests = [r for r in server.requests if r["path"] == "/2/tweets/900/quote_tweets"]
+        assert state["quote_search_pagination_tokens"] == {}
+        quote_requests = quote_search_requests(server)
         assert quote_requests[3]["query"]["pagination_token"] == ["30"]
     finally:
         server.stop()
@@ -12500,3 +12502,77 @@ def test_digest_api_counter_scopes_describe_patterns_not_log_level_filters(
         assert "info" not in scope
         assert "log level" in scope
         assert "regardless" in scope or "not filtered" in scope
+
+
+def quote_search_requests(server: FakeApiServer) -> list[dict]:
+    """Return quote-search requests separately from hot-post conversation searches."""
+    return [request for request in server.requests
+            if request["path"] == "/2/tweets/search/recent"
+            and "quotes_of_tweet_id:" in request["query"].get("query", [""])[0]]
+
+
+def test_combined_five_post_search_preserves_watch_priority_and_restart_dedupe(tmp_path: Path) -> None:
+    scenario = load_scenario(SCENARIOS / "quote_tweet_reply.json")
+    template = scenario["quote_tweets"]["900"]["data"][0]
+    parents = ["900", "901", "902", "903", "904"]
+    scenario["tweets"] = {parent: {"id": parent, "author_id": "12345", "text": "Original post " + parent} for parent in parents}
+    scenario["quote_tweets"] = {
+        parent: {"data": [dict(template, id=target, conversation_id=target,
+                              author_id=author, referenced_tweets=[{"type": "quoted", "id": parent}])]}
+        for parent, target, author in [("900", "910", "700"), ("904", "920", "701")]
+    }
+    server = FakeApiServer(scenario).start()
+    try:
+        base_dir = prepare_base_dir(
+            tmp_path, watch_ids=["904"],
+            state={"recent_own_post_ids": parents, "next_reply_lane_priority": "quote"},
+            local_config={"ENABLE_HOT_POST_REPLY_CHECKS": False, "MIN_SECONDS_BETWEEN_REPLIES": 1},
+        )
+        first = run_bot_command(base_dir, server, "--test-cycle", extra_env={"MRS_FAKE_NOW_EPOCH": "2000000000"})
+        assert first.returncode == 0, first.stderr + first.stdout
+        assert fake_server_post_replies(server) == ["920"]
+        requests = quote_search_requests(server)
+        assert len(requests) == 1
+        assert requests[0]["query"]["query"] == ["(" + " OR ".join("quotes_of_tweet_id:" + parent for parent in parents) + ") -is:retweet"]
+        assert not any(request["path"].endswith("/quote_tweets") for request in server.requests)
+        assert not any(request["path"] in ["/2/tweets/901", "/2/tweets/902", "/2/tweets/903"] for request in server.requests)
+        second = run_bot_command(base_dir, server, "--test-cycle", extra_env={"MRS_FAKE_NOW_EPOCH": "2000000002"})
+        assert second.returncode == 0, second.stderr + second.stdout
+        assert fake_server_post_replies(server) == ["920", "910"]
+        assert len(quote_search_requests(server)) == 2
+        state = read_json(base_dir / "bot_state.json")
+        assert set(state["replied_to_quote_post_ids"]) == {"910", "920"}
+        assert state["daily_quote_reply_count"] == 2
+    finally:
+        server.stop()
+
+
+def test_truncated_combined_search_cannot_hide_priority_original(tmp_path: Path) -> None:
+    scenario = load_scenario(SCENARIOS / "quote_tweet_reply.json")
+    template = scenario["quote_tweets"]["900"]["data"][0]
+    parents = ["900", "901", "902", "903", "904"]
+    scenario["enable_pagination"] = True
+    scenario["tweets"] = {parent: {"id": parent, "author_id": "12345", "text": "Original post " + parent} for parent in parents}
+    scenario["quote_tweets"] = {
+        "900": {"data": [dict(template, id="910", conversation_id="910")]},
+        "904": {"data": [dict(template, id=str(2000 + i), conversation_id=str(2000 + i),
+                               referenced_tweets=[{"type": "quoted", "id": "904"}]) for i in range(150)]},
+    }
+    server = FakeApiServer(scenario).start()
+    try:
+        base_dir = prepare_base_dir(
+            tmp_path, watch_ids=["900"],
+            state={"recent_own_post_ids": parents, "next_reply_lane_priority": "quote"},
+            local_config={"ENABLE_HOT_POST_REPLY_CHECKS": False, "MIN_SECONDS_BETWEEN_REPLIES": 1},
+        )
+        result = run_bot_command(base_dir, server, "--test-cycle", extra_env={"MRS_FAKE_NOW_EPOCH": "2000000000"})
+        assert result.returncode == 0, result.stderr + result.stdout
+        assert fake_server_post_replies(server) == ["910"]
+        requests = quote_search_requests(server)
+        assert len(requests) == 22
+        assert " OR " in requests[0]["query"]["query"][0]
+        assert requests[15]["query"]["query"] == ["(quotes_of_tweet_id:900) -is:retweet"]
+        state = read_json(base_dir / "bot_state.json")
+        assert state["quote_search_pagination_tokens"] == {"(quotes_of_tweet_id:904) -is:retweet": "30"}
+    finally:
+        server.stop()

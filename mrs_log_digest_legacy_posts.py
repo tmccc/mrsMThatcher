@@ -82,6 +82,10 @@ def handle_legacy_quiet_message(
     if "Hot-post reply check loaded" in msg:
         stats["hot_post_reply_watch_loads"] += 1
     if "/2/tweets/search/recent" in msg:
+        stats["recent_search_calls"] += 1
+    if msg == "Quote recent-search request":
+        stats["quote_recent_search_calls"] += 1
+    if msg == "Hot-post recent-search request":
         stats["hot_post_recent_search_calls"] += 1
     m = re.search(r"Fetched (\d+) hot-post conversation candidate\(s\) for post_id=(\d+)", msg)
     if m:

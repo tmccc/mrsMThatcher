@@ -184,6 +184,7 @@ def test_default_state_keeps_complete_ordered_values_current_policies_and_fresh_
         "replied_to_quote_post_ids": [],
         "skipped_quote_post_ids": [],
         "quote_lookup_pagination_tokens": {},
+        "quote_search_pagination_tokens": {},
         "quote_lookup_repeated_cursor_suppressions": {},
         "quote_spam_author_ids": [],
         "daily_quote_reply_date": None,

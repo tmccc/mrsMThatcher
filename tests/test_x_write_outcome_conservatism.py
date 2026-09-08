@@ -2196,8 +2196,8 @@ def _configure_approved_quote_candidate(
     )
     monkeypatch.setattr(
         bot,
-        "get_quote_tweets_for_post",
-        lambda *_args, **_kwargs: [dict(quote_post)],
+        "get_quote_tweets_for_posts",
+        lambda *_args, **_kwargs: {"900": [dict(quote_post)]},
     )
     monkeypatch.setattr(bot, "quote_tweet_is_old_enough", lambda _tweet: True)
     monkeypatch.setattr(

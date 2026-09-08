@@ -54,6 +54,7 @@ def test_adapters_forward_current_dependencies_arguments_results_and_errors(monk
         "build_quote_lookup_post_ids": 5,
         "get_recent_own_post_ids_for_quote_lookup": 2,
         "get_quote_tweets_for_post": 14,
+        "get_quote_tweets_for_posts": 8,
     }
     for name, count in counts.items():
         adapter = getattr(bot, name)
@@ -329,3 +330,159 @@ def test_cleanup_save_failure_preserves_state_identity_and_precedes_request(monk
         bot.get_quote_tweets_for_post("900", state)
     assert caught.value is failure
     request.assert_not_called()
+
+
+def _search_quote(quote_id, parent_id, **fields):
+    return {"id": str(quote_id), "author_id": "700",
+            "referenced_tweets": [{"type": "quoted", "id": str(parent_id)}], **fields}
+
+
+def test_combined_search_matches_five_parents_and_keeps_expansions(monkeypatch):
+    parents = [str(2097428574235992387 - i) for i in range(5)]
+    first = _search_quote("920", parents[0], attachments={"media_keys": ["m1"]})
+    second = _search_quote("910", parents[4])
+    author = {"id": "700", "description": "reader profile"}
+    photo = {"media_key": "m1", "type": "photo", "url": "https://example.invalid/photo.jpg"}
+    malformed = [
+        _search_quote("930", "999"),
+        _search_quote("931", parents[0], referenced_tweets=[{"type": "retweeted", "id": "920"}, {"type": "quoted", "id": parents[0]}]),
+        _search_quote("932", parents[0], referenced_tweets=None),
+        _search_quote("933", parents[0], referenced_tweets=[None]),
+        _search_quote("934", parents[0], referenced_tweets=[{"type": "quoted", "id": parents[0]}, {"type": "quoted", "id": parents[1]}]),
+        _search_quote("bad-id", parents[0]),
+    ]
+    request = Mock(return_value={"data": [first, second, first, *malformed], "includes": {"users": [author], "media": [photo]}})
+    monkeypatch.setattr(bot, "x_quote_lookup_request", request)
+    state = bot.default_state()
+    state["quote_lookup_pagination_tokens"] = {parents[0]: "legacy-cursor"}
+    state["quote_lookup_repeated_cursor_suppressions"] = {parents[0]: {"cursor_sha256": "old"}}
+    result = bot.get_quote_tweets_for_posts(parents, state)
+    assert list(result) == parents
+    assert result[parents[0]] == [first]
+    assert result[parents[4]] == [second]
+    assert all(result[parent] == [] for parent in parents[1:4])
+    assert first["_author_user"] is author
+    assert first["_attached_media"] == [photo]
+    request.assert_called_once()
+    path, params = request.call_args.args
+    assert path == "/2/tweets/search/recent"
+    assert params["query"] == "(" + " OR ".join("quotes_of_tweet_id:" + parent for parent in sorted(parents)) + ") -is:retweet"
+    assert len(params["query"]) == 220
+    assert params["sort_order"] == "recency"
+    assert params["expansions"] == "author_id,attachments.media_keys"
+    assert "referenced_tweets" in params["tweet.fields"]
+    assert params["user.fields"] == "description,username,name,public_metrics"
+    assert not {"since_id", "pagination_token", "start_time"} & params.keys()
+    assert state["quote_lookup_pagination_tokens"] == {parents[0]: "legacy-cursor"}
+
+
+def test_combined_search_empty_and_invalid_watch_ids_do_not_request(monkeypatch):
+    request = Mock()
+    monkeypatch.setattr(bot, "x_quote_lookup_request", request)
+    assert bot.get_quote_tweets_for_posts([]) == {}
+    assert bot.get_quote_tweets_for_posts(["x OR from:anyone", "²", "００３", "0", "9" * 40]) == {}
+    request.assert_not_called()
+
+
+def test_combined_search_batches_long_watch_lists_with_bounded_queries(monkeypatch):
+    parents = [str(2097428574235992387 - i) for i in range(23)]
+    request = Mock(return_value={"meta": {"result_count": 0}})
+    monkeypatch.setattr(bot, "x_quote_lookup_request", request)
+    assert bot.get_quote_tweets_for_posts(parents + parents) == {parent: [] for parent in parents}
+    assert request.call_count == 3
+    assert all(len(call.args[1]["query"]) <= 512 for call in request.call_args_list)
+    queries = " ".join(call.args[1]["query"] for call in request.call_args_list)
+    assert all(queries.count("quotes_of_tweet_id:" + parent) == 1 for parent in parents)
+
+
+def test_single_quote_search_continuation_survives_reload(monkeypatch):
+    monkeypatch.setattr(bot, "QUOTE_LOOKUP_MAX_PAGES_PER_POST", 1)
+    first, second = [_search_quote(target, "900") for target in ("910", "911")]
+    request = Mock(side_effect=[
+        {"data": [first], "meta": {"next_token": "A"}},
+        {"data": [second]},
+    ])
+    monkeypatch.setattr(bot, "x_quote_lookup_request", request)
+    state = bot.default_state()
+    assert bot.get_quote_tweets_for_posts(["900"], state)["900"] == [first]
+    state = bot.load_state()
+    query = "(quotes_of_tweet_id:900) -is:retweet"
+    assert state["quote_search_pagination_tokens"] == {query: "A"}
+    assert bot.get_quote_tweets_for_posts(["900"], state)["900"] == [second]
+    assert [call.args[1].get("pagination_token") for call in request.call_args_list] == [None, "A"]
+    assert bot.load_state()["quote_search_pagination_tokens"] == {}
+
+
+def test_combined_search_changed_watch_set_discards_previous_continuation(monkeypatch):
+    state = bot.default_state()
+    state["quote_search_pagination_tokens"] = {"(quotes_of_tweet_id:900) -is:retweet": "old"}
+    saved = []
+    monkeypatch.setattr(bot, "save_state", lambda state, **kw: saved.append(copy.deepcopy(state)))
+    request = Mock(return_value={"meta": {"result_count": 0}})
+    monkeypatch.setattr(bot, "x_quote_lookup_request", request)
+    assert bot.get_quote_tweets_for_posts(["901"], state) == {"901": []}
+    assert "pagination_token" not in request.call_args.args[1]
+    assert saved[0]["quote_search_pagination_tokens"] == {}
+
+
+def test_combined_search_invalid_saved_cursor_recovers_once(monkeypatch):
+    state = bot.default_state()
+    query = "(quotes_of_tweet_id:900) -is:retweet"
+    state["quote_search_pagination_tokens"] = {query: "expired"}
+    quote = _search_quote("910", "900")
+    request = Mock(side_effect=[bot.ApiError('Invalid pagination_token', service="x", status_code=400), {"data": [quote]}])
+    monkeypatch.setattr(bot, "x_quote_lookup_request", request)
+    assert bot.get_quote_tweets_for_posts(["900"], state) == {"900": [quote]}
+    assert [call.args[1].get("pagination_token") for call in request.call_args_list] == ["expired", None]
+    assert bot.load_state()["quote_search_pagination_tokens"] == {}
+
+
+def test_combined_search_repeated_cursor_retains_unique_partial_quotes(monkeypatch):
+    quote = _search_quote("910", "900")
+    request = Mock(return_value={"data": [quote], "meta": {"next_token": "A"}})
+    monkeypatch.setattr(bot, "x_quote_lookup_request", request)
+    state = bot.default_state()
+    assert bot.get_quote_tweets_for_posts(["900"], state) == {"900": [quote]}
+    assert request.call_count == 2
+    assert state["quote_search_pagination_tokens"] == {}
+
+
+def test_combined_search_incomplete_page_raises_without_advancing_saved_cursor(monkeypatch):
+    state = bot.default_state()
+    query = "(quotes_of_tweet_id:900) -is:retweet"
+    state["quote_search_pagination_tokens"] = {query: "A"}
+    request = Mock(return_value={"errors": [{"detail": "unavailable"}], "meta": {"next_token": "B"}})
+    monkeypatch.setattr(bot, "x_quote_lookup_request", request)
+    with pytest.raises(bot.ApiError):
+        bot.get_quote_tweets_for_posts(["900"], state)
+    assert state["quote_search_pagination_tokens"] == {query: "A"}
+
+
+def test_combined_search_later_batch_failure_does_not_advance_undelivered_results(monkeypatch):
+    state = bot.default_state()
+    parents = [str(900 + index) for index in range(11)]
+    quote = _search_quote("1000", "900")
+    def paginate(request, path, params, **kwargs):
+        if "quotes_of_tweet_id:910" in params["query"]:
+            raise bot.ApiError("Service unavailable", service="x", status_code=503)
+        return {"data": [quote], "_pagination": {"next_token": "more"}}
+    monkeypatch.setattr(bot, "x_paginated_get", paginate)
+    save = Mock()
+    monkeypatch.setattr(bot, "save_state", save)
+    with pytest.raises(bot.ApiError):
+        bot.get_quote_tweets_for_posts(parents, state)
+    assert state["quote_search_pagination_tokens"] == {}
+    save.assert_not_called()
+
+
+def test_split_quote_search_resumes_without_another_combined_head(monkeypatch):
+    state = bot.default_state()
+    query = "(quotes_of_tweet_id:901) -is:retweet"
+    state["quote_search_pagination_tokens"] = {query: "A"}
+    quote = _search_quote("910", "900")
+    request = Mock(side_effect=[{"data": [quote]}, {"meta": {"result_count": 0}}])
+    monkeypatch.setattr(bot, "x_quote_lookup_request", request)
+    assert bot.get_quote_tweets_for_posts(["901", "900"], state) == {"901": [], "900": [quote]}
+    assert [call.args[1]["query"] for call in request.call_args_list] == ["(quotes_of_tweet_id:900) -is:retweet", query]
+    assert [call.args[1].get("pagination_token") for call in request.call_args_list] == [None, "A"]
+    assert bot.load_state()["quote_search_pagination_tokens"] == {}

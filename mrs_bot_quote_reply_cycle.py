@@ -311,7 +311,7 @@ def maybe_reply_to_quote_tweets(
     daily_author_reply_count: Callable,
     daily_author_reply_counts: Callable,
     generate_single_call_reply: Callable,
-    get_quote_tweets_for_post: Callable,
+    get_quote_tweets_for_posts: Callable,
     get_tweet_by_id_cached: Callable,
     in_api_cooldown: Callable,
     is_probably_spam_or_not_worth_replying: Callable,
@@ -413,6 +413,18 @@ def maybe_reply_to_quote_tweets(
     replied_to_ids = set(str(x) for x in state.get("replied_to_ids", []))
     daily_author_reply_counts(state)
 
+    try:
+        quotes_by_post = get_quote_tweets_for_posts(own_post_ids_for_quote_lookup, state)
+    except ApiError as exc:
+        log.exception("Failed to search quote tweets for watched posts")
+        record_api_error(state, exc, "x", scope="quote")
+        save_state(state)
+        return QUOTE_CHECK_STATUS_CHECKED
+    except Exception:
+        log.exception("Unexpected failure searching quote tweets for watched posts")
+        save_state(state)
+        return QUOTE_CHECK_STATUS_CHECKED
+
     # Only this counter spans originals; charge after context/media extraction,
     # even when evaluation makes no model call. Snapshot sets above stay fixed
     # except for newly discovered spam authors.
@@ -421,14 +433,17 @@ def maybe_reply_to_quote_tweets(
     for original_post_id in own_post_ids_for_quote_lookup:
         if processed_candidates >= MAX_QUOTE_POSTS_PER_CHECK:
             break
+        quote_tweets = quotes_by_post.get(original_post_id, [])
+        if not quote_tweets:
+            continue
 
         lookup = _lookup_quote_candidates(
             original_post_id,
             state,
+            quote_tweets,
             ApiError=ApiError,
             QUOTE_CHECK_STATUS_CHECKED=QUOTE_CHECK_STATUS_CHECKED,
             api_error_is_permanent_target_failure=api_error_is_permanent_target_failure,
-            get_quote_tweets_for_post=get_quote_tweets_for_post,
             get_tweet_by_id_cached=get_tweet_by_id_cached,
             in_api_cooldown=in_api_cooldown,
             log=log,
@@ -634,18 +649,18 @@ def maybe_reply_to_quote_tweets(
 def _lookup_quote_candidates(
     original_post_id: str,
     state: dict,
+    quote_tweets: list[dict],
     *,
     ApiError: type[Exception],
     QUOTE_CHECK_STATUS_CHECKED: str,
     api_error_is_permanent_target_failure: Callable,
-    get_quote_tweets_for_post: Callable,
     get_tweet_by_id_cached: Callable,
     in_api_cooldown: Callable,
     log: Logger,
     record_api_error: Callable,
     save_state: Callable,
 ) -> tuple[dict, list] | _QuoteCandidateStop:
-    """Fetch one original and its quotes, preserving skip-original versus stop-cycle failures."""
+    """Fetch context for an original with discovered quotes, preserving failure routing."""
     try:
         original_tweet = get_tweet_by_id_cached(original_post_id, state)
     except ApiError as e:
@@ -667,17 +682,6 @@ def _lookup_quote_candidates(
         log.info("Could not find/fetch original own post %s", original_post_id)
         return _QuoteCandidateStop()
 
-    try:
-        quote_tweets = get_quote_tweets_for_post(original_post_id, state)
-    except ApiError as e:
-        log.exception("Failed to fetch quote tweets for post %s", original_post_id)
-        record_api_error(state, e, "x", scope="quote")
-        save_state(state)
-        return _QuoteCandidateStop(QUOTE_CHECK_STATUS_CHECKED)
-    except Exception:
-        log.exception("Unexpected failure fetching quote tweets for post %s", original_post_id)
-        save_state(state)
-        return _QuoteCandidateStop(QUOTE_CHECK_STATUS_CHECKED)
     return original_tweet, quote_tweets
 
 

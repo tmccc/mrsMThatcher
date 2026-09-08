@@ -10736,7 +10736,7 @@ def test_quote_tweet_model_no_reply_is_durable_beyond_bounded_scan_lists(
     monkeypatch.setattr(bot, "reconcile_confirmed_reply_receipt", lambda _state: False)
     monkeypatch.setattr(bot, "build_quote_lookup_post_ids", lambda _state: ["900"])
     monkeypatch.setattr(bot, "get_tweet_by_id_cached", lambda *_args, **_kwargs: dict(own_post))
-    monkeypatch.setattr(bot, "get_quote_tweets_for_post", lambda *_args, **_kwargs: [dict(quote_post)])
+    monkeypatch.setattr(bot, "get_quote_tweets_for_posts", lambda *_args, **_kwargs: {"900": [dict(quote_post)]})
     monkeypatch.setattr(bot, "quote_tweet_is_old_enough", lambda _tweet: True)
     monkeypatch.setattr(bot, "is_probably_spam_or_not_worth_replying", lambda _text: False)
     monkeypatch.setattr(bot, "reply_media_context_for_candidate", lambda *_args, **_kwargs: {})
@@ -10802,7 +10802,7 @@ def test_quote_tweet_generic_403_remains_ambiguous_and_durable(
     monkeypatch.setattr(bot, "reconcile_confirmed_reply_receipt", lambda _state: False)
     monkeypatch.setattr(bot, "build_quote_lookup_post_ids", lambda _state: ["900"])
     monkeypatch.setattr(bot, "get_tweet_by_id_cached", lambda *_args, **_kwargs: dict(own_post))
-    monkeypatch.setattr(bot, "get_quote_tweets_for_post", lambda *_args, **_kwargs: [dict(quote_post)])
+    monkeypatch.setattr(bot, "get_quote_tweets_for_posts", lambda *_args, **_kwargs: {"900": [dict(quote_post)]})
     monkeypatch.setattr(bot, "quote_tweet_is_old_enough", lambda _tweet: True)
     monkeypatch.setattr(bot, "is_probably_spam_or_not_worth_replying", lambda _text: False)
     monkeypatch.setattr(bot, "reply_media_context_for_candidate", lambda *_args, **_kwargs: {})
@@ -14723,7 +14723,7 @@ def test_quote_cursor_backoff_mocked_multi_cycle_request_reduction(
     assert state["quote_lookup_repeated_cursor_suppressions"] == {}
 
 
-def test_new_first_page_quote_is_processed_while_continuation_is_suppressed(
+def test_quote_search_processes_new_quote_despite_legacy_cursor_suppression(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     fixed_epoch = 2_000_000_000
@@ -14755,10 +14755,10 @@ def test_new_first_page_quote_is_processed_while_continuation_is_suppressed(
     }
 
     def request(_path: str, params: dict) -> dict:
+        assert _path == "/2/tweets/search/recent"
         requests.append(params.get("pagination_token"))
         return {
             "data": [dict(new_quote)],
-            "meta": {"next_token": repeated_token},
         }
 
     def no_reply(

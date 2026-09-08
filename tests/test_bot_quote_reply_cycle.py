@@ -254,7 +254,7 @@ def _configure_cycle(monkeypatch):
     monkeypatch.setattr(bot, "MIN_SECONDS_BETWEEN_REPLIES", 0)
     monkeypatch.setattr(bot, "build_quote_lookup_post_ids", Mock(return_value=["900"]))
     monkeypatch.setattr(bot, "get_tweet_by_id_cached", Mock(return_value=original))
-    monkeypatch.setattr(bot, "get_quote_tweets_for_post", Mock(return_value=quotes))
+    monkeypatch.setattr(bot, "get_quote_tweets_for_posts", Mock(return_value={"900": quotes}))
     monkeypatch.setattr(bot, "reply_media_context_for_candidate", Mock(return_value={}))
     monkeypatch.setattr(bot, "x_request", Mock(side_effect=AssertionError("unexpected provider request")))
     monkeypatch.setattr(bot, "create_post", Mock(side_effect=AssertionError("unexpected remote write")))
@@ -388,21 +388,25 @@ def test_lookup_failure_continues_only_when_fetching_the_original(monkeypatch, b
     failure = (bot.ApiError("lookup failed", service="x", status_code=503)
                if api_failure else ValueError("lookup failed"))
     bot.build_quote_lookup_post_ids.return_value = ["900", "901"]
-    bot.get_quote_tweets_for_post.return_value = []
+    bot.get_quote_tweets_for_posts.return_value = {
+        parent: [{"id": target, "referenced_tweets": [{"type": "quoted", "id": parent}]}]
+        for parent, target in [("900", "910"), ("901", "911")]
+    }
+    monkeypatch.setattr(bot, "quote_tweet_is_old_enough", lambda _quote: False)
     if boundary == "original":
         bot.get_tweet_by_id_cached.side_effect = [failure, original]
     else:
-        bot.get_quote_tweets_for_post.side_effect = failure
+        bot.get_quote_tweets_for_posts.side_effect = failure
     save, health, generate = Mock(), Mock(), Mock()
     monkeypatch.setattr(bot, "save_state", save)
     monkeypatch.setattr(bot, "record_api_error", health)
     monkeypatch.setattr(bot, "generate_single_call_reply", generate)
 
     assert bot.maybe_reply_to_quote_tweets(state) == bot.QUOTE_CHECK_STATUS_CHECKED
-    expected_originals = ["900", "901"] if boundary == "original" else ["900"]
+    expected_originals = ["900", "901"] if boundary == "original" else []
     assert bot.get_tweet_by_id_cached.call_args_list == [call(target, state) for target in expected_originals]
-    bot.get_quote_tweets_for_post.assert_called_once_with("901" if boundary == "original" else "900", state)
-    assert save.call_args_list == [call(state)] * (2 if boundary == "original" else 1)
+    bot.get_quote_tweets_for_posts.assert_called_once_with(["900", "901"], state)
+    assert save.called
     assert health.call_args_list == ([call(state, failure, "x", scope="quote")] if api_failure else [])
     generate.assert_not_called()
     assert not state["skipped_quote_post_ids"]
@@ -421,8 +425,8 @@ def test_original_http_errors_skip_targets_or_stop_at_shared_cooldown(
     monkeypatch.setattr(bot, "ENABLE_QUOTE_TWEET_CHECKS", True)
     monkeypatch.setattr(bot, "build_quote_lookup_post_ids", lambda _state: ["900", "901", "902", "903"])
     monkeypatch.setattr(bot, "get_tweet_by_id", SOURCE_GET_TWEET_BY_ID)
-    discoveries = Mock(return_value=[])
-    monkeypatch.setattr(bot, "get_quote_tweets_for_post", discoveries)
+    discoveries = Mock(return_value={target: [{"id": "910"}] for target in ["900", "901", "902", "903"]})
+    monkeypatch.setattr(bot, "get_quote_tweets_for_posts", discoveries)
     health = Mock(wraps=bot.record_api_error)
     monkeypatch.setattr(bot, "record_api_error", health)
 
@@ -458,10 +462,10 @@ def test_original_http_errors_skip_targets_or_stop_at_shared_cooldown(
     assert persisted["quote_api_cooldown_until_epoch"] == state["quote_api_cooldown_until_epoch"]
     if status == 404:
         health.assert_not_called()
-        discoveries.assert_called_once_with("903", state)
+        discoveries.assert_called_once_with(["900", "901", "902", "903"], state)
     else:
         assert health.call_count == expected_calls
-        discoveries.assert_not_called()
+        discoveries.assert_called_once_with(["900", "901", "902", "903"], state)
 
 
 @pytest.mark.parametrize("boundary", ["refetch", "cache"])
@@ -498,7 +502,7 @@ def test_context_rejection_is_free_but_evaluation_budget_spans_original_posts(mo
         for source, targets in [("900", ["910", "911"]), ("901", ["921"]), ("902", ["931"])]
     }
     bot.get_tweet_by_id_cached.side_effect = lambda target, _state, **kwargs: dict(original, id=target)
-    bot.get_quote_tweets_for_post.side_effect = lambda target, _state: quotes_by_original[target]
+    bot.get_quote_tweets_for_posts.return_value = quotes_by_original
     monkeypatch.setattr(bot, "MAX_QUOTE_POSTS_PER_CHECK", 2)
     build_context = bot.build_quote_tweet_reply_context
 
@@ -523,7 +527,7 @@ def test_context_rejection_is_free_but_evaluation_budget_spans_original_posts(mo
 
     assert bot.maybe_reply_to_quote_tweets(state) == bot.QUOTE_CHECK_STATUS_CHECKED
     assert evaluated == ["911", "921"]
-    assert bot.get_quote_tweets_for_post.call_args_list == [call("900", state), call("901", state)]
+    bot.get_quote_tweets_for_posts.assert_called_once_with(["900", "901", "902"], state)
     assert bot.get_tweet_by_id_cached.call_args_list == [
         call("900", state), call("900", state, include_media=True), call("900", state, include_media=True),
         call("901", state), call("901", state, include_media=True),
@@ -568,3 +572,18 @@ def test_pre_generation_failures_keep_their_own_exception_boundary(monkeypatch, 
     assert "reply_evaluation_records" not in state
     generate.assert_not_called()
     health.assert_not_called()
+
+
+def test_empty_combined_search_needs_no_original_or_legacy_lookup(monkeypatch):
+    _configure_cycle(monkeypatch)
+    state = bot.default_state()
+    parents = ["900", "901", "902", "903", "904"]
+    bot.build_quote_lookup_post_ids.return_value = parents
+    bot.get_quote_tweets_for_posts.return_value = {parent: [] for parent in parents}
+    legacy = Mock(side_effect=AssertionError("legacy quote lookup must not run"))
+    monkeypatch.setattr(bot, "get_quote_tweets_for_post", legacy)
+    assert bot.maybe_reply_to_quote_tweets(state) == bot.QUOTE_CHECK_STATUS_CHECKED
+    bot.get_quote_tweets_for_posts.assert_called_once_with(parents, state)
+    bot.get_tweet_by_id_cached.assert_not_called()
+    legacy.assert_not_called()
+    bot.create_post.assert_not_called()
