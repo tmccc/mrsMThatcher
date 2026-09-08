@@ -55,7 +55,7 @@ assert 'requests' not in sys.modules
 
 def test_adapters_forward_current_dependencies_arguments_results_and_errors(monkeypatch):
     for name, count in (
-        ("pending_mention_candidates", 4), ("get_mentions", 24),
+        ("pending_mention_candidates", 4), ("get_mentions", 27),
         ("update_last_seen_mention_id", 1), ("mark_mention_seen_if_applicable", 3),
     ):
         adapter = getattr(bot, name)

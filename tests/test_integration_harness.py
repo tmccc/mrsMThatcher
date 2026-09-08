@@ -12576,3 +12576,81 @@ def test_truncated_combined_search_cannot_hide_priority_original(tmp_path: Path)
         assert state["quote_search_pagination_tokens"] == {"(quotes_of_tweet_id:904) -is:retweet": "30"}
     finally:
         server.stop()
+
+
+@pytest.mark.parametrize("lane", ["mention", "quote", "hot_post"])
+def test_full_post_text_reaches_real_reply_payload_across_discovery_lanes(tmp_path: Path, lane: str) -> None:
+    """A question beyond the short excerpt survives discovery through model input."""
+    full = "Background to the question. " * 20 + "Which particular policy is being discussed at the end?"
+    target = {
+        "id": "910", "text": "Only the short opening is here.", "author_id": "310",
+        "conversation_id": "910", "created_at": "2026-06-30T12:00:00Z",
+        "note_tweet": {"text": full, "entities": {"mentions": []}},
+        "entities": {"mentions": [{"id": "12345", "username": "MrsMThatcher"}]},
+    }
+    subject = {"id": "900", "text": "The short subject excerpt.", "author_id": "12345", "conversation_id": "900",
+               "note_tweet": {"text": "The complete subject provides all the context. " * 10}}
+    scenario = {"tweets": {"900": subject}, "grok_replies": ["That is a useful distinction to examine."]}
+    options = {}
+    if lane == "mention":
+        scenario["mentions"] = [target]
+    elif lane == "quote":
+        target["referenced_tweets"] = [{"type": "quoted", "id": "900"}]
+        scenario["quote_tweets"] = {"900": {"data": [target]}}
+        options["state"] = {"recent_own_post_ids": ["900"], "next_reply_lane_priority": "quote"}
+    else:
+        target["conversation_id"] = "900"
+        target["referenced_tweets"] = [{"type": "replied_to", "id": "900"}]
+        scenario["search_recent"] = [target]
+        options["watch_ids"] = ["900"]
+    server = FakeApiServer(scenario).start()
+    try:
+        base_dir = prepare_base_dir(tmp_path, **options)
+        result = run_cycle(base_dir, server)
+        assert result.returncode == 0, result.stderr + result.stdout
+        assert len(server.openai_requests) == 1
+        payload = json.loads(server.openai_requests[0]["input"])
+        assert payload["visible_conversation"][-1]["text"] == full
+        if lane in {"quote", "hot_post"}:
+            assert payload["visible_conversation"][0]["text"] == subject["note_tweet"]["text"].strip()
+        assert len(server.posts) == 1
+        state = read_json(base_dir / "bot_state.json")
+        assert state["ai_reply_history"][-1]["incoming_contribution"] == full
+        for request in server.requests:
+            if request["method"] == "GET" and "tweet.fields" in request["query"]:
+                assert "note_tweet" in request["query"]["tweet.fields"][0].split(",")
+    finally:
+        server.stop()
+
+
+def test_full_post_text_refreshes_legacy_queue_and_parent_after_restart(tmp_path: Path) -> None:
+    """A saved short excerpt must not survive restart into model context."""
+    full_target = "My earlier explanation. " * 20 + "The specific measure is the British Nationality Act 1981."
+    full_parent = "Earlier context. " * 20 + "The final distinction concerns individual circumstances."
+    parent = {"id": "99", "author_id": "12345", "conversation_id": "99", "text": "Earlier excerpt", "note_tweet": {"text": full_parent}}
+    target = {"id": "100", "author_id": "200", "conversation_id": "99", "text": "@MrsMThatcher Short excerpt",
+              "referenced_tweets": [{"type": "replied_to", "id": "99"}],
+              "entities": {"mentions": [{"id": "12345", "username": "MrsMThatcher"}]},
+              "note_tweet": {"text": full_target}}
+    old_parent = {key: value for key, value in parent.items() if key != "note_tweet"}
+    old_parent["cached_epoch"] = 2_000_000_000
+    old_target = {key: value for key, value in target.items() if key != "note_tweet"}
+    scenario = {"tweets": {"99": parent, "100": target}, "grok_replies": ["That identifies the measure under discussion."]}
+    server = FakeApiServer(scenario).start()
+    try:
+        base_dir = prepare_base_dir(tmp_path, state={
+            "last_seen_mention_id": "100", "mention_pending_candidates": {"100": old_target},
+            "tweet_cache": {"99": old_parent},
+        })
+        result = run_cycle(base_dir, server)
+        assert result.returncode == 0, result.stderr + result.stdout
+        assert len(server.openai_requests) == 1
+        payload = json.loads(server.openai_requests[0]["input"])
+        assert [turn["text"] for turn in payload["visible_conversation"]] == [full_parent, full_target]
+        state = read_json(base_dir / "bot_state.json")
+        assert state["tweet_cache"]["99"]["text"] == full_parent
+        assert state["tweet_cache"]["99"]["text_is_complete"] is True
+        assert state["ai_reply_history"][-1]["incoming_contribution"] == full_target
+        assert len(server.posts) == 1
+    finally:
+        server.stop()

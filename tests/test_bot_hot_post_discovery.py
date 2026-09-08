@@ -56,7 +56,7 @@ assert 'requests' not in sys.modules
 
 def test_adapters_forward_current_dependencies_arguments_defaults_results_and_errors(monkeypatch):
     counts = {
-        "get_hot_post_reply_candidates": 26,
+        "get_hot_post_reply_candidates": 27,
         "mark_hot_post_reply_skipped": 3,
         "maybe_mark_hot_post_reply_skipped": 1,
         "dedupe_reply_candidates": 2,

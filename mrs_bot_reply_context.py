@@ -103,6 +103,7 @@ def build_parent_chain(
     ApiError: type[Exception],
     THREAD_CONTEXT_MAX_DEPTH: int,
     THREAD_CONTEXT_MAX_NETWORK_FETCHES: int,
+    tweet_text_is_complete: Callable,
     api_error_is_permanent_target_failure: Callable,
     get_immediate_parent_id: Callable,
     get_tweet_by_id_cached: Callable,
@@ -127,6 +128,7 @@ def build_parent_chain(
         cache = state.get("tweet_cache", {})
         parent_is_cached = bool(
             isinstance(cache, dict) and cache.get(parent_id)
+            and tweet_text_is_complete(cache[parent_id])
         )
         if not parent_is_cached:
             if network_fetches >= THREAD_CONTEXT_MAX_NETWORK_FETCHES:

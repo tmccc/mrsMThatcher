@@ -240,6 +240,7 @@ def get_quote_tweets_for_post(
     QUOTE_LOOKUP_MAX_PAGES_PER_POST: int,
     QUOTE_REPEATED_CURSOR_BACKOFF_SECONDS: int,
     attach_media_to_tweets: Callable,
+    normalise_tweet_text: Callable,
     hashlib: ModuleType,
     log: Logger,
     log_event: Callable,
@@ -257,7 +258,7 @@ def get_quote_tweets_for_post(
 
     params = {
         "max_results": QUOTE_LOOKUP_API_MAX_RESULTS,
-        "tweet.fields": "author_id,created_at,conversation_id,referenced_tweets,attachments",
+        "tweet.fields": "author_id,created_at,conversation_id,referenced_tweets,attachments,entities,note_tweet",
         "expansions": "author_id,attachments.media_keys",
         "user.fields": "description,username,name,public_metrics",
         "media.fields": "media_key,type,url,preview_image_url",
@@ -493,6 +494,8 @@ def get_quote_tweets_for_post(
             log.info("Quote lookup for post_id=%s reached end of pagination; cleared continuation token", post_id)
 
     quote_tweets = result.get("data", [])
+    for tweet in quote_tweets:
+        normalise_tweet_text(tweet)
     attach_media_to_tweets(quote_tweets, result.get("includes", {}))
 
     users_by_id = {
@@ -517,6 +520,7 @@ def get_quote_tweets_for_posts(
     QUOTE_LOOKUP_API_MAX_RESULTS: int,
     QUOTE_LOOKUP_MAX_PAGES_PER_POST: int,
     attach_media_to_tweets: Callable,
+    normalise_tweet_text: Callable,
     bounded_tweet_id_value: Callable,
     log: Logger,
     save_state: Callable,
@@ -567,7 +571,7 @@ def get_quote_tweets_for_posts(
             "query": query,
             "sort_order": "recency",
             "max_results": QUOTE_LOOKUP_API_MAX_RESULTS,
-            "tweet.fields": "author_id,created_at,conversation_id,referenced_tweets,attachments",
+            "tweet.fields": "author_id,created_at,conversation_id,referenced_tweets,attachments,entities,note_tweet",
             "expansions": "author_id,attachments.media_keys",
             "user.fields": "description,username,name,public_metrics",
             "media.fields": "media_key,type,url,preview_image_url",
@@ -607,6 +611,8 @@ def get_quote_tweets_for_posts(
 
         quotes = result.get("data", [])
         includes = result.get("includes", {})
+        for tweet in quotes:
+            normalise_tweet_text(tweet)
         attach_media_to_tweets(quotes, includes)
         users = {str(user.get("id")): user for user in includes.get("users", [])}
         for quote in quotes:

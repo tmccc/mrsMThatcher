@@ -12730,7 +12730,7 @@ def test_author_cap_context_is_terminal_but_available_to_next_eligible_reply(
     state["tweet_cache"] = {
         "100": {
             "id": "100",
-            "cached_epoch": clock[0],
+            "text_is_complete": True, "cached_epoch": clock[0],
             "author_id": "12345",
             "conversation_id": "100",
             "text": "The opening contribution.",
@@ -15832,7 +15832,7 @@ def test_cache_tweet_normalises_safe_scalar_fields(monkeypatch: pytest.MonkeyPat
         "created_at": "111",
         "referenced_tweets": [{"type": "1", "id": "2"}],
         "text": "['not', 'a', 'string']",
-        "cached_epoch": fixed_epoch,
+        "text_is_complete": True, "cached_epoch": fixed_epoch,
         "image_summary": "222",
         "post_type": "333",
     }
@@ -16883,7 +16883,7 @@ def test_fifteen_turn_linear_thread_reaches_root_then_bounds_visible_path(
     state = bot.default_state()
     cache_epoch = bot.now_epoch()
     state["tweet_cache"] = {
-        row["id"]: {**row, "cached_epoch": cache_epoch} for row in chain
+        row["id"]: {**row, "text_is_complete": True, "cached_epoch": cache_epoch} for row in chain
     }
     monkeypatch.setattr(bot, "MY_USER_ID", "12345")
     monkeypatch.setattr(
@@ -16993,36 +16993,36 @@ def test_context_uses_only_parent_contiguous_path_not_cached_siblings(
     state = bot.default_state()
     state["tweet_cache"] = {
         "100": {
-            "id": "100", "cached_epoch": cache_epoch, "author_id": "12345", "conversation_id": "100",
+            "id": "100", "text_is_complete": True, "cached_epoch": cache_epoch, "author_id": "12345", "conversation_id": "100",
             "text": "Opening post.", "referenced_tweets": [],
         },
         "150": {
-            "id": "150", "cached_epoch": cache_epoch, "author_id": "200", "conversation_id": "100",
+            "id": "150", "text_is_complete": True, "cached_epoch": cache_epoch, "author_id": "200", "conversation_id": "100",
             "text": "Immediate capped parent.", "post_type": "author_cap_context",
             "referenced_tweets": [{"type": "replied_to", "id": "100"}],
         },
         "160": {
-            "id": "160", "cached_epoch": cache_epoch, "author_id": "200", "conversation_id": "700",
+            "id": "160", "text_is_complete": True, "cached_epoch": cache_epoch, "author_id": "200", "conversation_id": "700",
             "text": "Older capped sibling.", "post_type": "author_cap_context",
             "referenced_tweets": [{"type": "replied_to", "id": "100"}],
         },
         "170": {
-            "id": "170", "cached_epoch": cache_epoch, "author_id": "200", "conversation_id": "700",
+            "id": "170", "text_is_complete": True, "cached_epoch": cache_epoch, "author_id": "200", "conversation_id": "700",
             "text": "Newer capped sibling.", "post_type": "author_cap_context",
             "referenced_tweets": [{"type": "replied_to", "id": "100"}],
         },
         "180": {
-            "id": "180", "cached_epoch": cache_epoch, "author_id": "200", "conversation_id": "700",
+            "id": "180", "text_is_complete": True, "cached_epoch": cache_epoch, "author_id": "200", "conversation_id": "700",
             "text": "Newest capped sibling.", "post_type": "author_cap_context",
             "referenced_tweets": [{"type": "replied_to", "id": "100"}],
         },
         "190": {
-            "id": "190", "cached_epoch": cache_epoch, "author_id": "201", "conversation_id": "700",
+            "id": "190", "text_is_complete": True, "cached_epoch": cache_epoch, "author_id": "201", "conversation_id": "700",
             "text": "Other author.", "post_type": "author_cap_context",
             "referenced_tweets": [],
         },
         "200": {
-            "id": "200", "cached_epoch": cache_epoch, "author_id": "200", "conversation_id": "701",
+            "id": "200", "text_is_complete": True, "cached_epoch": cache_epoch, "author_id": "200", "conversation_id": "701",
             "text": "Other conversation.", "post_type": "author_cap_context",
             "referenced_tweets": [],
         },
@@ -17056,11 +17056,11 @@ def test_author_cap_context_quote_commentary_refreshes_original_with_media(
     state = bot.default_state()
     state["tweet_cache"] = {
         "900": {
-            "id": "900", "cached_epoch": cache_epoch, "author_id": "12345", "conversation_id": "900",
+            "id": "900", "text_is_complete": True, "cached_epoch": cache_epoch, "author_id": "12345", "conversation_id": "900",
             "text": "The original account post.", "referenced_tweets": [],
         },
         "910": {
-            "id": "910", "cached_epoch": cache_epoch, "author_id": "200", "conversation_id": "910",
+            "id": "910", "text_is_complete": True, "cached_epoch": cache_epoch, "author_id": "200", "conversation_id": "910",
             "text": "My capped quote commentary.", "post_type": "author_cap_quote_context",
             "referenced_tweets": [{"type": "quoted", "id": "900"}],
         },

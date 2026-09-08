@@ -339,3 +339,16 @@ def test_native_context_and_generation_errors_keep_their_distinct_boundaries(mon
     accounted.assert_not_called()
     bot.x_request.assert_not_called()
     bot.create_post.assert_not_called()
+
+
+def test_clarification_refresh_failure_defers_without_losing_candidate(monkeypatch):
+    _configure_cycle(monkeypatch)
+    state = bot.default_state()
+    queue_active_mention(state, mention(105, 205), base_since_id="99")
+    failure = bot.ApiError("temporary question lookup failure", service="x", status_code=503, request_method="GET", request_path="/2/tweets/100")
+    monkeypatch.setattr(bot, "clarification_reply_context", Mock(side_effect=failure))
+    assert bot.maybe_reply_to_mentions(state) == bot.NORMAL_CHECK_STATUS_API_ERROR
+    assert "105" in state["mention_pending_candidates"]
+    assert "105" in json.loads(bot.STATE_FILE.read_text())["mention_pending_candidates"]
+    bot.generate_single_call_reply.assert_not_called()
+    bot.create_post.assert_not_called()

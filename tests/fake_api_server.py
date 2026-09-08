@@ -93,6 +93,16 @@ class FakeApiServer:
                 return self.server.fake  # type: ignore[attr-defined]
 
             def _json_response(self, status: int, body: dict[str, Any], headers: dict[str, str] | None = None) -> None:
+                if self.command == "GET" and urlparse(self.path).path.startswith("/2/"):
+                    fields = set((parse_qs(urlparse(self.path).query).get("tweet.fields") or [""])[0].split(","))
+                    def selected_fields(value):
+                        if isinstance(value, list):
+                            return [selected_fields(item) for item in value]
+                        if isinstance(value, dict):
+                            return {key: selected_fields(item) for key, item in value.items()
+                                    if key != "note_tweet" or "note_tweet" in fields}
+                        return value
+                    body = selected_fields(body)
                 payload = json.dumps(body).encode("utf-8")
                 self.send_response(status)
                 self.send_header("Content-Type", "application/json")

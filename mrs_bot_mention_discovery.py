@@ -73,7 +73,10 @@ def get_mentions(
     _MentionBacklogContinuationLimit: type[Exception],
     active_mention_backlog_reset_guard: Callable,
     api_error_is_invalid_pagination_cursor: Callable,
+    api_error_is_permanent_target_failure: Callable,
+    get_tweet_by_id: Callable,
     attach_media_to_tweets: Callable,
+    normalise_tweet_text: Callable,
     cache_tweet: Callable,
     copy: ModuleType,
     hashlib: ModuleType,
@@ -99,6 +102,32 @@ def get_mentions(
     queued = pending_mention_candidates(state)
     if queued:
         log.info("Using %d durably queued mention candidate(s) before further pagination", len(queued))
+        for candidate in list(queued):
+            if candidate.get("text_is_complete") is True:
+                continue
+            target_id = str(candidate["id"])
+            try:
+                fresh = get_tweet_by_id(target_id, include_media=True)
+            except ApiError as exc:
+                if not api_error_is_permanent_target_failure(exc):
+                    raise
+                fresh = None
+            if fresh is None:
+                log.info("Retiring unavailable legacy queued mention id=%s", target_id)
+                remove_pending_mention_candidate(state, target_id)
+                queued.remove(candidate)
+            else:
+                normalise_tweet_text(fresh)
+                candidate.update(fresh)
+                cache_tweet(
+                    state, tweet_id=target_id, text=candidate.get("text", ""),
+                    author_id=str(candidate.get("author_id", "")),
+                    conversation_id=str(candidate.get("conversation_id", target_id)),
+                    referenced_tweets=candidate.get("referenced_tweets", []),
+                    created_at=candidate.get("created_at"),
+                )
+                log.info("Refreshed full text for legacy queued mention id=%s", target_id)
+            save_state(state, durable=True)
         return queued
 
     current = now_epoch()
@@ -216,7 +245,7 @@ def get_mentions(
 
         params = {
             "max_results": MAX_MENTIONS_PER_CHECK,
-            "tweet.fields": "author_id,created_at,conversation_id,referenced_tweets,attachments,entities",
+            "tweet.fields": "author_id,created_at,conversation_id,referenced_tweets,attachments,entities,note_tweet",
             "expansions": "author_id,attachments.media_keys",
             "media.fields": "media_key,type,url,preview_image_url",
         }
@@ -239,6 +268,8 @@ def get_mentions(
             _pages_this_call: int,
         ) -> None:
             nonlocal traversal_completed, traversal_added, completion_highest, completion_pages
+            for tweet in page_data:
+                normalise_tweet_text(tweet)
             attach_media_to_tweets(page_data, includes)
             pending = state.get("mention_pending_candidates", {})
             if not isinstance(pending, dict):

@@ -61,7 +61,7 @@ def test_adapters_forward_current_dependencies_defaults_references_and_native_er
     for name, count in (
         ("get_immediate_parent_id", 2), ("clean_text_for_reply_context", 2),
         ("tweet_context_text", 1), ("trim_context_text", 1),
-        ("build_parent_chain", 9), ("is_our_auto_reply", 1),
+        ("build_parent_chain", 10), ("is_our_auto_reply", 1),
         ("_reply_context_post", 3), ("_log_single_call_context_summary", 3),
         ("_directly_quoted_tweet_for_reply_context", 3),
         ("_quoted_post_for_reply_context", 2), ("_parent_path_is_contiguous", 1),
@@ -123,7 +123,7 @@ def test_visible_post_omitted_maximum_keeps_definition_time_default_after_config
 
 def test_parent_chain_keeps_current_callback_order_and_original_parent_references(monkeypatch):
     mention = {"id": "3", "referenced_tweets": [{"type": "replied_to", "id": "2"}]}
-    parent = {"id": "2", "referenced_tweets": [{"type": "replied_to", "id": "1"}]}
+    parent = {"id": "2", "text_is_complete": True, "referenced_tweets": [{"type": "replied_to", "id": "1"}]}
     root = {"id": "1"}
     state = {"tweet_cache": {"2": parent}}
     trace = Mock()

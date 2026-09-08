@@ -320,7 +320,18 @@ def maybe_reply_to_mentions(
         if not eligible:
             continue
 
-        clarification = clarification_reply_context(state, mention, current=current)
+        try:
+            clarification = clarification_reply_context(state, mention, current=current)
+        except RemoteOperationsPaused:
+            flush_quarantine_retirements()
+            save_state(state, durable=True)
+            return NORMAL_CHECK_STATUS_CHECKED
+        except ApiError as exc:
+            log.exception("Could not refresh original clarification question for mention %s", mention_id)
+            record_api_error(state, exc, "x")
+            flush_quarantine_retirements()
+            save_state(state, durable=True)
+            return NORMAL_CHECK_STATUS_API_ERROR
         eligible = _author_allows_evaluation(
             state, candidate, clarification, current, progress,
             AUTHOR_EVALUATION_QUARANTINE_EVIDENCE_POLICY=AUTHOR_EVALUATION_QUARANTINE_EVIDENCE_POLICY,

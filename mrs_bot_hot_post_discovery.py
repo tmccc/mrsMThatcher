@@ -35,6 +35,7 @@ def get_hot_post_reply_candidates(
     MAX_HOT_POST_REPLIES_PER_CHECK: int,
     MY_USER_ID: str,
     attach_media_to_tweets: Callable,
+    normalise_tweet_text: Callable,
     cache_tweet: Callable,
     clear_pending_ai_reply: Callable,
     in_api_cooldown: Callable,
@@ -176,7 +177,7 @@ def get_hot_post_reply_candidates(
         params = {
             "query": query,
             "max_results": HOT_POST_REPLY_SEARCH_API_MAX_RESULTS,
-            "tweet.fields": "author_id,created_at,conversation_id,referenced_tweets,attachments,entities",
+            "tweet.fields": "author_id,created_at,conversation_id,referenced_tweets,attachments,entities,note_tweet",
             "expansions": "author_id,attachments.media_keys",
             "media.fields": "media_key,type,url,preview_image_url",
         }
@@ -220,6 +221,8 @@ def get_hot_post_reply_candidates(
             raise
 
         replies = result.get("data", [])
+        for tweet in replies:
+            normalise_tweet_text(tweet)
         attach_media_to_tweets(replies, result.get("includes", {}))
         pagination = result.get("_pagination", {}) if isinstance(result.get("_pagination", {}), dict) else {}
         pagination_truncated = bool(pagination.get("truncated"))

@@ -195,6 +195,9 @@ def clarification_reply_context(
     clarification_thread_is_terminal: Callable,
     conversational_reply_pipeline_enabled: Callable,
     get_immediate_parent_id: Callable,
+    get_tweet_by_id_cached: Callable,
+    tweet_text_is_complete: Callable,
+    api_error_is_permanent_target_failure: Callable,
     is_our_auto_reply: Callable,
 ) -> dict | None:
     """Return bounded repair metadata only for a direct follow-up to our confirmed reply."""
@@ -232,6 +235,19 @@ def clarification_reply_context(
     thread_id = clarification_thread_id(candidate)
     if not thread_id or str(original_question.get("conversation_id") or original_question_id) != thread_id:
         return None
+    if not tweet_text_is_complete(original_question):
+        try:
+            original_question = get_tweet_by_id_cached(str(original_question_id), state)
+        except ApiError as exc:
+            if api_error_is_permanent_target_failure(exc):
+                return None
+            raise
+        if (
+            not isinstance(original_question, dict)
+            or str(original_question.get("author_id") or "") != author_id
+            or str(original_question.get("conversation_id") or original_question_id) != thread_id
+        ):
+            return None
     question_text = str(original_question.get("text") or "")
     incoming_text = str(candidate.get("text") or "")
     if "?" not in question_text:

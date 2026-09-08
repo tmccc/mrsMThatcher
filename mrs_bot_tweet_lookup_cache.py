@@ -3,8 +3,8 @@
 Ten root adapters supply current callbacks, API exception, settings, clock,
 logger, path and copy-module authority on every call. Original bodies preserve
 permissive normalization, pruning/mutation/save order and record references.
-Media refresh of a cache hit returns a deep-copied merge without writing it back;
-a miss saves the canonical cache entry before copying and decorating the return.
+Full text is selected before caching. Legacy external cache entries are refreshed
+on use; verified media-only refreshes retain their existing copy boundaries.
 
 Shared state epochs, request/authentication/error classification, media attachment,
 configuration, persistence and orchestration remain in their existing locations.
@@ -18,6 +18,32 @@ from collections.abc import Callable
 from logging import Logger
 from pathlib import Path
 from types import ModuleType
+
+
+def normalise_tweet_text(tweet: dict) -> None:
+    """Select X's complete long-post text and entities before any reply processing."""
+    note = tweet.get("note_tweet")
+    if isinstance(note, dict) and isinstance(note.get("text"), str) and note["text"].strip():
+        tweet["text"] = note["text"]
+        if isinstance(note.get("entities"), dict):
+            # X's ordinary entities may include implicit reply recipients which
+            # are absent from the long-post body. Retain that eligibility evidence.
+            ordinary = tweet.get("entities")
+            entities = dict(note["entities"])
+            mentions = list(entities["mentions"]) if isinstance(entities.get("mentions"), list) else []
+            if isinstance(ordinary, dict) and isinstance(ordinary.get("mentions"), list):
+                mentions.extend(item for item in ordinary["mentions"] if item not in mentions)
+            if mentions:
+                entities["mentions"] = mentions
+            tweet["entities"] = entities
+    tweet["text_is_complete"] = True
+
+
+def tweet_text_is_complete(tweet: dict) -> bool:
+    """Accept verified X text or locally authored posts from the legacy cache."""
+    return tweet.get("text_is_complete") is True or tweet.get("post_type") in {
+        "quote", "daily_meme", "auto_reply",
+    }
 
 
 def normalise_tweet_cache_entry(
@@ -76,6 +102,8 @@ def normalise_tweet_cache_entry(
         "text": str(entry.get("text") or ""),
         "cached_epoch": cached_epoch,
     }
+    if entry.get("text_is_complete") is True:
+        normalized_entry["text_is_complete"] = True
     if entry.get("image_summary") is not None:
         normalized_entry["image_summary"] = str(entry.get("image_summary"))
     if entry.get("post_type") is not None:
@@ -212,7 +240,7 @@ def cache_tweet(
     now_epoch: Callable,
     prune_tweet_cache: Callable,
 ) -> dict:
-    """Return the cache tweet."""
+    """Cache complete provider-normalized or locally authored post text."""
     prune_tweet_cache(state)
 
     tweet_id = str(tweet_id)
@@ -226,6 +254,7 @@ def cache_tweet(
         "referenced_tweets": referenced_tweets or [],
         "text": text or "",
         "cached_epoch": now_epoch(),
+        "text_is_complete": True,
     }
 
     if image_summary:
@@ -295,7 +324,7 @@ def get_tweet_by_id(
     """Fetch one post from X by ID, optionally including native image metadata."""
     log.info("Fetching tweet by id. tweet_id=%s", tweet_id)
 
-    tweet_fields = "author_id,created_at,conversation_id,referenced_tweets"
+    tweet_fields = "author_id,created_at,conversation_id,referenced_tweets,entities,note_tweet"
     params = {"tweet.fields": tweet_fields}
     if include_media:
         params.update(
@@ -316,6 +345,8 @@ def get_tweet_by_id(
         result.get("data"),
         requested_tweet_id=str(tweet_id),
     )
+    if isinstance(tweet, dict):
+        normalise_tweet_text(tweet)
     if include_media and isinstance(tweet, dict):
         attach_media_to_tweets([tweet], result.get("includes"))
     log_json_debug("Fetched tweet", tweet)
@@ -388,7 +419,7 @@ def get_tweet_by_id_cached(
     prune_tweet_cache: Callable,
     save_state: Callable,
 ) -> dict | None:
-    """Return a cached post, refreshing a direct lookup when media is required."""
+    """Return complete cached text, refreshing legacy external text or requested media."""
     prune_tweet_cache(state)
 
     tweet_id = str(tweet_id)
@@ -400,7 +431,8 @@ def get_tweet_by_id_cached(
             requested_tweet_id=tweet_id,
         )
 
-    if cached and not include_media:
+    needs_text_refresh = bool(cached and not tweet_text_is_complete(cached))
+    if cached and not include_media and not needs_text_refresh:
         log.info("Using cached tweet for context. tweet_id=%s", tweet_id)
         return cached
 
@@ -411,6 +443,8 @@ def get_tweet_by_id_cached(
     )
 
     if tweet:
+        tweet = _verified_tweet_lookup_row(tweet, requested_tweet_id=tweet_id)
+        normalise_tweet_text(tweet)
         if cached:
             result = copy.deepcopy(cached)
             for key in (
@@ -422,9 +456,20 @@ def get_tweet_by_id_cached(
                 "created_at",
                 "attachments",
                 "_attached_media",
+                "entities",
+                "text_is_complete",
             ):
                 if key in tweet:
                     result[key] = copy.deepcopy(tweet[key])
+            if needs_text_refresh:
+                # Persist only canonical text metadata; retain local image/type
+                # context and leave transient media attachments on the return.
+                cached.update({key: copy.deepcopy(result[key]) for key in (
+                    "text", "author_id", "conversation_id", "referenced_tweets", "created_at"
+                ) if key in result})
+                cached["text_is_complete"] = True
+                result["text_is_complete"] = True
+                save_state(state)
             return result
         cached_tweet = cache_tweet(
             state,
