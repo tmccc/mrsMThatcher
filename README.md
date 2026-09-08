@@ -557,6 +557,24 @@ installation from missing files. For a genuinely empty new project directory,
 run `python3 mrsMThatcher2.py --initialise` once; it creates the durable set and
 an installation marker but does not start posting or call an API.
 
+## Reading long X posts
+
+Mentions, quote searches, watched-post replies and individual post lookups request
+`note_tweet` and use its complete text when present. Long-post entities are used
+alongside X's implicit reply-recipient mentions, so full-text reading does not
+lose direct reply eligibility. Short posts continue to use ordinary `text`.
+
+Complete text is retained in the tweet cache and durable mention queue. External
+cache entries and queued mentions saved before this change are refreshed before
+reuse, including an earlier question used to recognise a clarification; deleted queued posts are retired and temporary lookup failures remain
+retryable. Refreshing old parent context counts against the existing network
+lookup budget. Locally authored quote, meme and reply text stays available from
+the cache without a migration lookup. Confirmed reply history is preserved.
+
+The existing model-input limits still apply: up to 10,000 characters for the
+incoming contribution and 12,000 across the visible conversation. This fixes
+X's short excerpt being used as the source; it does not remove those bounds.
+
 ## Log Digest Operation
 
 `mrs_log_digest.py` resolves project metadata through `--project-dir` (the

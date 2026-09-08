@@ -62,7 +62,7 @@ def test_adapters_forward_current_dependencies_arguments_references_and_errors(m
         ("daily_author_reply_count", 1), ("mark_daily_author_replied", 2),
         ("clarification_thread_is_terminal", 1),
         ("author_used_clarification_recently", 1), ("_clarification_tokens", 3),
-        ("clarification_reply_context", 9),
+        ("clarification_reply_context", 12),
         ("reply_target_is_directly_eligible", 3),
         ("is_probably_spam_or_not_worth_replying", 3),
     ):
@@ -350,3 +350,34 @@ def test_spam_preserves_current_pattern_order_raw_logs_and_thresholds(monkeypatc
     with pytest.raises(AttributeError):
         bot.is_probably_spam_or_not_worth_replying(None)
     assert trace.mock_calls == []
+
+
+def test_clarification_refreshes_legacy_question_before_looking_for_question_mark(monkeypatch, confirmed_question):
+    state, candidate = confirmed_question
+    original = state["tweet_cache"]["100"]
+    full = "The earlier explanation is background. " * 10 + "Where did people move when the Berlin Wall fell?"
+    original["text"] = full[:280]
+    original.pop("text_is_complete")
+    fresh = {**original, "note_tweet": {"text": full}}
+    fetch = Mock(return_value=fresh)
+    monkeypatch.setattr(bot, "get_tweet_by_id", fetch)
+    result = bot.clarification_reply_context(state, candidate, current=2_000_000_001)
+    assert result["question_text"] == full
+    assert result["trigger"] == "explicit_correction"
+    assert state["tweet_cache"]["100"]["text_is_complete"] is True
+    assert bot.clarification_reply_context(state, candidate, current=2_000_000_001) == result
+    fetch.assert_called_once_with("100")
+
+
+@pytest.mark.parametrize("status", [404, 503])
+def test_clarification_legacy_refresh_distinguishes_deleted_from_transient(monkeypatch, confirmed_question, status):
+    state, candidate = confirmed_question
+    state["tweet_cache"]["100"].pop("text_is_complete")
+    error = bot.ApiError("lookup failed", service="x", status_code=status, request_method="GET", request_path="/2/tweets/100")
+    monkeypatch.setattr(bot, "get_tweet_by_id", Mock(side_effect=error))
+    if status == 404:
+        assert bot.clarification_reply_context(state, candidate, current=2_000_000_001) is None
+    else:
+        with pytest.raises(bot.ApiError) as caught:
+            bot.clarification_reply_context(state, candidate, current=2_000_000_001)
+        assert caught.value is error

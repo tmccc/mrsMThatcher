@@ -3133,6 +3133,9 @@ def clarification_reply_context(
         conversational_reply_pipeline_enabled=conversational_reply_pipeline_enabled,
         get_immediate_parent_id=get_immediate_parent_id,
         is_our_auto_reply=is_our_auto_reply,
+        get_tweet_by_id_cached=get_tweet_by_id_cached,
+        tweet_text_is_complete=tweet_text_is_complete,
+        api_error_is_permanent_target_failure=api_error_is_permanent_target_failure,
     )
 
 
@@ -3628,6 +3631,10 @@ def x_paginated_get(
 # Tweet cache / thread context
 # ---------------------------------------------------------------------
 
+normalise_tweet_text = _tweet_lookup_cache.normalise_tweet_text
+tweet_text_is_complete = _tweet_lookup_cache.tweet_text_is_complete
+
+
 def prune_tweet_cache(state: dict) -> None:
     """Delegate tweet lookup/cache work with current root dependencies."""
     return _tweet_lookup_cache.prune_tweet_cache(
@@ -3832,6 +3839,7 @@ def build_parent_chain(mention: dict, state: dict) -> list[dict]:
         log=log,
         log_json_debug=log_json_debug,
         prune_tweet_cache=prune_tweet_cache,
+        tweet_text_is_complete=tweet_text_is_complete,
     )
 
 
@@ -4012,6 +4020,7 @@ def get_mentions(state: dict) -> list[dict]:
         active_mention_backlog_reset_guard=active_mention_backlog_reset_guard,
         api_error_is_invalid_pagination_cursor=api_error_is_invalid_pagination_cursor,
         attach_media_to_tweets=attach_media_to_tweets,
+        normalise_tweet_text=normalise_tweet_text,
         cache_tweet=cache_tweet,
         copy=copy,
         hashlib=hashlib,
@@ -4027,6 +4036,8 @@ def get_mentions(state: dict) -> list[dict]:
         valid_tweets_sorted_by_id=valid_tweets_sorted_by_id,
         x_paginated_get=x_paginated_get,
         x_request=x_request,
+        api_error_is_permanent_target_failure=api_error_is_permanent_target_failure,
+        get_tweet_by_id=get_tweet_by_id,
     )
 
 
@@ -4044,6 +4055,7 @@ def get_hot_post_reply_candidates(state: dict) -> list[dict]:
         MAX_HOT_POST_REPLIES_PER_CHECK=MAX_HOT_POST_REPLIES_PER_CHECK,
         MY_USER_ID=MY_USER_ID,
         attach_media_to_tweets=attach_media_to_tweets,
+        normalise_tweet_text=normalise_tweet_text,
         cache_tweet=cache_tweet,
         clear_pending_ai_reply=clear_pending_ai_reply,
         in_api_cooldown=in_api_cooldown,
@@ -9485,6 +9497,7 @@ def get_quote_tweets_for_post(post_id: str, state: dict | None = None) -> list[d
         QUOTE_LOOKUP_MAX_PAGES_PER_POST=QUOTE_LOOKUP_MAX_PAGES_PER_POST,
         QUOTE_REPEATED_CURSOR_BACKOFF_SECONDS=QUOTE_REPEATED_CURSOR_BACKOFF_SECONDS,
         attach_media_to_tweets=attach_media_to_tweets,
+        normalise_tweet_text=normalise_tweet_text,
         hashlib=hashlib,
         log=log,
         log_event=log_event,
@@ -9506,6 +9519,7 @@ def get_quote_tweets_for_posts(post_ids: list[str], state: dict | None = None) -
         QUOTE_LOOKUP_API_MAX_RESULTS=QUOTE_LOOKUP_API_MAX_RESULTS,
         QUOTE_LOOKUP_MAX_PAGES_PER_POST=QUOTE_LOOKUP_MAX_PAGES_PER_POST,
         attach_media_to_tweets=attach_media_to_tweets,
+        normalise_tweet_text=normalise_tweet_text,
         bounded_tweet_id_value=bounded_tweet_id_value,
         log=log,
         save_state=save_state,

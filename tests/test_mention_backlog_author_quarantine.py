@@ -57,6 +57,7 @@ def mention(tweet_id: int, author_id: int, text: str = "@MrsMThatcher A contribu
         "author_id": str(author_id),
         "conversation_id": str(tweet_id),
         "text": text,
+        "text_is_complete": True,
         "entities": {
             "mentions": [
                 {"id": str(bot.MY_USER_ID), "username": "MrsMThatcher"}

@@ -53,8 +53,8 @@ def test_adapters_forward_current_dependencies_arguments_results_and_errors(monk
         "load_extra_quote_watch_post_ids": 3,
         "build_quote_lookup_post_ids": 5,
         "get_recent_own_post_ids_for_quote_lookup": 2,
-        "get_quote_tweets_for_post": 14,
-        "get_quote_tweets_for_posts": 8,
+        "get_quote_tweets_for_post": 15,
+        "get_quote_tweets_for_posts": 9,
     }
     for name, count in counts.items():
         adapter = getattr(bot, name)
@@ -246,7 +246,7 @@ def test_discovery_passes_paginator_contract_and_preserves_media_author_data_ide
         assert path == "/2/tweets/900/quote_tweets"
         assert params == {
             "max_results": 17,
-            "tweet.fields": "author_id,created_at,conversation_id,referenced_tweets,attachments",
+            "tweet.fields": "author_id,created_at,conversation_id,referenced_tweets,attachments,entities,note_tweet",
             "expansions": "author_id,attachments.media_keys",
             "user.fields": "description,username,name,public_metrics",
             "media.fields": "media_key,type,url,preview_image_url",

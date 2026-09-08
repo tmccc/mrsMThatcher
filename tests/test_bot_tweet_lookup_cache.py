@@ -213,7 +213,7 @@ def test_cache_write_uses_post_prune_map_clock_path_and_normalized_record_refere
     assert [c[0] for c in trace.mock_calls] == ["prune", "date", "epoch", "normalize", "log"]
     assert trace.normalize.call_args == call("123", {
         "id": "123", "author_id": "456", "conversation_id": "123", "created_at": "current-time",
-        "referenced_tweets": [], "text": "hello", "cached_epoch": 100,
+        "referenced_tweets": [], "text": "hello", "cached_epoch": 100, "text_is_complete": True,
     }, path=bot.STATE_FILE)
     trace.normalize.return_value = None
     with pytest.raises(ValueError, match="Refusing to cache malformed tweet entry id=124"):
@@ -240,7 +240,7 @@ def test_direct_lookup_keeps_provider_verify_media_debug_order_and_row_identity(
     assert bot.get_tweet_by_id("123", include_media=True) is row
     assert [c[0] for c in trace.mock_calls] == ["request", "verify", "media", "debug"]
     trace.request.assert_called_once_with("GET", "/2/tweets/123", params={
-        "tweet.fields": "author_id,created_at,conversation_id,referenced_tweets,attachments",
+        "tweet.fields": "author_id,created_at,conversation_id,referenced_tweets,entities,note_tweet,attachments",
         "expansions": "attachments.media_keys", "media.fields": "media_key,type,url,preview_image_url",
     })
     assert trace.verify.call_args.args[0] is row and trace.debug.call_args.args[1] is row
@@ -271,7 +271,7 @@ def test_cache_hit_and_media_refresh_preserve_stored_record_without_write_or_sav
     assert state["tweet_cache"] is not original and list(state["tweet_cache"]) == ["123"]
     result = bot.get_tweet_by_id_cached(123, state, include_media=True)
     fetch.assert_called_once_with("123", include_media=True)
-    assert result == before | {key: fresh[key] for key in ("text", "attachments", "_attached_media")}
+    assert result == before | {key: fresh[key] for key in ("text", "attachments", "_attached_media", "text_is_complete")}
     assert result is not cached and state["tweet_cache"]["123"] is cached
     assert result["referenced_tweets"][0] is not cached["referenced_tweets"][0]
     assert result["attachments"]["media_keys"] is not fresh["attachments"]["media_keys"]
