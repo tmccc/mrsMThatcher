@@ -510,6 +510,27 @@ post ID per line:
 cp extra_quote_watch_post_ids.example.txt extra_quote_watch_post_ids.txt
 ```
 
+Quote discovery combines the five most recent main posts (including memes) and
+any extra watched posts in a recent-search query using `quotes_of_tweet_id:`
+joined with `OR`, excluding retweets. Results are matched to their original post;
+watch-list priority, oldest-first processing within each original, reply delays,
+duplicate checks and reply limits still apply. Originals without search results
+need no context lookup.
+
+Recent search covers quotes created during the last seven days, even when the
+original is older. An outage longer than that window can leave older quotes
+undiscovered. There is no `since_id` cutoff, so deferred quotes remain eligible
+for later checks. Up to ten IDs fit in each query; larger configured watch lists
+use additional batches. `QUOTE_LOOKUP_API_MAX_RESULTS` controls page size, and
+each batch gets `QUOTE_LOOKUP_MAX_PAGES_PER_POST` times its number of originals
+as its page allowance. An incomplete combined search switches to bounded
+per-original recent searches so a busy lower-priority post cannot hide another
+watched post's quotes. Pending per-original searches resume on later checks;
+these busy checks can require more requests than a complete combined search.
+Search continuations are saved separately and discarded when their query changes.
+The legacy per-post lookup helper remains available
+for diagnostics; the reply cycle does not fall back to the faulty endpoint.
+
 The real `mrsMThatcher.local.json` and `extra_quote_watch_post_ids.txt` are
 ignored because they are host-local operational inputs. Generated runtime state
 and logs such as `bot_state.json*`, `lines_used.json`, `images_used.json`,

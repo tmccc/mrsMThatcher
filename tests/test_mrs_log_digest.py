@@ -3851,3 +3851,23 @@ def test_repeated_output_is_byte_identical():
 
     assert digest.render_markdown(report).encode() == digest.render_markdown(report).encode()
     assert json.dumps(report, sort_keys=True) == json.dumps(report, sort_keys=True)
+
+
+def test_combined_quote_search_calls_are_not_labelled_hot_post_searches():
+    from collections import Counter
+    from unittest.mock import Mock
+    from mrs_log_digest_legacy_posts import handle_legacy_quiet_message
+
+    stats = Counter()
+    event = Mock()
+    for message in [
+        "Quote recent-search request",
+        "X bearer request: GET https://api.x.com/2/tweets/search/recent",
+    ]:
+        handle_legacy_quiet_message(Mock(), message, stats=stats, add_event=event)
+    assert stats["quote_recent_search_calls"] == 1
+    assert stats["recent_search_calls"] == 1
+    assert stats["hot_post_recent_search_calls"] == 0
+    handle_legacy_quiet_message(Mock(), "Hot-post recent-search request", stats=stats, add_event=event)
+    assert stats["hot_post_recent_search_calls"] == 1
+    assert stats["quote_recent_search_calls"] == 1

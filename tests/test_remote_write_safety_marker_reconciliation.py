@@ -1606,6 +1606,8 @@ def test_reconciliation_rejects_non_private_archive_directory(
     project = installation(tmp_path)
     archive = project / reconcile.DEFAULT_ARCHIVE_BASENAME
     archive.mkdir(mode=0o755)
+    # mkdir's mode is filtered by the caller's umask; this fixture must be shared.
+    archive.chmod(0o755)
 
     with pytest.raises(reconcile.UnsafeReconciliationPathError, match="private"):
         run_reconciliation(project)

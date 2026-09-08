@@ -492,7 +492,8 @@ MAX_QUOTE_REPLIES_PER_DAY = 12
 QUOTE_POST_LOOKBACK_MAIN_POSTS = 5
 RECENT_OWN_POST_IDS_MAX = 20
 
-# X's quote_tweets endpoint commonly expects at least 10 max_results.
+# Recent search accepts 10-100 results per page. Combined queries share the
+# existing total page allowance: pages per post times posts in the query.
 QUOTE_LOOKUP_API_MAX_RESULTS = 10
 QUOTE_LOOKUP_MAX_PAGES_PER_POST = 3
 QUOTE_REPEATED_CURSOR_BACKOFF_SECONDS = 21600
@@ -3550,10 +3551,16 @@ def x_bearer_request(method: str, path: str, **kwargs) -> dict:
 
 def x_quote_lookup_request(path: str, params: dict) -> dict:
     """
-    The quote_tweets lookup is documented using Bearer auth. If X_BEARER_TOKEN
+    Quote discovery uses recent search with Bearer auth. If X_BEARER_TOKEN
     is set, use it. Otherwise try the same OAuth1 path used by the rest of
     this bot.
     """
+    if path == "/2/tweets/search/recent":
+        query = str(params.get("query", ""))
+        if "quotes_of_tweet_id:" in query:
+            log.info("Quote recent-search request")
+        elif "conversation_id:" in query:
+            log.info("Hot-post recent-search request")
     if X_BEARER_TOKEN:
         return x_bearer_request("GET", path, params=params)
 
@@ -9491,6 +9498,22 @@ def get_quote_tweets_for_post(post_id: str, state: dict | None = None) -> list[d
     )
 
 
+def get_quote_tweets_for_posts(post_ids: list[str], state: dict | None = None) -> dict[str, list[dict]]:
+    """Search watched originals together using current root dependencies."""
+    return _quote_discovery.get_quote_tweets_for_posts(
+        post_ids,
+        state,
+        QUOTE_LOOKUP_API_MAX_RESULTS=QUOTE_LOOKUP_API_MAX_RESULTS,
+        QUOTE_LOOKUP_MAX_PAGES_PER_POST=QUOTE_LOOKUP_MAX_PAGES_PER_POST,
+        attach_media_to_tweets=attach_media_to_tweets,
+        bounded_tweet_id_value=bounded_tweet_id_value,
+        log=log,
+        save_state=save_state,
+        x_paginated_get=x_paginated_get,
+        x_quote_lookup_request=x_quote_lookup_request,
+    )
+
+
 def quote_tweet_is_old_enough(quote_tweet: dict) -> bool:
     """Return whether quote tweet is old enough."""
     return _quote_reply_cycle.quote_tweet_is_old_enough(
@@ -9619,7 +9642,7 @@ def maybe_reply_to_quote_tweets(state: dict) -> str:
         daily_author_reply_count=daily_author_reply_count,
         daily_author_reply_counts=daily_author_reply_counts,
         generate_single_call_reply=generate_single_call_reply,
-        get_quote_tweets_for_post=get_quote_tweets_for_post,
+        get_quote_tweets_for_posts=get_quote_tweets_for_posts,
         get_tweet_by_id_cached=get_tweet_by_id_cached,
         in_api_cooldown=in_api_cooldown,
         is_probably_spam_or_not_worth_replying=is_probably_spam_or_not_worth_replying,

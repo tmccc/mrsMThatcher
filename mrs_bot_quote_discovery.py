@@ -1,10 +1,9 @@
 """Own watched own-post selection and quote discovery/pagination.
 
-Six root adapters supply current callbacks, paths, settings, clock, logger and
-standard-library modules on each call. Original bodies retain watch-file reads,
-selection order, cursor suppression and nested pagination callbacks, caller
-references and media/author expansion order. State cleanup uses the supplied
-save callback with its original durability and ordering.
+Root adapters supply current callbacks, paths, settings, clock, logger and
+standard-library modules on each call. Recent search batches watched originals
+and groups direct quotes with media/author expansions. The legacy per-post
+lookup remains a diagnostic helper. State uses the supplied save callback.
 
 Shared pagination, request/authentication, ID validation, cache seeding, media,
 durable persistence and reply cycles remain in their existing locations. This
@@ -252,7 +251,7 @@ def get_quote_tweets_for_post(
     x_paginated_get: Callable,
     x_quote_lookup_request: Callable,
 ) -> list[dict]:
-    """Return quote tweets for post."""
+    """Read the legacy quote endpoint for diagnostics; the reply cycle uses search."""
     post_id = str(post_id)
     log.info("Fetching quote tweets for post_id=%s", post_id)
 
@@ -509,3 +508,155 @@ def get_quote_tweets_for_post(
     log_json_debug("Quote tweets returned", quote_tweets)
 
     return quote_tweets
+
+
+def get_quote_tweets_for_posts(
+    post_ids: list[str],
+    state: dict | None = None,
+    *,
+    QUOTE_LOOKUP_API_MAX_RESULTS: int,
+    QUOTE_LOOKUP_MAX_PAGES_PER_POST: int,
+    attach_media_to_tweets: Callable,
+    bounded_tweet_id_value: Callable,
+    log: Logger,
+    save_state: Callable,
+    x_paginated_get: Callable,
+    x_quote_lookup_request: Callable,
+) -> dict[str, list[dict]]:
+    """Search recent direct quotes together, retaining query-specific continuations.
+
+    Recent search covers quotes created in the last seven days, including quotes
+    of older watched originals. Do not advance a since_id: young, deferred and
+    unprocessed quotes must remain discoverable on later checks.
+    """
+    clean_ids = list(dict.fromkeys(str(post_id).strip() for post_id in post_ids))
+    clean_ids = [
+        post_id for post_id in clean_ids
+        if post_id.isascii() and (bounded_tweet_id_value(post_id) or 0) > 0
+    ]
+    quotes_by_post: dict[str, list[dict]] = {post_id: [] for post_id in clean_ids}
+    # Ten bounded IDs fit within the 512-character recent-search query limit.
+    # Canonical ordering keeps a cursor usable when only watch priority changes.
+    sorted_ids = sorted(clean_ids)
+    batches = [sorted_ids[index:index + 10] for index in range(0, len(sorted_ids), 10)]
+    def query_for(batch: list[str]) -> str:
+        """Build the canonical recent-search query for one batch."""
+        return "(" + " OR ".join(f"quotes_of_tweet_id:{post_id}" for post_id in batch) + ") -is:retweet"
+
+    queries = {query_for(batch) for batch in batches}
+    queries.update(query_for([post_id]) for post_id in clean_ids)
+    raw_tokens = state.get("quote_search_pagination_tokens", {}) if state is not None else {}
+    tokens = {
+        query: token for query, token in raw_tokens.items()
+        if query in queries and isinstance(token, str) and token
+    } if isinstance(raw_tokens, dict) else {}
+
+    def persist_tokens() -> None:
+        """Save changed search cursors without touching legacy endpoint state."""
+        if state is not None and state.get("quote_search_pagination_tokens", {}) != tokens:
+            state["quote_search_pagination_tokens"] = dict(tokens)
+            save_state(state, durable=True)
+
+    persist_tokens()
+    seen_ids: set[str] = set()
+    completed_tokens: dict[str, str] = {}
+    def fetch_batch(batch: list[str]) -> dict:
+        """Read one bounded search, clearing invalid saved cursors immediately."""
+        query = query_for(batch)
+        params = {
+            "query": query,
+            "sort_order": "recency",
+            "max_results": QUOTE_LOOKUP_API_MAX_RESULTS,
+            "tweet.fields": "author_id,created_at,conversation_id,referenced_tweets,attachments",
+            "expansions": "author_id,attachments.media_keys",
+            "user.fields": "description,username,name,public_metrics",
+            "media.fields": "media_key,type,url,preview_image_url",
+        }
+        if query in tokens:
+            params["pagination_token"] = tokens[query]
+
+        def clear_cursor() -> None:
+            """Discard a rejected or repeated search continuation before retrying."""
+            tokens.pop(query, None)
+            persist_tokens()
+
+        def retain_partial_search(_token: str, pages: int, count: int) -> None:
+            """Keep discovered quotes while stopping a repeated search cursor."""
+            clear_cursor()
+            log.warning(
+                "Quote search stopped after repeated cursor post_ids=%s pages=%d results_retained=%d",
+                batch, pages, count,
+            )
+
+        return x_paginated_get(
+            x_quote_lookup_request,
+            "/2/tweets/search/recent",
+            params,
+            # Preserve the previous total page allowance for the watched posts.
+            max_pages=QUOTE_LOOKUP_MAX_PAGES_PER_POST * len(batch),
+            label=f"quote search for {','.join(batch)}",
+            on_invalid_cursor=clear_cursor,
+            on_repeated_cursor=retain_partial_search,
+        )
+
+    def retain_batch(batch: list[str], result: dict) -> None:
+        """Stage accepted candidates and continuations until all searches succeed."""
+        next_token = result.get("_pagination", {}).get("next_token")
+        if next_token:
+            completed_tokens[query_for(batch)] = next_token
+
+        quotes = result.get("data", [])
+        includes = result.get("includes", {})
+        attach_media_to_tweets(quotes, includes)
+        users = {str(user.get("id")): user for user in includes.get("users", [])}
+        for quote in quotes:
+            quote_id = str(quote.get("id", ""))
+            refs = quote.get("referenced_tweets", [])
+            if (
+                bounded_tweet_id_value(quote_id) is None
+                or quote_id in seen_ids
+                or not isinstance(refs, list)
+                or any(not isinstance(ref, dict) for ref in refs)
+                or any(ref.get("type") == "retweeted" for ref in refs)
+            ):
+                continue
+            parents = {str(ref.get("id")) for ref in refs if ref.get("type") == "quoted"}
+            if len(parents) != 1:
+                continue
+            parent_id = next(iter(parents))
+            if parent_id not in batch:
+                continue
+            seen_ids.add(quote_id)
+            quote["_author_user"] = users.get(str(quote.get("author_id", "")), {})
+            quotes_by_post[parent_id].append(quote)
+
+    for batch in batches:
+        # Finish any per-original continuation before attempting another shared
+        # head. A legacy combined continuation can also hide priority originals.
+        split_search = len(batch) > 1 and (
+            query_for(batch) in tokens
+            or any(query_for([post_id]) in tokens for post_id in batch)
+        )
+        if not split_search:
+            result = fetch_batch(batch)
+            pagination = result.get("_pagination", {})
+            if len(batch) == 1 or not pagination.get("truncated"):
+                retain_batch(batch, result)
+                continue
+            log.info(
+                "Combined quote search incomplete; searching %d originals separately to preserve watch priority",
+                len(batch),
+            )
+        # Global recency can fill a shared page allowance with a lower-priority
+        # original. Use the previous per-original allowance before replying.
+        for post_id in batch:
+            retain_batch([post_id], fetch_batch([post_id]))
+
+    # Do not advance an earlier batch if a later search fails and the caller
+    # receives none of its candidates. Invalid cursors are still cleared early.
+    tokens = completed_tokens
+    persist_tokens()
+    log.info("Fetched %d direct quote tweet(s) by recent search for %d own post(s)", len(seen_ids), len(clean_ids))
+    for post_id, quotes in quotes_by_post.items():
+        log.info("Fetched %d quote tweet(s) for post_id=%s", len(quotes), post_id)
+    return quotes_by_post

@@ -203,6 +203,7 @@ def normalise_state_candidate(
         "hot_post_reply_since_ids",
         "hot_post_reply_pagination_tokens",
         "quote_lookup_pagination_tokens",
+        "quote_search_pagination_tokens",
     }
     int_map_keys = {"hot_post_reply_check_counts", "daily_replied_author_counts"}
     record_map_keys = {

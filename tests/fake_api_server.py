@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from collections.abc import Iterable
 import json
+import re
 import time
 import threading
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
@@ -560,6 +561,25 @@ class FakeApiServer:
 
                 if path == "/2/tweets/search/recent":
                     replies = list(self.fake.scenario.get("search_recent", []))
+                    extra = self.fake.scenario.get("search_recent_extra", {})
+                    search_query = (query.get("query") or [""])[0]
+                    if "quotes_of_tweet_id:" in search_query:
+                        replies, extra = [], {}
+                        for post_id in re.findall(r"quotes_of_tweet_id:(\d+)", search_query):
+                            source = self.fake.scenario.get("quote_tweets", {}).get(post_id, {})
+                            replies.extend(source.get("data", []))
+                            for key, value in source.items():
+                                if key == "includes":
+                                    for resource, items in value.items():
+                                        extra.setdefault("includes", {}).setdefault(resource, []).extend(items)
+                                elif key != "data":
+                                    extra[key] = value
+                        if query.get("sort_order") == ["recency"]:
+                            replies.sort(
+                                key=lambda item: int(str(item.get("id", "0")))
+                                if str(item.get("id", "0")).isdecimal() else 0,
+                                reverse=True,
+                            )
                     self.fake._remember_tweets(replies)
                     self._json_response(
                         200,
@@ -567,7 +587,7 @@ class FakeApiServer:
                             path,
                             self._filter_since(replies, query),
                             query,
-                            extra=self.fake.scenario.get("search_recent_extra", {}),
+                            extra=extra,
                         ),
                     )
                     return
