@@ -116,7 +116,7 @@ and AppleDouble files.
 | `mrs_log_digest_snapshot_incidents.py` | Prepared current-snapshot and retirement-evidence incident reconciliation | Supplied incident/evidence references and current matching/text/time callbacks; in-place incident enrichment/appends and shallow evidence sharing; no reads, clock samples or provider calls |
 | `mrs_log_digest_reply_evidence.py` | Durable confirmed conversational receipt and historical reply-history loading/validation | Explicit project paths, stable private reader, native-number parser, canonical encoders, time conversion and validator callbacks; no writes, clock sample or import-time runtime access |
 | `mrs_log_digest_reply_text.py` | Exact confirmed public reply-text preparation from prepared runtime/receipt/history evidence | Mutates supplied report/events; explicit source-reference, epoch-conversion and helper/validator callbacks and warning limit; no evidence loading, I/O or clock sample |
-| `mrs_log_digest_quote_publication.py` | Quote-publication and engagement-experiment validation, evidence correlation and prepared publication reporting | Mutates supplied evidence, events, invalid-evidence sets and warning/outcome storage; explicit timestamps, source-reference helpers, validators and vocabulary; no files, home/configuration, clock sampling or provider calls |
+| `mrs_log_digest_quote_publication.py` | Quote-publication validation and per-analysis evidence correlation | `QuotePublicationCorrelation` owns evidence, trial outcomes, warning deduplication/counting/capping and report enrichment. Lazy current-source, validator/reference and vocabulary callbacks preserve authority and original event/reference sharing; no file, configuration, clock or provider access |
 | `mrs_log_digest_corpus.py` | Historical-corpus counts, availability, policies and hashes | Reads the existing research/audit paths under an explicit project directory using supplied strict parsing and file hashing; parsing and hashing remain separate reads |
 | `mrs_log_digest_generated_pool.py` | Generated-image discovery, metadata/hash validation, curation, used history, post rates and runway configuration inputs | Reads/scans existing pool locations and supplied log/project paths; current strict parsers, hashing, clocks, record reader, basename regex and defaults; no writes or import-time runtime access |
 | `mrs_log_digest_historical_events.py` | Historical-context event field projection, family counters and emitted-event quality summaries | Only supplied invocation-local counters and event insertion callbacks are mutated/called; no I/O or import-time runtime access |
@@ -890,32 +890,30 @@ through thin wrappers supplying current post-ID validation, hash/pair patterns
 and experiment vocabulary. The eight `ENGAGEMENT_*` constants formerly beside
 those validators retain direct digest aliases, including the shared vocabulary
 used by `summarize_engagement_question_experiment_state`. The warning limit retains
-its values-module owner and is supplied on each warning call.
+its values-module owner and is resolved when enforcing the display cap.
 
 `record_main_post_publication`, `record_account_root_publication`,
 `record_engagement_confirmation` and `record_engagement_trial_outcome` accept
 prepared parsed payloads, record timestamps and named validator/source/evidence
 callbacks. Strict parsing, the outer loop, dispatch predicates, source tracking,
 event insertion and the daily-meme pending-state update remain in the coordinator
-at their original positions. Local adapters retain dynamic current-source checks
-and omission accounting while the module owns `add_engagement_correlation_warning`,
-`retain_quote_post_evidence`, `note_invalid_quote_post_evidence` and
-`correlated_quote_post_fields`. Correlation maps, invalid-evidence sets, warning
-lists/keys/counters, current text/reference helpers and the question separator are
-explicit arguments. Callbacks are neither stored globally nor bundled in a
-dependency container.
+at their original positions. Each `analyse` invocation creates one
+`QuotePublicationCorrelation` owner for publication evidence, invalid evidence,
+trial outcomes, warnings, duplicate keys, counts and omitted-warning totals.
+Its `retain`, `note_invalid`, `add_warning` and `correlated_fields` methods keep
+these related invariants together. Six callbacks resolve current source status,
+post-ID/text validation, bounded source references, the warning limit and the
+question separator when needed.
 
-`prepare_quote_publication_report` enriches the original production quote events,
-assembles confirmed experimental publication rows and sorts supplied trial
-outcomes/warnings in place. The returned rows retain projected text/reference
-sharing. Duplicate/conflict semantics, canonical public IDs, exact long/multiline
-text and hashes, field precedence, missing versus null, source-reference bounds,
-warning cap/count/order/omissions and authority/source/self-test filtering are
-unchanged. Observed-success counting reads the same prepared correlation evidence
-with the same object identities. Overall report assembly, JSON schema 3, Markdown,
-CLI, defaults, provenance, clocks, locks and resume retain their existing owners
-and behaviour. The reporting module performs no I/O or runtime initialisation
-and imports no coordinator, renderer, bot or provider module.
+`QuotePublicationCorrelation.prepare_report` enriches the original production
+quote events, assembles confirmed experimental publication rows and sorts owned
+trial outcomes and warnings in place. Returned rows preserve shared projected
+text and source references. Conflicts continue to suppress disputed fields;
+warning counts include entries beyond the display cap. Publication authority,
+source/self-test filtering, report keys and JSON schema 3 are preserved.
+Observed-success counting reads the owner's same evidence objects. Report
+assembly, Markdown, CLI and resume behavior keep their existing owners; the
+correlation module performs no I/O or runtime initialisation.
 
 Digest corpus and image-pool callers retain `historical_context_corpus_snapshot`
 and `generated_pool_health_snapshot` with their original signatures and result

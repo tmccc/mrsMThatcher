@@ -282,15 +282,11 @@ from mrs_log_digest_quote_publication import (
     valid_account_root_publication_identity as _valid_account_root_publication_identity,
     valid_engagement_confirmation_event as _valid_engagement_confirmation_event,
     engagement_main_metadata_status as _engagement_main_metadata_status,
-    add_engagement_correlation_warning as _add_engagement_correlation_warning,
-    retain_quote_post_evidence as _retain_quote_post_evidence,
-    note_invalid_quote_post_evidence as _note_invalid_quote_post_evidence,
-    correlated_quote_post_fields as _correlated_quote_post_fields,
+    QuotePublicationCorrelation,
     record_main_post_publication,
     record_account_root_publication,
     record_engagement_confirmation,
     record_engagement_trial_outcome,
-    prepare_quote_publication_report,
 )
 from mrs_log_digest_reply_text import (
     PUBLISHED_REPLY_WARNING_LIMIT,
@@ -1694,15 +1690,6 @@ def analyse(
     latest_state: Optional[Dict[str, Any]] = None
     latest_state_ts: Optional[datetime] = None
 
-    quote_post_correlations: Dict[str, Dict[str, Dict[str, Any]]] = {}
-    invalid_quote_post_evidence: Dict[str, set[str]] = {}
-    engagement_trial_outcomes: List[Dict[str, Any]] = []
-    engagement_correlation_warnings: List[Dict[str, Any]] = []
-    engagement_correlation_warning_keys: set[
-        Tuple[str, str, str, str, str]
-    ] = set()
-    engagement_correlation_warning_counts: Counter[str] = Counter()
-    engagement_correlation_warning_omitted_count = 0
     production_context = _AnalysisSourceContext(
         pending_mention=dict(initial_pending_mention or {}),
         pending_qt=dict(initial_pending_qt or {}),
@@ -1723,6 +1710,17 @@ def analyse(
     )
     current_source_record: Optional[Record] = None
     production_event_object_ids: set[int] = set()
+    quote_publications = QuotePublicationCorrelation(
+        source_is_selftest=lambda: (
+            current_source_record is not None
+            and is_selftest_log_path(current_source_record.path)
+        ),
+        valid_string_public_post_id=lambda value: valid_string_public_post_id(value),
+        valid_bounded_utf8_text=lambda value, **kwargs: valid_bounded_utf8_text(value, **kwargs),
+        bounded_source_refs=lambda *groups: bounded_source_refs(*groups),
+        warning_limit=lambda: ENGAGEMENT_CORRELATION_WARNING_LIMIT,
+        question_separator=lambda: ENGAGEMENT_QUESTION_PUBLIC_TEXT_SEPARATOR,
+    )
 
     def add_event(kind: str, ts: datetime, **kwargs: Any) -> Dict[str, Any]:
         ev = {"time": ts.strftime("%Y-%m-%d %H:%M:%S"), "kind": kind}
@@ -1743,62 +1741,6 @@ def analyse(
             production_event_object_ids.add(id(ev))
         stats[kind] += 1
         return ev
-
-    def add_engagement_correlation_warning(
-        *,
-        time_text: str,
-        post_id: str,
-        field: str,
-        left_event: str,
-        right_event: str,
-        status: str = "conflict",
-    ) -> None:
-        nonlocal engagement_correlation_warning_omitted_count
-        engagement_correlation_warning_omitted_count = (
-            _add_engagement_correlation_warning(
-                engagement_correlation_warnings=engagement_correlation_warnings,
-                engagement_correlation_warning_keys=engagement_correlation_warning_keys,
-                engagement_correlation_warning_counts=engagement_correlation_warning_counts,
-                engagement_correlation_warning_omitted_count=engagement_correlation_warning_omitted_count,
-                ENGAGEMENT_CORRELATION_WARNING_LIMIT=ENGAGEMENT_CORRELATION_WARNING_LIMIT,
-                time_text=time_text, post_id=post_id, field=field,
-                left_event=left_event, right_event=right_event, status=status,
-            )
-        )
-
-    def retain_quote_post_evidence(
-        post_id: str,
-        event_type: str,
-        payload: Dict[str, Any],
-    ) -> None:
-        """Keep one fixed-shape evidence slot per structured event and post."""
-        _retain_quote_post_evidence(
-            post_id, event_type, payload,
-            quote_post_correlations=quote_post_correlations,
-            source_is_selftest=lambda: (
-                current_source_record is not None
-                and is_selftest_log_path(current_source_record.path)
-            ),
-            bounded_source_refs=bounded_source_refs,
-            add_engagement_correlation_warning=add_engagement_correlation_warning,
-        )
-
-    def note_invalid_quote_post_evidence(
-        post_id: Any,
-        event_type: str,
-        time_text: str,
-    ) -> None:
-        """Record malformed observability without letting it replace authority."""
-        _note_invalid_quote_post_evidence(
-            post_id, event_type, time_text,
-            invalid_quote_post_evidence=invalid_quote_post_evidence,
-            valid_string_public_post_id=valid_string_public_post_id,
-            source_is_selftest=lambda: (
-                current_source_record is not None
-                and is_selftest_log_path(current_source_record.path)
-            ),
-            add_engagement_correlation_warning=add_engagement_correlation_warning,
-        )
 
     local_rejections_by_identity: Dict[Tuple[str, str], Dict[str, Any]] = {}
 
@@ -2011,8 +1953,8 @@ def analyse(
                     valid_string_public_post_id=valid_string_public_post_id,
                     SHA256_LOWER_RE=SHA256_LOWER_RE,
                     engagement_main_metadata_status=engagement_main_metadata_status,
-                    retain_quote_post_evidence=retain_quote_post_evidence,
-                    note_invalid_quote_post_evidence=note_invalid_quote_post_evidence,
+                    retain_quote_post_evidence=quote_publications.retain,
+                    note_invalid_quote_post_evidence=quote_publications.note_invalid,
                     make_source_ref=lambda: record_source_ref(r, input_file_indexes),
                 )
                 if event_obj.get("lane") == "daily_meme":
@@ -2026,8 +1968,8 @@ def analyse(
                     valid_account_root_publication_identity=valid_account_root_publication_identity,
                     SHA256_LOWER_RE=SHA256_LOWER_RE,
                     valid_bounded_utf8_text=valid_bounded_utf8_text,
-                    retain_quote_post_evidence=retain_quote_post_evidence,
-                    note_invalid_quote_post_evidence=note_invalid_quote_post_evidence,
+                    retain_quote_post_evidence=quote_publications.retain,
+                    note_invalid_quote_post_evidence=quote_publications.note_invalid,
                     make_source_ref=lambda: record_source_ref(r, input_file_indexes),
                 )
             elif (
@@ -2038,8 +1980,8 @@ def analyse(
                 record_engagement_confirmation(
                     event_obj, strict_structured_event_obj, r.ts,
                     valid_engagement_confirmation_event=valid_engagement_confirmation_event,
-                    retain_quote_post_evidence=retain_quote_post_evidence,
-                    note_invalid_quote_post_evidence=note_invalid_quote_post_evidence,
+                    retain_quote_post_evidence=quote_publications.retain,
+                    note_invalid_quote_post_evidence=quote_publications.note_invalid,
                     make_source_ref=lambda: record_source_ref(r, input_file_indexes),
                 )
             elif event_obj and event_obj.get("event") in {
@@ -2049,7 +1991,7 @@ def analyse(
             }:
                 record_engagement_trial_outcome(
                     event_obj, r.ts,
-                    engagement_trial_outcomes=engagement_trial_outcomes,
+                    engagement_trial_outcomes=quote_publications.trial_outcomes,
                     bounded_event_text=bounded_event_text,
                     SHA256_LOWER_RE=SHA256_LOWER_RE,
                     valid_string_public_post_id=valid_string_public_post_id,
@@ -2590,29 +2532,8 @@ def analyse(
     source_context = production_context
     current_source_record = None
 
-    def correlated_quote_post_fields(
-        post_id: str,
-        *,
-        legacy: Optional[Dict[str, Any]] = None,
-        warning_time: str = "",
-    ) -> Dict[str, Any]:
-        """Resolve fixed structured evidence for one immutable post identity."""
-        return _correlated_quote_post_fields(
-            post_id, legacy=legacy, warning_time=warning_time,
-            quote_post_correlations=quote_post_correlations,
-            invalid_quote_post_evidence=invalid_quote_post_evidence,
-            engagement_correlation_warning_counts=engagement_correlation_warning_counts,
-            add_engagement_correlation_warning=add_engagement_correlation_warning,
-            valid_bounded_utf8_text=valid_bounded_utf8_text,
-            bounded_source_refs=bounded_source_refs,
-            ENGAGEMENT_QUESTION_PUBLIC_TEXT_SEPARATOR=ENGAGEMENT_QUESTION_PUBLIC_TEXT_SEPARATOR,
-        )
-
-    confirmed_experimental_publications = prepare_quote_publication_report(
-        events, production_event_object_ids, quote_post_correlations,
-        engagement_trial_outcomes, engagement_correlation_warnings,
-        correlated_quote_post_fields=correlated_quote_post_fields,
-        bounded_source_refs=bounded_source_refs,
+    confirmed_experimental_publications = quote_publications.prepare_report(
+        events, production_event_object_ids,
     )
 
     latest_state_summary: Dict[str, Any] = {}
@@ -2696,7 +2617,7 @@ def analyse(
         api_errors=api_errors, handled_api_restrictions=handled_api_restrictions,
         x_requests=x_requests, remote_write_transactions=remote_write_transactions,
         events=events, production_event_object_ids=production_event_object_ids,
-        quote_post_correlations=quote_post_correlations,
+        quote_post_correlations=quote_publications.evidence,
         structured_reply_confirmations=structured_reply_confirmations,
         historical_reply_text_evidence=historical_reply_text_evidence,
         transient_provider_timeouts=transient_provider_timeouts,
@@ -2769,10 +2690,10 @@ def analyse(
         },
         "engagement_question_trial": {
             "confirmed_publications": confirmed_experimental_publications,
-            "outcomes": engagement_trial_outcomes,
-            "correlation_warnings": engagement_correlation_warnings,
+            "outcomes": quote_publications.trial_outcomes,
+            "correlation_warnings": quote_publications.warnings,
             "correlation_warning_omitted_count": (
-                engagement_correlation_warning_omitted_count
+                quote_publications.warning_omitted_count
             ),
         },
         "historical_context_replies": {

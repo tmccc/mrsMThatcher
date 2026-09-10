@@ -1,12 +1,25 @@
-"""Check quote-publication extraction delegation and shared evidence boundaries."""
+"""Check publication correlation ownership and shared evidence boundaries."""
 from __future__ import annotations
 
 import json
 import re
+from dataclasses import replace
 
 import mrs_log_digest as digest
 import mrs_log_digest_quote_publication as publication
 from tests.test_mrs_log_digest import record
+
+
+def correlation(**overrides):
+    callbacks = {
+        "source_is_selftest": lambda: False,
+        "valid_string_public_post_id": digest.valid_string_public_post_id,
+        "valid_bounded_utf8_text": digest.valid_bounded_utf8_text,
+        "bounded_source_refs": digest.bounded_source_refs,
+        "warning_limit": lambda: digest.ENGAGEMENT_CORRELATION_WARNING_LIMIT,
+        "question_separator": lambda: digest.ENGAGEMENT_QUESTION_PUBLIC_TEXT_SEPARATOR,
+    }
+    return publication.QuotePublicationCorrelation(**{**callbacks, **overrides})
 
 
 def test_publication_validators_keep_current_digest_helpers_and_vocabulary(monkeypatch):
@@ -113,7 +126,7 @@ def test_analyse_warning_omissions_keep_current_limit_and_duplicate_accounting(m
 
 
 def test_retention_preserves_payload_conflict_and_source_reference_identity():
-    correlations, warnings, calls = {}, [], []
+    calls = []
     first_refs, second_refs, merged_refs = [{"first": 1}], [{"second": 2}], [{"merged": 3}]
     payload = {"event": "main_post_posted", "time": "first", "line_no": 1,
                "source_refs": first_refs}
@@ -130,24 +143,22 @@ def test_retention_preserves_payload_conflict_and_source_reference_identity():
         calls.append("references")
         return merged_refs, 4
 
+    owner = correlation(source_is_selftest=source_is_selftest, bounded_source_refs=bounded_refs)
+
     def retain(value):
-        publication.retain_quote_post_evidence(
-            "123", "main_post_posted", value, quote_post_correlations=correlations,
-            source_is_selftest=source_is_selftest, bounded_source_refs=bounded_refs,
-            add_engagement_correlation_warning=lambda **warning: warnings.append(warning),
-        )
+        owner.retain("123", "main_post_posted", value)
 
     retain(payload)
     conflicts = payload["_conflicted_fields"]
     retain(duplicate)
-    assert correlations["123"]["main_post_posted"] is payload
+    assert owner.evidence["123"]["main_post_posted"] is payload
     assert payload["_conflicted_fields"] is conflicts
     assert conflicts == {"line_no"} and payload["line_no"] is None
     assert payload["source_refs"] is merged_refs
     assert payload["source_ref_omitted_count"] == 4
     assert "missing" not in payload and "_conflicted_fields" not in duplicate
     assert duplicate["line_no"] == 2 and duplicate["source_refs"] is second_refs
-    assert [warning["field"] for warning in warnings] == ["line_no"]
+    assert [warning["field"] for warning in owner.warnings] == ["line_no"]
     selftest = True
     retain({"line_no": 3, "image_no": 9})
     assert "image_no" not in payload
@@ -178,10 +189,12 @@ def test_enrichment_preserves_event_identity_projection_sharing_and_sort_mutatio
         assert left is None and right is refs
         return merged_refs, 2
 
-    result = publication.prepare_quote_publication_report(
-        events, {id(event)}, correlations, outcomes, warnings,
-        correlated_quote_post_fields=correlate, bounded_source_refs=bounded_refs,
-    )
+    owner = correlation(bounded_source_refs=bounded_refs)
+    owner.evidence.update(correlations)
+    owner.trial_outcomes.extend(outcomes)
+    owner.warnings.extend(warnings)
+    owner.correlated_fields = correlate
+    result = owner.prepare_report(events, {id(event)})
     assert calls[0]["legacy"] is event
     assert calls[0]["warning_time"] == "first"
     assert calls[1] == {"warning_time": "second"}
@@ -192,5 +205,98 @@ def test_enrichment_preserves_event_identity_projection_sharing_and_sort_mutatio
     assert result[0]["source_refs"] is refs and result[0]["public_text"] is public_text
     assert result[0]["source_ref_omitted_count"] == 3
     assert correlations["123"]["engagement_question_experimental_member_confirmed"] is confirmation
-    assert outcomes == warnings == [earlier, later]
-    assert outcomes[0] is warnings[0] is earlier
+    assert owner.trial_outcomes == owner.warnings == [earlier, later]
+    assert owner.trial_outcomes[0] is owner.warnings[0] is earlier
+
+
+def test_warning_owner_counts_unique_omissions_and_keeps_current_display_limit():
+    limit = 1
+    owner = correlation(warning_limit=lambda: limit)
+    warning = dict(time_text="first", post_id="123", field="lane", left_event="b", right_event="a")
+    owner.add_warning(**warning)
+    owner.add_warning(**{**warning, "left_event": "a", "right_event": "b", "time_text": "duplicate"})
+    owner.add_warning(**{**warning, "field": "quote_hash"})
+    owner.add_warning(**{**warning, "field": "quote_hash", "time_text": "omitted duplicate"})
+    limit = 2
+    owner.add_warning(**{**warning, "status": "invalid"})
+    assert owner.warning_counts == {"123": 3}
+    assert owner.warning_omitted_count == 1
+    assert [(row["field"], row["status"], row["event_types"], row["time"]) for row in owner.warnings] == [
+        ("lane", "conflict", ["a", "b"], "first"),
+        ("lane", "invalid", ["a", "b"], "first"),
+    ]
+
+
+def test_conflicted_fields_remain_poisoned_after_later_matching_evidence():
+    owner = correlation()
+    original = {"post_id": "123", "lane": "quote_image", "line_no": 1, "quote_hash": "a" * 64}
+    owner.retain("123", "main_post_posted", original)
+    owner.retain("123", "main_post_posted", {"line_no": 2, "quote_hash": "b" * 64})
+    owner.retain("123", "main_post_posted", {"line_no": 1, "quote_hash": "a" * 64})
+    owner.retain("123", "account_root_posted", {"root_post_id": "123", "quote_id": "a" * 64})
+    fields = owner.correlated_fields("123", legacy={"line_no": 999, "quote_hash": "a" * 64})
+    assert owner.evidence["123"]["main_post_posted"] is original
+    assert original["_conflicted_fields"] == {"line_no", "quote_hash"}
+    assert fields["line_no"] is fields["quote_hash"] is None
+    assert fields["correlation_status"] == "inconsistent"
+    assert fields["correlation_warning_count"] == 2
+    assert owner.warning_omitted_count == 0
+
+
+def test_each_owner_keeps_source_filtered_evidence_and_warning_state_independent():
+    selftest = True
+    owner = correlation(source_is_selftest=lambda: selftest)
+    payload = {"post_id": "123", "line_no": 1}
+    owner.retain("123", "main_post_posted", payload)
+    owner.note_invalid("123", "main_post_posted", "selftest")
+    assert payload == {"post_id": "123", "line_no": 1}
+    assert not owner.evidence and not owner.invalid_evidence and not owner.warnings
+    selftest = False
+    owner.retain("123", "main_post_posted", payload)
+    owner.note_invalid("123", "main_post_posted", "production")
+    owner.note_invalid("123", "main_post_posted", "production duplicate")
+    owner.note_invalid("invalid-id", "main_post_posted", "invalid public id")
+    owner.trial_outcomes.append({"time": "production"})
+    assert owner.evidence["123"]["main_post_posted"] is payload
+    assert owner.invalid_evidence == {"123": {"main_post_posted"}}
+    assert owner.warning_counts == {"123": 1}
+    assert owner.warnings[0]["time"] == "production"
+    other = correlation()
+    assert not other.evidence and not other.invalid_evidence and not other.trial_outcomes
+    assert not other.warnings and not other.warning_counts
+    assert other.warning_omitted_count == 0
+    other.note_invalid("123", "main_post_posted", "other analysis")
+    assert other.warnings[0]["time"] == "other analysis"
+    assert len(owner.warnings) == 1
+
+
+def test_interleaved_selftest_publications_cannot_poison_production_correlation():
+    main = {"event": "main_post_posted", "post_id": "123", "lane": "quote_image", "line_no": 1}
+    root = {
+        "event": "account_root_posted", "event_version": 1, "lane": "quote_image",
+        "post_id": "123", "root_post_id": "123", "conversation_id": "123",
+        "publication_authority": "confirmed_transport", "quote_text": "Production text",
+        "public_text": "Production text",
+    }
+    observations = [
+        (True, {**main, "line_no": 99}),
+        (False, main),
+        (True, {**root, "public_text": "Selftest text"}),
+        (False, root),
+        (True, {**main, "lane": "invalid"}),
+    ]
+    records = [
+        replace(
+            record(i, "INFO", "log_event", "EVENT " + json.dumps(payload)),
+            path="fixture.selftest.log" if selftest else "fixture.log",
+        )
+        for i, (selftest, payload) in enumerate(observations)
+    ]
+    records.append(record(5, "INFO", "post_random_quote", "Quote/image posted successfully. posted_id=123"))
+    report = digest.analyse(records)
+    event, = [item for item in report["events"] if item["kind"] == "quote_image_posted"]
+    assert event["text"] == "Production text"
+    assert event["line_no"] == 1
+    assert event["correlation_status"] == "consistent"
+    assert event["correlation_warning_count"] == 0
+    assert report["engagement_question_trial"]["correlation_warnings"] == []

@@ -1,8 +1,8 @@
 """Correlate prepared quote-publication and engagement-experiment evidence.
 
-The coordinator supplies parsed payloads, timestamps, correlation maps, invalid
-evidence, warning storage and current helper callbacks. Operations retain and
-enrich the supplied evidence/events in place; publication authority, source
+The per-analysis correlation owner retains evidence, outcomes and bounded warning
+state. The coordinator supplies parsed payloads, timestamps and current helper
+callbacks. Operations retain and enrich the supplied evidence/events in place; publication authority, source
 filtering and warning bounds retain the existing digest rules. No files, home,
 configuration, clocks or providers are accessed by this module.
 """
@@ -12,6 +12,7 @@ import hashlib
 import math
 import re
 from collections import Counter
+from dataclasses import dataclass, field
 from datetime import datetime
 from typing import Any, Callable, Dict, List, Optional, Tuple
 
@@ -156,132 +157,664 @@ def engagement_main_metadata_status(
     return "valid" if valid else "invalid"
 
 
-def add_engagement_correlation_warning(
-    *,
-    engagement_correlation_warnings: List[Dict[str, Any]],
-    engagement_correlation_warning_keys: set[Tuple[str, str, str, str, str]],
-    engagement_correlation_warning_counts: Counter[str],
-    engagement_correlation_warning_omitted_count: int,
-    ENGAGEMENT_CORRELATION_WARNING_LIMIT: int,
-    time_text: str,
-    post_id: str,
-    field: str,
-    left_event: str,
-    right_event: str,
-    status: str = "conflict",
-) -> int:
-    """Deduplicate and bound warnings in place, returning the omission count."""
-    event_pair = tuple(sorted((left_event, right_event)))
-    key = (post_id, field, event_pair[0], event_pair[1], status)
-    if key in engagement_correlation_warning_keys:
-        return engagement_correlation_warning_omitted_count
-    engagement_correlation_warning_keys.add(key)
-    engagement_correlation_warning_counts[post_id] += 1
-    if (
-        len(engagement_correlation_warnings)
-        >= ENGAGEMENT_CORRELATION_WARNING_LIMIT
-    ):
-        engagement_correlation_warning_omitted_count += 1
-        return engagement_correlation_warning_omitted_count
-    engagement_correlation_warnings.append(
-        {
-            "time": time_text,
-            "post_id": post_id,
-            "field": field,
-            "event_types": list(event_pair),
-            "status": status,
-            "message": (
-                f"post_id={post_id} field={field} {status} between "
-                f"{event_pair[0]} and {event_pair[1]}"
-            ),
-        }
-    )
-    return engagement_correlation_warning_omitted_count
+@dataclass
+class QuotePublicationCorrelation:
+    """Own one analysis's production publication evidence and bounded warnings.
 
+    Current-source and validation/reference callbacks are evaluated when needed.
+    Evidence payloads and report rows retain their original shared references.
+    """
 
-def retain_quote_post_evidence(
-    post_id: str,
-    event_type: str,
-    payload: Dict[str, Any],
-    *,
-    quote_post_correlations: Dict[str, Dict[str, Dict[str, Any]]],
-    source_is_selftest: Callable[[], bool],
-    bounded_source_refs: Callable[..., Tuple[List[Dict[str, Any]], int]],
-    add_engagement_correlation_warning: Callable[..., None],
-) -> None:
-    """Keep one fixed-shape evidence slot per structured event and post."""
-    if source_is_selftest():
-        return
-    slots = quote_post_correlations.setdefault(post_id, {})
-    existing = slots.get(event_type)
-    if existing is None:
-        payload["_conflicted_fields"] = set()
-        slots[event_type] = payload
-        return
-    time_text = str(payload.get("time") or existing.get("time") or "")
-    conflicted_fields = existing.setdefault("_conflicted_fields", set())
-    for field, value in payload.items():
-        if field in {"event", "time"} or value is None or value == "":
-            continue
-        if field == "source_refs":
-            references, omitted = bounded_source_refs(
-                existing.get("source_refs"), value
-            )
-            existing["source_refs"] = references
-            prior_omitted = existing.get("source_ref_omitted_count")
-            cumulative_omitted = (
-                prior_omitted
-                if type(prior_omitted) is int and prior_omitted >= 0
-                else 0
-            ) + omitted
-            if cumulative_omitted:
-                existing["source_ref_omitted_count"] = (
-                    cumulative_omitted
+    source_is_selftest: Callable[[], bool]
+    valid_string_public_post_id: Callable[[Any], bool]
+    valid_bounded_utf8_text: Callable[..., bool]
+    bounded_source_refs: Callable[..., Tuple[List[Dict[str, Any]], int]]
+    warning_limit: Callable[[], int]
+    question_separator: Callable[[], str]
+    evidence: Dict[str, Dict[str, Dict[str, Any]]] = field(default_factory=dict, init=False)
+    invalid_evidence: Dict[str, set[str]] = field(default_factory=dict, init=False)
+    trial_outcomes: List[Dict[str, Any]] = field(default_factory=list, init=False)
+    warnings: List[Dict[str, Any]] = field(default_factory=list, init=False)
+    warning_counts: Counter[str] = field(default_factory=Counter, init=False)
+    warning_omitted_count: int = field(default=0, init=False)
+    _warning_keys: set[Tuple[str, str, str, str, str]] = field(default_factory=set, init=False)
+
+    def add_warning(
+        self,
+        *,
+        time_text: str,
+        post_id: str,
+        field: str,
+        left_event: str,
+        right_event: str,
+        status: str = "conflict",
+    ) -> None:
+        """Record each warning once, counting warnings beyond the display limit."""
+        event_pair = tuple(sorted((left_event, right_event)))
+        key = (post_id, field, event_pair[0], event_pair[1], status)
+        if key in self._warning_keys:
+            return
+        self._warning_keys.add(key)
+        self.warning_counts[post_id] += 1
+        if len(self.warnings) >= self.warning_limit():
+            self.warning_omitted_count += 1
+            return
+        self.warnings.append(
+            {
+                "time": time_text,
+                "post_id": post_id,
+                "field": field,
+                "event_types": list(event_pair),
+                "status": status,
+                "message": (
+                    f"post_id={post_id} field={field} {status} between "
+                    f"{event_pair[0]} and {event_pair[1]}"
+                ),
+            }
+        )
+
+    def retain(
+        self,
+        post_id: str,
+        event_type: str,
+        payload: Dict[str, Any],
+    ) -> None:
+        """Keep one fixed-shape evidence slot per structured event and post."""
+        if self.source_is_selftest():
+            return
+        slots = self.evidence.setdefault(post_id, {})
+        existing = slots.get(event_type)
+        if existing is None:
+            payload["_conflicted_fields"] = set()
+            slots[event_type] = payload
+            return
+        time_text = str(payload.get("time") or existing.get("time") or "")
+        conflicted_fields = existing.setdefault("_conflicted_fields", set())
+        for field, value in payload.items():
+            if field in {"event", "time"} or value is None or value == "":
+                continue
+            if field == "source_refs":
+                references, omitted = self.bounded_source_refs(
+                    existing.get("source_refs"), value
                 )
-            continue
-        if field in conflicted_fields:
-            continue
-        old_value = existing.get(field)
-        if old_value is None or old_value == "":
-            existing[field] = value
-        elif old_value != value:
-            conflicted_fields.add(field)
-            existing[field] = None
-            add_engagement_correlation_warning(
-                time_text=time_text,
-                post_id=post_id,
-                field=field,
-                left_event=event_type,
-                right_event=event_type,
+                existing["source_refs"] = references
+                prior_omitted = existing.get("source_ref_omitted_count")
+                cumulative_omitted = (
+                    prior_omitted
+                    if type(prior_omitted) is int and prior_omitted >= 0
+                    else 0
+                ) + omitted
+                if cumulative_omitted:
+                    existing["source_ref_omitted_count"] = (
+                        cumulative_omitted
+                    )
+                continue
+            if field in conflicted_fields:
+                continue
+            old_value = existing.get(field)
+            if old_value is None or old_value == "":
+                existing[field] = value
+            elif old_value != value:
+                conflicted_fields.add(field)
+                existing[field] = None
+                self.add_warning(
+                    time_text=time_text,
+                    post_id=post_id,
+                    field=field,
+                    left_event=event_type,
+                    right_event=event_type,
+                )
+
+    def note_invalid(
+        self,
+        post_id: Any,
+        event_type: str,
+        time_text: str,
+    ) -> None:
+        """Record malformed observability without letting it replace authority."""
+
+        if (
+            not self.valid_string_public_post_id(post_id)
+            or self.source_is_selftest()
+        ):
+            return
+        self.invalid_evidence.setdefault(post_id, set()).add(event_type)
+        self.add_warning(
+            time_text=time_text,
+            post_id=post_id,
+            field="producer_schema",
+            left_event=event_type,
+            right_event="required_contract",
+            status="invalid",
+        )
+
+    def correlated_fields(
+        self,
+        post_id: str,
+        *,
+        legacy: Optional[Dict[str, Any]] = None,
+        warning_time: str = "",
+    ) -> Dict[str, Any]:
+        """Resolve fixed structured evidence for one immutable post identity."""
+        slots = self.evidence.get(post_id) or {}
+        invalid_evidence = self.invalid_evidence.get(post_id) or set()
+        main_event = slots.get("main_post_posted") or {}
+        root_event = slots.get("account_root_posted") or {}
+        confirmation = slots.get(
+            "engagement_question_experimental_member_confirmed"
+        ) or {}
+        legacy = legacy or {}
+        effective_time = str(
+            warning_time
+            or confirmation.get("time")
+            or root_event.get("time")
+            or main_event.get("time")
+            or ""
+        )
+        conflicted_evidence = object()
+
+        def evidence_value(event: Dict[str, Any], field: str) -> Any:
+            if field in (event.get("_conflicted_fields") or set()):
+                return conflicted_evidence
+            return event.get(field)
+
+        def present(value: Any) -> bool:
+            return value is not None and value != ""
+
+        def resolve(
+            field: str,
+            candidates: List[Tuple[str, Any]],
+        ) -> Any:
+            if any(value is conflicted_evidence for _, value in candidates):
+                return None
+            available = [
+                (event_type, value)
+                for event_type, value in candidates
+                if present(value)
+            ]
+            if not available:
+                return None
+            first_event, first_value = available[0]
+            for event_type, value in available[1:]:
+                if value != first_value:
+                    self.add_warning(
+                        time_text=effective_time,
+                        post_id=post_id,
+                        field=field,
+                        left_event=first_event,
+                        right_event=event_type,
+                    )
+                    return None
+            return first_value
+
+        main_or_confirmation_type = (
+            "main_post_posted" if main_event else
+            "engagement_question_experimental_member_confirmed"
+        )
+        main_or_confirmation_post_id = (
+            evidence_value(main_event, "post_id")
+            if main_event
+            else evidence_value(confirmation, "post_id")
+        )
+        resolved_post_id = resolve(
+            "post_id",
+            [
+                (main_or_confirmation_type, main_or_confirmation_post_id),
+                (
+                    "account_root_posted",
+                    evidence_value(root_event, "root_post_id"),
+                ),
+            ],
+        )
+        lane = resolve(
+            "lane",
+            [
+                ("main_post_posted", evidence_value(main_event, "lane")),
+                ("account_root_posted", evidence_value(root_event, "lane")),
+            ],
+        )
+        quote_hash = resolve(
+            "quote_hash",
+            [
+                (
+                    "main_post_posted",
+                    evidence_value(main_event, "quote_hash"),
+                ),
+                (
+                    "account_root_posted",
+                    evidence_value(root_event, "quote_id"),
+                ),
+            ],
+        )
+        if quote_hash is None and not any(
+            present(value)
+            for value in (
+                evidence_value(main_event, "quote_hash"),
+                evidence_value(root_event, "quote_id"),
             )
+        ):
+            quote_hash = legacy.get("quote_hash")
 
+        public_text = evidence_value(root_event, "public_text")
+        quote_text = evidence_value(root_event, "quote_text")
+        experimental_evidence = bool(
+            confirmation
+            or any("engagement" in item for item in invalid_evidence)
+            or any(
+                present(evidence_value(main_event, key))
+                for key in (
+                    "engagement_experiment_id",
+                    "engagement_experiment_plan_sha256",
+                    "engagement_experiment_pair_id",
+                    "engagement_experiment_arm",
+                    "engagement_question_present",
+                )
+            )
+        )
+        account_root_authoritative = bool(
+            root_event
+            and type(root_event.get("event_version")) is int
+            and root_event.get("event_version") == 1
+            and root_event.get("post_id") == post_id
+            and root_event.get("root_post_id") == post_id
+            and root_event.get("conversation_id") == post_id
+            and type(root_event.get("lane")) is str
+            and root_event.get("lane") == "quote_image"
+            and root_event.get("publication_authority")
+            == "confirmed_transport"
+        )
+        account_root_usable = bool(
+            account_root_authoritative
+            and lane == "quote_image"
+            and resolved_post_id == post_id
+            and self.valid_bounded_utf8_text(public_text)
+            and (
+                quote_text is None
+                or self.valid_bounded_utf8_text(
+                    quote_text,
+                    allow_empty=True,
+                )
+            )
+        )
+        public_text_sha256 = ""
+        resolved_public_text_sha256: Optional[str] = None
+        if account_root_usable:
+            if not isinstance(quote_text, str):
+                quote_text = ""
+            public_text_sha256 = hashlib.sha256(
+                public_text.encode("utf-8")
+            ).hexdigest()
+            resolved_public_text_sha256 = resolve(
+                "public_text_sha256",
+                [
+                    (
+                        "main_post_posted",
+                        evidence_value(
+                            main_event, "engagement_public_text_sha256"
+                        ),
+                    ),
+                    ("account_root_posted", public_text_sha256),
+                ],
+            )
+        else:
+            public_text = ""
+            quote_text = ""
+        public_text_status = (
+            "confirmed"
+            if account_root_usable
+            else "unavailable_inconsistent"
+            if root_event or invalid_evidence or experimental_evidence
+            else ""
+        )
 
-def note_invalid_quote_post_evidence(
-    post_id: Any,
-    event_type: str,
-    time_text: str,
-    *,
-    invalid_quote_post_evidence: Dict[str, set[str]],
-    valid_string_public_post_id: Callable[[Any], bool],
-    source_is_selftest: Callable[[], bool],
-    add_engagement_correlation_warning: Callable[..., None],
-) -> None:
-    """Record malformed observability without letting it replace authority."""
+        engagement_experiment_id = resolve(
+            "engagement_experiment_id",
+            [
+                (
+                    "main_post_posted",
+                    evidence_value(main_event, "engagement_experiment_id"),
+                ),
+            ],
+        )
+        engagement_plan_sha256 = resolve(
+            "engagement_plan_sha256",
+            [
+                (
+                    "main_post_posted",
+                    evidence_value(
+                        main_event, "engagement_experiment_plan_sha256"
+                    ),
+                ),
+                (
+                    "engagement_question_experimental_member_confirmed",
+                    evidence_value(confirmation, "plan_sha256"),
+                ),
+            ],
+        )
+        engagement_pair_id = resolve(
+            "engagement_pair_id",
+            [
+                (
+                    "main_post_posted",
+                    evidence_value(
+                        main_event, "engagement_experiment_pair_id"
+                    ),
+                ),
+                (
+                    "engagement_question_experimental_member_confirmed",
+                    evidence_value(confirmation, "pair_id"),
+                ),
+            ],
+        )
+        engagement_member_position = resolve(
+            "engagement_member_position",
+            [
+                (
+                    "main_post_posted",
+                    evidence_value(
+                        main_event, "engagement_experiment_member_position"
+                    ),
+                ),
+                (
+                    "engagement_question_experimental_member_confirmed",
+                    evidence_value(confirmation, "member_position"),
+                ),
+            ],
+        )
+        engagement_arm = resolve(
+            "engagement_arm",
+            [
+                (
+                    "main_post_posted",
+                    evidence_value(main_event, "engagement_experiment_arm"),
+                ),
+                (
+                    "engagement_question_experimental_member_confirmed",
+                    evidence_value(confirmation, "arm"),
+                ),
+            ],
+        )
+        engagement_publication_sequence = resolve(
+            "engagement_publication_sequence",
+            [
+                (
+                    "main_post_posted",
+                    evidence_value(
+                        main_event, "engagement_experiment_sequence"
+                    ),
+                ),
+                (
+                    "engagement_question_experimental_member_confirmed",
+                    evidence_value(confirmation, "publication_sequence"),
+                ),
+            ],
+        )
+        engagement_publication_order = resolve(
+            "engagement_publication_order",
+            [
+                (
+                    "main_post_posted",
+                    evidence_value(
+                        main_event, "engagement_experiment_publication_order"
+                    ),
+                ),
+            ],
+        )
+        engagement_question_present = resolve(
+            "engagement_question_present",
+            [
+                (
+                    "main_post_posted",
+                    evidence_value(main_event, "engagement_question_present"),
+                ),
+            ],
+        )
+        engagement_approved_question_sha256 = resolve(
+            "engagement_approved_question_sha256",
+            [
+                (
+                    "main_post_posted",
+                    evidence_value(
+                        main_event,
+                        "engagement_approved_question_sha256",
+                    ),
+                ),
+            ],
+        )
 
-    if (
-        not valid_string_public_post_id(post_id)
-        or source_is_selftest()
-    ):
-        return
-    invalid_quote_post_evidence.setdefault(post_id, set()).add(event_type)
-    add_engagement_correlation_warning(
-        time_text=time_text,
-        post_id=post_id,
-        field="producer_schema",
-        left_event=event_type,
-        right_event="required_contract",
-        status="invalid",
-    )
+        engagement_question_text: Any = ""
+        engagement_question_text_status = ""
+        if engagement_question_present is True:
+            prefix = quote_text + self.question_separator()
+            candidate_question = (
+                public_text[len(prefix):]
+                if account_root_usable
+                and bool(quote_text)
+                and public_text.startswith(prefix)
+                and len(public_text) > len(prefix)
+                else None
+            )
+            candidate_question_sha256 = (
+                hashlib.sha256(
+                    candidate_question.encode("utf-8")
+                ).hexdigest()
+                if isinstance(candidate_question, str)
+                else None
+            )
+            if (
+                engagement_arm == "treatment"
+                and candidate_question is not None
+                and resolved_public_text_sha256 == public_text_sha256
+                and engagement_approved_question_sha256
+                == candidate_question_sha256
+            ):
+                engagement_question_text = candidate_question
+                engagement_question_text_status = "validated"
+            else:
+                engagement_question_text = None
+                engagement_question_text_status = "unavailable_inconsistent"
+                self.add_warning(
+                    time_text=effective_time,
+                    post_id=post_id,
+                    field="engagement_question_text",
+                    left_event="main_post_posted",
+                    right_event="account_root_posted",
+                    status=("conflict" if root_event else "unavailable"),
+                )
+        elif engagement_question_present is False:
+            engagement_question_text_status = "not_present"
+            if account_root_usable and public_text != quote_text:
+                engagement_question_text_status = "unavailable_inconsistent"
+                self.add_warning(
+                    time_text=effective_time,
+                    post_id=post_id,
+                    field="engagement_question_text",
+                    left_event="main_post_posted",
+                    right_event="account_root_posted",
+                )
+
+        selection_fields = {
+            key: (
+                None
+                if evidence_value(main_event, key) is conflicted_evidence
+                else evidence_value(main_event, key)
+                if present(evidence_value(main_event, key))
+                else legacy.get(key)
+            )
+            for key in (
+                "line_no",
+                "image_no",
+                "image_basename",
+                "image_score",
+            )
+        }
+        post_warning_count = self.warning_counts[post_id]
+        source_refs, source_ref_omitted = self.bounded_source_refs(
+            main_event.get("source_refs"),
+            root_event.get("source_refs"),
+            confirmation.get("source_refs"),
+        )
+        source_ref_omitted += sum(
+            omitted
+            for item in (main_event, root_event, confirmation)
+            for omitted in [item.get("source_ref_omitted_count")]
+            if type(omitted) is int and omitted >= 0
+        )
+        result = {
+            **selection_fields,
+            "quote_hash": quote_hash,
+            "engagement_experiment_id": engagement_experiment_id or "",
+            "engagement_plan_sha256": engagement_plan_sha256 or "",
+            "engagement_pair_id": engagement_pair_id or "",
+            "engagement_member_position": engagement_member_position,
+            "engagement_arm": engagement_arm or "",
+            "engagement_publication_order": engagement_publication_order or "",
+            "engagement_publication_sequence": engagement_publication_sequence,
+            "engagement_question_present": engagement_question_present,
+            "engagement_approved_question_sha256": (
+                engagement_approved_question_sha256 or ""
+            ),
+            "engagement_public_text_sha256": (
+                resolved_public_text_sha256 or ""
+            ),
+            "engagement_question_text": engagement_question_text,
+            "engagement_question_text_status": engagement_question_text_status,
+            "engagement_question_display": (
+                "unavailable/inconsistent"
+                if engagement_question_present is True
+                and engagement_question_text_status == "unavailable_inconsistent"
+                else engagement_question_text or ""
+            ),
+            "quote_text": quote_text,
+            "public_text": public_text,
+            "public_text_status": public_text_status,
+            "correlation_status": (
+                "inconsistent" if post_warning_count else "consistent"
+            ),
+            "correlation_warning_count": post_warning_count,
+        }
+        if source_refs:
+            result["source_refs"] = source_refs
+        if source_ref_omitted:
+            result["source_ref_omitted_count"] = source_ref_omitted
+        return result
+
+    def prepare_report(
+        self,
+        events: List[Dict[str, Any]],
+        production_event_object_ids: set[int],
+    ) -> List[Dict[str, Any]]:
+        """Enrich original production events and assemble sorted trial publications.
+
+        Mutate events and owned outcome/warning lists in place. The returned
+        publication rows share projected values with the correlation results.
+        """
+        quote_image_events = [
+            event
+            for event in events
+            if event.get("kind") == "quote_image_posted"
+            and id(event) in production_event_object_ids
+        ]
+        for event in quote_image_events:
+            post_id = str(event.get("post_id") or "")
+            if not post_id:
+                continue
+            correlated = self.correlated_fields(
+                post_id,
+                legacy=event,
+                warning_time=str(event.get("time") or ""),
+            )
+            source_refs, source_ref_omitted = self.bounded_source_refs(
+                event.get("source_refs"), correlated.get("source_refs")
+            )
+            event.update(
+                {
+                    key: value
+                    for key, value in correlated.items()
+                    if key not in {"source_refs", "source_ref_omitted_count"}
+                }
+            )
+            if source_refs:
+                event["source_refs"] = source_refs
+            total_source_ref_omitted = source_ref_omitted + int(
+                correlated.get("source_ref_omitted_count") or 0
+            )
+            if total_source_ref_omitted:
+                event["source_ref_omitted_count"] = total_source_ref_omitted
+            if correlated.get("public_text_status") == "confirmed":
+                # Preserve exact structured text, including real newlines, in JSON.
+                event["text"] = correlated["public_text"]
+            elif correlated.get("public_text_status") == "unavailable_inconsistent":
+                # Do not present mutable selection text as confirmed public text.
+                event["text"] = ""
+
+        confirmed_experimental_publications: List[Dict[str, Any]] = []
+        for post_id, slots in self.evidence.items():
+            confirmation = slots.get(
+                "engagement_question_experimental_member_confirmed"
+            )
+            if not confirmation:
+                continue
+            correlated = self.correlated_fields(
+                post_id,
+                warning_time=str(confirmation.get("time") or ""),
+            )
+            confirmed_experimental_publications.append(
+                {
+                    "time": confirmation.get("time") or "",
+                    "post_id": post_id,
+                    "experiment_id": correlated.get("engagement_experiment_id") or "",
+                    "plan_sha256": correlated.get("engagement_plan_sha256") or "",
+                    "pair_id": correlated.get("engagement_pair_id") or "",
+                    "member_position": correlated.get("engagement_member_position"),
+                    "arm": correlated.get("engagement_arm") or "",
+                    "publication_order": (
+                        correlated.get("engagement_publication_order") or ""
+                    ),
+                    "publication_sequence": correlated.get(
+                        "engagement_publication_sequence"
+                    ),
+                    "question_present": correlated.get(
+                        "engagement_question_present"
+                    ),
+                    "question": correlated.get("engagement_question_text"),
+                    "question_status": correlated.get(
+                        "engagement_question_text_status"
+                    ),
+                    "quote_hash": correlated.get("quote_hash") or "",
+                    "quote_text": correlated.get("quote_text") or "",
+                    "public_text": correlated.get("public_text") or "",
+                    "correlation_status": correlated.get("correlation_status"),
+                    **(
+                        {"source_refs": correlated["source_refs"]}
+                        if correlated.get("source_refs")
+                        else {}
+                    ),
+                    **(
+                        {
+                            "source_ref_omitted_count": correlated[
+                                "source_ref_omitted_count"
+                            ]
+                        }
+                        if correlated.get("source_ref_omitted_count")
+                        else {}
+                    ),
+                }
+            )
+        confirmed_experimental_publications.sort(
+            key=lambda item: (str(item.get("time") or ""), str(item.get("post_id") or ""))
+        )
+        self.trial_outcomes.sort(
+            key=lambda item: (str(item.get("time") or ""), str(item.get("event") or ""))
+        )
+        self.warnings.sort(
+            key=lambda item: (
+                str(item.get("time") or ""),
+                str(item.get("post_id") or ""),
+                str(item.get("field") or ""),
+            )
+        )
+        return confirmed_experimental_publications
 
 
 def record_main_post_publication(
@@ -624,544 +1157,3 @@ def record_engagement_trial_outcome(
         ),
     }
     engagement_trial_outcomes.append(outcome)
-
-
-def correlated_quote_post_fields(
-    post_id: str,
-    *,
-    quote_post_correlations: Dict[str, Dict[str, Dict[str, Any]]],
-    invalid_quote_post_evidence: Dict[str, set[str]],
-    engagement_correlation_warning_counts: Counter[str],
-    add_engagement_correlation_warning: Callable[..., None],
-    valid_bounded_utf8_text: Callable[..., bool],
-    bounded_source_refs: Callable[..., Tuple[List[Dict[str, Any]], int]],
-    ENGAGEMENT_QUESTION_PUBLIC_TEXT_SEPARATOR: str,
-    legacy: Optional[Dict[str, Any]] = None,
-    warning_time: str = "",
-) -> Dict[str, Any]:
-    """Resolve fixed structured evidence for one immutable post identity."""
-    slots = quote_post_correlations.get(post_id) or {}
-    invalid_evidence = invalid_quote_post_evidence.get(post_id) or set()
-    main_event = slots.get("main_post_posted") or {}
-    root_event = slots.get("account_root_posted") or {}
-    confirmation = slots.get(
-        "engagement_question_experimental_member_confirmed"
-    ) or {}
-    legacy = legacy or {}
-    effective_time = str(
-        warning_time
-        or confirmation.get("time")
-        or root_event.get("time")
-        or main_event.get("time")
-        or ""
-    )
-    conflicted_evidence = object()
-
-    def evidence_value(event: Dict[str, Any], field: str) -> Any:
-        if field in (event.get("_conflicted_fields") or set()):
-            return conflicted_evidence
-        return event.get(field)
-
-    def present(value: Any) -> bool:
-        return value is not None and value != ""
-
-    def resolve(
-        field: str,
-        candidates: List[Tuple[str, Any]],
-    ) -> Any:
-        if any(value is conflicted_evidence for _, value in candidates):
-            return None
-        available = [
-            (event_type, value)
-            for event_type, value in candidates
-            if present(value)
-        ]
-        if not available:
-            return None
-        first_event, first_value = available[0]
-        for event_type, value in available[1:]:
-            if value != first_value:
-                add_engagement_correlation_warning(
-                    time_text=effective_time,
-                    post_id=post_id,
-                    field=field,
-                    left_event=first_event,
-                    right_event=event_type,
-                )
-                return None
-        return first_value
-
-    main_or_confirmation_type = (
-        "main_post_posted" if main_event else
-        "engagement_question_experimental_member_confirmed"
-    )
-    main_or_confirmation_post_id = (
-        evidence_value(main_event, "post_id")
-        if main_event
-        else evidence_value(confirmation, "post_id")
-    )
-    resolved_post_id = resolve(
-        "post_id",
-        [
-            (main_or_confirmation_type, main_or_confirmation_post_id),
-            (
-                "account_root_posted",
-                evidence_value(root_event, "root_post_id"),
-            ),
-        ],
-    )
-    lane = resolve(
-        "lane",
-        [
-            ("main_post_posted", evidence_value(main_event, "lane")),
-            ("account_root_posted", evidence_value(root_event, "lane")),
-        ],
-    )
-    quote_hash = resolve(
-        "quote_hash",
-        [
-            (
-                "main_post_posted",
-                evidence_value(main_event, "quote_hash"),
-            ),
-            (
-                "account_root_posted",
-                evidence_value(root_event, "quote_id"),
-            ),
-        ],
-    )
-    if quote_hash is None and not any(
-        present(value)
-        for value in (
-            evidence_value(main_event, "quote_hash"),
-            evidence_value(root_event, "quote_id"),
-        )
-    ):
-        quote_hash = legacy.get("quote_hash")
-
-    public_text = evidence_value(root_event, "public_text")
-    quote_text = evidence_value(root_event, "quote_text")
-    experimental_evidence = bool(
-        confirmation
-        or any("engagement" in item for item in invalid_evidence)
-        or any(
-            present(evidence_value(main_event, key))
-            for key in (
-                "engagement_experiment_id",
-                "engagement_experiment_plan_sha256",
-                "engagement_experiment_pair_id",
-                "engagement_experiment_arm",
-                "engagement_question_present",
-            )
-        )
-    )
-    account_root_authoritative = bool(
-        root_event
-        and type(root_event.get("event_version")) is int
-        and root_event.get("event_version") == 1
-        and root_event.get("post_id") == post_id
-        and root_event.get("root_post_id") == post_id
-        and root_event.get("conversation_id") == post_id
-        and type(root_event.get("lane")) is str
-        and root_event.get("lane") == "quote_image"
-        and root_event.get("publication_authority")
-        == "confirmed_transport"
-    )
-    account_root_usable = bool(
-        account_root_authoritative
-        and lane == "quote_image"
-        and resolved_post_id == post_id
-        and valid_bounded_utf8_text(public_text)
-        and (
-            quote_text is None
-            or valid_bounded_utf8_text(
-                quote_text,
-                allow_empty=True,
-            )
-        )
-    )
-    public_text_sha256 = ""
-    resolved_public_text_sha256: Optional[str] = None
-    if account_root_usable:
-        if not isinstance(quote_text, str):
-            quote_text = ""
-        public_text_sha256 = hashlib.sha256(
-            public_text.encode("utf-8")
-        ).hexdigest()
-        resolved_public_text_sha256 = resolve(
-            "public_text_sha256",
-            [
-                (
-                    "main_post_posted",
-                    evidence_value(
-                        main_event, "engagement_public_text_sha256"
-                    ),
-                ),
-                ("account_root_posted", public_text_sha256),
-            ],
-        )
-    else:
-        public_text = ""
-        quote_text = ""
-    public_text_status = (
-        "confirmed"
-        if account_root_usable
-        else "unavailable_inconsistent"
-        if root_event or invalid_evidence or experimental_evidence
-        else ""
-    )
-
-    engagement_experiment_id = resolve(
-        "engagement_experiment_id",
-        [
-            (
-                "main_post_posted",
-                evidence_value(main_event, "engagement_experiment_id"),
-            ),
-        ],
-    )
-    engagement_plan_sha256 = resolve(
-        "engagement_plan_sha256",
-        [
-            (
-                "main_post_posted",
-                evidence_value(
-                    main_event, "engagement_experiment_plan_sha256"
-                ),
-            ),
-            (
-                "engagement_question_experimental_member_confirmed",
-                evidence_value(confirmation, "plan_sha256"),
-            ),
-        ],
-    )
-    engagement_pair_id = resolve(
-        "engagement_pair_id",
-        [
-            (
-                "main_post_posted",
-                evidence_value(
-                    main_event, "engagement_experiment_pair_id"
-                ),
-            ),
-            (
-                "engagement_question_experimental_member_confirmed",
-                evidence_value(confirmation, "pair_id"),
-            ),
-        ],
-    )
-    engagement_member_position = resolve(
-        "engagement_member_position",
-        [
-            (
-                "main_post_posted",
-                evidence_value(
-                    main_event, "engagement_experiment_member_position"
-                ),
-            ),
-            (
-                "engagement_question_experimental_member_confirmed",
-                evidence_value(confirmation, "member_position"),
-            ),
-        ],
-    )
-    engagement_arm = resolve(
-        "engagement_arm",
-        [
-            (
-                "main_post_posted",
-                evidence_value(main_event, "engagement_experiment_arm"),
-            ),
-            (
-                "engagement_question_experimental_member_confirmed",
-                evidence_value(confirmation, "arm"),
-            ),
-        ],
-    )
-    engagement_publication_sequence = resolve(
-        "engagement_publication_sequence",
-        [
-            (
-                "main_post_posted",
-                evidence_value(
-                    main_event, "engagement_experiment_sequence"
-                ),
-            ),
-            (
-                "engagement_question_experimental_member_confirmed",
-                evidence_value(confirmation, "publication_sequence"),
-            ),
-        ],
-    )
-    engagement_publication_order = resolve(
-        "engagement_publication_order",
-        [
-            (
-                "main_post_posted",
-                evidence_value(
-                    main_event, "engagement_experiment_publication_order"
-                ),
-            ),
-        ],
-    )
-    engagement_question_present = resolve(
-        "engagement_question_present",
-        [
-            (
-                "main_post_posted",
-                evidence_value(main_event, "engagement_question_present"),
-            ),
-        ],
-    )
-    engagement_approved_question_sha256 = resolve(
-        "engagement_approved_question_sha256",
-        [
-            (
-                "main_post_posted",
-                evidence_value(
-                    main_event,
-                    "engagement_approved_question_sha256",
-                ),
-            ),
-        ],
-    )
-
-    engagement_question_text: Any = ""
-    engagement_question_text_status = ""
-    if engagement_question_present is True:
-        prefix = quote_text + ENGAGEMENT_QUESTION_PUBLIC_TEXT_SEPARATOR
-        candidate_question = (
-            public_text[len(prefix):]
-            if account_root_usable
-            and bool(quote_text)
-            and public_text.startswith(prefix)
-            and len(public_text) > len(prefix)
-            else None
-        )
-        candidate_question_sha256 = (
-            hashlib.sha256(
-                candidate_question.encode("utf-8")
-            ).hexdigest()
-            if isinstance(candidate_question, str)
-            else None
-        )
-        if (
-            engagement_arm == "treatment"
-            and candidate_question is not None
-            and resolved_public_text_sha256 == public_text_sha256
-            and engagement_approved_question_sha256
-            == candidate_question_sha256
-        ):
-            engagement_question_text = candidate_question
-            engagement_question_text_status = "validated"
-        else:
-            engagement_question_text = None
-            engagement_question_text_status = "unavailable_inconsistent"
-            add_engagement_correlation_warning(
-                time_text=effective_time,
-                post_id=post_id,
-                field="engagement_question_text",
-                left_event="main_post_posted",
-                right_event="account_root_posted",
-                status=("conflict" if root_event else "unavailable"),
-            )
-    elif engagement_question_present is False:
-        engagement_question_text_status = "not_present"
-        if account_root_usable and public_text != quote_text:
-            engagement_question_text_status = "unavailable_inconsistent"
-            add_engagement_correlation_warning(
-                time_text=effective_time,
-                post_id=post_id,
-                field="engagement_question_text",
-                left_event="main_post_posted",
-                right_event="account_root_posted",
-            )
-
-    selection_fields = {
-        key: (
-            None
-            if evidence_value(main_event, key) is conflicted_evidence
-            else evidence_value(main_event, key)
-            if present(evidence_value(main_event, key))
-            else legacy.get(key)
-        )
-        for key in (
-            "line_no",
-            "image_no",
-            "image_basename",
-            "image_score",
-        )
-    }
-    post_warning_count = engagement_correlation_warning_counts[post_id]
-    source_refs, source_ref_omitted = bounded_source_refs(
-        main_event.get("source_refs"),
-        root_event.get("source_refs"),
-        confirmation.get("source_refs"),
-    )
-    source_ref_omitted += sum(
-        omitted
-        for item in (main_event, root_event, confirmation)
-        for omitted in [item.get("source_ref_omitted_count")]
-        if type(omitted) is int and omitted >= 0
-    )
-    result = {
-        **selection_fields,
-        "quote_hash": quote_hash,
-        "engagement_experiment_id": engagement_experiment_id or "",
-        "engagement_plan_sha256": engagement_plan_sha256 or "",
-        "engagement_pair_id": engagement_pair_id or "",
-        "engagement_member_position": engagement_member_position,
-        "engagement_arm": engagement_arm or "",
-        "engagement_publication_order": engagement_publication_order or "",
-        "engagement_publication_sequence": engagement_publication_sequence,
-        "engagement_question_present": engagement_question_present,
-        "engagement_approved_question_sha256": (
-            engagement_approved_question_sha256 or ""
-        ),
-        "engagement_public_text_sha256": (
-            resolved_public_text_sha256 or ""
-        ),
-        "engagement_question_text": engagement_question_text,
-        "engagement_question_text_status": engagement_question_text_status,
-        "engagement_question_display": (
-            "unavailable/inconsistent"
-            if engagement_question_present is True
-            and engagement_question_text_status == "unavailable_inconsistent"
-            else engagement_question_text or ""
-        ),
-        "quote_text": quote_text,
-        "public_text": public_text,
-        "public_text_status": public_text_status,
-        "correlation_status": (
-            "inconsistent" if post_warning_count else "consistent"
-        ),
-        "correlation_warning_count": post_warning_count,
-    }
-    if source_refs:
-        result["source_refs"] = source_refs
-    if source_ref_omitted:
-        result["source_ref_omitted_count"] = source_ref_omitted
-    return result
-
-
-def prepare_quote_publication_report(
-    events: List[Dict[str, Any]],
-    production_event_object_ids: set[int],
-    quote_post_correlations: Dict[str, Dict[str, Dict[str, Any]]],
-    engagement_trial_outcomes: List[Dict[str, Any]],
-    engagement_correlation_warnings: List[Dict[str, Any]],
-    *,
-    correlated_quote_post_fields: Callable[..., Dict[str, Any]],
-    bounded_source_refs: Callable[..., Tuple[List[Dict[str, Any]], int]],
-) -> List[Dict[str, Any]]:
-    """Enrich original production events and assemble sorted trial publications.
-
-    Mutate events and supplied outcome/warning lists in place. The returned
-    publication rows share projected values with the correlation results.
-    """
-    quote_image_events = [
-        event
-        for event in events
-        if event.get("kind") == "quote_image_posted"
-        and id(event) in production_event_object_ids
-    ]
-    for event in quote_image_events:
-        post_id = str(event.get("post_id") or "")
-        if not post_id:
-            continue
-        correlated = correlated_quote_post_fields(
-            post_id,
-            legacy=event,
-            warning_time=str(event.get("time") or ""),
-        )
-        source_refs, source_ref_omitted = bounded_source_refs(
-            event.get("source_refs"), correlated.get("source_refs")
-        )
-        event.update(
-            {
-                key: value
-                for key, value in correlated.items()
-                if key not in {"source_refs", "source_ref_omitted_count"}
-            }
-        )
-        if source_refs:
-            event["source_refs"] = source_refs
-        total_source_ref_omitted = source_ref_omitted + int(
-            correlated.get("source_ref_omitted_count") or 0
-        )
-        if total_source_ref_omitted:
-            event["source_ref_omitted_count"] = total_source_ref_omitted
-        if correlated.get("public_text_status") == "confirmed":
-            # Preserve exact structured text, including real newlines, in JSON.
-            event["text"] = correlated["public_text"]
-        elif correlated.get("public_text_status") == "unavailable_inconsistent":
-            # Do not present mutable selection text as confirmed public text.
-            event["text"] = ""
-
-    confirmed_experimental_publications: List[Dict[str, Any]] = []
-    for post_id, slots in quote_post_correlations.items():
-        confirmation = slots.get(
-            "engagement_question_experimental_member_confirmed"
-        )
-        if not confirmation:
-            continue
-        correlated = correlated_quote_post_fields(
-            post_id,
-            warning_time=str(confirmation.get("time") or ""),
-        )
-        confirmed_experimental_publications.append(
-            {
-                "time": confirmation.get("time") or "",
-                "post_id": post_id,
-                "experiment_id": correlated.get("engagement_experiment_id") or "",
-                "plan_sha256": correlated.get("engagement_plan_sha256") or "",
-                "pair_id": correlated.get("engagement_pair_id") or "",
-                "member_position": correlated.get("engagement_member_position"),
-                "arm": correlated.get("engagement_arm") or "",
-                "publication_order": (
-                    correlated.get("engagement_publication_order") or ""
-                ),
-                "publication_sequence": correlated.get(
-                    "engagement_publication_sequence"
-                ),
-                "question_present": correlated.get(
-                    "engagement_question_present"
-                ),
-                "question": correlated.get("engagement_question_text"),
-                "question_status": correlated.get(
-                    "engagement_question_text_status"
-                ),
-                "quote_hash": correlated.get("quote_hash") or "",
-                "quote_text": correlated.get("quote_text") or "",
-                "public_text": correlated.get("public_text") or "",
-                "correlation_status": correlated.get("correlation_status"),
-                **(
-                    {"source_refs": correlated["source_refs"]}
-                    if correlated.get("source_refs")
-                    else {}
-                ),
-                **(
-                    {
-                        "source_ref_omitted_count": correlated[
-                            "source_ref_omitted_count"
-                        ]
-                    }
-                    if correlated.get("source_ref_omitted_count")
-                    else {}
-                ),
-            }
-        )
-    confirmed_experimental_publications.sort(
-        key=lambda item: (str(item.get("time") or ""), str(item.get("post_id") or ""))
-    )
-    engagement_trial_outcomes.sort(
-        key=lambda item: (str(item.get("time") or ""), str(item.get("event") or ""))
-    )
-    engagement_correlation_warnings.sort(
-        key=lambda item: (
-            str(item.get("time") or ""),
-            str(item.get("post_id") or ""),
-            str(item.get("field") or ""),
-        )
-    )
-    return confirmed_experimental_publications
