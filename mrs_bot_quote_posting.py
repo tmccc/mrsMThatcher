@@ -21,6 +21,26 @@ from typing import NamedTuple
 from mrs_bot_regular_post_completion import complete_regular_post_persistence
 
 
+# Availability is separate from a callback's value, including an assigned None.
+_RECOVERY_VALUE_UNAVAILABLE = object()
+
+
+def _confirmed_quote_schedule_fields(receipt: dict) -> dict:
+    """Project the confirmed quote schedule before reading its meme schedule."""
+    return {"next_quote_post_epoch": int(receipt["next_quote_post_epoch"])}
+
+
+def _confirmed_meme_schedule_fields(receipt: dict) -> dict:
+    """Project a regular post's optional meme schedule with its bound anchor."""
+    return {
+        "next_meme_post_epoch": int(receipt.get("next_meme_post_epoch", 0) or 0),
+        "meme_schedule_version": int(receipt["meme_schedule_version"]),
+        "next_meme_schedule_mode": str(receipt.get("next_meme_schedule_mode") or ""),
+        "next_meme_schedule_date": str(receipt.get("next_meme_schedule_date") or ""),
+        "meme_anchor_quote_post_epoch": int(receipt.get("meme_anchor_quote_post_epoch") or 0),
+    }
+
+
 def _select_regular_quote_image_pair(
     lines_used: set,
     images_used: set,
@@ -519,6 +539,7 @@ def post_random_quote(
     original_lines_used = set(lines_used)
     original_images_used = set(images_used)
     confirmed_post_sigint_guard: ConfirmedPostSigintDeferral | None = None
+    main_post_attempt = _RECOVERY_VALUE_UNAVAILABLE
 
     try:
         require_historical_context_outbox_writable()
@@ -659,7 +680,7 @@ def post_random_quote(
         images_used.clear()
         images_used.update(original_images_used)
         if (
-            "main_post_attempt" in locals()
+            main_post_attempt is not _RECOVERY_VALUE_UNAVAILABLE
             and api_error_proves_remote_non_success(remote_exc)
         ):
             try:
@@ -689,6 +710,11 @@ def post_random_quote(
             confirmed_post_sigint_guard = None
         raise
 
+    quote_post_epoch = _RECOVERY_VALUE_UNAVAILABLE
+    pending_schedule_receipt = _RECOVERY_VALUE_UNAVAILABLE
+    fallback_receipt = _RECOVERY_VALUE_UNAVAILABLE
+    quote_schedule_fields = _RECOVERY_VALUE_UNAVAILABLE
+    meme_schedule_fields = _RECOVERY_VALUE_UNAVAILABLE
     pending_schedule_promoted = False
     try:
         transport_confirmation = inspect_confirmed_transport_transaction(
@@ -727,24 +753,8 @@ def post_random_quote(
         receipt = finalize_confirmed_pending_schedule_receipt(
             pending_schedule_receipt
         )
-        quote_schedule_fields = {
-            "next_quote_post_epoch": int(receipt["next_quote_post_epoch"])
-        }
-        meme_schedule_fields = {
-            "next_meme_post_epoch": int(
-                receipt.get("next_meme_post_epoch", 0) or 0
-            ),
-            "meme_schedule_version": int(receipt["meme_schedule_version"]),
-            "next_meme_schedule_mode": str(
-                receipt.get("next_meme_schedule_mode") or ""
-            ),
-            "next_meme_schedule_date": str(
-                receipt.get("next_meme_schedule_date") or ""
-            ),
-            "meme_anchor_quote_post_epoch": int(
-                receipt.get("meme_anchor_quote_post_epoch") or 0
-            ),
-        }
+        quote_schedule_fields = _confirmed_quote_schedule_fields(receipt)
+        meme_schedule_fields = _confirmed_meme_schedule_fields(receipt)
     except BaseException as receipt_exc:
         log.critical(
             "Confirmed regular quote/image post_id=%s but failed writing recovery receipt; in-memory used histories remain marked",
@@ -777,34 +787,13 @@ def post_random_quote(
                 "pending-schedule receipt remains for local-only reconciliation"
             ) from receipt_exc
         fallback_failures: list[str] = []
-        if "pending_schedule_receipt" in locals():
+        if pending_schedule_receipt is not _RECOVERY_VALUE_UNAVAILABLE:
             try:
                 fallback_receipt = materialize_bound_regular_schedule_receipt(
                     pending_schedule_receipt
                 )
-                quote_schedule_fields = {
-                    "next_quote_post_epoch": int(
-                        fallback_receipt["next_quote_post_epoch"]
-                    )
-                }
-                meme_schedule_fields = {
-                    "next_meme_post_epoch": int(
-                        fallback_receipt.get("next_meme_post_epoch", 0) or 0
-                    ),
-                    "meme_schedule_version": int(
-                        fallback_receipt["meme_schedule_version"]
-                    ),
-                    "next_meme_schedule_mode": str(
-                        fallback_receipt.get("next_meme_schedule_mode") or ""
-                    ),
-                    "next_meme_schedule_date": str(
-                        fallback_receipt.get("next_meme_schedule_date") or ""
-                    ),
-                    "meme_anchor_quote_post_epoch": int(
-                        fallback_receipt.get("meme_anchor_quote_post_epoch")
-                        or 0
-                    ),
-                }
+                quote_schedule_fields = _confirmed_quote_schedule_fields(fallback_receipt)
+                meme_schedule_fields = _confirmed_meme_schedule_fields(fallback_receipt)
             except Exception:
                 fallback_failures.append("bound_schedule_materialisation")
                 log.critical(
@@ -816,10 +805,10 @@ def post_random_quote(
             lines_used.add(quote_hash)
             images_used.add(image_basename)
             state["last_main_post_id"] = str(posted_id)
-            if "quote_post_epoch" in locals():
+            if quote_post_epoch is not _RECOVERY_VALUE_UNAVAILABLE:
                 state["last_quote_post_epoch"] = quote_post_epoch
             state["last_regular_image_filename"] = image_basename
-            if "fallback_receipt" in locals():
+            if fallback_receipt is not _RECOVERY_VALUE_UNAVAILABLE:
                 apply_confirmed_engagement_experiment_receipt(
                     fallback_receipt,
                     state,
@@ -838,7 +827,7 @@ def post_random_quote(
                 "Emergency generated-image spacing update failed after confirmed regular post",
                 exc_info=True,
             )
-        if "quote_schedule_fields" in locals():
+        if quote_schedule_fields is not _RECOVERY_VALUE_UNAVAILABLE:
             try:
                 apply_state_fields(state, quote_schedule_fields)
             except Exception:
@@ -847,7 +836,7 @@ def post_random_quote(
                     "Emergency quote schedule update failed after confirmed regular post",
                     exc_info=True,
                 )
-        if "meme_schedule_fields" in locals():
+        if meme_schedule_fields is not _RECOVERY_VALUE_UNAVAILABLE:
             try:
                 apply_state_fields(state, meme_schedule_fields)
             except Exception:
@@ -875,7 +864,7 @@ def post_random_quote(
         ]
         if not confirmed_regular_emergency_representation_is_complete(
             post_id=str(posted_id),
-            post_epoch=quote_post_epoch if "quote_post_epoch" in locals() else None,
+            post_epoch=quote_post_epoch if quote_post_epoch is not _RECOVERY_VALUE_UNAVAILABLE else None,
             quote_hash=quote_hash,
             image_basename=image_basename,
             lines_used=lines_used,
@@ -926,7 +915,7 @@ def post_random_quote(
                     "attempt receipt remains unresolved"
                 ) from context_exc
             if (
-                "fallback_receipt" in locals()
+                fallback_receipt is not _RECOVERY_VALUE_UNAVAILABLE
                 and engagement_experiment_envelope_from_receipt(
                     fallback_receipt
                 )
@@ -960,7 +949,7 @@ def post_random_quote(
                 sending_disposition="confirmed_state_fallback",
             )
             if (
-                "fallback_receipt" in locals()
+                fallback_receipt is not _RECOVERY_VALUE_UNAVAILABLE
                 and engagement_experiment_envelope_from_receipt(
                     fallback_receipt
                 )

@@ -20,6 +20,22 @@ from logging import Logger
 from pathlib import Path
 
 
+# A callback may return None before a later step fails. Keep that distinct from
+# a recovery value whose producing step never completed.
+_RECOVERY_VALUE_UNAVAILABLE = object()
+
+
+def _confirmed_meme_schedule_fields(receipt: dict) -> dict:
+    """Project a confirmed meme's required schedule fields in their read order."""
+    return {
+        "next_meme_post_epoch": int(receipt["next_meme_post_epoch"]),
+        "meme_schedule_version": int(receipt["meme_schedule_version"]),
+        "next_meme_schedule_mode": str(receipt["next_meme_schedule_mode"]),
+        "next_meme_schedule_date": str(receipt["next_meme_schedule_date"]),
+        "meme_anchor_quote_post_epoch": 0,
+    }
+
+
 def original_meme_filename(shortlist_path: Path) -> str:
     """Return the original meme filename."""
     name = shortlist_path.name
@@ -690,6 +706,9 @@ def post_next_meme(
             confirmed_post_sigint_guard = None
         raise
 
+    meme_post_epoch = _RECOVERY_VALUE_UNAVAILABLE
+    pending_schedule_receipt = _RECOVERY_VALUE_UNAVAILABLE
+    meme_schedule_fields = _RECOVERY_VALUE_UNAVAILABLE
     pending_schedule_promoted = False
     try:
         transport_confirmation = inspect_confirmed_transport_transaction(
@@ -722,17 +741,7 @@ def post_next_meme(
         receipt = finalize_confirmed_pending_schedule_receipt(
             pending_schedule_receipt
         )
-        meme_schedule_fields = {
-            "next_meme_post_epoch": int(receipt["next_meme_post_epoch"]),
-            "meme_schedule_version": int(receipt["meme_schedule_version"]),
-            "next_meme_schedule_mode": str(
-                receipt["next_meme_schedule_mode"]
-            ),
-            "next_meme_schedule_date": str(
-                receipt["next_meme_schedule_date"]
-            ),
-            "meme_anchor_quote_post_epoch": 0,
-        }
+        meme_schedule_fields = _confirmed_meme_schedule_fields(receipt)
     except BaseException as receipt_exc:
         log.critical(
             "Confirmed meme post_id=%s but stage=meme_receipt_creation failed; attempting direct durable state save",
@@ -775,32 +784,18 @@ def post_next_meme(
         emergency_state_write_succeeded = False
         emergency_state_complete = False
         try:
-            if "pending_schedule_receipt" in locals():
+            if pending_schedule_receipt is not _RECOVERY_VALUE_UNAVAILABLE:
                 fallback_receipt = materialize_bound_meme_schedule_receipt(
                     pending_schedule_receipt
                 )
-                meme_schedule_fields = {
-                    "next_meme_post_epoch": int(
-                        fallback_receipt["next_meme_post_epoch"]
-                    ),
-                    "meme_schedule_version": int(
-                        fallback_receipt["meme_schedule_version"]
-                    ),
-                    "next_meme_schedule_mode": str(
-                        fallback_receipt["next_meme_schedule_mode"]
-                    ),
-                    "next_meme_schedule_date": str(
-                        fallback_receipt["next_meme_schedule_date"]
-                    ),
-                    "meme_anchor_quote_post_epoch": 0,
-                }
+                meme_schedule_fields = _confirmed_meme_schedule_fields(fallback_receipt)
             state["last_main_post_id"] = str(posted_id)
-            if "meme_post_epoch" in locals():
+            if meme_post_epoch is not _RECOVERY_VALUE_UNAVAILABLE:
                 state["last_meme_post_epoch"] = meme_post_epoch
             posted = set(str(x) for x in state.get("posted_meme_filenames", []))
             posted.add(meme_path.name)
             state["posted_meme_filenames"] = sorted(posted)
-            if "meme_schedule_fields" in locals():
+            if meme_schedule_fields is not _RECOVERY_VALUE_UNAVAILABLE:
                 apply_state_fields(state, meme_schedule_fields)
             try:
                 cache_tweet(
@@ -820,7 +815,7 @@ def post_next_meme(
             emergency_state_write_succeeded = True
             emergency_state_complete = confirmed_meme_emergency_representation_is_complete(
                 post_id=str(posted_id),
-                post_epoch=meme_post_epoch if "meme_post_epoch" in locals() else None,
+                post_epoch=meme_post_epoch if meme_post_epoch is not _RECOVERY_VALUE_UNAVAILABLE else None,
                 meme_basename=meme_path.name,
                 state=state,
                 main_post_attempt=main_post_attempt,
@@ -830,7 +825,7 @@ def post_next_meme(
                 emergency_state_write_succeeded = True
                 emergency_state_complete = confirmed_meme_emergency_representation_is_complete(
                     post_id=str(posted_id),
-                    post_epoch=meme_post_epoch if "meme_post_epoch" in locals() else None,
+                    post_epoch=meme_post_epoch if meme_post_epoch is not _RECOVERY_VALUE_UNAVAILABLE else None,
                     meme_basename=meme_path.name,
                     state=state,
                     main_post_attempt=main_post_attempt,
