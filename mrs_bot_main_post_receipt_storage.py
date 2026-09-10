@@ -1,9 +1,10 @@
 """Store main-post receipts and preserve their durable lifecycle transitions.
 
 Eleven explicit root adapters supply current paths, callbacks, modules, logging
-and exception authorities on each call. Original bodies preserve lane-specific
-read/publication gates, sending promotion, pending schedule finalization, exact
-retirement, object references and native error boundaries. Sibling calls use
+and exception authorities on each call. One shared publication lifecycle keeps
+lane-specific gates, sending promotion and pending schedule finalization explicit;
+readers retain their distinct contracts. Exact retirement, object references and
+native error boundaries are preserved. Sibling calls use
 current root callbacks. Source authority, atomic I/O, journals, validators,
 materializers, builders, confirmation promotion, recovery and transport remain
 in their existing locations. This owner retains no runtime dependencies or state
@@ -241,6 +242,114 @@ def finalize_confirmed_pending_schedule_receipt(
     return receipt
 
 
+def _write_main_post_receipt(
+    receipt: dict,
+    *,
+    lane_name: str,
+    expected_lane: str,
+    receipt_path: Path,
+    opposite_lane_name: str,
+    opposite_receipt_path: Path,
+    current_attempt_schema_versions: set[int],
+    unresolved_receipt_error: type[Exception],
+    unresolved_opposite_receipt_error: type[Exception],
+    atomic_write_json: Callable[..., None],
+    confirmed_pending_schedule_receipt_is_semantically_valid: Callable[..., bool],
+    confirmed_receipt_matches_main_attempt: Callable[..., bool],
+    durable_create_receipt_json: Callable[..., None],
+    load_post_receipt: Callable[..., tuple[str, dict | None]],
+    log: Logger,
+    materialize_bound_schedule_receipt: Callable[..., dict],
+    post_receipt_is_semantically_valid: Callable[..., bool],
+    receipt_namespace_entry_exists: Callable[..., bool],
+    remote_receipt_retirement_is_blocking: Callable[..., bool],
+) -> None:
+    """Publish either lane using the current adapter's paths and authorities."""
+    if remote_receipt_retirement_is_blocking():
+        raise unresolved_receipt_error(
+            f"Refusing {lane_name} receipt publication during source-receipt retirement"
+        )
+    if receipt_namespace_entry_exists(opposite_receipt_path):
+        raise unresolved_opposite_receipt_error(
+            f"Refusing {lane_name} post while unresolved {opposite_lane_name}-post "
+            f"receipt exists: {opposite_receipt_path}"
+        )
+    if confirmed_pending_schedule_receipt_is_semantically_valid(
+        receipt,
+        expected_lane=expected_lane,
+    ):
+        status, attempt = load_post_receipt()
+        if status != "sending" or attempt != receipt["source_attempt"]:
+            raise unresolved_receipt_error(
+                f"Refusing to promote a changed {lane_name} main-post attempt"
+            )
+        atomic_write_json(receipt_path, receipt, durable=True)
+        log.warning(
+            f"Wrote confirmed {lane_name} pending-schedule receipt post_id=%s path=%s",
+            receipt.get("post_id"),
+            receipt_path,
+        )
+        return
+    if not post_receipt_is_semantically_valid(receipt):
+        raise RuntimeError(
+            f"Internal error: generated {lane_name}-post receipt failed semantic validation"
+        )
+    if receipt_namespace_entry_exists(receipt_path):
+        status, current = load_post_receipt()
+        if status == "pending_schedule" and current is not None:
+            if materialize_bound_schedule_receipt(current) != receipt:
+                raise unresolved_receipt_error(
+                    "Refusing a schedule result which does not match the durable "
+                    f"confirmed {lane_name} plan"
+                )
+            atomic_write_json(receipt_path, receipt, durable=True)
+            log.warning(
+                f"Finalised {lane_name}-post pending schedule post_id=%s path=%s",
+                receipt.get("post_id"),
+                receipt_path,
+            )
+            return
+        attempt = current
+        if (
+            status == "sending"
+            and isinstance(attempt, dict)
+            and attempt.get("schema_version") in current_attempt_schema_versions
+        ):
+            raise unresolved_receipt_error(
+                f"Current-schema {lane_name} attempts must be promoted through the "
+                "durable confirmed pending-schedule receipt"
+            )
+        if (
+            status != "sending"
+            or attempt is None
+            or not confirmed_receipt_matches_main_attempt(receipt, attempt)
+        ):
+            raise unresolved_receipt_error(
+                f"Refusing to overwrite an unresolved {lane_name}-post receipt: "
+                f"{receipt_path}"
+            )
+        atomic_write_json(receipt_path, receipt, durable=True)
+        log.warning(
+            f"Promoted {lane_name}-post sending receipt to confirmed attempt_id=%s "
+            "post_id=%s path=%s",
+            receipt.get("attempt_id"),
+            receipt.get("post_id"),
+            receipt_path,
+        )
+        return
+    try:
+        durable_create_receipt_json(receipt_path, receipt)
+    except FileExistsError as exc:
+        raise unresolved_receipt_error(
+            f"Refusing to overwrite a {lane_name}-post receipt namespace entry "
+            "which appeared during publication"
+        ) from exc
+    log.warning(
+        f"Wrote confirmed {lane_name}-post receipt pending local reconciliation: %s",
+        receipt_path,
+    )
+
+
 def write_regular_post_receipt(
     receipt: dict,
     *,
@@ -260,81 +369,27 @@ def write_regular_post_receipt(
     remote_receipt_retirement_is_blocking: Callable[..., bool],
 ) -> None:
     """Write regular post receipt."""
-    if remote_receipt_retirement_is_blocking():
-        raise UnresolvedRegularPostReceipt(
-            "Refusing regular receipt publication during source-receipt retirement"
-        )
-    if receipt_namespace_entry_exists(MEME_POST_RECEIPT_FILE):
-        raise UnresolvedMemePostReceipt(f"Refusing regular post while unresolved meme-post receipt exists: {MEME_POST_RECEIPT_FILE}")
-    if confirmed_pending_schedule_receipt_is_semantically_valid(
+    _write_main_post_receipt(
         receipt,
+        lane_name="regular",
         expected_lane="quote_image",
-    ):
-        status, attempt = load_regular_post_receipt()
-        if status != "sending" or attempt != receipt["source_attempt"]:
-            raise UnresolvedRegularPostReceipt(
-                "Refusing to promote a changed regular main-post attempt"
-            )
-        atomic_write_json(REGULAR_POST_RECEIPT_FILE, receipt, durable=True)
-        log.warning(
-            "Wrote confirmed regular pending-schedule receipt post_id=%s path=%s",
-            receipt.get("post_id"),
-            REGULAR_POST_RECEIPT_FILE,
-        )
-        return
-    if not regular_post_receipt_is_semantically_valid(receipt):
-        raise RuntimeError("Internal error: generated regular-post receipt failed semantic validation")
-    if receipt_namespace_entry_exists(REGULAR_POST_RECEIPT_FILE):
-        status, current = load_regular_post_receipt()
-        if status == "pending_schedule" and current is not None:
-            if materialize_bound_regular_schedule_receipt(current) != receipt:
-                raise UnresolvedRegularPostReceipt(
-                    "Refusing a schedule result which does not match the durable "
-                    "confirmed regular plan"
-                )
-            atomic_write_json(REGULAR_POST_RECEIPT_FILE, receipt, durable=True)
-            log.warning(
-                "Finalised regular-post pending schedule post_id=%s path=%s",
-                receipt.get("post_id"),
-                REGULAR_POST_RECEIPT_FILE,
-            )
-            return
-        attempt = current
-        if (
-            status == "sending"
-            and isinstance(attempt, dict)
-            and attempt.get("schema_version") in {4, 5, 6}
-        ):
-            raise UnresolvedRegularPostReceipt(
-                "Current-schema regular attempts must be promoted through the "
-                "durable confirmed pending-schedule receipt"
-            )
-        if (
-            status != "sending"
-            or attempt is None
-            or not confirmed_receipt_matches_main_attempt(receipt, attempt)
-        ):
-            raise UnresolvedRegularPostReceipt(
-                "Refusing to overwrite an unresolved regular-post receipt: "
-                f"{REGULAR_POST_RECEIPT_FILE}"
-            )
-        atomic_write_json(REGULAR_POST_RECEIPT_FILE, receipt, durable=True)
-        log.warning(
-            "Promoted regular-post sending receipt to confirmed attempt_id=%s "
-            "post_id=%s path=%s",
-            receipt.get("attempt_id"),
-            receipt.get("post_id"),
-            REGULAR_POST_RECEIPT_FILE,
-        )
-        return
-    try:
-        durable_create_receipt_json(REGULAR_POST_RECEIPT_FILE, receipt)
-    except FileExistsError as exc:
-        raise UnresolvedRegularPostReceipt(
-            "Refusing to overwrite a regular-post receipt namespace entry "
-            "which appeared during publication"
-        ) from exc
-    log.warning("Wrote confirmed regular-post receipt pending local reconciliation: %s", REGULAR_POST_RECEIPT_FILE)
+        receipt_path=REGULAR_POST_RECEIPT_FILE,
+        opposite_lane_name="meme",
+        opposite_receipt_path=MEME_POST_RECEIPT_FILE,
+        current_attempt_schema_versions={4, 5, 6},
+        unresolved_receipt_error=UnresolvedRegularPostReceipt,
+        unresolved_opposite_receipt_error=UnresolvedMemePostReceipt,
+        atomic_write_json=atomic_write_json,
+        confirmed_pending_schedule_receipt_is_semantically_valid=confirmed_pending_schedule_receipt_is_semantically_valid,
+        confirmed_receipt_matches_main_attempt=confirmed_receipt_matches_main_attempt,
+        durable_create_receipt_json=durable_create_receipt_json,
+        load_post_receipt=load_regular_post_receipt,
+        log=log,
+        materialize_bound_schedule_receipt=materialize_bound_regular_schedule_receipt,
+        post_receipt_is_semantically_valid=regular_post_receipt_is_semantically_valid,
+        receipt_namespace_entry_exists=receipt_namespace_entry_exists,
+        remote_receipt_retirement_is_blocking=remote_receipt_retirement_is_blocking,
+    )
 
 
 def load_regular_post_receipt(
@@ -424,81 +479,27 @@ def write_meme_post_receipt(
     remote_receipt_retirement_is_blocking: Callable[..., bool],
 ) -> None:
     """Write meme post receipt."""
-    if remote_receipt_retirement_is_blocking():
-        raise UnresolvedMemePostReceipt(
-            "Refusing meme receipt publication during source-receipt retirement"
-        )
-    if receipt_namespace_entry_exists(REGULAR_POST_RECEIPT_FILE):
-        raise UnresolvedRegularPostReceipt(f"Refusing meme post while unresolved regular-post receipt exists: {REGULAR_POST_RECEIPT_FILE}")
-    if confirmed_pending_schedule_receipt_is_semantically_valid(
+    _write_main_post_receipt(
         receipt,
+        lane_name="meme",
         expected_lane="daily_meme",
-    ):
-        status, attempt = load_meme_post_receipt()
-        if status != "sending" or attempt != receipt["source_attempt"]:
-            raise UnresolvedMemePostReceipt(
-                "Refusing to promote a changed meme main-post attempt"
-            )
-        atomic_write_json(MEME_POST_RECEIPT_FILE, receipt, durable=True)
-        log.warning(
-            "Wrote confirmed meme pending-schedule receipt post_id=%s path=%s",
-            receipt.get("post_id"),
-            MEME_POST_RECEIPT_FILE,
-        )
-        return
-    if not meme_post_receipt_is_semantically_valid(receipt):
-        raise RuntimeError("Internal error: generated meme-post receipt failed semantic validation")
-    if receipt_namespace_entry_exists(MEME_POST_RECEIPT_FILE):
-        status, current = load_meme_post_receipt()
-        if status == "pending_schedule" and current is not None:
-            if materialize_bound_meme_schedule_receipt(current) != receipt:
-                raise UnresolvedMemePostReceipt(
-                    "Refusing a schedule result which does not match the durable "
-                    "confirmed meme plan"
-                )
-            atomic_write_json(MEME_POST_RECEIPT_FILE, receipt, durable=True)
-            log.warning(
-                "Finalised meme-post pending schedule post_id=%s path=%s",
-                receipt.get("post_id"),
-                MEME_POST_RECEIPT_FILE,
-            )
-            return
-        attempt = current
-        if (
-            status == "sending"
-            and isinstance(attempt, dict)
-            and attempt.get("schema_version") in {3, 4, 5}
-        ):
-            raise UnresolvedMemePostReceipt(
-                "Current-schema meme attempts must be promoted through the "
-                "durable confirmed pending-schedule receipt"
-            )
-        if (
-            status != "sending"
-            or attempt is None
-            or not confirmed_receipt_matches_main_attempt(receipt, attempt)
-        ):
-            raise UnresolvedMemePostReceipt(
-                "Refusing to overwrite an unresolved meme-post receipt: "
-                f"{MEME_POST_RECEIPT_FILE}"
-            )
-        atomic_write_json(MEME_POST_RECEIPT_FILE, receipt, durable=True)
-        log.warning(
-            "Promoted meme-post sending receipt to confirmed attempt_id=%s "
-            "post_id=%s path=%s",
-            receipt.get("attempt_id"),
-            receipt.get("post_id"),
-            MEME_POST_RECEIPT_FILE,
-        )
-        return
-    try:
-        durable_create_receipt_json(MEME_POST_RECEIPT_FILE, receipt)
-    except FileExistsError as exc:
-        raise UnresolvedMemePostReceipt(
-            "Refusing to overwrite a meme-post receipt namespace entry which "
-            "appeared during publication"
-        ) from exc
-    log.warning("Wrote confirmed meme-post receipt pending local reconciliation: %s", MEME_POST_RECEIPT_FILE)
+        receipt_path=MEME_POST_RECEIPT_FILE,
+        opposite_lane_name="regular",
+        opposite_receipt_path=REGULAR_POST_RECEIPT_FILE,
+        current_attempt_schema_versions={3, 4, 5},
+        unresolved_receipt_error=UnresolvedMemePostReceipt,
+        unresolved_opposite_receipt_error=UnresolvedRegularPostReceipt,
+        atomic_write_json=atomic_write_json,
+        confirmed_pending_schedule_receipt_is_semantically_valid=confirmed_pending_schedule_receipt_is_semantically_valid,
+        confirmed_receipt_matches_main_attempt=confirmed_receipt_matches_main_attempt,
+        durable_create_receipt_json=durable_create_receipt_json,
+        load_post_receipt=load_meme_post_receipt,
+        log=log,
+        materialize_bound_schedule_receipt=materialize_bound_meme_schedule_receipt,
+        post_receipt_is_semantically_valid=meme_post_receipt_is_semantically_valid,
+        receipt_namespace_entry_exists=receipt_namespace_entry_exists,
+        remote_receipt_retirement_is_blocking=remote_receipt_retirement_is_blocking,
+    )
 
 
 def load_meme_post_receipt(

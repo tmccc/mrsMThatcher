@@ -69,7 +69,7 @@ assert 'single_call_reply' not in sys.modules
 
 def test_adapters_forward_current_dependencies_arguments_results_and_errors(monkeypatch):
     names = (
-        "validate_current_ai_reply_draft", "store_pending_ai_reply", "pending_ai_reply",
+        "validate_current_ai_reply_draft", "store_pending_ai_reply", "recover_pending_ai_reply",
         "clear_pending_ai_reply", "_confirmed_conversational_history_rows",
         "recent_confirmed_account_replies", "_reply_context_history_excluded_post_ids",
         "recovery_comparison_account_replies", "_same_author_confirmed_history_rows",
@@ -292,7 +292,13 @@ def test_recovery_keeps_current_exception_classes_retirement_and_exact_zero_call
         result.assert_called_once_with(actual, lane="mention", target_id="100")
     else:
         assert outcome == {"retained": True}
-        constructor.assert_not_called()
+        if kind == "obsolete":
+            constructor.assert_called_once_with(
+                status="draft_discarded", reason="obsolete_or_invalid_persisted_draft",
+                error_category="draft_validation",
+            )
+        else:
+            constructor.assert_not_called()
         result.assert_not_called()
 
 

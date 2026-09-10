@@ -234,6 +234,7 @@ import mrs_bot_reply_generation as _reply_generation
 import mrs_bot_reply_receipt_values as _reply_receipt_values
 import mrs_bot_reply_reconciliation as _reply_reconciliation
 import mrs_bot_reply_delivery as _reply_delivery
+import mrs_bot_reply_cycle_interfaces as _reply_cycle_interfaces
 import mrs_bot_normal_reply_cycle as _normal_reply_cycle
 import mrs_bot_quote_reply_cycle as _quote_reply_cycle
 import mrs_bot_quote_discovery as _quote_discovery
@@ -8387,12 +8388,33 @@ def pending_ai_reply(
     recent_replies: list[object] | None = None,
     evaluation_outcome: dict[str, object] | None = None,
 ) -> str | None:
+    """Compatibility prose API; production cycles consume recover_pending_ai_reply."""
+    result = recover_pending_ai_reply(
+        state, target_id, candidate_source, context=context, recent_replies=recent_replies,
+    )
+    if result is None:
+        return None
+    if evaluation_outcome is not None and result.status == "operational_failure":
+        evaluation_outcome.update(
+            status=result.status, reason=result.reason,
+            error_category=result.error_category, model_call_count=result.model_call_count,
+        )
+    return result.reply
+
+
+def recover_pending_ai_reply(
+    state: dict,
+    target_id: str,
+    candidate_source: str,
+    *,
+    context: dict[str, object],
+    recent_replies: list[object] | None = None,
+) -> PipelineResult | None:
     """Delegate reply state with current root dependencies."""
-    return _reply_state.pending_ai_reply(
+    return _reply_state.recover_pending_ai_reply(
         state, target_id, candidate_source,
         context=context,
         recent_replies=recent_replies,
-        evaluation_outcome=evaluation_outcome,
         pending_ai_reply_draft_key=pending_ai_reply_draft_key,
         validate_current_ai_reply_draft=validate_current_ai_reply_draft,
         ReplyEvidenceUnavailable=ReplyEvidenceUnavailable,
@@ -8638,7 +8660,7 @@ def _is_openai_provider_health_failure(category: object) -> bool:
     )
 
 
-def _is_terminal_candidate_local_failure(outcome: dict[str, object]) -> bool:
+def _is_terminal_candidate_local_failure(outcome: PipelineResult | dict[str, object]) -> bool:
     """Return whether one permanent local failure should retire its candidate."""
     return _reply_generation._is_terminal_candidate_local_failure(
         outcome,
@@ -8701,11 +8723,28 @@ def generate_single_call_reply(
     state: dict,
     evaluation_outcome: dict | None = None,
 ) -> str | None:
-    """Make one authoritative Sol decision and return only validated prose."""
-    return _reply_generation.generate_single_call_reply(
+    """Compatibility prose API; production cycles consume evaluate_single_call_reply."""
+    result = evaluate_single_call_reply(context, media_context, state=state)
+    if evaluation_outcome is not None:
+        evaluation_outcome.update(
+            status=result.status, reason=result.reason,
+            error_category=result.error_category, model_call_count=result.model_call_count,
+        )
+        if result.reason != "material_image_unavailable":
+            evaluation_outcome.update(reason_code=result.reason_code, reply_kind=result.reply_kind)
+    return result.reply
+
+
+def evaluate_single_call_reply(
+    context: dict[str, object],
+    media_context: dict | None = None,
+    *,
+    state: dict,
+) -> PipelineResult:
+    """Return the authoritative reply decision and its accounting metadata."""
+    return _reply_generation.evaluate_single_call_reply(
         context, media_context,
         state=state,
-        evaluation_outcome=evaluation_outcome,
         collect_reply_images=collect_reply_images,
         RemoteOperationsPaused=RemoteOperationsPaused,
         ReplyMediaUnavailable=ReplyMediaUnavailable,
@@ -9352,6 +9391,44 @@ def post_conversational_reply_with_durable_identity(
     )
 
 
+def finalise_confirmed_reply(
+    state: dict, receipt: dict, *, target_id: str, quote_reply: bool,
+) -> str:
+    """Commit a reply confirmation before either cycle reports successful posting."""
+    return _reply_reconciliation.finalise_confirmed_reply(
+        state, receipt, target_id=target_id, quote_reply=quote_reply,
+        CONFIRMED_REPLY_RECEIPT_FILE=CONFIRMED_REPLY_RECEIPT_FILE,
+        ConfirmedReplyLocalPersistenceError=ConfirmedReplyLocalPersistenceError,
+        apply_confirmed_reply_receipt=apply_confirmed_reply_receipt,
+        save_state=save_state,
+        retire_lane_transport_journal_if_present=retire_lane_transport_journal_if_present,
+        remove_confirmed_reply_receipt=remove_confirmed_reply_receipt,
+        log=log,
+    )
+
+
+def _reply_cycle_persistence() -> _reply_cycle_interfaces.ReplyCyclePersistence:
+    """Bind current local persistence callbacks for one cycle invocation."""
+    return _reply_cycle_interfaces.ReplyCyclePersistence(
+        save=save_state, recover=recover_pending_ai_reply,
+        store=store_pending_ai_reply, clear=clear_pending_ai_reply,
+    )
+
+
+def _reply_cycle_delivery() -> _reply_cycle_interfaces.ReplyCycleDelivery:
+    """Bind current receipt and delivery callbacks without retaining caller state."""
+    return _reply_cycle_interfaces.ReplyCycleDelivery(
+        load_receipt=load_confirmed_reply_receipt,
+        reconcile_receipt=reconcile_confirmed_reply_receipt,
+        block_ambiguous=block_if_ambiguous_remote_post,
+        bind_attempt=bind_conversational_reply_attempt_time,
+        target_available=reply_target_is_available_immediately_before_send,
+        post=post_conversational_reply_with_durable_identity,
+        retire_rejected=retire_proved_rejected_conversational_reply_receipt,
+        finalise=finalise_confirmed_reply,
+    )
+
+
 def maybe_reply_to_mentions(
     state: dict,
     *,
@@ -9361,20 +9438,24 @@ def maybe_reply_to_mentions(
     """Process eligible mention and hot-post candidates under all reply limits."""
     return _normal_reply_cycle.maybe_reply_to_mentions(
         state,
+        config=_reply_cycle_interfaces.NormalReplyConfig(
+            enabled=ENABLE_AUTO_REPLIES,
+            mark_as_ai=MARK_AI_REPLIES_AS_AI,
+            maximum_daily_replies=MAX_AUTO_REPLIES_PER_DAY,
+            maximum_daily_author_replies=MAX_REPLIES_PER_AUTHOR_PER_DAY,
+            minimum_reply_spacing=MIN_SECONDS_BETWEEN_REPLIES,
+            user_id=MY_USER_ID,
+            maximum_fresh_evaluations=MAX_MENTIONS_PER_CHECK,
+            incoming_max_chars=REPLY_INCOMING_MAX_CHARS,
+        ),
+        persistence=_reply_cycle_persistence(),
+        delivery=_reply_cycle_delivery(),
         _fresh_mention_ai_evaluations=_fresh_mention_ai_evaluations,
         _skip_hot_post_fetch=_skip_hot_post_fetch,
         AUTHOR_EVALUATION_QUARANTINE_EVIDENCE_POLICY=AUTHOR_EVALUATION_QUARANTINE_EVIDENCE_POLICY,
         AmbiguousRemotePostOutcome=AmbiguousRemotePostOutcome,
         ApiError=ApiError,
-        CONFIRMED_REPLY_RECEIPT_FILE=CONFIRMED_REPLY_RECEIPT_FILE,
         ConfirmedReplyLocalPersistenceError=ConfirmedReplyLocalPersistenceError,
-        ENABLE_AUTO_REPLIES=ENABLE_AUTO_REPLIES,
-        MARK_AI_REPLIES_AS_AI=MARK_AI_REPLIES_AS_AI,
-        MAX_AUTO_REPLIES_PER_DAY=MAX_AUTO_REPLIES_PER_DAY,
-        MAX_MENTIONS_PER_CHECK=MAX_MENTIONS_PER_CHECK,
-        MAX_REPLIES_PER_AUTHOR_PER_DAY=MAX_REPLIES_PER_AUTHOR_PER_DAY,
-        MIN_SECONDS_BETWEEN_REPLIES=MIN_SECONDS_BETWEEN_REPLIES,
-        MY_USER_ID=MY_USER_ID,
         NORMAL_CHECK_STATUS_API_ERROR=NORMAL_CHECK_STATUS_API_ERROR,
         NORMAL_CHECK_STATUS_CHECKED=NORMAL_CHECK_STATUS_CHECKED,
         NORMAL_CHECK_STATUS_DISABLED=NORMAL_CHECK_STATUS_DISABLED,
@@ -9384,7 +9465,6 @@ def maybe_reply_to_mentions(
         NORMAL_CHECK_STATUS_SKIPPED_SPACING=NORMAL_CHECK_STATUS_SKIPPED_SPACING,
         PipelineResult=PipelineResult,
         ProvedRemotePostNonSuccess=ProvedRemotePostNonSuccess,
-        REPLY_INCOMING_MAX_CHARS=REPLY_INCOMING_MAX_CHARS,
         RemoteOperationsPaused=RemoteOperationsPaused,
         ReplyEvidenceUnavailable=ReplyEvidenceUnavailable,
         SINGLE_CALL_STRATEGY_VERSION=SINGLE_CALL_STRATEGY_VERSION,
@@ -9396,28 +9476,22 @@ def maybe_reply_to_mentions(
         active_author_evaluation_quarantine=active_author_evaluation_quarantine,
         api_error_is_reply_not_allowed=api_error_is_reply_not_allowed,
         append_unique_durable=append_unique_durable,
-        apply_confirmed_reply_receipt=apply_confirmed_reply_receipt,
-        bind_conversational_reply_attempt_time=bind_conversational_reply_attempt_time,
-        block_if_ambiguous_remote_post=block_if_ambiguous_remote_post,
         build_context_for_reply_ai=build_context_for_reply_ai,
         cache_tweet=cache_tweet,
         clarification_reply_context=clarification_reply_context,
         clarification_thread_is_terminal=clarification_thread_is_terminal,
         clear_author_evaluation_quarantine_history=clear_author_evaluation_quarantine_history,
-        clear_pending_ai_reply=clear_pending_ai_reply,
         completed_mention_watermark_covers_target=completed_mention_watermark_covers_target,
         conversational_reply_pipeline_enabled=conversational_reply_pipeline_enabled,
-        copy=copy,
         daily_author_reply_count=daily_author_reply_count,
         daily_author_reply_counts=daily_author_reply_counts,
         dedupe_reply_candidates=dedupe_reply_candidates,
-        generate_single_call_reply=generate_single_call_reply,
+        evaluate_single_call_reply=evaluate_single_call_reply,
         get_hot_post_reply_candidates=get_hot_post_reply_candidates,
         get_mentions=get_mentions,
         in_api_cooldown=in_api_cooldown,
         is_probably_spam_or_not_worth_replying=is_probably_spam_or_not_worth_replying,
         lane_paused=lane_paused,
-        load_confirmed_reply_receipt=load_confirmed_reply_receipt,
         log=log,
         log_ai_reply_posting_outcome=log_ai_reply_posting_outcome,
         log_event=log_event,
@@ -9426,28 +9500,19 @@ def maybe_reply_to_mentions(
         maybe_reply_to_mentions=maybe_reply_to_mentions,
         mention_pagination_provenance_is_valid=mention_pagination_provenance_is_valid,
         now_epoch=now_epoch,
-        pending_ai_reply=pending_ai_reply,
         pending_ai_reply_draft_key=pending_ai_reply_draft_key,
         pending_mention_candidates=pending_mention_candidates,
-        post_conversational_reply_with_durable_identity=post_conversational_reply_with_durable_identity,
         prune_author_evaluation_quarantines=prune_author_evaluation_quarantines,
         prune_completed_mention_quarantine_evaluations=prune_completed_mention_quarantine_evaluations,
         prune_reply_evaluation_records=prune_reply_evaluation_records,
-        reconcile_confirmed_reply_receipt=reconcile_confirmed_reply_receipt,
         record_api_error=record_api_error,
         record_qualifying_author_no_reply=record_qualifying_author_no_reply,
         record_terminal_reply_evaluation=record_terminal_reply_evaluation,
         recovery_comparison_account_replies=recovery_comparison_account_replies,
-        remove_confirmed_reply_receipt=remove_confirmed_reply_receipt,
         reply_evidence_repository=reply_evidence_repository,
         reply_media_context_for_candidate=reply_media_context_for_candidate,
-        reply_target_is_available_immediately_before_send=reply_target_is_available_immediately_before_send,
         reply_target_is_directly_eligible=reply_target_is_directly_eligible,
         reset_daily_reply_count_if_needed=reset_daily_reply_count_if_needed,
-        retire_lane_transport_journal_if_present=retire_lane_transport_journal_if_present,
-        retire_proved_rejected_conversational_reply_receipt=retire_proved_rejected_conversational_reply_receipt,
-        save_state=save_state,
-        store_pending_ai_reply=store_pending_ai_reply,
         terminal_reply_evaluation=terminal_reply_evaluation,
         trim_context_text=trim_context_text,
         valid_tweets_sorted_by_id=valid_tweets_sorted_by_id,
@@ -9611,20 +9676,23 @@ def maybe_reply_to_quote_tweets(state: dict) -> str:
     """Process eligible quote-tweet candidates under all reply limits."""
     return _quote_reply_cycle.maybe_reply_to_quote_tweets(
         state,
+        config=_reply_cycle_interfaces.QuoteReplyConfig(
+            enabled=ENABLE_AUTO_REPLIES,
+            mark_as_ai=MARK_AI_REPLIES_AS_AI,
+            maximum_daily_replies=MAX_AUTO_REPLIES_PER_DAY,
+            maximum_daily_author_replies=MAX_REPLIES_PER_AUTHOR_PER_DAY,
+            minimum_reply_spacing=MIN_SECONDS_BETWEEN_REPLIES,
+            user_id=MY_USER_ID,
+            quote_checks_enabled=ENABLE_QUOTE_TWEET_CHECKS,
+            maximum_candidates=MAX_QUOTE_POSTS_PER_CHECK,
+            maximum_daily_quote_replies=MAX_QUOTE_REPLIES_PER_DAY,
+        ),
+        persistence=_reply_cycle_persistence(),
+        delivery=_reply_cycle_delivery(),
         AmbiguousRemotePostOutcome=AmbiguousRemotePostOutcome,
         ApiError=ApiError,
-        CONFIRMED_REPLY_RECEIPT_FILE=CONFIRMED_REPLY_RECEIPT_FILE,
         ConfirmedReplyLocalPersistenceError=ConfirmedReplyLocalPersistenceError,
         ContextValidationError=ContextValidationError,
-        ENABLE_AUTO_REPLIES=ENABLE_AUTO_REPLIES,
-        ENABLE_QUOTE_TWEET_CHECKS=ENABLE_QUOTE_TWEET_CHECKS,
-        MARK_AI_REPLIES_AS_AI=MARK_AI_REPLIES_AS_AI,
-        MAX_AUTO_REPLIES_PER_DAY=MAX_AUTO_REPLIES_PER_DAY,
-        MAX_QUOTE_POSTS_PER_CHECK=MAX_QUOTE_POSTS_PER_CHECK,
-        MAX_QUOTE_REPLIES_PER_DAY=MAX_QUOTE_REPLIES_PER_DAY,
-        MAX_REPLIES_PER_AUTHOR_PER_DAY=MAX_REPLIES_PER_AUTHOR_PER_DAY,
-        MIN_SECONDS_BETWEEN_REPLIES=MIN_SECONDS_BETWEEN_REPLIES,
-        MY_USER_ID=MY_USER_ID,
         PipelineResult=PipelineResult,
         ProvedRemotePostNonSuccess=ProvedRemotePostNonSuccess,
         QUOTE_CHECK_STATUS_CHECKED=QUOTE_CHECK_STATUS_CHECKED,
@@ -9643,50 +9711,35 @@ def maybe_reply_to_quote_tweets(state: dict) -> str:
         _record_single_call_result=_record_single_call_result,
         api_error_is_permanent_target_failure=api_error_is_permanent_target_failure,
         api_error_is_reply_not_allowed=api_error_is_reply_not_allowed,
-        apply_confirmed_reply_receipt=apply_confirmed_reply_receipt,
-        bind_conversational_reply_attempt_time=bind_conversational_reply_attempt_time,
-        block_if_ambiguous_remote_post=block_if_ambiguous_remote_post,
         build_quote_lookup_post_ids=build_quote_lookup_post_ids,
         build_quote_tweet_reply_context=build_quote_tweet_reply_context,
         cache_tweet=cache_tweet,
         clean_text_for_reply_context=clean_text_for_reply_context,
-        clear_pending_ai_reply=clear_pending_ai_reply,
         conversational_reply_pipeline_enabled=conversational_reply_pipeline_enabled,
-        copy=copy,
         daily_author_reply_count=daily_author_reply_count,
         daily_author_reply_counts=daily_author_reply_counts,
-        generate_single_call_reply=generate_single_call_reply,
+        evaluate_single_call_reply=evaluate_single_call_reply,
         get_quote_tweets_for_posts=get_quote_tweets_for_posts,
         get_tweet_by_id_cached=get_tweet_by_id_cached,
         in_api_cooldown=in_api_cooldown,
         is_probably_spam_or_not_worth_replying=is_probably_spam_or_not_worth_replying,
         lane_paused=lane_paused,
-        load_confirmed_reply_receipt=load_confirmed_reply_receipt,
         log=log,
         log_ai_reply_posting_outcome=log_ai_reply_posting_outcome,
         log_event=log_event,
         mark_quote_spam_author=mark_quote_spam_author,
         mark_quote_tweet_skipped=mark_quote_tweet_skipped,
         now_epoch=now_epoch,
-        pending_ai_reply=pending_ai_reply,
-        post_conversational_reply_with_durable_identity=post_conversational_reply_with_durable_identity,
         quote_author_profile_text=quote_author_profile_text,
         quote_tweet_directly_quotes_original=quote_tweet_directly_quotes_original,
         quote_tweet_is_old_enough=quote_tweet_is_old_enough,
-        reconcile_confirmed_reply_receipt=reconcile_confirmed_reply_receipt,
         record_api_error=record_api_error,
         record_terminal_reply_evaluation=record_terminal_reply_evaluation,
         recovery_comparison_account_replies=recovery_comparison_account_replies,
-        remove_confirmed_reply_receipt=remove_confirmed_reply_receipt,
         reply_evidence_repository=reply_evidence_repository,
         reply_media_context_for_candidate=reply_media_context_for_candidate,
-        reply_target_is_available_immediately_before_send=reply_target_is_available_immediately_before_send,
         reset_daily_quote_reply_count_if_needed=reset_daily_quote_reply_count_if_needed,
         reset_daily_reply_count_if_needed=reset_daily_reply_count_if_needed,
-        retire_lane_transport_journal_if_present=retire_lane_transport_journal_if_present,
-        retire_proved_rejected_conversational_reply_receipt=retire_proved_rejected_conversational_reply_receipt,
-        save_state=save_state,
-        store_pending_ai_reply=store_pending_ai_reply,
         terminal_reply_evaluation=terminal_reply_evaluation,
         valid_tweets_sorted_by_id=valid_tweets_sorted_by_id,
     )

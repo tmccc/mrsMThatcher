@@ -395,6 +395,58 @@ def apply_confirmed_reply_receipt(
             )
 
 
+def finalise_confirmed_reply(
+    state: dict,
+    receipt: dict,
+    *,
+    target_id: str,
+    quote_reply: bool,
+    CONFIRMED_REPLY_RECEIPT_FILE: Path,
+    ConfirmedReplyLocalPersistenceError: type[Exception],
+    apply_confirmed_reply_receipt: Callable,
+    save_state: Callable,
+    retire_lane_transport_journal_if_present: Callable,
+    remove_confirmed_reply_receipt: Callable,
+    log: logging.Logger,
+) -> str:
+    """Commit a new confirmation, then retire its exact recovery records.
+
+    Application and durable-save errors retain their original types. Only
+    cleanup failures are wrapped after the confirmed state is durable. Restart
+    reconciliation has its own save-error policy and remains a separate entry.
+    """
+    own_reply_id = str(receipt["reply_post_id"])
+    apply_confirmed_reply_receipt(state, receipt)
+    log.info(
+        "Recorded and cached own quote-tweet auto-reply id=%s"
+        if quote_reply else "Recorded and cached own auto-reply id=%s",
+        own_reply_id,
+    )
+    save_state(state, durable=True)
+    try:
+        retire_lane_transport_journal_if_present(
+            receipt_path=CONFIRMED_REPLY_RECEIPT_FILE,
+            receipt=receipt,
+            lane="conversational_reply",
+            post_id=own_reply_id,
+        )
+        remove_confirmed_reply_receipt(receipt)
+    except Exception as exc:
+        log.critical(
+            "Confirmed quote-tweet reply id=%s to target=%s was saved but receipt removal failed"
+            if quote_reply else
+            "Confirmed reply id=%s to target=%s was saved but receipt removal failed",
+            own_reply_id,
+            target_id,
+            exc_info=True,
+        )
+        description = "quote-tweet reply" if quote_reply else "reply"
+        raise ConfirmedReplyLocalPersistenceError(
+            f"Confirmed {description} {own_reply_id} to {target_id} but receipt removal failed"
+        ) from exc
+    return own_reply_id
+
+
 def reconcile_confirmed_reply_receipt(
     state: dict,
     *,

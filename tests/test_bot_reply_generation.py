@@ -76,7 +76,7 @@ def test_adapters_forward_current_dependencies_arguments_results_and_errors(monk
         "_definite_connection_failure_before_transmission", "_openai_api_error",
         "_openai_retry_metadata", "_is_openai_provider_health_failure",
         "_is_terminal_candidate_local_failure", "openai_responses_reply_call",
-        "_record_single_call_result", "generate_single_call_reply",
+        "_record_single_call_result", "evaluate_single_call_reply",
     )
     for name in names:
         adapter = getattr(bot, name)

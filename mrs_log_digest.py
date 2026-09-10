@@ -42,6 +42,7 @@ import sys
 import tempfile
 from collections import Counter
 from contextlib import ExitStack, contextmanager
+from dataclasses import dataclass, field
 from datetime import datetime, timedelta, timezone
 from decimal import Decimal
 from pathlib import Path
@@ -1617,6 +1618,20 @@ def reconcile_reply_pipeline_effective_outcomes(
     )
 
 
+@dataclass
+class _AnalysisSourceContext:
+    """Pending observations kept independently for production and self-test logs."""
+
+    pending_quote: Dict[str, Any] = field(default_factory=dict)
+    pending_meme: Dict[str, Any] = field(default_factory=dict)
+    pending_mention: Dict[str, Any] = field(default_factory=dict)
+    pending_qt: Dict[str, Any] = field(default_factory=dict)
+    pending_confirmed_reply_receipt: Dict[str, Any] = field(default_factory=dict)
+    last_created_post: Dict[str, Any] = field(default_factory=dict)
+    active_xai_context: Optional[Dict[str, Any]] = None
+    active_xai_call_attempt_index: Optional[int] = None
+
+
 def analyse(
     records: List[Record],
     max_text: int = 280,
@@ -1679,7 +1694,6 @@ def analyse(
     latest_state: Optional[Dict[str, Any]] = None
     latest_state_ts: Optional[datetime] = None
 
-    pending_quote: Dict[str, Any] = {}
     quote_post_correlations: Dict[str, Dict[str, Dict[str, Any]]] = {}
     invalid_quote_post_evidence: Dict[str, set[str]] = {}
     engagement_trial_outcomes: List[Dict[str, Any]] = []
@@ -1689,38 +1703,20 @@ def analyse(
     ] = set()
     engagement_correlation_warning_counts: Counter[str] = Counter()
     engagement_correlation_warning_omitted_count = 0
-    pending_meme: Dict[str, Any] = {}
-    pending_mention: Dict[str, Any] = dict(initial_pending_mention or {})
-    pending_qt: Dict[str, Any] = dict(initial_pending_qt or {})
-    if pending_mention:
-        pending_mention.setdefault("_identity_production", True)
-        pending_mention.setdefault("_reply_post_id_production", True)
-    if pending_qt:
-        pending_qt.setdefault("_identity_production", True)
-        pending_qt.setdefault("_reply_post_id_production", True)
-    pending_confirmed_reply_receipt: Dict[str, Any] = {}
-    active_xai_context: Optional[Dict[str, Any]] = dict(initial_active_xai_context or {}) or None
-    active_xai_call_attempt_index: Optional[int] = (
-        0 if restored_xai_call_attempt else None
+    production_context = _AnalysisSourceContext(
+        pending_mention=dict(initial_pending_mention or {}),
+        pending_qt=dict(initial_pending_qt or {}),
+        active_xai_context=dict(initial_active_xai_context or {}) or None,
+        active_xai_call_attempt_index=0 if restored_xai_call_attempt else None,
     )
-    production_active_xai_call_attempt_index = active_xai_call_attempt_index
-    selftest_active_xai_call_attempt_index: Optional[int] = None
-    last_created_post: Dict[str, Any] = {}
-    production_pending_quote = pending_quote
-    production_pending_meme = pending_meme
-    production_pending_mention = pending_mention
-    production_pending_qt = pending_qt
-    production_pending_confirmed_reply_receipt = pending_confirmed_reply_receipt
-    production_last_created_post = last_created_post
-    production_active_xai_context = active_xai_context
-    selftest_pending_quote: Dict[str, Any] = {}
-    selftest_pending_meme: Dict[str, Any] = {}
-    selftest_pending_mention: Dict[str, Any] = {}
-    selftest_pending_qt: Dict[str, Any] = {}
-    selftest_pending_confirmed_reply_receipt: Dict[str, Any] = {}
-    selftest_last_created_post: Dict[str, Any] = {}
-    selftest_active_xai_context: Optional[Dict[str, Any]] = None
-    previous_record_production = True
+    if production_context.pending_mention:
+        production_context.pending_mention.setdefault("_identity_production", True)
+        production_context.pending_mention.setdefault("_reply_post_id_production", True)
+    if production_context.pending_qt:
+        production_context.pending_qt.setdefault("_identity_production", True)
+        production_context.pending_qt.setdefault("_reply_post_id_production", True)
+    selftest_context = _AnalysisSourceContext()
+    source_context = production_context
     structured_reply_confirmations: List[Dict[str, Any]] = []
     historical_reply_text_evidence: List[Dict[str, Any]] = list(
         historical_history_evidence or []
@@ -1834,14 +1830,13 @@ def analyse(
         )
 
     def add_confirmed_reply_receipt_event(kind: str, r: Record, **kwargs: Any) -> None:
-        nonlocal pending_confirmed_reply_receipt
-        pending_confirmed_reply_receipt = _add_confirmed_reply_receipt_event(
+        source_context.pending_confirmed_reply_receipt = _add_confirmed_reply_receipt_event(
             kind, r, kwargs,
             input_file_indexes=input_file_indexes, stats=stats,
             short=short, is_selftest_log_path=is_selftest_log_path,
             record_source_ref=record_source_ref,
             confirmed_reply_receipts=confirmed_reply_receipts,
-            pending_confirmed_reply_receipt=pending_confirmed_reply_receipt,
+            pending_confirmed_reply_receipt=source_context.pending_confirmed_reply_receipt,
         )
 
     def add_asset_health(kind: str, r: Record, **kwargs: Any) -> None:
@@ -1877,59 +1872,7 @@ def analyse(
         current_source_record = r
         msg = r.msg
         production_record = not is_selftest_log_path(r.path)
-        if previous_record_production:
-            production_pending_quote = pending_quote
-            production_pending_meme = pending_meme
-            production_pending_mention = pending_mention
-            production_pending_qt = pending_qt
-            production_pending_confirmed_reply_receipt = (
-                pending_confirmed_reply_receipt
-            )
-            production_last_created_post = last_created_post
-            production_active_xai_context = active_xai_context
-            production_active_xai_call_attempt_index = (
-                active_xai_call_attempt_index
-            )
-        else:
-            selftest_pending_quote = pending_quote
-            selftest_pending_meme = pending_meme
-            selftest_pending_mention = pending_mention
-            selftest_pending_qt = pending_qt
-            selftest_pending_confirmed_reply_receipt = (
-                pending_confirmed_reply_receipt
-            )
-            selftest_last_created_post = last_created_post
-            selftest_active_xai_context = active_xai_context
-            selftest_active_xai_call_attempt_index = (
-                active_xai_call_attempt_index
-            )
-        if production_record:
-            pending_quote = production_pending_quote
-            pending_meme = production_pending_meme
-            pending_mention = production_pending_mention
-            pending_qt = production_pending_qt
-            pending_confirmed_reply_receipt = (
-                production_pending_confirmed_reply_receipt
-            )
-            last_created_post = production_last_created_post
-            active_xai_context = production_active_xai_context
-            active_xai_call_attempt_index = (
-                production_active_xai_call_attempt_index
-            )
-        else:
-            pending_quote = selftest_pending_quote
-            pending_meme = selftest_pending_meme
-            pending_mention = selftest_pending_mention
-            pending_qt = selftest_pending_qt
-            pending_confirmed_reply_receipt = (
-                selftest_pending_confirmed_reply_receipt
-            )
-            last_created_post = selftest_last_created_post
-            active_xai_context = selftest_active_xai_context
-            active_xai_call_attempt_index = (
-                selftest_active_xai_call_attempt_index
-            )
-        previous_record_production = production_record
+        source_context = production_context if production_record else selftest_context
         compatibility_event_obj = (
             try_parse_json_object_from_msg(msg)
             if msg.startswith("EVENT ")
@@ -2010,8 +1953,10 @@ def analyse(
             confirmed_post_recovery=confirmed_post_recovery,
             confirmed_reply_recovery=confirmed_reply_recovery,
             errors=errors,
-            pending_mention=pending_mention, pending_qt=pending_qt,
-            pending_meme=pending_meme, pending_quote=pending_quote,
+            pending_mention=source_context.pending_mention,
+            pending_qt=source_context.pending_qt,
+            pending_meme=source_context.pending_meme,
+            pending_quote=source_context.pending_quote,
             is_reply_visual_description_event=is_reply_visual_description_event,
             input_file_indexes=input_file_indexes,
             is_reply_target_eligibility_restriction=is_reply_target_eligibility_restriction,
@@ -2022,12 +1967,15 @@ def analyse(
             classify_operational_error=classify_operational_error,
         )
 
-        active_xai_context, active_xai_call_attempt_index = observe_provider_message(
+        (
+            source_context.active_xai_context,
+            source_context.active_xai_call_attempt_index,
+        ) = observe_provider_message(
             r, msg,
-            pending_mention=pending_mention,
-            pending_qt=pending_qt,
-            active_xai_context=active_xai_context,
-            active_xai_call_attempt_index=active_xai_call_attempt_index,
+            pending_mention=source_context.pending_mention,
+            pending_qt=source_context.pending_qt,
+            active_xai_context=source_context.active_xai_context,
+            active_xai_call_attempt_index=source_context.active_xai_call_attempt_index,
             xai_call_attempts=xai_call_attempts,
             xai_usage_events=xai_usage_events,
             xai_usage_parse_errors=xai_usage_parse_errors,
@@ -2068,7 +2016,7 @@ def analyse(
                     make_source_ref=lambda: record_source_ref(r, input_file_indexes),
                 )
                 if event_obj.get("lane") == "daily_meme":
-                    pending_meme.update({
+                    source_context.pending_meme.update({
                         "post_id": event_obj.get("post_id"),
                         "file": event_obj.get("filename"),
                     })
@@ -2448,7 +2396,8 @@ def analyse(
             continue
 
         if handle_legacy_receipt_message(
-            r, msg, pending_confirmed_reply_receipt=pending_confirmed_reply_receipt,
+            r, msg,
+            pending_confirmed_reply_receipt=source_context.pending_confirmed_reply_receipt,
             add_receipt_event=add_receipt_event,
             add_confirmed_reply_receipt_event=add_confirmed_reply_receipt_event,
         ):
@@ -2483,7 +2432,8 @@ def analyse(
             continue
         if handle_x_api_error(
             r, msg, latest_x_request_by_source=latest_x_request_by_source,
-            pending_mention=pending_mention, pending_qt=pending_qt,
+            pending_mention=source_context.pending_mention,
+            pending_qt=source_context.pending_qt,
             is_handled_reply_restriction=is_handled_reply_restriction,
             api_errors=api_errors, handled_api_restrictions=handled_api_restrictions,
             stats=stats, input_file_indexes=input_file_indexes,
@@ -2492,8 +2442,8 @@ def analyse(
             is_deleted_or_inaccessible_tweet_403=is_deleted_or_inaccessible_tweet_403,
         ):
             continue
-        active_xai_context = observe_provider_error(
-            r, msg, active_xai_context=active_xai_context,
+        source_context.active_xai_context = observe_provider_error(
+            r, msg, active_xai_context=source_context.active_xai_context,
             api_errors=api_errors, stats=stats,
             input_file_indexes=input_file_indexes, short=short,
             record_source_ref=record_source_ref,
@@ -2508,7 +2458,7 @@ def analyse(
 
         if handle_legacy_quote_image_selection(
             r, msg,
-            pending_quote=pending_quote,
+            pending_quote=source_context.pending_quote,
             regular_image_usage_events=regular_image_usage_events, add_event=add_event,
         ):
             continue
@@ -2567,25 +2517,26 @@ def analyse(
         if handled:
             continue
 
-        handled, pending_quote = handle_legacy_quote_image_posting(
+        handled, source_context.pending_quote = handle_legacy_quote_image_posting(
             r, msg,
-            pending_quote=pending_quote,
+            pending_quote=source_context.pending_quote,
             regular_image_usage_events=regular_image_usage_events, add_event=add_event,
             lit=lit,
         )
         if handled:
             continue
 
-        handled, pending_meme = handle_legacy_meme_posting(
+        handled, source_context.pending_meme = handle_legacy_meme_posting(
             r, msg,
-            pending_meme=pending_meme, add_event=add_event, lit=lit,
+            pending_meme=source_context.pending_meme, add_event=add_event, lit=lit,
         )
         if handled:
             continue
 
-        handled, last_created_post = handle_legacy_created_post(
+        handled, source_context.last_created_post = handle_legacy_created_post(
             r, msg,
-            production_record=production_record, last_created_post=last_created_post,
+            production_record=production_record,
+            last_created_post=source_context.last_created_post,
             stats=stats, production_event_object_ids=production_event_object_ids,
             add_event=add_event, try_parse_response_id_text=try_parse_response_id_text,
             response_post_id_is_canonical_string=response_post_id_is_canonical_string,
@@ -2593,22 +2544,32 @@ def analyse(
         if handled:
             continue
 
-        handled, pending_mention, active_xai_context = handle_legacy_mention_reply(
+        (
+            handled,
+            source_context.pending_mention,
+            source_context.active_xai_context,
+        ) = handle_legacy_mention_reply(
             r, msg,
             record_index=record_index, production_record=production_record,
-            pending_mention=pending_mention, active_xai_context=active_xai_context,
-            last_created_post=last_created_post,
+            pending_mention=source_context.pending_mention,
+            active_xai_context=source_context.active_xai_context,
+            last_created_post=source_context.last_created_post,
             production_event_object_ids=production_event_object_ids,
             routine_skip_counts=routine_skip_counts, add_event=add_event, lit=lit,
         )
         if handled:
             continue
 
-        handled, pending_qt, active_xai_context = handle_legacy_quote_reply(
+        (
+            handled,
+            source_context.pending_qt,
+            source_context.active_xai_context,
+        ) = handle_legacy_quote_reply(
             r, msg,
             record_index=record_index, production_record=production_record,
-            pending_qt=pending_qt, active_xai_context=active_xai_context,
-            last_created_post=last_created_post,
+            pending_qt=source_context.pending_qt,
+            active_xai_context=source_context.active_xai_context,
+            last_created_post=source_context.last_created_post,
             production_event_object_ids=production_event_object_ids,
             routine_skip_counts=routine_skip_counts, add_event=add_event, lit=lit,
         )
@@ -2626,29 +2587,7 @@ def analyse(
             if msg == "Skipping mention check: minimum interval between replies not reached":
                 stats["mention_checks_skipped_spacing"] += 1
 
-    if previous_record_production:
-        production_pending_quote = pending_quote
-        production_pending_meme = pending_meme
-        production_pending_mention = pending_mention
-        production_pending_qt = pending_qt
-        production_pending_confirmed_reply_receipt = (
-            pending_confirmed_reply_receipt
-        )
-        production_last_created_post = last_created_post
-        production_active_xai_context = active_xai_context
-        production_active_xai_call_attempt_index = (
-            active_xai_call_attempt_index
-        )
-    pending_quote = production_pending_quote
-    pending_meme = production_pending_meme
-    pending_mention = production_pending_mention
-    pending_qt = production_pending_qt
-    pending_confirmed_reply_receipt = (
-        production_pending_confirmed_reply_receipt
-    )
-    last_created_post = production_last_created_post
-    active_xai_context = production_active_xai_context
-    active_xai_call_attempt_index = production_active_xai_call_attempt_index
+    source_context = production_context
     current_source_record = None
 
     def correlated_quote_post_fields(
@@ -2876,11 +2815,11 @@ def analyse(
             "events": generated_image_spacing_events,
         },
         "resume_context": {
-            "active_xai_context": active_xai_context,
+            "active_xai_context": source_context.active_xai_context,
             "active_xai_call_attempt": (
-                dict(xai_call_attempts[active_xai_call_attempt_index])
-                if active_xai_call_attempt_index is not None
-                and xai_call_attempts[active_xai_call_attempt_index].get(
+                dict(xai_call_attempts[source_context.active_xai_call_attempt_index])
+                if source_context.active_xai_call_attempt_index is not None
+                and xai_call_attempts[source_context.active_xai_call_attempt_index].get(
                     "usage_observed"
                 )
                 is not True
@@ -2889,19 +2828,19 @@ def analyse(
             "pending_mention": (
                 {
                     key: value
-                    for key, value in pending_mention.items()
+                    for key, value in source_context.pending_mention.items()
                     if not key.startswith("_")
                 }
-                if pending_mention
+                if source_context.pending_mention
                 else None
             ),
             "pending_qt": (
                 {
                     key: value
-                    for key, value in pending_qt.items()
+                    for key, value in source_context.pending_qt.items()
                     if not key.startswith("_")
                 }
-                if pending_qt
+                if source_context.pending_qt
                 else None
             ),
         },

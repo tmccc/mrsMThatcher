@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from tests.helpers.reply_evaluation import legacy_reply_evaluator
+
 from datetime import datetime
 import inspect
 import json
@@ -35,7 +37,7 @@ def forbidden(*args, **kwargs):
 
 original_import = builtins.__import__
 def guarded_import(name, *args, **kwargs):
-    if name in {'mrsMThatcher2', 'requests', 'openai', 'single_call_reply', 'reply_evidence'} or name.startswith('mrs_bot_') and name != 'mrs_bot_normal_reply_cycle':
+    if name in {'mrsMThatcher2', 'requests', 'openai', 'single_call_reply', 'reply_evidence'} or name.startswith('mrs_bot_') and name not in {'mrs_bot_normal_reply_cycle', 'mrs_bot_reply_cycle_interfaces'}:
         forbidden()
     return original_import(name, *args, **kwargs)
 
@@ -63,14 +65,19 @@ def test_adapter_forwards_current_dependencies_arguments_results_and_errors(monk
     adapter = bot.maybe_reply_to_mentions
     public = inspect.signature(adapter).parameters
     dependencies = inspect.signature(cycle.maybe_reply_to_mentions).parameters.keys() - public.keys()
-    assert len(dependencies) == 88
+    assert {"config", "persistence", "delivery"} <= dependencies
     state, result = {}, object()
     owner = Mock(return_value=result)
     monkeypatch.setattr(cycle, "maybe_reply_to_mentions", owner)
     for options in ({}, {"_fresh_mention_ai_evaluations": 3, "_skip_hot_post_fetch": True}):
         current = {key: object() for key in dependencies}
         for key, value in current.items():
-            monkeypatch.setattr(bot, key, value)
+            if key == "config":
+                monkeypatch.setattr(bot._reply_cycle_interfaces, "NormalReplyConfig", Mock(return_value=value))
+            elif key in {"persistence", "delivery"}:
+                monkeypatch.setattr(bot, f"_reply_cycle_{key}", Mock(return_value=value))
+            else:
+                monkeypatch.setattr(bot, key, value)
         assert adapter(state, **options) is result
         args, kwargs = owner.call_args
         assert len(args) == 1 and args[0] is state
@@ -108,7 +115,7 @@ def _configure_cycle(monkeypatch):
         ), True),
     )
     monkeypatch.setattr(bot, "reply_media_context_for_candidate", Mock(return_value={}))
-    monkeypatch.setattr(bot, "generate_single_call_reply", Mock(side_effect=editorial_no_reply))
+    monkeypatch.setattr(bot, "evaluate_single_call_reply", legacy_reply_evaluator(Mock(side_effect=editorial_no_reply)))
 
 
 @pytest.mark.parametrize("initial_count,model_calls", [(2, 1), (2, 0), (4, 1)])
@@ -120,7 +127,7 @@ def test_backlog_continuation_uses_current_root_state_and_budget(monkeypatch, in
         editorial_no_reply(context, *args, evaluation_outcome=evaluation_outcome, **kwargs)
         evaluation_outcome["model_call_count"] = model_calls
 
-    monkeypatch.setattr(bot, "generate_single_call_reply", generate)
+    monkeypatch.setattr(bot, "evaluate_single_call_reply", legacy_reply_evaluator(generate))
     for _ in range(2):
         state = bot.default_state()
         queue_active_mention(state, mention(105, 205), base_since_id="99")
@@ -157,7 +164,7 @@ def test_backlog_continuation_uses_current_root_state_and_budget(monkeypatch, in
     bot.create_post.assert_not_called()
 
 
-@pytest.mark.parametrize("callback", ["recovery_comparison_account_replies", "pending_ai_reply"])
+@pytest.mark.parametrize("callback", ["recovery_comparison_account_replies", "recover_pending_ai_reply"])
 def test_draft_recovery_errors_propagate_before_generation(monkeypatch, callback):
     _configure_cycle(monkeypatch)
     state = bot.default_state()
@@ -178,7 +185,7 @@ def test_draft_recovery_errors_propagate_before_generation(monkeypatch, callback
     assert state.get("reply_evaluation_records", {}) == {}
     saved.assert_not_called()
     accounted.assert_not_called()
-    bot.generate_single_call_reply.assert_not_called()
+    bot.evaluate_single_call_reply.assert_not_called()
     bot.x_request.assert_not_called()
     bot.create_post.assert_not_called()
 
@@ -191,8 +198,8 @@ def test_receipt_preparation_and_confirmed_state_errors_are_not_transport_errors
     state = bot.default_state()
     queue_active_mention(state, mention(105, 205), base_since_id="99")
     monkeypatch.setattr(
-        bot, "generate_single_call_reply",
-        lambda context, *_args, **_kwargs: unit_approved_reply(context),
+        bot, "evaluate_single_call_reply",
+        legacy_reply_evaluator(lambda context, *_args, **_kwargs: unit_approved_reply(context)),
     )
     failure = RuntimeError("receipt boundary failed locally")
     callback = (
@@ -273,7 +280,7 @@ def test_mixed_quarantine_retirements_are_durable_before_later_context(
         assert context.call_count == 1
         assert context.call_args.args[0]["id"] == "108"
     assert state["daily_reply_count"] == 0
-    bot.generate_single_call_reply.assert_not_called()
+    bot.evaluate_single_call_reply.assert_not_called()
     bot.x_request.assert_not_called()
     bot.create_post.assert_not_called()
 
@@ -318,7 +325,7 @@ def test_native_context_and_generation_errors_keep_their_distinct_boundaries(mon
     state = bot.default_state()
     queue_active_mention(state, mention(105, 205), base_since_id="99")
     failure = RuntimeError("local evaluation failure")
-    name = "build_context_for_reply_ai" if boundary == "context" else "generate_single_call_reply"
+    name = "build_context_for_reply_ai" if boundary == "context" else "evaluate_single_call_reply"
     monkeypatch.setattr(bot, name, Mock(side_effect=failure))
     saved = Mock(wraps=bot.save_state)
     accounted = Mock(wraps=bot.record_api_error)
@@ -350,5 +357,5 @@ def test_clarification_refresh_failure_defers_without_losing_candidate(monkeypat
     assert bot.maybe_reply_to_mentions(state) == bot.NORMAL_CHECK_STATUS_API_ERROR
     assert "105" in state["mention_pending_candidates"]
     assert "105" in json.loads(bot.STATE_FILE.read_text())["mention_pending_candidates"]
-    bot.generate_single_call_reply.assert_not_called()
+    bot.evaluate_single_call_reply.assert_not_called()
     bot.create_post.assert_not_called()

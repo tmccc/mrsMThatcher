@@ -371,6 +371,6 @@ def test_quarantine_skip_batch_is_durable_across_real_state_reload(monkeypatch):
                and item["evidence_policy"] == bot.AUTHOR_EVALUATION_QUARANTINE_EVIDENCE_POLICY
                for item in loaded["reply_evaluation_records"].values())
     assert loaded["daily_reply_count"] == 0
-    bot.generate_single_call_reply.assert_not_called()
+    bot.evaluate_single_call_reply.assert_not_called()
     bot.x_request.assert_not_called()
     bot.create_post.assert_not_called()

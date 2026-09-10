@@ -3,7 +3,7 @@
 Root adapters supply current callbacks, settings, application classes and the
 requests object on each call. Explicit calls may fetch bounded native images,
 send the existing Responses request with its bounded retry policy, emit outcome
-and usage events, mutate the supplied evaluation outcome and account for provider
+and usage events, return the typed decision result and account for provider
 failures through the root callback. The actual reply pipeline, evidence lookup,
 draft/history helpers, cooldown persistence, terminal evaluation, posting and
 durable state authority remain in their existing locations.
@@ -334,17 +334,17 @@ def _is_openai_provider_health_failure(
 
 
 def _is_terminal_candidate_local_failure(
-    outcome: dict[str, object],
+    outcome: PipelineResult | Mapping[str, object],
     *,
     _TERMINAL_CANDIDATE_LOCAL_FAILURE_CATEGORIES: frozenset[str],
 ) -> bool:
     """Return whether one permanent local failure should retire its candidate."""
 
-    return (
-        outcome.get("status") == "operational_failure"
-        and outcome.get("error_category")
-        in _TERMINAL_CANDIDATE_LOCAL_FAILURE_CATEGORIES
-    )
+    status = outcome.get("status") if isinstance(outcome, Mapping) else outcome.status
+    if status != "operational_failure":
+        return False
+    category = outcome.get("error_category") if isinstance(outcome, Mapping) else outcome.error_category
+    return category in _TERMINAL_CANDIDATE_LOCAL_FAILURE_CATEGORIES
 
 
 def openai_responses_reply_call(
@@ -563,12 +563,11 @@ def _record_single_call_result(
         )
 
 
-def generate_single_call_reply(
+def evaluate_single_call_reply(
     context: dict[str, object],
     media_context: dict | None = None,
     *,
     state: dict,
-    evaluation_outcome: dict | None = None,
     collect_reply_images: Callable,
     RemoteOperationsPaused: type,
     ReplyMediaUnavailable: type,
@@ -589,8 +588,8 @@ def generate_single_call_reply(
     record_api_error: Callable,
     _openai_api_error: Callable,
     ValidatedReply: type,
-) -> str | None:
-    """Make one authoritative Sol decision and return only validated prose."""
+) -> PipelineResult:
+    """Return the authoritative decision, retaining local and provider dispositions."""
 
     lane = str(context.get("lane") or "")
     target_id = str(context.get("target_id") or "")
@@ -621,15 +620,6 @@ def generate_single_call_reply(
             supplied_image_count=0,
         )
         _record_single_call_result(result, lane=lane, target_id=target_id)
-        if evaluation_outcome is not None:
-            evaluation_outcome.update(
-                {
-                    "status": "operational_failure",
-                    "reason": result.reason,
-                    "error_category": result.error_category,
-                    "model_call_count": 0,
-                }
-            )
         log.warning(
             "%s reply target_id=%s lane=%s because material image "
             "collection failed: %s",
@@ -638,7 +628,7 @@ def generate_single_call_reply(
             lane,
             exc,
         )
-        return None
+        return result
 
     before_epoch = _reply_target_epoch(context)
     current_thread_post_ids = _reply_context_history_excluded_post_ids(context)
@@ -678,17 +668,6 @@ def generate_single_call_reply(
         visual_description=context.get("visual_description"),
     )
     _record_single_call_result(result, lane=lane, target_id=target_id)
-    if evaluation_outcome is not None:
-        evaluation_outcome.update(
-            {
-                "status": result.status,
-                "reason": result.reason,
-                "reason_code": result.reason_code,
-                "reply_kind": result.reply_kind,
-                "error_category": result.error_category,
-                "model_call_count": result.model_call_count,
-            }
-        )
     if result.status == "operational_failure":
         provider_health_failure = _is_openai_provider_health_failure(
             result.error_category
@@ -719,9 +698,9 @@ def generate_single_call_reply(
                 lane,
                 result.error_category or "uncategorised",
             )
-        return None
+        return result
     if result.status in {"disabled", "no_reply"}:
-        return None
+        return result
     if result.status != "reply" or not isinstance(result.reply, ValidatedReply):
         raise RuntimeError("single-call reply returned an impossible result")
-    return result.reply
+    return result

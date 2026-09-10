@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from tests.helpers.reply_evaluation import legacy_reply_evaluator
+
 import copy
 from datetime import datetime
 import inspect
@@ -33,7 +35,7 @@ def forbidden(*args, **kwargs):
 
 original_import = builtins.__import__
 def guarded_import(name, *args, **kwargs):
-    if name in {'mrsMThatcher2', 'requests', 'openai', 'single_call_reply', 'reply_evidence'} or name.startswith('mrs_bot_') and name != 'mrs_bot_quote_reply_cycle':
+    if name in {'mrsMThatcher2', 'requests', 'openai', 'single_call_reply', 'reply_evidence'} or name.startswith('mrs_bot_') and name not in {'mrs_bot_quote_reply_cycle', 'mrs_bot_reply_cycle_interfaces'}:
         forbidden()
     return original_import(name, *args, **kwargs)
 
@@ -65,13 +67,16 @@ def test_adapters_forward_current_dependencies_arguments_results_and_errors(monk
         "mark_quote_tweet_skipped": 1,
         "mark_quote_tweet_replied": 2,
         "mark_quote_spam_author": 2,
-        "maybe_reply_to_quote_tweets": 78,
+        "maybe_reply_to_quote_tweets": None,
     }
     for name, count in names.items():
         adapter = getattr(bot, name)
         public = inspect.signature(adapter).parameters
         dependencies = inspect.signature(getattr(cycle, name)).parameters.keys() - public.keys()
-        assert len(dependencies) == count
+        if count is None:
+            assert {"config", "persistence", "delivery"} <= dependencies
+        else:
+            assert len(dependencies) == count
         args = tuple(object() for _ in public)
         result = object()
         owner = Mock(return_value=result)
@@ -80,7 +85,12 @@ def test_adapters_forward_current_dependencies_arguments_results_and_errors(monk
             for _ in range(2):
                 current = {key: object() for key in dependencies}
                 for key, value in current.items():
-                    patch.setattr(bot, key, value)
+                    if key == "config":
+                        patch.setattr(bot._reply_cycle_interfaces, "QuoteReplyConfig", Mock(return_value=value))
+                    elif key in {"persistence", "delivery"}:
+                        patch.setattr(bot, f"_reply_cycle_{key}", Mock(return_value=value))
+                    else:
+                        patch.setattr(bot, key, value)
                 assert adapter(*args) is result, name
                 actual_args, actual_kwargs = owner.call_args
                 assert len(actual_args) == len(args)
@@ -313,7 +323,7 @@ def test_zero_call_failures_consume_quote_candidate_limit_in_numeric_order(monke
                                   reason="unusable_image", model_call_count=0)
 
     generate = Mock(side_effect=reject)
-    monkeypatch.setattr(bot, "generate_single_call_reply", generate)
+    monkeypatch.setattr(bot, "evaluate_single_call_reply", legacy_reply_evaluator(generate))
     assert bot.maybe_reply_to_quote_tweets(state) == bot.QUOTE_CHECK_STATUS_CHECKED
     assert [c["target_id"] for c in contexts] == ["9", "20"]
     assert all(item is bot.reply_media_context_for_candidate.return_value for item in media)
@@ -340,11 +350,11 @@ def test_reused_draft_keeps_context_references_durability_and_pre_send_availabil
     trace = Mock()
     for name in ("cache_tweet", "save_state", "build_quote_tweet_reply_context",
                  "reply_evidence_repository", "recovery_comparison_account_replies",
-                 "pending_ai_reply", "store_pending_ai_reply", "bind_conversational_reply_attempt_time"):
+                 "recover_pending_ai_reply", "store_pending_ai_reply", "bind_conversational_reply_attempt_time"):
         callback = Mock(wraps=getattr(bot, name))
         trace.attach_mock(callback, name)
         monkeypatch.setattr(bot, name, callback)
-    monkeypatch.setattr(bot, "generate_single_call_reply", Mock(side_effect=AssertionError("draft must be reused")))
+    monkeypatch.setattr(bot, "evaluate_single_call_reply", legacy_reply_evaluator(Mock(side_effect=AssertionError("draft must be reused"))))
 
     def unavailable(target_id):
         assert target_id == "910"
@@ -357,14 +367,14 @@ def test_reused_draft_keeps_context_references_durability_and_pre_send_availabil
     assert bot.maybe_reply_to_quote_tweets(state) == bot.QUOTE_CHECK_STATUS_CHECKED
     names = [c[0] for c in trace.mock_calls]
     assert names[:4] == ["cache_tweet", "save_state", "build_quote_tweet_reply_context", "reply_evidence_repository"]
-    assert names.index("recovery_comparison_account_replies") < names.index("pending_ai_reply")
+    assert names.index("recovery_comparison_account_replies") < names.index("recover_pending_ai_reply")
     store_index = names.index("store_pending_ai_reply")
     send_names = [name for name in names[store_index:] if name != "reply_evidence_repository"]
     assert send_names[:4] == [
         "store_pending_ai_reply", "save_state", "bind_conversational_reply_attempt_time", "available",
     ]
     assert [c.kwargs for c in trace.save_state.call_args_list] == [{}, {"durable": True}, {"durable": True}]
-    live_context = trace.pending_ai_reply.call_args.kwargs["context"]
+    live_context = trace.recover_pending_ai_reply.call_args.kwargs["context"]
     assert trace.recovery_comparison_account_replies.call_args.kwargs["context"] is live_context
     assert trace.store_pending_ai_reply.call_args.kwargs["context"] is live_context
     template = trace.bind_conversational_reply_attempt_time.call_args.args[0]
@@ -373,7 +383,7 @@ def test_reused_draft_keeps_context_references_durability_and_pre_send_availabil
     assert template["ai_reply_draft"] is not template["reply_text"].draft_record
     assert "_prepared_media_context" not in live_context
     assert bot.reply_media_context_for_candidate.call_count == 1
-    bot.generate_single_call_reply.assert_not_called()
+    bot.evaluate_single_call_reply.assert_not_called()
     bot.create_post.assert_not_called()
     assert not state.get("pending_ai_reply_drafts")
     assert state["daily_reply_count"] == state["daily_quote_reply_count"] == 0
@@ -400,7 +410,7 @@ def test_lookup_failure_continues_only_when_fetching_the_original(monkeypatch, b
     save, health, generate = Mock(), Mock(), Mock()
     monkeypatch.setattr(bot, "save_state", save)
     monkeypatch.setattr(bot, "record_api_error", health)
-    monkeypatch.setattr(bot, "generate_single_call_reply", generate)
+    monkeypatch.setattr(bot, "evaluate_single_call_reply", legacy_reply_evaluator(generate))
 
     assert bot.maybe_reply_to_quote_tweets(state) == bot.QUOTE_CHECK_STATUS_CHECKED
     expected_originals = ["900", "901"] if boundary == "original" else []
@@ -480,7 +490,7 @@ def test_native_context_preparation_failures_escape_without_retirement(monkeypat
     save, retire, generate = Mock(), Mock(), Mock()
     monkeypatch.setattr(bot, "save_state", save)
     monkeypatch.setattr(bot, "record_terminal_reply_evaluation", retire)
-    monkeypatch.setattr(bot, "generate_single_call_reply", generate)
+    monkeypatch.setattr(bot, "evaluate_single_call_reply", legacy_reply_evaluator(generate))
 
     with pytest.raises(ValueError) as caught:
         bot.maybe_reply_to_quote_tweets(state)
@@ -521,7 +531,7 @@ def test_context_rejection_is_free_but_evaluation_budget_spans_original_posts(mo
                                   reason="unusable_image", model_call_count=0)
 
     monkeypatch.setattr(bot, "build_quote_tweet_reply_context", context_for_candidate)
-    monkeypatch.setattr(bot, "generate_single_call_reply", zero_call_failure)
+    monkeypatch.setattr(bot, "evaluate_single_call_reply", legacy_reply_evaluator(zero_call_failure))
     save = Mock(wraps=bot.save_state)
     monkeypatch.setattr(bot, "save_state", save)
 
@@ -544,7 +554,7 @@ def test_context_rejection_is_free_but_evaluation_budget_spans_original_posts(mo
 
 @pytest.mark.parametrize("boundary", [
     "reply_evidence_repository", "reply_media_context_for_candidate",
-    "recovery_comparison_account_replies", "pending_ai_reply",
+    "recovery_comparison_account_replies", "recover_pending_ai_reply",
 ])
 def test_pre_generation_failures_keep_their_own_exception_boundary(monkeypatch, boundary):
     original, quotes = _configure_cycle(monkeypatch)
@@ -558,7 +568,7 @@ def test_pre_generation_failures_keep_their_own_exception_boundary(monkeypatch, 
     save, health, generate = Mock(), Mock(), Mock()
     monkeypatch.setattr(bot, "save_state", save)
     monkeypatch.setattr(bot, "record_api_error", health)
-    monkeypatch.setattr(bot, "generate_single_call_reply", generate)
+    monkeypatch.setattr(bot, "evaluate_single_call_reply", legacy_reply_evaluator(generate))
     state = bot.default_state()
 
     if evidence_failure:

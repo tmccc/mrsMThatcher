@@ -287,7 +287,8 @@ def test_lane_writers_keep_ordered_publication_branches(monkeypatch, prefix, lan
         assert trace.confirmed_receipt_matches_main_attempt.call_args.args[0] is receipt
         assert trace.confirmed_receipt_matches_main_attempt.call_args.args[1] is stored
     publication = "durable_create_receipt_json" if branch == "absent" else "atomic_write_json"
-    assert _steps(trace) == expected + [publication, "log.warning"]
+    expected += [publication, "log.warning"]
+    assert _steps(trace) == expected
     assert trace.receipt_namespace_entry_exists.call_args_list == (
         [call(opposite)] if branch == "pending" else [call(opposite), call(path)]
     )
@@ -295,6 +296,169 @@ def test_lane_writers_keep_ordered_publication_branches(monkeypatch, prefix, lan
     published = getattr(trace, publication).call_args
     assert published.args[0] is path and published.args[1] is receipt
     assert published.kwargs == ({} if branch == "absent" else {"durable": True})
+    messages = {
+        "pending": (
+            f"Wrote confirmed {prefix} pending-schedule receipt post_id=%s path=%s",
+            "confirmed", path,
+        ),
+        "finalize": (
+            f"Finalised {prefix}-post pending schedule post_id=%s path=%s",
+            "confirmed", path,
+        ),
+        "legacy": (
+            f"Promoted {prefix}-post sending receipt to confirmed attempt_id=%s "
+            "post_id=%s path=%s",
+            None, "confirmed", path,
+        ),
+        "absent": (
+            f"Wrote confirmed {prefix}-post receipt pending local reconciliation: %s",
+            path,
+        ),
+    }
+    trace.log.warning.assert_called_once_with(*messages[branch])
+
+    # Only exclusive creation translates FileExistsError. Validators, loaders,
+    # matching/materialization and replacement retain their native failures.
+    boundaries = ["confirmed_pending_schedule_receipt_is_semantically_valid"]
+    if branch != "pending":
+        boundaries += [semantic]
+    if branch != "absent":
+        boundaries += [loader]
+    if branch == "finalize":
+        boundaries += [materializer]
+    if branch == "legacy":
+        boundaries += ["confirmed_receipt_matches_main_attempt"]
+    if branch != "absent":
+        boundaries += ["atomic_write_json"]
+    for boundary in boundaries:
+        trace.reset_mock()
+        trace.receipt_namespace_entry_exists.side_effect = [False, branch != "absent"]
+        failure = FileExistsError(boundary)
+        getattr(trace, boundary).side_effect = failure
+        with pytest.raises(FileExistsError) as caught:
+            getattr(bot, f"write_{prefix}_post_receipt")(receipt)
+        assert caught.value is failure
+        assert _steps(trace) == expected[:expected.index(boundary) + 1]
+        trace.log.warning.assert_not_called()
+        getattr(trace, boundary).side_effect = None
+
+
+@pytest.mark.parametrize(
+    "prefix,schema_version,must_stage",
+    [
+        ("regular", 3, False),
+        ("regular", 4, True),
+        ("regular", 5, True),
+        ("regular", 6, True),
+        ("meme", 2, False),
+        ("meme", 3, True),
+        ("meme", 4, True),
+        ("meme", 5, True),
+        ("meme", 6, False),
+    ],
+)
+def test_lane_current_schema_gate_precedes_legacy_matching(
+    monkeypatch, prefix, schema_version, must_stage,
+):
+    receipt = {"post_id": "confirmed"}
+    attempt = {"schema_version": schema_version}
+    loader, semantic = (
+        f"load_{prefix}_post_receipt", f"{prefix}_post_receipt_is_semantically_valid",
+    )
+    trace = _callbacks(
+        monkeypatch, remote_receipt_retirement_is_blocking=False,
+        receipt_namespace_entry_exists=False,
+        confirmed_pending_schedule_receipt_is_semantically_valid=False,
+        confirmed_receipt_matches_main_attempt=True,
+        atomic_write_json=None, durable_create_receipt_json=None,
+        **{loader: ("sending", attempt), semantic: True},
+    )
+    trace.receipt_namespace_entry_exists.side_effect = [False, True]
+    writer = getattr(bot, f"write_{prefix}_post_receipt")
+    expected = [
+        "remote_receipt_retirement_is_blocking", "receipt_namespace_entry_exists",
+        "confirmed_pending_schedule_receipt_is_semantically_valid", semantic,
+        "receipt_namespace_entry_exists", loader,
+    ]
+    if must_stage:
+        own_error = getattr(bot, f"Unresolved{prefix.title()}PostReceipt")
+        with pytest.raises(own_error, match="durable confirmed pending-schedule receipt"):
+            writer(receipt)
+        assert _steps(trace) == expected
+    else:
+        writer(receipt)
+        assert _steps(trace) == expected + [
+            "confirmed_receipt_matches_main_attempt", "atomic_write_json", "log.warning",
+        ]
+        trace.confirmed_receipt_matches_main_attempt.assert_called_once_with(receipt, attempt)
+        trace.atomic_write_json.assert_called_once_with(
+            getattr(bot, f"{prefix.upper()}_POST_RECEIPT_FILE"), receipt, durable=True,
+        )
+    trace.durable_create_receipt_json.assert_not_called()
+
+
+@pytest.mark.parametrize("prefix", ["regular", "meme"])
+@pytest.mark.parametrize(
+    "scenario,message",
+    [
+        ("pending_changed", "changed .* main-post attempt"),
+        ("pending_wrong_state", "changed .* main-post attempt"),
+        ("invalid_receipt", "failed semantic validation"),
+        ("finalize_mismatch", "does not match the durable confirmed .* plan"),
+        ("empty_pending", "unresolved .*post receipt"),
+        ("legacy_mismatch", "unresolved .*post receipt"),
+    ],
+)
+def test_lane_writers_reject_changed_receipts_before_publication(
+    monkeypatch, prefix, scenario, message,
+):
+    source = {"schema_version": 3 if prefix == "regular" else 2}
+    receipt = {"source_attempt": source, "post_id": "confirmed"}
+    stored = {
+        "pending_changed": ("sending", {**source, "attempt_id": "changed"}),
+        "pending_wrong_state": ("attempting", dict(source)),
+        "invalid_receipt": ("sending", dict(source)),
+        "finalize_mismatch": ("pending_schedule", {"durable plan": []}),
+        "empty_pending": ("pending_schedule", None),
+        "legacy_mismatch": ("sending", dict(source)),
+    }[scenario]
+    pending = scenario in {"pending_changed", "pending_wrong_state"}
+    loader, semantic, materializer = (
+        f"load_{prefix}_post_receipt", f"{prefix}_post_receipt_is_semantically_valid",
+        f"materialize_bound_{prefix}_schedule_receipt",
+    )
+    trace = _callbacks(
+        monkeypatch, remote_receipt_retirement_is_blocking=False,
+        receipt_namespace_entry_exists=False,
+        confirmed_pending_schedule_receipt_is_semantically_valid=pending,
+        confirmed_receipt_matches_main_attempt=False,
+        atomic_write_json=None, durable_create_receipt_json=None,
+        **{loader: stored, semantic: scenario != "invalid_receipt",
+           materializer: {"post_id": "changed"}},
+    )
+    trace.receipt_namespace_entry_exists.side_effect = [False, True]
+    own_error = getattr(bot, f"Unresolved{prefix.title()}PostReceipt")
+    error = RuntimeError if scenario == "invalid_receipt" else own_error
+    with pytest.raises(error, match=message):
+        getattr(bot, f"write_{prefix}_post_receipt")(receipt)
+    expected = [
+        "remote_receipt_retirement_is_blocking", "receipt_namespace_entry_exists",
+        "confirmed_pending_schedule_receipt_is_semantically_valid",
+    ]
+    if not pending:
+        expected += [semantic]
+        if scenario != "invalid_receipt":
+            expected += ["receipt_namespace_entry_exists"]
+    if scenario != "invalid_receipt":
+        expected += [loader]
+    if scenario == "finalize_mismatch":
+        expected += [materializer]
+    if scenario == "legacy_mismatch":
+        expected += ["confirmed_receipt_matches_main_attempt"]
+    assert _steps(trace) == expected
+    trace.atomic_write_json.assert_not_called()
+    trace.durable_create_receipt_json.assert_not_called()
+    trace.log.warning.assert_not_called()
 
 
 @pytest.mark.parametrize("prefix", ["regular", "meme"])

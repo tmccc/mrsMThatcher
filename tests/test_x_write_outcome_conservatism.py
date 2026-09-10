@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from tests.helpers.reply_evaluation import legacy_reply_evaluator
+
 import base64
 import hashlib
 import inspect
@@ -2126,7 +2128,7 @@ def _configure_approved_mention_candidate(
         lambda *_args, **_kwargs: {},
     )
     monkeypatch.setattr(bot, "reply_evidence_repository", lambda: UNIT_REPLY_REPOSITORY)
-    monkeypatch.setattr(bot, "generate_single_call_reply", approved)
+    monkeypatch.setattr(bot, "evaluate_single_call_reply", legacy_reply_evaluator(approved))
     state["last_reply_epoch"] = 0
     return mention
 
@@ -2211,7 +2213,7 @@ def _configure_approved_quote_candidate(
         lambda *_args, **_kwargs: {},
     )
     monkeypatch.setattr(bot, "reply_evidence_repository", lambda: UNIT_REPLY_REPOSITORY)
-    monkeypatch.setattr(bot, "generate_single_call_reply", approved)
+    monkeypatch.setattr(bot, "evaluate_single_call_reply", legacy_reply_evaluator(approved))
     return quote_post
 
 
@@ -3581,10 +3583,10 @@ def test_deleted_mention_reply_is_terminal_without_transport_barriers_or_quota(
     )
     monkeypatch.setattr(
         bot,
-        "generate_single_call_reply",
-        lambda *_args, **_kwargs: pytest.fail(
+        "evaluate_single_call_reply",
+        legacy_reply_evaluator(lambda *_args, **_kwargs: pytest.fail(
             "terminal target must not call a provider after restart"
-        ),
+        )),
     )
     assert (
         bot.maybe_reply_to_mentions(restarted)

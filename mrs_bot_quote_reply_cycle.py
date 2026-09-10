@@ -1,7 +1,7 @@
 """Own the quote-tweet reply cycle, eligibility, context and lane markers.
 
-Seven root adapters supply current callbacks, settings, logger, modules and
-application class/exception authority on each invocation; the dependency-free
+The cycle receives typed settings, persistence and delivery boundaries; helper
+adapters retain current policy and application authority. The dependency-free
 profile formatter is a root alias. Private helpers separate lookup, eligibility,
 context, evaluation and durable delivery. The cycle alone owns the shared
 candidate budget and preserves context/media references and receipt recovery.
@@ -9,17 +9,26 @@ candidate budget and preserves context/media references and receipt recovery.
 Watch-list/own-post lookup and quote discovery, shared context/media/evidence,
 counters, pipeline, persistence, reconciliation and delivery remain in their
 existing locations. Explicit calls may read providers, generate, save caller
-state and publish through supplied callbacks. Standard-library-only import does
+state and publish through supplied callbacks. Import of the standard library and inert interfaces does
 no runtime I/O and retains no callbacks, configuration, clients or state.
 """
 
 from __future__ import annotations
 
+import copy
 from collections.abc import Callable
 from dataclasses import dataclass
 from logging import Logger
-from pathlib import Path
 from types import ModuleType
+from typing import TYPE_CHECKING
+
+from mrs_bot_reply_cycle_interfaces import (
+    EvaluateReply, QuoteReplyConfig,
+    ReplyCycleDelivery, ReplyCyclePersistence,
+)
+
+if TYPE_CHECKING:
+    from single_call_reply import PipelineResult
 
 
 def quote_tweet_is_old_enough(
@@ -266,20 +275,12 @@ class _QuoteCandidateStop:
 def maybe_reply_to_quote_tweets(
     state: dict,
     *,
+    delivery: ReplyCycleDelivery,
     AmbiguousRemotePostOutcome: type[Exception],
     ApiError: type[Exception],
-    CONFIRMED_REPLY_RECEIPT_FILE: Path,
     ConfirmedReplyLocalPersistenceError: type[Exception],
     ContextValidationError: type[Exception],
-    ENABLE_AUTO_REPLIES: bool,
-    ENABLE_QUOTE_TWEET_CHECKS: bool,
-    MARK_AI_REPLIES_AS_AI: bool,
-    MAX_AUTO_REPLIES_PER_DAY: int,
-    MAX_QUOTE_POSTS_PER_CHECK: int,
-    MAX_QUOTE_REPLIES_PER_DAY: int,
-    MAX_REPLIES_PER_AUTHOR_PER_DAY: int,
-    MIN_SECONDS_BETWEEN_REPLIES: int,
-    MY_USER_ID: str,
+    config: QuoteReplyConfig,
     PipelineResult: type,
     ProvedRemotePostNonSuccess: type[Exception],
     QUOTE_CHECK_STATUS_CHECKED: str,
@@ -298,50 +299,36 @@ def maybe_reply_to_quote_tweets(
     _record_single_call_result: Callable,
     api_error_is_permanent_target_failure: Callable,
     api_error_is_reply_not_allowed: Callable,
-    apply_confirmed_reply_receipt: Callable,
-    bind_conversational_reply_attempt_time: Callable,
-    block_if_ambiguous_remote_post: Callable,
     build_quote_lookup_post_ids: Callable,
     build_quote_tweet_reply_context: Callable,
     cache_tweet: Callable,
     clean_text_for_reply_context: Callable,
-    clear_pending_ai_reply: Callable,
+    persistence: ReplyCyclePersistence,
     conversational_reply_pipeline_enabled: Callable,
-    copy: ModuleType,
     daily_author_reply_count: Callable,
     daily_author_reply_counts: Callable,
-    generate_single_call_reply: Callable,
+    evaluate_single_call_reply: EvaluateReply,
     get_quote_tweets_for_posts: Callable,
     get_tweet_by_id_cached: Callable,
     in_api_cooldown: Callable,
     is_probably_spam_or_not_worth_replying: Callable,
     lane_paused: Callable,
-    load_confirmed_reply_receipt: Callable,
     log: Logger,
     log_ai_reply_posting_outcome: Callable,
     log_event: Callable,
     mark_quote_spam_author: Callable,
     mark_quote_tweet_skipped: Callable,
     now_epoch: Callable,
-    pending_ai_reply: Callable,
-    post_conversational_reply_with_durable_identity: Callable,
     quote_author_profile_text: Callable,
     quote_tweet_directly_quotes_original: Callable,
     quote_tweet_is_old_enough: Callable,
-    reconcile_confirmed_reply_receipt: Callable,
     record_api_error: Callable,
     record_terminal_reply_evaluation: Callable,
     recovery_comparison_account_replies: Callable,
-    remove_confirmed_reply_receipt: Callable,
     reply_evidence_repository: Callable,
     reply_media_context_for_candidate: Callable,
-    reply_target_is_available_immediately_before_send: Callable,
     reset_daily_quote_reply_count_if_needed: Callable,
     reset_daily_reply_count_if_needed: Callable,
-    retire_lane_transport_journal_if_present: Callable,
-    retire_proved_rejected_conversational_reply_receipt: Callable,
-    save_state: Callable,
-    store_pending_ai_reply: Callable,
     terminal_reply_evaluation: Callable,
     valid_tweets_sorted_by_id: Callable,
 ) -> str:
@@ -351,18 +338,18 @@ def maybe_reply_to_quote_tweets(
     # journal guard rejects every new remote lane.
     reset_daily_reply_count_if_needed(state)
     reset_daily_quote_reply_count_if_needed(state)
-    prior_reply_status, _prior_reply = load_confirmed_reply_receipt()
-    if prior_reply_status == "valid" and reconcile_confirmed_reply_receipt(state):
+    prior_reply_status, _prior_reply = delivery.load_receipt()
+    if prior_reply_status == "valid" and delivery.reconcile_receipt(state):
         log.warning(
             "Reconciled confirmed reply receipt before checking new quote-tweet candidates"
         )
-    block_if_ambiguous_remote_post()
+    delivery.block_ambiguous()
 
-    if not ENABLE_QUOTE_TWEET_CHECKS:
+    if not config.quote_checks_enabled:
         log.info("Quote-tweet checks disabled")
         return QUOTE_CHECK_STATUS_DISABLED
 
-    if not ENABLE_AUTO_REPLIES:
+    if not config.enabled:
         log.info("Auto replies disabled; skipping quote-tweet checks")
         return QUOTE_CHECK_STATUS_DISABLED
 
@@ -382,18 +369,18 @@ def maybe_reply_to_quote_tweets(
         log.info("Skipping quote-tweet check due to API cooldown")
         return QUOTE_CHECK_STATUS_SKIPPED_COOLDOWN
 
-    if int(state.get("daily_reply_count", 0) or 0) >= MAX_AUTO_REPLIES_PER_DAY:
+    if int(state.get("daily_reply_count", 0) or 0) >= config.maximum_daily_replies:
         log.info("Skipping quote-tweet check: total daily reply cap reached")
         return QUOTE_CHECK_STATUS_SKIPPED_CAP
 
-    if int(state.get("daily_quote_reply_count", 0) or 0) >= MAX_QUOTE_REPLIES_PER_DAY:
+    if int(state.get("daily_quote_reply_count", 0) or 0) >= config.maximum_daily_quote_replies:
         log.info("Skipping quote-tweet check: daily quote-reply cap reached")
         return QUOTE_CHECK_STATUS_SKIPPED_CAP
 
     current = now_epoch()
     seconds_since_last_reply = current - int(state.get("last_reply_epoch", 0) or 0)
 
-    if seconds_since_last_reply < MIN_SECONDS_BETWEEN_REPLIES:
+    if seconds_since_last_reply < config.minimum_reply_spacing:
         log.info(
             "Skipping quote-tweet check: minimum interval between replies not reached. seconds_since=%s",
             seconds_since_last_reply,
@@ -418,11 +405,11 @@ def maybe_reply_to_quote_tweets(
     except ApiError as exc:
         log.exception("Failed to search quote tweets for watched posts")
         record_api_error(state, exc, "x", scope="quote")
-        save_state(state)
+        persistence.save(state)
         return QUOTE_CHECK_STATUS_CHECKED
     except Exception:
         log.exception("Unexpected failure searching quote tweets for watched posts")
-        save_state(state)
+        persistence.save(state)
         return QUOTE_CHECK_STATUS_CHECKED
 
     # Only this counter spans originals; charge after context/media extraction,
@@ -431,7 +418,7 @@ def maybe_reply_to_quote_tweets(
     processed_candidates = 0
 
     for original_post_id in own_post_ids_for_quote_lookup:
-        if processed_candidates >= MAX_QUOTE_POSTS_PER_CHECK:
+        if processed_candidates >= config.maximum_candidates:
             break
         quote_tweets = quotes_by_post.get(original_post_id, [])
         if not quote_tweets:
@@ -448,7 +435,7 @@ def maybe_reply_to_quote_tweets(
             in_api_cooldown=in_api_cooldown,
             log=log,
             record_api_error=record_api_error,
-            save_state=save_state,
+            persistence=persistence,
         )
         if isinstance(lookup, _QuoteCandidateStop):
             if lookup.status is not None:
@@ -457,14 +444,14 @@ def maybe_reply_to_quote_tweets(
         original_tweet, quote_tweets = lookup
 
         for quote_tweet in valid_tweets_sorted_by_id(quote_tweets, context="quote-tweet candidate"):
-            if processed_candidates >= MAX_QUOTE_POSTS_PER_CHECK:
+            if processed_candidates >= config.maximum_candidates:
                 break
             if in_api_cooldown(state, scope="openai"):
                 log.info(
                     "Stopping quote-tweet candidate iteration because the "
                     "OpenAI cooldown became active"
                 )
-                save_state(state, durable=True)
+                persistence.save(state, durable=True)
                 return QUOTE_CHECK_STATUS_SKIPPED_COOLDOWN
 
             candidate = _QuoteCandidate(
@@ -482,12 +469,12 @@ def maybe_reply_to_quote_tweets(
                 skipped_quote_ids,
                 quote_spam_author_ids,
                 replied_to_ids,
-                MY_USER_ID=MY_USER_ID,
+                config=config,
                 log=log,
                 mark_quote_tweet_skipped=mark_quote_tweet_skipped,
                 quote_tweet_directly_quotes_original=quote_tweet_directly_quotes_original,
                 quote_tweet_is_old_enough=quote_tweet_is_old_enough,
-                save_state=save_state,
+                persistence=persistence,
                 terminal_reply_evaluation=terminal_reply_evaluation,
             ):
                 continue
@@ -497,8 +484,7 @@ def maybe_reply_to_quote_tweets(
                 original_tweet,
                 state,
                 quote_spam_author_ids,
-                MAX_REPLIES_PER_AUTHOR_PER_DAY=MAX_REPLIES_PER_AUTHOR_PER_DAY,
-                MY_USER_ID=MY_USER_ID,
+                config=config,
                 cache_tweet=cache_tweet,
                 clean_text_for_reply_context=clean_text_for_reply_context,
                 daily_author_reply_count=daily_author_reply_count,
@@ -508,7 +494,7 @@ def maybe_reply_to_quote_tweets(
                 mark_quote_spam_author=mark_quote_spam_author,
                 mark_quote_tweet_skipped=mark_quote_tweet_skipped,
                 quote_author_profile_text=quote_author_profile_text,
-                save_state=save_state,
+                persistence=persistence,
             ):
                 continue
 
@@ -529,7 +515,7 @@ def maybe_reply_to_quote_tweets(
                 mark_quote_tweet_skipped=mark_quote_tweet_skipped,
                 record_api_error=record_api_error,
                 record_terminal_reply_evaluation=record_terminal_reply_evaluation,
-                save_state=save_state,
+                persistence=persistence,
             )
             if isinstance(prepared, _QuoteCandidateStop):
                 if prepared.status is not None:
@@ -548,24 +534,21 @@ def maybe_reply_to_quote_tweets(
                 QUOTE_CHECK_STATUS_CHECKED=QUOTE_CHECK_STATUS_CHECKED,
                 RemoteOperationsPaused=RemoteOperationsPaused,
                 ReplyEvidenceUnavailable=ReplyEvidenceUnavailable,
-                _is_terminal_candidate_local_failure=_is_terminal_candidate_local_failure,
-                generate_single_call_reply=generate_single_call_reply,
+                    evaluate_single_call_reply=evaluate_single_call_reply,
                 log=log,
                 log_event=log_event,
-                pending_ai_reply=pending_ai_reply,
+                persistence=persistence,
                 record_api_error=record_api_error,
                 recovery_comparison_account_replies=recovery_comparison_account_replies,
                 reply_evidence_repository=reply_evidence_repository,
                 reply_media_context_for_candidate=reply_media_context_for_candidate,
-                save_state=save_state,
             )
             if isinstance(evaluation, _QuoteCandidateStop):
                 return evaluation.status
-            reply_text, evaluation_outcome = evaluation
+            reply_text = evaluation.reply
             decision = _resolve_reply_evaluation(
                 candidate.quote_id,
-                reply_text,
-                evaluation_outcome,
+                evaluation,
                 state,
                 QUOTE_CHECK_STATUS_CHECKED=QUOTE_CHECK_STATUS_CHECKED,
                 ValidatedReply=ValidatedReply,
@@ -573,7 +556,7 @@ def maybe_reply_to_quote_tweets(
                 log=log,
                 mark_quote_tweet_skipped=mark_quote_tweet_skipped,
                 record_terminal_reply_evaluation=record_terminal_reply_evaluation,
-                save_state=save_state,
+                persistence=persistence,
             )
             if decision is not None:
                 if decision.status is not None:
@@ -589,12 +572,10 @@ def maybe_reply_to_quote_tweets(
                 QUOTE_CHECK_STATUS_CHECKED=QUOTE_CHECK_STATUS_CHECKED,
                 SINGLE_CALL_STRATEGY_VERSION=SINGLE_CALL_STRATEGY_VERSION,
                 _log_validated_single_call_reply=_log_validated_single_call_reply,
-                bind_conversational_reply_attempt_time=bind_conversational_reply_attempt_time,
-                copy=copy,
+                delivery=delivery,
                 log=log,
                 log_event=log_event,
-                save_state=save_state,
-                store_pending_ai_reply=store_pending_ai_reply,
+                persistence=persistence,
             )
             if isinstance(receipt_template, _QuoteCandidateStop):
                 return receipt_template.status
@@ -606,22 +587,19 @@ def maybe_reply_to_quote_tweets(
                 AmbiguousRemotePostOutcome=AmbiguousRemotePostOutcome,
                 ApiError=ApiError,
                 ConfirmedReplyLocalPersistenceError=ConfirmedReplyLocalPersistenceError,
-                MARK_AI_REPLIES_AS_AI=MARK_AI_REPLIES_AS_AI,
+                config=config,
                 ProvedRemotePostNonSuccess=ProvedRemotePostNonSuccess,
                 QUOTE_CHECK_STATUS_CHECKED=QUOTE_CHECK_STATUS_CHECKED,
                 UnrecoverableConfirmedReplyPersistenceError=UnrecoverableConfirmedReplyPersistenceError,
                 api_error_is_reply_not_allowed=api_error_is_reply_not_allowed,
-                clear_pending_ai_reply=clear_pending_ai_reply,
+                persistence=persistence,
                 log=log,
                 log_ai_reply_posting_outcome=log_ai_reply_posting_outcome,
                 log_event=log_event,
                 mark_quote_tweet_skipped=mark_quote_tweet_skipped,
-                post_conversational_reply_with_durable_identity=post_conversational_reply_with_durable_identity,
+                delivery=delivery,
                 record_api_error=record_api_error,
                 record_terminal_reply_evaluation=record_terminal_reply_evaluation,
-                reply_target_is_available_immediately_before_send=reply_target_is_available_immediately_before_send,
-                retire_proved_rejected_conversational_reply_receipt=retire_proved_rejected_conversational_reply_receipt,
-                save_state=save_state,
             )
             if isinstance(receipt, _QuoteCandidateStop):
                 return receipt.status
@@ -630,18 +608,16 @@ def maybe_reply_to_quote_tweets(
                 original_post_id,
                 receipt,
                 state,
-                CONFIRMED_REPLY_RECEIPT_FILE=CONFIRMED_REPLY_RECEIPT_FILE,
-                ConfirmedReplyLocalPersistenceError=ConfirmedReplyLocalPersistenceError,
+                delivery=delivery,
+
+
                 QUOTE_CHECK_STATUS_POSTED=QUOTE_CHECK_STATUS_POSTED,
-                apply_confirmed_reply_receipt=apply_confirmed_reply_receipt,
+
                 log=log,
                 log_event=log_event,
-                remove_confirmed_reply_receipt=remove_confirmed_reply_receipt,
-                retire_lane_transport_journal_if_present=retire_lane_transport_journal_if_present,
-                save_state=save_state,
             )
 
-    save_state(state)
+    persistence.save(state)
     log.info("Quote-tweet reply check finished with no reply generated/posted")
     return QUOTE_CHECK_STATUS_CHECKED
 
@@ -658,7 +634,7 @@ def _lookup_quote_candidates(
     in_api_cooldown: Callable,
     log: Logger,
     record_api_error: Callable,
-    save_state: Callable,
+    persistence: ReplyCyclePersistence,
 ) -> tuple[dict, list] | _QuoteCandidateStop:
     """Fetch context for an original with discovered quotes, preserving failure routing."""
     try:
@@ -669,13 +645,13 @@ def _lookup_quote_candidates(
             return _QuoteCandidateStop()
         log.exception("Failed to fetch original own post %s", original_post_id)
         record_api_error(state, e, "x", scope="quote")
-        save_state(state)
+        persistence.save(state)
         if in_api_cooldown(state, scope="quote"):
             return _QuoteCandidateStop(QUOTE_CHECK_STATUS_CHECKED)
         return _QuoteCandidateStop()
     except Exception:
         log.exception("Unexpected failure fetching original own post %s", original_post_id)
-        save_state(state)
+        persistence.save(state)
         return _QuoteCandidateStop()
 
     if not original_tweet:
@@ -695,12 +671,12 @@ def _candidate_is_eligible(
     quote_spam_author_ids: set[str],
     replied_to_ids: set[str],
     *,
-    MY_USER_ID: str,
+    config: QuoteReplyConfig,
     log: Logger,
     mark_quote_tweet_skipped: Callable,
     quote_tweet_directly_quotes_original: Callable,
     quote_tweet_is_old_enough: Callable,
-    save_state: Callable,
+    persistence: ReplyCyclePersistence,
     terminal_reply_evaluation: Callable,
 ) -> bool:
     """Apply identity, relationship and age gates against the cycle's original snapshots."""
@@ -719,7 +695,7 @@ def _candidate_is_eligible(
             author_id,
         )
         mark_quote_tweet_skipped(state, quote_id)
-        save_state(state)
+        persistence.save(state)
         return False
 
     log.info(
@@ -743,7 +719,7 @@ def _candidate_is_eligible(
             prior_evaluation.get("reason", ""),
         )
         mark_quote_tweet_skipped(state, quote_id)
-        save_state(state)
+        persistence.save(state)
         return False
 
     if not quote_tweet_directly_quotes_original(quote_tweet, original_post_id):
@@ -754,19 +730,19 @@ def _candidate_is_eligible(
             quote_tweet.get("referenced_tweets", []),
         )
         mark_quote_tweet_skipped(state, quote_id)
-        save_state(state)
+        persistence.save(state)
         return False
 
     if quote_id in replied_to_ids:
         log.info("Skipping quote tweet %s: already handled by normal mention path", quote_id)
         mark_quote_tweet_skipped(state, quote_id)
-        save_state(state)
+        persistence.save(state)
         return False
 
-    if author_id == str(MY_USER_ID):
+    if author_id == str(config.user_id):
         log.info("Skipping quote tweet %s: authored by own account", quote_id)
         mark_quote_tweet_skipped(state, quote_id)
-        save_state(state)
+        persistence.save(state)
         return False
 
     if not quote_tweet_is_old_enough(quote_tweet):
@@ -785,8 +761,7 @@ def _author_allows_evaluation(
     state: dict,
     quote_spam_author_ids: set[str],
     *,
-    MAX_REPLIES_PER_AUTHOR_PER_DAY: int,
-    MY_USER_ID: str,
+    config: QuoteReplyConfig,
     cache_tweet: Callable,
     clean_text_for_reply_context: Callable,
     daily_author_reply_count: Callable,
@@ -796,7 +771,7 @@ def _author_allows_evaluation(
     mark_quote_spam_author: Callable,
     mark_quote_tweet_skipped: Callable,
     quote_author_profile_text: Callable,
-    save_state: Callable,
+    persistence: ReplyCyclePersistence,
 ) -> bool:
     """Check cleaned text and author limits, retaining cap context and newly found spam."""
     quote_tweet = candidate.tweet
@@ -813,7 +788,7 @@ def _author_allows_evaluation(
         spam_check_text
     )
 
-    if daily_author_reply_count(state, author_id) >= MAX_REPLIES_PER_AUTHOR_PER_DAY:
+    if daily_author_reply_count(state, author_id) >= config.maximum_daily_author_replies:
         log.info(
             "Skipping quote tweet %s: already reached per-author daily cap for author_id=%s",
             quote_id,
@@ -824,7 +799,7 @@ def _author_allows_evaluation(
                 state,
                 tweet_id=str(original_tweet.get("id", original_post_id)),
                 text=original_tweet.get("text", ""),
-                author_id=str(original_tweet.get("author_id", MY_USER_ID)),
+                author_id=str(original_tweet.get("author_id", config.user_id)),
                 conversation_id=str(original_tweet.get("conversation_id", original_post_id)),
                 referenced_tweets=original_tweet.get("referenced_tweets", []),
                 created_at=original_tweet.get("created_at"),
@@ -842,14 +817,14 @@ def _author_allows_evaluation(
                 post_type="author_cap_quote_context",
             )
         mark_quote_tweet_skipped(state, quote_id)
-        save_state(state)
+        persistence.save(state)
         return False
 
     if not cleaned_quote_text:
         log.info("Skipping quote tweet %s: no usable quote text after cleaning", quote_id)
         mark_quote_tweet_skipped(state, quote_id)
         log_event("quote_tweet_skipped", quote_tweet_id=quote_id, reason="no_usable_quote_text")
-        save_state(state)
+        persistence.save(state)
         return False
 
     if not quote_is_usable:
@@ -862,7 +837,7 @@ def _author_allows_evaluation(
         mark_quote_tweet_skipped(state, quote_id)
         mark_quote_spam_author(state, author_id)
         quote_spam_author_ids.add(author_id)
-        save_state(state)
+        persistence.save(state)
         return False
     return True
 
@@ -885,7 +860,7 @@ def _prepare_reply_context(
     mark_quote_tweet_skipped: Callable,
     record_api_error: Callable,
     record_terminal_reply_evaluation: Callable,
-    save_state: Callable,
+    persistence: ReplyCyclePersistence,
 ) -> tuple[dict, dict, object] | _QuoteCandidateStop:
     """Refetch media, cache the quote and build context before charging its candidate budget."""
     quote_tweet = candidate.tweet
@@ -924,7 +899,7 @@ def _prepare_reply_context(
                 outcome="operational_failure",
             )
             mark_quote_tweet_skipped(state, quote_id)
-            save_state(state, durable=True)
+            persistence.save(state, durable=True)
             return _QuoteCandidateStop()
         log.exception(
             "Could not collect directly quoted post context for quote "
@@ -932,7 +907,7 @@ def _prepare_reply_context(
             quote_id,
         )
         record_api_error(state, exc, "x", scope="quote")
-        save_state(state)
+        persistence.save(state)
         return _QuoteCandidateStop(QUOTE_CHECK_STATUS_CHECKED)
     if original_context_tweet is None:
         log.warning(
@@ -958,7 +933,7 @@ def _prepare_reply_context(
             outcome="operational_failure",
         )
         mark_quote_tweet_skipped(state, quote_id)
-        save_state(state, durable=True)
+        persistence.save(state, durable=True)
         return _QuoteCandidateStop()
 
     cache_tweet(
@@ -971,7 +946,7 @@ def _prepare_reply_context(
         created_at=quote_tweet.get("created_at"),
         post_type="quote_tweet",
     )
-    save_state(state)
+    persistence.save(state)
 
     try:
         reply_context = build_quote_tweet_reply_context(
@@ -1003,7 +978,7 @@ def _prepare_reply_context(
             outcome="operational_failure",
         )
         mark_quote_tweet_skipped(state, quote_id)
-        save_state(state, durable=True)
+        persistence.save(state, durable=True)
         return _QuoteCandidateStop()
     prepared_media_context = reply_context.pop(
         "_prepared_media_context",
@@ -1023,17 +998,15 @@ def _evaluate_reply(
     QUOTE_CHECK_STATUS_CHECKED: str,
     RemoteOperationsPaused: type[Exception],
     ReplyEvidenceUnavailable: type[Exception],
-    _is_terminal_candidate_local_failure: Callable,
-    generate_single_call_reply: Callable,
+    evaluate_single_call_reply: EvaluateReply,
     log: Logger,
     log_event: Callable,
-    pending_ai_reply: Callable,
+    persistence: ReplyCyclePersistence,
     record_api_error: Callable,
     recovery_comparison_account_replies: Callable,
     reply_evidence_repository: Callable,
     reply_media_context_for_candidate: Callable,
-    save_state: Callable,
-) -> tuple[object, dict] | _QuoteCandidateStop:
+) -> PipelineResult | _QuoteCandidateStop:
     """Check evidence and recover or generate a draft with the original exception boundaries."""
     quote_tweet = candidate.tweet
     quote_id = candidate.quote_id
@@ -1064,8 +1037,7 @@ def _evaluate_reply(
         )
     )
 
-    evaluation_outcome: dict[str, object] = {}
-    reply_text = pending_ai_reply(
+    evaluation = persistence.recover(
         state,
         quote_id,
         "quote_tweet",
@@ -1074,22 +1046,15 @@ def _evaluate_reply(
             state,
             context=reply_context,
         ),
-        evaluation_outcome=evaluation_outcome,
     )
     try:
-        if (
-            reply_text is None
-            and not _is_terminal_candidate_local_failure(
-                evaluation_outcome
-            )
-        ):
-            reply_text = generate_single_call_reply(
+        if evaluation is None or evaluation.status == "draft_discarded":
+            evaluation = evaluate_single_call_reply(
                 reply_context,
                 media_context,
                 state=state,
-                evaluation_outcome=evaluation_outcome,
             )
-        elif reply_text is not None:
+        elif evaluation.reply is not None:
             log.info(
                 "Reusing persisted single-call reply draft "
                 "target_id=%s source=quote_tweet",
@@ -1101,25 +1066,24 @@ def _evaluate_reply(
             "reason=global_runtime_control_pause",
             quote_id,
         )
-        save_state(state, durable=True)
+        persistence.save(state, durable=True)
         return _QuoteCandidateStop(QUOTE_CHECK_STATUS_CHECKED)
     except ApiError as exc:
         log.exception("OpenAI single-call quote-tweet reply failed")
         if exc.service == "openai":
             record_api_error(state, exc, "openai")
-        save_state(state)
+        persistence.save(state)
         return _QuoteCandidateStop(QUOTE_CHECK_STATUS_CHECKED)
     except Exception:
         log.exception("Unexpected single-call quote-tweet reply failure")
-        save_state(state)
+        persistence.save(state)
         return _QuoteCandidateStop(QUOTE_CHECK_STATUS_CHECKED)
-    return reply_text, evaluation_outcome
+    return evaluation
 
 
 def _resolve_reply_evaluation(
     quote_id: str,
-    reply_text: object,
-    evaluation_outcome: dict,
+    evaluation: PipelineResult,
     state: dict,
     *,
     QUOTE_CHECK_STATUS_CHECKED: str,
@@ -1128,14 +1092,15 @@ def _resolve_reply_evaluation(
     log: Logger,
     mark_quote_tweet_skipped: Callable,
     record_terminal_reply_evaluation: Callable,
-    save_state: Callable,
+    persistence: ReplyCyclePersistence,
 ) -> _QuoteCandidateStop | None:
     """Retire terminal decisions, defer retryable failures, or allow a validated reply through."""
+    reply_text = evaluation.reply
     if not reply_text:
-        if _is_terminal_candidate_local_failure(evaluation_outcome):
-            failure_category = str(evaluation_outcome["error_category"])
+        if _is_terminal_candidate_local_failure(evaluation):
+            failure_category = str(evaluation.error_category)
             failure_reason = str(
-                evaluation_outcome.get("reason") or failure_category
+                evaluation.reason or failure_category
             )
             log.warning(
                 "Retiring quote tweet %s after permanent "
@@ -1152,20 +1117,20 @@ def _resolve_reply_evaluation(
                 outcome="operational_failure",
             )
             mark_quote_tweet_skipped(state, quote_id)
-            save_state(state, durable=True)
+            persistence.save(state, durable=True)
             return _QuoteCandidateStop()
-        if evaluation_outcome.get("status") != "no_reply":
+        if evaluation.status != "no_reply":
             log.warning(
                 "Deferring quote tweet %s after operational reply "
                 "failure reason=%s",
                 quote_id,
-                evaluation_outcome.get("reason", "unknown"),
+                evaluation.reason or "unknown",
             )
-            save_state(state, durable=True)
+            persistence.save(state, durable=True)
             return _QuoteCandidateStop(QUOTE_CHECK_STATUS_CHECKED)
         reason_code = str(
-            evaluation_outcome.get("reason_code")
-            or evaluation_outcome.get("reason")
+            evaluation.reason_code
+            or evaluation.reason
             or "model_selected_no_reply"
         )
         record_terminal_reply_evaluation(
@@ -1180,7 +1145,7 @@ def _resolve_reply_evaluation(
             reason_code,
         )
         mark_quote_tweet_skipped(state, quote_id)
-        save_state(state, durable=True)
+        persistence.save(state, durable=True)
         return _QuoteCandidateStop()
     if not isinstance(reply_text, ValidatedReply):
         log.error(
@@ -1188,7 +1153,7 @@ def _resolve_reply_evaluation(
             "reply; deferring target_id=%s",
             quote_id,
         )
-        save_state(state, durable=True)
+        persistence.save(state, durable=True)
         return _QuoteCandidateStop(QUOTE_CHECK_STATUS_CHECKED)
     return None
 
@@ -1203,12 +1168,10 @@ def _prepare_reply_receipt(
     QUOTE_CHECK_STATUS_CHECKED: str,
     SINGLE_CALL_STRATEGY_VERSION: str,
     _log_validated_single_call_reply: Callable,
-    bind_conversational_reply_attempt_time: Callable,
-    copy: ModuleType,
+    delivery: ReplyCycleDelivery,
     log: Logger,
     log_event: Callable,
-    save_state: Callable,
-    store_pending_ai_reply: Callable,
+    persistence: ReplyCyclePersistence,
 ) -> dict | _QuoteCandidateStop:
     """Persist the validated draft before copying and binding its sending receipt."""
     quote_tweet = candidate.tweet
@@ -1220,7 +1183,7 @@ def _prepare_reply_receipt(
         target_id=quote_id,
         reply=reply_text,
     )
-    draft_stored = store_pending_ai_reply(
+    draft_stored = persistence.store(
         state,
         quote_id,
         "quote_tweet",
@@ -1246,9 +1209,9 @@ def _prepare_reply_receipt(
             ),
             failure_reason="draft_persistence_validation_failed",
         )
-        save_state(state, durable=True)
+        persistence.save(state, durable=True)
         return _QuoteCandidateStop(QUOTE_CHECK_STATUS_CHECKED)
-    save_state(state, durable=True)
+    persistence.save(state, durable=True)
     receipt_template = {
         "schema_version": 4,
         "lifecycle_state": "sending",
@@ -1263,7 +1226,7 @@ def _prepare_reply_receipt(
         "reply_context": copy.deepcopy(reply_context),
         "ai_reply_draft": copy.deepcopy(reply_text.draft_record),
     }
-    receipt_template = bind_conversational_reply_attempt_time(
+    receipt_template = delivery.bind_attempt(
         receipt_template
     )
     return receipt_template
@@ -1278,26 +1241,23 @@ def _deliver_reply(
     AmbiguousRemotePostOutcome: type[Exception],
     ApiError: type[Exception],
     ConfirmedReplyLocalPersistenceError: type[Exception],
-    MARK_AI_REPLIES_AS_AI: bool,
+    config: QuoteReplyConfig,
     ProvedRemotePostNonSuccess: type[Exception],
     QUOTE_CHECK_STATUS_CHECKED: str,
     UnrecoverableConfirmedReplyPersistenceError: type[Exception],
     api_error_is_reply_not_allowed: Callable,
-    clear_pending_ai_reply: Callable,
+    persistence: ReplyCyclePersistence,
     log: Logger,
     log_ai_reply_posting_outcome: Callable,
     log_event: Callable,
     mark_quote_tweet_skipped: Callable,
-    post_conversational_reply_with_durable_identity: Callable,
+    delivery: ReplyCycleDelivery,
     record_api_error: Callable,
     record_terminal_reply_evaluation: Callable,
-    reply_target_is_available_immediately_before_send: Callable,
-    retire_proved_rejected_conversational_reply_receipt: Callable,
-    save_state: Callable,
 ) -> dict | _QuoteCandidateStop:
     """Recheck availability and deliver, retaining terminal, retryable and confirmed outcomes."""
     try:
-        if not reply_target_is_available_immediately_before_send(quote_id):
+        if not delivery.target_available(quote_id):
             log.warning(
                 "Cannot reply to quote tweet %s because it disappeared "
                 "after evaluation; marking it skipped without consuming "
@@ -1326,16 +1286,16 @@ def _deliver_reply(
                 outcome="reply_not_permitted",
             )
             mark_quote_tweet_skipped(state, quote_id)
-            clear_pending_ai_reply(state, quote_id, "quote_tweet")
-            save_state(state, durable=True)
+            persistence.clear(state, quote_id, "quote_tweet")
+            persistence.save(state, durable=True)
             return _QuoteCandidateStop(QUOTE_CHECK_STATUS_CHECKED)
         reply_response, receipt = (
-            post_conversational_reply_with_durable_identity(
+            delivery.post(
                 state=state,
                 receipt_template=receipt_template,
                 reply_text=reply_text,
                 reply_to_id=quote_id,
-                made_with_ai=MARK_AI_REPLIES_AS_AI,
+                made_with_ai=config.mark_as_ai,
                 lane="quote_tweet",
             )
         )
@@ -1395,10 +1355,10 @@ def _deliver_reply(
                 outcome="reply_not_permitted",
             )
             mark_quote_tweet_skipped(state, quote_id)
-            clear_pending_ai_reply(state, quote_id, "quote_tweet")
-            save_state(state, durable=True)
+            persistence.clear(state, quote_id, "quote_tweet")
+            persistence.save(state, durable=True)
             if isinstance(e, ProvedRemotePostNonSuccess):
-                retire_proved_rejected_conversational_reply_receipt(
+                delivery.retire_rejected(
                     receipt_template,
                     e,
                 )
@@ -1413,7 +1373,7 @@ def _deliver_reply(
             failure_reason=f"x_api_{getattr(e, 'status_code', 'error')}",
         )
         record_api_error(state, e, "x", scope="write")
-        save_state(state)
+        persistence.save(state)
         return _QuoteCandidateStop(QUOTE_CHECK_STATUS_CHECKED)
     except Exception as e:
         log.exception("Unexpected failure posting generated quote-tweet reply")
@@ -1425,7 +1385,7 @@ def _deliver_reply(
             failure_reason="unexpected_posting_error",
         )
         record_api_error(state, e, "x", scope="write")
-        save_state(state)
+        persistence.save(state)
         return _QuoteCandidateStop(QUOTE_CHECK_STATUS_CHECKED)
     return receipt
 
@@ -1436,43 +1396,18 @@ def _finalise_confirmed_reply(
     receipt: dict,
     state: dict,
     *,
-    CONFIRMED_REPLY_RECEIPT_FILE: Path,
-    ConfirmedReplyLocalPersistenceError: type[Exception],
     QUOTE_CHECK_STATUS_POSTED: str,
-    apply_confirmed_reply_receipt: Callable,
     log: Logger,
     log_event: Callable,
-    remove_confirmed_reply_receipt: Callable,
-    retire_lane_transport_journal_if_present: Callable,
-    save_state: Callable,
+    delivery: ReplyCycleDelivery,
 ) -> str:
-    """Apply and save confirmation before retiring recovery records and reporting success."""
+    """Finish the shared confirmation transaction and report this lane's success."""
     quote_id = candidate.quote_id
     author_id = candidate.author_id
-
-    own_reply_id = str(receipt["reply_post_id"])
-
-    apply_confirmed_reply_receipt(state, receipt)
-    log.info("Recorded and cached own quote-tweet auto-reply id=%s", own_reply_id)
-    save_state(state, durable=True)
-    try:
-        retire_lane_transport_journal_if_present(
-            receipt_path=CONFIRMED_REPLY_RECEIPT_FILE,
-            receipt=receipt,
-            lane="conversational_reply",
-            post_id=own_reply_id,
-        )
-        remove_confirmed_reply_receipt(receipt)
-    except Exception as exc:
-        log.critical(
-            "Confirmed quote-tweet reply id=%s to target=%s was saved but receipt removal failed",
-            own_reply_id,
-            quote_id,
-            exc_info=True,
-        )
-        raise ConfirmedReplyLocalPersistenceError(
-            f"Confirmed quote-tweet reply {own_reply_id} to {quote_id} but receipt removal failed"
-        ) from exc
+    own_reply_id = delivery.finalise(
+        state, receipt, target_id=quote_id,
+        quote_reply=True,
+    )
 
     log_event(
         "reply_posted",

@@ -95,14 +95,13 @@ def store_pending_ai_reply(
     return True
 
 
-def pending_ai_reply(
+def recover_pending_ai_reply(
     state: dict,
     target_id: str,
     candidate_source: str,
     *,
     context: dict[str, object],
     recent_replies: list[object] | None = None,
-    evaluation_outcome: dict[str, object] | None = None,
     pending_ai_reply_draft_key: Callable,
     validate_current_ai_reply_draft: Callable,
     ReplyEvidenceUnavailable: type,
@@ -114,14 +113,20 @@ def pending_ai_reply(
     SINGLE_CALL_STRATEGY_VERSION: str,
     SINGLE_CALL_MODEL: str,
     ValidatedReply: type,
-) -> str | None:
-    """Recover a valid current draft without another provider request."""
+) -> PipelineResult | None:
+    """Return a recovered decision, a discarded/failed draft result, or no draft.
+
+    Obsolete draft shapes may be regenerated. A current draft that fails local
+    reply validation is a terminal zero-call evaluation for this candidate.
+    """
 
     drafts = state.get("pending_ai_reply_drafts", {})
     if not isinstance(drafts, dict):
         return None
     key = pending_ai_reply_draft_key(target_id, candidate_source)
     record = drafts.get(key)
+    if record is None:
+        return None
     try:
         validated = validate_current_ai_reply_draft(
             record,
@@ -142,47 +147,35 @@ def pending_ai_reply(
             drafts.pop(key, None)
             if not drafts:
                 state.pop("pending_ai_reply_drafts", None)
-        if evaluation_outcome is not None:
-            evaluation_outcome.update(
-                {
-                    "status": "operational_failure",
-                    "reason": "persisted_draft_local_validation_failed",
-                    "error_category": "local_validation",
-                    "model_call_count": 0,
-                }
-            )
         visible = [
             turn
             for turn in (context.get("visible_conversation") or [])
             if isinstance(turn, dict)
         ]
-        _record_single_call_result(
-            PipelineResult(
-                status="operational_failure",
-                reason="persisted_draft_local_validation_failed",
-                error_category="local_validation",
-                model_call_count=0,
-                local_validation_status="failed",
-                payload_sha256=(
-                    str(record.get("model_payload_sha256"))
-                    if isinstance(record, dict)
-                    else None
-                ),
-                visible_turn_count=len(visible),
-                visible_character_count=sum(
-                    len(str(turn.get("text") or "")) for turn in visible
-                ),
-                recent_conversational_reply_count=len(recent_replies or []),
-                supplied_image_count=(
-                    len(record.get("supplied_images") or [])
-                    if isinstance(record, dict)
-                    else 0
-                ),
+        result = PipelineResult(
+            status="operational_failure",
+            reason="persisted_draft_local_validation_failed",
+            error_category="local_validation",
+            model_call_count=0,
+            local_validation_status="failed",
+            payload_sha256=(
+                str(record.get("model_payload_sha256"))
+                if isinstance(record, dict)
+                else None
             ),
-            lane=candidate_source,
-            target_id=target_id,
+            visible_turn_count=len(visible),
+            visible_character_count=sum(
+                len(str(turn.get("text") or "")) for turn in visible
+            ),
+            recent_conversational_reply_count=len(recent_replies or []),
+            supplied_image_count=(
+                len(record.get("supplied_images") or [])
+                if isinstance(record, dict)
+                else 0
+            ),
         )
-        return None
+        _record_single_call_result(result, lane=candidate_source, target_id=target_id)
+        return result
     except (KeyError, OSError, RuntimeError, TypeError, ValueError) as exc:
         if record is not None:
             log.warning(
@@ -195,7 +188,11 @@ def pending_ai_reply(
             drafts.pop(key, None)
             if not drafts:
                 state.pop("pending_ai_reply_drafts", None)
-        return None
+        return PipelineResult(
+            status="draft_discarded",
+            reason="obsolete_or_invalid_persisted_draft",
+            error_category="draft_validation",
+        )
     metadata = {
         "strategy_version": validated["strategy_version"],
         "reply_kind": validated["reply_kind"],
@@ -216,10 +213,19 @@ def pending_ai_reply(
         validated_draft_hash=validated["validated_draft_hash"],
         model_call_count=0,
     )
-    return ValidatedReply(
-        validated["proposed_reply"],
-        copy.deepcopy(validated),
-        metadata,
+    return PipelineResult(
+        status="reply",
+        reason="persisted_draft_recovered",
+        decision="reply",
+        reply_kind=validated["reply_kind"],
+        reason_code=validated["reason_code"],
+        reply=ValidatedReply(validated["proposed_reply"], copy.deepcopy(validated), metadata),
+        used_fact_ids=tuple(validated["used_fact_ids"]),
+        model_call_count=0,
+        local_validation_status="passed",
+        payload_sha256=validated["model_payload_sha256"],
+        trusted_fact_count=len(validated["trusted_fact_ids"]),
+        supplied_image_count=len(validated.get("supplied_images") or []),
     )
 
 

@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from tests.helpers.reply_evaluation import legacy_reply_evaluator
+
 import builtins
 import copy
 import io
@@ -1284,7 +1286,7 @@ def test_operational_pipeline_failure_does_not_consume_mention_target(
     )
     monkeypatch.setattr(bot, "reply_evidence_repository", lambda: UNIT_REPLY_REPOSITORY)
     monkeypatch.setattr(bot, "reply_media_context_for_candidate", lambda *_args, **_kwargs: {})
-    monkeypatch.setattr(bot, "generate_single_call_reply", fail_operationally)
+    monkeypatch.setattr(bot, "evaluate_single_call_reply", legacy_reply_evaluator(fail_operationally))
     monkeypatch.setattr(bot, "save_state", lambda *_args, **_kwargs: None)
 
     assert bot.maybe_reply_to_mentions(state) == bot.NORMAL_CHECK_STATUS_API_ERROR
@@ -10290,8 +10292,8 @@ def test_malformed_reply_post_id_is_not_recorded(monkeypatch: pytest.MonkeyPatch
     monkeypatch.setattr(bot, "build_context_for_reply_ai", lambda mention, state: (context, True))
     monkeypatch.setattr(
         bot,
-        "generate_single_call_reply",
-        lambda actual_context, *_args, **_kwargs: unit_approved_reply(actual_context),
+        "evaluate_single_call_reply",
+        legacy_reply_evaluator(lambda actual_context, *_args, **_kwargs: unit_approved_reply(actual_context)),
     )
     install_receipt_bound_x_request_stub(
         monkeypatch,
@@ -10399,7 +10401,7 @@ def test_truncated_pagination_no_reply_is_not_evaluated_twice(
     context = unit_reply_context(target_id="100", contribution=mention["text"])
     monkeypatch.setattr(bot, "build_context_for_reply_ai", lambda *_args: (context, True))
     monkeypatch.setattr(bot, "reply_media_context_for_candidate", lambda *_args, **_kwargs: {})
-    monkeypatch.setattr(bot, "generate_single_call_reply", no_reply)
+    monkeypatch.setattr(bot, "evaluate_single_call_reply", legacy_reply_evaluator(no_reply))
     monkeypatch.setattr(bot, "save_state", lambda *_args, **_kwargs: None)
 
     assert bot.maybe_reply_to_mentions(state) == bot.NORMAL_CHECK_STATUS_CHECKED
@@ -10475,7 +10477,7 @@ def test_local_validation_failure_is_terminal_and_does_not_block_later_mention(
         ),
     )
     monkeypatch.setattr(bot, "reply_media_context_for_candidate", lambda *_args, **_kwargs: {})
-    monkeypatch.setattr(bot, "generate_single_call_reply", decide)
+    monkeypatch.setattr(bot, "evaluate_single_call_reply", legacy_reply_evaluator(decide))
     monkeypatch.setattr(bot, "save_state", lambda *_args, **_kwargs: None)
     state["daily_reply_date"] = bot.reply_cap_date_str(1_800_000_000)
 
@@ -10549,12 +10551,12 @@ def test_confirmed_mention_reply_save_failure_replays_after_restart(
         monkeypatch.setattr(bot, "current_datetime", lambda: datetime.fromtimestamp(fixed_epoch))
         monkeypatch.setattr(
             bot,
-            "generate_single_call_reply",
-            lambda context, *_args, **_kwargs: unit_approved_reply(
+            "evaluate_single_call_reply",
+            legacy_reply_evaluator(lambda context, *_args, **_kwargs: unit_approved_reply(
                 context,
                 text="Quite right. Good sense still matters.",
                 mode="opinion_or_principle",
-            ),
+            )),
         )
 
         original_save_state = bot.save_state
@@ -10664,12 +10666,12 @@ def test_strategy_persistence_failure_blocks_quote_tweet_x_write(
         )
         monkeypatch.setattr(
             bot,
-            "generate_single_call_reply",
-            lambda context, *_args, **_kwargs: unit_approved_reply(
+            "evaluate_single_call_reply",
+            legacy_reply_evaluator(lambda context, *_args, **_kwargs: unit_approved_reply(
                 context,
                 text="Conviction matters more than applause.",
                 mode="opinion_or_principle",
-            ),
+            )),
         )
         monkeypatch.setattr(bot, "store_pending_ai_reply", lambda *_args, **_kwargs: False)
         monkeypatch.setattr(
@@ -10740,7 +10742,7 @@ def test_quote_tweet_model_no_reply_is_durable_beyond_bounded_scan_lists(
     monkeypatch.setattr(bot, "quote_tweet_is_old_enough", lambda _tweet: True)
     monkeypatch.setattr(bot, "is_probably_spam_or_not_worth_replying", lambda _text: False)
     monkeypatch.setattr(bot, "reply_media_context_for_candidate", lambda *_args, **_kwargs: {})
-    monkeypatch.setattr(bot, "generate_single_call_reply", no_reply)
+    monkeypatch.setattr(bot, "evaluate_single_call_reply", legacy_reply_evaluator(no_reply))
     monkeypatch.setattr(bot, "save_state", lambda *_args, **_kwargs: None)
 
     assert bot.maybe_reply_to_quote_tweets(state) == bot.QUOTE_CHECK_STATUS_CHECKED
@@ -10806,7 +10808,7 @@ def test_quote_tweet_generic_403_remains_ambiguous_and_durable(
     monkeypatch.setattr(bot, "quote_tweet_is_old_enough", lambda _tweet: True)
     monkeypatch.setattr(bot, "is_probably_spam_or_not_worth_replying", lambda _text: False)
     monkeypatch.setattr(bot, "reply_media_context_for_candidate", lambda *_args, **_kwargs: {})
-    monkeypatch.setattr(bot, "generate_single_call_reply", reply)
+    monkeypatch.setattr(bot, "evaluate_single_call_reply", legacy_reply_evaluator(reply))
     monkeypatch.setattr(bot, "create_post", forbidden_post)
     monkeypatch.setattr(bot, "save_state", lambda *_args, **_kwargs: None)
 
@@ -11763,10 +11765,10 @@ def test_confirmed_receipt_reconciliation_cannot_authorise_stale_pending_state(
     )
     monkeypatch.setattr(
         bot,
-        "generate_single_call_reply",
-        lambda *_args, **_kwargs: pytest.fail(
+        "evaluate_single_call_reply",
+        legacy_reply_evaluator(lambda *_args, **_kwargs: pytest.fail(
             "stale pending state must not reach the reply provider"
-        ),
+        )),
     )
 
     bot.write_confirmed_reply_receipt(receipt)
@@ -11846,10 +11848,10 @@ def test_receipt_recovery_from_older_backup_without_page_ownership_is_guarded(
     )
     monkeypatch.setattr(
         bot,
-        "generate_single_call_reply",
-        lambda *_args, **_kwargs: pytest.fail(
+        "evaluate_single_call_reply",
+        legacy_reply_evaluator(lambda *_args, **_kwargs: pytest.fail(
             "backup receipt recovery must not call the reply provider"
-        ),
+        )),
     )
 
     bot.write_confirmed_reply_receipt(receipt)
@@ -12702,8 +12704,8 @@ def test_same_thread_clarification_at_author_cap_is_skipped_before_model_or_post
     )
     monkeypatch.setattr(
         bot,
-        "generate_single_call_reply",
-        lambda *_args, **_kwargs: pytest.fail("model must not be called"),
+        "evaluate_single_call_reply",
+        legacy_reply_evaluator(lambda *_args, **_kwargs: pytest.fail("model must not be called")),
     )
     install_receipt_bound_x_request_stub(
         monkeypatch,
@@ -12791,7 +12793,7 @@ def test_author_cap_context_is_terminal_but_available_to_next_eligible_reply(
         ai_contexts.append(context)
         return unit_approved_reply(context, text="A practical policy answer.")
 
-    monkeypatch.setattr(bot, "generate_single_call_reply", answer)
+    monkeypatch.setattr(bot, "evaluate_single_call_reply", legacy_reply_evaluator(answer))
     install_receipt_bound_x_request_stub(
         monkeypatch,
         lambda *_args, **_kwargs: {"data": {"id": "900001"}},
@@ -12852,7 +12854,7 @@ def test_unrelated_follow_up_does_not_bypass_author_cap(
     monkeypatch.setattr(bot, "in_api_cooldown", lambda *args, **kwargs: False)
     monkeypatch.setattr(bot, "get_mentions", lambda _state: [follow_up])
     monkeypatch.setattr(bot, "get_hot_post_reply_candidates", lambda _state: [])
-    monkeypatch.setattr(bot, "generate_single_call_reply", lambda *_args, **_kwargs: pytest.fail("xAI must not be called"))
+    monkeypatch.setattr(bot, "evaluate_single_call_reply", legacy_reply_evaluator(lambda *_args, **_kwargs: pytest.fail("xAI must not be called")))
     monkeypatch.setattr(bot, "save_state", lambda *_args, **_kwargs: None)
 
     assert bot.maybe_reply_to_mentions(state) == bot.NORMAL_CHECK_STATUS_CHECKED
@@ -13007,7 +13009,7 @@ def test_completed_clarification_thread_stays_terminal_after_restart_and_cap_res
     monkeypatch.setattr(bot, "is_probably_spam_or_not_worth_replying", lambda _text: False)
     monkeypatch.setattr(bot, "build_context_for_reply_ai", build_context)
     monkeypatch.setattr(bot, "reply_media_context_for_candidate", prepare_media)
-    monkeypatch.setattr(bot, "generate_single_call_reply", answer)
+    monkeypatch.setattr(bot, "evaluate_single_call_reply", legacy_reply_evaluator(answer))
     install_receipt_bound_x_request_stub(
         monkeypatch,
         lambda *_args, **_kwargs: {"data": {"id": "900002"}},
@@ -14806,7 +14808,7 @@ def test_quote_search_processes_new_quote_despite_legacy_cursor_suppression(
         "reply_media_context_for_candidate",
         lambda *_args, **_kwargs: {},
     )
-    monkeypatch.setattr(bot, "generate_single_call_reply", no_reply)
+    monkeypatch.setattr(bot, "evaluate_single_call_reply", legacy_reply_evaluator(no_reply))
     monkeypatch.setattr(bot, "save_state", lambda *_args, **_kwargs: None)
 
     status = bot.maybe_reply_to_quote_tweets(state)
@@ -15200,7 +15202,7 @@ def test_duplicate_pending_draft_is_retired_and_later_mention_proceeds(
         "reply_evidence_repository",
         lambda: UNIT_REPLY_REPOSITORY,
     )
-    monkeypatch.setattr(bot, "generate_single_call_reply", decide)
+    monkeypatch.setattr(bot, "evaluate_single_call_reply", legacy_reply_evaluator(decide))
     monkeypatch.setattr(bot, "save_state", lambda *_args, **_kwargs: None)
     monkeypatch.setattr(
         bot,
@@ -15498,8 +15500,8 @@ def test_confirmed_reply_normal_success_uses_durable_state_before_receipt_remova
         monkeypatch.setattr(bot, "current_datetime", lambda: datetime.fromtimestamp(fixed_epoch))
         monkeypatch.setattr(
             bot,
-            "generate_single_call_reply",
-            lambda context, *_args, **_kwargs: unit_approved_reply(context),
+            "evaluate_single_call_reply",
+            legacy_reply_evaluator(lambda context, *_args, **_kwargs: unit_approved_reply(context)),
         )
 
         original_save_state = bot.save_state
@@ -15552,8 +15554,8 @@ def test_confirmed_reply_latest_backup_recovers_suppression_after_primary_corrup
         monkeypatch.setattr(bot, "current_datetime", lambda: datetime.fromtimestamp(fixed_epoch))
         monkeypatch.setattr(
             bot,
-            "generate_single_call_reply",
-            lambda context, *_args, **_kwargs: unit_approved_reply(context),
+            "evaluate_single_call_reply",
+            legacy_reply_evaluator(lambda context, *_args, **_kwargs: unit_approved_reply(context)),
         )
 
         state = bot.default_state()
@@ -15625,12 +15627,12 @@ def test_confirmed_quote_tweet_reply_save_failure_replays_after_restart(
         monkeypatch.setattr(bot, "current_datetime", lambda: datetime.fromtimestamp(fixed_epoch))
         monkeypatch.setattr(
             bot,
-            "generate_single_call_reply",
-            lambda context, *_args, **_kwargs: unit_approved_reply(
+            "evaluate_single_call_reply",
+            legacy_reply_evaluator(lambda context, *_args, **_kwargs: unit_approved_reply(
                 context,
                 text="A point is useful only when it survives contact with reality.",
                 mode="opinion_or_principle",
-            ),
+            )),
         )
 
         original_save_state = bot.save_state
@@ -15730,12 +15732,12 @@ def test_quote_tweet_receipt_reconciled_by_mention_lane_counts_quote_reply(
         monkeypatch.setattr(bot, "current_datetime", lambda: datetime.fromtimestamp(fixed_epoch))
         monkeypatch.setattr(
             bot,
-            "generate_single_call_reply",
-            lambda context, *_args, **_kwargs: unit_approved_reply(
+            "evaluate_single_call_reply",
+            legacy_reply_evaluator(lambda context, *_args, **_kwargs: unit_approved_reply(
                 context,
                 text="A point is useful only when it survives contact with reality.",
                 mode="opinion_or_principle",
-            ),
+            )),
         )
 
         original_save_state = bot.save_state
@@ -17971,7 +17973,7 @@ def test_deterministic_spam_skip_precedes_context_media_retrieval_and_xai(
     monkeypatch.setattr(bot, "get_hot_post_reply_candidates", lambda _state: [])
     monkeypatch.setattr(bot, "build_context_for_reply_ai", lambda *_args: pytest.fail("context must not be built"))
     monkeypatch.setattr(bot, "reply_media_context_for_candidate", lambda *_args, **_kwargs: pytest.fail("media must not be prepared"))
-    monkeypatch.setattr(bot, "generate_single_call_reply", lambda *_args, **_kwargs: pytest.fail("retrieval/xAI must not be called"))
+    monkeypatch.setattr(bot, "evaluate_single_call_reply", legacy_reply_evaluator(lambda *_args, **_kwargs: pytest.fail("retrieval/xAI must not be called")))
     monkeypatch.setattr(bot, "create_post", lambda *_args, **_kwargs: pytest.fail("X write must not be called"))
     monkeypatch.setattr(bot, "save_state", lambda *_args, **_kwargs: None)
 
@@ -18012,12 +18014,12 @@ def test_strategy_persistence_failure_blocks_mention_x_write(
     monkeypatch.setattr(bot, "reply_media_context_for_candidate", lambda *_args, **_kwargs: {})
     monkeypatch.setattr(
         bot,
-        "generate_single_call_reply",
-        lambda actual_context, *_args, **_kwargs: unit_approved_reply(
+        "evaluate_single_call_reply",
+        legacy_reply_evaluator(lambda actual_context, *_args, **_kwargs: unit_approved_reply(
             actual_context,
             text=text,
             mode="opinion_or_principle",
-        ),
+        )),
     )
     monkeypatch.setattr(bot, "store_pending_ai_reply", lambda *_args, **_kwargs: False)
     monkeypatch.setattr(
@@ -18068,11 +18070,11 @@ def test_deleted_target_after_generation_is_retired_before_any_x_write(
     monkeypatch.setattr(bot, "reply_media_context_for_candidate", lambda *_args, **_kwargs: {})
     monkeypatch.setattr(
         bot,
-        "generate_single_call_reply",
-        lambda actual_context, *_args, **_kwargs: unit_approved_reply(
+        "evaluate_single_call_reply",
+        legacy_reply_evaluator(lambda actual_context, *_args, **_kwargs: unit_approved_reply(
             actual_context,
             mode="opinion_or_principle",
-        ),
+        )),
     )
     monkeypatch.setattr(bot, "get_tweet_by_id", lambda _target_id: None)
     monkeypatch.setattr(
@@ -18163,7 +18165,7 @@ def test_ineligible_truncated_mention_is_terminal_before_context_media_or_xai(
     monkeypatch.setattr(bot, "get_hot_post_reply_candidates", lambda _state: [])
     monkeypatch.setattr(bot, "build_context_for_reply_ai", lambda *_args: pytest.fail("context must not be built"))
     monkeypatch.setattr(bot, "reply_media_context_for_candidate", lambda *_args, **_kwargs: pytest.fail("media must not be prepared"))
-    monkeypatch.setattr(bot, "generate_single_call_reply", lambda *_args, **_kwargs: pytest.fail("xAI must not be called"))
+    monkeypatch.setattr(bot, "evaluate_single_call_reply", legacy_reply_evaluator(lambda *_args, **_kwargs: pytest.fail("xAI must not be called")))
     monkeypatch.setattr(bot, "create_post", lambda *_args, **_kwargs: pytest.fail("X write must not be called"))
     monkeypatch.setattr(bot, "log_event", lambda name, **values: events.append((name, values)))
     monkeypatch.setattr(bot, "save_state", lambda *_args, **_kwargs: None)
@@ -18223,8 +18225,8 @@ def test_posting_generic_reply_403_is_retry_blocking_not_terminal(
     monkeypatch.setattr(bot, "reply_media_context_for_candidate", lambda *_args, **_kwargs: {})
     monkeypatch.setattr(
         bot,
-        "generate_single_call_reply",
-        lambda actual_context, *_args, **_kwargs: unit_approved_reply(actual_context),
+        "evaluate_single_call_reply",
+        legacy_reply_evaluator(lambda actual_context, *_args, **_kwargs: unit_approved_reply(actual_context)),
     )
     monkeypatch.setattr(bot, "create_post", lambda **_kwargs: (_ for _ in ()).throw(error))
     monkeypatch.setattr(bot, "log_event", lambda name, **values: events.append((name, values)))

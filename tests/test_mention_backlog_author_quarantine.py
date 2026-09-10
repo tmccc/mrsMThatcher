@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from tests.helpers.reply_evaluation import legacy_reply_evaluator
+
 import copy
 import json
 import os
@@ -318,7 +320,7 @@ def test_digest_author_no_reply_chronology_survives_restarts_and_skips_quarantin
             reason_code="spam_or_abuse",
         )
 
-    monkeypatch.setattr(bot, "generate_single_call_reply", run_pipeline)
+    monkeypatch.setattr(bot, "evaluate_single_call_reply", legacy_reply_evaluator(run_pipeline))
     events: list[tuple[str, dict]] = []
 
     def capture_event(name: str, **values: object) -> None:
@@ -617,7 +619,7 @@ def test_three_explicit_spam_no_replies_start_quarantine_and_skip_next(
             reason_code=next(reason_codes),
         )
 
-    monkeypatch.setattr(bot, "generate_single_call_reply", run_pipeline)
+    monkeypatch.setattr(bot, "evaluate_single_call_reply", legacy_reply_evaluator(run_pipeline))
     events: list[tuple[str, dict]] = []
     monkeypatch.setattr(
         bot,
@@ -674,7 +676,7 @@ def test_non_spam_editorial_no_replies_do_not_create_quarantine_strikes(
             reason_code=next(reasons),
         )
 
-    monkeypatch.setattr(bot, "generate_single_call_reply", run_pipeline)
+    monkeypatch.setattr(bot, "evaluate_single_call_reply", legacy_reply_evaluator(run_pipeline))
 
     assert bot.maybe_reply_to_mentions(state) == bot.NORMAL_CHECK_STATUS_CHECKED
     assert state["author_evaluation_quarantines"] == {}
@@ -750,7 +752,7 @@ def test_approved_reply_production_branch_clears_author_strikes(
         generation_targets.append(str(context["target_id"]))
         return approved_reply
 
-    monkeypatch.setattr(bot, "generate_single_call_reply", generate_approved)
+    monkeypatch.setattr(bot, "evaluate_single_call_reply", legacy_reply_evaluator(generate_approved))
 
     class ApprovedBranchReached(Exception):
         pass
@@ -788,7 +790,7 @@ def test_operational_failure_does_not_add_strike(
     def fail(*_args: object, **_kwargs: object) -> None:
         raise bot.ApiError("provider unavailable", service="openai")
 
-    monkeypatch.setattr(bot, "generate_single_call_reply", fail)
+    monkeypatch.setattr(bot, "evaluate_single_call_reply", legacy_reply_evaluator(fail))
 
     assert bot.maybe_reply_to_mentions(state) == bot.NORMAL_CHECK_STATUS_API_ERROR
     assert state["author_evaluation_quarantines"]["200"][
@@ -843,7 +845,7 @@ def test_candidate_local_operational_failure_retires_without_strike_or_quota(
         )
         return None
 
-    monkeypatch.setattr(bot, "generate_single_call_reply", operational_failure)
+    monkeypatch.setattr(bot, "evaluate_single_call_reply", legacy_reply_evaluator(operational_failure))
 
     assert bot.maybe_reply_to_mentions(state) == bot.NORMAL_CHECK_STATUS_CHECKED
     assert state["author_evaluation_quarantines"]["200"][
@@ -893,7 +895,7 @@ def test_hot_post_local_validation_failure_is_terminal_and_not_provider_health(
         )
         return None
 
-    monkeypatch.setattr(bot, "generate_single_call_reply", operational_failure)
+    monkeypatch.setattr(bot, "evaluate_single_call_reply", legacy_reply_evaluator(operational_failure))
 
     assert bot.maybe_reply_to_mentions(state) == bot.NORMAL_CHECK_STATUS_CHECKED
     assert bot.terminal_reply_evaluation(state, "100")["outcome"] == (
@@ -954,7 +956,7 @@ def test_permanent_context_failure_retires_candidate_and_reaches_next(
         )
 
     monkeypatch.setattr(bot, "build_context_for_reply_ai", build_context)
-    monkeypatch.setattr(bot, "generate_single_call_reply", run_pipeline)
+    monkeypatch.setattr(bot, "evaluate_single_call_reply", legacy_reply_evaluator(run_pipeline))
 
     assert bot.maybe_reply_to_mentions(state) == bot.NORMAL_CHECK_STATUS_CHECKED
     assert context_calls == ["100", "101"]
@@ -1007,8 +1009,8 @@ def test_active_quarantine_reports_one_skipped_pipeline_evaluation(
     )
     monkeypatch.setattr(
         bot,
-        "generate_single_call_reply",
-        lambda *_args, **_kwargs: pytest.fail("quarantine must make zero provider calls"),
+        "evaluate_single_call_reply",
+        legacy_reply_evaluator(lambda *_args, **_kwargs: pytest.fail("quarantine must make zero provider calls")),
     )
 
     assert bot.maybe_reply_to_mentions(state) == bot.NORMAL_CHECK_STATUS_CHECKED
@@ -1069,7 +1071,7 @@ def test_active_quarantine_permits_valid_clarification_candidate(
             evaluation_outcome=evaluation_outcome,
         )
 
-    monkeypatch.setattr(bot, "generate_single_call_reply", run_pipeline)
+    monkeypatch.setattr(bot, "evaluate_single_call_reply", legacy_reply_evaluator(run_pipeline))
     events: list[tuple[str, dict]] = []
     monkeypatch.setattr(
         bot,
@@ -1126,10 +1128,10 @@ def test_active_quarantine_clarification_still_obeys_author_cap(
     )
     monkeypatch.setattr(
         bot,
-        "generate_single_call_reply",
-        lambda *_args, **_kwargs: pytest.fail(
+        "evaluate_single_call_reply",
+        legacy_reply_evaluator(lambda *_args, **_kwargs: pytest.fail(
             "the author cap must block clarification provider work"
-        ),
+        )),
     )
     events: list[tuple[str, dict]] = []
     monkeypatch.setattr(
@@ -1234,7 +1236,7 @@ def test_expired_quarantine_allows_valid_clarification_candidate(
         )
         return None
 
-    monkeypatch.setattr(bot, "generate_single_call_reply", no_reply)
+    monkeypatch.setattr(bot, "evaluate_single_call_reply", legacy_reply_evaluator(no_reply))
 
     assert bot.maybe_reply_to_mentions(state) == bot.NORMAL_CHECK_STATUS_CHECKED
     assert evaluated == ["100"]
@@ -1707,7 +1709,7 @@ def test_direct_skips_do_not_consume_fresh_evaluation_slots(
         )
         return None
 
-    monkeypatch.setattr(bot, "generate_single_call_reply", no_reply)
+    monkeypatch.setattr(bot, "evaluate_single_call_reply", legacy_reply_evaluator(no_reply))
 
     assert bot.maybe_reply_to_mentions(state) == bot.NORMAL_CHECK_STATUS_CHECKED
     assert calls == ["7", "8"]
@@ -1754,7 +1756,7 @@ def test_mocked_high_volume_spam_author_does_not_block_later_contributors(
         )
         return None
 
-    monkeypatch.setattr(bot, "generate_single_call_reply", policy_no_reply)
+    monkeypatch.setattr(bot, "evaluate_single_call_reply", legacy_reply_evaluator(policy_no_reply))
 
     assert bot.maybe_reply_to_mentions(state) == bot.NORMAL_CHECK_STATUS_CHECKED
     assert full_pipeline_targets == ["1", "2", "3", "7", "8"]
@@ -1860,10 +1862,10 @@ def test_quarantine_does_not_credit_deterministic_gate_overlap(
     )
     monkeypatch.setattr(
         bot,
-        "generate_single_call_reply",
-        lambda *_args, **_kwargs: pytest.fail(
+        "evaluate_single_call_reply",
+        legacy_reply_evaluator(lambda *_args, **_kwargs: pytest.fail(
             "quarantine must make zero provider calls"
-        ),
+        )),
     )
     events: list[tuple[str, dict]] = []
     monkeypatch.setattr(
@@ -2036,10 +2038,10 @@ def test_stale_pending_traversal_is_reset_before_queue_or_provider_work(
     )
     monkeypatch.setattr(
         bot,
-        "generate_single_call_reply",
-        lambda *_args, **_kwargs: pytest.fail(
+        "evaluate_single_call_reply",
+        legacy_reply_evaluator(lambda *_args, **_kwargs: pytest.fail(
             "an untrusted pending candidate must not reach the provider"
-        ),
+        )),
     )
 
     assert bot.pending_mention_candidates(state) == []
@@ -2281,10 +2283,10 @@ def test_queue_retrieval_discards_corrupt_pending_identity_without_provider_work
     )
     monkeypatch.setattr(
         bot,
-        "generate_single_call_reply",
-        lambda *_args, **_kwargs: pytest.fail(
+        "evaluate_single_call_reply",
+        legacy_reply_evaluator(lambda *_args, **_kwargs: pytest.fail(
             "corrupt queue identity must not reach provider work"
-        ),
+        )),
     )
 
     assert bot.pending_mention_candidates(state) == []
@@ -2503,10 +2505,10 @@ def test_full_mention_loop_resets_stale_queue_before_provider_evaluation(
     )
     monkeypatch.setattr(
         bot,
-        "generate_single_call_reply",
-        lambda *_args, **_kwargs: pytest.fail(
+        "evaluate_single_call_reply",
+        legacy_reply_evaluator(lambda *_args, **_kwargs: pytest.fail(
             "stale candidates must not reach the reply provider"
-        ),
+        )),
     )
 
     assert bot.maybe_reply_to_mentions(state) == bot.NORMAL_CHECK_STATUS_CHECKED

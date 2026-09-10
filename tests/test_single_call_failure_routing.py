@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from tests.helpers.reply_evaluation import legacy_reply_evaluator
+
 import copy
 
 import pytest
@@ -658,7 +660,7 @@ def test_image_transport_failure_is_retried_on_a_later_lane_cycle(
         )
         return None
 
-    monkeypatch.setattr(bot, "generate_single_call_reply", transient)
+    monkeypatch.setattr(bot, "evaluate_single_call_reply", legacy_reply_evaluator(transient))
 
     assert bot.maybe_reply_to_mentions(state) == bot.NORMAL_CHECK_STATUS_API_ERROR
     assert bot.maybe_reply_to_mentions(state) == bot.NORMAL_CHECK_STATUS_API_ERROR
@@ -718,7 +720,7 @@ def test_zero_call_image_failures_do_not_exhaust_mention_sol_budget(
             )
         return None
 
-    monkeypatch.setattr(bot, "generate_single_call_reply", decide)
+    monkeypatch.setattr(bot, "evaluate_single_call_reply", legacy_reply_evaluator(decide))
 
     assert bot.maybe_reply_to_mentions(state) == bot.NORMAL_CHECK_STATUS_CHECKED
     assert calls == [str(tweet_id) for tweet_id in range(100, 106)]
