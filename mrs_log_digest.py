@@ -92,6 +92,7 @@ from mrs_log_digest_records import (
     iter_records as _iter_records,
     read_records as _read_records,
     filter_records_by_time,
+    select_resume_window,
     summarize_input_files as _summarize_input_files,
     input_retention_coverage as _input_retention_coverage,
     combine_input_warnings,
@@ -2898,8 +2899,6 @@ def run_digest(args: argparse.Namespace, *, project_dir: Path, state_file: Path)
     since_exclusive = False
     resume_boundary_counts: Counter[str] = Counter()
     saved_resume_tail: List[str] = []
-    resume_cursor_mode = "timestamp"
-    resume_tail_match_length = 0
     resume_data: Dict[str, Any] = {}
 
     if args.since:
@@ -2935,28 +2934,22 @@ def run_digest(args: argparse.Namespace, *, project_dir: Path, state_file: Path)
     except ValueError as exc:
         raise SystemExit(str(exc)) from exc
     physical_records = read_records(logs, None, until, physical_order=True)
-    tail_match = None
-    if since_source == "saved resume state" and saved_resume_tail:
-        tail_match = locate_resume_fingerprint_tail(physical_records, saved_resume_tail)
-    if tail_match is not None:
-        cursor_end, resume_tail_match_length = tail_match
-        records = physical_records[cursor_end:]
-        resume_cursor_mode = "fingerprint_tail"
-    else:
-        if saved_resume_tail:
-            print(
-                "WARNING: saved physical resume cursor was not found in retained logs; "
-                "falling back to the timestamp boundary, which can omit newly appended "
-                "records after a backward clock jump",
-                file=sys.stderr,
-            )
-        records = filter_records_by_time(
-            physical_records,
-            since,
-            since_exclusive=since_exclusive,
-        )
-        if since is not None and resume_boundary_counts:
-            records = filter_resume_boundary_records(records, since, resume_boundary_counts)
+    selection = select_resume_window(
+        physical_records, since,
+        since_exclusive=since_exclusive,
+        saved_resume_tail=saved_resume_tail,
+        resume_boundary_counts=resume_boundary_counts,
+        locate_resume_fingerprint_tail=locate_resume_fingerprint_tail,
+        filter_records_by_time=filter_records_by_time,
+        filter_resume_boundary_records=filter_resume_boundary_records,
+        warn_timestamp_fallback=lambda: print(
+            "WARNING: saved physical resume cursor was not found in retained logs; "
+            "falling back to the timestamp boundary, which can omit newly appended "
+            "records after a backward clock jump",
+            file=sys.stderr,
+        ),
+    )
+    records = selection.records
     input_files = summarize_input_files(logs, since, until, since_exclusive=since_exclusive)
     input_file_indexes = {
         str(path): index for index, path in enumerate(logs)
@@ -3036,14 +3029,14 @@ def run_digest(args: argparse.Namespace, *, project_dir: Path, state_file: Path)
     report["input_warning"] = None
     if (
         not records
-        and resume_cursor_mode != "fingerprint_tail"
+        and selection.cursor_mode != "fingerprint_tail"
         and any(int(item.get("records_in_window") or 0) > 0 for item in input_files)
     ):
         report["input_warning"] = (
             "selected log sources contain timestamped records inside the requested window, "
             "but 0 records survived filtering"
         )
-    if saved_resume_tail and tail_match is None:
+    if selection.timestamp_fallback:
         report["input_warning"] = combine_input_warnings(
             report["input_warning"],
             "saved physical resume cursor was not found; timestamp fallback can "
@@ -3058,8 +3051,8 @@ def run_digest(args: argparse.Namespace, *, project_dir: Path, state_file: Path)
     report["requested_until"] = dt_text(until) if until else None
     report["since_source"] = since_source
     report["since_exclusive"] = since_exclusive
-    report["resume_cursor_mode"] = resume_cursor_mode
-    report["resume_tail_match_length"] = resume_tail_match_length
+    report["resume_cursor_mode"] = selection.cursor_mode
+    report["resume_tail_match_length"] = selection.tail_match_length
     report["local_clock_rollback_count"] = sum(
         current.ts < previous.ts
         for previous, current in zip(records, records[1:])

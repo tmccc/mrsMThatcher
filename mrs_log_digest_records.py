@@ -1,9 +1,9 @@
-"""Own digest records, bounded source references and selected log input reading.
+"""Own digest record parsing, source references and resume-window selection.
 
 Readers retain physical source identity, ordering, duplicate multiplicity and
 resume fingerprint semantics. Callers supply current regex, record constructor,
 parsers, time conversion, readers and helper callbacks explicitly; no callbacks
-are stored. Discovery, input selection, context/backscan policy, resume state
+are stored. Discovery, context/backscan policy, resume state
 persistence and report orchestration stay in the digest. Importing this module
 performs no log, home/configuration, state or service access.
 """
@@ -40,6 +40,40 @@ class Record:
     msg: str
     path: str
     ordinal: int
+
+
+def parse_prefixed_json_observation(
+    message: str,
+    timestamp: datetime,
+    level: str,
+    *,
+    marker: str,
+    parse_error_counter: str,
+    stats: Counter,
+    errors: List[Dict[str, Any]],
+    parse_json_object: Callable[..., Dict[str, Any]],
+    short_text: Callable[[Any, int], str],
+    source_ref: Callable[[], Dict[str, Any]],
+) -> Tuple[bool, Dict[str, Any]]:
+    """Parse a matched observation, recording only encoding/parser failures.
+
+    Return success separately from the unchanged parser result: an invalid result
+    from a supplied parser must still fail in the caller's observation handling.
+    Marker matching and diagnostic callbacks remain outside the caught boundary.
+    """
+    raw = message.split(marker + " ", 1)[1].strip()
+    try:
+        parsed = parse_json_object(raw.encode("utf-8"), label=marker)
+    except Exception as exc:
+        errors.append({
+            "time": timestamp.strftime("%Y-%m-%d %H:%M:%S"),
+            "level": level,
+            "message": f"Malformed {marker}: {exc}: {short_text(raw, 240)}",
+            "source_refs": [source_ref()],
+        })
+        stats[parse_error_counter] += 1
+        return False, {}
+    return True, parsed
 
 
 def safe_source_logger(
@@ -339,6 +373,54 @@ def filter_records_by_time(
     if since_exclusive:
         return [record for record in records if record.ts > since]
     return [record for record in records if record.ts >= since]
+
+
+@dataclass(frozen=True)
+class ResumeWindowSelection:
+    """Keep selected physical records and the cursor decision together."""
+
+    records: List[Record]
+    cursor_mode: str
+    tail_match_length: int
+    timestamp_fallback: bool
+
+
+def select_resume_window(
+    physical_records: List[Record],
+    since: Optional[datetime],
+    *,
+    since_exclusive: bool,
+    saved_resume_tail: List[str],
+    resume_boundary_counts: Counter[str],
+    locate_resume_fingerprint_tail: Callable[..., Optional[Tuple[int, int]]],
+    filter_records_by_time: Callable[..., List[Record]],
+    filter_resume_boundary_records: Callable[..., List[Record]],
+    warn_timestamp_fallback: Callable[[], None],
+) -> ResumeWindowSelection:
+    """Prefer a saved physical tail, falling back to timestamp and occurrence bounds.
+
+    Inputs have already been read in physical order and bounded by ``until``.
+    Preserve that order and the record objects. The caller's fallback warning
+    runs before timestamp filtering, even if a filter fails. Callers retain
+    delivery and cursor saving; inputs are not mutated and callbacks not stored.
+    """
+    tail_match = (
+        locate_resume_fingerprint_tail(physical_records, saved_resume_tail)
+        if saved_resume_tail else None
+    )
+    if tail_match is not None:
+        cursor_end, match_length = tail_match
+        return ResumeWindowSelection(
+            physical_records[cursor_end:], "fingerprint_tail", match_length, False,
+        )
+    if saved_resume_tail:
+        warn_timestamp_fallback()
+    records = filter_records_by_time(
+        physical_records, since, since_exclusive=since_exclusive,
+    )
+    if since is not None and resume_boundary_counts:
+        records = filter_resume_boundary_records(records, since, resume_boundary_counts)
+    return ResumeWindowSelection(records, "timestamp", 0, bool(saved_resume_tail))
 
 
 def summarize_input_files(

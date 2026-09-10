@@ -220,6 +220,58 @@ def test_single_call_digest_allows_authorised_pre_execution_retry():
     assert summary["authorised_pre_execution_retry_count"] == 1
 
 
+@pytest.mark.parametrize("projected", [False, True])
+@pytest.mark.parametrize(
+    ("decision_attempts", "usage_attempts", "expected_mismatches"),
+    [
+        ([1], [2], 1),
+        ([2], [1], 1),
+        ([1, 1], [2, 2], 0),
+    ],
+)
+def test_single_call_attempt_mismatches_require_one_decision_and_usage(
+    projected, decision_attempts, usage_attempts, expected_mismatches,
+):
+    payloads = [
+        {
+            "event": "single_call_reply_decision",
+            "lane": "mention",
+            "target_id": "209",
+            "model_call_count": 1,
+            "provider_request_attempt_count": attempt_count,
+            "pipeline_status": "reply",
+        }
+        for attempt_count in decision_attempts
+    ] + [
+        {
+            "event": "single_call_reply_provider_usage",
+            "lane": "mention",
+            "target_id": "209",
+            "request_attempt_count": attempt_count,
+        }
+        for attempt_count in usage_attempts
+    ]
+    if projected:
+        summary = digest.analyse([
+            structured_record(index, payload)
+            for index, payload in enumerate(payloads)
+        ])["single_call_reply"]
+    else:
+        summary = digest.single_call_reply_summary([
+            {**payload, "kind": payload["event"]} for payload in payloads
+        ])
+
+    assert summary["provider_request_attempt_mismatch_candidate_count"] == expected_mismatches
+    assert summary["one_call_compliance"] == (
+        "failed" if expected_mismatches else "passed"
+    )
+    assert summary["one_call_violation_count"] == expected_mismatches
+    assert summary["one_call_incomplete_count"] == 0
+    assert summary["one_call_compliant_count"] == (
+        0 if expected_mismatches else len(decision_attempts)
+    )
+
+
 def test_single_call_digest_preserves_and_rejects_more_than_two_attempts():
     decision = structured_record(0, {
         "event": "single_call_reply_decision",

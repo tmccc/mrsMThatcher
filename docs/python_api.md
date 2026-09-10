@@ -102,7 +102,7 @@ and AppleDouble files.
 | `mrs_log_digest.py` | Log-input coordination, aggregation and Markdown/JSON reports | Separate production and self-test source contexts retain pending observations and active provider attempts across interleaved records. Resume state uses the production context and retains its existing JSON contract. Local log and resume-state reads/writes; no provider calls |
 | `mrs_log_digest_context.py` | Historical context, config backscan and digest-cursor persistence | Reads supplied log/cursor paths; saves through a temporary sibling and replacement; explicit current helpers, marker/tail limits, Counter factory, diagnostic and save-time clock; no import-time I/O or publication authority |
 | `mrs_log_digest_input_io.py` | Stable file observations, strict native/Decimal JSON parsing and canonical receipt/history encodings | Reads only supplied paths; explicit current sibling callbacks; ordinary file hashing retains its separate read contract; no writes or import-time runtime access |
-| `mrs_log_digest_records.py` | Shared frozen records, bounded source references, fingerprints, resume-boundary filtering and selected log input reading | Reads/stats supplied log paths and emits existing missing-input warnings; explicit current regex, constructor, parsers, readers and helpers; no import-time runtime access |
+| `mrs_log_digest_records.py` | Shared frozen records, bounded source references, fingerprints, resume-window selection, prefixed-JSON observation parsing and log input reading | Reads/stats supplied log paths and emits existing missing-input warnings; explicit current regex, constructor, parsers, readers and helpers; no import-time runtime access |
 | `mrs_log_digest_legacy_posts.py` | Raw legacy quiet/lane, quote/image, spacing, meme, created-post and conversational reply observations and companion response parsing | Supplied shared records, pending/latest objects, lists, counters, production event identities and current event/literal/ID helpers; explicit handled/state returns; no I/O, clock sample, runtime access or provider/posting actions |
 | `mrs_log_digest_transactions.py` | Passive X request, transaction, receipt and media observation preparation, legacy matching, receipt/media correlation, shared reply-receipt lifecycle analysis and post-scan receipt/error reporting preparation | Supplied records, snapshots, health, pending state, lists/statistics and current helper/source callbacks; no I/O, clock sample, runtime access or publication authority |
 | `mrs_log_digest_api_health.py` | Passive X/cooldown observation, latest-error enrichment and API counter/failure/report preparation | Supplied records, shared lists, production event identities and current helpers; separate preparation and report materialisation; no I/O, clock sample, source selection or publication authority |
@@ -124,7 +124,7 @@ and AppleDouble files.
 | `mrs_log_digest_consistency_events.py` | Passive production-consistency event projections, family counters and prepared consistency reporting | Explicit parsed fields, timestamps, local counter, insertion and current field helpers; shares control lists and emitted event rows; no I/O, clock sampling or publication authority |
 | `mrs_log_digest_generated_identity.py` | Generated-identity policy/shadow observation parsing and summaries | Mutates only supplied observation/error lists, local counters and the parser result's timestamp; strict parser, diagnostic formatter and lazy source-reference callback supplied by caller; no I/O or import-time runtime access |
 | `mrs_log_digest_original_editorial.py` | Original-editorial selection/shadow observations, companion deduplication and summary | Mutates only supplied observation/error lists, local statistics/companion counters and the parser result's timestamp and event mode; strict parser, diagnostic formatter and lazy source-reference callback supplied by caller; no I/O or import-time runtime access |
-| `mrs_log_digest_single_call.py` | Single-call reply decision, provider usage, posting outcome and recovered-draft observations and summary | Emits only through the supplied `add_event` callback; summary reads emitted events without mutation; no I/O, publication/recovery actions or import-time runtime access |
+| `mrs_log_digest_single_call.py` | Single-call reply decision, provider usage, posting outcome and recovered-draft observations and summary | Emits only through the supplied `add_event` callback; summary separates attempt compliance from ordinary totals and reads emitted events without mutation; no I/O, publication/recovery actions or import-time runtime access |
 | `mrs_log_digest_reply_pipeline.py` | Legacy pipeline observation projections, effective-outcome reconciliation, summaries and strict majority-review telemetry validation/utilisation | Supplied event/rejection callbacks; reconciliation mutates supplied events in place; no I/O |
 | `mrs_log_digest_reply_strategy.py` | Legacy conversational evidence fields, strategy observations, inferred outcomes, local-rejection coalescing, summary and no-reply categorisation | Explicit events, rejection map, payload dictionary and current callbacks; summaries read events without mutation or publication authority; no I/O |
 | `mrs_log_digest_visual_context.py` | Pure reply visual-description validation and visual-context correlation/reporting | None; validates supplied dictionaries and summarises prepared observations; no publication authority |
@@ -193,6 +193,16 @@ replacement decoding, source ordinals/indexes, exact fingerprint bytes, duplicat
 multiplicity, physical versus timestamp order, numeric rotations/mtime ties,
 bounds and stat/read/warning order. Input summaries retain physical first/last
 timestamps.
+
+`select_resume_window` returns selected physical records with their cursor mode,
+matched-tail length and timestamp-fallback status in `ResumeWindowSelection`.
+The coordinator supplies its current matching/filtering helpers and a fallback
+warning callback that runs before timestamp filtering. It uses the result for
+report diagnostics and retains argument parsing, reads, delivery and
+resume persistence. `parse_prefixed_json_observation` shares encoding, strict
+parsing and lazy parse-error diagnostics between the generated-identity and
+original-editorial recorders. Observation insertion, timestamp mutation and
+editorial companion accounting stay with those domain owners.
 
 The owner has no upward import, stored callbacks, home/configuration lookup,
 state write, clock sample or service initialisation. Discovery/explicit-log

@@ -425,6 +425,41 @@ def handle_legacy_created_post(
     return False, last_created_post
 
 
+def _prepare_legacy_reply_success(
+    pending: Dict[str, Any],
+    last_created_post: Dict[str, Any],
+) -> Tuple[Dict[str, Any], bool]:
+    """Adopt a missing reply ID in place and prepare public fields and authority.
+
+    Existing cached IDs keep their own authority. The returned boolean only
+    permits retaining production authority; event insertion, lane-specific
+    public fields and pending-state replacement remain with the caller.
+    """
+    reply_id_from_nonauthoritative_response = False
+    if not pending.get("reply_post_id") and last_created_post.get("post_id"):
+        pending["reply_post_id"] = last_created_post.get("post_id")
+        reply_id_from_nonauthoritative_response = not bool(
+            last_created_post.get("canonical_post_id")
+        )
+        pending["_reply_post_id_production"] = bool(
+            last_created_post.get("production_identity")
+        )
+    reply_identity_is_production = bool(
+        pending.get("_identity_production", True)
+        and pending.get("_reply_post_id_production", True)
+    )
+    public_fields = {
+        key: value
+        for key, value in pending.items()
+        if not key.startswith("_")
+    }
+    keep_production_authority = (
+        not reply_id_from_nonauthoritative_response
+        and reply_identity_is_production
+    )
+    return public_fields, keep_production_authority
+
+
 def handle_legacy_mention_reply(
     r: Record,
     msg: str,
@@ -477,49 +512,21 @@ def handle_legacy_mention_reply(
         return True, pending_mention, active_xai_context
 
     if msg == "Reply posted successfully" and pending_mention:
-        reply_id_from_nonauthoritative_response = False
-        if not pending_mention.get("reply_post_id") and last_created_post.get("post_id"):
-            pending_mention["reply_post_id"] = last_created_post.get("post_id")
-            reply_id_from_nonauthoritative_response = not bool(
-                last_created_post.get("canonical_post_id")
-            )
-            pending_mention["_reply_post_id_production"] = bool(
-                last_created_post.get("production_identity")
-            )
-        reply_identity_is_production = bool(
-            pending_mention.get("_identity_production", True)
-            and pending_mention.get(
-                "_reply_post_id_production", True
-            )
+        data, keep_production_authority = _prepare_legacy_reply_success(
+            pending_mention, last_created_post,
         )
         source = pending_mention.get("source", "mention")
+        data.pop("source", None)
         if source == "hot_post_reply":
-            data = dict(pending_mention)
             data.pop("mention_id", None)
-            data.pop("source", None)
-            data = {
-                key: value
-                for key, value in data.items()
-                if not key.startswith("_")
-            }
             posted_event = add_event(
                 "hot_post_reply_posted", r.ts, **data
             )
         else:
-            data = dict(pending_mention)
-            data.pop("source", None)
-            data = {
-                key: value
-                for key, value in data.items()
-                if not key.startswith("_")
-            }
             posted_event = add_event(
                 "mention_reply_posted", r.ts, **data
             )
-        if (
-            reply_id_from_nonauthoritative_response
-            or not reply_identity_is_production
-        ):
+        if not keep_production_authority:
             production_event_object_ids.discard(id(posted_event))
         pending_mention = {}
         return True, pending_mention, active_xai_context
@@ -630,31 +637,13 @@ def handle_legacy_quote_reply(
         return True, pending_qt, active_xai_context
 
     if msg == "Quote-tweet reply posted successfully" and pending_qt:
-        reply_id_from_nonauthoritative_response = False
-        if not pending_qt.get("reply_post_id") and last_created_post.get("post_id"):
-            pending_qt["reply_post_id"] = last_created_post.get("post_id")
-            reply_id_from_nonauthoritative_response = not bool(
-                last_created_post.get("canonical_post_id")
-            )
-            pending_qt["_reply_post_id_production"] = bool(
-                last_created_post.get("production_identity")
-            )
-        reply_identity_is_production = bool(
-            pending_qt.get("_identity_production", True)
-            and pending_qt.get("_reply_post_id_production", True)
+        posted_data, keep_production_authority = _prepare_legacy_reply_success(
+            pending_qt, last_created_post,
         )
-        posted_data = {
-            key: value
-            for key, value in pending_qt.items()
-            if not key.startswith("_")
-        }
         posted_event = add_event(
             "quote_tweet_reply_posted", r.ts, **posted_data
         )
-        if (
-            reply_id_from_nonauthoritative_response
-            or not reply_identity_is_production
-        ):
+        if not keep_production_authority:
             production_event_object_ids.discard(id(posted_event))
         pending_qt = {}
         return True, pending_qt, active_xai_context

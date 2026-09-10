@@ -267,9 +267,34 @@ def test_unhashable_comparison_key_keeps_original_partial_mutation_order(mode):
     assert pending == stats == {} and errors == []
 
 
+@pytest.mark.parametrize("mode", MODES)
+@pytest.mark.parametrize("result", [None, []])
+def test_invalid_parser_result_fails_outside_parse_diagnostics(mode, result):
+    import mrs_log_digest_original_editorial as editorial
+
+    observations, errors, stats, pending = [], [], Counter(), Counter()
+
+    def forbidden(*args):
+        raise AssertionError("post-parse failure must not format a parse diagnostic")
+
+    with pytest.raises(TypeError):
+        getattr(editorial, "record_original_editorial_" + mode)(
+            f"ORIGINAL_EDITORIAL_{mode.upper()}_RESULT {{}}", BASE, "INFO",
+            observations=observations, pending_shadow_companions=pending,
+            stats=stats, errors=errors,
+            parse_json_object=lambda *args, **kwargs: result,
+            short_text=forbidden, source_ref=forbidden,
+        )
+    assert observations == errors == []
+    assert stats == pending == Counter()
+
+
 def test_independent_import_has_no_runtime_effects_or_upward_dependencies(tmp_path):
+    # Warm the stdlib JSON package before rejecting directory scans, including
+    # importlib's scan for its decoder; all project imports remain guarded.
     script = """
 import builtins
+import json
 import logging
 import os
 from pathlib import Path
@@ -282,7 +307,8 @@ def reject(*args, **kwargs):
 def import_guard(name, *args, **kwargs):
     assert not (name == "mrsMThatcher2" or name == "mrs_log_digest" or
                 name.startswith("mrs_log_digest_") and name not in {
-                    "mrs_log_digest_original_editorial", "mrs_log_digest_values"}), name
+                    "mrs_log_digest_original_editorial", "mrs_log_digest_values",
+                    "mrs_log_digest_records"}), name
     return original_import(name, *args, **kwargs)
 def audit(event, args):
     if event == "open":

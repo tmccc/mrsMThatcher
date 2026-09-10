@@ -147,6 +147,26 @@ def test_parser_result_is_mutated_and_dependency_errors_keep_their_layer(monkeyp
     }]
 
 
+@pytest.mark.parametrize("marker,section,factory", FAMILIES)
+@pytest.mark.parametrize("result", [None, []])
+def test_invalid_parser_result_fails_outside_parse_diagnostics(marker, section, factory, result):
+    import mrs_log_digest_generated_identity as identity
+
+    observations, errors, stats = [], [], Counter()
+
+    def forbidden(*args):
+        raise AssertionError("post-parse failure must not format a parse diagnostic")
+
+    with pytest.raises(TypeError):
+        getattr(identity, "record_" + section)(
+            marker + " {}", BASE, "INFO", observations=observations, stats=stats,
+            errors=errors, parse_json_object=lambda *args, **kwargs: result,
+            short_text=forbidden, source_ref=forbidden,
+        )
+    assert observations == errors == []
+    assert stats == Counter()
+
+
 def _category_events(factory, *, shadow):
     unchanged = {"winner_changed_by_policy": False, "winner_changed": False,
                  "baseline_winner_differs": False, "counterfactual_policy_winner": "tg_a.png"}
@@ -262,9 +282,12 @@ def test_specific_handlers_keep_summary_failures_and_success_provenance_separate
 
 
 def test_independent_import_has_no_runtime_effects_or_upward_dependencies(tmp_path):
+    # Warm the stdlib JSON package before rejecting directory scans, including
+    # importlib's scan for its decoder; all project imports remain guarded.
     script = """
 import builtins
 from datetime import datetime
+import json
 import logging
 import os
 from pathlib import Path

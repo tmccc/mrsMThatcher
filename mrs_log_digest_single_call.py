@@ -21,50 +21,11 @@ from mrs_log_digest_values import (
 )
 
 
-def single_call_reply_summary(events: List[Dict[str, Any]]) -> Dict[str, Any]:
-    """Summarise the sole production conversational decision architecture."""
-
-    decisions = [
-        item for item in events
-        if item.get("kind") == "single_call_reply_decision"
-    ]
-    usage = [
-        item for item in events
-        if item.get("kind") == "single_call_reply_provider_usage"
-    ]
-    posting = [
-        item for item in events
-        if item.get("kind") == "single_call_reply_posting_outcome"
-    ]
-    recovered = [
-        item for item in events
-        if item.get("kind") == "single_call_reply_draft_recovered"
-    ]
-
-    def count_values(rows: List[Dict[str, Any]], field: str) -> Dict[str, int]:
-        return dict(Counter(
-            str(item.get(field) or "unavailable") for item in rows
-        ).most_common())
-
-    def average(field: str) -> Optional[float]:
-        values = [
-            item[field]
-            for item in decisions
-            if type(item.get(field)) is int
-        ]
-        return (sum(values) / len(values)) if values else None
-
-    editorial_no_reply = [
-        item for item in decisions
-        if item.get("pipeline_status") == "no_reply"
-        and item.get("outcome_type") == "editorial"
-        and item.get("local_validation_status") == "passed"
-    ]
-    operational = [
-        item for item in decisions
-        if item.get("pipeline_status") == "operational_failure"
-        or item.get("outcome_type") == "operational"
-    ]
+def _single_call_attempt_summary(
+    decisions: List[Dict[str, Any]],
+    usage: List[Dict[str, Any]],
+) -> Dict[str, Any]:
+    """Keep candidate-level attempt checks separate from decision-level counts."""
     model_attempts = [
         item for item in decisions
         if type(item.get("model_call_count")) is int
@@ -207,6 +168,77 @@ def single_call_reply_summary(events: List[Dict[str, Any]]) -> Dict[str, Any]:
         - violating_candidate_keys
         - decision_candidate_keys
     )
+    return {
+        "model_attempt_count": len(model_attempts),
+        "one_call_compliant_count": len(compliant_decisions),
+        "one_call_violation_count": one_call_violations,
+        "one_call_incomplete_count": one_call_incomplete,
+        "one_call_compliance": (
+            "failed" if one_call_violations else
+            "incomplete" if one_call_incomplete else
+            "passed" if decisions else "no_candidates"
+        ),
+        "repeated_model_attempt_candidate_count": len(
+            repeated_model_attempt_keys
+        ),
+        "excess_provider_usage_candidate_count": len(excess_usage_keys),
+        "authorised_pre_execution_retry_count": (
+            authorised_pre_execution_retry_count
+        ),
+        "provider_request_attempt_metadata_status_counts": dict(
+            attempt_metadata_status_counts.most_common()
+        ),
+        "provider_request_attempt_mismatch_candidate_count": len(
+            attempt_count_mismatch_keys
+        ),
+    }
+
+
+def single_call_reply_summary(events: List[Dict[str, Any]]) -> Dict[str, Any]:
+    """Summarise the sole production conversational decision architecture."""
+
+    decisions = [
+        item for item in events
+        if item.get("kind") == "single_call_reply_decision"
+    ]
+    usage = [
+        item for item in events
+        if item.get("kind") == "single_call_reply_provider_usage"
+    ]
+    posting = [
+        item for item in events
+        if item.get("kind") == "single_call_reply_posting_outcome"
+    ]
+    recovered = [
+        item for item in events
+        if item.get("kind") == "single_call_reply_draft_recovered"
+    ]
+
+    def count_values(rows: List[Dict[str, Any]], field: str) -> Dict[str, int]:
+        return dict(Counter(
+            str(item.get(field) or "unavailable") for item in rows
+        ).most_common())
+
+    def average(field: str) -> Optional[float]:
+        values = [
+            item[field]
+            for item in decisions
+            if type(item.get(field)) is int
+        ]
+        return (sum(values) / len(values)) if values else None
+
+    editorial_no_reply = [
+        item for item in decisions
+        if item.get("pipeline_status") == "no_reply"
+        and item.get("outcome_type") == "editorial"
+        and item.get("local_validation_status") == "passed"
+    ]
+    operational = [
+        item for item in decisions
+        if item.get("pipeline_status") == "operational_failure"
+        or item.get("outcome_type") == "operational"
+    ]
+    attempt_summary = _single_call_attempt_summary(decisions, usage)
     token_fields = (
         "input_tokens",
         "cached_input_tokens",
@@ -254,28 +286,7 @@ def single_call_reply_summary(events: List[Dict[str, Any]]) -> Dict[str, Any]:
         "operational_failure_count": len(operational),
         "posting_failure_count": len(posting_failures),
         "recovered_draft_count": len(recovered),
-        "model_attempt_count": len(model_attempts),
-        "one_call_compliant_count": len(compliant_decisions),
-        "one_call_violation_count": one_call_violations,
-        "one_call_incomplete_count": one_call_incomplete,
-        "one_call_compliance": (
-            "failed" if one_call_violations else
-            "incomplete" if one_call_incomplete else
-            "passed" if decisions else "no_candidates"
-        ),
-        "repeated_model_attempt_candidate_count": len(
-            repeated_model_attempt_keys
-        ),
-        "excess_provider_usage_candidate_count": len(excess_usage_keys),
-        "authorised_pre_execution_retry_count": (
-            authorised_pre_execution_retry_count
-        ),
-        "provider_request_attempt_metadata_status_counts": dict(
-            attempt_metadata_status_counts.most_common()
-        ),
-        "provider_request_attempt_mismatch_candidate_count": len(
-            attempt_count_mismatch_keys
-        ),
+        **attempt_summary,
         "strategy_version_counts": count_values(decisions, "strategy_version"),
         "model_counts": count_values(decisions, "model"),
         "lane_counts": count_values(decisions, "lane"),

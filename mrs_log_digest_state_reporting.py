@@ -620,6 +620,59 @@ def current_author_no_reply_strike_progress(
     return result
 
 
+def _incident_health_claim(
+    current_incidents: int,
+    unavailable_incidents: int,
+    *,
+    plural_count: Callable[..., str],
+) -> str:
+    """Describe incident health before any authoritative safety override."""
+    if current_incidents:
+        return "current health: " + plural_count(
+            current_incidents, "unresolved operational incident"
+        )
+    if unavailable_incidents:
+        return "current health: no active incident established"
+    return "current health: no unresolved operational incidents"
+
+
+def _remote_write_health_override(
+    safety: Dict[str, Any],
+    current_incidents: int,
+) -> Optional[str]:
+    """Return a stronger current-health claim only from authoritative safety."""
+    if safety.get("current_health_snapshot_authoritative") is not True:
+        return None
+    if safety.get("configured") is True and safety.get("available") is not True:
+        return "current health: remote-write safety unknown (inspection unavailable)"
+    if safety.get("blocking") is True and not current_incidents:
+        return "current health: remote writes blocked; no independent operational incident established"
+    return None
+
+
+def _reply_budget_values(
+    configs: Dict[str, Any],
+    state: Dict[str, Any],
+    *,
+    int_or_none: Callable[[Any], Optional[int]],
+) -> Dict[str, Optional[int]]:
+    """Calculate shared budget fields without adding source/availability metadata."""
+    max_auto = int_or_none(configs.get("MAX_AUTO_REPLIES_PER_DAY"))
+    max_per_author = int_or_none(configs.get("MAX_REPLIES_PER_AUTHOR_PER_DAY"))
+    max_quote = int_or_none(configs.get("MAX_QUOTE_REPLIES_PER_DAY"))
+    used_auto = int_or_none(state.get("daily_reply_count"))
+    used_quote = int_or_none(state.get("daily_quote_reply_count"))
+    return {
+        "auto_used": used_auto,
+        "auto_limit": max_auto,
+        "per_author_limit": max_per_author,
+        "auto_remaining": (max_auto - used_auto) if max_auto is not None and used_auto is not None else None,
+        "quote_used": used_quote,
+        "quote_limit": max_quote,
+        "quote_remaining": (max_quote - used_quote) if max_quote is not None and used_quote is not None else None,
+    }
+
+
 def prepare_headline_and_derived(
     *,
     stats: Counter,
@@ -674,23 +727,12 @@ def prepare_headline_and_derived(
         error_health.get("transient_provider_timeout_count", 0)
     )
     safety = current_remote_write_safety or {}
-    safety_authoritative = safety.get("current_health_snapshot_authoritative") is True
-    if safety_authoritative and safety.get("configured") is True and safety.get("available") is not True:
-        headline.append("current health: remote-write safety unknown (inspection unavailable)")
-    elif safety_authoritative and safety.get("blocking") is True and not current_incidents:
-        headline.append("current health: remote writes blocked; no independent operational incident established")
-    elif current_incidents:
-        headline.append(
-            "current health: "
-            + plural_count(
-                current_incidents,
-                "unresolved operational incident",
-            )
+    health_claim = _remote_write_health_override(safety, current_incidents)
+    if health_claim is None:
+        health_claim = _incident_health_claim(
+            current_incidents, unavailable_incidents, plural_count=plural_count,
         )
-    elif unavailable_incidents:
-        headline.append("current health: no active incident established")
-    else:
-        headline.append("current health: no unresolved operational incidents")
+    headline.append(health_claim)
     if unavailable_incidents:
         headline.append(
             plural_count(
@@ -852,23 +894,10 @@ def prepare_headline_and_derived(
     else:
         headline.append("no API cooldown")
 
-    max_auto = int_or_none(configs.get("MAX_AUTO_REPLIES_PER_DAY"))
-    max_per_author = int_or_none(
-        configs.get("MAX_REPLIES_PER_AUTHOR_PER_DAY")
-    )
-    max_quote = int_or_none(configs.get("MAX_QUOTE_REPLIES_PER_DAY"))
-    used_auto = int_or_none(latest_state_summary.get("daily_reply_count"))
-    used_quote = int_or_none(latest_state_summary.get("daily_quote_reply_count"))
     derived = {
-        "reply_budget": {
-            "auto_used": used_auto,
-            "auto_limit": max_auto,
-            "per_author_limit": max_per_author,
-            "auto_remaining": (max_auto - used_auto) if max_auto is not None and used_auto is not None else None,
-            "quote_used": used_quote,
-            "quote_limit": max_quote,
-            "quote_remaining": (max_quote - used_quote) if max_quote is not None and used_quote is not None else None,
-        },
+        "reply_budget": _reply_budget_values(
+            configs, latest_state_summary, int_or_none=int_or_none,
+        ),
         "reply_lane_priority": {
             "current_next_priority": latest_state_summary.get("next_reply_lane_priority"),
             "flipped_to_quote": stats.get("priority_flipped_to_quote", 0),
@@ -981,20 +1010,15 @@ def refresh_current_health_headline(
         )
         or 0
     )
-    health_claim = (
-        "current health: "
-        + plural_count(current_incidents, "unresolved operational incident")
-        if current_incidents
-        else "current health: no active incident established"
-        if unavailable_incidents
-        else "current health: no unresolved operational incidents"
+    # Refresh has always formatted incidents before inspecting the safety
+    # override; initial preparation skips formatting when an override applies.
+    health_claim = _incident_health_claim(
+        current_incidents, unavailable_incidents, plural_count=plural_count,
     )
     safety = report.get("remote_write_safety") or {}
-    if safety.get("current_health_snapshot_authoritative") is True:
-        if safety.get("configured") is True and safety.get("available") is not True:
-            health_claim = "current health: remote-write safety unknown (inspection unavailable)"
-        elif safety.get("blocking") is True and not current_incidents:
-            health_claim = "current health: remote writes blocked; no independent operational incident established"
+    safety_claim = _remote_write_health_override(safety, current_incidents)
+    if safety_claim is not None:
+        health_claim = safety_claim
     rebuilt_base = [
         health_claim if str(item).startswith("current health:") else item
         for item in base
@@ -1047,31 +1071,19 @@ def refresh_derived(
             st[human_key] = None
             st[reason_key] = ""
 
-    max_auto = int_or_none(configs.get("MAX_AUTO_REPLIES_PER_DAY"))
-    max_per_author = int_or_none(
-        configs.get("MAX_REPLIES_PER_AUTHOR_PER_DAY")
-    )
-    max_quote = int_or_none(configs.get("MAX_QUOTE_REPLIES_PER_DAY"))
-    used_auto = int_or_none(st.get("daily_reply_count"))
-    used_quote = int_or_none(st.get("daily_quote_reply_count"))
+    reply_budget = _reply_budget_values(configs, st, int_or_none=int_or_none)
 
     report["derived"] = {
         "reply_budget": {
-            "auto_used": used_auto,
-            "auto_limit": max_auto,
-            "per_author_limit": max_per_author,
-            "auto_remaining": (max_auto - used_auto) if max_auto is not None and used_auto is not None else None,
-            "quote_used": used_quote,
-            "quote_limit": max_quote,
-            "quote_remaining": (max_quote - used_quote) if max_quote is not None and used_quote is not None else None,
+            **reply_budget,
             "has_any_budget_input": any(
-                x is not None
-                for x in (
-                    used_auto,
-                    max_auto,
-                    max_per_author,
-                    used_quote,
-                    max_quote,
+                reply_budget[field] is not None
+                for field in (
+                    "auto_used",
+                    "auto_limit",
+                    "per_author_limit",
+                    "quote_used",
+                    "quote_limit",
                 )
             ),
             "state_carried_forward": bool(st.get("_carried_forward")),

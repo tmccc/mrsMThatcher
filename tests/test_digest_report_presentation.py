@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from collections import Counter
 from datetime import timedelta
 import json
 
@@ -11,6 +12,160 @@ import mrs_log_digest as digest
 import mrs_log_digest_state_reporting as state_reporting_owner
 
 from tests.helpers.digest_records import BASE, _normal_main_post_record, record
+
+
+def _initial_state_presentation(*, state=None, configs=None, current=0, unavailable=0, safety=None):
+    return state_reporting_owner.prepare_headline_and_derived(
+        stats=Counter(),
+        error_health={
+            "current_independent_incident_count": current,
+            "historical_resolved_incident_count": 0,
+            "resolution_unavailable_incident_count": unavailable,
+        },
+        current_remote_write_safety=safety,
+        handled_api_restrictions=[], media_upload_incidents=[], self_test_errors=[],
+        confirmed_post_recovery=[], confirmed_reply_recovery=[], receipt_events=[],
+        asset_health=[], records=[],
+        latest_state_summary=state if state is not None else {},
+        configs=configs if configs is not None else {},
+        plural_count=digest.plural_count, int_or_none=digest.int_or_none,
+        parse_dt=digest.parse_dt,
+    )
+
+
+@pytest.mark.parametrize("current,unavailable,safety,expected", [
+    pytest.param(0, 0, {}, "current health: no unresolved operational incidents", id="healthy"),
+    pytest.param(0, 3, {}, "current health: no active incident established", id="status-unavailable"),
+    pytest.param(2, 3, {}, "current health: 2 unresolved operational incidents", id="current-incidents"),
+    pytest.param(0, 3, {
+        "current_health_snapshot_authoritative": True,
+        "configured": True, "available": True, "blocking": True,
+    }, "current health: remote writes blocked; no independent operational incident established", id="blocked-without-incident"),
+    pytest.param(2, 3, {
+        "current_health_snapshot_authoritative": True,
+        "configured": True, "available": True, "blocking": True,
+    }, "current health: 2 unresolved operational incidents", id="blocked-with-incident"),
+    pytest.param(2, 3, {
+        "current_health_snapshot_authoritative": True,
+        "configured": True, "available": False, "blocking": True,
+    }, "current health: remote-write safety unknown (inspection unavailable)", id="inspection-overrides-incident"),
+    pytest.param(0, 3, {
+        "current_health_snapshot_authoritative": False,
+        "configured": True, "available": False, "blocking": True,
+    }, "current health: no active incident established", id="non-authoritative-safety"),
+    pytest.param(0, 0, {
+        "current_health_snapshot_authoritative": 1,
+        "configured": True, "available": False, "blocking": True,
+    }, "current health: no unresolved operational incidents", id="authority-requires-boolean"),
+])
+def test_initial_and_refreshed_health_keep_safety_precedence(current, unavailable, safety, expected):
+    initial = _initial_state_presentation(current=current, unavailable=unavailable, safety=safety)
+    assert [claim for claim in initial[0] if claim.startswith("current health:")] == [expected]
+
+    base = ["counts kept", "current health: stale", "tail kept"]
+    report = {
+        "summary": {"_headline_without_current_cooldown": base},
+        "runtime_state_status": {"status": "absent"},
+        "error_health": {
+            "current_independent_incident_count": current,
+            "resolution_unavailable_incident_count": unavailable,
+        },
+        "remote_write_safety": safety,
+    }
+    digest.refresh_current_health_headline(report)
+    assert report["summary"]["headline"] == (
+        f"counts kept; {expected}; tail kept; current API cooldown state unavailable"
+    )
+    assert base == ["counts kept", "current health: stale", "tail kept"]
+
+
+def test_initial_safety_override_skips_incident_formatter_but_refresh_keeps_it(monkeypatch):
+    safety = {
+        "current_health_snapshot_authoritative": True,
+        "configured": True, "available": False,
+    }
+    original_plural = digest.plural_count
+
+    def plural(*args):
+        if args[1] == "unresolved operational incident":
+            raise RuntimeError("incident formatter failed")
+        return original_plural(*args)
+
+    monkeypatch.setattr(digest, "plural_count", plural)
+    initial = _initial_state_presentation(current=1, safety=safety)
+    assert "current health: remote-write safety unknown (inspection unavailable)" in initial[0]
+
+    report = {
+        "summary": {
+            "headline": "unchanged",
+            "_headline_without_current_cooldown": ["current health: stale"],
+        },
+        "runtime_state_status": {"status": "absent"},
+        "error_health": {"current_independent_incident_count": 1},
+        "remote_write_safety": safety,
+    }
+    with pytest.raises(RuntimeError, match="incident formatter failed"):
+        digest.refresh_current_health_headline(report)
+    assert report["summary"]["headline"] == "unchanged"
+    assert "current_cooldown_status" not in report
+
+
+@pytest.mark.parametrize("configs,state,values,has_input", [
+    pytest.param({}, {}, (None, None, None, None, None, None, None), False, id="missing"),
+    pytest.param({
+        "MAX_AUTO_REPLIES_PER_DAY": "0", "MAX_REPLIES_PER_AUTHOR_PER_DAY": "0",
+        "MAX_QUOTE_REPLIES_PER_DAY": "0",
+    }, {"daily_reply_count": "0", "daily_quote_reply_count": "0"},
+        (0, 0, 0, 0, 0, 0, 0), True, id="zero-is-known"),
+    pytest.param({
+        "MAX_AUTO_REPLIES_PER_DAY": "4", "MAX_REPLIES_PER_AUTHOR_PER_DAY": "3",
+        "MAX_QUOTE_REPLIES_PER_DAY": "1",
+    }, {"daily_reply_count": "5", "daily_quote_reply_count": "2"},
+        (5, 4, 3, -1, 2, 1, -1), True, id="over-budget"),
+    pytest.param({
+        "MAX_AUTO_REPLIES_PER_DAY": "invalid", "MAX_QUOTE_REPLIES_PER_DAY": "7",
+    }, {"daily_reply_count": "5", "daily_quote_reply_count": "invalid"},
+        (5, None, None, None, None, 7, None), True, id="partially-invalid"),
+    pytest.param({"MAX_REPLIES_PER_AUTHOR_PER_DAY": "3"}, {},
+        (None, None, 3, None, None, None, None), True, id="author-limit-only"),
+])
+def test_initial_and_refreshed_budgets_share_values_but_keep_distinct_metadata(configs, state, values, has_input):
+    shared_timestamp = ["shared backscan timestamp"]
+    shared_priority = ["shared priority"]
+    configs = {
+        **configs, "_carried_forward": True, "_carried_from_log_backscan": True,
+        "_log_backscan_timestamp": shared_timestamp, "_filled_from_previous": True,
+        "_filled_from_log_backscan": True, "_config_source": "mrsMThatcher.local.json",
+    }
+    state = {
+        **state, "_carried_forward": True, "_filled_from_previous": True,
+        "next_reply_lane_priority": shared_priority,
+    }
+    expected = dict(zip((
+        "auto_used", "auto_limit", "per_author_limit", "auto_remaining",
+        "quote_used", "quote_limit", "quote_remaining",
+    ), values))
+    initial = _initial_state_presentation(state=state, configs=configs)[5]
+    assert initial["reply_budget"] == expected
+    assert list(initial["reply_budget"]) == list(expected)
+    assert initial["reply_lane_priority"]["current_next_priority"] is shared_priority
+
+    report = {"latest_state": state, "latest_config": configs}
+    digest.refresh_derived(report)
+    expected_refreshed = {
+        **expected, "has_any_budget_input": has_input,
+        "state_carried_forward": True, "config_carried_forward": True,
+        "config_carried_from_log_backscan": True,
+        "config_backscan_timestamp": shared_timestamp,
+        "state_filled_from_previous": True, "config_filled_from_previous": True,
+        "config_filled_from_log_backscan": True, "config_is_on_disk_override": True,
+    }
+    refreshed = report["derived"]
+    assert refreshed["reply_budget"] == expected_refreshed
+    assert list(refreshed["reply_budget"]) == list(expected_refreshed)
+    assert refreshed["reply_budget"]["config_backscan_timestamp"] is shared_timestamp
+    assert refreshed["reply_lane_priority"]["current_next_priority"] is shared_priority
+    assert report["latest_state"] is state and report["latest_config"] is configs
 
 
 def test_prepared_headlines_keep_current_callbacks_timing_and_shared_results(monkeypatch):

@@ -14,6 +14,7 @@ from datetime import datetime
 import statistics
 from typing import Any, Callable, Dict, List, Tuple
 
+from mrs_log_digest_records import parse_prefixed_json_observation
 from mrs_log_digest_values import most_common_with_cutoff_ties
 
 
@@ -36,20 +37,14 @@ def record_original_editorial_selection(
     Encoding/parsing failures retain their diagnostics and lazy source reference;
     comparison-key and summary failures remain outside that exception boundary.
     """
-    raw = message.split("ORIGINAL_EDITORIAL_SELECTION_RESULT ", 1)[1].strip()
-    try:
-        parsed = parse_json_object(
-            raw.encode("utf-8"),
-            label="ORIGINAL_EDITORIAL_SELECTION_RESULT",
-        )
-    except Exception as exc:
-        errors.append({
-            "time": timestamp.strftime("%Y-%m-%d %H:%M:%S"),
-            "level": level,
-            "message": f"Malformed ORIGINAL_EDITORIAL_SELECTION_RESULT: {exc}: {short_text(raw, 240)}",
-            "source_refs": [source_ref()],
-        })
-        stats["original_editorial_selection_parse_errors"] += 1
+    parsed_ok, parsed = parse_prefixed_json_observation(
+        message, timestamp, level,
+        marker="ORIGINAL_EDITORIAL_SELECTION_RESULT",
+        parse_error_counter="original_editorial_selection_parse_errors",
+        stats=stats, errors=errors, parse_json_object=parse_json_object,
+        short_text=short_text, source_ref=source_ref,
+    )
+    if not parsed_ok:
         return
     parsed["time"] = timestamp.strftime("%Y-%m-%d %H:%M:%S")
     parsed["event_mode"] = "selection"
@@ -79,20 +74,14 @@ def record_original_editorial_shadow(
     Encoding/parsing failures retain their diagnostics and lazy source reference;
     comparison-key and summary failures remain outside that exception boundary.
     """
-    raw = message.split("ORIGINAL_EDITORIAL_SHADOW_RESULT ", 1)[1].strip()
-    try:
-        parsed = parse_json_object(
-            raw.encode("utf-8"),
-            label="ORIGINAL_EDITORIAL_SHADOW_RESULT",
-        )
-    except Exception as exc:
-        errors.append({
-            "time": timestamp.strftime("%Y-%m-%d %H:%M:%S"),
-            "level": level,
-            "message": f"Malformed ORIGINAL_EDITORIAL_SHADOW_RESULT: {exc}: {short_text(raw, 240)}",
-            "source_refs": [source_ref()],
-        })
-        stats["original_editorial_shadow_parse_errors"] += 1
+    parsed_ok, parsed = parse_prefixed_json_observation(
+        message, timestamp, level,
+        marker="ORIGINAL_EDITORIAL_SHADOW_RESULT",
+        parse_error_counter="original_editorial_shadow_parse_errors",
+        stats=stats, errors=errors, parse_json_object=parse_json_object,
+        short_text=short_text, source_ref=source_ref,
+    )
+    if not parsed_ok:
         return
     parsed["time"] = timestamp.strftime("%Y-%m-%d %H:%M:%S")
     parsed["event_mode"] = "shadow"

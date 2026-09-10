@@ -11,6 +11,7 @@ from collections import Counter
 from datetime import datetime
 from typing import Any, Callable, Dict, List
 
+from mrs_log_digest_records import parse_prefixed_json_observation
 from mrs_log_digest_values import most_common_with_cutoff_ties
 
 
@@ -32,20 +33,14 @@ def record_generated_identity_shadow(
     retain their original diagnostics; source_ref is called only on failure.
     Later summary validation is intentionally outside the parsing exception.
     """
-    raw = message.split("GENERATED_IDENTITY_POLICY_SHADOW_RESULT ", 1)[1].strip()
-    try:
-        parsed = parse_json_object(
-            raw.encode("utf-8"),
-            label="GENERATED_IDENTITY_POLICY_SHADOW_RESULT",
-        )
-    except Exception as exc:
-        errors.append({
-            "time": timestamp.strftime("%Y-%m-%d %H:%M:%S"),
-            "level": level,
-            "message": f"Malformed GENERATED_IDENTITY_POLICY_SHADOW_RESULT: {exc}: {short_text(raw, 240)}",
-            "source_refs": [source_ref()],
-        })
-        stats["generated_identity_shadow_parse_errors"] += 1
+    parsed_ok, parsed = parse_prefixed_json_observation(
+        message, timestamp, level,
+        marker="GENERATED_IDENTITY_POLICY_SHADOW_RESULT",
+        parse_error_counter="generated_identity_shadow_parse_errors",
+        stats=stats, errors=errors, parse_json_object=parse_json_object,
+        short_text=short_text, source_ref=source_ref,
+    )
+    if not parsed_ok:
         return
     parsed["time"] = timestamp.strftime("%Y-%m-%d %H:%M:%S")
     observations.append(parsed)
@@ -70,20 +65,14 @@ def record_generated_identity_policy(
     retain their original diagnostics; source_ref is called only on failure.
     Later summary validation is intentionally outside the parsing exception.
     """
-    raw = message.split("GENERATED_IDENTITY_POLICY_APPLIED ", 1)[1].strip()
-    try:
-        parsed = parse_json_object(
-            raw.encode("utf-8"),
-            label="GENERATED_IDENTITY_POLICY_APPLIED",
-        )
-    except Exception as exc:
-        errors.append({
-            "time": timestamp.strftime("%Y-%m-%d %H:%M:%S"),
-            "level": level,
-            "message": f"Malformed GENERATED_IDENTITY_POLICY_APPLIED: {exc}: {short_text(raw, 240)}",
-            "source_refs": [source_ref()],
-        })
-        stats["generated_identity_policy_parse_errors"] += 1
+    parsed_ok, parsed = parse_prefixed_json_observation(
+        message, timestamp, level,
+        marker="GENERATED_IDENTITY_POLICY_APPLIED",
+        parse_error_counter="generated_identity_policy_parse_errors",
+        stats=stats, errors=errors, parse_json_object=parse_json_object,
+        short_text=short_text, source_ref=source_ref,
+    )
+    if not parsed_ok:
         return
     parsed["time"] = timestamp.strftime("%Y-%m-%d %H:%M:%S")
     observations.append(parsed)

@@ -547,6 +547,94 @@ def test_input_coverage_uses_current_parser_and_formatter(monkeypatch):
     ]
 
 
+def _select_window(records, since, *, tail=(), counts=None, exclusive=False):
+    return record_owner.select_resume_window(
+        records, since, since_exclusive=exclusive, saved_resume_tail=list(tail),
+        resume_boundary_counts=counts if counts is not None else Counter(),
+        locate_resume_fingerprint_tail=digest.locate_resume_fingerprint_tail,
+        filter_records_by_time=digest.filter_records_by_time,
+        filter_resume_boundary_records=digest.filter_resume_boundary_records,
+        warn_timestamp_fallback=lambda: None,
+    )
+
+
+@pytest.mark.parametrize("appended", [False, True])
+def test_resume_selection_reports_partial_tail_and_preserves_clock_rollback(appended):
+    saved = [record(i, "INFO", "worker", f"saved {i}") for i in range(10)]
+    tail = [digest.record_fingerprint(item) for item in saved]
+    rollback = record(-10, "INFO", "worker", "appended after clock rollback")
+    retained = saved[2:] + ([rollback] if appended else [])
+    original = list(retained)
+
+    selection = _select_window(retained, saved[-1].ts, tail=tail, exclusive=True)
+
+    assert selection.cursor_mode == "fingerprint_tail"
+    assert selection.tail_match_length == 8
+    assert selection.timestamp_fallback is False
+    assert selection.records == ([rollback] if appended else [])
+    if appended:
+        assert selection.records[0] is rollback
+    assert retained == original
+    assert tail == [digest.record_fingerprint(item) for item in saved]
+
+
+@pytest.mark.parametrize("missing_tail", [False, True])
+def test_resume_selection_keeps_unprocessed_boundary_occurrences(missing_tail):
+    duplicate = record(0, "INFO", "worker", "duplicate")
+    rows = [record(-1, "INFO", "worker", "old"), duplicate,
+            record(0, "INFO", "worker", "duplicate"),
+            record(0, "INFO", "worker", "different"),
+            record(1, "INFO", "worker", "later")]
+    counts = Counter({digest.record_fingerprint(duplicate): 1})
+    original_counts = counts.copy()
+
+    selection = _select_window(
+        rows, BASE, counts=counts, tail=["0" * 64] if missing_tail else [],
+    )
+
+    assert selection.cursor_mode == "timestamp"
+    assert selection.tail_match_length == 0
+    assert selection.timestamp_fallback is missing_tail
+    assert len(selection.records) == 3
+    assert all(actual is expected for actual, expected in zip(selection.records, rows[2:]))
+    assert counts == original_counts
+
+
+@pytest.mark.parametrize("since,exclusive,start", [(None, True, 0), (BASE, False, 1), (BASE, True, 2)])
+def test_resume_selection_retains_timestamp_boundary_semantics(since, exclusive, start):
+    rows = [record(i, "INFO", "worker", str(i)) for i in (-1, 0, 1)]
+    selection = _select_window(rows, since, exclusive=exclusive)
+    assert selection.records == rows[start:]
+    assert selection.records is not rows
+    assert selection.cursor_mode == "timestamp"
+    assert selection.tail_match_length == 0
+    assert selection.timestamp_fallback is False
+
+
+@pytest.mark.parametrize("failure", ["warning", "time_filter", "boundary_filter"])
+def test_resume_fallback_warning_precedes_filter_failures(failure):
+    calls = []
+    rows = [record(0, "INFO", "worker", "boundary")]
+
+    def step(name, result):
+        calls.append(name)
+        if name == failure:
+            raise RuntimeError(failure)
+        return result
+
+    with pytest.raises(RuntimeError, match=failure):
+        record_owner.select_resume_window(
+            rows, BASE, since_exclusive=False, saved_resume_tail=["0" * 64],
+            resume_boundary_counts=Counter({digest.record_fingerprint(rows[0]): 1}),
+            locate_resume_fingerprint_tail=lambda *args: step("locate", None),
+            warn_timestamp_fallback=lambda: step("warning", None),
+            filter_records_by_time=lambda *args, **kwargs: step("time_filter", rows),
+            filter_resume_boundary_records=lambda *args: step("boundary_filter", rows),
+        )
+    expected = ["locate", "warning", "time_filter", "boundary_filter"]
+    assert calls == expected[:expected.index(failure) + 1]
+
+
 def test_explicit_since_is_exact_and_boundary_is_inclusive(tmp_path):
     requested = "2026-07-26 10:54:03"
     log = tmp_path / "mrsMThatcher.log"
