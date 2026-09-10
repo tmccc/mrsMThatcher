@@ -1,10 +1,10 @@
 from __future__ import annotations
 
 from datetime import datetime, timedelta, timezone
+from pathlib import Path
 import hashlib
 import inspect
 import os
-from pathlib import Path
 import subprocess
 import sys
 import time
@@ -13,8 +13,9 @@ import pytest
 
 import mrs_log_digest as digest
 import mrs_log_digest_generated_pool as generated_pool
-from tests.test_digest_reply_observability import write_corpus
-from tests.test_generated_image_pool_health_digest import pool, quarantine
+
+from tests.helpers.digest_corpus import write_corpus
+from tests.helpers.digest_generated_pool import pool, quarantine
 
 
 def test_snapshot_wrappers_preserve_signatures_and_explicit_dependencies(monkeypatch, tmp_path):
@@ -401,3 +402,25 @@ def test_runway_config_keeps_current_defaults_parser_sharing_and_error_boundary(
                               if failure_at == "missing" else
                               {"_runway_config_error": "cannot read valid local config: PermissionError"})
         assert calls == expected_calls
+
+
+def test_current_corpus_snapshot_reports_counts_policies_and_hashes(tmp_path):
+    write_corpus(tmp_path)
+
+    snapshot = digest.historical_context_corpus_snapshot(tmp_path)
+
+    assert snapshot["available"] is True
+    assert snapshot["completed_packet_count"] == 2
+    assert snapshot["ordinary_post_cycle_count"] == 2
+    assert snapshot["unresolved_quote_count"] == 1
+    assert snapshot["historical_context_blocked_count"] == 1
+    assert snapshot["historical_context_allowed_count"] == 1
+    assert snapshot["source_role_policy_version"] == "roles-v9"
+    assert set(snapshot["file_sha256"]) == {
+        "research_packets",
+        "unresolved_cases",
+        "runtime_eligible_manifest",
+        "source_role_audit",
+        "semantic_gate_audit",
+        "semantic_review_ledger",
+    }

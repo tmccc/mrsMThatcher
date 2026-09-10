@@ -79,6 +79,12 @@ builders in `tests/helpers`. Use `pytest.mark.allow_loopback_network` on a test
 or as its module's `pytestmark` for local fake servers; the network guard
 continues to block non-loopback connections.
 
+Digest tests share record, incident, corpus, generated-pool and cost builders in
+`tests/helpers/digest_*.py`. Keep digest tests with their feature groups and
+import reusable builders from those support modules rather than other test
+modules. The independent Markdown expectations remain in
+`tests/fixtures/digest_markdown`.
+
 ### Manual Fake-Server Run
 
 Start the fake API server with one of the scenario fixtures:

@@ -28,7 +28,6 @@ from mrs_log_digest_values import (
     _openai_decimal_text,
     _parse_openai_utc,
     _openai_window_text,
-    _normalise_lane,
     _human_snapshot_age,
 )
 
@@ -2645,229 +2644,25 @@ def _render_main_post_recovery(report: Dict[str, Any], out: List[str], lifecycle
             out.append("")
 
 
-def _render_reply_recovery(report: Dict[str, Any], out: List[str]) -> None:
+def _render_reply_recovery(
+    report: Dict[str, Any], out: List[str], lifecycle_summary: Mapping[str, Any],
+) -> None:
     reply_recovery = report.get("confirmed_reply_recovery") or {}
     reply_receipt_events = reply_recovery.get("receipt_events") or []
     reply_recovery_warnings = reply_recovery.get("warnings") or []
-    reconciled_ambiguity_receipts = (
-        reply_recovery.get("durably_reconciled_ambiguity_receipts") or []
-    )
-    unavailable_receipts = reply_recovery.get("status_unavailable_receipts") or []
     active_snapshot_receipts = reply_recovery.get("active_snapshot_receipts") or []
-    reconciled_ambiguity_event_counts = Counter(
-        (
-            _normalise_lane(item.get("lane")),
-            str(item.get("target_id") or ""),
-            str(item.get("source_time") or ""),
-        )
-        for item in reconciled_ambiguity_receipts
-        if isinstance(item, dict)
-        and item.get("lane")
-        and item.get("target_id")
-        and item.get("source_time")
-    )
-    unavailable_receipt_event_counts = Counter(
-        (
-            _normalise_lane(item.get("lane")),
-            str(item.get("target_id") or ""),
-            str(item.get("source_time") or ""),
-        )
-        for item in unavailable_receipts
-        if isinstance(item, dict)
-        and item.get("lane")
-        and item.get("target_id")
-        and item.get("source_time")
-    )
     if reply_receipt_events or reply_recovery_warnings or active_snapshot_receipts:
-        pending_sending_receipts: Dict[
-            Tuple[str, str], List[Dict[str, Any]]
-        ] = {}
-        pending_reply_receipts: Counter = Counter()
-        pending_reconciliations: List[
-            Tuple[Tuple[str, str, str], Dict[str, Any]]
-        ] = []
-        unmatched_reply_receipts: List[Dict[str, Any]] = []
-        unavailable_reply_receipt_rows: List[Dict[str, Any]] = []
-        normal_reply_pairs = 0
-        terminal_reply_removals_outside_window = 0
-        definite_non_success_clears = 0
-        confirmed_state_fallback_clears = 0
-        reconciled_ambiguity_sending_receipts = 0
-
-        def clear_latest_reconciliation(
-            *,
-            identity: Tuple[str, str, str] | None = None,
-            lane: str | None = None,
-        ) -> Tuple[str, str, str] | None:
-            for index in range(len(pending_reconciliations) - 1, -1, -1):
-                candidate_identity, _item = pending_reconciliations[index]
-                if identity is not None and candidate_identity != identity:
-                    continue
-                if lane is not None and candidate_identity[0] != lane:
-                    continue
-                pending_reconciliations.pop(index)
-                return candidate_identity
-            return None
-
-        for item in reply_receipt_events:
-            sending_identity = (
-                str(item.get("lane") or ""),
-                str(item.get("target_id") or ""),
-            )
-            identity = (
-                *sending_identity,
-                str(item.get("reply_post_id") or ""),
-            )
-            kind = str(item.get("kind") or "")
-            if kind == "sending":
-                pending_sending_receipts.setdefault(
-                    sending_identity, []
-                ).append(item)
-            elif kind == "promoted":
-                pending_for_identity = pending_sending_receipts.get(
-                    sending_identity, []
-                )
-                if pending_for_identity:
-                    pending_for_identity.pop()
-                pending_reply_receipts[identity] += 1
-            elif kind == "sending_removed":
-                pending_for_identity = pending_sending_receipts.get(
-                    sending_identity, []
-                )
-                if pending_for_identity:
-                    pending_for_identity.pop()
-                # The matching pre-send event may be outside the selected log
-                # window.  This terminal event still proves that the receipt
-                # was cleared after a definite non-success.
-                definite_non_success_clears += 1
-            elif kind == "confirmed_state_fallback_removed":
-                pending_for_identity = pending_sending_receipts.get(
-                    sending_identity, []
-                )
-                if pending_for_identity:
-                    pending_for_identity.pop()
-                # Likewise, a digest window can begin after the sending event.
-                # The terminal fallback event is self-contained evidence that
-                # the confirmed reply identity was durably preserved.
-                confirmed_state_fallback_clears += 1
-            elif kind == "written":
-                pending_reply_receipts[identity] += 1
-            elif kind == "reconciled":
-                pending_reconciliations.append((identity, item))
-            elif kind == "removed":
-                clear_latest_reconciliation(identity=identity)
-                if pending_reply_receipts[identity] > 0:
-                    pending_reply_receipts[identity] -= 1
-                    normal_reply_pairs += 1
-                else:
-                    # The opening write can legitimately precede the selected
-                    # window.  A removal is nevertheless terminal evidence,
-                    # not an unresolved receipt.
-                    terminal_reply_removals_outside_window += 1
-            elif kind in {
-                "replay_suppressed_mention_check",
-                "replay_suppressed_quote_tweet_check",
-            }:
-                completed_identity = clear_latest_reconciliation(
-                    lane=sending_identity[0]
-                )
-                if (
-                    completed_identity is not None
-                    and pending_reply_receipts[completed_identity] > 0
-                ):
-                    pending_reply_receipts[completed_identity] -= 1
-            else:
-                unmatched_reply_receipts.append(item)
-        unresolved_reply_receipts = list(unmatched_reply_receipts)
-        for (lane, target_id), pending_events in sorted(
-            pending_sending_receipts.items()
-        ):
-            for source in pending_events:
-                event_identity = (
-                    _normalise_lane(lane),
-                    target_id,
-                    str(source.get("time") or ""),
-                )
-                if reconciled_ambiguity_event_counts[event_identity] > 0:
-                    reconciled_ambiguity_event_counts[event_identity] -= 1
-                    reconciled_ambiguity_sending_receipts += 1
-                    continue
-                if unavailable_receipt_event_counts[event_identity] > 0:
-                    unavailable_receipt_event_counts[event_identity] -= 1
-                    unavailable_reply_receipt_rows.append(
-                        {
-                            **source,
-                            "lane": lane,
-                            "target_id": target_id,
-                            "kind": "current_status_unavailable",
-                            "message": (
-                                "Present receipt status cannot be established "
-                                "from retained evidence"
-                            ),
-                        }
-                    )
-                    continue
-                unresolved_reply_receipts.append(
-                    {
-                        **source,
-                        "lane": lane,
-                        "target_id": target_id,
-                        "kind": "sending_unresolved",
-                        "message": (
-                            "Pre-send reply receipt remains unresolved at the end "
-                            "of the observed window"
-                        ),
-                    }
-                )
-        pending_reconciliation_counts = Counter(
-            identity for identity, _item in pending_reconciliations
+        normal_reply_pairs = lifecycle_summary.get("normal_reply_pairs", 0)
+        terminal_reply_removals_outside_window = lifecycle_summary.get(
+            "terminal_reply_removals_outside_window", 0,
         )
-        for identity, source in pending_reconciliations:
-            unresolved_reply_receipts.append(
-                {
-                    **source,
-                    "lane": identity[0],
-                    "target_id": identity[1],
-                    "reply_post_id": identity[2],
-                    "kind": "reconciliation_unresolved",
-                    "message": (
-                        "Confirmed-reply reconciliation began, but no terminal "
-                        "receipt removal or completion was observed"
-                    ),
-                }
-            )
-        for (lane, target_id, reply_post_id), count in sorted(
-            pending_reply_receipts.items()
-        ):
-            if count <= 0:
-                continue
-            identity = (lane, target_id, reply_post_id)
-            if pending_reconciliation_counts[identity] >= count:
-                continue
-            source = next(
-                (
-                    item
-                    for item in reversed(reply_receipt_events)
-                    if str(item.get("kind") or "") in {"written", "promoted"}
-                    and str(item.get("lane") or "") == lane
-                    and str(item.get("target_id") or "") == target_id
-                    and str(item.get("reply_post_id") or "") == reply_post_id
-                ),
-                {},
-            )
-            unresolved_reply_receipts.append(
-                {
-                    **source,
-                    "lane": lane,
-                    "target_id": target_id,
-                    "reply_post_id": reply_post_id,
-                    "kind": "confirmed_unresolved",
-                    "message": (
-                        "Confirmed reply receipt remains unresolved at the end "
-                        "of the observed window"
-                    ),
-                }
-            )
+        definite_non_success_clears = lifecycle_summary.get("definite_non_success_clears", 0)
+        confirmed_state_fallback_clears = lifecycle_summary.get("confirmed_state_fallback_clears", 0)
+        reconciled_ambiguity_sending_receipts = lifecycle_summary.get(
+            "reconciled_ambiguity_sending_receipts", 0,
+        )
+        unresolved_reply_receipts = lifecycle_summary.get("unresolved_reply_receipts") or []
+        unavailable_reply_receipt_rows = lifecycle_summary.get("unavailable_reply_receipt_rows") or []
         has_actual_recovery = bool(
             reply_recovery_warnings
             or unresolved_reply_receipts
@@ -3377,11 +3172,12 @@ def render_markdown(
     report: Dict[str, Any],
     *,
     main_post_receipt_lifecycle: Mapping[str, Any],
+    reply_receipt_lifecycle: Mapping[str, Any],
 ) -> str:
-    """Render a prepared report and its main-post receipt lifecycle summary.
+    """Render a prepared report and its main-post and reply lifecycle summaries.
 
-    The caller supplies an empty mapping when there are no receipt events.
-    Neither the report nor the lifecycle summary is modified.
+    The caller supplies empty mappings when there are no receipt events.
+    Neither the report nor the lifecycle summaries are modified.
     """
     out: List[str] = []
     _render_overview(report, out)
@@ -3408,7 +3204,7 @@ def render_markdown(
     _render_counts(report, out)
     _render_event_details(report, out)
     _render_main_post_recovery(report, out, main_post_receipt_lifecycle)
-    _render_reply_recovery(report, out)
+    _render_reply_recovery(report, out, reply_receipt_lifecycle)
     _render_asset_health(report, out)
     _render_api_health(report, out)
     _render_self_test_errors(report, out)

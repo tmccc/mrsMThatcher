@@ -1,4 +1,4 @@
-"""Read-only durable confirmed reply evidence loading and validation.
+"""Prepare structured log evidence and validate read-only durable reply evidence.
 
 Callers supply project paths, stable private-file reads, strict native-number
 JSON parsing, the distinct canonical receipt/history encoders, timestamp
@@ -7,6 +7,8 @@ The coordinator retains its entry points and supplies current dependencies on
 each call; validation delegates through those callbacks without storing them.
 
 Publication evidence remains distinct from drafts and unconfirmed observations.
+Structured log confirmations and completion anchors use their own validators;
+their rules do not replace the durable receipt/history contracts below.
 Import performs no runtime I/O or service initialisation; this module owns no
 publication, recovery, reconciliation or report-enrichment actions.
 """
@@ -30,6 +32,139 @@ CONFIRMED_REPLY_RECEIPT_MAX_BYTES = 1024 * 1024
 HISTORICAL_REPLY_HISTORY_MAX_BYTES = 64 * 1024 * 1024
 MIN_CONFIRMED_PUBLICATION_EPOCH = 1_500_000_000
 MAX_CONFIRMED_PUBLICATION_EPOCH = 4_102_444_800
+
+
+def prepare_structured_reply_confirmation(
+    strict_event: Optional[Dict[str, Any]],
+    *,
+    production_record: bool,
+    time_text: Callable[[], str],
+    event_insertion_index: Callable[[], int],
+    source_sequence: int,
+    make_source_ref: Callable[[], Dict[str, Any]],
+) -> Optional[Dict[str, Any]]:
+    """Retain strict production confirmation fields for later identity validation."""
+    authority_event = (
+        strict_event
+        if strict_event and strict_event.get("event") == "reply_posted"
+        else None
+    )
+    if not production_record or authority_event is None:
+        return None
+    return {
+        "time": time_text(),
+        "lane": authority_event.get("lane"),
+        "target_id": authority_event.get("target_id"),
+        "reply_post_id": authority_event.get("reply_post_id"),
+        "author_id": authority_event.get("author_id"),
+        "original_post_id": authority_event.get("original_post_id"),
+        "_event_insertion_index": event_insertion_index(),
+        "_source_sequence": source_sequence,
+        "source_refs": [make_source_ref()],
+    }
+
+
+def prepare_structured_historical_publication_evidence(
+    event: Dict[str, Any],
+    strict_event: Optional[Dict[str, Any]],
+    *,
+    production_record: bool,
+    valid_string_public_post_id: Callable[[Any], bool],
+    valid_bounded_utf8_text: Callable[..., bool],
+    sha256_fullmatch: Callable[[str], Any],
+    time_text: Callable[[], str],
+    event_insertion_index: Callable[[], int],
+    source_sequence: int,
+    make_source_ref: Callable[[], Dict[str, Any]],
+) -> Dict[str, Any]:
+    """Project one historical log confirmation, retaining text only with authority.
+
+    A displayable fallback can retain identity fields but cannot prove a
+    publication. Timestamp and provenance callbacks are evaluated after the
+    authority checks, in the same order as the returned observation fields.
+    """
+    authority_event = (
+        strict_event
+        if strict_event
+        and strict_event.get("event") == "historical_context_reply_posted"
+        else None
+    )
+    publication_event = authority_event or event
+    parent_value = publication_event.get("parent_post_id")
+    reply_post_value = publication_event.get("reply_post_id")
+    root_value = publication_event.get("root_post_id")
+    conversation_value = publication_event.get("conversation_id")
+    quote_value = publication_event.get("quote_id")
+    parent_post_id = parent_value if isinstance(parent_value, str) else ""
+    reply_post_id = reply_post_value if isinstance(reply_post_value, str) else ""
+    quote_id = quote_value if isinstance(quote_value, str) else ""
+    reply_text = publication_event.get("reply_text")
+    authoritative = (
+        production_record
+        and authority_event is not None
+        and type(authority_event.get("event_version")) is int
+        and authority_event.get("event_version") == 1
+        and authority_event.get("lane") == "historical_context_reply"
+        and authority_event.get("publication_authority") == "confirmed_transport"
+        and valid_string_public_post_id(parent_value)
+        and valid_string_public_post_id(reply_post_value)
+        and valid_string_public_post_id(root_value)
+        and valid_string_public_post_id(conversation_value)
+        and root_value == parent_value
+        and conversation_value == parent_value
+        and isinstance(quote_value, str)
+        and sha256_fullmatch(quote_value) is not None
+        and valid_bounded_utf8_text(reply_text)
+    )
+    return {
+        "time": time_text(),
+        "parent_post_id": parent_post_id,
+        "reply_post_id": reply_post_id,
+        "quote_id": quote_id,
+        "authoritative": authoritative,
+        "reply_text": reply_text if authoritative else None,
+        "source": "structured historical_context_reply_posted",
+        "durable_only": False,
+        "_event_insertion_index": event_insertion_index(),
+        "_source_sequence": source_sequence,
+        "source_refs": [make_source_ref()],
+    }
+
+
+def valid_structured_historical_completion_anchor(
+    strict_event: Optional[Dict[str, Any]],
+    status: str,
+    *,
+    valid_string_public_post_id: Callable[[Any], bool],
+    valid_bounded_utf8_text: Callable[..., bool],
+    sha256_fullmatch: Callable[[str], Any],
+) -> bool:
+    """Validate the log anchor required before attaching durable historical text.
+
+    The caller selects completed/already-completed events and separately tracks
+    whether the emitted event belongs to a production source.
+    """
+    strict_anchor = (
+        strict_event
+        if strict_event and strict_event.get("event") == "historical_context_reply"
+        else None
+    )
+    return bool(
+        strict_anchor is not None
+        and type(strict_anchor.get("status")) is str
+        and strict_anchor.get("status") == status
+        and valid_string_public_post_id(strict_anchor.get("parent_post_id"))
+        and isinstance(strict_anchor.get("quote_id"), str)
+        and sha256_fullmatch(strict_anchor["quote_id"]) is not None
+        and type(strict_anchor.get("character_count")) is int
+        and 0 <= strict_anchor.get("character_count") <= 25_000
+        and (
+            "reply_preview" not in strict_anchor
+            or valid_bounded_utf8_text(
+                strict_anchor.get("reply_preview"), allow_empty=True,
+            )
+        )
+    )
 
 
 def valid_conversational_public_reply_text(value: Any) -> bool:

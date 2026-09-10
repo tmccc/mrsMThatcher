@@ -1,4 +1,5 @@
 """Check the incident extraction's delegation, clocks and object boundaries."""
+
 from __future__ import annotations
 
 from dataclasses import replace
@@ -10,7 +11,10 @@ import mrs_log_digest as digest
 import mrs_log_digest_api_health as api_health_owner
 import mrs_log_digest_incidents as incident_owner
 import mrs_log_digest_snapshot_incidents as snapshot_owner
-from tests.test_mrs_log_digest import BASE, record, reconciled_remote_write_safety
+import mrs_log_digest_transactions as transaction_owner
+
+from tests.helpers.digest_incidents import reconciled_remote_write_safety
+from tests.helpers.digest_records import BASE, record
 
 
 def test_grouping_and_pause_adapters_keep_current_inputs_result_identity_and_sequence(monkeypatch):
@@ -2061,3 +2065,129 @@ def test_window_annotation_preserves_conversion_exception_and_mutation_order(mon
     assert first["selected_window_relationship"] == "recorded_at_or_before_selected_window_end"
     assert failing == {"recorded_at_epoch": 2}
     assert safety["current_health_snapshot_authoritative"] is False
+
+
+def test_pending_reply_receipt_errors_keep_latest_match_order_and_shared_sources():
+    def receipt(kind, lane, target, reply="", **extra):
+        return {
+            "kind": kind, "lane": lane, "target_id": target, "reply_post_id": reply,
+            "time": str(len(receipts)), "source_refs": [{"record_number": len(receipts)}],
+            **extra,
+        }
+
+    receipts = []
+    for fields in [
+        ("sending", "quote_tweet", "2"),
+        ("sending", "mention", "1"),
+        ("sending", "mention", "1"),
+        ("promoted", "mention", "1"),
+        ("removed", "mention", "unmatched", "9"),
+        ("reconciled", "mention", "1", "9"),
+        ("reconciled", "mention", "1", "9"),
+        ("removed", "mention", "1", "9"),
+        ("reconciled", "quote_tweet", "2", "8"),
+        ("reconciled", "mention", "3", "7"),
+        ("replay_suppressed_mention_check", "mention", ""),
+    ]:
+        receipts.append(receipt(*fields))
+    receipts.append(receipt("sending_removed", "mention", "1", source_class="selftest"))
+    receipts.append(receipt("removed", "quote_tweet", "2", "8", source_class="selftest"))
+    original_receipts = list(receipts)
+    existing = {"message": "earlier error"}
+    errors = [existing]
+
+    result = transaction_owner.append_unresolved_reply_receipt_errors(
+        confirmed_reply_receipts=receipts, errors=errors,
+    )
+
+    assert result is None and errors[0] is existing
+    assert len(errors) == 5
+    assert all(left is right for left, right in zip(receipts, original_receipts))
+    for error, source in zip(errors[1:], (receipts[i] for i in (1, 0, 5, 8))):
+        assert error["time"] == source["time"]
+        assert error["source_refs"] is not source["source_refs"]
+        assert error["source_refs"][0] is source["source_refs"][0]
+
+
+def test_prepared_reply_recovery_keeps_health_order_callbacks_and_nested_lists(monkeypatch):
+    records = [record(
+        0, "WARNING", "write_sending_reply_receipt",
+        "Wrote conversational reply sending receipt source=mention target_id=123 path=/tmp/reply.json",
+    )]
+    component = {
+        "receipt_roles": ["conversational_confirmed_reply"],
+        "lanes": ["conversational_reply", "mention"],
+        "transaction_ids": ["a" * 64], "target_ids": [], "artifact_names": ["reply.json"],
+    }
+    safety = {"available": False}
+    calls = []
+    captured = {}
+    original_health = digest.summarise_operational_error_health
+    original_parse = digest.parse_dt
+    original_lane = digest._normalise_lane
+    labels = {"conversational_confirmed_reply": "current role label"}
+
+    def health(errors, *args, **kwargs):
+        assert errors[-1]["where"] == "confirmed_reply_receipt_lifecycle"
+        result = original_health(errors, *args, **kwargs)
+        result["historical_resolved_incidents"] = [{
+            "category": "remote_write_ambiguity_barrier", "resolution_time": "resolved",
+            "correlated_reply_receipt_events": [
+                {"lane": "mention", "target_id": "123", "source_time": "source"},
+                {"source_time": "invalid"}, {"source_time": "later"}, None,
+            ],
+        }]
+        result["resolution_unavailable_incidents"] = [{
+            "lane": "MENTION", "target_id": "123", "resolution_reason": "unavailable",
+        }]
+        safety["active_transaction_identities"] = [component]
+        captured["health"] = result
+        calls.append("health")
+        return result
+
+    def parse(value):
+        if value == "invalid":
+            calls.append(value)
+            raise ValueError(value)
+        if value in {"resolved", "source", "later"}:
+            calls.append(value)
+            return BASE + timedelta(seconds={"source": 0, "resolved": 1, "later": 2}[value])
+        return original_parse(value)
+
+    def lane(value):
+        calls.append(("lane", value))
+        return original_lane(str(value).lower())
+
+    original_prepare = digest.prepare_reply_receipt_recovery_reporting
+
+    def prepare(**inputs):
+        assert inputs["error_health"] is captured["health"]
+        assert inputs["current_remote_write_safety"] is safety
+        assert inputs["parse_dt"] is parse and inputs["_normalise_lane"] is lane
+        assert inputs["REMOTE_WRITE_RECEIPT_ROLE_LABELS"] is labels
+        calls.clear()
+        result = original_prepare(**inputs)
+        assert calls == ["resolved", "source", "invalid", "later", ("lane", "mention"), ("lane", "MENTION")]
+        captured["inputs"] = inputs
+        captured["result"] = result
+        return result
+
+    monkeypatch.setattr(digest, "summarise_operational_error_health", health)
+    monkeypatch.setattr(digest, "parse_dt", parse)
+    monkeypatch.setattr(digest, "_normalise_lane", lane)
+    monkeypatch.setattr(digest, "REMOTE_WRITE_RECEIPT_ROLE_LABELS", labels)
+    monkeypatch.setattr(digest, "prepare_reply_receipt_recovery_reporting", prepare)
+    recovery = digest.analyse(records, current_remote_write_safety=safety)["confirmed_reply_recovery"]
+    for key, result in zip(
+        ("durably_reconciled_ambiguity_receipts", "status_unavailable_receipts", "active_snapshot_receipts"),
+        captured["result"],
+    ):
+        assert recovery[key] is result and len(result) == 1
+    assert recovery["status_unavailable_receipts"][0]["source_time"] == digest.dt_text(BASE)
+    active = recovery["active_snapshot_receipts"][0]
+    assert active["receipt_role_label"] == "current role label" and active["lane"] == "mention"
+    assert active["transaction_ids"] is component["transaction_ids"]
+    assert active["artifact_names"] is component["artifact_names"]
+    assert active["target_ids"] == [] and active["target_ids"] is not component["target_ids"]
+    with pytest.raises(TypeError):
+        original_prepare(**{**captured["inputs"], "parse_dt": lambda value: None})

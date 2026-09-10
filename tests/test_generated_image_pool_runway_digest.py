@@ -1,20 +1,13 @@
 from __future__ import annotations
 
-import json
 from datetime import datetime, timezone
+import json
+
+import pytest
 
 import mrs_log_digest as digest
-import pytest
-from tests.test_generated_image_pool_health_digest import pool, quarantine
 
-
-def log_line(ts: datetime, message: str) -> str:
-    return f"{ts.strftime('%Y-%m-%d %H:%M:%S')} INFO     test:1 - {message}\n"
-
-
-def post(ts: datetime, post_id: str, basename: str) -> str:
-    event = {"event": "main_post_posted", "lane": "quote_image", "post_id": post_id, "image_basename": basename}
-    return log_line(ts, "EVENT " + json.dumps(event, separators=(",", ":")))
+from tests.helpers.digest_generated_pool import log_line, pool, post, quarantine
 
 
 def test_observed_rates_windows_dedup_and_selected_window_independence(tmp_path):

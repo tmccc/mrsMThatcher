@@ -104,7 +104,7 @@ and AppleDouble files.
 | `mrs_log_digest_input_io.py` | Stable file observations, strict native/Decimal JSON parsing and canonical receipt/history encodings | Reads only supplied paths; explicit current sibling callbacks; ordinary file hashing retains its separate read contract; no writes or import-time runtime access |
 | `mrs_log_digest_records.py` | Shared frozen records, bounded source references, fingerprints, resume-boundary filtering and selected log input reading | Reads/stats supplied log paths and emits existing missing-input warnings; explicit current regex, constructor, parsers, readers and helpers; no import-time runtime access |
 | `mrs_log_digest_legacy_posts.py` | Raw legacy quiet/lane, quote/image, spacing, meme, created-post and conversational reply observations and companion response parsing | Supplied shared records, pending/latest objects, lists, counters, production event identities and current event/literal/ID helpers; explicit handled/state returns; no I/O, clock sample, runtime access or provider/posting actions |
-| `mrs_log_digest_transactions.py` | Passive X request, transaction, receipt and media observation preparation, legacy matching, receipt/media correlation and post-scan receipt/error reporting preparation | Supplied records, snapshots, health, pending state, lists/statistics and current helper/source callbacks; no I/O, clock sample, runtime access or publication authority |
+| `mrs_log_digest_transactions.py` | Passive X request, transaction, receipt and media observation preparation, legacy matching, receipt/media correlation, shared reply-receipt lifecycle analysis and post-scan receipt/error reporting preparation | Supplied records, snapshots, health, pending state, lists/statistics and current helper/source callbacks; no I/O, clock sample, runtime access or publication authority |
 | `mrs_log_digest_api_health.py` | Passive X/cooldown observation, latest-error enrichment and API counter/failure/report preparation | Supplied records, shared lists, production event identities and current helpers; separate preparation and report materialisation; no I/O, clock sample, source selection or publication authority |
 | `mrs_log_digest_markdown.py` | Prepared-report Markdown presentation and section rendering | None; receipt lifecycle analysis is supplied by the caller |
 | `mrs_log_digest_costs.py` | Published-cost cache validation, UTC-window accounting and report preparation | Cache reads only through an explicitly supplied stable reader; paths, clock observations and strict JSON parser supplied by caller |
@@ -115,7 +115,7 @@ and AppleDouble files.
 | `mrs_log_digest_remote_write.py` | Read-only remote-write barrier identities, grouping, safety, reconciliation archive and window annotations | Explicit paths, readers/parsers, diagnostic formatter, clock, snapshot callbacks and annotation time converters; supplied window/authority flag; lazy read-only inspectors; no import-time runtime access |
 | `mrs_log_digest_incidents.py` | Per-record error/warning observation, operational-error classification, incident grouping/resolution, retirement evidence and remote pause scopes | Supplied observations, current helper/annotation callbacks, scope mappings and conditional clock/epoch conversion; preserves error/event identity and snapshot mutation; no file/home/configuration access or provider calls |
 | `mrs_log_digest_snapshot_incidents.py` | Prepared current-snapshot and retirement-evidence incident reconciliation | Supplied incident/evidence references and current matching/text/time callbacks; in-place incident enrichment/appends and shallow evidence sharing; no reads, clock samples or provider calls |
-| `mrs_log_digest_reply_evidence.py` | Durable confirmed conversational receipt and historical reply-history loading/validation | Explicit project paths, stable private reader, native-number parser, canonical encoders, time conversion and validator callbacks; no writes, clock sample or import-time runtime access |
+| `mrs_log_digest_reply_evidence.py` | Structured reply-publication evidence validation and durable confirmed conversational receipt and historical reply-history loading/validation | Structured observations or explicit project paths, stable private reader, native-number parser, canonical encoders, time/source-reference and validator callbacks; no writes, clock sample or import-time runtime access |
 | `mrs_log_digest_reply_text.py` | Exact confirmed public reply-text preparation from prepared runtime/receipt/history evidence | Mutates supplied report/events; explicit source-reference, epoch-conversion and helper/validator callbacks and warning limit; no evidence loading, I/O or clock sample |
 | `mrs_log_digest_quote_publication.py` | Quote-publication validation and per-analysis evidence correlation | `QuotePublicationCorrelation` owns evidence, trial outcomes, warning deduplication/counting/capping and report enrichment. Lazy current-source, validator/reference and vocabulary callbacks preserve authority and original event/reference sharing; no file, configuration, clock or provider access |
 | `mrs_log_digest_corpus.py` | Historical-corpus counts, availability, policies and hashes | Reads the existing research/audit paths under an explicit project directory using supplied strict parsing and file hashing; parsing and hashing remain separate reads |
@@ -322,7 +322,7 @@ sharing are unchanged. The owner has no reverse imports, stored callbacks,
 runtime reads, clock sampling or operational actions; schema 3, Markdown,
 CLI/defaults/provenance, locks and resume are unchanged.
 
-Three post-scan functions also belong to `mrs_log_digest_transactions` and are
+Post-scan functions also belong to `mrs_log_digest_transactions` and are
 direct digest imports. `prepare_media_incidents_and_errors` consumes the selected
 records, request/transaction observations, prepared snapshot, original errors and
 self-test list, and coordinator-prepared self-test/API/restriction times. Current
@@ -335,11 +335,21 @@ are unchanged. Restriction-time preparation stays in the coordinator for later
 API reporting.
 
 `append_unresolved_reply_receipt_errors` consumes the coordinator's confirmed
-receipt and error lists, appending unresolved sending/reconciliation errors in
-the original order. Its local pending collections and `clear_latest_reconciliation`
-retain self-test exclusion, lane/target/reply identities, reverse latest-match
-removal and unmatched cases. Source-reference lists are copied shallowly, keeping
-their original nested objects; existing errors and receipt rows are retained.
+receipt and error lists, excluding self-test observations and appending unresolved
+sending/reconciliation errors in the original order. It shares a pure lifecycle
+scan with `summarise_reply_receipt_lifecycle`, retaining lane/target/reply
+identities, reverse latest-match removal, repeated-event counts and unmatched
+cases. Source-reference lists are copied shallowly, keeping their original nested
+objects; existing errors and receipt rows are retained.
+
+`summarise_reply_receipt_lifecycle` prepares completed-pair and terminal-clear
+counts and unresolved/unavailable rows for the supplied receipt observations.
+Reconciled ambiguity and unavailable-status evidence are applied after the scan.
+Error classification and presentation retain their different filtering and
+projections. The public digest `render_markdown(report)` adapter supplies both
+main-post and reply lifecycle summaries to the lower-level Markdown renderer;
+the renderer formats prepared values without repeating the receipt transitions.
+These summaries are not added to the JSON report.
 
 `prepare_reply_receipt_recovery_reporting` follows the unchanged operational-health
 call and returns three explicit lists: durably reconciled receipts, unavailable
@@ -832,6 +842,15 @@ stored callbacks, runtime I/O on import or service initialisation. Event collect
 `analyse`, pipeline reconciliation, report assembly
 and all publication/recovery authority retain their existing owners. JSON schema 3,
 Markdown, CLI, defaults, provenance, clocks, locks and resume behaviour are unchanged.
+
+Structured log evidence is handled by `prepare_structured_reply_confirmation`,
+`prepare_structured_historical_publication_evidence` and
+`valid_structured_historical_completion_anchor` in the same evidence module.
+They preserve strict parsing and production-source authority, canonical IDs,
+integer checks and bounded public text. The coordinator retains dispatch, event
+insertion and invalid-anchor event mutation, supplying current validation,
+timestamp and source-reference callbacks. Durable-file validation and structured
+log validation remain separate contracts.
 
 Public reply-text preparation belongs to `mrs_log_digest_reply_text`.
 `_normalised_structured_reply_confirmation` is a direct digest import with its

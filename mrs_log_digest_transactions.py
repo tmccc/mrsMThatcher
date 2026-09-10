@@ -10,10 +10,11 @@ This module performs no I/O, clock sampling or runtime initialisation.
 from __future__ import annotations
 
 from collections import Counter
+from dataclasses import dataclass, field
 from datetime import datetime
 from pathlib import Path
 import re
-from typing import Any, Callable, Dict, List, Optional, Tuple
+from typing import Any, Callable, Dict, Iterable, List, Optional, Tuple
 from urllib.parse import urlsplit
 
 from mrs_log_digest_records import Record
@@ -975,37 +976,44 @@ def prepare_media_incidents_and_errors(
     return media_upload_incidents, remaining_errors
 
 
-def append_unresolved_reply_receipt_errors(
-    *,
-    confirmed_reply_receipts: List[Dict[str, Any]],
-    errors: List[Dict[str, Any]],
-) -> None:
-    """Append unresolved sending/reconciliation errors in their existing order."""
-    pending_sending_lifecycle: Dict[
-        Tuple[str, str], List[Dict[str, Any]]
-    ] = {}
+@dataclass
+class _ReplyReceiptLifecycle:
+    """Retain ordered pending receipt observations and terminal event counts."""
+
+    pending_sending: Dict[Tuple[str, str], List[Dict[str, Any]]] = field(default_factory=dict)
+    pending_confirmed: Counter[Tuple[str, str, str]] = field(default_factory=Counter)
     pending_reconciliations: List[
         Tuple[Tuple[str, str, str], Dict[str, Any]]
-    ] = []
+    ] = field(default_factory=list)
+    unmatched: List[Dict[str, Any]] = field(default_factory=list)
+    normal_reply_pairs: int = 0
+    terminal_removals_outside_window: int = 0
+    definite_non_success_clears: int = 0
+    confirmed_state_fallback_clears: int = 0
+
+
+def _scan_reply_receipt_lifecycle(
+    receipt_events: Iterable[Dict[str, Any]],
+) -> _ReplyReceiptLifecycle:
+    """Scan supplied events without filtering, copying or mutating their rows."""
+    lifecycle = _ReplyReceiptLifecycle()
 
     def clear_latest_reconciliation(
         *,
         identity: Tuple[str, str, str] | None = None,
         lane: str | None = None,
     ) -> Tuple[str, str, str] | None:
-        for index in range(len(pending_reconciliations) - 1, -1, -1):
-            candidate_identity, _item = pending_reconciliations[index]
+        for index in range(len(lifecycle.pending_reconciliations) - 1, -1, -1):
+            candidate_identity, _item = lifecycle.pending_reconciliations[index]
             if identity is not None and candidate_identity != identity:
                 continue
             if lane is not None and candidate_identity[0] != lane:
                 continue
-            pending_reconciliations.pop(index)
+            lifecycle.pending_reconciliations.pop(index)
             return candidate_identity
         return None
 
-    for item in confirmed_reply_receipts:
-        if item.get("source_class") == "selftest":
-            continue
+    for item in receipt_events:
         sending_identity = (
             str(item.get("lane") or ""),
             str(item.get("target_id") or ""),
@@ -1016,27 +1024,221 @@ def append_unresolved_reply_receipt_errors(
         )
         kind = str(item.get("kind") or "")
         if kind == "sending":
-            pending_sending_lifecycle.setdefault(sending_identity, []).append(item)
-        elif kind in {
-            "promoted",
-            "sending_removed",
-            "confirmed_state_fallback_removed",
-        }:
-            pending_for_identity = pending_sending_lifecycle.get(
+            lifecycle.pending_sending.setdefault(
+                sending_identity, []
+            ).append(item)
+        elif kind == "promoted":
+            pending_for_identity = lifecycle.pending_sending.get(
                 sending_identity, []
             )
             if pending_for_identity:
                 pending_for_identity.pop()
-        if kind == "reconciled":
-            pending_reconciliations.append((identity, item))
+            lifecycle.pending_confirmed[identity] += 1
+        elif kind == "sending_removed":
+            pending_for_identity = lifecycle.pending_sending.get(
+                sending_identity, []
+            )
+            if pending_for_identity:
+                pending_for_identity.pop()
+            # The matching pre-send event may be outside the selected log
+            # window.  This terminal event still proves that the receipt
+            # was cleared after a definite non-success.
+            lifecycle.definite_non_success_clears += 1
+        elif kind == "confirmed_state_fallback_removed":
+            pending_for_identity = lifecycle.pending_sending.get(
+                sending_identity, []
+            )
+            if pending_for_identity:
+                pending_for_identity.pop()
+            # Likewise, a digest window can begin after the sending event.
+            # The terminal fallback event is self-contained evidence that
+            # the confirmed reply identity was durably preserved.
+            lifecycle.confirmed_state_fallback_clears += 1
+        elif kind == "written":
+            lifecycle.pending_confirmed[identity] += 1
+        elif kind == "reconciled":
+            lifecycle.pending_reconciliations.append((identity, item))
         elif kind == "removed":
             clear_latest_reconciliation(identity=identity)
+            if lifecycle.pending_confirmed[identity] > 0:
+                lifecycle.pending_confirmed[identity] -= 1
+                lifecycle.normal_reply_pairs += 1
+            else:
+                # The opening write can legitimately precede the selected
+                # window.  A removal is nevertheless terminal evidence,
+                # not an unresolved receipt.
+                lifecycle.terminal_removals_outside_window += 1
         elif kind in {
             "replay_suppressed_mention_check",
             "replay_suppressed_quote_tweet_check",
         }:
-            clear_latest_reconciliation(lane=sending_identity[0])
-    for identity, pending_events in sorted(pending_sending_lifecycle.items()):
+            completed_identity = clear_latest_reconciliation(
+                lane=sending_identity[0]
+            )
+            if (
+                completed_identity is not None
+                and lifecycle.pending_confirmed[completed_identity] > 0
+            ):
+                lifecycle.pending_confirmed[completed_identity] -= 1
+        else:
+            lifecycle.unmatched.append(item)
+    return lifecycle
+
+
+def summarise_reply_receipt_lifecycle(
+    receipt_events: List[Dict[str, Any]],
+    *,
+    reconciled_ambiguity_receipts: Iterable[Dict[str, Any]] = (),
+    unavailable_receipts: Iterable[Dict[str, Any]] = (),
+    normalise_lane: Callable[[Any], str],
+) -> Dict[str, Any]:
+    """Prepare renderable receipt counts and unresolved rows from supplied evidence.
+
+    All supplied source classes remain visible. Matching snapshot evidence
+    consumes one pending sending observation per exact lane, target and time.
+    Inputs and nested source references retain their original identities.
+    """
+    reconciled_ambiguity_event_counts = Counter(
+        (
+            normalise_lane(item.get("lane")),
+            str(item.get("target_id") or ""),
+            str(item.get("source_time") or ""),
+        )
+        for item in reconciled_ambiguity_receipts
+        if isinstance(item, dict)
+        and item.get("lane")
+        and item.get("target_id")
+        and item.get("source_time")
+    )
+    unavailable_receipt_event_counts = Counter(
+        (
+            normalise_lane(item.get("lane")),
+            str(item.get("target_id") or ""),
+            str(item.get("source_time") or ""),
+        )
+        for item in unavailable_receipts
+        if isinstance(item, dict)
+        and item.get("lane")
+        and item.get("target_id")
+        and item.get("source_time")
+    )
+    lifecycle = _scan_reply_receipt_lifecycle(receipt_events)
+    unavailable_reply_receipt_rows: List[Dict[str, Any]] = []
+    reconciled_ambiguity_sending_receipts = 0
+    unresolved_reply_receipts = list(lifecycle.unmatched)
+    for (lane, target_id), pending_events in sorted(
+        lifecycle.pending_sending.items()
+    ):
+        for source in pending_events:
+            event_identity = (
+                normalise_lane(lane),
+                target_id,
+                str(source.get("time") or ""),
+            )
+            if reconciled_ambiguity_event_counts[event_identity] > 0:
+                reconciled_ambiguity_event_counts[event_identity] -= 1
+                reconciled_ambiguity_sending_receipts += 1
+                continue
+            if unavailable_receipt_event_counts[event_identity] > 0:
+                unavailable_receipt_event_counts[event_identity] -= 1
+                unavailable_reply_receipt_rows.append(
+                    {
+                        **source,
+                        "lane": lane,
+                        "target_id": target_id,
+                        "kind": "current_status_unavailable",
+                        "message": (
+                            "Present receipt status cannot be established "
+                            "from retained evidence"
+                        ),
+                    }
+                )
+                continue
+            unresolved_reply_receipts.append(
+                {
+                    **source,
+                    "lane": lane,
+                    "target_id": target_id,
+                    "kind": "sending_unresolved",
+                    "message": (
+                        "Pre-send reply receipt remains unresolved at the end "
+                        "of the observed window"
+                    ),
+                }
+            )
+    pending_reconciliation_counts = Counter(
+        identity for identity, _item in lifecycle.pending_reconciliations
+    )
+    for identity, source in lifecycle.pending_reconciliations:
+        unresolved_reply_receipts.append(
+            {
+                **source,
+                "lane": identity[0],
+                "target_id": identity[1],
+                "reply_post_id": identity[2],
+                "kind": "reconciliation_unresolved",
+                "message": (
+                    "Confirmed-reply reconciliation began, but no terminal "
+                    "receipt removal or completion was observed"
+                ),
+            }
+        )
+    for (lane, target_id, reply_post_id), count in sorted(
+        lifecycle.pending_confirmed.items()
+    ):
+        if count <= 0:
+            continue
+        identity = (lane, target_id, reply_post_id)
+        if pending_reconciliation_counts[identity] >= count:
+            continue
+        source = next(
+            (
+                item
+                for item in reversed(receipt_events)
+                if str(item.get("kind") or "") in {"written", "promoted"}
+                and str(item.get("lane") or "") == lane
+                and str(item.get("target_id") or "") == target_id
+                and str(item.get("reply_post_id") or "") == reply_post_id
+            ),
+            {},
+        )
+        unresolved_reply_receipts.append(
+            {
+                **source,
+                "lane": lane,
+                "target_id": target_id,
+                "reply_post_id": reply_post_id,
+                "kind": "confirmed_unresolved",
+                "message": (
+                    "Confirmed reply receipt remains unresolved at the end "
+                    "of the observed window"
+                ),
+            }
+        )
+    return {
+        "normal_reply_pairs": lifecycle.normal_reply_pairs,
+        "terminal_reply_removals_outside_window": (
+            lifecycle.terminal_removals_outside_window
+        ),
+        "definite_non_success_clears": lifecycle.definite_non_success_clears,
+        "confirmed_state_fallback_clears": lifecycle.confirmed_state_fallback_clears,
+        "reconciled_ambiguity_sending_receipts": reconciled_ambiguity_sending_receipts,
+        "unresolved_reply_receipts": unresolved_reply_receipts,
+        "unavailable_reply_receipt_rows": unavailable_reply_receipt_rows,
+    }
+
+
+def append_unresolved_reply_receipt_errors(
+    *,
+    confirmed_reply_receipts: List[Dict[str, Any]],
+    errors: List[Dict[str, Any]],
+) -> None:
+    """Append unresolved sending/reconciliation errors in their existing order."""
+    lifecycle = _scan_reply_receipt_lifecycle(
+        item for item in confirmed_reply_receipts
+        if item.get("source_class") != "selftest"
+    )
+    for identity, pending_events in sorted(lifecycle.pending_sending.items()):
         for source in pending_events:
             raw_message = (
                 "Unresolved conversational reply sending receipt remains at the end "
@@ -1052,7 +1254,7 @@ def append_unresolved_reply_receipt_errors(
                     "source_refs": list(source.get("source_refs") or []),
                 }
             )
-    for identity, source in pending_reconciliations:
+    for identity, source in lifecycle.pending_reconciliations:
         raw_message = (
             "Unresolved confirmed reply receipt reconciliation remains at the "
             "end of the observed window "

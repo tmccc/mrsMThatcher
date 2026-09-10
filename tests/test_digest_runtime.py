@@ -1,16 +1,19 @@
 """Focused compatibility and side-effect checks for runtime observations."""
-from datetime import datetime, timezone
+
+from datetime import datetime, timedelta, timezone
 from decimal import Decimal
+from pathlib import Path
 import hashlib
 import json
 import os
-from pathlib import Path
 import subprocess
 import sys
 
 import pytest
 
 import mrs_log_digest as digest
+
+from tests.helpers.digest_records import BASE, record
 
 
 def test_state_epoch_wrappers_keep_current_conversion_and_timezone(monkeypatch):
@@ -504,3 +507,358 @@ def test_lifecycle_snapshot_catches_lazy_import_and_helper_failures(monkeypatch,
         "features": [],
     }
     assert calls == ["import", "load", "schedule"][:["import", "load", "schedule"].index(phase) + 1]
+
+
+def carried_state_report(state_timestamp: str | None) -> dict:
+    report = digest.analyse([])
+    report["summary"]["time_start"] = "2026-07-25 09:00:00"
+    report["summary"]["time_end"] = "2026-07-25 12:00:00"
+    report["latest_state"] = {
+        "time": state_timestamp,
+        "_carried_forward": True,
+        "daily_reply_date": "2026-07-24",
+        "daily_reply_count": 7,
+        "daily_quote_reply_date": "2026-07-24",
+        "daily_quote_reply_count": 3,
+        "next_reply_lane_priority": "quote-tweet",
+        "next_quote_post_epoch": 1784984400,
+        "next_quote_post_human": "2026-07-25 13:00:00",
+        "next_meme_post_epoch": 1784988000,
+        "next_meme_post_human": "2026-07-25 14:00:00",
+        "next_meme_schedule_mode": "fallback",
+        "next_meme_schedule_date": "2026-07-25",
+    }
+    report["latest_config"] = {
+        "MAX_AUTO_REPLIES_PER_DAY": "12",
+        "MAX_QUOTE_REPLIES_PER_DAY": "6",
+        "ENABLE_DAILY_MEME_POSTS": "true",
+    }
+    digest.refresh_derived(report)
+    return report
+
+
+def test_carried_forward_state_before_window_is_stale_snapshot():
+    rendered = digest.render_markdown(
+        carried_state_report("2026-07-24 09:00:00")
+    )
+
+    assert "## Latest state (stale carried-forward snapshot)" in rendered
+    assert "stale snapshot age at window end: 1 day 3 hours" in rendered
+    assert "counters and schedules below are not current" in rendered
+    assert "snapshot_daily_reply_count       = 7" in rendered
+    assert "snapshot_next_quote_post" in rendered
+    assert "snapshot_next_meme_post" in rendered
+    assert "snapshot_next_meme" in rendered
+    assert "current_next_meme" not in rendered
+    assert "snapshot auto replies used  = 7 / 12" in rendered
+    assert "snapshot quote replies used = 3 / 6" in rendered
+    assert "snapshot_next_priority" in rendered
+    assert "current_next_priority" not in rendered
+
+
+def test_carried_forward_state_timestamp_within_window_is_not_stale():
+    rendered = digest.render_markdown(
+        carried_state_report("2026-07-25 10:00:00")
+    )
+
+    assert "## Latest state\n" in rendered
+    assert (
+        "State timestamp: `2026-07-25 10:00:00` "
+        "(carried forward from previous digest state)"
+    ) in rendered
+    assert "stale snapshot" not in rendered
+    assert "daily_reply_count       = 7" in rendered
+    assert "snapshot_daily_reply_count" not in rendered
+    assert "current_next_meme" in rendered
+    assert "auto replies used  = 7 / 12" in rendered
+    assert "current_next_priority" in rendered
+
+
+def test_carried_forward_state_without_timestamp_has_unknown_age():
+    rendered = digest.render_markdown(carried_state_report(None))
+
+    assert "## Latest state (carried-forward snapshot; age unavailable)" in rendered
+    assert "age and staleness unavailable" in rendered
+    assert "without a state timestamp their currentness cannot be established" in rendered
+    assert "snapshot_daily_reply_count       = 7" in rendered
+    assert "snapshot_next_quote_post" in rendered
+    assert "snapshot_next_meme_post" in rendered
+    assert "snapshot auto replies used  = 7 / 12" in rendered
+
+
+def test_current_runtime_state_fresh_absent_and_malformed(tmp_path):
+    state_path = tmp_path / "bot_state.json"
+
+    state, path, timestamp, status = digest.load_current_runtime_state(tmp_path)
+    assert state is None
+    assert path == state_path
+    assert timestamp is None
+    assert status == "absent"
+
+    state_path.write_text("not json", encoding="utf-8")
+    state, _path, timestamp, status = digest.load_current_runtime_state(tmp_path)
+    assert state is None
+    assert timestamp is None
+    assert status.startswith("malformed:")
+
+    state_path.write_text(
+        json.dumps(
+            {
+                "daily_reply_count": 4,
+                "daily_quote_reply_count": 2,
+                "daily_reply_date": "2026-08-16",
+            }
+        ),
+        encoding="utf-8",
+    )
+    state, _path, timestamp, status = digest.load_current_runtime_state(tmp_path)
+    assert status == "available"
+    assert state["daily_reply_count"] == 4
+    assert timestamp is not None
+
+
+def test_digest_resume_state_never_falls_back_as_current_runtime_state(tmp_path):
+    resume_path = tmp_path / "digest-resume.json"
+    resume_path.write_text(
+        json.dumps(
+            {
+                "last_log_entry_time": "2026-08-07 12:00:00",
+                "last_known_latest_state": {
+                    "time": "2026-08-07 12:00:00",
+                    "daily_reply_count": 999,
+                    "next_reply_lane_priority": "quote",
+                },
+                "last_known_latest_config": {
+                    "MAX_AUTO_REPLIES_PER_DAY": "999"
+                },
+            }
+        ),
+        encoding="utf-8",
+    )
+    report = digest.analyse([])
+    report["latest_state"] = {}
+    report["latest_config"] = {}
+
+    digest.apply_saved_context(report, resume_path)
+
+    assert report["latest_state"] == {}
+    assert report["latest_config"] == {}
+    assert report["historical_retained_state"]["daily_reply_count"] == 999
+    assert report["historical_retained_config"]["MAX_AUTO_REPLIES_PER_DAY"] == "999"
+    report["runtime_state_status"] = {
+        "status": "absent",
+        "path": str(tmp_path / "bot_state.json"),
+    }
+    report["runtime_config_status"] = {
+        "status": "absent",
+        "path": str(tmp_path / "mrsMThatcher.local.json"),
+    }
+    rendered = digest.render_markdown(report)
+    assert "Current bot runtime state: **unavailable**" in rendered
+    assert "## Historical retained diagnostic snapshots" in rendered
+    assert "for historical diagnosis only" in rendered
+    assert '"daily_reply_count": 999' in rendered
+    assert '"MAX_AUTO_REPLIES_PER_DAY": "999"' in rendered
+    assert "daily_reply_count       = 999" not in rendered
+    assert "MAX_AUTO_REPLIES_PER_DAY=999" not in rendered
+
+
+def test_unavailable_runtime_reads_retain_historical_snapshots_across_runs(tmp_path):
+    resume_path = tmp_path / "digest-resume.json"
+    log_path = tmp_path / "bot.log"
+    original_state = {
+        "time": "2026-07-25 08:00:00",
+        "daily_reply_count": 7,
+    }
+    original_config = {"MAX_AUTO_REPLIES_PER_DAY": 48}
+    resume_path.write_text(
+        json.dumps(
+            {
+                "last_log_entry_time": "2026-07-25 08:00:00",
+                "last_known_latest_state": original_state,
+                "last_known_latest_config": original_config,
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    for offset in (0, 1):
+        records = [record(offset, "INFO", "worker", "still running")]
+        report = digest.analyse(records)
+        digest.apply_saved_context(report, resume_path)
+        report["latest_state"] = {}
+        report["latest_config"] = {}
+        report["runtime_state_status"] = {"status": "absent"}
+        report["runtime_config_status"] = {
+            "status": "malformed: JSONDecodeError"
+        }
+
+        digest.save_resume_time(
+            resume_path,
+            records[-1].ts,
+            records,
+            report,
+            [log_path],
+        )
+        saved = digest.read_resume_data(resume_path)
+        assert saved["last_known_latest_state"] == original_state
+        assert saved["last_known_latest_config"] == original_config
+
+    empty_override = tmp_path / "mrsMThatcher.local.json"
+    empty_override.write_text("{}", encoding="utf-8")
+    current_config, _path, _timestamp, config_status = (
+        digest.load_current_runtime_config(tmp_path)
+    )
+    records = [record(2, "INFO", "worker", "runtime reads recovered")]
+    report = digest.analyse(records)
+    digest.apply_saved_context(report, resume_path)
+    report["latest_state"] = {"daily_reply_count": 2}
+    report["latest_config"] = current_config or {}
+    report["runtime_state_status"] = {"status": "available"}
+    report["runtime_config_status"] = {"status": config_status}
+
+    digest.save_resume_time(
+        resume_path,
+        records[-1].ts,
+        records,
+        report,
+        [log_path],
+    )
+    saved = digest.read_resume_data(resume_path)
+    assert saved["last_known_latest_state"] == {"daily_reply_count": 2}
+    assert saved["last_known_latest_config"] == {}
+
+
+def test_current_runtime_config_is_allow_listed_and_validated(tmp_path):
+    config_path = tmp_path / "mrsMThatcher.local.json"
+    config_path.write_text(
+        json.dumps(
+            {
+                "MAX_AUTO_REPLIES_PER_DAY": 48,
+                "MAX_REPLIES_PER_AUTHOR_PER_DAY": 6,
+                "MAX_QUOTE_REPLIES_PER_DAY": 12,
+                "OPENAI_API_KEY": "must-not-appear",
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    config, path, timestamp, status = digest.load_current_runtime_config(tmp_path)
+
+    assert status == "available"
+    assert path == config_path
+    assert timestamp is not None
+    assert config["MAX_AUTO_REPLIES_PER_DAY"] == 48
+    assert config["MAX_REPLIES_PER_AUTHOR_PER_DAY"] == 6
+    assert config["MAX_QUOTE_REPLIES_PER_DAY"] == 12
+    assert "OPENAI_API_KEY" not in config
+
+
+@pytest.mark.parametrize(
+    ("runtime_status", "state", "headline_text", "body_text"),
+    [
+        (
+            "absent",
+            None,
+            "current API cooldown state unavailable",
+            "Current bot runtime state: **unavailable**",
+        ),
+        (
+            "available",
+            {
+                "api_cooldown_until_epoch": 0,
+                "x_write_api_cooldown_until_epoch": 0,
+                "openai_api_cooldown_until_epoch": int(BASE.timestamp()) + 60,
+                "quote_api_cooldown_until_epoch": 0,
+            },
+            "OpenAI cooldown active now",
+            f"openai_api_cooldown_until = {int(BASE.timestamp()) + 60}  2026-07-25 09:01:00  active",
+        ),
+        (
+            "available",
+            {
+                "api_cooldown_until_epoch": 0,
+                "x_write_api_cooldown_until_epoch": 0,
+                "openai_api_cooldown_until_epoch": int(BASE.timestamp()) - 60,
+                "quote_api_cooldown_until_epoch": 0,
+            },
+            "OpenAI cooldown occurred, now expired",
+            f"openai_api_cooldown_until = {int(BASE.timestamp()) - 60}  2026-07-25 08:59:00  expired",
+        ),
+        (
+            "available",
+            {
+                "api_cooldown_until_epoch": 0,
+                "x_write_api_cooldown_until_epoch": 0,
+                "openai_api_cooldown_until_epoch": 0,
+                "quote_api_cooldown_until_epoch": 0,
+            },
+            "no API cooldown",
+            "openai_api_cooldown_until = 0  none  cleared",
+        ),
+    ],
+)
+def test_current_cooldown_headline_and_body_use_generation_time(
+    runtime_status,
+    state,
+    headline_text,
+    body_text,
+    tmp_path,
+):
+    generation_epoch = int(BASE.timestamp())
+    report = digest.analyse([], generation_time=BASE)
+    report["generation_epoch"] = generation_epoch
+    report["runtime_state_status"] = {
+        "status": runtime_status,
+        "path": str(tmp_path / "bot_state.json"),
+    }
+    # Deliberately use a state-file timestamp on the opposite side of the
+    # cooldown to prove that current health is evaluated at generation time.
+    state_file_time = BASE - timedelta(days=30)
+    if state and state.get("openai_api_cooldown_until_epoch", 0) < generation_epoch:
+        state_file_time = BASE + timedelta(days=30)
+    report["latest_state"] = (
+        digest.summarize_latest_state(
+            state,
+            state_file_time,
+            source="bot_state.json",
+            source_path=tmp_path / "bot_state.json",
+        )
+        if state is not None
+        else {}
+    )
+
+    digest.refresh_derived(report)
+    rendered = digest.render_markdown(report)
+
+    assert headline_text in report["summary"]["headline"]
+    assert headline_text in rendered
+    assert body_text in rendered
+
+
+@pytest.mark.parametrize("contents", [None, {}, {"MAX_AUTO_REPLIES_PER_DAY": 48}])
+def test_local_config_is_described_as_on_disk_not_effective_live(
+    contents,
+    tmp_path,
+):
+    config_path = tmp_path / "mrsMThatcher.local.json"
+    if contents is not None:
+        config_path.write_text(json.dumps(contents), encoding="utf-8")
+    config, path, timestamp, status = digest.load_current_runtime_config(tmp_path)
+    report = digest.analyse([])
+    report["latest_config"] = config or {}
+    report["runtime_config_status"] = {
+        "status": status,
+        "path": str(path),
+        "time": digest.dt_text(timestamp) if timestamp else None,
+    }
+    rendered = digest.render_markdown(report)
+
+    assert "## On-disk local configuration overrides" in rendered
+    assert "Current production configuration" not in rendered
+    if contents is None:
+        assert "On-disk local overrides: **unavailable**" in rendered
+        assert "Effective live configuration is not established" in rendered
+    else:
+        assert "read-only file observation does not establish" in rendered
+        assert "effective in a live process" in rendered

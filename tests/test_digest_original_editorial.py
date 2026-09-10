@@ -1,11 +1,12 @@
 """Original-editorial observation, companion and summary boundaries."""
+
 from collections import Counter
 from copy import deepcopy
 from datetime import datetime, timedelta
+from pathlib import Path
 import inspect
 import json
 import os
-from pathlib import Path
 import subprocess
 import sys
 
@@ -310,3 +311,52 @@ assert set(logging.Logger.manager.loggerDict) == loggers
     assert result.returncode == 0, result.stderr
     assert result.stdout == b""
     assert list(tmp_path.iterdir()) == []
+
+
+def test_editorial_shadow_rank_distribution_is_robust_to_outliers():
+    events = [
+        {
+            "production_source": "original",
+            "production_shadow_rank": rank,
+            "winner_changed": rank != 1,
+            "production_winner": f"production-{index}",
+            "shadow_original_winner": f"shadow-{index}",
+        }
+        for index, rank in enumerate([1, 1, 1, 1, 1, 1, 1, 1, 2])
+    ]
+    summary = digest.original_editorial_shadow_summary(events)
+    assert summary["average_production_winner_shadow_rank"] == 10 / 9
+    assert summary["median_production_winner_shadow_rank"] == 1
+    assert summary["worst_production_winner_shadow_rank"] == 2
+    assert summary["production_rank_1"] == 8
+    assert summary["production_rank_2_or_3"] == 1
+    assert summary["production_rank_10_or_worse"] == 0
+    assert summary["severe_disagreements"] == []
+    report = digest.analyse([])
+    report["original_editorial_shadow"] = {"events": events, "summary": summary}
+    rendered = digest.render_markdown(report)
+    assert "mean_production_winner_shadow_rank    = 1.11" in rendered
+    assert "median_production_winner_shadow_rank  = 1" in rendered
+    assert "worst_production_winner_shadow_rank   = 2" in rendered
+    assert "1.1111111111111112" not in rendered
+
+
+def test_equally_frequent_shadow_winners_are_not_silently_capped():
+    events = [
+        {
+            "production_source": "original",
+            "production_shadow_rank": 1,
+            "winner_changed": False,
+            "shadow_original_winner": f"winner-{index:02}.jpg",
+        }
+        for index in range(9)
+    ]
+    summary = digest.original_editorial_shadow_summary(events)
+    assert summary["most_frequent_shadow_winners"] == [
+        (f"winner-{index:02}.jpg", 1) for index in range(9)
+    ]
+    report = digest.analyse([])
+    report["original_editorial_shadow"] = {"events": events, "summary": summary}
+    rendered = digest.render_markdown(report)
+    for index in range(9):
+        assert f"winner-{index:02}.jpg (1)" in rendered

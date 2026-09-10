@@ -3,10 +3,11 @@ from __future__ import annotations
 from datetime import datetime
 import json
 
-import mrs_log_digest as digest
 import pytest
-from tests.test_generated_image_pool_health_digest import pool, quarantine
-from tests.test_generated_image_pool_runway_digest import post
+
+import mrs_log_digest as digest
+
+from tests.helpers.digest_generated_pool import pool, post, quarantine
 
 
 NOW = datetime(2026, 7, 10, 12)

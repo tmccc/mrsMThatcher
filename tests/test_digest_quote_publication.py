@@ -1,13 +1,15 @@
 """Check publication correlation ownership and shared evidence boundaries."""
+
 from __future__ import annotations
 
+from dataclasses import replace
 import json
 import re
-from dataclasses import replace
 
 import mrs_log_digest as digest
 import mrs_log_digest_quote_publication as publication
-from tests.test_mrs_log_digest import record
+
+from tests.helpers.digest_records import record
 
 
 def correlation(**overrides):

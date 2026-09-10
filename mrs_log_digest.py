@@ -101,6 +101,7 @@ from mrs_log_digest_transactions import (
     classify_x_request_endpoint,
     parse_remote_write_transaction_event as _parse_remote_write_transaction_event,
     summarise_main_post_receipt_lifecycle,
+    summarise_reply_receipt_lifecycle,
     is_media_v2_request_failure,
     is_media_fallback_warning,
     is_media_v1_success,
@@ -269,6 +270,9 @@ from mrs_log_digest_reply_evidence import (
     _valid_historical_completed_item as _valid_historical_completed_item_impl,
     _valid_historical_failed_item as _valid_historical_failed_item_impl,
     load_historical_reply_history_evidence as _load_historical_reply_history_evidence,
+    prepare_structured_reply_confirmation,
+    prepare_structured_historical_publication_evidence,
+    valid_structured_historical_completion_anchor,
 )
 from mrs_log_digest_quote_publication import (
     ENGAGEMENT_QUESTION_PUBLIC_TEXT_SEPARATOR,
@@ -2068,98 +2072,33 @@ def analyse(
                     bounded_event_nonnegative_integer=bounded_event_nonnegative_integer,
                 )
             elif event_obj and event_obj.get("event") == "reply_posted":
-                authority_event_obj = (
-                    strict_structured_event_obj
-                    if strict_structured_event_obj
-                    and strict_structured_event_obj.get("event")
-                    == "reply_posted"
-                    else None
+                confirmation = prepare_structured_reply_confirmation(
+                    strict_structured_event_obj,
+                    production_record=production_record,
+                    time_text=lambda: dt_text(r.ts),
+                    event_insertion_index=lambda: len(events),
+                    source_sequence=record_index,
+                    make_source_ref=lambda: record_source_ref(r, input_file_indexes),
                 )
-                if production_record and authority_event_obj is not None:
-                    structured_reply_confirmations.append(
-                        {
-                            "time": dt_text(r.ts),
-                            "lane": authority_event_obj.get("lane"),
-                            "target_id": authority_event_obj.get("target_id"),
-                            "reply_post_id": authority_event_obj.get(
-                                "reply_post_id"
-                            ),
-                            "author_id": authority_event_obj.get("author_id"),
-                            "original_post_id": authority_event_obj.get(
-                                "original_post_id"
-                            ),
-                            "_event_insertion_index": len(events),
-                            "_source_sequence": record_index,
-                            "source_refs": [
-                                record_source_ref(r, input_file_indexes)
-                            ],
-                        }
-                    )
+                if confirmation is not None:
+                    structured_reply_confirmations.append(confirmation)
             elif (
                 event_obj
                 and event_obj.get("event")
                 == "historical_context_reply_posted"
             ):
-                authority_event_obj = (
-                    strict_structured_event_obj
-                    if strict_structured_event_obj
-                    and strict_structured_event_obj.get("event")
-                    == "historical_context_reply_posted"
-                    else None
-                )
-                publication_event_obj = authority_event_obj or event_obj
-                parent_value = publication_event_obj.get("parent_post_id")
-                reply_post_value = publication_event_obj.get("reply_post_id")
-                root_value = publication_event_obj.get("root_post_id")
-                conversation_value = publication_event_obj.get(
-                    "conversation_id"
-                )
-                quote_value = publication_event_obj.get("quote_id")
-                parent_post_id = (
-                    parent_value if isinstance(parent_value, str) else ""
-                )
-                reply_post_id = (
-                    reply_post_value
-                    if isinstance(reply_post_value, str)
-                    else ""
-                )
-                quote_id = quote_value if isinstance(quote_value, str) else ""
-                reply_text = publication_event_obj.get("reply_text")
-                authoritative = (
-                    production_record
-                    and authority_event_obj is not None
-                    and type(authority_event_obj.get("event_version")) is int
-                    and authority_event_obj.get("event_version") == 1
-                    and authority_event_obj.get("lane")
-                    == "historical_context_reply"
-                    and authority_event_obj.get("publication_authority")
-                    == "confirmed_transport"
-                    and valid_string_public_post_id(parent_value)
-                    and valid_string_public_post_id(reply_post_value)
-                    and valid_string_public_post_id(root_value)
-                    and valid_string_public_post_id(conversation_value)
-                    and root_value == parent_value
-                    and conversation_value == parent_value
-                    and isinstance(quote_value, str)
-                    and SHA256_LOWER_RE.fullmatch(quote_value) is not None
-                    and valid_bounded_utf8_text(reply_text)
-                )
                 historical_reply_text_evidence.append(
-                    {
-                        "time": dt_text(r.ts),
-                        "parent_post_id": parent_post_id,
-                        "reply_post_id": reply_post_id,
-                        "quote_id": quote_id,
-                        "authoritative": authoritative,
-                        "reply_text": reply_text if authoritative else None,
-                        "source": "structured historical_context_reply_posted",
-                        "durable_only": False,
-                        "_event_insertion_index": len(events),
-                        "_source_sequence": record_index,
-                        "source_refs": [
-                            record_source_ref(r, input_file_indexes)
-                        ],
-                    }
+                    prepare_structured_historical_publication_evidence(
+                        event_obj, strict_structured_event_obj,
+                        production_record=production_record,
+                        valid_string_public_post_id=lambda value: valid_string_public_post_id(value),
+                        valid_bounded_utf8_text=lambda value, **kwargs: valid_bounded_utf8_text(value, **kwargs),
+                        sha256_fullmatch=lambda value: SHA256_LOWER_RE.fullmatch(value),
+                        time_text=lambda: dt_text(r.ts),
+                        event_insertion_index=lambda: len(events),
+                        source_sequence=record_index,
+                        make_source_ref=lambda: record_source_ref(r, input_file_indexes),
+                    )
                 )
             elif event_obj and event_obj.get("event") == "historical_context_reply":
                 historical_fields = prepare_historical_context_reply(event_obj)
@@ -2168,34 +2107,11 @@ def analyse(
                     "historical_context_reply", r.ts, **historical_fields
                 )
                 if status in {"completed", "already_completed"}:
-                    strict_anchor = (
-                        strict_structured_event_obj
-                        if strict_structured_event_obj
-                        and strict_structured_event_obj.get("event")
-                        == "historical_context_reply"
-                        else None
-                    )
-                    anchor_valid = bool(
-                        strict_anchor is not None
-                        and type(strict_anchor.get("status")) is str
-                        and strict_anchor.get("status") == status
-                        and valid_string_public_post_id(
-                            strict_anchor.get("parent_post_id")
-                        )
-                        and isinstance(strict_anchor.get("quote_id"), str)
-                        and SHA256_LOWER_RE.fullmatch(
-                            strict_anchor["quote_id"]
-                        )
-                        is not None
-                        and type(strict_anchor.get("character_count")) is int
-                        and 0 <= strict_anchor.get("character_count") <= 25_000
-                        and (
-                            "reply_preview" not in strict_anchor
-                            or valid_bounded_utf8_text(
-                                strict_anchor.get("reply_preview"),
-                                allow_empty=True,
-                            )
-                        )
+                    anchor_valid = valid_structured_historical_completion_anchor(
+                        strict_structured_event_obj, status,
+                        valid_string_public_post_id=lambda value: valid_string_public_post_id(value),
+                        valid_bounded_utf8_text=lambda value, **kwargs: valid_bounded_utf8_text(value, **kwargs),
+                        sha256_fullmatch=lambda value: SHA256_LOWER_RE.fullmatch(value),
                     )
                     if not anchor_valid:
                         historical_event["reply_post_id"] = None
@@ -2829,11 +2745,23 @@ def apply_saved_context(
 def render_markdown(report: Dict[str, Any]) -> str:
     """Render digest metrics as deterministic Markdown."""
     receipt_events = (report.get("main_post_recovery") or {}).get("receipt_events") or []
+    main_post_lifecycle = (
+        summarise_main_post_receipt_lifecycle(receipt_events)
+        if receipt_events else {}
+    )
+    reply_recovery = report.get("confirmed_reply_recovery") or {}
     return _render_digest_markdown(
         report,
-        main_post_receipt_lifecycle=(
-            summarise_main_post_receipt_lifecycle(receipt_events)
-            if receipt_events else {}
+        main_post_receipt_lifecycle=main_post_lifecycle,
+        reply_receipt_lifecycle=summarise_reply_receipt_lifecycle(
+            reply_recovery.get("receipt_events") or [],
+            reconciled_ambiguity_receipts=(
+                reply_recovery.get("durably_reconciled_ambiguity_receipts") or []
+            ),
+            unavailable_receipts=(
+                reply_recovery.get("status_unavailable_receipts") or []
+            ),
+            normalise_lane=_normalise_lane,
         ),
     )
 
