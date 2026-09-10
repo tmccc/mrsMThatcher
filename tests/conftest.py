@@ -24,7 +24,6 @@ TEST_LOG_MARKERS = (
 )
 LOOPBACK_NETWORK_MODULES = {
     "tests/test_integration_harness.py",
-    "tests/test_unit_helpers.py",
 }
 LOOPBACK_NETWORK_TESTS = {
     (

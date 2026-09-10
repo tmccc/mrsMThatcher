@@ -72,6 +72,13 @@ explicitly import `isolate_regular_post_receipt`; its autouse behaviour is scope
 to those test modules. Network and production-state guards are defined in
 `tests/conftest.py`.
 
+Bot regression tests are grouped by feature in `tests/test_bot_*_regressions.py`,
+including asset selection, posting, receipts, reply handling, state and runtime
+configuration. Keep feature-specific helpers beside their tests and shared
+builders in `tests/helpers`. Use `pytest.mark.allow_loopback_network` on a test
+or as its module's `pytestmark` for local fake servers; the network guard
+continues to block non-loopback connections.
+
 ### Manual Fake-Server Run
 
 Start the fake API server with one of the scenario fixtures:

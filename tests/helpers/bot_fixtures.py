@@ -421,3 +421,7 @@ def schema_current_main_attempt(lane: str) -> dict:
         },
         attempt_epoch=1_800_000_000,
     )
+
+
+def write_image_analysis(path: Path, analysis: dict) -> None:
+    path.write_text(json.dumps(analysis), encoding="utf-8")
