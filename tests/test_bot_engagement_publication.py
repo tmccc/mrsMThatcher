@@ -13,7 +13,8 @@ import pytest
 
 import historical_context_formatter as formatter
 import mrs_bot_engagement_publication as owner
-from tests.test_unit_helpers import bot, isolate_regular_post_receipt
+from tests.helpers.bot_runtime import bot
+from tests.helpers.bot_fixtures import isolate_regular_post_receipt  # noqa: F401
 from tests.test_engagement_question_experiment import (
     _prepared_synthetic_authority_case,
     synthetic_plan_bundle,

@@ -9,7 +9,7 @@ import pytest
 
 import mrs_log_digest as digest
 from tests.test_generated_identity_policy_shadow_scoring import candidate, quote, valid_identity_analysis
-from tests.test_unit_helpers import bot
+from tests.helpers.bot_runtime import bot
 
 
 def policies() -> tuple[dict[str, dict], dict[str, str]]:

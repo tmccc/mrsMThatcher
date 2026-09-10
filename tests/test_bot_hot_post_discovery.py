@@ -11,13 +11,12 @@ from unittest.mock import Mock, call
 import pytest
 
 import mrs_bot_hot_post_discovery as discovery
-from tests.test_unit_helpers import (
-    bot,
+from tests.helpers.bot_runtime import bot
+from tests.helpers.bot_fixtures import (
     invalid_pagination_cursor_error,
-    isolate_regular_post_receipt,
-    unit_approved_reply,
-    unit_reply_context,
+    isolate_regular_post_receipt,  # noqa: F401
 )
+from tests.helpers.reply_fixtures import unit_approved_reply, unit_reply_context
 
 
 def test_import_needs_no_runtime_access():

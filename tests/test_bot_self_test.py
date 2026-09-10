@@ -12,7 +12,8 @@ import pytest
 
 import mrs_bot_self_test as owner
 from tests.test_fail_safe_bootstrap_and_control import prepare_self_test_control_case
-from tests.test_unit_helpers import bot, isolate_regular_post_receipt  # noqa: F401
+from tests.helpers.bot_runtime import bot
+from tests.helpers.bot_fixtures import isolate_regular_post_receipt  # noqa: F401
 
 DEPENDENCIES = {
     "_self_test_ok": ["log"],

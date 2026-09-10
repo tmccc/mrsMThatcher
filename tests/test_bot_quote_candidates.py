@@ -11,7 +11,7 @@ import pytest
 
 import historical_context_formatter as formatter
 import mrs_bot_quote_candidates as candidates
-from tests.test_unit_helpers import bot
+from tests.helpers.bot_runtime import bot
 
 
 def forbidden(*args, **kwargs):

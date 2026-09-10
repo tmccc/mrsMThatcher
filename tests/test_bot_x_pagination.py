@@ -10,8 +10,10 @@ from unittest.mock import Mock, call
 import pytest
 
 import mrs_bot_x_pagination as pagination
-from tests.test_unit_helpers import (
-    bot, invalid_pagination_cursor_error, isolate_regular_post_receipt,
+from tests.helpers.bot_runtime import bot
+from tests.helpers.bot_fixtures import (
+    invalid_pagination_cursor_error,
+    isolate_regular_post_receipt,  # noqa: F401
 )
 
 

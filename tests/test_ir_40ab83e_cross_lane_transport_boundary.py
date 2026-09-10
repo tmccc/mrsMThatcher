@@ -561,7 +561,7 @@ def _invoke_lane(bot: Any, lane: str, state_directory: Path) -> None:
     """Enter the real public transaction lane without any remote dependency."""
 
     if lane in {"regular_quote_image", "daily_meme"}:
-        from tests.test_unit_helpers import (
+        from tests.helpers.bot_fixtures import (
             configure_simple_meme_post,
             configure_simple_quote_post,
         )
@@ -591,7 +591,7 @@ def _invoke_lane(bot: Any, lane: str, state_directory: Path) -> None:
         return
 
     if lane == "conversational_reply":
-        from tests.test_unit_helpers import (
+        from tests.helpers.reply_fixtures import (
             UNIT_REPLY_REPOSITORY,
             unit_sending_v4_reply_receipt,
         )

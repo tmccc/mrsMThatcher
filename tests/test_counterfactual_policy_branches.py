@@ -11,7 +11,7 @@ from tests.test_simulate_regular_post_futures import (
     isolated_simulator_bot,
     run_private_future,
 )
-from tests.test_unit_helpers import bot
+from tests.helpers.bot_runtime import bot
 from tools import simulate_regular_post_futures as sim
 
 

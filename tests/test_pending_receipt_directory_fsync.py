@@ -19,13 +19,12 @@ import exact_receipt_retirement as exact
 import historical_context_formatter as context_formatter
 import remote_write_transport_journal as journal
 from tests.helpers.protocol_activation import create_test_protocol_activation
-from tests.test_unit_helpers import (
-    UNIT_REPLY_REPOSITORY,
-    bot,
+from tests.helpers.reply_fixtures import UNIT_REPLY_REPOSITORY, unit_sending_v4_reply_receipt
+from tests.helpers.bot_runtime import bot
+from tests.helpers.bot_fixtures import (
     configure_simple_meme_post,
     configure_simple_quote_post,
     mock_confirmed_main_post,
-    unit_sending_v4_reply_receipt,
 )
 
 

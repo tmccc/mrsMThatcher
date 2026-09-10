@@ -9,11 +9,10 @@ from unittest.mock import Mock, call
 import pytest
 
 import mrs_bot_reply_state as reply_state
-from tests.test_unit_helpers import (
-    PipelineResult,
-    ValidatedReply,
-    bot,
-    isolate_regular_post_receipt,
+from single_call_reply import PipelineResult, ValidatedReply
+from tests.helpers.bot_runtime import bot
+from tests.helpers.bot_fixtures import isolate_regular_post_receipt  # noqa: F401
+from tests.helpers.reply_fixtures import (
     unit_approved_reply,
     unit_confirmed_reply_receipt,
     unit_reply_context,

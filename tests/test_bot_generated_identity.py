@@ -14,7 +14,7 @@ import mrs_bot_generated_identity as identity
 from tests.test_generated_identity_policy_shadow_scoring import (
     candidate, quote, valid_identity_analysis,
 )
-from tests.test_unit_helpers import bot
+from tests.helpers.bot_runtime import bot
 
 
 def forbidden(*args, **kwargs):

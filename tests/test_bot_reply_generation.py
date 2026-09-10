@@ -18,7 +18,8 @@ from tests.test_single_call_reply import (
     raw_decision,
     response_envelope,
 )
-from tests.test_unit_helpers import bot, isolate_regular_post_receipt
+from tests.helpers.bot_runtime import bot
+from tests.helpers.bot_fixtures import isolate_regular_post_receipt  # noqa: F401
 
 
 def test_import_needs_no_runtime_access_and_constants_are_shared_objects():

@@ -12,7 +12,7 @@ from pathlib import Path
 
 import pytest
 
-from tests.test_unit_helpers import bot
+from tests.helpers.bot_runtime import bot
 from tools import simulate_regular_post_futures as sim
 
 

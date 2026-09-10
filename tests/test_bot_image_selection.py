@@ -10,7 +10,7 @@ from unittest.mock import Mock, call
 import pytest
 
 import mrs_bot_image_selection as selection
-from tests.test_unit_helpers import bot
+from tests.helpers.bot_runtime import bot
 
 
 def forbidden(*args, **kwargs):

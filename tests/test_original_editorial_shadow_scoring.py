@@ -9,7 +9,8 @@ from pathlib import Path
 import pytest
 
 import mrs_log_digest as digest
-from tests.test_unit_helpers import bot, image_analysis_for_paths
+from tests.helpers.bot_runtime import bot
+from tests.helpers.bot_fixtures import image_analysis_for_paths
 
 
 def _write_editorial_file(path: Path, image_paths: list[Path], analyses: dict[str, dict] | None = None) -> None:

@@ -15,9 +15,9 @@ from tests.test_legacy_conversational_reply_recovery import (
     _confirmed_receipt,
     _legacy_case,
 )
-from tests.test_unit_helpers import (
-    bot,
-    isolate_regular_post_receipt,
+from tests.helpers.bot_runtime import bot
+from tests.helpers.bot_fixtures import isolate_regular_post_receipt  # noqa: F401
+from tests.helpers.reply_fixtures import (
     unit_approved_reply,
     unit_sending_v4_reply_receipt,
     unit_v4_reply_receipt_template,

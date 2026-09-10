@@ -11,9 +11,9 @@ import pytest
 
 import mrs_bot_reply_reconciliation as reconciliation
 from tests.test_mention_backlog_author_quarantine import mention, queue_active_mention
-from tests.test_unit_helpers import (
-    bot,
-    isolate_regular_post_receipt,
+from tests.helpers.bot_runtime import bot
+from tests.helpers.bot_fixtures import isolate_regular_post_receipt  # noqa: F401
+from tests.helpers.reply_fixtures import (
     unit_confirmed_reply_receipt,
     unit_confirmed_v4_reply_receipt,
 )

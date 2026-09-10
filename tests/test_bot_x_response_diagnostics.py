@@ -15,9 +15,8 @@ from unittest.mock import Mock, call
 import pytest
 
 import mrs_bot_x_response_diagnostics as diagnostics
-from tests.test_unit_helpers import (
-    bot, isolate_regular_post_receipt,
-)
+from tests.helpers.bot_runtime import bot
+from tests.helpers.bot_fixtures import isolate_regular_post_receipt  # noqa: F401
 from tests.test_x_write_outcome_conservatism import _raw_x_response
 
 

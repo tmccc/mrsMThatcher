@@ -14,7 +14,7 @@ import pytest
 
 import mrsMThatcher2 as bot
 import mrs_bot_engagement_runtime as owner
-from tests.test_unit_helpers import isolate_regular_post_receipt  # noqa: F401
+from tests.helpers.bot_fixtures import isolate_regular_post_receipt  # noqa: F401
 from tests.test_production_consistency_incident import isolated_incident_paths  # noqa: F401
 
 DEPENDENCIES = {'engagement_experiment_envelope_from_receipt': [],

@@ -7,7 +7,8 @@ from unittest.mock import Mock
 
 import pytest
 
-from tests.test_unit_helpers import bot, isolate_regular_post_receipt, SOURCE_GET_TWEET_BY_ID
+from tests.helpers.bot_runtime import bot, SOURCE_GET_TWEET_BY_ID
+from tests.helpers.bot_fixtures import isolate_regular_post_receipt  # noqa: F401
 from tests.test_mention_backlog_author_quarantine import mention
 
 

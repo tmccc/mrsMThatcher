@@ -27,15 +27,14 @@ from historical_context_formatter import (
 )
 from tests.fake_api_server import FakeApiServer
 from tests.helpers.protocol_activation import create_test_protocol_activation
-from tests.test_unit_helpers import (
+from tests.helpers.reply_fixtures import (
     UNIT_REPLY_REPOSITORY,
-    configure_simple_meme_post,
-    configure_simple_quote_post,
     unit_approved_reply,
     unit_reply_context,
     unit_sending_reply_receipt,
     unit_sending_v4_reply_receipt,
 )
+from tests.helpers.bot_fixtures import configure_simple_meme_post, configure_simple_quote_post
 
 
 def _x_response(status_code: int, body: object) -> bot.requests.Response:

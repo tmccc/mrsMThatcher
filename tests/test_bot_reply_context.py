@@ -14,12 +14,9 @@ from unittest.mock import Mock, call
 import pytest
 
 import mrs_bot_reply_context as reply_context
-from tests.test_unit_helpers import (
-    SCENARIOS,
-    bot,
-    isolate_regular_post_receipt,
-    load_scenario,
-)
+from tests.helpers.bot_runtime import SCENARIOS, bot
+from tests.helpers.bot_fixtures import isolate_regular_post_receipt  # noqa: F401
+from tests.fake_api_server import load_scenario
 
 
 def test_import_needs_no_runtime_access():

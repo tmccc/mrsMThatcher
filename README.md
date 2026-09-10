@@ -64,6 +64,14 @@ MRS_TEST_MODE=1 PYTEST_DISABLE_PLUGIN_AUTOLOAD=1 python3 -m pytest -q \
 
 Do not run serial and parallel suites concurrently in the same checkout.
 
+Reusable bot test support lives in `tests/helpers`: `bot_runtime.py` owns the
+isolated bot import, `reply_fixtures.py` supplies reply evidence and receipt
+builders, and `bot_fixtures.py` supplies state isolation and other bot fixtures.
+Import shared support from these modules. Tests needing durable-state isolation
+explicitly import `isolate_regular_post_receipt`; its autouse behaviour is scoped
+to those test modules. Network and production-state guards are defined in
+`tests/conftest.py`.
+
 ### Manual Fake-Server Run
 
 Start the fake API server with one of the scenario fixtures:

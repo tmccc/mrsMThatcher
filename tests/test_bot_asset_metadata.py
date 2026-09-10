@@ -11,7 +11,7 @@ from unittest.mock import Mock
 import pytest
 
 import mrs_bot_asset_metadata as metadata
-from tests.test_unit_helpers import bot
+from tests.helpers.bot_runtime import bot
 
 
 def forbidden(*args, **kwargs):

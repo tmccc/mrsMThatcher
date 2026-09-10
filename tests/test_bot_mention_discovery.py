@@ -16,7 +16,8 @@ from tests.test_mention_backlog_author_quarantine import (
     mention,
     mention_backlog,
 )
-from tests.test_unit_helpers import bot, isolate_regular_post_receipt
+from tests.helpers.bot_runtime import bot
+from tests.helpers.bot_fixtures import isolate_regular_post_receipt  # noqa: F401
 
 
 def test_import_needs_no_runtime_access():

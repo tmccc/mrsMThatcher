@@ -12,7 +12,7 @@ import pytest
 
 import mrsMThatcher2 as bot
 import mrs_bot_used_history as owner
-from tests.test_unit_helpers import isolate_regular_post_receipt  # noqa: F401
+from tests.helpers.bot_fixtures import isolate_regular_post_receipt  # noqa: F401
 
 DEPENDENCIES = {
     'coerce_used_set': [],

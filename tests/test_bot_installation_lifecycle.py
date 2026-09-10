@@ -13,7 +13,7 @@ import pytest
 
 import mrsMThatcher2 as bot
 from tests.test_followup_fail_safe_hardening import install_paths
-from tests.test_unit_helpers import isolate_regular_post_receipt  # noqa: F401
+from tests.helpers.bot_fixtures import isolate_regular_post_receipt  # noqa: F401
 
 DEPENDENCIES = {'required_installation_files_missing': ['HISTORICAL_CONTEXT_REPLY_HISTORY_FILE',
                                          'HISTORICAL_CONTEXT_REPLY_OUTBOX_FILE',

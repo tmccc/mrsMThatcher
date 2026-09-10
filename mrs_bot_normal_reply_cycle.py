@@ -1121,6 +1121,53 @@ def _prepare_reply_receipt(
     return receipt_template
 
 
+def _retire_terminal_target(
+    state: dict,
+    candidate: _ReplyCandidate,
+    replied_to_ids: set[str],
+    reply_text: object,
+    *,
+    failure_reason: str,
+    reason: str,
+    append_unique_durable: Callable,
+    persistence: ReplyCyclePersistence,
+    log_ai_reply_posting_outcome: Callable,
+    log_event: Callable,
+    mark_mention_seen_if_applicable: Callable,
+    record_terminal_reply_evaluation: Callable,
+) -> None:
+    """Record a terminal mention/hot-post outcome and durably retire its draft."""
+    log_ai_reply_posting_outcome(
+        reply=reply_text,
+        status="posting_failed_terminal",
+        lane=str(candidate.source),
+        target_id=candidate.mention_id,
+        failure_reason=failure_reason,
+    )
+    record_terminal_reply_evaluation(
+        state,
+        target_id=candidate.mention_id,
+        lane=str(candidate.source),
+        reason=reason,
+        outcome="reply_not_permitted",
+    )
+    log_event(
+        "reply_target_terminal",
+        lane=candidate.log_source,
+        target_id=candidate.mention_id,
+        outcome="reply_not_permitted",
+        reason=reason,
+    )
+    replied_to_ids.add(candidate.mention_id)
+    persistence.clear(state, candidate.mention_id, str(candidate.source))
+    state["replied_to_ids"] = append_unique_durable(
+        state.get("replied_to_ids", []),
+        candidate.mention_id,
+    )
+    mark_mention_seen_if_applicable(state, candidate.mention)
+    persistence.save(state, durable=True)
+
+
 def _deliver_reply(
     state: dict,
     candidate: _ReplyCandidate,
@@ -1155,35 +1202,17 @@ def _deliver_reply(
                 "evaluation; marking it handled without consuming reply quota",
                 candidate.mention_id,
             )
-            log_ai_reply_posting_outcome(
-                reply=reply_text,
-                status="posting_failed_terminal",
-                lane=str(candidate.source),
-                target_id=candidate.mention_id,
+            _retire_terminal_target(
+                state, candidate, replied_to_ids, reply_text,
                 failure_reason="target_unavailable_pre_send",
-            )
-            record_terminal_reply_evaluation(
-                state,
-                target_id=candidate.mention_id,
-                lane=str(candidate.source),
                 reason="x_target_unavailable_pre_send",
-                outcome="reply_not_permitted",
+                append_unique_durable=append_unique_durable,
+                persistence=persistence,
+                log_ai_reply_posting_outcome=log_ai_reply_posting_outcome,
+                log_event=log_event,
+                mark_mention_seen_if_applicable=mark_mention_seen_if_applicable,
+                record_terminal_reply_evaluation=record_terminal_reply_evaluation,
             )
-            log_event(
-                "reply_target_terminal",
-                lane=candidate.log_source,
-                target_id=candidate.mention_id,
-                outcome="reply_not_permitted",
-                reason="x_target_unavailable_pre_send",
-            )
-            replied_to_ids.add(candidate.mention_id)
-            persistence.clear(state, candidate.mention_id, str(candidate.source))
-            state["replied_to_ids"] = append_unique_durable(
-                state.get("replied_to_ids", []),
-                candidate.mention_id,
-            )
-            mark_mention_seen_if_applicable(state, candidate.mention)
-            persistence.save(state, durable=True)
             return _CandidateStop(NORMAL_CHECK_STATUS_CHECKED)
         reply_response, receipt = (
             delivery.post(
@@ -1232,35 +1261,17 @@ def _deliver_reply(
                 "marking mention as handled without consuming reply quota",
                 candidate.mention_id,
             )
-            log_ai_reply_posting_outcome(
-                reply=reply_text,
-                status="posting_failed_terminal",
-                lane=str(candidate.source),
-                target_id=candidate.mention_id,
+            _retire_terminal_target(
+                state, candidate, replied_to_ids, reply_text,
                 failure_reason="reply_not_permitted",
-            )
-            record_terminal_reply_evaluation(
-                state,
-                target_id=candidate.mention_id,
-                lane=str(candidate.source),
                 reason="x_reply_not_permitted",
-                outcome="reply_not_permitted",
+                append_unique_durable=append_unique_durable,
+                persistence=persistence,
+                log_ai_reply_posting_outcome=log_ai_reply_posting_outcome,
+                log_event=log_event,
+                mark_mention_seen_if_applicable=mark_mention_seen_if_applicable,
+                record_terminal_reply_evaluation=record_terminal_reply_evaluation,
             )
-            log_event(
-                "reply_target_terminal",
-                lane=candidate.log_source,
-                target_id=candidate.mention_id,
-                outcome="reply_not_permitted",
-                reason="x_reply_not_permitted",
-            )
-            replied_to_ids.add(candidate.mention_id)
-            persistence.clear(state, candidate.mention_id, str(candidate.source))
-            state["replied_to_ids"] = append_unique_durable(
-                state.get("replied_to_ids", []),
-                candidate.mention_id,
-            )
-            mark_mention_seen_if_applicable(state, candidate.mention)
-            persistence.save(state, durable=True)
             if isinstance(e, ProvedRemotePostNonSuccess):
                 delivery.retire_rejected(
                     receipt_template,

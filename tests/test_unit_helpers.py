@@ -13,7 +13,6 @@ import os
 import signal
 import subprocess
 import sys
-import tempfile
 import time
 from datetime import datetime, timedelta
 from pathlib import Path
@@ -22,84 +21,53 @@ from zoneinfo import ZoneInfo
 
 import pytest
 
-from tests.helpers.protocol_activation import create_test_protocol_activation
-
-UNIT_BASE_DIRECTORY = tempfile.TemporaryDirectory(
-    prefix=f"mrsMThatcher-unit-import-{os.getpid()}-"
+from tests.helpers.bot_runtime import (
+    IMPORT_ENV,
+    SCENARIOS,
+    SOURCE_DEFAULT_SINGLE_CALL_REPLY,
+    SOURCE_GET_TWEET_BY_ID,
+    bot,
 )
-UNIT_BASE = Path(UNIT_BASE_DIRECTORY.name)
-
-IMPORT_ENV = {
-    "MRS_TEST_MODE": "1",
-    "MRS_BASE_DIR": str(UNIT_BASE),
-    "MRS_LOG_FILE": str(UNIT_BASE / "unit-test.log"),
-    "X_API_BASE_URL": "http://127.0.0.1:9",
-    "X_UPLOAD_BASE_URL": "http://127.0.0.1:9",
-    "OPENAI_API_BASE_URL": "http://127.0.0.1:9/v1",
-    "X_CONSUMER_KEY": "dummy",
-    "X_CONSUMER_SECRET": "dummy",
-    "X_ACCESS_TOKEN": "dummy",
-    "X_ACCESS_SECRET": "dummy",
-    "X_MY_USER_ID": "12345",
-    "OPENAI_API_KEY": "dummy",
-    "X_BEARER_TOKEN": "dummy",
-}
-ORIGINAL_ENV = {key: os.environ.get(key) for key in IMPORT_ENV}
-os.environ.update(IMPORT_ENV)
-
-import mrsMThatcher2 as bot  # noqa: E402
-import exact_receipt_retirement as exact_retirement_module  # noqa: E402
-import remote_write_transport_journal as transport_journal_module  # noqa: E402
-
-SOURCE_DEFAULT_SINGLE_CALL_REPLY = copy.deepcopy(bot.single_call_reply)
-SOURCE_GET_TWEET_BY_ID = bot.get_tweet_by_id
-bot.single_call_reply = {
-    **bot.single_call_reply,
-    "enabled": True,
-}
-
-for key, value in ORIGINAL_ENV.items():
-    if value is None:
-        os.environ.pop(key, None)
-    else:
-        os.environ[key] = value
-
-from tests.fake_api_server import FakeApiServer, load_scenario  # noqa: E402
-from reply_evidence import EvidencePassage  # noqa: E402
-from single_call_reply import (  # noqa: E402
+from tests.helpers.bot_fixtures import (
+    _configure_test_x_base,
+    isolate_regular_post_receipt,
+    quote_analysis_for_lines,
+    invalid_pagination_cursor_error,
+    repeated_quote_cursor_suppression,
+    image_analysis_for_paths,
+    configure_simple_quote_post,
+    mock_confirmed_main_post,
+    install_receipt_bound_x_request_stub,
+    configure_simple_meme_post,
+    valid_regular_receipt,
+    valid_regular_receipt_v2,
+    schema_current_main_attempt,
+)
+from tests.helpers.reply_fixtures import (
+    UNIT_REPLY_REPOSITORY,
+    UnitReplyEvidenceRepository,
+    unit_reply_context,
+    unit_approved_reply,
+    unit_confirmed_reply_receipt,
+    unit_sending_reply_receipt,
+    unit_historical_context_sending_receipt,
+    prepare_unit_historical_context_create,
+    unit_confirmed_v3_reply_receipt,
+    unit_v4_reply_receipt_template,
+    unit_sending_v4_reply_receipt,
+    unit_confirmed_v4_reply_receipt,
+    reply_evaluation_record,
+)
+from tests.fake_api_server import FakeApiServer, load_scenario
+import exact_receipt_retirement as exact_retirement_module
+import remote_write_transport_journal as transport_journal_module
+from single_call_reply import (
     PipelineResult,
     STRATEGY_VERSION,
     ValidatedReply,
     build_model_payload,
-    create_durable_draft,
     run_reply_pipeline as run_single_call_reply_pipeline,
 )
-
-SCENARIOS = Path(__file__).resolve().parent / "fixtures" / "scenarios"
-
-
-def _configure_test_x_base(
-    monkeypatch: pytest.MonkeyPatch,
-    base_url: str,
-) -> None:
-    """Install one isolated fake X origin without mutating production authority."""
-
-    prior_record = (
-        transport_journal_module._configured_x_request_install_record
-    )
-    assert prior_record is not None
-    monkeypatch.setattr(
-        transport_journal_module,
-        "_configured_x_request_install_record",
-        prior_record,
-    )
-    normalised_base = bot.normalise_base_url(base_url, require_origin=True)
-    transport_journal_module._reset_configured_x_request_provider_for_tests(
-        create_url=f"{normalised_base}/2/tweets",
-        auth=bot.AUTH,
-        timeout=bot.request_timeout(),
-    )
-    monkeypatch.setattr(bot, "X_BASE", normalised_base)
 
 
 def test_valid_receipt_epoch_uses_fixed_transaction_policy() -> None:
@@ -107,311 +75,6 @@ def test_valid_receipt_epoch_uses_fixed_transaction_policy() -> None:
     assert bot.valid_receipt_epoch(1_500_000_000) is True
     assert bot.valid_receipt_epoch(4_102_444_800) is True
     assert bot.valid_receipt_epoch(4_102_444_801) is False
-
-
-class UnitReplyEvidenceRepository:
-    """Exact local evidence fixture accepted by draft revalidation."""
-
-    def __init__(self) -> None:
-        passage = EvidencePassage(
-            evidence_id="a" * 64,
-            source_hash="b" * 64,
-            quote_id="c" * 64,
-            field="historical_context",
-            passage="People moved from East Germany towards West Germany in November 1989.",
-            source_title="Unit source",
-            source_url="https://example.invalid/unit",
-            stable_locator="unit:1",
-            verification_status="exact",
-            research_confidence="high",
-            trusted_fact_eligible=True,
-        )
-        self.passage = passage
-        self.passages = {passage.evidence_id: passage}
-
-    def detected_authorised_quote_ids(self, _text: str) -> set[str]:
-        return set()
-
-    def detected_authorised_quote_ids_outside_exact(
-        self,
-        _text: str,
-        _exact_text: str,
-    ) -> set[str]:
-        return set()
-
-    def exact_quote_is_authorised(self, _text: str) -> bool:
-        return False
-
-    def resolve_context_quotation(self, _context: dict[str, object]) -> None:
-        return None
-
-    def candidate_passages(
-        self,
-        _query: str,
-        *,
-        maximum_packets: int,
-        maximum_passages: int,
-        preferred_quote_id: str | None,
-        trusted_only: bool = False,
-    ) -> list[EvidencePassage]:
-        """Return the one trusted unit passage within requested bounds."""
-
-        assert maximum_packets == 8
-        assert maximum_passages == 32
-        assert preferred_quote_id is None
-        assert trusted_only is True
-        return [self.passage]
-
-
-UNIT_REPLY_REPOSITORY = UnitReplyEvidenceRepository()
-
-
-def unit_reply_context(
-    *,
-    target_id: str = "100",
-    thread_id: str | None = None,
-    lane: str = "mention",
-    contribution: str = "A contribution.",
-    clarification_request: dict[str, str] | None = None,
-    target_author_id: str = "200",
-) -> dict[str, object]:
-    """Return a minimal canonical production reply context."""
-
-    root_id = thread_id or target_id
-    target_turn = {
-        "post_id": target_id,
-        "author_role": "user",
-        "text": contribution,
-    }
-    return {
-        "target_id": target_id,
-        "thread_id": root_id,
-        "root_post_id": root_id,
-        "parent_post_id": None,
-        "lane": lane,
-        "incoming_contribution": contribution,
-        "quoted_post": None,
-        "parent_thread": [],
-        "visible_conversation": [target_turn],
-        "visual_description": None,
-        "clarification_request": clarification_request,
-        "current_date": "2026-07-20",
-        "target_author_id": target_author_id,
-        "target_created_at": "2026-07-20T12:00:00Z",
-    }
-
-
-def unit_approved_reply(
-    context: dict[str, object],
-    *,
-    text: str = "Thank you for the observation.",
-    mode: str = "courtesy",
-    factual: bool = False,
-) -> ValidatedReply:
-    """Return one locally validated single-call reply and durable draft."""
-
-    payload, fact_map = build_model_payload(
-        context=context,
-        repository=UNIT_REPLY_REPOSITORY,
-    )
-    reply_kind = (
-        "direct_factual"
-        if factual or mode == "direct_factual_answer"
-        else "social" if mode == "courtesy" else "principle"
-    )
-    used_fact_ids = ["F1"] if reply_kind == "direct_factual" else []
-    output = {
-        "decision": "reply",
-        "reply_kind": reply_kind,
-        "reply": text,
-        "used_fact_ids": used_fact_ids,
-        "reason_code": "useful_reply",
-    }
-    draft = create_durable_draft(
-        output=output,
-        payload=payload,
-        fact_map=fact_map,
-        images=[],
-        target_author_id=str(context["target_author_id"]),
-    )
-    metadata = {
-        "strategy_version": STRATEGY_VERSION,
-        "reply_kind": reply_kind,
-        "reason_code": "useful_reply",
-        "used_fact_ids": used_fact_ids,
-        "used_fact_count": len(used_fact_ids),
-        "trusted_fact_count": len(payload["trusted_facts"]),
-        "model_call_count": 1,
-        "validated_draft_hash": draft["validated_draft_hash"],
-    }
-    return ValidatedReply(text, draft, metadata)
-def unit_confirmed_reply_receipt(
-    *,
-    target_id: str = "100",
-    reply_post_id: str = "999",
-    author_id: str = "200",
-    lane: str = "mention",
-    contribution: str = "A contribution.",
-    text: str = "Thank you for the observation.",
-    epoch: int = 2_000_000_000,
-    factual: bool = False,
-    clarification_request: dict[str, str] | None = None,
-    conversation_id: str | None = None,
-    original_post_id: str | None = None,
-) -> dict[str, object]:
-    thread_id = conversation_id or target_id
-    resolved_original_post_id = original_post_id or "900"
-    context = unit_reply_context(
-        target_id=target_id,
-        thread_id=thread_id,
-        lane=lane,
-        contribution=contribution,
-        clarification_request=clarification_request,
-        target_author_id=author_id,
-    )
-    if lane == "quote_tweet":
-        original_turn = {
-            "post_id": resolved_original_post_id,
-            "author_role": "account",
-            "text": "Original account post.",
-        }
-        target_turn = copy.deepcopy(context["visible_conversation"][-1])
-        context.update(
-            {
-                "root_post_id": resolved_original_post_id,
-                "parent_post_id": resolved_original_post_id,
-                "quoted_post": copy.deepcopy(original_turn),
-                "parent_thread": [copy.deepcopy(original_turn)],
-                "visible_conversation": [original_turn, target_turn],
-            }
-        )
-    reply = unit_approved_reply(
-        context,
-        text=text,
-        mode="direct_factual_answer" if factual else "courtesy",
-        factual=factual,
-    )
-    receipt: dict[str, object] = {
-        "schema_version": 2,
-        "target_id": target_id,
-        "reply_post_id": reply_post_id,
-        "author_id": author_id,
-        "reply_epoch": epoch,
-        "daily_reply_date": bot.epoch_date_str(epoch),
-        "candidate_source": lane,
-        "conversation_id": thread_id,
-        "reply_text": text,
-        "reply_context": context,
-        "ai_reply_draft": reply.draft_record,
-    }
-    if lane == "quote_tweet":
-        receipt["daily_quote_reply_date"] = bot.epoch_date_str(epoch)
-        receipt["original_post_id"] = resolved_original_post_id
-    return receipt
-
-
-def unit_sending_reply_receipt(**kwargs: object) -> dict[str, object]:
-    """Build the schema-v3 pre-send form of a unit reply receipt."""
-    receipt = unit_confirmed_reply_receipt(**kwargs)
-    receipt["schema_version"] = 3
-    receipt["lifecycle_state"] = "sending"
-    receipt.pop("reply_post_id")
-    return receipt
-
-
-def unit_historical_context_sending_receipt(
-    *,
-    text: str = "Context",
-    parent_post_id: str = "111",
-) -> dict[str, object]:
-    """Build the compact durable owner for low-level create_post tests."""
-
-    return {
-        "schema_version": 1,
-        "lifecycle_state": "sending",
-        "parent_post_id": parent_post_id,
-        "quote_id": "a" * 64,
-        "reply_text": text,
-        "reply_epoch": 2_000_000_000,
-        "started_at": "2026-07-31T12:00:00Z",
-        "attempt_number": 1,
-    }
-
-
-def prepare_unit_historical_context_create(
-    *,
-    text: str = "Context",
-    parent_post_id: str = "111",
-) -> dict[str, object]:
-    """Persist and return one exact historical-context sending receipt."""
-
-    receipt = unit_historical_context_sending_receipt(
-        text=text,
-        parent_post_id=parent_post_id,
-    )
-    bot.atomic_write_json(bot.HISTORICAL_CONTEXT_REPLY_RECEIPT_FILE, receipt)
-    return receipt
-
-
-def unit_confirmed_v3_reply_receipt(**kwargs: object) -> dict[str, object]:
-    """Build the schema-v3 confirmed form of a unit reply receipt."""
-    receipt = unit_sending_reply_receipt(**kwargs)
-    receipt["lifecycle_state"] = "confirmed"
-    receipt["reply_post_id"] = str(kwargs.get("reply_post_id", "999"))
-    return receipt
-
-
-def unit_v4_reply_receipt_template(**kwargs: object) -> dict[str, object]:
-    """Build the untimed schema-v4 template used immediately before sending."""
-    receipt = unit_sending_reply_receipt(**kwargs)
-    receipt["schema_version"] = 4
-    for field in (
-        "attempt_epoch",
-        "confirmation_epoch",
-        "reply_epoch",
-        "daily_reply_date",
-        "daily_quote_reply_date",
-    ):
-        receipt.pop(field, None)
-    return receipt
-
-
-def unit_sending_v4_reply_receipt(
-    *,
-    attempt_epoch: int = 2_000_000_000,
-    **kwargs: object,
-) -> dict[str, object]:
-    """Build a complete schema-v4 sending receipt with an attempt time."""
-    receipt = unit_v4_reply_receipt_template(**kwargs)
-    attempt_date = bot.epoch_date_str(attempt_epoch)
-    receipt["attempt_epoch"] = attempt_epoch
-    receipt["reply_epoch"] = attempt_epoch
-    receipt["daily_reply_date"] = attempt_date
-    if receipt["candidate_source"] == "quote_tweet":
-        receipt["daily_quote_reply_date"] = attempt_date
-    return receipt
-
-
-def unit_confirmed_v4_reply_receipt(
-    *,
-    attempt_epoch: int = 2_000_000_000,
-    confirmation_epoch: int = 2_000_000_005,
-    **kwargs: object,
-) -> dict[str, object]:
-    """Build a schema-v4 confirmed receipt with authoritative confirmation time."""
-    receipt = unit_sending_v4_reply_receipt(
-        attempt_epoch=attempt_epoch,
-        **kwargs,
-    )
-    confirmation_date = bot.epoch_date_str(confirmation_epoch)
-    receipt["lifecycle_state"] = "confirmed"
-    receipt["reply_post_id"] = str(kwargs.get("reply_post_id", "999"))
-    receipt["confirmation_epoch"] = confirmation_epoch
-    receipt["reply_epoch"] = confirmation_epoch
-    receipt["daily_reply_date"] = confirmation_date
-    if receipt["candidate_source"] == "quote_tweet":
-        receipt["daily_quote_reply_date"] = confirmation_date
-    return receipt
 
 
 def test_schema_v4_source_lineage_accepts_real_ai_reply_string_subclass() -> None:
@@ -454,157 +117,6 @@ def test_conversational_source_lineage_helpers_require_integer_schema(
     template["schema_version"] = schema_version
     with pytest.raises(RuntimeError, match="schema-v4 sending template"):
         bot.bind_conversational_reply_attempt_time(template)
-
-
-@pytest.fixture(autouse=True)
-def isolate_regular_post_receipt(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
-    transport_journal_module.reset_consumed_authorities_for_tests()
-    # Operational command tests model the supported post-bootstrap dispatch path.
-    monkeypatch.setattr(bot, "_PRODUCTION_BOOTSTRAPPED", True)
-    monkeypatch.setattr(bot, "REGULAR_POST_RECEIPT_FILE", tmp_path / "regular_post_receipt.json")
-    monkeypatch.setattr(bot, "MEME_POST_RECEIPT_FILE", tmp_path / "meme_post_receipt.json")
-    monkeypatch.setattr(
-        bot,
-        "HISTORICAL_CONTEXT_REPLY_HISTORY_FILE",
-        tmp_path / "historical_context_reply_history.json",
-    )
-    monkeypatch.setattr(
-        bot,
-        "HISTORICAL_CONTEXT_REPLY_RECEIPT_FILE",
-        tmp_path / "historical_context_reply_receipt.json",
-    )
-    monkeypatch.setattr(
-        bot,
-        "HISTORICAL_CONTEXT_REPLY_OUTBOX_FILE",
-        tmp_path / "historical_context_reply_outbox.json",
-    )
-    monkeypatch.setattr(bot, "CONFIRMED_REPLY_RECEIPT_FILE", tmp_path / "confirmed_reply_receipt.json")
-    monkeypatch.setattr(bot, "AMBIGUOUS_POST_OUTCOME_FILE", tmp_path / "ambiguous_post_outcome.json")
-    monkeypatch.setattr(
-        bot,
-        "AMBIGUOUS_POST_OUTCOME_SUCCESSOR_FILE",
-        tmp_path / "ambiguous_post_outcome.restart_barrier.json",
-    )
-    monkeypatch.setattr(
-        bot,
-        "REMOTE_WRITE_SAFETY_PROTOCOL_ACTIVATION_FILE",
-        tmp_path / bot.REMOTE_WRITE_SAFETY_PROTOCOL_ACTIVATION_BASENAME,
-    )
-    create_test_protocol_activation(
-        bot.REMOTE_WRITE_SAFETY_PROTOCOL_ACTIVATION_FILE
-    )
-    monkeypatch.setattr(bot, "CONTROL_FILE", tmp_path / "mrsMThatcher.control.json")
-    monkeypatch.setattr(
-        bot,
-        "_CONTROL_CACHE",
-        {"signature": None, "data": {}, "has_valid": False, "failure_signature": None},
-    )
-    monkeypatch.setattr(bot, "_AMBIGUOUS_REMOTE_POST_SEEN", False)
-    monkeypatch.setattr(bot, "_AMBIGUOUS_MARKER_DURABILITY_UNCERTAIN", False)
-    monkeypatch.setattr(bot, "_RETAINED_CONFIRMED_POST_SIGINT_GUARD", None)
-    monkeypatch.setattr(bot, "_HISTORICAL_CONTEXT_CORPUS_SNAPSHOT", None)
-    monkeypatch.setattr(bot, "_HISTORICAL_CONTEXT_RUNTIME_UNAVAILABLE_REASON", None)
-    monkeypatch.setattr(bot, "_HISTORICAL_CONTEXT_OUTBOX_UNAVAILABLE_REASON", None)
-    monkeypatch.setattr(
-        bot,
-        "_HISTORICAL_CONTEXT_SEMANTIC_GATE",
-        SimpleNamespace(
-            available=True,
-            ledger_sha256="unit-test-ledger",
-            projection_sha256="unit-test-projection",
-            disposition=lambda _quote_id: None,
-            reviewed_disposition=lambda _quote_id: None,
-        ),
-    )
-    monkeypatch.setattr(bot, "STATE_FILE", tmp_path / "bot_state.json")
-    monkeypatch.setattr(bot, "STATE_BACKUP_COUNT", 0)
-    monkeypatch.setattr(
-        bot,
-        "get_tweet_by_id",
-        lambda tweet_id, **_kwargs: {"id": str(tweet_id)},
-    )
-    monkeypatch.setattr(bot, "reply_evidence_repository", lambda: UNIT_REPLY_REPOSITORY)
-    monkeypatch.setattr(
-        bot,
-        "completed_research_quote_hashes",
-        lambda: {
-            bot.quote_text_hash(line)
-            for line in Path(bot.LINES_FILE).read_text(encoding="utf-8").splitlines()
-            if line.strip()
-        },
-    )
-
-
-def quote_analysis_for_lines(lines: list[str], analyses: dict[int, dict] | None = None) -> dict:
-    analyses = analyses or {}
-    items: dict[str, dict] = {}
-    line_index: dict[str, str] = {}
-    for idx, text in enumerate(lines):
-        if not text.strip():
-            continue
-        quote_hash = bot.quote_text_hash(text)
-        line_index[str(idx + 1)] = quote_hash
-        items.setdefault(
-            quote_hash,
-            {
-                "text": bot.collapse_quote_whitespace(text),
-                "quote_hash": quote_hash,
-                "line_numbers": [idx + 1],
-                "analysis": analyses.get(idx, {"seasonality": {"hard_exclude_outside_windows": False, "preferred_windows": [], "relevance": "none"}}),
-            },
-        )
-    return {
-        "analysis_kind": "quotes",
-        "schema_version": 2,
-        "source": {"source_sha256": hashlib.sha256(("".join(line + "\n" for line in lines)).encode("utf-8")).hexdigest()},
-        "line_index": line_index,
-        "items": items,
-    }
-
-
-def invalid_pagination_cursor_error() -> bot.ApiError:
-    """Return a representative X invalid-pagination-token response."""
-    return bot.ApiError(
-        (
-            'X API error 400: {"errors":[{"parameters":'
-            '{"pagination_token":["expired-token"]},'
-            '"message":"The `pagination_token` query parameter value '
-            '[expired-token] is not valid"}]}'
-        ),
-        service="x",
-        status_code=400,
-    )
-
-
-def repeated_quote_cursor_suppression(
-    token: str,
-    *,
-    detected_epoch: int,
-    retry_after_epoch: int | None = None,
-) -> dict[str, object]:
-    """Build one canonical quote-cursor suppression test record."""
-    return {
-        "cursor_sha256": hashlib.sha256(token.encode("utf-8")).hexdigest(),
-        "detected_epoch": detected_epoch,
-        "retry_after_epoch": retry_after_epoch
-        if retry_after_epoch is not None
-        else detected_epoch + bot.QUOTE_REPEATED_CURSOR_BACKOFF_SECONDS,
-    }
-
-
-def image_analysis_for_paths(paths: list[Path], analyses: dict[str, dict] | None = None) -> dict:
-    analyses = analyses or {}
-    path_index: dict[str, str] = {}
-    items: dict[str, dict] = {}
-    for path in paths:
-        image_hash = bot.file_sha256(path)
-        path_index[path.name] = image_hash
-        items[image_hash] = {
-            "paths": [path.name],
-            "image_hash": image_hash,
-            "analysis": analyses.get(path.name, {"pairing": {}, "themes": [], "tone": [], "visual_energy": "low", "quality": {}, "seasonality": {"avoid_outside_season_or_occasion": False}}),
-        }
-    return {"analysis_kind": "images", "schema_version": 3, "path_index": path_index, "items": items}
 
 
 def write_image_analysis(path: Path, analysis: dict) -> None:
@@ -2657,183 +2169,6 @@ def test_post_random_quote_requires_created_post_id_before_marking_histories(
     assert events == []
 
 
-def configure_simple_quote_post(
-    tmp_path: Path,
-    monkeypatch: pytest.MonkeyPatch,
-    *,
-    create_response: dict | None = None,
-) -> tuple[set[str], set[str], dict, Path, Path, Path, Path]:
-    image_dir = tmp_path / "images"
-    image_dir.mkdir()
-    image_path = image_dir / "t01.jpg"
-    image_path.write_bytes(b"fake")
-    lines_file = tmp_path / "quotes.txt"
-    lines_file.write_text("Good quote.\n", encoding="utf-8")
-    lines_used_file = tmp_path / "lines_used.json"
-    images_used_file = tmp_path / "images_used.json"
-    receipt_file = tmp_path / "regular_post_receipt.json"
-    monkeypatch.setattr(bot, "LINES_FILE", lines_file)
-    monkeypatch.setattr(bot, "IMAGE_GLOB", str(image_dir / "t*"))
-    monkeypatch.setattr(bot, "LINES_USED_FILE", lines_used_file)
-    monkeypatch.setattr(bot, "IMAGES_USED_FILE", images_used_file)
-    monkeypatch.setattr(bot, "REGULAR_POST_RECEIPT_FILE", receipt_file)
-    monkeypatch.setattr(bot, "current_datetime", lambda: datetime(2026, 7, 5))
-    monkeypatch.setattr(bot, "now_epoch", lambda: 1_800_000_000)
-    monkeypatch.setattr(bot, "upload_media", lambda path, **_kwargs: "media-1")
-    monkeypatch.setattr(
-        bot,
-        "handoff_confirmed_media_upload_to_main_attempt",
-        lambda _attempt, _authority: None,
-    )
-    monkeypatch.setattr(
-        bot,
-        "create_post",
-        lambda **kwargs: mock_confirmed_main_post(
-            kwargs,
-            create_response or {"data": {"id": "950001"}},
-        ),
-    )
-    monkeypatch.setattr(bot, "maybe_schedule_meme_after_quote_post", lambda state, quote_post_epoch=None, **kwargs: None)
-    monkeypatch.setattr(bot, "cache_tweet", lambda *args, **kwargs: None)
-    monkeypatch.setattr(bot, "record_recent_own_post", lambda *args, **kwargs: None)
-    monkeypatch.setattr(bot, "log_event", lambda *args, **kwargs: None)
-    monkeypatch.setattr(bot, "load_quote_analysis", lambda: quote_analysis_for_lines(["Good quote."]))
-    monkeypatch.setattr(bot, "load_image_analysis", lambda: image_analysis_for_paths([image_path]))
-    return set(), set(), {}, lines_used_file, images_used_file, receipt_file, lines_file
-
-
-def mock_confirmed_main_post(
-    kwargs: dict[str, object],
-    response: dict,
-) -> dict:
-    """Make a main-post double cross the real durable transport lifecycle."""
-    attempt = kwargs.get("prepared_main_post_attempt")
-    authority = kwargs.get("prepared_transport_authority")
-    source = kwargs.get("prepared_transport_source")
-    if (
-        isinstance(attempt, dict)
-        and isinstance(authority, bot.TransportAuthority)
-        and isinstance(source, bot.SourceReceiptBinding)
-    ):
-        armed = bot.arm_transport_transaction(
-            Path(authority.journal_path),
-            authority,
-            mutation_authority=bot.transaction_mutation_authority(
-                "focused transport arming"
-            ),
-        )
-        bot.consume_transport_authority(
-            Path(armed.journal_path),
-            armed,
-            method="POST",
-            request_path="/2/tweets",
-            payload=source.request.payload(),
-            expected_receipt_path=Path(source.receipt_path),
-        )
-        post_id = response.get("data", {}).get("id")
-        if bot.valid_post_id(post_id):
-            confirmation_epoch = bot.confirmation_epoch_after_remote_success(
-                attempt
-            )
-            bot.confirm_transport_transaction(
-                Path(armed.journal_path),
-                armed,
-                mutation_authority=bot.transaction_mutation_authority(
-                    "focused transport confirmation"
-                ),
-                post_id=str(post_id),
-                confirmation_epoch=confirmation_epoch,
-            )
-    return json.loads(json.dumps(response))
-
-
-def install_receipt_bound_x_request_stub(
-    monkeypatch: pytest.MonkeyPatch,
-    callback: object,
-) -> None:
-    """Make a low-level X stub preserve the real final authority check.
-
-    Tests which replace ``x_request`` still need to consume the exact durable
-    transport authority at the point represented by the fake transport.  A
-    plain response lambda would otherwise bypass the production boundary and
-    make later confirmation fail for the wrong reason.
-    """
-
-    def bound_request(method: str, path: str, **kwargs: object) -> object:
-        if bot.x_request_targets_tweet_create(method, path):
-            authority = kwargs.get("_remote_write_authorization")
-            assert isinstance(authority, bot.TransportAuthority)
-            expected_receipt_path = bot.canonical_transport_receipt_path_for_lane(
-                authority.lane
-            )
-            assert expected_receipt_path is not None
-            bot.block_if_unrelated_receipt_appeared_for_tweet_transport(
-                expected_receipt_path
-            )
-            payload = kwargs.get("json")
-            assert isinstance(payload, dict)
-            bot.consume_transport_authority(
-                Path(authority.journal_path),
-                authority,
-                method=method,
-                request_path="/2/tweets",
-                payload=payload,
-                expected_receipt_path=expected_receipt_path,
-            )
-        assert callable(callback)
-        return callback(method, path, **kwargs)
-
-    monkeypatch.setattr(bot, "x_request", bound_request)
-
-
-def configure_simple_meme_post(
-    tmp_path: Path,
-    monkeypatch: pytest.MonkeyPatch,
-) -> tuple[dict, Path]:
-    """Configure one entirely local daily-meme transaction."""
-    meme_dir = tmp_path / "memes"
-    meme_dir.mkdir()
-    (meme_dir / "001_meme.png").write_bytes(b"meme")
-    receipt_file = tmp_path / "meme_post_receipt.json"
-    monkeypatch.setattr(bot, "MEME_DIR", meme_dir)
-    monkeypatch.setattr(bot, "MEME_POST_RECEIPT_FILE", receipt_file)
-    monkeypatch.setattr(bot, "MEME_ANALYSIS_FILE", tmp_path / "missing.json")
-    monkeypatch.setattr(bot, "upload_media", lambda _path, **_kwargs: "media-1")
-    monkeypatch.setattr(
-        bot,
-        "handoff_confirmed_media_upload_to_main_attempt",
-        lambda _attempt, _authority: None,
-    )
-    monkeypatch.setattr(bot, "now_epoch", lambda: 1_800_000_000)
-    monkeypatch.setattr(bot, "log_event", lambda *_args, **_kwargs: None)
-    return {
-        "next_meme_post_epoch": 1_799_999_000,
-        "posted_meme_filenames": [],
-    }, receipt_file
-
-
-def valid_regular_receipt(**overrides: object) -> dict:
-    receipt = {
-        "schema_version": 1,
-        "post_id": "950001",
-        "quote_hash": bot.quote_text_hash("Good quote."),
-        "image_basename": "t01.jpg",
-        "quote_post_epoch": 1_800_000_000,
-        "next_quote_post_epoch": 1_800_007_200,
-        "text": "Good quote.",
-    }
-    receipt.update(overrides)
-    return receipt
-
-
-def valid_regular_receipt_v2(**overrides: object) -> dict:
-    receipt = valid_regular_receipt(schema_version=2)
-    receipt["quote_history_after"] = [str(receipt["quote_hash"])]
-    receipt["image_history_after"] = [str(receipt["image_basename"])]
-    receipt.update(overrides)
-    return receipt
-
-
 def test_durable_receipt_creation_rejects_replaced_coercion_equal_bytes(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
@@ -3765,56 +3100,6 @@ def test_main_attempt_atomic_exchange_interruption_leaves_old_or_new_valid_json(
     assert any(
         path.name.startswith(transport_journal_module.JOURNAL_STAGING_PREFIX)
         for path in tmp_path.iterdir()
-    )
-
-
-def schema_current_main_attempt(lane: str) -> dict:
-    """Build one current-schema attempt without touching a receipt path."""
-    if lane == "quote_image":
-        quote_hash = bot.quote_text_hash("Good quote.")
-        return bot.build_main_post_attempt(
-            lane=lane,
-            text="Good quote.",
-            media_ids=["media-1"],
-            made_with_ai=False,
-            selected_identity={
-                "quote_hash": quote_hash,
-                "line_no": 0,
-                "source_line_number": 1,
-                "image_basename": "t01.jpg",
-                "image_no": 0,
-            },
-            recovery_plan={
-                "quote_delay_seconds": 7200,
-                "meme_delay_seconds": 3600,
-                "meme_scheduling_enabled": True,
-                "meme_trigger_after_hour": 12,
-                "meme_schedule_version": 2,
-                "schedule_timezone": bot.MAIN_POST_SCHEDULE_TIMEZONE,
-                "meme_schedule_before": bot.bound_meme_schedule_state(
-                    {},
-                    schedule_timezone=bot.MAIN_POST_SCHEDULE_TIMEZONE,
-                ),
-                "quote_history_after": [quote_hash],
-                "image_history_after": ["t01.jpg"],
-            },
-            attempt_epoch=1_800_000_000,
-        )
-    return bot.build_main_post_attempt(
-        lane=lane,
-        text=bot.MEME_POST_TEXT,
-        media_ids=["media-1"],
-        made_with_ai=False,
-        selected_identity={"meme_basename": "001_meme.png"},
-        recovery_plan={
-            "next_schedule_mode": "fallback",
-            "meme_schedule_version": 2,
-            "fallback_hour": 16,
-            "fallback_minute": 0,
-            "image_summary": "",
-            "schedule_timezone": bot.MAIN_POST_SCHEDULE_TIMEZONE,
-        },
-        attempt_epoch=1_800_000_000,
     )
 
 
@@ -8116,7 +7401,6 @@ def test_pre_confirmation_failures_restore_histories_after_quote_cycle_reset(
     assert lines_used == {"old-line"}
     assert images_used == {"old-image"}
     assert "last_main_post_id" not in state
-
 
 
 def test_daily_meme_missing_post_id_fails_without_success_side_effects(
@@ -16508,16 +15792,6 @@ def test_quote_tweet_completed_ledger_is_not_a_bounded_seen_cache() -> None:
     assert "oldest" in state["replied_to_quote_post_ids"]
     assert state["replied_to_quote_post_ids"][-1] == "newest"
     assert len(state["replied_to_quote_post_ids"]) == 2502
-
-
-def reply_evaluation_record(target_id: str, evaluated_epoch: int) -> dict:
-    return {
-        "target_id": target_id,
-        "lane": "mention",
-        "outcome": "no_reply",
-        "reason": "terminal",
-        "evaluated_epoch": evaluated_epoch,
-    }
 
 
 def test_recent_reply_evaluations_survive_nominal_cap(

@@ -15,7 +15,7 @@ import pytest
 import historical_context_formatter as formatter
 import mrsMThatcher2 as bot
 import mrs_bot_historical_context_runtime as owner
-from tests.test_unit_helpers import isolate_regular_post_receipt  # noqa: F401
+from tests.helpers.bot_fixtures import isolate_regular_post_receipt  # noqa: F401
 from tests.test_production_consistency_incident import isolated_incident_paths  # noqa: F401
 
 DEPENDENCIES = {'reconcile_runtime_historical_context_state': ['HISTORICAL_CONTEXT_REPLY_RECEIPT_FILE',

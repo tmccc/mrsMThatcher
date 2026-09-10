@@ -12,8 +12,8 @@ from unittest.mock import Mock, call
 import pytest
 
 import mrsMThatcher2 as bot
-from tests.test_unit_helpers import isolate_regular_post_receipt  # noqa: F401
-from tests.test_unit_helpers import unit_historical_context_sending_receipt
+from tests.helpers.bot_fixtures import isolate_regular_post_receipt  # noqa: F401
+from tests.helpers.reply_fixtures import unit_historical_context_sending_receipt
 
 DEPENDENCIES = {
     'unresolved_conversational_reply_receipt_is_blocking': ['load_confirmed_reply_receipt'],

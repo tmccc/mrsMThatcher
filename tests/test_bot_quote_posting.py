@@ -16,10 +16,10 @@ from tests.test_engagement_question_experiment import (
     _state_at_first_member_with_arm,
     synthetic_plan_bundle,
 )
-from tests.test_unit_helpers import (
-    bot,
+from tests.helpers.bot_runtime import bot
+from tests.helpers.bot_fixtures import (
     configure_simple_quote_post,
-    isolate_regular_post_receipt,
+    isolate_regular_post_receipt,  # noqa: F401
 )
 
 

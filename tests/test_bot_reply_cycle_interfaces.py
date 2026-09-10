@@ -12,12 +12,9 @@ from single_call_reply import PipelineResult
 from tests.test_bot_normal_reply_cycle import _configure_cycle as configure_normal
 from tests.test_bot_quote_reply_cycle import _configure_cycle as configure_quote
 from tests.test_mention_backlog_author_quarantine import mention
-from tests.test_unit_helpers import (
-    bot,
-    isolate_regular_post_receipt,
-    unit_approved_reply,
-    unit_reply_context,
-)
+from tests.helpers.bot_runtime import bot
+from tests.helpers.bot_fixtures import isolate_regular_post_receipt  # noqa: F401
+from tests.helpers.reply_fixtures import unit_approved_reply, unit_reply_context
 
 
 def prepare_cycle(monkeypatch, lane):

@@ -10,7 +10,7 @@ from unittest.mock import Mock, call
 import pytest
 
 import mrsMThatcher2 as bot
-from tests.test_unit_helpers import isolate_regular_post_receipt  # noqa: F401
+from tests.helpers.bot_fixtures import isolate_regular_post_receipt  # noqa: F401
 
 
 DEPENDENCIES = {'remote_write_transport_journal_paths': ['CONFIRMED_REPLY_RECEIPT_FILE',

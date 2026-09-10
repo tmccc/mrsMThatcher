@@ -9,7 +9,8 @@ from pathlib import Path
 import pytest
 
 import mrs_log_digest as digest
-from tests.test_unit_helpers import bot, image_analysis_for_paths
+from tests.helpers.bot_runtime import bot
+from tests.helpers.bot_fixtures import image_analysis_for_paths
 
 
 DIAGNOSTIC = "tg_faf99f3030693b0a55f0116194551792f3c4ea51261d7310eca7fb4d33b667d5.png"

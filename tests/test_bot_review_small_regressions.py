@@ -3,7 +3,7 @@ import json
 
 import pytest
 
-from tests.test_unit_helpers import bot
+from tests.helpers.bot_runtime import bot
 
 
 @pytest.mark.parametrize('day, excluded', [('02-28', False), ('02-29', False), ('03-01', True)])

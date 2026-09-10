@@ -11,7 +11,8 @@ from unittest.mock import Mock, call
 import pytest
 
 import mrs_bot_main_post_confirmation_persistence as owner
-from tests.test_unit_helpers import bot, isolate_regular_post_receipt  # noqa: F401
+from tests.helpers.bot_runtime import bot
+from tests.helpers.bot_fixtures import isolate_regular_post_receipt  # noqa: F401
 
 DEPENDENCIES = {'atomic_json_file_exactly_matches': ['canonical_atomic_json_bytes'],
  'promote_main_post_attempt_to_confirmed_pending_schedule': ['AmbiguousRemotePostOutcome',

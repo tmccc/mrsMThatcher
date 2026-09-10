@@ -13,11 +13,9 @@ import pytest
 
 import mrs_bot_reply_lane_policy as policy
 from tests.test_mention_backlog_author_quarantine import mention
-from tests.test_unit_helpers import (
-    bot,
-    isolate_regular_post_receipt,
-    unit_confirmed_reply_receipt,
-)
+from tests.helpers.bot_runtime import bot
+from tests.helpers.bot_fixtures import isolate_regular_post_receipt  # noqa: F401
+from tests.helpers.reply_fixtures import unit_confirmed_reply_receipt
 
 
 def test_import_needs_no_runtime_access():

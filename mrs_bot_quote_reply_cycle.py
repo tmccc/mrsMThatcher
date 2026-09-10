@@ -1232,6 +1232,46 @@ def _prepare_reply_receipt(
     return receipt_template
 
 
+def _retire_terminal_target(
+    state: dict,
+    quote_id: str,
+    reply_text: object,
+    *,
+    failure_reason: str,
+    reason: str,
+    persistence: ReplyCyclePersistence,
+    log_ai_reply_posting_outcome: Callable,
+    log_event: Callable,
+    mark_quote_tweet_skipped: Callable,
+    record_terminal_reply_evaluation: Callable,
+) -> None:
+    """Record a terminal quote outcome and durably skip its target and draft."""
+    log_ai_reply_posting_outcome(
+        reply=reply_text,
+        status="posting_failed_terminal",
+        lane="quote_tweet",
+        target_id=quote_id,
+        failure_reason=failure_reason,
+    )
+    log_event(
+        "reply_target_terminal",
+        lane="quote_tweet",
+        target_id=quote_id,
+        outcome="reply_not_permitted",
+        reason=reason,
+    )
+    record_terminal_reply_evaluation(
+        state,
+        target_id=quote_id,
+        lane="quote_tweet",
+        reason=reason,
+        outcome="reply_not_permitted",
+    )
+    mark_quote_tweet_skipped(state, quote_id)
+    persistence.clear(state, quote_id, "quote_tweet")
+    persistence.save(state, durable=True)
+
+
 def _deliver_reply(
     quote_id: str,
     reply_text: object,
@@ -1264,30 +1304,16 @@ def _deliver_reply(
                 "reply quota",
                 quote_id,
             )
-            log_ai_reply_posting_outcome(
-                reply=reply_text,
-                status="posting_failed_terminal",
-                lane="quote_tweet",
-                target_id=quote_id,
+            _retire_terminal_target(
+                state, quote_id, reply_text,
                 failure_reason="target_unavailable_pre_send",
-            )
-            log_event(
-                "reply_target_terminal",
-                lane="quote_tweet",
-                target_id=quote_id,
-                outcome="reply_not_permitted",
                 reason="x_target_unavailable_pre_send",
+                persistence=persistence,
+                log_ai_reply_posting_outcome=log_ai_reply_posting_outcome,
+                log_event=log_event,
+                mark_quote_tweet_skipped=mark_quote_tweet_skipped,
+                record_terminal_reply_evaluation=record_terminal_reply_evaluation,
             )
-            record_terminal_reply_evaluation(
-                state,
-                target_id=quote_id,
-                lane="quote_tweet",
-                reason="x_target_unavailable_pre_send",
-                outcome="reply_not_permitted",
-            )
-            mark_quote_tweet_skipped(state, quote_id)
-            persistence.clear(state, quote_id, "quote_tweet")
-            persistence.save(state, durable=True)
             return _QuoteCandidateStop(QUOTE_CHECK_STATUS_CHECKED)
         reply_response, receipt = (
             delivery.post(
@@ -1333,30 +1359,16 @@ def _deliver_reply(
                 "marking quote tweet as skipped without consuming reply quota",
                 quote_id,
             )
-            log_ai_reply_posting_outcome(
-                reply=reply_text,
-                status="posting_failed_terminal",
-                lane="quote_tweet",
-                target_id=quote_id,
+            _retire_terminal_target(
+                state, quote_id, reply_text,
                 failure_reason="reply_not_permitted",
-            )
-            log_event(
-                "reply_target_terminal",
-                lane="quote_tweet",
-                target_id=quote_id,
-                outcome="reply_not_permitted",
                 reason="x_reply_not_permitted",
+                persistence=persistence,
+                log_ai_reply_posting_outcome=log_ai_reply_posting_outcome,
+                log_event=log_event,
+                mark_quote_tweet_skipped=mark_quote_tweet_skipped,
+                record_terminal_reply_evaluation=record_terminal_reply_evaluation,
             )
-            record_terminal_reply_evaluation(
-                state,
-                target_id=quote_id,
-                lane="quote_tweet",
-                reason="x_reply_not_permitted",
-                outcome="reply_not_permitted",
-            )
-            mark_quote_tweet_skipped(state, quote_id)
-            persistence.clear(state, quote_id, "quote_tweet")
-            persistence.save(state, durable=True)
             if isinstance(e, ProvedRemotePostNonSuccess):
                 delivery.retire_rejected(
                     receipt_template,
