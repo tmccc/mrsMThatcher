@@ -7,6 +7,8 @@ from __future__ import annotations
 
 from typing import Any
 
+from mrs_bot_regular_post_completion import complete_regular_post_persistence
+
 
 def apply_meme_post_receipt(
     receipt: dict,
@@ -582,31 +584,42 @@ def reconcile_regular_post_receipt(
             state,
             minimum_next_quote_epoch,
         )
-    save_regular_post_protected_state(lines_used, images_used, state, durable=True)
-    log_confirmed_engagement_experiment_receipt(receipt)
-    if engagement_experiment_envelope_from_receipt(receipt) is not None:
-        # Emit while the confirmed receipt still exists.  A crash afterwards
-        # can safely replay the same structured evidence during reconciliation,
-        # whereas removing the receipt first could lose the analytics label.
-        log_event(
-            "main_post_posted",
+
+    def emit_experiment_event() -> None:
+        """Read recovered event fields after protected persistence and logging."""
+        if engagement_experiment_envelope_from_receipt(receipt) is not None:
+            # Emit while the confirmed receipt still exists. A crash afterwards
+            # can safely replay this evidence during reconciliation.
+            log_event(
+                "main_post_posted",
+                lane="quote_image",
+                post_id=receipt["post_id"],
+                line_no=receipt.get("line_no"),
+                image_no=receipt.get("image_no"),
+                image_basename=receipt.get("image_basename"),
+                quote_hash=receipt.get("quote_hash"),
+                **engagement_experiment_event_fields(receipt),
+            )
+
+    def retire_transport_journal() -> None:
+        """Read recovered transport identity after the outbox is durable."""
+        retire_lane_transport_journal_if_present(
+            receipt_path=REGULAR_POST_RECEIPT_FILE,
+            receipt=receipt,
             lane="quote_image",
-            post_id=receipt["post_id"],
-            line_no=receipt.get("line_no"),
-            image_no=receipt.get("image_no"),
-            image_basename=receipt.get("image_basename"),
-            quote_hash=receipt.get("quote_hash"),
-            **engagement_experiment_event_fields(receipt),
+            post_id=str(receipt["post_id"]),
         )
-    enqueue_historical_context_obligation(receipt)
-    retire_lane_transport_journal_if_present(
-        receipt_path=REGULAR_POST_RECEIPT_FILE,
-        receipt=receipt,
-        lane="quote_image",
-        post_id=str(receipt["post_id"]),
+
+    complete_regular_post_persistence(
+        lines_used, images_used, state, receipt,
+        save_regular_post_protected_state=save_regular_post_protected_state,
+        log_confirmed_engagement_experiment_receipt=log_confirmed_engagement_experiment_receipt,
+        emit_experiment_event=emit_experiment_event,
+        enqueue_historical_context_obligation=enqueue_historical_context_obligation,
+        retire_transport_journal=retire_transport_journal,
+        remove_regular_post_receipt=remove_regular_post_receipt,
+        publish_pending_engagement_question_notification=publish_pending_engagement_question_notification,
     )
-    remove_regular_post_receipt(receipt)
-    publish_pending_engagement_question_notification(state)
     emit_account_root_posted(
         lane="quote_image",
         post_id=receipt["post_id"],

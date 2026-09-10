@@ -179,6 +179,7 @@ deployed as a coherent set:
 - `mrs_bot_quote_candidates.py`
 - `mrs_bot_image_selection.py`
 - `mrs_bot_quote_posting.py`
+- `mrs_bot_regular_post_completion.py`
 - `mrs_bot_daily_meme.py`
 - `mrs_bot_legacy_reply_validation.py`
 - `mrs_bot_reply_state.py`

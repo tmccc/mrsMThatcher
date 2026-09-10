@@ -18,6 +18,8 @@ from pathlib import Path
 from types import ModuleType
 from typing import NamedTuple
 
+from mrs_bot_regular_post_completion import complete_regular_post_persistence
+
 
 def _select_regular_quote_image_pair(
     lines_used: set,
@@ -326,6 +328,33 @@ def _complete_quote_post(
     safely_process_due_historical_context_obligations: Callable,
 ) -> None:
     """Persist confirmed state and retire recovery authority before final events."""
+    def emit_experiment_event() -> None:
+        """Read live event fields after protected persistence and evidence logging."""
+        if engagement_experiment_envelope_from_receipt(receipt) is not None:
+            # Keep confirmed experiment evidence recoverable until after its
+            # structured analytics event has been emitted.
+            log_event(
+                "main_post_posted",
+                lane="quote_image",
+                post_id=posted_id,
+                line_no=line_no,
+                image_no=image_no,
+                image_basename=image_basename,
+                image_hash=image_choice.get("image_hash"),
+                image_score=image_choice.get("score"),
+                quote_hash=quote_hash,
+                **engagement_experiment_event_fields(receipt),
+            )
+
+    def retire_transport_journal() -> None:
+        """Retire live transport authority only after the outbox is durable."""
+        retire_lane_transport_journal_if_present(
+            receipt_path=REGULAR_POST_RECEIPT_FILE,
+            receipt=receipt,
+            lane="quote_image",
+            post_id=str(posted_id),
+        )
+
     try:
         lines_used.add(quote_hash)
         images_used.add(image_basename)
@@ -346,32 +375,16 @@ def _complete_quote_post(
         )
         record_recent_own_post(state, str(posted_id))
         apply_confirmed_engagement_experiment_receipt(receipt, state)
-        save_regular_post_protected_state(lines_used, images_used, state, durable=True)
-        log_confirmed_engagement_experiment_receipt(receipt)
-        if engagement_experiment_envelope_from_receipt(receipt) is not None:
-            # Keep confirmed experiment evidence recoverable until after its
-            # structured analytics event has been emitted.
-            log_event(
-                "main_post_posted",
-                lane="quote_image",
-                post_id=posted_id,
-                line_no=line_no,
-                image_no=image_no,
-                image_basename=image_basename,
-                image_hash=image_choice.get("image_hash"),
-                image_score=image_choice.get("score"),
-                quote_hash=quote_hash,
-                **engagement_experiment_event_fields(receipt),
-            )
-        enqueue_historical_context_obligation(receipt)
-        retire_lane_transport_journal_if_present(
-            receipt_path=REGULAR_POST_RECEIPT_FILE,
-            receipt=receipt,
-            lane="quote_image",
-            post_id=str(posted_id),
+        complete_regular_post_persistence(
+            lines_used, images_used, state, receipt,
+            save_regular_post_protected_state=save_regular_post_protected_state,
+            log_confirmed_engagement_experiment_receipt=log_confirmed_engagement_experiment_receipt,
+            emit_experiment_event=emit_experiment_event,
+            enqueue_historical_context_obligation=enqueue_historical_context_obligation,
+            retire_transport_journal=retire_transport_journal,
+            remove_regular_post_receipt=remove_regular_post_receipt,
+            publish_pending_engagement_question_notification=publish_pending_engagement_question_notification,
         )
-        remove_regular_post_receipt(receipt)
-        publish_pending_engagement_question_notification(state)
     except Exception as exc:
         log.critical("Confirmed regular quote/image post_id=%s but protected local persistence failed", posted_id, exc_info=True)
         raise ConfirmedPostLocalPersistenceError(
