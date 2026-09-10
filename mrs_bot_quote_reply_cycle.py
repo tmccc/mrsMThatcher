@@ -15,7 +15,6 @@ no runtime I/O and retains no callbacks, configuration, clients or state.
 
 from __future__ import annotations
 
-import copy
 from collections.abc import Callable
 from dataclasses import dataclass
 from logging import Logger
@@ -25,6 +24,10 @@ from typing import TYPE_CHECKING
 from mrs_bot_reply_cycle_interfaces import (
     EvaluateReply, QuoteReplyConfig,
     ReplyCycleDelivery, ReplyCyclePersistence,
+)
+from mrs_bot_reply_preparation import (
+    build_sending_reply_receipt,
+    persist_validated_reply_draft,
 )
 
 if TYPE_CHECKING:
@@ -1183,49 +1186,36 @@ def _prepare_reply_receipt(
         target_id=quote_id,
         reply=reply_text,
     )
-    draft_stored = persistence.store(
-        state,
-        quote_id,
-        "quote_tweet",
-        reply_text,
-        context=reply_context,
-    )
-    if not draft_stored:
+
+    def log_validation_failure() -> None:
+        """Retain the quote lane's persistence-validation log format."""
         log.error(
             "Single-call reply draft failed persistence validation; "
             "deferring target_id=%s source=quote_tweet",
             quote_id,
         )
-        log_event(
-            "single_call_reply_posting_outcome",
-            status="draft_persistence_failed",
-            lane="quote_tweet",
-            target_id=quote_id,
-            strategy_version=SINGLE_CALL_STRATEGY_VERSION,
-            reply_kind=reply_text.draft_record.get("reply_kind"),
-            reason_code=reply_text.draft_record.get("reason_code"),
-            validated_draft_hash=reply_text.draft_record.get(
-                "validated_draft_hash"
-            ),
-            failure_reason="draft_persistence_validation_failed",
-        )
-        persistence.save(state, durable=True)
+
+    if not persist_validated_reply_draft(
+        state, quote_id, "quote_tweet", reply_text, reply_context,
+        SINGLE_CALL_STRATEGY_VERSION=SINGLE_CALL_STRATEGY_VERSION,
+        persistence=persistence,
+        log_validation_failure=log_validation_failure,
+        log_event=log_event,
+    ):
         return _QuoteCandidateStop(QUOTE_CHECK_STATUS_CHECKED)
-    persistence.save(state, durable=True)
-    receipt_template = {
-        "schema_version": 4,
-        "lifecycle_state": "sending",
-        "target_id": quote_id,
-        "author_id": author_id,
-        "candidate_source": "quote_tweet",
-        "conversation_id": str(
-            quote_tweet.get("conversation_id", quote_id)
-        ),
-        "reply_text": reply_text,
-        "original_post_id": str(original_post_id),
-        "reply_context": copy.deepcopy(reply_context),
-        "ai_reply_draft": copy.deepcopy(reply_text.draft_record),
-    }
+    receipt_template = build_sending_reply_receipt(
+        {
+            "target_id": quote_id,
+            "author_id": author_id,
+            "candidate_source": "quote_tweet",
+            "conversation_id": str(
+                quote_tweet.get("conversation_id", quote_id)
+            ),
+            "reply_text": reply_text,
+            "original_post_id": str(original_post_id),
+        },
+        reply_context,
+    )
     receipt_template = delivery.bind_attempt(
         receipt_template
     )

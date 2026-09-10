@@ -9823,6 +9823,116 @@ def maintain_global_remote_write_barrier_tick(
     )
 
 
+def _run_due_quote_post_for_tick(
+    lines_used: set,
+    images_used: set,
+    state: dict,
+    current: int,
+) -> None:
+    """Handle quote timing and retries after the main loop's safety gates."""
+    next_quote_epoch = int(state.get("next_quote_post_epoch", 0))
+    if current >= next_quote_epoch:
+        log.info("Due to post quote/image")
+
+        if lane_paused("disable_quote_posts"):
+            log.warning("Skipping quote/image post due to runtime control file; retrying in 5 minutes")
+            state["next_quote_post_epoch"] = current + 300
+            save_state(state)
+        elif in_api_cooldown(state, scope="write"):
+            log.warning("Skipping quote/image post due to X write API cooldown")
+            schedule_next_quote_post(state, current)
+        else:
+            quote_posted = False
+            report_bot_health_progress("quote_post")
+            try:
+                post_random_quote(lines_used, images_used, state)
+                quote_posted = True
+            except UnrecoverableConfirmedPostPersistenceError:
+                quote_posted = True
+                log.exception(
+                    "Quote/image post was confirmed remotely but no complete durable "
+                    "local representation survived; all remote writes are now blocked"
+                )
+            except ConfirmedPostLocalPersistenceError:
+                quote_posted = True
+                log.exception("Quote/image post was confirmed remotely but local recovery/persistence failed; not scheduling an error retry")
+            except AmbiguousRemotePostOutcome:
+                quote_posted = True
+                log.exception(
+                    "Quote/image remote outcome is ambiguous; the remote-write safety "
+                    "barrier is active and no retry will be scheduled"
+                )
+            except ApiError as e:
+                log.exception("Quote/image posting failed due to API error")
+                record_api_error(state, e, "x", scope="write")
+            except Exception:
+                log.exception("Quote/image posting failed unexpectedly")
+            report_bot_health_progress("main_loop")
+
+            if not quote_posted:
+                schedule_next_quote_post(state, current)
+    else:
+        log.debug(
+            "Not due to post quote/image. seconds_until_next=%s",
+            max(0, next_quote_epoch - current),
+        )
+
+
+
+def _run_due_meme_post_for_tick(state: dict, current: int) -> None:
+    """Handle meme timing and retries after the main loop's safety gates."""
+    if ENABLE_DAILY_MEME_POSTS:
+        next_meme_epoch = int(state.get("next_meme_post_epoch", 0) or 0)
+
+        if current >= next_meme_epoch:
+            log.info("Due to post daily meme")
+
+            seconds_since_quote = current - int(state.get("last_quote_post_epoch", 0) or 0)
+
+            if lane_paused("disable_meme_posts"):
+                log.warning("Skipping daily meme post due to runtime control file; retrying in 5 minutes")
+                set_meme_delay_schedule(state, epoch=current + 300, mode="delayed_runtime_control")
+            elif seconds_since_quote < MEME_MIN_SECONDS_AFTER_QUOTE_POST:
+                log.info(
+                    "Meme post due, but delaying because last quote post was %d seconds ago",
+                    seconds_since_quote,
+                )
+                set_meme_delay_schedule(state, epoch=current + 1800, mode="delayed_recent_quote")
+            elif in_api_cooldown(state, scope="write"):
+                log.warning("Skipping daily meme post due to X write API cooldown")
+                set_meme_delay_schedule(state, epoch=current + 3600, mode="delayed_write_api_cooldown")
+            else:
+                report_bot_health_progress("meme_post")
+                try:
+                    post_next_meme(state)
+                except UnrecoverableConfirmedPostPersistenceError:
+                    log.exception(
+                        "Daily meme post was confirmed remotely but no complete durable "
+                        "local representation survived; all remote writes are now blocked"
+                    )
+                except ConfirmedPostLocalPersistenceError:
+                    log.exception("Daily meme post was confirmed remotely but local recovery/persistence failed; not scheduling an error retry")
+                except AmbiguousRemotePostOutcome:
+                    log.exception(
+                        "Daily meme remote outcome is ambiguous; the remote-write safety "
+                        "barrier is active and no retry will be scheduled"
+                    )
+                except ApiError as e:
+                    log.exception("Daily meme posting failed due to API error")
+                    record_api_error(state, e, "x", scope="write")
+                    set_meme_delay_schedule(state, epoch=current + 3600, mode="delayed_api_error")
+                except Exception:
+                    log.exception("Daily meme posting failed unexpectedly")
+                    set_meme_delay_schedule(state, epoch=current + 3600, mode="delayed_exception")
+                report_bot_health_progress("main_loop")
+        else:
+            log.debug(
+                "Not due to post daily meme. seconds_until_next=%s",
+                max(0, next_meme_epoch - current),
+            )
+
+
+
 def main() -> None:
     """Run the command-line entry point."""
     require_production_bootstrap()
@@ -10132,52 +10242,7 @@ def main() -> None:
             )
             continue
 
-        next_quote_epoch = int(state.get("next_quote_post_epoch", 0))
-        if current >= next_quote_epoch:
-            log.info("Due to post quote/image")
-
-            if lane_paused("disable_quote_posts"):
-                log.warning("Skipping quote/image post due to runtime control file; retrying in 5 minutes")
-                state["next_quote_post_epoch"] = current + 300
-                save_state(state)
-            elif in_api_cooldown(state, scope="write"):
-                log.warning("Skipping quote/image post due to X write API cooldown")
-                schedule_next_quote_post(state, current)
-            else:
-                quote_posted = False
-                report_bot_health_progress("quote_post")
-                try:
-                    post_random_quote(lines_used, images_used, state)
-                    quote_posted = True
-                except UnrecoverableConfirmedPostPersistenceError:
-                    quote_posted = True
-                    log.exception(
-                        "Quote/image post was confirmed remotely but no complete durable "
-                        "local representation survived; all remote writes are now blocked"
-                    )
-                except ConfirmedPostLocalPersistenceError:
-                    quote_posted = True
-                    log.exception("Quote/image post was confirmed remotely but local recovery/persistence failed; not scheduling an error retry")
-                except AmbiguousRemotePostOutcome:
-                    quote_posted = True
-                    log.exception(
-                        "Quote/image remote outcome is ambiguous; the remote-write safety "
-                        "barrier is active and no retry will be scheduled"
-                    )
-                except ApiError as e:
-                    log.exception("Quote/image posting failed due to API error")
-                    record_api_error(state, e, "x", scope="write")
-                except Exception:
-                    log.exception("Quote/image posting failed unexpectedly")
-                report_bot_health_progress("main_loop")
-
-                if not quote_posted:
-                    schedule_next_quote_post(state, current)
-        else:
-            log.debug(
-                "Not due to post quote/image. seconds_until_next=%s",
-                max(0, next_quote_epoch - current),
-            )
+        _run_due_quote_post_for_tick(lines_used, images_used, state, current)
 
         if ambiguous_remote_post_is_blocking():
             report_bot_health_progress(
@@ -10187,55 +10252,7 @@ def main() -> None:
             )
             continue
 
-        if ENABLE_DAILY_MEME_POSTS:
-            next_meme_epoch = int(state.get("next_meme_post_epoch", 0) or 0)
-
-            if current >= next_meme_epoch:
-                log.info("Due to post daily meme")
-
-                seconds_since_quote = current - int(state.get("last_quote_post_epoch", 0) or 0)
-
-                if lane_paused("disable_meme_posts"):
-                    log.warning("Skipping daily meme post due to runtime control file; retrying in 5 minutes")
-                    set_meme_delay_schedule(state, epoch=current + 300, mode="delayed_runtime_control")
-                elif seconds_since_quote < MEME_MIN_SECONDS_AFTER_QUOTE_POST:
-                    log.info(
-                        "Meme post due, but delaying because last quote post was %d seconds ago",
-                        seconds_since_quote,
-                    )
-                    set_meme_delay_schedule(state, epoch=current + 1800, mode="delayed_recent_quote")
-                elif in_api_cooldown(state, scope="write"):
-                    log.warning("Skipping daily meme post due to X write API cooldown")
-                    set_meme_delay_schedule(state, epoch=current + 3600, mode="delayed_write_api_cooldown")
-                else:
-                    report_bot_health_progress("meme_post")
-                    try:
-                        post_next_meme(state)
-                    except UnrecoverableConfirmedPostPersistenceError:
-                        log.exception(
-                            "Daily meme post was confirmed remotely but no complete durable "
-                            "local representation survived; all remote writes are now blocked"
-                        )
-                    except ConfirmedPostLocalPersistenceError:
-                        log.exception("Daily meme post was confirmed remotely but local recovery/persistence failed; not scheduling an error retry")
-                    except AmbiguousRemotePostOutcome:
-                        log.exception(
-                            "Daily meme remote outcome is ambiguous; the remote-write safety "
-                            "barrier is active and no retry will be scheduled"
-                        )
-                    except ApiError as e:
-                        log.exception("Daily meme posting failed due to API error")
-                        record_api_error(state, e, "x", scope="write")
-                        set_meme_delay_schedule(state, epoch=current + 3600, mode="delayed_api_error")
-                    except Exception:
-                        log.exception("Daily meme posting failed unexpectedly")
-                        set_meme_delay_schedule(state, epoch=current + 3600, mode="delayed_exception")
-                    report_bot_health_progress("main_loop")
-            else:
-                log.debug(
-                    "Not due to post daily meme. seconds_until_next=%s",
-                    max(0, next_meme_epoch - current),
-                )
+        _run_due_meme_post_for_tick(state, current)
 
         log.debug("Sleeping for 60 seconds")
         report_bot_health_progress("sleep", loop_completed=True)

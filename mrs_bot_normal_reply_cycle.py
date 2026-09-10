@@ -26,6 +26,10 @@ from mrs_bot_reply_cycle_interfaces import (
     EvaluateReply, NormalReplyConfig,
     ReplyCycleDelivery, ReplyCyclePersistence,
 )
+from mrs_bot_reply_preparation import (
+    build_sending_reply_receipt,
+    persist_validated_reply_draft,
+)
 
 if TYPE_CHECKING:
     from single_call_reply import PipelineResult
@@ -1034,49 +1038,36 @@ def _prepare_reply_receipt(
         target_id=candidate.mention_id,
         reply=reply_text,
     )
-    draft_stored = persistence.store(
-        state,
-        candidate.mention_id,
-        str(candidate.source),
-        reply_text,
-        context=reply_context,
-    )
-    if not draft_stored:
+
+    def log_validation_failure() -> None:
+        """Retain the normal lane's persistence-validation log format."""
         log.error(
             "Single-call reply draft failed persistence validation; "
             "deferring target_id=%s source=%s",
             candidate.mention_id,
             candidate.source,
         )
-        log_event(
-            "single_call_reply_posting_outcome",
-            status="draft_persistence_failed",
-            lane=str(candidate.source),
-            target_id=candidate.mention_id,
-            strategy_version=SINGLE_CALL_STRATEGY_VERSION,
-            reply_kind=reply_text.draft_record.get("reply_kind"),
-            reason_code=reply_text.draft_record.get("reason_code"),
-            validated_draft_hash=reply_text.draft_record.get(
-                "validated_draft_hash"
-            ),
-            failure_reason="draft_persistence_validation_failed",
-        )
-        persistence.save(state, durable=True)
+
+    if not persist_validated_reply_draft(
+        state, candidate.mention_id, candidate.source, reply_text, reply_context,
+        SINGLE_CALL_STRATEGY_VERSION=SINGLE_CALL_STRATEGY_VERSION,
+        persistence=persistence,
+        log_validation_failure=log_validation_failure,
+        log_event=log_event,
+    ):
         return _CandidateStop(NORMAL_CHECK_STATUS_API_ERROR)
-    persistence.save(state, durable=True)
-    receipt_template = {
-        "schema_version": 4,
-        "lifecycle_state": "sending",
-        "target_id": candidate.mention_id,
-        "author_id": candidate.author_id,
-        "candidate_source": candidate.source,
-        "conversation_id": str(
-            candidate.mention.get("conversation_id", candidate.mention_id)
-        ),
-        "reply_text": reply_text,
-        "reply_context": copy.deepcopy(reply_context),
-        "ai_reply_draft": copy.deepcopy(reply_text.draft_record),
-    }
+    receipt_template = build_sending_reply_receipt(
+        {
+            "target_id": candidate.mention_id,
+            "author_id": candidate.author_id,
+            "candidate_source": candidate.source,
+            "conversation_id": str(
+                candidate.mention.get("conversation_id", candidate.mention_id)
+            ),
+            "reply_text": reply_text,
+        },
+        reply_context,
+    )
     if candidate.source == "mention":
         mention_pagination = (
             candidate.mention.get("_mention_pagination")

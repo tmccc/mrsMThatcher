@@ -605,7 +605,8 @@ def test_historical_sending_rechecks_obligation_under_lock_before_local_recovery
 
 
 @pytest.mark.parametrize("truthy", [False, True])
-def test_historical_promotion_preserves_bytes_stores_outbox_order_and_raw_result(monkeypatch, truthy):
+@pytest.mark.parametrize("failure_stage", [None, "bind_confirmed_transport_source", "promote", "record_confirmed"])
+def test_historical_promotion_preserves_bytes_stores_outbox_order_and_raw_result(monkeypatch, truthy, failure_stage):
     import historical_context_formatter as formatter
 
     trace, paths, journal = _prebarrier(monkeypatch, (bot.HISTORICAL_CONTEXT_REPLY_RECEIPT_FILE,), "confirmed_pair")
@@ -643,11 +644,19 @@ def test_historical_promotion_preserves_bytes_stores_outbox_order_and_raw_result
     outcome = Outcome()
     trace.reconcile.return_value = outcome
     trace.emit_historical_context_store_observation.side_effect = lambda *args: None
-    actual = bot.reconcile_confirmed_transactions_before_global_barrier(set(), set(), {})
-    assert actual["historical_context"] is outcome
-    assert trace.promote.call_args.args[0] is bound_source
+    if failure_stage is None:
+        actual = bot.reconcile_confirmed_transactions_before_global_barrier(set(), set(), {})
+        assert actual["historical_context"] is outcome
+    else:
+        failure = OSError("historical confirmation persistence failed")
+        getattr(trace, failure_stage).side_effect = failure
+        with pytest.raises(OSError) as caught:
+            bot.reconcile_confirmed_transactions_before_global_barrier(set(), set(), {})
+        assert caught.value is failure
+    if failure_stage != "bind_confirmed_transport_source":
+        assert trace.promote.call_args.args[0] is bound_source
     assert all(entry.args[0] is receipt_bytes for entry in trace.sha.call_args_list)
-    assert trace.mock_calls == _inspection_calls(paths) + [
+    expected = _inspection_calls(paths) + [
         call.journal_path_for_receipt(paths[3]), call.inspect_transport_state(journal),
         call.historical_context_reply_store(), call.load(), call.valid_sending(receipt),
         call.historical_context_outbox_store(), call.get("71"),
@@ -660,5 +669,33 @@ def test_historical_promotion_preserves_bytes_stores_outbox_order_and_raw_result
         call.historical_context_reply_store(), call.reconcile(), call.truth(),
         *([call.emit_historical_context_store_observation(final, "71")] if truthy else []),
     ]
-    if truthy:
+    if failure_stage is not None:
+        failed_call = next(i for i, entry in enumerate(expected) if entry[0] == failure_stage)
+        expected = expected[:failed_call + 1]
+    assert trace.mock_calls == expected
+    if truthy and failure_stage is None:
         assert trace.emit_historical_context_store_observation.call_args.args[0] is final
+
+
+@pytest.mark.parametrize("lane,message", [
+    ("historical_context_reply", "confirmed historical-context transport has no exact outbox authority"),
+    ("unknown", "confirmed journal has no supported recovery lane"),
+])
+def test_bound_transport_dispatch_requires_supported_lane_and_historical_authority(monkeypatch, lane, message):
+    trace, paths, journal = _prebarrier(monkeypatch, (bot.REGULAR_POST_RECEIPT_FILE,), "confirmed_pair")
+    trace.load_regular_post_receipt.side_effect = [("sending", {"lifecycle_state": "attempting"})]
+    trace.bind_confirmed_transport_source.side_effect = lambda **kwargs: SimpleNamespace(
+        source_binding=SimpleNamespace(receipt_document={}),
+        details=SimpleNamespace(lane=lane),
+    )
+    with pytest.raises(bot.TransportJournalError, match=message):
+        bot.reconcile_confirmed_transactions_before_global_barrier(set(), set(), {})
+    assert trace.mock_calls == _inspection_calls(paths) + [
+        call.journal_path_for_receipt(paths[0]), call.inspect_transport_state(journal),
+        call.load_regular_post_receipt(),
+        call.bind_confirmed_transport_source(
+            journal_path=journal, receipt_path=paths[0],
+            validator_id=bot.TRANSPORT_SOURCE_VALIDATOR_ID,
+            validator=bot.transport_source_semantic_validator,
+        ),
+    ]

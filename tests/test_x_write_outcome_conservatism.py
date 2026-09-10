@@ -4,7 +4,6 @@ from tests.helpers.reply_evaluation import legacy_reply_evaluator
 
 import base64
 import hashlib
-import inspect
 import json
 import logging
 import signal
@@ -944,23 +943,13 @@ def test_public_post_has_no_health_io_inside_durable_transaction(
 def test_interrupted_outer_health_update_cannot_leave_a_write_transaction(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    main_source = inspect.getsource(bot.main)
-    health_boundary = main_source.index(
-        'report_bot_health_progress("quote_post")'
-    )
-    transaction_entry = main_source.index(
-        "post_random_quote(lines_used, images_used, state)",
-        health_boundary,
-    )
-    assert health_boundary < transaction_entry
-    assert "begin_media_upload" not in main_source[
-        health_boundary:transaction_entry
-    ]
-    assert "begin_transport_transaction" not in main_source[
-        health_boundary:transaction_entry
-    ]
+    state = bot.default_state()
+    state["next_quote_post_epoch"] = 0
+    monkeypatch.setattr(bot, "lane_paused", lambda _lane: False)
+    monkeypatch.setattr(bot, "in_api_cooldown", lambda _state, **_kwargs: False)
 
-    def interrupted_health_update(*_args: object, **_kwargs: object) -> None:
+    def interrupted_health_update(stage: str, **_kwargs: object) -> None:
+        assert stage == "quote_post"
         raise KeyboardInterrupt("injected before quote transaction")
 
     monkeypatch.setattr(bot, "report_bot_health_progress", interrupted_health_update)
@@ -973,9 +962,7 @@ def test_interrupted_outer_health_update_cannot_leave_a_write_transaction(
     )
 
     with pytest.raises(KeyboardInterrupt, match="before quote transaction"):
-        # This is the exact outer ordering used by the production quote lane.
-        bot.report_bot_health_progress("quote_post")
-        bot.post_random_quote([], set(), bot.default_state())
+        bot._run_due_quote_post_for_tick(set(), set(), state, current=1)
 
     for receipt_path in (
         bot.MEDIA_UPLOAD_RECEIPT_FILE,
