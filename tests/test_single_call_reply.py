@@ -15,6 +15,7 @@ from reply_evidence import (
     EvidenceRepository,
     retrieval_tokens,
 )
+from single_call_reply_validation import MAX_VALIDATION_ERROR_CODES
 
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
@@ -1393,6 +1394,121 @@ def test_no_reply_is_editorial_but_invalid_output_is_operational() -> None:
     assert second.status == "operational_failure"
     assert second.decision is None
     assert second.error_category == "schema_validation"
+    assert first.validation_error_codes == ()
+    assert "response_fields_mismatch" in second.validation_error_codes
+
+
+@pytest.mark.parametrize(
+    ("output", "category", "codes"),
+    [
+        (
+            raw_decision(reply="PRIVATE candidate @name\n#topic"),
+            "local_validation",
+            (
+                "control_or_format_character", "reply_contains_hashtag",
+                "reply_contains_line_break", "reply_contains_link_or_address",
+                "reply_contains_mention",
+            ),
+        ),
+        (
+            raw_decision(
+                kind="direct_factual", reply="PRIVATE candidate @name",
+                facts=["not-a-schema-fact-id"],
+            ),
+            "schema_validation",
+            (
+                "direct_factual_missing_fact_id", "invalid_used_fact_ids",
+                "reply_contains_link_or_address", "reply_contains_mention",
+            ),
+        ),
+        (
+            raw_decision(
+                kind="direct_factual", reply="Trusted passage 1.",
+                facts=["F1", "F1"],
+            ),
+            "local_validation",
+            ("duplicate_used_fact_ids",),
+        ),
+    ],
+)
+def test_validation_rules_reach_telemetry_without_model_prose(
+    output: str, category: str, codes: tuple[str, ...],
+) -> None:
+    """Retain every simultaneous rule failure, category and paid-call metadata."""
+
+    response = response_envelope(output)
+    response["output"][0]["summary"] = [{"text": "PRIVATE reasoning"}]
+    result = pipeline.run_reply_pipeline(
+        context=context(), config=enabled_config(), repository=FakeRepository(),
+        transport=lambda **_kwargs: {"response": response, "latency_ms": 37},
+    )
+
+    assert result.status == "operational_failure"
+    assert result.reason == "model_response_validation_failed"
+    assert result.error_category == category
+    assert result.validation_error_codes == codes
+    assert result.local_validation_status == "failed"
+    assert result.model_call_count == result.provider_request_attempt_count == 1
+    assert result.reply is None and result.decision is None
+    assert result.provider_response_id == "resp_test"
+    assert result.provider_latency_ms == 37
+    assert result.provider_usage["total_tokens"] == 145
+    telemetry = pipeline.decision_telemetry(result)
+    assert telemetry["validation_error_codes"] == list(codes)
+    assert telemetry["error_category"] == category
+    assert telemetry["failure_reason"] == "model_response_validation_failed"
+    assert "PRIVATE" not in json.dumps(telemetry)
+
+
+@pytest.mark.parametrize(
+    ("value", "expected"),
+    [
+        ("PRIVATE diagnostic", []),
+        ({"reply_contains_mention": "PRIVATE diagnostic"}, []),
+        (None, []),
+        (
+            ["reply_contains_mention", "PRIVATE diagnostic", None, True,
+             "reply_contains_mention", {"secret": "PRIVATE diagnostic"}],
+            ["reply_contains_mention"],
+        ),
+        (
+            ["reply_contains_mention"] * MAX_VALIDATION_ERROR_CODES
+            + ["reply_contains_hashtag"],
+            ["reply_contains_mention"],
+        ),
+    ],
+)
+def test_decision_telemetry_bounds_and_redacts_untrusted_validation_codes(
+    value: object, expected: list[str],
+) -> None:
+    """Never copy arbitrary exception prose into the diagnostic field."""
+
+    result = pipeline.PipelineResult(
+        status="operational_failure", reason="model_response_validation_failed",
+        error_category="local_validation", validation_error_codes=value,
+    )
+    telemetry = pipeline.decision_telemetry(result)
+    assert telemetry["validation_error_codes"] == expected
+    assert "PRIVATE" not in json.dumps(telemetry)
+
+
+def test_nonvalidation_defect_is_not_converted_into_validation_diagnostics(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Let implementation defects escape the deliberately narrow validator catch."""
+
+    failure = RuntimeError("validator implementation defect")
+
+    def broken_validator(*_args: object, **_kwargs: object) -> dict[str, object]:
+        raise failure
+
+    monkeypatch.setattr(pipeline, "validate_model_output", broken_validator)
+    with pytest.raises(RuntimeError) as raised:
+        pipeline.run_reply_pipeline(
+            context=context(), config=enabled_config(), repository=FakeRepository(),
+            transport=lambda **_kwargs: {"response": response_envelope(raw_decision())},
+        )
+    assert raised.value is failure
 
 
 def test_transport_control_interrupt_is_not_reclassified_as_provider_failure() -> None:

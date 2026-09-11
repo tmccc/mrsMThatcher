@@ -327,7 +327,6 @@ def _complete_quote_post(
     image_choice: dict,
     canonical_quote_text: str,
     log: Logger,
-    update_regular_generated_image_spacing_state: Callable,
     apply_state_fields: Callable,
     cache_tweet: Callable,
     MY_USER_ID: str,
@@ -381,7 +380,6 @@ def _complete_quote_post(
         state["last_main_post_id"] = str(posted_id)
         state["last_quote_post_epoch"] = quote_post_epoch
         state["last_regular_image_filename"] = image_basename
-        update_regular_generated_image_spacing_state(state, image_basename)
         apply_state_fields(state, quote_schedule_fields)
         apply_state_fields(state, meme_schedule_fields)
         cache_tweet(
@@ -498,7 +496,6 @@ def post_random_quote(
     ConfirmedPostLocalPersistenceError: type[Exception],
     materialize_bound_regular_schedule_receipt: Callable,
     apply_confirmed_engagement_experiment_receipt: Callable,
-    update_regular_generated_image_spacing_state: Callable,
     apply_state_fields: Callable,
     cache_tweet: Callable,
     MY_USER_ID: str,
@@ -819,14 +816,6 @@ def post_random_quote(
                 "Emergency in-memory core state update failed after confirmed regular post",
                 exc_info=True,
             )
-        try:
-            update_regular_generated_image_spacing_state(state, image_basename)
-        except Exception:
-            fallback_failures.append("generated_image_spacing_state")
-            log.critical(
-                "Emergency generated-image spacing update failed after confirmed regular post",
-                exc_info=True,
-            )
         if quote_schedule_fields is not _RECOVERY_VALUE_UNAVAILABLE:
             try:
                 apply_state_fields(state, quote_schedule_fields)
@@ -994,7 +983,6 @@ def post_random_quote(
         image_choice=image_choice,
         canonical_quote_text=canonical_quote_text,
         log=log,
-        update_regular_generated_image_spacing_state=update_regular_generated_image_spacing_state,
         apply_state_fields=apply_state_fields,
         cache_tweet=cache_tweet,
         MY_USER_ID=MY_USER_ID,

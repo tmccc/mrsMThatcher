@@ -49,9 +49,7 @@ DEPENDENCIES = {'apply_meme_post_receipt': ['MEME_POST_TEXT',
                                 'log',
                                 'maybe_schedule_meme_after_quote_post',
                                 'meme_schedule_date_str',
-                                'record_recent_own_post',
-                                'regular_generated_image_spacing_already_reflected',
-                                'update_regular_generated_image_spacing_state'],
+                                'record_recent_own_post'],
  'confirmed_regular_emergency_representation_is_complete': ['build_confirmed_pending_schedule_receipt',
                                                             'engagement_experiment_envelope_from_attempt',
                                                             'materialize_bound_regular_schedule_receipt',
@@ -208,7 +206,7 @@ def test_regular_application_preserves_histories_empty_schedule_and_callback_ord
     )
     lines, images, state = {"old quote"}, {"old image"}, {"next_meme_post_epoch": 99}
     events = _callbacks(
-        monkeypatch, "update_regular_generated_image_spacing_state",
+        monkeypatch,
         "maybe_schedule_meme_after_quote_post", "cache_tweet",
         "record_recent_own_post", "apply_confirmed_engagement_experiment_receipt",
     )
@@ -220,7 +218,6 @@ def test_regular_application_preserves_histories_empty_schedule_and_callback_ord
         "next_meme_schedule_date", "meme_anchor_quote_post_epoch",
     )] == [0, 0, "", "", 0]
     assert events.mock_calls == [
-        call.update_regular_generated_image_spacing_state(state, receipt["image_basename"]),
         call.cache_tweet(
             state, tweet_id=receipt["post_id"], text=receipt["text"],
             author_id=str(bot.MY_USER_ID), conversation_id=receipt["post_id"],

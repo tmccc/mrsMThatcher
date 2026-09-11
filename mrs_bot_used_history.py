@@ -224,12 +224,9 @@ def image_corpus_verified_for_legacy_migration(
     images: list[str],
     image_analysis: dict | None,
     *,
-    ENABLE_GENERATED_IMAGE_POOL: Any,
     Path: Any,
 ) -> bool:
     """Return the image corpus verified for legacy migration."""
-    if ENABLE_GENERATED_IMAGE_POOL:
-        return False
     if not isinstance(image_analysis, dict):
         return False
     expected = set(str(name) for name in (image_analysis.get("path_index") or {}).keys())

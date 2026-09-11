@@ -187,7 +187,6 @@ deployed as a coherent set:
 - `mrsMThatcher2.py`
 - `mrs_bot_image_scoring.py`
 - `mrs_bot_original_editorial.py`
-- `mrs_bot_generated_identity.py`
 - `mrs_bot_asset_metadata.py`
 - `mrs_bot_quote_candidates.py`
 - `mrs_bot_image_selection.py`
@@ -261,6 +260,7 @@ deployed as a coherent set:
 - `x_api_error_semantics.py`
 - `engagement_question_experiment.py`
 - `single_call_reply.py`
+- `single_call_reply_validation.py`
 - `reply_evidence.py`
 - `reply_factual_evidence.json`
 - `historical_context_formatter.py`
@@ -347,21 +347,18 @@ The tracked image assets are the runtime assets used by `mrsMThatcher2.py`.
 Larger source/research meme directories such as `memes/`, `meme_hunt_001/`,
 and `meme_shortlist*/` are intentionally ignored.
 
-## Generated Regular-Image Observability
+## Retired Generated-Image Runtime
 
-The optional generated-image pool is separate from the original `images/t*.jpg`
-pool. Generated images can be selected for quotes other than the quote that was
-used to generate them. When the selected quote hash matches the generated
-image's origin hash, the selector applies `GENERATED_IMAGE_ORIGIN_QUOTE_BOOST`.
+Regular posts select from the original `images/t*.jpg` pool. The generated-image
+pool, origin-quote boost, spacing rule and generated-identity policy have been
+removed from the bot runtime. Retired generated-image local configuration keys
+are ignored, so an existing configuration cannot re-enable them.
 
-Regular selected-image logs now include whether the image was original or
-generated, the final score, whether a generated image matched its origin quote,
-and the boost that was applied. `mrs_log_digest.py` reports these as
-observational metrics only: regular image selections, original versus generated
-counts, generated origin matches, and generated cross-quote selections. There is
-a minimum spacing rule: after a generated regular image is selected, two
-original-image posts must be completed before another generated image is
-eligible. The generated pool remains disabled by source default.
+Existing generated images, audit metadata and historical records are preserved.
+The standalone review apps, audit tools and offline future-post simulator remain
+available. The simulator's generated-image experiments use dedicated offline
+helpers under `tools/`; they do not enable generated-image selection in the bot.
+The digest continues to interpret historical generated-image events.
 
 ## Historical Context Replies
 
@@ -405,6 +402,16 @@ OpenAI Responses API call, applies strict mechanical validation, and passes a
 valid reply to the existing durable X-write path. A valid `no_reply` is the
 editorial decision. Provider, schema and local-validation failures are
 operational failures and do not count as editorial declines.
+
+Schema and local-validation failures record the specific failed rules in
+`validation_error_codes`, such as `reply_contains_mention` or
+`reply_sentence_limit_exceeded`. Logs contain only known rule codes, never the
+rejected reply text or model reasoning. The digest's
+`single_call_reply.validation_failure_details` groups failures by rule and shows
+the latest 40 rejected decisions with time, lane, target ID and rule details.
+Counts cover the full selected window. Older events without details are marked
+unavailable; malformed or partially usable details are identified explicitly.
+These diagnostics do not change retry, retirement or provider-health decisions.
 
 There is no shadow, fallback, reviewer, secondary provider, claim-audit call,
 repair call or separate visual-description call. An image-bearing candidate
@@ -476,13 +483,10 @@ state of each maintained shadow feature. Hybrid reply retrieval is
 deterministic index, replay and evaluation tools remain available. See
 [`semantic_alignment_research/hybrid_reply_retrieval_001/OFFLINE_BENCHMARK.md`](semantic_alignment_research/hybrid_reply_retrieval_001/OFFLINE_BENCHMARK.md).
 
-Generated-image identity-policy processing is `suspended` while the generated
-pool is disabled. Re-enabling its shadow requires both the generated pool and
-`ENABLE_GENERATED_IDENTITY_POLICY_SHADOW_SCORING`; enabling the latter alone
-does no audit loading, scoring or telemetry work. When
-`ENABLE_ORIGINAL_EDITORIAL_SHADOW_SCORING` is true,
-the existing original-editorial winner now replaces the ordinary winner for an
-original-image selection.
+The retired generated-identity policy and promoted original-editorial selector
+have no outstanding experimental review entries. The original-editorial
+selector remains active when `ENABLE_ORIGINAL_EDITORIAL_SHADOW_SCORING` is true:
+its winner replaces the ordinary winner for an original-image selection.
 
 ## Historical Context Reply Persistence
 
@@ -614,9 +618,12 @@ advanced only after complete analysis, rendering, and successful report
 delivery.
 Supplying the canonical `mrsMThatcher.log` explicitly also includes numeric
 siblings such as `.1` and `.2`, but excludes self-test and unrelated files.
-Stateful digest runs use a separate nonblocking resume lock. The schedule-model
-runway is a maximum-throughput minimum: it assumes generated selection whenever
-spacing permits.
+Stateful digest runs use a separate nonblocking resume lock. Normal digest runs
+do not inventory the retired generated-image pool or calculate its current
+runway. The existing pool-health, post-rate, runway and utilisation JSON sections
+report `available: false` and `status: "retired"`. Historical generated-image
+selection, spacing and identity-policy observations remain available; standalone
+analysis helpers can still inspect archived pools explicitly.
 
 Each digest invocation also takes a read-only, no-follow snapshot of the active
 remote-write protocol: activation pair, ambiguity markers, source-receipt

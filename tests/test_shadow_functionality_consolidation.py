@@ -46,16 +46,14 @@ def _configure_runtime_eligibility_assets(
     )
 
 
-def test_lifecycle_register_has_the_three_evidence_led_states() -> None:
+def test_lifecycle_register_keeps_only_features_awaiting_a_decision() -> None:
     value = load_lifecycle_register(ROOT / "shadow_feature_lifecycle.json")
     states = {
         feature["feature_name"]: feature["current_state"]
         for feature in value["features"]
     }
     assert states == {
-        "generated_image_identity_policy": "suspended",
         "hybrid_reply_retrieval": "offline_only",
-        "original_editorial_selector": "promoted",
     }
 
 

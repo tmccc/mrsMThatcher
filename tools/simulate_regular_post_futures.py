@@ -2,8 +2,9 @@
 """Accelerated offline regular quote/image selection simulator.
 
 The simulator reads one consistent snapshot of production inputs, then runs the
-real production selectors against private state. It never calls posting, upload,
-reply, lock, X, or OpenAI functions. All mutable writes are confined to one
+ordinary quote helpers and the retained historical mixed-image policy against
+private state. It never calls posting, upload, reply, lock, X, or OpenAI
+functions. All mutable writes are confined to one
 marked simulation session directory.
 """
 
@@ -33,6 +34,11 @@ from typing import Any, Iterable
 
 
 ROOT = Path(__file__).resolve().parents[1]
+if str(ROOT) not in sys.path:
+    sys.path.insert(0, str(ROOT))
+
+from tools.generated_image_simulation import historical_image_selection
+
 DEFAULT_OUTPUT_ROOT = ROOT / "simulation_runs"
 SESSION_MARKER = ".mrs_regular_post_simulation"
 DIAGNOSTIC_IMAGE = "tg_faf99f3030693b0a55f0116194551792f3c4ea51261d7310eca7fb4d33b667d5.png"
@@ -422,6 +428,8 @@ def import_production_bot(session_dir: Path) -> Any:
 def apply_snapshot_config(bot: Any, snapshot: Path) -> dict:
     """Apply snapshot config."""
     config = json.loads((snapshot / "mrsMThatcher.local.json").read_text(encoding="utf-8"))
+    image_policy = historical_image_selection(bot)
+    historical_candidate = image_policy.snapshot_config(config)
     candidate: dict[str, object] = {}
     for key, value in config.items():
         if key not in bot.LOCAL_CONFIG_ALLOWED_KEYS:
@@ -432,11 +440,14 @@ def apply_snapshot_config(bot: Any, snapshot: Path) -> dict:
         raise RuntimeError("invalid snapshotted local config: " + "; ".join(errors))
     for key, value in candidate.items():
         setattr(bot, key, value)
+    for key, value in historical_candidate.items():
+        setattr(image_policy, key, value)
     return config
 
 
 def configure_snapshot_paths(bot: Any, snapshot: Path, run_dir: Path) -> None:
     """Configure snapshot paths."""
+    image_policy = historical_image_selection(bot)
     bot.LINES_FILE = snapshot / "mrsMThatcher.txt"
     bot.QUOTE_ANALYSIS_FILE = snapshot / "quote_analysis.json"
     bot.HISTORICAL_CONTEXT_RESEARCH_DIR = snapshot
@@ -445,12 +456,12 @@ def configure_snapshot_paths(bot: Any, snapshot: Path, run_dir: Path) -> None:
         snapshot / "runtime_eligible_quote_manifest.json"
     )
     bot.IMAGE_ANALYSIS_FILE = snapshot / "image_analysis.json"
-    bot.GENERATED_IMAGE_ANALYSIS_FILE = str(snapshot / "generated_image_analysis.json")
+    image_policy.GENERATED_IMAGE_ANALYSIS_FILE = str(snapshot / "generated_image_analysis.json")
     bot.IMAGE_GLOB = str(snapshot / "images" / "t*")
-    bot.GENERATED_IMAGE_DIR = str(snapshot / "generated_images")
-    bot.GENERATED_IMAGE_GLOB = "*.png"
+    image_policy.GENERATED_IMAGE_DIR = str(snapshot / "generated_images")
+    image_policy.GENERATED_IMAGE_GLOB = "*.png"
     bot.ORIGINAL_EDITORIAL_ANALYSIS_FILE = str(snapshot / "original_image_editorial_analysis_experiment_v1.json")
-    bot.GENERATED_IDENTITY_AUDIT_FILE = str(snapshot / "generated_image_identity_dependence_audit.json")
+    image_policy.GENERATED_IDENTITY_AUDIT_FILE = str(snapshot / "generated_image_identity_dependence_audit.json")
     bot.STATE_FILE = run_dir / "state.json"
     bot.IMAGES_USED_FILE = run_dir / "images_used.json"
     bot.LINES_USED_FILE = run_dir / "lines_used.json"
@@ -459,10 +470,10 @@ def configure_snapshot_paths(bot: Any, snapshot: Path, run_dir: Path) -> None:
     bot.CONFIRMED_REPLY_RECEIPT_FILE = run_dir / "forbidden_reply_receipt.json"
     bot.LOCK_FILE = run_dir / "forbidden.lock"
     bot._ORIGINAL_EDITORIAL_ANALYSIS_CACHE = {}
-    bot._GENERATED_IDENTITY_AUDIT_CACHE = {}
+    image_policy._GENERATED_IDENTITY_AUDIT_CACHE = {}
 
     original_load_quote_analysis = bot.load_quote_analysis
-    original_load_image_analysis = bot.load_image_analysis
+    original_load_image_analysis = image_policy.load_image_analysis
     quote_analysis_cache: list[object] = []
     image_analysis_cache: list[object] = []
 
@@ -477,7 +488,7 @@ def configure_snapshot_paths(bot: Any, snapshot: Path, run_dir: Path) -> None:
         return image_analysis_cache[0]
 
     bot.load_quote_analysis = cached_quote_analysis
-    bot.load_image_analysis = cached_image_analysis
+    image_policy.load_image_analysis = cached_image_analysis
 
     original_sha = bot.current_image_sha256
     cache: dict[str, str] = {}
@@ -582,13 +593,14 @@ class JsonEventCapture(logging.Handler):
 @contextmanager
 def capture_shadow_selection(bot: Any) -> Iterable[dict]:
     """Yield capture shadow selection values."""
+    image_policy = historical_image_selection(bot)
     capture: dict[str, Any] = {"scored_ids": []}
     events = JsonEventCapture()
     bot.log.addHandler(events)
     original_editorial = bot.log_original_editorial_shadow_result
-    original_identity = bot.log_generated_identity_policy_shadow_result
+    original_identity = image_policy.log_generated_identity_policy_shadow_result
     original_editorial_enabled = bot.ENABLE_ORIGINAL_EDITORIAL_SHADOW_SCORING
-    original_identity_enabled = bot.ENABLE_GENERATED_IDENTITY_POLICY_SHADOW_SCORING
+    original_identity_enabled = image_policy.ENABLE_GENERATED_IDENTITY_POLICY_SHADOW_SCORING
     # This context measures the legacy observational controls. Production now
     # applies the editorial scorer when its flag is enabled, so hold that flag
     # off until the capture hook evaluates the same candidate set.
@@ -615,7 +627,7 @@ def capture_shadow_selection(bot: Any) -> Iterable[dict]:
         selection_rng_state: object | None = None,
     ) -> None:
         capture["scored_ids"].append(id(scored))
-        bot.ENABLE_GENERATED_IDENTITY_POLICY_SHADOW_SCORING = True
+        image_policy.ENABLE_GENERATED_IDENTITY_POLICY_SHADOW_SCORING = True
         original_identity(
             quote,
             chosen,
@@ -625,7 +637,7 @@ def capture_shadow_selection(bot: Any) -> Iterable[dict]:
         )
 
     bot.log_original_editorial_shadow_result = editorial_hook
-    bot.log_generated_identity_policy_shadow_result = identity_hook
+    image_policy.log_generated_identity_policy_shadow_result = identity_hook
     try:
         yield capture
         capture["original_editorial_shadow"] = events.payload("ORIGINAL_EDITORIAL_SHADOW_RESULT ")
@@ -635,17 +647,18 @@ def capture_shadow_selection(bot: Any) -> Iterable[dict]:
     finally:
         bot.log.removeHandler(events)
         bot.log_original_editorial_shadow_result = original_editorial
-        bot.log_generated_identity_policy_shadow_result = original_identity
+        image_policy.log_generated_identity_policy_shadow_result = original_identity
         bot.ENABLE_ORIGINAL_EDITORIAL_SHADOW_SCORING = original_editorial_enabled
-        bot.ENABLE_GENERATED_IDENTITY_POLICY_SHADOW_SCORING = original_identity_enabled
+        image_policy.ENABLE_GENERATED_IDENTITY_POLICY_SHADOW_SCORING = original_identity_enabled
 
 
 @contextmanager
 def capture_scored_selection(bot: Any) -> Iterable[dict]:
     """Yield capture scored selection values."""
+    image_policy = historical_image_selection(bot)
     capture: dict[str, Any] = {"scored_ids": []}
     original_editorial = bot.log_original_editorial_shadow_result
-    original_identity = bot.log_generated_identity_policy_shadow_result
+    original_identity = image_policy.log_generated_identity_policy_shadow_result
     original_editorial_enabled = bot.ENABLE_ORIGINAL_EDITORIAL_SHADOW_SCORING
     bot.ENABLE_ORIGINAL_EDITORIAL_SHADOW_SCORING = False
 
@@ -664,7 +677,7 @@ def capture_scored_selection(bot: Any) -> Iterable[dict]:
         capture["scored_ids"].append(id(scored))
 
     bot.log_original_editorial_shadow_result = hook
-    bot.log_generated_identity_policy_shadow_result = hook
+    image_policy.log_generated_identity_policy_shadow_result = hook
     try:
         yield capture
         scored_ids = capture.get("scored_ids", [])
@@ -672,7 +685,7 @@ def capture_scored_selection(bot: Any) -> Iterable[dict]:
             raise SelectionCaptureError("candidate capture hooks did not receive one exact scored list")
     finally:
         bot.log_original_editorial_shadow_result = original_editorial
-        bot.log_generated_identity_policy_shadow_result = original_identity
+        image_policy.log_generated_identity_policy_shadow_result = original_identity
         bot.ENABLE_ORIGINAL_EDITORIAL_SHADOW_SCORING = original_editorial_enabled
 
 
@@ -685,19 +698,20 @@ def select_with_production_recovery(
     evaluate_shadows: bool = True,
 ) -> dict:
     """Select with production recovery."""
+    image_policy = historical_image_selection(bot)
     capture_context = capture_shadow_selection(bot) if evaluate_shadows else capture_scored_selection(bot)
     with capture_context as capture:
         try:
-            quote, image, attempts = bot.choose_regular_quote_image_pair(lines_used, images_used, state)
+            quote, image, attempts = image_policy.choose_regular_quote_image_pair(lines_used, images_used, state)
         except bot.NoViableQuoteImagePair:
             try:
-                quote, image, attempts = bot.choose_regular_quote_image_pair(
+                quote, image, attempts = image_policy.choose_regular_quote_image_pair(
                     lines_used, images_used, state, force_image_cycle_reset=True
                 )
             except bot.NoViableQuoteImagePair as reset_exc:
                 if not reset_exc.excluded_last_image:
                     raise RuntimeError(str(reset_exc)) from reset_exc
-                quote, image, attempts = bot.choose_regular_quote_image_pair(
+                quote, image, attempts = image_policy.choose_regular_quote_image_pair(
                     lines_used,
                     images_used,
                     state,
@@ -731,9 +745,10 @@ def derived_branch_seed(run_seed: int, branch: str) -> int:
 
 def policy_candidate_rows(bot: Any, quote: dict, scored: list[dict], branch: str) -> list[dict]:
     """Return the policy candidate rows."""
+    image_policy = historical_image_selection(bot)
     rows: list[dict] = []
     editorial = bot.load_original_editorial_analysis() if branch == "editorial" else None
-    audit = bot.load_generated_identity_audit() if branch == "identity" else None
+    audit = image_policy.load_generated_identity_audit() if branch == "identity" else None
     for candidate in scored:
         row = dict(candidate)
         baseline = float(candidate["score"])
@@ -753,7 +768,7 @@ def policy_candidate_rows(bot: Any, quote: dict, scored: list[dict], branch: str
             row["policy_score"] = baseline + float(adjustment)
             row["policy_detail"] = detail
         elif branch == "identity" and candidate.get("image_source") == "generated":
-            identity = bot.generated_identity_candidate_shadow_row(candidate, audit)
+            identity = image_policy.generated_identity_candidate_shadow_row(candidate, audit)
             row["identity_policy"] = identity["identity_policy"]
             row["identity_action"] = identity["identity_action"]
             row["identity_adjustment"] = identity["identity_adjustment"]
@@ -795,18 +810,19 @@ def score_exact_quote_phase(
     cycle_boundary_exclusions: set[str] | None = None,
 ) -> tuple[dict, list[dict]]:
     """Score exact quote phase."""
+    image_policy = historical_image_selection(bot)
     force_reset = phase != "normal"
     avoid_last = phase != "last_image_fallback"
     rng_before = bot.random.getstate()
     with capture_scored_selection(bot) as capture:
-        bot.choose_matched_unused_image(
+        image_policy.choose_matched_unused_image(
             images_used,
             quote,
             state,
             force_cycle_reset=force_reset,
             avoid_last_image_at_cycle_boundary=avoid_last,
             cycle_boundary_exclusions=cycle_boundary_exclusions,
-            generated_images_allowed=bot.generated_images_allowed_by_spacing(state),
+            generated_images_allowed=image_policy.generated_images_allowed_by_spacing(state),
             selection_phase=phase,
         )
     # Production baseline tie selection is only a vehicle for obtaining the
@@ -980,6 +996,7 @@ def reconcile_jsonl_to_checkpoint(writer: PrivateWriter, output_path: Path, comp
 
 def candidate_detail_rows(bot: Any, selection: dict, mode: str) -> list[dict]:
     """Return the candidate detail rows."""
+    image_policy = historical_image_selection(bot)
     if mode == "none":
         return []
     scored = selection["scored"]
@@ -987,7 +1004,7 @@ def candidate_detail_rows(bot: Any, selection: dict, mode: str) -> list[dict]:
     if mode == "top10":
         ordered = ordered[:10]
     editorial = bot.load_original_editorial_analysis()
-    audit = bot.load_generated_identity_audit()
+    audit = image_policy.load_generated_identity_audit()
     result: list[dict] = []
     for candidate in ordered:
         row = {
@@ -1004,7 +1021,7 @@ def candidate_detail_rows(bot: Any, selection: dict, mode: str) -> list[dict]:
             row["original_editorial_adjustment"] = round(float(adjustment), 6)
             row["original_editorial_shadow_score"] = round(float(candidate["score"]) + adjustment, 6)
         else:
-            identity = bot.generated_identity_candidate_shadow_row(candidate, audit)
+            identity = image_policy.generated_identity_candidate_shadow_row(candidate, audit)
             row["identity_policy"] = identity["identity_policy"]
             row["identity_action"] = identity["identity_action"]
             row["identity_adjustment"] = identity["identity_adjustment"]
@@ -1027,6 +1044,7 @@ def apply_simulated_success(
     meme_delay: int | None = None,
 ) -> int:
     """Apply simulated success."""
+    image_policy = historical_image_selection(bot)
     quote = selection["quote"]
     image = selection["image"]
 
@@ -1048,7 +1066,7 @@ def apply_simulated_success(
     state["last_main_post_id"] = synthetic_id
     state["last_quote_post_epoch"] = virtual_epoch
     state["last_regular_image_filename"] = basename
-    bot.update_regular_generated_image_spacing_state(state, basename)
+    image_policy.update_regular_generated_image_spacing_state(state, basename)
     quote_fields, _ = bot.next_quote_schedule_fields(virtual_epoch, delay=quote_delay)
     bot.apply_state_fields(state, quote_fields)
     if bot.ENABLE_DAILY_MEME_POSTS:
@@ -1067,9 +1085,10 @@ def trace_image_lifecycle(
     spacing_allowed_before: bool,
 ) -> dict:
     """Return the trace image lifecycle."""
+    image_policy = historical_image_selection(bot)
     quote = selection["quote"]
     scored_by_name = {item["basename"]: item for item in selection["scored"]}
-    paths = {Path(path).name: path for path in bot.current_image_paths()}
+    paths = {Path(path).name: path for path in image_policy.current_image_paths()}
     origin_hash = bot.generated_image_origin_quote_hash(basename)
     result = {
         "basename": basename,
@@ -1085,7 +1104,7 @@ def trace_image_lifecycle(
         return result
     try:
         _image_hash, analysis = bot.image_metadata_for_basename(
-            bot.load_image_analysis(), basename, paths[basename]
+            image_policy.load_image_analysis(), basename, paths[basename]
         )
     except bot.StaleImageMetadata:
         result["reason"] = "stale_metadata"
@@ -1109,7 +1128,7 @@ def trace_image_lifecycle(
         result["reason"] = "used_current_cycle"
         return result
 
-    idf = bot.build_image_topic_idf(bot.load_image_analysis())
+    idf = bot.build_image_topic_idf(image_policy.load_image_analysis())
     _score, _components, eligible = bot.score_image_for_quote(quote.get("analysis"), analysis, idf)
     if not eligible:
         result["reason"] = "strong_visual_mismatch"
@@ -1216,6 +1235,7 @@ def run_future(
     failure_hook: Any = None,
 ) -> list[dict]:
     """Run future."""
+    image_policy = historical_image_selection(bot)
     run_id = f"run_{run_index:04d}"
     run_dir = writer.mkdir(session_dir / "runs" / run_id)
     checkpoint_path = run_dir / "checkpoint.json"
@@ -1251,8 +1271,8 @@ def run_future(
         lines_before = set(lines_used)
         images_before = set(images_used)
         state_before = copy.deepcopy(state)
-        spacing_before = bot.original_posts_since_generated_image(state)
-        spacing_allowed = bot.generated_images_allowed_by_spacing(state)
+        spacing_before = image_policy.original_posts_since_generated_image(state)
+        spacing_allowed = image_policy.generated_images_allowed_by_spacing(state)
         current_epoch = virtual_epoch
         bot.now_epoch = lambda epoch=current_epoch: epoch
 
@@ -1262,7 +1282,7 @@ def run_future(
         next_epoch = apply_simulated_success(
             bot, selection, state, lines_used, images_used, current_epoch, run_id, post_index
         )
-        spacing_after = bot.original_posts_since_generated_image(state)
+        spacing_after = image_policy.original_posts_since_generated_image(state)
         checkpoint = json.loads(checkpoint_path.read_text(encoding="utf-8"))
         previous_epoch = checkpoint.get("last_post_epoch")
         interval = 0 if previous_epoch is None else current_epoch - int(previous_epoch)
@@ -1490,6 +1510,7 @@ def run_counterfactual_future(
     failure_hook: Any = None,
 ) -> None:
     """Run counterfactual future."""
+    image_policy = historical_image_selection(bot)
     run_id = f"run_{run_index:04d}"
     run_dir = writer.mkdir(session_dir / "counterfactual" / "runs" / run_id)
     paths = counterfactual_paths(run_dir)
@@ -1536,7 +1557,7 @@ def run_counterfactual_future(
         bot.random.setstate(production["rng_state"])
         before["production"] = {
             "images": set(production["images_used"]),
-            "spacing": bot.original_posts_since_generated_image(production["state"]),
+            "spacing": image_policy.original_posts_since_generated_image(production["state"]),
         }
         selections["production"] = select_with_production_recovery(
             bot,
@@ -1554,7 +1575,7 @@ def run_counterfactual_future(
             value["lines_used"].update(production["lines_used"])
             before[branch] = {
                 "images": set(value["images_used"]),
-                "spacing": bot.original_posts_since_generated_image(value["state"]),
+                "spacing": image_policy.original_posts_since_generated_image(value["state"]),
             }
             bot.random.setstate(value["rng_state"])
             selections[branch] = select_policy_image_with_recovery(
@@ -1631,7 +1652,7 @@ def run_counterfactual_future(
                 post_index,
                 current_epoch,
                 int(before[branch]["spacing"]),
-                bot.original_posts_since_generated_image(value["state"]),
+                image_policy.original_posts_since_generated_image(value["state"]),
                 image_cycle_reset,
                 candidate_detail,
             )
@@ -2420,6 +2441,14 @@ def main(argv: list[str] | None = None) -> int:
             "snapshot_manifest_sha256": sha256_file(snapshot / "manifest.json"),
             "production_source_sha256": sha256_file(ROOT / "mrsMThatcher2.py"),
             "simulator_source_sha256": sha256_file(Path(__file__)),
+            "historical_image_policy_source_sha256": {
+                name: sha256_file(ROOT / "tools" / name)
+                for name in (
+                    "generated_image_simulation.py",
+                    "_generated_image_simulation_identity.py",
+                    "_generated_image_simulation_selection.py",
+                )
+            },
             "network_allowed": False,
             "openai_calls_allowed": False,
         }
@@ -2434,8 +2463,12 @@ def main(argv: list[str] | None = None) -> int:
 
     bot = import_production_bot(session_dir)
     apply_snapshot_config(bot, snapshot)
+    image_policy = historical_image_selection(bot)
     session_manifest["effective_config"] = {
-        key: getattr(bot, key)
+        key: getattr(
+            image_policy if key in image_policy.CONFIG_DEFAULTS else bot,
+            key,
+        )
         for key in (
             "POST_SLEEP_MIN",
             "POST_SLEEP_MAX",

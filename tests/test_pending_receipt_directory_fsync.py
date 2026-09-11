@@ -1840,7 +1840,6 @@ def test_later_valid_marker_recovery_releases_sigint_once_without_remote_actions
     monkeypatch.setattr(bot, "glob", lambda _pattern: [])
     monkeypatch.setattr(bot, "ENABLE_DAILY_MEME_POSTS", False)
     monkeypatch.setattr(bot, "validate_original_editorial_shadow_startup", lambda: None)
-    monkeypatch.setattr(bot, "validate_generated_identity_shadow_startup", lambda: None)
     monkeypatch.setattr(bot, "load_quote_used_hashes", lambda _lines: set())
     monkeypatch.setattr(bot, "load_image_used_basenames", lambda _paths: set())
     monkeypatch.setattr(bot, "current_image_paths", lambda: [])
@@ -2018,7 +2017,6 @@ def test_main_rechecks_marker_durability_on_every_blocked_tick(
     monkeypatch.setattr(bot, "glob", lambda _pattern: [])
     monkeypatch.setattr(bot, "ENABLE_DAILY_MEME_POSTS", False)
     monkeypatch.setattr(bot, "validate_original_editorial_shadow_startup", lambda: None)
-    monkeypatch.setattr(bot, "validate_generated_identity_shadow_startup", lambda: None)
     monkeypatch.setattr(bot, "load_quote_used_hashes", lambda _lines: set())
     monkeypatch.setattr(bot, "load_image_used_basenames", lambda _paths: set())
     monkeypatch.setattr(bot, "current_image_paths", lambda: [])
@@ -2136,11 +2134,6 @@ def test_fresh_process_marker_disappearance_blocks_multiple_real_daemon_ticks(
     monkeypatch.setattr(
         bot,
         "validate_original_editorial_shadow_startup",
-        lambda: None,
-    )
-    monkeypatch.setattr(
-        bot,
-        "validate_generated_identity_shadow_startup",
         lambda: None,
     )
     monkeypatch.setattr(bot, "load_quote_used_hashes", lambda _lines: set())

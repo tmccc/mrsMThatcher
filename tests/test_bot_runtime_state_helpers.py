@@ -13,7 +13,7 @@ import mrsMThatcher2 as bot
 import mrs_bot_runtime_state_helpers as owner
 from tests.helpers.bot_fixtures import isolate_regular_post_receipt  # noqa: F401
 
-DEPENDENCIES = {'default_state': ['GENERATED_IMAGE_MIN_ORIGINAL_POSTS_BETWEEN', 'STATE_MINIMUM_READER_VERSION'],
+DEPENDENCIES = {'default_state': ['STATE_MINIMUM_READER_VERSION'],
  'append_unique_capped': [],
  'append_unique_durable': [],
  'scheduler_epoch_from_state': ['log', 'math'],
@@ -132,9 +132,7 @@ def test_adapters_preserve_signatures_current_dependencies_references_and_errors
 
 def test_default_state_keeps_complete_ordered_values_current_policies_and_fresh_containers(monkeypatch):
     STATE_MINIMUM_READER_VERSION = object()
-    GENERATED_IMAGE_MIN_ORIGINAL_POSTS_BETWEEN = object()
     monkeypatch.setattr(bot, "STATE_MINIMUM_READER_VERSION", STATE_MINIMUM_READER_VERSION)
-    monkeypatch.setattr(bot, "GENERATED_IMAGE_MIN_ORIGINAL_POSTS_BETWEEN", GENERATED_IMAGE_MIN_ORIGINAL_POSTS_BETWEEN)
     expected = {
         "minimum_reader_version": STATE_MINIMUM_READER_VERSION,
         "last_seen_mention_id": None,
@@ -174,7 +172,6 @@ def test_default_state_keeps_complete_ordered_values_current_policies_and_fresh_
         "next_reply_lane_priority": "normal",
         "last_main_post_id": None,
         "last_regular_image_filename": None,
-        "original_regular_posts_since_generated_image": GENERATED_IMAGE_MIN_ORIGINAL_POSTS_BETWEEN,
         "last_quote_post_epoch": 0,
         "next_quote_post_epoch": 0,
 
@@ -208,7 +205,6 @@ def test_default_state_keeps_complete_ordered_values_current_policies_and_fresh_
     first, second = bot.default_state(), bot.default_state()
     assert list(first.items()) == list(second.items()) == list(expected.items())
     assert first["minimum_reader_version"] is STATE_MINIMUM_READER_VERSION
-    assert first["original_regular_posts_since_generated_image"] is GENERATED_IMAGE_MIN_ORIGINAL_POSTS_BETWEEN
     containers = [state for state in (first, second)] + [
         value for state in (first, second) for value in state.values()
         if isinstance(value, (dict, list))
@@ -223,7 +219,6 @@ def test_default_state_keeps_complete_ordered_values_current_policies_and_fresh_
     assert list(bot.default_state().items()) == list(expected.items())
     for key, policy in (
         ("minimum_reader_version", "STATE_MINIMUM_READER_VERSION"),
-        ("original_regular_posts_since_generated_image", "GENERATED_IMAGE_MIN_ORIGINAL_POSTS_BETWEEN"),
     ):
         current = object()
         monkeypatch.setattr(bot, policy, current)

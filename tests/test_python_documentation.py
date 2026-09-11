@@ -78,12 +78,12 @@ def test_discovery_excludes_only_untracked_operational_snapshots(
     assert violation_paths == {str(path) for path in first}
 
 
-def test_readme_uses_current_runtime_corpus_and_spacing_semantics() -> None:
+def test_readme_uses_current_runtime_corpus_and_image_semantics() -> None:
     readme = (PROJECT_ROOT / "README.md").read_text(encoding="utf-8")
     normalised_readme = " ".join(readme.split())
 
     assert "611 attribution-eligible" in normalised_readme
     assert "619 canonical" in normalised_readme
-    assert "two original-image posts" in normalised_readme
+    assert "removed from the bot runtime" in normalised_readme
     assert "currently no generated-image frequency cap" not in normalised_readme
     assert "docs/python_api.md" in readme

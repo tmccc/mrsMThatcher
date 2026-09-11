@@ -756,16 +756,16 @@ def test_reconciliation_archive_requires_readonly_hash_bound_evidence(tmp_path):
     assert "mode-0400" in " ".join(invalid["invalid_audits"])
 
 
-@pytest.mark.parametrize("target", ["pool", "rates", "markdown", "stdout", "interrupt"])
+@pytest.mark.parametrize("target", ["corpus", "lifecycle", "markdown", "stdout", "interrupt"])
 def test_digest_failures_do_not_advance_resume(tmp_path, monkeypatch, target):
     project, log = project_with_log(tmp_path)
     state = project / ".resume.json"
     state.write_text('{"last_log_entry_time":"2026-07-09 00:00:00"}\n')
     before = state.read_bytes()
-    if target == "pool":
-        monkeypatch.setattr(digest, "generated_pool_health_snapshot", lambda *_a, **_k: (_ for _ in ()).throw(RuntimeError("pool failure")))
-    elif target == "rates":
-        monkeypatch.setattr(digest, "generated_post_rate_history", lambda *_a, **_k: (_ for _ in ()).throw(RuntimeError("rate failure")))
+    if target == "corpus":
+        monkeypatch.setattr(digest, "historical_context_corpus_snapshot", lambda *_a, **_k: (_ for _ in ()).throw(RuntimeError("corpus failure")))
+    elif target == "lifecycle":
+        monkeypatch.setattr(digest, "shadow_lifecycle_snapshot", lambda *_a, **_k: (_ for _ in ()).throw(RuntimeError("lifecycle failure")))
     elif target == "markdown":
         monkeypatch.setattr(digest, "render_markdown", lambda *_a, **_k: (_ for _ in ()).throw(RuntimeError("render failure")))
     elif target == "stdout":
@@ -973,6 +973,7 @@ def test_invalid_manual_datetime_remains_a_cli_error(tmp_path):
 
 def test_project_dir_is_explicit_from_foreign_cwd(tmp_path, monkeypatch):
     project, log = project_with_log(tmp_path)
+    (project / "mrsMThatcher.local.json").write_text(json.dumps({"MAX_AUTO_REPLIES_PER_DAY": 37}))
     foreign = tmp_path / "foreign"
     foreign.mkdir()
     monkeypatch.chdir(foreign)
@@ -980,7 +981,7 @@ def test_project_dir_is_explicit_from_foreign_cwd(tmp_path, monkeypatch):
     digest.main(main_args(project, log, "--no-state", "--output", str(output)))
     text = output.read_text()
     assert f"Project directory: `{project.resolve()}`" in text
-    assert "active_generated_images       = 2" in text
+    assert "MAX_AUTO_REPLIES_PER_DAY=37" in text
 
 
 def test_default_project_dir_is_script_directory(monkeypatch):

@@ -1080,12 +1080,12 @@ def test_no_state_stdout_run_does_not_take_digest_lock(tmp_path, monkeypatch):
     assert not (project / ".mrs_log_digest_state.json.lock").exists()
 
 
-def test_digest_schedule_defaults_match_production_source_defaults():
+def test_offline_digest_runway_keeps_historical_defaults():
     expected = {
         "POST_SLEEP_MIN": bot.POST_SLEEP_MIN,
         "POST_SLEEP_MAX": bot.POST_SLEEP_MAX,
-        "GENERATED_IMAGE_MIN_ORIGINAL_POSTS_BETWEEN": bot.GENERATED_IMAGE_MIN_ORIGINAL_POSTS_BETWEEN,
-        "ENABLE_GENERATED_IMAGE_POOL": bot.ENABLE_GENERATED_IMAGE_POOL,
+        "GENERATED_IMAGE_MIN_ORIGINAL_POSTS_BETWEEN": 2,
+        "ENABLE_GENERATED_IMAGE_POOL": False,
     }
     assert digest.RUNWAY_CONFIG_DEFAULTS == expected
 

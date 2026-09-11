@@ -390,9 +390,6 @@ def test_bootstrap_and_regular_selection_do_not_load_removed_observer(
         },
     )
     monkeypatch.setattr(bot, "IMAGE_GLOB", str(images / "t*"))
-    monkeypatch.setattr(bot, "ENABLE_GENERATED_IMAGE_POOL", False)
-    monkeypatch.setattr(bot, "ENABLE_GENERATED_IDENTITY_POLICY_SCORING", False)
-    monkeypatch.setattr(bot, "ENABLE_GENERATED_IDENTITY_POLICY_SHADOW_SCORING", False)
     monkeypatch.setattr(bot, "ENABLE_ORIGINAL_EDITORIAL_SHADOW_SCORING", False)
     monkeypatch.setattr(bot, "load_image_analysis", lambda: metadata)
     monkeypatch.setattr(
@@ -515,50 +512,43 @@ def test_default_reply_caps_are_48_global_6_per_author_and_12_quote() -> None:
     assert bot.MAX_QUOTE_REPLIES_PER_DAY == 12
 
 
-def test_local_config_can_enable_generated_image_pool(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
-    generated_dir = tmp_path / "generated"
-    generated_analysis = tmp_path / "generated_image_analysis.json"
-    apply_local_config_for_test(
-        tmp_path,
-        monkeypatch,
-        {
-            "ENABLE_GENERATED_IMAGE_POOL": True,
-            "GENERATED_IMAGE_DIR": str(generated_dir),
-            "GENERATED_IMAGE_GLOB": "*.png",
-            "GENERATED_IMAGE_ANALYSIS_FILE": str(generated_analysis),
-            "GENERATED_IMAGE_ORIGIN_QUOTE_BOOST": 6,
-            "GENERATED_IMAGE_MIN_ORIGINAL_POSTS_BETWEEN": 3,
-        },
-        initial={
-            "ENABLE_GENERATED_IMAGE_POOL": False,
-            "GENERATED_IMAGE_DIR": "",
-            "GENERATED_IMAGE_GLOB": "*.jpg",
-            "GENERATED_IMAGE_ANALYSIS_FILE": "",
-            "GENERATED_IMAGE_ORIGIN_QUOTE_BOOST": 4,
-            "GENERATED_IMAGE_MIN_ORIGINAL_POSTS_BETWEEN": 2,
-        },
-    )
-
-    assert bot.ENABLE_GENERATED_IMAGE_POOL is True
-    assert bot.GENERATED_IMAGE_DIR == str(generated_dir)
-    assert bot.GENERATED_IMAGE_GLOB == "*.png"
-    assert bot.GENERATED_IMAGE_ANALYSIS_FILE == str(generated_analysis)
-    assert bot.GENERATED_IMAGE_ORIGIN_QUOTE_BOOST == 6
-    assert bot.GENERATED_IMAGE_MIN_ORIGINAL_POSTS_BETWEEN == 3
-
-
-@pytest.mark.parametrize("bad_value", [-1, True, False, 2.0, 2.5, "2", "x"])
-def test_local_config_rejects_invalid_generated_image_spacing(
-    tmp_path: Path,
-    monkeypatch: pytest.MonkeyPatch,
-    bad_value: object,
+def test_retired_generated_configuration_is_ignored_while_original_editorial_remains_active(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, caplog: pytest.LogCaptureFixture,
 ) -> None:
-    before = apply_local_config_for_test(
-        tmp_path,
-        monkeypatch,
-        {"GENERATED_IMAGE_MIN_ORIGINAL_POSTS_BETWEEN": bad_value},
-        initial={"GENERATED_IMAGE_MIN_ORIGINAL_POSTS_BETWEEN": 2},
-        expect_error=True,
+    retired = {
+        "ENABLE_GENERATED_IMAGE_POOL": True,
+        "GENERATED_IMAGE_DIR": str(tmp_path / "unavailable-generated"),
+        "GENERATED_IMAGE_GLOB": "*.png",
+        "GENERATED_IMAGE_ANALYSIS_FILE": str(tmp_path / "missing-generated.json"),
+        "GENERATED_IMAGE_ORIGIN_QUOTE_BOOST": 99,
+        "GENERATED_IMAGE_MIN_ORIGINAL_POSTS_BETWEEN": 3,
+        "ENABLE_GENERATED_IDENTITY_POLICY_SCORING": True,
+        "ENABLE_GENERATED_IDENTITY_POLICY_SHADOW_SCORING": True,
+        "GENERATED_IDENTITY_AUDIT_FILE": str(tmp_path / "missing-audit.json"),
+        "GENERATED_IDENTITY_SHADOW_SMALL_PENALTY": 99,
+        "GENERATED_IDENTITY_SHADOW_STRONG_PENALTY": 999,
+    }
+    caplog.set_level(logging.INFO, logger=bot.log.name)
+    apply_local_config_for_test(
+        tmp_path, monkeypatch,
+        retired | {"ENABLE_ORIGINAL_EDITORIAL_SHADOW_SCORING": True},
+        initial={"ENABLE_ORIGINAL_EDITORIAL_SHADOW_SCORING": False},
     )
 
-    assert bot.GENERATED_IMAGE_MIN_ORIGINAL_POSTS_BETWEEN == before["GENERATED_IMAGE_MIN_ORIGINAL_POSTS_BETWEEN"] == 2
+    assert bot.ENABLE_ORIGINAL_EDITORIAL_SHADOW_SCORING is True
+    for key in retired:
+        assert not hasattr(bot, key)
+        assert key not in bot.LOCAL_CONFIG_ALLOWED_KEYS
+        assert key not in bot.SOURCE_DEFAULT_CONFIG_VALUES
+        assert f"Ignoring retired generated-image runtime setting {key}" in caplog.text
+
+
+@pytest.mark.parametrize("old_value", [-1, True, False, 2.0, 2.5, "2", "x"])
+def test_retired_generated_spacing_values_are_ignored(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, old_value: object,
+) -> None:
+    apply_local_config_for_test(
+        tmp_path, monkeypatch,
+        {"GENERATED_IMAGE_MIN_ORIGINAL_POSTS_BETWEEN": old_value},
+    )
+    assert not hasattr(bot, "GENERATED_IMAGE_MIN_ORIGINAL_POSTS_BETWEEN")

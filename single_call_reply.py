@@ -20,6 +20,11 @@ from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from typing import Any, Callable, Mapping, Sequence
 
+from single_call_reply_validation import (
+    SCHEMA_VALIDATION_ERROR_CODES,
+    normalise_validation_error_codes,
+)
+
 
 STRATEGY_VERSION = "single-sol-reply-20260904"
 DRAFT_SCHEMA_VERSION = 3
@@ -221,21 +226,9 @@ class ReplyValidationError(SingleCallReplyError):
         """Normalise validation failures into one stable error category."""
 
         self.errors = tuple(sorted(set(str(error) for error in errors)))
-        schema_errors = {
-            "output_not_text",
-            "output_too_large",
-            "strict_json",
-            "output_not_object",
-            "response_fields_mismatch",
-            "invalid_decision",
-            "invalid_reply_kind",
-            "reply_not_string",
-            "invalid_used_fact_ids",
-            "invalid_reason_code",
-        }
         self.category = (
             "schema_validation"
-            if any(error in schema_errors for error in self.errors)
+            if any(error in SCHEMA_VALIDATION_ERROR_CODES for error in self.errors)
             else "local_validation"
         )
         super().__init__(";".join(self.errors))
@@ -287,6 +280,7 @@ class PipelineResult:
     provider_retry_after_seconds: int | None = None
     provider_response_id: str | None = None
     provider_usage: dict[str, int] = field(default_factory=dict)
+    validation_error_codes: tuple[str, ...] = ()
 
 
 ModelTransport = Callable[..., Mapping[str, Any]]
@@ -2506,6 +2500,11 @@ def run_reply_pipeline(
             error_category=str(getattr(exc, "category", "local_validation")),
             model_call_count=1,
             local_validation_status="failed",
+            validation_error_codes=(
+                normalise_validation_error_codes(exc.errors)[0]
+                if isinstance(exc, ReplyValidationError)
+                else ()
+            ),
             payload_sha256=payload_hash,
             supplied_image_count=len(images),
             provider_latency_ms=latency_ms,
@@ -2624,6 +2623,9 @@ def decision_telemetry(result: PipelineResult) -> dict[str, Any]:
         "supplied_image_count": result.supplied_image_count,
         "model_call_count": result.model_call_count,
         "local_validation_status": result.local_validation_status,
+        "validation_error_codes": list(
+            normalise_validation_error_codes(result.validation_error_codes)[0]
+        ),
         "error_category": result.error_category,
         "failure_reason": (
             result.reason if result.status == "operational_failure" else None

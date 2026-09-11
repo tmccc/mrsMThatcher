@@ -18,11 +18,6 @@ def forbidden(*args, **kwargs):
     pytest.fail("unexpected asset metadata work")
 
 
-class NoString:
-    def __str__(self):
-        forbidden()
-
-
 def test_metadata_import_needs_no_bot_environment_files_or_network():
     code = """
 import builtins
@@ -159,7 +154,7 @@ def test_quote_loader_uses_current_paths_callbacks_and_original_validation_order
     assert apply.call_args.args[0] is raw and apply.call_args.args[1] is override
 
 
-def test_image_loaders_keep_current_callbacks_lazy_paths_and_fallback_identity(tmp_path, monkeypatch):
+def test_image_loaders_validate_and_load_only_the_primary_analysis(tmp_path, monkeypatch):
     primary = {"analysis_kind": "images", "schema_version": 3.0, "items": {}, "path_index": {}}
     loader = Mock(return_value=primary)
     monkeypatch.setattr(bot, "load_json_object", loader)
@@ -173,116 +168,30 @@ def test_image_loaders_keep_current_callbacks_lazy_paths_and_fallback_identity(t
     log.error.assert_called_once_with("%s file has unsupported schema_version=%r", "test", "3")
 
     loader = Mock(return_value=primary)
-    merge = Mock(return_value={"merged": True})
     monkeypatch.setattr(bot, "load_image_analysis_file", loader)
-    monkeypatch.setattr(bot, "merge_image_analysis", merge)
     monkeypatch.setattr(bot, "IMAGE_ANALYSIS_FILE", path)
-    monkeypatch.setattr(bot, "GENERATED_IMAGE_ANALYSIS_FILE", NoString())
-    monkeypatch.setattr(bot, "ENABLE_GENERATED_IMAGE_POOL", False)
     assert bot.load_image_analysis() is primary
     loader.assert_called_once_with(path, label="image analysis")
-    monkeypatch.setattr(bot, "ENABLE_GENERATED_IMAGE_POOL", True)
+    loader.reset_mock(return_value=False)
     loader.return_value = None
     assert bot.load_image_analysis() is None
-    monkeypatch.setenv("HOME", str(tmp_path))
-    monkeypatch.setattr(bot, "GENERATED_IMAGE_ANALYSIS_FILE", "~/generated.json")
-    loader.side_effect = [primary, None]
-    assert bot.load_image_analysis() is primary
-    loader.assert_called_with(tmp_path / "generated.json", label="generated image analysis")
-    log.warning.assert_called_once_with(
-        "Generated image pool enabled but generated image analysis is unavailable; using original image pool only",
-    )
-    merge.assert_not_called()
-    generated = {}
-    loader.side_effect = [primary, generated]
-    assert bot.load_image_analysis() is merge.return_value
-    assert merge.call_args.args[0] is primary and merge.call_args.args[1] is generated
+    loader.assert_called_once_with(path, label="image analysis")
 
 
-def test_image_merge_keeps_nested_references_sorted_warnings_and_primary_hash_item(monkeypatch):
-    original_item, generated_item = {"analysis": {}}, {"analysis": {}}
-    primary = {"path_index": {"b.png": "shared"}, "items": {"shared": original_item}, "source": {}}
-    generated = {"path_index": {"d.png": "shared", "c.png": "new", "b.png": "collision", "a.png": "missing"},
-                 "items": {"new": generated_item, "shared": {"analysis": {"ignored": True}}}}
-    log = Mock()
-    monkeypatch.setattr(bot, "log", log)
-    assert bot.merge_image_analysis(primary, None) is primary
-    result = bot.merge_image_analysis(primary, generated)
-    assert result is not primary and result["source"] is primary["source"]
-    assert result["path_index"] is not primary["path_index"] and result["items"] is not primary["items"]
-    assert list(result["path_index"]) == ["b.png", "c.png", "d.png"]
-    assert result["items"]["shared"] is original_item
-    assert result["items"]["new"] is generated_item
-    assert primary["path_index"] == {"b.png": "shared"}
-    assert [call.args for call in log.warning.call_args_list] == [
-        ("Skipping generated image metadata with missing item hash=%s basename=%s", "missing", "a.png"),
-        ("Skipping generated image metadata with basename collision: %s", "b.png"),
-    ]
-
-
-def test_configured_catalog_uses_current_glob_boundary_and_origin_callbacks(tmp_path, monkeypatch):
-    first, second, outside, missing = [tmp_path / name for name in ("a.png", "b.png", "outside.png", "missing.png")]
-    for path in (first, second, outside):
-        path.write_bytes(b"synthetic")
-    matches = list(map(str, (second, outside, missing, first)))
-    glob = Mock(return_value=matches)
-    calls = []
-
-    def boundary(path, parent):
-        calls.append((path, parent))
-        return path != outside
-
-    origin = Mock(return_value="origin")
-    monkeypatch.setenv("HOME", str(tmp_path))
-    monkeypatch.setattr(bot, "GENERATED_IMAGE_DIR", "~/configured")
-    monkeypatch.setattr(bot, "GENERATED_IMAGE_GLOB", "../*.png")
-    monkeypatch.setattr(bot, "glob", glob)
-    monkeypatch.setattr(bot, "path_is_same_or_child", boundary)
-    monkeypatch.setattr(bot, "generated_image_origin_quote_hash", origin)
-    assert bot.configured_generated_image_paths() == {first.name: first, second.name: second}
-    glob.assert_called_once_with(str(tmp_path / "configured" / "../*.png"))
-    assert matches == list(map(str, (second, outside, missing, first)))
-    assert calls == [(p, tmp_path / "configured") for p in (first, second, outside)]
-    assert [call.args for call in origin.call_args_list] == [(first.name,), (second.name,)]
-    glob.return_value = [str(first), str(first)]
-    with pytest.raises(ValueError, match="duplicate generated image basename"):
-        bot.configured_generated_image_paths()
-
-
-def test_current_catalog_sorts_original_list_in_place_and_uses_current_discovery(tmp_path, monkeypatch):
+def test_current_catalog_sorts_originals_and_excludes_generated_filenames(tmp_path, monkeypatch):
     first, second, missing = [tmp_path / name for name in ("a.png", "b.png", "missing.png")]
-    first.write_bytes(b"synthetic")
-    second.write_bytes(b"synthetic")
-    matches = list(map(str, (second, missing, first)))
+    generated = tmp_path / ("tg_" + "A" * 64 + ".PNG")
+    for path in (first, second, generated):
+        path.write_bytes(b"synthetic")
+    matches = list(map(str, (second, missing, generated, first)))
     glob = Mock(return_value=matches)
-    discover = Mock(side_effect=forbidden)
     monkeypatch.setattr(bot, "glob", glob)
-    monkeypatch.setattr(bot, "IMAGE_GLOB", "original-pattern")
-    monkeypatch.setattr(bot, "GENERATED_IMAGE_DIR", NoString())
-    monkeypatch.setattr(bot, "ENABLE_GENERATED_IMAGE_POOL", False)
-    monkeypatch.setattr(bot, "configured_generated_image_paths", discover)
+    monkeypatch.setattr(bot, "IMAGE_GLOB", "broad-pattern")
+
     assert bot.current_image_paths() == [str(first), str(second)]
     assert matches == sorted(matches)
-    glob.assert_called_once_with("original-pattern")
-    discover.assert_not_called()
-
-    monkeypatch.setattr(bot, "ENABLE_GENERATED_IMAGE_POOL", True)
-    monkeypatch.setattr(bot, "GENERATED_IMAGE_DIR", tmp_path)
-    monkeypatch.setattr(bot, "GENERATED_IMAGE_GLOB", "*.png")
-    log = Mock()
-    monkeypatch.setattr(bot, "log", log)
-    discover.side_effect = None
-    discover.return_value = {"collision": tmp_path / "generated" / first.name, "new": missing}
-    assert bot.current_image_paths() == [str(first), str(second), str(missing)]
-    log.warning.assert_called_once_with(
-        "Skipping generated image with basename collision: %s path=%s", first.name,
-        str(tmp_path / "generated" / first.name),
-    )
-    failure = ValueError("bad catalog")
-    discover.side_effect = failure
-    with pytest.raises(RuntimeError, match="unsafe or unclassifiable") as caught:
-        bot.current_image_paths()
-    assert caught.value.__cause__ is failure
+    glob.assert_called_once_with("broad-pattern")
+    assert generated.read_bytes() == b"synthetic"
 
 
 def test_image_lookup_keeps_current_hash_exception_logger_and_nested_reference(monkeypatch):

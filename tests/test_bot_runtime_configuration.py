@@ -42,7 +42,6 @@ POSITIVE_KEYS = (
 )
 SHADOW_KEYS = (
     "ORIGINAL_EDITORIAL_SHADOW_WEIGHT", "ORIGINAL_EDITORIAL_SHADOW_MAX_ABS_ADJUSTMENT",
-    "GENERATED_IDENTITY_SHADOW_SMALL_PENALTY", "GENERATED_IDENTITY_SHADOW_STRONG_PENALTY",
 )
 
 
@@ -133,7 +132,6 @@ def _validation_values(monkeypatch):
         "single_call_reply": object(),
         "MAX_MENTIONS_PER_CHECK": 5, "QUOTE_LOOKUP_API_MAX_RESULTS": 10,
         "HOT_POST_REPLY_SEARCH_API_MAX_RESULTS": 10,
-        "GENERATED_IMAGE_MIN_ORIGINAL_POSTS_BETWEEN": 0,
         "MEME_TRIGGER_AFTER_HOUR": 0, "MEME_FALLBACK_HOUR": 23,
         "MEME_FALLBACK_MINUTE": 59,
         "MEME_DELAY_AFTER_MAIN_POST_MIN_SECONDS": 0,
@@ -180,7 +178,7 @@ def test_namespace_identity_eager_fallbacks_and_live_order(monkeypatch):
         "engagement_question_experiment_enabled", "engagement_question_experiment_plan_path",
         "engagement_question_notification_output_path", "historical_context_reply", "single_call_reply",
         *POSITIVE_KEYS, "MAX_MENTIONS_PER_CHECK", "QUOTE_LOOKUP_API_MAX_RESULTS",
-        "HOT_POST_REPLY_SEARCH_API_MAX_RESULTS", "GENERATED_IMAGE_MIN_ORIGINAL_POSTS_BETWEEN",
+        "HOT_POST_REPLY_SEARCH_API_MAX_RESULTS",
         *SHADOW_KEYS, "MEME_TRIGGER_AFTER_HOUR", "MEME_FALLBACK_HOUR", "MEME_FALLBACK_MINUTE",
         "POST_SLEEP_MIN", "POST_SLEEP_MAX",
         "MEME_DELAY_AFTER_MAIN_POST_MIN_SECONDS", "MEME_DELAY_AFTER_MAIN_POST_MAX_SECONDS",
@@ -220,8 +218,7 @@ def test_validation_keeps_ordered_errors_context_fields_and_validator_references
         "AUTHOR_NO_REPLY_QUARANTINE_THRESHOLD": "bad",
         "MAX_MENTIONS_PER_CHECK": 4, "QUOTE_LOOKUP_API_MAX_RESULTS": "bad",
         "HOT_POST_REPLY_SEARCH_API_MAX_RESULTS": 101,
-        "GENERATED_IMAGE_MIN_ORIGINAL_POSTS_BETWEEN": True,
-        **dict(zip(SHADOW_KEYS, [True, float("nan"), -1.0, "bad"])),
+        **dict(zip(SHADOW_KEYS, [True, float("nan")])),
         "MEME_TRIGGER_AFTER_HOUR": 24, "MEME_FALLBACK_HOUR": -1, "MEME_FALLBACK_MINUTE": 60,
         "POST_SLEEP_MIN": 9, "POST_SLEEP_MAX": 2,
         "MEME_DELAY_AFTER_MAIN_POST_MIN_SECONDS": "bad",
@@ -241,11 +238,8 @@ def test_validation_keeps_ordered_errors_context_fields_and_validator_references
         "MAX_MENTIONS_PER_CHECK must be between 5 and 100",
         "QUOTE_LOOKUP_API_MAX_RESULTS must be an integer",
         "HOT_POST_REPLY_SEARCH_API_MAX_RESULTS must be between 10 and 100",
-        "GENERATED_IMAGE_MIN_ORIGINAL_POSTS_BETWEEN must be an integer",
         "ORIGINAL_EDITORIAL_SHADOW_WEIGHT must be a number",
         "ORIGINAL_EDITORIAL_SHADOW_MAX_ABS_ADJUSTMENT must be finite",
-        "GENERATED_IDENTITY_SHADOW_SMALL_PENALTY must be non-negative",
-        "GENERATED_IDENTITY_SHADOW_STRONG_PENALTY must be a number",
         "MEME_TRIGGER_AFTER_HOUR must be between 0 and 23",
         "MEME_FALLBACK_HOUR must be between 0 and 23",
         "MEME_FALLBACK_MINUTE must be between 0 and 59",
@@ -330,7 +324,6 @@ def test_missing_numeric_defaults_and_separate_shadow_float_observations(monkeyp
     _validation_values(monkeypatch)
     for key in ("MEME_DELAY_AFTER_MAIN_POST_MIN_SECONDS", "MEME_DELAY_AFTER_MAIN_POST_MAX_SECONDS", *SHADOW_KEYS):
         monkeypatch.delattr(bot, key)
-    monkeypatch.delattr(bot, "GENERATED_IMAGE_MIN_ORIGINAL_POSTS_BETWEEN")
     assert bot.validate_runtime_config_values({}) == []
     monkeypatch.delattr(bot, "AUTHOR_NO_REPLY_QUARANTINE_SECONDS")
     assert bot.validate_runtime_config_values({}) == ["AUTHOR_NO_REPLY_QUARANTINE_SECONDS must be positive"]
@@ -351,7 +344,7 @@ def test_missing_numeric_defaults_and_separate_shadow_float_observations(monkeyp
         "AUTHOR_NO_REPLY_QUARANTINE_SECONDS": True,
         SHADOW_KEYS[0]: Number(1),
     }) == ["ORIGINAL_EDITORIAL_SHADOW_WEIGHT must be non-negative"]
-    assert trace == ["float", ("finite", 1.0), "float", *[("finite", 0.0)] * 3]
+    assert trace == ["float", ("finite", 1.0), "float", ("finite", 0.0)]
 
 
 @pytest.mark.parametrize("proposed", [None, {}, False], ids=["absent", "empty", "false"])

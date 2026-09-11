@@ -127,20 +127,9 @@ def validate_runtime_config_values(
         except Exception:
             errors.append(f"{key} must be an integer")
 
-    raw_generated_spacing = values.get(
-        "GENERATED_IMAGE_MIN_ORIGINAL_POSTS_BETWEEN",
-        _runtime_config_namespace().get("GENERATED_IMAGE_MIN_ORIGINAL_POSTS_BETWEEN", 0),
-    )
-    if type(raw_generated_spacing) is not int:
-        errors.append("GENERATED_IMAGE_MIN_ORIGINAL_POSTS_BETWEEN must be an integer")
-    elif raw_generated_spacing < 0:
-        errors.append("GENERATED_IMAGE_MIN_ORIGINAL_POSTS_BETWEEN must be non-negative")
-
     for key in (
         "ORIGINAL_EDITORIAL_SHADOW_WEIGHT",
         "ORIGINAL_EDITORIAL_SHADOW_MAX_ABS_ADJUSTMENT",
-        "GENERATED_IDENTITY_SHADOW_SMALL_PENALTY",
-        "GENERATED_IDENTITY_SHADOW_STRONG_PENALTY",
     ):
         raw_value = values.get(key, _runtime_config_namespace().get(key, 0.0))
         if isinstance(raw_value, bool) or not isinstance(raw_value, (int, float)):

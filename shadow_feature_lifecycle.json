@@ -12,30 +12,6 @@
       "retirement_criteria": "The benchmark is superseded or no longer reproducible against the maintained research corpus.",
       "next_decision_date": "2026-10-01",
       "reason_for_current_state": "Fifty retained live comparisons produced zero hybrid-only evidence rescues; manual benchmarking preserves the experiment without recurring production cost."
-    },
-    {
-      "feature_name": "generated_image_identity_policy",
-      "purpose": "Measure whether identity-dependent generated images would require cross-quotation penalties or exclusions.",
-      "current_state": "suspended",
-      "start_date": "2026-07-10",
-      "evidence_metric": "Policy-caused winner changes while generated images are eligible for production selection.",
-      "target_observation_count": 100,
-      "promotion_criteria": "Generated pool activation is separately approved and deterministic shadow evidence shows safe, useful policy effects.",
-      "retirement_criteria": "Generated images remain disabled permanently or the identity policy is replaced by a validated successor.",
-      "next_decision_date": "2026-08-15",
-      "reason_for_current_state": "The generated-image pool is disabled, so routine identity-policy shadow scoring cannot produce decision-relevant observations."
-    },
-    {
-      "feature_name": "original_editorial_selector",
-      "purpose": "Apply original-image editorial metadata adjustments to the production image winner.",
-      "current_state": "promoted",
-      "start_date": "2026-07-10",
-      "evidence_metric": "Shadow winner disagreements, score adjustments and editorial mismatch reasons.",
-      "target_observation_count": 200,
-      "promotion_criteria": "A separately reviewed sample demonstrates consistent editorial improvement without selection or state side effects.",
-      "retirement_criteria": "The scorer provides no useful disagreements or is replaced by a validated selector revision.",
-      "next_decision_date": "2026-08-01",
-      "reason_for_current_state": "The existing shadow scorer is now the authoritative selector when the ordinary winner is an original image."
     }
   ]
 }

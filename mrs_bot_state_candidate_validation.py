@@ -153,8 +153,6 @@ def normalise_state_candidate(
     canonical_mention_pending_candidates: Callable[..., dict[str, dict] | None],
     default_state: Callable[..., dict],
     engagement_question_trial: ModuleType,
-    generated_image_origin_quote_hash: Callable[..., str | None],
-    generated_image_spacing_required: Callable[..., int],
     hashlib: ModuleType,
     log: Logger,
     normalise_author_evaluation_quarantines: Callable[..., dict | None],
@@ -225,7 +223,7 @@ def normalise_state_candidate(
         "daily_reply_count",
         "meme_schedule_version",
         "daily_quote_reply_count",
-        "original_regular_posts_since_generated_image",
+        "original_regular_posts_since_generated_image",  # Retained legacy state only.
     }
     epoch_keys = {
         "last_meme_post_epoch",
@@ -419,12 +417,6 @@ def normalise_state_candidate(
         if value is None:
             return None
         normalised[key] = value
-    if "original_regular_posts_since_generated_image" not in state:
-        last_regular_image = str(normalised.get("last_regular_image_filename") or "")
-        if generated_image_origin_quote_hash(last_regular_image):
-            normalised["original_regular_posts_since_generated_image"] = 0
-        else:
-            normalised["original_regular_posts_since_generated_image"] = generated_image_spacing_required()
     for key in epoch_keys:
         if key not in state:
             continue

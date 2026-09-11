@@ -26,7 +26,7 @@ DEPENDENCIES = {
     'save_quote_used_hashes': ['save_used_set'],
     'save_image_used_basenames': ['atomic_write_json'],
     'image_used_history_has_legacy_indices': ['re'],
-    'image_corpus_verified_for_legacy_migration': ['ENABLE_GENERATED_IMAGE_POOL', 'Path'],
+    'image_corpus_verified_for_legacy_migration': ['Path'],
     'normalise_image_used_basenames': ['Path', 'image_corpus_verified_for_legacy_migration', 're'],
     'load_image_used_basenames': ['IMAGES_USED_FILE', 'IMAGE_PICKLE_FILE', 'image_used_history_has_legacy_indices', 'load_image_analysis', 'load_used_set', 'log', 'normalise_image_used_basenames', 'save_image_used_basenames'],
 }
@@ -432,13 +432,9 @@ def test_quote_normalization_retains_hash_rules_mapping_and_drops_invalid_entrie
     assert raw == ["A" * 64, "b" * 64, "1", "invalid", -3]
 
 
-def test_image_corpus_proof_keeps_generated_refusal_exact_nonempty_names_and_native_errors(monkeypatch):
+def test_image_corpus_proof_requires_exact_nonempty_names_and_preserves_native_errors(monkeypatch):
     paths = Mock(side_effect=Path)
     monkeypatch.setattr(bot, "Path", paths)
-    monkeypatch.setattr(bot, "ENABLE_GENERATED_IMAGE_POOL", True)
-    assert bot.image_corpus_verified_for_legacy_migration(object(), object()) is False
-    paths.assert_not_called()
-    monkeypatch.setattr(bot, "ENABLE_GENERATED_IMAGE_POOL", False)
     assert bot.image_corpus_verified_for_legacy_migration(object(), None) is False
     paths.assert_not_called()
     for images, analysis, expected in [

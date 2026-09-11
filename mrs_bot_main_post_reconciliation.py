@@ -241,8 +241,6 @@ def apply_regular_post_receipt(
     maybe_schedule_meme_after_quote_post: Any,
     meme_schedule_date_str: Any,
     record_recent_own_post: Any,
-    regular_generated_image_spacing_already_reflected: Any,
-    update_regular_generated_image_spacing_state: Any,
 ) -> None:
     """Apply regular post receipt."""
     post_id = str(receipt["post_id"])
@@ -292,11 +290,6 @@ def apply_regular_post_receipt(
             last_meme_epoch,
         )
     if quote_post_epoch >= last_quote_epoch:
-        spacing_already_reflected = (
-            quote_post_epoch == last_quote_epoch
-            and str(state.get("last_regular_image_filename") or "") == image_basename
-            and regular_generated_image_spacing_already_reflected(state, image_basename)
-        )
         state["last_quote_post_epoch"] = quote_post_epoch
         state["last_regular_image_filename"] = image_basename
         current_next_quote_post_epoch = int(state.get("next_quote_post_epoch", 0) or 0)
@@ -312,8 +305,6 @@ def apply_regular_post_receipt(
             )
         else:
             state["next_quote_post_epoch"] = next_quote_post_epoch
-        if not spacing_already_reflected:
-            update_regular_generated_image_spacing_state(state, image_basename)
     if receipt_is_newest_main:
         if receipt.get("schema_version") in {2, 3, 4}:
             # Current schema-v3 receipts carry the exact bound schedule and

@@ -352,194 +352,34 @@ def test_seasonal_image_re_enters_when_current_date_matches(
     assert chosen["basename"] == "t23.jpg"
 
 
-def test_generated_image_pool_disabled_keeps_original_image_scan(
-    tmp_path: Path,
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    image_dir = tmp_path / "images"
-    generated_dir = tmp_path / "generated"
-    image_dir.mkdir()
-    generated_dir.mkdir()
-    original = image_dir / "t01.jpg"
-    generated = generated_dir / ("tg_" + "a" * 64 + ".png")
-    original.write_bytes(b"original")
-    generated.write_bytes(b"generated")
-
-    monkeypatch.setattr(bot, "IMAGE_GLOB", str(image_dir / "t*"))
-    monkeypatch.setattr(bot, "ENABLE_GENERATED_IMAGE_POOL", False)
-    monkeypatch.setattr(bot, "GENERATED_IMAGE_DIR", str(generated_dir))
-
-    assert bot.current_image_paths() == [str(original)]
-
-
-def test_generated_image_pool_merges_separate_analysis_when_enabled(
-    tmp_path: Path,
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    image_dir = tmp_path / "images"
-    generated_dir = tmp_path / "generated"
-    image_dir.mkdir()
-    generated_dir.mkdir()
-    original = image_dir / "t01.jpg"
-    quote_hash = "b" * 64
-    generated = generated_dir / f"tg_{quote_hash}.png"
-    original.write_bytes(b"original")
-    generated.write_bytes(b"generated")
-    original_analysis_path = tmp_path / "image_analysis.json"
-    generated_analysis_path = tmp_path / "generated_image_analysis.json"
-    write_image_analysis(original_analysis_path, image_analysis_for_paths([original]))
-    write_image_analysis(generated_analysis_path, image_analysis_for_paths([generated]))
-
-    monkeypatch.setattr(bot, "IMAGE_GLOB", str(image_dir / "t*"))
-    monkeypatch.setattr(bot, "ENABLE_GENERATED_IMAGE_POOL", True)
-    monkeypatch.setattr(bot, "GENERATED_IMAGE_DIR", str(generated_dir))
-    monkeypatch.setattr(bot, "GENERATED_IMAGE_GLOB", "*.png")
-    monkeypatch.setattr(bot, "IMAGE_ANALYSIS_FILE", original_analysis_path)
-    monkeypatch.setattr(bot, "GENERATED_IMAGE_ANALYSIS_FILE", str(generated_analysis_path))
-
-    paths = bot.current_image_paths()
-    analysis = bot.load_image_analysis()
-
-    assert paths == [str(original), str(generated)]
-    assert set(analysis["path_index"]) == {"t01.jpg", f"tg_{quote_hash}.png"}
-
-
-def test_generated_image_pool_rejects_paths_outside_generated_directory(
-    tmp_path: Path,
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    image_dir = tmp_path / "images"
-    generated_dir = tmp_path / "generated"
-    outside_dir = tmp_path / "outside"
-    image_dir.mkdir()
-    generated_dir.mkdir()
-    outside_dir.mkdir()
-    original = image_dir / "t01.jpg"
-    outside = outside_dir / ("tg_" + "e" * 64 + ".png")
-    original.write_bytes(b"original")
-    outside.write_bytes(b"outside")
-
-    monkeypatch.setattr(bot, "IMAGE_GLOB", str(image_dir / "t*"))
-    monkeypatch.setattr(bot, "ENABLE_GENERATED_IMAGE_POOL", True)
-    monkeypatch.setattr(bot, "GENERATED_IMAGE_DIR", str(generated_dir))
-    monkeypatch.setattr(bot, "GENERATED_IMAGE_GLOB", "../outside/*.png")
-
-    assert bot.current_image_paths() == [str(original)]
-
-
-def test_generated_image_pool_fails_closed_on_unclassifiable_basename(
-    tmp_path: Path,
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    image_dir = tmp_path / "images"
-    generated_dir = tmp_path / "generated"
-    image_dir.mkdir()
-    generated_dir.mkdir()
-    original = image_dir / "t01.jpg"
-    unclassifiable = generated_dir / "reviewed_ai.png"
-    original.write_bytes(b"original")
-    unclassifiable.write_bytes(b"generated")
-
-    monkeypatch.setattr(bot, "IMAGE_GLOB", str(image_dir / "t*"))
-    monkeypatch.setattr(bot, "ENABLE_GENERATED_IMAGE_POOL", True)
-    monkeypatch.setattr(bot, "GENERATED_IMAGE_DIR", str(generated_dir))
-    monkeypatch.setattr(bot, "GENERATED_IMAGE_GLOB", "*.png")
-
-    with pytest.raises(RuntimeError, match="unclassifiable"):
-        bot.current_image_paths()
-
-
-def test_generated_image_source_classification() -> None:
+def test_generated_filename_classifier_retains_historical_media_identity() -> None:
     quote_hash = "a" * 64
-
-    assert bot.GENERATED_IMAGE_MIN_ORIGINAL_POSTS_BETWEEN == 2
-    assert bot.image_selection_observability("t44.jpg") == {
-        "image_source": "original",
-        "origin_quote_hash": None,
-        "origin_quote_match": False,
-        "origin_quote_boost": 0.0,
-    }
-    assert bot.image_selection_observability(f"tg_{quote_hash}.png", quote_hash, 4) == {
-        "image_source": "generated",
-        "origin_quote_hash": quote_hash,
-        "origin_quote_match": True,
-        "origin_quote_boost": 4.0,
-    }
-    assert bot.image_selection_observability(f"tg_{quote_hash}.png", "b" * 64, 4) == {
-        "image_source": "generated",
-        "origin_quote_hash": quote_hash,
-        "origin_quote_match": False,
-        "origin_quote_boost": 0.0,
-    }
+    assert bot.generated_image_origin_quote_hash(f"tg_{quote_hash}.png") == quote_hash
+    assert bot.generated_image_origin_quote_hash(f"tg_{quote_hash.upper()}.PNG") == quote_hash
+    assert bot.generated_image_origin_quote_hash("t44.jpg") is None
     assert bot.generated_image_origin_quote_hash("tg_not-a-real-hash.png") is None
-    assert bot.generated_image_origin_quote_hash("tg_" + ("a" * 63) + ".png") is None
+    assert bot.generated_image_origin_quote_hash("tg_" + "a" * 63 + ".png") is None
 
 
-def test_generated_image_spacing_helpers_and_state_updates(monkeypatch: pytest.MonkeyPatch) -> None:
-    generated = "tg_" + ("a" * 64) + ".png"
-    state = {"original_regular_posts_since_generated_image": 0}
-    monkeypatch.setattr(bot, "GENERATED_IMAGE_MIN_ORIGINAL_POSTS_BETWEEN", 2)
-
-    assert bot.generated_images_allowed_by_spacing(state) is False
-    bot.update_regular_generated_image_spacing_state(state, "t01.jpg")
-    assert state["original_regular_posts_since_generated_image"] == 1
-    assert bot.generated_images_allowed_by_spacing(state) is False
-    bot.update_regular_generated_image_spacing_state(state, "t02.jpg")
-    assert state["original_regular_posts_since_generated_image"] == 2
-    assert bot.generated_images_allowed_by_spacing(state) is True
-    bot.update_regular_generated_image_spacing_state(state, "t03.jpg")
-    assert state["original_regular_posts_since_generated_image"] == 2
-    bot.update_regular_generated_image_spacing_state(state, generated)
-    assert state["original_regular_posts_since_generated_image"] == 0
-
-
-@pytest.mark.parametrize("value", [0, 2])
-def test_generated_image_spacing_required_accepts_integers(monkeypatch: pytest.MonkeyPatch, value: int) -> None:
-    monkeypatch.setattr(bot, "GENERATED_IMAGE_MIN_ORIGINAL_POSTS_BETWEEN", value)
-
-    assert bot.generated_image_spacing_required() == value
-
-
-def test_generated_image_spacing_zero_disables_restriction(monkeypatch: pytest.MonkeyPatch) -> None:
-    monkeypatch.setattr(bot, "GENERATED_IMAGE_MIN_ORIGINAL_POSTS_BETWEEN", 0)
-
-    assert bot.generated_images_allowed_by_spacing({"original_regular_posts_since_generated_image": 0}) is True
-
-
-@pytest.mark.parametrize("bad_value", [True, False, -1, 2.0, 2.5, "2", "x"])
-def test_generated_image_spacing_helper_rejects_non_integer_values(
-    monkeypatch: pytest.MonkeyPatch,
-    bad_value: object,
+@pytest.mark.parametrize("last_image", ["tg_" + "a" * 64 + ".png", "t01.jpg", None])
+@pytest.mark.parametrize("legacy_count", [None, 0, "2"])
+def test_legacy_image_state_remains_readable_without_initialising_spacing(
+    tmp_path: Path, last_image: str | None, legacy_count: int | str | None,
 ) -> None:
-    monkeypatch.setattr(bot, "GENERATED_IMAGE_MIN_ORIGINAL_POSTS_BETWEEN", bad_value)
-
-    with pytest.raises(ValueError):
-        bot.generated_image_spacing_required()
-
-
-@pytest.mark.parametrize(
-    ("last_image", "expected_count"),
-    [
-        ("tg_" + ("a" * 64) + ".png", 0),
-        ("t01.jpg", 2),
-        (None, 2),
-    ],
-)
-def test_legacy_state_initialises_generated_spacing_from_last_regular_image(
-    tmp_path: Path,
-    monkeypatch: pytest.MonkeyPatch,
-    last_image: str | None,
-    expected_count: int,
-) -> None:
-    monkeypatch.setattr(bot, "GENERATED_IMAGE_MIN_ORIGINAL_POSTS_BETWEEN", 2)
     state = bot.default_state()
-    state.pop("original_regular_posts_since_generated_image", None)
+    assert "original_regular_posts_since_generated_image" not in state
     state["last_regular_image_filename"] = last_image
+    if legacy_count is not None:
+        state["original_regular_posts_since_generated_image"] = legacy_count
 
     normalised = bot.normalise_state_candidate(state, path=tmp_path / "state.json")
 
     assert normalised is not None
-    assert normalised["original_regular_posts_since_generated_image"] == expected_count
+    assert normalised["last_regular_image_filename"] == last_image
+    if legacy_count is None:
+        assert "original_regular_posts_since_generated_image" not in normalised
+    else:
+        assert normalised["original_regular_posts_since_generated_image"] == int(legacy_count)
 
 
 def test_state_rejects_boolean_generated_spacing_counter(tmp_path: Path) -> None:
@@ -547,23 +387,6 @@ def test_state_rejects_boolean_generated_spacing_counter(tmp_path: Path) -> None
     state["original_regular_posts_since_generated_image"] = True
 
     assert bot.normalise_state_candidate(state, path=tmp_path / "state.json") is None
-
-
-@pytest.mark.parametrize("value", [0, 2])
-def test_runtime_config_validation_accepts_integer_generated_spacing(value: int) -> None:
-    assert not bot.validate_runtime_config_values({"GENERATED_IMAGE_MIN_ORIGINAL_POSTS_BETWEEN": value})
-
-
-@pytest.mark.parametrize("bad_value", [True, False, 2.0, 2.5, "2", "x"])
-def test_runtime_config_validation_rejects_non_integer_generated_spacing(bad_value: object) -> None:
-    errors = bot.validate_runtime_config_values({"GENERATED_IMAGE_MIN_ORIGINAL_POSTS_BETWEEN": bad_value})
-    assert "GENERATED_IMAGE_MIN_ORIGINAL_POSTS_BETWEEN must be an integer" in errors
-
-
-def test_runtime_config_validation_rejects_negative_generated_spacing() -> None:
-    errors = bot.validate_runtime_config_values({"GENERATED_IMAGE_MIN_ORIGINAL_POSTS_BETWEEN": -1})
-
-    assert "GENERATED_IMAGE_MIN_ORIGINAL_POSTS_BETWEEN must be non-negative" in errors
 
 
 def test_original_image_selection_returns_observability_and_logs(
@@ -580,7 +403,6 @@ def test_original_image_selection_returns_observability_and_logs(
     write_image_analysis(analysis_path, analysis)
 
     monkeypatch.setattr(bot, "IMAGE_GLOB", str(image_dir / "t*"))
-    monkeypatch.setattr(bot, "ENABLE_GENERATED_IMAGE_POOL", False)
     monkeypatch.setattr(bot, "IMAGE_ANALYSIS_FILE", analysis_path)
     monkeypatch.setattr(bot, "current_datetime", lambda: datetime(2026, 7, 5))
     caplog.set_level(logging.INFO, logger=bot.log.name)
@@ -598,270 +420,6 @@ def test_original_image_selection_returns_observability_and_logs(
     assert chosen["origin_quote_boost"] == 0.0
     assert "REGULAR_IMAGE_SELECTED source=original basename=t44.jpg" in caplog.text
     assert "origin_quote_match=false origin_quote_boost=0.0" in caplog.text
-
-
-def test_generated_image_origin_quote_boost_can_select_matching_generated_image(
-    tmp_path: Path,
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    image_dir = tmp_path / "images"
-    generated_dir = tmp_path / "generated"
-    image_dir.mkdir()
-    generated_dir.mkdir()
-    original = image_dir / "t01.jpg"
-    quote_hash = "c" * 64
-    generated = generated_dir / f"tg_{quote_hash}.png"
-    original.write_bytes(b"original")
-    generated.write_bytes(b"generated")
-    original_analysis_path = tmp_path / "image_analysis.json"
-    generated_analysis_path = tmp_path / "generated_image_analysis.json"
-    neutral = {
-        "pairing": {},
-        "themes": [],
-        "tone": [],
-        "visual_energy": "low",
-        "quality": {},
-        "seasonality": {"avoid_outside_season_or_occasion": False},
-    }
-    write_image_analysis(original_analysis_path, image_analysis_for_paths([original], {"t01.jpg": neutral}))
-    write_image_analysis(generated_analysis_path, image_analysis_for_paths([generated], {generated.name: neutral}))
-
-    monkeypatch.setattr(bot, "IMAGE_GLOB", str(image_dir / "t*"))
-    monkeypatch.setattr(bot, "ENABLE_GENERATED_IMAGE_POOL", True)
-    monkeypatch.setattr(bot, "GENERATED_IMAGE_DIR", str(generated_dir))
-    monkeypatch.setattr(bot, "GENERATED_IMAGE_GLOB", "*.png")
-    monkeypatch.setattr(bot, "IMAGE_ANALYSIS_FILE", original_analysis_path)
-    monkeypatch.setattr(bot, "GENERATED_IMAGE_ANALYSIS_FILE", str(generated_analysis_path))
-    monkeypatch.setattr(bot, "GENERATED_IMAGE_ORIGIN_QUOTE_BOOST", 10)
-    monkeypatch.setattr(bot, "current_datetime", lambda: datetime(2026, 7, 5))
-
-    chosen = bot.choose_matched_unused_image(
-        set(),
-        {
-            "quote_hash": quote_hash,
-            "analysis": {"primary_topics": [], "secondary_topics": [], "tone": [], "visual_energy": "low"},
-        },
-        {},
-    )
-
-    assert chosen["basename"] == generated.name
-    assert chosen["components"]["generated_origin_quote"] == 10.0
-    assert chosen["image_source"] == "generated"
-    assert chosen["origin_quote_hash"] == quote_hash
-    assert chosen["origin_quote_match"] is True
-    assert chosen["origin_quote_boost"] == 10.0
-
-
-def test_generated_image_cross_quote_selection_gets_no_origin_boost_and_logs(
-    tmp_path: Path,
-    monkeypatch: pytest.MonkeyPatch,
-    caplog: pytest.LogCaptureFixture,
-) -> None:
-    generated_dir = tmp_path / "generated"
-    image_dir = tmp_path / "images"
-    generated_dir.mkdir()
-    image_dir.mkdir()
-    origin_quote_hash = "a" * 64
-    selected_quote_hash = "b" * 64
-    generated = generated_dir / f"tg_{origin_quote_hash}.png"
-    generated.write_bytes(b"generated")
-    original_analysis_path = tmp_path / "image_analysis.json"
-    generated_analysis_path = tmp_path / "generated_image_analysis.json"
-    write_image_analysis(original_analysis_path, image_analysis_for_paths([]))
-    write_image_analysis(generated_analysis_path, image_analysis_for_paths([generated]))
-
-    monkeypatch.setattr(bot, "IMAGE_GLOB", str(image_dir / "t*"))
-    monkeypatch.setattr(bot, "ENABLE_GENERATED_IMAGE_POOL", True)
-    monkeypatch.setattr(bot, "GENERATED_IMAGE_DIR", str(generated_dir))
-    monkeypatch.setattr(bot, "GENERATED_IMAGE_GLOB", "*.png")
-    monkeypatch.setattr(bot, "IMAGE_ANALYSIS_FILE", original_analysis_path)
-    monkeypatch.setattr(bot, "GENERATED_IMAGE_ANALYSIS_FILE", str(generated_analysis_path))
-    monkeypatch.setattr(bot, "GENERATED_IMAGE_ORIGIN_QUOTE_BOOST", 10)
-    monkeypatch.setattr(bot, "current_datetime", lambda: datetime(2026, 7, 5))
-    caplog.set_level(logging.INFO, logger=bot.log.name)
-
-    chosen = bot.choose_matched_unused_image(
-        set(),
-        {
-            "quote_hash": selected_quote_hash,
-            "analysis": {"primary_topics": [], "secondary_topics": [], "tone": [], "visual_energy": "low"},
-        },
-        {},
-    )
-
-    assert chosen["basename"] == generated.name
-    assert chosen["image_source"] == "generated"
-    assert chosen["origin_quote_hash"] == origin_quote_hash
-    assert chosen["origin_quote_match"] is False
-    assert chosen["origin_quote_boost"] == 0.0
-    assert "generated_origin_quote" not in chosen["components"]
-    assert f"REGULAR_IMAGE_SELECTED source=generated basename={generated.name}" in caplog.text
-    assert f"origin_quote_hash={origin_quote_hash} origin_quote_match=false origin_quote_boost=0.0" in caplog.text
-
-
-def test_generated_image_blocked_by_spacing_selects_original_without_marking_generated_used(
-    tmp_path: Path,
-    monkeypatch: pytest.MonkeyPatch,
-    caplog: pytest.LogCaptureFixture,
-) -> None:
-    image_dir = tmp_path / "images"
-    generated_dir = tmp_path / "generated"
-    image_dir.mkdir()
-    generated_dir.mkdir()
-    original = image_dir / "t01.jpg"
-    generated_hash = "a" * 64
-    generated = generated_dir / f"tg_{generated_hash}.png"
-    original.write_bytes(b"original")
-    generated.write_bytes(b"generated")
-    lines_file = tmp_path / "quotes.txt"
-    lines_file.write_text("Tax quote.\n", encoding="utf-8")
-    quote_analysis = {"primary_topics": ["tax"], "secondary_topics": [], "tone": [], "visual_energy": "low"}
-    original_analysis = {"pairing": {}, "themes": [], "tone": [], "visual_energy": "low", "quality": {}, "seasonality": {"avoid_outside_season_or_occasion": False}}
-    generated_analysis = {"pairing": {"best_for_topics": ["tax"]}, "themes": ["tax"], "tone": [], "visual_energy": "low", "quality": {}, "seasonality": {"avoid_outside_season_or_occasion": False}}
-    original_analysis_path = tmp_path / "image_analysis.json"
-    generated_analysis_path = tmp_path / "generated_image_analysis.json"
-    write_image_analysis(original_analysis_path, image_analysis_for_paths([original], {original.name: original_analysis}))
-    write_image_analysis(generated_analysis_path, image_analysis_for_paths([generated], {generated.name: generated_analysis}))
-
-    monkeypatch.setattr(bot, "LINES_FILE", lines_file)
-    monkeypatch.setattr(bot, "IMAGE_GLOB", str(image_dir / "t*"))
-    monkeypatch.setattr(bot, "ENABLE_GENERATED_IMAGE_POOL", True)
-    monkeypatch.setattr(bot, "GENERATED_IMAGE_DIR", str(generated_dir))
-    monkeypatch.setattr(bot, "GENERATED_IMAGE_GLOB", "*.png")
-    monkeypatch.setattr(bot, "IMAGE_ANALYSIS_FILE", original_analysis_path)
-    monkeypatch.setattr(bot, "GENERATED_IMAGE_ANALYSIS_FILE", str(generated_analysis_path))
-    monkeypatch.setattr(bot, "GENERATED_IMAGE_MIN_ORIGINAL_POSTS_BETWEEN", 2)
-    monkeypatch.setattr(bot, "current_datetime", lambda: datetime(2026, 7, 5))
-    monkeypatch.setattr(bot, "load_quote_analysis", lambda: quote_analysis_for_lines(["Tax quote."], {0: quote_analysis}))
-    caplog.set_level(logging.INFO, logger=bot.log.name)
-    images_used: set[str] = set()
-    state = {"original_regular_posts_since_generated_image": 0}
-
-    chosen = bot.choose_regular_quote_image_pair(
-        set(),
-        images_used,
-        state,
-    )[1]
-
-    assert chosen["basename"] == "t01.jpg"
-    assert chosen["image_source"] == "original"
-    assert generated.name not in images_used
-    assert "GENERATED_IMAGE_SPACING_STATUS pool_enabled=true allowed=false original_posts_since_generated=0 required=2" in caplog.text
-    assert "GENERATED_IMAGE_POOL_BLOCKED_BY_SPACING original_posts_since_generated=0 required=2" in caplog.text
-
-
-def test_generated_image_spacing_expiry_allows_generated_to_compete_with_origin_boost(
-    tmp_path: Path,
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    image_dir = tmp_path / "images"
-    generated_dir = tmp_path / "generated"
-    image_dir.mkdir()
-    generated_dir.mkdir()
-    original = image_dir / "t01.jpg"
-    quote = "Origin boost quote."
-    quote_hash = bot.quote_text_hash(quote)
-    generated = generated_dir / f"tg_{quote_hash}.png"
-    original.write_bytes(b"original")
-    generated.write_bytes(b"generated")
-    lines_file = tmp_path / "quotes.txt"
-    lines_file.write_text(quote + "\n", encoding="utf-8")
-    neutral = {"pairing": {}, "themes": [], "tone": [], "visual_energy": "low", "quality": {}, "seasonality": {"avoid_outside_season_or_occasion": False}}
-    original_analysis_path = tmp_path / "image_analysis.json"
-    generated_analysis_path = tmp_path / "generated_image_analysis.json"
-    write_image_analysis(original_analysis_path, image_analysis_for_paths([original], {original.name: neutral}))
-    write_image_analysis(generated_analysis_path, image_analysis_for_paths([generated], {generated.name: neutral}))
-
-    monkeypatch.setattr(bot, "LINES_FILE", lines_file)
-    monkeypatch.setattr(bot, "IMAGE_GLOB", str(image_dir / "t*"))
-    monkeypatch.setattr(bot, "ENABLE_GENERATED_IMAGE_POOL", True)
-    monkeypatch.setattr(bot, "GENERATED_IMAGE_DIR", str(generated_dir))
-    monkeypatch.setattr(bot, "GENERATED_IMAGE_GLOB", "*.png")
-    monkeypatch.setattr(bot, "IMAGE_ANALYSIS_FILE", original_analysis_path)
-    monkeypatch.setattr(bot, "GENERATED_IMAGE_ANALYSIS_FILE", str(generated_analysis_path))
-    monkeypatch.setattr(bot, "GENERATED_IMAGE_MIN_ORIGINAL_POSTS_BETWEEN", 2)
-    monkeypatch.setattr(bot, "GENERATED_IMAGE_ORIGIN_QUOTE_BOOST", 4)
-    monkeypatch.setattr(bot, "current_datetime", lambda: datetime(2026, 7, 5))
-    monkeypatch.setattr(bot, "load_quote_analysis", lambda: quote_analysis_for_lines([quote]))
-
-    chosen = bot.choose_regular_quote_image_pair(
-        set(),
-        set(),
-        {"original_regular_posts_since_generated_image": 2},
-    )[1]
-
-    assert chosen["basename"] == generated.name
-    assert chosen["image_source"] == "generated"
-    assert chosen["origin_quote_match"] is True
-    assert chosen["origin_quote_boost"] == 4.0
-
-
-def test_generated_origin_boost_preserves_expected_final_score(
-    tmp_path: Path,
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    generated_dir = tmp_path / "generated"
-    image_dir = tmp_path / "images"
-    generated_dir.mkdir()
-    image_dir.mkdir()
-    quote_hash = "c" * 64
-    generated = generated_dir / f"tg_{quote_hash}.png"
-    generated.write_bytes(b"generated")
-    analysis_obj = {
-        "pairing": {"best_for_topics": ["trade"]},
-        "themes": [],
-        "tone": [],
-        "visual_energy": "low",
-        "quality": {},
-        "seasonality": {"avoid_outside_season_or_occasion": False},
-    }
-    quote_analysis = {"primary_topics": ["trade"], "secondary_topics": [], "tone": [], "visual_energy": "low"}
-    original_analysis_path = tmp_path / "image_analysis.json"
-    generated_analysis_path = tmp_path / "generated_image_analysis.json"
-    write_image_analysis(original_analysis_path, image_analysis_for_paths([]))
-    write_image_analysis(generated_analysis_path, image_analysis_for_paths([generated], {generated.name: analysis_obj}))
-
-    monkeypatch.setattr(bot, "IMAGE_GLOB", str(image_dir / "t*"))
-    monkeypatch.setattr(bot, "ENABLE_GENERATED_IMAGE_POOL", True)
-    monkeypatch.setattr(bot, "GENERATED_IMAGE_DIR", str(generated_dir))
-    monkeypatch.setattr(bot, "GENERATED_IMAGE_GLOB", "*.png")
-    monkeypatch.setattr(bot, "IMAGE_ANALYSIS_FILE", original_analysis_path)
-    monkeypatch.setattr(bot, "GENERATED_IMAGE_ANALYSIS_FILE", str(generated_analysis_path))
-    monkeypatch.setattr(bot, "GENERATED_IMAGE_ORIGIN_QUOTE_BOOST", 6)
-    monkeypatch.setattr(bot, "current_datetime", lambda: datetime(2026, 7, 5))
-
-    base_score = bot.score_image_for_quote(quote_analysis, analysis_obj, bot.build_image_topic_idf(bot.load_image_analysis()))[0]
-    origin_choice = bot.choose_matched_unused_image(set(), {"quote_hash": quote_hash, "analysis": quote_analysis}, {})
-    cross_choice = bot.choose_matched_unused_image(set(), {"quote_hash": "d" * 64, "analysis": quote_analysis}, {})
-
-    assert origin_choice["score"] == pytest.approx(base_score + 6)
-    assert origin_choice["origin_quote_boost"] == 6.0
-    assert cross_choice["score"] == pytest.approx(base_score)
-    assert cross_choice["origin_quote_boost"] == 0.0
-
-
-def test_generated_image_pool_enabled_does_not_migrate_legacy_image_indices(
-    tmp_path: Path,
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    image_dir = tmp_path / "images"
-    generated_dir = tmp_path / "generated"
-    image_dir.mkdir()
-    generated_dir.mkdir()
-    original = image_dir / "t01.jpg"
-    generated = generated_dir / ("tg_" + "d" * 64 + ".png")
-    original.write_bytes(b"original")
-    generated.write_bytes(b"generated")
-    analysis = bot.merge_image_analysis(
-        image_analysis_for_paths([original]),
-        image_analysis_for_paths([generated]),
-    )
-    monkeypatch.setattr(bot, "ENABLE_GENERATED_IMAGE_POOL", True)
-
-    normalised, changed = bot.normalise_image_used_basenames({0}, [str(original), str(generated)], analysis)
-
-    assert normalised == {0}
-    assert not changed
 
 
 def test_highest_scoring_unused_image_is_selected_even_if_global_best_is_used(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:

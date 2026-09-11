@@ -334,6 +334,7 @@ def test_first_429_then_local_rejection_preserves_both_dispositions(
     ]
     state = bot.default_state()
     outcome: dict[str, object] = {}
+    events: list[tuple[str, dict[str, object]]] = []
 
     monkeypatch.setattr(bot, "single_call_reply", enabled_config())
     monkeypatch.setattr(bot, "now_epoch", lambda: current)
@@ -344,7 +345,9 @@ def test_first_429_then_local_rejection_preserves_both_dispositions(
     monkeypatch.setattr(bot, "save_state", lambda *_args, **_kwargs: None)
     monkeypatch.setattr(bot, "sleep", lambda _seconds: None)
     monkeypatch.setattr(bot.requests, "post", lambda *_args, **_kwargs: responses.pop(0))
-    monkeypatch.setattr(bot, "log_event", lambda *_args, **_kwargs: None)
+    monkeypatch.setattr(
+        bot, "log_event", lambda event, **fields: events.append((event, fields)),
+    )
 
     assert bot.generate_single_call_reply(
         pipeline_context(turns=1),
@@ -358,6 +361,69 @@ def test_first_429_then_local_rejection_preserves_both_dispositions(
     assert bot._is_terminal_candidate_local_failure(outcome) is True
     assert state["openai_error_epochs"] == [current]
     assert state["openai_api_cooldown_until_epoch"] == current + 120 + 60
+    decision = next(
+        fields for event, fields in events if event == "single_call_reply_decision"
+    )
+    assert decision["validation_error_codes"] == ["invalid_reply_length_or_whitespace"]
+    assert decision["provider_request_attempt_count"] == 2
+    assert decision["provider_status_code"] == 429
+
+
+@pytest.mark.parametrize(
+    ("response", "category", "codes", "terminal"),
+    [
+        (
+            response_envelope(raw_decision(reply="A reply @name #topic")),
+            "local_validation",
+            ["reply_contains_hashtag", "reply_contains_link_or_address",
+             "reply_contains_mention"], True,
+        ),
+        (
+            response_envelope(raw_decision(
+                kind="direct_factual", facts=["not-a-schema-fact-id"],
+            )),
+            "schema_validation",
+            ["direct_factual_missing_fact_id", "invalid_used_fact_ids"], False,
+        ),
+        ({"status": "completed", "output": []}, "provider_schema", [], False),
+    ],
+)
+def test_validation_diagnostics_preserve_candidate_and_provider_health_routing(
+    monkeypatch: pytest.MonkeyPatch, response: dict[str, object],
+    category: str, codes: list[str], terminal: bool,
+) -> None:
+    """Add rule telemetry without turning a local veto into a global API error."""
+
+    current = 2_000_000_000
+    result = _run_response(response)
+    state = bot.default_state()
+    outcome: dict[str, object] = {}
+    events: list[tuple[str, dict[str, object]]] = []
+    monkeypatch.setattr(bot, "now_epoch", lambda: current)
+    monkeypatch.setattr(bot, "collect_reply_images", lambda _media: [])
+    monkeypatch.setattr(bot, "reply_evidence_repository", FakeRepository)
+    monkeypatch.setattr(bot, "require_remote_operation_unpaused", lambda *_args: None)
+    monkeypatch.setattr(bot, "run_single_call_reply_pipeline", lambda **_kwargs: result)
+    monkeypatch.setattr(bot, "save_state", lambda *_args, **_kwargs: None)
+    monkeypatch.setattr(
+        bot, "log_event", lambda event, **fields: events.append((event, fields)),
+    )
+
+    assert bot.generate_single_call_reply(
+        pipeline_context(turns=1), None, state=state, evaluation_outcome=outcome,
+    ) is None
+
+    assert outcome["error_category"] == category
+    assert bot._is_terminal_candidate_local_failure(outcome) is terminal
+    assert bot._is_openai_provider_health_failure(category) is not terminal
+    assert state["openai_error_epochs"] == ([] if terminal else [current])
+    assert state["openai_api_cooldown_until_epoch"] == 0
+    decision = next(
+        fields for event, fields in events if event == "single_call_reply_decision"
+    )
+    assert decision["validation_error_codes"] == codes
+    assert decision["error_category"] == category
+    assert decision["failure_reason"] == "model_response_validation_failed"
 
 
 def test_first_429_then_valid_decision_is_success_not_provider_failure(

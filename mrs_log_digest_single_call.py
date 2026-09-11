@@ -19,6 +19,102 @@ from mrs_log_digest_values import (
     normalise_reply_lane,
     valid_string_public_post_id,
 )
+from single_call_reply_validation import (
+    SCHEMA_VALIDATION_ERROR_CODES,
+    normalise_validation_error_codes,
+)
+
+
+VALIDATION_FAILURE_CANDIDATE_LIMIT = 40
+
+
+def _validation_error_fields(
+    event: Mapping[str, Any], *, projected: bool = False,
+) -> Dict[str, Any]:
+    """Project rule codes without retaining untrusted prose or claimed statuses."""
+    if "validation_error_codes" not in event:
+        codes, omitted, status = (), 0, "missing"
+    elif type(event["validation_error_codes"]) is not list:
+        codes, omitted, status = (), 1, "malformed"
+    else:
+        codes, omitted = normalise_validation_error_codes(
+            event["validation_error_codes"]
+        )
+        status = "available" if codes else "empty"
+    if projected:
+        # Parser-owned diagnostics must survive summary calculation after the
+        # invalid values themselves have already been removed from the event.
+        previous_omitted = event.get("validation_error_codes_omitted_count")
+        if type(previous_omitted) is int and 0 <= previous_omitted <= 1_000_000:
+            omitted += previous_omitted
+        if not codes and event.get("validation_error_details_status") == "missing":
+            status = "missing"
+    if omitted:
+        status = "partial" if codes else "malformed"
+    return {
+        "validation_error_codes": list(codes),
+        "validation_error_details_status": status,
+        "validation_error_codes_omitted_count": omitted,
+    }
+
+
+def _single_call_validation_failure_details(
+    decisions: List[Dict[str, Any]],
+) -> Dict[str, Any]:
+    """Count each failed rule once per decision and retain bounded candidate rows."""
+    rule_counts: Counter[str] = Counter()
+    rule_counts_by_category: Dict[str, Counter[str]] = {
+        "schema_validation": Counter(),
+        "local_validation": Counter(),
+    }
+    status_counts: Counter[str] = Counter()
+    candidates: List[Dict[str, Any]] = []
+    for item in decisions:
+        category = item.get("error_category")
+        if (
+            item.get("local_validation_status") != "failed"
+            or type(category) is not str
+            or category not in rule_counts_by_category
+        ):
+            continue
+        detail = _validation_error_fields(item, projected=True)
+        status_counts[detail["validation_error_details_status"]] += 1
+        for code in detail["validation_error_codes"]:
+            rule_counts[code] += 1
+            rule_category = (
+                "schema_validation"
+                if code in SCHEMA_VALIDATION_ERROR_CODES
+                else "local_validation"
+            )
+            rule_counts_by_category[rule_category][code] += 1
+        candidates.append({
+            "time": bounded_event_text(
+                item.get("time"), default="unavailable", max_characters=50,
+            ),
+            "lane": normalise_reply_lane(item.get("lane")),
+            "target_id": (
+                item.get("target_id")
+                if valid_string_public_post_id(item.get("target_id")) else ""
+            ),
+            "error_category": category,
+            "failure_reason": bounded_event_text(
+                item.get("failure_reason"), default="unavailable", max_characters=200,
+            ),
+            **detail,
+        })
+    return {
+        "candidate_count": len(candidates),
+        "rule_counts": dict(rule_counts.most_common()),
+        "rule_counts_by_category": {
+            category: dict(counts.most_common())
+            for category, counts in rule_counts_by_category.items()
+        },
+        "details_status_counts": dict(status_counts.most_common()),
+        "candidates": candidates[-VALIDATION_FAILURE_CANDIDATE_LIMIT:],
+        "omitted_candidate_count": max(
+            0, len(candidates) - VALIDATION_FAILURE_CANDIDATE_LIMIT,
+        ),
+    }
 
 
 def _single_call_attempt_summary(
@@ -301,6 +397,9 @@ def single_call_reply_summary(events: List[Dict[str, Any]]) -> Dict[str, Any]:
         "error_category_counts": count_values(operational, "error_category"),
         "schema_validation_failure_count": schema_failure_count,
         "local_validation_failure_count": local_failure_count,
+        "validation_failure_details": _single_call_validation_failure_details(
+            decisions
+        ),
         "average_visible_turn_count": average("visible_turn_count"),
         "average_visible_character_count": average("visible_character_count"),
         "average_same_author_interaction_count": average(
@@ -455,6 +554,7 @@ def record_single_call_reply_decision(
         provider_response_id=bounded_event_text(
             event_obj.get("provider_response_id"), max_characters=300
         ),
+        **_validation_error_fields(event_obj),
     )
 
 

@@ -8205,7 +8205,7 @@ def test_digest_reports_generated_image_spacing_status(tmp_path: Path) -> None:
     digest = run_digest(base)
 
     assert digest.returncode == 0, digest.stderr
-    assert "## Generated image spacing" in digest.stdout
+    assert "## Historical generated image spacing" in digest.stdout
     assert "required_original_posts_between = 2" in digest.stdout
     assert "original_posts_since_generated  = 0" in digest.stdout
     assert "generated_pool_enabled          = true" in digest.stdout

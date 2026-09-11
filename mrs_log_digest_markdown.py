@@ -1153,7 +1153,8 @@ def _render_generated_images(report: Dict[str, Any], out: List[str]) -> None:
             "on",
         }
     pool_health = report.get("generated_image_pool_health") or {}
-    if pool_health:
+    runtime_retired = pool_health.get("status") == "retired"
+    if pool_health and not runtime_retired:
         out.append("## Generated image pool health")
         out.append("Current filesystem snapshot at digest generation time; these counts are not limited to the selected log window.")
         if generated_pool_enabled is False:
@@ -1279,7 +1280,7 @@ def _render_generated_images(report: Dict[str, Any], out: List[str]) -> None:
             out.append("")
 
     utilisation = report.get("generated_image_utilisation") or {}
-    if utilisation:
+    if utilisation and not runtime_retired:
         out.append("## Generated image utilisation")
         out.append(
             "Current-cycle history records whether an image is marked used in the live image cycle. "
@@ -1399,7 +1400,9 @@ def _render_generated_images(report: Dict[str, Any], out: List[str]) -> None:
             out.append("")
 
     if generated_spacing_latest or generated_spacing_events:
-        out.append("## Generated image spacing")
+        out.append("## Historical generated image spacing" if runtime_retired else "## Generated image spacing")
+        if runtime_retired:
+            out.append("Generated-image selection has been removed from the bot runtime. These are retained historical observations.")
         if generated_spacing_latest:
             if generated_pool_enabled is False:
                 out.append(
@@ -1620,7 +1623,10 @@ def _render_identity_policy(report: Dict[str, Any], out: List[str]) -> None:
     identity_policy_summary = identity_policy.get("summary") or {}
     if identity_policy_events:
         out.append("## Generated identity policy")
-        out.append("This policy is active in real production. New events compare policy-disabled and policy-enabled selection with the same candidates, scores and saved random state; the counterfactual baseline image was not posted.")
+        if (report.get("generated_image_pool_health") or {}).get("status") == "retired":
+            out.append("These are historical observations of the retired generated-image identity policy. Counterfactual baseline images were not posted.")
+        else:
+            out.append("This policy is active in real production. New events compare policy-disabled and policy-enabled selection with the same candidates, scores and saved random state; the counterfactual baseline image was not posted.")
         out.append("")
         out.append("The winner-change percentage denominator is counterfactually validated selections where the policy affected a score or eligibility. Older events without that comparison are reported separately and are not attributed causally.")
         out.append("")
@@ -1974,6 +1980,48 @@ def _render_shadow_lifecycle(report: Dict[str, Any], out: List[str]) -> None:
     out.append("")
 
 
+def _render_reply_validation_failures(single_reply: Dict[str, Any], out: List[str]) -> None:
+    """Show bounded rule diagnostics and distinguish older missing details."""
+    details = single_reply.get("validation_failure_details") or {}
+    if not details.get("candidate_count"):
+        return
+    out.append("")
+    out.append("### Rejected reply validation details")
+    out.append(
+        "Failed rules: **" + _compact_counts(details.get("rule_counts") or {})
+        + "**. Detail availability: **"
+        + _compact_counts(details.get("details_status_counts") or {}) + "**."
+    )
+    out.append("")
+    out.append(md_table_row(["time", "lane", "target ID", "category", "failed rules", "details"]))
+    out.append(md_table_row(["---"] * 6))
+    for candidate in details.get("candidates") or []:
+        codes = candidate.get("validation_error_codes") or []
+        status = candidate.get("validation_error_details_status", "missing")
+        availability = {
+            "available": "available",
+            "missing": "unavailable (older event did not record rules)",
+            "empty": "unavailable (no rule codes recorded)",
+            "partial": "partial (some values omitted)",
+            "malformed": "unavailable (malformed rule details)",
+        }.get(status, "unavailable")
+        omitted = candidate.get("validation_error_codes_omitted_count", 0)
+        if omitted:
+            availability += f"; {omitted} values omitted"
+        out.append(md_table_row([
+            candidate.get("time", ""), candidate.get("lane", ""),
+            candidate.get("target_id", ""), candidate.get("error_category", ""),
+            ", ".join(codes) if codes else "unavailable", availability,
+        ], cell_limit=2000))
+    omitted_candidates = details.get("omitted_candidate_count", 0)
+    if omitted_candidates:
+        out.append(
+            f"Earlier rejected decisions omitted from this table: **{omitted_candidates}**; "
+            "rule counts include every rejected decision in the selected window."
+        )
+    out.append("")
+
+
 def _render_single_call_replies(report: Dict[str, Any], out: List[str]) -> None:
     single_reply = report.get("single_call_reply") or {}
     out.append("## Single-call conversational replies")
@@ -2032,6 +2080,7 @@ def _render_single_call_replies(report: Dict[str, Any], out: List[str]) -> None:
         f"{single_reply.get('local_validation_failure_count', 0)}**; "
         f"posting failures: **{single_reply.get('posting_failure_count', 0)}**."
     )
+    _render_reply_validation_failures(single_reply, out)
     out.append(
         "Average visible turns / visible characters / same-author interactions / "
         "recent conversational replies / trusted facts / supplied images: **"

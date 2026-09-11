@@ -10,7 +10,6 @@ from typing import Any
 
 def default_state(
     *,
-    GENERATED_IMAGE_MIN_ORIGINAL_POSTS_BETWEEN: Any,
     STATE_MINIMUM_READER_VERSION: Any,
 ) -> dict:
     """Build a new runtime-state document with safe defaults."""
@@ -53,7 +52,6 @@ def default_state(
         "next_reply_lane_priority": "normal",
         "last_main_post_id": None,
         "last_regular_image_filename": None,
-        "original_regular_posts_since_generated_image": GENERATED_IMAGE_MIN_ORIGINAL_POSTS_BETWEEN,
         "last_quote_post_epoch": 0,
         "next_quote_post_epoch": 0,
 

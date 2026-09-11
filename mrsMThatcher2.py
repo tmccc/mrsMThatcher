@@ -222,7 +222,6 @@ from urllib3.util import Timeout
 import engagement_question_experiment as engagement_question_trial
 import mrs_bot_image_scoring as _image_scoring
 import mrs_bot_original_editorial as _original_editorial
-import mrs_bot_generated_identity as _generated_identity
 import mrs_bot_asset_metadata as _asset_metadata
 import mrs_bot_quote_candidates as _quote_candidates
 import mrs_bot_image_selection as _image_selection
@@ -576,7 +575,6 @@ THREAD_CONTEXT_MAX_NETWORK_FETCHES = 3
 THREAD_CONTEXT_MAX_CHARS_PER_POST = MAX_VISIBLE_TEXT_CHARACTERS
 THREAD_CONTEXT_MAX_TOTAL_CHARS = MAX_VISIBLE_TEXT_CHARACTERS
 MAX_REPLY_CONTEXT_PHOTOS = MAX_SUPPLIED_IMAGES
-GENERATED_IMAGE_ORIGIN_QUOTE_BOOST = 4
 
 TWEET_CACHE_MAX_AGE_SECONDS = 7 * 24 * 3600
 TWEET_CACHE_MAX_ITEMS = 500
@@ -633,22 +631,12 @@ if TEST_MODE and path_is_same_or_child(BASE_DIR, PRODUCTION_BASE_DIR):
 
 LINES_FILE = BASE_DIR / "mrsMThatcher.txt"
 IMAGE_GLOB = str(BASE_DIR / "images/t*")
-ENABLE_GENERATED_IMAGE_POOL = False
-GENERATED_IMAGE_DIR = str(BASE_DIR / "generated_review_approved_images")
-GENERATED_IMAGE_GLOB = "*.png"
-GENERATED_IMAGE_MIN_ORIGINAL_POSTS_BETWEEN = 2
 QUOTE_ANALYSIS_FILE = BASE_DIR / "quote_analysis.json"
 IMAGE_ANALYSIS_FILE = BASE_DIR / "image_analysis.json"
-GENERATED_IMAGE_ANALYSIS_FILE = str(BASE_DIR / "generated_image_analysis.json")
 ENABLE_ORIGINAL_EDITORIAL_SHADOW_SCORING = False
 ORIGINAL_EDITORIAL_ANALYSIS_FILE = str(BASE_DIR / "original_image_editorial_analysis_experiment_v1.json")
 ORIGINAL_EDITORIAL_SHADOW_WEIGHT = 0.32
 ORIGINAL_EDITORIAL_SHADOW_MAX_ABS_ADJUSTMENT = 4.0
-ENABLE_GENERATED_IDENTITY_POLICY_SHADOW_SCORING = False
-ENABLE_GENERATED_IDENTITY_POLICY_SCORING = False
-GENERATED_IDENTITY_AUDIT_FILE = str(BASE_DIR / "generated_image_identity_dependence_audit.json")
-GENERATED_IDENTITY_SHADOW_SMALL_PENALTY = 6.0
-GENERATED_IDENTITY_SHADOW_STRONG_PENALTY = 15.0
 QUOTE_ANALYSIS_OVERRIDES_FILE = BASE_DIR / "quote_analysis_overrides.json"
 HISTORICAL_CONTEXT_RESEARCH_DIR = BASE_DIR / "semantic_alignment_research" / "quote_research_full_001"
 COMPLETED_QUOTE_RESEARCH_FILE = HISTORICAL_CONTEXT_RESEARCH_DIR / "research_packets.json"
@@ -1408,22 +1396,10 @@ LOCAL_CONFIG_ALLOWED_KEYS = {
     "COOLDOWN_AFTER_REPEATED_ERRORS_SECONDS",
     "COOLDOWN_AFTER_429_SECONDS",
 
-    # Optional generated-image pool for regular quote/image posts
-    "ENABLE_GENERATED_IMAGE_POOL",
-    "GENERATED_IMAGE_DIR",
-    "GENERATED_IMAGE_GLOB",
-    "GENERATED_IMAGE_ANALYSIS_FILE",
-    "GENERATED_IMAGE_ORIGIN_QUOTE_BOOST",
-    "GENERATED_IMAGE_MIN_ORIGINAL_POSTS_BETWEEN",
     "ENABLE_ORIGINAL_EDITORIAL_SHADOW_SCORING",
     "ORIGINAL_EDITORIAL_ANALYSIS_FILE",
     "ORIGINAL_EDITORIAL_SHADOW_WEIGHT",
     "ORIGINAL_EDITORIAL_SHADOW_MAX_ABS_ADJUSTMENT",
-    "ENABLE_GENERATED_IDENTITY_POLICY_SHADOW_SCORING",
-    "ENABLE_GENERATED_IDENTITY_POLICY_SCORING",
-    "GENERATED_IDENTITY_AUDIT_FILE",
-    "GENERATED_IDENTITY_SHADOW_SMALL_PENALTY",
-    "GENERATED_IDENTITY_SHADOW_STRONG_PENALTY",
 
     # Operational hardening
     "STATE_BACKUP_COUNT",
@@ -1472,8 +1448,6 @@ LOCAL_CONFIG_NON_NEGATIVE_INT_KEYS = {
     "MAX_OPENAI_ERRORS_PER_WINDOW",
     "COOLDOWN_AFTER_REPEATED_ERRORS_SECONDS",
     "COOLDOWN_AFTER_429_SECONDS",
-    "GENERATED_IMAGE_ORIGIN_QUOTE_BOOST",
-    "GENERATED_IMAGE_MIN_ORIGINAL_POSTS_BETWEEN",
     "STATE_BACKUP_COUNT",
 }
 
@@ -2415,7 +2389,6 @@ def save_used_set(path: Path, value: set, *, durable: bool = False) -> None:
 def default_state() -> dict:
     """Build a new runtime-state document with safe defaults."""
     return _runtime_state_helpers.default_state(
-        GENERATED_IMAGE_MIN_ORIGINAL_POSTS_BETWEEN=GENERATED_IMAGE_MIN_ORIGINAL_POSTS_BETWEEN,
         STATE_MINIMUM_READER_VERSION=STATE_MINIMUM_READER_VERSION,
     )
 
@@ -2913,8 +2886,6 @@ def normalise_state_candidate(
         canonical_mention_pending_candidates=canonical_mention_pending_candidates,
         default_state=default_state,
         engagement_question_trial=engagement_question_trial,
-        generated_image_origin_quote_hash=generated_image_origin_quote_hash,
-        generated_image_spacing_required=generated_image_spacing_required,
         hashlib=hashlib,
         log=log,
         normalise_author_evaluation_quarantines=normalise_author_evaluation_quarantines,
@@ -5331,24 +5302,11 @@ def load_image_analysis_file(path: Path, *, label: str) -> dict | None:
     )
 
 
-def merge_image_analysis(primary: dict, generated: dict | None) -> dict:
-    """Merge image analysis."""
-    return _asset_metadata.merge_image_analysis(
-        primary,
-        generated,
-        log=log,
-    )
-
-
 def load_image_analysis() -> dict | None:
-    """Load original and, when enabled, generated image metadata."""
+    """Load metadata for the original-image corpus."""
     return _asset_metadata.load_image_analysis(
         image_analysis_file=IMAGE_ANALYSIS_FILE,
-        pool_enabled=ENABLE_GENERATED_IMAGE_POOL,
-        generated_image_analysis_file=GENERATED_IMAGE_ANALYSIS_FILE,
         load_image_analysis_file=load_image_analysis_file,
-        merge_image_analysis=merge_image_analysis,
-        log=log,
     )
 
 
@@ -5477,12 +5435,8 @@ def current_image_paths() -> list[str]:
     """Return the current image paths."""
     return _asset_metadata.current_image_paths(
         image_glob=IMAGE_GLOB,
-        pool_enabled=ENABLE_GENERATED_IMAGE_POOL,
-        generated_image_dir=GENERATED_IMAGE_DIR,
-        generated_image_glob=GENERATED_IMAGE_GLOB,
         glob=glob,
-        configured_generated_image_paths=configured_generated_image_paths,
-        log=log,
+        generated_image_origin_quote_hash=generated_image_origin_quote_hash,
     )
 
 
@@ -6326,8 +6280,6 @@ def apply_regular_post_receipt(receipt: dict, lines_used: set, images_used: set,
         maybe_schedule_meme_after_quote_post=maybe_schedule_meme_after_quote_post,
         meme_schedule_date_str=meme_schedule_date_str,
         record_recent_own_post=record_recent_own_post,
-        regular_generated_image_spacing_already_reflected=regular_generated_image_spacing_already_reflected,
-        update_regular_generated_image_spacing_state=update_regular_generated_image_spacing_state,
     )
 
 
@@ -6854,7 +6806,6 @@ def image_corpus_verified_for_legacy_migration(images: list[str], image_analysis
     return _used_history.image_corpus_verified_for_legacy_migration(
         images,
         image_analysis,
-        ENABLE_GENERATED_IMAGE_POOL=ENABLE_GENERATED_IMAGE_POOL,
         Path=Path,
     )
 
@@ -7026,11 +6977,6 @@ _ORIGINAL_EDITORIAL_SYNONYM_TO_CONCEPT = {
     for value in values | {concept}
 }
 _ORIGINAL_EDITORIAL_ANALYSIS_CACHE: dict[str, dict] = {}
-GENERATED_IDENTITY_AUDIT_KIND = "generated_image_identity_dependence_audit"
-GENERATED_IDENTITY_AUDIT_SCHEMA_VERSION = 1
-GENERATED_IDENTITY_POLICIES = {"unrestricted", "small_penalty", "strong_penalty", "origin_quote_only"}
-GENERATED_IDENTITY_DEPENDENCE_VALUES = {"none", "low", "medium", "high", "essential"}
-_GENERATED_IDENTITY_AUDIT_CACHE: dict[str, dict] = {}
 
 
 original_editorial_numeric = _original_editorial.original_editorial_numeric
@@ -7117,166 +7063,6 @@ def validate_original_editorial_shadow_startup() -> None:
         analysis_file=ORIGINAL_EDITORIAL_ANALYSIS_FILE,
         default_weight=ORIGINAL_EDITORIAL_SHADOW_WEIGHT,
         default_max_abs_adjustment=ORIGINAL_EDITORIAL_SHADOW_MAX_ABS_ADJUSTMENT,
-        log=log,
-    )
-
-
-generated_identity_numeric = _generated_identity.generated_identity_numeric
-
-
-def configured_generated_image_paths() -> dict[str, Path]:
-    """Return the configured generated image paths."""
-    return _asset_metadata.configured_generated_image_paths(
-        generated_image_dir=GENERATED_IMAGE_DIR,
-        generated_image_glob=GENERATED_IMAGE_GLOB,
-        glob=glob,
-        path_is_same_or_child=path_is_same_or_child,
-        generated_image_origin_quote_hash=generated_image_origin_quote_hash,
-    )
-
-
-def validate_generated_identity_audit_item(basename: str, item: object, image_by_name: dict[str, Path]) -> dict:
-    """Validate generated identity audit item."""
-    return _generated_identity.validate_generated_identity_audit_item(
-        basename, item, image_by_name,
-        generated_image_origin_quote_hash=generated_image_origin_quote_hash,
-        file_sha256=file_sha256,
-        policies=GENERATED_IDENTITY_POLICIES,
-        dependence_values=GENERATED_IDENTITY_DEPENDENCE_VALUES,
-        generated_identity_numeric=generated_identity_numeric,
-    )
-
-
-def load_generated_identity_audit() -> dict[str, dict]:
-    """Load generated identity audit."""
-    return _generated_identity.load_generated_identity_audit(
-        audit_file=GENERATED_IDENTITY_AUDIT_FILE,
-        audit_cache=_GENERATED_IDENTITY_AUDIT_CACHE,
-        schema_version=GENERATED_IDENTITY_AUDIT_SCHEMA_VERSION,
-        audit_kind=GENERATED_IDENTITY_AUDIT_KIND,
-        configured_generated_image_paths=configured_generated_image_paths,
-        validate_generated_identity_audit_item=validate_generated_identity_audit_item,
-    )
-
-
-def validate_generated_identity_shadow_startup() -> None:
-    """Validate generated identity shadow startup."""
-    return _generated_identity.validate_generated_identity_shadow_startup(
-        pool_enabled=ENABLE_GENERATED_IMAGE_POOL,
-        shadow_enabled=ENABLE_GENERATED_IDENTITY_POLICY_SHADOW_SCORING,
-        scoring_enabled=ENABLE_GENERATED_IDENTITY_POLICY_SCORING,
-        load_generated_identity_audit=load_generated_identity_audit,
-        audit_file=GENERATED_IDENTITY_AUDIT_FILE,
-        small_penalty=GENERATED_IDENTITY_SHADOW_SMALL_PENALTY,
-        strong_penalty=GENERATED_IDENTITY_SHADOW_STRONG_PENALTY,
-        log=log,
-    )
-
-
-def generated_identity_policy_scoring_active() -> bool:
-    """Return whether generated candidates can receive production policy scoring."""
-    return bool(ENABLE_GENERATED_IMAGE_POOL and ENABLE_GENERATED_IDENTITY_POLICY_SCORING)
-
-
-def generated_identity_policy_shadow_active() -> bool:
-    """Return whether generated candidates can receive observational policy scoring."""
-    return bool(
-        ENABLE_GENERATED_IMAGE_POOL
-        and ENABLE_GENERATED_IDENTITY_POLICY_SHADOW_SCORING
-    )
-
-
-def generated_identity_candidate_shadow_row(candidate: dict, audit_by_basename: dict[str, dict]) -> dict:
-    """Return the generated identity candidate shadow row."""
-    return _generated_identity.generated_identity_candidate_shadow_row(
-        candidate, audit_by_basename,
-        small_penalty=GENERATED_IDENTITY_SHADOW_SMALL_PENALTY,
-        strong_penalty=GENERATED_IDENTITY_SHADOW_STRONG_PENALTY,
-    )
-
-
-def generated_identity_policy_shadow_result(
-    quote_choice: dict,
-    production_choice: dict,
-    scored_candidates: list[dict],
-    *,
-    selection_phase: str,
-    audit_by_basename: dict[str, dict] | None = None,
-    selection_rng_state: object | None = None,
-) -> dict:
-    """Evaluate generated-image identity policy without changing selection."""
-    return _generated_identity.generated_identity_policy_shadow_result(
-        quote_choice, production_choice, scored_candidates,
-        selection_phase=selection_phase,
-        audit_by_basename=audit_by_basename,
-        selection_rng_state=selection_rng_state,
-        load_generated_identity_audit=load_generated_identity_audit,
-        generated_identity_candidate_shadow_row=generated_identity_candidate_shadow_row,
-        _choice_with_random_state=_choice_with_random_state,
-        small_penalty=GENERATED_IDENTITY_SHADOW_SMALL_PENALTY,
-        strong_penalty=GENERATED_IDENTITY_SHADOW_STRONG_PENALTY,
-    )
-
-
-def generated_identity_policy_selection(
-    scored_candidates: list[dict],
-    *,
-    audit_by_basename: dict[str, dict] | None = None,
-) -> tuple[list[dict], list[dict]]:
-    """Return policy rows and eligible candidates without mutating input rows."""
-    return _generated_identity.generated_identity_policy_selection(
-        scored_candidates,
-        audit_by_basename=audit_by_basename,
-        load_generated_identity_audit=load_generated_identity_audit,
-        generated_identity_candidate_shadow_row=generated_identity_candidate_shadow_row,
-    )
-
-
-_choice_with_random_state = _generated_identity._choice_with_random_state
-
-
-def generated_identity_policy_applied_result(
-    quote_choice: dict,
-    production_winner: dict,
-    baseline_candidates: list[dict],
-    policy_rows: list[dict],
-    policy_tie_count: int,
-    *,
-    selection_phase: str,
-    selection_rng_state: object,
-) -> dict:
-    """Apply the enabled generated-image identity policy to scored candidates."""
-    return _generated_identity.generated_identity_policy_applied_result(
-        quote_choice, production_winner, baseline_candidates, policy_rows, policy_tie_count,
-        selection_phase=selection_phase,
-        selection_rng_state=selection_rng_state,
-        _choice_with_random_state=_choice_with_random_state,
-    )
-
-
-def log_generated_identity_policy_applied_result(payload: dict) -> None:
-    """Log generated identity policy applied result."""
-    return _generated_identity.log_generated_identity_policy_applied_result(
-        payload,
-        log=log,
-    )
-
-
-def log_generated_identity_policy_shadow_result(
-    quote_choice: dict,
-    production_choice: dict,
-    scored_candidates: list[dict],
-    *,
-    selection_phase: str,
-    selection_rng_state: object | None = None,
-) -> None:
-    """Log generated identity policy shadow result."""
-    return _generated_identity.log_generated_identity_policy_shadow_result(
-        quote_choice, production_choice, scored_candidates,
-        selection_phase=selection_phase,
-        selection_rng_state=selection_rng_state,
-        generated_identity_policy_shadow_active=generated_identity_policy_shadow_active,
-        generated_identity_policy_shadow_result=generated_identity_policy_shadow_result,
         log=log,
     )
 
@@ -7733,99 +7519,6 @@ def image_metadata_for_basename(image_analysis: dict | None, basename: str, path
 generated_image_origin_quote_hash = _asset_metadata.generated_image_origin_quote_hash
 
 
-def image_selection_observability(basename: str, quote_hash: object = None, origin_quote_boost: float = 0.0) -> dict:
-    """Return the image selection observability."""
-    return _image_selection.image_selection_observability(
-        basename,
-        quote_hash,
-        origin_quote_boost,
-        generated_image_origin_quote_hash=generated_image_origin_quote_hash,
-    )
-
-
-def generated_image_spacing_required() -> int:
-    """Return the generated image spacing required."""
-    return _image_selection.generated_image_spacing_required(
-        min_original_posts_between=GENERATED_IMAGE_MIN_ORIGINAL_POSTS_BETWEEN,
-    )
-
-
-def original_posts_since_generated_image(state: dict | None) -> int:
-    """Return the original posts since generated image."""
-    return _image_selection.original_posts_since_generated_image(
-        state,
-        generated_image_spacing_required=generated_image_spacing_required,
-    )
-
-
-def generated_images_allowed_by_spacing(state: dict | None) -> bool:
-    """Return whether generated images allowed by spacing."""
-    return _image_selection.generated_images_allowed_by_spacing(
-        state,
-        generated_image_spacing_required=generated_image_spacing_required,
-        original_posts_since_generated_image=original_posts_since_generated_image,
-    )
-
-
-def log_generated_image_spacing_status(state: dict | None) -> bool:
-    """Log generated image spacing status."""
-    return _image_selection.log_generated_image_spacing_status(
-        state,
-        generated_image_spacing_required=generated_image_spacing_required,
-        original_posts_since_generated_image=original_posts_since_generated_image,
-        generated_images_allowed_by_spacing=generated_images_allowed_by_spacing,
-        enable_generated_image_pool=ENABLE_GENERATED_IMAGE_POOL,
-        log=log,
-    )
-
-
-def log_generated_image_spacing_state_updated(state: dict | None, image_basename: str) -> None:
-    """Log generated image spacing state updated."""
-    return _image_selection.log_generated_image_spacing_state_updated(
-        state,
-        image_basename,
-        generated_image_spacing_required=generated_image_spacing_required,
-        original_posts_since_generated_image=original_posts_since_generated_image,
-        generated_images_allowed_by_spacing=generated_images_allowed_by_spacing,
-        generated_image_origin_quote_hash=generated_image_origin_quote_hash,
-        enable_generated_image_pool=ENABLE_GENERATED_IMAGE_POOL,
-        log=log,
-    )
-
-
-def filter_generated_images_by_spacing(eligible_basenames: set[str], state: dict | None) -> set[str]:
-    """Filter generated images by spacing."""
-    return _image_selection.filter_generated_images_by_spacing(
-        eligible_basenames,
-        state,
-        generated_images_allowed_by_spacing=generated_images_allowed_by_spacing,
-        generated_image_origin_quote_hash=generated_image_origin_quote_hash,
-        enable_generated_image_pool=ENABLE_GENERATED_IMAGE_POOL,
-    )
-
-
-def update_regular_generated_image_spacing_state(state: dict, image_basename: str) -> None:
-    """Update regular generated image spacing state."""
-    return _image_selection.update_regular_generated_image_spacing_state(
-        state,
-        image_basename,
-        generated_image_spacing_required=generated_image_spacing_required,
-        generated_image_origin_quote_hash=generated_image_origin_quote_hash,
-        original_posts_since_generated_image=original_posts_since_generated_image,
-        log_generated_image_spacing_state_updated=log_generated_image_spacing_state_updated,
-    )
-
-
-def regular_generated_image_spacing_already_reflected(state: dict, image_basename: str) -> bool:
-    """Return the regular generated image spacing already reflected."""
-    return _image_selection.regular_generated_image_spacing_already_reflected(
-        state,
-        image_basename,
-        generated_image_origin_quote_hash=generated_image_origin_quote_hash,
-        original_posts_since_generated_image=original_posts_since_generated_image,
-    )
-
-
 def log_regular_image_selection(choice: dict) -> None:
     """Log regular image selection."""
     return _image_selection.log_regular_image_selection(
@@ -7842,7 +7535,6 @@ def choose_matched_unused_image(
     force_cycle_reset: bool = False,
     avoid_last_image_at_cycle_boundary: bool = True,
     cycle_boundary_exclusions: set[str] | None = None,
-    generated_images_allowed: bool | None = None,
     selection_phase: str = "normal",
 ) -> dict:
     """Select the highest-scoring eligible unused image for a quotation."""
@@ -7853,7 +7545,6 @@ def choose_matched_unused_image(
         force_cycle_reset=force_cycle_reset,
         avoid_last_image_at_cycle_boundary=avoid_last_image_at_cycle_boundary,
         cycle_boundary_exclusions=cycle_boundary_exclusions,
-        generated_images_allowed=generated_images_allowed,
         selection_phase=selection_phase,
         current_image_paths=current_image_paths,
         load_image_analysis=load_image_analysis,
@@ -7864,24 +7555,14 @@ def choose_matched_unused_image(
         build_image_topic_idf=build_image_topic_idf,
         image_metadata_for_basename=image_metadata_for_basename,
         image_is_out_of_season=image_is_out_of_season,
-        generated_images_allowed_by_spacing=generated_images_allowed_by_spacing,
-        filter_generated_images_by_spacing=filter_generated_images_by_spacing,
         available_currently_eligible_image_basenames=available_currently_eligible_image_basenames,
         score_image_for_quote=score_image_for_quote,
-        generated_image_origin_quote_hash=generated_image_origin_quote_hash,
-        image_selection_observability=image_selection_observability,
-        generated_identity_policy_scoring_active=generated_identity_policy_scoring_active,
-        generated_identity_policy_selection=generated_identity_policy_selection,
         apply_original_editorial_selection=apply_original_editorial_selection,
         concise_components=concise_components,
         log_regular_image_selection=log_regular_image_selection,
         log_original_editorial_shadow_result=log_original_editorial_shadow_result,
-        generated_identity_policy_applied_result=generated_identity_policy_applied_result,
-        log_generated_identity_policy_applied_result=log_generated_identity_policy_applied_result,
-        log_generated_identity_policy_shadow_result=log_generated_identity_policy_shadow_result,
         image_glob=IMAGE_GLOB,
         images_used_file=IMAGES_USED_FILE,
-        generated_image_origin_quote_boost=GENERATED_IMAGE_ORIGIN_QUOTE_BOOST,
         UnsafeImageHistoryMigration=UnsafeImageHistoryMigration,
         GlobalImageUnavailable=GlobalImageUnavailable,
         StaleImageMetadata=StaleImageMetadata,
@@ -7907,7 +7588,6 @@ def choose_regular_quote_image_pair(
         force_image_cycle_reset=force_image_cycle_reset,
         avoid_last_image_at_cycle_boundary=avoid_last_image_at_cycle_boundary,
         excluded_quote_hashes=excluded_quote_hashes,
-        log_generated_image_spacing_status=log_generated_image_spacing_status,
         choose_unused_line_candidate=choose_unused_line_candidate,
         choose_matched_unused_image=choose_matched_unused_image,
         max_quote_image_pair_attempts=MAX_QUOTE_IMAGE_PAIR_ATTEMPTS,
@@ -7927,7 +7607,6 @@ def choose_engagement_question_image(
         images_used,
         quote_choice,
         state,
-        log_generated_image_spacing_status=log_generated_image_spacing_status,
         choose_matched_unused_image=choose_matched_unused_image,
         QuoteSpecificImageMismatch=QuoteSpecificImageMismatch,
         log=log,
@@ -7993,7 +7672,6 @@ def post_random_quote(lines_used: set, images_used: set, state: dict) -> None:
         ConfirmedPostLocalPersistenceError=ConfirmedPostLocalPersistenceError,
         materialize_bound_regular_schedule_receipt=materialize_bound_regular_schedule_receipt,
         apply_confirmed_engagement_experiment_receipt=apply_confirmed_engagement_experiment_receipt,
-        update_regular_generated_image_spacing_state=update_regular_generated_image_spacing_state,
         apply_state_fields=apply_state_fields,
         cache_tweet=cache_tweet,
         MY_USER_ID=MY_USER_ID,
@@ -8292,7 +7970,6 @@ def post_next_meme(state: dict) -> None:
         remove_meme_post_receipt=remove_meme_post_receipt,
         emit_account_root_posted=emit_account_root_posted,
     )
-
 
 
 # ---------------------------------------------------------------------
@@ -9878,7 +9555,6 @@ def _run_due_quote_post_for_tick(
         )
 
 
-
 def _run_due_meme_post_for_tick(state: dict, current: int) -> None:
     """Handle meme timing and retries after the main loop's safety gates."""
     if ENABLE_DAILY_MEME_POSTS:
@@ -9930,7 +9606,6 @@ def _run_due_meme_post_for_tick(state: dict, current: int) -> None:
                 "Not due to post daily meme. seconds_until_next=%s",
                 max(0, next_meme_epoch - current),
             )
-
 
 
 def main() -> None:
@@ -10040,7 +9715,6 @@ def main() -> None:
         log.info("Meme candidates found at startup=%d", len(meme_candidates_at_start))
 
     validate_original_editorial_shadow_startup()
-    validate_generated_identity_shadow_startup()
 
     with open(LINES_FILE, encoding="utf-8") as f:
         quote_lines_for_history = f.readlines()

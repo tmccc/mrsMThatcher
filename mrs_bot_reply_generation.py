@@ -8,7 +8,7 @@ failures through the root callback. The actual reply pipeline, evidence lookup,
 draft/history helpers, cooldown persistence, terminal evaluation, posting and
 durable state authority remain in their existing locations.
 
-Import uses only the standard library and constructs the three fixed sets. It
+Import uses the standard library and pure validation vocabulary. It
 performs no file, environment, provider or RNG work and retains no callbacks or
 runtime state. Root constant names directly alias these same objects.
 """
@@ -18,6 +18,8 @@ from __future__ import annotations
 import logging
 import math
 from collections.abc import Callable, Mapping
+
+from single_call_reply_validation import normalise_validation_error_codes
 
 
 _REPLY_IMAGE_MIME_TYPES = {
@@ -543,6 +545,18 @@ def _record_single_call_result(
         target_id=target_id,
         **telemetry,
     )
+    validation_codes, _omitted = normalise_validation_error_codes(
+        telemetry.get("validation_error_codes", [])
+    )
+    if validation_codes:
+        log.info(
+            "Single-call reply validation failed target_id=%s lane=%s "
+            "category=%s rules=%s",
+            target_id,
+            lane,
+            result.error_category,
+            ",".join(validation_codes),
+        )
     if result.provider_usage:
         usage = dict(result.provider_usage)
         log.info(

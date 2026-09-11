@@ -100,14 +100,15 @@ def test_openai_whitespace_requirement_remains_conditional(monkeypatch):
     bot.validate_production_credentials()
 
 
-def test_winter_harness_boundaries_cover_leap_and_nonleap_years():
+def test_winter_harness_boundaries_cover_leap_and_nonleap_years(monkeypatch):
     from types import SimpleNamespace
-    from quote_image_selection_harness import configured_boundaries
+    from quote_image_selection_harness import configured_boundaries, production_sim
     ctx = SimpleNamespace(quote_text={}, bot=SimpleNamespace(load_image_analysis=lambda: {
         "path_index": {"winter.jpg": "hash"}, "items": {"hash": {"analysis": {
             "seasonality": {"avoid_outside_season_or_occasion": True, "visible_season": "winter"}
         }}}
     }))
+    monkeypatch.setattr(production_sim, "historical_image_selection", lambda _bot: ctx.bot)
     ends = [row for row in configured_boundaries(ctx, [2024, 2025]) if row["boundary_kind"] == "end"]
     assert [row["boundary_date"] for row in ends] == ["2024-02-29", "2025-02-28"]
     assert all(row["window_end"] == "02-29" for row in ends)

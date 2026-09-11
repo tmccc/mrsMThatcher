@@ -49,96 +49,6 @@ assert 'mrsMThatcher2' not in sys.modules
     assert selection.random is bot.random is random
 
 
-def test_spacing_uses_current_callbacks_and_keeps_default_failure_and_set_identity(monkeypatch):
-    state = {"original_regular_posts_since_generated_image": 2}
-    required = Mock(return_value=3)
-    monkeypatch.setattr(bot, "generated_image_spacing_required", required)
-    assert bot.original_posts_since_generated_image(state) == 2
-    required.assert_called_once_with()  # The default is evaluated even with a counter.
-    failure = ValueError("current spacing invalid")
-    required.side_effect = failure
-    assert bot.original_posts_since_generated_image(state) == 0
-    with pytest.raises(ValueError) as exc:
-        bot.original_posts_since_generated_image({})
-    assert exc.value is failure
-
-    required.side_effect = None
-    required.return_value = 0
-    count = Mock(return_value=2)
-    monkeypatch.setattr(bot, "original_posts_since_generated_image", count)
-    assert bot.generated_images_allowed_by_spacing(state) is True
-    count.assert_not_called()
-    required.return_value = 3
-    assert bot.generated_images_allowed_by_spacing(state) is False
-    assert count.call_args.args[0] is state
-
-    pool = {"custom-generated", "original"}
-    allowed = Mock(return_value=True)
-    origin = Mock(side_effect=lambda name: "abc" if name == "custom-generated" else None)
-    monkeypatch.setattr(bot, "generated_images_allowed_by_spacing", allowed)
-    monkeypatch.setattr(bot, "generated_image_origin_quote_hash", origin)
-    monkeypatch.setattr(bot, "ENABLE_GENERATED_IMAGE_POOL", False)
-    assert bot.filter_generated_images_by_spacing(pool, state) is pool
-    allowed.assert_not_called()
-    monkeypatch.setattr(bot, "ENABLE_GENERATED_IMAGE_POOL", True)
-    assert bot.filter_generated_images_by_spacing(pool, state) is pool
-    origin.assert_not_called()
-    allowed.return_value = False
-    assert bot.filter_generated_images_by_spacing(pool, state) == {"original"}
-    assert allowed.call_args.args[0] is state
-    assert pool == {"custom-generated", "original"}
-    assert bot.image_selection_observability("custom-generated", "ABC", 2)["origin_quote_boost"] == 2.0
-    assert bot.image_selection_observability("custom-generated", "other", object())["origin_quote_boost"] == 0.0
-
-
-def test_spacing_log_and_counter_callbacks_keep_order_and_mutated_state_reference(monkeypatch):
-    calls = Mock()
-    calls.required.return_value = 3
-    calls.count.return_value = 1
-    calls.allowed.return_value = False
-    calls.origin.return_value = None
-    for name, callback in (
-        ("generated_image_spacing_required", calls.required),
-        ("original_posts_since_generated_image", calls.count),
-        ("generated_images_allowed_by_spacing", calls.allowed),
-        ("generated_image_origin_quote_hash", calls.origin),
-        ("log", calls.log),
-    ):
-        monkeypatch.setattr(bot, name, callback)
-    monkeypatch.setattr(bot, "ENABLE_GENERATED_IMAGE_POOL", True)
-    state = {"original_regular_posts_since_generated_image": 1}
-    assert bot.log_generated_image_spacing_status(state) is False
-    assert calls.mock_calls == [
-        call.required(), call.count(state), call.allowed(state),
-        call.log.info("GENERATED_IMAGE_SPACING_STATUS pool_enabled=%s allowed=%s original_posts_since_generated=%d required=%d", "true", "false", 1, 3),
-        call.log.info("GENERATED_IMAGE_POOL_BLOCKED_BY_SPACING original_posts_since_generated=%d required=%d", 1, 3),
-    ]
-    calls.reset_mock()
-    bot.log_generated_image_spacing_state_updated(state, "original")
-    assert calls.mock_calls == [
-        call.required(), call.count(state), call.allowed(state), call.origin("original"),
-        call.log.info("GENERATED_IMAGE_SPACING_STATE_UPDATED pool_enabled=%s allowed=%s original_posts_since_generated=%d required=%d image_source=%s image=%s", "true", "false", 1, 3, "original", "original"),
-    ]
-    calls.reset_mock()
-    monkeypatch.setattr(bot, "log_generated_image_spacing_state_updated", calls.updated)
-    bot.update_regular_generated_image_spacing_state(state, "original")
-    assert state["original_regular_posts_since_generated_image"] == 2
-    assert calls.mock_calls == [call.required(), call.origin("original"), call.count(state), call.updated(state, "original")]
-    assert calls.updated.call_args.args[0] is state
-    calls.reset_mock()
-    assert bot.regular_generated_image_spacing_already_reflected({}, "generated") is False
-    assert calls.mock_calls == []
-    calls.origin.return_value = "abc"
-    calls.count.return_value = 0
-    assert bot.regular_generated_image_spacing_already_reflected(state, "generated") is True
-    assert calls.mock_calls == [call.origin("generated"), call.count(state)]
-    calls.reset_mock()
-    bot.log_regular_image_selection({"basename": "original", "score": 2})
-    assert calls.mock_calls == [
-        call.log.info("REGULAR_IMAGE_SELECTED source=%s basename=%s score=%s origin_quote_hash=%s origin_quote_match=%s origin_quote_boost=%s", "original", "original", 2, "", "false", 0),
-    ]
-
-
 def test_eligible_cycle_keeps_unrelated_history_and_current_exception_and_logger(monkeypatch):
     class CurrentUnavailable(ValueError):
         pass
@@ -203,7 +113,7 @@ def test_legacy_normalization_mutates_and_saves_before_remaining_index_check(mon
     assert used == normalized
 
 
-def test_selector_preserves_catalog_components_and_policy_callback_references(monkeypatch):
+def test_selector_preserves_original_scores_editorial_callbacks_and_one_random_draw(monkeypatch):
     paths = ["z.jpg", "b.jpg", "g.jpg", "a.jpg", "d.jpg", "c.jpg"]
     corpus = {name: {"name": name} for name in paths}
     components = {name: {"base": score} for score, name in enumerate(sorted(paths), 1)}
@@ -221,67 +131,44 @@ def test_selector_preserves_catalog_components_and_policy_callback_references(mo
     monkeypatch.setattr(bot, "build_image_topic_idf", build_idf)
     monkeypatch.setattr(bot, "image_metadata_for_basename", metadata)
     monkeypatch.setattr(bot, "image_is_out_of_season", seasonal)
-    monkeypatch.setattr(bot, "generated_image_origin_quote_hash", lambda name: "abc" if name == "g.jpg" else None)
-    monkeypatch.setattr(bot, "GENERATED_IMAGE_ORIGIN_QUOTE_BOOST", 2)
 
     def score(quote_analysis, analysis, weights):
         assert quote_analysis is quote["analysis"] and weights is idf
         detail = components[analysis["name"]]
         return float(detail["base"]), detail, True
 
-    def policy(scored):
-        events.append("policy")
-        captured["scored"] = scored
-        candidates = [dict(scored[1], score=10.0), dict(scored[-1], score=10.0)]
-        captured["candidates"] = candidates
-        captured["rows"] = []
-        return captured["rows"], candidates
-
     def editorial(current_quote, baseline, candidates, **kwargs):
         events.append("editorial")
-        assert current_quote is quote and candidates is captured["candidates"]
-        assert baseline is candidates[1] and kwargs == {"selection_phase": "forced_cycle_reset"}
+        assert current_quote is quote and baseline["basename"] == "z.jpg"
+        assert kwargs == {"selection_phase": "forced_cycle_reset"}
+        captured.update(scored=candidates, baseline=baseline)
         return candidates[0]
 
     def editorial_shadow(current_quote, baseline, scored, **kwargs):
         events.append("editorial_shadow")
-        assert current_quote is quote and baseline is captured["candidates"][1]
+        assert current_quote is quote and baseline is captured["baseline"]
         assert scored is captured["scored"] and kwargs == {"selection_phase": "forced_cycle_reset"}
 
-    def applied(current_quote, baseline, scored, rows, ties, **kwargs):
-        events.append("applied")
-        assert current_quote is quote and baseline is captured["candidates"][1]
-        assert scored is captured["scored"] and rows is captured["rows"] and ties == 2
-        assert kwargs == {"selection_phase": "forced_cycle_reset", "selection_rng_state": random.Random(0).getstate()}
-        return captured
-
     regular = Mock(side_effect=lambda choice: events.append("regular"))
-    applied_log = Mock(side_effect=lambda payload: events.append("applied_log"))
     concise = Mock(side_effect=lambda detail: str(detail["base"]))
     monkeypatch.setattr(bot, "score_image_for_quote", score)
-    monkeypatch.setattr(bot, "generated_identity_policy_scoring_active", lambda: events.append("active") or True)
-    monkeypatch.setattr(bot, "generated_identity_policy_selection", policy)
     monkeypatch.setattr(bot, "apply_original_editorial_selection", editorial)
     monkeypatch.setattr(bot, "log_regular_image_selection", regular)
     monkeypatch.setattr(bot, "log_original_editorial_shadow_result", editorial_shadow)
-    monkeypatch.setattr(bot, "generated_identity_policy_applied_result", applied)
-    monkeypatch.setattr(bot, "log_generated_identity_policy_applied_result", applied_log)
-    monkeypatch.setattr(bot, "log_generated_identity_policy_shadow_result", forbidden)
     monkeypatch.setattr(bot, "concise_components", concise)
-    before, getstate, choose = random.getstate(), random.getstate, random.choice
-    monkeypatch.setattr(random, "getstate", lambda: events.append("rng_state") or getstate())
+    before, choose = random.getstate(), random.choice
     monkeypatch.setattr(random, "choice", lambda tied: events.append("rng_choice") or choose(tied))
     try:
         random.seed(0)
-        chosen = bot.choose_matched_unused_image(used, quote, state, generated_images_allowed=True, selection_phase="forced_cycle_reset")
+        chosen = bot.choose_matched_unused_image(used, quote, state, selection_phase="forced_cycle_reset")
         expected = random.Random(0)
-        expected.choice([0, 1])
-        assert getstate() == expected.getstate()
+        expected.choice([0])
+        assert random.getstate() == expected.getstate()
     finally:
         random.setstate(before)
-    assert events == ["active", "policy", "rng_state", "rng_choice", "editorial", "regular", "editorial_shadow", "active", "applied", "applied_log"]
-    assert chosen is captured["candidates"][0]
-    assert regular.call_args.args[0] is chosen and applied_log.call_args.args[0] is captured
+    assert events == ["rng_choice", "editorial", "regular", "editorial_shadow"]
+    assert chosen is captured["scored"][0]
+    assert regular.call_args.args[0] is chosen
     assert build_idf.call_args.args[0] is corpus
     assert [entry.args[1] for entry in metadata.call_args_list] == paths + sorted(paths)
     assert all(entry.args[0] is corpus and entry.args[1] == entry.args[2] for entry in metadata.call_args_list)
@@ -289,12 +176,11 @@ def test_selector_preserves_catalog_components_and_policy_callback_references(mo
     for item in captured["scored"]:
         name = item["basename"]
         assert item["image_no"] == paths.index(name)
-        if name == "g.jpg":
-            assert item["components"] == {"base": 5, "generated_origin_quote": 2.0}
-            assert item["components"] is not components[name] and components[name] == {"base": 5}
-        else:
-            assert item["components"] is components[name]
-    assert [entry.args[1] for entry in log.debug.call_args_list[1:]] == ["g.jpg", "z.jpg", "d.jpg", "c.jpg", "b.jpg"]
+        assert item["components"] is components[name]
+        assert item["score"] == components[name]["base"]
+        assert item["image_source"] == "original"
+        assert item["origin_quote_hash"] is None and item["origin_quote_boost"] == 0.0
+    assert [entry.args[1] for entry in log.debug.call_args_list[1:]] == ["z.jpg", "g.jpg", "d.jpg", "c.jpg", "b.jpg"]
     assert concise.call_args_list[0].args[0] is chosen["components"]
     assert used == set() and state == {}
 
@@ -324,7 +210,7 @@ def test_metadata_rechecks_keep_current_stale_and_exhaustion_exception_boundarie
     metadata = Mock(side_effect=([("hash", analysis)] if stale_on_recheck else []) + [CurrentStale("changed")])
     monkeypatch.setattr(bot, "image_metadata_for_basename", metadata)
     with pytest.raises(CurrentMismatch if stale_on_recheck else CurrentGlobal) as exc:
-        bot.choose_matched_unused_image(used, {}, {}, generated_images_allowed=True)
+        bot.choose_matched_unused_image(used, {}, {})
     assert exc.value.args == (("No metadata-eligible regular-post images matched the selected quote" if stale_on_recheck else "No analysed currently eligible regular-post images are available"),)
     assert metadata.call_args_list == [call(corpus, "a.jpg", "a.jpg")] * (2 if stale_on_recheck else 1)
     assert used == ({"unavailable.jpg"} if stale_on_recheck else {"a.jpg", "unavailable.jpg"})
@@ -343,8 +229,6 @@ def test_pair_retries_keep_current_exceptions_limit_exclusions_and_one_time_rese
     monkeypatch.setattr(bot, "QuoteSpecificImageMismatch", CurrentMismatch)
     monkeypatch.setattr(bot, "NoViableQuoteImagePair", CurrentExhausted)
     monkeypatch.setattr(bot, "MAX_QUOTE_IMAGE_PAIR_ATTEMPTS", 2)
-    spacing = Mock(return_value=False)
-    monkeypatch.setattr(bot, "log_generated_image_spacing_status", spacing)
 
     def quote(used, *, excluded_quote_hashes, allow_cycle_reset):
         assert allow_cycle_reset is (len(seen) == 0)
@@ -356,7 +240,7 @@ def test_pair_retries_keep_current_exceptions_limit_exclusions_and_one_time_rese
         assert used is images and current_state is state and selected_quote is quotes[len(seen) - 1]
         boundary = kwargs.pop("cycle_boundary_exclusions")
         boundaries.append(boundary)
-        assert kwargs == {"force_cycle_reset": len(seen) == 1, "avoid_last_image_at_cycle_boundary": True, "generated_images_allowed": False, "selection_phase": "forced_cycle_reset"}
+        assert kwargs == {"force_cycle_reset": len(seen) == 1, "avoid_last_image_at_cycle_boundary": True, "selection_phase": "forced_cycle_reset"}
         if len(seen) == 1:
             boundary.update({"z.jpg", "a.jpg"})
         else:
@@ -369,7 +253,6 @@ def test_pair_retries_keep_current_exceptions_limit_exclusions_and_one_time_rese
         bot.choose_regular_quote_image_pair(lines, images, state, force_image_cycle_reset=True, excluded_quote_hashes=excluded)
     assert exc.value.args == ("No eligible regular quote/image pair found after 2 attempt(s); used histories unchanged", 2, "a.jpg")
     assert seen == [{"reserved"}, {"reserved", "first"}] and excluded == {"reserved"}
-    assert spacing.call_args.args[0] is state
     failure = RuntimeError("ordinary exclusions exhausted")
     monkeypatch.setattr(bot, "choose_unused_line_candidate", Mock(side_effect=failure))
     with pytest.raises(RuntimeError) as exc:
@@ -382,11 +265,10 @@ def test_fixed_quote_global_failure_preserves_mutation_and_original_exception(mo
     failure = bot.GlobalImageUnavailable("missing metadata")
     log = Mock()
     monkeypatch.setattr(bot, "log", log)
-    monkeypatch.setattr(bot, "log_generated_image_spacing_status", lambda current: False)
 
     def choose(names, current_quote, current_state, **kwargs):
         assert names is used and current_quote is quote and current_state is state
-        assert kwargs == {"force_cycle_reset": False, "avoid_last_image_at_cycle_boundary": True, "cycle_boundary_exclusions": None, "generated_images_allowed": False, "selection_phase": "normal"}
+        assert kwargs == {"force_cycle_reset": False, "avoid_last_image_at_cycle_boundary": True, "cycle_boundary_exclusions": None, "selection_phase": "normal"}
         names.clear()
         names.add("normalized.jpg")
         raise failure

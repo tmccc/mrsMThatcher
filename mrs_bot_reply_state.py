@@ -5,8 +5,8 @@ and result classes on each call. The fixed conversational-lane set lives here;
 its root name remains a direct alias. Bodies preserve existing validation,
 reference, copying, ordering and recovery boundaries. Provider transport, durable
 history writes, state persistence and receipt lifecycle authority remain with
-their existing owners. Import uses only the standard library, constructs the
-fixed frozenset and performs no file, environment, provider or RNG work. No
+their existing owners. Import uses the standard library and pure validation
+vocabulary and performs no file, environment, provider or RNG work. No
 callbacks or mutable state are retained.
 """
 
@@ -17,6 +17,8 @@ import hashlib
 import logging
 from collections.abc import Callable
 from datetime import datetime
+
+from single_call_reply_validation import normalise_validation_error_codes
 
 
 CONVERSATIONAL_REPLY_HISTORY_LANES = frozenset(
@@ -136,13 +138,16 @@ def recover_pending_ai_reply(
     except ReplyEvidenceUnavailable:
         raise
     except ReplyValidationError as exc:
+        validation_codes, _omitted = normalise_validation_error_codes(
+            getattr(exc, "errors", ())
+        )
         if record is not None:
             log.warning(
                 "Retiring pending reply draft that fails current local "
                 "validation target_id=%s source=%s reason=%s",
                 target_id,
                 candidate_source,
-                exc,
+                ",".join(validation_codes) or "validation_details_unavailable",
             )
             drafts.pop(key, None)
             if not drafts:
@@ -158,6 +163,7 @@ def recover_pending_ai_reply(
             error_category="local_validation",
             model_call_count=0,
             local_validation_status="failed",
+            validation_error_codes=validation_codes,
             payload_sha256=(
                 str(record.get("model_payload_sha256"))
                 if isinstance(record, dict)

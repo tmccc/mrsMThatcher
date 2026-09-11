@@ -1,12 +1,8 @@
-"""Generated-image identity audit validation, policy scoring and diagnostics.
+"""Retired identity policy retained only for offline image simulations.
 
-The bot supplies current settings, schema/policy sets, cache, logger and sibling
-helpers on each call. Only explicit loader calls read the audit and discover/hash
-images. Counterfactual choices use private RNGs; logging retains the existing
-shadow failure boundary. Importing this module does no runtime work and retains
-no callbacks or cache.
+Moved from mrs_bot_generated_identity at d160dca3. These pure scoring and audit
+helpers preserve historical counterfactuals; production does not import them.
 """
-
 from __future__ import annotations
 
 import json
@@ -119,51 +115,6 @@ def load_generated_identity_audit(
         raise RuntimeError(f"Invalid generated identity audit {path}: {exc}") from exc
     audit_cache[cache_key] = result
     return result
-
-
-def validate_generated_identity_shadow_startup(
-    *,
-    pool_enabled: bool,
-    shadow_enabled: bool,
-    scoring_enabled: bool,
-    load_generated_identity_audit: Callable[[], dict[str, dict]],
-    audit_file: str | Path,
-    small_penalty: float,
-    strong_penalty: float,
-    log: Logger,
-) -> None:
-    """Validate generated identity shadow startup."""
-    if not pool_enabled:
-        if shadow_enabled or scoring_enabled:
-            log.info(
-                "Generated identity-policy processing suspended because the generated image pool is disabled"
-            )
-        return
-    if not (
-        shadow_enabled
-        or scoring_enabled
-    ):
-        return
-    items = load_generated_identity_audit()
-    policies = Counter(str(item.get("recommended_cross_quote_policy")) for item in items.values())
-    if shadow_enabled:
-        log.info(
-            "Generated identity-policy shadow scoring enabled. audit_file=%s items=%d policies=%s small_penalty=%s strong_penalty=%s",
-            audit_file,
-            len(items),
-            dict(sorted(policies.items())),
-            small_penalty,
-            strong_penalty,
-        )
-    if scoring_enabled:
-        log.info(
-            "Generated identity policy production scoring enabled. audit_file=%s items=%d policies=%s small_penalty=%s strong_penalty=%s",
-            audit_file,
-            len(items),
-            dict(sorted(policies.items())),
-            small_penalty,
-            strong_penalty,
-        )
 
 
 def generated_identity_candidate_shadow_row(

@@ -1,4 +1,4 @@
-"""Regular and experimental image selection and generated-image spacing.
+"""Original-image selection for regular and experimental posts.
 
 The coordinator supplies current helpers, settings, exception classes and logger.
 Explicit calls discover and recheck metadata, preserve the shared random stream,
@@ -47,169 +47,6 @@ def available_currently_eligible_image_basenames(
     return available, cycle_reset
 
 
-def image_selection_observability(
-    basename: str,
-    quote_hash: object = None,
-    origin_quote_boost: float = 0.0,
-    *,
-    generated_image_origin_quote_hash: Callable,
-) -> dict:
-    """Return the image selection observability."""
-    origin_quote_hash = generated_image_origin_quote_hash(basename)
-    origin_quote_match = bool(origin_quote_hash and origin_quote_hash == str(quote_hash or "").lower())
-    return {
-        "image_source": "generated" if origin_quote_hash else "original",
-        "origin_quote_hash": origin_quote_hash,
-        "origin_quote_match": origin_quote_match,
-        "origin_quote_boost": float(origin_quote_boost if origin_quote_match else 0.0),
-    }
-
-
-def generated_image_spacing_required(
-    *,
-    min_original_posts_between: object,
-) -> int:
-    """Return the generated image spacing required."""
-    if type(min_original_posts_between) is not int:
-        raise ValueError("GENERATED_IMAGE_MIN_ORIGINAL_POSTS_BETWEEN must be an integer")
-    if min_original_posts_between < 0:
-        raise ValueError("GENERATED_IMAGE_MIN_ORIGINAL_POSTS_BETWEEN must be non-negative")
-    return min_original_posts_between
-
-
-def original_posts_since_generated_image(
-    state: dict | None,
-    *,
-    generated_image_spacing_required: Callable,
-) -> int:
-    """Return the original posts since generated image."""
-    if not state:
-        return generated_image_spacing_required()
-    try:
-        value = int(state.get("original_regular_posts_since_generated_image", generated_image_spacing_required()) or 0)
-    except Exception:
-        value = 0
-    return max(0, value)
-
-
-def generated_images_allowed_by_spacing(
-    state: dict | None,
-    *,
-    generated_image_spacing_required: Callable,
-    original_posts_since_generated_image: Callable,
-) -> bool:
-    """Return whether generated images allowed by spacing."""
-    required = generated_image_spacing_required()
-    if required <= 0:
-        return True
-    return original_posts_since_generated_image(state) >= required
-
-
-def log_generated_image_spacing_status(
-    state: dict | None,
-    *,
-    generated_image_spacing_required: Callable,
-    original_posts_since_generated_image: Callable,
-    generated_images_allowed_by_spacing: Callable,
-    enable_generated_image_pool: bool,
-    log: Logger,
-) -> bool:
-    """Log generated image spacing status."""
-    required = generated_image_spacing_required()
-    count = original_posts_since_generated_image(state)
-    allowed = generated_images_allowed_by_spacing(state)
-    log.info(
-        "GENERATED_IMAGE_SPACING_STATUS pool_enabled=%s allowed=%s original_posts_since_generated=%d required=%d",
-        str(bool(enable_generated_image_pool)).lower(),
-        str(bool(allowed)).lower(),
-        count,
-        required,
-    )
-    if enable_generated_image_pool and required > 0 and not allowed:
-        log.info(
-            "GENERATED_IMAGE_POOL_BLOCKED_BY_SPACING original_posts_since_generated=%d required=%d",
-            count,
-            required,
-        )
-    return allowed
-
-
-def log_generated_image_spacing_state_updated(
-    state: dict | None,
-    image_basename: str,
-    *,
-    generated_image_spacing_required: Callable,
-    original_posts_since_generated_image: Callable,
-    generated_images_allowed_by_spacing: Callable,
-    generated_image_origin_quote_hash: Callable,
-    enable_generated_image_pool: bool,
-    log: Logger,
-) -> None:
-    """Log generated image spacing state updated."""
-    required = generated_image_spacing_required()
-    count = original_posts_since_generated_image(state)
-    allowed = generated_images_allowed_by_spacing(state)
-    source = "generated" if generated_image_origin_quote_hash(image_basename) else "original"
-    log.info(
-        "GENERATED_IMAGE_SPACING_STATE_UPDATED pool_enabled=%s allowed=%s original_posts_since_generated=%d required=%d image_source=%s image=%s",
-        str(bool(enable_generated_image_pool)).lower(),
-        str(bool(allowed)).lower(),
-        count,
-        required,
-        source,
-        image_basename,
-    )
-
-
-def filter_generated_images_by_spacing(
-    eligible_basenames: set[str],
-    state: dict | None,
-    *,
-    generated_images_allowed_by_spacing: Callable,
-    generated_image_origin_quote_hash: Callable,
-    enable_generated_image_pool: bool,
-) -> set[str]:
-    """Filter generated images by spacing."""
-    if not enable_generated_image_pool or generated_images_allowed_by_spacing(state):
-        return eligible_basenames
-    return {basename for basename in eligible_basenames if not generated_image_origin_quote_hash(basename)}
-
-
-def update_regular_generated_image_spacing_state(
-    state: dict,
-    image_basename: str,
-    *,
-    generated_image_spacing_required: Callable,
-    generated_image_origin_quote_hash: Callable,
-    original_posts_since_generated_image: Callable,
-    log_generated_image_spacing_state_updated: Callable,
-) -> None:
-    """Update regular generated image spacing state."""
-    required = generated_image_spacing_required()
-    if generated_image_origin_quote_hash(image_basename):
-        state["original_regular_posts_since_generated_image"] = 0
-        log_generated_image_spacing_state_updated(state, image_basename)
-        return
-    current = original_posts_since_generated_image(state)
-    state["original_regular_posts_since_generated_image"] = min(required, current + 1) if required > 0 else 0
-    log_generated_image_spacing_state_updated(state, image_basename)
-
-
-def regular_generated_image_spacing_already_reflected(
-    state: dict,
-    image_basename: str,
-    *,
-    generated_image_origin_quote_hash: Callable,
-    original_posts_since_generated_image: Callable,
-) -> bool:
-    """Return the regular generated image spacing already reflected."""
-    if "original_regular_posts_since_generated_image" not in state:
-        return False
-    if generated_image_origin_quote_hash(image_basename):
-        return original_posts_since_generated_image(state) == 0
-    return True
-
-
 def log_regular_image_selection(
     choice: dict,
     *,
@@ -235,7 +72,6 @@ def choose_matched_unused_image(
     force_cycle_reset: bool = False,
     avoid_last_image_at_cycle_boundary: bool = True,
     cycle_boundary_exclusions: set[str] | None = None,
-    generated_images_allowed: bool | None = None,
     selection_phase: str = 'normal',
     current_image_paths: Callable,
     load_image_analysis: Callable,
@@ -246,24 +82,14 @@ def choose_matched_unused_image(
     build_image_topic_idf: Callable,
     image_metadata_for_basename: Callable,
     image_is_out_of_season: Callable,
-    generated_images_allowed_by_spacing: Callable,
-    filter_generated_images_by_spacing: Callable,
     available_currently_eligible_image_basenames: Callable,
     score_image_for_quote: Callable,
-    generated_image_origin_quote_hash: Callable,
-    image_selection_observability: Callable,
-    generated_identity_policy_scoring_active: Callable,
-    generated_identity_policy_selection: Callable,
     apply_original_editorial_selection: Callable,
     concise_components: Callable,
     log_regular_image_selection: Callable,
     log_original_editorial_shadow_result: Callable,
-    generated_identity_policy_applied_result: Callable,
-    log_generated_identity_policy_applied_result: Callable,
-    log_generated_identity_policy_shadow_result: Callable,
     image_glob: str,
     images_used_file: Path,
-    generated_image_origin_quote_boost: float,
     UnsafeImageHistoryMigration: type[Exception],
     GlobalImageUnavailable: type[Exception],
     StaleImageMetadata: type[Exception],
@@ -309,14 +135,6 @@ def choose_matched_unused_image(
             continue
         eligible_basenames.add(basename)
 
-    if generated_images_allowed is None:
-        generated_images_allowed = generated_images_allowed_by_spacing(state)
-    spacing_blocked_generated = 0
-    if not generated_images_allowed:
-        before_spacing = set(eligible_basenames)
-        eligible_basenames = filter_generated_images_by_spacing(eligible_basenames, state)
-        spacing_blocked_generated = len(before_spacing) - len(eligible_basenames)
-
     if not eligible_basenames:
         raise GlobalImageUnavailable("No analysed currently eligible regular-post images are available")
 
@@ -341,13 +159,12 @@ def choose_matched_unused_image(
             cycle_boundary_exclusions.add(last_name)
         log.info("Temporarily excluded last regular image at forced eligible-cycle boundary: %s", last_name)
     log.info(
-        "Image cycle status: used_count=%d currently_eligible=%d remaining_count=%d seasonally_excluded=%d stale_excluded=%d spacing_blocked_generated=%d cycle_reset=%s",
+        "Image cycle status: used_count=%d currently_eligible=%d remaining_count=%d seasonally_excluded=%d stale_excluded=%d cycle_reset=%s",
         len(images_used),
         len(eligible_basenames),
         len(available),
         seasonally_excluded,
         stale_excluded,
-        spacing_blocked_generated,
         cycle_reset,
     )
 
@@ -365,20 +182,7 @@ def choose_matched_unused_image(
         if not eligible:
             log.info("Skipping image %s: strong visual mismatch with selected quote", basename)
             continue
-        origin_quote_hash = generated_image_origin_quote_hash(basename)
-        origin_quote_boost = 0.0
-        if origin_quote_hash and origin_quote_hash == str(quote_choice.get("quote_hash", "")).lower():
-            boost = float(generated_image_origin_quote_boost)
-            score += boost
-            components = dict(components)
-            components["generated_origin_quote"] = boost
-            origin_quote_boost = boost
         path = image_by_name[basename]
-        observability = image_selection_observability(
-            basename,
-            quote_choice.get("quote_hash"),
-            origin_quote_boost,
-        )
         scored.append(
             {
                 "image_no": images.index(path),
@@ -388,39 +192,23 @@ def choose_matched_unused_image(
                 "score": score,
                 "components": components,
                 "cycle_reset": cycle_reset,
-                **observability,
+                "image_source": "original",
+                "origin_quote_hash": None,
+                "origin_quote_match": False,
+                "origin_quote_boost": 0.0,
             }
         )
 
     if not scored:
         raise QuoteSpecificImageMismatch("No metadata-eligible regular-post images matched the selected quote")
 
-    baseline_best_score = max(float(item["score"]) for item in scored)
-    baseline_tied = [item for item in scored if float(item["score"]) == baseline_best_score]
-    policy_rows: list[dict] | None = None
-    production_candidates = scored
-    if generated_identity_policy_scoring_active():
-        policy_rows, policy_candidates = generated_identity_policy_selection(scored)
-        if not policy_candidates:
-            log.warning(
-                "Generated identity policy exhausted phase-specific candidates. line_no=%s quote_hash=%s phase=%s",
-                quote_choice.get("line_no"),
-                quote_choice.get("quote_hash"),
-                selection_phase,
-            )
-            raise QuoteSpecificImageMismatch("Generated identity policy excluded all phase-specific candidates")
-        best_score = max(float(item["score"]) for item in policy_candidates)
-        tied = [item for item in policy_candidates if float(item["score"]) == best_score]
-        production_candidates = policy_candidates
-    else:
-        best_score = baseline_best_score
-        tied = baseline_tied
-    selection_rng_state = random.getstate()
+    best_score = max(float(item["score"]) for item in scored)
+    tied = [item for item in scored if float(item["score"]) == best_score]
     baseline_choice = random.choice(tied)
     chosen = apply_original_editorial_selection(
         quote_choice,
         baseline_choice,
-        production_candidates,
+        scored,
         selection_phase=selection_phase,
     )
 
@@ -438,27 +226,6 @@ def choose_matched_unused_image(
         scored,
         selection_phase=selection_phase,
     )
-    if generated_identity_policy_scoring_active():
-        assert policy_rows is not None
-        log_generated_identity_policy_applied_result(
-            generated_identity_policy_applied_result(
-                quote_choice,
-                baseline_choice,
-                scored,
-                policy_rows,
-                len(tied),
-                selection_phase=selection_phase,
-                selection_rng_state=selection_rng_state,
-            )
-        )
-    else:
-        log_generated_identity_policy_shadow_result(
-            quote_choice,
-            chosen,
-            scored,
-            selection_phase=selection_phase,
-            selection_rng_state=selection_rng_state,
-        )
     for item in sorted(scored, key=lambda entry: float(entry["score"]), reverse=True)[:5]:
         log.debug(
             "Image match candidate basename=%s score=%.2f components=%s",
@@ -477,7 +244,6 @@ def choose_regular_quote_image_pair(
     force_image_cycle_reset: bool = False,
     avoid_last_image_at_cycle_boundary: bool = True,
     excluded_quote_hashes: set[str] | None = None,
-    log_generated_image_spacing_status: Callable,
     choose_unused_line_candidate: Callable,
     choose_matched_unused_image: Callable,
     max_quote_image_pair_attempts: int,
@@ -491,7 +257,6 @@ def choose_regular_quote_image_pair(
     attempts = 0
     reset_available_images_once = force_image_cycle_reset
     cycle_boundary_exclusions: set[str] = set()
-    generated_images_allowed = log_generated_image_spacing_status(state)
 
     while attempts < max_quote_image_pair_attempts:
         attempts += 1
@@ -519,7 +284,6 @@ def choose_regular_quote_image_pair(
                 force_cycle_reset=reset_available_images_once,
                 avoid_last_image_at_cycle_boundary=avoid_last_image_at_cycle_boundary,
                 cycle_boundary_exclusions=cycle_boundary_exclusions if force_image_cycle_reset else None,
-                generated_images_allowed=generated_images_allowed,
                 selection_phase=selection_phase,
             )
             if attempts > 1:
@@ -552,7 +316,6 @@ def choose_engagement_question_image(
     quote_choice: dict,
     state: dict,
     *,
-    log_generated_image_spacing_status: Callable,
     choose_matched_unused_image: Callable,
     QuoteSpecificImageMismatch: type[Exception],
     log: Logger,
@@ -560,7 +323,6 @@ def choose_engagement_question_image(
     """Apply the existing image policy to one fixed experimental quotation."""
 
     original_images_used = set(images_used)
-    generated_images_allowed = log_generated_image_spacing_status(state)
     try:
         return choose_matched_unused_image(
             images_used,
@@ -569,7 +331,6 @@ def choose_engagement_question_image(
             force_cycle_reset=False,
             avoid_last_image_at_cycle_boundary=True,
             cycle_boundary_exclusions=None,
-            generated_images_allowed=generated_images_allowed,
             selection_phase="normal",
         )
     except QuoteSpecificImageMismatch:

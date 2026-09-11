@@ -1093,7 +1093,6 @@ def test_startup_regular_receipt_replay_preserves_newer_production_schedule(
     monkeypatch.setattr(bot, "glob", lambda pattern: [])
     monkeypatch.setattr(bot, "ENABLE_DAILY_MEME_POSTS", False)
     monkeypatch.setattr(bot, "validate_original_editorial_shadow_startup", lambda: None)
-    monkeypatch.setattr(bot, "validate_generated_identity_shadow_startup", lambda: None)
     monkeypatch.setattr(bot, "load_quote_used_hashes", lambda lines: lines_used)
     monkeypatch.setattr(bot, "load_image_used_basenames", lambda paths: images_used)
     monkeypatch.setattr(bot, "current_image_paths", lambda: [])

@@ -595,29 +595,16 @@ def test_readme_quiesces_v4_extractor_before_first_v5_deployment() -> None:
 def test_local_config_example_covers_current_optional_selection_features() -> None:
     config = json.loads((PROJECT_DIR / "mrsMThatcher.local.example.json").read_text(encoding="utf-8"))
     required = {
-        "ENABLE_GENERATED_IMAGE_POOL",
-        "GENERATED_IMAGE_DIR",
-        "GENERATED_IMAGE_GLOB",
-        "GENERATED_IMAGE_ANALYSIS_FILE",
-        "GENERATED_IMAGE_ORIGIN_QUOTE_BOOST",
-        "GENERATED_IMAGE_MIN_ORIGINAL_POSTS_BETWEEN",
         "ENABLE_ORIGINAL_EDITORIAL_SHADOW_SCORING",
         "ORIGINAL_EDITORIAL_ANALYSIS_FILE",
         "ORIGINAL_EDITORIAL_SHADOW_WEIGHT",
         "ORIGINAL_EDITORIAL_SHADOW_MAX_ABS_ADJUSTMENT",
-        "ENABLE_GENERATED_IDENTITY_POLICY_SHADOW_SCORING",
-        "ENABLE_GENERATED_IDENTITY_POLICY_SCORING",
-        "GENERATED_IDENTITY_AUDIT_FILE",
-        "GENERATED_IDENTITY_SHADOW_SMALL_PENALTY",
-        "GENERATED_IDENTITY_SHADOW_STRONG_PENALTY",
     }
 
+    assert not any("GENERATED_IMAGE" in key or "GENERATED_IDENTITY" in key for key in config)
     assert required <= config.keys()
     assert set(config) <= set(bot.LOCAL_CONFIG_ALLOWED_KEYS)
-    assert config["ENABLE_GENERATED_IMAGE_POOL"] is False
     assert config["ENABLE_ORIGINAL_EDITORIAL_SHADOW_SCORING"] is False
-    assert config["ENABLE_GENERATED_IDENTITY_POLICY_SHADOW_SCORING"] is False
-    assert config["ENABLE_GENERATED_IDENTITY_POLICY_SCORING"] is False
 
 
 def test_local_config_example_is_accepted_as_one_atomic_override(monkeypatch) -> None:

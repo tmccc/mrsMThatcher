@@ -124,7 +124,8 @@ def simulator_snapshot(tmp_path_factory: pytest.TempPathFactory) -> Path:
 
 @contextmanager
 def isolated_simulator_bot(tmp_path: Path, snapshot: Path):
-    touched = set(bot.LOCAL_CONFIG_ALLOWED_KEYS) | {
+    image_policy = sim.historical_image_selection(bot)
+    touched = set(bot.LOCAL_CONFIG_ALLOWED_KEYS) | set(image_policy.CONFIG_DEFAULTS) | {
         "LINES_FILE", "QUOTE_ANALYSIS_FILE", "IMAGE_ANALYSIS_FILE", "GENERATED_IMAGE_ANALYSIS_FILE",
         "HISTORICAL_CONTEXT_RESEARCH_DIR", "COMPLETED_QUOTE_RESEARCH_FILE",
         "RUNTIME_ELIGIBLE_QUOTE_MANIFEST_FILE",
@@ -140,7 +141,11 @@ def isolated_simulator_bot(tmp_path: Path, snapshot: Path):
         "save_quote_used_hashes", "save_image_used_basenames", "save_state",
         "completed_research_quote_hashes",
     }
-    original = {name: getattr(bot, name) for name in touched}
+    original = {
+        name: (image_policy, getattr(image_policy, name))
+        if hasattr(image_policy, name) else (bot, getattr(bot, name))
+        for name in touched
+    }
     request_names = ("request", "get", "post", "put", "patch", "delete")
     original_requests = {name: getattr(bot.requests, name) for name in request_names}
     rng_state = bot.random.getstate()
@@ -160,8 +165,8 @@ def isolated_simulator_bot(tmp_path: Path, snapshot: Path):
         )
         yield bot
     finally:
-        for name, value in original.items():
-            setattr(bot, name, value)
+        for name, (owner, value) in original.items():
+            setattr(owner, name, value)
         for name, value in original_requests.items():
             setattr(bot.requests, name, value)
         bot.random.setstate(rng_state)
@@ -203,7 +208,8 @@ def configure_real_selector(
     snapshot: Path,
 ) -> tuple[dict, set[str], set[str]]:
     for key, value in DETERMINISTIC_FLAGS.items():
-        monkeypatch.setattr(bot, key, value)
+        image_policy = sim.historical_image_selection(bot)
+        monkeypatch.setattr(image_policy if key in image_policy.CONFIG_DEFAULTS else bot, key, value)
     monkeypatch.setattr(bot, "LINES_FILE", snapshot / "mrsMThatcher.txt")
     monkeypatch.setattr(bot, "QUOTE_ANALYSIS_FILE", snapshot / "quote_analysis.json")
     monkeypatch.setattr(bot, "HISTORICAL_CONTEXT_RESEARCH_DIR", snapshot)
@@ -222,16 +228,16 @@ def configure_real_selector(
         lambda: set(validated_eligible_ids),
     )
     monkeypatch.setattr(bot, "IMAGE_ANALYSIS_FILE", snapshot / "image_analysis.json")
-    monkeypatch.setattr(bot, "GENERATED_IMAGE_ANALYSIS_FILE", str(snapshot / "generated_image_analysis.json"))
+    monkeypatch.setattr(sim.historical_image_selection(bot), "GENERATED_IMAGE_ANALYSIS_FILE", str(snapshot / "generated_image_analysis.json"))
     monkeypatch.setattr(bot, "IMAGE_GLOB", str(snapshot / "images" / "t*"))
-    monkeypatch.setattr(bot, "GENERATED_IMAGE_DIR", str(snapshot / "generated_images"))
-    monkeypatch.setattr(bot, "GENERATED_IMAGE_GLOB", "*.png")
+    monkeypatch.setattr(sim.historical_image_selection(bot), "GENERATED_IMAGE_DIR", str(snapshot / "generated_images"))
+    monkeypatch.setattr(sim.historical_image_selection(bot), "GENERATED_IMAGE_GLOB", "*.png")
     monkeypatch.setattr(bot, "ORIGINAL_EDITORIAL_ANALYSIS_FILE", str(snapshot / "original_image_editorial_analysis_experiment_v1.json"))
-    monkeypatch.setattr(bot, "GENERATED_IDENTITY_AUDIT_FILE", str(snapshot / "generated_image_identity_dependence_audit.json"))
+    monkeypatch.setattr(sim.historical_image_selection(bot), "GENERATED_IDENTITY_AUDIT_FILE", str(snapshot / "generated_image_identity_dependence_audit.json"))
     monkeypatch.setattr(bot, "IMAGES_USED_FILE", tmp_path / "images_used.json")
     monkeypatch.setattr(bot, "LINES_USED_FILE", tmp_path / "lines_used.json")
     monkeypatch.setattr(bot, "_ORIGINAL_EDITORIAL_ANALYSIS_CACHE", {})
-    monkeypatch.setattr(bot, "_GENERATED_IDENTITY_AUDIT_CACHE", {})
+    monkeypatch.setattr(sim.historical_image_selection(bot), "_GENERATED_IDENTITY_AUDIT_CACHE", {})
     monkeypatch.setattr(bot, "now_epoch", lambda: 1_788_453_600)  # 2026-09-01 12:00 local-ish
     original_sha = bot.current_image_sha256
     sha_cache: dict[str, str] = {}
@@ -241,7 +247,7 @@ def configure_real_selector(
 
     monkeypatch.setattr(bot, "current_image_sha256", cached_sha)
     state = json.loads((snapshot / "bot_state.json").read_text(encoding="utf-8"))
-    state["original_regular_posts_since_generated_image"] = bot.GENERATED_IMAGE_MIN_ORIGINAL_POSTS_BETWEEN
+    state["original_regular_posts_since_generated_image"] = sim.historical_image_selection(bot).GENERATED_IMAGE_MIN_ORIGINAL_POSTS_BETWEEN
     images_used = set(json.loads((snapshot / "images_used.json").read_text(encoding="utf-8")))
     lines_used = set(json.loads((snapshot / "lines_used.json").read_text(encoding="utf-8")))
     return state, images_used, lines_used
@@ -371,7 +377,7 @@ def test_shadow_evaluation_does_not_consume_production_rng(
 
     bot.random.seed(991)
     with sim.capture_shadow_selection(bot):
-        bot.choose_regular_quote_image_pair(set(lines_used), set(images_used), copy.deepcopy(state))
+        sim.historical_image_selection(bot).choose_regular_quote_image_pair(set(lines_used), set(images_used), copy.deepcopy(state))
     assert bot.random.getstate() == after_shadow
     assert selection["image"]["basename"]
 
@@ -384,8 +390,8 @@ def test_exact_candidate_capture_supports_active_identity_policy(
     state, images_used, lines_used = configure_real_selector(
         monkeypatch, tmp_path, simulator_snapshot,
     )
-    monkeypatch.setattr(bot, "ENABLE_GENERATED_IDENTITY_POLICY_SCORING", True)
-    monkeypatch.setattr(bot, "ENABLE_GENERATED_IDENTITY_POLICY_SHADOW_SCORING", False)
+    monkeypatch.setattr(sim.historical_image_selection(bot), "ENABLE_GENERATED_IDENTITY_POLICY_SCORING", True)
+    monkeypatch.setattr(sim.historical_image_selection(bot), "ENABLE_GENERATED_IDENTITY_POLICY_SHADOW_SCORING", False)
     bot.random.seed(8451)
     quote = bot.choose_unused_line_candidate(lines_used)
     result = sim.select_policy_image_with_recovery(
@@ -395,19 +401,87 @@ def test_exact_candidate_capture_supports_active_identity_policy(
     assert result["selection_phase"] in {"normal", "forced_cycle_reset", "last_image_fallback"}
 
 
-def test_generated_spacing_transitions_match_production(monkeypatch: pytest.MonkeyPatch) -> None:
-    monkeypatch.setattr(bot, "GENERATED_IMAGE_MIN_ORIGINAL_POSTS_BETWEEN", 2)
+def test_retained_historical_generated_spacing_transitions(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr(sim.historical_image_selection(bot), "GENERATED_IMAGE_MIN_ORIGINAL_POSTS_BETWEEN", 2)
     generated = "tg_" + "a" * 64 + ".png"
     state = {"original_regular_posts_since_generated_image": 2}
-    bot.update_regular_generated_image_spacing_state(state, generated)
+    sim.historical_image_selection(bot).update_regular_generated_image_spacing_state(state, generated)
     assert state["original_regular_posts_since_generated_image"] == 0
-    assert bot.generated_images_allowed_by_spacing(state) is False
-    bot.update_regular_generated_image_spacing_state(state, "t01.jpg")
+    assert sim.historical_image_selection(bot).generated_images_allowed_by_spacing(state) is False
+    sim.historical_image_selection(bot).update_regular_generated_image_spacing_state(state, "t01.jpg")
     assert state["original_regular_posts_since_generated_image"] == 1
-    assert bot.generated_images_allowed_by_spacing(state) is False
-    bot.update_regular_generated_image_spacing_state(state, "t02.jpg")
+    assert sim.historical_image_selection(bot).generated_images_allowed_by_spacing(state) is False
+    sim.historical_image_selection(bot).update_regular_generated_image_spacing_state(state, "t02.jpg")
     assert state["original_regular_posts_since_generated_image"] == 2
-    assert bot.generated_images_allowed_by_spacing(state) is True
+    assert sim.historical_image_selection(bot).generated_images_allowed_by_spacing(state) is True
+
+
+def test_snapshotted_generated_settings_stay_with_offline_policy(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    image_policy = sim.historical_image_selection(bot)
+    monkeypatch.setattr(image_policy, "ENABLE_GENERATED_IMAGE_POOL", False)
+    monkeypatch.setattr(image_policy, "GENERATED_IMAGE_ORIGIN_QUOTE_BOOST", 4)
+    (tmp_path / "mrsMThatcher.local.json").write_text(
+        json.dumps({"ENABLE_GENERATED_IMAGE_POOL": True, "GENERATED_IMAGE_ORIGIN_QUOTE_BOOST": 6}),
+        encoding="utf-8",
+    )
+
+    sim.apply_snapshot_config(bot, tmp_path)
+
+    assert image_policy.ENABLE_GENERATED_IMAGE_POOL is True
+    assert image_policy.GENERATED_IMAGE_ORIGIN_QUOTE_BOOST == 6
+    assert not hasattr(bot, "ENABLE_GENERATED_IMAGE_POOL")
+    assert not hasattr(bot, "GENERATED_IMAGE_ORIGIN_QUOTE_BOOST")
+    assert not hasattr(bot, "generated_identity_policy_selection")
+
+
+def test_historical_mixed_pool_keeps_generated_inputs(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path, simulator_snapshot: Path,
+) -> None:
+    configure_real_selector(monkeypatch, tmp_path, simulator_snapshot)
+    image_policy = sim.historical_image_selection(bot)
+    historical_names = {Path(path).name for path in image_policy.current_image_paths()}
+    generated_names = {name for name in historical_names if bot.generated_image_origin_quote_hash(name)}
+
+    assert generated_names
+    assert generated_names <= image_policy.load_image_analysis()["path_index"].keys()
+    assert generated_names.isdisjoint(Path(path).name for path in bot.current_image_paths())
+    assert generated_names.isdisjoint(bot.load_image_analysis()["path_index"])
+
+
+def test_historical_mixed_pool_keeps_numeric_history_unresolved(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    image_policy = sim.historical_image_selection(bot)
+    monkeypatch.setattr(image_policy, "ENABLE_GENERATED_IMAGE_POOL", True)
+    monkeypatch.setattr(bot, "image_corpus_verified_for_legacy_migration", lambda *_: True)
+    history = {0, "t01.jpg"}
+
+    assert image_policy.normalise_image_used_basenames(history, ["t01.jpg"]) == (history, False)
+
+
+def test_future_policy_event_marks_policy_neutral_tie_without_changing_selection() -> None:
+    image_policy = sim.historical_image_selection(bot)
+    scored = [
+        {"basename": name, "score": 31.8, "image_source": "original"}
+        for name in ("t34.jpg", "t45.jpg")
+    ]
+    rows, eligible = image_policy.generated_identity_policy_selection(scored, audit_by_basename={})
+    rng_state = random.Random(17).getstate()
+    winner = image_policy._choice_with_random_state(eligible, rng_state)
+    before = random.getstate()
+
+    payload = image_policy.generated_identity_policy_applied_result(
+        {"quote_hash": "a" * 64}, winner, scored, rows, len(eligible),
+        selection_phase="normal", selection_rng_state=rng_state,
+    )
+
+    assert random.getstate() == before
+    assert payload["baseline_winner_differs"] is False
+    assert payload["winner_changed_by_policy"] is False
+    assert payload["policy_effect"] == "none"
+    assert payload["replacement_source_transition"] == "unchanged"
 
 
 @pytest.mark.parametrize("basename", ["t01.jpg", "tg_" + "a" * 64 + ".png"])
@@ -416,7 +490,7 @@ def test_simulated_success_matches_production_receipt_selection_state(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     monkeypatch.setattr(bot, "ENABLE_DAILY_MEME_POSTS", False)
-    monkeypatch.setattr(bot, "GENERATED_IMAGE_MIN_ORIGINAL_POSTS_BETWEEN", 2)
+    monkeypatch.setattr(sim.historical_image_selection(bot), "GENERATED_IMAGE_MIN_ORIGINAL_POSTS_BETWEEN", 2)
     monkeypatch.setattr(bot, "cache_tweet", lambda *args, **kwargs: None)
     monkeypatch.setattr(bot, "record_recent_own_post", lambda *args, **kwargs: None)
     epoch = 1_788_453_600
@@ -458,9 +532,11 @@ def test_simulated_success_matches_production_receipt_selection_state(
     )
     selection_fields = {
         "last_main_post_id", "last_quote_post_epoch", "last_regular_image_filename",
-        "original_regular_posts_since_generated_image", "next_quote_post_epoch",
+        "next_quote_post_epoch",
         "next_quote_schedule_version",
     }
+    expected_spacing = 0 if bot.generated_image_origin_quote_hash(basename) else 2
+    assert simulated_state["original_regular_posts_since_generated_image"] == expected_spacing
     assert simulated_lines == production_lines
     assert simulated_images == production_images
     assert {key: simulated_state.get(key) for key in selection_fields} == {

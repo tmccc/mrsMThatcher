@@ -14,8 +14,7 @@ import sys
 import pytest
 
 import mrs_log_digest as digest
-from tests.test_generated_identity_policy_shadow_scoring import identity_event
-from tests.test_generated_identity_policy_production_scoring import policy_event
+from tests.helpers.digest_generated_identity import identity_event, policy_event
 
 
 BASE = datetime(2026, 9, 4, 12)
@@ -383,3 +382,154 @@ def test_foreign_directory_cli_outputs_and_resumed_observations(tmp_path, as_jso
         "input_file_index": 0, "record_number": 6, "timestamp": "2026-09-04 12:00:05",
         "logger": "fixture", "logged_source_line_number": 47,
     }]
+
+
+def test_digest_policy_relevant_denominator_and_zero_safe() -> None:
+    effect_only = identity_event(
+        production_source="original", production_winner="t02.jpg",
+        production_identity_policy=None, production_identity_action="original_unchanged",
+        baseline_winner="t02.jpg", counterfactual_policy_winner="t02.jpg",
+        shadow_winner_source="original", shadow_winner="t02.jpg",
+        winner_changed_by_policy=False, winner_changed=False,
+        policy_effect="scores_or_eligibility_only",
+        origin_quote_only_excluded_count=0, excluded_generated_basenames=[],
+        small_penalty_count=1,
+    )
+    relevant = [identity_event() for _ in range(2)] + [effect_only for _ in range(3)]
+    irrelevant = [identity_event(
+        production_source="original", production_identity_policy=None,
+        production_winner="t02.jpg", production_identity_action="original_unchanged",
+        baseline_winner="t02.jpg", counterfactual_policy_winner="t02.jpg",
+        shadow_winner_source="original", shadow_winner="t02.jpg",
+        winner_changed_by_policy=False, winner_changed=False, policy_effect="none",
+        origin_quote_only_excluded_count=0, excluded_generated_basenames=[],
+    ) for _ in range(5)]
+    summary = digest.generated_identity_shadow_summary(relevant + irrelevant)
+    assert summary["observations"] == 10
+    assert summary["policy_relevant_observations"] == 5
+    assert summary["winner_changes"] == 2
+    assert summary["winner_change_percent"] == 40.0
+    assert digest.generated_identity_shadow_summary(irrelevant)["winner_change_percent"] == 0.0
+
+
+def test_legacy_shadow_difference_is_not_claimed_as_policy_causation() -> None:
+    event = identity_event()
+    for key in (
+        "baseline_winner", "counterfactual_policy_winner",
+        "counterfactual_comparison_version", "counterfactual_comparison_valid",
+        "policy_effect", "winner_changed_by_policy",
+    ):
+        event.pop(key, None)
+    summary = digest.generated_identity_shadow_summary([event])
+    assert summary["winner_changes"] == 0
+    assert summary["legacy_policy_causation_unverified"] == 1
+
+    record = digest.Record(
+        ts=datetime(2026, 7, 10, 8, 0), level="INFO", src="mrs", line=1,
+        msg="GENERATED_IDENTITY_POLICY_SHADOW_RESULT " + json.dumps(event, separators=(",", ":")),
+        path="test.log", ordinal=1,
+    )
+    rendered = digest.render_markdown(digest.analyse([record]))
+    assert "Legacy shadow winner differences with unverified policy causation:" in rendered
+    assert "Counterfactual winners changed by the generated-identity shadow policy:" not in rendered
+
+
+def test_digest_parses_and_renders_shadow_only_tables() -> None:
+    payload = identity_event(line_no=105)
+    records = [digest.Record(
+        ts=datetime(2026, 7, 10, 8, 0), level="INFO", src="mrs", line=1,
+        msg="GENERATED_IDENTITY_POLICY_SHADOW_RESULT " + json.dumps(payload, separators=(",", ":")),
+        path="test.log", ordinal=1,
+    )]
+    report = digest.analyse(records)
+    rendered = digest.render_markdown(report)
+    assert report["generated_identity_shadow"]["summary"]["production_winner_origin_only_excluded"] == 1
+    assert "## Generated identity-policy shadow scoring" in rendered
+    assert "shadow-only and hypothetical" in rendered
+    assert "does not imply that the identity-policy shadow winner was posted" in rendered
+    assert "| time | line_no | production | action | shadow | production score | shadow score | phase |" in rendered
+    assert "Production winners excluded by origin-quote-only shadow policy:" in rendered
+
+
+def test_digest_policy_denominator_and_zero_safe() -> None:
+    assert digest.generated_identity_policy_summary([])["winner_change_percent"] == 0
+    summary = digest.generated_identity_policy_summary([policy_event(), policy_event(origin_quote_only_excluded_count=0, winner_changed_by_policy=False)])
+    assert summary["policy_relevant_observations"] == 1
+    assert summary["winner_changes"] == 1
+    assert summary["winner_change_percent"] == 100
+    assert summary["replacement_source_transitions"] == [("generated->original", 1)]
+
+
+def test_policy_neutral_equal_score_tie_is_not_reported_as_policy_change() -> None:
+    event = policy_event(
+        baseline_winner="t34.jpg",
+        baseline_winner_source="original",
+        baseline_winner_score=31.8,
+        baseline_identity_action="original_unchanged",
+        production_winner="t45.jpg",
+        production_winner_source="original",
+        production_policy_score=31.8,
+        production_identity_action="original_unchanged",
+        winner_changed_by_policy=True,  # Legacy event emitted before telemetry correction.
+        origin_quote_only_excluded_count=0,
+        excluded_generated_basenames=[],
+        replacement_source_transition="original->original",
+    )
+    for key in (
+        "counterfactual_comparison_version", "counterfactual_comparison_valid",
+        "counterfactual_policy_winner", "policy_effect", "baseline_winner_differs",
+    ):
+        event.pop(key, None)
+    summary = digest.generated_identity_policy_summary([event])
+    assert summary["policy_relevant_observations"] == 0
+    assert summary["identity_policy_winner_changes"] == summary["winner_changes"] == 0
+    assert summary["policy_neutral_baseline_differences"] == 1
+    assert summary["policy_neutral_equal_score_tie_resolutions"] == 1
+
+    record = digest.Record(
+        ts=digest.parse_dt("2026-07-18 09:04:04"), level="INFO", src="test", line=1,
+        msg="GENERATED_IDENTITY_POLICY_APPLIED " + json.dumps(event), path="test.log", ordinal=1,
+    )
+    rendered = digest.render_markdown(digest.analyse([record]))
+    assert "identity_policy_winner_changed         = 0 (0.0%)" in rendered
+    assert "Baseline winners changed by the generated-identity policy:" not in rendered
+    assert "Policy-neutral baseline differences:" in rendered
+    assert "equal-score production tie resolution" in rendered
+    assert "original_unchanged" not in rendered
+
+
+def test_legacy_policy_difference_is_not_claimed_as_counterfactual_causation() -> None:
+    event = policy_event()
+    for key in (
+        "counterfactual_comparison_version", "counterfactual_comparison_valid",
+        "counterfactual_policy_winner", "policy_effect", "baseline_winner_differs",
+    ):
+        event.pop(key, None)
+    summary = digest.generated_identity_policy_summary([event])
+    assert summary["identity_policy_winner_changes"] == 0
+    assert summary["legacy_policy_causation_unverified"] == 1
+
+
+def test_policy_digest_is_deterministic_for_identical_events() -> None:
+    event = policy_event()
+    record = digest.Record(
+        ts=digest.parse_dt("2026-07-18 09:04:04"), level="INFO", src="test", line=1,
+        msg="GENERATED_IDENTITY_POLICY_APPLIED " + json.dumps(event), path="test.log", ordinal=1,
+    )
+    assert digest.render_markdown(digest.analyse([record])) == digest.render_markdown(digest.analyse([record]))
+
+
+def test_digest_parses_policy_event_and_never_describes_baseline_as_posted() -> None:
+    record = digest.Record(ts=digest.parse_dt("2026-07-10 12:00:00"), level="INFO", src="test", line=1, msg="GENERATED_IDENTITY_POLICY_APPLIED " + json.dumps(policy_event()), path="test.log", ordinal=1)
+    report = digest.analyse([record])
+    assert report["generated_identity_policy"]["summary"]["observations"] == 1
+    rendered = digest.render_markdown(report)
+    assert "## Generated identity policy" in rendered
+    assert "active in real production" in rendered
+    assert "counterfactual baseline image was not posted" in rendered
+
+
+@pytest.mark.parametrize("phase", ["normal", "forced_cycle_reset", "last_image_fallback"])
+def test_event_preserves_selection_phase(phase: str) -> None:
+    summary = digest.generated_identity_policy_summary([policy_event(selection_phase=phase, recovery_effect=phase if phase != "normal" else "none")])
+    assert (phase, 1) in summary["selection_phases"]

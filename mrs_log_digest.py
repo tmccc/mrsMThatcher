@@ -3062,11 +3062,17 @@ def run_digest(args: argparse.Namespace, *, project_dir: Path, state_file: Path)
     report["project_dir"] = str(project_dir)
     report["resume_state_file"] = None if args.no_state else str(state_file)
     report["state_updated"] = False
-    report["generated_image_pool_health"] = (
-        generated_pool_health_snapshot(project_dir, now=report_window_end)
-        if report_window_end is not None
-        else generated_pool_health_snapshot(project_dir)
-    )
+    # Preserve the section names for readers of older reports, but do not scan
+    # archived assets or calculate live capacity for a retired runtime feature.
+    for section in (
+        "generated_image_pool_health", "generated_image_post_rates",
+        "generated_image_pool_runway", "generated_image_utilisation",
+    ):
+        report[section] = {
+            "available": False,
+            "status": "retired",
+            "reason": "Generated-image selection has been removed from the bot runtime.",
+        }
     report["historical_context_corpus_snapshot"] = historical_context_corpus_snapshot(
         project_dir
     )
@@ -3137,17 +3143,6 @@ def run_digest(args: argparse.Namespace, *, project_dir: Path, state_file: Path)
     if not records:
         report["saved_last_log_entry_time"] = dt_text(since) if since else None
 
-    runway_config = load_runway_config(project_dir, dict(report.get("latest_config") or {}))
-    report["generated_image_post_rates"] = generated_post_rate_history(
-        logs,
-        now=report_window_end,
-    )
-    report["generated_image_pool_runway"] = generated_pool_runway(report.get("generated_image_pool_health") or {}, report["generated_image_post_rates"], runway_config)
-    report["generated_image_utilisation"] = generated_image_utilisation(
-        report.get("generated_image_pool_health") or {},
-        report["generated_image_post_rates"],
-        limit=100000 if getattr(args, "detailed_appendix", False) else 10,
-    )
     report["verbose_replies"] = bool(args.verbose_replies)
     report["detailed_appendix"] = bool(getattr(args, "detailed_appendix", False))
     selected_window_start = since or min(

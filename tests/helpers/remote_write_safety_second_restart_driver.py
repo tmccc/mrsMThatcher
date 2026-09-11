@@ -383,7 +383,6 @@ def configure_main_probe(bot, state_directory: Path) -> tuple[list[str], Callabl
     bot.ENABLE_DAILY_MEME_POSTS = True
     bot.list_meme_candidates = lambda: []
     bot.validate_original_editorial_shadow_startup = lambda: None
-    bot.validate_generated_identity_shadow_startup = lambda: None
     bot.load_quote_used_hashes = lambda _lines: set()
     bot.load_image_used_basenames = lambda _paths: set()
     bot.current_image_paths = lambda: []

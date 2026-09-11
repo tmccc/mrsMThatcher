@@ -82,9 +82,9 @@ def test_identity_policy_rows_use_exact_audit_result(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     candidate = {"basename": "tg_" + "a" * 64 + ".png", "image_source": "generated", "score": 20.0}
-    monkeypatch.setattr(bot, "load_generated_identity_audit", lambda: {})
+    monkeypatch.setattr(sim.historical_image_selection(bot), "load_generated_identity_audit", lambda: {})
     monkeypatch.setattr(
-        bot,
+        sim.historical_image_selection(bot),
         "generated_identity_candidate_shadow_row",
         lambda candidate, audit: {
             "identity_policy": policy,
@@ -106,7 +106,7 @@ def test_identity_origin_quote_score_remains_unrestricted_with_real_helper(monke
         "score": 24.0,
         "origin_quote_match": True,
     }
-    monkeypatch.setattr(bot, "load_generated_identity_audit", lambda: {basename: {"recommended_cross_quote_policy": "origin_quote_only"}})
+    monkeypatch.setattr(sim.historical_image_selection(bot), "load_generated_identity_audit", lambda: {basename: {"recommended_cross_quote_policy": "origin_quote_only"}})
     row = sim.policy_candidate_rows(bot, {}, [candidate], "identity")[0]
     assert row["policy_score"] == 24.0
     assert row["policy_excluded"] is False
@@ -164,15 +164,15 @@ def test_counterfactual_checkpoint_restores_deeply_isolated_branches() -> None:
 
 
 def test_generated_spacing_evolves_independently_by_branch(monkeypatch: pytest.MonkeyPatch) -> None:
-    monkeypatch.setattr(bot, "GENERATED_IMAGE_MIN_ORIGINAL_POSTS_BETWEEN", 2)
+    monkeypatch.setattr(sim.historical_image_selection(bot), "GENERATED_IMAGE_MIN_ORIGINAL_POSTS_BETWEEN", 2)
     states = {name: {"original_regular_posts_since_generated_image": 2} for name in sim.BRANCHES}
-    bot.update_regular_generated_image_spacing_state(states["production"], "tg_" + "a" * 64 + ".png")
-    bot.update_regular_generated_image_spacing_state(states["editorial"], "t01.jpg")
+    sim.historical_image_selection(bot).update_regular_generated_image_spacing_state(states["production"], "tg_" + "a" * 64 + ".png")
+    sim.historical_image_selection(bot).update_regular_generated_image_spacing_state(states["editorial"], "t01.jpg")
     assert states["production"]["original_regular_posts_since_generated_image"] == 0
     assert states["editorial"]["original_regular_posts_since_generated_image"] == 2
     assert states["identity"]["original_regular_posts_since_generated_image"] == 2
-    assert bot.generated_images_allowed_by_spacing(states["production"]) is False
-    assert bot.generated_images_allowed_by_spacing(states["editorial"]) is True
+    assert sim.historical_image_selection(bot).generated_images_allowed_by_spacing(states["production"]) is False
+    assert sim.historical_image_selection(bot).generated_images_allowed_by_spacing(states["editorial"]) is True
 
 
 def test_production_branch_and_shared_quotes_match_observational_control(

@@ -2369,7 +2369,6 @@ def test_image_mismatch_restores_history_and_uses_existing_phases(
 ) -> None:
     images_used = {"old.jpg"}
     calls: list[tuple[bool, bool, str]] = []
-    monkeypatch.setattr(bot, "log_generated_image_spacing_status", lambda _state: True)
 
     def mismatch(used: set, _quote: dict, _state: dict, **kwargs):
         calls.append(

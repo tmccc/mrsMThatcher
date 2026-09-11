@@ -64,11 +64,6 @@ def test_fixed_experimental_image_mismatch_preserves_current_cycle(
     images_used = {"already-used.jpg"}
     calls: list[dict] = []
 
-    monkeypatch.setattr(
-        bot,
-        "log_generated_image_spacing_status",
-        lambda _state: False,
-    )
 
     def mismatch(
         observed_images: set,
@@ -95,7 +90,6 @@ def test_fixed_experimental_image_mismatch_preserves_current_cycle(
             "force_cycle_reset": False,
             "avoid_last_image_at_cycle_boundary": True,
             "cycle_boundary_exclusions": None,
-            "generated_images_allowed": False,
             "selection_phase": "normal",
         }
     ]

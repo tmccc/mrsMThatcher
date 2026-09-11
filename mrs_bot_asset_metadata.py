@@ -181,60 +181,13 @@ def load_image_analysis_file(
     return raw
 
 
-def merge_image_analysis(
-    primary: dict,
-    generated: dict | None,
-    *,
-    log: Logger,
-) -> dict:
-    """Merge image analysis."""
-    if not isinstance(generated, dict):
-        return primary
-
-    merged = dict(primary)
-    merged_path_index = dict(primary.get("path_index") or {})
-    merged_items = dict(primary.get("items") or {})
-    primary_paths = set(merged_path_index)
-
-    for basename, image_hash in sorted((generated.get("path_index") or {}).items()):
-        basename = str(basename)
-        image_hash = str(image_hash)
-        if basename in primary_paths:
-            log.warning("Skipping generated image metadata with basename collision: %s", basename)
-            continue
-        item = (generated.get("items") or {}).get(image_hash)
-        if not isinstance(item, dict):
-            log.warning("Skipping generated image metadata with missing item hash=%s basename=%s", image_hash, basename)
-            continue
-        merged_path_index[basename] = image_hash
-        merged_items.setdefault(image_hash, item)
-
-    merged["path_index"] = merged_path_index
-    merged["items"] = merged_items
-    return merged
-
-
 def load_image_analysis(
     *,
     image_analysis_file: Path,
-    pool_enabled: bool,
-    generated_image_analysis_file: str | Path,
     load_image_analysis_file: Callable[..., dict | None],
-    merge_image_analysis: Callable[[dict, dict | None], dict],
-    log: Logger,
 ) -> dict | None:
-    """Load original and, when enabled, generated image metadata."""
-    primary = load_image_analysis_file(image_analysis_file, label="image analysis")
-    if primary is None or not pool_enabled:
-        return primary
-
-    generated_path = Path(str(generated_image_analysis_file)).expanduser()
-    generated = load_image_analysis_file(generated_path, label="generated image analysis")
-    if generated is None:
-        log.warning("Generated image pool enabled but generated image analysis is unavailable; using original image pool only")
-        return primary
-
-    return merge_image_analysis(primary, generated)
+    """Load metadata for the original-image corpus."""
+    return load_image_analysis_file(image_analysis_file, label="image analysis")
 
 
 def quote_metadata_for_hash(
@@ -286,68 +239,17 @@ def validate_quote_analysis_against_lines(
 def current_image_paths(
     *,
     image_glob: str,
-    pool_enabled: bool,
-    generated_image_dir: str | Path,
-    generated_image_glob: str,
     glob: Callable[[str], list[str]],
-    configured_generated_image_paths: Callable[[], dict[str, Path]],
-    log: Logger,
+    generated_image_origin_quote_hash: Callable[[str], str | None],
 ) -> list[str]:
-    """Return the current image paths."""
+    """Return only original images, even when the configured glob is broad."""
     images = glob(image_glob)
     images.sort()
-    result = [path for path in images if Path(path).is_file()]
-    if not pool_enabled:
-        return result
-
-    generated_dir = Path(str(generated_image_dir)).expanduser()
-    generated_glob = str(generated_dir / str(generated_image_glob))
-    try:
-        configured_generated = configured_generated_image_paths()
-    except ValueError as exc:
-        raise RuntimeError(
-            "Generated image pool contains an unsafe or unclassifiable file; "
-            "refusing to select from the pool"
-        ) from exc
-    generated_images = [str(path) for path in configured_generated.values()]
-    if not generated_images:
-        log.warning("Generated image pool enabled but no generated images found matching %s", generated_glob)
-        return result
-
-    seen_basenames = {Path(path).name for path in result}
-    for path in generated_images:
-        basename = Path(path).name
-        if basename in seen_basenames:
-            log.warning("Skipping generated image with basename collision: %s path=%s", basename, path)
-            continue
-        result.append(path)
-        seen_basenames.add(basename)
-    return result
-
-
-def configured_generated_image_paths(
-    *,
-    generated_image_dir: str | Path,
-    generated_image_glob: str,
-    glob: Callable[[str], list[str]],
-    path_is_same_or_child: Callable[[Path, Path], bool],
-    generated_image_origin_quote_hash: Callable[[str], str | None],
-) -> dict[str, Path]:
-    """Return the configured generated image paths."""
-    generated_dir = Path(str(generated_image_dir)).expanduser()
-    generated_glob = str(generated_dir / str(generated_image_glob))
-    result: dict[str, Path] = {}
-    for path_text in sorted(glob(generated_glob)):
-        path = Path(path_text)
-        if not path.is_file() or not path_is_same_or_child(path, generated_dir):
-            continue
-        basename = path.name
-        if not generated_image_origin_quote_hash(basename):
-            raise ValueError(f"invalid generated image basename in configured pool: {basename}")
-        if basename in result:
-            raise ValueError(f"duplicate generated image basename in configured pool: {basename}")
-        result[basename] = path
-    return result
+    return [
+        path for path in images
+        if Path(path).is_file()
+        and generated_image_origin_quote_hash(Path(path).name) is None
+    ]
 
 
 def image_metadata_for_basename(

@@ -354,7 +354,6 @@ def test_shadow_result_uses_actual_original_candidate_set_and_replaces_productio
     monkeypatch.setattr(bot, "_ORIGINAL_EDITORIAL_ANALYSIS_CACHE", {})
     monkeypatch.setattr(bot, "ORIGINAL_EDITORIAL_SHADOW_WEIGHT", 0.32)
     monkeypatch.setattr(bot, "ORIGINAL_EDITORIAL_SHADOW_MAX_ABS_ADJUSTMENT", 4.0)
-    monkeypatch.setattr(bot, "ENABLE_GENERATED_IMAGE_POOL", True)
     monkeypatch.setattr(bot, "current_datetime", lambda: datetime(2026, 7, 10))
 
     def fake_score(_quote: dict, analysis: dict, _idf: dict | None = None) -> tuple[float, dict, bool]:
@@ -382,7 +381,7 @@ def test_shadow_result_uses_actual_original_candidate_set_and_replaces_productio
     assert payload["eligible_original_count"] == 2
 
 
-def test_shadow_result_handles_generated_production_winner_without_treating_it_as_editorial(
+def test_original_editorial_selection_excludes_generated_asset_from_broad_glob(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
     caplog: pytest.LogCaptureFixture,
@@ -417,7 +416,6 @@ def test_shadow_result_handles_generated_production_winner_without_treating_it_a
     monkeypatch.setattr(bot, "ENABLE_ORIGINAL_EDITORIAL_SHADOW_SCORING", True)
     monkeypatch.setattr(bot, "ORIGINAL_EDITORIAL_ANALYSIS_FILE", str(editorial_file))
     monkeypatch.setattr(bot, "_ORIGINAL_EDITORIAL_ANALYSIS_CACHE", {})
-    monkeypatch.setattr(bot, "ENABLE_GENERATED_IMAGE_POOL", True)
     monkeypatch.setattr(bot, "current_datetime", lambda: datetime(2026, 7, 10))
 
     def fake_score(_quote: dict, analysis: dict, _idf: dict | None = None) -> tuple[float, dict, bool]:
@@ -429,16 +427,17 @@ def test_shadow_result_handles_generated_production_winner_without_treating_it_a
 
     chosen = bot.choose_matched_unused_image(set(), _basic_quote(), {"original_regular_posts_since_generated_image": 2})
 
-    assert chosen["basename"] == generated.name
+    assert chosen["basename"] == "t01.jpg"
     payload = json.loads(caplog.text.split("ORIGINAL_EDITORIAL_SELECTION_RESULT ", 1)[1].splitlines()[0])
-    assert payload["production_source"] == "generated"
-    assert payload["production_winner"] == generated.name
-    assert payload["production_editorial_adjustment"] is None
-    assert payload["production_shadow_rank"] is None
+    assert payload["production_source"] == "original"
+    assert payload["production_winner"] == "t01.jpg"
+    assert payload["production_editorial_adjustment"] > 0.0
+    assert payload["production_shadow_rank"] == 1
     assert payload["shadow_original_winner"] == "t01.jpg"
     assert payload["winner_changed"] is False
-    assert payload["selection_applied"] is False
-    assert payload["selected_winner"] == generated.name
+    assert payload["selection_applied"] is True
+    assert payload["selected_winner"] == "t01.jpg"
+    assert payload["eligible_original_count"] == 1
 
 
 def test_shadow_digest_parses_and_renders_changed_winner() -> None:

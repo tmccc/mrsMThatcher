@@ -54,7 +54,7 @@ def test_adapters_forward_current_dependencies_references_and_native_errors(monk
         ("validate_meme_schedule_state", 5),
         ("validate_meme_schedule_version_for_candidate", 3),
         ("require_compatible_state_reader", 2),
-        ("normalise_state_candidate", 30),
+        ("normalise_state_candidate", 28),
     ):
         adapter = getattr(bot, name)
         public = inspect.signature(adapter).parameters
@@ -280,7 +280,6 @@ def test_candidate_keeps_group_order_callback_references_and_history_children(mo
         "require_compatible_state_reader": 6, "default_state": defaults,
         "prune_reply_evaluation_records": None,
         "validate_pending_mention_candidate_authority": (True, False),
-        "generated_image_origin_quote_hash": None, "generated_image_spacing_required": 13,
         "validate_meme_schedule_version_for_candidate": True,
         "prune_author_evaluation_quarantines": False,
     }
@@ -298,7 +297,6 @@ def test_candidate_keeps_group_order_callback_references_and_history_children(mo
         *[name for _, name, _ in groups[:13]],
         "prune_reply_evaluation_records", "validate_pending_mention_candidate_authority",
         "normalise_author_evaluation_quarantines", "normalise_state_int",
-        "generated_image_origin_quote_hash", "generated_image_spacing_required",
         "normalise_state_epoch", "validate_meme_schedule_version_for_candidate",
         "prune_author_evaluation_quarantines",
     ]
@@ -319,8 +317,7 @@ def test_candidate_keeps_group_order_callback_references_and_history_children(mo
     assert authority.kwargs == {"path": tmp_path, "recovery_events": events, "recover_pending_identity": False}
     for name in ("prune_reply_evaluation_records", "validate_meme_schedule_version_for_candidate", "prune_author_evaluation_quarantines"):
         assert getattr(trace, name).call_args.args[0] is result
-    trace.generated_image_origin_quote_hash.assert_called_once_with("original.jpg")
-    assert result["original_regular_posts_since_generated_image"] == 13
+    assert "original_regular_posts_since_generated_image" not in result
     assert "minimum_reader_version" not in state
 
 
@@ -411,18 +408,15 @@ def test_overflow_hash_and_reset_precede_pruning_and_authority_with_partial_even
     assert state == {"mention_backlog": backlog, "last_seen_mention_id": 99}
 
 
-def test_generated_spacing_fallback_and_schedule_gate_precede_final_pruning(monkeypatch, tmp_path):
+def test_legacy_counter_is_optional_and_schedule_gate_precedes_final_pruning(monkeypatch, tmp_path):
     trace = Mock()
-    trace.origin.return_value = "generated-origin"
     trace.schedule.return_value = False
-    monkeypatch.setattr(bot, "generated_image_origin_quote_hash", trace.origin)
-    monkeypatch.setattr(bot, "generated_image_spacing_required", trace.spacing)
     monkeypatch.setattr(bot, "validate_meme_schedule_version_for_candidate", trace.schedule)
     monkeypatch.setattr(bot, "prune_author_evaluation_quarantines", trace.prune)
-    state = {"last_regular_image_filename": "generated.jpg"}
+    state = {"last_regular_image_filename": "tg_" + "a" * 64 + ".png"}
     assert bot.normalise_state_candidate(state, path=tmp_path) is None
-    assert [c[0] for c in trace.mock_calls] == ["origin", "schedule"]
-    assert trace.schedule.call_args.args[0]["original_regular_posts_since_generated_image"] == 0
+    assert [c[0] for c in trace.mock_calls] == ["schedule"]
+    assert "original_regular_posts_since_generated_image" not in trace.schedule.call_args.args[0]
     trace.reset_mock()
     trace.schedule.return_value = True
     state["original_regular_posts_since_generated_image"] = "4"

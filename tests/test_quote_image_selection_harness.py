@@ -20,14 +20,13 @@ ROOT = Path(__file__).resolve().parents[1]
 
 
 class MinimalBot:
+    BASE_DIR = ROOT
+
     def load_original_editorial_analysis(self):
         return {}
 
     def original_editorial_shadow_score(self, _quote, _editorial):
         return 0.0, {}
-
-    def generated_images_allowed_by_spacing(self, _state):
-        return True
 
 
 def load_veto() -> ShadowRuntime:
@@ -413,7 +412,8 @@ def test_observer_evaluation_does_not_consume_rng(tmp_path: Path) -> None:
     ctx.connection.close()
 
 
-def test_immutable_score_cache_reuses_production_result_without_aliasing_components() -> None:
+@pytest.mark.parametrize("offline_images", [False, True])
+def test_immutable_score_cache_reuses_production_result_without_aliasing_components(offline_images: bool) -> None:
     class CacheBot:
         def __init__(self):
             self.calls = Counter()
@@ -439,7 +439,10 @@ def test_immutable_score_cache_reuses_production_result_without_aliasing_compone
             return {"kind": "images"}
 
     cache_bot = CacheBot()
-    harness.install_immutable_score_caches(cache_bot)
+    live_loader = cache_bot.load_image_analysis
+    image_policy = CacheBot() if offline_images else None
+    image_owner = image_policy or cache_bot
+    harness.install_immutable_score_caches(cache_bot, image_policy=image_policy)
     quote = {"q": 1}
     image = {"i": 1}
     image_corpus = {"x": 1}
@@ -451,12 +454,14 @@ def test_immutable_score_cache_reuses_production_result_without_aliasing_compone
     assert second == (7.5, {"topic": 2}, True)
     assert cache_bot.current_image_sha256("a") == cache_bot.current_image_sha256("a")
     assert cache_bot.load_quote_analysis() is cache_bot.load_quote_analysis()
-    assert cache_bot.load_image_analysis() is cache_bot.load_image_analysis()
+    assert image_owner.load_image_analysis() is image_owner.load_image_analysis()
+    if offline_images:
+        assert cache_bot.load_image_analysis == live_loader
     assert cache_bot.calls["score"] == 1
     assert cache_bot.calls["sha"] == 1
     assert cache_bot.calls["idf"] == 1
     assert cache_bot.calls["quote_analysis"] == 1
-    assert cache_bot.calls["image_analysis"] == 1
+    assert image_owner.calls["image_analysis"] == 1
 
 
 def test_production_whitespace_hash_maps_only_to_proven_canonical_packet(tmp_path: Path) -> None:
@@ -498,20 +503,20 @@ def test_production_history_id_set_uses_runtime_alias_not_canonical_id(tmp_path:
 def test_current_snapshot_profile_preserves_used_runtime_alias(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    class HistoryBot(MinimalBot):
-        def current_image_paths(self):
-            return []
-
     ctx = harness.HarnessContext(
         run_dir=tmp_path,
         snapshot=tmp_path,
-        bot=HistoryBot(),
+        bot=MinimalBot(),
         veto=None,  # type: ignore[arg-type]
         packets={"canonical": {}, "exact": {}},
         quote_text={"canonical": "Aliased", "exact": "Exact"},
         quote_line={"canonical": 0, "exact": 1},
         connection=None,  # type: ignore[arg-type]
         analysis_aliases={"canonical": "runtime"},
+    )
+    monkeypatch.setattr(
+        harness.production_sim.historical_image_selection(ctx.bot),
+        "current_image_paths", lambda: [],
     )
     monkeypatch.setattr(
         harness.production_sim,

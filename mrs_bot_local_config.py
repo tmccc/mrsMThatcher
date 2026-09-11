@@ -105,8 +105,6 @@ def _coerce_local_config_value(
         if key in {
             "ORIGINAL_EDITORIAL_SHADOW_WEIGHT",
             "ORIGINAL_EDITORIAL_SHADOW_MAX_ABS_ADJUSTMENT",
-            "GENERATED_IDENTITY_SHADOW_SMALL_PENALTY",
-            "GENERATED_IDENTITY_SHADOW_STRONG_PENALTY",
         }:
             if not math.isfinite(coerced):
                 raise ValueError(f"{key} must be finite")
@@ -307,8 +305,26 @@ def load_validated_local_config_overrides(
 
     proposed: dict[str, object] = {}
     coercion_errors: list[str] = []
+    # Existing installations may retain these settings after runtime retirement.
+    # Their values cannot enable the removed feature; unknown keys still fail.
+    retired_generated_keys = {
+        "ENABLE_GENERATED_IMAGE_POOL",
+        "GENERATED_IMAGE_DIR",
+        "GENERATED_IMAGE_GLOB",
+        "GENERATED_IMAGE_ANALYSIS_FILE",
+        "GENERATED_IMAGE_ORIGIN_QUOTE_BOOST",
+        "GENERATED_IMAGE_MIN_ORIGINAL_POSTS_BETWEEN",
+        "ENABLE_GENERATED_IDENTITY_POLICY_SHADOW_SCORING",
+        "ENABLE_GENERATED_IDENTITY_POLICY_SCORING",
+        "GENERATED_IDENTITY_AUDIT_FILE",
+        "GENERATED_IDENTITY_SHADOW_SMALL_PENALTY",
+        "GENERATED_IDENTITY_SHADOW_STRONG_PENALTY",
+    }
 
     for key, value in data.items():
+        if key in retired_generated_keys:
+            log.info("Ignoring retired generated-image runtime setting %s", key)
+            continue
         if key not in SOURCE_DEFAULT_CONFIG_VALUES:
             raise LocalConfigError(
                 f"Unsupported local config key {key!r} in {LOCAL_CONFIG_FILE}; "

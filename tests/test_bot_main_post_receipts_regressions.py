@@ -15,6 +15,7 @@ from tests.helpers.bot_fixtures import (
     configure_simple_quote_post,
     valid_regular_receipt,
     valid_regular_receipt_v2,
+    schema_current_main_attempt,
 )
 from tests.helpers.reply_fixtures import unit_confirmed_reply_receipt
 
@@ -225,19 +226,18 @@ def test_regular_receipt_v2_rejects_invalid_authoritative_histories(
 
 
 @pytest.mark.parametrize(
-    ("image_basename", "initial_count", "expected_count"),
+    ("image_basename", "initial_count"),
     [
-        ("tg_" + ("a" * 64) + ".png", 2, 0),
-        ("t01.jpg", 0, 1),
+        ("tg_" + ("a" * 64) + ".png", 2),
+        ("t01.jpg", 0),
     ],
 )
-def test_regular_receipt_reconciliation_updates_generated_spacing_once(
+def test_regular_receipt_reconciliation_preserves_legacy_counter_and_replays_once(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
     caplog: pytest.LogCaptureFixture,
     image_basename: str,
     initial_count: int,
-    expected_count: int,
 ) -> None:
     receipt_file = tmp_path / "regular_post_receipt.json"
     receipt = valid_regular_receipt(image_basename=image_basename)
@@ -246,25 +246,24 @@ def test_regular_receipt_reconciliation_updates_generated_spacing_once(
     monkeypatch.setattr(bot, "save_regular_post_protected_state", lambda *args, **kwargs: None)
     monkeypatch.setattr(bot, "cache_tweet", lambda *args, **kwargs: None)
     monkeypatch.setattr(bot, "record_recent_own_post", lambda *args, **kwargs: None)
-    monkeypatch.setattr(bot, "GENERATED_IMAGE_MIN_ORIGINAL_POSTS_BETWEEN", 2)
     caplog.set_level(logging.INFO, logger=bot.log.name)
     lines_used: set[str] = set()
     images_used: set[str] = set()
     state = {"original_regular_posts_since_generated_image": initial_count}
 
     assert bot.reconcile_regular_post_receipt(lines_used, images_used, state) is True
-    assert state["original_regular_posts_since_generated_image"] == expected_count
+    assert state["original_regular_posts_since_generated_image"] == initial_count
     assert image_basename in images_used
     assert not receipt_file.exists()
-    assert "GENERATED_IMAGE_SPACING_STATE_UPDATED" in caplog.text
+    assert "GENERATED_IMAGE_SPACING_STATE_UPDATED" not in caplog.text
 
     caplog.clear()
     assert bot.reconcile_regular_post_receipt(lines_used, images_used, state) is False
-    assert state["original_regular_posts_since_generated_image"] == expected_count
+    assert state["original_regular_posts_since_generated_image"] == initial_count
     assert "GENERATED_IMAGE_SPACING_STATE_UPDATED" not in caplog.text
 
 
-def test_regular_receipt_reapply_does_not_double_increment_original_spacing(
+def test_regular_receipt_reapply_preserves_original_legacy_counter(
     monkeypatch: pytest.MonkeyPatch,
     caplog: pytest.LogCaptureFixture,
 ) -> None:
@@ -286,7 +285,7 @@ def test_regular_receipt_reapply_does_not_double_increment_original_spacing(
     assert "GENERATED_IMAGE_SPACING_STATE_UPDATED" not in caplog.text
 
 
-def test_regular_receipt_reapply_initialises_missing_spacing_field(
+def test_generated_regular_receipt_reapply_does_not_create_retired_counter(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     image_basename = "tg_" + ("a" * 64) + ".png"
@@ -302,10 +301,12 @@ def test_regular_receipt_reapply_initialises_missing_spacing_field(
 
     bot.apply_regular_post_receipt(receipt, lines_used, images_used, state)
 
-    assert state["original_regular_posts_since_generated_image"] == 0
+    assert "original_regular_posts_since_generated_image" not in state
+    assert image_basename in images_used
+    assert receipt["quote_hash"] in lines_used
 
 
-def test_regular_receipt_reapply_corrects_generated_spacing_counter(
+def test_generated_regular_receipt_reapply_preserves_retired_counter(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     image_basename = "tg_" + ("a" * 64) + ".png"
@@ -322,7 +323,50 @@ def test_regular_receipt_reapply_corrects_generated_spacing_counter(
 
     bot.apply_regular_post_receipt(receipt, lines_used, images_used, state)
 
-    assert state["original_regular_posts_since_generated_image"] == 0
+    assert state["original_regular_posts_since_generated_image"] == 2
+    assert image_basename in images_used
+    assert receipt["quote_hash"] in lines_used
+
+
+def test_confirmed_generated_attempt_retains_ai_identity_and_recovers_idempotently(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    template = schema_current_main_attempt("quote_image")
+    basename = "tg_" + "b" * 64 + ".png"
+    attempt = bot.build_main_post_attempt(
+        lane="quote_image",
+        text=template["text"],
+        media_ids=template["media_ids"],
+        made_with_ai=True,
+        selected_identity=template["selected_identity"] | {"image_basename": basename},
+        recovery_plan=template["recovery_plan"] | {"image_history_after": [basename]},
+        attempt_epoch=template["attempt_epoch"],
+    )
+    pending = bot.build_confirmed_pending_schedule_receipt(
+        attempt | {"lifecycle_state": "attempting"},
+        post_id="970001",
+        confirmation_epoch=1_800_000_100,
+    )
+    receipt = bot.materialize_bound_regular_schedule_receipt(pending)
+    assert bot.regular_post_receipt_is_semantically_valid(receipt)
+    assert receipt["source_attempt"]["made_with_ai"] is True
+    assert bot.main_post_attempt_payload(receipt["source_attempt"])["made_with_ai"] is True
+    assert receipt["image_basename"] == basename
+    monkeypatch.setattr(bot, "cache_tweet", lambda *args, **kwargs: None)
+    monkeypatch.setattr(bot, "record_recent_own_post", lambda *args, **kwargs: None)
+    lines, images = set(), set()
+    state = {"original_regular_posts_since_generated_image": 2}
+
+    bot.apply_regular_post_receipt(receipt, lines, images, state)
+    first_state = dict(state)
+    bot.apply_regular_post_receipt(receipt, lines, images, state)
+
+    assert state == first_state
+    assert state["original_regular_posts_since_generated_image"] == 2
+    assert state["last_regular_image_filename"] == basename
+    assert state["next_quote_post_epoch"] == receipt["next_quote_post_epoch"]
+    assert lines == set(receipt["quote_history_after"])
+    assert images == {basename}
 
 
 def test_current_meme_attempt_binds_image_summary_for_restart_recovery() -> None:

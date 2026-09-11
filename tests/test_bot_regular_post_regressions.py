@@ -433,15 +433,16 @@ def test_confirmed_regular_post_fallback_helper_failure_latches(
     )
     monkeypatch.setattr(
         bot,
-        "update_regular_generated_image_spacing_state",
-        lambda *_args, **_kwargs: (_ for _ in ()).throw(RuntimeError("spacing failed")),
+        "apply_state_fields",
+        lambda *_args, **_kwargs: (_ for _ in ()).throw(RuntimeError("schedule update failed")),
     )
 
     with pytest.raises(bot.UnrecoverableConfirmedPostPersistenceError):
         bot.post_random_quote(lines_used, images_used, state)
 
     marker = json.loads(bot.AMBIGUOUS_POST_OUTCOME_FILE.read_text(encoding="utf-8"))
-    assert "generated_image_spacing_state" in marker["failure_components"]
+    assert "quote_schedule_state" in marker["failure_components"]
+    assert "meme_schedule_state" in marker["failure_components"]
     assert bot.ambiguous_remote_post_is_blocking() is True
 
 

@@ -2,7 +2,8 @@
 """Offline production-parity quotation/image selection harness.
 
 The harness snapshots production inputs read-only, imports the bot in test mode,
-blocks outbound networking, and runs the real selectors against private state.
+blocks outbound networking, and runs quote selection plus the retained historical
+mixed-image experiments against private state.
 It never posts and never writes production state, histories, receipts or media.
 """
 
@@ -681,8 +682,9 @@ def import_bot(run_dir: Path) -> Any:
     return bot
 
 
-def install_immutable_score_caches(bot: Any) -> None:
+def install_immutable_score_caches(bot: Any, *, image_policy: Any = None) -> None:
     """Install immutable score caches."""
+    image_owner = image_policy if image_policy is not None else bot
     original_sha = bot.current_image_sha256
     original_idf = bot.build_image_topic_idf
     original_score = bot.score_image_for_quote
@@ -694,9 +696,10 @@ def install_immutable_score_caches(bot: Any) -> None:
         ("load_quote_analysis", "quote_analysis"),
         ("load_image_analysis", "image_analysis"),
     ):
-        if not hasattr(bot, function_name):
+        owner = image_owner if function_name == "load_image_analysis" else bot
+        if not hasattr(owner, function_name):
             continue
-        original_loader = getattr(bot, function_name)
+        original_loader = getattr(owner, function_name)
         parsed_cache: list[Any] = []
 
         def cached_loader(
@@ -711,7 +714,7 @@ def install_immutable_score_caches(bot: Any) -> None:
                 counters[f"{_counter}_hits"] += 1
             return _cache[0]
 
-        setattr(bot, function_name, cached_loader)
+        setattr(owner, function_name, cached_loader)
 
     def cached_sha(path: str) -> str:
         key = str(path)
@@ -801,8 +804,8 @@ def install_immutable_score_caches(bot: Any) -> None:
             return dict(quote_hash_cache[key])
 
         bot.current_quote_hashes_by_line = cached_quote_hashes
-    if hasattr(bot, "current_image_paths"):
-        original_image_paths = bot.current_image_paths
+    if hasattr(image_owner, "current_image_paths"):
+        original_image_paths = image_owner.current_image_paths
         image_paths_cache: list[list[str]] = []
 
         def cached_image_paths() -> list[str]:
@@ -813,7 +816,7 @@ def install_immutable_score_caches(bot: Any) -> None:
                 counters["image_path_hits"] += 1
             return list(image_paths_cache[0])
 
-        bot.current_image_paths = cached_image_paths
+        image_owner.current_image_paths = cached_image_paths
     if hasattr(bot, "quote_text_hash"):
         original_quote_text_hash = bot.quote_text_hash
         quote_text_hash_cache: dict[str, str] = {}
@@ -879,7 +882,9 @@ def load_context(run_dir: Path) -> HarnessContext:
     production_sim.configure_snapshot_paths(bot, snapshot, private)
     completed_research_hash_cache = frozenset(bot.completed_research_quote_hashes())
     bot.completed_research_quote_hashes = lambda: set(completed_research_hash_cache)
-    install_immutable_score_caches(bot)
+    install_immutable_score_caches(
+        bot, image_policy=production_sim.historical_image_selection(bot),
+    )
     bot.LINES_FILE = snapshot / "eligible_quotes.txt"
     bot.QUOTE_ANALYSIS_OVERRIDES_FILE = snapshot / "quote_analysis_overrides.json"
     production_sim.install_hard_guards(bot, production_sim.PrivateWriter(run_dir))
@@ -974,7 +979,7 @@ def seasonal_state(ctx: HarnessContext, when: datetime) -> dict[str, Any]:
     cached = ctx.seasonal_cache.get(mm_dd)
     if cached is not None:
         return {**cached, "timestamp": when.isoformat()}
-    image_analysis = bot.load_image_analysis()
+    image_analysis = production_sim.historical_image_selection(bot).load_image_analysis()
     quote_boosts: dict[str, float] = {}
     quote_exclusions: list[str] = []
     active: list[str] = []
@@ -1026,7 +1031,7 @@ def configured_boundaries(ctx: HarnessContext, years: Sequence[int]) -> list[dic
         for window in seasonality.get("preferred_windows", []) or []:
             if isinstance(window, dict):
                 windows.add((str(window.get("start_mm_dd") or ""), str(window.get("end_mm_dd") or ""), f"quote:{quote_id}"))
-    image_analysis = ctx.bot.load_image_analysis()
+    image_analysis = production_sim.historical_image_selection(ctx.bot).load_image_analysis()
     for basename, digest in sorted((image_analysis.get("path_index") or {}).items()):
         item = (image_analysis.get("items") or {}).get(digest, {})
         analysis = item.get("analysis") if isinstance(item, dict) else {}
@@ -1130,7 +1135,7 @@ def filtered_snapshot_state(ctx: HarnessContext) -> tuple[dict[str, Any], set[st
     """Return the filtered snapshot state."""
     state, images_used, lines_used = production_sim.load_private_state(ctx.snapshot)
     lines_used &= production_quote_ids(ctx)
-    image_names = {Path(path).name for path in ctx.bot.current_image_paths()}
+    image_names = {Path(path).name for path in production_sim.historical_image_selection(ctx.bot).current_image_paths()}
     images_used &= image_names
     return state, images_used, lines_used
 
@@ -1144,10 +1149,10 @@ def state_profiles(ctx: HarnessContext) -> dict[str, dict[str, Any]]:
     """Return the state profiles."""
     bot = ctx.bot
     current_state, current_images, current_lines = filtered_snapshot_state(ctx)
-    image_names = sorted(Path(path).name for path in bot.current_image_paths())
+    image_names = sorted(Path(path).name for path in production_sim.historical_image_selection(bot).current_image_paths())
     quote_ids = sorted(production_quote_ids(ctx))
     generated = [name for name in image_names if bot.generated_image_origin_quote_hash(name)]
-    required = bot.generated_image_spacing_required()
+    required = production_sim.historical_image_selection(bot).generated_image_spacing_required()
 
     fresh = bot.default_state()
     fresh["original_regular_posts_since_generated_image"] = required
@@ -1635,7 +1640,7 @@ def run_sweep(
                         seed=None, event_index=quote_index, profile=profile_name,
                         state_hash=before_hash, season=season, quote=quote,
                         selection=selection, policies=policies, full_candidates=True,
-                        generated_spacing_allowed=ctx.bot.generated_images_allowed_by_spacing(state),
+                        generated_spacing_allowed=production_sim.historical_image_selection(ctx.bot).generated_images_allowed_by_spacing(state),
                     )
                 except Exception as exc:
                     errors += 1
@@ -1778,7 +1783,7 @@ def run_simulation(
                 image_name = str(selection["image"]["basename"])
                 quote_cycle_reset = bool(lines_before - lines_used)
                 image_cycle_reset = bool(images_before - images_used) or bool(selection["image"].get("cycle_reset"))
-                spacing_allowed = ctx.bot.generated_images_allowed_by_spacing(state_before)
+                spacing_allowed = production_sim.historical_image_selection(ctx.bot).generated_images_allowed_by_spacing(state_before)
                 next_epoch = production_sim.apply_simulated_success(
                     ctx.bot, selection, state, lines_used, images_used,
                     virtual_epoch, f"{year}-{seed_value}", event_index,
@@ -1882,7 +1887,7 @@ def stress_boundaries(ctx: HarnessContext) -> dict[str, Any]:
                             seed=seed, event_index=events, profile=profile_name, state_hash=state_hash,
                             season=season, quote=quote, selection=selection,
                             policies=policies, full_candidates=False,
-                            generated_spacing_allowed=ctx.bot.generated_images_allowed_by_spacing(state),
+                            generated_spacing_allowed=production_sim.historical_image_selection(ctx.bot).generated_images_allowed_by_spacing(state),
                         )
                     except Exception as exc:
                         failures += 1

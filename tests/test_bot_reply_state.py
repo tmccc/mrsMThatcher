@@ -13,6 +13,7 @@ from single_call_reply import PipelineResult, ValidatedReply
 from tests.helpers.bot_runtime import bot
 from tests.helpers.bot_fixtures import isolate_regular_post_receipt  # noqa: F401
 from tests.helpers.reply_fixtures import (
+    UNIT_REPLY_REPOSITORY,
     unit_approved_reply,
     unit_confirmed_reply_receipt,
     unit_reply_context,
@@ -272,7 +273,10 @@ def test_recovery_keeps_current_exception_classes_retirement_and_exact_zero_call
             if kind == "validation" else
             "Discarding obsolete or invalid pending reply draft target_id=%s source=%s reason=%s"
         )
-        logger.warning.assert_called_once_with(warning, "100", "mention", failure)
+        logger.warning.assert_called_once_with(
+            warning, "100", "mention",
+            "validation_details_unavailable" if kind == "validation" else failure,
+        )
     if kind == "validation":
         assert outcome == {
             "retained": True, "status": "operational_failure",
@@ -299,6 +303,41 @@ def test_recovery_keeps_current_exception_classes_retirement_and_exact_zero_call
         else:
             constructor.assert_not_called()
         result.assert_not_called()
+
+
+def test_recovered_duplicate_draft_emits_rule_and_retires_without_provider_call(monkeypatch):
+    context = unit_reply_context()
+    reply = unit_approved_reply(context)
+    state = {"pending_ai_reply_drafts": {"mention:100": reply.draft_record}}
+    outcome, events = {}, []
+    provider = Mock(side_effect=AssertionError("recovery must not call the model"))
+    monkeypatch.setattr(bot, "reply_evidence_repository", lambda: UNIT_REPLY_REPOSITORY)
+    monkeypatch.setattr(bot, "run_single_call_reply_pipeline", provider)
+    monkeypatch.setattr(
+        bot, "log_event", lambda kind, **fields: events.append((kind, fields)),
+    )
+
+    assert bot.pending_ai_reply(
+        state, "100", "mention", context=context,
+        recent_replies=[{"post_id": "101", "text": str(reply)}],
+        evaluation_outcome=outcome,
+    ) is None
+
+    assert state == {}
+    assert outcome == {
+        "status": "operational_failure",
+        "reason": "persisted_draft_local_validation_failed",
+        "error_category": "local_validation", "model_call_count": 0,
+    }
+    provider.assert_not_called()
+    assert len(events) == 1
+    kind, decision = events[0]
+    assert kind == "single_call_reply_decision"
+    assert decision["validation_error_codes"] == ["exact_duplicate_reply"]
+    assert decision["failure_reason"] == "persisted_draft_local_validation_failed"
+    assert decision["local_validation_status"] == "failed"
+    assert decision["model_call_count"] == 0
+    assert str(reply) not in repr(decision)
 
 
 def test_recent_default_is_fixed_while_body_reads_current_cap(confirmed_row, monkeypatch):

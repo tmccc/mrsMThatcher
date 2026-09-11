@@ -350,6 +350,32 @@ def test_generation_preserves_order_and_references_through_the_current_pipeline(
     ]
 
 
+def test_recorded_validation_failure_logs_only_known_rules(monkeypatch):
+    result = bot.PipelineResult(
+        status="operational_failure", reason="model_response_validation_failed",
+        error_category="local_validation", model_call_count=1,
+        local_validation_status="failed",
+        validation_error_codes=(
+            "reply_contains_mention", "PRIVATE model prose", "reply_contains_mention",
+        ),
+    )
+    logger, event = Mock(), Mock()
+    monkeypatch.setattr(bot, "log", logger)
+    monkeypatch.setattr(bot, "log_event", event)
+
+    bot._record_single_call_result(result, lane="quote_tweet", target_id="100")
+
+    logger.info.assert_called_once_with(
+        "Single-call reply validation failed target_id=%s lane=%s category=%s rules=%s",
+        "100", "quote_tweet", "local_validation", "reply_contains_mention",
+    )
+    logger.warning.assert_not_called()
+    assert event.call_count == 1
+    assert event.call_args.args == ("single_call_reply_decision",)
+    assert event.call_args.kwargs["validation_error_codes"] == ["reply_contains_mention"]
+    assert "PRIVATE" not in repr(event.call_args)
+
+
 def test_posting_outcome_uses_current_logger_and_metadata_fallback(monkeypatch):
     metadata = {"strategy_version": "fixture", "reply_kind": "principle", "reason_code": "useful_reply", "validated_draft_hash": "hash"}
     draft = {**metadata, "strategy_version": "draft"}

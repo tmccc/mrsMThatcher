@@ -12,8 +12,156 @@ import sys
 import pytest
 
 import mrs_log_digest as digest
+from single_call_reply_validation import MAX_VALIDATION_ERROR_CODES
 
 from tests.helpers.digest_records import structured_record
+
+
+def _validation_failure_record(offset, **fields):
+    return structured_record(offset, {
+        "event": "single_call_reply_decision", "lane": "mention",
+        "target_id": str(100 + offset), "model_call_count": 1,
+        "provider_request_attempt_count": 1,
+        "pipeline_status": "operational_failure", "outcome_type": "operational",
+        "error_category": "local_validation", "local_validation_status": "failed",
+        "failure_reason": "model_response_validation_failed", **fields,
+    })
+
+
+def test_validation_failure_summary_counts_distinct_rules_and_preserves_categories():
+    report = digest.analyse([
+        _validation_failure_record(0, lane="quote_tweet", validation_error_codes=[
+            "reply_contains_mention", "reply_contains_hashtag", "reply_contains_mention",
+        ]),
+        _validation_failure_record(1, error_category="schema_validation", validation_error_codes=[
+            "invalid_used_fact_ids", "direct_factual_missing_fact_id",
+        ]),
+        _validation_failure_record(2, error_category="provider_schema", validation_error_codes=[]),
+        _validation_failure_record(
+            3, pipeline_status="no_reply", outcome_type="editorial",
+            error_category=None, local_validation_status="passed", validation_error_codes=[],
+        ),
+    ])
+    summary = report["single_call_reply"]
+    details = summary["validation_failure_details"]
+
+    # Preserve the legacy count, which also includes a failed provider envelope.
+    # Only schema/mechanical reply-rule failures contribute detailed candidates.
+    assert summary["local_validation_failure_count"] == 2
+    assert summary["schema_validation_failure_count"] == 1
+    assert details["candidate_count"] == 2
+    assert details["omitted_candidate_count"] == 0
+    assert details["rule_counts"] == {
+        "reply_contains_hashtag": 1, "reply_contains_mention": 1,
+        "direct_factual_missing_fact_id": 1, "invalid_used_fact_ids": 1,
+    }
+    assert details["rule_counts_by_category"] == {
+        "schema_validation": {"invalid_used_fact_ids": 1},
+        "local_validation": {
+            "reply_contains_hashtag": 1, "reply_contains_mention": 1,
+            "direct_factual_missing_fact_id": 1,
+        },
+    }
+    assert details["details_status_counts"] == {"available": 2}
+    assert details["candidates"][0] == {
+        "time": "2026-09-04 12:00:00", "lane": "quote-tweet", "target_id": "100",
+        "error_category": "local_validation",
+        "failure_reason": "model_response_validation_failed",
+        "validation_error_codes": ["reply_contains_hashtag", "reply_contains_mention"],
+        "validation_error_details_status": "available",
+        "validation_error_codes_omitted_count": 0,
+    }
+    assert details["candidates"][1]["error_category"] == "schema_validation"
+
+
+@pytest.mark.parametrize(
+    ("fields", "codes", "status", "omitted"),
+    [
+        ({}, [], "missing", 0),
+        ({"validation_error_codes": []}, [], "empty", 0),
+        ({"validation_error_codes": None}, [], "malformed", 1),
+        ({"validation_error_codes": True}, [], "malformed", 1),
+        ({"validation_error_codes": "PRIVATE prose"}, [], "malformed", 1),
+        ({"validation_error_codes": {"secret": "PRIVATE prose"}}, [], "malformed", 1),
+        (
+            {"validation_error_codes": [
+                "reply_contains_mention", "PRIVATE prose", None, True,
+                {"secret": "PRIVATE prose"}, "reply_contains_mention",
+            ]},
+            ["reply_contains_mention"], "partial", 4,
+        ),
+        (
+            {"validation_error_codes": ["PRIVATE prose", {"secret": "PRIVATE prose"}]},
+            [], "malformed", 2,
+        ),
+        (
+            {"validation_error_codes": ["reply_contains_mention"] * MAX_VALIDATION_ERROR_CODES
+             + ["reply_contains_hashtag", "PRIVATE prose"]},
+            ["reply_contains_mention"], "partial", 2,
+        ),
+    ],
+)
+def test_validation_failure_projection_redacts_and_preserves_missing_or_omitted_details(
+    fields, codes, status, omitted,
+):
+    report = digest.analyse([_validation_failure_record(
+        0, validation_error_details_status="PRIVATE forged status",
+        validation_error_codes_omitted_count=999, **fields,
+    )])
+
+    event = report["events"][0]
+    details = report["single_call_reply"]["validation_failure_details"]
+    for row in (event, details["candidates"][0]):
+        assert row["validation_error_codes"] == codes
+        assert row["validation_error_details_status"] == status
+        assert row["validation_error_codes_omitted_count"] == omitted
+    assert details["details_status_counts"] == {status: 1}
+    assert details["rule_counts"] == {code: 1 for code in codes}
+    assert "PRIVATE" not in repr(report)
+
+
+def test_validation_failure_summary_bounds_rows_without_losing_counts_or_zero_call_drafts():
+    records = [
+        _validation_failure_record(index, validation_error_codes=["exact_duplicate_reply"])
+        for index in range(41)
+    ]
+    records.append(_validation_failure_record(
+        41, model_call_count=0, provider_request_attempt_count=0,
+        failure_reason="persisted_draft_local_validation_failed",
+        validation_error_codes=["exact_duplicate_reply"],
+    ))
+
+    summary = digest.analyse(records)["single_call_reply"]
+    details = summary["validation_failure_details"]
+
+    assert details["candidate_count"] == 42
+    assert details["rule_counts"] == {"exact_duplicate_reply": 42}
+    assert details["details_status_counts"] == {"available": 42}
+    assert details["omitted_candidate_count"] == 2
+    assert len(details["candidates"]) == 40
+    assert [row["target_id"] for row in details["candidates"]] == [
+        str(value) for value in range(102, 142)
+    ]
+    assert details["candidates"][-1]["failure_reason"] == "persisted_draft_local_validation_failed"
+    assert summary["one_call_compliance"] == "passed"
+
+
+def test_validation_failure_summary_sanitizes_raw_decisions_without_mutation():
+    events = [{
+        "kind": "single_call_reply_decision", "time": "2026-09-04 12:00:00",
+        "target_id": "100", "lane": "mention", "error_category": "local_validation",
+        "pipeline_status": "operational_failure", "local_validation_status": "failed",
+        "validation_error_codes": ["reply_contains_mention", "PRIVATE prose", False],
+    }]
+    original = copy.deepcopy(events)
+
+    details = digest.single_call_reply_summary(events)["validation_failure_details"]
+
+    assert events == original
+    assert details["rule_counts"] == {"reply_contains_mention": 1}
+    assert details["details_status_counts"] == {"partial": 1}
+    assert details["candidates"][0]["validation_error_codes_omitted_count"] == 2
+    assert "PRIVATE" not in repr(details)
 
 
 def test_single_call_digest_reports_version_three_architecture():
