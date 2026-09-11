@@ -302,26 +302,47 @@ def read_records(
     iter_records: Callable[[Path], Iterable[Record]],
 ) -> List[Record]:
     """Read and deduplicate structured and legacy log records."""
+
+    def source_records() -> Iterable[Tuple[Path, Record]]:
+        for path in paths:
+            if not path.exists():
+                print(f"WARNING: missing log file: {path}", file=sys.stderr)
+                continue
+            for record in iter_records(path):
+                yield path, record
+
+    return _deduplicate_records(
+        paths, source_records(), since, until,
+        since_exclusive=since_exclusive, physical_order=physical_order,
+    )
+
+
+def _deduplicate_records(
+    paths: List[Path],
+    source_records: Iterable[Tuple[Path, Record]],
+    since: Optional[datetime],
+    until: Optional[datetime],
+    *,
+    since_exclusive: bool,
+    physical_order: bool,
+) -> List[Record]:
+    """Filter and order records while retaining each source's multiplicity."""
     occurrences: Dict[tuple[Any, ...], Dict[str, List[Record]]] = {}
     path_priority = {str(path): index for index, path in enumerate(paths)}
-    for path in paths:
-        if not path.exists():
-            print(f"WARNING: missing log file: {path}", file=sys.stderr)
-            continue
-        for r in iter_records(path):
-            if since:
-                if since_exclusive:
-                    if r.ts <= since:
-                        continue
-                elif r.ts < since:
+    for path, r in source_records:
+        if since:
+            if since_exclusive:
+                if r.ts <= since:
                     continue
-            if until and r.ts > until:
+            elif r.ts < since:
                 continue
-            # Preserve repeated occurrences within a source. For overlapping
-            # rotations, retain the greatest occurrence count seen in any one
-            # source instead of collapsing the record globally.
-            key = (r.ts, r.level, r.src, r.line, r.msg)
-            occurrences.setdefault(key, {}).setdefault(str(path), []).append(r)
+        if until and r.ts > until:
+            continue
+        # Preserve repeated occurrences within a source. For overlapping
+        # rotations, retain the greatest occurrence count seen in any one
+        # source instead of collapsing the record globally.
+        key = (r.ts, r.level, r.src, r.line, r.msg)
+        occurrences.setdefault(key, {}).setdefault(str(path), []).append(r)
     out: List[Record] = []
     for by_path in occurrences.values():
         _selected_path, selected_records = min(
@@ -435,6 +456,58 @@ def summarize_input_files(
 ) -> List[Dict[str, Any]]:
     """Summarise input files."""
     summaries: List[Dict[str, Any]] = []
+    for _path, _record in _summarized_source_records(
+        paths, since, until, summaries,
+        since_exclusive=since_exclusive, warn_missing=False,
+        iter_records=iter_records, fromtimestamp=fromtimestamp, dt_text=dt_text,
+    ):
+        pass
+    return summaries
+
+
+def read_records_and_summaries(
+    paths: List[Path],
+    since: Optional[datetime],
+    until: Optional[datetime],
+    *,
+    since_exclusive: bool = False,
+    iter_records: Callable[[Path], Iterable[Record]],
+    fromtimestamp: Callable[[float], datetime],
+    dt_text: Callable[[datetime], str],
+) -> Tuple[List[Record], List[Dict[str, Any]]]:
+    """Read physical resume records and raw input summaries in one parse.
+
+    Records retain all observations through ``until``, including those before
+    ``since`` needed to locate a saved physical cursor. Summaries describe each
+    complete raw source and its requested timestamp window, before deduplication
+    or resume selection. Metadata is observed immediately before each file read.
+    """
+    summaries: List[Dict[str, Any]] = []
+    source_records = _summarized_source_records(
+        paths, since, until, summaries,
+        since_exclusive=since_exclusive, warn_missing=True,
+        iter_records=iter_records, fromtimestamp=fromtimestamp, dt_text=dt_text,
+    )
+    records = _deduplicate_records(
+        paths, source_records, None, until,
+        since_exclusive=False, physical_order=True,
+    )
+    return records, summaries
+
+
+def _summarized_source_records(
+    paths: List[Path],
+    since: Optional[datetime],
+    until: Optional[datetime],
+    summaries: List[Dict[str, Any]],
+    *,
+    since_exclusive: bool,
+    warn_missing: bool,
+    iter_records: Callable[[Path], Iterable[Record]],
+    fromtimestamp: Callable[[float], datetime],
+    dt_text: Callable[[datetime], str],
+) -> Iterable[Tuple[Path, Record]]:
+    """Observe complete raw sources while yielding records for optional analysis."""
 
     for path in paths:
         summary: Dict[str, Any] = {
@@ -449,8 +522,10 @@ def summarize_input_files(
             "records_in_window": 0,
         }
 
-        if not path.exists():
-            summaries.append(summary)
+        summaries.append(summary)
+        if not summary["exists"]:
+            if warn_missing:
+                print(f"WARNING: missing log file: {path}", file=sys.stderr)
             continue
 
         try:
@@ -478,10 +553,7 @@ def summarize_input_files(
                 selected = False
             if selected:
                 summary["records_in_window"] += 1
-
-        summaries.append(summary)
-
-    return summaries
+            yield path, record
 
 
 def input_retention_coverage(

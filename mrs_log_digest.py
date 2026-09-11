@@ -91,6 +91,7 @@ from mrs_log_digest_records import (
     filter_resume_boundary_records as _filter_resume_boundary_records,
     iter_records as _iter_records,
     read_records as _read_records,
+    read_records_and_summaries as _read_records_and_summaries,
     filter_records_by_time,
     select_resume_window,
     summarize_input_files as _summarize_input_files,
@@ -945,6 +946,20 @@ def summarize_input_files(
 ) -> List[Dict[str, Any]]:
     """Summarise input files."""
     return _summarize_input_files(
+        paths, since, until, since_exclusive=since_exclusive,
+        iter_records=iter_records, fromtimestamp=datetime.fromtimestamp, dt_text=dt_text,
+    )
+
+
+def read_records_and_summaries(
+    paths: List[Path],
+    since: Optional[datetime],
+    until: Optional[datetime],
+    *,
+    since_exclusive: bool = False,
+) -> Tuple[List[Record], List[Dict[str, Any]]]:
+    """Read physical resume records and raw input summaries in one parse."""
+    return _read_records_and_summaries(
         paths, since, until, since_exclusive=since_exclusive,
         iter_records=iter_records, fromtimestamp=datetime.fromtimestamp, dt_text=dt_text,
     )
@@ -2515,7 +2530,7 @@ def analyse(
 
     # Build a short automatic headline around current health, not raw traceback volume.
     (
-        headline, transient_provider_timeouts, handled_media_fallbacks,
+        headline_components, transient_provider_timeouts, handled_media_fallbacks,
         reconciled_media_uploads, unrecovered_media, derived,
     ) = prepare_headline_and_derived(
         stats=stats, error_health=error_health,
@@ -2556,8 +2571,10 @@ def analyse(
     single_call_quality = single_call_reply_summary(events)
     (
         legacy_multi_stage, headline, headline_without_current_cooldown,
+        headline_components,
     ) = prepare_reply_quality_headline(
-        events=events, headline=headline, single_call_quality=single_call_quality,
+        events=events, headline=headline_components,
+        single_call_quality=single_call_quality,
         plural_count=plural_count,
     )
 
@@ -2575,6 +2592,7 @@ def analyse(
             "_headline_without_current_cooldown": (
                 headline_without_current_cooldown
             ),
+            "_headline_components": headline_components,
             "stats": dict(stats),
             "routine_skip_counts": dict(routine_skip_counts),
         },
@@ -2933,7 +2951,9 @@ def run_digest(args: argparse.Namespace, *, project_dir: Path, state_file: Path)
         until = parse_dt(args.until)
     except ValueError as exc:
         raise SystemExit(str(exc)) from exc
-    physical_records = read_records(logs, None, until, physical_order=True)
+    physical_records, input_files = read_records_and_summaries(
+        logs, since, until, since_exclusive=since_exclusive,
+    )
     selection = select_resume_window(
         physical_records, since,
         since_exclusive=since_exclusive,
@@ -2950,7 +2970,6 @@ def run_digest(args: argparse.Namespace, *, project_dir: Path, state_file: Path)
         ),
     )
     records = selection.records
-    input_files = summarize_input_files(logs, since, until, since_exclusive=since_exclusive)
     input_file_indexes = {
         str(path): index for index, path in enumerate(logs)
     }

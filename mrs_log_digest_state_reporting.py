@@ -14,7 +14,7 @@ from __future__ import annotations
 from collections import Counter
 from datetime import datetime, tzinfo
 from pathlib import Path
-from typing import Any, Callable, Dict, List, Optional, Tuple
+from typing import Any, Callable, Dict, List, Optional, Tuple, TypedDict
 
 from mrs_log_digest_records import Record
 
@@ -43,6 +43,32 @@ CURRENT_COOLDOWN_FIELDS = (
     ("openai_api_cooldown_until_epoch", "OpenAI"),
     ("quote_api_cooldown_until_epoch", "quote API"),
 )
+
+
+class _HeadlineComponents(TypedDict):
+    """Keep replaceable health and cooldown claims separate from observations."""
+
+    activity: List[str]
+    reply_quality: List[str]
+    current_health: str
+    observations: List[str]
+    cooldown: List[str]
+
+
+def _headline_claims(
+    components: _HeadlineComponents,
+    *,
+    health_claim: Optional[str] = None,
+    cooldown_claims: Optional[List[str]] = None,
+) -> List[str]:
+    """Format headline components in their established presentation order."""
+    return [
+        *components["activity"],
+        *components["reply_quality"],
+        components["current_health"] if health_claim is None else health_claim,
+        *components["observations"],
+        *(components["cooldown"] if cooldown_claims is None else cooldown_claims),
+    ]
 
 
 def epoch_to_human(
@@ -692,31 +718,23 @@ def prepare_headline_and_derived(
     int_or_none: Callable[[Any], Optional[int]],
     parse_dt: Callable[[Any], Optional[datetime]],
 ) -> Tuple[
-    List[str], int, List[Dict[str, Any]], List[Dict[str, Any]],
+    _HeadlineComponents, int, List[Dict[str, Any]], List[Dict[str, Any]],
     List[Dict[str, Any]], Dict[str, Any],
 ]:
     """Prepare initial health, media, cooldown and budget claims from supplied data."""
-    headline = []
-    headline.append(plural_count(stats.get("quote_image_posted", 0), "quote/image post"))
-    headline.append(plural_count(stats.get("daily_meme_posted", 0), "daily meme"))
-    headline.append(plural_count(stats.get("mention_reply_posted", 0), "mention reply", "mention replies"))
-    headline.append(plural_count(stats.get("hot_post_reply_posted", 0), "hot-post reply", "hot-post replies"))
-    headline.append(plural_count(stats.get("quote_tweet_reply_posted", 0), "quote-tweet reply", "quote-tweet replies"))
-    headline.append(
+    activity = []
+    activity.append(plural_count(stats.get("quote_image_posted", 0), "quote/image post"))
+    activity.append(plural_count(stats.get("daily_meme_posted", 0), "daily meme"))
+    activity.append(plural_count(stats.get("mention_reply_posted", 0), "mention reply", "mention replies"))
+    activity.append(plural_count(stats.get("hot_post_reply_posted", 0), "hot-post reply", "hot-post replies"))
+    activity.append(plural_count(stats.get("quote_tweet_reply_posted", 0), "quote-tweet reply", "quote-tweet replies"))
+    activity.append(
         plural_count(
             stats.get("historical_context_reply_status_completed", 0),
             "historical-context reply",
             "historical-context replies",
         )
         + " completed"
-    )
-    headline.append(
-        plural_count(
-            stats.get("mention_grok_skip", 0)
-            + stats.get("hot_post_reply_grok_skip", 0)
-            + stats.get("quote_tweet_grok_skip", 0),
-            "Grok skip",
-        )
     )
     current_incidents = int(error_health["current_independent_incident_count"])
     resolved_incidents = int(error_health["historical_resolved_incident_count"])
@@ -732,9 +750,9 @@ def prepare_headline_and_derived(
         health_claim = _incident_health_claim(
             current_incidents, unavailable_incidents, plural_count=plural_count,
         )
-    headline.append(health_claim)
+    observations: List[str] = []
     if unavailable_incidents:
-        headline.append(
+        observations.append(
             plural_count(
                 unavailable_incidents,
                 "incident with current status unavailable from retained evidence",
@@ -742,13 +760,13 @@ def prepare_headline_and_derived(
             )
         )
     if transient_provider_timeouts:
-        headline.append(
+        observations.append(
             f"{plural_count(transient_provider_timeouts, 'transient provider timeout')} "
             "observed (provider recovery unverified)"
         )
     non_transient_resolved_incidents = resolved_incidents
     if non_transient_resolved_incidents:
-        headline.append(
+        observations.append(
             plural_count(
                 non_transient_resolved_incidents,
                 "historical/resolved incident",
@@ -757,17 +775,17 @@ def prepare_headline_and_derived(
         )
     safety = current_remote_write_safety or {}
     if safety.get("configured") is True and safety.get("available") is not True:
-        headline.append("current remote-write safety: UNKNOWN / unavailable")
+        observations.append("current remote-write safety: UNKNOWN / unavailable")
     elif safety.get("configured") is True and safety.get("available") is True:
         safety_status = str(safety.get("status") or "unavailable")
         if safety.get("blocking") is True:
-            headline.append("remote-write safety: BLOCKED")
+            observations.append("remote-write safety: BLOCKED")
         elif safety_status == "paused_fail_closed_control":
-            headline.append("remote writes fail-closed by invalid control")
+            observations.append("remote writes fail-closed by invalid control")
         elif safety_status == "operator_paused":
-            headline.append("remote writes operator-paused")
+            observations.append("remote writes operator-paused")
         else:
-            headline.append("remote-write safety ready")
+            observations.append("remote-write safety ready")
     if handled_api_restrictions:
         deleted_incidents = {
             (
@@ -787,7 +805,7 @@ def prepare_headline_and_derived(
             if item.get("restriction_kind") != "deleted_or_inaccessible_tweet"
         }
         if deleted_incidents:
-            headline.append(
+            observations.append(
                 plural_count(
                     len(deleted_incidents),
                     "deleted/inaccessible-target 403",
@@ -796,7 +814,7 @@ def prepare_headline_and_derived(
                 + " handled"
             )
         if other_handled_incidents:
-            headline.append(
+            observations.append(
                 plural_count(
                     len(other_handled_incidents),
                     "handled API restriction incident",
@@ -818,9 +836,9 @@ def prepare_headline_and_derived(
         if item.get("status") not in {"handled", "reconciled"}
     ]
     if handled_media_fallbacks:
-        headline.append(plural_count(len(handled_media_fallbacks), "handled media-upload fallback"))
+        observations.append(plural_count(len(handled_media_fallbacks), "handled media-upload fallback"))
     if reconciled_media_uploads:
-        headline.append(
+        observations.append(
             plural_count(
                 len(reconciled_media_uploads),
                 "durably reconciled media-upload ambiguity",
@@ -828,12 +846,12 @@ def prepare_headline_and_derived(
             )
         )
     if unrecovered_media:
-        headline.append(plural_count(len(unrecovered_media), "unrecovered media-upload failure"))
+        observations.append(plural_count(len(unrecovered_media), "unrecovered media-upload failure"))
     if self_test_errors:
         selftest_fail_checks = sum(1 for e in self_test_errors if str(e.get("message", "")).startswith("SELFTEST FAIL:"))
-        headline.append(f"self-test failures: {selftest_fail_checks} check(s)")
+        observations.append(f"self-test failures: {selftest_fail_checks} check(s)")
     if confirmed_post_recovery:
-        headline.append(
+        observations.append(
             plural_count(
                 len(confirmed_post_recovery),
                 "confirmed-post recovery record",
@@ -841,7 +859,7 @@ def prepare_headline_and_derived(
             + " in window"
         )
     if confirmed_reply_recovery:
-        headline.append(
+        observations.append(
             plural_count(
                 len(confirmed_reply_recovery),
                 "confirmed-reply recovery record",
@@ -853,11 +871,11 @@ def prepare_headline_and_derived(
         if item.get("kind") in {"invalid_or_unresolved_blocked", "simultaneous_receipts_blocked"}
     ]
     if blocking_receipts:
-        headline.append(
+        observations.append(
             plural_count(len(blocking_receipts), "receipt-block record") + " in window"
         )
     if asset_health:
-        headline.append(
+        observations.append(
             plural_count(len(asset_health), "asset-metadata warning") + " in window"
         )
     cooldown_until_epoch = int_or_none(latest_state_summary.get("api_cooldown_until_epoch"))
@@ -887,12 +905,20 @@ def prepare_headline_and_derived(
         )
         if label
     ]
-    if cooldown_labels:
-        headline.extend(cooldown_labels)
-    elif stats.get("api_cooldown_entered", 0):
-        headline.append("API cooldown occurred")
-    else:
-        headline.append("no API cooldown")
+    if not cooldown_labels:
+        cooldown_labels.append(
+            "API cooldown occurred"
+            if stats.get("api_cooldown_entered", 0)
+            else "no API cooldown"
+        )
+
+    headline: _HeadlineComponents = {
+        "activity": activity,
+        "reply_quality": [],
+        "current_health": health_claim,
+        "observations": observations,
+        "cooldown": cooldown_labels,
+    }
 
     derived = {
         "reply_budget": _reply_budget_values(
@@ -916,11 +942,11 @@ def prepare_headline_and_derived(
 def prepare_reply_quality_headline(
     *,
     events: List[Dict[str, Any]],
-    headline: List[str],
+    headline: _HeadlineComponents,
     single_call_quality: Dict[str, Any],
     plural_count: Callable[..., str],
-) -> Tuple[Dict[str, int], List[str], List[str]]:
-    """Replace legacy skip claims with reply quality and retain a cooldown-free base."""
+) -> Tuple[Dict[str, int], List[str], List[str], _HeadlineComponents]:
+    """Add reply-quality claims and retain components for authoritative refresh."""
     legacy_multi_stage = {
         "decision_count": sum(
             item.get("kind") == "reply_strategy_decision" for item in events
@@ -930,52 +956,30 @@ def prepare_reply_quality_headline(
         ),
     }
     tested_decisions = int(legacy_multi_stage["decision_count"])
-    headline = [
-        item for item in headline
-        if not item.endswith("Grok skip") and not item.endswith("Grok skips")
-    ]
-    health_index = next(
-        (index for index, item in enumerate(headline) if item.startswith("current health:")),
-        len(headline),
-    )
+    reply_quality = []
     single_candidates = int(
         single_call_quality.get("candidate_evaluation_count", 0) or 0
     )
     if single_candidates:
-        headline.insert(
-            health_index,
+        reply_quality.append(
             f"{plural_count(single_candidates, 'single-call candidate')} evaluated; "
             f"{plural_count(single_call_quality.get('replies_posted_count', 0), 'reply', 'replies')} posted; "
             f"{plural_count(single_call_quality.get('editorial_no_reply_count', 0), 'editorial no-reply decision')}; "
             f"{plural_count(single_call_quality.get('operational_failure_count', 0), 'operational failure')}; "
             f"one-call compliance {single_call_quality.get('one_call_compliance')}",
         )
-        health_index += 1
     if tested_decisions or legacy_multi_stage["stage_summary_event_count"]:
-        headline.insert(
-            health_index,
+        reply_quality.append(
             f"legacy multi-stage decisions {tested_decisions}; "
             f"legacy stage summaries {legacy_multi_stage['stage_summary_event_count']}",
         )
-    cooldown_claims = {
-        "API cooldown occurred",
-        "no API cooldown",
-    }
-    cooldown_claim_prefixes = (
-        "X read API cooldown ",
-        "X write API cooldown ",
-        "OpenAI cooldown ",
-        "quote API cooldown ",
-        "current API cooldown state ",
+    components: _HeadlineComponents = {**headline, "reply_quality": reply_quality}
+    return (
+        legacy_multi_stage,
+        _headline_claims(components),
+        _headline_claims(components, cooldown_claims=[]),
+        components,
     )
-    headline_without_current_cooldown = [
-        item
-        for item in headline
-        if item not in cooldown_claims
-        and not item.startswith(cooldown_claim_prefixes)
-    ]
-
-    return legacy_multi_stage, headline, headline_without_current_cooldown
 
 
 def refresh_current_health_headline(
@@ -986,12 +990,16 @@ def refresh_current_health_headline(
     cooldown_state_text: Callable[[Any, int], str],
     CURRENT_COOLDOWN_FIELDS: Tuple[Tuple[str, str], ...],
 ) -> None:
-    """Rebuild current-health and cooldown claims after runtime overlay."""
+    """Rebuild current claims from components after runtime overlay.
+
+    The compatibility headline list remains report data, not a source of claim
+    roles. Older or hand-built reports without components are left unchanged.
+    """
     if "runtime_state_status" not in report:
         return
     summary = report.get("summary") or {}
-    base = summary.get("_headline_without_current_cooldown")
-    if not isinstance(base, list):
+    components = summary.get("_headline_components")
+    if not isinstance(components, dict):
         return
     runtime_status = str(
         (report.get("runtime_state_status") or {}).get("status") or ""
@@ -1019,10 +1027,6 @@ def refresh_current_health_headline(
     safety_claim = _remote_write_health_override(safety, current_incidents)
     if safety_claim is not None:
         health_claim = safety_claim
-    rebuilt_base = [
-        health_claim if str(item).startswith("current health:") else item
-        for item in base
-    ]
     claims: List[str] = []
     statuses: Dict[str, str] = {}
     if runtime_status != "available" or generated is None:
@@ -1040,7 +1044,11 @@ def refresh_current_health_headline(
         if statuses and all(value == "cleared" for value in statuses.values()):
             claims.append("no API cooldown")
     report["current_cooldown_status"] = statuses
-    summary["headline"] = "; ".join([*rebuilt_base, *claims])
+    summary["headline"] = "; ".join(
+        _headline_claims(
+            components, health_claim=health_claim, cooldown_claims=claims,
+        )
+    )
 
 
 def refresh_derived(

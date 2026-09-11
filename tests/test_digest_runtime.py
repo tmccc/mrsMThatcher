@@ -158,7 +158,14 @@ def test_state_refresh_keeps_report_identity_and_current_helper_order(monkeypatc
     calls = []
     state = {"api_cooldown_until_epoch": 123, "openai_api_cooldown_until_epoch": 0,
              "openai_api_cooldown_until_human": "stale", "openai_api_cooldown_reason": "stale"}
-    summary = {"_headline_without_current_cooldown": ["current health: stale"]}
+    summary = {
+        "_headline_without_current_cooldown": ["current health: stale"],
+        "_headline_components": {
+            "activity": [], "reply_quality": [],
+            "current_health": "current health: stale",
+            "observations": [], "cooldown": [],
+        },
+    }
     report = {"latest_state": state, "summary": summary, "generation_epoch": 100,
               "runtime_state_status": {"status": "available"},
               "error_health": {"current_independent_incident_count": 2}}

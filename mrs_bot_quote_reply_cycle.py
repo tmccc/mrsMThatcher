@@ -25,6 +25,7 @@ from mrs_bot_reply_cycle_interfaces import (
     EvaluateReply, QuoteReplyConfig,
     ReplyCycleDelivery, ReplyCyclePersistence,
 )
+from mrs_bot_reply_delivery import ReplyDeliveryStop, deliver_prepared_reply
 from mrs_bot_reply_preparation import (
     build_sending_reply_receipt,
     persist_validated_reply_draft,
@@ -1285,111 +1286,49 @@ def _deliver_reply(
     record_api_error: Callable,
     record_terminal_reply_evaluation: Callable,
 ) -> dict | _QuoteCandidateStop:
-    """Recheck availability and deliver, retaining terminal, retryable and confirmed outcomes."""
-    try:
-        if not delivery.target_available(quote_id):
+    """Deliver through the shared boundary, retaining quote-lane retirement and statuses."""
+    def retire_terminal_target(failure_reason: str) -> None:
+        if failure_reason == "target_unavailable_pre_send":
             log.warning(
                 "Cannot reply to quote tweet %s because it disappeared "
                 "after evaluation; marking it skipped without consuming "
                 "reply quota",
                 quote_id,
             )
-            _retire_terminal_target(
-                state, quote_id, reply_text,
-                failure_reason="target_unavailable_pre_send",
-                reason="x_target_unavailable_pre_send",
-                persistence=persistence,
-                log_ai_reply_posting_outcome=log_ai_reply_posting_outcome,
-                log_event=log_event,
-                mark_quote_tweet_skipped=mark_quote_tweet_skipped,
-                record_terminal_reply_evaluation=record_terminal_reply_evaluation,
-            )
-            return _QuoteCandidateStop(QUOTE_CHECK_STATUS_CHECKED)
-        reply_response, receipt = (
-            delivery.post(
-                state=state,
-                receipt_template=receipt_template,
-                reply_text=reply_text,
-                reply_to_id=quote_id,
-                made_with_ai=config.mark_as_ai,
-                lane="quote_tweet",
-            )
-        )
-    except UnrecoverableConfirmedReplyPersistenceError:
-        log.critical(
-            "Confirmed quote-tweet reply lost every complete durable local "
-            "identity; the global remote-write safety barrier remains active",
-            exc_info=True,
-        )
-        raise
-    except ConfirmedReplyLocalPersistenceError:
-        log.critical(
-            "Confirmed quote-tweet reply required its durable state fallback",
-            exc_info=True,
-        )
-        raise
-    except AmbiguousRemotePostOutcome:
-        log.critical(
-            "Quote-tweet reply stopped after an ambiguous remote outcome; "
-            "the global remote-write safety barrier remains active",
-            exc_info=True,
-        )
-        log_ai_reply_posting_outcome(
-            reply=reply_text,
-            status="posting_failed_retryable",
-            lane="quote_tweet",
-            target_id=quote_id,
-            failure_reason="ambiguous_remote_outcome",
-        )
-        raise
-    except ApiError as e:
-        if api_error_is_reply_not_allowed(e):
+        else:
             log.warning(
                 "Cannot reply to quote tweet %s because X says replies are not allowed; "
                 "marking quote tweet as skipped without consuming reply quota",
                 quote_id,
             )
-            _retire_terminal_target(
-                state, quote_id, reply_text,
-                failure_reason="reply_not_permitted",
-                reason="x_reply_not_permitted",
-                persistence=persistence,
-                log_ai_reply_posting_outcome=log_ai_reply_posting_outcome,
-                log_event=log_event,
-                mark_quote_tweet_skipped=mark_quote_tweet_skipped,
-                record_terminal_reply_evaluation=record_terminal_reply_evaluation,
-            )
-            if isinstance(e, ProvedRemotePostNonSuccess):
-                delivery.retire_rejected(
-                    receipt_template,
-                    e,
-                )
-            return _QuoteCandidateStop(QUOTE_CHECK_STATUS_CHECKED)
+        _retire_terminal_target(
+            state, quote_id, reply_text,
+            failure_reason=failure_reason,
+            reason=f"x_{failure_reason}",
+            persistence=persistence,
+            log_ai_reply_posting_outcome=log_ai_reply_posting_outcome,
+            log_event=log_event,
+            mark_quote_tweet_skipped=mark_quote_tweet_skipped,
+            record_terminal_reply_evaluation=record_terminal_reply_evaluation,
+        )
 
-        log.exception("Failed to post generated quote-tweet reply")
-        log_ai_reply_posting_outcome(
-            reply=reply_text,
-            status="posting_failed_retryable",
-            lane="quote_tweet",
-            target_id=quote_id,
-            failure_reason=f"x_api_{getattr(e, 'status_code', 'error')}",
-        )
-        record_api_error(state, e, "x", scope="write")
-        persistence.save(state)
+    outcome = deliver_prepared_reply(
+        state, quote_id, reply_text, receipt_template,
+        lane="quote_tweet", log_source="quote-tweet", mark_as_ai=config.mark_as_ai,
+        retire_terminal_target=retire_terminal_target,
+        AmbiguousRemotePostOutcome=AmbiguousRemotePostOutcome,
+        ApiError=ApiError,
+        ConfirmedReplyLocalPersistenceError=ConfirmedReplyLocalPersistenceError,
+        ProvedRemotePostNonSuccess=ProvedRemotePostNonSuccess,
+        UnrecoverableConfirmedReplyPersistenceError=UnrecoverableConfirmedReplyPersistenceError,
+        api_error_is_reply_not_allowed=api_error_is_reply_not_allowed,
+        persistence=persistence, delivery=delivery, log=log,
+        log_ai_reply_posting_outcome=log_ai_reply_posting_outcome,
+        record_api_error=record_api_error,
+    )
+    if isinstance(outcome, ReplyDeliveryStop):
         return _QuoteCandidateStop(QUOTE_CHECK_STATUS_CHECKED)
-    except Exception as e:
-        log.exception("Unexpected failure posting generated quote-tweet reply")
-        log_ai_reply_posting_outcome(
-            reply=reply_text,
-            status="posting_failed_retryable",
-            lane="quote_tweet",
-            target_id=quote_id,
-            failure_reason="unexpected_posting_error",
-        )
-        record_api_error(state, e, "x", scope="write")
-        persistence.save(state)
-        return _QuoteCandidateStop(QUOTE_CHECK_STATUS_CHECKED)
-    return receipt
+    return outcome
 
 
 def _finalise_confirmed_reply(

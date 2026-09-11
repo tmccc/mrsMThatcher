@@ -1,4 +1,4 @@
-"""Exercise lane retirement ordering at the delivery boundary without bot setup."""
+"""Exercise lane delivery outcomes and retirement ordering without bot setup."""
 
 from __future__ import annotations
 
@@ -229,3 +229,106 @@ def test_rejected_journal_cleanup_failure_propagates_after_durable_terminal_stat
     assert not scenario.snapshots[0]["pending_ai_reply_drafts"]
     assert [entry[0] for entry in scenario.trace.mock_calls][-2:] == ["save", "retire"]
     scenario.trace.api_error.assert_not_called()
+
+
+@pytest.mark.parametrize("lane", ["mention", "hot_post", "quote_tweet"])
+def test_successful_delivery_passes_original_values_and_returns_the_confirmed_receipt(lane):
+    scenario = prepare_delivery(lane, "proved")
+    confirmed = {"lifecycle_state": "confirmed", "reply_post_id": "999"}
+    scenario.trace.post.side_effect = None
+    scenario.trace.post.return_value = ({"data": {"id": "999"}}, confirmed)
+
+    assert scenario.run() is confirmed
+    assert [entry[0] for entry in scenario.trace.mock_calls] == ["available", "post"]
+    scenario.trace.available.assert_called_once_with("105")
+    scenario.trace.post.assert_called_once_with(
+        state=scenario.state, receipt_template=scenario.receipt,
+        reply_text=scenario.reply, reply_to_id="105", made_with_ai=True, lane=lane,
+    )
+    assert scenario.trace.post.call_args.kwargs["state"] is scenario.state
+    assert scenario.trace.post.call_args.kwargs["receipt_template"] is scenario.receipt
+    assert scenario.state["pending_ai_reply_drafts"]
+
+
+@pytest.mark.parametrize("lane", ["mention", "hot_post", "quote_tweet"])
+@pytest.mark.parametrize("stage", ["available", "post"])
+@pytest.mark.parametrize("api_failure", [False, True])
+def test_retryable_delivery_failure_records_write_cooldown_and_keeps_the_pending_draft(
+    lane, stage, api_failure,
+):
+    scenario = prepare_delivery(lane, "proved")
+    before = copy.deepcopy(scenario.state)
+    failure = ApiError("rate limited") if api_failure else OSError("transport unavailable")
+    failure.status_code = 429
+    getattr(scenario.trace, stage).side_effect = failure
+
+    assert scenario.run().status == ("checked" if lane == "quote_tweet" else "api_error")
+    scenario.trace.api_error.assert_called_once_with(scenario.state, failure, "x", scope="write")
+    scenario.trace.save.assert_called_once_with(scenario.state)
+    scenario.trace.posting_outcome.assert_called_once_with(
+        reply=scenario.reply, status="posting_failed_retryable", lane=lane,
+        target_id="105",
+        failure_reason="x_api_429" if api_failure else "unexpected_posting_error",
+    )
+    assert scenario.state == before
+    assert [entry[0] for entry in scenario.trace.mock_calls] == (
+        ["available"] + (["post"] if stage == "post" else [])
+        + ["log.exception", "posting_outcome", "api_error", "save"]
+    )
+
+
+@pytest.mark.parametrize("lane", ["mention", "hot_post", "quote_tweet"])
+@pytest.mark.parametrize("stage", ["available", "post"])
+@pytest.mark.parametrize("failure_type", [EOFError, ArithmeticError, LookupError])
+def test_confirmed_and_ambiguous_delivery_failures_propagate_without_retry_bookkeeping(
+    lane, stage, failure_type,
+):
+    scenario = prepare_delivery(lane, "proved")
+    before = copy.deepcopy(scenario.state)
+    failure = failure_type("recovery authority must handle this outcome")
+    getattr(scenario.trace, stage).side_effect = failure
+
+    with pytest.raises(failure_type) as caught:
+        scenario.run()
+    assert caught.value is failure
+    expected = ["available"] + (["post"] if stage == "post" else []) + ["log.critical"]
+    if failure_type is LookupError:
+        expected.append("posting_outcome")
+        scenario.trace.posting_outcome.assert_called_once_with(
+            reply=scenario.reply, status="posting_failed_retryable", lane=lane,
+            target_id="105", failure_reason="ambiguous_remote_outcome",
+        )
+    assert [entry[0] for entry in scenario.trace.mock_calls] == expected
+    assert scenario.state == before
+    log_args = scenario.trace.log.critical.call_args.args
+    message = log_args[0] % log_args[1:] if len(log_args) > 1 else log_args[0]
+    label = {"mention": "mention", "hot_post": "hot-post", "quote_tweet": "quote-tweet"}[lane]
+    if failure_type is EOFError:
+        assert message == (
+            f"Confirmed {label} reply lost every complete durable local identity; "
+            "the global remote-write safety barrier remains active"
+        )
+    elif failure_type is ArithmeticError:
+        assert message == f"Confirmed {label} reply required its durable state fallback"
+    else:
+        assert message == (
+            f"{'Quote-tweet' if lane == 'quote_tweet' else label} reply stopped after an "
+            "ambiguous remote outcome; the global remote-write safety barrier remains active"
+        )
+
+
+@pytest.mark.parametrize("lane", ["mention", "quote_tweet"])
+@pytest.mark.parametrize("stage", ["api_error", "save"])
+def test_retryable_failure_bookkeeping_error_propagates_without_a_second_attempt(lane, stage):
+    scenario = prepare_delivery(lane, "proved")
+    scenario.trace.post.side_effect = OSError("transport unavailable")
+    failure = RuntimeError("retry bookkeeping failed")
+    getattr(scenario.trace, stage).side_effect = failure
+
+    with pytest.raises(RuntimeError) as caught:
+        scenario.run()
+    assert caught.value is failure
+    scenario.trace.post.assert_called_once()
+    scenario.trace.api_error.assert_called_once()
+    assert scenario.trace.save.call_count == (1 if stage == "save" else 0)
+    scenario.trace.retire.assert_not_called()

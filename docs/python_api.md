@@ -42,7 +42,7 @@ and AppleDouble files.
 | `mrs_bot_reply_preparation.py` | Shared validated-draft persistence and sending-receipt construction | Reports draft validation failure before a durable state save; constructs schema-v4 receipts with separate context and draft copies. Lane owners retain validation guards, exact log wording, status mapping, provenance and attempt binding. Local failures propagate before transport handling; no import-time runtime work or retained caller state |
 | `mrs_bot_reply_receipt_values.py` | Eleven conversational reply receipt value, pagination, current/legacy validity, source reconstruction and attempt/confirmation time helpers | Eleven explicit root adapters retain names/signatures/defaults/annotations and pass current validators, JSON/date/clock helpers, legacy versions, logger and exception authority; original bodies/docstrings preserve schema/lane restrictions, current versus frozen recovery dispatch, shallow copies, exact source hashes, timing and native error order; shared draft validators/helpers, durable receipt/state/counter/watermark handling and outbound authority remain in their existing locations; standard-library-only import performs no file/environment/provider/RNG work and retains no callbacks or new constants |
 | `mrs_bot_reply_reconciliation.py` | Confirmed reply state application, shared completion, restart reconciliation and emergency completeness | Both reply lanes share apply, durable save, journal retirement and receipt removal. Application/save errors retain their original types; cleanup errors are wrapped after the save. Restart reconciliation keeps its separate persistence policy and exactly-once accounting |
-| `mrs_bot_reply_delivery.py` | Eight conversational reply delivery and receipt loading, writing, current/legacy promotion, removal and proved-rejection retirement functions | Eight explicit root adapters retain signatures/defaults/annotations and pass current callbacks, paths, JSON module, logger and exception authority; unchanged bodies/docstrings preserve exact source lineage, shallow template/reference boundaries, durable sending before SIGINT deferral, distinct transport errors, conservative confirmation, canonical fallback completeness and guard/retirement order; shared I/O primitives, journals/source binding, mutation authority, create_post, runtime barriers, SIGINT implementation, persistence, receipt values and reconciliation stay in their existing locations; standard-library-only import performs no file/environment/provider/RNG work and retains no callbacks |
+| `mrs_bot_reply_delivery.py` | Conversational reply delivery, shared lane delivery outcomes, and receipt loading, writing, current/legacy promotion, removal and proved-rejection retirement | Eight explicit root adapters retain signatures/defaults/annotations and pass current callbacks, paths, JSON module, logger and exception authority; unchanged bodies/docstrings preserve exact source lineage, shallow template/reference boundaries, durable sending before SIGINT deferral, distinct transport errors, conservative confirmation, canonical fallback completeness and guard/retirement order; shared I/O primitives, journals/source binding, mutation authority, create_post, runtime barriers, SIGINT implementation, persistence, receipt values and reconciliation stay in their existing locations; standard-library-only import performs no file/environment/provider/RNG work and retains no callbacks |
 | `mrs_bot_normal_reply_cycle.py` | Normal mention and hot-post reply orchestration | Per-invocation typed settings, draft persistence and delivery boundaries use current root dependencies. Discovery, quarantine, backlog continuation, actual-model-call budgets and one-success-per-cycle policy stay explicit; production evaluation and recovery carry typed results. Draft persistence and receipt copying use the shared preparation owner; provenance and attempt binding remain lane-specific. Terminal-target handling shares one lane-local durable bookkeeping sequence |
 | `mrs_bot_quote_reply_cycle.py` | Quote-tweet reply orchestration, eligibility, context and lane markers | Per-invocation typed settings, draft persistence and delivery boundaries share the normal lane contracts. Watch-list and numeric candidate ordering, reply delay, candidate/author limits and one-success-per-cycle policy remain lane-specific; production evaluation and recovery carry typed results. Draft persistence and receipt copying use the shared preparation owner; provenance and attempt binding remain lane-specific. Terminal-target handling shares one lane-local durable bookkeeping sequence |
 | `mrs_bot_quote_discovery.py` | Watched/recent own-post selection and combined recent-search quote discovery | Seven root adapters supply current dependencies. Search batches up to ten bounded original IDs per query, excludes retweets, groups direct quotes by structured references, selects full long-post text, merges media/author expansions and removes duplicate quote IDs. Incomplete combined batches use bounded per-original recent searches to preserve watch priority. Query-specific continuations are persisted separately from legacy per-post cursors and discarded when the query changes. The legacy quote-endpoint lookup and cursor-suppression helpers remain available for diagnostics. Shared pagination, authentication, cache seeding and durable storage retain their existing owners; import performs no runtime work and retains no clients or state |
@@ -102,7 +102,7 @@ and AppleDouble files.
 | `mrs_log_digest.py` | Log-input coordination, aggregation and Markdown/JSON reports | Separate production and self-test source contexts retain pending observations and active provider attempts across interleaved records. Resume state uses the production context and retains its existing JSON contract. Local log and resume-state reads/writes; no provider calls |
 | `mrs_log_digest_context.py` | Historical context, config backscan and digest-cursor persistence | Reads supplied log/cursor paths; saves through a temporary sibling and replacement; explicit current helpers, marker/tail limits, Counter factory, diagnostic and save-time clock; no import-time I/O or publication authority |
 | `mrs_log_digest_input_io.py` | Stable file observations, strict native/Decimal JSON parsing and canonical receipt/history encodings | Reads only supplied paths; explicit current sibling callbacks; ordinary file hashing retains its separate read contract; no writes or import-time runtime access |
-| `mrs_log_digest_records.py` | Shared frozen records, bounded source references, fingerprints, resume-window selection, prefixed-JSON observation parsing and log input reading | Reads/stats supplied log paths and emits existing missing-input warnings; explicit current regex, constructor, parsers, readers and helpers; no import-time runtime access |
+| `mrs_log_digest_records.py` | Shared frozen records, bounded source references, fingerprints, resume-window selection, prefixed-JSON observation parsing and combined log input/coverage reading | Reads/stats supplied log paths and emits existing missing-input warnings; explicit current regex, constructor, parsers, readers and helpers; no import-time runtime access |
 | `mrs_log_digest_legacy_posts.py` | Raw legacy quiet/lane, quote/image, spacing, meme, created-post and conversational reply observations and companion response parsing | Supplied shared records, pending/latest objects, lists, counters, production event identities and current event/literal/ID helpers; explicit handled/state returns; no I/O, clock sample, runtime access or provider/posting actions |
 | `mrs_log_digest_transactions.py` | Passive X request, transaction, receipt and media observation preparation, legacy matching, receipt/media correlation, shared reply-receipt lifecycle analysis and post-scan receipt/error reporting preparation | Supplied records, snapshots, health, pending state, lists/statistics and current helper/source callbacks; no I/O, clock sample, runtime access or publication authority |
 | `mrs_log_digest_api_health.py` | Passive X/cooldown observation, latest-error enrichment and API counter/failure/report preparation | Supplied records, shared lists, production event identities and current helpers; separate preparation and report materialisation; no I/O, clock sample, source selection or publication authority |
@@ -111,7 +111,7 @@ and AppleDouble files.
 | `mrs_log_digest_provider_costs.py` | Pure conversational provider usage totals, cost attribution, cache-metric coverage and currency formatting | None; consumes supplied observations without mutation |
 | `mrs_log_digest_provider_observations.py` | Passive conversational provider call/usage/error parsing, context selection/reset, attempt matching and observation projection | Supplied records, pending/active state, lists/statistics and current parser/formatter/converter/source callbacks; returns active context/index and mutates shared attempts; later error observation returns context alone; no I/O, clock sample or runtime access |
 | `mrs_log_digest_runtime.py` | Current state/configuration validation, operator pause and feature-lifecycle observations | Supplied stable readers for state/configuration/controls and a lazy local lifecycle reader; explicit project paths, strict JSON parsers, file-time conversion and pause clock; no import-time runtime access |
-| `mrs_log_digest_state_reporting.py` | Prepared current-state, author-strike, headline/derived, reply-quality and mention-control reporting | Explicit data, current helpers, vocabulary, epoch conversion and observation clock; preparation preserves media rows and supplied state/record times; refreshes supplied reports and uses the supplied event callback and statistics counter; no I/O or import-time runtime access |
+| `mrs_log_digest_state_reporting.py` | Prepared current-state, author-strike, structured headline components, derived, reply-quality and mention-control reporting | Explicit data, current helpers, vocabulary, epoch conversion and observation clock; preparation preserves media rows and supplied state/record times; refreshes supplied reports and uses the supplied event callback and statistics counter; no I/O or import-time runtime access |
 | `mrs_log_digest_remote_write.py` | Read-only remote-write barrier identities, grouping, safety, reconciliation archive and window annotations | Explicit paths, readers/parsers, diagnostic formatter, clock, snapshot callbacks and annotation time converters; supplied window/authority flag; lazy read-only inspectors; no import-time runtime access |
 | `mrs_log_digest_incidents.py` | Per-record error/warning observation, operational-error classification, incident grouping/resolution, retirement evidence and remote pause scopes | Supplied observations, current helper/annotation callbacks, scope mappings and conditional clock/epoch conversion; preserves error/event identity and snapshot mutation; no file/home/configuration access or provider calls |
 | `mrs_log_digest_snapshot_incidents.py` | Prepared current-snapshot and retirement-evidence incident reconciliation | Supplied incident/evidence references and current matching/text/time callbacks; in-place incident enrichment/appends and shallow evidence sharing; no reads, clock samples or provider calls |
@@ -173,6 +173,14 @@ winner handling, log serialization and the existing selected-row/component copy
 boundary. Disabled startup, logging and selection still do no work. See
 [bot modularisation](bot_modularisation.md) for stage 2 validation.
 
+`deliver_prepared_reply` in `mrs_bot_reply_delivery` shares pre-send availability,
+posting, confirmed/ambiguous error propagation and retryable API error accounting
+between normal and quote replies. Lane owners retain terminal retirement,
+warning wording and check-status mapping. The shared `ReplyDeliveryStop` value
+distinguishes terminal from retryable failures. Pre-send retirement remains inside
+the transport exception boundary; retirement after an API refusal remains inside
+its handler, and the target is durably retired before its sending journal.
+
 Record/input callers retain `Record`, `safe_source_logger`, `record_source_ref`,
 `bounded_source_refs`, `record_fingerprint`, `resume_fingerprint_tail`,
 `locate_resume_fingerprint_tail`, `resume_boundary_fingerprint_counts`,
@@ -185,14 +193,19 @@ second record type. `LOG_RE`, `SAFE_SOURCE_LOGGER_RE`, `SOURCE_REFERENCE_LIMIT`
 and `RESUME_FINGERPRINT_TAIL_LIMIT` belong to that owner and retain digest aliases.
 
 The reference merger, boundary-count decoder, time filter and warning combiner
-are direct aliases. Ten thin wrappers supply current digest regexes, tail limit,
+are direct aliases. Thin wrappers supply current digest regexes, tail limit,
 record constructor, `datetime.strptime`/`fromtimestamp`, `dt_text`, `parse_dt`,
 `safe_source_logger`, `record_fingerprint` and `iter_records` where used. Iteration
 remains lazy. Selected input reading preserves log-header/continuation handling,
 replacement decoding, source ordinals/indexes, exact fingerprint bytes, duplicate
 multiplicity, physical versus timestamp order, numeric rotations/mtime ties,
-bounds and stat/read/warning order. Input summaries retain physical first/last
-timestamps.
+bounds and missing-input warnings. Input summaries retain physical first/last
+timestamps. The CLI uses `read_records_and_summaries` to collect analysis records
+and raw coverage counters from the same parse of each source. Summaries include
+records outside the selected window and before deduplication; physical records
+retain earlier observations for resume matching. Metadata is sampled before each
+source read. Standalone `read_records` and `summarize_input_files` remain available;
+the separate context backscan keeps its existing read path.
 
 `select_resume_window` returns selected physical records with their cursor mode,
 matched-tail length and timestamp-fallback status in `ResumeWindowSelection`.
@@ -529,22 +542,22 @@ derived/cooldown/headline refreshes mutate the supplied report at the existing
 call sites. Loading, saved-context application, resume, backscan and overall
 report assembly retain their current owners.
 
-`prepare_headline_and_derived` consumes named prepared statistics, health,
-restrictions, media/recovery/receipt/asset observations, state summary, shared
-`Record` objects and configuration, plus current `plural_count`, `int_or_none`
-and `parse_dt`. Its six-item tuple returns the initial headline, transient timeout
-count, three media lists and derived budgets/lane priority. Media lists retain
-their original rows. Cooldowns use supplied state/record timestamps without a
-new clock sample; the temporary Grok-skip claim retains its original lifetime.
-The digest calls it before API preparation at the original analysis position.
+`prepare_headline_and_derived` consumes prepared statistics, health, restrictions,
+media/recovery/receipt/asset observations, state summary, shared `Record` objects
+and configuration, plus current formatting helpers. It returns private headline
+components alongside the timeout count, media lists and derived budgets/lane
+priority. Media lists retain their original rows; cooldowns use supplied
+state/record timestamps without a new clock sample.
 
-`prepare_reply_quality_headline` runs after the digest's existing historical-context
-and single-call quality summaries. It consumes events, the initial headline,
-single-call quality and current `plural_count`, returning legacy counts, a
-replacement headline list and its cooldown-free base. It preserves insertion
-positions and every cooldown exclusion without mutating the input list. Mention
-control preparation, API report materialisation and report schema assembly remain
-at their original coordinator positions; existing reporting functions are unchanged.
+`prepare_reply_quality_headline` adds reply-quality components after the existing
+historical-context and single-call summaries. Headline order is explicit:
+activity, reply quality, health, observations and cooldowns. Current-state refresh
+replaces health and cooldown components directly, without interpreting displayed
+phrases. The existing private cooldown-free list remains available alongside the
+private component map; public headline wording and schema fields are preserved.
+Historical analysis keeps its log evidence, while CLI current-health refresh uses
+the runtime snapshot and existing safety precedence. Mention-control preparation,
+API report materialisation and report assembly retain their coordinator positions.
 
 `record_mention_backlog` and `record_author_evaluation_quarantine` consume the
 selected parsed payload, record timestamp, current validation helpers,

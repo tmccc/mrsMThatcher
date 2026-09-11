@@ -1,9 +1,11 @@
 """Deliver conversational replies and manage their durable receipt lifecycle.
 
 Root adapters supply current helpers, paths, logger and exception authority on
-every call. Original bodies retain exact receipt/source binding, operation and
-error order, shallow references, conservative confirmation and fallback state
-completeness, and the existing SIGINT deferral boundaries.
+every call. Reply cycles share pre-send checks and delivery outcome handling,
+while retaining their own terminal bookkeeping and check statuses. Receipt
+operations retain exact source binding, error order, shallow references,
+conservative confirmation and fallback state completeness, and the existing
+SIGINT deferral boundaries.
 
 No-follow/create/replace/retire primitives, transport journals and mutation
 authority, create_post, runtime barriers, SIGINT guard implementation, state
@@ -17,8 +19,131 @@ from __future__ import annotations
 
 import logging
 from collections.abc import Callable
+from enum import Enum
 from pathlib import Path
 from types import ModuleType
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from mrs_bot_reply_cycle_interfaces import ReplyCycleDelivery, ReplyCyclePersistence
+
+
+class ReplyDeliveryStop(Enum):
+    """A delivery failure that the calling lane maps to its own check status."""
+
+    TERMINAL = "terminal"
+    RETRYABLE = "retryable"
+
+
+def deliver_prepared_reply(
+    state: dict,
+    target_id: str,
+    reply_text: object,
+    receipt_template: dict,
+    *,
+    lane: str,
+    log_source: str,
+    mark_as_ai: bool,
+    retire_terminal_target: Callable[[str], None],
+    AmbiguousRemotePostOutcome: type[Exception],
+    ApiError: type[Exception],
+    ConfirmedReplyLocalPersistenceError: type[Exception],
+    ProvedRemotePostNonSuccess: type[Exception],
+    UnrecoverableConfirmedReplyPersistenceError: type[Exception],
+    api_error_is_reply_not_allowed: Callable,
+    persistence: ReplyCyclePersistence,
+    delivery: ReplyCycleDelivery,
+    log: logging.Logger,
+    log_ai_reply_posting_outcome: Callable,
+    record_api_error: Callable,
+) -> dict | ReplyDeliveryStop:
+    """Recheck, send and route delivery failures without owning lane bookkeeping.
+
+    Terminal retirement before sending stays inside the transport exception
+    boundary. Retirement after a proved API refusal stays in its exception
+    handler, so its failures propagate and cannot remove the sending journal
+    before the lane has durably retired its target. Confirmed and ambiguous
+    outcomes always propagate to the existing recovery authority.
+    """
+    try:
+        if not delivery.target_available(target_id):
+            retire_terminal_target("target_unavailable_pre_send")
+            return ReplyDeliveryStop.TERMINAL
+        _, receipt = delivery.post(
+            state=state,
+            receipt_template=receipt_template,
+            reply_text=reply_text,
+            reply_to_id=target_id,
+            made_with_ai=mark_as_ai,
+            lane=lane,
+        )
+    except UnrecoverableConfirmedReplyPersistenceError:
+        log.critical(
+            "Confirmed %s reply lost every complete durable local identity; "
+            "the global remote-write safety barrier remains active",
+            log_source,
+            exc_info=True,
+        )
+        raise
+    except ConfirmedReplyLocalPersistenceError:
+        log.critical(
+            "Confirmed %s reply required its durable state fallback",
+            log_source,
+            exc_info=True,
+        )
+        raise
+    except AmbiguousRemotePostOutcome:
+        log.critical(
+            "%s reply stopped after an ambiguous remote outcome; the global "
+            "remote-write safety barrier remains active",
+            "Quote-tweet" if lane == "quote_tweet" else log_source,
+            exc_info=True,
+        )
+        log_ai_reply_posting_outcome(
+            reply=reply_text,
+            status="posting_failed_retryable",
+            lane=lane,
+            target_id=target_id,
+            failure_reason="ambiguous_remote_outcome",
+        )
+        raise
+    except ApiError as e:
+        if api_error_is_reply_not_allowed(e):
+            retire_terminal_target("reply_not_permitted")
+            if isinstance(e, ProvedRemotePostNonSuccess):
+                delivery.retire_rejected(receipt_template, e)
+            return ReplyDeliveryStop.TERMINAL
+
+        log.exception(
+            "Failed to post generated quote-tweet reply"
+            if lane == "quote_tweet" else "Failed to post generated reply"
+        )
+        log_ai_reply_posting_outcome(
+            reply=reply_text,
+            status="posting_failed_retryable",
+            lane=lane,
+            target_id=target_id,
+            failure_reason=f"x_api_{getattr(e, 'status_code', 'error')}",
+        )
+        record_api_error(state, e, "x", scope="write")
+        persistence.save(state)
+        return ReplyDeliveryStop.RETRYABLE
+    except Exception as e:
+        log.exception(
+            "Unexpected failure posting generated quote-tweet reply"
+            if lane == "quote_tweet" else "Unexpected failure posting generated reply"
+        )
+        log_ai_reply_posting_outcome(
+            reply=reply_text,
+            status="posting_failed_retryable",
+            lane=lane,
+            target_id=target_id,
+            failure_reason="unexpected_posting_error",
+        )
+        record_api_error(state, e, "x", scope="write")
+        persistence.save(state)
+        return ReplyDeliveryStop.RETRYABLE
+    return receipt
 
 
 def load_confirmed_reply_receipt(

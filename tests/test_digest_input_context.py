@@ -447,10 +447,10 @@ def test_input_summary_keeps_stat_reader_conversion_order_and_physical_endpoints
     monkeypatch.setattr(digest, "dt_text", format_time)
     summaries = digest.summarize_input_files(paths, BASE, BASE, since_exclusive=True)
     assert calls == [
-        ("exists", "read.log"), ("exists", "read.log"), ("stat", "read.log"),
+        ("exists", "read.log"), ("stat", "read.log"),
         ("mtime", 123), ("read", "read.log"), ("format", records[0].ts), ("format", BASE),
-        ("exists", "missing.log"), ("exists", "missing.log"),
-        ("exists", "stat-error.log"), ("exists", "stat-error.log"), ("stat", "stat-error.log"),
+        ("exists", "missing.log"),
+        ("exists", "stat-error.log"), ("stat", "stat-error.log"),
         ("read", "stat-error.log"), ("format", records[0].ts), ("format", BASE),
     ]
     assert summaries[0] == {
@@ -461,6 +461,89 @@ def test_input_summary_keeps_stat_reader_conversion_order_and_physical_endpoints
     assert summaries[1]["exists"] is False and summaries[1]["total_records"] == 0
     assert summaries[2]["size"] is None and summaries[2]["mtime"] is None
     assert summaries[2]["total_records"] == 2
+
+
+@pytest.mark.parametrize("since,exclusive", [(None, False), (BASE, False), (BASE, True)])
+@pytest.mark.parametrize("until", [None, BASE + timedelta(seconds=1)])
+def test_combined_reader_preserves_raw_summaries_and_physical_resume_records(
+    tmp_path, monkeypatch, capsys, since, exclusive, until,
+):
+    current, rotation, empty, missing = [
+        tmp_path / name for name in (
+            "mrsMThatcher.log", "mrsMThatcher.log.1",
+            "mrsMThatcher.log.2", "mrsMThatcher.log.3",
+        )
+    ]
+
+    def line(offset, message):
+        timestamp = (BASE + timedelta(seconds=offset)).strftime("%Y-%m-%d %H:%M:%S")
+        return f"{timestamp} INFO worker:9 - {message}\n"
+
+    current.write_text(line(0, "duplicate") * 2 + line(1, "new"))
+    rotation.write_text(
+        line(-1, "old") + line(0, "duplicate")
+        + line(3, "beyond upper bound") + line(-2, "clock rollback")
+    )
+    empty.touch()
+    paths = [current, missing, empty, rotation]
+    expected_records = digest.read_records(paths, None, until, physical_order=True)
+    expected_summaries = digest.summarize_input_files(
+        paths, since, until, since_exclusive=exclusive,
+    )
+    capsys.readouterr()
+    original_reader = digest.iter_records
+    parsed = []
+
+    def read_once(path):
+        parsed.append(path)
+        return original_reader(path)
+
+    monkeypatch.setattr(digest, "iter_records", read_once)
+    records, summaries = digest.read_records_and_summaries(
+        paths, since, until, since_exclusive=exclusive,
+    )
+
+    assert parsed == [current, empty, rotation]
+    assert records == expected_records
+    assert summaries == expected_summaries
+    assert [item["total_records"] for item in summaries] == [3, 0, 0, 4]
+    assert summaries[3]["first_timestamp"] == digest.dt_text(BASE - timedelta(seconds=1))
+    assert summaries[3]["last_timestamp"] == digest.dt_text(BASE - timedelta(seconds=2))
+    assert [item.ordinal for item in records if item.msg == "duplicate"] == [1, 2]
+    assert all(item.path == str(current) for item in records if item.msg == "duplicate")
+    assert capsys.readouterr().err == f"WARNING: missing log file: {missing}\n"
+
+
+def test_cli_analysis_and_input_coverage_share_the_same_parse(tmp_path, monkeypatch):
+    log = tmp_path / "mrsMThatcher.log"
+    output = tmp_path / "digest.json"
+    log.write_text(
+        "2026-07-25 09:00:00 INFO worker:9 - initial record\n"
+        "2026-07-25 09:00:01 INFO worker:9 - last observed record\n"
+    )
+    original_reader = digest.iter_records
+    parsed = []
+
+    def append_after_read(path):
+        parsed.append(path)
+        yield from original_reader(path)
+        # A second parse would now include an observation absent from analysis.
+        with path.open("a", encoding="utf-8") as source:
+            source.write("2026-07-25 09:00:02 ERROR worker:9 - appended after read\n")
+
+    monkeypatch.setattr(digest, "iter_records", append_after_read)
+    assert digest.main([
+        "--project-dir", str(tmp_path), "--no-state", "--json",
+        "--since", "2026-07-25 09:00:00", "--output", str(output), str(log),
+    ]) == 0
+
+    report = json.loads(output.read_text())
+    assert parsed == [log]
+    assert report["summary"]["record_count"] == 2
+    assert report["input_files"][0]["total_records"] == 2
+    assert report["input_files"][0]["records_in_window"] == 2
+    assert report["input_files"][0]["last_timestamp"] == "2026-07-25 09:00:01"
+    assert "appended after read" in log.read_text()
 
 
 def test_source_and_fingerprint_helpers_use_current_formatter_and_logger(monkeypatch):

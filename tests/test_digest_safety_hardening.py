@@ -987,8 +987,7 @@ def test_project_dir_is_explicit_from_foreign_cwd(tmp_path, monkeypatch):
 def test_default_project_dir_is_script_directory(monkeypatch):
     captured = {}
     monkeypatch.setattr(digest, "discover_logs", lambda directory, _pattern: (captured.setdefault("directory", directory), [Path(__file__)])[1])
-    monkeypatch.setattr(digest, "read_records", lambda *_a, **_k: [])
-    monkeypatch.setattr(digest, "summarize_input_files", lambda *_a, **_k: [])
+    monkeypatch.setattr(digest, "read_records_and_summaries", lambda *_a, **_k: ([], []))
     monkeypatch.setattr(digest, "generated_pool_health_snapshot", lambda base: {"snapshot_base_dir": str(base)})
     monkeypatch.setattr(digest, "generated_post_rate_history", lambda *_a, **_k: {"windows": {}})
     monkeypatch.setattr(digest, "deliver_report", lambda *_a, **_k: None)

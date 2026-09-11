@@ -26,6 +26,7 @@ from mrs_bot_reply_cycle_interfaces import (
     EvaluateReply, NormalReplyConfig,
     ReplyCycleDelivery, ReplyCyclePersistence,
 )
+from mrs_bot_reply_delivery import ReplyDeliveryStop, deliver_prepared_reply
 from mrs_bot_reply_preparation import (
     build_sending_reply_receipt,
     persist_validated_reply_draft,
@@ -1185,115 +1186,52 @@ def _deliver_reply(
     record_api_error: Callable,
     record_terminal_reply_evaluation: Callable,
 ) -> dict | _CandidateStop:
-    """Revalidate the target, send once and route confirmed, ambiguous and rejected outcomes."""
-    try:
-        if not delivery.target_available(candidate.mention_id):
+    """Deliver through the shared boundary, retaining normal-lane retirement and statuses."""
+    def retire_terminal_target(failure_reason: str) -> None:
+        if failure_reason == "target_unavailable_pre_send":
             log.warning(
                 "Cannot reply to mention %s because it disappeared after "
                 "evaluation; marking it handled without consuming reply quota",
                 candidate.mention_id,
             )
-            _retire_terminal_target(
-                state, candidate, replied_to_ids, reply_text,
-                failure_reason="target_unavailable_pre_send",
-                reason="x_target_unavailable_pre_send",
-                append_unique_durable=append_unique_durable,
-                persistence=persistence,
-                log_ai_reply_posting_outcome=log_ai_reply_posting_outcome,
-                log_event=log_event,
-                mark_mention_seen_if_applicable=mark_mention_seen_if_applicable,
-                record_terminal_reply_evaluation=record_terminal_reply_evaluation,
-            )
-            return _CandidateStop(NORMAL_CHECK_STATUS_CHECKED)
-        reply_response, receipt = (
-            delivery.post(
-                state=state,
-                receipt_template=receipt_template,
-                reply_text=reply_text,
-                reply_to_id=candidate.mention_id,
-                made_with_ai=config.mark_as_ai,
-                lane=str(candidate.source),
-            )
-        )
-    except UnrecoverableConfirmedReplyPersistenceError:
-        log.critical(
-            "Confirmed %s reply lost every complete durable local identity; "
-            "the global remote-write safety barrier remains active",
-            candidate.log_source,
-            exc_info=True,
-        )
-        raise
-    except ConfirmedReplyLocalPersistenceError:
-        log.critical(
-            "Confirmed %s reply required its durable state fallback",
-            candidate.log_source,
-            exc_info=True,
-        )
-        raise
-    except AmbiguousRemotePostOutcome:
-        log.critical(
-            "%s reply stopped after an ambiguous remote outcome; the global "
-            "remote-write safety barrier remains active",
-            candidate.log_source,
-            exc_info=True,
-        )
-        log_ai_reply_posting_outcome(
-            reply=reply_text,
-            status="posting_failed_retryable",
-            lane=str(candidate.source),
-            target_id=candidate.mention_id,
-            failure_reason="ambiguous_remote_outcome",
-        )
-        raise
-    except ApiError as e:
-        if api_error_is_reply_not_allowed(e):
+        else:
             log.warning(
                 "Cannot reply to mention %s because X says replies are not allowed; "
                 "marking mention as handled without consuming reply quota",
                 candidate.mention_id,
             )
-            _retire_terminal_target(
-                state, candidate, replied_to_ids, reply_text,
-                failure_reason="reply_not_permitted",
-                reason="x_reply_not_permitted",
-                append_unique_durable=append_unique_durable,
-                persistence=persistence,
-                log_ai_reply_posting_outcome=log_ai_reply_posting_outcome,
-                log_event=log_event,
-                mark_mention_seen_if_applicable=mark_mention_seen_if_applicable,
-                record_terminal_reply_evaluation=record_terminal_reply_evaluation,
-            )
-            if isinstance(e, ProvedRemotePostNonSuccess):
-                delivery.retire_rejected(
-                    receipt_template,
-                    e,
-                )
-            return _CandidateStop(NORMAL_CHECK_STATUS_CHECKED)
+        _retire_terminal_target(
+            state, candidate, replied_to_ids, reply_text,
+            failure_reason=failure_reason,
+            reason=f"x_{failure_reason}",
+            append_unique_durable=append_unique_durable,
+            persistence=persistence,
+            log_ai_reply_posting_outcome=log_ai_reply_posting_outcome,
+            log_event=log_event,
+            mark_mention_seen_if_applicable=mark_mention_seen_if_applicable,
+            record_terminal_reply_evaluation=record_terminal_reply_evaluation,
+        )
 
-        log.exception("Failed to post generated reply")
-        log_ai_reply_posting_outcome(
-            reply=reply_text,
-            status="posting_failed_retryable",
-            lane=str(candidate.source),
-            target_id=candidate.mention_id,
-            failure_reason=f"x_api_{getattr(e, 'status_code', 'error')}",
-        )
-        record_api_error(state, e, "x", scope="write")
-        persistence.save(state)
+    outcome = deliver_prepared_reply(
+        state, candidate.mention_id, reply_text, receipt_template,
+        lane=str(candidate.source), log_source=candidate.log_source,
+        mark_as_ai=config.mark_as_ai,
+        retire_terminal_target=retire_terminal_target,
+        AmbiguousRemotePostOutcome=AmbiguousRemotePostOutcome,
+        ApiError=ApiError,
+        ConfirmedReplyLocalPersistenceError=ConfirmedReplyLocalPersistenceError,
+        ProvedRemotePostNonSuccess=ProvedRemotePostNonSuccess,
+        UnrecoverableConfirmedReplyPersistenceError=UnrecoverableConfirmedReplyPersistenceError,
+        api_error_is_reply_not_allowed=api_error_is_reply_not_allowed,
+        persistence=persistence, delivery=delivery, log=log,
+        log_ai_reply_posting_outcome=log_ai_reply_posting_outcome,
+        record_api_error=record_api_error,
+    )
+    if outcome is ReplyDeliveryStop.TERMINAL:
+        return _CandidateStop(NORMAL_CHECK_STATUS_CHECKED)
+    if outcome is ReplyDeliveryStop.RETRYABLE:
         return _CandidateStop(NORMAL_CHECK_STATUS_API_ERROR)
-    except Exception as e:
-        log.exception("Unexpected failure posting generated reply")
-        log_ai_reply_posting_outcome(
-            reply=reply_text,
-            status="posting_failed_retryable",
-            lane=str(candidate.source),
-            target_id=candidate.mention_id,
-            failure_reason="unexpected_posting_error",
-        )
-        record_api_error(state, e, "x", scope="write")
-        persistence.save(state)
-        return _CandidateStop(NORMAL_CHECK_STATUS_API_ERROR)
-    return receipt
+    return outcome
 
 
 def _finalise_confirmed_reply(

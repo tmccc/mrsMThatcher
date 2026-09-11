@@ -60,11 +60,18 @@ def _initial_state_presentation(*, state=None, configs=None, current=0, unavaila
 ])
 def test_initial_and_refreshed_health_keep_safety_precedence(current, unavailable, safety, expected):
     initial = _initial_state_presentation(current=current, unavailable=unavailable, safety=safety)
-    assert [claim for claim in initial[0] if claim.startswith("current health:")] == [expected]
+    assert initial[0]["current_health"] == expected
 
     base = ["counts kept", "current health: stale", "tail kept"]
+    components = {
+        **initial[0], "activity": ["counts kept"], "current_health": base[1],
+        "observations": ["tail kept"],
+    }
     report = {
-        "summary": {"_headline_without_current_cooldown": base},
+        "summary": {
+            "_headline_without_current_cooldown": base,
+            "_headline_components": components,
+        },
         "runtime_state_status": {"status": "absent"},
         "error_health": {
             "current_independent_incident_count": current,
@@ -77,6 +84,7 @@ def test_initial_and_refreshed_health_keep_safety_precedence(current, unavailabl
         f"counts kept; {expected}; tail kept; current API cooldown state unavailable"
     )
     assert base == ["counts kept", "current health: stale", "tail kept"]
+    assert components["current_health"] == "current health: stale"
 
 
 def test_initial_safety_override_skips_incident_formatter_but_refresh_keeps_it(monkeypatch):
@@ -93,12 +101,13 @@ def test_initial_safety_override_skips_incident_formatter_but_refresh_keeps_it(m
 
     monkeypatch.setattr(digest, "plural_count", plural)
     initial = _initial_state_presentation(current=1, safety=safety)
-    assert "current health: remote-write safety unknown (inspection unavailable)" in initial[0]
+    assert initial[0]["current_health"] == "current health: remote-write safety unknown (inspection unavailable)"
 
     report = {
         "summary": {
             "headline": "unchanged",
             "_headline_without_current_cooldown": ["current health: stale"],
+            "_headline_components": initial[0],
         },
         "runtime_state_status": {"status": "absent"},
         "error_health": {"current_independent_incident_count": 1},
@@ -205,8 +214,8 @@ def test_prepared_headlines_keep_current_callbacks_timing_and_shared_results(mon
         helper_calls.clear()
         result = original_prepare(**inputs)
         assert result[1] == 2
-        assert "0 Grok skips" in result[0]
-        assert result[0][-2:] == ["X read API cooldown active now", "X write API cooldown occurred, now expired"]
+        assert result[0]["reply_quality"] == []
+        assert result[0]["cooldown"] == ["X read API cooldown active now", "X write API cooldown occurred, now expired"]
         assert [args[0] for name, args in helper_calls if name == "int_or_none"] == [
             state["api_cooldown_until_epoch"], state["x_write_api_cooldown_until_epoch"],
             0, state["quote_api_cooldown_until_epoch"], "4", "3", "7", "5", "2",
@@ -229,9 +238,9 @@ def test_prepared_headlines_keep_current_callbacks_timing_and_shared_results(mon
         assert inputs["headline"] is captured["initial"][0]
         assert inputs["plural_count"] is digest.plural_count
         result = original_finalise(**inputs)
-        assert result[1] is not inputs["headline"]
+        assert result[3] is not inputs["headline"]
         assert result[2] is not result[1]
-        assert "0 Grok skips" in inputs["headline"]
+        assert inputs["headline"]["reply_quality"] == []
         assert not any("Grok skip" in item for item in result[1])
         assert result[1][6].startswith("current 1 single-call candidate evaluated")
         captured["final"] = result
@@ -263,27 +272,85 @@ def test_prepared_headlines_keep_current_callbacks_timing_and_shared_results(mon
     assert report["derived"] is captured["initial"][5]
     assert report["legacy_multi_stage"] is captured["final"][0]
     assert report["summary"]["_headline_without_current_cooldown"] is captured["final"][2]
+    assert report["summary"]["_headline_components"] is captured["final"][3]
 
 
-@pytest.mark.parametrize("health", [[], ["current health: supplied"]])
-def test_reply_quality_headline_replaces_lists_and_excludes_each_cooldown_claim(health):
-    claims = [
-        "API cooldown occurred", "no API cooldown", "X read API cooldown active now",
-        "X write API cooldown occurred, now expired", "OpenAI cooldown active now",
-        "quote API cooldown active now", "current API cooldown state unavailable",
+@pytest.mark.parametrize("health", ["current health: supplied", "reworded health claim"])
+def test_headline_component_roles_do_not_depend_on_claim_wording(health):
+    # Observations can resemble health, legacy skip or cooldown wording; only
+    # the designated current-health/cooldown components may be replaced.
+    observations = [
+        "current health: quoted historical observation", "2 Grok skips",
+        "no API cooldown", "X read API cooldown historical observation",
     ]
-    headline = ["keep", "1 Grok skip", "2 Grok skips", *health, *claims]
-    original = list(headline)
-    legacy, replacement, base = state_reporting_owner.prepare_reply_quality_headline(
+    headline = {
+        "activity": ["keep", "1 Grok skip"], "reply_quality": [],
+        "current_health": health, "observations": observations,
+        "cooldown": ["reworded historical cooldown claim"],
+    }
+    original = json.loads(json.dumps(headline))
+    legacy, replacement, base, components = state_reporting_owner.prepare_reply_quality_headline(
         events=[{"kind": "reply_strategy_decision"}, {"kind": "reply_pipeline_stage_summary"}],
         headline=headline, single_call_quality={"candidate_evaluation_count": 1},
         plural_count=lambda *args: str(args[1]),
     )
-    assert headline == original and replacement is not headline and base is not replacement
+    assert headline == original and components is not headline and base is not replacement
     assert legacy == {"decision_count": 1, "stage_summary_event_count": 1}
     inserted = ["single-call candidate evaluated; reply posted; editorial no-reply decision; operational failure; one-call compliance None", "legacy multi-stage decisions 1; legacy stage summaries 1"]
-    assert replacement == (["keep", *inserted, *health, *claims] if health else ["keep", *claims, *inserted])
-    assert base == ["keep", *inserted, *health]
+    assert base == ["keep", "1 Grok skip", *inserted, health, *observations]
+    assert replacement == [*base, "reworded historical cooldown claim"]
+
+    report = {
+        "summary": {
+            "headline": "; ".join(replacement),
+            "_headline_without_current_cooldown": base,
+            "_headline_components": components,
+        },
+        "runtime_state_status": {"status": "absent"},
+    }
+    # JSON round-tripping keeps the private components usable without exposing
+    # custom objects or replacing the existing compatibility list.
+    report = json.loads(json.dumps(report))
+    digest.refresh_current_health_headline(report)
+    expected = [
+        "keep", "1 Grok skip", *inserted,
+        "current health: no unresolved operational incidents", *observations,
+        "current API cooldown state unavailable",
+    ]
+    assert report["summary"]["headline"] == "; ".join(expected)
+    assert report["summary"]["_headline_without_current_cooldown"] == base
+    assert report["summary"]["_headline_components"] == components
+    digest.refresh_current_health_headline(report)
+    assert report["summary"]["headline"] == "; ".join(expected)
+
+
+def test_standalone_headline_keeps_historical_claims_until_runtime_overlay():
+    report = digest.analyse([
+        record(0, "INFO", "fixture", "headline fixture"),
+    ], generation_time=BASE + timedelta(days=1))
+    summary = report["summary"]
+    original = summary["headline"]
+    assert original.endswith("no API cooldown")
+    digest.refresh_current_health_headline(report)
+    assert summary["headline"] == original
+
+    report["runtime_state_status"] = {"status": "absent"}
+    digest.refresh_current_health_headline(report)
+    assert summary["headline"].endswith("current API cooldown state unavailable")
+    assert summary["_headline_without_current_cooldown"] == original.split("; ")[:-1]
+
+
+def test_health_refresh_does_not_infer_component_roles_from_legacy_list():
+    report = {
+        "summary": {
+            "headline": "historical headline retained",
+            "_headline_without_current_cooldown": ["current health: stale"],
+        },
+        "runtime_state_status": {"status": "absent"},
+    }
+    digest.refresh_current_health_headline(report)
+    assert report["summary"]["headline"] == "historical headline retained"
+    assert "current_cooldown_status" not in report
 
 
 def test_regular_image_scores_are_formatted_without_mutating_report_values():
