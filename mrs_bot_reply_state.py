@@ -18,7 +18,10 @@ import logging
 from collections.abc import Callable
 from datetime import datetime
 
-from single_call_reply_validation import normalise_validation_error_codes
+from single_call_reply_validation import (
+    normalise_validation_error_codes,
+    rejected_reply_text_fields,
+)
 
 
 CONVERSATIONAL_REPLY_HISTORY_LANES = frozenset(
@@ -141,6 +144,9 @@ def recover_pending_ai_reply(
         validation_codes, _omitted = normalise_validation_error_codes(
             getattr(exc, "errors", ())
         )
+        rejected_text = rejected_reply_text_fields(
+            record.get("proposed_reply") if isinstance(record, dict) else None
+        )
         if record is not None:
             log.warning(
                 "Retiring pending reply draft that fails current local "
@@ -164,6 +170,10 @@ def recover_pending_ai_reply(
             model_call_count=0,
             local_validation_status="failed",
             validation_error_codes=validation_codes,
+            rejected_reply_text=rejected_text["rejected_reply_text"],
+            rejected_reply_text_character_count=(
+                rejected_text["rejected_reply_text_character_count"]
+            ),
             payload_sha256=(
                 str(record.get("model_payload_sha256"))
                 if isinstance(record, dict)

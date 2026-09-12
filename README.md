@@ -405,13 +405,22 @@ operational failures and do not count as editorial declines.
 
 Schema and local-validation failures record the specific failed rules in
 `validation_error_codes`, such as `reply_contains_mention` or
-`reply_sentence_limit_exceeded`. Logs contain only known rule codes, never the
-rejected reply text or model reasoning. The digest's
-`single_call_reply.validation_failure_details` groups failures by rule and shows
-the latest 40 rejected decisions with time, lane, target ID and rule details.
-Counts cover the full selected window. Older events without details are marked
-unavailable; malformed or partially usable details are identified explicitly.
-These diagnostics do not change retry, retirement or provider-health decisions.
+`reply_sentence_limit_exceeded`. The structured decision event also records the
+rejected proposed reply in `rejected_reply_text`, extracted only from the model's
+JSON `reply` field or a rejected pending draft. It preserves whitespace and valid
+Unicode, retains at most 4,000 characters, and reports the original length in
+`rejected_reply_text_character_count`. `rejected_reply_text_status` is `available`,
+`truncated` or `unavailable`. Unparseable responses, non-string replies and invalid
+Unicode have no recoverable reply text; model reasoning, the full provider
+response and exception prose are not logged.
+
+The digest's `single_call_reply.validation_failure_details` groups failures by
+rule and shows the latest 40 rejected decisions with time, lane, target ID, rule
+details and the same rejected-text fields. Markdown labels this text as rejected
+and not published. Counts cover the full selected window. Older events without
+text or rule details remain explicitly unavailable; discarded historical replies
+cannot be reconstructed. These diagnostics do not create publishable drafts or
+change retry, retirement or provider-health decisions.
 
 There is no shadow, fallback, reviewer, secondary provider, claim-audit call,
 repair call or separate visual-description call. An image-bearing candidate

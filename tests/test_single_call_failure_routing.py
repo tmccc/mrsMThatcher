@@ -3,6 +3,9 @@ from __future__ import annotations
 from tests.helpers.reply_evaluation import legacy_reply_evaluator
 
 import copy
+import io
+import json
+import logging
 
 import pytest
 
@@ -424,6 +427,83 @@ def test_validation_diagnostics_preserve_candidate_and_provider_health_routing(
     assert decision["validation_error_codes"] == codes
     assert decision["error_category"] == category
     assert decision["failure_reason"] == "model_response_validation_failed"
+
+
+@pytest.mark.parametrize(
+    ("reply", "kind", "code"),
+    [
+        ("Yes, this account is automated.", "direct_factual", "direct_factual_missing_fact_id"),
+        ("Een antwoord. Nog een zin. En een derde.", "principle", "reply_sentence_limit_exceeded"),
+        ("Een antwoord.\n日本語の返信。", "principle", "reply_contains_line_break"),
+    ],
+)
+def test_rejected_reply_survives_real_log_to_digest_json_without_becoming_publishable(
+    monkeypatch, tmp_path, capsys, reply, kind, code,
+):
+    """Carry an unpublished model reply through production logging and digest CLI."""
+    import mrs_log_digest as digest
+
+    response = response_envelope(raw_decision(kind=kind, reply=reply))
+    response["output"].insert(0, {
+        "type": "reasoning", "summary": [{"text": "MODEL_REASONING_MUST_NOT_APPEAR"}],
+    })
+    result = _run_response(response)
+    assert result.status == "operational_failure"
+    assert result.reply is None
+    assert result.model_call_count == result.provider_request_attempt_count == 1
+
+    log_output = io.StringIO()
+    logger = logging.Logger("rejected-reply-integration", logging.INFO)
+    handler = logging.StreamHandler(log_output)
+    handler.setFormatter(logging.Formatter(
+        "2026-09-12 12:00:00 %(levelname)-8s %(funcName)s:%(lineno)d - %(message)s"
+    ))
+    logger.addHandler(handler)
+    state = bot.default_state()
+    monkeypatch.setattr(bot, "log", logger)
+    monkeypatch.setattr(bot, "now_epoch", lambda: 2_000_000_000)
+    monkeypatch.setattr(bot, "collect_reply_images", lambda _media: [])
+    monkeypatch.setattr(bot, "reply_evidence_repository", FakeRepository)
+    monkeypatch.setattr(bot, "require_remote_operation_unpaused", lambda *_args: None)
+    monkeypatch.setattr(bot, "run_single_call_reply_pipeline", lambda **_kwargs: result)
+    monkeypatch.setattr(bot, "save_state", lambda *_args, **_kwargs: None)
+
+    def forbidden(*_args, **_kwargs):
+        pytest.fail("Rejected diagnostic text reached the publishable-draft path")
+
+    monkeypatch.setattr(bot, "store_pending_ai_reply", forbidden)
+    source_context = pipeline_context(turns=1)
+    source_context["target_id"] = "2090000000000000001"
+    assert bot.generate_single_call_reply(source_context, None, state=state) is None
+    assert not state.get("pending_ai_reply_drafts")
+    assert not state.get("ai_reply_history")
+    assert state["daily_reply_count"] == 0
+
+    log_text = log_output.getvalue()
+    assert "MODEL_REASONING_MUST_NOT_APPEAR" not in log_text
+    event_lines = [line for line in log_text.splitlines() if "EVENT " in line]
+    decision = next(
+        event for line in event_lines
+        if (event := json.loads(line.split("EVENT ", 1)[1]))["event"]
+        == "single_call_reply_decision"
+    )
+    assert decision["rejected_reply_text"] == reply
+    assert code in decision["validation_error_codes"]
+
+    log_path = tmp_path / "mrsMThatcher.log"
+    log_path.write_text(log_text, encoding="utf-8")
+    assert digest.main([
+        str(log_path), "--project-dir", str(tmp_path), "--no-state", "--json",
+    ]) == 0
+    report = json.loads(capsys.readouterr().out)
+    row = report["single_call_reply"]["validation_failure_details"]["candidates"][0]
+    assert row["target_id"] == source_context["target_id"]
+    assert row["rejected_reply_text"] == reply
+    assert row["rejected_reply_text_status"] == "available"
+    assert row["rejected_reply_text_character_count"] == len(reply)
+    assert code in row["validation_error_codes"]
+    assert report["single_call_reply"]["replies_posted_count"] == 0
+    assert report["published_reply_text_health"]["confirmed_record_count"] == 0
 
 
 def test_first_429_then_valid_decision_is_success_not_provider_failure(

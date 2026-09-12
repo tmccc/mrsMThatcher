@@ -1,8 +1,9 @@
 """Shared rule vocabulary for reply validation diagnostics, without runtime I/O.
 
 These names describe existing schema and mechanical checks. They neither run
-validation nor change failure routing. Only allow-listed codes cross the log
-boundary; exception prose, reply text and model reasoning are never projected.
+validation nor change failure routing. Diagnostics contain allow-listed codes
+and bounded proposed reply text; exception prose and model reasoning are never
+projected.
 """
 
 from __future__ import annotations
@@ -46,6 +47,39 @@ VALIDATION_ERROR_CODES = (
     SCHEMA_VALIDATION_ERROR_CODES | MECHANICAL_VALIDATION_ERROR_CODES
 )
 MAX_VALIDATION_ERROR_CODES = 32
+MAX_REJECTED_REPLY_TEXT_CHARACTERS = 4_000
+
+
+def rejected_reply_text_fields(
+    value: object, *, character_count: object = None,
+) -> dict[str, str | int | None]:
+    """Return exact bounded reply text and its original character count.
+
+    Invalid or absent text is unavailable. A valid original count preserves
+    truncation when an already bounded diagnostic is projected by the digest.
+    """
+    unavailable = {
+        "rejected_reply_text": None,
+        "rejected_reply_text_status": "unavailable",
+        "rejected_reply_text_character_count": None,
+    }
+    if not isinstance(value, str):
+        return unavailable
+    try:
+        value.encode("utf-8", errors="strict")
+    except UnicodeError:
+        return unavailable
+    original_count = len(value)
+    if type(character_count) is int and character_count >= original_count:
+        original_count = character_count
+    text = value[:MAX_REJECTED_REPLY_TEXT_CHARACTERS]
+    return {
+        "rejected_reply_text": text,
+        "rejected_reply_text_status": (
+            "truncated" if original_count > len(text) else "available"
+        ),
+        "rejected_reply_text_character_count": original_count,
+    }
 
 
 def normalise_validation_error_codes(value: object) -> tuple[tuple[str, ...], int]:

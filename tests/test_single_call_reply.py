@@ -5,6 +5,7 @@ import copy
 import json
 from dataclasses import dataclass
 from pathlib import Path
+from unittest.mock import Mock
 
 import pytest
 
@@ -15,7 +16,11 @@ from reply_evidence import (
     EvidenceRepository,
     retrieval_tokens,
 )
-from single_call_reply_validation import MAX_VALIDATION_ERROR_CODES
+from single_call_reply_validation import (
+    MAX_REJECTED_REPLY_TEXT_CHARACTERS,
+    MAX_VALIDATION_ERROR_CODES,
+    rejected_reply_text_fields,
+)
 
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
@@ -1429,18 +1434,32 @@ def test_no_reply_is_editorial_but_invalid_output_is_operational() -> None:
             "local_validation",
             ("duplicate_used_fact_ids",),
         ),
+        (
+            raw_decision(reply="First point. Second point. Third point."),
+            "local_validation",
+            ("reply_sentence_limit_exceeded",),
+        ),
+        (
+            raw_decision(kind="direct_factual", reply="I am an automated account."),
+            "local_validation",
+            ("direct_factual_missing_fact_id",),
+        ),
     ],
 )
-def test_validation_rules_reach_telemetry_without_model_prose(
+def test_validation_rules_and_rejected_reply_reach_telemetry_without_reasoning(
     output: str, category: str, codes: tuple[str, ...],
+    monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """Retain every simultaneous rule failure, category and paid-call metadata."""
+    """Retain rejected prose and rules without making a reusable posting draft."""
 
     response = response_envelope(output)
     response["output"][0]["summary"] = [{"text": "PRIVATE reasoning"}]
+    transport = Mock(return_value={"response": response, "latency_ms": 37})
+    create_draft = Mock(side_effect=AssertionError("rejected text is not a draft"))
+    monkeypatch.setattr(pipeline, "create_durable_draft", create_draft)
     result = pipeline.run_reply_pipeline(
         context=context(), config=enabled_config(), repository=FakeRepository(),
-        transport=lambda **_kwargs: {"response": response, "latency_ms": 37},
+        transport=transport,
     )
 
     assert result.status == "operational_failure"
@@ -1457,6 +1476,111 @@ def test_validation_rules_reach_telemetry_without_model_prose(
     assert telemetry["validation_error_codes"] == list(codes)
     assert telemetry["error_category"] == category
     assert telemetry["failure_reason"] == "model_response_validation_failed"
+    proposed_reply = json.loads(output)["reply"]
+    assert result.rejected_reply_text == proposed_reply
+    assert telemetry["rejected_reply_text"] == proposed_reply
+    assert telemetry["rejected_reply_text_status"] == "available"
+    assert telemetry["rejected_reply_text_character_count"] == len(proposed_reply)
+    assert "PRIVATE reasoning" not in json.dumps(telemetry)
+    assert "Trusted passage 2." not in json.dumps(telemetry)
+    transport.assert_called_once()
+    create_draft.assert_not_called()
+
+
+@pytest.mark.parametrize(
+    "output",
+    [
+        "PRIVATE raw response, not JSON",
+        '{"reply":"PRIVATE first","reply":"PRIVATE second"}',
+        '{"reply":"PRIVATE reply","used_fact_ids":NaN}',
+        '{"decision":"reply"}',
+        '["PRIVATE reply"]',
+        '{"reply":42}',
+        raw_decision(reply="\ud800"),
+        json.dumps({"reply": "PRIVATE reply", "padding": "x" * pipeline.MAX_RAW_OUTPUT_CHARACTERS}),
+    ],
+)
+def test_rejected_reply_is_unavailable_without_a_safe_strict_json_string(output: str) -> None:
+    """Keep absent, malformed, oversized and unencodable replies out of logs."""
+    result = pipeline.run_reply_pipeline(
+        context=context(), config=enabled_config(), repository=FakeRepository(),
+        transport=lambda **_kwargs: {"response": response_envelope(output)},
+    )
+    assert result.status == "operational_failure"
+    assert result.reply is None and result.decision is None
+    telemetry = pipeline.decision_telemetry(result)
+    assert telemetry["rejected_reply_text"] is None
+    assert telemetry["rejected_reply_text_status"] == "unavailable"
+    assert telemetry["rejected_reply_text_character_count"] is None
+    assert "PRIVATE" not in json.dumps(telemetry)
+
+
+def test_rejected_reply_text_is_exact_and_bounded_without_envelope_fields() -> None:
+    """Preserve whitespace and Unicode while truncating only the reply field."""
+    reply = "  Café\n\t責任🙂 " + "x" * MAX_REJECTED_REPLY_TEXT_CHARACTERS + "  "
+    output = json.loads(raw_decision(reply=reply))
+    output["reasoning"] = "PRIVATE extra output field"
+    result = pipeline.run_reply_pipeline(
+        context=context(), config=enabled_config(), repository=FakeRepository(),
+        transport=lambda **_kwargs: {"response": response_envelope(json.dumps(output))},
+    )
+    telemetry = pipeline.decision_telemetry(result)
+    assert result.reply is None
+    assert result.rejected_reply_text == reply[:MAX_REJECTED_REPLY_TEXT_CHARACTERS]
+    assert telemetry["rejected_reply_text"] == result.rejected_reply_text
+    assert telemetry["rejected_reply_text_status"] == "truncated"
+    assert telemetry["rejected_reply_text_character_count"] == len(reply)
+    assert "PRIVATE extra output field" not in json.dumps(telemetry)
+
+
+@pytest.mark.parametrize("value", [None, 42, True, {}, ["reply"], "\ud800"])
+def test_rejected_reply_text_fields_rejects_nontext_and_invalid_unicode(value: object) -> None:
+    """Treat only valid Unicode strings as available diagnostic text."""
+    assert rejected_reply_text_fields(value, character_count=5000) == {
+        "rejected_reply_text": None,
+        "rejected_reply_text_status": "unavailable",
+        "rejected_reply_text_character_count": None,
+    }
+
+
+@pytest.mark.parametrize("count", [None, True, -1, 1, "9000", [], {}])
+def test_rejected_reply_text_fields_ignores_malformed_original_counts(count: object) -> None:
+    """Derive the original length when a supplied count cannot describe it."""
+    assert rejected_reply_text_fields("  é\n", character_count=count) == {
+        "rejected_reply_text": "  é\n",
+        "rejected_reply_text_status": "available",
+        "rejected_reply_text_character_count": 4,
+    }
+
+
+def test_rejected_reply_text_fields_preserves_empty_and_previously_truncated_text() -> None:
+    """Distinguish empty available text from absent text and retain lost length."""
+    assert rejected_reply_text_fields("") == {
+        "rejected_reply_text": "",
+        "rejected_reply_text_status": "available",
+        "rejected_reply_text_character_count": 0,
+    }
+    assert rejected_reply_text_fields("  é\n", character_count=5000) == {
+        "rejected_reply_text": "  é\n",
+        "rejected_reply_text_status": "truncated",
+        "rejected_reply_text_character_count": 5000,
+    }
+
+
+@pytest.mark.parametrize(
+    ("status", "category"),
+    [("reply", None), ("no_reply", None), ("operational_failure", "provider_schema"),
+     ("operational_failure", "context_validation"), ("operational_failure", "draft_validation"),
+     ("operational_failure", "local_validation"), ("operational_failure", "schema_validation")],
+)
+def test_other_decisions_do_not_emit_rejected_reply_diagnostics(status: str, category: str | None) -> None:
+    """Restrict diagnostic prose to rejected schema or mechanical decisions."""
+    result = pipeline.PipelineResult(
+        status=status, reason="fixture", error_category=category,
+        rejected_reply_text="PRIVATE candidate", rejected_reply_text_character_count=17,
+    )
+    telemetry = pipeline.decision_telemetry(result)
+    assert not any(key.startswith("rejected_reply_text") for key in telemetry)
     assert "PRIVATE" not in json.dumps(telemetry)
 
 

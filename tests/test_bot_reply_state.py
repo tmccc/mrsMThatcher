@@ -289,6 +289,8 @@ def test_recovery_keeps_current_exception_classes_retirement_and_exact_zero_call
         assert actual == PipelineResult(
             status="operational_failure", reason="persisted_draft_local_validation_failed",
             error_category="local_validation", model_call_count=0, local_validation_status="failed",
+            rejected_reply_text=record["proposed_reply"],
+            rejected_reply_text_character_count=len(record["proposed_reply"]),
             payload_sha256=record["model_payload_sha256"], visible_turn_count=3,
             visible_character_count=5, recent_conversational_reply_count=2, supplied_image_count=2,
         )
@@ -337,7 +339,9 @@ def test_recovered_duplicate_draft_emits_rule_and_retires_without_provider_call(
     assert decision["failure_reason"] == "persisted_draft_local_validation_failed"
     assert decision["local_validation_status"] == "failed"
     assert decision["model_call_count"] == 0
-    assert str(reply) not in repr(decision)
+    assert decision["rejected_reply_text"] == str(reply)
+    assert decision["rejected_reply_text_status"] == "available"
+    assert decision["rejected_reply_text_character_count"] == len(reply)
 
 
 def test_recent_default_is_fixed_while_body_reads_current_cap(confirmed_row, monkeypatch):

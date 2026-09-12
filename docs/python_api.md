@@ -1277,15 +1277,28 @@ helpers. The bot does not import these offline modules.
 `PipelineResult.validation_error_codes` carries an immutable tuple of known
 schema and mechanical rule names. `single_call_reply_validation.py` supplies the
 shared vocabulary and bounded normalization used by producer telemetry and the
-digest, without importing either runtime. Unknown values and exception prose
+digest, without importing either runtime. Unknown rule values and exception prose
 are excluded. Existing error categories, draft validation and failure routing
 retain their authority.
+
+`rejected_reply_text_fields` provides the shared bounded projection for rejected
+proposed replies. `rejected_reply_text` contains up to 4,000 characters with exact
+whitespace and valid Unicode; `rejected_reply_text_character_count` retains the
+original character count, and `rejected_reply_text_status` distinguishes
+`available`, `truncated` and `unavailable`. The producer extracts only the JSON
+`reply` field after model-output validation fails, or the reply from a pending
+draft rejected during recovery. Missing, unparseable or invalid-Unicode text is
+unavailable. Raw provider responses and model reasoning remain excluded, and
+rejected text never becomes `PipelineResult.reply` or a reusable posting draft.
 
 `single_call_reply.validation_failure_details` contains rule counts, counts by
 rule category, detail-availability counts, and the latest 40 failed decision
 rows. Missing historical details, empty lists, partial lists and malformed
-values remain distinguishable; omitted counts expose bounded projection.
-Markdown renders the same prepared diagnostic rows without rejected text.
+values remain distinguishable; omitted counts expose bounded projection. Each
+failed row and its structured decision event includes the rejected-text fields.
+Older log events explicitly report unavailable text. Markdown renders the same
+prepared diagnostics and labels rejected reply text as not published, separately
+from confirmed public reply text.
 
 ## Safety Boundaries
 

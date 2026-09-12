@@ -23,6 +23,7 @@ from typing import Any, Callable, Mapping, Sequence
 from single_call_reply_validation import (
     SCHEMA_VALIDATION_ERROR_CODES,
     normalise_validation_error_codes,
+    rejected_reply_text_fields,
 )
 
 
@@ -281,6 +282,8 @@ class PipelineResult:
     provider_response_id: str | None = None
     provider_usage: dict[str, int] = field(default_factory=dict)
     validation_error_codes: tuple[str, ...] = ()
+    rejected_reply_text: str | None = None
+    rejected_reply_text_character_count: int | None = None
 
 
 ModelTransport = Callable[..., Mapping[str, Any]]
@@ -349,6 +352,18 @@ def strict_json_loads(value: str | bytes) -> Any:
         object_pairs_hook=pairs_hook,
         parse_constant=reject_constant,
     )
+
+
+def _rejected_model_reply_text(raw_text: object) -> str | None:
+    """Extract only a reply field from bounded strict JSON after rejection."""
+    if not isinstance(raw_text, str) or len(raw_text) > MAX_RAW_OUTPUT_CHARACTERS:
+        return None
+    try:
+        parsed = strict_json_loads(raw_text)
+    except (json.JSONDecodeError, UnicodeError, ValueError):
+        return None
+    reply = parsed.get("reply") if isinstance(parsed, dict) else None
+    return reply if isinstance(reply, str) else None
 
 
 def _clean_text(
@@ -2494,6 +2509,11 @@ def run_reply_pipeline(
         raw_text, usage, response_id = parse_openai_response(raw_response)
         output = validate_model_output(raw_text, payload=payload)
     except (ModelResponseError, ReplyValidationError) as exc:
+        rejected_text = rejected_reply_text_fields(
+            _rejected_model_reply_text(raw_text)
+            if isinstance(exc, ReplyValidationError)
+            else None
+        )
         return PipelineResult(
             status="operational_failure",
             reason="model_response_validation_failed",
@@ -2504,6 +2524,10 @@ def run_reply_pipeline(
                 normalise_validation_error_codes(exc.errors)[0]
                 if isinstance(exc, ReplyValidationError)
                 else ()
+            ),
+            rejected_reply_text=rejected_text["rejected_reply_text"],
+            rejected_reply_text_character_count=(
+                rejected_text["rejected_reply_text_character_count"]
             ),
             payload_sha256=payload_hash,
             supplied_image_count=len(images),
@@ -2601,7 +2625,18 @@ def decision_telemetry(result: PipelineResult) -> dict[str, Any]:
         if result.status in {"reply", "no_reply"}
         else "operational" if result.status == "operational_failure" else "disabled"
     )
+    rejected_text = (
+        rejected_reply_text_fields(
+            result.rejected_reply_text,
+            character_count=result.rejected_reply_text_character_count,
+        )
+        if result.status == "operational_failure"
+        and result.error_category in {"schema_validation", "local_validation"}
+        and result.local_validation_status == "failed"
+        else {}
+    )
     return {
+        **rejected_text,
         "strategy_version": STRATEGY_VERSION,
         "model": MODEL,
         "reasoning_effort": REASONING_EFFORT,

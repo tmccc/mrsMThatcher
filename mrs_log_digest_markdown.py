@@ -1981,7 +1981,7 @@ def _render_shadow_lifecycle(report: Dict[str, Any], out: List[str]) -> None:
 
 
 def _render_reply_validation_failures(single_reply: Dict[str, Any], out: List[str]) -> None:
-    """Show bounded rule diagnostics and distinguish older missing details."""
+    """Show bounded unpublished reply previews and validation diagnostics."""
     details = single_reply.get("validation_failure_details") or {}
     if not details.get("candidate_count"):
         return
@@ -1993,8 +1993,11 @@ def _render_reply_validation_failures(single_reply: Dict[str, Any], out: List[st
         + _compact_counts(details.get("details_status_counts") or {}) + "**."
     )
     out.append("")
-    out.append(md_table_row(["time", "lane", "target ID", "category", "failed rules", "details"]))
-    out.append(md_table_row(["---"] * 6))
+    out.append(md_table_row([
+        "time", "lane", "target ID", "category", "failed rules", "details",
+        "Rejected reply (not published)",
+    ]))
+    out.append(md_table_row(["---"] * 7))
     for candidate in details.get("candidates") or []:
         codes = candidate.get("validation_error_codes") or []
         status = candidate.get("validation_error_details_status", "missing")
@@ -2008,10 +2011,22 @@ def _render_reply_validation_failures(single_reply: Dict[str, Any], out: List[st
         omitted = candidate.get("validation_error_codes_omitted_count", 0)
         if omitted:
             availability += f"; {omitted} values omitted"
+        rejected_text = candidate.get("rejected_reply_text")
+        rejected_preview = "unavailable (reply text not recorded)"
+        if isinstance(rejected_text, str):
+            rejected_preview = short(rejected_text, 600)
+            if candidate.get("rejected_reply_text_status") == "truncated":
+                rejected_preview += (
+                    " (retained text truncated; original: "
+                    f"{candidate.get('rejected_reply_text_character_count')} characters)"
+                )
+            elif len(rejected_text) > 600:
+                rejected_preview += " (preview; retained text in JSON)"
         out.append(md_table_row([
             candidate.get("time", ""), candidate.get("lane", ""),
             candidate.get("target_id", ""), candidate.get("error_category", ""),
             ", ".join(codes) if codes else "unavailable", availability,
+            rejected_preview,
         ], cell_limit=2000))
     omitted_candidates = details.get("omitted_candidate_count", 0)
     if omitted_candidates:

@@ -12,7 +12,10 @@ import sys
 import pytest
 
 import mrs_log_digest as digest
-from single_call_reply_validation import MAX_VALIDATION_ERROR_CODES
+from single_call_reply_validation import (
+    MAX_REJECTED_REPLY_TEXT_CHARACTERS,
+    MAX_VALIDATION_ERROR_CODES,
+)
 
 from tests.helpers.digest_records import structured_record
 
@@ -70,6 +73,9 @@ def test_validation_failure_summary_counts_distinct_rules_and_preserves_categori
         "validation_error_codes": ["reply_contains_hashtag", "reply_contains_mention"],
         "validation_error_details_status": "available",
         "validation_error_codes_omitted_count": 0,
+        "rejected_reply_text": None,
+        "rejected_reply_text_status": "unavailable",
+        "rejected_reply_text_character_count": None,
     }
     assert details["candidates"][1]["error_category"] == "schema_validation"
 
@@ -162,6 +168,85 @@ def test_validation_failure_summary_sanitizes_raw_decisions_without_mutation():
     assert details["details_status_counts"] == {"partial": 1}
     assert details["candidates"][0]["validation_error_codes_omitted_count"] == 2
     assert "PRIVATE" not in repr(details)
+
+
+@pytest.mark.parametrize("category", ["local_validation", "schema_validation"])
+def test_rejected_reply_text_preserves_unicode_and_newlines_without_publication(category):
+    rejected = "  Ja, ik ben een bot.\n\n日本語 — naïef | tekst\n"
+    report = digest.analyse([_validation_failure_record(
+        0, error_category=category, rejected_reply_text=rejected,
+        rejected_reply_text_status="forged status",
+    )])
+    candidate = report["single_call_reply"]["validation_failure_details"]["candidates"][0]
+
+    for row in (report["events"][0], candidate):
+        assert row["rejected_reply_text"] == rejected
+        assert row["rejected_reply_text_status"] == "available"
+        assert row["rejected_reply_text_character_count"] == len(rejected)
+        assert "public_reply_text" not in row
+    assert report["single_call_reply"]["replies_posted_count"] == 0
+    assert report["published_reply_text_health"]["confirmed_record_count"] == 0
+
+
+@pytest.mark.parametrize("producer_truncated", [False, True])
+def test_rejected_reply_truncation_survives_event_to_summary(producer_truncated):
+    rejected = "é" * (MAX_REJECTED_REPLY_TEXT_CHARACTERS + 37)
+    retained = rejected[:MAX_REJECTED_REPLY_TEXT_CHARACTERS]
+    report = digest.analyse([_validation_failure_record(
+        0, rejected_reply_text=retained if producer_truncated else rejected,
+        rejected_reply_text_character_count=len(rejected),
+        rejected_reply_text_status="available",
+    )])
+    candidate = report["single_call_reply"]["validation_failure_details"]["candidates"][0]
+
+    for row in (report["events"][0], candidate):
+        assert row["rejected_reply_text"] == retained
+        assert row["rejected_reply_text_status"] == "truncated"
+        assert row["rejected_reply_text_character_count"] == len(rejected)
+
+
+@pytest.mark.parametrize("text", [None, False, 23, ["not reply text"], {"reply": "text"}])
+def test_malformed_rejected_reply_fields_are_explicitly_unavailable(text):
+    report = digest.analyse([_validation_failure_record(
+        0, rejected_reply_text=text, rejected_reply_text_status="available",
+        rejected_reply_text_character_count={"invalid": 5000},
+    )])
+    candidate = report["single_call_reply"]["validation_failure_details"]["candidates"][0]
+
+    for row in (report["events"][0], candidate):
+        assert row["rejected_reply_text"] is None
+        assert row["rejected_reply_text_status"] == "unavailable"
+        assert row["rejected_reply_text_character_count"] is None
+
+
+@pytest.mark.parametrize("character_count", [None, False, -1, "5000", {"invalid": 5000}])
+def test_malformed_rejected_reply_count_is_recomputed_from_text(character_count):
+    report = digest.analyse([_validation_failure_record(
+        0, rejected_reply_text="Rejected draft.",
+        rejected_reply_text_character_count=character_count,
+    )])
+    candidate = report["single_call_reply"]["validation_failure_details"]["candidates"][0]
+
+    assert candidate["rejected_reply_text_character_count"] == len("Rejected draft.")
+    assert candidate["rejected_reply_text_status"] == "available"
+
+
+@pytest.mark.parametrize("fields", [
+    {"pipeline_status": "reply"},
+    {"pipeline_status": "no_reply"},
+    {"local_validation_status": "passed"},
+    {"error_category": "provider_http_429"},
+    {"error_category": ["local_validation"]},
+])
+def test_rejected_reply_text_is_ignored_outside_actual_validation_failures(fields):
+    report = digest.analyse([_validation_failure_record(
+        0, rejected_reply_text="Unrelated diagnostic prose.",
+        rejected_reply_text_status="available", **fields,
+    )])
+
+    assert report["events"][0]["rejected_reply_text"] is None
+    assert report["events"][0]["rejected_reply_text_status"] == "unavailable"
+    assert "Unrelated diagnostic prose." not in repr(report)
 
 
 def test_single_call_digest_reports_version_three_architecture():

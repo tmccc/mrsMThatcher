@@ -22,6 +22,7 @@ from mrs_log_digest_values import (
 from single_call_reply_validation import (
     SCHEMA_VALIDATION_ERROR_CODES,
     normalise_validation_error_codes,
+    rejected_reply_text_fields,
 )
 
 
@@ -56,6 +57,22 @@ def _validation_error_fields(
         "validation_error_details_status": status,
         "validation_error_codes_omitted_count": omitted,
     }
+
+
+def _rejected_reply_fields(event: Mapping[str, Any]) -> Dict[str, Any]:
+    """Keep unpublished text only for a recorded reply validation failure."""
+    if (
+        event.get("pipeline_status") != "operational_failure"
+        or event.get("local_validation_status") != "failed"
+        or event.get("error_category") not in (
+            "schema_validation", "local_validation",
+        )
+    ):
+        return rejected_reply_text_fields(None)
+    return rejected_reply_text_fields(
+        event.get("rejected_reply_text"),
+        character_count=event.get("rejected_reply_text_character_count"),
+    )
 
 
 def _single_call_validation_failure_details(
@@ -101,6 +118,7 @@ def _single_call_validation_failure_details(
                 item.get("failure_reason"), default="unavailable", max_characters=200,
             ),
             **detail,
+            **_rejected_reply_fields(item),
         })
     return {
         "candidate_count": len(candidates),
@@ -452,7 +470,8 @@ def record_single_call_reply_decision(
         or not 100 <= provider_status_code <= 599
     ):
         provider_status_code = None
-    add_event(
+    rejected_fields = _rejected_reply_fields(event_obj)
+    projected_event = add_event(
         "single_call_reply_decision",
         ts,
         lane=normalise_reply_lane(event_obj.get("lane")),
@@ -555,7 +574,11 @@ def record_single_call_reply_decision(
             event_obj.get("provider_response_id"), max_characters=300
         ),
         **_validation_error_fields(event_obj),
+        **rejected_fields,
     )
+    # Diagnostic text has its own character cap and must keep its actual
+    # whitespace, rather than the coordinator's shortened display form.
+    projected_event.update(rejected_fields)
 
 
 def record_single_call_reply_provider_usage(

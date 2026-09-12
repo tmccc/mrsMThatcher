@@ -47,3 +47,32 @@ def test_markdown_caps_candidate_rows_and_retains_total_rule_counts():
 
 def test_success_only_report_has_no_rejection_table():
     assert "### Rejected reply validation details" not in digest.render_markdown(digest.analyse([]))
+
+
+def test_markdown_labels_rejected_text_unpublished_and_preserves_json_text():
+    rejected = "  Ja, ik ben een bot.\n\n日本語 | tweede regel.\n"
+    report = digest.analyse([
+        _failed(0, rejected_reply_text=rejected),
+        _failed(1),
+    ])
+
+    rendered = digest.render_markdown(report)
+
+    assert "Rejected reply (not published)" in rendered
+    assert "Ja, ik ben een bot." in rendered
+    assert "日本語 \\| tweede regel." in rendered
+    assert "unavailable (reply text not recorded)" in rendered
+    assert report["single_call_reply"]["validation_failure_details"]["candidates"][0]["rejected_reply_text"] == rejected
+
+
+def test_markdown_bounds_rejected_reply_preview_and_explains_retention_truncation():
+    report = digest.analyse([_failed(
+        0, rejected_reply_text="x" * 4000,
+        rejected_reply_text_character_count=4500,
+    )])
+
+    rendered = digest.render_markdown(report)
+
+    assert "x" * 601 not in rendered
+    assert "retained text truncated; original: 4500 characters" in rendered
+    assert report["single_call_reply"]["validation_failure_details"]["candidates"][0]["rejected_reply_text"] == "x" * 4000

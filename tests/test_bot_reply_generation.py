@@ -350,7 +350,7 @@ def test_generation_preserves_order_and_references_through_the_current_pipeline(
     ]
 
 
-def test_recorded_validation_failure_logs_only_known_rules(monkeypatch):
+def test_recorded_validation_failure_logs_reply_and_only_known_rules(monkeypatch):
     result = bot.PipelineResult(
         status="operational_failure", reason="model_response_validation_failed",
         error_category="local_validation", model_call_count=1,
@@ -358,6 +358,8 @@ def test_recorded_validation_failure_logs_only_known_rules(monkeypatch):
         validation_error_codes=(
             "reply_contains_mention", "PRIVATE model prose", "reply_contains_mention",
         ),
+        rejected_reply_text="Rejected proposed reply @name",
+        rejected_reply_text_character_count=29,
     )
     logger, event = Mock(), Mock()
     monkeypatch.setattr(bot, "log", logger)
@@ -373,6 +375,9 @@ def test_recorded_validation_failure_logs_only_known_rules(monkeypatch):
     assert event.call_count == 1
     assert event.call_args.args == ("single_call_reply_decision",)
     assert event.call_args.kwargs["validation_error_codes"] == ["reply_contains_mention"]
+    assert event.call_args.kwargs["rejected_reply_text"] == "Rejected proposed reply @name"
+    assert event.call_args.kwargs["rejected_reply_text_status"] == "available"
+    assert event.call_args.kwargs["rejected_reply_text_character_count"] == 29
     assert "PRIVATE" not in repr(event.call_args)
 
 
