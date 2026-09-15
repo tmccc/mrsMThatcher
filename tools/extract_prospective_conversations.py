@@ -6182,6 +6182,7 @@ def _validate_batch_directory(
     ]
     if conversation_order != sorted(conversation_order):
         errors.append(f"conversation ordering is invalid in {batch}")
+    conversation_post_ids: dict[str, set[str]] = {}
     for conversation in conversations:
         raw_turns = conversation.get("turns")
         if not isinstance(raw_turns, list):
@@ -6191,6 +6192,11 @@ def _validate_batch_directory(
             turns: list[Any] = []
         else:
             turns = raw_turns
+        conversation_post_ids[str(conversation.get("conversation_key") or "")] = {
+            str(turn.get("post_id") or "")
+            for turn in turns
+            if isinstance(turn, dict)
+        }
         turn_rows_are_objects = all(isinstance(turn, dict) for turn in turns)
         if not turn_rows_are_objects:
             errors.append(
@@ -6409,11 +6415,25 @@ def _validate_batch_directory(
             errors.append(f"review candidate source branch tips are invalid in {batch}")
         if isinstance(path_turns, list) and path_turns:
             first_parent = str(path_turns[0].get("parent_post_id") or "")
+            observed_post_ids = conversation_post_ids.get(
+                str(candidate.get("conversation_key") or ""), set()
+            )
+            # An unavailable ancestor cannot supply hand-off context. Its
+            # absence must remain explicit; an observed parent still needs
+            # context even when an earlier ancestor is also missing.
+            documented_missing_parent = (
+                str(path_turns[0].get("post_id") or "") in observed_post_ids
+                and first_parent not in observed_post_ids
+                and "missing_parent_post" in (candidate.get("warnings") or [])
+                and "partial_path_reconstruction"
+                in (candidate.get("review_reason_codes") or [])
+            )
             if (
                 first_parent
                 and path_turns[0].get("post_id") != candidate.get("root_post_id")
                 and first_parent
                 not in {str(row.get("post_id") or "") for row in handoff_refs}
+                and not documented_missing_parent
             ):
                 errors.append(
                     f"review candidate external first parent lacks hand-off context in {batch}"

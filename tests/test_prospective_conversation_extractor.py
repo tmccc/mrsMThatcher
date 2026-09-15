@@ -5394,6 +5394,118 @@ def test_handoff_clarification_continuation_is_scoped_to_matching_segment() -> N
     ]
 
 
+def missing_parent_exchange(*, missing_root: bool, handoff: bool = False) -> str:
+    root_id = snowflake_id("2026-08-25T00:00:00Z")
+    parent_id = root_id if missing_root else snowflake_id("2026-08-25T00:05:00Z")
+    log = ""
+    if not missing_root:
+        log += event_line(
+            "2026-08-25 01:00:00",
+            "ai_reply_pipeline_decision",
+            target_id=root_id,
+            root_post_id=root_id,
+            author_id="root-author",
+            incoming_text="The observed conversation root.",
+        )
+    log += event_line(
+        "2026-08-25 01:10:00",
+        "ai_reply_pipeline_decision",
+        target_id="201",
+        root_post_id=root_id,
+        parent_post_id=parent_id,
+        author_id="author-a",
+        incoming_text="A contribution whose immediate parent is unavailable.",
+        target_created_at="2026-08-25T00:10:00Z",
+    )
+    log += publish_reply(
+        "201", "202", author_id="author-a", local_time="2026-08-25 01:11"
+    )
+    if handoff:
+        log += continuation(
+            post_id="203",
+            parent_id="202",
+            author_id="author-b",
+            local_time="2026-08-25 01:12",
+        )
+        log += publish_reply(
+            "203", "204", author_id="author-b", local_time="2026-08-25 01:13"
+        )
+    return log
+
+
+@pytest.mark.parametrize("missing_root", [True, False], ids=["root", "intermediate"])
+def test_scan_accepts_explicitly_partial_candidate_with_missing_parent(
+    tmp_path: Path, missing_root: bool
+) -> None:
+    project = tmp_path / "project"
+    output = tmp_path / "output"
+    write_active(project, missing_parent_exchange(missing_root=missing_root))
+
+    run_scan(project, output)
+    candidate = next(
+        row for row in rows(output, "review-candidates.jsonl")
+        if row["segment_start_post_id"] == "201"
+    )
+
+    assert [turn["post_id"] for turn in candidate["path_turns"]] == ["201", "202"]
+    assert "missing_parent_post" in candidate["warnings"]
+    assert "root_not_reached_by_parent_path" in candidate["warnings"]
+    assert "partial_path_reconstruction" in candidate["review_reason_codes"]
+    assert candidate["reconstruction_confidence"] != "high"
+    assert candidate["handoff_context_refs"] == []
+    assert extractor.validate_output_root(output)["valid"] is True
+
+
+def test_validation_requires_observed_handoff_despite_missing_ancestor(
+    tmp_path: Path,
+) -> None:
+    project = tmp_path / "project"
+    output = tmp_path / "output"
+    write_active(project, missing_parent_exchange(missing_root=True, handoff=True))
+    run_scan(project, output)
+    batch = current_batch(output)
+    candidates = rows(output, "review-candidates.jsonl")
+    later_segment = next(
+        row for row in candidates if row["segment_start_post_id"] == "202"
+    )
+    assert "missing_parent_post" in later_segment["warnings"]
+    assert "partial_path_reconstruction" in later_segment["review_reason_codes"]
+    assert {row["post_id"] for row in later_segment["handoff_context_refs"]} == {"201"}
+    later_segment["handoff_context_refs"] = []
+    later_segment["review_reason_codes"].remove("external_author_handoff_context")
+    rewrite_batch_candidates_and_hashes(batch, candidates)
+
+    problems = extractor._validate_batch_directory(
+        batch, require_immutable=False, expected_boundary=BOUNDARY
+    )
+
+    assert any("external first parent lacks hand-off context" in problem for problem in problems)
+
+
+@pytest.mark.parametrize(
+    ("field", "value"),
+    [("warnings", "missing_parent_post"), ("review_reason_codes", "partial_path_reconstruction")],
+    ids=["missing-warning", "missing-partial-reason"],
+)
+def test_validation_requires_partial_evidence_for_missing_parent(
+    tmp_path: Path, field: str, value: str
+) -> None:
+    project = tmp_path / "project"
+    output = tmp_path / "output"
+    write_active(project, missing_parent_exchange(missing_root=True))
+    run_scan(project, output)
+    batch = current_batch(output)
+    candidates = rows(output, "review-candidates.jsonl")
+    candidates[0][field].remove(value)
+    rewrite_batch_candidates_and_hashes(batch, candidates)
+
+    problems = extractor._validate_batch_directory(
+        batch, require_immutable=False, expected_boundary=BOUNDARY
+    )
+
+    assert any("external first parent lacks hand-off context" in problem for problem in problems)
+
+
 def test_validation_rejects_candidate_path_with_foreign_user_author(
     tmp_path: Path,
 ) -> None:
