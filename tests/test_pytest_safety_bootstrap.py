@@ -4,6 +4,7 @@ import os
 from pathlib import Path
 import socket
 import subprocess
+import sys
 
 import pytest
 
@@ -16,6 +17,8 @@ COLLECTION_ENVIRONMENT = {
     key: os.environ.get(key)
     for key in (
         "MRS_TEST_MODE",
+        "XDG_RUNTIME_DIR",
+        "MRS_BOT_HEALTH_FILE",
         "MRS_BASE_DIR",
         "MRS_LOG_FILE",
         "MRS_PYTEST_RUNTIME_ROOT",
@@ -54,6 +57,8 @@ def test_collection_import_uses_process_local_test_environment() -> None:
     assert bootstrap_base.parent == runtime_root
     assert worker_id in runtime_root.name
     assert str(os.getpid()) in runtime_root.name
+    assert Path(COLLECTION_ENVIRONMENT["XDG_RUNTIME_DIR"] or "").parent == runtime_root
+    assert COLLECTION_ENVIRONMENT["MRS_BOT_HEALTH_FILE"] is None
     assert not is_relative_to(bootstrap_base.resolve(), PRODUCTION_BASE)
     assert COLLECTION_ENVIRONMENT["MRS_PYTEST_BOOTSTRAP_LOG_FILE"] == str(
         bootstrap_base / "test.log"
@@ -84,6 +89,54 @@ def test_collection_import_uses_process_local_test_environment() -> None:
     assert bot.X_BASE == "http://127.0.0.1:9"
     assert bot.X_UPLOAD_BASE == "http://127.0.0.1:9"
     assert bot.OPENAI_BASE == "http://127.0.0.1:9/v1"
+
+
+@pytest.mark.parametrize("explicit_health_path", [False, True])
+def test_production_mode_health_output_stays_inside_pytest_runtime(
+    tmp_path: Path,
+    explicit_health_path: bool,
+) -> None:
+    inherited_runtime = tmp_path / "inherited-runtime"
+    inherited_health = inherited_runtime / "mrsMThatcher" / "bot-health.json"
+    inherited_health.parent.mkdir(parents=True)
+    original = b'{"instance_id":"live-bot-sentinel"}'
+    inherited_health.write_bytes(original)
+    environment = dict(os.environ, XDG_RUNTIME_DIR=str(inherited_runtime))
+    if explicit_health_path:
+        environment["MRS_BOT_HEALTH_FILE"] = str(inherited_health)
+    else:
+        environment.pop("MRS_BOT_HEALTH_FILE", None)
+    code = """
+import json
+import os
+from pathlib import Path
+import shutil
+
+from tests.conftest import PYTEST_RUNTIME_ROOT
+from mrs_bot_health import BotHealthReporter, health_file_path_from_environment
+
+try:
+    path = health_file_path_from_environment(test_mode=False)
+    assert path.is_relative_to(PYTEST_RUNTIME_ROOT)
+    assert Path(os.environ["XDG_RUNTIME_DIR"]).stat().st_mode & 0o777 == 0o700
+    assert health_file_path_from_environment(test_mode=True) is None
+    BotHealthReporter(path, instance_id="test-process").progress("startup")
+    assert json.loads(path.read_text())["instance_id"] == "test-process"
+finally:
+    shutil.rmtree(PYTEST_RUNTIME_ROOT)
+"""
+    result = subprocess.run(
+        [sys.executable, "-c", code],
+        cwd=PROJECT_ROOT,
+        env=environment,
+        capture_output=True,
+        text=True,
+        timeout=20,
+        check=False,
+    )
+
+    assert result.returncode == 0, result.stderr + result.stdout
+    assert inherited_health.read_bytes() == original
 
 
 def test_default_network_policy_denies_loopback_and_non_loopback() -> None:

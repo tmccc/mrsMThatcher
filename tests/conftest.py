@@ -52,11 +52,17 @@ def initialise_isolated_test_environment() -> Path:
     # available for synthetic caches. Application default-path logic is unchanged.
     home_dir = runtime_root / "home"
     home_dir.mkdir()
+    # Production-mode bootstrap tests also need private health telemetry. Keep
+    # test-mode telemetry opt-in while isolating the production default path.
+    user_runtime_dir = runtime_root / "runtime"
+    user_runtime_dir.mkdir(mode=0o700)
+    os.environ.pop("MRS_BOT_HEALTH_FILE", None)
     dead_loopback_endpoint = "http://127.0.0.1:9"
     os.environ.pop("MRS_ALLOW_LIVE_ENDPOINTS_IN_TEST", None)
     os.environ.update(
         {
             "HOME": str(home_dir),
+            "XDG_RUNTIME_DIR": str(user_runtime_dir),
             "MRS_TEST_MODE": "1",
             "MRS_BASE_DIR": str(state_dir),
             "MRS_LOG_FILE": str(state_dir / "test.log"),
