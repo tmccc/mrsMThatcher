@@ -1,5 +1,12 @@
 # Incremental modularisation
 
+The stage records below describe their historical revisions. The engagement-question
+trial was removed on 2026-09-16: its bot runtime modules, digest validators,
+experiment-state summary and reporting were deleted. Generic quote-publication
+evidence and warnings remain in `mrs_log_digest_quote_publication.py`; current
+interfaces are documented in [python_api.md](python_api.md). Digest JSON schema 4
+replaces the trial section with generic `quote_publication` correlation warnings.
+
 Stage 1 starts at `e08d894d9cd39a07ebe4eeb72205baa864d1a2be` (fetched
 `origin/master`, 2026-09-05). Production HEAD was the same SHA, with no local
 changes or divergence. Work is isolated on `codex/modularisation-stage1` in

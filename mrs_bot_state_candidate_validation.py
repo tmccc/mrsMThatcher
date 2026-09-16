@@ -147,12 +147,10 @@ def normalise_state_candidate(
     path: Path,
     recovery_events: list[dict[str, object]] | None = None,
     recover_pending_identity: bool = False,
-    ENGAGEMENT_QUESTION_EXPERIMENT_STATE_MINIMUM_READER_VERSION: int,
     MENTION_BACKLOG_CONTINUATION_TOKEN_LIMIT: int,
     STATE_MINIMUM_READER_VERSION: int,
     canonical_mention_pending_candidates: Callable[..., dict[str, dict] | None],
     default_state: Callable[..., dict],
-    engagement_question_trial: ModuleType,
     hashlib: ModuleType,
     log: Logger,
     normalise_author_evaluation_quarantines: Callable[..., dict | None],
@@ -244,25 +242,6 @@ def normalise_state_candidate(
         minimum_reader_version,
         STATE_MINIMUM_READER_VERSION,
     )
-
-    if "engagement_question_experiment" in state:
-        try:
-            normalised["engagement_question_experiment"] = (
-                engagement_question_trial.validate_experiment_state(
-                    state["engagement_question_experiment"]
-                )
-            )
-        except engagement_question_trial.ExperimentValidationError:
-            log.error(
-                "State candidate %s has invalid engagement-question experiment state; ignoring",
-                path,
-                exc_info=True,
-            )
-            return None
-        normalised["minimum_reader_version"] = max(
-            normalised["minimum_reader_version"],
-            ENGAGEMENT_QUESTION_EXPERIMENT_STATE_MINIMUM_READER_VERSION,
-        )
 
     for key in list_keys:
         if key in state:

@@ -219,7 +219,6 @@ import requests
 from requests_oauthlib import OAuth1
 from urllib3.util import Timeout
 
-import engagement_question_experiment as engagement_question_trial
 import mrs_bot_image_scoring as _image_scoring
 import mrs_bot_original_editorial as _original_editorial
 import mrs_bot_asset_metadata as _asset_metadata
@@ -263,8 +262,6 @@ import mrs_bot_main_post_confirmation_persistence as _main_post_confirmation_per
 import mrs_bot_x_request as _x_request
 import mrs_bot_post_creation as _post_creation
 import mrs_bot_main_post_reconciliation as _main_post_reconciliation
-import mrs_bot_engagement_publication as _engagement_publication
-import mrs_bot_engagement_runtime as _engagement_runtime
 import mrs_bot_historical_context_delivery as _historical_context_delivery
 import mrs_bot_historical_context_queue as _historical_context_queue
 import mrs_bot_historical_context_runtime as _historical_context_runtime
@@ -657,11 +654,6 @@ historical_context_reply = {
     "include_source": True,
     "include_verification": True,
 }
-engagement_question_experiment_enabled = False
-engagement_question_experiment_plan_path = (
-    "engagement_question_experiment/active_plan.json"
-)
-engagement_question_notification_output_path = ""
 single_call_reply = single_call_reply_default_config()
 
 LINES_USED_FILE = BASE_DIR / "lines_used.json"
@@ -715,7 +707,6 @@ LOCK_FILE = BASE_DIR / "mrsMThatcher.lock"
 STATE_BACKUP_COUNT = 5
 STATE_READER_VERSION = 4
 STATE_MINIMUM_READER_VERSION = 4
-ENGAGEMENT_QUESTION_EXPERIMENT_STATE_MINIMUM_READER_VERSION = 3
 STATE_READER_COMPATIBILITY_FENCE = {
     "__mrs_state_reader_compatibility_fence__": STATE_MINIMUM_READER_VERSION,
 }
@@ -1405,9 +1396,6 @@ LOCAL_CONFIG_ALLOWED_KEYS = {
     "STATE_BACKUP_COUNT",
     "historical_context_reply",
     "single_call_reply",
-    "engagement_question_experiment_enabled",
-    "engagement_question_experiment_plan_path",
-    "engagement_question_notification_output_path",
 }
 
 LOCAL_CONFIG_NON_NEGATIVE_INT_KEYS = {
@@ -2856,13 +2844,11 @@ def state_document_for_persistence(state: dict) -> dict:
     """Return state with the reader declaration and pre-reader rollback fence."""
     return _state_persistence.state_document_for_persistence(
         state,
-        ENGAGEMENT_QUESTION_EXPERIMENT_STATE_MINIMUM_READER_VERSION=ENGAGEMENT_QUESTION_EXPERIMENT_STATE_MINIMUM_READER_VERSION,
         STATE_FILE=STATE_FILE,
         STATE_MINIMUM_READER_VERSION=STATE_MINIMUM_READER_VERSION,
         STATE_PREVIOUS_READER_COMPATIBILITY_FENCES=STATE_PREVIOUS_READER_COMPATIBILITY_FENCES,
         STATE_READER_COMPATIBILITY_FENCE=STATE_READER_COMPATIBILITY_FENCE,
         copy=copy,
-        engagement_question_trial=engagement_question_trial,
         require_compatible_state_reader=require_compatible_state_reader,
     )
 
@@ -2880,12 +2866,10 @@ def normalise_state_candidate(
         path=path,
         recovery_events=recovery_events,
         recover_pending_identity=recover_pending_identity,
-        ENGAGEMENT_QUESTION_EXPERIMENT_STATE_MINIMUM_READER_VERSION=ENGAGEMENT_QUESTION_EXPERIMENT_STATE_MINIMUM_READER_VERSION,
         MENTION_BACKLOG_CONTINUATION_TOKEN_LIMIT=MENTION_BACKLOG_CONTINUATION_TOKEN_LIMIT,
         STATE_MINIMUM_READER_VERSION=STATE_MINIMUM_READER_VERSION,
         canonical_mention_pending_candidates=canonical_mention_pending_candidates,
         default_state=default_state,
-        engagement_question_trial=engagement_question_trial,
         hashlib=hashlib,
         log=log,
         normalise_author_evaluation_quarantines=normalise_author_evaluation_quarantines,
@@ -4101,21 +4085,15 @@ def validate_media_upload_payload_metadata(
         value,
         form=form,
         copy=copy,
-        engagement_experiment_attempt_envelope_is_valid=engagement_experiment_attempt_envelope_is_valid,
-        engagement_question_trial=engagement_question_trial,
     )
 
 
 def media_upload_payload_metadata(
     form: dict[str, object],
-    *,
-    engagement_experiment: dict | None = None,
 ) -> dict[str, object]:
-    """Bind the durable media receipt to its remote form and optional trial."""
+    """Bind the durable media receipt to its exact remote form."""
     return _post_creation.media_upload_payload_metadata(
         form,
-        engagement_experiment=engagement_experiment,
-        copy=copy,
         validate_media_upload_payload_metadata=validate_media_upload_payload_metadata,
     )
 
@@ -4155,15 +4133,11 @@ def upload_media(
     image_path: str,
     *,
     lane: str,
-    engagement_experiment: dict | None = None,
-    pre_transport_validation: Callable[[], None] | None = None,
 ) -> str:
     """Upload once under a restart-visible, image-bound sending receipt."""
     return _post_creation.upload_media(
         image_path,
         lane=lane,
-        engagement_experiment=engagement_experiment,
-        pre_transport_validation=pre_transport_validation,
         AmbiguousRemotePostOutcome=AmbiguousRemotePostOutcome,
         MEDIA_UPLOAD_RECEIPT_FILE=MEDIA_UPLOAD_RECEIPT_FILE,
         MediaUploadReceiptError=MediaUploadReceiptError,
@@ -5691,38 +5665,6 @@ def bound_meme_schedule_state_is_valid(
     )
 
 
-ENGAGEMENT_EXPERIMENT_ATTEMPT_FIELDS = {
-    "binding",
-    "canonical_quote_text",
-    "approved_question_body",
-    "complete_treatment_sha256",
-    "complete_treatment_weighted_length",
-}
-
-
-def engagement_experiment_attempt_envelope_is_valid(
-    value: object,
-    *,
-    public_text: object,
-    quote_hash: object,
-    plan: dict | None = None,
-) -> bool:
-    """Validate the self-contained experiment authority bound before X."""
-    return _main_post_attempt_values.engagement_experiment_attempt_envelope_is_valid(
-        value,
-        public_text=public_text,
-        quote_hash=quote_hash,
-        plan=plan,
-        ENGAGEMENT_EXPERIMENT_ATTEMPT_FIELDS=ENGAGEMENT_EXPERIMENT_ATTEMPT_FIELDS,
-        engagement_question_trial=engagement_question_trial,
-        quote_text_hash=quote_text_hash,
-        re=re,
-    )
-
-
-engagement_experiment_envelope_from_attempt = _main_post_attempt_values.engagement_experiment_envelope_from_attempt
-
-
 def main_post_attempt_is_semantically_valid(data: object) -> bool:
     """Return whether a pre-send regular or meme attempt is self-consistent."""
     return _main_post_receipts.main_post_attempt_is_semantically_valid(
@@ -5732,7 +5674,6 @@ def main_post_attempt_is_semantically_valid(data: object) -> bool:
         MEME_SCHEDULE_VERSION=MEME_SCHEDULE_VERSION,
         bound_meme_schedule_state_is_valid=bound_meme_schedule_state_is_valid,
         canonical_remote_post_payload_sha256=canonical_remote_post_payload_sha256,
-        engagement_experiment_attempt_envelope_is_valid=engagement_experiment_attempt_envelope_is_valid,
         hashlib=hashlib,
         main_post_attempt_payload=main_post_attempt_payload,
         quote_text_hash=quote_text_hash,
@@ -5772,7 +5713,6 @@ def build_main_post_attempt(
     selected_identity: dict,
     recovery_plan: dict,
     attempt_epoch: int | None = None,
-    engagement_experiment: dict | None = None,
 ) -> dict:
     """Build a durable pre-send identity for one main-post transaction."""
     return _main_post_attempt_values.build_main_post_attempt(
@@ -5783,7 +5723,6 @@ def build_main_post_attempt(
         selected_identity=selected_identity,
         recovery_plan=recovery_plan,
         attempt_epoch=attempt_epoch,
-        engagement_experiment=engagement_experiment,
         MAIN_POST_SCHEDULE_TIMEZONE=MAIN_POST_SCHEDULE_TIMEZONE,
         canonical_remote_post_payload_sha256=canonical_remote_post_payload_sha256,
         copy=copy,
@@ -5837,16 +5776,15 @@ def prepare_main_tweet_transport(
     )
 
 
-def confirmed_media_upload_experiment_envelope(
+def validate_confirmed_media_upload_metadata(
     confirmation: ConfirmedMediaUpload,
-) -> dict | None:
-    """Return trial authority from the exact confirmed media generation."""
-    return _transport_source_preparation.confirmed_media_upload_experiment_envelope(
+) -> None:
+    """Validate metadata from the exact confirmed media generation."""
+    return _transport_source_preparation.validate_confirmed_media_upload_metadata(
         confirmation,
         ConfirmedMediaUpload=ConfirmedMediaUpload,
         MediaUploadReceiptError=MediaUploadReceiptError,
         Path=Path,
-        copy=copy,
         inspect_media_upload_receipt=inspect_media_upload_receipt,
         validate_media_upload_payload_metadata=validate_media_upload_payload_metadata,
     )
@@ -5864,8 +5802,7 @@ def handoff_confirmed_media_upload_to_main_attempt(
         MediaUploadReceiptError=MediaUploadReceiptError,
         Path=Path,
         bind_media_handoff_to_transport=bind_media_handoff_to_transport,
-        confirmed_media_upload_experiment_envelope=confirmed_media_upload_experiment_envelope,
-        engagement_experiment_envelope_from_attempt=engagement_experiment_envelope_from_attempt,
+        validate_confirmed_media_upload_metadata=validate_confirmed_media_upload_metadata,
         load_confirmed_media_upload=load_confirmed_media_upload,
         log=log,
         main_post_attempt_path=main_post_attempt_path,
@@ -6017,7 +5954,6 @@ def materialize_bound_regular_schedule_receipt(
         canonical_atomic_json_bytes=canonical_atomic_json_bytes,
         confirmed_pending_schedule_receipt_is_semantically_valid=confirmed_pending_schedule_receipt_is_semantically_valid,
         copy=copy,
-        engagement_experiment_envelope_from_attempt=engagement_experiment_envelope_from_attempt,
         hashlib=hashlib,
         regular_post_receipt_is_semantically_valid=regular_post_receipt_is_semantically_valid,
         safe_bound_schedule_date_str=safe_bound_schedule_date_str,
@@ -6094,7 +6030,6 @@ def regular_post_receipt_is_semantically_valid(data: dict) -> bool:
         canonical_atomic_json_bytes=canonical_atomic_json_bytes,
         confirmed_pending_schedule_receipt_is_semantically_valid=confirmed_pending_schedule_receipt_is_semantically_valid,
         copy=copy,
-        engagement_experiment_attempt_envelope_is_valid=engagement_experiment_attempt_envelope_is_valid,
         hashlib=hashlib,
         main_post_attempt_is_semantically_valid=main_post_attempt_is_semantically_valid,
         materialize_bound_regular_schedule_receipt=materialize_bound_regular_schedule_receipt,
@@ -6230,41 +6165,6 @@ def reconcile_meme_post_receipt(state: dict) -> bool:
     )
 
 
-engagement_experiment_envelope_from_receipt = _engagement_runtime.engagement_experiment_envelope_from_receipt
-
-
-def engagement_experiment_event_fields(receipt: dict) -> dict[str, object]:
-    """Return the optional confirmed structured-event experiment fields."""
-    return _observability.engagement_experiment_event_fields(
-        receipt,
-        engagement_experiment_envelope_from_receipt=engagement_experiment_envelope_from_receipt,
-    )
-
-
-def apply_confirmed_engagement_experiment_receipt(
-    receipt: dict,
-    state: dict,
-) -> bool:
-    """Apply a receipt-bound experiment transition exactly once in memory."""
-    return _main_post_reconciliation.apply_confirmed_engagement_experiment_receipt(
-        receipt,
-        state,
-        engagement_experiment_envelope_from_receipt=engagement_experiment_envelope_from_receipt,
-        engagement_question_trial=engagement_question_trial,
-        load_engagement_question_runtime_plan=load_engagement_question_runtime_plan,
-    )
-
-
-def log_confirmed_engagement_experiment_receipt(receipt: dict) -> None:
-    """Emit bounded progress events after protected persistence is durable."""
-    return _observability.log_confirmed_engagement_experiment_receipt(
-        receipt,
-        engagement_experiment_envelope_from_receipt=engagement_experiment_envelope_from_receipt,
-        engagement_question_trial=engagement_question_trial,
-        log_event=log_event,
-    )
-
-
 def apply_regular_post_receipt(receipt: dict, lines_used: set, images_used: set, state: dict) -> None:
     """Apply regular post receipt."""
     return _main_post_reconciliation.apply_regular_post_receipt(
@@ -6274,7 +6174,6 @@ def apply_regular_post_receipt(receipt: dict, lines_used: set, images_used: set,
         state,
         MEME_SCHEDULE_VERSION=MEME_SCHEDULE_VERSION,
         MY_USER_ID=MY_USER_ID,
-        apply_confirmed_engagement_experiment_receipt=apply_confirmed_engagement_experiment_receipt,
         cache_tweet=cache_tweet,
         log=log,
         maybe_schedule_meme_after_quote_post=maybe_schedule_meme_after_quote_post,
@@ -6352,7 +6251,6 @@ def confirmed_regular_emergency_representation_is_complete(
         state=state,
         main_post_attempt=main_post_attempt,
         build_confirmed_pending_schedule_receipt=build_confirmed_pending_schedule_receipt,
-        engagement_experiment_envelope_from_attempt=engagement_experiment_envelope_from_attempt,
         materialize_bound_regular_schedule_receipt=materialize_bound_regular_schedule_receipt,
         receipt_int=receipt_int,
         valid_post_id=valid_post_id,
@@ -6654,16 +6552,11 @@ def reconcile_regular_post_receipt(
         REGULAR_POST_RECEIPT_FILE=REGULAR_POST_RECEIPT_FILE,
         apply_regular_post_receipt=apply_regular_post_receipt,
         emit_account_root_posted=emit_account_root_posted,
-        engagement_experiment_envelope_from_receipt=engagement_experiment_envelope_from_receipt,
-        engagement_experiment_event_fields=engagement_experiment_event_fields,
         enqueue_historical_context_obligation=enqueue_historical_context_obligation,
         ensure_reconciled_regular_receipt_schedule_is_future=ensure_reconciled_regular_receipt_schedule_is_future,
         finalize_confirmed_pending_schedule_receipt=finalize_confirmed_pending_schedule_receipt,
         load_regular_post_receipt=load_regular_post_receipt,
         log=log,
-        log_confirmed_engagement_experiment_receipt=log_confirmed_engagement_experiment_receipt,
-        log_event=log_event,
-        publish_pending_engagement_question_notification=publish_pending_engagement_question_notification,
         remove_regular_post_receipt=remove_regular_post_receipt,
         retire_lane_transport_journal_if_present=retire_lane_transport_journal_if_present,
         safely_process_due_historical_context_obligations=safely_process_due_historical_context_obligations,
@@ -7146,250 +7039,6 @@ def concise_components(components: dict[str, float]) -> str:
     return ", ".join(f"{key}={value:.1f}" for key, value in sorted(components.items()))
 
 
-_ENGAGEMENT_QUESTION_LAST_LOADED_PLAN_SHA256: str | None = None
-_ENGAGEMENT_QUESTION_LAST_NOTIFICATION_FAILURE_POST_ID: str | None = None
-ENGAGEMENT_QUESTION_NOTIFICATION_REPLACEMENT_MIN_AGE_SECONDS = 60
-
-
-def _get_engagement_question_last_loaded_plan_sha256() -> str | None:
-    """Return the last engagement plan hash recorded by the root."""
-    return _ENGAGEMENT_QUESTION_LAST_LOADED_PLAN_SHA256
-
-def _set_engagement_question_last_loaded_plan_sha256(value: str | None) -> None:
-    """Set the last engagement plan hash recorded by the root."""
-    global _ENGAGEMENT_QUESTION_LAST_LOADED_PLAN_SHA256
-    _ENGAGEMENT_QUESTION_LAST_LOADED_PLAN_SHA256 = value
-
-def _get_engagement_question_last_notification_failure_post_id() -> str | None:
-    """Return the last engagement notification failure recorded by the root."""
-    return _ENGAGEMENT_QUESTION_LAST_NOTIFICATION_FAILURE_POST_ID
-
-def _set_engagement_question_last_notification_failure_post_id(value: str | None) -> None:
-    """Set the last engagement notification failure recorded by the root."""
-    global _ENGAGEMENT_QUESTION_LAST_NOTIFICATION_FAILURE_POST_ID
-    _ENGAGEMENT_QUESTION_LAST_NOTIFICATION_FAILURE_POST_ID = value
-
-
-def configured_engagement_question_path(raw_path: str) -> Path:
-    """Resolve one deployment-local experiment path without writing it."""
-    return _engagement_runtime.configured_engagement_question_path(
-        raw_path,
-        BASE_DIR=BASE_DIR,
-        Path=Path,
-    )
-
-
-def current_exact_quote_text_by_sha256() -> dict[str, str]:
-    """Load exact quotation bodies without production-text normalisation."""
-    return _engagement_runtime.current_exact_quote_text_by_sha256(
-        LINES_FILE=LINES_FILE,
-        engagement_question_trial=engagement_question_trial,
-    )
-
-
-def load_engagement_question_runtime_plan() -> tuple[dict, dict, dict[str, str]]:
-    """Load and fully validate the immutable mode-0600 live plan."""
-    return _engagement_runtime.load_engagement_question_runtime_plan(
-        BASE_DIR=BASE_DIR,
-        _get_engagement_question_last_loaded_plan_sha256=_get_engagement_question_last_loaded_plan_sha256,
-        _set_engagement_question_last_loaded_plan_sha256=_set_engagement_question_last_loaded_plan_sha256,
-        configured_engagement_question_path=configured_engagement_question_path,
-        current_exact_quote_text_by_sha256=current_exact_quote_text_by_sha256,
-        engagement_question_experiment_plan_path=engagement_question_experiment_plan_path,
-        engagement_question_trial=engagement_question_trial,
-        load_receipt_json_no_follow=load_receipt_json_no_follow,
-        log_event=log_event,
-    )
-
-
-def invalidate_engagement_question_experiment(
-    state: dict,
-    *,
-    code: str,
-    recorded_epoch: int,
-    exception_class: str | None = None,
-    authority_component: str | None = None,
-) -> None:
-    """Durably invalidate a started trial while ordinary posting continues."""
-    return _engagement_publication.invalidate_engagement_question_experiment(
-        state,
-        code=code,
-        recorded_epoch=recorded_epoch,
-        exception_class=exception_class,
-        authority_component=authority_component,
-        engagement_question_trial=engagement_question_trial,
-        log_event=log_event,
-        save_state=save_state,
-    )
-
-
-def initialise_engagement_question_experiment(
-    state: dict,
-    *,
-    current_epoch: int,
-) -> tuple[dict | None, dict | None]:
-    """Load/bind a configured plan or pause an already-started experiment."""
-    return _engagement_publication.initialise_engagement_question_experiment(
-        state,
-        current_epoch=current_epoch,
-        engagement_question_experiment_enabled=engagement_question_experiment_enabled,
-        engagement_question_trial=engagement_question_trial,
-        invalidate_engagement_question_experiment=invalidate_engagement_question_experiment,
-        load_engagement_question_runtime_plan=load_engagement_question_runtime_plan,
-        log=log,
-        log_event=log_event,
-        save_state=save_state,
-    )
-
-
-def engagement_question_opportunity(
-    state: dict,
-    *,
-    current_epoch: int,
-) -> tuple[dict | None, dict | None, set[str]]:
-    """Return the exact planned member and reservations for this opportunity."""
-    return _engagement_publication.engagement_question_opportunity(
-        state,
-        current_epoch=current_epoch,
-        engagement_question_experiment_enabled=engagement_question_experiment_enabled,
-        engagement_question_trial=engagement_question_trial,
-        initialise_engagement_question_experiment=initialise_engagement_question_experiment,
-        log_event=log_event,
-        save_state=save_state,
-    )
-
-
-def resolve_engagement_question_quote_choice(
-    member: dict,
-    *,
-    catalogue: dict,
-) -> tuple[dict, str]:
-    """Re-resolve and validate one exact planned canonical quotation."""
-    return _engagement_publication.resolve_engagement_question_quote_choice(
-        member,
-        catalogue=catalogue,
-        HISTORICAL_CONTEXT_RESEARCH_DIR=HISTORICAL_CONTEXT_RESEARCH_DIR,
-        _HISTORICAL_CONTEXT_CORPUS_SNAPSHOT=_HISTORICAL_CONTEXT_CORPUS_SNAPSHOT,
-        completed_research_quote_hashes=completed_research_quote_hashes,
-        engagement_question_trial=engagement_question_trial,
-        historical_context_reply=historical_context_reply,
-        load_quote_lines_and_analysis=load_quote_lines_and_analysis,
-        quote_candidate_weight=quote_candidate_weight,
-        quote_metadata_for_hash=quote_metadata_for_hash,
-        quote_text_hash=quote_text_hash,
-    )
-
-
-def revalidate_engagement_question_publication_authority(
-    *,
-    state: dict,
-    lines_used: set,
-    envelope: dict,
-    quote_choice: dict,
-    public_text: str,
-) -> None:
-    """Re-resolve one prepared trial member at the remote-write handoff."""
-    return _engagement_publication.revalidate_engagement_question_publication_authority(
-        state=state,
-        lines_used=lines_used,
-        envelope=envelope,
-        quote_choice=quote_choice,
-        public_text=public_text,
-        engagement_experiment_attempt_envelope_is_valid=engagement_experiment_attempt_envelope_is_valid,
-        engagement_question_trial=engagement_question_trial,
-        load_engagement_question_runtime_plan=load_engagement_question_runtime_plan,
-        resolve_engagement_question_quote_choice=resolve_engagement_question_quote_choice,
-    )
-
-
-ENGAGEMENT_QUESTION_MEMBER_AUTHORITY_KEYS = frozenset(
-    set(engagement_question_trial.MEMBER_FIELDS)
-    | {
-        "pair_index",
-        "pair_id",
-        "topic",
-        "quotation_length_band",
-        "publication_order",
-        "planned_publication_order",
-    }
-)
-
-
-def engagement_question_authority_failure_diagnostic(
-    exc: BaseException,
-) -> tuple[str, str]:
-    """Return bounded, non-sensitive structured handoff failure detail."""
-    return _engagement_publication.engagement_question_authority_failure_diagnostic(
-        exc,
-        ENGAGEMENT_QUESTION_MEMBER_AUTHORITY_KEYS=ENGAGEMENT_QUESTION_MEMBER_AUTHORITY_KEYS,
-        json=json,
-        re=re,
-    )
-
-
-def revalidate_or_invalidate_engagement_question_publication(
-    *,
-    state: dict,
-    lines_used: set,
-    envelope: dict,
-    quote_choice: dict,
-    public_text: str,
-) -> None:
-    """Fail closed and invalidate a trial whose prepared authority changed."""
-    return _engagement_publication.revalidate_or_invalidate_engagement_question_publication(
-        state=state,
-        lines_used=lines_used,
-        envelope=envelope,
-        quote_choice=quote_choice,
-        public_text=public_text,
-        engagement_question_authority_failure_diagnostic=engagement_question_authority_failure_diagnostic,
-        engagement_question_trial=engagement_question_trial,
-        invalidate_engagement_question_experiment=invalidate_engagement_question_experiment,
-        log=log,
-        now_epoch=now_epoch,
-        revalidate_engagement_question_publication_authority=revalidate_engagement_question_publication_authority,
-    )
-
-
-def defer_engagement_question_member(
-    state: dict,
-    *,
-    code: str,
-    recorded_epoch: int,
-) -> None:
-    """Durably record a bounded member deferral without advancing it."""
-    return _engagement_publication.defer_engagement_question_member(
-        state,
-        code=code,
-        recorded_epoch=recorded_epoch,
-        engagement_question_trial=engagement_question_trial,
-        log_event=log_event,
-        save_state=save_state,
-    )
-
-
-def publish_pending_engagement_question_notification(state: dict) -> bool:
-    """Atomically publish the oldest pending treatment observation."""
-    return _engagement_runtime.publish_pending_engagement_question_notification(
-        state,
-        ENGAGEMENT_QUESTION_NOTIFICATION_REPLACEMENT_MIN_AGE_SECONDS=ENGAGEMENT_QUESTION_NOTIFICATION_REPLACEMENT_MIN_AGE_SECONDS,
-        _get_engagement_question_last_notification_failure_post_id=_get_engagement_question_last_notification_failure_post_id,
-        _set_engagement_question_last_notification_failure_post_id=_set_engagement_question_last_notification_failure_post_id,
-        atomic_write_json=atomic_write_json,
-        configured_engagement_question_path=configured_engagement_question_path,
-        copy=copy,
-        engagement_question_notification_output_path=engagement_question_notification_output_path,
-        engagement_question_trial=engagement_question_trial,
-        json_file_matches=json_file_matches,
-        log=log,
-        log_event=log_event,
-        now_epoch=now_epoch,
-        os=os,
-        save_state=save_state,
-        stat=stat,
-    )
-
-
 def build_quote_candidates(
     lines: list[str],
     available_lines: list[int],
@@ -7597,22 +7246,6 @@ def choose_regular_quote_image_pair(
     )
 
 
-def choose_engagement_question_image(
-    images_used: set,
-    quote_choice: dict,
-    state: dict,
-) -> dict:
-    """Apply the existing image policy to one fixed experimental quotation."""
-    return _image_selection.choose_engagement_question_image(
-        images_used,
-        quote_choice,
-        state,
-        choose_matched_unused_image=choose_matched_unused_image,
-        QuoteSpecificImageMismatch=QuoteSpecificImageMismatch,
-        log=log,
-    )
-
-
 def post_random_quote(lines_used: set, images_used: set, state: dict) -> None:
     """Post a quotation pair through the owner with current root dependencies."""
     return _quote_posting.post_random_quote(
@@ -7625,15 +7258,6 @@ def post_random_quote(lines_used: set, images_used: set, state: dict) -> None:
         require_historical_context_outbox_writable=require_historical_context_outbox_writable,
         quote_used_history_has_legacy_indices=quote_used_history_has_legacy_indices,
         CorruptUsedHistoryError=CorruptUsedHistoryError,
-        engagement_question_opportunity=engagement_question_opportunity,
-        load_engagement_question_runtime_plan=load_engagement_question_runtime_plan,
-        invalidate_engagement_question_experiment=invalidate_engagement_question_experiment,
-        engagement_question_trial=engagement_question_trial,
-        resolve_engagement_question_quote_choice=resolve_engagement_question_quote_choice,
-        engagement_experiment_attempt_envelope_is_valid=engagement_experiment_attempt_envelope_is_valid,
-        choose_engagement_question_image=choose_engagement_question_image,
-        QuoteSpecificImageMismatch=QuoteSpecificImageMismatch,
-        defer_engagement_question_member=defer_engagement_question_member,
         choose_regular_quote_image_pair=choose_regular_quote_image_pair,
         NoViableQuoteImagePair=NoViableQuoteImagePair,
         POST_SLEEP_MIN=POST_SLEEP_MIN,
@@ -7642,7 +7266,6 @@ def post_random_quote(lines_used: set, images_used: set, state: dict) -> None:
         MEME_DELAY_AFTER_MAIN_POST_MAX_SECONDS=MEME_DELAY_AFTER_MAIN_POST_MAX_SECONDS,
         ENABLE_DAILY_MEME_POSTS=ENABLE_DAILY_MEME_POSTS,
         upload_media=upload_media,
-        revalidate_or_invalidate_engagement_question_publication=revalidate_or_invalidate_engagement_question_publication,
         build_main_post_attempt=build_main_post_attempt,
         MEME_TRIGGER_AFTER_HOUR=MEME_TRIGGER_AFTER_HOUR,
         MEME_SCHEDULE_VERSION=MEME_SCHEDULE_VERSION,
@@ -7671,7 +7294,6 @@ def post_random_quote(lines_used: set, images_used: set, state: dict) -> None:
         ConfirmedPendingScheduleDurabilityUncertain=ConfirmedPendingScheduleDurabilityUncertain,
         ConfirmedPostLocalPersistenceError=ConfirmedPostLocalPersistenceError,
         materialize_bound_regular_schedule_receipt=materialize_bound_regular_schedule_receipt,
-        apply_confirmed_engagement_experiment_receipt=apply_confirmed_engagement_experiment_receipt,
         apply_state_fields=apply_state_fields,
         cache_tweet=cache_tweet,
         MY_USER_ID=MY_USER_ID,
@@ -7682,12 +7304,8 @@ def post_random_quote(lines_used: set, images_used: set, state: dict) -> None:
         UnrecoverableConfirmedPostPersistenceError=UnrecoverableConfirmedPostPersistenceError,
         load_regular_post_receipt=load_regular_post_receipt,
         enqueue_historical_context_obligation=enqueue_historical_context_obligation,
-        engagement_experiment_envelope_from_receipt=engagement_experiment_envelope_from_receipt,
-        log_confirmed_engagement_experiment_receipt=log_confirmed_engagement_experiment_receipt,
         log_event=log_event,
-        engagement_experiment_event_fields=engagement_experiment_event_fields,
         retire_lane_transport_journal_if_present=retire_lane_transport_journal_if_present,
-        publish_pending_engagement_question_notification=publish_pending_engagement_question_notification,
         emit_account_root_posted=emit_account_root_posted,
         save_regular_post_protected_state=save_regular_post_protected_state,
         remove_regular_post_receipt=remove_regular_post_receipt,
@@ -9759,11 +9377,6 @@ def main() -> None:
             startup_current,
         )
 
-    initialise_engagement_question_experiment(
-        state,
-        current_epoch=startup_current,
-    )
-    publish_pending_engagement_question_notification(state)
 
     seed_recent_own_post_ids_from_cache(state)
     save_state(state)
@@ -9845,7 +9458,6 @@ def main() -> None:
                         {key: value for key, value in reconciled.items() if value},
                     )
 
-        publish_pending_engagement_question_notification(state)
 
         ambiguity_blocked, ambiguity_pause_logged = (
             maintain_global_remote_write_barrier_tick(

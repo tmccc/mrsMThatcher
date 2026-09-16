@@ -179,7 +179,7 @@ raise SystemExit(digest.main())
         assert report["digest_contract"]["producer_source_sha256"] == hashlib.sha256(
             Path(digest.__file__).read_bytes()
         ).hexdigest()
-        assert report["digest_contract"]["schema_version"] == 3
+        assert report["digest_contract"]["schema_version"] == 4
     finally:
         if populated:
             cache.unlink()

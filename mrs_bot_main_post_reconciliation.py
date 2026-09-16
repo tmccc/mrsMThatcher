@@ -182,51 +182,6 @@ def reconcile_meme_post_receipt(
     return True
 
 
-def apply_confirmed_engagement_experiment_receipt(
-    receipt: dict,
-    state: dict,
-    *,
-    engagement_experiment_envelope_from_receipt: Any,
-    engagement_question_trial: Any,
-    load_engagement_question_runtime_plan: Any,
-) -> bool:
-    """Apply a receipt-bound experiment transition exactly once in memory."""
-
-    envelope = engagement_experiment_envelope_from_receipt(receipt)
-    if envelope is None:
-        return False
-    experiment_state = state.get("engagement_question_experiment")
-    if not isinstance(experiment_state, dict):
-        raise RuntimeError(
-            "confirmed experimental post has no protected experiment state"
-        )
-    plan = None
-    try:
-        plan, _catalogue, _quote_text_by_id = (
-            load_engagement_question_runtime_plan()
-        )
-        if plan["plan_sha256"] != envelope["binding"]["plan_sha256"]:
-            plan = None
-    except Exception:
-        # The immutable pre-write receipt remains sufficient authority for an
-        # already-confirmed X post.  Future publication is invalidated later by
-        # normal plan/state initialisation if the configured plan is absent or
-        # changed.
-        plan = None
-    changed = engagement_question_trial.apply_confirmed_publication(
-        experiment_state,
-        binding=envelope["binding"],
-        plan=plan,
-        post_id=str(receipt["post_id"]),
-        published_epoch=int(receipt["quote_post_epoch"]),
-        exact_quote_text=str(envelope["canonical_quote_text"]),
-        public_text=str(receipt["text"]),
-        approved_question_body=str(envelope["approved_question_body"]),
-    )
-    state["engagement_question_experiment"] = experiment_state
-    return changed
-
-
 def apply_regular_post_receipt(
     receipt: dict,
     lines_used: set,
@@ -235,7 +190,6 @@ def apply_regular_post_receipt(
     *,
     MEME_SCHEDULE_VERSION: Any,
     MY_USER_ID: Any,
-    apply_confirmed_engagement_experiment_receipt: Any,
     cache_tweet: Any,
     log: Any,
     maybe_schedule_meme_after_quote_post: Any,
@@ -251,7 +205,7 @@ def apply_regular_post_receipt(
     text = str(receipt.get("text") or "")
 
     last_quote_epoch = int(state.get("last_quote_post_epoch", 0) or 0)
-    if receipt.get("schema_version") in {2, 3, 4} and quote_post_epoch > last_quote_epoch:
+    if receipt.get("schema_version") in {2, 3} and quote_post_epoch > last_quote_epoch:
         # Only a strictly newer receipt may install its exact post-cycle
         # snapshot.  Replaying an older snapshot after newer local state would
         # erase duplicate-suppression identities and could permit reuse.
@@ -259,7 +213,7 @@ def apply_regular_post_receipt(
         lines_used.update(str(value) for value in receipt["quote_history_after"])
         images_used.clear()
         images_used.update(str(value) for value in receipt["image_history_after"])
-    elif receipt.get("schema_version") in {2, 3, 4}:
+    elif receipt.get("schema_version") in {2, 3}:
         # Equal or stale replay is monotonic.  Unioning the receipt's identities
         # can conservatively delay reuse, but can never discard newer evidence.
         lines_used.update(str(value) for value in receipt["quote_history_after"])
@@ -306,7 +260,7 @@ def apply_regular_post_receipt(
         else:
             state["next_quote_post_epoch"] = next_quote_post_epoch
     if receipt_is_newest_main:
-        if receipt.get("schema_version") in {2, 3, 4}:
+        if receipt.get("schema_version") in {2, 3}:
             # Current schema-v3 receipts carry the exact bound schedule and
             # its policy version. Schema v2 retains the earlier exact-time
             # interpretation with a backward-compatible version fallback.
@@ -318,7 +272,7 @@ def apply_regular_post_receipt(
             )
             state["meme_schedule_version"] = (
                 int(receipt["meme_schedule_version"])
-                if receipt.get("schema_version") in {3, 4}
+                if receipt.get("schema_version") in {3}
                 else int(
                     receipt.get("meme_schedule_version")
                     or MEME_SCHEDULE_VERSION
@@ -358,7 +312,6 @@ def apply_regular_post_receipt(
         )
     if receipt_is_newest_main:
         record_recent_own_post(state, post_id)
-    apply_confirmed_engagement_experiment_receipt(receipt, state)
 
 
 def confirmed_regular_emergency_representation_is_complete(
@@ -372,7 +325,6 @@ def confirmed_regular_emergency_representation_is_complete(
     state: dict,
     main_post_attempt: dict,
     build_confirmed_pending_schedule_receipt: Any,
-    engagement_experiment_envelope_from_attempt: Any,
     materialize_bound_regular_schedule_receipt: Any,
     receipt_int: Any,
     valid_post_id: Any,
@@ -390,25 +342,6 @@ def confirmed_regular_emergency_representation_is_complete(
     except Exception:
         return False
     expected_meme_epoch = int(expected.get("next_meme_post_epoch", 0) or 0)
-    experiment_envelope = engagement_experiment_envelope_from_attempt(
-        main_post_attempt
-    )
-    experiment_complete = True
-    if experiment_envelope is not None:
-        experiment_state = state.get("engagement_question_experiment")
-        experiment_complete = bool(
-            isinstance(experiment_state, dict)
-            and any(
-                row.get("post_id") == str(post_id)
-                and row.get("pair_id")
-                == experiment_envelope["binding"]["pair_id"]
-                and row.get("arm") == experiment_envelope["binding"]["arm"]
-                and row.get("public_text_sha256")
-                == experiment_envelope["binding"]["public_text_sha256"]
-                for row in experiment_state.get("confirmed_publications", [])
-                if isinstance(row, dict)
-            )
-        )
     return bool(
         valid_post_id(post_id)
         and post_epoch is not None
@@ -418,7 +351,6 @@ def confirmed_regular_emergency_representation_is_complete(
         and images_used == set(expected["image_history_after"])
         and quote_hash in lines_used
         and image_basename in images_used
-        and experiment_complete
         and state_post_epoch == post_epoch
         and receipt_int(state.get("next_quote_post_epoch"))
         == int(expected["next_quote_post_epoch"])
@@ -520,16 +452,11 @@ def reconcile_regular_post_receipt(
     REGULAR_POST_RECEIPT_FILE: Any,
     apply_regular_post_receipt: Any,
     emit_account_root_posted: Any,
-    engagement_experiment_envelope_from_receipt: Any,
-    engagement_experiment_event_fields: Any,
     enqueue_historical_context_obligation: Any,
     ensure_reconciled_regular_receipt_schedule_is_future: Any,
     finalize_confirmed_pending_schedule_receipt: Any,
     load_regular_post_receipt: Any,
     log: Any,
-    log_confirmed_engagement_experiment_receipt: Any,
-    log_event: Any,
-    publish_pending_engagement_question_notification: Any,
     remove_regular_post_receipt: Any,
     retire_lane_transport_journal_if_present: Any,
     safely_process_due_historical_context_obligations: Any,
@@ -576,21 +503,6 @@ def reconcile_regular_post_receipt(
             minimum_next_quote_epoch,
         )
 
-    def emit_experiment_event() -> None:
-        """Read recovered event fields after protected persistence and logging."""
-        if engagement_experiment_envelope_from_receipt(receipt) is not None:
-            # Emit while the confirmed receipt still exists. A crash afterwards
-            # can safely replay this evidence during reconciliation.
-            log_event(
-                "main_post_posted",
-                lane="quote_image",
-                post_id=receipt["post_id"],
-                line_no=receipt.get("line_no"),
-                image_no=receipt.get("image_no"),
-                image_basename=receipt.get("image_basename"),
-                quote_hash=receipt.get("quote_hash"),
-                **engagement_experiment_event_fields(receipt),
-            )
 
     def retire_transport_journal() -> None:
         """Read recovered transport identity after the outbox is durable."""
@@ -604,12 +516,9 @@ def reconcile_regular_post_receipt(
     complete_regular_post_persistence(
         lines_used, images_used, state, receipt,
         save_regular_post_protected_state=save_regular_post_protected_state,
-        log_confirmed_engagement_experiment_receipt=log_confirmed_engagement_experiment_receipt,
-        emit_experiment_event=emit_experiment_event,
         enqueue_historical_context_obligation=enqueue_historical_context_obligation,
         retire_transport_journal=retire_transport_journal,
         remove_regular_post_receipt=remove_regular_post_receipt,
-        publish_pending_engagement_question_notification=publish_pending_engagement_question_notification,
     )
     emit_account_root_posted(
         lane="quote_image",

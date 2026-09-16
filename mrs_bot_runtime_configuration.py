@@ -22,42 +22,6 @@ def validate_runtime_config_values(
     """
     errors: list[str] = []
 
-    experiment_enabled = values.get(
-        "engagement_question_experiment_enabled",
-        _runtime_config_namespace().get("engagement_question_experiment_enabled"),
-    )
-    experiment_plan_path = values.get(
-        "engagement_question_experiment_plan_path",
-        _runtime_config_namespace().get("engagement_question_experiment_plan_path"),
-    )
-    notification_path = values.get(
-        "engagement_question_notification_output_path",
-        _runtime_config_namespace().get("engagement_question_notification_output_path"),
-    )
-    if type(experiment_enabled) is not bool:
-        errors.append("engagement_question_experiment_enabled must be boolean")
-    if (
-        type(experiment_plan_path) is not str
-        or not experiment_plan_path
-        or experiment_plan_path != experiment_plan_path.strip()
-        or any(ord(character) < 32 for character in experiment_plan_path)
-    ):
-        errors.append(
-            "engagement_question_experiment_plan_path must be a non-empty clean path"
-        )
-    if (
-        type(notification_path) is not str
-        or notification_path != notification_path.strip()
-        or any(ord(character) < 32 for character in notification_path)
-    ):
-        errors.append(
-            "engagement_question_notification_output_path must be an empty or clean path"
-        )
-    elif experiment_enabled is True and not notification_path:
-        errors.append(
-            "engagement_question_notification_output_path is required when the experiment is enabled"
-        )
-
     context_config = values.get("historical_context_reply", _runtime_config_namespace().get("historical_context_reply"))
     context_keys = {"enabled", "maximum_length", "include_meaning", "include_source", "include_verification"}
     if not isinstance(context_config, dict):

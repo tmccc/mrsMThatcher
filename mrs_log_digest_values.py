@@ -28,7 +28,7 @@ REMOTE_WRITE_RECEIPT_ROLE_LABELS = {
 UNKNOWN_MISSING_STATE_FIELD = "unknown (not present in latest snapshot)"
 
 
-ENGAGEMENT_CORRELATION_WARNING_LIMIT = 100
+QUOTE_PUBLICATION_CORRELATION_WARNING_LIMIT = 100
 
 
 def parse_dt(value: Optional[str]) -> Optional[datetime]:

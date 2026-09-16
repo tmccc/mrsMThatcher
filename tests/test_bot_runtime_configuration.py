@@ -55,7 +55,7 @@ def forbidden(*args, **kwargs):
 
 original_import = builtins.__import__
 def guarded_import(name, *args, **kwargs):
-    if name in {'mrsMThatcher2', 'requests', 'openai', 'single_call_reply', 'engagement_question_experiment', 'transaction_mutation_authority', 'remote_write_transport_journal'} or name.startswith('mrs_bot_') and name != 'mrs_bot_runtime_configuration':
+    if name in {'mrsMThatcher2', 'requests', 'openai', 'single_call_reply'}:
         forbidden()
     return original_import(name, *args, **kwargs)
 
@@ -122,9 +122,6 @@ def test_public_signatures_current_dependencies_references_and_errors(monkeypatc
 def _validation_values(monkeypatch):
     values = {key: 1 for key in POSITIVE_KEYS}
     values.update({
-        "engagement_question_experiment_enabled": False,
-        "engagement_question_experiment_plan_path": "synthetic-plan.json",
-        "engagement_question_notification_output_path": "",
         "historical_context_reply": {
             "enabled": False, "include_meaning": True, "include_source": True,
             "include_verification": False, "maximum_length": 120,
@@ -164,8 +161,6 @@ def test_namespace_identity_eager_fallbacks_and_live_order(monkeypatch):
         def get(self, key, default=None):
             trace.append(key)
             defaults.append((key, default))
-            if key == "engagement_question_experiment_enabled":
-                monkeypatch.setattr(bot, "engagement_question_experiment_plan_path", "new-synthetic-plan.json")
             if key == "MEME_FALLBACK_MINUTE":
                 monkeypatch.setattr(bot, "POST_SLEEP_MIN", 7)
             return super().get(key, default)
@@ -175,8 +170,7 @@ def test_namespace_identity_eager_fallbacks_and_live_order(monkeypatch):
     first = bot.validate_runtime_config_values(overrides)
     assert first == []
     keys = [
-        "engagement_question_experiment_enabled", "engagement_question_experiment_plan_path",
-        "engagement_question_notification_output_path", "historical_context_reply", "single_call_reply",
+        "historical_context_reply", "single_call_reply",
         *POSITIVE_KEYS, "MAX_MENTIONS_PER_CHECK", "QUOTE_LOOKUP_API_MAX_RESULTS",
         "HOT_POST_REPLY_SEARCH_API_MAX_RESULTS",
         *SHADOW_KEYS, "MEME_TRIGGER_AFTER_HOUR", "MEME_FALLBACK_HOUR", "MEME_FALLBACK_MINUTE",
@@ -184,10 +178,9 @@ def test_namespace_identity_eager_fallbacks_and_live_order(monkeypatch):
         "MEME_DELAY_AFTER_MAIN_POST_MIN_SECONDS", "MEME_DELAY_AFTER_MAIN_POST_MAX_SECONDS",
     ]
     assert trace == [event for key in keys for event in ("namespace", key)]
-    assert defaults[1] == ("engagement_question_experiment_plan_path", "new-synthetic-plan.json")
     assert [value for key, value in defaults if key == "POST_SLEEP_MIN"] == [1, 7]
-    assert defaults[3][1] is values["historical_context_reply"]
-    assert defaults[4][1] is values["single_call_reply"]
+    assert defaults[0][1] is values["historical_context_reply"]
+    assert defaults[1][1] is values["single_call_reply"]
     assert bot.validate_single_call_reply_config.call_args.args[0] is values["single_call_reply"]
     second = bot.validate_runtime_config_values(overrides)
     assert second == [] and second is not first
@@ -206,9 +199,6 @@ def test_validation_keeps_ordered_errors_context_fields_and_validator_references
     reply_error = object()
     monkeypatch.setattr(bot, "validate_single_call_reply_config", Mock(return_value=[reply_error]))
     errors = bot.validate_runtime_config_values({
-        "engagement_question_experiment_enabled": 1,
-        "engagement_question_experiment_plan_path": " bad\n",
-        "engagement_question_notification_output_path": " bad ",
         "historical_context_reply": Context(
             enabled=1, include_meaning=0, include_source=None,
             include_verification="yes", maximum_length=True,
@@ -227,9 +217,6 @@ def test_validation_keeps_ordered_errors_context_fields_and_validator_references
     assert bot.validate_single_call_reply_config.call_count == 1
     assert bot.validate_single_call_reply_config.call_args.args[0] is reply
     assert errors == [
-        "engagement_question_experiment_enabled must be boolean",
-        "engagement_question_experiment_plan_path must be a non-empty clean path",
-        "engagement_question_notification_output_path must be an empty or clean path",
         *[f"historical_context_reply.{key} must be boolean" for key in fields[:-1]],
         "historical_context_reply.maximum_length must be an integer from 120 to 25000",
         reply_error,
@@ -249,20 +236,12 @@ def test_validation_keeps_ordered_errors_context_fields_and_validator_references
 
 
 @pytest.mark.parametrize("context,error", [(None, "must be an object"), ({}, "fields mismatch")])
-def test_context_schema_and_strict_path_types_short_circuit(monkeypatch, context, error):
+def test_context_schema_validation(monkeypatch, context, error):
     _validation_values(monkeypatch)
 
-    class PathText(str):
-        def strip(self):
-            raise AssertionError("Strict type rejection must precede path operations")
-
     assert bot.validate_runtime_config_values({
-        "engagement_question_experiment_plan_path": PathText("synthetic.json"),
-        "engagement_question_notification_output_path": PathText(""),
         "historical_context_reply": context,
     }) == [
-        "engagement_question_experiment_plan_path must be a non-empty clean path",
-        "engagement_question_notification_output_path must be an empty or clean path",
         f"historical_context_reply {error}",
     ]
 

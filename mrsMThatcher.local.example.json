@@ -12,9 +12,6 @@
     "include_source": true,
     "include_verification": true
   },
-  "engagement_question_experiment_enabled": false,
-  "engagement_question_experiment_plan_path": "engagement_question_experiment/active_plan.json",
-  "engagement_question_notification_output_path": "",
   "single_call_reply": {
     "enabled": false,
     "strategy_version": "single-sol-reply-20260904",

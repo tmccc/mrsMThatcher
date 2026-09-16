@@ -21,13 +21,11 @@ from types import ModuleType
 def state_document_for_persistence(
     state: dict,
     *,
-    ENGAGEMENT_QUESTION_EXPERIMENT_STATE_MINIMUM_READER_VERSION: int,
     STATE_FILE: Path,
     STATE_MINIMUM_READER_VERSION: int,
     STATE_PREVIOUS_READER_COMPATIBILITY_FENCES: tuple[dict, ...],
     STATE_READER_COMPATIBILITY_FENCE: dict,
     copy: ModuleType,
-    engagement_question_trial: ModuleType,
     require_compatible_state_reader: Callable[..., int],
 ) -> dict:
     """Return state with the reader declaration and pre-reader rollback fence."""
@@ -44,17 +42,9 @@ def state_document_for_persistence(
             "overwrite them with the reader compatibility fence"
         )
     document = dict(state)
-    experiment_state = document.get("engagement_question_experiment")
-    if experiment_state is not None:
-        engagement_question_trial.validate_experiment_state(experiment_state)
     document["minimum_reader_version"] = max(
         minimum,
         STATE_MINIMUM_READER_VERSION,
-        (
-            ENGAGEMENT_QUESTION_EXPERIMENT_STATE_MINIMUM_READER_VERSION
-            if experiment_state is not None
-            else STATE_MINIMUM_READER_VERSION
-        ),
     )
     document["pending_reply_drafts"] = copy.deepcopy(
         STATE_READER_COMPATIBILITY_FENCE

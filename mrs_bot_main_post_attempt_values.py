@@ -150,90 +150,6 @@ def bound_meme_schedule_state_is_valid(
     return True
 
 
-def engagement_experiment_attempt_envelope_is_valid(
-    value: object,
-    *,
-    public_text: object,
-    quote_hash: object,
-    plan: dict | None = None,
-    ENGAGEMENT_EXPERIMENT_ATTEMPT_FIELDS: set[str],
-    engagement_question_trial: Any,
-    quote_text_hash: Callable[..., str],
-    re: Any,
-) -> bool:
-    """Validate the self-contained experiment authority bound before X."""
-
-    if (
-        not isinstance(value, dict)
-        or set(value) != ENGAGEMENT_EXPERIMENT_ATTEMPT_FIELDS
-        or type(public_text) is not str
-        or type(quote_hash) is not str
-    ):
-        return False
-    canonical_quote_text = value.get("canonical_quote_text")
-    question_body = value.get("approved_question_body")
-    treatment_sha256 = value.get("complete_treatment_sha256")
-    treatment_length = value.get("complete_treatment_weighted_length")
-    binding = value.get("binding")
-    if (
-        type(canonical_quote_text) is not str
-        or not canonical_quote_text
-        or type(question_body) is not str
-        or type(treatment_sha256) is not str
-        or re.fullmatch(r"[0-9a-f]{64}", treatment_sha256) is None
-        or type(treatment_length) is not int
-    ):
-        return False
-    try:
-        engagement_question_trial.validate_attempt_binding(
-            binding,
-            plan=plan,
-            exact_quote_text=canonical_quote_text,
-            public_text=public_text,
-        )
-        treatment_text = engagement_question_trial.complete_treatment_text(
-            canonical_quote_text,
-            question_body,
-        )
-        if (
-            engagement_question_trial.sha256_text(canonical_quote_text)
-            != quote_hash
-            or quote_text_hash(canonical_quote_text) != quote_hash
-            or engagement_question_trial.sha256_text(question_body)
-            != binding["approved_question_sha256"]
-            or engagement_question_trial.sha256_text(treatment_text)
-            != treatment_sha256
-            or engagement_question_trial.x_weighted_length(treatment_text)
-            != treatment_length
-            or treatment_length > engagement_question_trial.MAX_ROOT_WEIGHTED_LENGTH
-            or public_text
-            != (
-                treatment_text
-                if binding["arm"] == "treatment"
-                else canonical_quote_text
-            )
-        ):
-            return False
-    except (KeyError, TypeError, engagement_question_trial.ExperimentValidationError):
-        return False
-    return True
-
-
-def engagement_experiment_envelope_from_attempt(
-    attempt: object,
-) -> dict | None:
-    """Return one validated-looking envelope only for schema-v6 quote attempts."""
-
-    if (
-        isinstance(attempt, dict)
-        and attempt.get("lane") == "quote_image"
-        and attempt.get("schema_version") == 6
-        and isinstance(attempt.get("engagement_question_experiment"), dict)
-    ):
-        return attempt["engagement_question_experiment"]
-    return None
-
-
 def main_post_attempt_binds_payload(
     attempt: dict,
     payload: dict,
@@ -262,7 +178,7 @@ def current_main_post_attempt_is_semantically_valid(
     return bool(
         main_post_attempt_is_semantically_valid(data)
         and isinstance(data, dict)
-        and data.get("schema_version") in {5, 6}
+        and data.get("schema_version") == 5
     )
 
 
@@ -275,7 +191,6 @@ def build_main_post_attempt(
     selected_identity: dict,
     recovery_plan: dict,
     attempt_epoch: int | None = None,
-    engagement_experiment: dict | None = None,
     MAIN_POST_SCHEDULE_TIMEZONE: str,
     canonical_remote_post_payload_sha256: Callable[..., str],
     copy: Any,
@@ -300,10 +215,8 @@ def build_main_post_attempt(
         raise ValueError(
             "new main-post attempts must bind the production schedule timezone"
         )
-    if engagement_experiment is not None and lane != "quote_image":
-        raise ValueError("experiment metadata is valid only for quote/image posts")
     attempt = {
-        "schema_version": 6 if engagement_experiment is not None else 5,
+        "schema_version": 5,
         "lifecycle_state": "sending",
         "lane": lane,
         "attempt_id": hashlib.sha256(os.urandom(32)).hexdigest(),
@@ -318,10 +231,6 @@ def build_main_post_attempt(
         "selected_identity": copy.deepcopy(selected_identity),
         "recovery_plan": copy.deepcopy(recovery_plan),
     }
-    if engagement_experiment is not None:
-        attempt["engagement_question_experiment"] = copy.deepcopy(
-            engagement_experiment
-        )
     if not current_main_post_attempt_is_semantically_valid(attempt):
         raise RuntimeError("Internal error: generated main-post attempt is invalid")
     return attempt

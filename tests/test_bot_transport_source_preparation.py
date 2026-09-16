@@ -57,10 +57,9 @@ DEPENDENCIES = {'remote_write_transport_journal_paths': ['CONFIRMED_REPLY_RECEIP
                                   'main_post_attempt_path',
                                   'main_post_attempt_payload',
                                   'mark_main_post_attempt_attempting'],
- 'confirmed_media_upload_experiment_envelope': ['ConfirmedMediaUpload',
+ 'validate_confirmed_media_upload_metadata': ['ConfirmedMediaUpload',
                                                 'MediaUploadReceiptError',
                                                 'Path',
-                                                'copy',
                                                 'inspect_media_upload_receipt',
                                                 'validate_media_upload_payload_metadata']}
 
@@ -76,7 +75,7 @@ SIGNATURES = {'remote_write_transport_journal_paths': "() -> 'tuple[Path, ...]'"
  'block_if_unrelated_receipt_appeared_for_media_transport': "() -> 'None'",
  'prepare_main_tweet_transport': "(attempt: 'dict') -> 'tuple[dict, SourceReceiptBinding, "
                                  "TransportAuthority]'",
- 'confirmed_media_upload_experiment_envelope': "(confirmation: 'ConfirmedMediaUpload') -> 'dict | None'"}
+ 'validate_confirmed_media_upload_metadata': "(confirmation: 'ConfirmedMediaUpload') -> 'None'"}
 
 
 def test_import_needs_no_runtime_access():
@@ -582,25 +581,20 @@ def _media_trace(monkeypatch, mismatch=None):
     snapshot = Snapshot()
     trace.path.return_value = object()
     trace.inspect.return_value = None if mismatch == "missing" else snapshot
-    envelope = {"binding": {"identity": ["original"]}}
-    trace.validate.return_value = {"engagement_question_experiment": envelope}
-    import copy
-
-    trace.deepcopy.side_effect = copy.deepcopy
+    trace.validate.return_value = metadata
     for name, value in (("ConfirmedMediaUpload", Confirmation), ("Path", trace.path),
                         ("inspect_media_upload_receipt", trace.inspect),
-                        ("validate_media_upload_payload_metadata", trace.validate),
-                        ("copy", SimpleNamespace(deepcopy=trace.deepcopy))):
+                        ("validate_media_upload_payload_metadata", trace.validate)):
         monkeypatch.setattr(bot, name, value)
-    return trace, confirmation, document, metadata, envelope
+    return trace, confirmation, document, metadata
 
 
 @pytest.mark.parametrize("mismatch", ["type", "missing", "device", "inode", "ctime_ns", "sha256",
                                       "transaction_id", "lifecycle_state", "remote_media_id"])
-def test_media_envelope_keeps_current_type_and_ordered_generation_refusal(monkeypatch, mismatch):
-    trace, confirmation, _, _, _ = _media_trace(monkeypatch, mismatch)
+def test_media_metadata_keeps_current_type_and_ordered_generation_refusal(monkeypatch, mismatch):
+    trace, confirmation, _, _ = _media_trace(monkeypatch, mismatch)
     with pytest.raises(bot.MediaUploadReceiptError) as caught:
-        bot.confirmed_media_upload_experiment_envelope(object() if mismatch == "type" else confirmation)
+        bot.validate_confirmed_media_upload_metadata(object() if mismatch == "type" else confirmation)
     assert str(caught.value) == ("confirmed media identity is invalid" if mismatch == "type"
                                  else "confirmed media receipt changed before main-post handoff")
     order = [call.path(confirmation.receipt_path), call.inspect(trace.path.return_value)]
@@ -614,44 +608,34 @@ def test_media_envelope_keeps_current_type_and_ordered_generation_refusal(monkey
     assert trace.mock_calls == ([] if mismatch == "type" else order)
 
 
-def test_media_envelope_retains_metadata_form_references_and_dictionary_only_deepcopy(monkeypatch):
-    trace, confirmation, document, metadata, envelope = _media_trace(monkeypatch)
-    result = bot.confirmed_media_upload_experiment_envelope(confirmation)
-    assert result == envelope and result is not envelope
-    assert result["binding"] is not envelope["binding"]
-    result["binding"]["identity"].append("changed")
-    assert envelope["binding"]["identity"] == ["original"]
+def test_media_metadata_retains_form_references_and_rejects_invalid_form(monkeypatch):
+    trace, confirmation, document, metadata = _media_trace(monkeypatch)
+    assert bot.validate_confirmed_media_upload_metadata(confirmation) is None
     assert trace.path.call_args.args[0] is confirmation.receipt_path
     assert trace.inspect.call_args.args[0] is trace.path.return_value
     assert trace.validate.call_args.args[0] is metadata
     assert trace.validate.call_args.kwargs == {"form": metadata["form"]}
     assert trace.validate.call_args.kwargs["form"] is metadata["form"]
-    assert trace.deepcopy.call_args.args[0] is envelope
-    assert trace.mock_calls[-4:] == [call.snapshot_get("document"), call.document_get("payload_metadata"),
-                                    call.validate(metadata, form=metadata["form"]), call.deepcopy(envelope)]
-    for value in (None, [], "envelope", 1):
-        trace.reset_mock()
-        trace.validate.return_value = {"engagement_question_experiment": value}
-        assert bot.confirmed_media_upload_experiment_envelope(confirmation) is None
-        trace.deepcopy.assert_not_called()
+    assert trace.mock_calls[-3:] == [call.snapshot_get("document"), call.document_get("payload_metadata"),
+                                    call.validate(metadata, form=metadata["form"])]
     for metadata_value in (None, [], {"form": None}, {"form": []}):
         trace.reset_mock()
         document["payload_metadata"] = metadata_value
         with pytest.raises(bot.MediaUploadReceiptError, match="confirmed media receipt form is invalid"):
-            bot.confirmed_media_upload_experiment_envelope(confirmation)
+            bot.validate_confirmed_media_upload_metadata(confirmation)
         trace.validate.assert_not_called()
 
 
 @pytest.mark.parametrize("location,error", [("path", TypeError), ("inspect", OSError),
                                             ("validate", TypeError), ("validate", ValueError),
-                                            ("validate", RuntimeError), ("deepcopy", ValueError)])
-def test_media_envelope_wraps_only_metadata_type_and_value_errors(monkeypatch, location, error):
-    trace, confirmation, _, _, _ = _media_trace(monkeypatch)
+                                            ("validate", RuntimeError)])
+def test_media_metadata_wraps_only_metadata_type_and_value_errors(monkeypatch, location, error):
+    trace, confirmation, _, _ = _media_trace(monkeypatch)
     failure = error("media authority")
     getattr(trace, location).side_effect = failure
     wrapped = location == "validate" and error in (TypeError, ValueError)
     with pytest.raises(bot.MediaUploadReceiptError if wrapped else error) as caught:
-        bot.confirmed_media_upload_experiment_envelope(confirmation)
+        bot.validate_confirmed_media_upload_metadata(confirmation)
     if wrapped:
         assert str(caught.value) == "confirmed media receipt payload authority is invalid"
         assert caught.value.__cause__ is failure

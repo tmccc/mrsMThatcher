@@ -10,10 +10,7 @@
     "routine_skip_counts": {}
   },
   "latest_state": {
-    "_carried_forward": true,
-    "engagement_question_experiment": {
-      "current_deferral_reason": null
-    }
+    "_carried_forward": true
   },
   "openai_published_cost": {
     "available": false,

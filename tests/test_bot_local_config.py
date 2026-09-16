@@ -227,7 +227,7 @@ def test_coercion_keeps_exact_types_references_exemptions_and_narrow_float_check
     value = {"nested": []}
     assert coerce("mapping", value, {}) is value
     text = " \n\t "
-    for key in ("MEME_POST_TEXT", "engagement_question_notification_output_path"):
+    for key in ("MEME_POST_TEXT",):
         assert coerce(key, text, "") is text
         assert coerce(key, "", "") == ""
         with pytest.raises(ValueError, match="unsafe control"):

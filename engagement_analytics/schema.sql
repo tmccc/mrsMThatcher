@@ -1,23 +1,11 @@
 -- Documentation copy of engagement analytics schema v2.
 -- The executable migration is SCHEMA_SQL in mrs_engagement_analytics.py.
 
--- Forward-only v2 migration (the executable applies each missing column
--- individually after inspecting PRAGMA table_info(post_pairs)):
---   ALTER TABLE post_pairs ADD COLUMN engagement_experiment_id TEXT;
---   ALTER TABLE post_pairs ADD COLUMN engagement_experiment_plan_sha256 TEXT;
---   ALTER TABLE post_pairs ADD COLUMN engagement_experiment_pair_id TEXT;
---   ALTER TABLE post_pairs ADD COLUMN engagement_experiment_arm TEXT;
---   ALTER TABLE post_pairs ADD COLUMN engagement_experiment_member_position INTEGER;
---   ALTER TABLE post_pairs ADD COLUMN engagement_experiment_publication_order TEXT;
---   ALTER TABLE post_pairs ADD COLUMN engagement_experiment_sequence INTEGER;
---   ALTER TABLE post_pairs ADD COLUMN engagement_approved_question_sha256 TEXT;
---   ALTER TABLE post_pairs ADD COLUMN engagement_question_present INTEGER;
---   ALTER TABLE post_pairs ADD COLUMN engagement_public_text_sha256 TEXT;
--- Existing rows retain NULL for every experiment field. Existing post-pair
--- revisions and append-only metric snapshots are not rewritten.
--- Writable discovery and scheduled collection run this migration before using
--- the database. The read-only status command reports an existing v1 database as
--- migration-required rather than ready.
+-- Existing version-2 databases can retain extra nullable historical annotation
+-- columns. Core reads and writes ignore these columns, preserving all collected
+-- post-pair records, revisions, and append-only metric snapshots. Initialising
+-- an existing database never drops or rewrites these historical columns. New
+-- databases contain only the core fields in SCHEMA_SQL.
 
 -- post_pairs: one auditable main quote/context relationship.
 -- post_pair_revisions: append-only discovery revisions.

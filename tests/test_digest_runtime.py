@@ -46,7 +46,6 @@ def test_state_summary_keeps_clock_order_current_helpers_and_shallow_copies(monk
     stamp = datetime(2026, 8, 31, 12)
     nested = {"filename": "fixture.png"}
     state = {"posted_meme_filenames": [nested], "recent_own_post_ids": [nested]}
-    experiment = {"fixture": "current helper result"}
 
     class ObservationTime(datetime):
         @classmethod
@@ -69,46 +68,23 @@ def test_state_summary_keeps_clock_order_current_helpers_and_shallow_copies(monk
 
         monkeypatch.setattr(digest, name, current)
 
-    def summarize_experiment(value):
-        calls.append("experiment")
-        assert value is None
-        return experiment
-
     monkeypatch.setattr(digest, "datetime", ObservationTime)
     monkeypatch.setattr(digest, "epoch_to_human", epoch)
     for name in ("state_list_count", "state_list_tail", "state_list_head"):
         wrap(name)
-    monkeypatch.setattr(digest, "summarize_engagement_question_experiment_state", summarize_experiment)
     summary = digest.summarize_latest_state(state, stamp, source_path=Path("fixture.json"))
     assert calls == ["now", *(["epoch"] * 10), "state_list_count", "state_list_count",
-                     "state_list_tail", "state_list_head", "state_list_count", "experiment"]
+                     "state_list_tail", "state_list_head", "state_list_count"]
     assert summary["mention_backlog_age_seconds"] == 10
     assert summary["_state_source_path"] == "fixture.json"
-    assert summary["engagement_question_experiment"] is experiment
     assert summary["posted_meme_filenames_tail"] is not state["posted_meme_filenames"]
     assert summary["posted_meme_filenames_tail"][0] is nested
     assert summary["recent_own_post_ids_head"][0] is nested
 
 
-def test_state_summary_keeps_current_unknown_labels_and_experiment_vocabulary(monkeypatch):
+def test_state_summary_keeps_current_unknown_labels(monkeypatch):
     monkeypatch.setattr(digest, "UNKNOWN_MISSING_STATE_FIELD", "missing fixture")
     monkeypatch.setattr(digest, "UNKNOWN_INVALID_STATE_FIELD", "invalid fixture")
-    monkeypatch.setattr(digest, "ENGAGEMENT_QUESTION_EXPERIMENT_ID", "fixture experiment")
-    monkeypatch.setattr(digest, "ENGAGEMENT_QUESTION_EXPERIMENT_STATE_SCHEMA_VERSION", 7)
-    monkeypatch.setattr(digest, "ENGAGEMENT_QUESTION_EXPERIMENT_STATUSES", {"fixture status"})
-    nested = {"fixture": "shared"}
-    deferral = {"code": nested, "unprojected": "omitted"}
-    summary = digest.summarize_engagement_question_experiment_state({
-        "schema_version": 7, "experiment_id": "fixture experiment",
-        "status": "fixture status", "current_pair_index": True,
-        "current_deferral_reason": deferral,
-    })
-    assert summary["status"] == "fixture status"
-    assert summary["current_pair_index"] == "invalid fixture"
-    assert summary["completed_pair_count"] == "missing fixture"
-    assert summary["current_deferral_reason"] == {"code": nested}
-    assert summary["current_deferral_reason"] is not deferral
-    assert summary["current_deferral_reason"]["code"] is nested
     assert digest.state_list_count({}, "items") == "missing fixture"
     assert digest.state_list_count({"items": None}, "items") == "invalid fixture"
 

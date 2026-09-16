@@ -21,8 +21,7 @@ accepts that event hash only if it is exactly the normalised hash of the same
 packet's exact text; the raw packet ID remains canonical. This is a deterministic
 comparison, not a general identity alias, and every other explicit conflict is
 fatal. Without a higher-precedence identity, the validated posting-event hash
-remains authoritative over its mutable historical line position. Experiment
-confirmation hashes continue to require an exact identity match.
+remains authoritative over its mutable historical line position.
 
 Evidence-backed corrections for a specific historical line-derived mismatch live
 in `quote_identity_corrections.json`. Each record is fail-closed against the exact
@@ -30,16 +29,10 @@ post ID, line number, observed and canonical hashes and texts, completed researc
 packet, classification, and evidence. This is not a general alias mechanism;
 unregistered conflicts between explicit identities remain fatal.
 
-Confirmed `main_post_posted` events are also the sole source of nullable
-`substantive-question-v1` experiment metadata. Schema v2 adds those labels to
-`post_pairs` without rewriting historical rows or append-only metric snapshots;
-older posts remain valid with `NULL` experiment fields. Later confirmed evidence
-can enrich or correct a post-pair row while the prior record remains in
-`post_pair_revisions`. Arm assignment is never reconstructed from a quotation ID.
-When restart reconciliation emits a confirmation event more than an hour after its
-post was created, analytics accepts the delayed event only when the exact post,
-plan, pair, arm, sequence and payload hashes are corroborated by the protected bot
-state. The ordinary snowflake/log-time check continues to reject copied events.
+Existing version-2 databases remain compatible. Retired optional annotations
+and all collected observations are preserved, while new databases contain only
+the core quotation/context schema. Discovery no longer reads trial metadata,
+and the collector continues measuring every tracked post at its scheduled ages.
 
 Writable discovery and the deployed `scheduled-run` entrypoint apply the
 forward-only schema migration to an existing database before writing. `status` is
@@ -91,22 +84,8 @@ python3 mrs_engagement_analytics.py collect \
   --project-dir "$PWD" --execute-read --max-api-requests 2 --resume
 
 python3 mrs_engagement_analytics.py report --project-dir "$PWD"
-python3 mrs_engagement_analytics.py report \
-  --project-dir "$PWD" --experiment substantive-question-v1
 python3 mrs_engagement_analytics.py export --project-dir "$PWD" --format json,csv,markdown
 ```
-
-The experiment report reads only the existing analytics database; it makes no
-additional X request. At 24h, 72h and 168h it separates control and treatment,
-then reports descriptive complete-pair differences only when both target-age
-observations are on time and the members were published no more than four hours
-apart. Reused late observations, incomplete pairs and wider gaps are identified
-explicitly. Publication-gap distribution covers every pair with both members
-published, independently of target-observation availability; primary comparisons
-remain restricted to gaps of no more than four hours. It also shows the same
-valid-pair summary after removing the single largest combined-impression pair. The
-report does not calculate p-values, stop the trial, promote a treatment, or alter
-collection cadence.
 
 Bounded historical collection additionally requires a date bound or maximum pair
 count, a request limit, `--execute-read`, and `--confirm-read-only`. There is no

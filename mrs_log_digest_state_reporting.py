@@ -1,7 +1,7 @@
 """Prepare state, headline, reply-quality and mention-control reporting.
 
 The digest supplies state/configuration, timestamps, current helper and clock
-callbacks, and vocabulary (including the quote-publication experiment labels).
+callbacks, and vocabulary.
 Summaries preserve existing copying/sharing and use supplied record/state times;
 refresh functions mutate the supplied report and observations use the supplied
 event callback and statistics counter.
@@ -138,81 +138,6 @@ def state_list_head(state: Dict[str, Any], key: str, count: int) -> Optional[Lis
     return None
 
 
-def summarize_engagement_question_experiment_state(
-    value: Any,
-    *,
-    ENGAGEMENT_QUESTION_EXPERIMENT_STATE_SCHEMA_VERSION: int,
-    ENGAGEMENT_QUESTION_EXPERIMENT_ID: str,
-    ENGAGEMENT_QUESTION_EXPERIMENT_STATUSES: set[str],
-    UNKNOWN_MISSING_STATE_FIELD: str,
-    UNKNOWN_INVALID_STATE_FIELD: str,
-) -> Optional[Dict[str, Any]]:
-    """Return a bounded summary of protected engagement-question state."""
-    if (
-        not isinstance(value, dict)
-        or value.get("schema_version")
-        != ENGAGEMENT_QUESTION_EXPERIMENT_STATE_SCHEMA_VERSION
-        or value.get("experiment_id") != ENGAGEMENT_QUESTION_EXPERIMENT_ID
-    ):
-        return None
-
-    def scalar(key: str, expected_type: Any = None) -> Any:
-        if key not in value:
-            return UNKNOWN_MISSING_STATE_FIELD
-        item = value.get(key)
-        if expected_type is not None and type(item) is not expected_type:
-            return UNKNOWN_INVALID_STATE_FIELD
-        return item
-
-    status = scalar("status", str)
-    if (
-        isinstance(status, str)
-        and status not in ENGAGEMENT_QUESTION_EXPERIMENT_STATUSES
-    ):
-        status = UNKNOWN_INVALID_STATE_FIELD
-
-    publications = value.get("confirmed_publications")
-    if "confirmed_publications" not in value:
-        confirmed_publication_count: Any = UNKNOWN_MISSING_STATE_FIELD
-    elif isinstance(publications, list):
-        confirmed_publication_count = len(publications)
-    else:
-        confirmed_publication_count = UNKNOWN_INVALID_STATE_FIELD
-
-    if "current_deferral_reason" not in value:
-        current_deferral_reason: Any = UNKNOWN_MISSING_STATE_FIELD
-    else:
-        raw_deferral = value.get("current_deferral_reason")
-        if raw_deferral is None:
-            current_deferral_reason = None
-        elif isinstance(raw_deferral, dict):
-            current_deferral_reason = {
-                key: raw_deferral.get(key)
-                for key in ("code", "pair_id", "member_position", "recorded_epoch")
-                if key in raw_deferral
-            }
-        else:
-            current_deferral_reason = UNKNOWN_INVALID_STATE_FIELD
-
-    return {
-        "experiment_id": scalar("experiment_id", str),
-        "active_plan_sha256": scalar("active_plan_sha256", str),
-        "status": status,
-        "current_pair_index": scalar("current_pair_index", int),
-        "active_pair_id": scalar("active_pair_id"),
-        "next_pair_member_position": scalar("next_pair_member_position", int),
-        "completed_pair_count": scalar("completed_pair_count", int),
-        "confirmed_publication_count": confirmed_publication_count,
-        "treatment_publication_count": scalar(
-            "treatment_publication_count", int
-        ),
-        "last_experimental_publication_local_date": scalar(
-            "last_experimental_publication_local_date"
-        ),
-        "current_deferral_reason": current_deferral_reason,
-    }
-
-
 def summarize_latest_state(
     latest_state: Dict[str, Any],
     latest_state_ts: Optional[datetime],
@@ -224,7 +149,6 @@ def summarize_latest_state(
     state_list_count: Callable[[Dict[str, Any], str], Any],
     state_list_tail: Callable[[Dict[str, Any], str, int], Optional[List[Any]]],
     state_list_head: Callable[[Dict[str, Any], str, int], Optional[List[Any]]],
-    summarize_engagement_question_experiment_state: Callable[[Any], Optional[Dict[str, Any]]],
     UNKNOWN_INVALID_STATE_FIELD: str,
 ) -> Dict[str, Any]:
     """Summarise latest state."""
@@ -304,11 +228,6 @@ def summarize_latest_state(
     }
     if latest_state.get("_partial"):
         summary["_partial"] = True
-    experiment_summary = summarize_engagement_question_experiment_state(
-        latest_state.get("engagement_question_experiment")
-    )
-    if experiment_summary is not None:
-        summary["engagement_question_experiment"] = experiment_summary
     if source_path is not None:
         summary["_state_source_path"] = str(source_path)
     return summary

@@ -294,17 +294,16 @@ def prepare_main_tweet_transport(
     return attempt, source, authority
 
 
-def confirmed_media_upload_experiment_envelope(
+def validate_confirmed_media_upload_metadata(
     confirmation: ConfirmedMediaUpload,
     *,
     ConfirmedMediaUpload: Any,
     MediaUploadReceiptError: Any,
     Path: Any,
-    copy: Any,
     inspect_media_upload_receipt: Any,
     validate_media_upload_payload_metadata: Any,
-) -> dict | None:
-    """Return trial authority from the exact confirmed media generation."""
+) -> None:
+    """Validate the remote form bound to the exact confirmed media generation."""
 
     if not isinstance(confirmation, ConfirmedMediaUpload):
         raise MediaUploadReceiptError("confirmed media identity is invalid")
@@ -327,10 +326,8 @@ def confirmed_media_upload_experiment_envelope(
     if not isinstance(form, dict):
         raise MediaUploadReceiptError("confirmed media receipt form is invalid")
     try:
-        validated = validate_media_upload_payload_metadata(metadata, form=form)
+        validate_media_upload_payload_metadata(metadata, form=form)
     except (TypeError, ValueError) as exc:
         raise MediaUploadReceiptError(
             "confirmed media receipt payload authority is invalid"
         ) from exc
-    envelope = validated.get("engagement_question_experiment")
-    return copy.deepcopy(envelope) if isinstance(envelope, dict) else None

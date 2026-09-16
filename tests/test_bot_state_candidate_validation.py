@@ -54,7 +54,7 @@ def test_adapters_forward_current_dependencies_references_and_native_errors(monk
         ("validate_meme_schedule_state", 5),
         ("validate_meme_schedule_version_for_candidate", 3),
         ("require_compatible_state_reader", 2),
-        ("normalise_state_candidate", 28),
+        ("normalise_state_candidate", 26),
     ):
         adapter = getattr(bot, name)
         public = inspect.signature(adapter).parameters
@@ -205,7 +205,7 @@ def test_schedule_version_gates_use_current_callback_and_exact_logs(monkeypatch,
     trace.schedule.assert_called_once_with(state, path=tmp_path)
 
 
-def test_candidate_reader_precedes_defaults_and_experiment_keeps_current_exception_boundary(monkeypatch, tmp_path):
+def test_candidate_reader_precedes_defaults(monkeypatch, tmp_path):
     trace = Mock()
     failure = RuntimeError("reader stopped candidate")
     trace.reader.side_effect = failure
@@ -217,32 +217,6 @@ def test_candidate_reader_precedes_defaults_and_experiment_keeps_current_excepti
     assert caught.value is failure
     trace.defaults.assert_not_called()
 
-    class ExperimentError(ValueError):
-        pass
-
-    monkeypatch.setattr(bot, "engagement_question_trial", SimpleNamespace(
-        validate_experiment_state=trace.experiment, ExperimentValidationError=ExperimentError,
-    ))
-    monkeypatch.setattr(bot, "normalise_string_list", trace.strings)
-    trace.reader.side_effect = None
-    trace.reader.return_value = 1
-    trace.defaults.return_value = {}
-    trace.experiment.side_effect = ExperimentError("invalid fixture")
-    trace.reset_mock()
-    state = {"engagement_question_experiment": None, "replied_to_ids": []}
-    assert bot.normalise_state_candidate(state, path=tmp_path) is None
-    assert trace.mock_calls == [
-        call.reader(state, path=tmp_path), call.defaults(), call.experiment(None),
-        call.log.error("State candidate %s has invalid engagement-question experiment state; ignoring", tmp_path, exc_info=True),
-    ]
-    failure = TypeError("native experiment error")
-    trace.experiment.side_effect = failure
-    trace.reset_mock()
-    with pytest.raises(TypeError) as caught:
-        bot.normalise_state_candidate(state, path=tmp_path)
-    assert caught.value is failure
-    trace.log.error.assert_not_called()
-    trace.strings.assert_not_called()
 
 
 def test_candidate_keeps_group_order_callback_references_and_history_children(monkeypatch, tmp_path):
@@ -286,14 +260,11 @@ def test_candidate_keeps_group_order_callback_references_and_history_children(mo
     for name, returned in callbacks.items():
         getattr(trace, name).return_value = returned
         monkeypatch.setattr(bot, name, getattr(trace, name))
-    trace.experiment.return_value = {}
-    monkeypatch.setattr(bot, "engagement_question_trial", SimpleNamespace(validate_experiment_state=trace.experiment))
     monkeypatch.setattr(bot, "STATE_MINIMUM_READER_VERSION", 7)
-    monkeypatch.setattr(bot, "ENGAGEMENT_QUESTION_EXPERIMENT_STATE_MINIMUM_READER_VERSION", 8)
     events = [{"earlier": True}]
     result = bot.normalise_state_candidate(state, path=tmp_path, recovery_events=events)
     assert [c[0] for c in trace.mock_calls] == [
-        "require_compatible_state_reader", "default_state", "experiment",
+        "require_compatible_state_reader", "default_state",
         *[name for _, name, _ in groups[:13]],
         "prune_reply_evaluation_records", "validate_pending_mention_candidate_authority",
         "normalise_author_evaluation_quarantines", "normalise_state_int",
@@ -302,9 +273,8 @@ def test_candidate_keeps_group_order_callback_references_and_history_children(mo
     ]
     assert result is defaults and result is not state
     assert result["extension"] is result["default_child"] is child
-    assert result["minimum_reader_version"] == 8
-    assert result["engagement_question_experiment"] is trace.experiment.return_value
-    assert trace.experiment.call_args.args[0] is experiment
+    assert result["minimum_reader_version"] == 7
+    assert result["engagement_question_experiment"] is experiment
     for key, name, returned in groups:
         assert getattr(trace, name).call_args.args[0] is state[key]
         assert result[key] is (None if key in {"daily_reply_date", "last_seen_mention_id"} else returned)

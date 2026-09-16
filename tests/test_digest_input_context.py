@@ -811,3 +811,22 @@ def test_input_retention_coverage_accepts_a_covered_boundary():
 
     assert result["requested_start_covered"] is True
     assert result["warning"] == ""
+
+
+def test_retired_trial_state_is_removed_from_retained_digest_context(tmp_path):
+    cursor = tmp_path / "resume.json"
+    original = {
+        "last_log_entry_time": "2026-08-30 10:00:00",
+        "last_known_latest_state": {
+            "daily_reply_count": 3,
+            "engagement_question_experiment": {"status": "paused"},
+        },
+    }
+    cursor.write_text(json.dumps(original))
+    report = {"runtime_state_status": {"status": "missing"}}
+    digest.apply_saved_context(report, cursor)
+    assert report["historical_retained_state"] == {"daily_reply_count": 3}
+    assert json.loads(cursor.read_text()) == original
+    digest.save_resume_time(cursor, BASE, [], report, [])
+    saved = json.loads(cursor.read_text())
+    assert saved["last_known_latest_state"] == {"daily_reply_count": 3}

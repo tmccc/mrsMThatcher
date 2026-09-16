@@ -230,8 +230,6 @@ deployed as a coherent set:
 - `mrs_bot_x_request.py`
 - `mrs_bot_post_creation.py`
 - `mrs_bot_main_post_reconciliation.py`
-- `mrs_bot_engagement_publication.py`
-- `mrs_bot_engagement_runtime.py`
 - `mrs_bot_historical_context_delivery.py`
 - `mrs_bot_historical_context_queue.py`
 - `mrs_bot_historical_context_runtime.py`
@@ -258,7 +256,6 @@ deployed as a coherent set:
 - `exact_receipt_retirement.py`
 - `transaction_mutation_authority.py`
 - `x_api_error_semantics.py`
-- `engagement_question_experiment.py`
 - `single_call_reply.py`
 - `single_call_reply_validation.py`
 - `reply_evidence.py`
@@ -618,7 +615,31 @@ The existing model-input limits still apply: up to 10,000 characters for the
 incoming contribution and 12,000 across the visible conversation. This fixes
 X's short excerpt being used as the source; it does not remove those bounds.
 
+## Retired question trial
+
+The quotation question trial has been removed. Ordinary quotation selection uses
+all eligible unused quotes, with no experimental reservations or appended
+questions. The Home Assistant trial sensor and notification automation are also
+retired. Historical measurements remain in the analytics database, and generic
+collection continues for already tracked posts.
+
+Before deploying this removal, remove the three retired local configuration keys
+(`engagement_question_experiment_enabled`,
+`engagement_question_experiment_plan_path`, and
+`engagement_question_notification_output_path`). Archive the ignored live plan
+and Home Assistant notification document outside the checkout. Preserve saved
+bot state and analytics data; the retired state field is inert. Confirm that no
+active media, main-post, or transport receipt from the trial remains; retired
+trial attempt/receipt versions are rejected rather than replayed.
+
+Remove only the corresponding Home Assistant command-line sensor and automation
+from its live YAML, validate the configuration, and reload Home Assistant.
+
 ## Log Digest Operation
+
+Digest JSON schema version 4 removes trial state, outcomes and correlations.
+Generic quote publication warnings now appear under `quote_publication`;
+confirmed historical public text remains available.
 
 `mrs_log_digest.py` resolves project metadata through `--project-dir` (the
 repository/script directory by default), including when logs are passed by

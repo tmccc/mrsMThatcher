@@ -160,7 +160,7 @@ from mrs_log_digest_values import (
     GENERATED_POLICIES,
     REMOTE_WRITE_RECEIPT_ROLE_LABELS,
     UNKNOWN_MISSING_STATE_FIELD,
-    ENGAGEMENT_CORRELATION_WARNING_LIMIT,
+    QUOTE_PUBLICATION_CORRELATION_WARNING_LIMIT,
     parse_dt,
     dt_text,
     bounded_exception_status,
@@ -246,7 +246,6 @@ from mrs_log_digest_state_reporting import (
     state_list_count as _state_list_count,
     state_list_tail,
     state_list_head,
-    summarize_engagement_question_experiment_state as _summarize_engagement_question_experiment_state,
     summarize_latest_state as _summarize_latest_state,
     current_author_no_reply_strike_progress as _current_author_no_reply_strike_progress,
     refresh_current_health_headline as _refresh_current_health_headline,
@@ -277,22 +276,10 @@ from mrs_log_digest_reply_evidence import (
     valid_structured_historical_completion_anchor,
 )
 from mrs_log_digest_quote_publication import (
-    ENGAGEMENT_QUESTION_PUBLIC_TEXT_SEPARATOR,
-    ENGAGEMENT_QUESTION_EXPERIMENT_ID,
-    ENGAGEMENT_QUESTION_EXPERIMENT_STATE_SCHEMA_VERSION,
-    ENGAGEMENT_QUESTION_EXPERIMENT_STATUSES,
-    ENGAGEMENT_PAIR_ID_RE,
-    ENGAGEMENT_PUBLICATION_ORDERS,
-    ENGAGEMENT_ARMS,
-    ENGAGEMENT_MAX_CONFIRMED_PUBLICATIONS,
     valid_account_root_publication_identity as _valid_account_root_publication_identity,
-    valid_engagement_confirmation_event as _valid_engagement_confirmation_event,
-    engagement_main_metadata_status as _engagement_main_metadata_status,
     QuotePublicationCorrelation,
     record_main_post_publication,
     record_account_root_publication,
-    record_engagement_confirmation,
-    record_engagement_trial_outcome,
 )
 from mrs_log_digest_reply_text import (
     PUBLISHED_REPLY_WARNING_LIMIT,
@@ -441,11 +428,11 @@ from mrs_log_digest_markdown import (
     render_markdown as _render_digest_markdown,
 )
 
-# Version 3 is a major-versioned compatibility contract. Increment this integer
+# Version 4 is a major-versioned compatibility contract. Increment this integer
 # before removing or renaming a JSON field, changing an established field's type
 # or meaning, or otherwise making a consumer-visible incompatible change. Purely
 # additive fields do not require an increment within a major version.
-DIGEST_JSON_SCHEMA_VERSION = 3
+DIGEST_JSON_SCHEMA_VERSION = 4
 DIGEST_JSON_OUTPUT_KIND = "mrs_log_digest"
 DIGEST_SOURCE_MAX_BYTES = 4 * 1024 * 1024
 LONDON = ZoneInfo("Europe/London")
@@ -993,49 +980,10 @@ def valid_account_root_publication_identity(event: Any) -> bool:
     )
 
 
-def valid_engagement_confirmation_event(event: Any) -> bool:
-    """Return whether a trial confirmation matches its producer schema."""
-
-    return _valid_engagement_confirmation_event(
-        event,
-        valid_string_public_post_id=valid_string_public_post_id,
-        SHA256_LOWER_RE=SHA256_LOWER_RE,
-        ENGAGEMENT_PAIR_ID_RE=ENGAGEMENT_PAIR_ID_RE,
-        ENGAGEMENT_ARMS=ENGAGEMENT_ARMS,
-        ENGAGEMENT_MAX_CONFIRMED_PUBLICATIONS=ENGAGEMENT_MAX_CONFIRMED_PUBLICATIONS,
-    )
-
-
-def engagement_main_metadata_status(event: Any) -> str:
-    """Return absent, valid, or invalid for main-post experiment metadata."""
-
-    return _engagement_main_metadata_status(
-        event,
-        SHA256_LOWER_RE=SHA256_LOWER_RE,
-        ENGAGEMENT_QUESTION_EXPERIMENT_ID=ENGAGEMENT_QUESTION_EXPERIMENT_ID,
-        ENGAGEMENT_PAIR_ID_RE=ENGAGEMENT_PAIR_ID_RE,
-        ENGAGEMENT_ARMS=ENGAGEMENT_ARMS,
-        ENGAGEMENT_PUBLICATION_ORDERS=ENGAGEMENT_PUBLICATION_ORDERS,
-        ENGAGEMENT_MAX_CONFIRMED_PUBLICATIONS=ENGAGEMENT_MAX_CONFIRMED_PUBLICATIONS,
-    )
-
-
 def state_list_count(state: Dict[str, Any], key: str) -> Any:
     """Return the state list count."""
     return _state_list_count(
         state, key,
-        UNKNOWN_MISSING_STATE_FIELD=UNKNOWN_MISSING_STATE_FIELD,
-        UNKNOWN_INVALID_STATE_FIELD=UNKNOWN_INVALID_STATE_FIELD,
-    )
-
-
-def summarize_engagement_question_experiment_state(value: Any) -> Optional[Dict[str, Any]]:
-    """Return a bounded summary of protected engagement-question state."""
-    return _summarize_engagement_question_experiment_state(
-        value,
-        ENGAGEMENT_QUESTION_EXPERIMENT_STATE_SCHEMA_VERSION=ENGAGEMENT_QUESTION_EXPERIMENT_STATE_SCHEMA_VERSION,
-        ENGAGEMENT_QUESTION_EXPERIMENT_ID=ENGAGEMENT_QUESTION_EXPERIMENT_ID,
-        ENGAGEMENT_QUESTION_EXPERIMENT_STATUSES=ENGAGEMENT_QUESTION_EXPERIMENT_STATUSES,
         UNKNOWN_MISSING_STATE_FIELD=UNKNOWN_MISSING_STATE_FIELD,
         UNKNOWN_INVALID_STATE_FIELD=UNKNOWN_INVALID_STATE_FIELD,
     )
@@ -1058,7 +1006,6 @@ def summarize_latest_state(
         state_list_count=state_list_count,
         state_list_tail=state_list_tail,
         state_list_head=state_list_head,
-        summarize_engagement_question_experiment_state=summarize_engagement_question_experiment_state,
         UNKNOWN_INVALID_STATE_FIELD=UNKNOWN_INVALID_STATE_FIELD,
     )
 
@@ -1738,8 +1685,7 @@ def analyse(
         valid_string_public_post_id=lambda value: valid_string_public_post_id(value),
         valid_bounded_utf8_text=lambda value, **kwargs: valid_bounded_utf8_text(value, **kwargs),
         bounded_source_refs=lambda *groups: bounded_source_refs(*groups),
-        warning_limit=lambda: ENGAGEMENT_CORRELATION_WARNING_LIMIT,
-        question_separator=lambda: ENGAGEMENT_QUESTION_PUBLIC_TEXT_SEPARATOR,
+        warning_limit=lambda: QUOTE_PUBLICATION_CORRELATION_WARNING_LIMIT,
     )
 
     def add_event(kind: str, ts: datetime, **kwargs: Any) -> Dict[str, Any]:
@@ -1972,7 +1918,6 @@ def analyse(
                     event_obj, strict_structured_event_obj, r.ts,
                     valid_string_public_post_id=valid_string_public_post_id,
                     SHA256_LOWER_RE=SHA256_LOWER_RE,
-                    engagement_main_metadata_status=engagement_main_metadata_status,
                     retain_quote_post_evidence=quote_publications.retain,
                     note_invalid_quote_post_evidence=quote_publications.note_invalid,
                     make_source_ref=lambda: record_source_ref(r, input_file_indexes),
@@ -1990,34 +1935,6 @@ def analyse(
                     valid_bounded_utf8_text=valid_bounded_utf8_text,
                     retain_quote_post_evidence=quote_publications.retain,
                     note_invalid_quote_post_evidence=quote_publications.note_invalid,
-                    make_source_ref=lambda: record_source_ref(r, input_file_indexes),
-                )
-            elif (
-                event_obj
-                and event_obj.get("event")
-                == "engagement_question_experimental_member_confirmed"
-            ):
-                record_engagement_confirmation(
-                    event_obj, strict_structured_event_obj, r.ts,
-                    valid_engagement_confirmation_event=valid_engagement_confirmation_event,
-                    retain_quote_post_evidence=quote_publications.retain,
-                    note_invalid_quote_post_evidence=quote_publications.note_invalid,
-                    make_source_ref=lambda: record_source_ref(r, input_file_indexes),
-                )
-            elif event_obj and event_obj.get("event") in {
-                "engagement_question_experiment_invalid",
-                "engagement_question_experimental_member_deferred",
-                "engagement_question_treatment_notification_write_failed",
-            }:
-                record_engagement_trial_outcome(
-                    event_obj, r.ts,
-                    engagement_trial_outcomes=quote_publications.trial_outcomes,
-                    bounded_event_text=bounded_event_text,
-                    SHA256_LOWER_RE=SHA256_LOWER_RE,
-                    valid_string_public_post_id=valid_string_public_post_id,
-                    ENGAGEMENT_PAIR_ID_RE=ENGAGEMENT_PAIR_ID_RE,
-                    bounded_event_nonnegative_integer=bounded_event_nonnegative_integer,
-                    bounded_event_boolean=bounded_event_boolean,
                     make_source_ref=lambda: record_source_ref(r, input_file_indexes),
                 )
             elif event_obj and event_obj.get("event") == "historical_context_semantic_gate":
@@ -2464,7 +2381,7 @@ def analyse(
     source_context = production_context
     current_source_record = None
 
-    confirmed_experimental_publications = quote_publications.prepare_report(
+    quote_publications.prepare_report(
         events, production_event_object_ids,
     )
 
@@ -2623,9 +2540,7 @@ def analyse(
             "status_unavailable_receipts": status_unavailable_reply_receipts,
             "active_snapshot_receipts": active_snapshot_reply_receipts,
         },
-        "engagement_question_trial": {
-            "confirmed_publications": confirmed_experimental_publications,
-            "outcomes": quote_publications.trial_outcomes,
+        "quote_publication": {
             "correlation_warnings": quote_publications.warnings,
             "correlation_warning_omitted_count": (
                 quote_publications.warning_omitted_count
@@ -2758,7 +2673,6 @@ def apply_saved_context(
         strip_internal_context_markers=strip_internal_context_markers,
         refresh_derived=refresh_derived,
     )
-
 
 
 def render_markdown(report: Dict[str, Any]) -> str:

@@ -55,7 +55,7 @@ assert 'single_call_reply' not in sys.modules
 
 def test_adapters_forward_current_dependencies_references_and_native_errors(monkeypatch):
     for name, count in (
-        ("state_document_for_persistence", 8), ("copy_state_backup", 6),
+        ("state_document_for_persistence", 6), ("copy_state_backup", 6),
         ("rotate_state_backups_before_commit", 4), ("write_latest_state_backup", 4),
         ("save_state", 14),
     ):
@@ -86,16 +86,14 @@ def test_adapters_forward_current_dependencies_references_and_native_errors(monk
             assert caught.value is failure
 
 
-def test_document_keeps_shallow_state_deep_current_fence_and_original_experiment(monkeypatch):
+def test_document_preserves_retired_state_without_loading_trial_code(monkeypatch):
     trace = Mock()
     trace.reader.return_value = 7
     trace.deepcopy.side_effect = copy.deepcopy
     current, previous = {"current": {"version": [9]}}, {"previous": 8}
     monkeypatch.setattr(bot, "require_compatible_state_reader", trace.reader)
     monkeypatch.setattr(bot, "copy", SimpleNamespace(deepcopy=trace.deepcopy))
-    monkeypatch.setattr(bot, "engagement_question_trial", SimpleNamespace(validate_experiment_state=trace.validate))
     monkeypatch.setattr(bot, "STATE_MINIMUM_READER_VERSION", 9)
-    monkeypatch.setattr(bot, "ENGAGEMENT_QUESTION_EXPERIMENT_STATE_MINIMUM_READER_VERSION", 11)
     monkeypatch.setattr(bot, "STATE_READER_COMPATIBILITY_FENCE", current)
     monkeypatch.setattr(bot, "STATE_PREVIOUS_READER_COMPATIBILITY_FENCES", (previous,))
     extension, experiment = {"shared": []}, {"experiment": []}
@@ -104,14 +102,13 @@ def test_document_keeps_shallow_state_deep_current_fence_and_original_experiment
                  "engagement_question_experiment": experiment}
         trace.reset_mock()
         result = bot.state_document_for_persistence(state)
-        assert [c[0] for c in trace.mock_calls] == ["reader", "validate", "deepcopy"]
+        assert [c[0] for c in trace.mock_calls] == ["reader", "deepcopy"]
         trace.reader.assert_called_once_with(state, path=bot.STATE_FILE)
         assert trace.reader.call_args.args[0] is state
-        assert trace.validate.call_args.args[0] is experiment
         assert trace.deepcopy.call_args.args[0] is current
         assert result is not state and result["extension"] is extension
         assert result["engagement_question_experiment"] is experiment
-        assert result["minimum_reader_version"] == 11
+        assert result["minimum_reader_version"] == 9
         assert result["pending_reply_drafts"] == current
         assert result["pending_reply_drafts"]["current"]["version"] is not current["current"]["version"]
         assert state["pending_reply_drafts"] is legacy and "minimum_reader_version" not in state
@@ -121,14 +118,12 @@ def test_document_keeps_shallow_state_deep_current_fence_and_original_experiment
         result = bot.state_document_for_persistence(state)
         assert result["minimum_reader_version"] == 12
         assert ("engagement_question_experiment" in result) == ("engagement_question_experiment" in state)
-        trace.validate.assert_not_called()
 
 
-def test_document_reader_then_legacy_then_experiment_errors_precede_copy_and_version_selection(monkeypatch):
+def test_document_reader_then_legacy_errors_precede_copy_and_version_selection(monkeypatch):
     failure = ValueError("current validation failure")
-    reader, validator, copier = Mock(side_effect=failure), Mock(), Mock()
+    reader, copier = Mock(side_effect=failure), Mock()
     monkeypatch.setattr(bot, "require_compatible_state_reader", reader)
-    monkeypatch.setattr(bot, "engagement_question_trial", SimpleNamespace(validate_experiment_state=validator))
     monkeypatch.setattr(bot, "copy", SimpleNamespace(deepcopy=copier))
     with pytest.raises(ValueError) as caught:
         bot.state_document_for_persistence(object())
@@ -137,11 +132,6 @@ def test_document_reader_then_legacy_then_experiment_errors_precede_copy_and_ver
     reader.return_value = object()  # Comparing versions would fail before validation.
     with pytest.raises(RuntimeError, match="Legacy V1 reply drafts remain"):
         bot.state_document_for_persistence({"pending_reply_drafts": {"unretired": True}})
-    validator.assert_not_called()
-    validator.side_effect = failure
-    with pytest.raises(ValueError) as caught:
-        bot.state_document_for_persistence({"engagement_question_experiment": {}})
-    assert caught.value is failure
     copier.assert_not_called()
 
 

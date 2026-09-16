@@ -1,7 +1,7 @@
-"""Ordinary quotation posting orchestration, including experimental members.
+"""Ordinary quotation posting orchestration.
 
 The coordinator supplies current callbacks, settings, logger, exception/type
-authority and the existing engagement-question module on every call. This owner
+authority on every call. This owner
 preserves the complete selection, publication and local recovery workflow;
 transactions, transport, receipts, persistence and scheduling helpers remain in
 the coordinator. Arguments and nested closure references are not copied by the
@@ -15,7 +15,6 @@ import random
 from collections.abc import Callable
 from logging import Logger
 from pathlib import Path
-from types import ModuleType
 from typing import NamedTuple
 
 from mrs_bot_regular_post_completion import complete_regular_post_persistence
@@ -45,24 +44,17 @@ def _select_regular_quote_image_pair(
     lines_used: set,
     images_used: set,
     state: dict,
-    reserved_quote_hashes: set,
     *,
     log: Logger,
     choose_regular_quote_image_pair: Callable,
     NoViableQuoteImagePair: type[Exception],
 ) -> tuple[dict, dict]:
     """Select an ordinary pair with the existing bounded image-cycle fallbacks."""
-    ordinary_selection_options = (
-        {"excluded_quote_hashes": reserved_quote_hashes}
-        if reserved_quote_hashes
-        else {}
-    )
     try:
         quote_choice, image_choice, attempts = choose_regular_quote_image_pair(
             lines_used,
             images_used,
             state,
-            **ordinary_selection_options,
         )
     except NoViableQuoteImagePair as exc:
         log.warning(
@@ -76,7 +68,6 @@ def _select_regular_quote_image_pair(
                 images_used,
                 state,
                 force_image_cycle_reset=True,
-                **ordinary_selection_options,
             )
         except NoViableQuoteImagePair as reset_exc:
             if not reset_exc.excluded_last_image:
@@ -94,7 +85,6 @@ def _select_regular_quote_image_pair(
                     state,
                     force_image_cycle_reset=True,
                     avoid_last_image_at_cycle_boundary=False,
-                    **ordinary_selection_options,
                 )
             except NoViableQuoteImagePair as final_exc:
                 log.error(
@@ -106,136 +96,6 @@ def _select_regular_quote_image_pair(
         else:
             log.info("Regular quote/image pairing succeeded after image-cycle recovery")
     return quote_choice, image_choice
-
-
-def _select_quote_image_pair(
-    lines_used: set,
-    images_used: set,
-    state: dict,
-    transaction_preflight_epoch: int,
-    *,
-    log: Logger,
-    engagement_question_opportunity: Callable,
-    load_engagement_question_runtime_plan: Callable,
-    invalidate_engagement_question_experiment: Callable,
-    engagement_question_trial: ModuleType,
-    resolve_engagement_question_quote_choice: Callable,
-    engagement_experiment_attempt_envelope_is_valid: Callable,
-    choose_engagement_question_image: Callable,
-    QuoteSpecificImageMismatch: type[Exception],
-    defer_engagement_question_member: Callable,
-    choose_regular_quote_image_pair: Callable,
-    NoViableQuoteImagePair: type[Exception],
-) -> tuple[dict, dict, str | None, dict | None]:
-    """Try the planned experimental member, then ordinary selection if needed."""
-    experiment_plan, experiment_member, reserved_quote_hashes = (
-        engagement_question_opportunity(
-            state,
-            current_epoch=transaction_preflight_epoch,
-        )
-    )
-    engagement_experiment_envelope: dict | None = None
-    experimental_public_text: str | None = None
-    quote_choice: dict | None = None
-    image_choice: dict | None = None
-
-    if experiment_member is not None and experiment_plan is not None:
-        try:
-            current_plan, catalogue, _quote_text_by_id = (
-                load_engagement_question_runtime_plan()
-            )
-            if current_plan["plan_sha256"] != experiment_plan["plan_sha256"]:
-                raise RuntimeError("active plan changed during opportunity")
-        except Exception:
-            invalidate_engagement_question_experiment(
-                state,
-                code="active_plan_changed_during_opportunity",
-                recorded_epoch=transaction_preflight_epoch,
-            )
-            experiment_plan = None
-            experiment_member = None
-            reserved_quote_hashes = set()
-        else:
-            try:
-                if str(experiment_member["quote_id"]) in lines_used:
-                    raise engagement_question_trial.ExperimentValidationError(
-                        "pending planned quotation is already in used history"
-                    )
-                quote_choice, experimental_public_text = (
-                    resolve_engagement_question_quote_choice(
-                        experiment_member,
-                        catalogue=catalogue,
-                    )
-                )
-                binding = engagement_question_trial.build_attempt_binding(
-                    plan=experiment_plan,
-                    state=state["engagement_question_experiment"],
-                    member=experiment_member,
-                    exact_quote_text=str(quote_choice["text"]),
-                    public_text=experimental_public_text,
-                )
-                engagement_experiment_envelope = {
-                    "binding": binding,
-                    "canonical_quote_text": str(quote_choice["text"]),
-                    "approved_question_body": str(
-                        experiment_member["approved_question_body"]
-                    ),
-                    "complete_treatment_sha256": str(
-                        experiment_member["complete_treatment_sha256"]
-                    ),
-                    "complete_treatment_weighted_length": int(
-                        experiment_member[
-                            "complete_treatment_weighted_length"
-                        ]
-                    ),
-                }
-                if not engagement_experiment_attempt_envelope_is_valid(
-                    engagement_experiment_envelope,
-                    public_text=experimental_public_text,
-                    quote_hash=quote_choice["quote_hash"],
-                    plan=experiment_plan,
-                ):
-                    raise engagement_question_trial.ExperimentValidationError(
-                        "experimental pre-write envelope validation failed"
-                    )
-                image_choice = choose_engagement_question_image(
-                    images_used,
-                    quote_choice,
-                    state,
-                )
-            except QuoteSpecificImageMismatch:
-                defer_engagement_question_member(
-                    state,
-                    code="quote_specific_image_unavailable",
-                    recorded_epoch=transaction_preflight_epoch,
-                )
-                quote_choice = None
-                image_choice = None
-                experimental_public_text = None
-                engagement_experiment_envelope = None
-            except engagement_question_trial.ExperimentValidationError:
-                log.error(
-                    "Experimental member failed immediate pre-post validation",
-                    exc_info=True,
-                )
-                defer_engagement_question_member(
-                    state,
-                    code="immediate_member_validation_failed",
-                    recorded_epoch=transaction_preflight_epoch,
-                )
-                quote_choice = None
-                image_choice = None
-                experimental_public_text = None
-                engagement_experiment_envelope = None
-
-    if quote_choice is None or image_choice is None:
-        quote_choice, image_choice = _select_regular_quote_image_pair(
-            lines_used, images_used, state, reserved_quote_hashes,
-            log=log,
-            choose_regular_quote_image_pair=choose_regular_quote_image_pair,
-            NoViableQuoteImagePair=NoViableQuoteImagePair,
-        )
-    return quote_choice, image_choice, experimental_public_text, engagement_experiment_envelope
 
 
 class _QuotePostPreparation(NamedTuple):
@@ -256,8 +116,6 @@ class _QuotePostPreparation(NamedTuple):
 def _prepare_quote_post(
     quote_choice: dict,
     image_choice: dict,
-    experimental_public_text: str | None,
-    engagement_experiment_envelope: dict | None,
     *,
     log: Logger,
     POST_SLEEP_MIN: int,
@@ -270,11 +128,7 @@ def _prepare_quote_post(
     line_no = int(quote_choice["line_no"])
     quote_hash = str(quote_choice["quote_hash"])
     canonical_quote_text = str(quote_choice["text"])
-    tweet = (
-        experimental_public_text
-        if engagement_experiment_envelope is not None
-        else canonical_quote_text
-    )
+    tweet = canonical_quote_text
     image_no = int(image_choice["image_no"])
     image = str(image_choice["path"])
     image_basename = str(image_choice["basename"])
@@ -331,39 +185,17 @@ def _complete_quote_post(
     cache_tweet: Callable,
     MY_USER_ID: str,
     record_recent_own_post: Callable,
-    apply_confirmed_engagement_experiment_receipt: Callable,
     save_regular_post_protected_state: Callable,
-    log_confirmed_engagement_experiment_receipt: Callable,
-    engagement_experiment_envelope_from_receipt: Callable,
     log_event: Callable,
-    engagement_experiment_event_fields: Callable,
     enqueue_historical_context_obligation: Callable,
     retire_lane_transport_journal_if_present: Callable,
     REGULAR_POST_RECEIPT_FILE: Path,
     remove_regular_post_receipt: Callable,
-    publish_pending_engagement_question_notification: Callable,
     ConfirmedPostLocalPersistenceError: type[Exception],
     emit_account_root_posted: Callable,
     safely_process_due_historical_context_obligations: Callable,
 ) -> None:
     """Persist confirmed state and retire recovery authority before final events."""
-    def emit_experiment_event() -> None:
-        """Read live event fields after protected persistence and evidence logging."""
-        if engagement_experiment_envelope_from_receipt(receipt) is not None:
-            # Keep confirmed experiment evidence recoverable until after its
-            # structured analytics event has been emitted.
-            log_event(
-                "main_post_posted",
-                lane="quote_image",
-                post_id=posted_id,
-                line_no=line_no,
-                image_no=image_no,
-                image_basename=image_basename,
-                image_hash=image_choice.get("image_hash"),
-                image_score=image_choice.get("score"),
-                quote_hash=quote_hash,
-                **engagement_experiment_event_fields(receipt),
-            )
 
     def retire_transport_journal() -> None:
         """Retire live transport authority only after the outbox is durable."""
@@ -392,16 +224,12 @@ def _complete_quote_post(
             post_type="quote",
         )
         record_recent_own_post(state, str(posted_id))
-        apply_confirmed_engagement_experiment_receipt(receipt, state)
         complete_regular_post_persistence(
             lines_used, images_used, state, receipt,
             save_regular_post_protected_state=save_regular_post_protected_state,
-            log_confirmed_engagement_experiment_receipt=log_confirmed_engagement_experiment_receipt,
-            emit_experiment_event=emit_experiment_event,
             enqueue_historical_context_obligation=enqueue_historical_context_obligation,
             retire_transport_journal=retire_transport_journal,
             remove_regular_post_receipt=remove_regular_post_receipt,
-            publish_pending_engagement_question_notification=publish_pending_engagement_question_notification,
         )
     except Exception as exc:
         log.critical("Confirmed regular quote/image post_id=%s but protected local persistence failed", posted_id, exc_info=True)
@@ -409,19 +237,17 @@ def _complete_quote_post(
             f"Confirmed regular quote/image post {posted_id} but protected local persistence failed"
         ) from exc
 
-    if engagement_experiment_envelope_from_receipt(receipt) is None:
-        # Preserve the ordinary-post event path and fields byte-for-byte.
-        log_event(
-            "main_post_posted",
-            lane="quote_image",
-            post_id=posted_id,
-            line_no=line_no,
-            image_no=image_no,
-            image_basename=image_basename,
-            image_hash=image_choice.get("image_hash"),
-            image_score=image_choice.get("score"),
-            quote_hash=quote_hash,
-        )
+    log_event(
+        "main_post_posted",
+        lane="quote_image",
+        post_id=posted_id,
+        line_no=line_no,
+        image_no=image_no,
+        image_basename=image_basename,
+        image_hash=image_choice.get("image_hash"),
+        image_score=image_choice.get("score"),
+        quote_hash=quote_hash,
+    )
     emit_account_root_posted(
         lane="quote_image",
         post_id=posted_id,
@@ -449,15 +275,6 @@ def post_random_quote(
     require_historical_context_outbox_writable: Callable,
     quote_used_history_has_legacy_indices: Callable,
     CorruptUsedHistoryError: type[Exception],
-    engagement_question_opportunity: Callable,
-    load_engagement_question_runtime_plan: Callable,
-    invalidate_engagement_question_experiment: Callable,
-    engagement_question_trial: ModuleType,
-    resolve_engagement_question_quote_choice: Callable,
-    engagement_experiment_attempt_envelope_is_valid: Callable,
-    choose_engagement_question_image: Callable,
-    QuoteSpecificImageMismatch: type[Exception],
-    defer_engagement_question_member: Callable,
     choose_regular_quote_image_pair: Callable,
     NoViableQuoteImagePair: type[Exception],
     POST_SLEEP_MIN: int,
@@ -466,7 +283,6 @@ def post_random_quote(
     MEME_DELAY_AFTER_MAIN_POST_MAX_SECONDS: int,
     ENABLE_DAILY_MEME_POSTS: bool,
     upload_media: Callable,
-    revalidate_or_invalidate_engagement_question_publication: Callable,
     build_main_post_attempt: Callable,
     MEME_TRIGGER_AFTER_HOUR: int,
     MEME_SCHEDULE_VERSION: int,
@@ -495,7 +311,6 @@ def post_random_quote(
     ConfirmedPendingScheduleDurabilityUncertain: type[Exception],
     ConfirmedPostLocalPersistenceError: type[Exception],
     materialize_bound_regular_schedule_receipt: Callable,
-    apply_confirmed_engagement_experiment_receipt: Callable,
     apply_state_fields: Callable,
     cache_tweet: Callable,
     MY_USER_ID: str,
@@ -506,12 +321,8 @@ def post_random_quote(
     UnrecoverableConfirmedPostPersistenceError: type[Exception],
     load_regular_post_receipt: Callable,
     enqueue_historical_context_obligation: Callable,
-    engagement_experiment_envelope_from_receipt: Callable,
-    log_confirmed_engagement_experiment_receipt: Callable,
     log_event: Callable,
-    engagement_experiment_event_fields: Callable,
     retire_lane_transport_journal_if_present: Callable,
-    publish_pending_engagement_question_notification: Callable,
     emit_account_root_posted: Callable,
     save_regular_post_protected_state: Callable,
     remove_regular_post_receipt: Callable,
@@ -545,23 +356,9 @@ def post_random_quote(
                 "Quote used-history still contains legacy integer entries; refusing regular quote posting until source-verified migration is possible"
             )
 
-        (
-            quote_choice,
-            image_choice,
-            experimental_public_text,
-            engagement_experiment_envelope,
-        ) = _select_quote_image_pair(
-            lines_used, images_used, state, transaction_preflight_epoch,
+        quote_choice, image_choice = _select_regular_quote_image_pair(
+            lines_used, images_used, state,
             log=log,
-            engagement_question_opportunity=engagement_question_opportunity,
-            load_engagement_question_runtime_plan=load_engagement_question_runtime_plan,
-            invalidate_engagement_question_experiment=invalidate_engagement_question_experiment,
-            engagement_question_trial=engagement_question_trial,
-            resolve_engagement_question_quote_choice=resolve_engagement_question_quote_choice,
-            engagement_experiment_attempt_envelope_is_valid=engagement_experiment_attempt_envelope_is_valid,
-            choose_engagement_question_image=choose_engagement_question_image,
-            QuoteSpecificImageMismatch=QuoteSpecificImageMismatch,
-            defer_engagement_question_member=defer_engagement_question_member,
             choose_regular_quote_image_pair=choose_regular_quote_image_pair,
             NoViableQuoteImagePair=NoViableQuoteImagePair,
         )
@@ -578,8 +375,7 @@ def post_random_quote(
             quote_delay,
             meme_delay,
         ) = _prepare_quote_post(
-            quote_choice, image_choice, experimental_public_text,
-            engagement_experiment_envelope,
+            quote_choice, image_choice,
             log=log,
             POST_SLEEP_MIN=POST_SLEEP_MIN,
             POST_SLEEP_MAX=POST_SLEEP_MAX,
@@ -588,28 +384,7 @@ def post_random_quote(
             ENABLE_DAILY_MEME_POSTS=ENABLE_DAILY_MEME_POSTS,
         )
 
-        if engagement_experiment_envelope is None:
-            # Keep the ordinary path's call shape and receipt bytes unchanged.
-            media_id = upload_media(image, lane="quote_image")
-        else:
-            def revalidate_experimental_root() -> None:
-                revalidate_or_invalidate_engagement_question_publication(
-                    state=state,
-                    lines_used=lines_used,
-                    envelope=engagement_experiment_envelope,
-                    quote_choice=quote_choice,
-                    public_text=tweet,
-                )
-
-            media_id = upload_media(
-                image,
-                lane="quote_image",
-                engagement_experiment=engagement_experiment_envelope,
-                pre_transport_validation=revalidate_experimental_root,
-            )
-            # The media receipt remains the durable barrier if an immutable
-            # input changes after upload; no root transport is then prepared.
-            revalidate_experimental_root()
+        media_id = upload_media(image, lane="quote_image")
         main_post_attempt = build_main_post_attempt(
             lane="quote_image",
             text=tweet,
@@ -639,14 +414,8 @@ def post_random_quote(
                 ),
             },
             attempt_epoch=transaction_preflight_epoch,
-            engagement_experiment=engagement_experiment_envelope,
         )
         write_main_post_attempt(main_post_attempt)
-        if engagement_experiment_envelope is not None:
-            # Recheck after the durable main owner exists and immediately
-            # before preparing any root transport.  A concurrent immutable
-            # input change leaves both existing receipts as barriers.
-            revalidate_experimental_root()
         (
             main_post_attempt,
             transport_source,
@@ -732,8 +501,6 @@ def post_random_quote(
             "quote_post_epoch": quote_post_epoch,
             "text": tweet,
         }
-        if engagement_experiment_envelope is not None:
-            context_obligation_receipt["quote_text"] = canonical_quote_text
         pending_schedule_receipt = build_confirmed_pending_schedule_receipt(
             main_post_attempt,
             post_id=str(posted_id),
@@ -805,11 +572,6 @@ def post_random_quote(
             if quote_post_epoch is not _RECOVERY_VALUE_UNAVAILABLE:
                 state["last_quote_post_epoch"] = quote_post_epoch
             state["last_regular_image_filename"] = image_basename
-            if fallback_receipt is not _RECOVERY_VALUE_UNAVAILABLE:
-                apply_confirmed_engagement_experiment_receipt(
-                    fallback_receipt,
-                    state,
-                )
         except Exception:
             fallback_failures.append("in_memory_regular_post_state")
             log.critical(
@@ -903,30 +665,6 @@ def post_random_quote(
                     "persisting its historical-context disposition; the durable "
                     "attempt receipt remains unresolved"
                 ) from context_exc
-            if (
-                fallback_receipt is not _RECOVERY_VALUE_UNAVAILABLE
-                and engagement_experiment_envelope_from_receipt(
-                    fallback_receipt
-                )
-                is not None
-            ):
-                # Protected state is now durable and the sending receipt still
-                # exists as replay authority.  Emit the experiment evidence
-                # before retiring that final authority, just as the ordinary
-                # confirmed-receipt path does.
-                log_confirmed_engagement_experiment_receipt(fallback_receipt)
-                log_event(
-                    "main_post_posted",
-                    lane="quote_image",
-                    post_id=posted_id,
-                    line_no=line_no,
-                    image_no=image_no,
-                    image_basename=image_basename,
-                    image_hash=image_choice.get("image_hash"),
-                    image_score=image_choice.get("score"),
-                    quote_hash=quote_hash,
-                    **engagement_experiment_event_fields(fallback_receipt),
-                )
             retire_lane_transport_journal_if_present(
                 receipt_path=REGULAR_POST_RECEIPT_FILE,
                 receipt=main_post_attempt,
@@ -937,21 +675,6 @@ def post_random_quote(
                 main_post_attempt,
                 sending_disposition="confirmed_state_fallback",
             )
-            if (
-                fallback_receipt is not _RECOVERY_VALUE_UNAVAILABLE
-                and engagement_experiment_envelope_from_receipt(
-                    fallback_receipt
-                )
-                is not None
-            ):
-                publish_pending_engagement_question_notification(state)
-                emit_account_root_posted(
-                    lane="quote_image",
-                    post_id=posted_id,
-                    public_text=tweet,
-                    quote_id=quote_hash,
-                    quote_text=canonical_quote_text,
-                )
         elif status_after_fallback != "valid":
             raise UnrecoverableConfirmedPostPersistenceError(
                 f"Confirmed regular quote/image post {posted_id} has no stable "
@@ -987,17 +710,12 @@ def post_random_quote(
         cache_tweet=cache_tweet,
         MY_USER_ID=MY_USER_ID,
         record_recent_own_post=record_recent_own_post,
-        apply_confirmed_engagement_experiment_receipt=apply_confirmed_engagement_experiment_receipt,
         save_regular_post_protected_state=save_regular_post_protected_state,
-        log_confirmed_engagement_experiment_receipt=log_confirmed_engagement_experiment_receipt,
-        engagement_experiment_envelope_from_receipt=engagement_experiment_envelope_from_receipt,
         log_event=log_event,
-        engagement_experiment_event_fields=engagement_experiment_event_fields,
         enqueue_historical_context_obligation=enqueue_historical_context_obligation,
         retire_lane_transport_journal_if_present=retire_lane_transport_journal_if_present,
         REGULAR_POST_RECEIPT_FILE=REGULAR_POST_RECEIPT_FILE,
         remove_regular_post_receipt=remove_regular_post_receipt,
-        publish_pending_engagement_question_notification=publish_pending_engagement_question_notification,
         ConfirmedPostLocalPersistenceError=ConfirmedPostLocalPersistenceError,
         emit_account_root_posted=emit_account_root_posted,
         safely_process_due_historical_context_obligations=safely_process_due_historical_context_obligations,

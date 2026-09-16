@@ -14,8 +14,6 @@ def validate_media_upload_payload_metadata(
     *,
     form: dict[str, object],
     copy: Any,
-    engagement_experiment_attempt_envelope_is_valid: Any,
-    engagement_question_trial: Any,
 ) -> dict[str, object]:
     """Validate local receipt metadata against one exact remote media form."""
 
@@ -26,60 +24,25 @@ def validate_media_upload_payload_metadata(
     }
     if not isinstance(value, dict):
         raise TypeError("media receipt payload metadata is not an object")
-    allowed_fields = {*base, "engagement_question_experiment"}
-    observed_fields = set(value)
-    if observed_fields != set(base) and observed_fields != allowed_fields:
+    if set(value) != set(base):
         raise ValueError("media receipt payload metadata fields are invalid")
     if any(value.get(field) != expected for field, expected in base.items()):
         raise ValueError("media receipt payload metadata changed its remote form")
-    envelope = value.get("engagement_question_experiment")
-    if envelope is not None:
-        if not isinstance(envelope, dict):
-            raise ValueError("media receipt experiment authority is invalid")
-        binding = envelope.get("binding")
-        canonical_quote_text = envelope.get("canonical_quote_text")
-        question_body = envelope.get("approved_question_body")
-        if (
-            not isinstance(binding, dict)
-            or type(canonical_quote_text) is not str
-            or type(question_body) is not str
-        ):
-            raise ValueError("media receipt experiment authority is incomplete")
-        public_text = (
-            engagement_question_trial.complete_treatment_text(
-                canonical_quote_text,
-                question_body,
-            )
-            if binding.get("arm") == "treatment"
-            else canonical_quote_text
-        )
-        if not engagement_experiment_attempt_envelope_is_valid(
-            envelope,
-            public_text=public_text,
-            quote_hash=binding.get("canonical_quote_sha256"),
-        ):
-            raise ValueError("media receipt experiment authority is inconsistent")
     return copy.deepcopy(value)
 
 
 def media_upload_payload_metadata(
     form: dict[str, object],
     *,
-    engagement_experiment: dict | None = None,
-    copy: Any,
     validate_media_upload_payload_metadata: Any,
 ) -> dict[str, object]:
-    """Bind the durable media receipt to its remote form and optional trial."""
+    """Bind the durable media receipt to its remote form."""
 
     metadata: dict[str, object] = {
         "request_method": "POST",
         "request_path": "/2/media/upload",
         "form": dict(form),
     }
-    if engagement_experiment is not None:
-        metadata["engagement_question_experiment"] = copy.deepcopy(
-            engagement_experiment
-        )
     return validate_media_upload_payload_metadata(metadata, form=form)
 
 
@@ -152,8 +115,6 @@ def upload_media(
     image_path: str,
     *,
     lane: str,
-    engagement_experiment: dict | None = None,
-    pre_transport_validation: Callable[[], None] | None = None,
     AmbiguousRemotePostOutcome: Any,
     MEDIA_UPLOAD_RECEIPT_FILE: Any,
     MediaUploadReceiptError: Any,
@@ -175,11 +136,6 @@ def upload_media(
     upload_media_v2: Any,
 ) -> str:
     """Upload once under a restart-visible, image-bound sending receipt."""
-    if (engagement_experiment is None) != (pre_transport_validation is None):
-        raise ValueError(
-            "experimental media authority and pre-transport validation must "
-            "be supplied together"
-        )
     require_remote_operation_unpaused("X media upload")
     block_if_ambiguous_remote_post()
     mime_type, _ = mimetypes.guess_type(image_path)
@@ -189,10 +145,7 @@ def upload_media(
         "media_category": "tweet_image",
         "media_type": mime_type,
     }
-    payload_metadata = media_upload_payload_metadata(
-        form,
-        engagement_experiment=engagement_experiment,
-    )
+    payload_metadata = media_upload_payload_metadata(form)
     try:
         authority = begin_media_upload(
             receipt_path=MEDIA_UPLOAD_RECEIPT_FILE,
@@ -216,44 +169,13 @@ def upload_media(
             request_method="POST",
             request_path="/2/media/upload",
         ) from exc
-    if pre_transport_validation is not None:
-        try:
-            pre_transport_validation()
-        except BaseException:
-            try:
-                abort_untransmitted_media_upload(
-                    MEDIA_UPLOAD_RECEIPT_FILE,
-                    authority,
-                    mutation_authority=transaction_mutation_authority(
-                        "invalid untransmitted experimental media abort"
-                    ),
-                )
-            except Exception as abort_exc:
-                record_ambiguous_remote_post(
-                    {"text": "", "media": {"media_ids": []}}
-                )
-                raise AmbiguousRemotePostOutcome(
-                    "Experimental pre-transport validation failed and left an "
-                    "unresolved media-upload barrier",
-                    service="x",
-                    request_method="POST",
-                    request_path="/2/media/upload",
-                ) from abort_exc
-            raise
     media_sigint_guard = begin_confirmed_post_sigint_deferral()
     try:
         try:
-            if engagement_experiment is None:
-                media_id = upload_media_v2(
-                    authority=authority,
-                    payload=bound_payload,
-                )
-            else:
-                media_id = upload_media_v2(
-                    authority=authority,
-                    payload=bound_payload,
-                    payload_metadata=payload_metadata,
-                )
+            media_id = upload_media_v2(
+                authority=authority,
+                payload=bound_payload,
+            )
             confirm_media_upload(
                 MEDIA_UPLOAD_RECEIPT_FILE,
                 authority,
@@ -714,8 +636,7 @@ def handoff_confirmed_media_upload_to_main_attempt(
     MediaUploadReceiptError: Any,
     Path: Any,
     bind_media_handoff_to_transport: Any,
-    confirmed_media_upload_experiment_envelope: Any,
-    engagement_experiment_envelope_from_attempt: Any,
+    validate_confirmed_media_upload_metadata: Any,
     load_confirmed_media_upload: Any,
     log: Any,
     main_post_attempt_path: Any,
@@ -729,12 +650,7 @@ def handoff_confirmed_media_upload_to_main_attempt(
         raise MediaUploadReceiptError(
             "main-post attempt has no confirmed media-upload receipt"
         )
-    media_experiment = confirmed_media_upload_experiment_envelope(confirmation)
-    attempt_experiment = engagement_experiment_envelope_from_attempt(attempt)
-    if media_experiment != attempt_experiment:
-        raise MediaUploadReceiptError(
-            "confirmed media experiment authority does not match main-post attempt"
-        )
+    validate_confirmed_media_upload_metadata(confirmation)
     path = main_post_attempt_path(attempt)
     handoff = bind_media_handoff_to_transport(
         MEDIA_UPLOAD_RECEIPT_FILE,

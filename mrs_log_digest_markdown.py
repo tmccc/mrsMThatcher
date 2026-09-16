@@ -18,7 +18,7 @@ from mrs_log_digest_values import (
     GENERATED_POLICIES,
     REMOTE_WRITE_RECEIPT_ROLE_LABELS,
     UNKNOWN_MISSING_STATE_FIELD,
-    ENGAGEMENT_CORRELATION_WARNING_LIMIT,
+    QUOTE_PUBLICATION_CORRELATION_WARNING_LIMIT,
     parse_dt,
     int_or_none,
     short,
@@ -364,48 +364,6 @@ def _render_latest_state(report: Dict[str, Any], out: List[str]) -> None:
             out.append(f"{state_label_prefix}meme_schedule_version   = {st.get('meme_schedule_version')}")
         out.append(f"{state_label_prefix}posted_meme_count       = {st.get('posted_meme_count')}")
         out.append("```")
-        trial_state = st.get("engagement_question_experiment")
-        if isinstance(trial_state, dict):
-            out.append("")
-            out.append("### Current engagement-question trial state")
-            if state_source == "bot_state.json" and not state_snapshot_only:
-                out.append(
-                    "Compact authoritative current `bot_state.json` state; it may be "
-                    "newer than `--until` and is not a window-derived history claim."
-                )
-            else:
-                out.append(
-                    "Compact state snapshot; it is separate from engagement activity "
-                    "observed inside the requested event window."
-                )
-            out.append(md_table_row(["field", "current value"], cell_limit=1000))
-            out.append(md_table_row(["---", "---"], cell_limit=1000))
-            trial_state_fields = (
-                "experiment_id",
-                "active_plan_sha256",
-                "status",
-                "current_pair_index",
-                "active_pair_id",
-                "next_pair_member_position",
-                "completed_pair_count",
-                "confirmed_publication_count",
-                "treatment_publication_count",
-                "last_experimental_publication_local_date",
-                "current_deferral_reason",
-            )
-            for field in trial_state_fields:
-                value = trial_state.get(field, UNKNOWN_MISSING_STATE_FIELD)
-                if field == "current_deferral_reason":
-                    if value is None:
-                        value = "none"
-                    elif isinstance(value, dict):
-                        value = json.dumps(
-                            value,
-                            ensure_ascii=False,
-                            sort_keys=True,
-                            separators=(",", ":"),
-                        )
-                out.append(md_table_row([field, value], cell_limit=1000))
         if st.get("posted_meme_filenames_tail"):
             out.append(
                 "Snapshot recent posted meme filenames:"
@@ -2236,9 +2194,6 @@ def _render_event_details(report: Dict[str, Any], out: List[str]) -> None:
             ))
         out.append("")
 
-    format_question_present = lambda value: (
-        "yes" if value is True else "no" if value is False else ""
-    )
     section(
         "quote_image_posted",
         "Quote/image posts",
@@ -2251,129 +2206,41 @@ def _render_event_details(report: Dict[str, Any], out: List[str]) -> None:
             "image_no",
             "image_score",
             "made_with_ai",
-            "engagement_arm",
-            "engagement_question_present",
-            "engagement_question_display",
             "text",
         ],
-        column_labels={
-            "engagement_arm": "arm",
-            "engagement_question_present": "question_present",
-            "engagement_question_display": "question",
-        },
-        value_formatters={
-            "engagement_question_present": format_question_present,
-        },
         cell_limit=1000,
     )
 
-    engagement_trial = report.get("engagement_question_trial") or {}
-    confirmed_trial_publications = (
-        engagement_trial.get("confirmed_publications") or []
-    )
-    engagement_trial_outcome_rows = engagement_trial.get("outcomes") or []
-    engagement_trial_warning_rows = (
-        engagement_trial.get("correlation_warnings") or []
-    )
-    if (
-        confirmed_trial_publications
-        or engagement_trial_outcome_rows
-        or engagement_trial_warning_rows
-        or engagement_trial.get("correlation_warning_omitted_count")
-    ):
-        out.append("## Engagement-question trial activity")
+    quote_publication = report.get("quote_publication") or {}
+    warning_rows = quote_publication.get("correlation_warnings") or []
+    if warning_rows or quote_publication.get("correlation_warning_omitted_count"):
+        out.append("## Quote publication correlation warnings")
         out.append(
-            "Only strict structured events inside the requested digest window are "
-            "included here; current authoritative state is reported separately above."
+            "Conflicting structured evidence is left unresolved rather than "
+            "silently overwritten."
         )
-        if confirmed_trial_publications:
-            activity_columns = [
-                "time",
-                "post_id",
-                "pair_id",
-                "member_position",
-                "arm",
-                "publication_sequence",
-                "question_present",
-                "question",
-                "quote_hash",
-            ]
-            out.append(md_table_row(activity_columns, cell_limit=1000))
-            out.append(md_table_row(["---"] * len(activity_columns), cell_limit=1000))
-            for row in confirmed_trial_publications:
-                question = row.get("question")
-                if (
-                    row.get("question_present") is True
-                    and row.get("question_status") == "unavailable_inconsistent"
-                ):
-                    question = "unavailable/inconsistent"
-                out.append(md_table_row(
-                    [
-                        row.get("time", ""),
-                        row.get("post_id", ""),
-                        row.get("pair_id", ""),
-                        row.get("member_position", ""),
-                        row.get("arm", ""),
-                        row.get("publication_sequence", ""),
-                        format_question_present(row.get("question_present")),
-                        question or "",
-                        row.get("quote_hash", ""),
-                    ],
-                    cell_limit=1000,
-                ))
-        else:
-            out.append("No confirmed experimental publication was observed in this window.")
-        if engagement_trial_outcome_rows:
-            out.append("")
-            out.append("### Invalidation, deferral, and notification outcomes")
-            outcome_columns = [
-                "time",
-                "event",
-                "post_id",
-                "pair_id",
-                "member_position",
-                "reason",
-                "experiment_id",
-                "plan_sha256",
-            ]
-            out.append(md_table_row(outcome_columns, cell_limit=1000))
-            out.append(md_table_row(["---"] * len(outcome_columns), cell_limit=1000))
-            for row in engagement_trial_outcome_rows:
-                out.append(md_table_row(
-                    [row.get(column, "") for column in outcome_columns],
-                    cell_limit=1000,
-                ))
-        if engagement_trial_warning_rows or engagement_trial.get(
-            "correlation_warning_omitted_count"
-        ):
-            out.append("")
-            out.append("### Correlation warnings")
+        warning_columns = ["time", "post_id", "field", "event types", "warning"]
+        out.append(md_table_row(warning_columns, cell_limit=1000))
+        out.append(md_table_row(["---"] * len(warning_columns), cell_limit=1000))
+        for row in warning_rows:
+            out.append(md_table_row(
+                [
+                    row.get("time", ""),
+                    row.get("post_id", ""),
+                    row.get("field", ""),
+                    " ↔ ".join(row.get("event_types") or []),
+                    row.get("message", ""),
+                ],
+                cell_limit=1000,
+            ))
+        omitted = int(
+            quote_publication.get("correlation_warning_omitted_count") or 0
+        )
+        if omitted:
             out.append(
-                "Conflicting structured evidence is left unresolved rather than "
-                "silently overwritten."
+                f"{omitted} additional correlation warning(s) omitted after "
+                f"the fixed limit of {QUOTE_PUBLICATION_CORRELATION_WARNING_LIMIT}."
             )
-            warning_columns = ["time", "post_id", "field", "event types", "warning"]
-            out.append(md_table_row(warning_columns, cell_limit=1000))
-            out.append(md_table_row(["---"] * len(warning_columns), cell_limit=1000))
-            for row in engagement_trial_warning_rows:
-                out.append(md_table_row(
-                    [
-                        row.get("time", ""),
-                        row.get("post_id", ""),
-                        row.get("field", ""),
-                        " ↔ ".join(row.get("event_types") or []),
-                        row.get("message", ""),
-                    ],
-                    cell_limit=1000,
-                ))
-            omitted = int(
-                engagement_trial.get("correlation_warning_omitted_count") or 0
-            )
-            if omitted:
-                out.append(
-                    f"{omitted} additional correlation warning(s) omitted after "
-                    f"the fixed limit of {ENGAGEMENT_CORRELATION_WARNING_LIMIT}."
-                )
         out.append("")
 
     section("daily_meme_posted", "Daily meme posts", ["time", "post_id", "file", "summary"])

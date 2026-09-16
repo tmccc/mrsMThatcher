@@ -417,8 +417,7 @@
       "kind": "quote_image_posted",
       "time": "2026-07-25 10:00:00",
       "post_id": "12345",
-      "text": "Quoted | text\nSecond line — café",
-      "engagement_question_present": false
+      "text": "Quoted | text\nSecond line — café"
     },
     {
       "kind": "historical_context_reply",

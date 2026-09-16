@@ -119,7 +119,6 @@ def _coerce_local_config_value(
             raise ValueError(f"{key} contains unsafe control characters")
         if key not in {
             "MEME_POST_TEXT",
-            "engagement_question_notification_output_path",
         }:
             if not value:
                 raise ValueError(f"{key} must not be empty")

@@ -118,6 +118,7 @@ def save_resume_time(
     # Persist clean context only; _carried_forward/_filled_from_previous are
     # rendering annotations for this run, not durable bot facts.
     latest_state_clean = strip_internal_context_markers(latest_state)
+    latest_state_clean.pop("engagement_question_experiment", None)
     latest_config_clean = strip_internal_context_markers(latest_config)
     latest_generated_image_spacing = report.get("generated_image_spacing", {}).get("latest") or old.get("last_known_generated_image_spacing") or {}
     if isinstance(latest_generated_image_spacing, dict):
@@ -412,6 +413,7 @@ def apply_saved_context(
         report["historical_retained_state"] = strip_internal_context_markers(
             previous_state
         )
+        report["historical_retained_state"].pop("engagement_question_experiment", None)
     previous_config = old.get("last_known_latest_config")
     if isinstance(previous_config, dict) and previous_config:
         report["historical_retained_config"] = strip_internal_context_markers(

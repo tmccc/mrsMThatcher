@@ -104,19 +104,16 @@ def test_quote_recovery_keeps_receipt_and_quote_schedule_when_meme_projection_fa
     scenario = prepare_post(tmp_path, monkeypatch, "quote_image")
     fallback = {"next_quote_post_epoch": "1800007200", "next_meme_post_epoch": "invalid"}
     apply_fields = Mock(wraps=bot.apply_state_fields)
-    apply_experiment = Mock()
     monkeypatch.setattr(
         bot, "promote_main_post_attempt_to_confirmed_pending_schedule",
         Mock(side_effect=OSError("promotion failed")),
     )
     monkeypatch.setattr(bot, scenario.materialiser, Mock(return_value=fallback))
     monkeypatch.setattr(bot, "apply_state_fields", apply_fields)
-    monkeypatch.setattr(bot, "apply_confirmed_engagement_experiment_receipt", apply_experiment)
     with pytest.raises(bot.UnrecoverableConfirmedPostPersistenceError):
         scenario.run()
     assert scenario.state["next_quote_post_epoch"] == 1_800_007_200
     apply_fields.assert_called_once_with(scenario.state, {"next_quote_post_epoch": 1_800_007_200})
-    apply_experiment.assert_called_once_with(fallback, scenario.state)
     assert scenario.latch.call_args.kwargs["failure_components"] == [
         "regular_post_receipt", "bound_schedule_materialisation", "incomplete_regular_post_state",
     ]

@@ -16,10 +16,8 @@ from tests.helpers.bot_runtime import bot
 from tests.helpers.bot_fixtures import isolate_regular_post_receipt  # noqa: F401
 
 
-DEPENDENCIES = {'validate_media_upload_payload_metadata': ['copy',
-                                            'engagement_experiment_attempt_envelope_is_valid',
-                                            'engagement_question_trial'],
- 'media_upload_payload_metadata': ['copy', 'validate_media_upload_payload_metadata'],
+DEPENDENCIES = {'validate_media_upload_payload_metadata': ['copy'],
+ 'media_upload_payload_metadata': ['validate_media_upload_payload_metadata'],
  'upload_media_v2': ['AmbiguousRemotePostOutcome',
                      'log',
                      'validate_media_upload_payload_metadata',
@@ -77,8 +75,7 @@ DEPENDENCIES = {'validate_media_upload_payload_metadata': ['copy',
                                                     'MediaUploadReceiptError',
                                                     'Path',
                                                     'bind_media_handoff_to_transport',
-                                                    'confirmed_media_upload_experiment_envelope',
-                                                    'engagement_experiment_envelope_from_attempt',
+                                                    'validate_confirmed_media_upload_metadata',
                                                     'load_confirmed_media_upload',
                                                     'log',
                                                     'main_post_attempt_path',
@@ -87,14 +84,11 @@ DEPENDENCIES = {'validate_media_upload_payload_metadata': ['copy',
 
 SIGNATURES = {'validate_media_upload_payload_metadata': "(value: 'object', *, form: 'dict[str, "
                                            "object]') -> 'dict[str, object]'",
- 'media_upload_payload_metadata': "(form: 'dict[str, object]', *, engagement_experiment: "
-                                  "'dict | None' = None) -> 'dict[str, object]'",
+ 'media_upload_payload_metadata': "(form: 'dict[str, object]') -> 'dict[str, object]'",
  'upload_media_v2': "(*, authority: 'MediaUploadAuthority', payload: "
                     "'ReceiptBoundMediaPayload', payload_metadata: 'dict[str, object] | "
                     "None' = None) -> 'str'",
- 'upload_media': "(image_path: 'str', *, lane: 'str', engagement_experiment: 'dict | "
-                 "None' = None, pre_transport_validation: 'Callable[[], None] | None' = "
-                 "None) -> 'str'",
+ 'upload_media': "(image_path: 'str', *, lane: 'str') -> 'str'",
  'create_post': "(text: 'str', media_ids: 'list[str] | None' = None, reply_to_id: 'str | "
                 "None' = None, made_with_ai: 'bool' = False, *, "
                 "prepared_conversational_reply_receipt: 'dict | None' = None, "
@@ -186,38 +180,20 @@ def test_adapters_preserve_signatures_current_dependencies_references_and_errors
             assert caught.value is failure
 
 
-@pytest.mark.parametrize("arm", [None, "control", "treatment"])
-def test_metadata_validation_orders_current_callbacks_before_deepcopy(monkeypatch, arm):
+def test_metadata_validation_preserves_exact_form_and_deep_copy(monkeypatch):
     form = {"media_category": "tweet_image", "media_type": "image/png"}
-    envelope = None if arm is None else {
-        "binding": {"arm": arm, "canonical_quote_sha256": "hash"},
-        "canonical_quote_text": "Canonical quote.",
-        "approved_question_body": "Question?",
-    }
-    value = {"request_method": "POST", "request_path": "/2/media/upload",
-             "form": dict(form), "engagement_question_experiment": envelope}
-    events = Mock()
-    events.complete.return_value = object()
-    events.validate.return_value = True
-    events.deepcopy.side_effect = copy.deepcopy
-    monkeypatch.setattr(bot, "copy", SimpleNamespace(deepcopy=events.deepcopy))
-    monkeypatch.setattr(bot, "engagement_question_trial", SimpleNamespace(complete_treatment_text=events.complete))
-    monkeypatch.setattr(bot, "engagement_experiment_attempt_envelope_is_valid", events.validate)
+    value = {"request_method": "POST", "request_path": "/2/media/upload", "form": dict(form)}
+    copied = Mock(wraps=copy.deepcopy)
+    monkeypatch.setattr(bot, "copy", SimpleNamespace(deepcopy=copied))
     result = bot.validate_media_upload_payload_metadata(value, form=form)
-    expected = []
-    if arm == "treatment":
-        expected.append(call.complete("Canonical quote.", "Question?"))
-    if arm is not None:
-        expected.append(call.validate(envelope, public_text=(events.complete.return_value
-                        if arm == "treatment" else "Canonical quote."), quote_hash="hash"))
-        assert events.validate.call_args.args[0] is envelope
-        assert result["engagement_question_experiment"] is not envelope
-        assert result["engagement_question_experiment"]["binding"] is not envelope["binding"]
-    expected.append(call.deepcopy(value))
-    assert events.mock_calls == expected
-    assert events.deepcopy.call_args.args[0] is value
+    copied.assert_called_once_with(value)
+    assert copied.call_args.args[0] is value
     assert result == value and result is not value
     assert result["form"] is not value["form"]
+    with pytest.raises(ValueError, match="fields are invalid"):
+        bot.validate_media_upload_payload_metadata({**value, "retired_metadata": {}}, form=form)
+    with pytest.raises(ValueError, match="changed its remote form"):
+        bot.validate_media_upload_payload_metadata({**value, "form": {}}, form=form)
 
 
 def test_metadata_form_copy_precedes_value_validation_and_preserves_native_errors():
@@ -236,34 +212,22 @@ def test_metadata_form_copy_precedes_value_validation_and_preserves_native_error
         bot.validate_media_upload_payload_metadata({"request_method": "wrong"}, form={})
 
 
-@pytest.mark.parametrize("experimental", [False, True])
-def test_metadata_builder_keeps_shallow_form_and_original_validator_reference(monkeypatch, experimental):
+def test_metadata_builder_keeps_shallow_form_and_original_validator_reference(monkeypatch):
     form = {"nested": []}
-    experiment = {"nested": []} if experimental else None
-    events = Mock()
-    events.deepcopy.side_effect = copy.deepcopy
     result = object()
 
     def validate(value, *, form):
         assert form is original_form
         assert value["form"] is not form
         assert value["form"]["nested"] is form["nested"]
-        if experimental:
-            assert value["engagement_question_experiment"] == experiment
-            assert value["engagement_question_experiment"] is not experiment
-            assert value["engagement_question_experiment"]["nested"] is not experiment["nested"]
-        else:
-            assert "engagement_question_experiment" not in value
+        assert set(value) == {"request_method", "request_path", "form"}
         return result
 
     original_form = form
-    events.validate.side_effect = validate
-    monkeypatch.setattr(bot, "copy", SimpleNamespace(deepcopy=events.deepcopy))
-    monkeypatch.setattr(bot, "validate_media_upload_payload_metadata", events.validate)
-    assert bot.media_upload_payload_metadata(form, engagement_experiment=experiment) is result
-    assert [c[0] for c in events.mock_calls] == (["deepcopy", "validate"] if experimental else ["validate"])
-    if experimental:
-        assert events.deepcopy.call_args.args[0] is experiment
+    callback = Mock(side_effect=validate)
+    monkeypatch.setattr(bot, "validate_media_upload_payload_metadata", callback)
+    assert bot.media_upload_payload_metadata(form) is result
+    callback.assert_called_once()
 
 
 @pytest.mark.parametrize("metadata, raw_id", [(None, 0), ({"local": []}, " nonnumeric-id ")])
@@ -346,55 +310,26 @@ def _media_boundary(monkeypatch, tmp_path):
     return events, state
 
 
-@pytest.mark.parametrize("experimental", [False, True])
-def test_outer_media_binding_validation_guard_confirmation_order(monkeypatch, tmp_path, experimental):
+def test_outer_media_binding_validation_guard_confirmation_order(monkeypatch, tmp_path):
     events, state = _media_boundary(monkeypatch, tmp_path)
-    experiment = {} if experimental else None
-    callback = events.prevalidate if experimental else None
-    assert bot.upload_media(state.image, lane="quote_image", engagement_experiment=experiment,
-                            pre_transport_validation=callback) is state.media_id
+    assert bot.upload_media(state.image, lane="quote_image") is state.media_id
     form = {"media_category": "tweet_image", "media_type": "image/jpeg"}
     upload = {"authority": state.authority, "payload": state.payload}
-    if experimental:
-        upload["payload_metadata"] = state.metadata
     assert events.mock_calls == [
         call.pause("X media upload"), call.barrier(), call.mime(state.image),
-        call.metadata(form, engagement_experiment=experiment),
+        call.metadata(form),
         call.begin(receipt_path=state.path, image_path=Path(state.image), lane="quote_image",
                    mime_type="image/jpeg", payload_metadata=state.metadata),
         call.bind(state.path, state.authority, image_path=Path(state.image), lane="quote_image",
                   mime_type="image/jpeg", payload_metadata=state.metadata),
-        *([call.prevalidate()] if experimental else []), call.guard(), call.upload(**upload),
+        call.guard(), call.upload(**upload),
         call.mutation("media upload confirmation"),
         call.confirm(state.path, state.authority, mutation_authority=state.mutation, media_id=state.media_id),
         call.end(state.guard),
     ]
-    assert events.metadata.call_args.kwargs["engagement_experiment"] is experiment
     assert events.begin.call_args.kwargs["payload_metadata"] is state.metadata
     assert events.bind.call_args.kwargs["payload_metadata"] is state.metadata
     assert events.upload.call_args.kwargs["payload"] is state.payload
-
-
-@pytest.mark.parametrize("abort_error", [None, OSError("abort failed"), KeyboardInterrupt("abort interrupted")])
-def test_pretransport_baseexception_abort_scope_precedes_sigint_guard(monkeypatch, tmp_path, abort_error):
-    events, state = _media_boundary(monkeypatch, tmp_path)
-    failure = KeyboardInterrupt("validation interrupted")
-    events.prevalidate.side_effect = failure
-    events.abort.side_effect = abort_error
-    expected = bot.AmbiguousRemotePostOutcome if isinstance(abort_error, Exception) else type(abort_error or failure)
-    with pytest.raises(expected) as caught:
-        bot.upload_media(state.image, lane="quote_image", engagement_experiment={},
-                         pre_transport_validation=events.prevalidate)
-    assert [c[0] for c in events.mock_calls] == ["pause", "barrier", "mime", "metadata", "begin", "bind",
-            "prevalidate", "mutation", "abort"] + (["marker"] if isinstance(abort_error, Exception) else [])
-    events.abort.assert_called_once_with(state.path, state.authority, mutation_authority=state.mutation)
-    if isinstance(abort_error, Exception):
-        assert caught.value.__cause__ is abort_error
-        events.marker.assert_called_once_with({"text": "", "media": {"media_ids": []}})
-    else:
-        assert caught.value is (abort_error or failure)
-    events.guard.assert_not_called()
-    events.end.assert_not_called()
 
 
 @pytest.mark.parametrize("boundary", ["guard", "confirm"])
@@ -414,28 +349,26 @@ def test_media_guard_start_and_confirmation_keep_original_error_scopes(monkeypat
         assert events.mock_calls[-2:] == [call.marker({"text": "", "media": {"media_ids": []}}), call.end(state.guard)]
 
 
-def test_handoff_checks_confirmation_and_experiment_before_binding_exact_references(monkeypatch, tmp_path):
+def test_handoff_checks_confirmation_and_metadata_before_binding_exact_references(monkeypatch, tmp_path):
     events = Mock()
     path, source_path = tmp_path / "media.json", tmp_path / "main.json"
     attempt = {"lane": "quote_image", "attempt_id": "attempt"}
     confirmation = SimpleNamespace(media_id="media-id")
     authority = SimpleNamespace(journal_path=str(tmp_path / "journal"), fence_path=str(tmp_path / "fence"))
     events.load.return_value = confirmation
-    events.media_experiment.return_value = {"nested": []}
-    events.attempt_experiment.return_value = {"nested": []}
     events.path.return_value = source_path
     handoff, mutation = object(), object()
     events.bind.return_value, events.mutation.return_value = handoff, mutation
     for root_name, name in {
-        "load_confirmed_media_upload": "load", "confirmed_media_upload_experiment_envelope": "media_experiment",
-        "engagement_experiment_envelope_from_attempt": "attempt_experiment", "main_post_attempt_path": "path",
+        "load_confirmed_media_upload": "load", "validate_confirmed_media_upload_metadata": "metadata",
+        "main_post_attempt_path": "path",
         "bind_media_handoff_to_transport": "bind", "transaction_mutation_authority": "mutation",
         "retire_confirmed_media_upload": "retire", "log": "log",
     }.items():
         monkeypatch.setattr(bot, root_name, getattr(events, name))
     monkeypatch.setattr(bot, "MEDIA_UPLOAD_RECEIPT_FILE", path)
     assert bot.handoff_confirmed_media_upload_to_main_attempt(attempt, authority) is None
-    assert [c[0] for c in events.mock_calls] == ["load", "media_experiment", "attempt_experiment", "path", "bind", "mutation", "retire", "log.warning"]
+    assert [c[0] for c in events.mock_calls] == ["load", "metadata", "path", "bind", "mutation", "retire", "log.warning"]
     events.bind.assert_called_once_with(path, confirmation, transport_journal_path=Path(authority.journal_path),
                                        transport_fence_path=Path(authority.fence_path), source_receipt_path=source_path)
     assert events.bind.call_args.args[1] is confirmation
@@ -443,10 +376,10 @@ def test_handoff_checks_confirmation_and_experiment_before_binding_exact_referen
     assert events.bind.call_args.kwargs["source_receipt_path"] is source_path
     events.retire.assert_called_once_with(path, handoff, mutation_authority=mutation)
     events.reset_mock()
-    events.attempt_experiment.return_value = {"changed": True}
-    with pytest.raises(bot.MediaUploadReceiptError, match="does not match"):
+    events.metadata.side_effect = bot.MediaUploadReceiptError("changed metadata")
+    with pytest.raises(bot.MediaUploadReceiptError, match="changed metadata"):
         bot.handoff_confirmed_media_upload_to_main_attempt(attempt, object())
-    assert [c[0] for c in events.mock_calls] == ["load", "media_experiment", "attempt_experiment"]
+    assert [c[0] for c in events.mock_calls] == ["load", "metadata"]
     events.reset_mock()
     events.load.return_value = None
     with pytest.raises(bot.MediaUploadReceiptError, match="no confirmed"):

@@ -1,5 +1,9 @@
 # Bot modularisation
 
+The stage records below describe their original implementations. The engagement
+question trial was removed on 16 September 2026, including its two runtime
+modules and their adapters; trial-specific references below are historical.
+
 ## Stage 1 — quotation/image scoring
 
 Baseline: `af5eda7c163a8174ec1365060aa923d21787e7bd` (2026-09-06).

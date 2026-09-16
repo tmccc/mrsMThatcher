@@ -42,11 +42,7 @@ DEPENDENCIES = {'remove_managed_log_handlers': ['_MANAGED_LOG_HANDLER_ATTR'],
  'emit_historical_context_store_observation': ['_log_descriptive_observability_failure',
                                                'emit_historical_context_history_observation'],
  'print_rate_limit_headers': ['datetime', 'log'],
- '_log_validated_single_call_reply': ['hashlib', 'log'],
- 'engagement_experiment_event_fields': ['engagement_experiment_envelope_from_receipt'],
- 'log_confirmed_engagement_experiment_receipt': ['engagement_experiment_envelope_from_receipt',
-                                                 'engagement_question_trial',
-                                                 'log_event']}
+ '_log_validated_single_call_reply': ['hashlib', 'log']}
 SIGNATURES = {'remove_managed_log_handlers': "(logger: 'logging.Logger') -> 'None'",
  'mark_managed_log_handler': "(handler: 'logging.Handler', kind: 'str') -> "
                              "'logging.Handler'",
@@ -79,10 +75,7 @@ SIGNATURES = {'remove_managed_log_handlers': "(logger: 'logging.Logger') -> 'Non
  'print_rate_limit_headers': "(response: 'requests.Response') -> 'int | None'",
  '_log_validated_single_call_reply': "(*, target_description: 'str', "
                                      "target_id: 'str', reply: 'object') -> "
-                                     "'None'",
- 'engagement_experiment_event_fields': "(receipt: 'dict') -> 'dict[str, "
-                                       "object]'",
- 'log_confirmed_engagement_experiment_receipt': "(receipt: 'dict') -> 'None'"}
+                                     "'None'"}
 
 
 def test_import_needs_no_runtime_access():
@@ -581,63 +574,3 @@ def test_validated_reply_uses_strict_utf8_counts_current_hash_and_native_errors(
         bot._log_validated_single_call_reply(target_description="target", target_id=123, reply="text")
     assert caught.value is failure
     logger.info.assert_not_called()
-
-
-def test_experiment_event_fields_preserve_current_envelope_references_and_none_gate(monkeypatch):
-    keys = ["experiment_id", "plan_sha256", "pair_id", "arm", "member_position", "publication_order",
-            "publication_sequence", "question_present", "approved_question_sha256", "public_text_sha256"]
-    event_keys = ["engagement_experiment_id", "engagement_experiment_plan_sha256", "engagement_experiment_pair_id",
-                  "engagement_experiment_arm", "engagement_experiment_member_position", "engagement_experiment_publication_order",
-                  "engagement_experiment_sequence", "engagement_question_present", "engagement_approved_question_sha256",
-                  "engagement_public_text_sha256"]
-    binding = {key: [] for key in keys}
-    reader = Mock(return_value={"binding": binding})
-    monkeypatch.setattr(bot, "engagement_experiment_envelope_from_receipt", reader)
-    receipt = {}
-    result = bot.engagement_experiment_event_fields(receipt)
-    assert reader.call_args.args[0] is receipt
-    assert list(result) == event_keys
-    assert all(result[event_key] is binding[key] for event_key, key in zip(event_keys, keys))
-    reader.return_value = None
-    assert bot.engagement_experiment_event_fields(receipt) == {}
-    assert bot.log_confirmed_engagement_experiment_receipt(receipt) is None
-    reader.return_value = {}
-    with pytest.raises(KeyError, match="binding"):
-        bot.engagement_experiment_event_fields(receipt)
-
-
-@pytest.mark.parametrize("status", ["completed", "pending"])
-def test_confirmed_experiment_events_keep_member_before_completed_and_current_target(monkeypatch, status):
-    binding = {key: [] for key in ("pair_id", "arm", "member_position", "publication_sequence", "plan_sha256", "experiment_id")}
-    binding["expected_transition"] = {"status_after": status}
-    reader = Mock(return_value={"binding": binding})
-    trial = SimpleNamespace(TARGET_COMPLETED_PAIRS=object())
-    current_target = object()
-
-    def log_event(event, **fields):
-        trial.TARGET_COMPLETED_PAIRS = current_target
-
-    event = Mock(side_effect=log_event)
-    monkeypatch.setattr(bot, "engagement_experiment_envelope_from_receipt", reader)
-    monkeypatch.setattr(bot, "engagement_question_trial", trial)
-    monkeypatch.setattr(bot, "log_event", event)
-    receipt = {"post_id": 123}
-    bot.log_confirmed_engagement_experiment_receipt(receipt)
-    assert reader.call_args.args[0] is receipt
-    assert event.call_args_list[0] == call(
-        "engagement_question_experimental_member_confirmed", post_id="123", pair_id=binding["pair_id"],
-        arm=binding["arm"], member_position=binding["member_position"],
-        publication_sequence=binding["publication_sequence"], plan_sha256=binding["plan_sha256"],
-    )
-    assert event.call_args_list[0].kwargs["pair_id"] is binding["pair_id"]
-    assert event.call_count == (2 if status == "completed" else 1)
-    if status == "completed":
-        assert event.call_args_list[1] == call(
-            "engagement_question_experiment_completed", experiment_id=binding["experiment_id"],
-            plan_sha256=binding["plan_sha256"], completed_pairs=current_target,
-        )
-    event.reset_mock()
-    event.side_effect = failure = ValueError("member event")
-    with pytest.raises(ValueError) as caught:
-        bot.log_confirmed_engagement_experiment_receipt(receipt)
-    assert caught.value is failure and event.call_count == 1

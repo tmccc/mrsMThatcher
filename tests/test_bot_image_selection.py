@@ -258,23 +258,3 @@ def test_pair_retries_keep_current_exceptions_limit_exclusions_and_one_time_rese
     with pytest.raises(RuntimeError) as exc:
         bot.choose_regular_quote_image_pair(lines, images, state, excluded_quote_hashes=excluded)
     assert exc.value is failure
-
-
-def test_fixed_quote_global_failure_preserves_mutation_and_original_exception(monkeypatch):
-    used, quote, state = {"old.jpg"}, {"quote_hash": "fixed"}, {}
-    failure = bot.GlobalImageUnavailable("missing metadata")
-    log = Mock()
-    monkeypatch.setattr(bot, "log", log)
-
-    def choose(names, current_quote, current_state, **kwargs):
-        assert names is used and current_quote is quote and current_state is state
-        assert kwargs == {"force_cycle_reset": False, "avoid_last_image_at_cycle_boundary": True, "cycle_boundary_exclusions": None, "selection_phase": "normal"}
-        names.clear()
-        names.add("normalized.jpg")
-        raise failure
-
-    monkeypatch.setattr(bot, "choose_matched_unused_image", choose)
-    with pytest.raises(bot.GlobalImageUnavailable) as exc:
-        bot.choose_engagement_question_image(used, quote, state)
-    assert exc.value is failure and used == {"normalized.jpg"}
-    log.warning.assert_not_called()

@@ -57,15 +57,15 @@ assert 'single_call_reply' not in sys.modules
 @pytest.mark.parametrize(
     "name, signature, dependency_count",
     [
-        ("main_post_attempt_is_semantically_valid", "(data: 'object') -> 'bool'", 14),
-        ("regular_post_receipt_is_semantically_valid", "(data: 'dict') -> 'bool'", 18),
+        ("main_post_attempt_is_semantically_valid", "(data: 'object') -> 'bool'", 13),
+        ("regular_post_receipt_is_semantically_valid", "(data: 'dict') -> 'bool'", 17),
         (
             "confirmed_pending_schedule_receipt_is_semantically_valid",
             "(data: 'object', *, expected_lane: 'str | None' = None) -> 'bool'", 4,
         ),
         (
             "materialize_bound_regular_schedule_receipt",
-            "(pending: 'dict', *, _validate_result: 'bool' = True) -> 'dict'", 9,
+            "(pending: 'dict', *, _validate_result: 'bool' = True) -> 'dict'", 8,
         ),
         (
             "materialize_bound_meme_schedule_receipt",
@@ -331,13 +331,10 @@ def test_materialization_preserves_copy_boundaries_and_hashes_original_source_in
     monkeypatch.setattr(bot, "confirmed_pending_schedule_receipt_is_semantically_valid", events.gate)
     monkeypatch.setattr(bot, "copy", SimpleNamespace(deepcopy=events.deepcopy))
     monkeypatch.setattr(bot, "canonical_atomic_json_bytes", events.canonical)
-    envelope = {"canonical_quote_text": "Good quote.", "nested": []}
     if lane == "quote_image":
         # Mutable children expose list copying separately from deep source copying.
         plan["quote_history_after"].append({"child": []})
         plan["image_history_after"].append({"child": []})
-        events.attach_mock(Mock(return_value=envelope), "experiment")
-        monkeypatch.setattr(bot, "engagement_experiment_envelope_from_attempt", events.experiment)
     original = copy.deepcopy(pending)
     expected_hash = bot.hashlib.sha256(canonical(attempt)).hexdigest()
     result = materialize(pending, _validate_result=False)
@@ -349,16 +346,32 @@ def test_materialization_preserves_copy_boundaries_and_hashes_original_source_in
     assert result["source_attempt_sha256"] == expected_hash
     expected = [call.gate(pending, expected_lane=lane)]
     if lane == "quote_image":
-        expected += [call.deepcopy(plan["meme_schedule_before"]), call.experiment(attempt)]
+        expected += [call.deepcopy(plan["meme_schedule_before"])]
     expected += [call.deepcopy(attempt), call.canonical(attempt)]
     if lane == "quote_image":
-        expected += [call.deepcopy(envelope)]
-        assert result["schema_version"] == 4
-        assert result["quote_text"] == envelope["canonical_quote_text"]
-        assert result["engagement_question_experiment"] == envelope
-        assert result["engagement_question_experiment"]["nested"] is not envelope["nested"]
+        assert result["schema_version"] == 3
         for key in ("quote_history_after", "image_history_after"):
             assert result[key] is not plan[key]
             assert result[key][-1] is plan[key][-1]
             assert result["source_attempt"]["recovery_plan"][key][-1] is not plan[key][-1]
     assert events.mock_calls == expected
+
+
+@pytest.mark.parametrize("lane", ["quote_image", "daily_meme"])
+def test_unsupported_attempt_version_cannot_authorise_transport_or_recovery(lane):
+    attempt = schema_current_main_attempt(lane)
+    attempt["schema_version"] = 6
+    assert not bot.main_post_attempt_is_semantically_valid(attempt)
+    assert not bot.current_main_post_attempt_is_semantically_valid(attempt)
+    assert not bot.main_post_attempt_binds_payload(attempt, bot.main_post_attempt_payload(attempt))
+    attempt["lifecycle_state"] = "attempting"
+    with pytest.raises(RuntimeError, match="Refusing an invalid main-post attempt"):
+        bot.build_confirmed_pending_schedule_receipt(
+            attempt, post_id="950001", confirmation_epoch=1_800_000_100,
+        )
+
+
+def test_unsupported_regular_receipt_version_is_rejected():
+    receipt = bot.materialize_bound_regular_schedule_receipt(_pending("quote_image"))
+    receipt["schema_version"] = 4
+    assert not bot.regular_post_receipt_is_semantically_valid(receipt)

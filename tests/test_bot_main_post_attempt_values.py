@@ -60,7 +60,6 @@ assert 'single_call_reply' not in sys.modules
         ('canonical_remote_post_payload_sha256', ('hashlib', 'json')),
         ('bound_meme_schedule_state', ('MAIN_POST_SCHEDULE_TIMEZONE', 'MEME_SCHEDULE_VERSION', 'safe_bound_schedule_date_str')),
         ('bound_meme_schedule_state_is_valid', ('BOUND_MEME_SCHEDULE_STATE_KEYS', 'MAIN_POST_SCHEDULE_TIMEZONE', 'MEME_SCHEDULE_MODES', 'MEME_SCHEDULE_VERSION', 'safe_bound_schedule_date_str', 'valid_receipt_epoch')),
-        ('engagement_experiment_attempt_envelope_is_valid', ('ENGAGEMENT_EXPERIMENT_ATTEMPT_FIELDS', 'engagement_question_trial', 'quote_text_hash', 're')),
         ('main_post_attempt_binds_payload', ('canonical_remote_post_payload_sha256', 'current_main_post_attempt_is_semantically_valid', 'main_post_attempt_payload')),
         ('current_main_post_attempt_is_semantically_valid', ('main_post_attempt_is_semantically_valid',)),
         ('build_main_post_attempt', ('MAIN_POST_SCHEDULE_TIMEZONE', 'canonical_remote_post_payload_sha256', 'copy', 'current_main_post_attempt_is_semantically_valid', 'hashlib', 'now_epoch', 'os')),
@@ -172,19 +171,6 @@ def test_payload_alias_keeps_coercion_order_list_gate_and_ai_identity():
     assert bot.main_post_attempt_payload({"text": 0, "media_ids": [], "reply_to_id": 0}) == {}
 
 
-def test_envelope_alias_returns_original_without_revalidation():
-    assert bot.engagement_experiment_envelope_from_attempt is values.engagement_experiment_envelope_from_attempt
-    envelope = {"deliberately incomplete": []}
-    attempt = {"lane": "quote_image", "schema_version": 6,
-               "engagement_question_experiment": envelope}
-    assert bot.engagement_experiment_envelope_from_attempt(attempt) is envelope
-    assert bot.engagement_experiment_envelope_from_attempt({**attempt, "schema_version": 6.0}) is envelope
-    for other in (None, {**attempt, "lane": "daily_meme"},
-                  {**attempt, "schema_version": 5},
-                  {**attempt, "engagement_question_experiment": []}):
-        assert bot.engagement_experiment_envelope_from_attempt(other) is None
-
-
 def test_bound_snapshot_conversion_defaults_date_order_and_native_errors(monkeypatch):
     events = []
     state = {key: _ObservedValue(events, label, value) for key, label, value in [
@@ -249,51 +235,6 @@ def test_bound_validator_keeps_epoch_order_and_local_date_closure(monkeypatch):
     trace.date.assert_called_once_with(10, "")
 
 
-@pytest.mark.parametrize("arm, public", [("control", "quote"), ("treatment", "complete")])
-def test_experiment_validation_order_reference_and_narrow_error_scope(monkeypatch, arm, public):
-    trace = Mock()
-    trial = trace.trial
-    error_type = bot.engagement_question_trial.ExperimentValidationError
-    trial.ExperimentValidationError = error_type
-    trial.MAX_ROOT_WEIGHTED_LENGTH = 280
-    trial.complete_treatment_text.return_value = "complete"
-    trial.sha256_text.side_effect = {"quote": "quote hash", "question": "question hash", "complete": "a" * 64}.__getitem__
-    trial.x_weighted_length.return_value = 8
-    trace.quote_hash.return_value = "quote hash"
-    trace.regex.return_value = True
-    monkeypatch.setattr(bot, "engagement_question_trial", trial)
-    monkeypatch.setattr(bot, "quote_text_hash", trace.quote_hash)
-    monkeypatch.setattr(bot, "re", SimpleNamespace(fullmatch=trace.regex))
-    binding = {"approved_question_sha256": "question hash", "arm": arm}
-    envelope = {"canonical_quote_text": "quote", "approved_question_body": "question",
-                "complete_treatment_sha256": "a" * 64,
-                "complete_treatment_weighted_length": 8, "binding": binding}
-    plan = {"original": []}
-    options = dict(public_text=public, quote_hash="quote hash", plan=plan)
-    assert bot.engagement_experiment_attempt_envelope_is_valid(envelope, **options)
-    assert trace.mock_calls == [
-        call.regex(r"[0-9a-f]{64}", "a" * 64),
-        call.trial.validate_attempt_binding(binding, plan=plan, exact_quote_text="quote", public_text=public),
-        call.trial.complete_treatment_text("quote", "question"),
-        call.trial.sha256_text("quote"), call.quote_hash("quote"),
-        call.trial.sha256_text("question"), call.trial.sha256_text("complete"),
-        call.trial.x_weighted_length("complete"),
-    ]
-    assert trial.validate_attempt_binding.call_args.args[0] is binding
-    assert trial.validate_attempt_binding.call_args.kwargs["plan"] is plan
-    for error in (KeyError("binding"), TypeError("binding"), error_type("binding")):
-        trial.validate_attempt_binding.side_effect = error
-        assert not bot.engagement_experiment_attempt_envelope_is_valid(envelope, **options)
-    failure = ValueError("uncaught binding failure")
-    trial.validate_attempt_binding.side_effect = failure
-    with pytest.raises(ValueError) as caught:
-        bot.engagement_experiment_attempt_envelope_is_valid(envelope, **options)
-    assert caught.value is failure
-    trace.regex.side_effect = KeyError("outside try")
-    with pytest.raises(KeyError, match="outside try"):
-        bot.engagement_experiment_attempt_envelope_is_valid(envelope, **options)
-
-
 def test_writable_payload_and_matching_predicates_preserve_short_circuits(monkeypatch):
     full = Mock(return_value=False)
     monkeypatch.setattr(bot, "main_post_attempt_is_semantically_valid", full)
@@ -333,7 +274,7 @@ def test_writable_payload_and_matching_predicates_preserve_short_circuits(monkey
 def test_attempt_construction_order_copies_truthiness_and_final_validator(monkeypatch, explicit_epoch):
     original = schema_current_main_attempt("quote_image")
     events, validated = [], []
-    selected, plan, envelope = original["selected_identity"], original["recovery_plan"], {"binding": []}
+    selected, plan = original["selected_identity"], original["recovery_plan"]
     selected["child"] = []
     def entropy(size):
         events.append(("entropy", size))
@@ -348,7 +289,7 @@ def test_attempt_construction_order_copies_truthiness_and_final_validator(monkey
         events.append(("payload", payload))
         return "payload hash"
     def copied(value):
-        name = next(name for name, original in [("selected", selected), ("plan", plan), ("envelope", envelope)] if value is original)
+        name = next(name for name, original in [("selected", selected), ("plan", plan)] if value is original)
         events.append(("copy", name))
         return copy.deepcopy(value)
     def validate(attempt):
@@ -364,7 +305,7 @@ def test_attempt_construction_order_copies_truthiness_and_final_validator(monkey
     options = dict(lane="quote_image", text=_ObservedValue(events, "text", "téxt"),
                    media_ids=[_ObservedValue(events, "media", 7)],
                    made_with_ai=_ObservedValue(events, "ai", 1), selected_identity=selected,
-                   recovery_plan=plan, engagement_experiment=envelope,
+                   recovery_plan=plan,
                    attempt_epoch=_ObservedValue(events, "epoch", 88) if explicit_epoch else None)
     result = bot.build_main_post_attempt(**options)
     assert events == [
@@ -374,24 +315,23 @@ def test_attempt_construction_order_copies_truthiness_and_final_validator(monkey
         ("payload", {"text": "téxt", "media": {"media_ids": ["7"]}, "made_with_ai": True}),
         ("text", "str"), ("text", "str"), ("sha256", "téxt".encode()),
         ("hexdigest", "téxt".encode()), ("media", "str"), ("ai", "bool"),
-        ("copy", "selected"), ("copy", "plan"), ("copy", "envelope"), ("validate",),
+        ("copy", "selected"), ("copy", "plan"), ("validate",),
     ]
     assert result is validated[0]
-    assert result["schema_version"] == 6 and result["attempt_epoch"] == 88
+    assert result["schema_version"] == 5 and result["attempt_epoch"] == 88
     assert result["made_with_ai"] is True
     assert result["selected_identity"] == selected and result["selected_identity"] is not selected
     assert result["selected_identity"]["child"] is not selected["child"]
     assert result["recovery_plan"]["meme_schedule_before"] is not plan["meme_schedule_before"]
-    assert result["engagement_question_experiment"]["binding"] is not envelope["binding"]
     monkeypatch.setattr(bot, "current_main_post_attempt_is_semantically_valid", lambda attempt: False)
     with pytest.raises(RuntimeError, match="Internal error: generated main-post attempt is invalid"):
         bot.build_main_post_attempt(**options)
 
 
-@pytest.mark.parametrize("lane, bound_timezone, experiment", [
-    ("unsupported", True, None), ("quote_image", False, None), ("daily_meme", True, {}),
+@pytest.mark.parametrize("lane, bound_timezone", [
+    ("unsupported", True), ("quote_image", False),
 ])
-def test_attempt_input_validation_precedes_entropy(monkeypatch, lane, bound_timezone, experiment):
+def test_attempt_input_validation_precedes_entropy(monkeypatch, lane, bound_timezone):
     entropy = Mock(side_effect=AssertionError("entropy before validation"))
     monkeypatch.setattr(bot, "os", SimpleNamespace(urandom=entropy))
     with pytest.raises(ValueError):
@@ -399,7 +339,6 @@ def test_attempt_input_validation_precedes_entropy(monkeypatch, lane, bound_time
             lane=lane, text="quote", media_ids=[7], made_with_ai=1,
             selected_identity={},
             recovery_plan={"schedule_timezone": bot.MAIN_POST_SCHEDULE_TIMEZONE if bound_timezone else None},
-            engagement_experiment=experiment,
         )
     entropy.assert_not_called()
 

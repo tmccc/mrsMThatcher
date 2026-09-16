@@ -312,11 +312,7 @@ assert set(logging.Logger.manager.loggerDict) == loggers
     )
     assert result.returncode == 0, result.stderr
     names = (
-        "ENGAGEMENT_QUESTION_PUBLIC_TEXT_SEPARATOR", "ENGAGEMENT_QUESTION_EXPERIMENT_ID",
-        "ENGAGEMENT_QUESTION_EXPERIMENT_STATE_SCHEMA_VERSION",
-        "ENGAGEMENT_QUESTION_EXPERIMENT_STATUSES", "ENGAGEMENT_PAIR_ID_RE",
-        "ENGAGEMENT_PUBLICATION_ORDERS", "ENGAGEMENT_ARMS",
-        "ENGAGEMENT_MAX_CONFIRMED_PUBLICATIONS",
+        "QuotePublicationCorrelation",
     ) if module_name == "mrs_log_digest_quote_publication" else (
         "_incident_exception_line", "_normalise_incident_text", "_event_time",
         "REMOTE_OPERATION_SCOPE_LABELS", "REMOTE_CONTROL_SCOPE_BY_KEY", "REMOTE_LANE_SCOPE",

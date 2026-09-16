@@ -249,7 +249,7 @@ def test_rejected_reply_text_is_ignored_outside_actual_validation_failures(field
     assert "Unrelated diagnostic prose." not in repr(report)
 
 
-def test_single_call_digest_reports_version_three_architecture():
+def test_single_call_digest_reports_current_architecture():
     common = {
         "strategy_version": "single-sol-reply-20260904",
         "model": "gpt-5.6-sol",
@@ -346,7 +346,7 @@ def test_single_call_digest_reports_version_three_architecture():
 
     report = digest.analyse(records)
     summary = report["single_call_reply"]
-    assert digest.DIGEST_JSON_SCHEMA_VERSION == 3
+    assert digest.DIGEST_JSON_SCHEMA_VERSION == 4
     assert summary["candidate_evaluation_count"] == 3
     assert summary["reply_decision_count"] == 1
     assert summary["replies_posted_count"] == 1

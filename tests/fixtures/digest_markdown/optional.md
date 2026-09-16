@@ -29,22 +29,6 @@ snapshot_next_meme_post          = None  epoch=None
 snapshot_posted_meme_count       = None
 ```
 
-### Current engagement-question trial state
-Compact state snapshot; it is separate from engagement activity observed inside the requested event window.
-| field | current value |
-| --- | --- |
-| experiment_id | unknown (not present in latest snapshot) |
-| active_plan_sha256 | unknown (not present in latest snapshot) |
-| status | unknown (not present in latest snapshot) |
-| current_pair_index | unknown (not present in latest snapshot) |
-| active_pair_id | unknown (not present in latest snapshot) |
-| next_pair_member_position | unknown (not present in latest snapshot) |
-| completed_pair_count | unknown (not present in latest snapshot) |
-| confirmed_publication_count | unknown (not present in latest snapshot) |
-| treatment_publication_count | unknown (not present in latest snapshot) |
-| last_experimental_publication_local_date | unknown (not present in latest snapshot) |
-| current_deferral_reason | none |
-
 ## Mention backlog and author evaluation quarantine
 Active mention backlog: no; active author evaluation quarantines: 0.
 Active quarantined author IDs: none.

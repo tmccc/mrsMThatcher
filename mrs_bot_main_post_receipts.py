@@ -3,7 +3,7 @@
 Six explicit root adapters supply current callbacks, settings, modules and
 exception authorities on each call. Original bodies preserve legacy and lineage
 validation, native failures, bound calendar replay, reference/copy boundaries,
-experiment identity and final validation gates. Sibling calls use current root
+payload identity and final validation gates. Sibling calls use current root
 callbacks, including the validation bypass that avoids materialization recursion.
 Builders, stores, transport, recovery, application and scheduling primitives stay
 in their existing locations. This owner retains no runtime dependencies or state
@@ -25,7 +25,6 @@ def main_post_attempt_is_semantically_valid(
     MEME_SCHEDULE_VERSION: int,
     bound_meme_schedule_state_is_valid: Callable[..., bool],
     canonical_remote_post_payload_sha256: Callable[..., str],
-    engagement_experiment_attempt_envelope_is_valid: Callable[..., bool],
     hashlib: ModuleType,
     main_post_attempt_payload: Callable[..., dict],
     quote_text_hash: Callable[..., str],
@@ -42,7 +41,7 @@ def main_post_attempt_is_semantically_valid(
     if type(lane) is not str:
         return False
     supported_schemas = {
-        "quote_image": {3, 4, 5, 6},
+        "quote_image": {3, 4, 5},
         "daily_meme": {2, 3, 4, 5},
     }.get(lane)
     schema_version = data.get("schema_version")
@@ -94,9 +93,6 @@ def main_post_attempt_is_semantically_valid(
     if not isinstance(recovery_plan, dict):
         return False
     if lane == "quote_image":
-        experiment_envelope = data.get("engagement_question_experiment")
-        if (schema_version == 6) != (experiment_envelope is not None):
-            return False
         if set(selected) != {
             "quote_hash",
             "line_no",
@@ -106,23 +102,10 @@ def main_post_attempt_is_semantically_valid(
         }:
             return False
         quote_hash = selected.get("quote_hash")
-        canonical_identity_text = (
-            experiment_envelope.get("canonical_quote_text")
-            if isinstance(experiment_envelope, dict)
-            else text
-        )
         if (
             type(quote_hash) is not str
             or re.fullmatch(r"[0-9a-f]{64}", quote_hash) is None
-            or quote_text_hash(canonical_identity_text) != quote_hash
-            or (
-                schema_version == 6
-                and not engagement_experiment_attempt_envelope_is_valid(
-                    experiment_envelope,
-                    public_text=text,
-                    quote_hash=quote_hash,
-                )
-            )
+            or quote_text_hash(text) != quote_hash
             or not valid_receipt_basename(selected.get("image_basename"))
             or type(selected.get("line_no")) is not int
             or int(selected["line_no"]) < 0
@@ -138,14 +121,14 @@ def main_post_attempt_is_semantically_valid(
             "quote_history_after",
             "image_history_after",
         }
-        if schema_version in {4, 5, 6}:
+        if schema_version in {4, 5}:
             expected_recovery_keys |= {
                 "meme_scheduling_enabled",
                 "meme_trigger_after_hour",
                 "meme_schedule_version",
                 "meme_schedule_before",
             }
-        if schema_version in {5, 6}:
+        if schema_version == 5:
             expected_recovery_keys.add("schedule_timezone")
         if set(recovery_plan) != expected_recovery_keys:
             return False
@@ -187,7 +170,7 @@ def main_post_attempt_is_semantically_valid(
             )
         ):
             return False
-        if schema_version in {4, 5, 6} and (
+        if schema_version in {4, 5} and (
             type(recovery_plan.get("meme_scheduling_enabled")) is not bool
             or type(recovery_plan.get("meme_trigger_after_hour")) is not int
             or not 0 <= int(recovery_plan["meme_trigger_after_hour"]) <= 23
@@ -199,12 +182,12 @@ def main_post_attempt_is_semantically_valid(
                 recovery_plan.get("meme_schedule_before"),
                 schedule_timezone=(
                     recovery_plan.get("schedule_timezone")
-                    if schema_version in {5, 6}
+                    if schema_version == 5
                     else None
                 ),
             )
             or (
-                schema_version in {5, 6}
+                schema_version == 5
                 and (
                     type(recovery_plan.get("schedule_timezone")) is not str
                     or recovery_plan["schedule_timezone"]
@@ -296,7 +279,6 @@ def regular_post_receipt_is_semantically_valid(
     canonical_atomic_json_bytes: Callable[..., bytes],
     confirmed_pending_schedule_receipt_is_semantically_valid: Callable[..., bool],
     copy: ModuleType,
-    engagement_experiment_attempt_envelope_is_valid: Callable[..., bool],
     hashlib: ModuleType,
     main_post_attempt_is_semantically_valid: Callable[..., bool],
     materialize_bound_regular_schedule_receipt: Callable[..., dict],
@@ -311,7 +293,7 @@ def regular_post_receipt_is_semantically_valid(
 ) -> bool:
     """Return whether a regular-post receipt is internally consistent."""
     schema_version = data.get("schema_version")
-    if type(schema_version) is not int or schema_version not in {1, 2, 3, 4}:
+    if type(schema_version) is not int or schema_version not in {1, 2, 3}:
         return False
     post_id = data.get("post_id")
     quote_hash = data.get("quote_hash")
@@ -323,7 +305,7 @@ def regular_post_receipt_is_semantically_valid(
     bound_timezone = MAIN_POST_SCHEDULE_TIMEZONE
     if (
         isinstance(lineage_attempt, dict)
-        and lineage_attempt.get("schema_version") in {5, 6}
+        and lineage_attempt.get("schema_version") == 5
         and isinstance(lineage_attempt.get("recovery_plan"), dict)
     ):
         bound_timezone = lineage_attempt["recovery_plan"].get(
@@ -347,31 +329,9 @@ def regular_post_receipt_is_semantically_valid(
         return False
     if not isinstance(text, str) or not text.strip():
         return False
-    experiment_envelope = data.get("engagement_question_experiment")
-    quote_text = data.get("quote_text") if schema_version == 4 else text
-    if (
-        (schema_version == 4)
-        != (
-            "engagement_question_experiment" in data
-            and "quote_text" in data
-        )
-        or type(quote_text) is not str
-        or quote_text_hash(quote_text) != quote_hash
-        or (
-            schema_version == 4
-            and not engagement_experiment_attempt_envelope_is_valid(
-                experiment_envelope,
-                public_text=text,
-                quote_hash=quote_hash,
-            )
-        )
-        or (
-            schema_version == 4
-            and quote_text != experiment_envelope.get("canonical_quote_text")
-        )
-    ):
+    if quote_text_hash(text) != quote_hash:
         return False
-    if schema_version in {2, 3, 4}:
+    if schema_version in {2, 3}:
         quote_history = data.get("quote_history_after")
         image_history = data.get("image_history_after")
         if (
@@ -399,7 +359,7 @@ def regular_post_receipt_is_semantically_valid(
     if next_meme_epoch is None:
         return False
     schedule_version = data.get("meme_schedule_version")
-    if schema_version in {3, 4} and (
+    if schema_version == 3 and (
         type(schedule_version) is not int
         or schedule_version < 0
         or schedule_version > MEME_SCHEDULE_VERSION
@@ -412,7 +372,7 @@ def regular_post_receipt_is_semantically_valid(
     ):
         return False
     if next_meme_epoch:
-        if schema_version in {3, 4} and schedule_version < 1:
+        if schema_version == 3 and schedule_version < 1:
             return False
         if not valid_receipt_epoch(next_meme_epoch):
             return False
@@ -462,13 +422,12 @@ def regular_post_receipt_is_semantically_valid(
         source_sha256 = data.get("source_attempt_sha256")
         if (
             present_lineage_fields != lineage_fields
-            or schema_version not in {3, 4}
+            or schema_version != 3
             or type(data.get("line_no")) is not int
             or type(data.get("source_line_number")) is not int
             or type(data.get("image_no")) is not int
             or not isinstance(source_attempt, dict)
-            or source_attempt.get("schema_version")
-            != (6 if schema_version == 4 else 5)
+            or source_attempt.get("schema_version") != 5
             or source_attempt.get("lifecycle_state") != "attempting"
             or source_attempt.get("lane") != "quote_image"
             or not main_post_attempt_is_semantically_valid(source_attempt)
@@ -540,7 +499,7 @@ def confirmed_pending_schedule_receipt_is_semantically_valid(
         # Older attempts remain readable as conservative restart barriers,
         # but their bytes did not bind a calendar zone.  They therefore cannot
         # authorise post-confirmation schedule materialisation.
-        or attempt.get("schema_version") not in {5, 6}
+        or attempt.get("schema_version") != 5
         or confirmation_epoch < int(attempt["attempt_epoch"])
     ):
         return False
@@ -566,7 +525,6 @@ def materialize_bound_regular_schedule_receipt(
     canonical_atomic_json_bytes: Callable[..., bytes],
     confirmed_pending_schedule_receipt_is_semantically_valid: Callable[..., bool],
     copy: ModuleType,
-    engagement_experiment_envelope_from_attempt: Callable[..., dict | None],
     hashlib: ModuleType,
     regular_post_receipt_is_semantically_valid: Callable[..., bool],
     safe_bound_schedule_date_str: Callable[..., str | None],
@@ -627,9 +585,8 @@ def materialize_bound_regular_schedule_receipt(
             meme_schedule_version = int(plan["meme_schedule_version"])
             meme_schedule_changed_by_quote = True
 
-    experiment_envelope = engagement_experiment_envelope_from_attempt(attempt)
     receipt = {
-        "schema_version": 4 if experiment_envelope is not None else 3,
+        "schema_version": 3,
         "post_id": str(pending["post_id"]),
         "quote_hash": str(selected["quote_hash"]),
         "line_no": int(selected["line_no"]),
@@ -658,13 +615,6 @@ def materialize_bound_regular_schedule_receipt(
             canonical_atomic_json_bytes(attempt)
         ).hexdigest(),
     }
-    if experiment_envelope is not None:
-        receipt["quote_text"] = str(
-            experiment_envelope["canonical_quote_text"]
-        )
-        receipt["engagement_question_experiment"] = copy.deepcopy(
-            experiment_envelope
-        )
     if _validate_result and not regular_post_receipt_is_semantically_valid(receipt):
         raise InvalidRegularPostReceipt(
             "Bound regular schedule produced an invalid confirmed receipt"

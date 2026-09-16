@@ -196,9 +196,9 @@ Provider latency average/max: **1200.0 / 1200 ms**; published selected-window co
 ```
 
 ## Quote/image posts
-| time | post_id | line_no | quote_hash | image_basename | image_no | image_score | made_with_ai | arm | question_present | question | text |
-| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
-| 2026-07-25 10:00:00 | 12345 |  |  |  |  |  |  |  | no |  | Quoted \| text\nSecond line — café |
+| time | post_id | line_no | quote_hash | image_basename | image_no | image_score | made_with_ai | text |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| 2026-07-25 10:00:00 | 12345 |  |  |  |  |  |  | Quoted \| text\nSecond line — café |
 
 ## Historical context replies
 | time | status | parent_post_id | quote_id | reply_post_id | public_reply_text | public_reply_text_status | public_reply_text_source | public_reply_text_reason | weighted_character_count | verification_label | source_class | overall_reply_confidence | formatter_version | rendering_mode | shortening_applied | reason |

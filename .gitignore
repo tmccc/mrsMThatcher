@@ -26,7 +26,6 @@ engagement_analytics/raw_responses/
 engagement_analytics/exports/
 engagement_analytics/reports/
 engagement_analytics/backups/
-engagement_question_experiment/active_plan.json
 hybrid_reply_retrieval_runtime/
 production_state_recovery_*/
 semantic_alignment_research/hybrid_reply_retrieval_*/index_history/

@@ -39,19 +39,14 @@ DEPENDENCIES = {'apply_meme_post_receipt': ['MEME_POST_TEXT',
                                  'retire_lane_transport_journal_if_present',
                                  'save_state',
                                  'verify_lane_transport_source_lineage_if_present'],
- 'apply_confirmed_engagement_experiment_receipt': ['engagement_experiment_envelope_from_receipt',
-                                                   'engagement_question_trial',
-                                                   'load_engagement_question_runtime_plan'],
  'apply_regular_post_receipt': ['MEME_SCHEDULE_VERSION',
                                 'MY_USER_ID',
-                                'apply_confirmed_engagement_experiment_receipt',
                                 'cache_tweet',
                                 'log',
                                 'maybe_schedule_meme_after_quote_post',
                                 'meme_schedule_date_str',
                                 'record_recent_own_post'],
  'confirmed_regular_emergency_representation_is_complete': ['build_confirmed_pending_schedule_receipt',
-                                                            'engagement_experiment_envelope_from_attempt',
                                                             'materialize_bound_regular_schedule_receipt',
                                                             'receipt_int',
                                                             'valid_post_id',
@@ -66,16 +61,11 @@ DEPENDENCIES = {'apply_meme_post_receipt': ['MEME_POST_TEXT',
                                     'REGULAR_POST_RECEIPT_FILE',
                                     'apply_regular_post_receipt',
                                     'emit_account_root_posted',
-                                    'engagement_experiment_envelope_from_receipt',
-                                    'engagement_experiment_event_fields',
                                     'enqueue_historical_context_obligation',
                                     'ensure_reconciled_regular_receipt_schedule_is_future',
                                     'finalize_confirmed_pending_schedule_receipt',
                                     'load_regular_post_receipt',
                                     'log',
-                                    'log_confirmed_engagement_experiment_receipt',
-                                    'log_event',
-                                    'publish_pending_engagement_question_notification',
                                     'remove_regular_post_receipt',
                                     'retire_lane_transport_journal_if_present',
                                     'safely_process_due_historical_context_obligations',
@@ -91,27 +81,36 @@ DEPENDENCIES = {'apply_meme_post_receipt': ['MEME_POST_TEXT',
 
 SIGNATURES = {'apply_meme_post_receipt': "(receipt: 'dict', state: 'dict') -> 'None'",
  'reconcile_meme_post_receipt': "(state: 'dict') -> 'bool'",
- 'apply_confirmed_engagement_experiment_receipt': "(receipt: 'dict', state: 'dict') -> 'bool'",
- 'apply_regular_post_receipt': "(receipt: 'dict', lines_used: 'set', images_used: 'set', "
-                               "state: 'dict') -> 'None'",
- 'confirmed_regular_emergency_representation_is_complete': "(*, post_id: 'str', post_epoch: "
-                                                           "'int | None', quote_hash: 'str', "
-                                                           "image_basename: 'str', "
-                                                           "lines_used: 'set', images_used: "
-                                                           "'set', state: 'dict', "
-                                                           "main_post_attempt: 'dict') -> "
-                                                           "'bool'",
- 'confirmed_meme_emergency_representation_is_complete': "(*, post_id: 'str', post_epoch: 'int "
-                                                        "| None', meme_basename: 'str', "
-                                                        "state: 'dict', main_post_attempt: "
+ 'apply_regular_post_receipt': "(receipt: 'dict', lines_used: 'set', "
+                               "images_used: 'set', state: 'dict') -> 'None'",
+ 'confirmed_regular_emergency_representation_is_complete': '(*, post_id: '
+                                                           "'str', post_epoch: "
+                                                           "'int | None', "
+                                                           "quote_hash: 'str', "
+                                                           'image_basename: '
+                                                           "'str', lines_used: "
+                                                           "'set', "
+                                                           'images_used: '
+                                                           "'set', state: "
+                                                           "'dict', "
+                                                           'main_post_attempt: '
+                                                           "'dict') -> 'bool'",
+ 'confirmed_meme_emergency_representation_is_complete': "(*, post_id: 'str', "
+                                                        "post_epoch: 'int | "
+                                                        "None', meme_basename: "
+                                                        "'str', state: 'dict', "
+                                                        'main_post_attempt: '
                                                         "'dict') -> 'bool'",
- 'reconcile_regular_post_receipt': "(lines_used: 'set', images_used: 'set', state: 'dict', *, "
-                                   "minimum_next_quote_epoch: 'int | None' = None, "
-                                   "process_auxiliary_context: 'bool' = True) -> 'bool'",
- 'reconcile_main_post_receipts': "(lines_used: 'set', images_used: 'set', state: 'dict', *, "
-                                 "minimum_next_quote_epoch: 'int | None' = None, "
-                                 "process_auxiliary_context: 'bool' = True) -> 'dict[str, "
-                                 "bool]'"}
+ 'reconcile_regular_post_receipt': "(lines_used: 'set', images_used: 'set', "
+                                   "state: 'dict', *, "
+                                   "minimum_next_quote_epoch: 'int | None' = "
+                                   "None, process_auxiliary_context: 'bool' = "
+                                   "True) -> 'bool'",
+ 'reconcile_main_post_receipts': "(lines_used: 'set', images_used: 'set', "
+                                 "state: 'dict', *, minimum_next_quote_epoch: "
+                                 "'int | None' = None, "
+                                 "process_auxiliary_context: 'bool' = True) -> "
+                                 "'dict[str, bool]'"}
 
 def test_import_needs_no_runtime_access():
     code = """
@@ -197,7 +196,7 @@ def _callbacks(monkeypatch, *names):
     return events
 
 
-@pytest.mark.parametrize("schema_version", [3, 4])
+@pytest.mark.parametrize("schema_version", [3])
 def test_regular_application_preserves_histories_empty_schedule_and_callback_order(monkeypatch, schema_version):
     receipt = valid_regular_receipt_v2(
         schema_version=schema_version, next_meme_post_epoch=0,
@@ -207,8 +206,7 @@ def test_regular_application_preserves_histories_empty_schedule_and_callback_ord
     lines, images, state = {"old quote"}, {"old image"}, {"next_meme_post_epoch": 99}
     events = _callbacks(
         monkeypatch,
-        "maybe_schedule_meme_after_quote_post", "cache_tweet",
-        "record_recent_own_post", "apply_confirmed_engagement_experiment_receipt",
+        "maybe_schedule_meme_after_quote_post", "cache_tweet", "record_recent_own_post",
     )
     assert bot.apply_regular_post_receipt(receipt, lines, images, state) is None
     assert lines == set(receipt["quote_history_after"])
@@ -224,15 +222,12 @@ def test_regular_application_preserves_histories_empty_schedule_and_callback_ord
             referenced_tweets=[], post_type="quote",
         ),
         call.record_recent_own_post(state, receipt["post_id"]),
-        call.apply_confirmed_engagement_experiment_receipt(receipt, state),
     ]
     assert events.cache_tweet.call_args.args[0] is state
-    assert events.apply_confirmed_engagement_experiment_receipt.call_args.args[0] is receipt
     # A stale receipt still reaches the final experiment callback.
     events.reset_mock()
     state["last_quote_post_epoch"] += 1
     bot.apply_regular_post_receipt(receipt, lines, images, state)
-    assert events.mock_calls == [call.apply_confirmed_engagement_experiment_receipt(receipt, state)]
 
 
 @pytest.mark.parametrize("last_id", ["", "970001", "970002"])
@@ -272,7 +267,6 @@ def test_meme_tied_application_keeps_schedule_guard_and_current_cache_order(monk
 
 
 def test_application_native_errors_keep_original_partial_mutation(monkeypatch):
-    events = _callbacks(monkeypatch, "cache_tweet", "apply_confirmed_engagement_experiment_receipt")
     receipt = valid_regular_receipt_v2(quote_history_after=None)
     lines, images, state = {"old quote"}, {"old image"}, {}
     with pytest.raises(TypeError):
@@ -280,50 +274,9 @@ def test_application_native_errors_keep_original_partial_mutation(monkeypatch):
     assert lines == set() and images == {"old image"} and state == {}
     with pytest.raises(KeyError, match="meme_basename"):
         bot.apply_meme_post_receipt({"post_id": "970001"}, state)
-    assert state == {} and events.mock_calls == []
+    assert state == {}
 
 
-@pytest.mark.parametrize("plan_hash", ["bound", "changed"])
-def test_experiment_application_preserves_binding_state_result_and_plan_boundary(monkeypatch, plan_hash):
-    binding = {"plan_sha256": "bound"}
-    envelope = {"binding": binding, "canonical_quote_text": 7, "approved_question_body": 8}
-    receipt = {"post_id": 950001, "quote_post_epoch": "100", "text": 9}
-    experiment_state, result = {}, object()
-    state = {"engagement_question_experiment": experiment_state}
-    plan = {"plan_sha256": plan_hash}
-    events = _callbacks(monkeypatch, "engagement_experiment_envelope_from_receipt", "load_engagement_question_runtime_plan")
-    events.engagement_experiment_envelope_from_receipt.return_value = envelope
-    events.load_engagement_question_runtime_plan.return_value = (plan, None, None)
-
-    def apply(original, **kwargs):
-        assert original is experiment_state and kwargs["binding"] is binding
-        assert kwargs["plan"] is (plan if plan_hash == "bound" else None)
-        assert kwargs == dict(
-            binding=binding, plan=plan if plan_hash == "bound" else None,
-            post_id="950001", published_epoch=100, exact_quote_text="7",
-            public_text="9", approved_question_body="8",
-        )
-        state["engagement_question_experiment"] = {"replacement": True}
-        return result
-
-    publication = Mock(side_effect=apply)
-    monkeypatch.setattr(bot, "engagement_question_trial", SimpleNamespace(apply_confirmed_publication=publication))
-    assert bot.apply_confirmed_engagement_experiment_receipt(receipt, state) is result
-    assert state["engagement_question_experiment"] is experiment_state
-    assert events.mock_calls == [
-        call.engagement_experiment_envelope_from_receipt(receipt),
-        call.load_engagement_question_runtime_plan(),
-    ]
-    failure = KeyboardInterrupt("plan interrupted")
-    events.load_engagement_question_runtime_plan.side_effect = failure
-    with pytest.raises(KeyboardInterrupt) as caught:
-        bot.apply_confirmed_engagement_experiment_receipt(receipt, state)
-    assert caught.value is failure and publication.call_count == 1
-    events.engagement_experiment_envelope_from_receipt.return_value = None
-    assert bot.apply_confirmed_engagement_experiment_receipt(receipt, None) is False
-    events.engagement_experiment_envelope_from_receipt.return_value = envelope
-    with pytest.raises(RuntimeError, match="no protected experiment state"):
-        bot.apply_confirmed_engagement_experiment_receipt(receipt, {"engagement_question_experiment": []})
 
 
 def _emergency_case(lane):
@@ -396,26 +349,10 @@ def test_meme_emergency_eager_summary_and_late_cache_errors_are_native(monkeypat
     builder.assert_called_once()
 
 
-def test_regular_emergency_experiment_generator_keeps_identity_and_native_errors(monkeypatch):
-    kwargs, pending, receipt = _emergency_case("quote_image")
-    monkeypatch.setattr(bot, "build_confirmed_pending_schedule_receipt", Mock(return_value=pending))
-    monkeypatch.setattr(bot, "materialize_bound_regular_schedule_receipt", Mock(return_value=receipt))
-    binding = {"pair_id": "pair", "arm": "control", "public_text_sha256": "bound"}
-    envelope = {"binding": binding}
-    monkeypatch.setattr(bot, "engagement_experiment_envelope_from_attempt", lambda attempt: envelope)
-    publications = [None, {"post_id": "other"}, {"post_id": kwargs["post_id"], **binding}]
-    kwargs["state"]["engagement_question_experiment"] = {"confirmed_publications": publications}
-    assert bot.confirmed_regular_emergency_representation_is_complete(**kwargs) is True
-    publications[-1]["arm"] = "wrong"
-    assert bot.confirmed_regular_emergency_representation_is_complete(**kwargs) is False
-    envelope["binding"] = None
-    with pytest.raises(TypeError):
-        bot.confirmed_regular_emergency_representation_is_complete(**kwargs)
-    assert kwargs["state"]["engagement_question_experiment"]["confirmed_publications"] is publications
 
 
 @pytest.mark.parametrize("process_auxiliary", [True, False])
-def test_regular_pending_recovery_orders_experiment_events_retirement_and_auxiliary(monkeypatch, process_auxiliary):
+def test_regular_pending_recovery_orders_retirement_and_auxiliary(monkeypatch, process_auxiliary):
     pending = {"post_id": 950001}
     receipt = valid_regular_receipt_v2(quote_text="", line_no=0, image_no=0)
     lines, images, state = set(), set(), {}
@@ -425,8 +362,6 @@ def test_regular_pending_recovery_orders_experiment_events_retirement_and_auxili
     ])
     events.load_regular_post_receipt.return_value = ("pending_schedule", pending)
     events.finalize_confirmed_pending_schedule_receipt.return_value = receipt
-    events.engagement_experiment_envelope_from_receipt.return_value = {}
-    events.engagement_experiment_event_fields.return_value = {"experiment_tag": "bound"}
     assert bot.reconcile_regular_post_receipt(
         lines, images, state, minimum_next_quote_epoch=0,
         process_auxiliary_context=process_auxiliary,
@@ -435,11 +370,10 @@ def test_regular_pending_recovery_orders_experiment_events_retirement_and_auxili
         "load_regular_post_receipt", "verify_lane_transport_source_lineage_if_present",
         "log.warning", "finalize_confirmed_pending_schedule_receipt", "log.warning",
         "apply_regular_post_receipt", "ensure_reconciled_regular_receipt_schedule_is_future",
-        "save_regular_post_protected_state", "log_confirmed_engagement_experiment_receipt",
-        "engagement_experiment_envelope_from_receipt", "engagement_experiment_event_fields",
-        "log_event", "enqueue_historical_context_obligation",
+        "save_regular_post_protected_state",
+        "enqueue_historical_context_obligation",
         "retire_lane_transport_journal_if_present", "remove_regular_post_receipt",
-        "publish_pending_engagement_question_notification", "emit_account_root_posted", "log.info",
+        "emit_account_root_posted", "log.info",
         *(["safely_process_due_historical_context_obligations"] if process_auxiliary else []),
     ]
     events.verify_lane_transport_source_lineage_if_present.assert_called_once_with(
@@ -451,17 +385,11 @@ def test_regular_pending_recovery_orders_experiment_events_retirement_and_auxili
     ))
     events.ensure_reconciled_regular_receipt_schedule_is_future.assert_called_once_with(receipt, state, 0)
     events.save_regular_post_protected_state.assert_called_once_with(lines, images, state, durable=True)
-    events.log_event.assert_called_once_with(
-        "main_post_posted", lane="quote_image", post_id=receipt["post_id"],
-        line_no=0, image_no=0, image_basename=receipt["image_basename"],
-        quote_hash=receipt["quote_hash"], experiment_tag="bound",
-    )
     events.retire_lane_transport_journal_if_present.assert_called_once_with(
         receipt_path=bot.REGULAR_POST_RECEIPT_FILE, receipt=receipt, lane="quote_image", post_id="950001",
     )
     for name in ("enqueue_historical_context_obligation", "remove_regular_post_receipt"):
         assert getattr(events, name).call_args.args[0] is receipt
-    assert events.publish_pending_engagement_question_notification.call_args.args[0] is state
     events.emit_account_root_posted.assert_called_once_with(
         lane="quote_image", post_id="950001", public_text=receipt["text"],
         quote_id=receipt["quote_hash"], quote_text="",
