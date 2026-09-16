@@ -13,7 +13,7 @@ import pytest
 import historical_context_formatter as formatter
 import mrsMThatcher2 as bot
 import mrs_bot_receipt_retirement as owner
-from tests.test_source_receipt_retirement_integration import production_lane_documents
+from tests.helpers.receipt_fixtures import production_lane_documents
 from tests.helpers.bot_fixtures import isolate_regular_post_receipt  # noqa: F401
 
 DEPENDENCIES = {'confirmed_context_outbox_matches_receipt': [],

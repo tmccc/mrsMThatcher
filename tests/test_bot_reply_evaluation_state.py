@@ -9,8 +9,8 @@ from unittest.mock import Mock, call
 import pytest
 
 import mrs_bot_reply_evaluation_state as evaluation_state
-from tests.test_bot_normal_reply_cycle import _configure_cycle
-from tests.test_mention_backlog_author_quarantine import mention, queue_active_mention
+from tests.helpers.reply_fixtures import configure_normal_cycle as _configure_cycle
+from tests.helpers.mention_fixtures import mention, queue_active_mention
 from tests.helpers.bot_runtime import bot
 from tests.helpers.bot_fixtures import isolate_regular_post_receipt  # noqa: F401
 from tests.helpers.reply_fixtures import reply_evaluation_record

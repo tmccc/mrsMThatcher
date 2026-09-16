@@ -9,9 +9,9 @@ import pytest
 import mrs_bot_normal_reply_cycle as normal_cycle
 import mrs_bot_quote_reply_cycle as quote_cycle
 from single_call_reply import PipelineResult
-from tests.test_bot_normal_reply_cycle import _configure_cycle as configure_normal
-from tests.test_bot_quote_reply_cycle import _configure_cycle as configure_quote
-from tests.test_mention_backlog_author_quarantine import mention
+from tests.helpers.reply_fixtures import configure_normal_cycle as configure_normal
+from tests.helpers.reply_fixtures import configure_quote_cycle as configure_quote
+from tests.helpers.mention_fixtures import mention
 from tests.helpers.bot_runtime import bot
 from tests.helpers.bot_fixtures import isolate_regular_post_receipt  # noqa: F401
 from tests.helpers.reply_fixtures import unit_approved_reply, unit_reply_context

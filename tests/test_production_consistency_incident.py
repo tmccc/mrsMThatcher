@@ -10,10 +10,6 @@ from types import SimpleNamespace
 
 import pytest
 
-from remote_write_safety_protocol import (
-    ACTIVATION_BASENAME as REMOTE_WRITE_SAFETY_PROTOCOL_ACTIVATION_BASENAME,
-)
-from tests.helpers.protocol_activation import create_test_protocol_activation
 
 _IMPORT_TEMPORARY = tempfile.TemporaryDirectory(
     prefix="mrsMThatcher-production-consistency-import-"
@@ -50,32 +46,11 @@ for _name, _value in _ORIGINAL_ENV.items():
         os.environ[_name] = _value
 
 
-def _forbid(operation: str):
-    def forbidden(*_args, **_kwargs):
-        pytest.fail(f"test attempted forbidden live operation: {operation}")
-
-    return forbidden
-
-
-def _bind_context_attempt_to_source_receipt(
-    store,
-    *,
-    parent_id: str,
-    outbox_attempt: int,
-    source_receipt: dict,
-) -> str:
-    """Bind one claimed outbox attempt to exact canonical source bytes."""
-
-    source_sha256 = hashlib.sha256(
-        context_formatter.canonical_json_bytes(source_receipt)
-    ).hexdigest()
-    store.bind_attempt_source_receipt(
-        parent_id,
-        attempt_number=outbox_attempt,
-        source_receipt_sha256=source_sha256,
-        source_receipt_attempt_number=int(source_receipt["attempt_number"]),
-    )
-    return source_sha256
+from tests.helpers.historical_context_fixtures import (
+    _forbid,
+    _bind_context_attempt_to_source_receipt,
+    isolated_incident_paths,
+)
 
 
 def _proved_failure_history_item(
@@ -289,98 +264,6 @@ def _install_real_context_worker_success_fixture(
     monkeypatch.setattr(bot, "x_request", local_transport)
     monkeypatch.setattr(bot, "create_post", _REAL_CREATE_POST)
     return outbox
-
-
-@pytest.fixture(autouse=True)
-def isolated_incident_paths(
-    tmp_path: Path,
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    paths = {
-        "BASE_DIR": tmp_path,
-        "LINES_FILE": tmp_path / "quotes.txt",
-        "LINES_USED_FILE": tmp_path / "lines_used.json",
-        "IMAGES_USED_FILE": tmp_path / "images_used.json",
-        "STATE_FILE": tmp_path / "bot_state.json",
-        "REGULAR_POST_RECEIPT_FILE": tmp_path / "regular_post_receipt.json",
-        "MEME_POST_RECEIPT_FILE": tmp_path / "meme_post_receipt.json",
-        "HISTORICAL_CONTEXT_REPLY_HISTORY_FILE": tmp_path / "context_history.json",
-        "HISTORICAL_CONTEXT_REPLY_RECEIPT_FILE": (
-            tmp_path / "historical_context_reply_receipt.json"
-        ),
-        "HISTORICAL_CONTEXT_REPLY_OUTBOX_FILE": tmp_path / "context_outbox.json",
-        "CONFIRMED_REPLY_RECEIPT_FILE": tmp_path / "confirmed_reply_receipt.json",
-        "AMBIGUOUS_POST_OUTCOME_FILE": tmp_path / "ambiguous_post_outcome.json",
-        "AMBIGUOUS_POST_OUTCOME_SUCCESSOR_FILE": (
-            tmp_path / "ambiguous_post_outcome.restart_barrier.json"
-        ),
-        "REMOTE_WRITE_SAFETY_PROTOCOL_ACTIVATION_FILE": (
-            tmp_path / REMOTE_WRITE_SAFETY_PROTOCOL_ACTIVATION_BASENAME
-        ),
-        "CONTROL_FILE": tmp_path / "control.json",
-        "COMPLETED_QUOTE_RESEARCH_FILE": tmp_path / "research_packets.json",
-        "HISTORICAL_CONTEXT_RESEARCH_DIR": tmp_path / "research",
-        "MEME_DIR": tmp_path / "memes",
-        "MEME_ANALYSIS_FILE": tmp_path / "meme_analysis.json",
-    }
-    for name, value in paths.items():
-        monkeypatch.setattr(bot, name, value)
-    create_test_protocol_activation(
-        bot.REMOTE_WRITE_SAFETY_PROTOCOL_ACTIVATION_FILE
-    )
-
-    monkeypatch.setattr(bot, "_PRODUCTION_BOOTSTRAPPED", True)
-    monkeypatch.setattr(bot, "_AMBIGUOUS_REMOTE_POST_SEEN", False)
-    monkeypatch.setattr(bot, "_AMBIGUOUS_MARKER_DURABILITY_UNCERTAIN", False)
-    monkeypatch.setattr(bot, "_RETAINED_CONFIRMED_POST_SIGINT_GUARD", None)
-    monkeypatch.setattr(bot, "_HISTORICAL_CONTEXT_CORPUS_SNAPSHOT", None)
-    monkeypatch.setattr(bot, "_HISTORICAL_CONTEXT_RUNTIME_UNAVAILABLE_REASON", None)
-    monkeypatch.setattr(bot, "_HISTORICAL_CONTEXT_OUTBOX_UNAVAILABLE_REASON", None)
-    monkeypatch.setattr(bot, "_HISTORICAL_CONTEXT_SEMANTIC_GATE", None)
-    monkeypatch.setattr(bot, "STATE_BACKUP_COUNT", 0)
-    monkeypatch.setattr(
-        bot,
-        "historical_context_reply",
-        {**bot.historical_context_reply, "enabled": False},
-    )
-    monkeypatch.setattr(
-        bot,
-        "_CONTROL_CACHE",
-        {
-            "signature": None,
-            "data": {},
-            "has_valid": False,
-            "failure_signature": None,
-        },
-    )
-
-    monkeypatch.setattr(bot, "x_request", _forbid("X request"))
-    monkeypatch.setattr(bot.requests, "request", _forbid("requests.request"))
-    monkeypatch.setattr(bot, "create_post", _forbid("X post creation"))
-    monkeypatch.setattr(bot, "upload_media", _forbid("X media upload"))
-    monkeypatch.setattr(bot, "save_state", _forbid("unscoped bot state write"))
-    monkeypatch.setattr(
-        bot,
-        "save_quote_used_hashes",
-        _forbid("unscoped quote-history write"),
-    )
-    monkeypatch.setattr(
-        bot,
-        "save_image_used_basenames",
-        _forbid("unscoped image-history write"),
-    )
-    monkeypatch.setattr(bot, "cache_tweet", lambda *_args, **_kwargs: None)
-    monkeypatch.setattr(
-        bot,
-        "record_recent_own_post",
-        lambda *_args, **_kwargs: None,
-    )
-    monkeypatch.setattr(
-        bot,
-        "maybe_schedule_meme_after_quote_post",
-        lambda *_args, **_kwargs: None,
-    )
-    monkeypatch.setattr(bot, "log_event", lambda *_args, **_kwargs: None)
 
 
 def _quote_analysis(text: str) -> dict:

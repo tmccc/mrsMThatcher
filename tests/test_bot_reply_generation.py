@@ -10,8 +10,8 @@ from unittest.mock import Mock, call
 import pytest
 
 import mrs_bot_reply_generation as generation
-from tests.test_single_call_failure_routing import FakeHttpResponse
-from tests.test_single_call_reply import (
+from tests.helpers.single_call_fixtures import (
+    FakeHttpResponse,
     FakeRepository,
     context as pipeline_context,
     enabled_config,
@@ -20,6 +20,7 @@ from tests.test_single_call_reply import (
 )
 from tests.helpers.bot_runtime import bot
 from tests.helpers.bot_fixtures import isolate_regular_post_receipt  # noqa: F401
+from tests.helpers.reply_fixtures import image_case  # noqa: F401
 
 
 def test_import_needs_no_runtime_access_and_constants_are_shared_objects():
@@ -105,19 +106,6 @@ def test_adapters_forward_current_dependencies_arguments_results_and_errors(monk
             with pytest.raises(TypeError) as caught:
                 adapter(*args, **options)
             assert caught.value is failure
-
-
-@pytest.fixture
-def image_case():
-    response = FakeHttpResponse(200, headers={"Content-Type": "image/png"})
-    media = bot.reply_media_context_for_candidate(
-        {"id": "target", "_attached_media": [{
-            "media_key": "native-photo", "type": "photo",
-            "url": "http://127.0.0.1/media/native.png",
-        }]},
-        lane="mention", target_id="target",
-    )
-    return response, media
 
 
 def test_image_collection_uses_current_requests_bounds_and_validation_reference(monkeypatch, image_case):

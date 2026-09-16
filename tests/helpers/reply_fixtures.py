@@ -1,10 +1,18 @@
-"""Build local reply evidence, validated drafts and durable receipt fixtures."""
+"""Build local reply evidence, drafts, receipts and isolated reply-cycle fixtures."""
 
 from __future__ import annotations
 
 import copy
+from datetime import datetime
+from unittest.mock import Mock
 
-from tests.helpers.bot_runtime import bot
+import pytest
+
+from tests.helpers.bot_runtime import SCENARIOS, bot
+from tests.fake_api_server import load_scenario
+from tests.helpers.mention_fixtures import editorial_no_reply
+from tests.helpers.reply_evaluation import legacy_reply_evaluator
+from tests.helpers.single_call_fixtures import FakeHttpResponse
 from reply_evidence import EvidencePassage
 from single_call_reply import (
     STRATEGY_VERSION,
@@ -329,3 +337,63 @@ def reply_evaluation_record(target_id: str, evaluated_epoch: int) -> dict:
         "reason": "terminal",
         "evaluated_epoch": evaluated_epoch,
     }
+
+
+def configure_normal_cycle(monkeypatch):
+    """Configure a deterministic normal-reply cycle with no unexpected provider access."""
+    epoch = 2_000_000_000
+    monkeypatch.setattr(bot, "now_epoch", lambda: epoch)
+    monkeypatch.setattr(bot, "current_datetime", lambda: datetime.fromtimestamp(epoch))
+    monkeypatch.setattr(bot, "single_call_reply", {**bot.single_call_reply, "enabled": True})
+    monkeypatch.setattr(bot, "ENABLE_AUTO_REPLIES", True)
+    monkeypatch.setattr(bot, "MIN_SECONDS_BETWEEN_REPLIES", 0)
+    monkeypatch.setattr(bot, "MAX_AUTO_REPLIES_PER_DAY", 48)
+    monkeypatch.setattr(bot, "MAX_REPLIES_PER_AUTHOR_PER_DAY", 6)
+    monkeypatch.setattr(bot, "MAX_MENTIONS_PER_CHECK", 5)
+    monkeypatch.setattr(bot, "get_hot_post_reply_candidates", Mock(return_value=[]))
+    monkeypatch.setattr(bot, "x_request", Mock(side_effect=AssertionError("unexpected provider request")))
+    monkeypatch.setattr(bot, "create_post", Mock(side_effect=AssertionError("unexpected remote write")))
+    monkeypatch.setattr(
+        bot, "build_context_for_reply_ai",
+        lambda candidate, _state: (unit_reply_context(
+            target_id=candidate["id"], contribution=candidate["text"],
+            target_author_id=candidate["author_id"],
+        ), True),
+    )
+    monkeypatch.setattr(bot, "reply_media_context_for_candidate", Mock(return_value={}))
+    monkeypatch.setattr(bot, "evaluate_single_call_reply", legacy_reply_evaluator(Mock(side_effect=editorial_no_reply)))
+
+
+def configure_quote_cycle(monkeypatch):
+    """Configure one quote-reply scenario with no unexpected provider access."""
+    scenario = load_scenario(SCENARIOS / "quote_tweet_reply.json")
+    original = scenario["tweets"]["900"]
+    quotes = scenario["quote_tweets"]["900"]["data"]
+    epoch = 2_000_000_000
+    monkeypatch.setattr(bot, "now_epoch", lambda: epoch)
+    monkeypatch.setattr(bot, "current_datetime", lambda: datetime.fromtimestamp(epoch))
+    monkeypatch.setattr(bot, "single_call_reply", {**bot.single_call_reply, "enabled": True})
+    monkeypatch.setattr(bot, "ENABLE_AUTO_REPLIES", True)
+    monkeypatch.setattr(bot, "ENABLE_QUOTE_TWEET_CHECKS", True)
+    monkeypatch.setattr(bot, "MIN_SECONDS_BETWEEN_REPLIES", 0)
+    monkeypatch.setattr(bot, "build_quote_lookup_post_ids", Mock(return_value=["900"]))
+    monkeypatch.setattr(bot, "get_tweet_by_id_cached", Mock(return_value=original))
+    monkeypatch.setattr(bot, "get_quote_tweets_for_posts", Mock(return_value={"900": quotes}))
+    monkeypatch.setattr(bot, "reply_media_context_for_candidate", Mock(return_value={}))
+    monkeypatch.setattr(bot, "x_request", Mock(side_effect=AssertionError("unexpected provider request")))
+    monkeypatch.setattr(bot, "create_post", Mock(side_effect=AssertionError("unexpected remote write")))
+    return original, quotes
+
+
+@pytest.fixture
+def image_case():
+    """Return a fresh HTTP image response and its bound candidate media context."""
+    response = FakeHttpResponse(200, headers={"Content-Type": "image/png"})
+    media = bot.reply_media_context_for_candidate(
+        {"id": "target", "_attached_media": [{
+            "media_key": "native-photo", "type": "photo",
+            "url": "http://127.0.0.1/media/native.png",
+        }]},
+        lane="mention", target_id="target",
+    )
+    return response, media

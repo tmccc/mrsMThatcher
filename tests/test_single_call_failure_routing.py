@@ -12,49 +12,24 @@ import pytest
 import mrsMThatcher2 as bot
 import single_call_reply as pipeline
 from tests.fake_api_server import FakeApiServer, load_scenario
-from tests.test_integration_harness import (
+from tests.helpers.integration_harness import (
     SCENARIOS,
     prepare_base_dir,
     read_json,
     run_cycle,
 )
-from tests.test_mention_backlog_author_quarantine import (
+from tests.helpers.mention_fixtures import (
     configure_provider_free_mention_check,
     mention,
 )
-from tests.test_single_call_reply import (
+from tests.helpers.single_call_fixtures import (
+    FakeHttpResponse,
     FakeRepository,
     context as pipeline_context,
     enabled_config,
     raw_decision,
     response_envelope,
 )
-
-
-class FakeHttpResponse:
-    """Expose the small requests.Response surface used by reply transports."""
-
-    def __init__(
-        self,
-        status_code: int,
-        *,
-        headers: dict[str, str] | None = None,
-        body: object = None,
-    ) -> None:
-        self.status_code = status_code
-        self.headers = headers or {}
-        self._body = {} if body is None else body
-        self.closed = False
-
-    def json(self) -> object:
-        return copy.deepcopy(self._body)
-
-    def iter_content(self, *, chunk_size: int):
-        del chunk_size
-        yield b"\x89PNG\r\n\x1a\nfixture"
-
-    def close(self) -> None:
-        self.closed = True
 
 
 def _usage() -> dict[str, object]:

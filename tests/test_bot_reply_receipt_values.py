@@ -10,7 +10,7 @@ from unittest.mock import Mock, call
 import pytest
 
 import mrs_bot_reply_receipt_values as values
-from tests.test_legacy_conversational_reply_recovery import (
+from tests.helpers.legacy_reply_fixtures import (
     CASE_IDS,
     _confirmed_receipt,
     _legacy_case,

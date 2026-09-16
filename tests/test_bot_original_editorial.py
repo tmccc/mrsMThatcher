@@ -9,7 +9,8 @@ from types import SimpleNamespace
 import pytest
 
 import mrs_bot_original_editorial as editorial
-from tests.test_original_editorial_shadow_scoring import _basic_quote, bot
+from tests.helpers.bot_fixtures import _basic_quote
+from tests.helpers.bot_runtime import bot
 
 
 def forbidden(*args, **kwargs):

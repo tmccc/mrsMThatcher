@@ -13,7 +13,7 @@ from semantic_alignment.quote_research_retry_execution import (
     build_failed_batch_recovery, retry_prompt, validate_retry_manifest,
     write_recovery_stage_meta_report,
 )
-from tests.test_quote_research_corpus import (
+from tests.helpers.quote_research import (
     FakeDeveloper, FakeVertex, manifest, packet, response,
 )
 

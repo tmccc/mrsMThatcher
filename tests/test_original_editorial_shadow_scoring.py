@@ -10,7 +10,7 @@ import pytest
 
 import mrs_log_digest as digest
 from tests.helpers.bot_runtime import bot
-from tests.helpers.bot_fixtures import image_analysis_for_paths
+from tests.helpers.bot_fixtures import _basic_quote, image_analysis_for_paths
 
 
 def _write_editorial_file(path: Path, image_paths: list[Path], analyses: dict[str, dict] | None = None) -> None:
@@ -44,20 +44,6 @@ def _write_editorial_file(path: Path, image_paths: list[Path], analyses: dict[st
     )
 
 
-def _basic_quote() -> dict:
-    return {
-        "quote_hash": "a" * 64,
-        "line_no": 12,
-        "text": "Freedom and family matter.",
-        "analysis": {
-            "primary_topics": ["freedom", "family"],
-            "secondary_topics": [],
-            "tone": ["serious"],
-            "visual_energy": "medium",
-            "archive_image_preferences": {"visual_affinities": ["freedom", "family"]},
-            "seasonality": {"hard_exclude_outside_windows": False},
-        },
-    }
 
 
 def _editorial_analysis(**overrides: object) -> dict:

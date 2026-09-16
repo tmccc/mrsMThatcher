@@ -1689,12 +1689,17 @@ def analyse(
     )
 
     def add_event(kind: str, ts: datetime, **kwargs: Any) -> Dict[str, Any]:
+        # Keep parser-bounded values intact for status counts, identity joins and
+        # diagnostic classification. Display limits are applied after analysis.
         ev = {"time": ts.strftime("%Y-%m-%d %H:%M:%S"), "kind": kind}
-        for k, v in kwargs.items():
-            if isinstance(v, str):
-                ev[k] = short(v, max_text)
-            else:
-                ev[k] = v
+        for key, value in kwargs.items():
+            # Structured handlers have tighter field-specific limits; this
+            # guard also bounds free-form captures from older plain-text logs.
+            ev[key] = (
+                None if isinstance(value, str)
+                and not valid_bounded_utf8_text(value, allow_empty=True)
+                else value
+            )
         if kind in PROVENANCE_EVENT_KINDS and current_source_record is not None:
             ev["source_refs"] = [
                 record_source_ref(current_source_record, input_file_indexes)
@@ -1721,11 +1726,10 @@ def analyse(
         return _add_or_merge_local_rejection(
             ts, kwargs, lane=lane, target_id=target_id,
             local_rejections_by_identity=local_rejections_by_identity,
-            max_text=max_text,
             valid_string_public_post_id=valid_string_public_post_id,
             _normalise_lane=_normalise_lane, bounded_event_text=bounded_event_text,
             bounded_event_string_list=bounded_event_string_list,
-            short=short, add_event=add_event,
+            add_event=add_event,
         )
 
     def add_receipt_event(kind: str, r: Record, **kwargs: Any) -> None:
@@ -2637,6 +2641,20 @@ def analyse(
         durable_evidence_status=durable_reply_evidence_status,
         production_event_object_ids=production_event_object_ids,
     )
+    # Prose previews can participate in analysis (notably historical-context
+    # classification), so shorten them only once every summary and correlation
+    # has consumed the original values. Semantic fields and separately bounded
+    # public/rejected reply evidence remain exact.
+    for event in events:
+        for field in (
+            "text", "incoming_text", "incoming_contribution", "reply_preview", "proposed_draft",
+            "repaired_draft", "summary", "components",
+        ):
+            value = event.get(field)
+            if field == "text" and event.get("public_text_status") == "confirmed":
+                continue
+            if isinstance(value, str):
+                event[field] = short(value, max_text)
     return report
 
 
@@ -2771,7 +2789,7 @@ def main(argv: Optional[List[str]] = None) -> int:
         action="store_true",
         help="Include detailed filename appendices that are abbreviated in the readable digest.",
     )
-    ap.add_argument("--max-text", type=int, default=280, help="Maximum text length per field in report. Default: 280.")
+    ap.add_argument("--max-text", type=int, default=280, help="Maximum prose-preview length; identifiers, analysis fields and exact reply evidence retain their own bounds. Default: 280.")
     ap.add_argument("--glob", default="mrsMThatcher*.log*", help="Log glob to use when no explicit log files are supplied. Default: mrsMThatcher*.log*")
     ap.add_argument("--project-dir", type=Path, default=Path(__file__).resolve().parent, help="Project directory for config, metadata, history and auto-discovered logs.")
     ap.add_argument("--state-file", type=Path, default=Path(".mrs_log_digest_state.json"), help="Resume-state file, relative to --project-dir unless absolute.")

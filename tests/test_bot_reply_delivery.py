@@ -17,7 +17,7 @@ from tests.helpers.bot_fixtures import (
     isolate_regular_post_receipt,  # noqa: F401
 )
 from tests.helpers.reply_fixtures import unit_approved_reply, unit_sending_v4_reply_receipt
-from tests.test_x_write_outcome_conservatism import (
+from tests.helpers.x_response_fixtures import (
     _existing_reply_target_then_deleted_create,
     isolate_remote_write_state,
 )

@@ -790,12 +790,10 @@ def add_or_merge_local_rejection(
     lane: Any,
     target_id: Any,
     local_rejections_by_identity: Dict[Tuple[str, str], Dict[str, Any]],
-    max_text: int,
     valid_string_public_post_id: Callable[[Any], bool],
     _normalise_lane: Callable[[Any], str],
     bounded_event_text: Callable[..., str],
     bounded_event_string_list: Callable[..., List[str]],
-    short: Callable[..., str],
     add_event: Callable[..., Dict[str, Any]],
 ) -> Dict[str, Any]:
     """Keep one enriched effective local-rejection record per target."""
@@ -809,7 +807,7 @@ def add_or_merge_local_rejection(
     safe_kwargs: Dict[str, Any] = {}
     for field, value in kwargs.items():
         if type(value) is str:
-            safe_kwargs[field] = short(value, max_text)
+            safe_kwargs[field] = bounded_event_text(value, max_characters=25_000)
         elif type(value) is bool:
             safe_kwargs[field] = value
         elif type(value) is int and 0 <= value <= 1_000_000:
@@ -851,5 +849,5 @@ def add_or_merge_local_rejection(
             and value != ""
             and (existing_value is None or existing_value == "")
         ):
-            existing[field] = short(value, max_text) if isinstance(value, str) else value
+            existing[field] = value
     return existing

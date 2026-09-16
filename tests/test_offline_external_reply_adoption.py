@@ -807,7 +807,7 @@ def test_media_mode_rejects_every_external_reply_option_before_mutation(
     capfd: pytest.CaptureFixture[str],
     external_options: tuple[str, ...],
 ) -> None:
-    from tests.test_remote_write_safety_marker_reconciliation import (
+    from tests.helpers.safety_reconciliation import (
         media_cli_command,
         media_incident_installation,
     )
@@ -844,7 +844,7 @@ def test_valid_media_mode_remains_supported_after_option_separation(
     tmp_path: Path,
     capfd: pytest.CaptureFixture[str],
 ) -> None:
-    from tests.test_remote_write_safety_marker_reconciliation import (
+    from tests.helpers.safety_reconciliation import (
         media_cli_command,
         media_incident_installation,
     )

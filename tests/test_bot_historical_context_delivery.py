@@ -16,11 +16,12 @@ import historical_context_outbox as outbox_module
 import mrs_bot_historical_context_delivery as owner
 from tests.helpers.bot_runtime import bot
 from tests.helpers.bot_fixtures import isolate_regular_post_receipt  # noqa: F401
-from tests.test_historical_context_reply_semantic_gate import (
-    _formatted, _gate, _install_bot_context,
-)
-from tests.test_production_consistency_incident import (
-    _bind_context_attempt_to_source_receipt, isolated_incident_paths,
+from tests.helpers.historical_context_fixtures import (
+    _bind_context_attempt_to_source_receipt,
+    _formatted,
+    _gate,
+    _install_bot_context,
+    isolated_incident_paths,
 )
 
 

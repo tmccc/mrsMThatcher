@@ -9,7 +9,7 @@ import pytest
 
 from tests.helpers.bot_runtime import bot, SOURCE_GET_TWEET_BY_ID
 from tests.helpers.bot_fixtures import isolate_regular_post_receipt  # noqa: F401
-from tests.test_mention_backlog_author_quarantine import mention
+from tests.helpers.mention_fixtures import mention
 
 
 @pytest.mark.parametrize('note', [None, {}, {'text': ''}, {'text': '   '}])

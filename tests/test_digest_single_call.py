@@ -31,6 +31,59 @@ def _validation_failure_record(offset, **fields):
     })
 
 
+@pytest.mark.parametrize("max_text", [-1, 0, 1, 7, 12, 80, 280, 25_000])
+def test_display_limits_do_not_change_validation_attempts_or_candidate_identities(max_text):
+    rejected = "An unpublished reply.\n\n" + "界" * 4100
+    records = [
+        _validation_failure_record(
+            0, target_id="1234567890123456781", lane="quote_tweet",
+            validation_error_codes=["reply_contains_mention", "PRIVATE invalid code"],
+            rejected_reply_text=rejected,
+        ),
+        _validation_failure_record(
+            1, target_id="1234567890123456782", lane="quote_tweet",
+            error_category="schema_validation",
+            validation_error_codes=["invalid_used_fact_ids"],
+        ),
+        _validation_failure_record(
+            2, target_id="1234567890123456783", local_validation_status="passed",
+            error_category=None, pipeline_status="reply",
+        ),
+    ]
+    for index, target in enumerate(("1234567890123456781", "1234567890123456782")):
+        records.extend([
+            structured_record(3 + 2 * index, {
+                "event": "single_call_reply_provider_usage", "lane": "quote_tweet",
+                "target_id": target, "request_attempt_count": 1,
+                "input_tokens": 100, "output_tokens": 25,
+            }),
+            structured_record(4 + 2 * index, {
+                "event": "single_call_reply_posting_outcome", "lane": "quote_tweet",
+                "target_id": target, "status": "confirmed",
+                "reply_post_id": str(9876543210123456780 + index),
+            }),
+        ])
+    report = digest.analyse(records, max_text=max_text, generation_time=records[-1].ts)
+    assert report == digest.analyse(records, max_text=25_000, generation_time=records[-1].ts)
+    summary = report["single_call_reply"]
+    assert summary["repeated_model_attempt_candidate_count"] == 0
+    assert summary["replies_posted_count"] == 2
+    assert summary["local_validation_failure_count"] == 1
+    assert summary["schema_validation_failure_count"] == 1
+    assert summary["one_call_compliance"] == "passed"
+    candidates = summary["validation_failure_details"]["candidates"]
+    assert [item["target_id"] for item in candidates] == [
+        "1234567890123456781", "1234567890123456782",
+    ]
+    assert candidates[0]["validation_error_details_status"] == "partial"
+    assert candidates[0]["rejected_reply_text"] == rejected[:MAX_REJECTED_REPLY_TEXT_CHARACTERS]
+    assert candidates[0]["rejected_reply_text_status"] == "truncated"
+    assert "PRIVATE invalid code" not in repr(report)
+    rendered = digest.render_markdown(report)
+    assert "reply_contains_mention" in rendered
+    assert "1234567890123456781" in rendered
+
+
 def test_validation_failure_summary_counts_distinct_rules_and_preserves_categories():
     report = digest.analyse([
         _validation_failure_record(0, lane="quote_tweet", validation_error_codes=[
@@ -742,12 +795,12 @@ def test_single_call_summary_consumes_original_emitted_and_truncated_events(monk
         "single_call_reply_posting_outcome", "single_call_reply_draft_recovered",
         "reply_strategy_decision", "single_call_reply_draft_recovered",
     ]
-    assert captured[1]["strategy_version"] == "ssssssss…"
+    assert captured[1]["strategy_version"] == "s" * 30
     assert captured[1]["lane"] == "hot-post"
     assert captured[1]["time"] == "2026-09-04 12:00:01"
     assert "source_refs" not in captured[1]
     summary = report["single_call_reply"]
-    assert summary["strategy_version_counts"] == {"ssssssss…": 1}
+    assert summary["strategy_version_counts"] == {"s" * 30: 1}
     assert summary["replies_posted_count"] == 1
     assert summary["recovered_draft_count"] == 2
     assert summary["one_call_compliance"] == "passed"

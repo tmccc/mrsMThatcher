@@ -4,7 +4,6 @@ import hashlib
 import json
 import shutil
 from pathlib import Path
-from types import MappingProxyType
 
 import pytest
 
@@ -33,6 +32,12 @@ from historical_context_source_curated_evidence import (
     CURATED_EVIDENCE_FILENAME,
 )
 from transaction_mutation_authority import issue_transaction_mutation_authority
+
+from tests.helpers.historical_context_fixtures import (
+    _gate,
+    _formatted,
+    _install_bot_context,
+)
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -86,107 +91,6 @@ def _copy_gate_inputs(
         "historical_context_mtf_primary_review.json",
     ):
         shutil.copy2(ROOT / name, destination / name)
-
-
-def _gate(
-    blocked: dict[str, str] | None = None,
-    *,
-    available: bool = True,
-    reviewed: dict[str, str] | None = None,
-) -> HistoricalContextSemanticGate:
-    if not available:
-        return HistoricalContextSemanticGate.closed("test gate unavailable")
-    return HistoricalContextSemanticGate(
-        available=True,
-        reason="",
-        ledger_sha256=EXPECTED_LEDGER_SHA256,
-        projection_sha256=EXPECTED_PROJECTION_SHA256,
-        blocked_dispositions=MappingProxyType(dict(blocked or {})),
-        reviewed_dispositions=MappingProxyType(dict(reviewed or {})),
-    )
-
-
-def _formatted(quote_id: str) -> dict[str, object]:
-    text = "Context — Safe reviewed context."
-    return {
-        "quote_id": quote_id,
-        "text": text,
-        "character_count": len(text),
-        "weighted_character_count": len(text),
-        "raw_character_count": len(text),
-        "maximum_length": 4000,
-        "historical_confidence": "high",
-        "meaning_included": False,
-        "meaning_omitted": True,
-        "meaning_decision_reason": "Meaning omitted by reviewed formatter.",
-        "shortening_applied": False,
-        "verification_label": "Exact wording",
-        "verification_omitted": False,
-        "source": {"title": "Source", "url": "", "source_type": "official"},
-        "source_class": "original speech transcript",
-        "source_omitted": False,
-        "formatter_version": context_formatter.HISTORICAL_CONTEXT_FORMATTER_V5,
-        "confidence_dimensions": {
-            "attribution": "high",
-            "wording": "high",
-            "source_event": "high",
-            "date": "high",
-            "historical_context": "high",
-            "interpretation": "high",
-        },
-        "source_role_audit_version": "test-source-role-audit-v1",
-        "rendering_mode": "public",
-        "template_variant": "compact_without_redundant_meaning",
-    }
-
-
-def _install_bot_context(
-    monkeypatch: pytest.MonkeyPatch,
-    tmp_path: Path,
-    *,
-    packet: dict[str, str],
-    gate: HistoricalContextSemanticGate,
-) -> list[dict[str, object]]:
-    # These fixtures isolate semantic policy and delivery. Give their synthetic
-    # packets supported research so the separate completeness check can pass.
-    packet.setdefault("verification_status", "exact")
-    packet.setdefault("research_confidence", "high")
-    packet.setdefault("stable_locator", "Reviewed fixture transcript, page 1")
-    events: list[dict[str, object]] = []
-    monkeypatch.setattr(
-        bot,
-        "historical_context_reply",
-        {**bot.historical_context_reply, "enabled": True},
-    )
-    monkeypatch.setattr(bot, "_HISTORICAL_CONTEXT_SEMANTIC_GATE", gate)
-    monkeypatch.setattr(bot, "HISTORICAL_CONTEXT_RESEARCH_DIR", tmp_path / "research")
-    monkeypatch.setattr(bot, "HISTORICAL_CONTEXT_REPLY_HISTORY_FILE", tmp_path / "history.json")
-    monkeypatch.setattr(bot, "HISTORICAL_CONTEXT_REPLY_RECEIPT_FILE", tmp_path / "context-receipt.json")
-    monkeypatch.setattr(
-        bot,
-        "HISTORICAL_CONTEXT_REPLY_OUTBOX_FILE",
-        tmp_path / "context-outbox.json",
-    )
-    monkeypatch.setattr(bot, "_HISTORICAL_CONTEXT_CORPUS_SNAPSHOT", None)
-    monkeypatch.setattr(bot, "_HISTORICAL_CONTEXT_RUNTIME_UNAVAILABLE_REASON", None)
-    monkeypatch.setattr(bot, "_HISTORICAL_CONTEXT_OUTBOX_UNAVAILABLE_REASON", None)
-    monkeypatch.setattr(bot, "block_if_ambiguous_remote_post", lambda: None)
-    monkeypatch.setattr(
-        context_formatter,
-        "load_and_validate_corpus",
-        lambda *_args, **_kwargs: ({packet["quote_id"]: packet}, set()),
-    )
-    monkeypatch.setattr(
-        context_formatter,
-        "packet_for_posted_quote",
-        lambda *_args, **_kwargs: packet,
-    )
-    monkeypatch.setattr(
-        bot,
-        "log_event",
-        lambda event, **fields: events.append({"event": event, **fields}),
-    )
-    return events
 
 
 def test_real_gate_is_hash_bound_and_contains_exact_115_13_6_7_policy():

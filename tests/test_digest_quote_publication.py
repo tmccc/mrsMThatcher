@@ -5,6 +5,8 @@ from __future__ import annotations
 from dataclasses import replace
 import json
 
+import pytest
+
 import mrs_log_digest as digest
 import mrs_log_digest_quote_publication as publication
 
@@ -262,7 +264,8 @@ def test_interleaved_selftest_publications_cannot_poison_production_correlation(
     assert report["quote_publication"]["correlation_warnings"] == []
 
 
-def test_retired_trial_logs_and_state_keep_only_generic_publication_evidence():
+@pytest.mark.parametrize("max_text", [0, 1, 7, 80, 280])
+def test_retired_trial_logs_and_state_keep_only_generic_publication_evidence(max_text):
     quote = "The original quotation."
     public_text = quote + "\n\nQuestion — What do you think?"
     main = {
@@ -284,7 +287,7 @@ def test_retired_trial_logs_and_state_keep_only_generic_publication_evidence():
                for i, payload in enumerate([main, retired, root])]
     records.append(record(3, "INFO", "post_random_quote",
                           "Quote/image posted successfully. posted_id=123"))
-    report = digest.analyse(records)
+    report = digest.analyse(records, max_text=max_text)
     event, = [row for row in report["events"] if row["kind"] == "quote_image_posted"]
     assert event["text"] == event["public_text"] == public_text
     assert event["public_text_status"] == "confirmed"

@@ -509,7 +509,7 @@ def test_inferred_strategy_outcomes_keep_current_callbacks_order_and_root_identi
 
 def test_local_rejection_adapter_keeps_payload_collisions_current_helpers_and_map_identity(monkeypatch):
     captured, calls = {}, []
-    dependencies = ("valid_string_public_post_id", "_normalise_lane", "bounded_event_text", "bounded_event_string_list", "short")
+    dependencies = ("valid_string_public_post_id", "_normalise_lane", "bounded_event_text", "bounded_event_string_list")
     for name in dependencies:
         original = getattr(digest, name)
 
@@ -530,7 +530,6 @@ def test_local_rejection_adapter_keeps_payload_collisions_current_helpers_and_ma
     def merge(ts, kwargs, **inputs):
         for name in dependencies:
             assert inputs[name] is getattr(digest, name)
-        assert inputs["max_text"] == 40
         before = copy.deepcopy(kwargs)
         result = original_merge(ts, kwargs, **inputs)
         assert kwargs == before
@@ -563,11 +562,54 @@ def test_local_rejection_adapter_keeps_payload_collisions_current_helpers_and_ma
     assert report["events"][0] is row
     assert row == {
         "time": "2026-09-04 12:00:00", "kind": "reply_strategy_local_rejection", "lane": "mention", "target_id": "310",
-        "short": digest.short(payload["short"], 40), "max_text": 1_000_000, "add_event": False,
+        "short": payload["short"], "max_text": 1_000_000, "add_event": False,
         "local_rejections_by_identity": ["safe", "also safe"], "valid_string_public_post_id": 0,
         "_normalise_lane": "filled", "bounded_event_text": "filled", "bounded_event_string_list": True,
     }
     assert report["summary"]["stats"]["reply_strategy_local_rejection"] == 4
+
+
+@pytest.mark.parametrize("max_text", [0, 1, 7, 12, 80, 280, 25_000])
+def test_display_limits_preserve_local_rejection_merges_and_legacy_summaries(max_text):
+    records = []
+    draft = "A long proposed reply.\nAnother sentence."
+    for target in ("1234567890123456781", "1234567890123456782"):
+        records.extend([
+            structured_record(len(records), {
+                "event": "ai_reply_pipeline_decision", "lane": "mention",
+                "target_id": target, "status": "reply", "mode": "factual",
+                "effective_status": "local_rejection",
+                "original_local_rejection_reason": "exact_duplicate_reply",
+                "incoming_contribution": draft, "proposed_draft": draft,
+            }),
+            structured_record(len(records) + 1, {
+                "event": "ai_reply_pipeline_effective_outcome", "lane": "mention",
+                "target_id": target, "original_local_rejection_reason": "exact_duplicate_reply",
+                "effective_status": "local_rejection", "repaired_draft": draft,
+            }),
+        ])
+    report = digest.analyse(records, max_text=max_text, generation_time=records[-1].ts)
+    baseline = digest.analyse(records, max_text=25_000, generation_time=records[-1].ts)
+    rejections = [item for item in report["events"] if item["kind"] == "reply_strategy_local_rejection"]
+    assert len(rejections) == 2
+    assert {item["target_id"] for item in rejections} == {"1234567890123456781", "1234567890123456782"}
+    assert all(item["reason"] == "exact_duplicate_reply" for item in rejections)
+    assert all(item["proposed_draft"] == digest.short(draft, max_text) for item in rejections)
+    assert all(item["repaired_draft"] == digest.short(draft, max_text) for item in rejections)
+    assert digest.reply_strategy_summary(report["events"]) == digest.reply_strategy_summary(baseline["events"])
+    assert digest.reply_strategy_summary(report["events"])["terminal_repetition_rejection_count"] == 2
+    for key in ("summary", "legacy_multi_stage", "error_health", "api_health"):
+        assert report[key] == baseline[key]
+
+
+def test_unbounded_legacy_captures_cannot_bypass_fixed_event_limits():
+    report = digest.analyse([replace(
+        structured_record(0, {}),
+        msg="Selected matched image basename=" + "x" * 25_001
+        + " image_no=1 score=1 components=" + "y" * 25_001,
+    )], max_text=1_000_000)
+    assert report["events"][0]["image"] is None
+    assert report["events"][0]["components"] is None
 
 
 def test_old_multi_stage_logs_are_only_counted_as_legacy():

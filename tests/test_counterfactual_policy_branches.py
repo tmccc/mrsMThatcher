@@ -6,7 +6,7 @@ from pathlib import Path
 
 import pytest
 
-from tests.test_simulate_regular_post_futures import (
+from tests.helpers.selector_simulation import (
     build_simulator_snapshot,
     isolated_simulator_bot,
     run_private_future,

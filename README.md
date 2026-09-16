@@ -72,6 +72,12 @@ explicitly import `isolate_regular_post_receipt`; its autouse behaviour is scope
 to those test modules. Network and production-state guards are defined in
 `tests/conftest.py`.
 
+Shared mention, single-call, historical-context, receipt and transport fixtures
+also live in `tests/helpers`, alongside integration-harness, research and offline
+selector support. Provider test modules import the same helpers as their
+consumers; tests should not import support from other test modules. Import
+fixtures explicitly in each test module so their scope remains visible.
+
 Bot regression tests are grouped by feature in `tests/test_bot_*_regressions.py`,
 including asset selection, posting, receipts, reply handling, state and runtime
 configuration. Keep feature-specific helpers beside their tests and shared
@@ -640,6 +646,13 @@ from its live YAML, validate the configuration, and reload Home Assistant.
 Digest JSON schema version 4 removes trial state, outcomes and correlations.
 Generic quote publication warnings now appear under `quote_publication`;
 confirmed historical public text remains available.
+
+`--max-text` limits display previews. It does not truncate identifiers, status
+codes or other values used to count and correlate events. Analysis uses validated,
+independently bounded fields before previews are shortened, so changing the
+display limit does not change failure counts or publication matching. Exact
+confirmed public text and bounded rejected-reply diagnostics retain their own
+limits.
 
 `mrs_log_digest.py` resolves project metadata through `--project-dir` (the
 repository/script directory by default), including when logs are passed by

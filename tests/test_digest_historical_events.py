@@ -139,8 +139,8 @@ def _analyse(records, max_text=280, **kwargs):
     )
 
 
-@pytest.mark.parametrize("max_text,reply_count", [(0, 19), (7, 19), (80, 18), (280, 18), (25_000, 18)])
-def test_interleaved_events_keep_counts_provenance_and_independent_analysis(max_text, reply_count):
+@pytest.mark.parametrize("max_text", [0, 7, 80, 280, 25_000])
+def test_interleaved_events_keep_counts_provenance_and_independent_analysis(max_text):
     records = _synthetic_records()
     original = deepcopy(records)
     report = _analyse(records, max_text)
@@ -153,11 +153,14 @@ def test_interleaved_events_keep_counts_provenance_and_independent_analysis(max_
         "already_completed": 3, "completed": 4, "dry_run": 2, "failed": 2,
         "future_" + "x" * 90: 1, "skipped_future_policy": 2, "unknown": 4,
     }
-    # With short identity fields, existing correlation adds a confirmed public
-    # reply to this section without changing the structured family counters.
-    assert len(replies) == reply_count
+    # Display limits must not break the identity join and synthesize an extra
+    # confirmed public reply beside its existing historical-context event.
+    assert len(replies) == 18
     assert counts["historical_context_reply"] == 18
-    assert sum(item["kind"] == "confirmed_public_reply" for item in replies) == reply_count - 18
+    assert not any(item["kind"] == "confirmed_public_reply" for item in replies)
+    baseline = _analyse(records, 25_000)
+    for section in ("historical_context_quality", "api_health", "published_reply_text_health"):
+        assert report[section] == baseline[section]
     assert [item["kind"] for item in report["events"][:15]] == [
         FAMILIES[0], FAMILIES[1],
         *[kind for _ in range(5) for kind in (FAMILIES[2], "reply_evidence_unavailable")],
@@ -172,7 +175,7 @@ def test_interleaved_events_keep_counts_provenance_and_independent_analysis(max_
     assert digest.render_markdown(_analyse(records, max_text)) == digest.render_markdown(report)
 
 
-def test_quality_consumes_emitted_fields_but_family_counts_precede_truncation(monkeypatch):
+def test_quality_consumes_complete_metadata_and_preserves_event_identity(monkeypatch):
     observed = []
     summary = digest.historical_context_quality_summary
 
@@ -184,10 +187,39 @@ def test_quality_consumes_emitted_fields_but_family_counts_precede_truncation(mo
     report = _analyse([_record(0, _reply()), _record(1, _reply("skipped_future_policy", reason="long skip reason"))], 12)
     replies = report["historical_context_replies"]["events"]
     assert all(any(item is reply for item in observed) for reply in replies)
-    assert replies[0]["verification_label"] == "Exact wordi…"
-    assert report["historical_context_quality"]["verification_counts"]["unavailable"] == 1
-    assert report["historical_context_quality"]["skip_reason_counts"] == {"long skip r…": 1}
+    assert replies[0]["verification_label"] == "Exact wording verified"
+    assert replies[0]["reply_preview"] == digest.short(_reply()["reply_preview"], 12)
+    assert report["historical_context_quality"]["verification_counts"]["Exact wording verified"] == 1
+    assert report["historical_context_quality"]["skip_reason_counts"] == {"long skip reason": 1}
     assert report["historical_context_replies"]["status_counts"] == {"completed": 1, "skipped_future_policy": 1}
+
+
+@pytest.mark.parametrize("max_text", [0, 1, 7, 12, 80, 280, 25_000])
+def test_historical_preview_classification_precedes_display_shortening(max_text):
+    previews = [
+        "Context — A concrete event.\nMeaning — An interpretation.",
+        "Context — The surviving record dates this wording to 1980.",
+        "Context — The surviving attribution does not establish an occasion, "
+        "date or immediate historical issue.",
+        "Meaning — An interpretation without a context section.",
+    ]
+    records = [_record(i, _reply("dry_run", reply_preview=text)) for i, text in enumerate(previews)]
+    report = _analyse(records, max_text)
+    assert report["historical_context_quality"] == _analyse(records, 25_000)["historical_context_quality"]
+    assert report["historical_context_quality"]["rendering_context_counts"] == {
+        "concrete_event_or_date_context_included": 1,
+        "date_only_qualified_context_included": 1,
+        "context_omitted_no_useful_event_or_date": 1,
+        "old_generic_fallback_used": 1,
+        "rendering_metadata_unavailable": 0,
+    }
+    assert [item["reply_preview"] for item in report["events"]] == [
+        digest.short(text, max_text) for text in previews
+    ]
+    digest.refresh_derived(report)
+    rendered = digest.render_markdown(report)
+    assert "historical_context_reply_schema_v5" in rendered
+    assert report["historical_context_quality"] == _analyse(records, 25_000)["historical_context_quality"]
 
 
 @pytest.mark.parametrize("fields", [

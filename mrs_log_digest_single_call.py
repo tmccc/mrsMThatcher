@@ -471,7 +471,7 @@ def record_single_call_reply_decision(
     ):
         provider_status_code = None
     rejected_fields = _rejected_reply_fields(event_obj)
-    projected_event = add_event(
+    add_event(
         "single_call_reply_decision",
         ts,
         lane=normalise_reply_lane(event_obj.get("lane")),
@@ -576,9 +576,6 @@ def record_single_call_reply_decision(
         **_validation_error_fields(event_obj),
         **rejected_fields,
     )
-    # Diagnostic text has its own character cap and must keep its actual
-    # whitespace, rather than the coordinator's shortened display form.
-    projected_event.update(rejected_fields)
 
 
 def record_single_call_reply_provider_usage(

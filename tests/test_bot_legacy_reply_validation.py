@@ -11,7 +11,7 @@ from unittest.mock import Mock, call
 import pytest
 
 import mrs_bot_legacy_reply_validation as legacy
-from tests.test_legacy_conversational_reply_recovery import (
+from tests.helpers.legacy_reply_fixtures import (
     CASE_IDS,
     _legacy_case,
     bot,

@@ -9,7 +9,7 @@ from unittest.mock import Mock, call
 import pytest
 
 import mrs_bot_reply_native_media as native_media
-from tests.test_bot_reply_generation import image_case
+from tests.helpers.reply_fixtures import image_case
 from tests.helpers.bot_runtime import bot
 from tests.helpers.bot_fixtures import isolate_regular_post_receipt  # noqa: F401
 

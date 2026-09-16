@@ -2,7 +2,6 @@ from __future__ import annotations
 
 from tests.helpers.reply_evaluation import legacy_reply_evaluator
 
-from datetime import datetime
 import inspect
 import json
 from pathlib import Path
@@ -13,7 +12,7 @@ from unittest.mock import Mock, call
 import pytest
 
 import mrs_bot_normal_reply_cycle as cycle
-from tests.test_mention_backlog_author_quarantine import (
+from tests.helpers.mention_fixtures import (
     editorial_no_reply,
     mention,
     queue_active_mention,
@@ -21,6 +20,7 @@ from tests.test_mention_backlog_author_quarantine import (
 from tests.helpers.bot_runtime import bot
 from tests.helpers.bot_fixtures import isolate_regular_post_receipt  # noqa: F401
 from tests.helpers.reply_fixtures import (
+    configure_normal_cycle as _configure_cycle,
     unit_approved_reply,
     unit_confirmed_v4_reply_receipt,
     unit_reply_context,
@@ -92,30 +92,6 @@ def test_adapter_forwards_current_dependencies_arguments_results_and_errors(monk
     with pytest.raises(TypeError) as caught:
         adapter(state)
     assert caught.value is failure
-
-
-def _configure_cycle(monkeypatch):
-    epoch = 2_000_000_000
-    monkeypatch.setattr(bot, "now_epoch", lambda: epoch)
-    monkeypatch.setattr(bot, "current_datetime", lambda: datetime.fromtimestamp(epoch))
-    monkeypatch.setattr(bot, "single_call_reply", {**bot.single_call_reply, "enabled": True})
-    monkeypatch.setattr(bot, "ENABLE_AUTO_REPLIES", True)
-    monkeypatch.setattr(bot, "MIN_SECONDS_BETWEEN_REPLIES", 0)
-    monkeypatch.setattr(bot, "MAX_AUTO_REPLIES_PER_DAY", 48)
-    monkeypatch.setattr(bot, "MAX_REPLIES_PER_AUTHOR_PER_DAY", 6)
-    monkeypatch.setattr(bot, "MAX_MENTIONS_PER_CHECK", 5)
-    monkeypatch.setattr(bot, "get_hot_post_reply_candidates", Mock(return_value=[]))
-    monkeypatch.setattr(bot, "x_request", Mock(side_effect=AssertionError("unexpected provider request")))
-    monkeypatch.setattr(bot, "create_post", Mock(side_effect=AssertionError("unexpected remote write")))
-    monkeypatch.setattr(
-        bot, "build_context_for_reply_ai",
-        lambda candidate, _state: (unit_reply_context(
-            target_id=candidate["id"], contribution=candidate["text"],
-            target_author_id=candidate["author_id"],
-        ), True),
-    )
-    monkeypatch.setattr(bot, "reply_media_context_for_candidate", Mock(return_value={}))
-    monkeypatch.setattr(bot, "evaluate_single_call_reply", legacy_reply_evaluator(Mock(side_effect=editorial_no_reply)))
 
 
 @pytest.mark.parametrize("initial_count,model_calls", [(2, 1), (2, 0), (4, 1)])

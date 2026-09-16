@@ -11,7 +11,7 @@ from unittest.mock import Mock, call
 import pytest
 
 import mrs_bot_mention_discovery as discovery
-from tests.test_mention_backlog_author_quarantine import (
+from tests.helpers.mention_fixtures import (
     install_mention_pages,
     mention,
     mention_backlog,

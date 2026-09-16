@@ -22,76 +22,9 @@ from remote_write_safety_protocol import (
 from tests.helpers.protocol_activation import create_test_protocol_activation
 from transaction_mutation_authority import issue_transaction_mutation_authority
 
-
-def install_paths(
-    monkeypatch: pytest.MonkeyPatch,
-    base: Path,
-    *,
-    activate_protocol: bool = True,
-) -> None:
-    monkeypatch.setattr(bot, "BASE_DIR", base)
-    monkeypatch.setattr(bot, "STATE_FILE", base / "bot_state.json")
-    monkeypatch.setattr(bot, "LINES_USED_FILE", base / "lines_used.json")
-    monkeypatch.setattr(bot, "IMAGES_USED_FILE", base / "images_used.json")
-    monkeypatch.setattr(bot, "INSTALLATION_MARKER_FILE", base / ".mrsMThatcher.initialised.json")
-    monkeypatch.setattr(
-        bot,
-        "INSTALLATION_IN_PROGRESS_FILE",
-        base / ".mrsMThatcher.initialising.json",
-    )
-    monkeypatch.setattr(bot, "REGULAR_POST_RECEIPT_FILE", base / "regular_post_receipt.json")
-    monkeypatch.setattr(bot, "MEME_POST_RECEIPT_FILE", base / "meme_post_receipt.json")
-    monkeypatch.setattr(bot, "CONFIRMED_REPLY_RECEIPT_FILE", base / "confirmed_reply_receipt.json")
-    monkeypatch.setattr(
-        bot,
-        "MEDIA_UPLOAD_RECEIPT_FILE",
-        base / "remote_media_upload_receipt.json",
-    )
-    monkeypatch.setattr(bot, "AMBIGUOUS_POST_OUTCOME_FILE", base / "ambiguous_post_outcome.json")
-    monkeypatch.setattr(
-        bot,
-        "AMBIGUOUS_POST_OUTCOME_SUCCESSOR_FILE",
-        base / "ambiguous_post_outcome.restart_barrier.json",
-    )
-    activation = base / ACTIVATION_BASENAME
-    monkeypatch.setattr(
-        bot,
-        "REMOTE_WRITE_SAFETY_PROTOCOL_ACTIVATION_FILE",
-        activation,
-    )
-    monkeypatch.setattr(
-        bot,
-        "HISTORICAL_CONTEXT_REPLY_HISTORY_FILE",
-        base / "historical_context_reply_history.json",
-    )
-    monkeypatch.setattr(
-        bot,
-        "HISTORICAL_CONTEXT_REPLY_RECEIPT_FILE",
-        base / "historical_context_reply_receipt.json",
-    )
-    monkeypatch.setattr(
-        bot,
-        "HISTORICAL_CONTEXT_REPLY_OUTBOX_FILE",
-        base / "historical_context_reply_outbox.json",
-    )
-    monkeypatch.setattr(bot, "_AMBIGUOUS_REMOTE_POST_SEEN", False)
-    monkeypatch.setattr(bot, "_AMBIGUOUS_MARKER_DURABILITY_UNCERTAIN", False)
-    monkeypatch.setattr(bot, "_RETAINED_CONFIRMED_POST_SIGINT_GUARD", None)
-    # Low-level transport cases in this module create an exact source receipt
-    # without constructing the separate production outbox obligation.  The
-    # outbox/source integration is exercised in its dedicated suites; keep this
-    # fixture focused on the response and transport-journal boundary.
-    monkeypatch.setattr(
-        bot,
-        "historical_context_outbox_remote_attempt_is_blocking",
-        lambda **_kwargs: False,
-    )
-    monkeypatch.setattr(bot, "STATE_BACKUP_COUNT", 2)
-    # Initialisation's real singleton ownership is covered separately; these
-    # fixture-level calls exercise the durable namespace transaction itself.
-    monkeypatch.setattr(bot, "acquire_instance_lock", lambda: None)
-    if activate_protocol:
-        create_test_protocol_activation(activation)
+from tests.helpers.installation_fixtures import (
+    install_paths,
+)
 
 
 def prepare_context_create(

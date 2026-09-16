@@ -994,15 +994,16 @@ update their own status/state counters afterward.
 digest emits them through `add_event` and keeps that exact returned object.
 The digest then validates completed/already-completed anchors against the
 original strict structured record before calling `count_historical_context_reply`
-with the projected, pre-truncation status. Preparation confers no publication
+with the projected status. Preparation confers no publication
 authority. The digest retains `historical_context_reply_posted` validation,
 production/self-test attribution, durable-history/receipt correlation and public
 text enrichment. No pending state or general dispatcher is introduced.
 
 `historical_context_quality_summary` and its verification/confidence count
 helpers now belong to the historical-events module and remain importable through
-the digest, along with their vocabulary. Quality still consumes the same emitted,
-truncated and filtered events at the original point in analysis. The shared
+the digest, along with their vocabulary. Quality consumes the same emitted and
+filtered events before display previews are shortened. Statuses, identities and
+classification fields remain independent of `max_text`. The shared
 post-ID/UTF-8 validators, bounded text/integer/boolean projections, their bounds
 and regexes, and `_count_optional` belong to the values leaf and remain explicitly
 importable through the digest. Durable-history validation retains its distinct
@@ -1100,9 +1101,11 @@ explicit digest re-export with its original signature. The specific handlers
 `record_single_call_reply_draft_recovered` accept already parsed fields, the
 record timestamp and a keyword-only `add_event` callback. The digest retains the
 original branch predicates, precedence, outer parsing and continue flow.
-`add_event` still constructs and retains each event dictionary, applies
-`max_text`, attributes provenance/production identity and increments statistics.
-The summary consumes those same emitted objects at the original analysis point.
+`add_event` constructs and retains each event dictionary, preserves bounded
+semantic values, attributes provenance/production identity and increments
+statistics. The summary consumes those same emitted objects at the original
+analysis point. Display previews are shortened only after analysis and public
+text enrichment; `max_text` cannot alter status classification or correlation.
 
 Field order, allowlists, defaults, exact integer/boolean distinctions and bounds
 are unchanged. An explicitly invalid `recent_conversational_reply_count` does

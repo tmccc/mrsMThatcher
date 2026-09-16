@@ -7,6 +7,8 @@ from datetime import datetime
 import copy
 import json
 
+import pytest
+
 import mrs_log_digest as digest
 
 from tests.helpers.digest_records import structured_record
@@ -81,7 +83,8 @@ def test_mention_control_extraction_keeps_event_counter_and_source_identity(monk
     assert observation["events"][0]["later"] is True
 
 
-def test_digest_distinguishes_confirmed_main_context_states_and_meme_stage():
+@pytest.mark.parametrize("max_text", [0, 1, 7, 80, 280])
+def test_digest_distinguishes_confirmed_main_context_states_and_meme_stage(max_text):
     structured = [
         {
             "event": "posting_transaction_state",
@@ -124,7 +127,7 @@ def test_digest_distinguishes_confirmed_main_context_states_and_meme_stage():
         for index, payload in enumerate(structured, start=1)
     ]
 
-    report = digest.analyse(records)
+    report = digest.analyse(records, max_text=max_text)
     consistency = report["production_consistency"]
     assert consistency["context_transaction_state_counts"] == {
         "context_reply_pending": 1

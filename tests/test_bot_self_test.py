@@ -11,7 +11,7 @@ from unittest.mock import MagicMock, Mock, call
 import pytest
 
 import mrs_bot_self_test as owner
-from tests.test_fail_safe_bootstrap_and_control import prepare_self_test_control_case
+from tests.helpers.installation_fixtures import prepare_self_test_control_case
 from tests.helpers.bot_runtime import bot
 from tests.helpers.bot_fixtures import isolate_regular_post_receipt  # noqa: F401
 

@@ -501,7 +501,7 @@ def prepare_historical_context_reply(event_obj: Dict[str, Any]) -> Dict[str, Any
 
     The caller must emit through its usual insertion path, retain that returned
     object, and check the original canonical anchor before publication enrichment.
-    Quality aggregation must consume the emitted, truncated fields.
+    Quality aggregation must consume the emitted fields before display shortening.
     """
     return {
         "status": bounded_event_text(
@@ -538,6 +538,6 @@ def prepare_historical_context_reply(event_obj: Dict[str, Any]) -> Dict[str, Any
 def count_historical_context_reply(status: str, stats: Counter) -> None:
     """Count the projected status once, after the coordinator checks the anchor.
 
-    The status precedes generic event truncation, as for other family counters.
+    The status retains its parser-defined bound regardless of display limits.
     """
     stats[f"historical_context_reply_status_{status}"] += 1

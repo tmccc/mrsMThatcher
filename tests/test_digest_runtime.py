@@ -90,7 +90,7 @@ def test_state_summary_keeps_current_unknown_labels(monkeypatch):
 
 
 def test_author_progress_keeps_current_callbacks_limits_and_observation_time(monkeypatch):
-    from tests.test_mention_backlog_author_quarantine import (
+    from tests.helpers.mention_fixtures import (
         DIGEST_AUTHOR_NO_REPLY_CONFIG, digest_author_no_reply_record,
     )
 

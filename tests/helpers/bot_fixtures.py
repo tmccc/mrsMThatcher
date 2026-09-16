@@ -425,3 +425,21 @@ def schema_current_main_attempt(lane: str) -> dict:
 
 def write_image_analysis(path: Path, analysis: dict) -> None:
     path.write_text(json.dumps(analysis), encoding="utf-8")
+
+
+def _basic_quote() -> dict:
+    """Build a fresh quotation with stable original-editorial scoring metadata."""
+
+    return {
+        "quote_hash": "a" * 64,
+        "line_no": 12,
+        "text": "Freedom and family matter.",
+        "analysis": {
+            "primary_topics": ["freedom", "family"],
+            "secondary_topics": [],
+            "tone": ["serious"],
+            "visual_energy": "medium",
+            "archive_image_preferences": {"visual_affinities": ["freedom", "family"]},
+            "seasonality": {"hard_exclude_outside_windows": False},
+        },
+    }

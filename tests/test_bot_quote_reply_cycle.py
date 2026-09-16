@@ -14,10 +14,13 @@ from unittest.mock import Mock, call
 import pytest
 
 import mrs_bot_quote_reply_cycle as cycle
-from tests.helpers.bot_runtime import SCENARIOS, SOURCE_GET_TWEET_BY_ID, bot
+from tests.helpers.bot_runtime import SOURCE_GET_TWEET_BY_ID, bot
 from tests.helpers.bot_fixtures import isolate_regular_post_receipt  # noqa: F401
-from tests.fake_api_server import load_scenario
-from tests.helpers.reply_fixtures import unit_approved_reply, unit_confirmed_v4_reply_receipt
+from tests.helpers.reply_fixtures import (
+    configure_quote_cycle as _configure_cycle,
+    unit_approved_reply,
+    unit_confirmed_v4_reply_receipt,
+)
 
 
 def test_import_needs_no_runtime_access():
@@ -244,26 +247,6 @@ def test_markers_preserve_bounded_and_durable_lists_and_mutation_before_failure(
     assert len(state["quote_spam_author_ids"]) == 2000
     assert state["quote_spam_author_ids"][-1] == "3003"
     assert log.info.call_args.args[1:] == ("3003", 2000)
-
-
-def _configure_cycle(monkeypatch):
-    scenario = load_scenario(SCENARIOS / "quote_tweet_reply.json")
-    original = scenario["tweets"]["900"]
-    quotes = scenario["quote_tweets"]["900"]["data"]
-    epoch = 2_000_000_000
-    monkeypatch.setattr(bot, "now_epoch", lambda: epoch)
-    monkeypatch.setattr(bot, "current_datetime", lambda: datetime.fromtimestamp(epoch))
-    monkeypatch.setattr(bot, "single_call_reply", {**bot.single_call_reply, "enabled": True})
-    monkeypatch.setattr(bot, "ENABLE_AUTO_REPLIES", True)
-    monkeypatch.setattr(bot, "ENABLE_QUOTE_TWEET_CHECKS", True)
-    monkeypatch.setattr(bot, "MIN_SECONDS_BETWEEN_REPLIES", 0)
-    monkeypatch.setattr(bot, "build_quote_lookup_post_ids", Mock(return_value=["900"]))
-    monkeypatch.setattr(bot, "get_tweet_by_id_cached", Mock(return_value=original))
-    monkeypatch.setattr(bot, "get_quote_tweets_for_posts", Mock(return_value={"900": quotes}))
-    monkeypatch.setattr(bot, "reply_media_context_for_candidate", Mock(return_value={}))
-    monkeypatch.setattr(bot, "x_request", Mock(side_effect=AssertionError("unexpected provider request")))
-    monkeypatch.setattr(bot, "create_post", Mock(side_effect=AssertionError("unexpected remote write")))
-    return original, quotes
 
 
 def test_both_daily_resets_and_confirmed_reconciliation_precede_barrier_when_disabled(monkeypatch):
