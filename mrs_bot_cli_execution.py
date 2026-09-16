@@ -184,12 +184,12 @@ def run_test_main_tick(
     log.info("Running one test production reply-lane tick")
     state = load_runtime_state()
     current = now_epoch()
-    last_reply_check_epoch, reply_epoch_changed = scheduler_epoch_from_state(
+    _, reply_epoch_changed = scheduler_epoch_from_state(
         state,
         "last_reply_check_epoch",
         current=current,
     )
-    last_quote_tweet_check_epoch, quote_epoch_changed = scheduler_epoch_from_state(
+    _, quote_epoch_changed = scheduler_epoch_from_state(
         state,
         "last_quote_tweet_check_epoch",
         current=current,
@@ -199,12 +199,7 @@ def run_test_main_tick(
 
     report_bot_health_progress("main_loop", loop_started=True)
     report_bot_health_progress("reply_checks")
-    run_reply_lane_checks_for_tick(
-        state,
-        current,
-        last_reply_check_epoch=last_reply_check_epoch,
-        last_quote_tweet_check_epoch=last_quote_tweet_check_epoch,
-    )
+    run_reply_lane_checks_for_tick(state, current)
     report_bot_health_progress("main_loop")
     if ambiguous_remote_post_is_blocking():
         wait_for_durable_barrier_before_one_shot_exit(

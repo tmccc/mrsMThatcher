@@ -416,11 +416,9 @@ def configure_main_probe(bot, state_directory: Path) -> tuple[list[str], Callabl
     def reply_lane(
         _state: dict,
         _current: int,
-        last_reply: int,
-        last_quote: int,
     ) -> tuple[int, int]:
         entries.append("reply")
-        return last_reply, last_quote
+        return 0, 0
 
     def quote_lane(*_args: object, **_kwargs: object) -> None:
         entries.append("quote")

@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import inspect
 from pathlib import Path
 import subprocess
 import sys
@@ -8,6 +7,8 @@ from types import SimpleNamespace
 from unittest.mock import Mock, call
 
 import pytest
+
+from tests.helpers.adapter_assertions import assert_adapters_forward_current_dependencies
 
 import mrs_bot_reply_generation as generation
 from tests.helpers.single_call_fixtures import (
@@ -80,32 +81,9 @@ def test_adapters_forward_current_dependencies_arguments_results_and_errors(monk
         "_is_terminal_candidate_local_failure", "openai_responses_reply_call",
         "_record_single_call_result", "evaluate_single_call_reply",
     )
-    for name in names:
-        adapter = getattr(bot, name)
-        public = inspect.signature(adapter).parameters
-        dependencies = inspect.signature(getattr(generation, name)).parameters.keys() - public.keys()
-        args = tuple(object() for parameter in public.values() if parameter.kind == inspect.Parameter.POSITIONAL_OR_KEYWORD)
-        options = {key: object() for key, parameter in public.items() if parameter.kind == inspect.Parameter.KEYWORD_ONLY}
-        result = object()
-        owner = Mock(return_value=result)
-        with monkeypatch.context() as patch:
-            patch.setattr(generation, name, owner)
-            for _ in range(2):
-                current = {key: object() for key in dependencies}
-                for key, value in current.items():
-                    patch.setattr(bot, key, value)
-                assert adapter(*args, **options) is result, name
-                actual_args, actual_kwargs = owner.call_args
-                assert len(actual_args) == len(args)
-                assert all(actual is expected for actual, expected in zip(actual_args, args)), name
-                expected = {**options, **current}
-                assert actual_kwargs.keys() == expected.keys(), name
-                assert all(actual_kwargs[key] is value for key, value in expected.items()), name
-            failure = TypeError(name)
-            owner.side_effect = failure
-            with pytest.raises(TypeError) as caught:
-                adapter(*args, **options)
-            assert caught.value is failure
+    assert_adapters_forward_current_dependencies(
+        monkeypatch, bot=bot, implementation=generation, names=names,
+    )
 
 
 def test_image_collection_uses_current_requests_bounds_and_validation_reference(monkeypatch, image_case):

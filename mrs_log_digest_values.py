@@ -7,9 +7,14 @@ from __future__ import annotations
 
 import re
 from collections import Counter
-from datetime import datetime, timezone
-from decimal import Decimal
+from datetime import datetime
 from typing import Any, Dict, List, Mapping, Optional, Tuple
+
+from openai_cost_cache_contract import (
+    canonical_decimal as _openai_decimal_text,
+    parse_cache_decimal as _parse_openai_cost_decimal,
+    parse_cache_utc as _parse_openai_utc,
+)
 
 
 GENERATED_POLICIES = ("unrestricted", "small_penalty", "strong_penalty", "origin_quote_only")
@@ -87,44 +92,6 @@ def cooldown_state_text(until_epoch: Any, generation_epoch: Any) -> str:
     if until == 0:
         return "cleared"
     return "active" if generated < until else "expired"
-
-
-def _parse_openai_cost_decimal(value: Any, *, label: str) -> Decimal:
-    """Parse one canonical monetary string from the private OpenAI cache."""
-
-    if type(value) is not str or not re.fullmatch(
-        r"-?(?:0|[1-9][0-9]*)(?:\.[0-9]*[1-9])?", value
-    ):
-        raise ValueError(f"{label} is not a canonical decimal string")
-    parsed = Decimal(value)
-    if not parsed.is_finite() or (parsed == 0 and value != "0"):
-        raise ValueError(f"{label} is not a canonical finite decimal string")
-    return parsed
-
-
-def _openai_decimal_text(value: Decimal) -> str:
-    """Render one finite Decimal without an exponent or redundant zeroes."""
-
-    if not value.is_finite():
-        raise ValueError("OpenAI cost is not finite")
-    if value == 0:
-        return "0"
-    rendered = format(value, "f")
-    if "." in rendered:
-        rendered = rendered.rstrip("0").rstrip(".")
-    return rendered
-
-
-def _parse_openai_utc(value: Any, *, label: str) -> datetime:
-    """Parse the cache's canonical whole-second UTC timestamp."""
-
-    if type(value) is not str or not re.fullmatch(
-        r"\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}Z", value
-    ):
-        raise ValueError(f"{label} is not a canonical UTC timestamp")
-    return datetime.strptime(value, "%Y-%m-%dT%H:%M:%SZ").replace(
-        tzinfo=timezone.utc
-    )
 
 
 def _openai_window_text(start: datetime, end: datetime) -> str:

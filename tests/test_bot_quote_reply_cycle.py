@@ -480,6 +480,106 @@ def test_native_context_preparation_failures_escape_without_retirement(monkeypat
     assert not state["skipped_quote_post_ids"]
 
 
+@pytest.mark.parametrize("failure_kind", ["permanent_lookup", "missing_original", "invalid_context"])
+@pytest.mark.parametrize("durable_save_fails", [False, True])
+def test_context_failures_retire_in_order_before_later_model_work(
+    monkeypatch, failure_kind, durable_save_fails,
+):
+    original, quotes = _configure_cycle(monkeypatch)
+    quotes[:] = [dict(quotes[0], id=target, conversation_id=target) for target in ("910", "911", "912")]
+    monkeypatch.setattr(bot, "MAX_QUOTE_POSTS_PER_CHECK", 1)
+    state = bot.default_state()
+    refetches = 0
+    lookup_failure = bot.ApiError("quoted post unavailable", service="x", status_code=404)
+
+    def fetch(_target, _state, **kwargs):
+        nonlocal refetches
+        if kwargs.get("include_media"):
+            refetches += 1
+            if refetches == 1:
+                if failure_kind == "permanent_lookup":
+                    raise lookup_failure
+                if failure_kind == "missing_original":
+                    return None
+        return original
+
+    bot.get_tweet_by_id_cached.side_effect = fetch
+    monkeypatch.setattr(bot, "api_error_is_permanent_target_failure", lambda error: error is lookup_failure)
+    build_context = bot.build_quote_tweet_reply_context
+
+    def context_for_candidate(original_tweet, quote_tweet):
+        if failure_kind == "invalid_context" and quote_tweet["id"] == "910":
+            raise ValueError("invalid canonical context")
+        return build_context(original_tweet, quote_tweet)
+
+    monkeypatch.setattr(bot, "build_quote_tweet_reply_context", context_for_candidate)
+    trace = Mock()
+    for label, name in (
+        ("decision", "_record_single_call_result"),
+        ("terminal", "record_terminal_reply_evaluation"),
+        ("skip", "mark_quote_tweet_skipped"),
+    ):
+        callback = Mock(wraps=getattr(bot, name))
+        trace.attach_mock(callback, label)
+        monkeypatch.setattr(bot, name, callback)
+    persistence_failure = RuntimeError("durable retirement failed")
+    save_state = bot.save_state
+
+    def save(current_state, **kwargs):
+        if kwargs.get("durable") and durable_save_fails:
+            raise persistence_failure
+        return save_state(current_state, **kwargs)
+
+    trace.save.side_effect = save
+    monkeypatch.setattr(bot, "save_state", trace.save)
+    health = Mock()
+    monkeypatch.setattr(bot, "record_api_error", health)
+
+    def evaluate(context, _media, *, state):
+        # The previous target must be durable before the sole model slot is used.
+        saved = json.loads(bot.STATE_FILE.read_text())
+        assert saved["reply_evaluation_records"]["910"]["outcome"] == "operational_failure"
+        assert "910" in saved["skipped_quote_post_ids"]
+        return bot.PipelineResult(status="no_reply", reason="model_selected_no_reply", model_call_count=1)
+
+    generate = Mock(side_effect=evaluate)
+    monkeypatch.setattr(bot, "evaluate_single_call_reply", generate)
+    if durable_save_fails:
+        with pytest.raises(RuntimeError) as caught:
+            bot.maybe_reply_to_quote_tweets(state)
+        assert caught.value is persistence_failure
+        generate.assert_not_called()
+        assert refetches == 1
+    else:
+        assert bot.maybe_reply_to_quote_tweets(state) == bot.QUOTE_CHECK_STATUS_CHECKED
+        generate.assert_called_once()
+        assert generate.call_args.args[0]["target_id"] == "911"
+        assert refetches == 2
+
+    decision = trace.decision.call_args.args[0]
+    expected_reason = (
+        "canonical_context_unavailable" if failure_kind == "invalid_context"
+        else "quoted_post_context_unavailable"
+    )
+    assert decision.status == "operational_failure"
+    assert decision.error_category == "context_validation"
+    assert decision.local_validation_status == ("failed" if failure_kind == "invalid_context" else "not_run")
+    assert decision.model_call_count == 0 and decision.reason == expected_reason
+    assert trace.decision.call_args.kwargs == {"lane": "quote_tweet", "target_id": "910"}
+    decision_index = next(index for index, item in enumerate(trace.mock_calls) if item[0] == "decision")
+    assert trace.mock_calls[decision_index:decision_index + 4] == [
+        call.decision(decision, lane="quote_tweet", target_id="910"),
+        call.terminal(state, target_id="910", lane="quote_tweet", reason=expected_reason,
+                      outcome="operational_failure"),
+        call.skip(state, "910"),
+        call.save(state, durable=True),
+    ]
+    assert state["daily_reply_count"] == state["daily_quote_reply_count"] == 0
+    health.assert_not_called()
+    bot.x_request.assert_not_called()
+    bot.create_post.assert_not_called()
+
+
 def test_context_rejection_is_free_but_evaluation_budget_spans_original_posts(monkeypatch):
     original, quotes = _configure_cycle(monkeypatch)
     state = bot.default_state()

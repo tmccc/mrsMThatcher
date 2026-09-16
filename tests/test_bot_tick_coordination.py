@@ -177,8 +177,8 @@ def test_repair_precedes_posted_lane_and_separate_canonical_saves(monkeypatch, p
     monkeypatch.setattr(bot, "NORMAL_CHECK_STATUS_POSTED", posted)
     monkeypatch.setattr(bot, "QUOTE_CHECK_STATUS_POSTED", posted)
     trace.normal.return_value = trace.quote.return_value = posted
-    result = bot.run_reply_lane_checks_for_tick(state, 100, 999, 888)
-    # Real scheduler coercions ignore caller epochs and commit once before lanes.
+    result = bot.run_reply_lane_checks_for_tick(state, 100)
+    # Canonical scheduler epochs are repaired and committed once before lanes.
     expected = [
         call.scheduler(state, "last_reply_check_epoch", current=100),
         call.scheduler(state, "last_quote_tweet_check_epoch", current=100),
@@ -222,7 +222,7 @@ def test_forced_normal_spacing_preserves_interval_before_exact_quote_retry(monke
     monkeypatch.setattr(bot, "NORMAL_CHECK_STATUS_SKIPPED_SPACING", normal_skip)
     monkeypatch.setattr(bot, "QUOTE_CHECK_STATUS_SKIPPED_SPACING", quote_skip)
     trace.normal.return_value, trace.quote.return_value = normal_skip, quote_skip
-    assert bot.run_reply_lane_checks_for_tick(state, 100, 0, 999) == (95, 33)
+    assert bot.run_reply_lane_checks_for_tick(state, 100) == (95, 33)
     assert snapshots == [state]
     assert state["next_reply_lane_priority"] == "normal"
     assert trace.mock_calls == [
@@ -256,7 +256,7 @@ def test_returned_lane_status_rechecks_real_receipt_barrier_before_any_update(mo
         return bot.NORMAL_CHECK_STATUS_POSTED if priority == "normal" else bot.QUOTE_CHECK_STATUS_POSTED
 
     getattr(trace, priority).side_effect = lane
-    assert bot.run_reply_lane_checks_for_tick(state, 100, 999, 888) == (0, 0)
+    assert bot.run_reply_lane_checks_for_tick(state, 100) == (0, 0)
     assert state == before and snapshots == []
     trace.event.assert_not_called()
     getattr(trace, "quote" if priority == "normal" else "normal").assert_not_called()
@@ -272,7 +272,7 @@ def test_tick_native_conversion_event_save_and_current_safety_exception_boundari
                  last_reply_epoch="invalid", next_reply_lane_priority="quote")
     trace, snapshots = _observe_tick(monkeypatch, state)
     with pytest.raises(ValueError):
-        bot.run_reply_lane_checks_for_tick(state, 100, 0, 0)
+        bot.run_reply_lane_checks_for_tick(state, 100)
     assert len(snapshots) == 1
     assert state["last_reply_check_epoch"] == state["last_quote_tweet_check_epoch"] == 0
     trace.normal.assert_not_called()
@@ -285,7 +285,7 @@ def test_tick_native_conversion_event_save_and_current_safety_exception_boundari
     trace.quote.return_value = bot.QUOTE_CHECK_STATUS_POSTED
     trace.event.side_effect = failure
     with pytest.raises(RuntimeError) as caught:
-        bot.run_reply_lane_checks_for_tick(state, 100, 0, 0)
+        bot.run_reply_lane_checks_for_tick(state, 100)
     assert caught.value is failure
     assert snapshots == [] and state["next_reply_lane_priority"] == "quote"
     trace.barrier.assert_called_once_with()
@@ -296,7 +296,7 @@ def test_tick_native_conversion_event_save_and_current_safety_exception_boundari
     trace.normal.return_value = bot.NORMAL_CHECK_STATUS_POSTED
     trace.save.side_effect = failure
     with pytest.raises(RuntimeError) as caught:
-        bot.run_reply_lane_checks_for_tick(state, 100, 0, 0)
+        bot.run_reply_lane_checks_for_tick(state, 100)
     assert caught.value is failure
     assert state["last_reply_check_epoch"] == 100
     assert state["next_reply_lane_priority"] == "normal"
@@ -309,7 +309,7 @@ def test_tick_native_conversion_event_save_and_current_safety_exception_boundari
     state["last_reply_check_epoch"] = 0
     trace.reset_mock()
     trace.normal.side_effect = CurrentSafetyError("current safety authority")
-    assert bot.run_reply_lane_checks_for_tick(state, 100, 0, 0) == (0, 0)
+    assert bot.run_reply_lane_checks_for_tick(state, 100) == (0, 0)
     trace.save.assert_not_called()
     trace.quote.assert_not_called()
     trace.barrier.assert_not_called()

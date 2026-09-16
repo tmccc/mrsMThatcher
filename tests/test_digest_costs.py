@@ -186,7 +186,7 @@ raise SystemExit(digest.main())
 
 
 @pytest.mark.parametrize("module_name", [
-    "mrs_log_digest_costs", "mrs_log_digest_provider_costs",
+    "mrs_log_digest_costs", "mrs_log_digest_provider_costs", "openai_cost_cache_contract",
 ])
 def test_cost_module_import_has_no_runtime_effects_or_upward_dependencies(tmp_path, module_name):
     script = """

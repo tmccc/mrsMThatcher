@@ -1108,7 +1108,7 @@ def test_startup_regular_receipt_replay_preserves_newer_production_schedule(
     monkeypatch.setattr(
         bot,
         "run_reply_lane_checks_for_tick",
-        lambda state, current, last_reply, last_quote: (last_reply, last_quote),
+        lambda state, current: (0, 0),
     )
     monkeypatch.setattr(bot, "ambiguous_remote_post_is_blocking", lambda: False)
     monkeypatch.setattr(

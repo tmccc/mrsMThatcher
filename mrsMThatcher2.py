@@ -9073,15 +9073,11 @@ def schedule_next_quote_post(state: dict, from_epoch: int | None = None, *, save
 def run_reply_lane_checks_for_tick(
     state: dict,
     current: int,
-    last_reply_check_epoch: int,
-    last_quote_tweet_check_epoch: int,
 ) -> tuple[int, int]:
-    """Run one scheduled reply-lane arbitration tick."""
+    """Run one reply-lane tick using the check epochs in canonical state."""
     return _tick_coordination.run_reply_lane_checks_for_tick(
         state,
         current,
-        last_reply_check_epoch,
-        last_quote_tweet_check_epoch,
         AmbiguousRemotePostOutcome=AmbiguousRemotePostOutcome,
         ENABLE_AUTO_REPLIES=ENABLE_AUTO_REPLIES,
         ENABLE_QUOTE_TWEET_CHECKS=ENABLE_QUOTE_TWEET_CHECKS,
@@ -9387,12 +9383,12 @@ def main() -> None:
     save_state(state)
 
     current = now_epoch()
-    last_reply_check_epoch, reply_epoch_changed = scheduler_epoch_from_state(
+    _, reply_epoch_changed = scheduler_epoch_from_state(
         state,
         "last_reply_check_epoch",
         current=current,
     )
-    last_quote_tweet_check_epoch, quote_epoch_changed = scheduler_epoch_from_state(
+    _, quote_epoch_changed = scheduler_epoch_from_state(
         state,
         "last_quote_tweet_check_epoch",
         current=current,
@@ -9518,12 +9514,7 @@ def main() -> None:
             continue
 
         report_bot_health_progress("reply_checks")
-        last_reply_check_epoch, last_quote_tweet_check_epoch = run_reply_lane_checks_for_tick(
-            state,
-            current,
-            last_reply_check_epoch,
-            last_quote_tweet_check_epoch,
-        )
+        run_reply_lane_checks_for_tick(state, current)
         report_bot_health_progress("main_loop")
         if ambiguous_remote_post_is_blocking():
             report_bot_health_progress(

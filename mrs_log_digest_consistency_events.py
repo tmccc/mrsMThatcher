@@ -277,10 +277,52 @@ def record_daily_meme_failure(
     stats[f"daily_meme_failure_stage_{stage}"] += 1
 
 
+def prepare_context_transaction_outcomes(
+    events: List[Dict[str, Any]],
+) -> Dict[str, Any]:
+    """Summarise pending context transactions using retained terminal obligations.
+
+    Match parent IDs across all supplied events, as the historical Markdown
+    presentation does, without introducing timestamp or source filtering.
+    Preserve duplicate observations and input order; outstanding rows are shared
+    with the input but neither the rows nor the input list are mutated.
+    """
+    terminal_states = {
+        "context_reply_confirmed",
+        "context_reply_not_required",
+        "context_reply_failed_terminal",
+    }
+    terminal_context_parents = {
+        str(row.get("parent_post_id") or "")
+        for row in events
+        if row.get("kind") == "historical_context_obligation"
+        and row.get("context_reply_state") in terminal_states
+    }
+    transaction_rows = [
+        row for row in events
+        if row.get("kind") == "posting_transaction_state"
+    ]
+    resolved_pending = [
+        row for row in transaction_rows
+        if row.get("context_reply_state") == "context_reply_pending"
+        and str(row.get("parent_post_id") or "") in terminal_context_parents
+    ]
+    outstanding_transaction_rows = [
+        row for row in transaction_rows
+        if row not in resolved_pending
+        and row.get("context_reply_state") not in terminal_states
+    ]
+    return {
+        "resolved_pending_count": len(resolved_pending),
+        "outstanding_count": len(outstanding_transaction_rows),
+        "outstanding_transactions": outstanding_transaction_rows,
+    }
+
+
 def production_consistency_report(
     events: List[Dict[str, Any]], stats: Counter,
 ) -> Dict[str, Any]:
-    """Select shared event rows and take the five ordered counter observations."""
+    """Prepare consistency events, ordered counters and context outcomes."""
     return {
         "events": [
             item
@@ -325,4 +367,5 @@ def production_consistency_report(
             for key, value in sorted(stats.items())
             if key.startswith("reply_evidence_unavailable_lane_")
         },
+        "context_transaction_outcomes": prepare_context_transaction_outcomes(events),
     }

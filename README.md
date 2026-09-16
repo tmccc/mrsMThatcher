@@ -72,6 +72,9 @@ explicitly import `isolate_regular_post_receipt`; its autouse behaviour is scope
 to those test modules. Network and production-state guards are defined in
 `tests/conftest.py`.
 
+`adapter_assertions.py` shares the ordinary adapter-forwarding checks. Keep
+module-specific defaults, callback groups and import-isolation checks local.
+
 Shared mention, single-call, historical-context, receipt and transport fixtures
 also live in `tests/helpers`, alongside integration-harness, research and offline
 selector support. Provider test modules import the same helpers as their

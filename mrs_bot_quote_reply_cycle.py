@@ -872,6 +872,29 @@ def _prepare_reply_context(
     author_id = candidate.author_id
     quote_text = candidate.text
 
+    def retire_context_failure(reason: str, validation_status: str) -> _QuoteCandidateStop:
+        """Record the context failure and durably retire this candidate."""
+        _record_single_call_result(
+            PipelineResult(
+                status="operational_failure",
+                reason=reason,
+                error_category="context_validation",
+                local_validation_status=validation_status,
+            ),
+            lane="quote_tweet",
+            target_id=quote_id,
+        )
+        record_terminal_reply_evaluation(
+            state,
+            target_id=quote_id,
+            lane="quote_tweet",
+            reason=reason,
+            outcome="operational_failure",
+        )
+        mark_quote_tweet_skipped(state, quote_id)
+        persistence.save(state, durable=True)
+        return _QuoteCandidateStop()
+
     try:
         original_context_tweet = get_tweet_by_id_cached(
             original_post_id,
@@ -885,26 +908,9 @@ def _prepare_reply_context(
                 "post is permanently unavailable",
                 quote_id,
             )
-            _record_single_call_result(
-                PipelineResult(
-                    status="operational_failure",
-                    reason="quoted_post_context_unavailable",
-                    error_category="context_validation",
-                    local_validation_status="not_run",
-                ),
-                lane="quote_tweet",
-                target_id=quote_id,
+            return retire_context_failure(
+                "quoted_post_context_unavailable", "not_run",
             )
-            record_terminal_reply_evaluation(
-                state,
-                target_id=quote_id,
-                lane="quote_tweet",
-                reason="quoted_post_context_unavailable",
-                outcome="operational_failure",
-            )
-            mark_quote_tweet_skipped(state, quote_id)
-            persistence.save(state, durable=True)
-            return _QuoteCandidateStop()
         log.exception(
             "Could not collect directly quoted post context for quote "
             "tweet %s",
@@ -915,30 +921,13 @@ def _prepare_reply_context(
         return _QuoteCandidateStop(QUOTE_CHECK_STATUS_CHECKED)
     if original_context_tweet is None:
         log.warning(
-            "Deferring quote tweet %s because its directly quoted "
+            "Retiring quote tweet %s because its directly quoted "
             "post could not be collected",
             quote_id,
         )
-        _record_single_call_result(
-            PipelineResult(
-                status="operational_failure",
-                reason="quoted_post_context_unavailable",
-                error_category="context_validation",
-                local_validation_status="not_run",
-            ),
-            lane="quote_tweet",
-            target_id=quote_id,
+        return retire_context_failure(
+            "quoted_post_context_unavailable", "not_run",
         )
-        record_terminal_reply_evaluation(
-            state,
-            target_id=quote_id,
-            lane="quote_tweet",
-            reason="quoted_post_context_unavailable",
-            outcome="operational_failure",
-        )
-        mark_quote_tweet_skipped(state, quote_id)
-        persistence.save(state, durable=True)
-        return _QuoteCandidateStop()
 
     cache_tweet(
         state,
@@ -964,26 +953,9 @@ def _prepare_reply_context(
             quote_id,
             exc,
         )
-        _record_single_call_result(
-            PipelineResult(
-                status="operational_failure",
-                reason="canonical_context_unavailable",
-                error_category="context_validation",
-                local_validation_status="failed",
-            ),
-            lane="quote_tweet",
-            target_id=quote_id,
+        return retire_context_failure(
+            "canonical_context_unavailable", "failed",
         )
-        record_terminal_reply_evaluation(
-            state,
-            target_id=quote_id,
-            lane="quote_tweet",
-            reason="canonical_context_unavailable",
-            outcome="operational_failure",
-        )
-        mark_quote_tweet_skipped(state, quote_id)
-        persistence.save(state, durable=True)
-        return _QuoteCandidateStop()
     prepared_media_context = reply_context.pop(
         "_prepared_media_context",
         None,

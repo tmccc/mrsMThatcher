@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import inspect
 from pathlib import Path
 import signal
 import subprocess
@@ -9,6 +8,8 @@ from types import SimpleNamespace
 from unittest.mock import Mock, call, mock_open
 
 import pytest
+
+from tests.helpers.adapter_assertions import assert_adapters_forward_current_dependencies
 
 import mrs_bot_reply_delivery as delivery
 from tests.helpers.bot_runtime import bot
@@ -68,32 +69,9 @@ def test_adapters_forward_current_dependencies_arguments_results_and_errors(monk
         "retire_proved_rejected_conversational_reply_receipt",
         "post_conversational_reply_with_durable_identity",
     )
-    for name in names:
-        adapter = getattr(bot, name)
-        public = inspect.signature(adapter).parameters
-        dependencies = inspect.signature(getattr(delivery, name)).parameters.keys() - public.keys()
-        args = tuple(object() for parameter in public.values() if parameter.kind == inspect.Parameter.POSITIONAL_OR_KEYWORD)
-        options = {key: object() for key, parameter in public.items() if parameter.kind == inspect.Parameter.KEYWORD_ONLY}
-        result = object()
-        owner = Mock(return_value=result)
-        with monkeypatch.context() as patch:
-            patch.setattr(delivery, name, owner)
-            for _ in range(2):
-                current = {key: object() for key in dependencies}
-                for key, value in current.items():
-                    patch.setattr(bot, key, value)
-                assert adapter(*args, **options) is result, name
-                actual_args, actual_kwargs = owner.call_args
-                assert len(actual_args) == len(args)
-                assert all(actual is expected for actual, expected in zip(actual_args, args)), name
-                expected = {**options, **current}
-                assert actual_kwargs.keys() == expected.keys(), name
-                assert all(actual_kwargs[key] is value for key, value in expected.items()), name
-            failure = TypeError(name)
-            owner.side_effect = failure
-            with pytest.raises(TypeError) as caught:
-                adapter(*args, **options)
-            assert caught.value is failure
+    assert_adapters_forward_current_dependencies(
+        monkeypatch, bot=bot, implementation=delivery, names=names,
+    )
 
 
 @pytest.mark.parametrize("accepted,status", [(0, "sending"), (1, "legacy_sending"), (2, "valid"), (3, "valid"), (None, "invalid")])

@@ -20,20 +20,26 @@ from urllib.error import HTTPError, URLError
 from urllib.parse import urlencode
 from urllib.request import Request, urlopen
 
+from openai_cost_cache_contract import (
+    CACHE_SCHEMA_VERSION,
+    CACHE_SOURCE,
+    MAX_CACHE_BYTES,
+    MAX_RETAINED_DAYS,
+    MAX_SAMPLES_PER_DAY,
+    SUPPORTED_CURRENCY,
+    canonical_decimal as _canonical_decimal,
+    validate_cache_body,
+    validate_cache_header,
+)
+
 
 COSTS_ENDPOINT = "https://api.openai.com/v1/organization/costs"
 DEFAULT_CACHE_PATH = (
     Path.home() / ".local/state/mrsMThatcher/openai-costs/daily_costs.json"
 )
-CACHE_SCHEMA_VERSION = 1
-CACHE_SOURCE = "openai_organization_costs"
-SUPPORTED_CURRENCY = "usd"
 REFRESH_DAY_COUNT = 7
 MAX_PAGES = 64
 MAX_RESPONSE_BYTES = 16 * 1024 * 1024
-MAX_CACHE_BYTES = 16 * 1024 * 1024
-MAX_SAMPLES_PER_DAY = 96
-MAX_RETAINED_DAYS = 400
 
 
 class CollectionError(RuntimeError):
@@ -63,12 +69,7 @@ def canonical_decimal(value: Decimal) -> str:
 
     if not isinstance(value, Decimal) or not value.is_finite():
         raise CollectionError("Costs API returned a non-finite monetary value")
-    if value == 0:
-        return "0"
-    rendered = format(value, "f")
-    if "." in rendered:
-        rendered = rendered.rstrip("0").rstrip(".")
-    return rendered
+    return _canonical_decimal(value)
 
 
 def parse_decimal(value: Any, *, label: str) -> Decimal:
@@ -329,101 +330,22 @@ def normalise_cost_buckets(
     return SUPPORTED_CURRENCY, days
 
 
-def _canonical_cache_decimal(value: Any) -> bool:
-    """Return whether a cache value is one canonical finite decimal string."""
-
-    if type(value) is not str:
-        return False
-    try:
-        parsed = Decimal(value)
-        return parsed.is_finite() and canonical_decimal(parsed) == value
-    except (CollectionError, InvalidOperation, ValueError):
-        return False
-
-
-def _valid_cache_money_map(value: Any) -> bool:
-    """Return whether a cached monetary breakdown is structurally valid."""
-
-    return isinstance(value, dict) and all(
-        type(key) is str and bool(key) and _canonical_cache_decimal(amount)
-        for key, amount in value.items()
-    )
-
-
 def _validate_existing_cache(
     value: dict[str, Any], *, allow_over_retention: bool = False
 ) -> bool:
     """Return whether an existing cache is safe to report or merge."""
 
-    scope = value.get("scope")
-    days = value.get("days")
-    if (
-        value.get("schema_version") != CACHE_SCHEMA_VERSION
-        or value.get("source") != CACHE_SOURCE
-        or value.get("currency") != SUPPORTED_CURRENCY
-        or not isinstance(scope, dict)
-        or scope.get("kind") not in {"project", "organization"}
-        or type(scope.get("description")) is not str
-        or not scope.get("description")
-        or not isinstance(days, dict)
-        or not days
-        or (not allow_over_retention and len(days) > MAX_RETAINED_DAYS)
-    ):
-        return False
-    if scope["kind"] == "project" and (
-        type(scope.get("project_id")) is not str or not scope.get("project_id")
-    ):
-        return False
-    if scope["kind"] == "organization" and "project_id" in scope:
-        return False
     try:
-        datetime.strptime(value.get("updated_at_utc", ""), "%Y-%m-%dT%H:%M:%SZ")
-    except (TypeError, ValueError):
+        updated_at = validate_cache_header(value)
+        validate_cache_body(
+            value,
+            updated_at=updated_at,
+            maximum_days=None if allow_over_retention else MAX_RETAINED_DAYS,
+            maximum_samples=None if allow_over_retention else MAX_SAMPLES_PER_DAY,
+            require_organization_line_items=True,
+        )
+    except (KeyError, TypeError, ValueError, ArithmeticError):
         return False
-    for day_key, day_value in days.items():
-        if type(day_key) is not str or not isinstance(day_value, dict):
-            return False
-        try:
-            day_date = datetime.strptime(day_key, "%Y-%m-%d").date()
-        except ValueError:
-            return False
-        expected_start = int(utc_midnight(day_date).timestamp())
-        if (
-            type(day_value.get("start_time")) is not int
-            or type(day_value.get("end_time")) is not int
-            or day_value["start_time"] != expected_start
-            or day_value["end_time"] != expected_start + 86_400
-            or not _canonical_cache_decimal(day_value.get("primary_total"))
-            or not _canonical_cache_decimal(day_value.get("organization_total"))
-            or not _valid_cache_money_map(day_value.get("projects"))
-            or not _valid_cache_money_map(day_value.get("line_items"))
-            or not _valid_cache_money_map(day_value.get("organization_line_items"))
-        ):
-            return False
-        samples = day_value.get("samples")
-        if (
-            not isinstance(samples, list)
-            or not samples
-            or (not allow_over_retention and len(samples) > MAX_SAMPLES_PER_DAY)
-        ):
-            return False
-        previous_time: Optional[datetime] = None
-        for sample in samples:
-            if not isinstance(sample, dict) or not _canonical_cache_decimal(
-                sample.get("primary_total")
-            ):
-                return False
-            try:
-                sample_time = datetime.strptime(
-                    sample.get("fetched_at_utc", ""), "%Y-%m-%dT%H:%M:%SZ"
-                )
-            except (TypeError, ValueError):
-                return False
-            if previous_time is not None and sample_time < previous_time:
-                return False
-            previous_time = sample_time
-        if samples[-1].get("primary_total") != day_value.get("primary_total"):
-            return False
     return True
 
 

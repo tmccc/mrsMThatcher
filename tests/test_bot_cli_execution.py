@@ -605,7 +605,7 @@ def test_tick_eager_scheduler_reads_health_order_and_barrier_before_completion(m
     expected += [
         call.report_bot_health_progress("main_loop", loop_started=True),
         call.report_bot_health_progress("reply_checks"),
-        call.run_reply_lane_checks_for_tick(state, current, last_reply_check_epoch=reply_epoch, last_quote_tweet_check_epoch=quote_epoch),
+        call.run_reply_lane_checks_for_tick(state, current),
         call.report_bot_health_progress("main_loop"), call.ambiguous_remote_post_is_blocking(),
     ]
     expected += ([call.wait_for_durable_barrier_before_one_shot_exit(lane="production_reply_tick")] if blocked else [
@@ -615,8 +615,7 @@ def test_tick_eager_scheduler_reads_health_order_and_barrier_before_completion(m
     assert trace.mock_calls == expected
     tick = trace.run_reply_lane_checks_for_tick.call_args
     assert tick.args[0] is state and tick.args[1] is current
-    assert tick.kwargs["last_reply_check_epoch"] is reply_epoch
-    assert tick.kwargs["last_quote_tweet_check_epoch"] is quote_epoch
+    assert tick.kwargs == {}
 
 
 def _cli_trace(monkeypatch, arguments):

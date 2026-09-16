@@ -10,6 +10,7 @@ import json
 import pytest
 
 import mrs_log_digest as digest
+from mrs_log_digest_consistency_events import prepare_context_transaction_outcomes
 
 from tests.helpers.digest_records import structured_record
 
@@ -137,6 +138,10 @@ def test_digest_distinguishes_confirmed_main_context_states_and_meme_stage(max_t
         "context_reply_failed_terminal": 1,
     }
     assert consistency["daily_meme_failure_stage_counts"] == {"media_upload": 1}
+    outcomes = consistency["context_transaction_outcomes"]
+    assert outcomes["resolved_pending_count"] == 0
+    assert outcomes["outstanding_count"] == 1
+    assert outcomes["outstanding_transactions"][0] is report["events"][0]
     rendered = digest.render_markdown(report)
     assert "Confirmed-main/context transaction states" in rendered
     assert "context_reply_pending" in rendered
@@ -369,11 +374,90 @@ def test_consistency_report_keeps_late_callback_and_separate_counter_iterations(
         "events", "context_transaction_state_counts", "context_obligation_state_counts",
         "daily_meme_failure_stage_counts", "historical_context_runtime_status_counts",
         "reply_evidence_unavailable_lane_counts",
+        "context_transaction_outcomes",
     ]
     # The historical-reply section takes observation zero immediately beforehand.
     assert observations == list(range(6))
-    for index, (key, counts) in enumerate(list(consistency.items())[1:], start=1):
+    for index, (key, counts) in enumerate(list(consistency.items())[1:6], start=1):
         assert list(counts) == (["a", "unavailable", "z"] if index == 5 else ["a", "z"])
         assert counts["z"] == index and type(counts["z"]) is int
         assert counts["a"] is bool(index % 2)
     assert not any(prefix + "z" in report["summary"]["stats"] for prefix in prefixes)
+
+
+@pytest.mark.parametrize("terminal_state", [
+    "context_reply_confirmed", "context_reply_not_required", "context_reply_failed_terminal",
+])
+@pytest.mark.parametrize("obligation_first", [False, True])
+def test_context_outcomes_preserve_matching_source_treatment_order_and_duplicates(
+    terminal_state, obligation_first,
+):
+    pending = {"kind": "posting_transaction_state", "parent_post_id": "101",
+               "context_reply_state": "context_reply_pending", "time": "later"}
+    outstanding = dict(pending, parent_post_id="202")
+    retryable = dict(pending, context_reply_state="context_reply_failed_retryable")
+    unknown = dict(pending, context_reply_state="unknown")
+    terminal = dict(pending, context_reply_state=terminal_state)
+    obligation = {
+        "kind": "historical_context_obligation", "parent_post_id": 101,
+        "context_reply_state": terminal_state, "time": "earlier",
+        "source_refs": [{"source_basename": "self-test.log", "record_number": 1}],
+    }
+    events = [pending, outstanding, dict(outstanding), retryable, terminal, unknown, dict(pending)]
+    # Only historical-context obligations resolve pending transaction rows.
+    events.append(dict(obligation, kind="another_kind", parent_post_id="202"))
+    events.append(dict(obligation, parent_post_id="202", context_reply_state="context_reply_failed_retryable"))
+    events.insert(0 if obligation_first else len(events), obligation)
+    before = copy.deepcopy(events)
+
+    outcomes = prepare_context_transaction_outcomes(events)
+
+    assert outcomes["resolved_pending_count"] == 2
+    assert outcomes["outstanding_count"] == 4
+    rows = outcomes["outstanding_transactions"]
+    assert rows == [outstanding, outstanding, retryable, unknown]
+    assert rows[0] is outstanding and rows[1] is not outstanding
+    assert rows[2] is retryable and rows[3] is unknown
+    assert events == before
+
+
+def test_context_outcomes_keep_legacy_missing_parent_matching_and_empty_defaults():
+    assert prepare_context_transaction_outcomes([]) == {
+        "resolved_pending_count": 0, "outstanding_count": 0, "outstanding_transactions": [],
+    }
+    events = [
+        {"kind": "posting_transaction_state", "context_reply_state": "context_reply_pending"},
+        {"kind": "historical_context_obligation", "parent_post_id": None,
+         "context_reply_state": "context_reply_confirmed"},
+    ]
+    assert prepare_context_transaction_outcomes(events) == {
+        "resolved_pending_count": 1, "outstanding_count": 0, "outstanding_transactions": [],
+    }
+
+
+@pytest.mark.parametrize("max_text", [0, 1, 280])
+def test_context_outcomes_are_shared_by_json_and_markdown_without_replacing_raw_counts(max_text):
+    records = [structured_record(index, payload) for index, payload in enumerate([
+        {"event": "posting_transaction_state", "parent_post_id": "101",
+         "main_post_state": "main_post_confirmed", "context_reply_state": "context_reply_pending"},
+        {"event": "historical_context_obligation", "parent_post_id": "101",
+         "status": "completed", "context_reply_state": "context_reply_confirmed"},
+        {"event": "posting_transaction_state", "parent_post_id": "202",
+         "main_post_state": "main_post_confirmed", "context_reply_state": "context_reply_pending"},
+    ])]
+    report = digest.analyse(records, max_text=max_text)
+    before = copy.deepcopy(report)
+    consistency = report["production_consistency"]
+
+    assert consistency["context_transaction_state_counts"] == {"context_reply_pending": 2}
+    assert consistency["context_obligation_state_counts"] == {"context_reply_confirmed": 1}
+    outcomes = consistency["context_transaction_outcomes"]
+    assert outcomes == {"resolved_pending_count": 1, "outstanding_count": 1,
+                        "outstanding_transactions": [report["events"][2]]}
+    assert outcomes["outstanding_transactions"][0] is report["events"][2]
+    assert json.loads(json.dumps(report))["production_consistency"]["context_transaction_outcomes"] == outcomes
+    rendered = digest.render_markdown(report)
+    assert "**1** intermediate `context_reply_pending` states subsequently reached" in rendered
+    assert "Outstanding intermediate states:" in rendered
+    assert "| 202 | main_post_confirmed | context_reply_pending |" in rendered
+    assert report == before

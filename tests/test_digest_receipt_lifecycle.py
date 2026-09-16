@@ -324,7 +324,8 @@ def test_current_remote_write_transaction_lifecycle_shapes_are_parsed():
 
 
 def test_receipt_pairs_and_pending_then_confirmed_are_not_incidents():
-    report = digest.analyse([])
+    # A manually assembled legacy report has no prepared context outcomes.
+    report = {"summary": {}}
     report["main_post_recovery"] = {
         "receipt_events": [
             {"time": "t1", "kind": "regular_written", "level": "WARNING", "lane": "quote_image"},

@@ -3,7 +3,8 @@
 This module only formats supplied values. It does not inspect files, resolve
 project paths, read a clock, import the digest entry point or initialise the bot.
 Receipt lifecycle classification is supplied separately by the caller so that
-analysis stays outside presentation and the JSON report remains unchanged.
+analysis stays outside presentation. Context transaction outcomes come from
+the prepared report; older reports use the shared pure preparation helper.
 """
 from __future__ import annotations
 
@@ -14,6 +15,7 @@ from collections import Counter
 from decimal import Decimal
 from typing import Any, Dict, List, Mapping, Optional
 
+from mrs_log_digest_consistency_events import prepare_context_transaction_outcomes
 from mrs_log_digest_values import (
     GENERATED_POLICIES,
     REMOTE_WRITE_RECEIPT_ROLE_LABELS,
@@ -2382,35 +2384,18 @@ def _render_event_details(report: Dict[str, Any], out: List[str]) -> None:
                 "not supplied reliably by these events; empty columns are omitted."
             )
             out.append("")
-    terminal_context_parents = {
-        str(row.get("parent_post_id") or "")
-        for row in (by_kind.get("historical_context_obligation") or [])
-        if row.get("context_reply_state") in {
-            "context_reply_confirmed",
-            "context_reply_not_required",
-            "context_reply_failed_terminal",
-        }
-    }
-    transaction_rows = by_kind.get("posting_transaction_state") or []
-    resolved_pending = [
-        row for row in transaction_rows
-        if row.get("context_reply_state") == "context_reply_pending"
-        and str(row.get("parent_post_id") or "") in terminal_context_parents
-    ]
-    outstanding_transaction_rows = [
-        row for row in transaction_rows
-        if row not in resolved_pending
-        and row.get("context_reply_state") not in {
-            "context_reply_confirmed",
-            "context_reply_not_required",
-            "context_reply_failed_terminal",
-        }
-    ]
-    if resolved_pending or outstanding_transaction_rows:
+    transaction_outcomes = (report.get("production_consistency") or {}).get(
+        "context_transaction_outcomes"
+    )
+    if not isinstance(transaction_outcomes, dict):
+        transaction_outcomes = prepare_context_transaction_outcomes(events)
+    resolved_pending_count = transaction_outcomes.get("resolved_pending_count", 0)
+    outstanding_transaction_rows = transaction_outcomes.get("outstanding_transactions") or []
+    if resolved_pending_count or outstanding_transaction_rows:
         out.append("## Confirmed-main/context transaction states")
-        if resolved_pending:
+        if resolved_pending_count:
             out.append(
-                f"**{len(resolved_pending)}** intermediate `context_reply_pending` "
+                f"**{resolved_pending_count}** intermediate `context_reply_pending` "
                 "states subsequently reached a terminal outbox state; they are not outstanding."
             )
         if outstanding_transaction_rows:

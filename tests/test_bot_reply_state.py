@@ -9,6 +9,8 @@ from unittest.mock import Mock, call
 
 import pytest
 
+from tests.helpers.adapter_assertions import assert_adapters_forward_current_dependencies
+
 import mrs_bot_reply_state as reply_state
 from single_call_reply import PipelineResult, ValidatedReply
 from tests.helpers.bot_runtime import bot
@@ -76,32 +78,9 @@ def test_adapters_forward_current_dependencies_arguments_results_and_errors(monk
         "recovery_comparison_account_replies", "_same_author_confirmed_history_rows",
         "recent_same_author_account_interactions", "ai_reply_receipt_draft_is_valid",
     )
-    for name in names:
-        adapter = getattr(bot, name)
-        public = inspect.signature(adapter).parameters
-        dependencies = inspect.signature(getattr(reply_state, name)).parameters.keys() - public.keys()
-        args = tuple(object() for parameter in public.values() if parameter.kind == inspect.Parameter.POSITIONAL_OR_KEYWORD)
-        options = {key: object() for key, parameter in public.items() if parameter.kind == inspect.Parameter.KEYWORD_ONLY}
-        result = object()
-        owner = Mock(return_value=result)
-        with monkeypatch.context() as patch:
-            patch.setattr(reply_state, name, owner)
-            for _ in range(2):
-                current = {key: object() for key in dependencies}
-                for key, value in current.items():
-                    patch.setattr(bot, key, value)
-                assert adapter(*args, **options) is result, name
-                actual_args, actual_kwargs = owner.call_args
-                assert len(actual_args) == len(args)
-                assert all(actual is expected for actual, expected in zip(actual_args, args)), name
-                expected = {**options, **current}
-                assert actual_kwargs.keys() == expected.keys(), name
-                assert all(actual_kwargs[key] is value for key, value in expected.items()), name
-            failure = TypeError(name)
-            owner.side_effect = failure
-            with pytest.raises(TypeError) as caught:
-                adapter(*args, **options)
-            assert caught.value is failure
+    assert_adapters_forward_current_dependencies(
+        monkeypatch, bot=bot, implementation=reply_state, names=names,
+    )
 
 
 @pytest.mark.parametrize("drafts", [None, [], {}, {"custom-key": None}, {"custom-key": "obsolete"}, {"custom-key": {}}])

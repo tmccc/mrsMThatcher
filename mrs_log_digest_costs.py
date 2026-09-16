@@ -18,26 +18,18 @@ from mrs_log_digest_values import (
     _parse_openai_cost_decimal,
     _parse_openai_utc,
 )
+from openai_cost_cache_contract import (
+    CACHE_SCHEMA_VERSION as OPENAI_COST_CACHE_SCHEMA_VERSION,
+    CACHE_SOURCE as OPENAI_COST_CACHE_SOURCE,
+    MAX_CACHE_BYTES as OPENAI_COST_CACHE_MAX_BYTES,
+    validate_cache_body,
+    validate_cache_header,
+    validate_money_map as _validate_openai_money_map,
+)
 
 
-OPENAI_COST_CACHE_SCHEMA_VERSION = 1
-OPENAI_COST_CACHE_SOURCE = "openai_organization_costs"
-OPENAI_COST_CACHE_MAX_BYTES = 16 * 1024 * 1024
 OPENAI_COST_CACHE_STALE_AFTER_SECONDS = 2 * 60 * 60
 OPENAI_COST_SAMPLE_BOUNDARY_MAX_GAP_SECONDS = 2 * 60 * 60
-
-
-def _validate_openai_money_map(value: Any, *, label: str) -> Decimal:
-    """Validate one monetary breakdown and return its exact sum."""
-
-    if not isinstance(value, dict):
-        raise ValueError(f"{label} is not an object")
-    total = Decimal(0)
-    for key, amount in value.items():
-        if type(key) is not str or not key:
-            raise ValueError(f"{label} contains an invalid key")
-        total += _parse_openai_cost_decimal(amount, label=f"{label}.{key}")
-    return total
 
 
 def load_openai_cost_cache(
@@ -72,15 +64,7 @@ def load_openai_cost_cache(
         return unavailable(f"cache file is unavailable: {exc}")
     try:
         cache = parse_json_object(raw, label="OpenAI cost cache")
-        if cache.get("schema_version") != OPENAI_COST_CACHE_SCHEMA_VERSION:
-            raise ValueError("unsupported cache schema")
-        if cache.get("source") != OPENAI_COST_CACHE_SOURCE:
-            raise ValueError("unexpected cache source")
-        if cache.get("currency") != "usd":
-            raise ValueError("unsupported or mixed cache currency")
-        updated_at = _parse_openai_utc(
-            cache.get("updated_at_utc"), label="updated_at_utc"
-        )
+        updated_at = validate_cache_header(cache)
         if updated_at > observed_now + timedelta(minutes=5):
             raise ValueError("cache update time is in the future")
         age_seconds = max(0, int((observed_now - updated_at).total_seconds()))
@@ -89,94 +73,9 @@ def load_openai_cost_cache(
                 f"cache is stale ({_human_snapshot_age(age_seconds)} old)"
             )
 
-        scope = cache.get("scope")
-        if not isinstance(scope, dict) or scope.get("kind") not in {
-            "project",
-            "organization",
-        }:
-            raise ValueError("cache scope is invalid")
-        if type(scope.get("description")) is not str or not scope["description"]:
-            raise ValueError("cache scope description is invalid")
-        if scope["kind"] == "project":
-            if type(scope.get("project_id")) is not str or not scope["project_id"]:
-                raise ValueError("project-scoped cache has no project ID")
-        elif "project_id" in scope:
-            raise ValueError("organization-scoped cache contains a project ID")
-
-        days = cache.get("days")
-        if not isinstance(days, dict) or not days or len(days) > 400:
-            raise ValueError("cache days are missing or exceed the retention bound")
-        for day_key, day_value in days.items():
-            if type(day_key) is not str or not isinstance(day_value, dict):
-                raise ValueError("cache contains an invalid day")
-            day_date = datetime.strptime(day_key, "%Y-%m-%d").date()
-            expected_start = int(
-                datetime.combine(day_date, time.min, tzinfo=timezone.utc).timestamp()
-            )
-            if (
-                type(day_value.get("start_time")) is not int
-                or type(day_value.get("end_time")) is not int
-                or day_value["start_time"] != expected_start
-                or day_value["end_time"] != expected_start + 86_400
-            ):
-                raise ValueError(f"cache day {day_key} has invalid UTC boundaries")
-            primary = _parse_openai_cost_decimal(
-                day_value.get("primary_total"), label=f"days.{day_key}.primary_total"
-            )
-            organization = _parse_openai_cost_decimal(
-                day_value.get("organization_total"),
-                label=f"days.{day_key}.organization_total",
-            )
-            _validate_openai_money_map(
-                day_value.get("projects"), label=f"days.{day_key}.projects"
-            )
-            line_total = _validate_openai_money_map(
-                day_value.get("line_items"), label=f"days.{day_key}.line_items"
-            )
-            organization_line_items = day_value.get("organization_line_items")
-            organization_line_total = (
-                _validate_openai_money_map(
-                    organization_line_items,
-                    label=f"days.{day_key}.organization_line_items",
-                )
-                if organization_line_items is not None
-                else None
-            )
-            if line_total != primary or (
-                organization_line_total is not None
-                and organization_line_total != organization
-            ):
-                raise ValueError(f"cache day {day_key} breakdown totals disagree")
-            if scope["kind"] == "organization" and primary != organization:
-                raise ValueError(f"cache day {day_key} organization primary total disagrees")
-            if scope["kind"] == "project":
-                expected_primary = _parse_openai_cost_decimal(
-                    day_value["projects"].get(scope["project_id"], "0"),
-                    label=f"days.{day_key}.selected_project",
-                )
-                if primary != expected_primary:
-                    raise ValueError(f"cache day {day_key} project primary total disagrees")
-
-            samples = day_value.get("samples")
-            if not isinstance(samples, list) or not samples or len(samples) > 96:
-                raise ValueError(f"cache day {day_key} has invalid samples")
-            previous_sample_time: Optional[datetime] = None
-            for sample in samples:
-                if not isinstance(sample, dict):
-                    raise ValueError(f"cache day {day_key} contains an invalid sample")
-                sample_time = _parse_openai_utc(
-                    sample.get("fetched_at_utc"), label="sample fetched_at_utc"
-                )
-                _parse_openai_cost_decimal(
-                    sample.get("primary_total"), label="sample primary_total"
-                )
-                if sample_time > updated_at:
-                    raise ValueError(f"cache day {day_key} sample is newer than the cache")
-                if previous_sample_time is not None and sample_time < previous_sample_time:
-                    raise ValueError(f"cache day {day_key} samples are out of order")
-                previous_sample_time = sample_time
-            if samples[-1].get("primary_total") != day_value.get("primary_total"):
-                raise ValueError(f"cache day {day_key} latest sample disagrees")
+        validate_cache_body(cache, updated_at=updated_at)
+        scope = cache["scope"]
+        days = cache["days"]
 
         current_date = observed_now.date().isoformat()
         if current_date not in days:

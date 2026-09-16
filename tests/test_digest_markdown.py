@@ -12,6 +12,7 @@ import pytest
 import mrs_log_digest as digest
 import mrs_log_digest_markdown as markdown
 from mrs_log_digest_transactions import summarise_reply_receipt_lifecycle
+from mrs_log_digest_consistency_events import prepare_context_transaction_outcomes
 
 
 FIXTURES = Path(__file__).parent / "fixtures" / "digest_markdown"
@@ -113,3 +114,47 @@ def test_reply_recovery_formats_prepared_lifecycle_without_scanning_receipt_rows
     assert "Prepared pending receipt" in rendered
     assert "Prepared unavailable receipt" in rendered
     assert lifecycle == before
+
+
+def test_context_transactions_render_prepared_outcomes_without_reclassifying(monkeypatch):
+    def forbidden(*args, **kwargs):
+        raise AssertionError("prepared context outcomes must not be recomputed")
+
+    monkeypatch.setattr(markdown, "prepare_context_transaction_outcomes", forbidden)
+    report = {"summary": {}, "events": [], "production_consistency": {
+        "context_transaction_outcomes": {
+            "resolved_pending_count": 3,
+            "outstanding_count": 1,
+            "outstanding_transactions": [{"parent_post_id": "202", "reason": "Prepared outstanding row"}],
+        },
+    }}
+    before = copy.deepcopy(report)
+
+    rendered = digest.render_markdown(report)
+
+    assert "**3** intermediate `context_reply_pending` states subsequently reached" in rendered
+    assert "Prepared outstanding row" in rendered
+    assert report == before
+
+
+@pytest.mark.parametrize("consistency", [None, {}, {"context_transaction_state_counts": {}}])
+def test_context_transactions_fallback_for_older_reports_matches_prepared_output(consistency):
+    events = [
+        {"kind": "posting_transaction_state", "parent_post_id": "101",
+         "context_reply_state": "context_reply_pending"},
+        {"kind": "historical_context_obligation", "parent_post_id": "101",
+         "context_reply_state": "context_reply_not_required"},
+        {"kind": "posting_transaction_state", "parent_post_id": "202",
+         "context_reply_state": "context_reply_failed_retryable"},
+    ]
+    report = {"summary": {}, "events": events}
+    if consistency is not None:
+        report["production_consistency"] = consistency
+    before = copy.deepcopy(report)
+    prepared = copy.deepcopy(report)
+    prepared.setdefault("production_consistency", {})["context_transaction_outcomes"] = (
+        prepare_context_transaction_outcomes(prepared["events"])
+    )
+
+    assert digest.render_markdown(report) == digest.render_markdown(prepared)
+    assert report == before

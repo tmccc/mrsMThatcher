@@ -38,8 +38,6 @@ def sanitize_next_reply_lane_priority(
 def run_reply_lane_checks_for_tick(
     state: dict,
     current: int,
-    last_reply_check_epoch: int,
-    last_quote_tweet_check_epoch: int,
     *,
     AmbiguousRemotePostOutcome: type[Exception],
     ENABLE_AUTO_REPLIES: bool,
@@ -61,7 +59,7 @@ def run_reply_lane_checks_for_tick(
     save_state: Callable[[dict], None],
     scheduler_epoch_from_state: Callable[..., tuple[int, bool]],
 ) -> tuple[int, int]:
-    """Run one scheduled reply-lane arbitration tick."""
+    """Run one reply-lane tick using the check epochs in canonical state."""
     ambiguity_blocked = False
     last_reply_check_epoch, reply_epoch_changed = scheduler_epoch_from_state(
         state,

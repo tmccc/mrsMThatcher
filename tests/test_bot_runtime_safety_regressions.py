@@ -336,12 +336,10 @@ def test_main_total_persistence_loss_latch_stops_later_remote_lanes(
     def reply_tick(
         _state: dict,
         _current: int,
-        last_reply_check_epoch: int,
-        last_quote_tweet_check_epoch: int,
     ) -> tuple[int, int]:
         nonlocal reply_ticks
         reply_ticks += 1
-        return last_reply_check_epoch, last_quote_tweet_check_epoch
+        return 0, 0
 
     def catastrophic_quote(*_args: object, **_kwargs: object) -> None:
         nonlocal clock_must_not_run, quote_attempts
@@ -447,7 +445,7 @@ def test_main_routes_remote_safety_failures_without_error_retry_bookkeeping(
     monkeypatch.setattr(
         bot,
         "run_reply_lane_checks_for_tick",
-        lambda _state, _current, reply_epoch, quote_epoch: (reply_epoch, quote_epoch),
+        lambda _state, _current: (0, 0),
     )
     monkeypatch.setattr(
         bot,
@@ -920,7 +918,7 @@ def test_production_reply_tick_stops_sibling_lane_on_safety_failure(
         safety_failure if first_lane == "quote_tweet" else later_lane,
     )
 
-    assert bot.run_reply_lane_checks_for_tick(state, 100, 0, 0) == (0, 0)
+    assert bot.run_reply_lane_checks_for_tick(state, 100) == (0, 0)
     assert bot.ambiguous_remote_post_is_blocking() is True
     assert bot.load_confirmed_reply_receipt() == ("sending", sending)
 
