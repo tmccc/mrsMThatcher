@@ -9226,29 +9226,8 @@ def _run_due_meme_post_for_tick(state: dict, current: int) -> None:
             )
 
 
-def main() -> None:
-    """Run the command-line entry point."""
-    require_production_bootstrap()
-    report_bot_health_progress("startup")
-    random.seed()
-    acquire_instance_lock()
-    report_bot_health_progress("recovery")
-    # The durable namespace must be proved only while this process owns the
-    # installation lock.  Checking it before the lock leaves a stale-success
-    # interval in which a cooperating maintenance process can change the very
-    # files whose presence authorises startup.
-    require_established_installation_after_ledger_recovery()
-    if not global_remote_writes_paused():
-        try:
-            resume_interrupted_confirmed_media_retirement_if_present()
-        except Exception:
-            log.critical(
-                "Interrupted confirmed-media retirement could not be resumed "
-                "at startup; every remote lane remains blocked",
-                exc_info=True,
-            )
-    reconcile_runtime_historical_context_state()
-
+def _log_startup_configuration() -> None:
+    """Log the current paths and settings after startup recovery."""
     log.info("Bot starting")
     log.info("Python executable=%s", sys.executable)
     log.info("Base dir=%s", BASE_DIR)
@@ -9324,6 +9303,32 @@ def main() -> None:
     log.info("Config: HOT_POST_REPLY_SEARCH_MAX_PAGES_PER_CHECK=%s", HOT_POST_REPLY_SEARCH_MAX_PAGES_PER_CHECK)
     log.info("Config: HOT_POST_REPLY_FULL_RESCAN_EVERY_CHECKS=%s", HOT_POST_REPLY_FULL_RESCAN_EVERY_CHECKS)
     log.info("Config: X_BEARER_TOKEN_SET=%s", bool(X_BEARER_TOKEN))
+
+
+def main() -> None:
+    """Recover local state and run the continuous posting and reply scheduler."""
+    require_production_bootstrap()
+    report_bot_health_progress("startup")
+    random.seed()
+    acquire_instance_lock()
+    report_bot_health_progress("recovery")
+    # The durable namespace must be proved only while this process owns the
+    # installation lock.  Checking it before the lock leaves a stale-success
+    # interval in which a cooperating maintenance process can change the very
+    # files whose presence authorises startup.
+    require_established_installation_after_ledger_recovery()
+    if not global_remote_writes_paused():
+        try:
+            resume_interrupted_confirmed_media_retirement_if_present()
+        except Exception:
+            log.critical(
+                "Interrupted confirmed-media retirement could not be resumed "
+                "at startup; every remote lane remains blocked",
+                exc_info=True,
+            )
+    reconcile_runtime_historical_context_state()
+
+    _log_startup_configuration()
 
     images_at_start = glob(IMAGE_GLOB)
     log.info("Images found at startup=%d", len(images_at_start))

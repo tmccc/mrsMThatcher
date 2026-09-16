@@ -1,5 +1,9 @@
 # Python Architecture And Documentation
 
+For a short route through the current bot and digest, start with the
+[code reading guide](code_reading_guide.md). This page is the detailed module,
+interface and documentation reference.
+
 ## Documentation Standard
 
 Maintained non-test Python follows the public-docstring portion of PEP 257:

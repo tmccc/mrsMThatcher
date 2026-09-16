@@ -528,6 +528,9 @@ already-completed, failed, skipped and dry-run events.
 
 ## Architecture And Python API
 
+Start with the [code reading guide](docs/code_reading_guide.md) for the bot and
+digest execution paths and the next implementation file to read.
+
 The maintained module map, side-effect boundaries, active corpus accounting and
 PEP 257 documentation policy are recorded in
 [`docs/python_api.md`](docs/python_api.md). Check module and public-definition

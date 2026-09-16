@@ -51,11 +51,13 @@ class _ReplyCandidate:
 
 @dataclass
 class _ReplyCycleProgress:
-    """Share only the model budget and quarantine retirement flags across candidates."""
+    """Track the model budget and deferred bookkeeping across candidates."""
 
     fresh_mention_ai_evaluations: int
+    # Quarantine retirement changed state that still needs a durable save.
     quarantine_retirements_pending: bool = False
-    quarantine_evaluations_deferred: bool = False
+    # A terminal evaluation was recorded without pruning the full record set.
+    evaluation_record_pruning_pending: bool = False
 
 
 @dataclass(frozen=True)
@@ -255,11 +257,11 @@ def maybe_reply_to_mentions(
     progress = _ReplyCycleProgress(int(_fresh_mention_ai_evaluations))
 
     def prune_quarantine_retirement_batch() -> None:
-        if progress.quarantine_evaluations_deferred:
+        if progress.evaluation_record_pruning_pending:
             prune_reply_evaluation_records(state)
         else:
             prune_completed_mention_quarantine_evaluations(state)
-        progress.quarantine_evaluations_deferred = False
+        progress.evaluation_record_pruning_pending = False
 
     def flush_quarantine_retirements() -> None:
         if not progress.quarantine_retirements_pending:
@@ -637,7 +639,7 @@ def _author_allows_evaluation(
                         AUTHOR_EVALUATION_QUARANTINE_EVIDENCE_POLICY
                     ),
                 )
-                progress.quarantine_evaluations_deferred = True
+                progress.evaluation_record_pruning_pending = True
             progress.quarantine_retirements_pending = True
             return False
 
