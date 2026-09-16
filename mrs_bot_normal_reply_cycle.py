@@ -31,6 +31,7 @@ from mrs_bot_reply_preparation import (
     build_sending_reply_receipt,
     persist_validated_reply_draft,
 )
+from mrs_bot_reply_state import retire_ineligible_reply_draft
 
 if TYPE_CHECKING:
     from single_call_reply import PipelineResult
@@ -545,31 +546,15 @@ def _candidate_is_eligible(
             candidate.source,
             candidate.mention_id,
         )
-        drafts = state.get("pending_ai_reply_drafts", {})
-        pending_key = pending_ai_reply_draft_key(candidate.mention_id, str(candidate.source))
-        pending_record = drafts.get(pending_key) if isinstance(drafts, dict) else None
-        if isinstance(pending_record, dict):
-            log_event(
-                "single_call_reply_posting_outcome",
-                status="posting_failed_terminal",
-                lane=str(candidate.source),
-                target_id=candidate.mention_id,
-                reply_post_id="",
-                strategy_version=pending_record.get("strategy_version"),
-                reply_kind=pending_record.get("reply_kind"),
-                reason_code=pending_record.get("reason_code"),
-                validated_draft_hash=pending_record.get(
-                    "validated_draft_hash"
-                ),
-                failure_reason="reply_not_permitted_preflight",
-            )
-            persistence.clear(state, candidate.mention_id, str(candidate.source))
-        record_terminal_reply_evaluation(
+        retire_ineligible_reply_draft(
             state,
-            target_id=candidate.mention_id,
-            lane=str(candidate.source),
+            candidate.mention_id,
+            str(candidate.source),
             reason=reason,
-            outcome="reply_not_permitted",
+            pending_ai_reply_draft_key=pending_ai_reply_draft_key,
+            log_event=log_event,
+            clear_pending_ai_reply=persistence.clear,
+            record_terminal_reply_evaluation=record_terminal_reply_evaluation,
         )
         maybe_mark_hot_post_reply_skipped(state, candidate.mention, reason="reply_not_permitted")
         log_event(

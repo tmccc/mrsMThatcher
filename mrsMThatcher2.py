@@ -685,7 +685,7 @@ MEME_SCHEDULE_MODES = {
     "delayed_api_error",
     "delayed_exception",
 }
-MAX_REASONABLE_STATE_EPOCH = 4_102_531_200
+MAX_REASONABLE_STATE_EPOCH = _runtime_control.MAX_CONTROL_EPOCH
 PICKLE_FILE = BASE_DIR / "lines_used.pickle"
 IMAGE_PICKLE_FILE = BASE_DIR / "images_used.pickle"
 STATE_FILE = BASE_DIR / "bot_state.json"

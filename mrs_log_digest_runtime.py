@@ -19,6 +19,15 @@ from pathlib import Path
 from typing import AbstractSet, Any, Callable, Dict, List, Optional, Tuple
 
 from mrs_log_digest_values import bounded_exception_status, dt_text
+from runtime_control_contract import (
+    CONTROL_ALLOWED_KEYS as REMOTE_WRITE_CONTROL_ALLOWED_KEYS,
+    CONTROL_BOOLEAN_KEYS as REMOTE_WRITE_CONTROL_BOOLEAN_KEYS,
+    CONTROL_TIME_KEYS as REMOTE_WRITE_CONTROL_TIME_KEYS,
+    MAX_CONTROL_EPOCH,
+    parse_control_time,
+    validate_control_metadata,
+    validate_control_values,
+)
 
 
 CURRENT_RUNTIME_STATE_MAX_BYTES = 64 * 1024 * 1024
@@ -57,38 +66,6 @@ CURRENT_CONFIG_REPORT_KEYS = {
     "POST_SLEEP_MIN",
     "POST_SLEEP_MAX",
 }
-
-
-REMOTE_WRITE_CONTROL_BOOLEAN_KEYS = frozenset(
-    {
-        "disable_all",
-        "pause_all",
-        "disable_replies",
-        "pause_replies",
-        "disable_normal_replies",
-        "pause_normal_replies",
-        "disable_quote_replies",
-        "pause_quote_replies",
-        "disable_hot_post_replies",
-        "pause_hot_post_replies",
-        "disable_quote_posts",
-        "pause_quote_posts",
-        "disable_meme_posts",
-        "pause_meme_posts",
-    }
-)
-
-
-REMOTE_WRITE_CONTROL_TIME_KEYS = frozenset(
-    f"{key}_until" for key in REMOTE_WRITE_CONTROL_BOOLEAN_KEYS
-)
-
-
-REMOTE_WRITE_CONTROL_ALLOWED_KEYS = (
-    REMOTE_WRITE_CONTROL_BOOLEAN_KEYS
-    | REMOTE_WRITE_CONTROL_TIME_KEYS
-    | {"generation"}
-)
 
 
 def load_current_runtime_state(
@@ -206,40 +183,14 @@ def _control_boolean(value: Any) -> bool:
 
 
 def _control_epoch(value: Any) -> int:
-    """Parse the documented runtime-control epoch/date representations."""
-
-    if isinstance(value, bool) or value is None:
-        raise ValueError("control time must not be boolean or null")
-    if type(value) is int:
-        epoch = value
-    elif type(value) is Decimal:
-        if not value.is_finite() or value != value.to_integral_value():
-            raise ValueError("control time exact number must be finite and integral")
-        epoch = int(value)
-    elif type(value) is float and math.isfinite(value) and value.is_integer():
-        epoch = int(value)
-    elif type(value) is str and value.strip() and not value.strip().isdigit():
-        text = value.strip()
-        parsed: Optional[datetime] = None
-        for fmt in (
-            "%Y-%m-%d %H:%M:%S",
-            "%Y-%m-%d %H:%M",
-            "%Y-%m-%dT%H:%M:%S",
-            "%Y-%m-%dT%H:%M",
-        ):
-            try:
-                parsed = datetime.strptime(text, fmt)
-                break
-            except ValueError:
-                pass
-        if parsed is None:
-            parsed = datetime.fromisoformat(text)
-        epoch = int(parsed.timestamp())
-    else:
-        raise ValueError("control time has an unsupported representation")
-    if epoch < 0 or epoch > 4_102_444_800:
-        raise ValueError("control time is outside the supported range")
-    return epoch
+    """Parse one control timestamp using the same contract as the running bot."""
+    return parse_control_time(
+        value,
+        Decimal=Decimal,
+        MAX_REASONABLE_STATE_EPOCH=MAX_CONTROL_EPOCH,
+        datetime=datetime,
+        math=math,
+    )
 
 
 def runtime_control_snapshot(
@@ -282,28 +233,23 @@ def runtime_control_snapshot(
         }
     try:
         value = parse_json_object(data, label="runtime control")
-        unsupported = sorted(set(value) - REMOTE_WRITE_CONTROL_ALLOWED_KEYS)
-        if unsupported:
-            raise ValueError(
-                "unsupported control key(s): " + ", ".join(unsupported)
-            )
+        validate_control_metadata(
+            value, CONTROL_ALLOWED_KEYS=REMOTE_WRITE_CONTROL_ALLOWED_KEYS,
+        )
         generation = value.get("generation")
-        if generation is not None and (
-            type(generation) is not int or generation < 0
-        ):
-            raise ValueError("generation must be a non-negative integer")
         now_epoch = int(now().timestamp())
+        value = validate_control_values(
+            value,
+            CONTROL_BOOLEAN_KEYS=REMOTE_WRITE_CONTROL_BOOLEAN_KEYS,
+            CONTROL_TIME_KEYS=REMOTE_WRITE_CONTROL_TIME_KEYS,
+            Decimal=Decimal,
+            parse_control_time=_control_epoch,
+        )
         active: List[str] = []
         for key in sorted(REMOTE_WRITE_CONTROL_BOOLEAN_KEYS):
             if key not in value:
                 continue
             raw = value[key]
-            if not isinstance(raw, bool) and not (
-                isinstance(raw, str)
-                and raw.strip().lower()
-                in {"1", "true", "yes", "on", "0", "false", "no", "off"}
-            ):
-                raise ValueError(f"{key} must be a boolean")
             if _control_boolean(raw):
                 active.append(key)
         for key in sorted(REMOTE_WRITE_CONTROL_TIME_KEYS):

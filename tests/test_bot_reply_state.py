@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import copy
 import inspect
 from pathlib import Path
 import subprocess
@@ -101,6 +102,89 @@ def test_adapters_forward_current_dependencies_arguments_results_and_errors(monk
             with pytest.raises(TypeError) as caught:
                 adapter(*args, **options)
             assert caught.value is failure
+
+
+@pytest.mark.parametrize("drafts", [None, [], {}, {"custom-key": None}, {"custom-key": "obsolete"}, {"custom-key": {}}])
+def test_ineligible_draft_retirement_keeps_missing_and_malformed_draft_behavior(drafts):
+    state = {} if drafts is None else {"pending_ai_reply_drafts": drafts}
+    before = copy.deepcopy(state)
+    trace = Mock()
+    trace.key.return_value = "custom-key"
+
+    reply_state.retire_ineligible_reply_draft(
+        state, "101", "hot_post_reply",
+        reason="target_does_not_directly_mention_account",
+        pending_ai_reply_draft_key=trace.key,
+        log_event=trace.event,
+        clear_pending_ai_reply=trace.clear,
+        record_terminal_reply_evaluation=trace.terminal,
+    )
+
+    expected = [call.key("101", "hot_post_reply")]
+    if drafts == {"custom-key": {}}:
+        expected.extend([
+            call.event(
+                "single_call_reply_posting_outcome",
+                status="posting_failed_terminal", lane="hot_post_reply",
+                target_id="101", reply_post_id="", strategy_version=None,
+                reply_kind=None, reason_code=None, validated_draft_hash=None,
+                failure_reason="reply_not_permitted_preflight",
+            ),
+            call.clear(state, "101", "hot_post_reply"),
+        ])
+    expected.append(call.terminal(
+        state, target_id="101", lane="hot_post_reply",
+        reason="target_does_not_directly_mention_account", outcome="reply_not_permitted",
+    ))
+    assert trace.mock_calls == expected
+    assert state == before  # State mutation belongs to the supplied callbacks.
+
+
+@pytest.mark.parametrize("boundary", [None, "key", "event", "clear", "terminal"])
+def test_ineligible_draft_retirement_preserves_metadata_order_and_callback_failures(boundary):
+    draft = {
+        "strategy_version": "stored-strategy", "reply_kind": "direct_reply",
+        "reason_code": "answer_question", "validated_draft_hash": "stored-hash",
+    }
+    state = {"pending_ai_reply_drafts": {"custom-key": draft}}
+    trace = Mock()
+    trace.key.return_value = "custom-key"
+    failure = RuntimeError("retirement callback failed")
+    if boundary:
+        getattr(trace, boundary).side_effect = failure
+
+    def retire():
+        reply_state.retire_ineligible_reply_draft(
+            state, "101", "mention", reason="ineligible-reason",
+            pending_ai_reply_draft_key=trace.key,
+            log_event=trace.event,
+            clear_pending_ai_reply=trace.clear,
+            record_terminal_reply_evaluation=trace.terminal,
+        )
+
+    if boundary:
+        with pytest.raises(RuntimeError) as caught:
+            retire()
+        assert caught.value is failure
+    else:
+        retire()
+
+    expected = [
+        call.key("101", "mention"),
+        call.event(
+            "single_call_reply_posting_outcome", status="posting_failed_terminal",
+            lane="mention", target_id="101", reply_post_id="", **draft,
+            failure_reason="reply_not_permitted_preflight",
+        ),
+        call.clear(state, "101", "mention"),
+        call.terminal(
+            state, target_id="101", lane="mention", reason="ineligible-reason",
+            outcome="reply_not_permitted",
+        ),
+    ]
+    if boundary:
+        expected = expected[:["key", "event", "clear", "terminal"].index(boundary) + 1]
+    assert trace.mock_calls == expected
 
 
 def test_validation_fetches_current_evidence_and_preserves_context_and_recent_references(monkeypatch):

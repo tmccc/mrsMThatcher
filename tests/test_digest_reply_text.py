@@ -530,3 +530,133 @@ def test_selected_historical_failure_preserves_consumption_and_partial_row(bound
         assert event["reply_post_id"] == "456" and event["shared"] is shared
         assert event["source_refs"] is merged and event["public_reply_text_status"] == "conflict"
         assert event["source_ref_omitted_count"] == (7 if boundary == "warn" else 11)
+
+
+@pytest.mark.parametrize("candidates,status,source,reason", [
+    ([], "unavailable", None, "missing evidence"),
+    ([{"text": "First text", "source": "receipt"},
+      {"text": "Other text", "source": "history"}],
+     "conflict", "receipt + history", "authoritative text sources disagree"),
+    ([{"text": None, "source": "receipt", "invalid_reason": "invalid identity"}],
+     "conflict", "receipt", "invalid identity"),
+])
+def test_unavailable_and_conflicting_text_do_not_expose_exact_text_fields(
+    candidates, status, source, reason,
+):
+    result = digest._public_reply_text_result(
+        candidates, unavailable_reason="missing evidence",
+    )
+    assert result["public_reply_text"] is None
+    assert result["public_reply_text_sha256"] is None
+    assert result["public_reply_text_character_count"] is None
+    assert result["public_reply_text_complete"] is False
+    assert result["public_reply_text_status"] == result["correlation_status"] == status
+    assert result["public_reply_text_source"] == source
+    assert result["public_reply_text_reason"] == reason
+
+
+@pytest.mark.parametrize("path", [
+    "conversational", "selected_historical", "synthesized_historical",
+])
+def test_identity_conflict_clears_text_but_preserves_the_appropriate_provenance(path):
+    stale_fields = {
+        "public_reply_text": "Stale confirmed text",
+        "public_reply_text_sha256": "f" * 64,
+        "public_reply_text_character_count": 20,
+        "public_reply_text_complete": True,
+        "public_reply_text_status": "confirmed",
+        "public_reply_text_source": "stale source",
+        "correlation_status": "exact",
+    }
+    historical = [
+        {"authoritative": True, "parent_post_id": parent, "quote_id": "a" * 64,
+         "reply_post_id": "456", "reply_text": "The same valid text",
+         "source": source, "source_refs": [{"record_number": index}]}
+        for index, (parent, source) in enumerate([
+            ("123", "first evidence"), ("789", "second evidence"),
+        ], 1)
+    ]
+    confirmations = []
+    if path == "conversational":
+        event = dict(stale_fields, kind="mention_reply_posted", mention_id="789",
+                     reply_post_id="456", source_refs=[{"record_number": 0}])
+        confirmations = [{"lane": "mention", "target_id": "123", "reply_post_id": "456",
+                          "source_refs": [{"record_number": 1}]}]
+        historical = []
+        expected_source = None
+        expected_reason = "legacy posted record identity disagrees with structured confirmation"
+        expected_refs = [0, 1]
+    else:
+        event = dict(stale_fields, kind="historical_context_reply", status="completed",
+                     parent_post_id="123", quote_id="a" * 64,
+                     source_refs=[{"record_number": 0}])
+        expected_source = "first evidence + second evidence"
+        expected_reason = (
+            "structured historical-context evidence disagrees on reply or parent identity"
+            if path == "selected_historical"
+            else "structured historical-context confirmations disagree on immutable identity"
+        )
+        expected_refs = [0, 1, 2] if path == "selected_historical" else [1, 2]
+    report = {"events": [] if path == "synthesized_historical" else [event]}
+    digest.enrich_published_reply_text(
+        report, runtime_state={}, structured_reply_confirmations=confirmations,
+        historical_reply_text_evidence=historical,
+    )
+    if path == "synthesized_historical":
+        event, = report["events"]
+        assert event["kind"] == "confirmed_public_reply"
+        assert event["parent_post_id"] is event["quote_id"] is None
+    assert event["public_reply_text"] is None
+    assert event["public_reply_text_sha256"] is None
+    assert event["public_reply_text_character_count"] is None
+    assert event["public_reply_text_complete"] is False
+    assert event["public_reply_text_status"] == event["correlation_status"] == "conflict"
+    assert event["public_reply_text_source"] == expected_source
+    assert event["public_reply_text_reason"] == expected_reason
+    assert [ref["record_number"] for ref in event["source_refs"]] == expected_refs
+    assert report["published_reply_text_health"]["conflict_count"] == 1
+
+
+@pytest.mark.parametrize("historical", [False, True])
+@pytest.mark.parametrize("bounded", [False, True])
+def test_reply_enrichment_merges_provenance_and_keeps_omissions_across_bounds(
+    historical, bounded,
+):
+    evidence_refs = [{"record_number": index} for index in range(10 if bounded else 2)]
+    event_refs = [{"record_number": index} for index in ([8, 9, 99] if bounded else [0])]
+    event = {
+        "source_refs": event_refs,
+        "source_ref_omitted_count": 17,
+    }
+    if historical:
+        event.update(kind="historical_context_reply", status="completed",
+                     parent_post_id="123", quote_id="a" * 64)
+        confirmations = []
+        history = [{"authoritative": True, "parent_post_id": "123", "quote_id": "a" * 64,
+                    "reply_post_id": "456", "reply_text": "Exact confirmed text",
+                    "source_refs": evidence_refs}]
+    else:
+        event.update(kind="mention_reply_posted", mention_id="123", reply_post_id="456")
+        confirmations = [{"lane": "mention", "target_id": "123", "reply_post_id": "456",
+                          "source_refs": evidence_refs}]
+        history = []
+    report = {"events": [event]}
+    digest.enrich_published_reply_text(
+        report,
+        runtime_state={"ai_reply_history": [{
+            "candidate_source": "mention", "target_id": "123", "reply_post_id": "456",
+            "proposed_reply": "Exact confirmed text",
+        }]},
+        structured_reply_confirmations=confirmations,
+        historical_reply_text_evidence=history,
+    )
+    assert report["events"][0] is event
+    assert event["public_reply_text"] == "Exact confirmed text"
+    assert event["public_reply_text_status"] == "confirmed"
+    assert event["public_reply_text_complete"] is True
+    assert [ref["record_number"] for ref in event["source_refs"]] == (
+        [8, 9, 99, 0, 1, 2, 3, 4] if bounded else [0, 1]
+    )
+    # Newly omitted references include both bounding passes. If neither pass
+    # omits anything, retain the row's existing omission marker.
+    assert event["source_ref_omitted_count"] == (5 if bounded else 17)

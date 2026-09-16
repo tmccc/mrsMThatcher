@@ -25,6 +25,52 @@ from mrs_log_digest_values import (
 PUBLISHED_REPLY_WARNING_LIMIT = 100
 
 
+def _incomplete_public_reply_text_fields(
+    *, status: str, reason: str,
+) -> Dict[str, Any]:
+    """Clear exact-text fields while leaving source provenance to the caller."""
+
+    return {
+        "public_reply_text": None,
+        "public_reply_text_sha256": None,
+        "public_reply_text_character_count": None,
+        "public_reply_text_complete": False,
+        "public_reply_text_status": status,
+        "public_reply_text_reason": reason,
+        "correlation_status": status,
+    }
+
+
+def _apply_public_reply_text_result(
+    event: Dict[str, Any],
+    text_result: Dict[str, Any],
+    *additional_source_refs: Any,
+    bounded_source_refs: Callable[..., Tuple[List[Dict[str, Any]], int]],
+    additional_omitted_count: int = 0,
+) -> None:
+    """Apply text fields and bounded provenance without discarding existing refs."""
+
+    combined_refs, omitted = bounded_source_refs(
+        event.get("source_refs"),
+        *additional_source_refs,
+        text_result.get("source_refs"),
+    )
+    event.update(
+        {
+            key: value
+            for key, value in text_result.items()
+            if key not in {"source_refs", "source_ref_omitted_count"}
+        }
+    )
+    if combined_refs:
+        event["source_refs"] = combined_refs
+    total_omitted = omitted + additional_omitted_count + int(
+        text_result.get("source_ref_omitted_count") or 0
+    )
+    if total_omitted:
+        event["source_ref_omitted_count"] = total_omitted
+
+
 def _public_reply_text_result(
     candidates: List[Dict[str, Any]],
     *,
@@ -61,30 +107,23 @@ def _public_reply_text_result(
     )
     if invalid_count or len(texts) > 1:
         result = {
-            "public_reply_text": None,
-            "public_reply_text_sha256": None,
-            "public_reply_text_character_count": None,
-            "public_reply_text_complete": False,
-            "public_reply_text_status": "conflict",
-            "public_reply_text_source": " + ".join(sources) or None,
-            "public_reply_text_reason": (
-                "; ".join(invalid_reasons)[:320]
-                or "authoritative text evidence is malformed or exceeds the supported bound"
-                if invalid_count
-                else "authoritative text sources disagree"
+            **_incomplete_public_reply_text_fields(
+                status="conflict",
+                reason=(
+                    "; ".join(invalid_reasons)[:320]
+                    or "authoritative text evidence is malformed or exceeds the supported bound"
+                    if invalid_count
+                    else "authoritative text sources disagree"
+                ),
             ),
-            "correlation_status": "conflict",
+            "public_reply_text_source": " + ".join(sources) or None,
         }
     elif not texts:
         result = {
-            "public_reply_text": None,
-            "public_reply_text_sha256": None,
-            "public_reply_text_character_count": None,
-            "public_reply_text_complete": False,
-            "public_reply_text_status": "unavailable",
+            **_incomplete_public_reply_text_fields(
+                status="unavailable", reason=unavailable_reason[:320],
+            ),
             "public_reply_text_source": None,
-            "public_reply_text_reason": unavailable_reason[:320],
-            "correlation_status": "unavailable",
         }
     else:
         text = texts[0]
@@ -441,40 +480,20 @@ def _enrich_selected_historical_reply_text(
         )
         if len(reply_ids) > 1 or identity_conflict:
             text_result.update(
-                {
-                    "public_reply_text": None,
-                    "public_reply_text_sha256": None,
-                    "public_reply_text_character_count": None,
-                    "public_reply_text_complete": False,
-                    "public_reply_text_status": "conflict",
-                    "public_reply_text_reason": (
+                _incomplete_public_reply_text_fields(
+                    status="conflict",
+                    reason=(
                         "structured historical-context evidence disagrees on "
                         "reply or parent identity"
                     ),
-                    "correlation_status": "conflict",
-                }
+                )
             )
         event["reply_post_id"] = (
             next(iter(reply_ids)) if len(reply_ids) == 1 else None
         )
-        combined_refs, omitted = bounded_source_refs(
-            event.get("source_refs"),
-            text_result.get("source_refs"),
+        _apply_public_reply_text_result(
+            event, text_result, bounded_source_refs=bounded_source_refs,
         )
-        event.update(
-            {
-                key: value
-                for key, value in text_result.items()
-                if key not in {"source_refs", "source_ref_omitted_count"}
-            }
-        )
-        if combined_refs:
-            event["source_refs"] = combined_refs
-        total_omitted = omitted + int(
-            text_result.get("source_ref_omitted_count") or 0
-        )
-        if total_omitted:
-            event["source_ref_omitted_count"] = total_omitted
         if event["public_reply_text_status"] == "conflict":
             warn(
                 reply_post_id=str(event.get("reply_post_id") or ""),
@@ -732,25 +751,11 @@ def enrich_published_reply_text(
                         legacy_original_post_id or original_post_id
                     )
             event["reply_post_id"] = reply_post_id
-            combined_refs, omitted = bounded_source_refs(
-                event.get("source_refs"),
-                confirmation_refs,
-                text_result.get("source_refs"),
+            _apply_public_reply_text_result(
+                event, text_result, confirmation_refs,
+                bounded_source_refs=bounded_source_refs,
+                additional_omitted_count=confirmation_refs_omitted,
             )
-            event.update(
-                {
-                    key: value
-                    for key, value in text_result.items()
-                    if key not in {"source_refs", "source_ref_omitted_count"}
-                }
-            )
-            if combined_refs:
-                event["source_refs"] = combined_refs
-            total_omitted = omitted + confirmation_refs_omitted + int(
-                text_result.get("source_ref_omitted_count") or 0
-            )
-            if total_omitted:
-                event["source_ref_omitted_count"] = total_omitted
             if target_field is not None and not identity_conflict:
                 event.setdefault(target_field, target_id)
             enriched_records.add(id(event))
@@ -772,16 +777,13 @@ def enrich_published_reply_text(
                 event["source_ref_omitted_count"] = total_omitted
             event.update(
                 {
-                    "correlation_status": "conflict",
-                    "public_reply_text": None,
-                    "public_reply_text_sha256": None,
-                    "public_reply_text_character_count": None,
-                    "public_reply_text_complete": False,
-                    "public_reply_text_status": "conflict",
-                    "public_reply_text_source": None,
-                    "public_reply_text_reason": (
-                        "legacy posted record identity disagrees with structured confirmation"
+                    **_incomplete_public_reply_text_fields(
+                        status="conflict",
+                        reason=(
+                            "legacy posted record identity disagrees with structured confirmation"
+                        ),
                     ),
+                    "public_reply_text_source": None,
                 }
             )
             warn(
@@ -874,18 +876,13 @@ def enrich_published_reply_text(
         )
         if identity_conflict:
             text_result.update(
-                {
-                    "public_reply_text": None,
-                    "public_reply_text_sha256": None,
-                    "public_reply_text_character_count": None,
-                    "public_reply_text_complete": False,
-                    "public_reply_text_status": "conflict",
-                    "public_reply_text_reason": (
+                _incomplete_public_reply_text_fields(
+                    status="conflict",
+                    reason=(
                         "structured historical-context confirmations disagree "
                         "on immutable identity"
                     ),
-                    "correlation_status": "conflict",
-                }
+                )
             )
         normalized_event: Dict[str, Any] = {
             "kind": "confirmed_public_reply",

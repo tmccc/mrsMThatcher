@@ -219,6 +219,7 @@ deployed as a coherent set:
 - `mrs_bot_reply_native_media.py`
 - `mrs_bot_reply_lane_policy.py`
 - `mrs_bot_runtime_control.py`
+- `runtime_control_contract.py`
 - `mrs_bot_api_cooldowns.py`
 - `mrs_bot_x_pagination.py`
 - `mrs_bot_request_route_values.py`
@@ -596,6 +597,9 @@ genuinely absent control file means no runtime pause.
 Control timestamps accept integer epochs or documented date/time strings;
 booleans, numeric strings, fractional/non-finite values, and out-of-range
 epochs invalidate the complete control document.
+The bot and digest share these validation rules. If `generation` is present,
+it must be a non-negative integer; `null` is invalid. Both use the bot's
+existing maximum timestamp of `4102531200`.
 
 Normal operational commands require `bot_state.json` (or a valid configured
 backup), `lines_used.json`, and `images_used.json`. They refuse to infer a new

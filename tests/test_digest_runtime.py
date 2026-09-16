@@ -249,6 +249,7 @@ def test_runtime_wrappers_keep_reader_parser_and_file_time_seams(
         (b"[]", False, False, ["fail_closed_invalid_control"]),
         (b'{"unsupported":true}', False, False, ["fail_closed_invalid_control"]),
         (b'{"generation":true}', False, False, ["fail_closed_invalid_control"]),
+        (b'{"generation":null}', False, False, ["fail_closed_invalid_control"]),
         (b'{"pause_all":1}', True, False, ["fail_closed_invalid_control"]),
         (b'{"pause_all_until":1.0000000000000000000000000001}', True, False, ["fail_closed_invalid_control"]),
         (
@@ -300,6 +301,7 @@ def test_pause_wrapper_samples_patched_clock_at_original_validation_boundary(
 
 
 @pytest.mark.parametrize("module_name", [
+    "runtime_control_contract",
     "mrs_log_digest_input_io",
     "mrs_log_digest_context",
     "mrs_log_digest_runtime", "mrs_log_digest_remote_write",

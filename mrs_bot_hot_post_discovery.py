@@ -21,6 +21,8 @@ from logging import Logger
 from pathlib import Path
 from types import ModuleType
 
+from mrs_bot_reply_state import retire_ineligible_reply_draft
+
 
 def get_hot_post_reply_candidates(
     state: dict,
@@ -282,31 +284,15 @@ def get_hot_post_reply_candidates(
                     "target is not directly reply-eligible",
                     reply_id,
                 )
-                drafts = state.get("pending_ai_reply_drafts", {})
-                pending_key = pending_ai_reply_draft_key(reply_id, "hot_post_reply")
-                pending_record = drafts.get(pending_key) if isinstance(drafts, dict) else None
-                if isinstance(pending_record, dict):
-                    log_event(
-                        "single_call_reply_posting_outcome",
-                        status="posting_failed_terminal",
-                        lane="hot_post_reply",
-                        target_id=reply_id,
-                        reply_post_id="",
-                        strategy_version=pending_record.get("strategy_version"),
-                        reply_kind=pending_record.get("reply_kind"),
-                        reason_code=pending_record.get("reason_code"),
-                        validated_draft_hash=pending_record.get(
-                            "validated_draft_hash"
-                        ),
-                        failure_reason="reply_not_permitted_preflight",
-                    )
-                    clear_pending_ai_reply(state, reply_id, "hot_post_reply")
-                record_terminal_reply_evaluation(
+                retire_ineligible_reply_draft(
                     state,
-                    target_id=reply_id,
-                    lane="hot_post_reply",
+                    reply_id,
+                    "hot_post_reply",
                     reason=reason,
-                    outcome="reply_not_permitted",
+                    pending_ai_reply_draft_key=pending_ai_reply_draft_key,
+                    log_event=log_event,
+                    clear_pending_ai_reply=clear_pending_ai_reply,
+                    record_terminal_reply_evaluation=record_terminal_reply_evaluation,
                 )
                 mark_hot_post_reply_skipped(
                     state,

@@ -1,7 +1,9 @@
 """Manage current local reply drafts and query already-confirmed reply history.
 
-Root adapters supply current helpers, limits, configuration, logger, exception
-and result classes on each call. The fixed conversational-lane set lives here;
+Root adapters and reply-lane owners supply current helpers, limits,
+configuration, logger, exception and result classes on each call. Shared
+ineligible-draft retirement leaves candidate bookkeeping and saves to its lane.
+The fixed conversational-lane set lives here;
 its root name remains a direct alias. Bodies preserve existing validation,
 reference, copying, ordering and recovery boundaries. Provider transport, durable
 history writes, state persistence and receipt lifecycle authority remain with
@@ -260,6 +262,49 @@ def clear_pending_ai_reply(
     drafts.pop(pending_ai_reply_draft_key(target_id, candidate_source), None)
     if not drafts:
         state.pop("pending_ai_reply_drafts", None)
+
+
+def retire_ineligible_reply_draft(
+    state: dict,
+    target_id: str,
+    candidate_source: str,
+    *,
+    reason: str,
+    pending_ai_reply_draft_key: Callable,
+    log_event: Callable,
+    clear_pending_ai_reply: Callable,
+    record_terminal_reply_evaluation: Callable,
+) -> None:
+    """Log and clear a dict-shaped draft, then record ineligible evaluation.
+
+    Missing or malformed drafts still receive the terminal evaluation. Caller
+    callbacks retain their order and failures propagate before later callbacks;
+    candidate bookkeeping and durable saves remain with the calling lane.
+    """
+    drafts = state.get("pending_ai_reply_drafts", {})
+    pending_key = pending_ai_reply_draft_key(target_id, candidate_source)
+    pending_record = drafts.get(pending_key) if isinstance(drafts, dict) else None
+    if isinstance(pending_record, dict):
+        log_event(
+            "single_call_reply_posting_outcome",
+            status="posting_failed_terminal",
+            lane=candidate_source,
+            target_id=target_id,
+            reply_post_id="",
+            strategy_version=pending_record.get("strategy_version"),
+            reply_kind=pending_record.get("reply_kind"),
+            reason_code=pending_record.get("reason_code"),
+            validated_draft_hash=pending_record.get("validated_draft_hash"),
+            failure_reason="reply_not_permitted_preflight",
+        )
+        clear_pending_ai_reply(state, target_id, candidate_source)
+    record_terminal_reply_evaluation(
+        state,
+        target_id=target_id,
+        lane=candidate_source,
+        reason=reason,
+        outcome="reply_not_permitted",
+    )
 
 
 def _confirmed_conversational_history_rows(

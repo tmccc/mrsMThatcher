@@ -37,7 +37,7 @@ def forbidden(*args, **kwargs):
 
 original_import = builtins.__import__
 def guarded_import(name, *args, **kwargs):
-    if name in {'mrsMThatcher2', 'requests', 'openai', 'single_call_reply', 'reply_evidence'} or name.startswith('mrs_bot_') and name not in {'mrs_bot_normal_reply_cycle', 'mrs_bot_reply_cycle_interfaces', 'mrs_bot_reply_preparation', 'mrs_bot_reply_delivery'}:
+    if name in {'mrsMThatcher2', 'requests', 'openai', 'single_call_reply', 'reply_evidence'} or name.startswith('mrs_bot_') and name not in {'mrs_bot_normal_reply_cycle', 'mrs_bot_reply_cycle_interfaces', 'mrs_bot_reply_preparation', 'mrs_bot_reply_delivery', 'mrs_bot_reply_state'}:
         forbidden()
     return original_import(name, *args, **kwargs)
 
@@ -204,6 +204,60 @@ def test_receipt_preparation_and_confirmed_state_errors_are_not_transport_errors
     accounted.assert_not_called()
     outcomes.assert_not_called()
     cleanup.assert_not_called()
+    bot.x_request.assert_not_called()
+    bot.create_post.assert_not_called()
+
+
+def test_ineligible_mention_draft_retirement_precedes_seen_marker_and_durable_save(monkeypatch):
+    _configure_cycle(monkeypatch)
+    state = bot.default_state()
+    candidate = mention(105, 205)
+    candidate["entities"] = {"mentions": []}
+    queue_active_mention(state, candidate, base_since_id="99")
+    state["pending_ai_reply_drafts"] = {"custom-key": {
+        "strategy_version": "stored-strategy", "reply_kind": "direct_reply",
+        "reason_code": "answer_question", "validated_draft_hash": "stored-hash",
+    }}
+    key = Mock(return_value="custom-key")
+    monkeypatch.setattr(bot, "pending_ai_reply_draft_key", key)
+    trace = []
+
+    for label, name in (
+        ("clear", "clear_pending_ai_reply"),
+        ("terminal", "record_terminal_reply_evaluation"),
+        ("mark", "maybe_mark_hot_post_reply_skipped"),
+        ("seen", "mark_mention_seen_if_applicable"),
+        ("save", "save_state"),
+    ):
+        original = getattr(bot, name)
+
+        def observe(*args, _label=label, _original=original, **kwargs):
+            trace.append((_label, kwargs.get("durable")))
+            return _original(*args, **kwargs)
+
+        monkeypatch.setattr(bot, name, observe)
+    monkeypatch.setattr(bot, "log_event", lambda event, **kwargs: trace.append((event, None)))
+    context = Mock(side_effect=AssertionError("ineligible target must not build context"))
+    monkeypatch.setattr(bot, "build_context_for_reply_ai", context)
+
+    assert bot.maybe_reply_to_mentions(
+        state, _fresh_mention_ai_evaluations=bot.MAX_MENTIONS_PER_CHECK,
+    ) == bot.NORMAL_CHECK_STATUS_CHECKED
+
+    assert trace == [
+        ("single_call_reply_posting_outcome", None), ("clear", None),
+        ("terminal", None), ("mark", None), ("reply_target_terminal", None),
+        ("seen", None), ("save", True), ("save", None),
+    ]
+    assert key.call_args_list == [call("105", "mention"), call("105", "mention")]
+    saved = json.loads(bot.STATE_FILE.read_text())
+    assert "pending_ai_reply_drafts" not in saved
+    assert saved["mention_pending_candidates"] == {}
+    assert saved["last_seen_mention_id"] == "99"
+    assert saved["reply_evaluation_records"]["105"]["outcome"] == "reply_not_permitted"
+    context.assert_not_called()
+    bot.evaluate_single_call_reply.assert_not_called()
+    bot.reply_media_context_for_candidate.assert_not_called()
     bot.x_request.assert_not_called()
     bot.create_post.assert_not_called()
 
