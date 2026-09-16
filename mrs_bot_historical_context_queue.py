@@ -588,6 +588,7 @@ def _process_due_historical_context_obligations(
             elif status in {
                 "disabled",
                 "skipped_no_completed_packet",
+                "skipped_incomplete_research",
                 "skipped_future_policy",
                 "skipped_unformattable_packet",
             }:

@@ -147,6 +147,11 @@ def _install_bot_context(
     packet: dict[str, str],
     gate: HistoricalContextSemanticGate,
 ) -> list[dict[str, object]]:
+    # These fixtures isolate semantic policy and delivery. Give their synthetic
+    # packets supported research so the separate completeness check can pass.
+    packet.setdefault("verification_status", "exact")
+    packet.setdefault("research_confidence", "high")
+    packet.setdefault("stable_locator", "Reviewed fixture transcript, page 1")
     events: list[dict[str, object]] = []
     monkeypatch.setattr(
         bot,

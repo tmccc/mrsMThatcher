@@ -370,7 +370,13 @@ final status. The current archive declares 627 completed packets and five unreso
 quotations. The current 619 canonical source records are then filtered to exactly 611
 attribution-eligible runtime quotations; five unresolved and three additional
 attribution-ineligible records remain unavailable for posting. A quote without an eligible
-completed packet receives no context reply.
+completed packet receives no context reply. Replies are also suppressed when the
+audited evidence would be labelled `Research incomplete` or has no usable public
+source. This check applies even when the source or verification sections are
+disabled. A supported source without a public URL, or an unknown occasion alone,
+does not suppress the reply. The main quotation still posts normally; the context
+obligation is closed without a publication retry and the digest records
+`skipped_incomplete_research` with reason `incomplete_historical_research`.
 
 Enable it in the ignored `mrsMThatcher.local.json` file:
 

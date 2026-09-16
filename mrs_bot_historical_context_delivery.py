@@ -8,6 +8,34 @@ from __future__ import annotations
 from typing import Any, Callable
 
 
+def context_reply_research_is_complete(packet: dict[str, Any]) -> bool:
+    """Require supported attribution and a usable source before public delivery.
+
+    Reuse the formatter's evidence classification independently of section-display
+    settings. Keep this delivery policy here: historical evidence pins the
+    formatter's source bytes, and offline rendering must remain available for
+    incomplete packets. A source need not have a public URL, and an unknown
+    occasion alone does not make otherwise supported research incomplete.
+    """
+    from historical_context_formatter import (
+        _audited_confidence,
+        _audited_public_sources,
+        _public_verification_label,
+        _v2_clean,
+    )
+
+    sources = _audited_public_sources(packet)
+    if not any(
+        _v2_clean(source.get("title"))
+        and source.get("source_type") != "unavailable"
+        for source in sources
+    ):
+        return False
+    return _public_verification_label(
+        packet, _audited_confidence(packet), sources,
+    ) != "Research incomplete"
+
+
 def maybe_post_historical_context_reply(
     *,
     quote_hash: str,
@@ -117,6 +145,21 @@ def maybe_post_historical_context_reply(
                 "semantic_review_disposition": gate_disposition,
                 "semantic_review_ledger_sha256": gate.ledger_sha256,
                 "semantic_review_projection_sha256": gate.projection_sha256,
+            }
+        if not context_reply_research_is_complete(packet):
+            log.info(
+                "Historical research is incomplete for quote_id=%s; context reply skipped",
+                packet["quote_id"],
+            )
+            log_event(
+                "historical_context_reply", status="skipped_incomplete_research",
+                parent_post_id=str(parent_post_id), quote_id=str(packet["quote_id"]),
+                reason="incomplete_historical_research",
+            )
+            return {
+                "status": "skipped_incomplete_research",
+                "quote_id": str(packet["quote_id"]),
+                "reason": "incomplete_historical_research",
             }
         formatted = format_context_reply_public(
             packet,

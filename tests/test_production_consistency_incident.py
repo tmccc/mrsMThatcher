@@ -204,7 +204,11 @@ def _install_real_context_worker_success_fixture(
         quote_id=quote_id,
         quote_text="A complete worker-to-store callback fixture.",
     )
-    packet = {"quote_id": quote_id, "quote_text": "Canonical quotation."}
+    packet = {
+        "quote_id": quote_id, "quote_text": "Canonical quotation.",
+        "verification_status": "exact", "research_confidence": "high",
+        "stable_locator": "Reviewed fixture transcript, page 1",
+    }
     formatted = {
         "text": reply_text,
         "formatter_version": context_formatter.HISTORICAL_CONTEXT_FORMATTER_V5,
@@ -1207,7 +1211,11 @@ def test_real_context_worker_wires_exact_source_before_remote_phase(
             },
         },
     )
-    packet = {"quote_id": quote_id, "quote_text": "Canonical quotation."}
+    packet = {
+        "quote_id": quote_id, "quote_text": "Canonical quotation.",
+        "verification_status": "exact", "research_confidence": "high",
+        "stable_locator": "Reviewed fixture transcript, page 1",
+    }
     formatted_text = "Context — A definite local pause prevented transmission."
     formatted = {
         "text": formatted_text,
@@ -2651,7 +2659,11 @@ def test_real_context_worker_forwards_confirmed_receipt_before_history_retiremen
         quote_id=quote_id,
         quote_text="A complete worker-to-store callback fixture.",
     )
-    packet = {"quote_id": quote_id, "quote_text": "Canonical quotation."}
+    packet = {
+        "quote_id": quote_id, "quote_text": "Canonical quotation.",
+        "verification_status": "exact", "research_confidence": "high",
+        "stable_locator": "Reviewed fixture transcript, page 1",
+    }
     formatted = {
         "text": reply_text,
         "formatter_version": context_formatter.HISTORICAL_CONTEXT_FORMATTER_V5,

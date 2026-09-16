@@ -17,6 +17,15 @@ from tests.helpers.bot_fixtures import (
 pytestmark = pytest.mark.allow_loopback_network
 
 
+def _sourced_packet(quote_id: str) -> dict[str, str]:
+    """Supply supported research for tests of delivery and receipt metadata."""
+    return {
+        "quote_id": quote_id, "quote_text": "Quote",
+        "verification_status": "exact", "research_confidence": "high",
+        "stable_locator": "Reviewed fixture transcript, page 1",
+    }
+
+
 def test_regular_post_context_stage_runs_only_after_durable_main_post(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
@@ -130,7 +139,7 @@ def test_context_sigint_guard_spans_complete_transaction_store_call(
     import historical_context_formatter as context_module
 
     quote_id = "a" * 64
-    packet = {"quote_id": quote_id, "quote_text": "Quote"}
+    packet = _sourced_packet(quote_id)
     formatted = {
         "quote_id": quote_id,
         "text": "Context — Reviewed event.",
@@ -240,7 +249,7 @@ def test_main_context_reply_path_uses_public_v5_and_persists_metadata(
     import historical_context_formatter as context_module
 
     quote_id = "a" * 64
-    packet = {"quote_id": quote_id, "quote_text": "Quote"}
+    packet = _sourced_packet(quote_id)
     formatted = {
         "quote_id": quote_id,
         "text": "Context — Compact historical context.",
@@ -329,7 +338,7 @@ def test_already_completed_legacy_context_reply_is_not_relabelled_as_v4(
     import historical_context_formatter as context_module
 
     quote_id = "a" * 64
-    packet = {"quote_id": quote_id, "quote_text": "Quote"}
+    packet = _sourced_packet(quote_id)
     v4 = {
         "quote_id": quote_id, "text": "Context — New v4 text.", "character_count": 22,
         "weighted_character_count": 22, "raw_character_count": 22, "maximum_length": 4000,
