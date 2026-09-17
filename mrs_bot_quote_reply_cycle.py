@@ -67,9 +67,6 @@ def quote_tweet_is_old_enough(
 def quote_tweet_directly_quotes_original(
     quote_tweet: dict,
     original_post_id: str,
-    *,
-    clean_text_for_reply_context: Callable,
-    re: ModuleType,
 ) -> bool:
     """
     The /quote_tweets endpoint can surface reposts/retweets of someone else's
@@ -88,12 +85,6 @@ def quote_tweet_directly_quotes_original(
         for ref in refs
     ):
         return True
-
-    # Fallback for any odd/legacy response shape: obvious old-style retweets
-    # should not be treated as quote-tweets worth replying to.
-    text = clean_text_for_reply_context(quote_tweet.get("text", ""))
-    if re.match(r"^RT\s+@\w+:", text):
-        return False
 
     # Conservative default: ambiguous quote lookup results are skipped before
     # model preparation or posting.

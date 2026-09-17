@@ -426,19 +426,22 @@ def log_original_editorial_shadow_result(
     scored_candidates: list[dict],
     *,
     selection_phase: str,
+    comparison: tuple[dict | None, dict | None] | None = None,
     enabled: bool,
     original_editorial_shadow_result: Callable[..., tuple[dict | None, dict | None]],
     log: Logger,
 ) -> None:
-    """Log an original-editorial comparison without mutating candidates."""
+    """Log a prepared comparison, computing it for standalone callers if absent."""
     if not enabled:
         return
-    payload, _ = original_editorial_shadow_result(
-        quote_choice,
-        production_choice,
-        scored_candidates,
-        selection_phase=selection_phase,
-    )
+    if comparison is None:
+        comparison = original_editorial_shadow_result(
+            quote_choice,
+            production_choice,
+            scored_candidates,
+            selection_phase=selection_phase,
+        )
+    payload, _ = comparison
     if payload is not None:
         log.info("ORIGINAL_EDITORIAL_SHADOW_RESULT %s", json.dumps(payload, sort_keys=True, separators=(",", ":")))
 
@@ -449,21 +452,27 @@ def apply_original_editorial_selection(
     scored_candidates: list[dict],
     *,
     selection_phase: str,
+    comparison: tuple[dict | None, dict | None] | None = None,
     enabled: bool,
     original_editorial_shadow_result: Callable[..., tuple[dict | None, dict | None]],
     log: Logger,
 ) -> dict:
-    """Replace an original baseline winner with the existing editorial winner."""
+    """Apply a prepared comparison, computing it for standalone callers if absent."""
     if not enabled:
         return baseline_choice
-    payload, editorial_winner = original_editorial_shadow_result(
-        quote_choice,
-        baseline_choice,
-        scored_candidates,
-        selection_phase=selection_phase,
-    )
+    if comparison is None:
+        comparison = original_editorial_shadow_result(
+            quote_choice,
+            baseline_choice,
+            scored_candidates,
+            selection_phase=selection_phase,
+        )
+    payload, editorial_winner = comparison
     if payload is None or editorial_winner is None:
         return baseline_choice
+
+    # Selection-only fields must not leak into the shared shadow diagnostic.
+    payload = dict(payload)
 
     # The process cache may predate a newly catalogued baseline. An absent
     # editorial row is not evidence that an older original is a better choice.

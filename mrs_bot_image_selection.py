@@ -84,6 +84,8 @@ def choose_matched_unused_image(
     image_is_out_of_season: Callable,
     available_currently_eligible_image_basenames: Callable,
     score_image_for_quote: Callable,
+    original_editorial_enabled: bool,
+    original_editorial_shadow_result: Callable,
     apply_original_editorial_selection: Callable,
     concise_components: Callable,
     log_regular_image_selection: Callable,
@@ -114,6 +116,9 @@ def choose_matched_unused_image(
         )
 
     image_by_name = {Path(path).name: path for path in images}
+    image_number_by_path = {}
+    for image_no, path in enumerate(images):
+        image_number_by_path.setdefault(path, image_no)
 
     if image_analysis is None:
         raise GlobalImageUnavailable("Image analysis unavailable or invalid; refusing regular quote/image posting")
@@ -185,7 +190,7 @@ def choose_matched_unused_image(
         path = image_by_name[basename]
         scored.append(
             {
-                "image_no": images.index(path),
+                "image_no": image_number_by_path[path],
                 "path": path,
                 "basename": basename,
                 "image_hash": image_hash,
@@ -205,11 +210,20 @@ def choose_matched_unused_image(
     best_score = max(float(item["score"]) for item in scored)
     tied = [item for item in scored if float(item["score"]) == best_score]
     baseline_choice = random.choice(tied)
+    comparison = None
+    if original_editorial_enabled:
+        comparison = original_editorial_shadow_result(
+            quote_choice,
+            baseline_choice,
+            scored,
+            selection_phase=selection_phase,
+        )
     chosen = apply_original_editorial_selection(
         quote_choice,
         baseline_choice,
         scored,
         selection_phase=selection_phase,
+        comparison=comparison,
     )
 
     log.info(
@@ -225,6 +239,7 @@ def choose_matched_unused_image(
         baseline_choice,
         scored,
         selection_phase=selection_phase,
+        comparison=comparison,
     )
     for item in sorted(scored, key=lambda entry: float(entry["score"]), reverse=True)[:5]:
         log.debug(

@@ -606,7 +606,14 @@ def capture_shadow_selection(bot: Any) -> Iterable[dict]:
     # off until the capture hook evaluates the same candidate set.
     bot.ENABLE_ORIGINAL_EDITORIAL_SHADOW_SCORING = False
 
-    def editorial_hook(quote: dict, chosen: dict, scored: list[dict], *, selection_phase: str) -> None:
+    def editorial_hook(
+        quote: dict,
+        chosen: dict,
+        scored: list[dict],
+        *,
+        selection_phase: str,
+        comparison: tuple[dict | None, dict | None] | None = None,
+    ) -> None:
         capture["quote"] = quote
         capture["chosen"] = chosen
         capture["scored"] = scored
@@ -614,7 +621,11 @@ def capture_shadow_selection(bot: Any) -> Iterable[dict]:
         capture["scored_ids"].append(id(scored))
         bot.ENABLE_ORIGINAL_EDITORIAL_SHADOW_SCORING = True
         try:
-            original_editorial(quote, chosen, scored, selection_phase=selection_phase)
+            original_editorial(
+                quote, chosen, scored,
+                selection_phase=selection_phase,
+                comparison=comparison,
+            )
         finally:
             bot.ENABLE_ORIGINAL_EDITORIAL_SHADOW_SCORING = False
 

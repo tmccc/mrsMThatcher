@@ -654,7 +654,7 @@ def test_editorial_selection_keeps_adjusted_score_when_winner_is_unchanged(
     assert selected["basename"] == "t01.jpg"
     assert selected["score"] == 11.25
     assert selected["components"]["original_editorial"] == 1.25
-    assert payload["selection_applied"] is True
+    assert "selection_applied" not in payload
 
 
 def test_editorial_selection_uses_stable_basename_tie_break_when_enabled(

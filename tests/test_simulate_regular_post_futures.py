@@ -257,6 +257,28 @@ def test_exact_candidate_capture_supports_active_identity_policy(
     assert result["selection_phase"] in {"normal", "forced_cycle_reset", "last_image_fallback"}
 
 
+def test_shadow_capture_can_enable_comparison_after_normal_selector_skips_it(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    simulator_snapshot: Path,
+) -> None:
+    state, images_used, lines_used = configure_real_selector(
+        monkeypatch, tmp_path, simulator_snapshot,
+    )
+    monkeypatch.setattr(bot, "ENABLE_ORIGINAL_EDITORIAL_SHADOW_SCORING", True)
+    quote = bot.choose_unused_line_candidate(lines_used)
+
+    with sim.capture_shadow_selection(bot) as capture:
+        chosen = bot.choose_matched_unused_image(images_used, quote, state)
+        assert bot.ENABLE_ORIGINAL_EDITORIAL_SHADOW_SCORING is False
+
+    assert bot.ENABLE_ORIGINAL_EDITORIAL_SHADOW_SCORING is True
+    assert chosen is capture["chosen"]
+    assert "original_editorial_adjustment" not in chosen
+    assert capture["original_editorial_shadow"]["production_winner"] == chosen["basename"]
+    assert "selection_applied" not in capture["original_editorial_shadow"]
+
+
 def test_retained_historical_generated_spacing_transitions(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr(sim.historical_image_selection(bot), "GENERATED_IMAGE_MIN_ORIGINAL_POSTS_BETWEEN", 2)
     generated = "tg_" + "a" * 64 + ".png"

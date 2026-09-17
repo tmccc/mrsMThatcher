@@ -280,8 +280,10 @@ def test_disabled_empty_and_selected_paths_keep_lazy_work_and_copy_boundaries(mo
     assert selected["analysis"] is shared and replacement["components"] == {"topic": 9.0}
     assert selected["score"] == 11.0 and type(selected["score"]) is float
     assert selected["components"]["original_editorial"] == 2.0
-    assert payload["selection_applied"] is True and payload["selected_winner"] == "t01.jpg"
-    assert logs == [("ORIGINAL_EDITORIAL_SELECTION_RESULT %s", json.dumps(payload, sort_keys=True, separators=(",", ":")))]
+    assert payload == {"production_source": "original", "production_shadow_rank": 2}
+    selection_payload = {**payload, "selection_applied": True, "selected_winner": "t01.jpg"}
+    assert logs == [("ORIGINAL_EDITORIAL_SELECTION_RESULT %s", json.dumps(selection_payload, sort_keys=True, separators=(",", ":")))]
     payload["production_source"] = "generated"
     assert bot.apply_original_editorial_selection(quote, baseline, candidates, selection_phase="normal") is baseline
-    assert payload["selection_applied"] is False and payload["selected_winner"] == "t02.jpg"
+    assert json.loads(logs[-1][1]) == {**payload, "selection_applied": False, "selected_winner": "t02.jpg"}
+    assert payload == {"production_source": "generated", "production_shadow_rank": 2}

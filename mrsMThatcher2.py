@@ -6941,11 +6941,13 @@ def log_original_editorial_shadow_result(
     scored_candidates: list[dict],
     *,
     selection_phase: str,
+    comparison: tuple[dict | None, dict | None] | None = None,
 ) -> None:
     """Log an original-editorial comparison without mutating candidates."""
     return _original_editorial.log_original_editorial_shadow_result(
         quote_choice, production_choice, scored_candidates,
         selection_phase=selection_phase,
+        comparison=comparison,
         enabled=ENABLE_ORIGINAL_EDITORIAL_SHADOW_SCORING,
         original_editorial_shadow_result=original_editorial_shadow_result,
         log=log,
@@ -6958,11 +6960,13 @@ def apply_original_editorial_selection(
     scored_candidates: list[dict],
     *,
     selection_phase: str,
+    comparison: tuple[dict | None, dict | None] | None = None,
 ) -> dict:
     """Replace an original baseline winner with the existing editorial winner."""
     return _original_editorial.apply_original_editorial_selection(
         quote_choice, baseline_choice, scored_candidates,
         selection_phase=selection_phase,
+        comparison=comparison,
         enabled=ENABLE_ORIGINAL_EDITORIAL_SHADOW_SCORING,
         original_editorial_shadow_result=original_editorial_shadow_result,
         log=log,
@@ -7141,6 +7145,8 @@ def choose_matched_unused_image(
         image_is_out_of_season=image_is_out_of_season,
         available_currently_eligible_image_basenames=available_currently_eligible_image_basenames,
         score_image_for_quote=score_image_for_quote,
+        original_editorial_enabled=ENABLE_ORIGINAL_EDITORIAL_SHADOW_SCORING,
+        original_editorial_shadow_result=original_editorial_shadow_result,
         apply_original_editorial_selection=apply_original_editorial_selection,
         concise_components=concise_components,
         log_regular_image_selection=log_regular_image_selection,
@@ -8843,8 +8849,6 @@ def quote_tweet_directly_quotes_original(quote_tweet: dict, original_post_id: st
     return _quote_reply_cycle.quote_tweet_directly_quotes_original(
         quote_tweet,
         original_post_id,
-        clean_text_for_reply_context=clean_text_for_reply_context,
-        re=re,
     )
 
 

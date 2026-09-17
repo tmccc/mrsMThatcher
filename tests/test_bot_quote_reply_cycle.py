@@ -60,7 +60,7 @@ assert 'single_call_reply' not in sys.modules
 def test_adapters_forward_current_dependencies_arguments_results_and_errors(monkeypatch):
     names = {
         "quote_tweet_is_old_enough": 4,
-        "quote_tweet_directly_quotes_original": 2,
+        "quote_tweet_directly_quotes_original": 0,
         "build_quote_tweet_reply_context": 10,
         "mark_quote_tweet_skipped": 1,
         "mark_quote_tweet_replied": 2,
@@ -129,7 +129,7 @@ def test_age_uses_current_parser_clock_delay_and_native_errors(monkeypatch):
     assert caught.value is failure
 
 
-def test_direct_quote_precedence_conservative_fallback_and_malformed_references(monkeypatch):
+def test_direct_quote_uses_only_structured_references_and_retweet_veto(monkeypatch):
     cleaner = Mock(wraps=bot.clean_text_for_reply_context)
     monkeypatch.setattr(bot, "clean_text_for_reply_context", cleaner)
     quoted = {"type": "quoted", "id": 900}
@@ -139,10 +139,17 @@ def test_direct_quote_precedence_conservative_fallback_and_malformed_references(
     assert bot.quote_tweet_directly_quotes_original(
         {"referenced_tweets": [quoted], "text": "RT @someone: legacy text"}, "900",
     )
+    for quote in (
+        {},
+        {"text": "RT @someone: legacy text"},
+        {"text": "Ambiguous commentary"},
+        {"text": object(), "referenced_tweets": None},
+        {"referenced_tweets": []},
+        {"referenced_tweets": [{"type": "quoted", "id": "901"}]},
+        {"referenced_tweets": [{"type": "replied_to", "id": "900"}]},
+    ):
+        assert not bot.quote_tweet_directly_quotes_original(quote, 900)
     cleaner.assert_not_called()
-    for text in ("RT @someone: legacy text", "Ambiguous commentary"):
-        assert not bot.quote_tweet_directly_quotes_original({"text": text}, 900)
-        cleaner.assert_called_with(text)
     with pytest.raises(AttributeError):
         bot.quote_tweet_directly_quotes_original({"referenced_tweets": [None, quoted]}, "900")
 

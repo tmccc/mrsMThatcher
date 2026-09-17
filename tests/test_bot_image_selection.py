@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from datetime import datetime
+import json
 from pathlib import Path
 import random
 import subprocess
@@ -131,6 +132,8 @@ def test_selector_preserves_original_scores_editorial_callbacks_and_one_random_d
     monkeypatch.setattr(bot, "build_image_topic_idf", build_idf)
     monkeypatch.setattr(bot, "image_metadata_for_basename", metadata)
     monkeypatch.setattr(bot, "image_is_out_of_season", seasonal)
+    monkeypatch.setattr(bot, "ENABLE_ORIGINAL_EDITORIAL_SHADOW_SCORING", False)
+    monkeypatch.setattr(bot, "original_editorial_shadow_result", forbidden)
 
     def score(quote_analysis, analysis, weights):
         assert quote_analysis is quote["analysis"] and weights is idf
@@ -140,14 +143,14 @@ def test_selector_preserves_original_scores_editorial_callbacks_and_one_random_d
     def editorial(current_quote, baseline, candidates, **kwargs):
         events.append("editorial")
         assert current_quote is quote and baseline["basename"] == "z.jpg"
-        assert kwargs == {"selection_phase": "forced_cycle_reset"}
+        assert kwargs == {"selection_phase": "forced_cycle_reset", "comparison": None}
         captured.update(scored=candidates, baseline=baseline)
         return candidates[0]
 
     def editorial_shadow(current_quote, baseline, scored, **kwargs):
         events.append("editorial_shadow")
         assert current_quote is quote and baseline is captured["baseline"]
-        assert scored is captured["scored"] and kwargs == {"selection_phase": "forced_cycle_reset"}
+        assert scored is captured["scored"] and kwargs == {"selection_phase": "forced_cycle_reset", "comparison": None}
 
     regular = Mock(side_effect=lambda choice: events.append("regular"))
     concise = Mock(side_effect=lambda detail: str(detail["base"]))
@@ -183,6 +186,60 @@ def test_selector_preserves_original_scores_editorial_callbacks_and_one_random_d
     assert [entry.args[1] for entry in log.debug.call_args_list[1:]] == ["z.jpg", "g.jpg", "d.jpg", "c.jpg", "b.jpg"]
     assert concise.call_args_list[0].args[0] is chosen["components"]
     assert used == set() and state == {}
+
+
+@pytest.mark.parametrize("enabled, metadata_present", [(False, True), (True, False), (True, True)])
+def test_selector_reuses_comparison_and_preserves_duplicate_path_numbers(monkeypatch, enabled, metadata_present):
+    paths = ["first/a.jpg", "other/b.jpg", "last/a.jpg", "last/a.jpg"]
+    corpus = {"a.jpg": {"score": 10.0}, "b.jpg": {"score": 9.0}}
+    baseline_components = {name: {"base": value["score"]} for name, value in corpus.items()}
+    metadata = Mock(side_effect=lambda data, name, path: (name, data[name]))
+    comparison = Mock(wraps=bot.original_editorial_shadow_result)
+    editorial_metadata = {name: {"adjustment": adjustment} for name, adjustment in (("a.jpg", 0.0), ("b.jpg", 2.0))}
+    loader = Mock(return_value=editorial_metadata if metadata_present else {})
+    scorer = Mock(side_effect=lambda quote, row: (row["adjustment"], {}))
+    log = Mock()
+    monkeypatch.setattr(bot, "log", log)
+    monkeypatch.setattr(bot, "current_image_paths", lambda: paths)
+    monkeypatch.setattr(bot, "load_image_analysis", lambda: corpus)
+    monkeypatch.setattr(bot, "normalise_image_used_basenames", lambda *args: (set(), False))
+    monkeypatch.setattr(bot, "current_datetime", lambda: datetime(2026, 9, 17))
+    monkeypatch.setattr(bot, "build_image_topic_idf", lambda data: {})
+    monkeypatch.setattr(bot, "image_metadata_for_basename", metadata)
+    monkeypatch.setattr(bot, "image_is_out_of_season", lambda *args: False)
+    monkeypatch.setattr(bot, "score_image_for_quote", lambda quote, analysis, idf: (
+        analysis["score"], baseline_components["a.jpg" if analysis is corpus["a.jpg"] else "b.jpg"], True,
+    ))
+    monkeypatch.setattr(bot, "ENABLE_ORIGINAL_EDITORIAL_SHADOW_SCORING", enabled)
+    monkeypatch.setattr(bot, "original_editorial_shadow_result", comparison)
+    monkeypatch.setattr(bot, "load_original_editorial_analysis", loader)
+    monkeypatch.setattr(bot, "original_editorial_shadow_score", scorer)
+
+    chosen = bot.choose_matched_unused_image(set(), {"quote_hash": "fixture", "analysis": {}}, {})
+
+    assert comparison.call_count == loader.call_count == int(enabled)
+    assert scorer.call_count == (2 if enabled and metadata_present else 0)
+    assert metadata.call_args_list == [
+        call(corpus, "a.jpg", "last/a.jpg"), call(corpus, "b.jpg", "other/b.jpg"),
+    ] * 2
+    if enabled:
+        candidates = comparison.call_args.args[2]
+        assert [(item["basename"], item["image_no"]) for item in candidates] == [("a.jpg", 2), ("b.jpg", 1)]
+        assert [item["score"] for item in candidates] == [10.0, 9.0]
+    assert baseline_components == {"a.jpg": {"base": 10.0}, "b.jpg": {"base": 9.0}}
+    events = [entry.args for entry in log.info.call_args_list]
+    if enabled and metadata_present:
+        assert (chosen["basename"], chosen["image_no"], chosen["score"]) == ("b.jpg", 1, 11.0)
+        assert [args[0].split()[0] for args in events[-4:]] == [
+            "ORIGINAL_EDITORIAL_SELECTION_RESULT", "Selected", "REGULAR_IMAGE_SELECTED", "ORIGINAL_EDITORIAL_SHADOW_RESULT",
+        ]
+        selected_payload = json.loads(events[-4][1])
+        shadow_payload = json.loads(events[-1][1])
+        assert selected_payload == {**shadow_payload, "selection_applied": True, "selected_winner": "b.jpg"}
+        assert "selection_applied" not in shadow_payload and "selected_winner" not in shadow_payload
+    else:
+        assert (chosen["path"], chosen["image_no"], chosen["score"]) == ("last/a.jpg", 2, 10.0)
+        assert not any(args[0].startswith("ORIGINAL_EDITORIAL_") for args in events)
 
 
 @pytest.mark.parametrize("stale_on_recheck", [False, True])
