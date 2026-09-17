@@ -1,15 +1,11 @@
-"""Own verified parent paths and canonical single-call reply-context construction.
+"""Build verified parent paths and prepared single-call reply contexts.
 
-Thirteen root adapters supply current callbacks, settings, exceptions, clock,
-logger and standard-library module authority; the dependency-free quote ID helper
-is a direct alias. Original bodies preserve parent lookup budgets, reference and
-copy boundaries, native errors, media-before-summary order and structural hashes.
-The root keeps the definition-time visible-text default and passes it explicitly.
-
-Cache/lookup/pruning, media preparation, canonical bounds/schema, parsing,
-configuration, persistence and orchestration remain in their existing locations.
-This owner retains no callbacks, configuration, clients or state and performs no
-import-time file, environment, clock, provider or RNG work.
+Normal reply builders return canonical context and native media as separate
+fields. Parent lookup budgets, media preparation order, copy boundaries and
+structural diagnostic hashes remain local policies. Root adapters supply current
+callbacks, settings, exceptions, clock and logger. Cache and media collection,
+canonical schema validation, persistence and orchestration stay in their owners.
+Import performs no file, environment, clock, provider or RNG work.
 """
 
 from __future__ import annotations
@@ -17,6 +13,8 @@ from __future__ import annotations
 from collections.abc import Callable
 from logging import Logger
 from types import ModuleType
+
+from mrs_bot_reply_cycle_interfaces import PreparedReplyContext
 
 
 def get_immediate_parent_id(
@@ -207,7 +205,7 @@ def _reply_context_post(
 
 def _log_single_call_context_summary(
     label: str,
-    context: dict[str, object],
+    prepared: PreparedReplyContext,
     *,
     hashlib: ModuleType,
     json: ModuleType,
@@ -215,6 +213,7 @@ def _log_single_call_context_summary(
 ) -> None:
     """Log only bounded structure and a digest, never model-facing prose or URLs."""
 
+    context = prepared.context
     visible = context.get("visible_conversation")
     visible_rows = visible if isinstance(visible, list) else []
     visible_character_count = sum(
@@ -222,7 +221,7 @@ def _log_single_call_context_summary(
         for row in visible_rows
         if isinstance(row, dict)
     )
-    media_context = context.get("_prepared_media_context")
+    media_context = prepared.media_context
     photos = (
         media_context.get("photos")
         if isinstance(media_context, dict)
@@ -230,8 +229,10 @@ def _log_single_call_context_summary(
     )
     media_count = len(photos) if isinstance(photos, list) else 0
     try:
+        # Keep existing diagnostic hashes stable without carrying media in the
+        # canonical context passed to the model or durable reply records.
         encoded = json.dumps(
-            context,
+            {**context, "_prepared_media_context": media_context},
             ensure_ascii=False,
             sort_keys=True,
             separators=(",", ":"),
@@ -394,7 +395,7 @@ def build_context_for_reply_ai(
     log: Logger,
     reply_media_context_for_candidate: Callable,
     trim_context_text: Callable,
-) -> tuple[dict[str, object], bool]:
+) -> PreparedReplyContext | None:
     """Build the verified parent-contiguous canonical single-call context."""
 
     mention_id = str(mention.get("id") or "")
@@ -406,7 +407,7 @@ def build_context_for_reply_ai(
     root_id = str(mention.get("conversation_id") or mention_id)
     if not mention_id or not mention_text or not author_id or not root_id:
         log.warning("Reply candidate lacks usable identity or text target_id=%s", mention_id)
-        return {}, False
+        return None
 
     chain: list[dict] = []
     if ALWAYS_FETCH_PARENT_FOR_CONTEXT:
@@ -422,7 +423,7 @@ def build_context_for_reply_ai(
             "conversational reply",
             mention_id,
         )
-        return {}, False
+        return None
 
     if root_id != mention_id:
         if not chain or str(chain[0].get("id") or "") != root_id:
@@ -438,20 +439,20 @@ def build_context_for_reply_ai(
                 "Verified parent path is not contiguous target_id=%s",
                 mention_id,
             )
-            return {}, False
+            return None
         if not _parent_path_is_chronological(chain, mention):
             log.warning(
                 "Verified parent path contains a post later than its child "
                 "target_id=%s",
                 mention_id,
             )
-            return {}, False
+            return None
     elif chain:
         log.warning(
             "Root target unexpectedly has a parent path target_id=%s",
             mention_id,
         )
-        return {}, False
+        return None
 
     visible: list[dict[str, str]] = []
     for tweet in chain:
@@ -474,7 +475,7 @@ def build_context_for_reply_ai(
         maximum_chars=REPLY_INCOMING_MAX_CHARS,
     )
     if not target_turn["post_id"] or not target_turn["text"]:
-        return {}, False
+        return None
     visible.append(target_turn)
 
     directly_quoted_candidate = _directly_quoted_tweet_for_reply_context(
@@ -487,7 +488,7 @@ def build_context_for_reply_ai(
             mention_id,
             _direct_quote_id(mention),
         )
-        return {}, False
+        return None
     quoted_candidate = directly_quoted_candidate
     if quoted_candidate is None and chain:
         ancestor_quote_id = _direct_quote_id(chain[0])
@@ -501,7 +502,7 @@ def build_context_for_reply_ai(
                 mention_id,
                 ancestor_quote_id,
             )
-            return {}, False
+            return None
     quoted_post = None
     quoted_post_id = None
     if quoted_candidate is not None:
@@ -530,7 +531,7 @@ def build_context_for_reply_ai(
             mention_id,
             exc,
         )
-        return {}, False
+        return None
     visible = [
         {
             "post_id": turn["post_id"],
@@ -564,7 +565,6 @@ def build_context_for_reply_ai(
         "current_date": current_datetime().strftime("%Y-%m-%d"),
         "target_author_id": author_id,
         "target_created_at": str(mention.get("created_at") or ""),
-        "_prepared_media_context": prepared_media_context,
     }
     log.info(
         "Built single-call reply context target_id=%s turns=%d root_id=%s "
@@ -574,5 +574,6 @@ def build_context_for_reply_ai(
         root_id,
         get_immediate_parent_id(mention),
     )
-    _log_single_call_context_summary("Single-call reply context", context)
-    return context, True
+    prepared = PreparedReplyContext(context, prepared_media_context)
+    _log_single_call_context_summary("Single-call reply context", prepared)
+    return prepared

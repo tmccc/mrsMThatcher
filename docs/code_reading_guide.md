@@ -43,8 +43,11 @@ need. A recovered draft can bypass model evaluation.
 | Save draft, prepare receipt, send and commit confirmation | [mrs_bot_reply_preparation.py](../mrs_bot_reply_preparation.py), [mrs_bot_reply_delivery.py](../mrs_bot_reply_delivery.py), [mrs_bot_reply_reconciliation.py](../mrs_bot_reply_reconciliation.py) |
 
 [mrs_bot_reply_cycle_interfaces.py](../mrs_bot_reply_cycle_interfaces.py) describes
-the settings and callback groups supplied to both reply lanes. In the normal
-cycle, `evaluation_record_pruning_pending` tracks deferred in-memory pruning;
+the settings and callback groups supplied to both reply lanes. Its
+`PreparedReplyContext` carries canonical context and separately prepared native
+media from builders to the lanes; only canonical context enters durable drafts
+and receipts. In the normal cycle, `evaluation_record_pruning_pending` tracks
+deferred in-memory pruning;
 `quarantine_retirements_pending` tracks bookkeeping still needing a durable save.
 These are different obligations even when they arise from the same candidate.
 
@@ -74,6 +77,9 @@ pending observations belong to production. Event-family modules consume supplied
 observations and callbacks. Current snapshots are separately labelled evidence,
 not a reconstruction of state at an old log timestamp. `--max-text` limits prose
 previews after analysis; identifiers and exact reply evidence retain their own bounds.
+Receipt lifecycle summaries are prepared in `analyse()` and shared by JSON and
+Markdown. Current runtime overlays precede saved-context application and its final
+derived refresh.
 
 ## Boundaries and older material
 

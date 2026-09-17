@@ -133,7 +133,6 @@ def maybe_reply_to_mentions(
     record_terminal_reply_evaluation: Callable,
     recovery_comparison_account_replies: Callable,
     reply_evidence_repository: Callable,
-    reply_media_context_for_candidate: Callable,
     reply_target_is_directly_eligible: Callable,
     reset_daily_reply_count_if_needed: Callable,
     terminal_reply_evaluation: Callable,
@@ -359,7 +358,6 @@ def maybe_reply_to_mentions(
             record_api_error=record_api_error,
             record_terminal_reply_evaluation=record_terminal_reply_evaluation,
             reply_evidence_repository=reply_evidence_repository,
-            reply_media_context_for_candidate=reply_media_context_for_candidate,
             persistence=persistence, trim_context_text=trim_context_text,
         )
         if isinstance(context_result, _CandidateStop):
@@ -697,13 +695,12 @@ def _prepare_reply_context(
     record_api_error: Callable,
     record_terminal_reply_evaluation: Callable,
     reply_evidence_repository: Callable,
-    reply_media_context_for_candidate: Callable,
     persistence: ReplyCyclePersistence,
     trim_context_text: Callable,
 ) -> tuple[dict, object] | _CandidateStop:
     """Build canonical context and media, preserving the narrow context error boundary."""
     try:
-        reply_context, should_continue = build_context_for_reply_ai(candidate.mention, state)
+        prepared = build_context_for_reply_ai(candidate.mention, state)
     except RemoteOperationsPaused:
         log.info(
             "Deferring conversational reply evaluation lane=%s target_id=%s "
@@ -725,7 +722,7 @@ def _prepare_reply_context(
         persistence.save(state)
         return _CandidateStop(NORMAL_CHECK_STATUS_API_ERROR)
 
-    if not should_continue:
+    if prepared is None:
         log.warning(
             "Retiring %s %s after a permanent canonical-context failure",
             candidate.source,
@@ -757,10 +754,7 @@ def _prepare_reply_context(
         persistence.save(state, durable=True)
         return _CandidateStop()
 
-    prepared_media_context = reply_context.pop(
-        "_prepared_media_context",
-        None,
-    )
+    reply_context = prepared.context
 
     if clarification is not None:
         reply_context["clarification_request"] = {
@@ -786,16 +780,7 @@ def _prepare_reply_context(
         )
         return _CandidateStop(NORMAL_CHECK_STATUS_CHECKED)
 
-    media_context = (
-        prepared_media_context
-        if isinstance(prepared_media_context, dict)
-        else reply_media_context_for_candidate(
-            candidate.mention,
-            lane=str(candidate.source),
-            target_id=candidate.mention_id,
-        )
-    )
-    return reply_context, media_context
+    return reply_context, prepared.media_context
 
 
 def _evaluate_reply(

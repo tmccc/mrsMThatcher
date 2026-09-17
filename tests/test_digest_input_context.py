@@ -546,6 +546,57 @@ def test_cli_analysis_and_input_coverage_share_the_same_parse(tmp_path, monkeypa
     assert "appended after read" in log.read_text()
 
 
+@pytest.mark.parametrize("state_args", [[], ["--reset-state"], ["--no-state"]])
+@pytest.mark.parametrize("json_primary", [False, True])
+def test_cli_refreshes_once_after_live_overlay_in_all_output_modes(
+    tmp_path, monkeypatch, state_args, json_primary,
+):
+    log = tmp_path / "mrsMThatcher.log"
+    log.write_text("2026-07-25 09:00:00 INFO worker:9 - selected record\n")
+    (tmp_path / "bot_state.json").write_text(json.dumps({"daily_reply_count": 3}))
+    (tmp_path / "mrsMThatcher.local.json").write_text(json.dumps({"MAX_AUTO_REPLIES_PER_DAY": 10}))
+    cursor = tmp_path / ".mrs_log_digest_state.json"
+    cursor.write_text(json.dumps({
+        "last_known_latest_state": {"daily_reply_count": 999, "time": "2999-01-01 00:00:00"},
+        "last_known_latest_config": {"MAX_AUTO_REPLIES_PER_DAY": 999},
+    }))
+    original_cursor = cursor.read_bytes()
+    refreshed = []
+    refresh = digest.refresh_derived
+
+    def observe_refresh(report):
+        assert report["latest_state"]["daily_reply_count"] == 3
+        assert report["latest_config"]["MAX_AUTO_REPLIES_PER_DAY"] == 10
+        refresh(report)
+        refreshed.append(report)
+
+    monkeypatch.setattr(digest, "refresh_derived", observe_refresh)
+    output = tmp_path / "digest.json"
+    markdown = tmp_path / "digest.md"
+    output_args = (
+        ["--json", "--output", str(output), "--markdown-output", str(markdown)]
+        if json_primary else ["--output", str(markdown), "--json-output", str(output)]
+    )
+    assert digest.main([
+        "--project-dir", str(tmp_path), "--since", "2026-07-25 09:00:00",
+        "--until", "2026-07-25 09:00:00", "--no-update-state",
+        *state_args, *output_args,
+    ]) == 0
+
+    assert len(refreshed) == 1
+    report = json.loads(output.read_text())
+    assert report["summary"]["record_count"] == 1
+    assert report["derived"]["reply_budget"]["auto_remaining"] == 7
+    if not state_args:
+        assert report["historical_retained_state"]["daily_reply_count"] == 999
+        assert report["historical_retained_config"]["MAX_AUTO_REPLIES_PER_DAY"] == 999
+    else:
+        assert "historical_retained_state" not in report
+        assert "historical_retained_config" not in report
+    assert markdown.read_text() == digest.render_markdown(report) + "\n"
+    assert cursor.read_bytes() == original_cursor
+
+
 def test_source_and_fingerprint_helpers_use_current_formatter_and_logger(monkeypatch):
     item = record(0, "INFO", "worker", "exact\x1fbytes\n\ud800", line=9)
     monkeypatch.setattr(digest, "SAFE_SOURCE_LOGGER_RE", re.compile(r"custom\Z"))

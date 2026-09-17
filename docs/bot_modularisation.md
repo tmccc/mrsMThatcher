@@ -1115,7 +1115,7 @@ and argument/result references, fixed default/current cap, deep-copy boundaries,
 current exception/result classes, exact recovery telemetry/warnings, ordering
 and native receipt/time error boundaries. They reuse `unit_reply_context`,
 `unit_approved_reply`, the current evidence and confirmed-receipt helpers, and
-register the existing `isolate_regular_post_receipt` autouse fixture.
+register the existing `isolate_bot_runtime` autouse fixture.
 
 Both runs retained conftest temporary HOME/state, dummy credentials, dead
 proxies, denied external sockets and explicit loopback fake APIs. Disposable
@@ -1229,7 +1229,7 @@ constant aliases/current dependencies, request/result/reference identity,
 response cleanup and original causes, retry and generation/logging order, and
 metadata fallback. They reuse `FakeHttpResponse` and its image bytes,
 `FakeRepository`, `enabled_config`, `raw_decision`, `response_envelope`, the
-current pipeline and the registered `isolate_regular_post_receipt` fixture.
+current pipeline and the registered `isolate_bot_runtime` fixture.
 Conftest retained temporary HOME/state, dummy credentials, dead proxies, denied
 external sockets and explicit loopback APIs. Disposable scripts, fixtures and
 test TMPDIR remained under the evidence root. Production configuration/durable
@@ -1338,7 +1338,7 @@ for **221 modules**, **239 cases** collected in **4.93s**, and **239 passed in
 argument/result references, family callback/error order, shallow copies, exact
 hash inputs, attempt-time ordering and current clock/exception identity. They
 reuse the current receipt helpers, all four legacy fixture families and the
-registered `isolate_regular_post_receipt` autouse fixture. The first run had
+registered `isolate_bot_runtime` autouse fixture. The first run had
 **237 passes and two new-test failures**: those fixtures incorrectly supplied
 string attempt epochs. Correcting them to the existing strict-integer contract
 resolved both; runtime code and existing assertions/barriers were unchanged.
@@ -1444,7 +1444,7 @@ for **222 modules**, **233 cases** collected in **4.93s**, and **233 passed in
 15.27s**. Ten new tests expand to **16 cases**, covering guarded import, current
 dependencies, state/reference/order contracts and partial-failure boundaries.
 They reuse current receipt builders and active-page helpers with the registered
-`isolate_regular_post_receipt` autouse fixture. The initial run had **232 passes
+`isolate_bot_runtime` autouse fixture. The initial run had **232 passes
 and one new-test failure**: its assertion expected draft-map replacement;
 correcting it to the existing in-place clearing contract resolved the failure.
 Runtime bodies and existing assertions/barriers were unchanged.
@@ -1648,7 +1648,7 @@ on later invocations, current-root recursive continuation with unchanged state
 identity and model-call/refund/cap values, durable reconciliation before the
 barrier even when disabled, and distinct native context/generation error routing.
 They reuse the active-page, editorial-outcome, canonical-context and schema4
-receipt helpers with `isolate_regular_post_receipt` registered as autouse;
+receipt helpers with `isolate_bot_runtime` registered as autouse;
 real local persistence and transaction barriers remain active.
 
 ```bash
@@ -1741,7 +1741,7 @@ context references/budgets/copies/media order, marker mutation boundaries, real
 confirmed reconciliation before a disabled lane, numeric candidate caps despite
 zero model calls, and reused-draft durability/context/pre-send availability.
 They reuse the quote scenario, local evidence/draft/receipt validation helpers
-and registered autouse `isolate_regular_post_receipt`; barriers remain active.
+and registered autouse `isolate_bot_runtime`; barriers remain active.
 
 ```bash
 set -euo pipefail
@@ -1835,7 +1835,7 @@ cover guarded import, current dependency/argument/default/result/error forwardin
 watch-file parsing/rereads/read failures, lookup ordering/references/logs,
 normalization boundaries/copies/accounting, paginator callback arguments,
 media/author/data identity, native malformed-result errors and cleanup-save failure
-before requests. Tests register the existing autouse `isolate_regular_post_receipt`
+before requests. Tests register the existing autouse `isolate_bot_runtime`
 fixture; old assertions and guards are unchanged.
 
 ```bash
@@ -1925,7 +1925,7 @@ expand to eleven cases covering guarded import, current dependencies/defaults,
 early exits, draft/terminal/media/cache/save order and identity, cursor-save and
 request error boundaries, marker bounds/native errors, handoff callbacks and
 merge/copy identity. They reuse the existing bot/draft fixtures and register
-autouse `isolate_regular_post_receipt`; transaction and network guards remain active.
+autouse `isolate_bot_runtime`; transaction and network guards remain active.
 
 ```bash
 set -euo pipefail
@@ -2013,7 +2013,7 @@ expand to nine cases for import safety, current dependencies and exception
 authority, queue recovery/save/return references, early queue access, real page
 media/cache/copy/commit order, retirement identity and native error boundaries.
 They reuse existing mention/provider fixtures and register autouse
-`isolate_regular_post_receipt`; transaction and network barriers remain active.
+`isolate_bot_runtime`; transaction and network barriers remain active.
 
 ```bash
 set -euo pipefail
@@ -2103,7 +2103,7 @@ expand to ten cases for import safety, current dependencies/defaults/limits,
 container/queue/guard references, recovery logging/error order, deduplication
 before native errors, failure precedence/reset order and ownership/path boundaries.
 They reuse existing mention fixtures and register autouse
-`isolate_regular_post_receipt`; old assertions and barriers remain intact.
+`isolate_bot_runtime`; old assertions and barriers remain intact.
 
 The reused `run_selected.sh` ran `baseline` and `current-initial`, requiring
 successful selection generation, nonempty validation and collection before
@@ -2188,7 +2188,7 @@ cases passed**. The **13 new tests / 14 cases** cover import safety, current roo
 dependencies, copy/record references, strict flags, log/event/assignment order and
 native errors, plus two quarantine skips persisted in one durable batch and
 reloaded with the incomplete traversal and watermark intact. Imported autouse
-`isolate_regular_post_receipt` remains registered; existing assertions are unchanged.
+`isolate_bot_runtime` remains registered; existing assertions are unchanged.
 
 The reused `run_selected.sh` and supplemental selection require successful
 selection generation, a validated nonempty list and collection before pytest.
@@ -2267,7 +2267,7 @@ real isolated canonical save before return copying plus provider/save errors.
 The initial run had **114 passes and one new-test assertion failure**: its
 `cache_tweet` dependency count was corrected from seven to the inventory's six;
 implementation and existing assertions were unchanged. The imported autouse
-`isolate_regular_post_receipt` fixture remains registered.
+`isolate_bot_runtime` fixture remains registered.
 
 `run_selected.sh` requires successful selection generation, a validated nonempty
 list and collection before pytest. Runs use `PYTHONUSERBASE=/home/tonym/.local`,
@@ -2349,7 +2349,7 @@ default, parent order/identity, quote container distinctions, cached chronology,
 usable suffix/raw ancestor quote preservation, media/copy/metadata order and
 canonical rejection/encoding versus native failures. Existing fixtures and native
 media/bounding implementations are reused; the imported autouse
-`isolate_regular_post_receipt` fixture remains registered.
+`isolate_bot_runtime` fixture remains registered.
 
 `run_selected.sh` uses `set -euo pipefail`, successful selection generation,
 validated nonempty arguments and collection before pytest. Both runs use
@@ -2428,7 +2428,7 @@ cover guarded import, current adapters/defaults/references/errors, attachment
 identity and fresh photo records, target duplicates/quote deduplication and
 current callback/log order, and incomplete metadata counts. They reuse the
 existing `image_case` fixture and explicitly register the imported autouse
-`isolate_regular_post_receipt` reset fixture; existing tests/assertions are intact.
+`isolate_bot_runtime` reset fixture; existing tests/assertions are intact.
 
 `run_selected.sh` uses `set -euo pipefail`, successful AST-validated nonempty
 selection and collection before pytest. Both runs use the required installed
@@ -2512,7 +2512,7 @@ rebinding, legacy counts, reset/increment order, cached clarification proof and
 current exception/token authority, terminal/window rules and deterministic gate
 ordering. They reuse existing mention/confirmed-receipt helpers, cache and
 reconciliation implementations and explicitly register the imported autouse
-`isolate_regular_post_receipt` fixture; existing fixtures/assertions are intact.
+`isolate_bot_runtime` fixture; existing fixtures/assertions are intact.
 
 `run_selected.sh` requires successful AST-validated nonempty selection and
 collection under `set -euo pipefail`. Both runs use installed user dependencies,
@@ -2596,7 +2596,7 @@ import, current dependency and variadic argument/reference/error forwarding,
 shared fixed objects and rebinding, current mutable cache replacement/lifecycle,
 logging-before-mutation, clock/boolean/time and lane/log/event ordering, and real
 temporary-file syscall/finally-close order on success and final-path failure.
-They explicitly register the existing autouse `isolate_regular_post_receipt`
+They explicitly register the existing autouse `isolate_bot_runtime`
 fixture; existing fixtures, barriers and assertions are unchanged.
 
 The reused `run_selected.sh` requires successful AST-validated nonempty selection
@@ -2664,7 +2664,7 @@ in 3.95s**, and **51 passed in 16.34s** on the first run (`current-pytest.txt`;
 37 explicit nodes across nine files). Ten new tests (14 cases) cover guarded
 import, current dependencies/references, scope and native failure boundaries,
 clock/conversion multiplicity, partial mutation and diagnostic/log/save order.
-They register the existing autouse `isolate_regular_post_receipt` fixture.
+They register the existing autouse `isolate_bot_runtime` fixture.
 
 The reused runner requires successful AST-validated nonempty selection and
 collection under `set -euo pipefail`, with explicit pytest arguments. Both runs
@@ -2732,7 +2732,7 @@ in 3.72s**, and **55 passed in 12.88s** on the first run (`current-pytest.txt`;
 38 explicit nodes across ten files). Nine new tests / 16 cases cover import and
 current dependencies, structured precedence, merge/reference contracts, retry
 history/results, callback/error order, conflicting malformed sections and native
-failures. They register the existing autouse `isolate_regular_post_receipt` fixture.
+failures. They register the existing autouse `isolate_bot_runtime` fixture.
 
 The reused runner requires successful AST-validated nonempty selection and
 collection under `set -euo pipefail`, then explicit pytest arguments. Both runs
@@ -2800,7 +2800,7 @@ in 3.44s**, and **64 passed in 12.09s** (`current-pytest.txt`; 34 explicit nodes
 across six files). Nine new tests cover guarded import, current module/dependency
 authority, origin/hostname/route callback order, decoding limits, native failures,
 JSON references and exception chains. They register the existing autouse
-`isolate_regular_post_receipt` fixture. The initial run had 63 passes and one
+`isolate_bot_runtime` fixture. The initial run had 63 passes and one
 new-test expectation error: the unchanged `ApiError` stores the method uppercase.
 Only that assertion was corrected; existing tests and barriers are unchanged.
 
@@ -2874,7 +2874,7 @@ across five files). Six new tests cover guarded import, current dependencies/
 constants and reference identity, type distinctions, native conversion/elapsed
 failures, inclusive bounds, callback order, canonical hashing and JSON/logging
 failure boundaries. The new test module registers the existing autouse
-`isolate_regular_post_receipt` fixture. Existing assertions and barriers remain
+`isolate_bot_runtime` fixture. Existing assertions and barriers remain
 unchanged; no broad suite ran.
 
 The reused `run_selected.sh` requires successful AST-validated nonempty selection
@@ -2947,7 +2947,7 @@ across six files**). Eight new tests / ten cases cover guarded import, current
 dependencies and references, sanitizer warning/assignment order, real canonical
 repair/posting saves, forced priority and spacing retry, real receipt barriers
 after lane results, and native callback/error/signal boundaries. They register
-the existing autouse `isolate_regular_post_receipt` fixture. The initial run had
+the existing autouse `isolate_bot_runtime` fixture. The initial run had
 50 passes and one new-test counting error: arbitration has 19 dependencies,
 not 20. That assertion was corrected; existing assertions/barriers are unchanged.
 
@@ -3024,7 +3024,7 @@ in 3.50s**, and **63 passed in 8.23s** (`current-pytest.txt`; **41 explicit node
 across eight files**). Eleven new tests / 17 cases cover guarded import, current
 dependencies/reference/error identity, the frozen default, distinct permissions,
 strict JSON causes, short reads/writes, descriptor closure and callback/fsync
-ordering. They register the existing autouse `isolate_regular_post_receipt`
+ordering. They register the existing autouse `isolate_bot_runtime`
 fixture. The first run had 60 passes and three new-test directory assumptions:
 the fixture creates protocol files in `tmp_path`. Dedicated subdirectories fixed
 those assertions without changing runtime code, existing tests or barriers
@@ -3093,7 +3093,7 @@ in 3.74s; 46 passed in 9.54s** (`baseline-pytest.txt`). After extraction,
 57 passed in 10.06s** (`current-pytest.txt`). Eleven new contracts cover guarded
 import, current dependencies/references, coercion/type/cap, shallow identity,
 collisions, early stops and native failures, registering the existing autouse
-`isolate_regular_post_receipt` fixture. Existing assertions/barriers are unchanged.
+`isolate_bot_runtime` fixture. Existing assertions/barriers are unchanged.
 
 The reused `run_selected.sh` requires successful AST-validated nonempty selection
 and nonempty collection under `set -euo pipefail` before explicit pytest arguments.
@@ -3158,7 +3158,7 @@ nodes across nine files** yielded **54 tests collected in 3.54s; 54 passed in
 10.22s** (`current-pytest.txt`). Fourteen new test bodies (19 cases) cover guarded
 import, current dependency/reference identity, exact write/rotate/replace/latest
 order, security/log boundaries and native/ordinary/hard-exit failures, registering
-the imported autouse `isolate_regular_post_receipt` fixture. Existing backup,
+the imported autouse `isolate_bot_runtime` fixture. Existing backup,
 restart/recovery, scheduler and protected receipt-save regressions retain their
 assertions and barriers.
 
@@ -3227,7 +3227,7 @@ After extraction, **42 explicit nodes across nine files** collected **56 tests i
 3.68s**; **56 passed in 9.74s** (`current-pytest.txt`). Twelve new contracts cover
 guarded import, current dependencies/defaults, exact validation/error/callback
 order, reference identity, experiment handling and partial recovery events. They
-register the imported autouse `isolate_regular_post_receipt` fixture; existing
+register the imported autouse `isolate_bot_runtime` fixture; existing
 assertions and barriers are unchanged.
 
 The reused `run_selected.sh` requires successful AST-validated nonempty selection
@@ -3295,7 +3295,7 @@ extraction, **50 explicit nodes across 12 files** collected **69 tests in 3.89s*
 cases cover guarded import, current dependencies, reference identity, strict and
 recovery selection, exact repair output order, absent defaults, legacy/namespace
 refusal and native failures, including repair-save failure before post-load work.
-The new tests register the imported autouse `isolate_regular_post_receipt` fixture;
+The new tests register the imported autouse `isolate_bot_runtime` fixture;
 existing assertions and barriers are unchanged.
 
 The reused `run_selected.sh` requires successful AST-validated nonempty selection
@@ -3379,7 +3379,7 @@ functions / 19 cases cover guarded import, all current adapters/defaults/referen
 returns/errors, native validation boundaries, eager conversions and the current
 date closure, source/hash/copy/pending/materialization order, current final
 validation and exception authority, recursion avoidance and copy boundaries. The
-new module registers the imported autouse `isolate_regular_post_receipt` fixture;
+new module registers the imported autouse `isolate_bot_runtime` fixture;
 all existing assertions, fixtures and barriers are unchanged.
 
 The reused `run_selected.sh` requires successful AST-validated nonempty selection
@@ -3459,7 +3459,7 @@ functions / 33 cases check guarded import, every current adapter/signature and
 reference/error return, ordered read/publication/promotion/retirement boundaries,
 shallow-copy and materializer identity, exact mutation authority and native error
 scope. The new test module registers imported autouse
-`isolate_regular_post_receipt`; all existing assertions, fixtures and barriers
+`isolate_bot_runtime`; all existing assertions, fixtures and barriers
 remain unchanged.
 
 The reused selection runner uses `set -euo pipefail`, successful AST-validated
@@ -3538,7 +3538,7 @@ in 3.75s; 70 passed in 10.12s** (`current-pytest.txt`). Fourteen new contract
 functions / 29 cases cover guarded import, all current adapters and aliases,
 reference/error behavior and ordered payload/plan/attempt/pending construction
 boundaries. The new module registers imported autouse
-`isolate_regular_post_receipt`; all existing assertions, fixtures and barriers
+`isolate_bot_runtime`; all existing assertions, fixtures and barriers
 are unchanged. The reused runner uses `set -euo pipefail`, AST-validated nonempty
 selection and successful nonempty collection before explicit pytest arguments.
 Both runs use `PYTHONUSERBASE=/home/tonym/.local MRS_TEST_MODE=1
@@ -3620,7 +3620,7 @@ Both runs use `PYTHONUSERBASE=/home/tonym/.local MRS_TEST_MODE=1
 PYTEST_DISABLE_PLUGIN_AUTOLOAD=1 PYTHONDONTWRITEBYTECODE=1 python3 -m pytest -q
 -p no:cacheprovider`, TMPDIR beneath the evidence root, temporary HOME/state,
 dummy credentials, dead proxies, external socket denial and explicit loopback
-providers. New tests import autouse `isolate_regular_post_receipt`; existing
+providers. New tests import autouse `isolate_bot_runtime`; existing
 assertions, fixtures and barriers are unchanged. No broad suite ran.
 
 `verify_stage40.py` / `comparison.txt` verify exact bodies, signatures/defaults/
@@ -3687,7 +3687,7 @@ Current validation: **47 explicit nodes across eight files: 75 collected in
 31 cases cover guarded import, all current dependencies and public signatures,
 reference/copy/native-error behavior and missing ordered boundaries. Existing
 assertions/fixtures remain unchanged; new tests import autouse
-`isolate_regular_post_receipt`. No pytest failures or broad suite runs occurred.
+`isolate_bot_runtime`. No pytest failures or broad suite runs occurred.
 
 Stage40 selection/runner and ordinary stage39 extraction/comparison helpers were
 reused with recorded stage-local adaptations. Selection is AST-validated and
@@ -3756,7 +3756,7 @@ Current validation: **39 explicit nodes across nine files; 59 collected in
 3.73s; 59 passed in 9.74s** (`current-pytest.txt`). Twelve new contract functions /
 25 cases cover guarded import, all current dependencies/public signatures,
 references, native errors and missing ordered boundaries. Existing tests and
-assertions are unchanged; new tests import autouse `isolate_regular_post_receipt`.
+assertions are unchanged; new tests import autouse `isolate_bot_runtime`.
 Both runs used AST-validated nonempty selections and successful nonempty
 collection before explicit pytest arguments under `set -euo pipefail`, with
 `PYTHONUSERBASE=/home/tonym/.local MRS_TEST_MODE=1 PYTEST_DISABLE_PLUGIN_AUTOLOAD=1
@@ -3828,7 +3828,7 @@ Current validation: **33 explicit nodes across six files; 82 collected in
 48 cases cover guarded import, all current dependencies/public signatures,
 references/native errors, ordered transitions, call-time formatter/scan authority,
 envelope short circuits and bounded diagnostics. Existing tests/assertions are
-unchanged; new tests import autouse `isolate_regular_post_receipt`. Both runs
+unchanged; new tests import autouse `isolate_bot_runtime`. Both runs
 used AST-validated nonempty selection and successful nonempty collection before
 explicit pytest arguments under `set -euo pipefail`, with
 `PYTHONUSERBASE=/home/tonym/.local MRS_TEST_MODE=1 PYTEST_DISABLE_PLUGIN_AUTOLOAD=1
@@ -3904,7 +3904,7 @@ Current validation: **45 explicit nodes across eight files: 80 collected in
 guarded import, current dependencies/public signatures, alias/reference/native
 errors, call-time factories/lookup, delivery ordering, exact failure proofs,
 durable recovery ordering and narrow worker boundaries. New tests import autouse
-`isolate_regular_post_receipt` and reuse semantic-gate and production-incident
+`isolate_bot_runtime` and reuse semantic-gate and production-incident
 fixtures/source binding with their isolation. Both runs used AST-validated
 nonempty selection and successful nonempty collection before explicit pytest
 arguments under `set -euo pipefail`, with `PYTHONUSERBASE=/home/tonym/.local
@@ -4329,7 +4329,7 @@ successful ownership, replacement/unlocked/shared/other-fd refusals, fdinfo fail
 live-override/custom-endpoint denial, singleton continuity, acquisition cleanup,
 authority revalidation, owned storage/context creation and real quote-image
 loopback. Existing assertions, parametrization, fixtures and finally cleanup
-remain unchanged; new contracts import autouse `isolate_regular_post_receipt`.
+remain unchanged; new contracts import autouse `isolate_bot_runtime`.
 
 Both baseline/current collection and pytest used the reviewed metadata-only
 guard with stage-local naming. Four separate metadata records confirm equal
@@ -4395,7 +4395,7 @@ compatibility, exact recovery and invalid activation, actual main startup and a
 second interpreter that recovers the ledger while preserving owning retirement
 barriers and blocked remote lanes. Existing assertions, parametrization, fixtures
 and cleanup are unchanged; new contracts import autouse
-`isolate_regular_post_receipt`.
+`isolate_bot_runtime`.
 
 Both baseline/current collection and pytest used the reviewed metadata-only guard
 with stage51 names and separate evidence. All four production-log metadata records
@@ -4459,7 +4459,7 @@ without receipt, multiple risky rows, uninspectable namespace, worker persistenc
 failure, pause/unpause, nearest callers and actual regular/meme restart without a
 second post. New contracts cover guarded import, current dependencies, public
 signatures, reference identity, native errors and exact guard/call order; they
-import autouse `isolate_regular_post_receipt`. Existing tests and fixtures remain
+import autouse `isolate_bot_runtime`. Existing tests and fixtures remain
 unchanged.
 
 Both baseline/current collection and pytest used the reviewed metadata-only
@@ -4523,7 +4523,7 @@ preparation, live-schema/single-use refusal, both-lane hard-death replacement,
 durable experimental media/cross-binding/safe handoff, final namespace failure,
 noncanonical/unbound/missing authority, exact historical and legacy recovery,
 path enumeration and real quote-image loopback. New contracts import autouse
-`isolate_regular_post_receipt`; original tests/decorators/fixtures remain intact.
+`isolate_bot_runtime`; original tests/decorators/fixtures remain intact.
 
 Both collection and pytest used the reviewed metadata-only guard with stage53
 names and separate baseline/current evidence. All four metadata comparisons and
@@ -4584,7 +4584,7 @@ real-script no-write rejection, every one-shot mode, both reply priorities,
 health/barrier ordering, synthetic durable waits, confirmation errors, state
 migration and no-second-post replay. New contracts cover guarded import, current
 dependency/signature/reference forwarding, branch/closure/order and native-error
-scopes, and import autouse `isolate_regular_post_receipt`.
+scopes, and import autouse `isolate_bot_runtime`.
 
 Both collection and pytest used the reviewed metadata-only guard with stage54
 names and separate baseline/current evidence. All four metadata comparisons and
@@ -4647,7 +4647,7 @@ and missing basenames, confirmed-post persistence failure/emergency recovery,
 and both quote-image and daily-meme loopback integrations. New contracts cover
 guarded import, aliases/current dependencies, public signatures/defaults,
 reference/native-error behavior and original branch/order/legacy contracts;
-they import autouse `isolate_regular_post_receipt`.
+they import autouse `isolate_bot_runtime`.
 
 Both collection and pytest used the reviewed metadata-only log guard with
 stage55 names and separate baseline/current evidence. All four metadata equality
@@ -4709,7 +4709,7 @@ cross-midnight main/reply confirmation, both-lane DST replay, ambient-zone
 independence, rollback and post-success clock-failure recovery. New contracts
 cover guarded import, aliases/current adapters, public signatures, references,
 native failures and exact scalar/calendar/fallback branches; they import autouse
-`isolate_regular_post_receipt`.
+`isolate_bot_runtime`.
 
 Both baseline/current collection and pytest used the reviewed metadata-only log
 guard with stage56 names and separate evidence. All four metadata equality checks
@@ -4770,7 +4770,7 @@ mutation, repair failure/load identity, complete emergency state, both main rest
 recoveries/no-second-post, installation defaults and quote-image/daily-meme
 loopbacks. New contracts cover guarded import, three aliases/current adapters,
 public signatures, complete state freshness and exact native branch/order/reference/
-mutation behavior; they import autouse `isolate_regular_post_receipt`.
+mutation behavior; they import autouse `isolate_bot_runtime`.
 
 Both baseline/current collection and pytest used the reviewed metadata-only log
 guard with stage57 names and separate evidence. All four metadata equality checks

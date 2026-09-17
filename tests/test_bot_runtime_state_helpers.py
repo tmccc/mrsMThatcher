@@ -11,7 +11,7 @@ import pytest
 
 import mrsMThatcher2 as bot
 import mrs_bot_runtime_state_helpers as owner
-from tests.helpers.bot_fixtures import isolate_regular_post_receipt  # noqa: F401
+from tests.helpers.bot_fixtures import isolate_bot_runtime  # noqa: F401
 
 DEPENDENCIES = {'default_state': ['STATE_MINIMUM_READER_VERSION'],
  'append_unique_capped': [],

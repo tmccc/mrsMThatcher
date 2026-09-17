@@ -7,6 +7,7 @@ from datetime import datetime
 
 import pytest
 
+from mrs_bot_reply_cycle_interfaces import PreparedReplyContext
 import mrsMThatcher2 as bot
 
 
@@ -96,7 +97,7 @@ def configure_provider_free_mention_check(
     monkeypatch.setattr(
         bot,
         "build_context_for_reply_ai",
-        lambda candidate, _state: (
+        lambda candidate, _state: PreparedReplyContext(
             {
                 "target_id": str(candidate["id"]),
                 "thread_id": str(candidate["conversation_id"]),
@@ -104,7 +105,7 @@ def configure_provider_free_mention_check(
                 "incoming_contribution": str(candidate["text"]),
                 "parent_thread": [],
             },
-            True,
+            {},
         ),
     )
     monkeypatch.setattr(bot, "reply_evidence_repository", lambda: object())

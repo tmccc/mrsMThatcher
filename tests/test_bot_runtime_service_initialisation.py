@@ -13,7 +13,7 @@ import pytest
 
 import mrs_bot_runtime_service_initialisation as owner
 from tests.helpers.bot_runtime import bot
-from tests.helpers.bot_fixtures import isolate_regular_post_receipt  # noqa: F401
+from tests.helpers.bot_fixtures import isolate_bot_runtime  # noqa: F401
 
 DEPENDENCIES = {'initialise_bot_health_reporting': ['BASE_DIR',
                                      'BotHealthReporter',
@@ -96,7 +96,7 @@ assert 'historical_context_formatter' not in sys.modules
 
 
 @pytest.fixture(autouse=True)
-def isolated_runtime_services(monkeypatch, isolate_regular_post_receipt):
+def isolated_runtime_services(monkeypatch, isolate_bot_runtime):
     # Keep the receipt/incident fixture, restoring its intentional evidence stub.
     monkeypatch.setattr(bot, "reply_evidence_repository", PUBLIC["reply_evidence_repository"])
     for name in SHARED:

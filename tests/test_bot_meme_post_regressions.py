@@ -12,7 +12,7 @@ import pytest
 
 from tests.helpers.bot_runtime import bot
 from tests.helpers.bot_fixtures import (
-    isolate_regular_post_receipt,
+    isolate_bot_runtime,
     mock_confirmed_main_post,
     install_receipt_bound_x_request_stub,
     configure_simple_meme_post,

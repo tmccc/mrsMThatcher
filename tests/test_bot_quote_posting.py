@@ -13,7 +13,7 @@ import mrs_bot_quote_posting as posting
 from tests.helpers.bot_runtime import bot
 from tests.helpers.bot_fixtures import (
     configure_simple_quote_post,
-    isolate_regular_post_receipt,  # noqa: F401
+    isolate_bot_runtime,  # noqa: F401
 )
 
 

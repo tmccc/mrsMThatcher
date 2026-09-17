@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from mrs_bot_reply_cycle_interfaces import PreparedReplyContext
 from tests.helpers.reply_evaluation import legacy_reply_evaluator
 
 import copy
@@ -13,7 +14,7 @@ from pathlib import Path
 import pytest
 
 from tests.helpers.bot_runtime import bot
-from tests.helpers.bot_fixtures import isolate_regular_post_receipt
+from tests.helpers.bot_fixtures import isolate_bot_runtime
 from tests.helpers.reply_fixtures import (
     UNIT_REPLY_REPOSITORY,
     UnitReplyEvidenceRepository,
@@ -230,7 +231,7 @@ def test_duplicate_pending_draft_is_retired_and_later_mention_proceeds(
     monkeypatch.setattr(
         bot,
         "build_context_for_reply_ai",
-        lambda candidate, _state: (candidate_context(candidate), True),
+        lambda candidate, _state: PreparedReplyContext(candidate_context(candidate), {}),
     )
     monkeypatch.setattr(
         bot,

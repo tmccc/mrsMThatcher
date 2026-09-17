@@ -13,9 +13,10 @@ from unittest.mock import Mock, call
 
 import pytest
 
+from mrs_bot_reply_cycle_interfaces import PreparedReplyContext
 import mrs_bot_reply_context as reply_context
 from tests.helpers.bot_runtime import SCENARIOS, bot
-from tests.helpers.bot_fixtures import isolate_regular_post_receipt  # noqa: F401
+from tests.helpers.bot_fixtures import isolate_bot_runtime  # noqa: F401
 from tests.fake_api_server import load_scenario
 
 
@@ -29,7 +30,7 @@ def forbidden(*args, **kwargs):
 
 original_import = builtins.__import__
 def guarded_import(name, *args, **kwargs):
-    if name in {'mrsMThatcher2', 'requests', 'openai', 'single_call_reply', 'reply_evidence'} or name.startswith('mrs_bot_') and name != 'mrs_bot_reply_context':
+    if name in {'mrsMThatcher2', 'requests', 'openai', 'single_call_reply', 'reply_evidence'} or name.startswith('mrs_bot_') and name not in {'mrs_bot_reply_context', 'mrs_bot_reply_cycle_interfaces'}:
         forbidden()
     return original_import(name, *args, **kwargs)
 
@@ -217,9 +218,10 @@ def test_context_keeps_usable_suffix_raw_ancestor_quote_and_media_copy_metadata_
     trace.clock.return_value = datetime(2030, 2, 3)
     monkeypatch.setattr(bot, "current_datetime", trace.clock)
 
-    context, proceed = bot.build_context_for_reply_ai(target, state)
+    prepared_context = bot.build_context_for_reply_ai(target, state)
+    assert prepared_context is not None
+    context = prepared_context.context
 
-    assert proceed is True
     assert [entry[0] for entry in trace.mock_calls][-7:] == [
         "bound_visible_conversation", "copy", "media", "get_immediate_parent_id",
         "clock", "get_immediate_parent_id", "_log_single_call_context_summary",
@@ -236,12 +238,12 @@ def test_context_keeps_usable_suffix_raw_ancestor_quote_and_media_copy_metadata_
     assert context["parent_post_id"] == "120" and context["lane"] == "hot_post"
     assert context["target_author_id"] == "200" and context["target_created_at"] == "source-date"
     assert context["current_date"] == "2030-02-03" and context["incoming_contribution"] == "Incoming"
-    assert context["_prepared_media_context"] is media_results[0]
+    assert prepared_context.media_context is media_results[0]
     assert media_results[0]["photos"][0]["source_post_id"] == "900"
     assert trace.media.call_args.args[0] is target
     assert trace.media.call_args.kwargs == {"lane": "hot_post", "target_id": "130", "quoted_candidate": quoted}
     assert trace.media.call_args.kwargs["quoted_candidate"] is quoted
-    assert trace._log_single_call_context_summary.call_args.args[1] is context
+    assert trace._log_single_call_context_summary.call_args.args[1] is prepared_context
     context["parent_thread"][0]["text"] = "Changed copy"
     assert context["visible_conversation"][0]["text"] == "Parent"
     assert (chain, target, quoted, state) == before
@@ -259,7 +261,7 @@ def test_context_preserves_canonical_rejection_and_native_bound_media_errors(mon
     monkeypatch.setattr(bot, "reply_media_context_for_candidate", media)
     monkeypatch.setattr(bot, "_log_single_call_context_summary", summary)
     if boundary == "canonical":
-        assert bot.build_context_for_reply_ai(target, bot.default_state()) == ({}, False)
+        assert bot.build_context_for_reply_ai(target, bot.default_state()) is None
     else:
         with pytest.raises(TypeError) as caught:
             bot.build_context_for_reply_ai(target, bot.default_state())
@@ -270,15 +272,18 @@ def test_context_preserves_canonical_rejection_and_native_bound_media_errors(mon
 
 def test_summary_keeps_canonical_encoding_exact_hash_and_native_encoder_errors(monkeypatch):
     context = {"target_id": "100", "visible_conversation": [{"text": "Private é"}],
-               "quoted_post_id": "900", "_prepared_media_context": {"photos": [{"url": "https://example.invalid/private"}]}}
+               "quoted_post_id": "900"}
+    media = {"photos": [{"url": "https://example.invalid/private"}]}
+    prepared = PreparedReplyContext(context, media)
+    legacy_context = {**context, "_prepared_media_context": media}
     logger = Mock()
     encoder = Mock(wraps=json.dumps)
     monkeypatch.setattr(bot, "log", logger)
     monkeypatch.setattr(bot, "json", SimpleNamespace(dumps=encoder))
-    bot._log_single_call_context_summary("Context", context)
-    encoder.assert_called_once_with(context, ensure_ascii=False, sort_keys=True, separators=(",", ":"), allow_nan=False)
-    assert encoder.call_args.args[0] is context
-    digest = hashlib.sha256(json.dumps(context, ensure_ascii=False, sort_keys=True, separators=(",", ":"), allow_nan=False).encode("utf-8")).hexdigest()
+    bot._log_single_call_context_summary("Context", prepared)
+    encoder.assert_called_once_with(legacy_context, ensure_ascii=False, sort_keys=True, separators=(",", ":"), allow_nan=False)
+    assert "_prepared_media_context" not in context
+    digest = hashlib.sha256(json.dumps(legacy_context, ensure_ascii=False, sort_keys=True, separators=(",", ":"), allow_nan=False).encode("utf-8")).hexdigest()
     assert logger.debug.call_args.args == (
         "%s summary target_id=%s visible_turn_count=%d visible_character_count=%d quoted_subject_present=%s media_count=%d context_sha256=%s",
         "Context", "100", 1, 9, True, 1, digest,
@@ -287,7 +292,7 @@ def test_summary_keeps_canonical_encoding_exact_hash_and_native_encoder_errors(m
     encoder.side_effect = failure
     logger.reset_mock()
     with pytest.raises(RuntimeError) as caught:
-        bot._log_single_call_context_summary("Context", context)
+        bot._log_single_call_context_summary("Context", prepared)
     assert caught.value is failure
     logger.debug.assert_not_called()
 
@@ -296,5 +301,5 @@ def test_summary_keeps_canonical_encoding_exact_hash_and_native_encoder_errors(m
 def test_summary_keeps_canonical_fallback_for_original_encoding_failures(monkeypatch, value):
     logger = Mock()
     monkeypatch.setattr(bot, "log", logger)
-    bot._log_single_call_context_summary("Context", {"noncanonical": value})
+    bot._log_single_call_context_summary("Context", PreparedReplyContext({"noncanonical": value}, {}))
     assert logger.debug.call_args.args[-1] == hashlib.sha256(b"non-canonical-single-call-context").hexdigest()

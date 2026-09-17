@@ -3758,11 +3758,13 @@ def _reply_context_post(
     )
 
 
-def _log_single_call_context_summary(label: str, context: dict[str, object]) -> None:
+def _log_single_call_context_summary(
+    label: str, prepared: _reply_cycle_interfaces.PreparedReplyContext,
+) -> None:
     """Delegate to the context owner with current root dependencies."""
     return _reply_context._log_single_call_context_summary(
         label,
-        context,
+        prepared,
         hashlib=hashlib,
         json=json,
         log=log,
@@ -3842,7 +3844,7 @@ def _parent_path_is_chronological(path: list[dict], target: dict) -> bool:
 def build_context_for_reply_ai(
     mention: dict,
     state: dict,
-) -> tuple[dict[str, object], bool]:
+) -> _reply_cycle_interfaces.PreparedReplyContext | None:
     """Delegate to the context owner with current root dependencies."""
     return _reply_context.build_context_for_reply_ai(
         mention,
@@ -8738,7 +8740,6 @@ def maybe_reply_to_mentions(
         record_terminal_reply_evaluation=record_terminal_reply_evaluation,
         recovery_comparison_account_replies=recovery_comparison_account_replies,
         reply_evidence_repository=reply_evidence_repository,
-        reply_media_context_for_candidate=reply_media_context_for_candidate,
         reply_target_is_directly_eligible=reply_target_is_directly_eligible,
         reset_daily_reply_count_if_needed=reset_daily_reply_count_if_needed,
         terminal_reply_evaluation=terminal_reply_evaluation,
@@ -8853,7 +8854,7 @@ quote_author_profile_text = _quote_reply_cycle.quote_author_profile_text
 def build_quote_tweet_reply_context(
     original_tweet: dict,
     quote_tweet: dict,
-) -> dict[str, object]:
+) -> _reply_cycle_interfaces.PreparedReplyContext:
     """Build the canonical two-turn context for a direct quote-tweet."""
     return _quote_reply_cycle.build_quote_tweet_reply_context(
         original_tweet,
@@ -8965,7 +8966,6 @@ def maybe_reply_to_quote_tweets(state: dict) -> str:
         record_terminal_reply_evaluation=record_terminal_reply_evaluation,
         recovery_comparison_account_replies=recovery_comparison_account_replies,
         reply_evidence_repository=reply_evidence_repository,
-        reply_media_context_for_candidate=reply_media_context_for_candidate,
         reset_daily_quote_reply_count_if_needed=reset_daily_quote_reply_count_if_needed,
         reset_daily_reply_count_if_needed=reset_daily_reply_count_if_needed,
         terminal_reply_evaluation=terminal_reply_evaluation,

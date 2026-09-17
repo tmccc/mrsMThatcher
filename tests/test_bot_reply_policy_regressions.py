@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from mrs_bot_reply_cycle_interfaces import PreparedReplyContext
 from tests.helpers.reply_evaluation import legacy_reply_evaluator
 
 import copy
@@ -21,7 +22,7 @@ from tests.helpers.bot_runtime import (
 )
 from tests.helpers.bot_fixtures import (
     _configure_test_x_base,
-    isolate_regular_post_receipt,
+    isolate_bot_runtime,
     install_receipt_bound_x_request_stub,
 )
 from tests.helpers.reply_fixtures import (
@@ -153,7 +154,7 @@ def test_operational_pipeline_failure_does_not_consume_mention_target(
     monkeypatch.setattr(
         bot,
         "build_context_for_reply_ai",
-        lambda *_args: (unit_reply_context(contribution=mention["text"]), True),
+        lambda *_args: PreparedReplyContext(unit_reply_context(contribution=mention["text"]), {}),
     )
     monkeypatch.setattr(bot, "reply_evidence_repository", lambda: UNIT_REPLY_REPOSITORY)
     monkeypatch.setattr(bot, "reply_media_context_for_candidate", lambda *_args, **_kwargs: {})
@@ -265,7 +266,7 @@ def test_truncated_pagination_no_reply_is_not_evaluated_twice(
     monkeypatch.setattr(bot, "get_hot_post_reply_candidates", lambda _state: [])
     monkeypatch.setattr(bot, "is_probably_spam_or_not_worth_replying", lambda _text: False)
     context = unit_reply_context(target_id="100", contribution=mention["text"])
-    monkeypatch.setattr(bot, "build_context_for_reply_ai", lambda *_args: (context, True))
+    monkeypatch.setattr(bot, "build_context_for_reply_ai", lambda *_args: PreparedReplyContext(context, {}))
     monkeypatch.setattr(bot, "reply_media_context_for_candidate", lambda *_args, **_kwargs: {})
     monkeypatch.setattr(bot, "evaluate_single_call_reply", legacy_reply_evaluator(no_reply))
     monkeypatch.setattr(bot, "save_state", lambda *_args, **_kwargs: None)
@@ -333,13 +334,13 @@ def test_local_validation_failure_is_terminal_and_does_not_block_later_mention(
     monkeypatch.setattr(
         bot,
         "build_context_for_reply_ai",
-        lambda candidate, _state: (
+        lambda candidate, _state: PreparedReplyContext(
             unit_reply_context(
                 target_id=str(candidate["id"]),
                 contribution=str(candidate["text"]),
                 target_author_id=str(candidate["author_id"]),
             ),
-            True,
+            {},
         ),
     )
     monkeypatch.setattr(bot, "reply_media_context_for_candidate", lambda *_args, **_kwargs: {})
@@ -880,13 +881,18 @@ def test_completed_clarification_thread_stays_terminal_after_restart_and_cap_res
     media_ids: list[str] = []
     model_contexts: list[str] = []
 
-    def build_context(candidate: dict, _state: dict) -> tuple[dict[str, object], bool]:
+    def build_context(candidate: dict, _state: dict) -> PreparedReplyContext:
         context_ids.append(str(candidate["id"]))
-        return unit_reply_context(
-            target_id=str(candidate["id"]),
-            thread_id=str(candidate["conversation_id"]),
-            contribution=str(candidate["text"]),
-        ), True
+        return PreparedReplyContext(
+            unit_reply_context(
+                target_id=str(candidate["id"]),
+                thread_id=str(candidate["conversation_id"]),
+                contribution=str(candidate["text"]),
+            ),
+            bot.reply_media_context_for_candidate(
+                candidate, lane="mention", target_id=str(candidate["id"]),
+            ),
+        )
 
     def prepare_media(candidate: dict, **_kwargs: object) -> dict:
         media_ids.append(str(candidate["id"]))
@@ -1349,7 +1355,7 @@ def test_strategy_persistence_failure_blocks_mention_x_write(
     monkeypatch.setattr(bot, "get_mentions", lambda _state: [dict(mention)])
     monkeypatch.setattr(bot, "get_hot_post_reply_candidates", lambda _state: [])
     monkeypatch.setattr(bot, "is_probably_spam_or_not_worth_replying", lambda _text: False)
-    monkeypatch.setattr(bot, "build_context_for_reply_ai", lambda *_args: (context, True))
+    monkeypatch.setattr(bot, "build_context_for_reply_ai", lambda *_args: PreparedReplyContext(context, {}))
     monkeypatch.setattr(bot, "reply_media_context_for_candidate", lambda *_args, **_kwargs: {})
     monkeypatch.setattr(
         bot,
@@ -1405,7 +1411,7 @@ def test_deleted_target_after_generation_is_retired_before_any_x_write(
     monkeypatch.setattr(bot, "get_mentions", lambda _state: [copy.deepcopy(mention)])
     monkeypatch.setattr(bot, "get_hot_post_reply_candidates", lambda _state: [])
     monkeypatch.setattr(bot, "is_probably_spam_or_not_worth_replying", lambda _text: False)
-    monkeypatch.setattr(bot, "build_context_for_reply_ai", lambda *_args: (context, True))
+    monkeypatch.setattr(bot, "build_context_for_reply_ai", lambda *_args: PreparedReplyContext(context, {}))
     monkeypatch.setattr(bot, "reply_media_context_for_candidate", lambda *_args, **_kwargs: {})
     monkeypatch.setattr(
         bot,
@@ -1560,7 +1566,7 @@ def test_posting_generic_reply_403_is_retry_blocking_not_terminal(
     monkeypatch.setattr(bot, "get_mentions", lambda _state: [dict(mention)])
     monkeypatch.setattr(bot, "get_hot_post_reply_candidates", lambda _state: [])
     monkeypatch.setattr(bot, "is_probably_spam_or_not_worth_replying", lambda _text: False)
-    monkeypatch.setattr(bot, "build_context_for_reply_ai", lambda *_args: (context, True))
+    monkeypatch.setattr(bot, "build_context_for_reply_ai", lambda *_args: PreparedReplyContext(context, {}))
     monkeypatch.setattr(bot, "reply_media_context_for_candidate", lambda *_args, **_kwargs: {})
     monkeypatch.setattr(
         bot,

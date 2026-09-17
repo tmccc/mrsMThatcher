@@ -8,7 +8,7 @@ from unittest.mock import Mock
 import pytest
 
 from tests.helpers.bot_runtime import bot, SOURCE_GET_TWEET_BY_ID
-from tests.helpers.bot_fixtures import isolate_regular_post_receipt  # noqa: F401
+from tests.helpers.bot_fixtures import isolate_bot_runtime  # noqa: F401
 from tests.helpers.mention_fixtures import mention
 
 

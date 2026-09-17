@@ -17,7 +17,7 @@ from tests.helpers.legacy_reply_fixtures import (
     _legacy_case,
 )
 from tests.helpers.bot_runtime import bot
-from tests.helpers.bot_fixtures import isolate_regular_post_receipt  # noqa: F401
+from tests.helpers.bot_fixtures import isolate_bot_runtime  # noqa: F401
 from tests.helpers.reply_fixtures import (
     unit_approved_reply,
     unit_sending_v4_reply_receipt,

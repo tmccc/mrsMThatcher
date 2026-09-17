@@ -6,6 +6,7 @@ from unittest.mock import Mock
 
 import pytest
 
+from mrs_bot_reply_cycle_interfaces import PreparedReplyContext
 import mrs_bot_normal_reply_cycle as normal_cycle
 import mrs_bot_quote_reply_cycle as quote_cycle
 from single_call_reply import PipelineResult
@@ -13,7 +14,7 @@ from tests.helpers.reply_fixtures import configure_normal_cycle as configure_nor
 from tests.helpers.reply_fixtures import configure_quote_cycle as configure_quote
 from tests.helpers.mention_fixtures import mention
 from tests.helpers.bot_runtime import bot
-from tests.helpers.bot_fixtures import isolate_regular_post_receipt  # noqa: F401
+from tests.helpers.bot_fixtures import isolate_bot_runtime  # noqa: F401
 from tests.helpers.reply_fixtures import unit_approved_reply, unit_reply_context
 
 
@@ -21,8 +22,9 @@ def prepare_cycle(monkeypatch, lane):
     state = bot.default_state()
     if lane == "quote_tweet":
         original, quotes = configure_quote(monkeypatch)
-        context = bot.build_quote_tweet_reply_context(original, quotes[0])
-        context.pop("_prepared_media_context")
+        prepared_context = bot.build_quote_tweet_reply_context(original, quotes[0])
+        assert prepared_context is not None
+        context = prepared_context.context
         return state, context, bot.maybe_reply_to_quote_tweets
     configure_normal(monkeypatch)
     candidate = mention(105, 205)
@@ -73,12 +75,29 @@ def test_cycle_boundaries_capture_current_callbacks_and_config_between_calls(mon
 def test_cycles_consume_typed_results_through_durable_outcomes(monkeypatch, lane, decision):
     state, context, run = prepare_cycle(monkeypatch, lane)
     target = str(context["target_id"])
+    builder_name = (
+        "build_context_for_reply_ai" if lane == "mention"
+        else "build_quote_tweet_reply_context"
+    )
+    builder = getattr(bot, builder_name)
+    prepared_results = []
+
+    def prepare(*args, **kwargs):
+        prepared = builder(*args, **kwargs)
+        prepared_results.append(prepared)
+        return prepared
+
+    monkeypatch.setattr(bot, builder_name, prepare)
+    bot.reply_media_context_for_candidate.reset_mock()
     if decision == "recovered":
         reply = unit_approved_reply(context)
         assert bot.store_pending_ai_reply(state, target, lane, reply, context=context)
 
     def evaluate(actual_context, media, *, state: dict):
         assert decision != "recovered", "Recovered drafts must not call the model"
+        assert actual_context is prepared_results[0].context
+        assert media is prepared_results[0].media_context
+        assert "_prepared_media_context" not in actual_context
         if decision == "reply":
             result = PipelineResult(
                 status="reply", reason="useful_reply", model_call_count=1,
@@ -108,6 +127,8 @@ def test_cycles_consume_typed_results_through_durable_outcomes(monkeypatch, lane
         assert kwargs["state"] is state
         persisted = json.loads(bot.STATE_FILE.read_text())
         assert f"{lane}:{target}" in persisted["pending_ai_reply_drafts"]
+        assert kwargs["receipt_template"]["reply_context"] == prepared_results[0].context
+        assert "_prepared_media_context" not in kwargs["receipt_template"]["reply_context"]
         receipt = bot._confirmed_reply_receipt_from_sending(
             kwargs["receipt_template"], reply_post_id="990",
             confirmation_epoch=bot.now_epoch(),
@@ -135,6 +156,10 @@ def test_cycles_consume_typed_results_through_durable_outcomes(monkeypatch, lane
         )
         assert persisted["daily_reply_count"] == persisted["daily_quote_reply_count"] == 0
         send.assert_not_called()
+    assert len(prepared_results) == 1
+    assert "_prepared_media_context" not in prepared_results[0].context
+    assert "_prepared_media_context" not in json.dumps(persisted)
+    assert bot.reply_media_context_for_candidate.call_count == int(lane == "quote_tweet")
     assert evaluator.call_count == int(decision != "recovered")
     assert recovery.call_count == 1
     assert state["openai_error_epochs"] == []
@@ -265,3 +290,31 @@ def test_shared_finaliser_preserves_order_identity_and_exception_boundaries(monk
             assert caught.value.__cause__ is failure
     steps = ["apply", "save", "retire", "remove"]
     assert trace == (steps if failed_step is None else steps[:steps.index(failed_step) + 1])
+
+
+@pytest.mark.parametrize("lane", ["mention", "quote_tweet"])
+def test_explicit_absent_media_does_not_trigger_fallback_collection(monkeypatch, lane):
+    state, context, run = prepare_cycle(monkeypatch, lane)
+    prepared = PreparedReplyContext(context, None)
+    builder_name = (
+        "build_context_for_reply_ai" if lane == "mention"
+        else "build_quote_tweet_reply_context"
+    )
+    monkeypatch.setattr(bot, builder_name, Mock(return_value=prepared))
+    collect_media = Mock(side_effect=AssertionError("Prepared media must not be collected again"))
+    monkeypatch.setattr(bot, "reply_media_context_for_candidate", collect_media)
+    evaluator = Mock(return_value=PipelineResult(
+        status="no_reply", reason="completed_exchange",
+        reason_code="completed_exchange", model_call_count=1,
+    ))
+    monkeypatch.setattr(bot, "evaluate_single_call_reply", evaluator)
+
+    assert run(state) == (
+        bot.NORMAL_CHECK_STATUS_CHECKED if lane == "mention"
+        else bot.QUOTE_CHECK_STATUS_CHECKED
+    )
+
+    assert evaluator.call_args.args[0] is context
+    assert evaluator.call_args.args[1] is None
+    assert "_prepared_media_context" not in context
+    collect_media.assert_not_called()

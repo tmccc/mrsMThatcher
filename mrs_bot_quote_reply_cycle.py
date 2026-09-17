@@ -22,7 +22,7 @@ from types import ModuleType
 from typing import TYPE_CHECKING
 
 from mrs_bot_reply_cycle_interfaces import (
-    EvaluateReply, QuoteReplyConfig,
+    EvaluateReply, PreparedReplyContext, QuoteReplyConfig,
     ReplyCycleDelivery, ReplyCyclePersistence,
 )
 from mrs_bot_reply_delivery import ReplyDeliveryStop, deliver_prepared_reply
@@ -138,7 +138,7 @@ def build_quote_tweet_reply_context(
     reply_media_context_for_candidate: Callable,
     trim_context_text: Callable,
     tweet_context_text: Callable,
-) -> dict[str, object]:
+) -> PreparedReplyContext:
     """Build the canonical two-turn context for a direct quote-tweet."""
 
     target_id = str(quote_tweet.get("id") or "")
@@ -188,15 +188,16 @@ def build_quote_tweet_reply_context(
         "current_date": current_datetime().strftime("%Y-%m-%d"),
         "target_author_id": author_id,
         "target_created_at": str(quote_tweet.get("created_at") or ""),
-        "_prepared_media_context": reply_media_context_for_candidate(
-            quote_tweet,
-            lane="quote_tweet",
-            target_id=target_id,
-            quoted_candidate=original_tweet,
-        ),
     }
-    _log_single_call_context_summary("Single-call quote-tweet context", context)
-    return context
+    media_context = reply_media_context_for_candidate(
+        quote_tweet,
+        lane="quote_tweet",
+        target_id=target_id,
+        quoted_candidate=original_tweet,
+    )
+    prepared = PreparedReplyContext(context, media_context)
+    _log_single_call_context_summary("Single-call quote-tweet context", prepared)
+    return prepared
 
 
 def mark_quote_tweet_skipped(
@@ -330,7 +331,6 @@ def maybe_reply_to_quote_tweets(
     record_terminal_reply_evaluation: Callable,
     recovery_comparison_account_replies: Callable,
     reply_evidence_repository: Callable,
-    reply_media_context_for_candidate: Callable,
     reset_daily_quote_reply_count_if_needed: Callable,
     reset_daily_reply_count_if_needed: Callable,
     terminal_reply_evaluation: Callable,
@@ -525,27 +525,24 @@ def maybe_reply_to_quote_tweets(
                 if prepared.status is not None:
                     return prepared.status
                 continue
-            original_context_tweet, reply_context, prepared_media_context = prepared
+            reply_context = prepared.context
 
             processed_candidates += 1
             evaluation = _evaluate_reply(
                 candidate,
-                original_context_tweet,
-                reply_context,
-                prepared_media_context,
+                prepared,
                 state,
                 ApiError=ApiError,
                 QUOTE_CHECK_STATUS_CHECKED=QUOTE_CHECK_STATUS_CHECKED,
                 RemoteOperationsPaused=RemoteOperationsPaused,
                 ReplyEvidenceUnavailable=ReplyEvidenceUnavailable,
-                    evaluate_single_call_reply=evaluate_single_call_reply,
+                evaluate_single_call_reply=evaluate_single_call_reply,
                 log=log,
                 log_event=log_event,
                 persistence=persistence,
                 record_api_error=record_api_error,
                 recovery_comparison_account_replies=recovery_comparison_account_replies,
                 reply_evidence_repository=reply_evidence_repository,
-                reply_media_context_for_candidate=reply_media_context_for_candidate,
             )
             if isinstance(evaluation, _QuoteCandidateStop):
                 return evaluation.status
@@ -865,7 +862,7 @@ def _prepare_reply_context(
     record_api_error: Callable,
     record_terminal_reply_evaluation: Callable,
     persistence: ReplyCyclePersistence,
-) -> tuple[dict, dict, object] | _QuoteCandidateStop:
+) -> PreparedReplyContext | _QuoteCandidateStop:
     """Refetch media, cache the quote and build context before charging its candidate budget."""
     quote_tweet = candidate.tweet
     quote_id = candidate.quote_id
@@ -942,7 +939,7 @@ def _prepare_reply_context(
     persistence.save(state)
 
     try:
-        reply_context = build_quote_tweet_reply_context(
+        prepared = build_quote_tweet_reply_context(
             original_context_tweet,
             quote_tweet,
         )
@@ -956,18 +953,12 @@ def _prepare_reply_context(
         return retire_context_failure(
             "canonical_context_unavailable", "failed",
         )
-    prepared_media_context = reply_context.pop(
-        "_prepared_media_context",
-        None,
-    )
-    return original_context_tweet, reply_context, prepared_media_context
+    return prepared
 
 
 def _evaluate_reply(
     candidate: _QuoteCandidate,
-    original_context_tweet: dict,
-    reply_context: dict,
-    prepared_media_context: object,
+    prepared: PreparedReplyContext,
     state: dict,
     *,
     ApiError: type[Exception],
@@ -981,10 +972,9 @@ def _evaluate_reply(
     record_api_error: Callable,
     recovery_comparison_account_replies: Callable,
     reply_evidence_repository: Callable,
-    reply_media_context_for_candidate: Callable,
 ) -> PipelineResult | _QuoteCandidateStop:
     """Check evidence and recover or generate a draft with the original exception boundaries."""
-    quote_tweet = candidate.tweet
+    reply_context = prepared.context
     quote_id = candidate.quote_id
 
     try:
@@ -1002,17 +992,6 @@ def _evaluate_reply(
         )
         return _QuoteCandidateStop(QUOTE_CHECK_STATUS_CHECKED)
 
-    media_context = (
-        prepared_media_context
-        if isinstance(prepared_media_context, dict)
-        else reply_media_context_for_candidate(
-            quote_tweet,
-            lane="quote_tweet",
-            target_id=quote_id,
-            quoted_candidate=original_context_tweet,
-        )
-    )
-
     evaluation = persistence.recover(
         state,
         quote_id,
@@ -1027,7 +1006,7 @@ def _evaluate_reply(
         if evaluation is None or evaluation.status == "draft_discarded":
             evaluation = evaluate_single_call_reply(
                 reply_context,
-                media_context,
+                prepared.media_context,
                 state=state,
             )
         elif evaluation.reply is not None:

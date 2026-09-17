@@ -1663,6 +1663,21 @@ def _group_operational_incidents(
     return pipeline_identity_by_group
 
 
+def _snapshot_identity_tokens(identity: Mapping[str, Any]) -> set[str]:
+    """Combine explicit and document tokens with source-qualified retirement hashes."""
+    tokens = set(identity.get("snapshot_identity_tokens") or [])
+    tokens.update(
+        "document_sha256:" + str(value)
+        for value in identity.get("document_sha256s") or []
+    )
+    tokens.update(
+        "retirement_expected_sha256:" + str(source) + ":" + str(expected)
+        for source in identity.get("retirement_source_basenames") or []
+        for expected in identity.get("retirement_expected_sha256s") or []
+    )
+    return tokens
+
+
 def summarise_operational_error_health(
     errors: List[Dict[str, Any]],
     events: List[Dict[str, Any]],
@@ -1852,33 +1867,9 @@ def summarise_operational_error_health(
                 or identity_lane in component_lanes
             ):
                 return True
-        component_tokens = set(component.get("snapshot_identity_tokens") or [])
-        component_tokens.update(
-            "document_sha256:" + str(value)
-            for value in component.get("document_sha256s") or []
+        return bool(
+            _snapshot_identity_tokens(component) & _snapshot_identity_tokens(identity)
         )
-        component_tokens.update(
-            "retirement_expected_sha256:"
-            + str(source)
-            + ":"
-            + str(expected)
-            for source in component.get("retirement_source_basenames") or []
-            for expected in component.get("retirement_expected_sha256s") or []
-        )
-        identity_tokens = set(identity.get("snapshot_identity_tokens") or [])
-        identity_tokens.update(
-            "document_sha256:" + str(value)
-            for value in identity.get("document_sha256s") or []
-        )
-        identity_tokens.update(
-            "retirement_expected_sha256:"
-            + str(source)
-            + ":"
-            + str(expected)
-            for source in identity.get("retirement_source_basenames") or []
-            for expected in identity.get("retirement_expected_sha256s") or []
-        )
-        return bool(component_tokens & identity_tokens)
 
     def component_is_related_to_selected_window(
         component: Dict[str, Any],

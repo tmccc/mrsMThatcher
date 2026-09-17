@@ -13,7 +13,7 @@ import pytest
 
 import mrs_bot_tweet_lookup_cache as lookup_cache
 from tests.helpers.bot_runtime import SOURCE_GET_TWEET_BY_ID, bot
-from tests.helpers.bot_fixtures import isolate_regular_post_receipt  # noqa: F401
+from tests.helpers.bot_fixtures import isolate_bot_runtime  # noqa: F401
 
 
 def test_import_needs_no_runtime_access():

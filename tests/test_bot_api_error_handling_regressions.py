@@ -7,7 +7,7 @@ from types import SimpleNamespace
 import pytest
 
 from tests.helpers.bot_runtime import bot
-from tests.helpers.bot_fixtures import isolate_regular_post_receipt
+from tests.helpers.bot_fixtures import isolate_bot_runtime
 from tests.helpers.reply_fixtures import (
     UNIT_REPLY_REPOSITORY,
     unit_reply_context,

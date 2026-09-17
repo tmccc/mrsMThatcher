@@ -11,7 +11,7 @@ from unittest.mock import MagicMock, Mock, call
 import pytest
 
 import mrsMThatcher2 as bot
-from tests.helpers.bot_fixtures import isolate_regular_post_receipt  # noqa: F401
+from tests.helpers.bot_fixtures import isolate_bot_runtime  # noqa: F401
 
 
 DEPENDENCIES = {'run_test_cycle': ['AmbiguousRemotePostOutcome',

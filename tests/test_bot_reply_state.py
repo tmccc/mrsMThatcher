@@ -14,7 +14,7 @@ from tests.helpers.adapter_assertions import assert_adapters_forward_current_dep
 import mrs_bot_reply_state as reply_state
 from single_call_reply import PipelineResult, ValidatedReply
 from tests.helpers.bot_runtime import bot
-from tests.helpers.bot_fixtures import isolate_regular_post_receipt  # noqa: F401
+from tests.helpers.bot_fixtures import isolate_bot_runtime  # noqa: F401
 from tests.helpers.reply_fixtures import (
     UNIT_REPLY_REPOSITORY,
     unit_approved_reply,

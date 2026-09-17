@@ -8,7 +8,7 @@ import pytest
 from tests.helpers.bot_runtime import SOURCE_GET_TWEET_BY_ID, bot
 from tests.helpers.bot_fixtures import (
     _configure_test_x_base,
-    isolate_regular_post_receipt,  # noqa: F401
+    isolate_bot_runtime,  # noqa: F401
 )
 from tests.fake_api_server import FakeApiServer
 
@@ -64,8 +64,10 @@ def test_quote_confirmation_prevents_second_public_reply(tmp_path, monkeypatch, 
         state = bot.default_state()
         state["recent_own_post_ids"] = ["900"]
         if case != "fresh":
-            context, usable = bot.build_context_for_reply_ai(copy.deepcopy(target), state)
-            assert usable
+            prepared_context = bot.build_context_for_reply_ai(copy.deepcopy(target), state)
+            assert prepared_context is not None
+            context = prepared_context.context
+            assert prepared_context is not None
             draft = bot.generate_single_call_reply(context, state=state)
             assert draft == pending_text
             assert bot.store_pending_ai_reply(state, "910", "mention", draft, context=context)

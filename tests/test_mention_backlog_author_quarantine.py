@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from mrs_bot_reply_cycle_interfaces import PreparedReplyContext
 from tests.helpers.reply_evaluation import legacy_reply_evaluator
 
 import copy
@@ -177,10 +178,10 @@ def test_digest_author_no_reply_chronology_survives_restarts_and_skips_quarantin
 
     context_targets: list[str] = []
 
-    def build_context(candidate: dict, _state: dict) -> tuple[dict, bool]:
+    def build_context(candidate: dict, _state: dict) -> PreparedReplyContext | None:
         target_id = str(candidate["id"])
         context_targets.append(target_id)
-        return (
+        return PreparedReplyContext(
             {
                 "target_id": target_id,
                 "thread_id": str(candidate["conversation_id"]),
@@ -188,7 +189,7 @@ def test_digest_author_no_reply_chronology_survives_restarts_and_skips_quarantin
                 "incoming_contribution": str(candidate["text"]),
                 "parent_thread": [],
             },
-            True,
+            {},
         )
 
     monkeypatch.setattr(bot, "build_context_for_reply_ai", build_context)
@@ -479,10 +480,10 @@ def test_three_explicit_spam_no_replies_start_quarantine_and_skip_next(
     monkeypatch.setattr(bot, "clarification_reply_context", lambda *_args, **_kwargs: None)
     context_targets: list[str] = []
 
-    def build_context(candidate: dict, _state: dict) -> tuple[dict, bool]:
+    def build_context(candidate: dict, _state: dict) -> PreparedReplyContext | None:
         target_id = str(candidate["id"])
         context_targets.append(target_id)
-        return (
+        return PreparedReplyContext(
             {
                 "target_id": target_id,
                 "thread_id": str(candidate["conversation_id"]),
@@ -490,7 +491,7 @@ def test_three_explicit_spam_no_replies_start_quarantine_and_skip_next(
                 "incoming_contribution": str(candidate["text"]),
                 "parent_thread": [],
             },
-            True,
+            {},
         )
 
     monkeypatch.setattr(bot, "build_context_for_reply_ai", build_context)
@@ -816,12 +817,12 @@ def test_permanent_context_failure_retires_candidate_and_reaches_next(
     )
     context_calls: list[str] = []
 
-    def build_context(candidate: dict, _state: dict) -> tuple[dict, bool]:
+    def build_context(candidate: dict, _state: dict) -> PreparedReplyContext | None:
         target_id = str(candidate["id"])
         context_calls.append(target_id)
         if target_id == "100":
-            return {}, False
-        return (
+            return None
+        return PreparedReplyContext(
             {
                 "target_id": target_id,
                 "thread_id": target_id,
@@ -829,7 +830,7 @@ def test_permanent_context_failure_retires_candidate_and_reaches_next(
                 "incoming_contribution": str(candidate["text"]),
                 "parent_thread": [],
             },
-            True,
+            {},
         )
 
     model_calls: list[str] = []

@@ -14,7 +14,7 @@ import pytest
 import mrs_bot_reply_lane_policy as policy
 from tests.helpers.mention_fixtures import mention
 from tests.helpers.bot_runtime import bot
-from tests.helpers.bot_fixtures import isolate_regular_post_receipt  # noqa: F401
+from tests.helpers.bot_fixtures import isolate_bot_runtime  # noqa: F401
 from tests.helpers.reply_fixtures import unit_confirmed_reply_receipt
 
 

@@ -16,7 +16,7 @@ from unittest.mock import Mock, call
 import pytest
 
 import mrsMThatcher2 as bot
-from tests.helpers.bot_fixtures import isolate_regular_post_receipt  # noqa: F401
+from tests.helpers.bot_fixtures import isolate_bot_runtime  # noqa: F401
 from transaction_mutation_authority import require_transaction_mutation_authority
 
 DEPENDENCIES = {'instance_lock_abstract_socket_name': ['BASE_DIR',

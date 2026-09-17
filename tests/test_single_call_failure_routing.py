@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from mrs_bot_reply_cycle_interfaces import PreparedReplyContext
 from tests.helpers.reply_evaluation import legacy_reply_evaluator
 
 import copy
@@ -576,7 +577,7 @@ def test_new_429_cooldown_stops_later_candidate_in_same_lane_cycle(
     monkeypatch.setattr(
         bot,
         "build_context_for_reply_ai",
-        lambda candidate, _state: (_candidate_context(candidate), True),
+        lambda candidate, _state: PreparedReplyContext(_candidate_context(candidate), {}),
     )
     monkeypatch.setattr(bot, "reply_evidence_repository", FakeRepository)
     monkeypatch.setattr(bot, "collect_reply_images", lambda _media: [])
@@ -979,7 +980,7 @@ def test_refusal_retires_candidate_and_allows_later_candidate_without_side_effec
     monkeypatch.setattr(
         bot,
         "build_context_for_reply_ai",
-        lambda candidate, _state: (_candidate_context(candidate), True),
+        lambda candidate, _state: PreparedReplyContext(_candidate_context(candidate), {}),
     )
     monkeypatch.setattr(bot, "reply_evidence_repository", FakeRepository)
     monkeypatch.setattr(bot, "collect_reply_images", lambda _media: [])

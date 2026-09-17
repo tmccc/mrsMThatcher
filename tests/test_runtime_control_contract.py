@@ -8,7 +8,7 @@ import mrs_log_digest as digest
 import mrs_log_digest_runtime as digest_runtime
 import runtime_control_contract as contract
 from tests.helpers.bot_runtime import bot
-from tests.helpers.bot_fixtures import isolate_regular_post_receipt  # noqa: F401
+from tests.helpers.bot_fixtures import isolate_bot_runtime  # noqa: F401
 
 
 NOW = 1_700_000_000

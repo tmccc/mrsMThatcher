@@ -15,7 +15,7 @@ import pytest
 
 import mrs_bot_quote_reply_cycle as cycle
 from tests.helpers.bot_runtime import SOURCE_GET_TWEET_BY_ID, bot
-from tests.helpers.bot_fixtures import isolate_regular_post_receipt  # noqa: F401
+from tests.helpers.bot_fixtures import isolate_bot_runtime  # noqa: F401
 from tests.helpers.reply_fixtures import (
     configure_quote_cycle as _configure_cycle,
     unit_approved_reply,
@@ -181,7 +181,9 @@ def test_context_preserves_budget_roles_reference_boundaries_and_media_before_su
     monkeypatch.setattr(bot, "REPLY_INCOMING_MAX_CHARS", 30)
     monkeypatch.setattr(bot, "MAX_VISIBLE_TEXT_CHARACTERS", 60)
 
-    context = bot.build_quote_tweet_reply_context(original, quote)
+    prepared_context = bot.build_quote_tweet_reply_context(original, quote)
+    assert prepared_context is not None
+    context = prepared_context.context
 
     assert [c[0] for c in trace.mock_calls] == [
         "_reply_context_post", "tweet_context_text", "trim_context_text",
@@ -205,10 +207,10 @@ def test_context_preserves_budget_roles_reference_boundaries_and_media_before_su
     assert context["thread_id"] == "911"
     assert context["target_author_id"] == "310"
     assert context["target_created_at"] == quote["created_at"]
-    assert context["_prepared_media_context"] is media
+    assert prepared_context.media_context is media
     assert trace.media.call_args.args[0] is quote
     assert trace.media.call_args.kwargs["quoted_candidate"] is original
-    assert trace._log_single_call_context_summary.call_args.args[1] is context
+    assert trace._log_single_call_context_summary.call_args.args[1] is prepared_context
     context["quoted_post"]["text"] = "changed copy"
     assert context["parent_thread"][0]["text"] == original_turn["text"]
     assert (original, quote) == before
@@ -319,8 +321,9 @@ def test_zero_call_failures_consume_quote_candidate_limit_in_numeric_order(monke
 def test_reused_draft_keeps_context_references_durability_and_pre_send_availability(monkeypatch):
     original, quotes = _configure_cycle(monkeypatch)
     state = bot.default_state()
-    context = bot.build_quote_tweet_reply_context(original, quotes[0])
-    context.pop("_prepared_media_context")
+    prepared_context = bot.build_quote_tweet_reply_context(original, quotes[0])
+    assert prepared_context is not None
+    context = prepared_context.context
     reply = unit_approved_reply(context)
     assert bot.store_pending_ai_reply(state, "910", "quote_tweet", reply, context=context)
     bot.save_state(state, durable=True)
@@ -631,14 +634,15 @@ def test_context_rejection_is_free_but_evaluation_budget_spans_original_posts(mo
 
 
 @pytest.mark.parametrize("boundary", [
-    "reply_evidence_repository", "reply_media_context_for_candidate",
+    "reply_evidence_repository",
     "recovery_comparison_account_replies", "recover_pending_ai_reply",
 ])
 def test_pre_generation_failures_keep_their_own_exception_boundary(monkeypatch, boundary):
     original, quotes = _configure_cycle(monkeypatch)
-    context = bot.build_quote_tweet_reply_context(original, quotes[0])
-    context.pop("_prepared_media_context")
-    monkeypatch.setattr(bot, "build_quote_tweet_reply_context", Mock(return_value=context))
+    prepared_context = bot.build_quote_tweet_reply_context(original, quotes[0])
+    assert prepared_context is not None
+    context = prepared_context.context
+    monkeypatch.setattr(bot, "build_quote_tweet_reply_context", Mock(return_value=prepared_context))
     evidence_failure = boundary == "reply_evidence_repository"
     failure = (bot.ReplyEvidenceUnavailable("evidence unavailable")
                if evidence_failure else ValueError("outside generation"))

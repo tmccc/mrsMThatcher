@@ -18,7 +18,7 @@ from tests.helpers.bot_runtime import (
     bot,
 )
 from tests.helpers.bot_fixtures import (
-    isolate_regular_post_receipt,
+    isolate_bot_runtime,
     image_analysis_for_paths,
     configure_simple_quote_post,
     mock_confirmed_main_post,

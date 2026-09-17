@@ -14,7 +14,7 @@ import mrs_bot_hot_post_discovery as discovery
 from tests.helpers.bot_runtime import bot
 from tests.helpers.bot_fixtures import (
     invalid_pagination_cursor_error,
-    isolate_regular_post_receipt,  # noqa: F401
+    isolate_bot_runtime,  # noqa: F401
 )
 from tests.helpers.reply_fixtures import unit_approved_reply, unit_reply_context
 

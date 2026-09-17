@@ -8,6 +8,7 @@ from unittest.mock import Mock
 
 import pytest
 
+from mrs_bot_reply_cycle_interfaces import PreparedReplyContext
 from tests.helpers.bot_runtime import SCENARIOS, bot
 from tests.fake_api_server import load_scenario
 from tests.helpers.mention_fixtures import editorial_no_reply
@@ -355,10 +356,13 @@ def configure_normal_cycle(monkeypatch):
     monkeypatch.setattr(bot, "create_post", Mock(side_effect=AssertionError("unexpected remote write")))
     monkeypatch.setattr(
         bot, "build_context_for_reply_ai",
-        lambda candidate, _state: (unit_reply_context(
-            target_id=candidate["id"], contribution=candidate["text"],
-            target_author_id=candidate["author_id"],
-        ), True),
+        lambda candidate, _state: PreparedReplyContext(
+            unit_reply_context(
+                target_id=candidate["id"], contribution=candidate["text"],
+                target_author_id=candidate["author_id"],
+            ),
+            {},
+        ),
     )
     monkeypatch.setattr(bot, "reply_media_context_for_candidate", Mock(return_value={}))
     monkeypatch.setattr(bot, "evaluate_single_call_reply", legacy_reply_evaluator(Mock(side_effect=editorial_no_reply)))

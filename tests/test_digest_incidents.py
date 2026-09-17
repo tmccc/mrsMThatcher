@@ -1416,6 +1416,38 @@ def test_snapshot_reconciliation_receives_prepared_references_and_current_helper
     assert safety["snapshot_incident_evidence"] is evidence
 
 
+@pytest.mark.parametrize("component, identity, expected", [
+    ({}, {}, False),
+    ({"document_sha256s": ["a" * 64]}, {"document_sha256s": ["a" * 64]}, True),
+    ({"snapshot_identity_tokens": ["document_sha256:" + "a" * 64]},
+     {"document_sha256s": ["a" * 64]}, True),
+    ({"retirement_source_basenames": ["reply.json"], "retirement_expected_sha256s": ["a" * 64]},
+     {"retirement_source_basenames": ["reply.json"], "retirement_expected_sha256s": ["a" * 64]}, True),
+    ({"retirement_source_basenames": ["reply.json"], "retirement_expected_sha256s": ["a" * 64]},
+     {"retirement_source_basenames": ["media.json"], "retirement_expected_sha256s": ["a" * 64]}, False),
+    ({"document_sha256s": ["a" * 64]},
+     {"retirement_source_basenames": ["reply.json"], "retirement_expected_sha256s": ["a" * 64]}, False),
+    ({"transaction_ids": ["transaction-1"], "document_sha256s": ["a" * 64]},
+     {"transaction_id": "transaction-2", "document_sha256s": ["a" * 64]}, False),
+    ({"transaction_ids": ["transaction-1"]}, {"transaction_id": "transaction-1"}, True),
+    ({"target_ids": ["123"], "lanes": ["mention_reply"]},
+     {"target_id": "123", "lane": "mention"}, True),
+    ({"target_ids": ["123"], "lanes": ["quote_tweet"]},
+     {"target_id": "123", "lane": "mention"}, False),
+])
+def test_snapshot_identity_matching_preserves_precedence_and_hash_namespaces(
+    monkeypatch, component, identity, expected,
+):
+    matches = []
+
+    def reconcile(incidents, **kwargs):
+        matches.append(kwargs["component_matches_identity"](component, identity))
+
+    monkeypatch.setattr(incident_owner, "reconcile_current_snapshot_incidents", reconcile)
+    digest.summarise_operational_error_health([], [], [])
+    assert matches == [expected]
+
+
 @pytest.mark.parametrize("case", [
     "unavailable", "unrelated", "matched", "epoch", "fallback", "missing_time",
     "epoch_error", "fallback_error",

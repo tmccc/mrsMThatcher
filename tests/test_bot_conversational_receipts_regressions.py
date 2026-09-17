@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from mrs_bot_reply_cycle_interfaces import PreparedReplyContext
 from tests.helpers.reply_evaluation import legacy_reply_evaluator
 
 import copy
@@ -19,7 +20,7 @@ from tests.helpers.bot_runtime import (
 )
 from tests.helpers.bot_fixtures import (
     _configure_test_x_base,
-    isolate_regular_post_receipt,
+    isolate_bot_runtime,
     install_receipt_bound_x_request_stub,
 )
 from tests.helpers.reply_fixtures import (
@@ -160,7 +161,7 @@ def test_malformed_reply_post_id_is_not_recorded(monkeypatch: pytest.MonkeyPatch
     monkeypatch.setattr(bot, "get_hot_post_reply_candidates", lambda state: [])
     monkeypatch.setattr(bot, "is_probably_spam_or_not_worth_replying", lambda text: False)
     context = unit_reply_context(target_id="100", contribution="@MrsMThatcher hello")
-    monkeypatch.setattr(bot, "build_context_for_reply_ai", lambda mention, state: (context, True))
+    monkeypatch.setattr(bot, "build_context_for_reply_ai", lambda mention, state: PreparedReplyContext(context, {}))
     monkeypatch.setattr(
         bot,
         "evaluate_single_call_reply",

@@ -13,7 +13,7 @@ import pytest
 import mrs_bot_self_test as owner
 from tests.helpers.installation_fixtures import prepare_self_test_control_case
 from tests.helpers.bot_runtime import bot
-from tests.helpers.bot_fixtures import isolate_regular_post_receipt  # noqa: F401
+from tests.helpers.bot_fixtures import isolate_bot_runtime  # noqa: F401
 
 DEPENDENCIES = {
     "_self_test_ok": ["log"],

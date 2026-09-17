@@ -3,8 +3,10 @@
 from __future__ import annotations
 
 from collections import Counter
+from copy import deepcopy
 from dataclasses import replace
 from datetime import datetime, timedelta
+import json
 
 import pytest
 
@@ -451,6 +453,7 @@ def test_structured_main_post_lifecycle_is_completed_not_unresolved(
     assert "Routine two-phase receipt write/remove pairs completed: **1**" in rendered
     assert lane_summary in rendered
     assert "Stale or unresolved receipt events:" not in rendered
+    assert report["main_post_recovery"]["receipt_lifecycle"]["completed_count"] == 1
 
 
 def test_main_post_removal_at_window_boundary_is_not_unresolved():
@@ -467,6 +470,7 @@ def test_main_post_removal_at_window_boundary_is_not_unresolved():
 
     assert "opening write was outside the selected window: **1**" in rendered
     assert "Stale or unresolved receipt events:" not in rendered
+    assert report["main_post_recovery"]["receipt_lifecycle"]["boundary_removal_count"] == 1
 
 
 def test_structured_main_post_write_without_removal_remains_unresolved():
@@ -507,7 +511,7 @@ def test_mixed_structured_main_post_fixture_counts_fifteen_regular_and_one_meme(
     assert "Stale or unresolved receipt events:" not in rendered
 
 
-def test_schema_v3_reply_receipt_lifecycle_is_routine_and_observable():
+def test_schema_v3_reply_receipt_lifecycle_is_routine_and_observable(monkeypatch):
     records = [
         record(
             0,
@@ -534,6 +538,7 @@ def test_schema_v3_reply_receipt_lifecycle_is_routine_and_observable():
         ),
     ]
 
+    records.extend(structured_main_post_lifecycle(10, lane="quote_image", attempt_id="main-1"))
     report = digest.analyse(records)
     rendered = digest.render_markdown(report)
 
@@ -545,6 +550,18 @@ def test_schema_v3_reply_receipt_lifecycle_is_routine_and_observable():
     assert "## Confirmed-reply receipt lifecycle" in rendered
     assert "## Confirmed-reply recovery" not in rendered
     assert report["error_health"]["current_independent_incident_count"] == 0
+    assert report["confirmed_reply_recovery"]["receipt_lifecycle"]["normal_reply_pairs"] == 1
+    assert report["main_post_recovery"]["receipt_lifecycle"]["completed_count"] == 1
+
+    # JSON contains the same prepared evidence as Markdown. Rendering an
+    # analysed or restored report does not rescan receipt events or mutate it.
+    restored = json.loads(json.dumps(report))
+    original = deepcopy(restored)
+    for name in ("summarise_main_post_receipt_lifecycle", "summarise_reply_receipt_lifecycle"):
+        monkeypatch.setattr(digest, name, lambda *args, **kwargs: pytest.fail("repeated receipt scan"))
+    assert digest.render_markdown(report) == rendered
+    assert digest.render_markdown(restored) == rendered
+    assert restored == original
 
 
 def test_unresolved_schema_v3_sending_receipt_stays_current_after_other_reply():

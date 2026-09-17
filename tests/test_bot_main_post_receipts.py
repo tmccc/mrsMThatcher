@@ -13,7 +13,7 @@ import pytest
 import mrs_bot_main_post_receipts as receipts
 from tests.helpers.bot_runtime import bot
 from tests.helpers.bot_fixtures import (
-    isolate_regular_post_receipt,  # noqa: F401
+    isolate_bot_runtime,  # noqa: F401
     schema_current_main_attempt,
     valid_regular_receipt_v2,
 )

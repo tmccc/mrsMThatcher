@@ -20,7 +20,7 @@ from tests.helpers.single_call_fixtures import (
     response_envelope,
 )
 from tests.helpers.bot_runtime import bot
-from tests.helpers.bot_fixtures import isolate_regular_post_receipt  # noqa: F401
+from tests.helpers.bot_fixtures import isolate_bot_runtime  # noqa: F401
 from tests.helpers.reply_fixtures import image_case  # noqa: F401
 
 

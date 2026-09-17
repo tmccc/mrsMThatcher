@@ -13,7 +13,7 @@ import pytest
 
 import mrsMThatcher2 as bot
 import mrs_bot_historical_context_queue as owner
-from tests.helpers.bot_fixtures import isolate_regular_post_receipt  # noqa: F401
+from tests.helpers.bot_fixtures import isolate_bot_runtime  # noqa: F401
 from tests.helpers.historical_context_fixtures import isolated_incident_paths  # noqa: F401
 
 DEPENDENCIES = {'enqueue_historical_context_obligation': ['_HISTORICAL_CONTEXT_RUNTIME_UNAVAILABLE_REASON',

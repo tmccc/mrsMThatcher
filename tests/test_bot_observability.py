@@ -12,7 +12,7 @@ from unittest.mock import Mock, call
 import pytest
 
 import mrsMThatcher2 as bot
-from tests.helpers.bot_fixtures import isolate_regular_post_receipt  # noqa: F401
+from tests.helpers.bot_fixtures import isolate_bot_runtime  # noqa: F401
 
 DEPENDENCIES = {'remove_managed_log_handlers': ['_MANAGED_LOG_HANDLER_ATTR'],
  'mark_managed_log_handler': ['_MANAGED_LOG_HANDLER_ATTR'],

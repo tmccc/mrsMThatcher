@@ -11,7 +11,7 @@ import pytest
 
 from tests.helpers.bot_runtime import bot
 from tests.helpers.bot_fixtures import (
-    isolate_regular_post_receipt,
+    isolate_bot_runtime,
     configure_simple_quote_post,
     valid_regular_receipt,
 )

@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from mrs_bot_reply_cycle_interfaces import PreparedReplyContext
 from tests.helpers.reply_evaluation import legacy_reply_evaluator
 
 import base64
@@ -1919,7 +1920,7 @@ def _configure_approved_mention_candidate(
     monkeypatch.setattr(
         bot,
         "build_context_for_reply_ai",
-        lambda *_args: (dict(context), True),
+        lambda *_args: PreparedReplyContext(dict(context), {}),
     )
     monkeypatch.setattr(
         bot,

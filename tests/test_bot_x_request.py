@@ -14,7 +14,7 @@ import pytest
 import mrs_bot_x_request as owner
 import x_api_error_semantics as error_semantics
 from tests.helpers.bot_runtime import bot
-from tests.helpers.bot_fixtures import isolate_regular_post_receipt  # noqa: F401
+from tests.helpers.bot_fixtures import isolate_bot_runtime  # noqa: F401
 from tests.helpers.x_response_fixtures import (
     PRODUCTION_DELETED_REPLY_ERROR,
     _armed_x_create_authority,

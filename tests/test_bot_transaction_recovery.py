@@ -11,7 +11,7 @@ from unittest.mock import Mock, call
 import pytest
 
 import mrsMThatcher2 as bot
-from tests.helpers.bot_fixtures import isolate_regular_post_receipt  # noqa: F401
+from tests.helpers.bot_fixtures import isolate_bot_runtime  # noqa: F401
 
 
 DEPENDENCIES = {'ensure_reconciled_regular_receipt_schedule_is_future': ['log', 'schedule_next_quote_post'],

@@ -13,7 +13,7 @@ import pytest
 
 import mrs_bot_post_creation as owner
 from tests.helpers.bot_runtime import bot
-from tests.helpers.bot_fixtures import isolate_regular_post_receipt  # noqa: F401
+from tests.helpers.bot_fixtures import isolate_bot_runtime  # noqa: F401
 
 
 DEPENDENCIES = {'validate_media_upload_payload_metadata': ['copy'],

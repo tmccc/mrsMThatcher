@@ -1,9 +1,10 @@
 """Typed, per-invocation settings and boundaries shared by reply cycles.
 
-These small records hold configuration, draft persistence and delivery only.
-The root builds them from current callbacks for each check; they retain no bot
-state and perform no I/O at import or construction. Candidate policy and
-discovery stay explicit dependencies of their respective cycle owners.
+These records describe configuration, draft persistence, delivery and prepared
+context/media results. The root supplies current callbacks for each check, and
+builders return transient context/media references without adding them to bot
+state. Import and construction perform no I/O. Candidate policy and discovery
+stay explicit dependencies of their respective cycle owners.
 """
 
 from __future__ import annotations
@@ -14,6 +15,14 @@ from typing import TYPE_CHECKING, Protocol
 
 if TYPE_CHECKING:
     from single_call_reply import PipelineResult
+
+
+@dataclass(frozen=True)
+class PreparedReplyContext:
+    """Canonical model/persistence context and separately collected native media."""
+
+    context: dict[str, object]
+    media_context: dict | None
 
 
 @dataclass(frozen=True)

@@ -21,7 +21,7 @@ from mrs_log_digest_historical_events import historical_context_quality_summary
 from tests.helpers.bot_runtime import bot
 from tests.helpers.bot_fixtures import (
     configure_simple_quote_post,
-    isolate_regular_post_receipt,  # noqa: F401
+    isolate_bot_runtime,  # noqa: F401
     quote_analysis_for_lines,
 )
 

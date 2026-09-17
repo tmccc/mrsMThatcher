@@ -15,7 +15,7 @@ import mrs_bot_daily_meme as meme
 from tests.helpers.bot_runtime import bot
 from tests.helpers.bot_fixtures import (
     configure_simple_meme_post,
-    isolate_regular_post_receipt,  # noqa: F401
+    isolate_bot_runtime,  # noqa: F401
     mock_confirmed_main_post,
 )
 

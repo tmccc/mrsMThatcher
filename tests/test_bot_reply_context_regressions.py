@@ -16,7 +16,7 @@ from tests.helpers.bot_runtime import (
 )
 from tests.helpers.bot_fixtures import (
     _configure_test_x_base,
-    isolate_regular_post_receipt,
+    isolate_bot_runtime,
 )
 from tests.helpers.reply_fixtures import (
     UNIT_REPLY_REPOSITORY,
@@ -240,7 +240,7 @@ def test_quote_tweet_context_wires_target_and_quoted_images_in_priority_order() 
             "url": f"https://pbs.twimg.com/media/{media_key}.jpg",
         }
 
-    context = bot.build_quote_tweet_reply_context(
+    prepared_context = bot.build_quote_tweet_reply_context(
         {
             "id": "900",
             "author_id": "12345",
@@ -255,8 +255,10 @@ def test_quote_tweet_context_wires_target_and_quoted_images_in_priority_order() 
             "_attached_media": [media("target-1")],
         },
     )
+    assert prepared_context is not None
+    context = prepared_context.context
 
-    prepared = context.pop("_prepared_media_context")
+    prepared = prepared_context.media_context
     assert [photo["media_key"] for photo in prepared["photos"]] == [
         "target-1",
         "quoted-1",
@@ -668,9 +670,10 @@ def test_long_parent_context_never_truncates_away_incoming_contribution(
     monkeypatch.setattr(bot, "SKIP_REPLIES_TO_OWN_AUTO_REPLIES", False)
     monkeypatch.setattr(bot, "build_parent_chain", lambda _mention, _state: chain)
 
-    context, should_continue = bot.build_context_for_reply_ai(mention, bot.default_state())
+    prepared_context = bot.build_context_for_reply_ai(mention, bot.default_state())
+    assert prepared_context is not None
+    context = prepared_context.context
 
-    assert should_continue is True
     assert context["incoming_contribution"] == incoming
     assert len(context["parent_thread"]) == 5
     assert context["parent_thread"][0]["post_id"] == "1"
@@ -721,12 +724,13 @@ def test_fifteen_turn_linear_thread_reaches_root_then_bounds_visible_path(
         ),
     )
 
-    context, should_continue = bot.build_context_for_reply_ai(
+    prepared_context = bot.build_context_for_reply_ai(
         mention,
         state,
     )
+    assert prepared_context is not None
+    context = prepared_context.context
 
-    assert should_continue is True
     assert [turn["post_id"] for turn in context["visible_conversation"]] == [
         "1",
         *[str(index) for index in range(5, 16)],
@@ -800,10 +804,7 @@ def test_parent_created_after_target_is_not_admitted_to_visible_context(
     }
     monkeypatch.setattr(bot, "build_parent_chain", lambda *_args: [parent])
 
-    assert bot.build_context_for_reply_ai(mention, bot.default_state()) == (
-        {},
-        False,
-    )
+    assert bot.build_context_for_reply_ai(mention, bot.default_state()) is None
 
 
 def test_context_uses_only_parent_contiguous_path_not_cached_siblings(
@@ -860,9 +861,10 @@ def test_context_uses_only_parent_contiguous_path_not_cached_siblings(
         lambda *_args, **_kwargs: pytest.fail("context must use tweet_cache"),
     )
 
-    context, should_continue = bot.build_context_for_reply_ai(mention, state)
+    prepared_context = bot.build_context_for_reply_ai(mention, state)
+    assert prepared_context is not None
+    context = prepared_context.context
 
-    assert should_continue is True
     assert [post["post_id"] for post in context["parent_thread"]] == ["100", "150"]
     assert sum(post["post_id"] == "150" for post in context["parent_thread"]) == 1
     assert all(post["post_id"] not in {"190", "200"} for post in context["parent_thread"])
@@ -911,9 +913,10 @@ def test_author_cap_context_quote_commentary_refreshes_original_with_media(
     monkeypatch.setattr(bot, "get_tweet_by_id", fetch)
     monkeypatch.setattr(bot, "save_state", lambda *_args, **_kwargs: None)
 
-    context, should_continue = bot.build_context_for_reply_ai(mention, state)
+    prepared_context = bot.build_context_for_reply_ai(mention, state)
+    assert prepared_context is not None
+    context = prepared_context.context
 
-    assert should_continue is True
     assert lookups == [("900", True)]
     assert context["parent_thread"] == [
         {"post_id": "910", "author_role": "user", "text": "My capped quote commentary."},
@@ -922,7 +925,7 @@ def test_author_cap_context_quote_commentary_refreshes_original_with_media(
         "post_id": "900", "author_role": "account", "text": "The original account post.",
     }
     assert context["quoted_post_relationship"] == "root_quote"
-    assert context["_prepared_media_context"]["photos"] == [
+    assert prepared_context.media_context["photos"] == [
         {
             "media_key": "photo-root",
             "url": "https://pbs.twimg.com/media/root.jpg",
@@ -978,7 +981,7 @@ def test_declared_ancestor_quote_fails_context_closed_when_unresolvable(
 
     monkeypatch.setattr(bot, "get_tweet_by_id_cached", missing)
 
-    assert bot.build_context_for_reply_ai(target, bot.default_state()) == ({}, False)
+    assert bot.build_context_for_reply_ai(target, bot.default_state()) is None
     assert lookups == [("900", True)]
 
 
@@ -1035,12 +1038,13 @@ def test_reply_plus_quote_preserves_real_thread_and_separates_quote(
         lambda *_args, **_kwargs: {},
     )
 
-    context, should_continue = bot.build_context_for_reply_ai(
+    prepared_context = bot.build_context_for_reply_ai(
         target,
         bot.default_state(),
     )
+    assert prepared_context is not None
+    context = prepared_context.context
 
-    assert should_continue is True
     assert [
         turn["post_id"] for turn in context["visible_conversation"]
     ] == ["100", "200", "300"]
@@ -1113,9 +1117,10 @@ def test_direct_quote_refreshes_cache_without_replacing_the_reply_path(
 
     monkeypatch.setattr(bot, "get_tweet_by_id", fetch)
 
-    context, should_continue = bot.build_context_for_reply_ai(mention, state)
+    prepared_context = bot.build_context_for_reply_ai(mention, state)
+    assert prepared_context is not None
+    context = prepared_context.context
 
-    assert should_continue is True
     assert lookups == [("900", True)]
     assert [
         turn["post_id"] for turn in context["visible_conversation"]
@@ -1124,7 +1129,7 @@ def test_direct_quote_refreshes_cache_without_replacing_the_reply_path(
     assert context["quoted_post_relationship"] == "target_quote"
     assert context["root_post_id"] == "920"
     assert context["parent_post_id"] is None
-    assert context["_prepared_media_context"]["photos"] == [
+    assert prepared_context.media_context["photos"] == [
         {
             "media_key": "photo-1",
             "url": "https://pbs.twimg.test/photo.jpg",
@@ -1172,15 +1177,16 @@ def test_image_only_direct_quote_reaches_one_multimodal_sol_call(
         ),
     )
 
-    context, should_continue = bot.build_context_for_reply_ai(
+    prepared_context = bot.build_context_for_reply_ai(
         target,
         bot.default_state(),
     )
+    assert prepared_context is not None
+    context = prepared_context.context
 
-    assert should_continue is True
     assert context["quoted_post"] is None
     assert context["quoted_post_id"] == "900"
-    assert context["_prepared_media_context"]["photos"] == [
+    assert prepared_context.media_context["photos"] == [
         {
             "media_key": "photo-1",
             "url": "https://pbs.twimg.test/photo.jpg",
@@ -1297,9 +1303,10 @@ def test_non_contiguous_cached_author_cap_context_is_not_invented_into_path(
         lambda *_args, **_kwargs: pytest.fail("cached cap context must not fetch from X"),
     )
 
-    context, should_continue = bot.build_context_for_reply_ai(mention, state)
+    prepared_context = bot.build_context_for_reply_ai(mention, state)
+    assert prepared_context is not None
+    context = prepared_context.context
 
-    assert should_continue is True
     assert context["parent_thread"] == []
     assert context["visible_conversation"] == [
         {
@@ -1323,10 +1330,12 @@ def test_quote_tweet_context_never_truncates_away_user_commentary(
     monkeypatch.setattr(bot, "THREAD_CONTEXT_MAX_TOTAL_CHARS", 220)
     monkeypatch.setattr(bot, "THREAD_CONTEXT_MAX_CHARS_PER_POST", 500)
 
-    context = bot.build_quote_tweet_reply_context(
+    prepared_context = bot.build_quote_tweet_reply_context(
         {"id": "900", "text": "original account post " + ("historical context " * 80)},
         {"id": "910", "conversation_id": "910", "author_id": "200", "text": incoming},
     )
+    assert prepared_context is not None
+    context = prepared_context.context
 
     assert context["incoming_contribution"] == incoming
     assert context["quoted_post"]["post_id"] == "900"

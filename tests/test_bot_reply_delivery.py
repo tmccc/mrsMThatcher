@@ -15,7 +15,7 @@ import mrs_bot_reply_delivery as delivery
 from tests.helpers.bot_runtime import bot
 from tests.helpers.bot_fixtures import (
     install_receipt_bound_x_request_stub,
-    isolate_regular_post_receipt,  # noqa: F401
+    isolate_bot_runtime,  # noqa: F401
 )
 from tests.helpers.reply_fixtures import unit_approved_reply, unit_sending_v4_reply_receipt
 from tests.helpers.x_response_fixtures import (

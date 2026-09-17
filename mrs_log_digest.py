@@ -2651,6 +2651,9 @@ def analyse(
                 continue
             if isinstance(value, str):
                 event[field] = short(value, max_text)
+    main_post_lifecycle, reply_lifecycle = _receipt_lifecycle_summaries(report)
+    report["main_post_recovery"]["receipt_lifecycle"] = main_post_lifecycle
+    report["confirmed_reply_recovery"]["receipt_lifecycle"] = reply_lifecycle
     return report
 
 
@@ -2689,18 +2692,22 @@ def apply_saved_context(
     )
 
 
-def render_markdown(report: Dict[str, Any]) -> str:
-    """Render digest metrics as deterministic Markdown."""
-    receipt_events = (report.get("main_post_recovery") or {}).get("receipt_events") or []
-    main_post_lifecycle = (
-        summarise_main_post_receipt_lifecycle(receipt_events)
-        if receipt_events else {}
-    )
+def _receipt_lifecycle_summaries(
+    report: Dict[str, Any],
+) -> Tuple[Dict[str, Any], Dict[str, Any]]:
+    """Reuse prepared summaries or derive them for older, unprepared reports."""
+    main_recovery = report.get("main_post_recovery") or {}
+    main_post_lifecycle = main_recovery.get("receipt_lifecycle")
+    if main_post_lifecycle is None:
+        receipt_events = main_recovery.get("receipt_events") or []
+        main_post_lifecycle = (
+            summarise_main_post_receipt_lifecycle(receipt_events)
+            if receipt_events else {}
+        )
     reply_recovery = report.get("confirmed_reply_recovery") or {}
-    return _render_digest_markdown(
-        report,
-        main_post_receipt_lifecycle=main_post_lifecycle,
-        reply_receipt_lifecycle=summarise_reply_receipt_lifecycle(
+    reply_lifecycle = reply_recovery.get("receipt_lifecycle")
+    if reply_lifecycle is None:
+        reply_lifecycle = summarise_reply_receipt_lifecycle(
             reply_recovery.get("receipt_events") or [],
             reconciled_ambiguity_receipts=(
                 reply_recovery.get("durably_reconciled_ambiguity_receipts") or []
@@ -2709,7 +2716,17 @@ def render_markdown(report: Dict[str, Any]) -> str:
                 reply_recovery.get("status_unavailable_receipts") or []
             ),
             normalise_lane=_normalise_lane,
-        ),
+        )
+    return main_post_lifecycle, reply_lifecycle
+
+
+def render_markdown(report: Dict[str, Any]) -> str:
+    """Render a prepared digest, also accepting older reports without summaries."""
+    main_post_lifecycle, reply_lifecycle = _receipt_lifecycle_summaries(report)
+    return _render_digest_markdown(
+        report,
+        main_post_receipt_lifecycle=main_post_lifecycle,
+        reply_receipt_lifecycle=reply_lifecycle,
     )
 
 
@@ -3037,9 +3054,6 @@ def run_digest(args: argparse.Namespace, *, project_dir: Path, state_file: Path)
         }
     report["shadow_feature_lifecycle"] = shadow_lifecycle_snapshot(project_dir)
 
-    if not args.no_state and not args.reset_state:
-        apply_saved_context(report, state_file)
-
     report["runtime_state_status"] = {
         "status": runtime_state_status,
         "path": str(runtime_state_path),
@@ -3085,7 +3099,12 @@ def run_digest(args: argparse.Namespace, *, project_dir: Path, state_file: Path)
             and item.get("quarantine_active") is False
             for item in strike_progress.get("authors") or []
         )
-    refresh_derived(report)
+    # Saved history does not replace live state/configuration. Apply it after
+    # the runtime overlay so its complete-result refresh is the only refresh.
+    if not args.no_state and not args.reset_state:
+        apply_saved_context(report, state_file)
+    else:
+        refresh_derived(report)
 
     if not records:
         report["saved_last_log_entry_time"] = dt_text(since) if since else None

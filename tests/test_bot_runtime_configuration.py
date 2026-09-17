@@ -14,7 +14,7 @@ import pytest
 
 import mrs_bot_runtime_configuration as owner
 from tests.helpers.bot_runtime import bot
-from tests.helpers.bot_fixtures import isolate_regular_post_receipt  # noqa: F401
+from tests.helpers.bot_fixtures import isolate_bot_runtime  # noqa: F401
 
 DEPENDENCIES = {
     "validate_runtime_config_values": [

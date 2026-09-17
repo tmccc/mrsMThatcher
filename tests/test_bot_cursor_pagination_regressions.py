@@ -15,7 +15,7 @@ import pytest
 
 from tests.helpers.bot_runtime import bot
 from tests.helpers.bot_fixtures import (
-    isolate_regular_post_receipt,
+    isolate_bot_runtime,
     invalid_pagination_cursor_error,
     repeated_quote_cursor_suppression,
 )

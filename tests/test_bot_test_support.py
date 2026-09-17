@@ -9,7 +9,7 @@ import sys
 import pytest
 
 from tests.helpers import bot_fixtures, bot_runtime, reply_fixtures
-from tests.helpers.bot_fixtures import isolate_regular_post_receipt  # noqa: F401
+from tests.helpers.bot_fixtures import isolate_bot_runtime  # noqa: F401
 
 
 @pytest.mark.parametrize("preload_bot", [False, True])

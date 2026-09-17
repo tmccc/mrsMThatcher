@@ -14,7 +14,7 @@ import pytest
 
 import mrs_bot_durable_json_io as durable_io
 from tests.helpers.bot_runtime import bot
-from tests.helpers.bot_fixtures import isolate_regular_post_receipt  # noqa: F401
+from tests.helpers.bot_fixtures import isolate_bot_runtime  # noqa: F401
 
 
 def test_import_needs_no_runtime_access():

@@ -1,6 +1,6 @@
 """Share opt-in runtime isolation and local bot transaction builders.
 
-Import ``isolate_regular_post_receipt`` into a test module to retain its
+Import ``isolate_bot_runtime`` into a test module to retain its
 function-scoped autouse isolation. Importing this support module alone does not
 register the fixture globally or change the suite's network policy.
 """
@@ -46,7 +46,7 @@ def _configure_test_x_base(
 
 
 @pytest.fixture(autouse=True)
-def isolate_regular_post_receipt(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+def isolate_bot_runtime(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     transport_journal_module.reset_consumed_authorities_for_tests()
     # Operational command tests model the supported post-bootstrap dispatch path.
     monkeypatch.setattr(bot, "_PRODUCTION_BOOTSTRAPPED", True)

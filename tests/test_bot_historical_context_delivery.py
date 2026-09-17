@@ -15,7 +15,7 @@ import historical_context_formatter as formatter
 import historical_context_outbox as outbox_module
 import mrs_bot_historical_context_delivery as owner
 from tests.helpers.bot_runtime import bot
-from tests.helpers.bot_fixtures import isolate_regular_post_receipt  # noqa: F401
+from tests.helpers.bot_fixtures import isolate_bot_runtime  # noqa: F401
 from tests.helpers.historical_context_fixtures import (
     _bind_context_attempt_to_source_receipt,
     _formatted,

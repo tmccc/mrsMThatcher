@@ -15,7 +15,7 @@ import pytest
 
 from tests.helpers.bot_runtime import bot
 from tests.helpers.bot_fixtures import (
-    isolate_regular_post_receipt,
+    isolate_bot_runtime,
     image_analysis_for_paths,
 )
 
@@ -152,7 +152,7 @@ def test_single_call_context_and_reply_logs_expose_only_counts_and_hashes(
     monkeypatch.setattr(bot, "log_json_debug", record_json_label)
     caplog.set_level(logging.DEBUG, logger=bot.log.name)
 
-    context, should_continue = bot.build_context_for_reply_ai(
+    prepared_context = bot.build_context_for_reply_ai(
         {
             "id": "920",
             "author_id": "200",
@@ -162,7 +162,8 @@ def test_single_call_context_and_reply_logs_expose_only_counts_and_hashes(
         },
         bot.default_state(),
     )
-    assert should_continue is True
+    assert prepared_context is not None
+    context = prepared_context.context
     bot.build_quote_tweet_reply_context(
         {
             "id": "900",

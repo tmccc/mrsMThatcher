@@ -9,7 +9,7 @@ from pathlib import Path
 import pytest
 
 from tests.helpers.bot_runtime import bot
-from tests.helpers.bot_fixtures import isolate_regular_post_receipt
+from tests.helpers.bot_fixtures import isolate_bot_runtime
 
 
 pytestmark = pytest.mark.allow_loopback_network

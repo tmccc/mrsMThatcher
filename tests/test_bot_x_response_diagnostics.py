@@ -16,7 +16,7 @@ import pytest
 
 import mrs_bot_x_response_diagnostics as diagnostics
 from tests.helpers.bot_runtime import bot
-from tests.helpers.bot_fixtures import isolate_regular_post_receipt  # noqa: F401
+from tests.helpers.bot_fixtures import isolate_bot_runtime  # noqa: F401
 from tests.helpers.x_response_fixtures import _raw_x_response
 
 
