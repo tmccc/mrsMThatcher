@@ -18,9 +18,7 @@ import mrsMThatcher2 as bot
 from tests.helpers.bot_fixtures import isolate_regular_post_receipt  # noqa: F401
 
 DEPENDENCIES = {'load_strict_runtime_json': ['Decimal', 'json', 'math'],
- '_coerce_local_config_value': ['LOCAL_CONFIG_NON_NEGATIVE_INT_KEYS',
-                                'LOCAL_CONFIG_POSITIVE_INT_KEYS',
-                                'math'],
+ '_coerce_local_config_value': [],
  '_local_config_stat_identity': [],
  '_read_stable_local_config_bytes': ['LOCAL_CONFIG_FILE',
                                      'LOCAL_CONFIG_MAX_BYTES',
@@ -83,7 +81,7 @@ assert 'single_call_reply' not in sys.modules
     assert result.returncode == 0, result.stderr + result.stdout
 
 
-@pytest.mark.parametrize("name", [name for name, deps in DEPENDENCIES.items() if deps])
+@pytest.mark.parametrize("name", [name for name in DEPENDENCIES if name != "_local_config_stat_identity"])
 def test_adapters_preserve_signatures_current_dependencies_references_and_errors(monkeypatch, name):
     adapter = getattr(bot, name)
     signature = inspect.signature(adapter)
@@ -211,7 +209,7 @@ def test_parser_keeps_exact_reader_types_utf8_and_native_errors():
     assert bot.load_strict_runtime_json("1e999", label="control", parse_floats_as_decimal=True) == bot.Decimal("1e999")
 
 
-def test_coercion_keeps_exact_types_references_exemptions_and_narrow_float_checks(monkeypatch):
+def test_coercion_keeps_exact_types_references_and_string_exemptions():
     class IntegerSubclass(int):
         pass
 
@@ -232,34 +230,17 @@ def test_coercion_keeps_exact_types_references_exemptions_and_narrow_float_check
         assert coerce(key, "", "") == ""
         with pytest.raises(ValueError, match="unsafe control"):
             coerce(key, "\x00", "")
-    finite = Mock(side_effect=AssertionError("unlisted float must not be checked"))
-    monkeypatch.setattr(bot, "math", SimpleNamespace(isfinite=finite))
     assert math.isnan(coerce("unlisted", "nan", 0.0))
     with pytest.raises(ValueError, match="not a boolean"):
         coerce("unlisted", True, 0.0)
-    finite.assert_not_called()
 
 
-def test_coercion_observes_current_integer_sets_in_order(monkeypatch):
-    seen = []
-
-    class Keys:
-        def __init__(self, label):
-            self.label = label
-
-        def __contains__(self, key):
-            seen.append((self.label, key))
-            return True
-
-    monkeypatch.setattr(bot, "LOCAL_CONFIG_NON_NEGATIVE_INT_KEYS", Keys("nonnegative"))
-    monkeypatch.setattr(bot, "LOCAL_CONFIG_POSITIVE_INT_KEYS", Keys("positive"))
-    with pytest.raises(ValueError, match="non-negative"):
-        bot._coerce_local_config_value("current", -1, 1)
-    assert seen == [("nonnegative", "current")]
-    seen.clear()
-    with pytest.raises(ValueError, match="positive"):
-        bot._coerce_local_config_value("current", 0, 1)
-    assert seen == [("nonnegative", "current"), ("positive", "current")]
+def test_coercion_leaves_numeric_bounds_to_complete_config_validation():
+    coerce = bot._coerce_local_config_value
+    assert coerce("MAX_QUOTE_POSTS_PER_CHECK", 0, 1) == 0
+    assert coerce("STATE_BACKUP_COUNT", -1, 1) == -1
+    assert coerce("ORIGINAL_EDITORIAL_SHADOW_WEIGHT", "-0.5", 0.0) == -0.5
+    assert math.isnan(coerce("ORIGINAL_EDITORIAL_SHADOW_WEIGHT", "nan", 0.0))
 
 
 @pytest.fixture

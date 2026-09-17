@@ -22,19 +22,6 @@ TEST_LOG_MARKERS = (
     b"127.0.0.1:",
     b"X_CONSUMER_KEY=dummy",
 )
-LOOPBACK_NETWORK_MODULES = {
-    "tests/test_integration_harness.py",
-}
-LOOPBACK_NETWORK_TESTS = {
-    (
-        "tests/test_semantic_alignment_bakeoff.py::"
-        "test_blinded_review_storage_no_provider_leak"
-    ),
-    (
-        "tests/test_semantic_alignment_calibration.py::"
-        "test_review_app_shows_case_and_saves_label"
-    ),
-}
 
 
 def initialise_isolated_test_environment() -> Path:
@@ -297,17 +284,6 @@ def pytest_configure(config: pytest.Config) -> None:
         "markers",
         "allow_loopback_network: permit loopback sockets for a local fake server",
     )
-
-
-def pytest_collection_modifyitems(items: list[pytest.Item]) -> None:
-    """Opt existing local-server suites into loopback-only networking."""
-    for item in items:
-        module_nodeid = item.nodeid.split("::", 1)[0]
-        if (
-            module_nodeid in LOOPBACK_NETWORK_MODULES
-            or item.nodeid in LOOPBACK_NETWORK_TESTS
-        ):
-            item.add_marker(pytest.mark.allow_loopback_network)
 
 
 @pytest.hookimpl(hookwrapper=True, tryfirst=True)

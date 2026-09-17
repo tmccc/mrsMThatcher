@@ -208,12 +208,23 @@ def test_local_config_coercion_accepts_boolean_strings_and_rejects_boolean_ints(
         bot._coerce_local_config_value("MAX_AUTO_REPLIES_PER_DAY", True, 24)
 
 
-def test_local_config_coercion_rejects_negative_and_nonpositive_timings() -> None:
-    with pytest.raises(ValueError):
-        bot._coerce_local_config_value("POST_SLEEP_MIN", -1, bot.POST_SLEEP_MIN)
-
-    with pytest.raises(ValueError):
-        bot._coerce_local_config_value("MAX_AUTO_REPLIES_PER_DAY", 0, bot.MAX_AUTO_REPLIES_PER_DAY)
+@pytest.mark.parametrize("key,value", [("POST_SLEEP_MIN", -1), ("MAX_AUTO_REPLIES_PER_DAY", 0)])
+def test_local_config_rejects_negative_and_nonpositive_timings(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    key: str,
+    value: int,
+) -> None:
+    assert f"{key} must be positive" in bot.validate_runtime_config_values({key: value})
+    before = apply_local_config_for_test(
+        tmp_path,
+        monkeypatch,
+        {key: value, "ENABLE_AUTO_REPLIES": False},
+        initial={"ENABLE_AUTO_REPLIES": True},
+        expect_error=True,
+    )
+    assert getattr(bot, key) == before[key]
+    assert bot.ENABLE_AUTO_REPLIES is True
 
 
 def apply_local_config_for_test(

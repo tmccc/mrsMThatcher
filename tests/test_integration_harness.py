@@ -27,6 +27,8 @@ from tests.helpers.integration_harness import (
 )
 
 
+pytestmark = pytest.mark.allow_loopback_network
+
 ROOT = Path(__file__).resolve().parents[1]
 BOT = ROOT / "mrsMThatcher2.py"
 DIGEST = ROOT / "mrs_log_digest.py"
@@ -3309,34 +3311,27 @@ def test_runtime_control_individual_lanes_malformed_and_expired_pause(tmp_path: 
         expired_server.stop()
 
 
-def test_local_config_validation_rejects_bad_values_and_cannot_override_paths_or_urls(tmp_path: Path) -> None:
+@pytest.mark.parametrize("local_config,expected_error", [
+    ({"ENABLE_AUTO_REPLIES": "not-a-bool"}, "ENABLE_AUTO_REPLIES must be a boolean"),
+    ({"UNKNOWN_KEY": True}, "Unsupported local config key 'UNKNOWN_KEY'"),
+    ({"MRS_BASE_DIR": "/should/not/apply"}, "Unsupported local config key 'MRS_BASE_DIR'"),
+    ({"X_API_BASE_URL": "https://api.x.com"}, "Unsupported local config key 'X_API_BASE_URL'"),
+])
+def test_local_config_validation_rejects_bad_values_and_cannot_override_paths_or_urls(
+    tmp_path: Path, local_config: dict, expected_error: str,
+) -> None:
     server = FakeApiServer(load_scenario(SCENARIOS / "normal_mention_reply.json")).start()
     try:
         base_dir = prepare_base_dir(
             tmp_path,
-            local_config={
-                "UNKNOWN_KEY": True,
-                "ENABLE_AUTO_REPLIES": "not-a-bool",
-                "MIN_SECONDS_BETWEEN_REPLIES": -99,
-                "MAX_MENTIONS_PER_CHECK": 0,
-                "POST_SLEEP_MIN": 9000,
-                "POST_SLEEP_MAX": 10,
-                "MEME_DELAY_AFTER_MAIN_POST_MIN_SECONDS": 1000,
-                "MEME_DELAY_AFTER_MAIN_POST_MAX_SECONDS": 60,
-                "MRS_BASE_DIR": "/should/not/apply",
-                "X_API_BASE_URL": "https://api.x.com",
-            },
+            local_config=local_config,
         )
         state_before = (base_dir / "bot_state.json").read_bytes()
         result = run_cycle(base_dir, server)
         assert result.returncode != 0
         assert server.posts == []
-        assert "Unsupported local config key" in result.stdout
-        assert "refusing to ignore a possible safety-setting typo" in result.stdout
-        assert "Rejecting local config due to invalid override ENABLE_AUTO_REPLIES" in result.stdout
-        assert "Rejecting local config due to invalid override MIN_SECONDS_BETWEEN_REPLIES" in result.stdout
-        assert "Rejecting local config due to invalid override MAX_MENTIONS_PER_CHECK" in result.stdout
-        assert "LocalConfigError: Unsupported local config key" in result.stderr
+        assert expected_error in result.stdout + result.stderr
+        assert "LocalConfigError:" in result.stderr
         assert (base_dir / "bot_state.json").read_bytes() == state_before
     finally:
         server.stop()
@@ -3352,13 +3347,23 @@ def test_runtime_config_validation_rejects_unsafe_domain_values(tmp_path: Path) 
                 "QUOTE_LOOKUP_API_MAX_RESULTS": 9,
                 "HOT_POST_REPLY_SEARCH_API_MAX_RESULTS": 9,
                 "REPLY_CHECK_EVERY_SECONDS": 0,
-                "MIN_SECONDS_BETWEEN_REPLIES": 0,
+                "MIN_SECONDS_BETWEEN_REPLIES": -99,
+                "MAX_QUOTE_POSTS_PER_CHECK": 0,
+                "STATE_BACKUP_COUNT": -1,
+                "QUOTE_REPLY_DELAY_SECONDS": -1,
+                "POST_SLEEP_MIN": 9000,
+                "POST_SLEEP_MAX": 10,
+                "MEME_DELAY_AFTER_MAIN_POST_MIN_SECONDS": 1000,
+                "MEME_DELAY_AFTER_MAIN_POST_MAX_SECONDS": 60,
                 "MEME_FALLBACK_HOUR": 99,
                 "MEME_FALLBACK_MINUTE": 99,
             },
         )
+        state_before = (base_dir / "bot_state.json").read_bytes()
         result = run_cycle(base_dir, server)
         assert result.returncode != 0
+        assert server.posts == []
+        assert (base_dir / "bot_state.json").read_bytes() == state_before
         combined = result.stdout + result.stderr
         assert "Invalid local config" in combined
         assert "MAX_MENTIONS_PER_CHECK must be between 5 and 100" in combined
@@ -3366,6 +3371,11 @@ def test_runtime_config_validation_rejects_unsafe_domain_values(tmp_path: Path) 
         assert "HOT_POST_REPLY_SEARCH_API_MAX_RESULTS must be between 10 and 100" in combined
         assert "REPLY_CHECK_EVERY_SECONDS must be positive" in combined
         assert "MIN_SECONDS_BETWEEN_REPLIES must be positive" in combined
+        assert "MAX_QUOTE_POSTS_PER_CHECK must be positive" in combined
+        assert "STATE_BACKUP_COUNT must be non-negative" in combined
+        assert "QUOTE_REPLY_DELAY_SECONDS must be non-negative" in combined
+        assert "POST_SLEEP_MIN must be <= POST_SLEEP_MAX" in combined
+        assert "MEME_DELAY_AFTER_MAIN_POST_MIN_SECONDS must be <= MEME_DELAY_AFTER_MAIN_POST_MAX_SECONDS" in combined
         assert "MEME_FALLBACK_HOUR must be between 0 and 23" in combined
         assert "MEME_FALLBACK_MINUTE must be between 0 and 59" in combined
     finally:

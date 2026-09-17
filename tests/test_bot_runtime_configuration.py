@@ -1,7 +1,9 @@
 """Focused contracts for current runtime configuration and synthetic credentials."""
 from __future__ import annotations
 
+import copy
 import inspect
+import json
 from pathlib import Path
 import subprocess
 import sys
@@ -32,13 +34,20 @@ POSITIVE_KEYS = (
     "AUTHOR_NO_REPLY_QUARANTINE_WINDOW_SECONDS", "COOLDOWN_AFTER_429_SECONDS",
     "COOLDOWN_AFTER_REPEATED_ERRORS_SECONDS", "ERROR_WINDOW_SECONDS",
     "HOT_POST_REPLY_SEARCH_MAX_PAGES_PER_CHECK", "MAX_AUTO_REPLIES_PER_DAY",
-    "MAX_HOT_POST_REPLIES_PER_CHECK", "MAX_OPENAI_ERRORS_PER_WINDOW", "MAX_QUOTE_REPLIES_PER_DAY",
+    "MAX_HOT_POST_REPLIES_PER_CHECK", "MAX_OPENAI_ERRORS_PER_WINDOW",
+    "MAX_QUOTE_POSTS_PER_CHECK", "MAX_QUOTE_REPLIES_PER_DAY",
     "MAX_REPLIES_PER_AUTHOR_PER_DAY", "MAX_X_ERRORS_PER_WINDOW",
     "MENTIONS_MAX_PAGES_PER_CHECK", "MIN_SECONDS_BETWEEN_REPLIES",
     "POST_SLEEP_MAX", "POST_SLEEP_MIN", "QUOTE_CHECK_EVERY_SECONDS",
     "QUOTE_LOOKUP_MAX_PAGES_PER_POST", "QUOTE_POST_LOOKBACK_MAIN_POSTS",
     "RECENT_OWN_POST_IDS_MAX", "REPLY_CHECK_EVERY_SECONDS",
     "TWEET_CACHE_MAX_AGE_SECONDS", "TWEET_CACHE_MAX_ITEMS",
+)
+NON_NEGATIVE_KEYS = (
+    "HOT_POST_REPLY_FULL_RESCAN_EVERY_CHECKS",
+    "MEME_DELAY_AFTER_MAIN_POST_MAX_SECONDS", "MEME_DELAY_AFTER_MAIN_POST_MIN_SECONDS",
+    "MEME_MIN_SECONDS_AFTER_QUOTE_POST", "QUOTE_CHECK_SPACING_RETRY_SECONDS",
+    "QUOTE_REPLY_DELAY_SECONDS", "STATE_BACKUP_COUNT",
 )
 SHADOW_KEYS = (
     "ORIGINAL_EDITORIAL_SHADOW_WEIGHT", "ORIGINAL_EDITORIAL_SHADOW_MAX_ABS_ADJUSTMENT",
@@ -121,6 +130,7 @@ def test_public_signatures_current_dependencies_references_and_errors(monkeypatc
 
 def _validation_values(monkeypatch):
     values = {key: 1 for key in POSITIVE_KEYS}
+    values.update({key: 0 for key in NON_NEGATIVE_KEYS})
     values.update({
         "historical_context_reply": {
             "enabled": False, "include_meaning": True, "include_source": True,
@@ -139,6 +149,79 @@ def _validation_values(monkeypatch):
         monkeypatch.setattr(bot, key, value)
     monkeypatch.setattr(bot, "validate_single_call_reply_config", Mock(return_value=[]))
     return values
+
+
+@pytest.mark.parametrize("key,invalid,valid,message", [
+    ("MAX_QUOTE_POSTS_PER_CHECK", 0, 1, "must be positive"),
+    *[(key, -1, 0, "must be non-negative") for key in NON_NEGATIVE_KEYS],
+    ("POST_SLEEP_MIN", 0, 1, "must be positive"),
+    ("MAX_MENTIONS_PER_CHECK", 4, 5, "must be between 5 and 100"),
+    ("MAX_MENTIONS_PER_CHECK", 101, 100, "must be between 5 and 100"),
+    ("QUOTE_LOOKUP_API_MAX_RESULTS", 9, 10, "must be between 10 and 100"),
+    ("QUOTE_LOOKUP_API_MAX_RESULTS", 101, 100, "must be between 10 and 100"),
+    ("HOT_POST_REPLY_SEARCH_API_MAX_RESULTS", 9, 10, "must be between 10 and 100"),
+    ("MEME_TRIGGER_AFTER_HOUR", -1, 0, "must be between 0 and 23"),
+    ("MEME_FALLBACK_HOUR", 24, 23, "must be between 0 and 23"),
+    ("MEME_FALLBACK_MINUTE", 60, 59, "must be between 0 and 59"),
+    ("ORIGINAL_EDITORIAL_SHADOW_WEIGHT", "-0.5", "0.0", "must be non-negative"),
+    ("ORIGINAL_EDITORIAL_SHADOW_WEIGHT", "nan", "0.5", "must be finite"),
+    ("ORIGINAL_EDITORIAL_SHADOW_MAX_ABS_ADJUSTMENT", "inf", "0.0", "must be finite"),
+])
+def test_runtime_and_local_config_share_numeric_bounds_without_partial_application(
+    monkeypatch, key, invalid, valid, message,
+):
+    defaults = copy.deepcopy(bot.SOURCE_DEFAULT_CONFIG_VALUES)
+    original_value = copy.deepcopy(getattr(bot, key))
+    original_text = bot.MEME_POST_TEXT
+    proposed = {"MEME_POST_TEXT": original_text + " changed", key: invalid}
+    # Vary both delay endpoints together so this tests their individual bounds.
+    if key.startswith("MEME_DELAY_AFTER_MAIN_POST_"):
+        proposed["MEME_DELAY_AFTER_MAIN_POST_MIN_SECONDS"] = invalid
+        proposed["MEME_DELAY_AFTER_MAIN_POST_MAX_SECONDS"] = invalid
+    monkeypatch.setattr(
+        bot, "_read_stable_local_config_bytes",
+        lambda: json.dumps(proposed).encode("utf-8"),
+    )
+
+    def runtime_errors():
+        effective = defaults | proposed
+        if isinstance(defaults[key], float):
+            effective[key] = float(proposed[key])
+        return bot.validate_runtime_config_values(effective)
+
+    error = f"{key} {message}"
+    assert error in runtime_errors()
+    with pytest.raises(bot.LocalConfigError, match=error):
+        bot.apply_local_config()
+    assert getattr(bot, key) == original_value
+    assert bot.MEME_POST_TEXT == original_text
+    assert bot.SOURCE_DEFAULT_CONFIG_VALUES == defaults
+
+    proposed[key] = valid
+    if key.startswith("MEME_DELAY_AFTER_MAIN_POST_"):
+        proposed["MEME_DELAY_AFTER_MAIN_POST_MIN_SECONDS"] = valid
+        proposed["MEME_DELAY_AFTER_MAIN_POST_MAX_SECONDS"] = valid
+    assert runtime_errors() == []
+    loaded = bot.load_validated_local_config_overrides()
+    assert loaded[key] == (float(valid) if isinstance(defaults[key], float) else valid)
+    assert loaded["MEME_POST_TEXT"] == proposed["MEME_POST_TEXT"]
+    assert bot.SOURCE_DEFAULT_CONFIG_VALUES == defaults
+
+
+def test_local_config_keeps_cross_field_validation_and_accepts_paired_overrides(monkeypatch):
+    minimum = "MEME_DELAY_AFTER_MAIN_POST_MIN_SECONDS"
+    maximum = "MEME_DELAY_AFTER_MAIN_POST_MAX_SECONDS"
+    proposed = {minimum: 90, maximum: 60}
+    monkeypatch.setattr(
+        bot, "_read_stable_local_config_bytes",
+        lambda: json.dumps(proposed).encode("utf-8"),
+    )
+    error = f"{minimum} must be <= {maximum}"
+    assert bot.validate_runtime_config_values(bot.SOURCE_DEFAULT_CONFIG_VALUES | proposed) == [error]
+    with pytest.raises(bot.LocalConfigError, match=error):
+        bot.load_validated_local_config_overrides()
+    proposed[maximum] = 120
+    assert bot.load_validated_local_config_overrides() == proposed
 
 
 def test_namespace_identity_eager_fallbacks_and_live_order(monkeypatch):
@@ -171,7 +254,8 @@ def test_namespace_identity_eager_fallbacks_and_live_order(monkeypatch):
     assert first == []
     keys = [
         "historical_context_reply", "single_call_reply",
-        *POSITIVE_KEYS, "MAX_MENTIONS_PER_CHECK", "QUOTE_LOOKUP_API_MAX_RESULTS",
+        *POSITIVE_KEYS, *NON_NEGATIVE_KEYS,
+        "MAX_MENTIONS_PER_CHECK", "QUOTE_LOOKUP_API_MAX_RESULTS",
         "HOT_POST_REPLY_SEARCH_API_MAX_RESULTS",
         *SHADOW_KEYS, "MEME_TRIGGER_AFTER_HOUR", "MEME_FALLBACK_HOUR", "MEME_FALLBACK_MINUTE",
         "POST_SLEEP_MIN", "POST_SLEEP_MAX",
@@ -222,6 +306,7 @@ def test_validation_keeps_ordered_errors_context_fields_and_validator_references
         reply_error,
         "AUTHOR_NO_REPLY_QUARANTINE_SECONDS must be positive",
         "AUTHOR_NO_REPLY_QUARANTINE_THRESHOLD must be an integer",
+        "MEME_DELAY_AFTER_MAIN_POST_MIN_SECONDS must be an integer",
         "MAX_MENTIONS_PER_CHECK must be between 5 and 100",
         "QUOTE_LOOKUP_API_MAX_RESULTS must be an integer",
         "HOT_POST_REPLY_SEARCH_API_MAX_RESULTS must be between 10 and 100",
@@ -296,7 +381,7 @@ def test_paired_integer_order_current_fallback_and_exception_scope(monkeypatch, 
         with pytest.raises(KeyboardInterrupt) as caught:
             bot.validate_runtime_config_values({})
         assert caught.value is error
-    assert trace == ["minimum", "maximum"]
+    assert trace == ["minimum", "minimum", "maximum"]
 
 
 def test_missing_numeric_defaults_and_separate_shadow_float_observations(monkeypatch):

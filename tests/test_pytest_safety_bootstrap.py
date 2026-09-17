@@ -174,6 +174,21 @@ def test_loopback_opt_in_allows_only_local_fake_server(
         socket.create_connection(("192.0.2.1", 443), timeout=0.01)
 
 
+@pytest.mark.allow_loopback_network
+@pytest.mark.parametrize("host", ["127.0.0.1", "localhost"])
+def test_loopback_marker_survives_parametrization(host: str) -> None:
+    with socket.socket() as server:
+        server.bind((host, 0))
+        server.listen(1)
+        with socket.create_connection(server.getsockname(), timeout=1) as client:
+            accepted, _address = server.accept()
+            accepted.close()
+            assert client.getpeername() == server.getsockname()
+
+    with pytest.raises(RuntimeError, match="blocked non-loopback socket"):
+        socket.create_connection(("192.0.2.1", 443), timeout=0.01)
+
+
 @pytest.mark.parametrize(
     "runtime_path",
     [

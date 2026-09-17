@@ -235,9 +235,24 @@ def test_original_editorial_runtime_config_rejects_non_finite_values(key: str, v
 
 @pytest.mark.parametrize("value", ["nan", "NaN", "inf", "+inf", "-inf"])
 @pytest.mark.parametrize("key", ["ORIGINAL_EDITORIAL_SHADOW_WEIGHT", "ORIGINAL_EDITORIAL_SHADOW_MAX_ABS_ADJUSTMENT"])
-def test_original_editorial_local_config_rejects_non_finite_values(key: str, value: str) -> None:
-    with pytest.raises(ValueError, match="finite"):
-        bot._coerce_local_config_value(key, value, 0.32)
+def test_original_editorial_local_config_rejects_non_finite_values(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    key: str,
+    value: str,
+) -> None:
+    config_file = tmp_path / "mrsMThatcher.local.json"
+    config_file.write_text(
+        json.dumps({key: value, "ENABLE_AUTO_REPLIES": False}),
+        encoding="utf-8",
+    )
+    monkeypatch.setattr(bot, "LOCAL_CONFIG_FILE", config_file)
+    monkeypatch.setattr(bot, key, 0.32)
+    monkeypatch.setattr(bot, "ENABLE_AUTO_REPLIES", True)
+    with pytest.raises(bot.LocalConfigError, match=f"{key} must be finite"):
+        bot.apply_local_config()
+    assert getattr(bot, key) == 0.32
+    assert bot.ENABLE_AUTO_REPLIES is True
 
 
 @pytest.mark.parametrize("value", [float("nan"), float("inf"), float("-inf")])

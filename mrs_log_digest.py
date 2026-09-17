@@ -1785,11 +1785,6 @@ def analyse(
         msg = r.msg
         production_record = not is_selftest_log_path(r.path)
         source_context = production_context if production_record else selftest_context
-        compatibility_event_obj = (
-            try_parse_json_object_from_msg(msg)
-            if msg.startswith("EVENT ")
-            else None
-        )
         strict_structured_event_obj = (
             try_parse_strict_json_object_from_msg(msg)
             if msg.startswith("EVENT ")
@@ -1797,18 +1792,20 @@ def analyse(
         )
         # Structured EVENT fields are projected into the JSON contract only
         # after duplicate-key, finite-number, UTF-8 and exact-envelope
-        # validation.  The compatibility parse is detection-only so malformed
-        # events can still contribute bounded parser diagnostics without
-        # leaking non-standard JSON values into the digest.
-        structured_event_obj = strict_structured_event_obj
+        # validation. Only a failed strict parse needs compatibility detection
+        # so malformed visual events retain bounded parser diagnostics without
+        # supplying fields to structured handlers.
+        diagnostic_event_obj = strict_structured_event_obj
+        if diagnostic_event_obj is None and msg.startswith("EVENT "):
+            diagnostic_event_obj = try_parse_json_object_from_msg(msg)
         is_reply_visual_description_event = bool(
             (
-                compatibility_event_obj
-                and compatibility_event_obj.get("event")
+                diagnostic_event_obj
+                and diagnostic_event_obj.get("event")
                 == "reply_visual_description"
             )
             or (
-                compatibility_event_obj is None
+                diagnostic_event_obj is None
                 and msg.startswith("EVENT ")
                 and re.search(
                     r'"event"\s*:\s*"reply_visual_description"', msg
@@ -1906,7 +1903,7 @@ def analyse(
         # Strict structured EVENT lines provide immutable publication evidence;
         # older human-readable success lines still define the final digest event.
         if msg.startswith("EVENT "):
-            event_obj = structured_event_obj
+            event_obj = strict_structured_event_obj
             if is_reply_visual_description_event:
                 visual_event = (
                     parse_reply_visual_description_event(event_obj)
@@ -2164,7 +2161,6 @@ def analyse(
                     pages_completed=bounded_event_nonnegative_integer(event_obj.get("pages_completed"), maximum=1_000_000),
                     results_retained=bounded_event_nonnegative_integer(event_obj.get("results_retained"), maximum=1_000_000),
                 )
-                stats["quote_pagination_repeated_token"] += 1
             elif event_obj and event_obj.get("event") == "candidate_skipped":
                 add_event(
                     "candidate_skipped", r.ts,

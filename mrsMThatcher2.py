@@ -1398,72 +1398,6 @@ LOCAL_CONFIG_ALLOWED_KEYS = {
     "single_call_reply",
 }
 
-LOCAL_CONFIG_NON_NEGATIVE_INT_KEYS = {
-    "POST_SLEEP_MIN",
-    "POST_SLEEP_MAX",
-    "MEME_TRIGGER_AFTER_HOUR",
-    "MEME_DELAY_AFTER_MAIN_POST_MIN_SECONDS",
-    "MEME_DELAY_AFTER_MAIN_POST_MAX_SECONDS",
-    "MEME_FALLBACK_HOUR",
-    "MEME_FALLBACK_MINUTE",
-    "MEME_MIN_SECONDS_AFTER_QUOTE_POST",
-    "REPLY_CHECK_EVERY_SECONDS",
-    "QUOTE_CHECK_EVERY_SECONDS",
-    "QUOTE_CHECK_SPACING_RETRY_SECONDS",
-    "QUOTE_REPLY_DELAY_SECONDS",
-    "MAX_AUTO_REPLIES_PER_DAY",
-    "MAX_QUOTE_REPLIES_PER_DAY",
-    "MAX_REPLIES_PER_AUTHOR_PER_DAY",
-    "MAX_MENTIONS_PER_CHECK",
-    "AUTHOR_NO_REPLY_QUARANTINE_THRESHOLD",
-    "AUTHOR_NO_REPLY_QUARANTINE_WINDOW_SECONDS",
-    "AUTHOR_NO_REPLY_QUARANTINE_SECONDS",
-    "MIN_SECONDS_BETWEEN_REPLIES",
-    "MAX_HOT_POST_REPLIES_PER_CHECK",
-    "HOT_POST_REPLY_SEARCH_API_MAX_RESULTS",
-    "HOT_POST_REPLY_FULL_RESCAN_EVERY_CHECKS",
-    "MAX_QUOTE_POSTS_PER_CHECK",
-    "QUOTE_POST_LOOKBACK_MAIN_POSTS",
-    "RECENT_OWN_POST_IDS_MAX",
-    "QUOTE_LOOKUP_API_MAX_RESULTS",
-    "QUOTE_LOOKUP_MAX_PAGES_PER_POST",
-    "MENTIONS_MAX_PAGES_PER_CHECK",
-    "HOT_POST_REPLY_SEARCH_MAX_PAGES_PER_CHECK",
-    "TWEET_CACHE_MAX_AGE_SECONDS",
-    "TWEET_CACHE_MAX_ITEMS",
-    "ERROR_WINDOW_SECONDS",
-    "MAX_X_ERRORS_PER_WINDOW",
-    "MAX_OPENAI_ERRORS_PER_WINDOW",
-    "COOLDOWN_AFTER_REPEATED_ERRORS_SECONDS",
-    "COOLDOWN_AFTER_429_SECONDS",
-    "STATE_BACKUP_COUNT",
-}
-
-LOCAL_CONFIG_POSITIVE_INT_KEYS = {
-    "MAX_AUTO_REPLIES_PER_DAY",
-    "MAX_QUOTE_REPLIES_PER_DAY",
-    "MAX_REPLIES_PER_AUTHOR_PER_DAY",
-    "MAX_MENTIONS_PER_CHECK",
-    "AUTHOR_NO_REPLY_QUARANTINE_THRESHOLD",
-    "AUTHOR_NO_REPLY_QUARANTINE_WINDOW_SECONDS",
-    "AUTHOR_NO_REPLY_QUARANTINE_SECONDS",
-    "MAX_HOT_POST_REPLIES_PER_CHECK",
-    "HOT_POST_REPLY_SEARCH_API_MAX_RESULTS",
-    "MAX_QUOTE_POSTS_PER_CHECK",
-    "QUOTE_POST_LOOKBACK_MAIN_POSTS",
-    "RECENT_OWN_POST_IDS_MAX",
-    "QUOTE_LOOKUP_API_MAX_RESULTS",
-    "QUOTE_LOOKUP_MAX_PAGES_PER_POST",
-    "MENTIONS_MAX_PAGES_PER_CHECK",
-    "HOT_POST_REPLY_SEARCH_MAX_PAGES_PER_CHECK",
-    "TWEET_CACHE_MAX_AGE_SECONDS",
-    "TWEET_CACHE_MAX_ITEMS",
-    "MAX_X_ERRORS_PER_WINDOW",
-    "MAX_OPENAI_ERRORS_PER_WINDOW",
-    "COOLDOWN_AFTER_REPEATED_ERRORS_SECONDS",
-    "COOLDOWN_AFTER_429_SECONDS",
-}
-
 
 class LocalConfigError(RuntimeError):
     """An existing production local-config file is unsafe to apply."""
@@ -1504,13 +1438,11 @@ _REPLY_EVIDENCE_LOAD_ERROR: str | None = None
 
 
 def _coerce_local_config_value(key: str, value: object, current_value: object) -> object:
+    """Coerce JSON types; numeric bounds are checked on the complete config."""
     return _local_config._coerce_local_config_value(
         key,
         value,
         current_value,
-        LOCAL_CONFIG_NON_NEGATIVE_INT_KEYS=LOCAL_CONFIG_NON_NEGATIVE_INT_KEYS,
-        LOCAL_CONFIG_POSITIVE_INT_KEYS=LOCAL_CONFIG_POSITIVE_INT_KEYS,
-        math=math,
     )
 
 
@@ -1522,8 +1454,9 @@ def _runtime_config_namespace() -> dict[str, object]:
 def validate_runtime_config_values(values: dict[str, object]) -> list[str]:
     """Return validation errors for runtime config values.
 
-    This is intentionally conservative for local overrides. Script defaults are
-    expected to pass, and invalid local override sets are rejected atomically.
+    Numeric bounds live here for both source defaults and coerced local
+    overrides. The loader checks JSON types before validating the complete
+    proposed configuration; invalid override sets are rejected atomically.
     """
     return _runtime_configuration.validate_runtime_config_values(
         values,

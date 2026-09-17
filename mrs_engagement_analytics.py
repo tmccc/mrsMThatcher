@@ -1,5 +1,9 @@
 #!/usr/bin/env python3
-"""Read-only engagement analytics for quote posts and historical-context replies."""
+"""Read-only engagement analytics for quote posts and historical-context replies.
+
+Local database reporting needs only the standard library. HTTP and OAuth
+dependencies are loaded when a collection request or read client is required.
+"""
 from __future__ import annotations
 
 import argparse
@@ -22,10 +26,6 @@ from pathlib import Path
 from typing import Any, Callable, Iterator, Sequence
 from zoneinfo import ZoneInfo
 from logging.handlers import RotatingFileHandler
-
-import requests
-from requests_oauthlib import OAuth1
-
 
 # Existing version-2 databases may retain unused nullable columns. Core reads and
 # writes deliberately leave those historical annotations and snapshots untouched.
@@ -1317,7 +1317,7 @@ class XReadClient:
         *,
         base_url: str,
         timeout_seconds: float,
-        session: Any = requests,
+        session: Any = None,
         env: dict[str, str] | None = None,
     ) -> None:
         """Initialise the x read client."""
@@ -1330,6 +1330,12 @@ class XReadClient:
         )
         if not all(credentials):
             raise AnalyticsError("X OAuth1 credentials are required for engagement metric reads")
+        from requests_oauthlib import OAuth1
+
+        if session is None:
+            import requests
+
+            session = requests
         self.base_url = str(base_url).rstrip("/")
         self.timeout_seconds = float(timeout_seconds)
         self.session = session
@@ -1841,6 +1847,8 @@ def collect_due_snapshots(
         return {**preflight, "status": "nothing_due", "requests_made": 0, "completed_snapshots": 0}
     if not execute_read:
         return {**preflight, "status": "dry_run", "requests_made": 0, "completed_snapshots": 0}
+
+    import requests
 
     client = client_factory() if client_factory else XReadClient(
         base_url=config["x_api_base_url"],

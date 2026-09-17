@@ -3,6 +3,8 @@ from __future__ import annotations
 import hashlib
 import json
 import sqlite3
+import subprocess
+import sys
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
@@ -1324,7 +1326,8 @@ def test_process_lock_is_non_overlapping(tmp_path):
         pass
 
 
-def test_read_client_can_only_issue_get_lookup(monkeypatch):
+@pytest.mark.parametrize("inject_session", [False, True])
+def test_read_client_can_only_issue_get_lookup(monkeypatch, inject_session):
     calls = []
 
     class Response:
@@ -1336,20 +1339,93 @@ def test_read_client_can_only_issue_get_lookup(monkeypatch):
             return {}
 
     class Session:
+        def __bool__(self):
+            return False
         def get(self, url, **kwargs):
             calls.append((url, kwargs))
             return Response()
         def post(self, *_args, **_kwargs):
             pytest.fail("write endpoint invoked")
 
+    session = Session()
+    monkeypatch.setattr(requests, "get", session.get)
     client = analytics.XReadClient(
-        base_url="https://api.x.test", timeout_seconds=10, session=Session(),
+        base_url="https://api.x.test", timeout_seconds=10,
+        **({"session": session} if inject_session else {}),
         env={"X_CONSUMER_KEY": "a", "X_CONSUMER_SECRET": "b", "X_ACCESS_TOKEN": "c", "X_ACCESS_SECRET": "d"},
     )
+    assert client.session is (session if inject_session else requests)
     result = client.lookup_posts(["123"])
     assert result.status_code == 200
     assert calls[0][0] == "https://api.x.test/2/tweets"
     assert calls[0][1]["params"]["ids"] == "123"
+
+
+def test_offline_reporting_and_collection_preflight_need_no_http_packages(tmp_path):
+    test_paths, connection, _record = initialise_with_pair(tmp_path)
+    connection.close()
+    database_before = test_paths.database.read_bytes()
+    code = """
+import builtins
+from datetime import datetime, timedelta
+from pathlib import Path
+import sys
+
+original_import = builtins.__import__
+def blocked_http_import(name, *args, **kwargs):
+    if name.split('.')[0] in {'requests', 'requests_oauthlib'}:
+        raise ModuleNotFoundError(f'HTTP dependency blocked by test: {name}')
+    return original_import(name, *args, **kwargs)
+builtins.__import__ = blocked_http_import
+
+import mrs_engagement_analytics as analytics
+
+now = datetime.fromisoformat(sys.argv[2])
+analytics.utc_now = lambda: now
+paths = analytics.AnalyticsPaths.for_project(Path(sys.argv[1]))
+summary = analytics.read_digest_summary(paths.project_dir)
+assert summary['available'] is True, summary
+assert summary['tracked_post_pairs'] == 1
+assert summary['posts_with_context_replies'] == 1
+
+def unexpected_client():
+    raise AssertionError('offline preflight constructed a client')
+
+with analytics.connect_database(paths, readonly=True) as connection:
+    assert connection.execute('PRAGMA query_only').fetchone()[0] == 1
+    dry_run = analytics.collect_due_snapshots(
+        paths, connection, execute_read=False, max_api_requests=2,
+        now=now, client_factory=unexpected_client,
+    )
+    assert dry_run['status'] == 'dry_run', dry_run
+    assert dry_run['due_snapshots'] == 10
+    nothing_due = analytics.collect_due_snapshots(
+        paths, connection, execute_read=True, max_api_requests=2,
+        now=now - timedelta(days=9), client_factory=unexpected_client,
+    )
+    assert nothing_due['status'] == 'nothing_due', nothing_due
+    assert connection.execute('SELECT COUNT(*) FROM collection_attempts').fetchone()[0] == 0
+
+try:
+    analytics.XReadClient(
+        base_url='https://api.x.test', timeout_seconds=10,
+        env={'X_CONSUMER_KEY': ''},
+    )
+except analytics.AnalyticsError as error:
+    assert 'credentials are required' in str(error)
+else:
+    raise AssertionError('missing credentials were accepted')
+"""
+    result = subprocess.run(
+        [sys.executable, "-S", "-c", code, str(test_paths.project_dir), NOW.isoformat()],
+        cwd=Path(__file__).resolve().parents[1],
+        capture_output=True,
+        text=True,
+        timeout=20,
+        check=False,
+    )
+    assert result.returncode == 0, result.stderr + result.stdout
+    assert test_paths.database.read_bytes() == database_before
 
 
 def test_reports_warn_for_small_samples_and_digest_reads_without_network(tmp_path, monkeypatch):

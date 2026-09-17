@@ -72,11 +72,8 @@ def _coerce_local_config_value(
     key: str,
     value: object,
     current_value: object,
-    *,
-    LOCAL_CONFIG_NON_NEGATIVE_INT_KEYS: Any,
-    LOCAL_CONFIG_POSITIVE_INT_KEYS: Any,
-    math: Any,
 ) -> object:
+    """Coerce JSON types; numeric bounds are checked on the complete config."""
     if isinstance(current_value, bool):
         if isinstance(value, bool):
             return value
@@ -91,26 +88,12 @@ def _coerce_local_config_value(
     if isinstance(current_value, int) and not isinstance(current_value, bool):
         if type(value) is not int:
             raise ValueError(f"{key} must be a JSON integer")
-        coerced = value
-        if key in LOCAL_CONFIG_NON_NEGATIVE_INT_KEYS and coerced < 0:
-            raise ValueError(f"{key} must be non-negative")
-        if key in LOCAL_CONFIG_POSITIVE_INT_KEYS and coerced <= 0:
-            raise ValueError(f"{key} must be positive")
-        return coerced
+        return value
 
     if isinstance(current_value, float):
         if isinstance(value, bool):
             raise ValueError(f"{key} must be a number, not a boolean")
-        coerced = float(value)
-        if key in {
-            "ORIGINAL_EDITORIAL_SHADOW_WEIGHT",
-            "ORIGINAL_EDITORIAL_SHADOW_MAX_ABS_ADJUSTMENT",
-        }:
-            if not math.isfinite(coerced):
-                raise ValueError(f"{key} must be finite")
-            if coerced < 0:
-                raise ValueError(f"{key} must be non-negative")
-        return coerced
+        return float(value)
 
     if isinstance(current_value, str):
         if type(value) is not str:

@@ -121,6 +121,7 @@ def test_four_provider_consensus():
     v=compare_n_results(cases,data)["multi_provider"]; assert v["three_against_one"]==["0"] and v["two_versus_two"]==["1"] and v["complete_disagreement"]==["2"] and len(v["consensus"])==3
 
 
+@pytest.mark.allow_loopback_network
 def test_blinded_review_storage_no_provider_leak(tmp_path):
     project=tmp_path/'project'; root=project/'generated_review_approved_images'; root.mkdir(parents=True); source=tmp_path/'source'; source.mkdir(); bake=tmp_path/'bake'; bake.mkdir()
     qhash="a"*64; name="tg.png"; q=quote(qhash); q["model"]="grok-4.5"; im=image(name); im["model"]="grok-4.5"; (root/name).write_bytes(b'png'); case={"case_id":"c","quote_hash":qhash,"image_basename":name}; atomic_write_json(bake/'cases.json',{"items":[case]}); atomic_write_json(source/'quote_semantic_fingerprints.json',{"items":{qhash:q}}); atomic_write_json(source/'image_implied_messages_generated.json',{"items":{name:im}}); [atomic_write_json(bake/f'{p}_results.json',{"items":{"c":{"case_id":"c","model":p,**result()}}}) for p in ('grok','openai','anthropic','gemini')]; atomic_write_json(bake/'sealed_provider_mapping_four_way.json',{"Critic A":"grok","Critic B":"openai","Critic C":"anthropic","Critic D":"gemini"})

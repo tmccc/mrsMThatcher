@@ -67,8 +67,8 @@ def test_credential_validation_rejects_reported_bad_forms(monkeypatch, case):
         bot.validate_production_credentials()
 
 
-def test_openai_source_default_limit_is_in_shared_positive_sweep():
-    """Distinguish source-default validation from strict local override coercion."""
+def test_openai_source_default_limit_is_in_shared_positive_sweep(tmp_path, monkeypatch):
+    """Source defaults and local overrides share the same positive bounds."""
     candidate = dict(bot.SOURCE_DEFAULT_CONFIG_VALUES)
     assert bot.validate_runtime_config_values(candidate) == []
     candidate['MAX_OPENAI_ERRORS_PER_WINDOW'] = 0
@@ -76,8 +76,18 @@ def test_openai_source_default_limit_is_in_shared_positive_sweep():
     assert any('MAX_OPENAI_ERRORS_PER_WINDOW' in error for error in errors)
     candidate['MAX_X_ERRORS_PER_WINDOW'] = 0
     assert any('MAX_X_ERRORS_PER_WINDOW' in error for error in bot.validate_runtime_config_values(candidate))
-    with pytest.raises((ValueError, TypeError)):
-        bot._coerce_local_config_value('MAX_OPENAI_ERRORS_PER_WINDOW', 0, 3)
+    config_file = tmp_path / 'mrsMThatcher.local.json'
+    config_file.write_text(json.dumps({
+        'MAX_OPENAI_ERRORS_PER_WINDOW': 0,
+        'MAX_X_ERRORS_PER_WINDOW': 4,
+    }), encoding='utf-8')
+    monkeypatch.setattr(bot, 'LOCAL_CONFIG_FILE', config_file)
+    monkeypatch.setattr(bot, 'MAX_OPENAI_ERRORS_PER_WINDOW', 3)
+    monkeypatch.setattr(bot, 'MAX_X_ERRORS_PER_WINDOW', 3)
+    with pytest.raises(bot.LocalConfigError, match='MAX_OPENAI_ERRORS_PER_WINDOW must be positive'):
+        bot.apply_local_config()
+    assert bot.MAX_OPENAI_ERRORS_PER_WINDOW == 3
+    assert bot.MAX_X_ERRORS_PER_WINDOW == 3
 
 
 @pytest.mark.parametrize("key", ["CONSUMER_KEY", "CONSUMER_SECRET", "ACCESS_TOKEN", "ACCESS_SECRET", "MY_USER_ID"])

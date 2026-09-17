@@ -1014,11 +1014,13 @@ def test_integer_config_rejects_non_json_integers(value):
         bot._coerce_local_config_value("POST_SLEEP_MIN", value, 7200)
 
 
-def test_integer_config_accepts_valid_ranges():
+def test_integer_config_coercion_precedes_runtime_range_validation():
     assert bot._coerce_local_config_value("POST_SLEEP_MIN", 0, 7200) == 0
     assert bot._coerce_local_config_value("MAX_AUTO_REPLIES_PER_DAY", 2, 24) == 2
-    with pytest.raises(ValueError):
-        bot._coerce_local_config_value("MAX_AUTO_REPLIES_PER_DAY", 0, 24)
+    assert bot._coerce_local_config_value("MAX_AUTO_REPLIES_PER_DAY", 0, 24) == 0
+    assert "MAX_AUTO_REPLIES_PER_DAY must be positive" in bot.validate_runtime_config_values({
+        "MAX_AUTO_REPLIES_PER_DAY": 0,
+    })
 
 
 def test_control_malformed_preserves_prior_pause_and_repair_recovers(tmp_path, monkeypatch, caplog):

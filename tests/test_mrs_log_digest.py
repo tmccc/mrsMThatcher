@@ -1071,7 +1071,8 @@ def test_active_x_429_cooldown_remains_one_current_incident():
     assert health["current_incidents"][0]["record_count"] == 2
 
 
-def test_repeated_quote_token_event_is_warning_not_failure():
+@pytest.mark.parametrize("event_count", [1, 2])
+def test_repeated_quote_token_event_is_warning_not_failure(event_count):
     payload = {
         "event": "quote_pagination_repeated_token",
         "post_id": "900",
@@ -1082,16 +1083,20 @@ def test_repeated_quote_token_event_is_warning_not_failure():
     report = digest.analyse(
         [
             record(
-                0,
+                offset,
                 "INFO",
                 "log_event",
                 "EVENT " + json.dumps(payload, separators=(",", ":")),
             )
+            for offset in range(event_count)
         ]
     )
 
     assert report["error_health"]["current_independent_incident_count"] == 0
-    assert report["events"][0]["kind"] == "quote_pagination_repeated_token"
+    assert report["summary"]["stats"]["quote_pagination_repeated_token"] == event_count
+    assert [event["kind"] for event in report["events"]] == [
+        "quote_pagination_repeated_token"
+    ] * event_count
     rendered = digest.render_markdown(report)
     assert "## Bounded protocol warnings" in rendered
     assert "warnings, not operational failures" in rendered

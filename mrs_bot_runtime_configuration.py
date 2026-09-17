@@ -17,8 +17,9 @@ def validate_runtime_config_values(
 ) -> list[str]:
     """Return validation errors for runtime config values.
 
-    This is intentionally conservative for local overrides. Script defaults are
-    expected to pass, and invalid local override sets are rejected atomically.
+    Numeric bounds live here for both source defaults and coerced local
+    overrides. The loader checks JSON types before validating the complete
+    proposed configuration; invalid override sets are rejected atomically.
     """
     errors: list[str] = []
 
@@ -58,6 +59,7 @@ def validate_runtime_config_values(
         "AUTHOR_NO_REPLY_QUARANTINE_WINDOW_SECONDS",
         "AUTHOR_NO_REPLY_QUARANTINE_SECONDS",
         "MAX_HOT_POST_REPLIES_PER_CHECK",
+        "MAX_QUOTE_POSTS_PER_CHECK",
         "QUOTE_POST_LOOKBACK_MAIN_POSTS",
         "RECENT_OWN_POST_IDS_MAX",
         "QUOTE_LOOKUP_MAX_PAGES_PER_POST",
@@ -72,12 +74,27 @@ def validate_runtime_config_values(
         "COOLDOWN_AFTER_429_SECONDS",
     }
 
-    for key in sorted(positive_keys):
-        try:
-            if int_value(key) <= 0:
-                errors.append(f"{key} must be positive")
-        except Exception:
-            errors.append(f"{key} must be an integer")
+    # Zero disables rescans/backups or removes these delays. Other counters,
+    # schedules and API page sizes retain their positive or bounded limits.
+    non_negative_keys = {
+        "HOT_POST_REPLY_FULL_RESCAN_EVERY_CHECKS",
+        "MEME_DELAY_AFTER_MAIN_POST_MIN_SECONDS",
+        "MEME_DELAY_AFTER_MAIN_POST_MAX_SECONDS",
+        "MEME_MIN_SECONDS_AFTER_QUOTE_POST",
+        "QUOTE_CHECK_SPACING_RETRY_SECONDS",
+        "QUOTE_REPLY_DELAY_SECONDS",
+        "STATE_BACKUP_COUNT",
+    }
+    for keys, minimum, description in (
+        (positive_keys, 1, "positive"),
+        (non_negative_keys, 0, "non-negative"),
+    ):
+        for key in sorted(keys):
+            try:
+                if int_value(key) < minimum:
+                    errors.append(f"{key} must be {description}")
+            except Exception:
+                errors.append(f"{key} must be an integer")
 
     for key, low, high in (
         ("MAX_MENTIONS_PER_CHECK", 5, 100),

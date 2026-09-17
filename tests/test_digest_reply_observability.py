@@ -2,6 +2,7 @@ from collections import Counter
 from dataclasses import replace
 from datetime import timedelta
 import copy
+import json
 
 import pytest
 
@@ -635,6 +636,68 @@ def test_old_multi_stage_logs_are_only_counted_as_legacy():
     assert "Legacy multi-stage events in this window" in rendered
     assert "## Conversational reply strategy" not in rendered
     assert "## Tested reply-pipeline stages" not in rendered
+
+
+@pytest.mark.parametrize("payload, expected_kind, visual_count", [
+    ({"event": "candidate_skipped", "lane": "mention", "id": "123"}, "candidate_skipped", 0),
+    ({
+        "event": "reply_visual_description", "lane": "mention", "target_id": "123",
+        "status": "paused", "supplied_image_count": 1,
+        "visual_analysis_call_count": 0, "analysis_schema_version": 1,
+    }, None, 1),
+    ({}, None, 0),
+])
+def test_valid_structured_events_use_only_strict_parsing(
+    monkeypatch, payload, expected_kind, visual_count,
+):
+    parsed_messages = []
+    strict_parse = digest.try_parse_strict_json_object_from_msg
+
+    def parse(message):
+        parsed_messages.append(message)
+        return strict_parse(message)
+
+    def compatibility_parse(message):
+        pytest.fail("A valid structured event must not need compatibility parsing")
+
+    monkeypatch.setattr(digest, "try_parse_strict_json_object_from_msg", parse)
+    monkeypatch.setattr(digest, "try_parse_json_object_from_msg", compatibility_parse)
+    row = structured_record(0, payload)
+    report = digest.analyse([row])
+
+    assert parsed_messages == [row.msg]
+    assert [event["kind"] for event in report["events"]] == (
+        [expected_kind] if expected_kind else []
+    )
+    assert report["summary"]["stats"].get("reply_visual_description_events", 0) == visual_count
+
+
+@pytest.mark.parametrize("fragment, malformed_count", [
+    ('{"event":"reply_visual_description","target_id":"123","target_id":"456"}', 1),
+    ('{"event":"candidate_skipped","event":"reply_visual_description"}', 1),
+    ('{"event":"reply_visual_description","event":"candidate_skipped"}', 0),
+    ('junk {"event":"reply_visual_description"}', 1),
+    (' {"event":"reply_visual_description"}', 1),
+    ('{"event":"reply_visual_description"} trailing', 1),
+    ('{"event":"reply_visual_description"', 1),
+    ('{"event":"reply_visual_description","supplied_image_count":NaN}', 1),
+    ('{"event":"reply_visual_description","supplied_image_count":1e999}', 1),
+    ('{"event":"reply_visual_description","target_id":"\\ud800"}', 1),
+    ('{"event":"reply_visual_description","target_id":"\ud800"}', 1),
+])
+def test_malformed_visual_event_detection_cannot_supply_structured_authority(
+    fragment, malformed_count,
+):
+    row = replace(structured_record(0, {}), msg="EVENT " + fragment)
+    report = digest.analyse([row])
+
+    assert report["summary"]["stats"].get(
+        "reply_visual_description_malformed_events", 0,
+    ) == malformed_count
+    assert report["summary"]["stats"].get("reply_visual_description_events", 0) == 0
+    assert report["events"] == []
+    assert report["published_reply_text_health"]["confirmed_record_count"] == 0
+    json.dumps(report, ensure_ascii=False, allow_nan=False).encode("utf-8")
 
 
 def test_reply_visual_description_contract_rejects_unsafe_shapes() -> None:

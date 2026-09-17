@@ -150,6 +150,7 @@ def test_decision_reporting_anomalies_and_threshold_excludes_unsure():
     assert "specificity" in result["candidate_thresholds"][0]
 
 
+@pytest.mark.allow_loopback_network
 def test_review_app_shows_case_and_saves_label(tmp_path):
     project=tmp_path/'project'; images=project/'generated_review_approved_images'; images.mkdir(parents=True); (images/I).write_bytes(b'png')
     run=tmp_path/'run'; run.mkdir(); q=quote(); im=image(); old={"explanation":"Old severe verdict"}
