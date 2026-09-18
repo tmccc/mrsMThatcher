@@ -40,23 +40,58 @@ from the later installation result.
 From the isolated checkout, with its original base files still in place:
 
 ```bash
-python3 -B tools/prepare_quote_additions.py quotation_additions/anti_socialism_20260918
+python3 -B tools/prepare_quote_additions.py quotation_additions/anti_socialism_20260918 \
+  --batch-timestamp 2026-09-18
 ```
 
-The command makes a local `staged/` overlay, `previews.json`, `PREVIEW.md` and
-`validation.json`. It does not install anything or call an AI provider. It
+Supply the authoritative batch date (`YYYY-MM-DD`) or UTC timestamp
+(`YYYY-MM-DDTHH:MM:SSZ`) explicitly. No wall-clock date is substituted. Evidence
+and source-role audit dates retain day precision; analysis, status and semantic-
+gate audit metadata retain the supplied precision. Old records keep their dates.
+Use `--base-project /path/to/isolated/base` to run current preparation code over
+an earlier base corpus; the batch must be inside that base's
+`quotation_additions/` directory. This option refuses the production checkout.
+
+The command builds `staged/`, `previews.json`, `PREVIEW.md` and `validation.json`
+in a new temporary directory. It publishes them only after validation succeeds;
+an ordinary preparation/publication failure preserves the previous completed
+outputs. Leftovers from earlier staging runs never enter the new tree or its
+changed-file list. Symlink inputs and destinations are rejected. It does not install anything or call an AI provider. It
 preserves old quotation bytes, extends the existing runtime formats and generates
 conservative image-selection metadata. Repeating it against the same base
 reproduces the same outputs; running it after the quotations have been added to
 the base correctly rejects duplicates. To reproduce this particular batch, use
-its original base, `9c142bc8485819061756a88ea99ef991a0683be0`, with the preparation
-tool and retained private input records. For a later batch, use reviewed records
+its original base, `9c142bc8485819061756a88ea99ef991a0683be0`, with current preparation
+code (`--base-project`), the retained private input records and batch date
+`2026-09-18`. That is a known batch date, not an invented time of day. For a later batch, use reviewed records
 in the same input format and a checkout of the then-current production base.
 
 Do not rerun old one-off research or attribution builders merely because their
 filenames resemble this task. Some intentionally enforce historical corpus
 counts. Reuse current runtime validators and the addition preparator rather
 than weakening those historical contracts.
+
+## Research coordinates and retained evidence
+
+`corpus_manifest.json` uses the original research source's occurrence coordinates.
+`thatcher_quote_research_project/build_manifest.py` froze a 633-line source before
+later edits reduced the bot list. Those existing coordinates remain canonical;
+they are not current physical line numbers in `mrsMThatcher.txt`. New research
+occurrences append after the existing maximum. The September additions therefore
+occupy 634–644, while their bot-file lines remain 621–631. The manifest validator
+rejects duplicate coordinates, contradictory counts and incorrect content hashes.
+Its original 632 records remain unchanged.
+
+Evidence admission rechecks retained file hashes, supported source types/domains,
+meaningful structured inspection checks, exact supporting text and surrounding
+context. HTML uses structural text extraction; PDFs use existing page text with
+controlled typography/layout normalization, without new OCR or provider calls.
+PDF validation requires the PyMuPDF dependency in `requirements-dev.txt`.
+A Foundation URL alone does not establish primary status, speaker or occasion.
+Explicit `reviewed_classification` may retain excerpt, variant, composite or
+secondary classifications; its wording, quality and claim scope must agree with
+the packet and retained evidence. Composite passages require explicit retained
+parts. Contradictory claims fail preparation; evidence is never silently upgraded.
 
 ## Install a coherent file set
 
@@ -75,14 +110,20 @@ For the eleven-quotation batch the coherent set is:
   `historical_context_source_recovery.json`,
   `historical_context_source_curated_evidence.json` and
   `historical_context_source_role_audit.json`;
-- `historical_context_published_reply_semantic_review.json` and
-  `historical_context_reply_semantic_gate.py`.
+- `historical_context_published_reply_semantic_review.json`,
+  `historical_context_reply_semantic_gate.py` and
+  `historical_context_reply_semantic_gate_audit.json`.
 
 Rebuild the source-role audit against the complete corpus. The historical review
 ledger retains its existing decisions but binds the new audit hash, so the gate
 module's `EXPECTED_LEDGER_SHA256` changes with it. Install the ledger and matching
 gate together. Test the gate's actual default hash, not a test-only override.
-Preserve exact schema, policy and hash checks.
+Preserve exact schema, policy and hash checks. Regenerate the semantic-gate
+audit in the same preparation, after its ledger and gate are final. It derives
+counts from the current partition and binds each input file, including the gate,
+manifest, final status and unresolved cases. The digest must report an unavailable
+snapshot when these bindings or counts are stale, even if the gate's stored
+`available` flag is true.
 
 **Never copy the whole `staged/` directory over production.** It contains copies
 of unchanged dependencies, including `historical_context_reply_history.json`,

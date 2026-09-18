@@ -34,7 +34,20 @@ class DocumentationViolation:
 
 
 def maintained_python_files(project_root: Path = PROJECT_ROOT) -> list[Path]:
-    """Return versioned or pending non-test Python files covered by the policy."""
+    """Return maintained Python files from a checkout or unpacked source archive.
+
+    A source archive has no tracked/untracked distinction: every shipped module
+    is checked, including any shipped operational snapshots. Git checkouts keep
+    the existing distinction and ignore only untracked operational snapshots.
+    """
+    if not (project_root / ".git").exists():
+        return sorted(
+            relative
+            for path in project_root.rglob("*.py")
+            if path.is_file()
+            and not path.name.startswith("._")
+            and "tests" not in (relative := path.relative_to(project_root)).parts
+        )
     tracked_result = subprocess.run(
         ["git", "ls-files", "--cached", "--", "*.py"],
         cwd=project_root,

@@ -7,10 +7,15 @@ unchanged base checkout, so repeating a run cannot append the batch twice.
 from __future__ import annotations
 
 import argparse
+import ast
 import copy
 import hashlib
 import importlib.util
 import json
+import os
+import re
+import tempfile
+from datetime import datetime
 from pathlib import Path
 import shutil
 import sys
@@ -18,6 +23,8 @@ from typing import Any
 
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
+
+from tools.quote_addition_evidence import curated_source_for
 RESEARCH = Path("semantic_alignment_research/quote_research_full_001")
 RUNTIME = Path("semantic_alignment_research/quote_attribution_cleanup_001/deployment_candidate/runtime_eligible_quote_manifest.json")
 SOURCE_FILES = (
@@ -82,46 +89,6 @@ def append_source(source: bytes, quotations: list[str]) -> bytes:
     return source + separator + ("\n".join(quotations) + "\n").encode("utf-8")
 
 
-def curated_source_for(row: dict) -> dict:
-    """Translate inspected local evidence into the existing curated-source format."""
-    packet = row["packet"]
-    source_path = Path(row["primary_source_path"])
-    if file_hash(source_path) != row["primary_source_sha256"]:
-        raise ValueError(f"Reviewed source has changed: {row['candidate_id']}")
-    if not row.get("evidence_checks"):
-        raise ValueError("Each addition needs its saved wording and context checks")
-    url = row.get("source_url") or row.get("primary_source_url") or ""
-    is_web = bool(url)
-    context = row.get("supporting_context") or row.get("context_support_strings") or []
-    if isinstance(context, list):
-        context = "\n\n".join(
-            str(item.get("exact_supporting_text", "")) if isinstance(item, dict) else str(item)
-            for item in context
-        )
-    passage = row["exact_supporting_passage"]
-    source = {
-        "title": row.get("source_title") or row.get("primary_source_title") or packet["sources"][0]["title"],
-        "url": url, "stable_locator": packet["stable_locator"],
-        "source_type": "official_primary_transcript" if is_web else "thatcher_authored_primary_book",
-        "author_or_speaker": "Margaret Thatcher", "source_date": packet["date"],
-        "source_event": packet["source_event"],
-        "assigned_roles": ["wording_verification", "attribution_support", "source_event_support", "historical_context_support"],
-        "claims_supported": ["wording", "attribution", "source_event", "date", "historical_context"],
-        "source_quality_class": "strong_primary_evidence", "wording_match_kind": "exact",
-        "exact_supporting_passage": passage, "exact_supporting_passage_sha256": sha256(passage.encode()),
-        "supporting_context": context, "supporting_context_sha256": sha256(context.encode()),
-        "evidence_origin": "independently_reviewed_public_retrieval" if is_web else "operator_supplied_bibliographic_citation",
-        "page_independently_inspected": True, "recorded_at": "2026-09-18",
-        "rationale": "Codex inspected the saved source and its surrounding text and bibliographic metadata. Wording, attribution, date/occasion and the stated context are supported by the retained evidence checks. This records no human publication approval or independent verification against audio.",
-    }
-    if is_web:
-        source.update(source_publisher="Margaret Thatcher Foundation", canonical_url=url,
-                      page_sha256=row["primary_source_sha256"])
-    else:
-        source["pdf_sha256"] = row["primary_source_sha256"]
-    return source
-
-
 def analysis_for(packet: dict) -> dict:
     """Create conservative editorial metadata locally, without a provider call."""
     text = packet["quote_text"].casefold()
@@ -158,7 +125,7 @@ def analysis_for(packet: dict) -> dict:
     }
 
 
-def update_analysis(document: dict, source: bytes, records: list[dict], batch_name: str) -> dict:
+def update_analysis(document: dict, source: bytes, records: list[dict], batch_name: str, *, batch_timestamp: str) -> dict:
     """Extend metadata while retaining every existing analysis payload and index."""
     from historical_context_formatter import quote_text_hash
     result = copy.deepcopy(document)
@@ -168,7 +135,7 @@ def update_analysis(document: dict, source: bytes, records: list[dict], batch_na
         result["items"][qid] = {
             "quote_hash": qid, "text": packet["quote_text"],
             "analysis": analysis_for(packet), "analysis_model": "local_editorial_preparation",
-            "prompt_version": batch_name, "analysed_at": "2026-09-18",
+            "prompt_version": batch_name, "analysed_at": batch_timestamp,
             "response_id": None, "usage": {},
         }
     line_index, line_numbers = {}, {}
@@ -187,12 +154,70 @@ def update_analysis(document: dict, source: bytes, records: list[dict], batch_na
     result["current_hashes"] = sorted(line_numbers)
     result["source"].update(source_sha256=sha256(source), line_count=len(lines),
                             non_empty_quote_count=len(line_index), unique_quote_count=len(line_numbers))
-    result["updated_at"] = "2026-09-18"
+    result["updated_at"] = batch_timestamp
     return result
 
 
-def prepare(batch: Path, project: Path) -> dict:
-    """Build and validate a review-only overlay beneath the input batch directory."""
+def validate_batch_timestamp(value: str) -> str:
+    """Accept an explicit ISO date or UTC timestamp without inventing precision."""
+    if not isinstance(value, str) or not re.fullmatch(r"\d{4}-\d{2}-\d{2}(?:T\d{2}:\d{2}:\d{2}Z)?", value):
+        raise ValueError("batch timestamp must be an ISO date or UTC timestamp")
+    datetime.strptime(value, "%Y-%m-%dT%H:%M:%SZ" if "T" in value else "%Y-%m-%d")
+    return value
+
+
+def publish_preparation(work: Path, batch: Path) -> None:
+    """Replace completed outputs, restoring the old set if publication fails."""
+    names = ("staged", "previews.json", "PREVIEW.md", "validation.json")
+    previous = work / "previous"
+    previous.mkdir()
+    saved, installed = [], []
+    try:
+        for name in names:
+            target = batch / name
+            if target.is_symlink():
+                raise ValueError("Preparation outputs must not be symbolic links")
+            if target.exists():
+                os.replace(target, previous / name)
+                saved.append(name)
+            os.replace(work / name, target)
+            installed.append(name)
+    except BaseException:
+        for name in reversed(installed):
+            target = batch / name
+            if target.is_dir():
+                shutil.rmtree(target)
+            else:
+                target.unlink()
+        for name in saved:
+            os.replace(previous / name, batch / name)
+        raise
+
+
+def prepare(batch: Path, project: Path, *, batch_timestamp: str) -> dict:
+    """Build in a clean private overlay and publish only a complete preparation."""
+    batch_timestamp = validate_batch_timestamp(batch_timestamp)
+    # Check original path components before resolving away symlinks.
+    if any(path.is_symlink() for path in (batch, *batch.parents)):
+        raise ValueError("Batch path must not contain symbolic links")
+    batch, project = batch.resolve(), project.resolve()
+    if project == Path("/disks/disk1/etc/mrsMThatcher").resolve():
+        raise ValueError("Run this preparation from an isolated checkout")
+    if not batch.is_relative_to(project / "quotation_additions"):
+        raise ValueError("Batch directory must be inside the checkout's quotation_additions directory")
+    if any(path.is_symlink() for path in batch.rglob("*")):
+        raise ValueError("Batch inputs and outputs must not contain symbolic links")
+    with tempfile.TemporaryDirectory(prefix=".prepare-", dir=batch) as temporary:
+        work = Path(temporary)
+        staged = work / "staged"
+        staged.mkdir()
+        result = _build_preparation(batch, project, staged, work, batch_timestamp)
+        publish_preparation(work, batch)
+    return result
+
+
+def _build_preparation(batch: Path, project: Path, staged: Path, work: Path, batch_timestamp: str) -> dict:
+    """Produce the complete, validated overlay without touching prior outputs."""
     from historical_context_formatter import (
         load_and_validate_corpus_core, load_and_validate_corpus,
         packet_is_attributed_to_margaret_thatcher, quote_text_hash,
@@ -206,20 +231,9 @@ def prepare(batch: Path, project: Path) -> dict:
     from historical_context_published_reply_semantic_review import build_review
     from analyse_mrs_assets_xai_v4 import QUOTE_ANALYSIS_SCHEMA
     from jsonschema import validate as validate_json
-    import historical_context_reply_semantic_gate as gate_module
+    from semantic_alignment.quote_research_corpus import finalise_corpus_manifest, verify_corpus_manifest
+    from historical_context_reply_semantic_gate_audit import build_audit as build_gate_audit
 
-    batch, project = batch.resolve(), project.resolve()
-    if project == Path("/disks/disk1/etc/mrsMThatcher").resolve():
-        raise ValueError("Run this preparation from an isolated checkout")
-    if not batch.is_relative_to(project / "quotation_additions"):
-        raise ValueError("Batch directory must be inside the checkout's quotation_additions directory")
-    staged = batch / "staged"
-    if staged.is_symlink():
-        raise ValueError("Staging directory must not be a symbolic link")
-    if any(path.is_symlink() for path in batch.rglob("*")):
-        raise ValueError("Batch inputs and outputs must not contain symbolic links")
-    staged.mkdir(exist_ok=True)
-    (batch / "validation.json").unlink(missing_ok=True)
     records = load_records(batch)
     original_source = (project / "mrsMThatcher.txt").read_bytes()
     texts = [row["proposed_quote"] for row in records]
@@ -229,6 +243,12 @@ def prepare(batch: Path, project: Path) -> dict:
     old_loaded, old_unresolved = load_and_validate_corpus(project / RESEARCH, require_source_role_audit=True)
     old_renders = {qid: format_context_reply_public(packet) for qid, packet in old_loaded.items()}
     manifest = read_json(project / RESEARCH / "corpus_manifest.json")
+    verify_corpus_manifest(manifest)
+    # Coordinates belong to the append-only research source, not today's bot list.
+    last_occurrence = max(
+        occurrence["line_number"] for record in manifest["records"]
+        for occurrence in record["source_occurrences"]
+    )
     status = read_json(project / RESEARCH / "final_unresolved/final_research_status.json")
     recovery = read_json(project / RESEARCH / SOURCE_FILES[0])
     curated = read_json(project / RESEARCH / SOURCE_FILES[-1])
@@ -243,7 +263,8 @@ def prepare(batch: Path, project: Path) -> dict:
 
     dependencies = [RESEARCH / name for name in SOURCE_FILES]
     dependencies += [RESEARCH / name for name in (
-        "grounding_sources.json", "historical_context_packet_corrections.json",
+        "grounding_sources.json", "historical_context_packet_corrections.json", "unresolved_quotes.json",
+        "final_unresolved/unresolved_cases.json",
     )]
     dependencies += [Path(name) for name in (
         "historical_context_evidence_truth_audit.json",
@@ -266,37 +287,34 @@ def prepare(batch: Path, project: Path) -> dict:
         if qid in packets_doc["items"]:
             raise ValueError("New packet ID already exists")
         packets_doc["items"][qid] = packet
-        line_number = len(original_source.splitlines()) + offset
+        line_number = last_occurrence + offset
         manifest["records"].append({
             "quote_id": qid, "quote_hash": quote_text_hash(text), "quote_text": text,
             "source_occurrences": [{"line_number": line_number}],
             "duplicate_occurrence_count": 1, "research_status": "completed",
-            "input_hash": sha256(json.dumps(row, ensure_ascii=False, sort_keys=True).encode()),
+            "input_hash": sha256(json.dumps({"reviewed_input": row, "source_occurrences": [{"line_number": line_number}]}, ensure_ascii=False, sort_keys=True).encode()),
         })
         recovery["items"][qid] = {"quote_id": qid, "quote_text_sha256": qid,
                                   "citation_sources": [], "model_proposed_source_leads": []}
-        reviewed_source = curated_source_for(row)
+        reviewed_source = curated_source_for(row, recorded_at=batch_timestamp)
         reviewed_source["source_id"] = curated_source_id(qid, reviewed_source)
         curated["items"][qid] = {"quote_id": qid, "quote_text": text,
                                  "quote_text_sha256": qid, "sources": [reviewed_source]}
 
-    manifest["record_count"] = len(manifest["records"])
-    manifest["source_occurrence_count"] += len(records)
-    manifest.pop("manifest_sha256", None)
-    manifest["manifest_sha256"] = sha256(json.dumps(manifest, ensure_ascii=False, sort_keys=True, separators=(",", ":")).encode())
+    manifest = finalise_corpus_manifest(manifest)
     recovery["research_packet_count"] = len(packets_doc["items"])
     curated["quote_count"] = len(curated["items"])
     curated["source_count"] = sum(len(item["sources"]) for item in curated["items"].values())
     write_json(staged / RESEARCH / "research_packets.json", packets_doc)
     write_json(staged / RESEARCH / "corpus_manifest.json", manifest)
-    status.update(total_manifest_quotes=len(manifest["records"]), completed_quotes=len(packets_doc["items"]),
+    status.update(generated_timestamp=batch_timestamp, total_manifest_quotes=len(manifest["records"]), completed_quotes=len(packets_doc["items"]),
                   completion_percentage=100 * len(packets_doc["items"]) / len(manifest["records"]),
                   corpus_hash=file_hash(staged / RESEARCH / "research_packets.json"))
     write_json(staged / RESEARCH / "final_unresolved/final_research_status.json", status)
     write_json(staged / RESEARCH / SOURCE_FILES[0], recovery)
     write_json(staged / RESEARCH / SOURCE_FILES[-1], curated)
     (staged / "mrsMThatcher.txt").write_bytes(source)
-    analysis = update_analysis(read_json(project / "quote_analysis.json"), source, records, batch.name)
+    analysis = update_analysis(read_json(project / "quote_analysis.json"), source, records, batch.name, batch_timestamp=batch_timestamp)
     for row in records:
         validate_json(analysis["items"][row["packet"]["quote_id"]]["analysis"], QUOTE_ANALYSIS_SCHEMA)
     write_json(staged / "quote_analysis.json", analysis)
@@ -307,7 +325,7 @@ def prepare(batch: Path, project: Path) -> dict:
                         attribution_eligible_ids=eligible, recovered_evidence=sidecars[0],
                         source_resolution=sidecars[1], researched_evidence=sidecars[2],
                         openai_researched_evidence=sidecars[3], independent_review=sidecars[4],
-                        curated_evidence=sidecars[5])
+                        curated_evidence=sidecars[5], audit_date=batch_timestamp[:10])
     old_audit = read_json(project / RESEARCH / "historical_context_source_role_audit.json")
     if any(audit["items"][qid] != item for qid, item in old_audit["items"].items()):
         raise ValueError("An existing source-role assessment changed")
@@ -340,9 +358,12 @@ def prepare(batch: Path, project: Path) -> dict:
     ledger_path = staged / "historical_context_published_reply_semantic_review.json"
     write_json(ledger_path, ledger)
     gate_source = (project / "historical_context_reply_semantic_gate.py").read_text()
-    if gate_source.count(gate_module.EXPECTED_LEDGER_SHA256) != 1:
+    pins = [node.value.value for node in ast.parse(gate_source).body
+            if isinstance(node, ast.Assign) and isinstance(node.value, ast.Constant)
+            and any(isinstance(target, ast.Name) and target.id == "EXPECTED_LEDGER_SHA256" for target in node.targets)]
+    if len(pins) != 1 or gate_source.count(pins[0]) != 1:
         raise ValueError("Cannot identify the historical gate's expected ledger hash")
-    gate_source = gate_source.replace(gate_module.EXPECTED_LEDGER_SHA256, file_hash(ledger_path))
+    gate_source = gate_source.replace(pins[0], file_hash(ledger_path))
     (staged / "historical_context_reply_semantic_gate.py").write_text(gate_source)
     # Load the actual staged default, so success cannot rely on an override that
     # the deployed wrapper would omit.
@@ -350,10 +371,18 @@ def prepare(batch: Path, project: Path) -> dict:
     spec = importlib.util.spec_from_file_location(module_name, staged / "historical_context_reply_semantic_gate.py")
     module = importlib.util.module_from_spec(spec)
     sys.modules[module_name] = module
-    spec.loader.exec_module(module)
+    exec(compile(gate_source, str(staged / "historical_context_reply_semantic_gate.py"), "exec"), module.__dict__)
     gate = module.load_historical_context_semantic_gate(root=staged, eligible_quote_ids=eligible)
     if not gate.available:
         raise ValueError(f"Staged historical-context gate failed: {gate.reason}")
+    gate_audit = build_gate_audit(
+        root=staged, research_dir=staged / RESEARCH,
+        runtime_manifest_path=staged / RUNTIME,
+        generated_at=batch_timestamp, expected_ledger_sha256=file_hash(ledger_path),
+    )
+    if gate_audit["invariant_failure_count"]:
+        raise ValueError("Staged semantic-gate audit invariants failed")
+    write_json(staged / "historical_context_reply_semantic_gate_audit.json", gate_audit)
     loaded, final_unresolved = load_and_validate_corpus(staged / RESEARCH, require_source_role_audit=True)
     if final_unresolved != old_unresolved or any(packets[qid] != packet for qid, packet in old_packets.items()):
         raise ValueError("Existing research or unresolved records changed")
@@ -372,14 +401,14 @@ def prepare(batch: Path, project: Path) -> dict:
                          "quote_weighted_characters": x_weighted_length(row["proposed_quote"]),
                          "context": rendered["text"], "verification_label": rendered["verification_label"],
                          "context_weighted_characters": rendered["character_count"]})
-    write_json(batch / "previews.json", previews)
+    write_json(work / "previews.json", previews)
     markdown = ["# Proposed quotations and historical context", "", "Prepared for review. No production files changed and nothing posted.", ""]
     for preview in previews:
         markdown += [f"## {preview['candidate_id']} — {preview['quote_weighted_characters']} characters", "",
                      "> " + preview["quote"], "", preview["context"], ""]
         if preview["original_quote"] != preview["quote"]:
             markdown += ["Original mined wording: " + preview["original_quote"], ""]
-    (batch / "PREVIEW.md").write_text("\n".join(markdown), encoding="utf-8")
+    (work / "PREVIEW.md").write_text("\n".join(markdown), encoding="utf-8")
     changed = []
     for path in sorted(staged.rglob("*")):
         if path.is_file() and "__pycache__" not in path.parts:
@@ -388,7 +417,7 @@ def prepare(batch: Path, project: Path) -> dict:
             if not baseline.exists() or file_hash(path) != file_hash(baseline):
                 changed.append({"path": str(relative), "base_sha256": file_hash(baseline) if baseline.exists() else None,
                                 "prepared_sha256": file_hash(path)})
-    result = {"status": "prepared_for_review", "added": len(records),
+    result = {"status": "prepared_for_review", "batch_timestamp": batch_timestamp, "added": len(records),
               "physical_lines": len(source.splitlines()), "unique_quotes": len(analysis["items"]),
               "eligible_quotes": len(actual), "completed_research_packets": len(packets),
               "unresolved_quotes": len(unresolved), "existing_packets_preserved": True,
@@ -397,7 +426,7 @@ def prepare(batch: Path, project: Path) -> dict:
               "input_sha256": {name: file_hash(batch / name) for name in ("html_records.json", "book_records.json")},
               "changed_files": changed,
               "image_shadow_limitation": "The historical quotation/image veto matrix has no reviews for the additions and becomes stale against the extended corpus. It is retained as offline research; production does not load it. No new image-pair approval is claimed."}
-    write_json(batch / "validation.json", result)
+    write_json(work / "validation.json", result)
     return result
 
 
@@ -405,8 +434,10 @@ def main() -> None:
     """Prepare a batch beneath an isolated checkout and print its result."""
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("batch", type=Path)
+    parser.add_argument("--batch-timestamp", required=True, help="Authoritative ISO batch date or UTC timestamp; never wall-clock time")
+    parser.add_argument("--base-project", type=Path, default=ROOT, help="Isolated base corpus; batch must be under its quotation_additions directory")
     args = parser.parse_args()
-    result = prepare(args.batch, ROOT)
+    result = prepare(args.batch, args.base_project, batch_timestamp=args.batch_timestamp)
     print(json.dumps({key: value for key, value in result.items() if key != "changed_files"}, indent=2))
 
 

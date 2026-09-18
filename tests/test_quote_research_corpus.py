@@ -1,12 +1,15 @@
 from __future__ import annotations
 
 import json
+import copy
+import hashlib
+import pytest
 import threading
 from pathlib import Path
 
 import requests
 
-from semantic_alignment.quote_research_corpus import CorpusRunner, build_corpus_manifest
+from semantic_alignment.quote_research_corpus import CorpusRunner, build_corpus_manifest, verify_corpus_manifest, finalise_corpus_manifest
 
 
 from tests.helpers.quote_research import FakeDeveloper, FakeVertex, manifest, packet, response, row
@@ -169,3 +172,35 @@ def test_completed_worker_slot_refills_while_other_call_is_slow(tmp_path):
     dev = FakeDeveloper([routed, routed, routed])
     status = runner(tmp_path, data, dev, FakeVertex([]), developer_concurrency=2).run()
     assert status["valid_packets"] == 3 and third_started.is_set()
+
+
+@pytest.mark.parametrize("defect", ["collision", "occurrence_count", "record_count", "duplicate_count", "hash"])
+def test_manifest_occurrence_integrity_rejects_corruption(defect):
+    """A valid content hash must not conceal contradictory occurrence coordinates."""
+    data = manifest(2)
+    if defect == "collision":
+        data["records"][1]["source_occurrences"] = copy.deepcopy(data["records"][0]["source_occurrences"])
+    elif defect == "occurrence_count":
+        data["source_occurrence_count"] += 1
+    elif defect == "record_count":
+        data["record_count"] += 1
+    elif defect == "duplicate_count":
+        data["records"][0]["duplicate_occurrence_count"] = 2
+    if defect != "hash":
+        data.pop("manifest_sha256")
+        data["manifest_sha256"] = hashlib.sha256(json.dumps(data,sort_keys=True,separators=(",",":"),ensure_ascii=False).encode()).hexdigest()
+    else:
+        data["manifest_sha256"] = "0" * 64
+    with pytest.raises(RuntimeError):
+        verify_corpus_manifest(data)
+
+
+def test_manifest_finaliser_derives_counts_without_changing_records():
+    """Sealing aggregates preserves records and hashes the complete new manifest."""
+    data = manifest(2)
+    records = copy.deepcopy(data["records"])
+    data["record_count"] = data["source_occurrence_count"] = 99
+    result = finalise_corpus_manifest(data)
+    assert result["records"] == records
+    assert result["record_count"] == result["source_occurrence_count"] == 2
+    verify_corpus_manifest(result)

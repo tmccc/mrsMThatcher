@@ -148,19 +148,20 @@ def test_gate_audit_cli_is_deterministic_and_does_not_mutate_inputs(
     first = tmp_path / "historical_context_reply_semantic_gate_audit.first.json"
     second = tmp_path / "historical_context_reply_semantic_gate_audit.second.json"
 
-    assert main(["--output", str(first)]) == 0
-    assert main(["--output", str(second)]) == 0
+    assert main(["--generated-at", "2026-09-18", "--output", str(first)]) == 0
+    assert main(["--generated-at", "2026-09-18", "--output", str(second)]) == 0
 
     assert first.read_bytes() == second.read_bytes()
     assert {path: _hash(path) for path in protected} == before
     with pytest.raises(FileExistsError):
-        main(["--output", str(first)])
+        main(["--generated-at", "2026-09-18", "--output", str(first)])
     unrelated = tmp_path / "historical_context_reply_semantic_gate_audit.unrelated.json"
     unrelated.write_text("{}\n", encoding="utf-8")
     with pytest.raises(ValueError, match="prior gate audit"):
-        main(["--output", str(unrelated), "--overwrite"])
+        main(["--generated-at", "2026-09-18", "--output", str(unrelated), "--overwrite"])
     with pytest.raises(ValueError, match="immutable production input"):
         main([
+            "--generated-at", "2026-09-18",
             "--output",
             str(research / "research_packets.json"),
             "--overwrite",
@@ -251,3 +252,30 @@ def test_gate_audit_models_unavailable_gate_as_whole_lane_block(
     ] is True
     assert audit["invariants"]["document_104653_is_not_blocked"] is False
     assert audit["invariant_failure_count"] > 0
+
+
+def test_gate_audit_uses_explicit_batch_timestamp(historical_audit):
+    """Reproducible audit metadata comes from the supplied batch timestamp."""
+    audit = historical_audit(generated_at="2032-11-04T12:30:00Z")
+    assert audit["generated_at"] == "2032-11-04T12:30:00Z"
+    assert audit["invariant_failure_count"] == 0
+    assert historical_audit(generated_at="2032-11-04T12:30:00Z") == audit
+    with pytest.raises(ValueError):
+        historical_audit(generated_at="not a date")
+
+
+def test_committed_gate_audit_reproduces_current_corpus_and_digest():
+    """The deployed audit must describe this corpus, including all added packets."""
+    import mrs_log_digest as digest
+
+    root = Path(__file__).resolve().parents[1]
+    committed = json.loads((root / "historical_context_reply_semantic_gate_audit.json").read_text())
+    regenerated = gate_audit_module.build_audit(generated_at=committed["generated_at"])
+    assert regenerated == committed
+    assert regenerated["invariant_failure_count"] == 0
+    snapshot = digest.historical_context_corpus_snapshot(root)
+    assert snapshot["available"] is True, snapshot["reason"]
+    coverage = regenerated["coverage"]
+    assert snapshot["completed_packet_count"] == coverage["completed_packet_count"]
+    assert snapshot["attribution_eligible_count"] == coverage["attribution_eligible_count"]
+    assert snapshot["historical_context_allowed_count"] == coverage["attribution_eligible_count"] - regenerated["gate"]["blocked_quote_count"]

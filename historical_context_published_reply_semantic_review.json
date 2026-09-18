@@ -29,7 +29,7 @@
     },
     "source_role_audit": {
       "path": "semantic_alignment_research/quote_research_full_001/historical_context_source_role_audit.json",
-      "sha256": "344e10cc2771c5b85d945728086991dc0998c317c37da664377cd0c8513b905a"
+      "sha256": "7fe9548e507db88e32669248672a6307539661f93a946dcc6c543eae1597881e"
     },
     "truth_audit": {
       "path": "historical_context_evidence_truth_audit.json",

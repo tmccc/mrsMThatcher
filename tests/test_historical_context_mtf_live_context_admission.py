@@ -107,17 +107,18 @@ def test_priority_a_gate_resolution_preserves_historical_and_current_partitions(
     )
     records = {item["quote_id"]: item for item in gate["records"]}
 
+    packets, _unresolved = load_and_validate_corpus_core(RESEARCH)
+    eligible_count = sum(packet_is_attributed_to_margaret_thatcher(packet) for packet in packets.values())
     assert gate["gate"]["blocked_quote_count"] == 13
     assert gate["decision_counts"] == {
         "blocked_open_semantic_review": 13,
-        "eligible_allow": 598,
-        "ineligible_not_regular_post": 16,
+        "eligible_allow": eligible_count - 13,
+        "ineligible_not_regular_post": len(packets) - eligible_count,
     }
     assert all(
         records[quote_id]["public_reply_decision"] == "eligible_allow"
         for quote_id in PRIORITY_A_IDS
     )
-    packets, _unresolved = load_and_validate_corpus_core(RESEARCH)
     expected_ids = {
         quote_id for quote_id, packet in packets.items()
         if packet_is_attributed_to_margaret_thatcher(packet)

@@ -15,6 +15,7 @@ import json
 import os
 import tempfile
 from collections import Counter
+from datetime import datetime
 from pathlib import Path
 from typing import Any, Iterable
 
@@ -43,10 +44,6 @@ RUNTIME_ELIGIBLE_MANIFEST = (
 )
 AUDIT_KIND = "historical_context_reply_semantic_gate_audit"
 SCHEMA_VERSION = 1
-EXPECTED_COMPLETED = 627
-EXPECTED_ELIGIBLE = 611
-EXPECTED_INELIGIBLE = 16
-EXPECTED_UNRESOLVED = 5
 KNOWN_104653_QUOTE_ID = (
     "e1d78bc63369145f6cf7462d8ad5f15dceef929c0469aff64d3bde1e7a188f18"
 )
@@ -80,11 +77,18 @@ def _load_object(path: Path) -> dict[str, Any]:
 
 def build_audit(
     *,
+    generated_at: str | None = None,
+    expected_ledger_sha256: str | None = None,
     root: Path = ROOT,
     research_dir: Path = DEFAULT_RESEARCH_DIR,
     runtime_manifest_path: Path = RUNTIME_ELIGIBLE_MANIFEST,
 ) -> dict[str, Any]:
     """Return the deterministic all-packet semantic-gate audit."""
+    if generated_at is None:
+        generated_at = _load_object(
+            research_dir / "historical_context_source_role_audit.json"
+        )["audit_date"]
+    datetime.fromisoformat(generated_at.replace("Z", "+00:00"))
     root = root.resolve()
     research_dir = research_dir.resolve()
     runtime_manifest_path = runtime_manifest_path.resolve()
@@ -97,9 +101,13 @@ def build_audit(
         for quote_id, packet in packets.items()
         if packet_is_attributed_to_margaret_thatcher(packet)
     }
+    gate_options = {} if expected_ledger_sha256 is None else {
+        "expected_ledger_sha256": expected_ledger_sha256,
+    }
     gate = load_historical_context_semantic_gate(
         root=root,
         eligible_quote_ids=eligible_ids,
+        **gate_options,
     )
     runtime_manifest = _load_object(runtime_manifest_path)
     runtime_ids = runtime_manifest.get("runtime_eligible_quote_ids")
@@ -160,28 +168,35 @@ def build_audit(
             "otherwise_rendered_public_reply_suppressed": suppressed_text,
         })
 
+    manifest = _load_object(research_dir / "corpus_manifest.json")
+    status = _load_object(research_dir / "final_unresolved/final_research_status.json")
+    manifest_ids = [record["quote_id"] for record in manifest["records"]]
     reviewed_blocked_ids = set(gate.blocked_dispositions)
     effective_blocked_ids = (
         reviewed_blocked_ids if gate.available else set(eligible_ids)
     )
     invariants = {
         "gate_is_available": gate.available,
-        "completed_packet_count_is_627": len(packets) == EXPECTED_COMPLETED,
-        "attribution_eligible_count_is_611": len(eligible_ids) == EXPECTED_ELIGIBLE,
-        "completed_ineligible_count_is_16": (
-            len(packets) - len(eligible_ids) == EXPECTED_INELIGIBLE
+        "completed_and_unresolved_partition_matches_manifest": (
+            len(manifest_ids) == len(set(manifest_ids)) == manifest.get("record_count")
+            and set(packets).isdisjoint(unresolved)
+            and set(packets) | set(unresolved) == set(manifest_ids)
         ),
-        "unresolved_count_is_5": len(unresolved) == EXPECTED_UNRESOLVED,
+        "research_status_counts_match_corpus": (
+            status.get("completed_quotes") == len(packets)
+            and status.get("unresolved_quotes") == len(unresolved)
+            and status.get("total_manifest_quotes") == len(manifest_ids)
+        ),
         "runtime_cycle_membership_is_unchanged": (
             runtime_manifest.get("runtime_eligible_quote_count")
-            == EXPECTED_ELIGIBLE
-            and len(runtime_ids) == EXPECTED_ELIGIBLE
-            and len(set(runtime_ids)) == EXPECTED_ELIGIBLE
+            == len(eligible_ids)
+            and len(runtime_ids) == len(eligible_ids)
+            and len(set(runtime_ids)) == len(eligible_ids)
             and set(runtime_aliases).issubset(set(runtime_ids))
-            and len(resolved_from_runtime_ids) == EXPECTED_ELIGIBLE
-            and len(set(resolved_from_runtime_ids)) == EXPECTED_ELIGIBLE
-            and len(resolved_runtime_ids) == EXPECTED_ELIGIBLE
-            and len(set(resolved_runtime_ids)) == EXPECTED_ELIGIBLE
+            and len(resolved_from_runtime_ids) == len(eligible_ids)
+            and len(set(resolved_from_runtime_ids)) == len(eligible_ids)
+            and len(resolved_runtime_ids) == len(eligible_ids)
+            and len(set(resolved_runtime_ids)) == len(eligible_ids)
             and sorted(resolved_from_runtime_ids) == resolved_runtime_ids
             and set(resolved_runtime_ids) == eligible_ids
             and runtime_source_hashes.get("active_source")
@@ -214,6 +229,7 @@ def build_audit(
         "schema_version": SCHEMA_VERSION,
         "audit_kind": AUDIT_KIND,
         "policy_version": POLICY_VERSION,
+        "generated_at": generated_at,
         "input_hashes": {
             "historical_context_published_reply_semantic_review.json": (
                 _sha256(semantic_path)
@@ -228,6 +244,16 @@ def build_audit(
                 runtime_manifest_path
             ),
             "mrsMThatcher.txt": _sha256(root / "mrsMThatcher.txt"),
+            "historical_context_reply_semantic_gate.py": _sha256(
+                root / "historical_context_reply_semantic_gate.py"
+            ),
+            "corpus_manifest.json": _sha256(research_dir / "corpus_manifest.json"),
+            "final_unresolved/final_research_status.json": _sha256(
+                research_dir / "final_unresolved/final_research_status.json"
+            ),
+            "final_unresolved/unresolved_cases.json": _sha256(
+                research_dir / "final_unresolved/unresolved_cases.json"
+            ),
         },
         "coverage": {
             "completed_packet_count": len(packets),
@@ -326,9 +352,10 @@ def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--output", type=Path, required=True)
     parser.add_argument("--overwrite", action="store_true")
+    parser.add_argument("--generated-at", required=True, help="deterministic ISO 8601 batch timestamp")
     args = parser.parse_args(argv)
     output = _validated_output_path(args.output, overwrite=args.overwrite)
-    audit = build_audit()
+    audit = build_audit(generated_at=args.generated_at)
     if audit["invariant_failure_count"]:
         raise RuntimeError("semantic gate audit invariants failed")
     _atomic_write(output, audit)

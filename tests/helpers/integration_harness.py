@@ -147,6 +147,7 @@ def write_minimal_asset_analysis(base_dir: Path) -> None:
         research_dir=research_dir,
         attribution_eligible_ids={quote_hash},
         recovered_evidence=recovery,
+        audit_date="2030-01-01",
     )
     write_json(research_dir / AUDIT_FILENAME, source_role_audit)
     runtime_manifest = (

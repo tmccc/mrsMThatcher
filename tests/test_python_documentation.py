@@ -81,6 +81,32 @@ def test_discovery_excludes_only_untracked_operational_snapshots(
     assert violation_paths == {str(path) for path in first}
 
 
+def test_source_archive_discovery_checks_shipped_modules_without_git(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Archives retain documentation enforcement without invoking Git."""
+    def reject_git(*_args, **_kwargs):
+        """Fail if archive discovery attempts any subprocess."""
+        raise AssertionError("Source archives must not require Git")
+
+    monkeypatch.setattr(subprocess, "run", reject_git)
+    for relative in (
+        "module.py", "package/member.py", "tests/test_ignored.py", "._ignored.py",
+        "production_deployments/archived/tracked.py",
+    ):
+        path = tmp_path / relative
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text("def undocumented():\n    pass\n", encoding="utf-8")
+    expected = [
+        Path("module.py"), Path("package/member.py"),
+        Path("production_deployments/archived/tracked.py"),
+    ]
+    assert maintained_python_files(tmp_path) == expected
+    assert {item.path for item in collect_violations(tmp_path)} == {
+        str(path) for path in expected
+    }
+
+
 def _assert_readme_runtime_counts(
     readme: str,
     source_text: str,

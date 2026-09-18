@@ -2,17 +2,17 @@
   "audit_kind": "historical_context_reply_semantic_gate_audit",
   "blocked_render_failures": [],
   "coverage": {
-    "attribution_eligible_count": 611,
+    "attribution_eligible_count": 622,
     "completed_attribution_ineligible_count": 16,
-    "completed_packet_count": 627,
-    "regular_post_eligible_quote_ids_sha256": "196e381d83a351842bdbe85597a0573163a21dd6b3aba35f8265bc02b59b7213",
-    "runtime_cycle_quote_ids_sha256": "3587d6364e7473a263cc9298473c712eb7d70fe1bad273d4b4b52580c474f478",
-    "runtime_cycle_resolved_quote_ids_sha256": "196e381d83a351842bdbe85597a0573163a21dd6b3aba35f8265bc02b59b7213",
+    "completed_packet_count": 638,
+    "regular_post_eligible_quote_ids_sha256": "b70102311e622e36a61c9bd9744ba2f908a985d0d1d731f4e315d691cb162e11",
+    "runtime_cycle_quote_ids_sha256": "9d74594a3ae341bb5660cf47dfc6c43b14bc246bb552c25634cdbf7e136f34b9",
+    "runtime_cycle_resolved_quote_ids_sha256": "b70102311e622e36a61c9bd9744ba2f908a985d0d1d731f4e315d691cb162e11",
     "unresolved_quote_count": 5
   },
   "decision_counts": {
     "blocked_open_semantic_review": 13,
-    "eligible_allow": 598,
+    "eligible_allow": 609,
     "ineligible_not_regular_post": 16
   },
   "gate": {
@@ -25,27 +25,30 @@
     },
     "failure_reason": "",
     "reviewed_blocked_quote_count": 13,
-    "semantic_review_ledger_sha256": "f81832f3c0aa4e121e5ea521f0442fa90c024d1b3afd24fda4e2b49fe3cb0648"
+    "semantic_review_ledger_sha256": "c049f4a7c1f73dc9b0efb465c8918f2a42f2f49a99710dd2c7f8fd46fa35f7fd"
   },
+  "generated_at": "2026-09-18",
   "input_hashes": {
-    "historical_context_published_reply_semantic_review.json": "f81832f3c0aa4e121e5ea521f0442fa90c024d1b3afd24fda4e2b49fe3cb0648",
-    "historical_context_source_role_audit.json": "ea2a7ce7e9b841da20aa6db7c48cc2e14666f9791d3e7398d349d5104b892e3f",
-    "mrsMThatcher.txt": "10310a9d62c03a87f2c1e55fa10286d1413216b8c0cb34cb0dbe4b3c12f19bee",
-    "research_packets.json": "5a49c91fc93f0734fb04d8f641ec93a8810a6f0878c8d0546f086a15cf7a7d2e",
-    "runtime_eligible_quote_manifest.json": "8b74dab5db91082e5448b89eb0d5a9e13d79939ff2af5d30b922aadacaa0141f"
+    "corpus_manifest.json": "76ab062e72a933a3a85b45e73bd3029454324bd802db9e643c028a0ae3c18367",
+    "final_unresolved/final_research_status.json": "1e169006af8c0a68e61cc073ca0ff4dc00e57e8224a62b70f881024f73e637bc",
+    "final_unresolved/unresolved_cases.json": "9af714d9ae72c684b7dd39e56aeeb8d2fdcc20bfc9f69b2a6e0778d6a2527635",
+    "historical_context_published_reply_semantic_review.json": "c049f4a7c1f73dc9b0efb465c8918f2a42f2f49a99710dd2c7f8fd46fa35f7fd",
+    "historical_context_reply_semantic_gate.py": "d56fd9886e736558b12a660604d269c2b85512e167e85406ad41ced842e8015d",
+    "historical_context_source_role_audit.json": "7fe9548e507db88e32669248672a6307539661f93a946dcc6c543eae1597881e",
+    "mrsMThatcher.txt": "6ad71c7830f4a8360d73fc2bb1f29b302d65c8711d89852b0e9aea4afa4ee81b",
+    "research_packets.json": "279afe3f67ae83ccccaa0533817675cbaf9f342342e4f8ddef010501f10d6fdd",
+    "runtime_eligible_quote_manifest.json": "53e6aeb4871b2cb353b17db3fbc1adde826bc58b3ffcbc8992ecbd0245661e3d"
   },
   "invariant_failure_count": 0,
   "invariants": {
     "all_blocked_quotes_remain_regular_post_eligible": true,
-    "attribution_eligible_count_is_611": true,
     "blocked_quotes_have_inspectable_pre_gate_renderings": true,
     "blocked_quotes_have_reviewed_dispositions": true,
-    "completed_ineligible_count_is_16": true,
-    "completed_packet_count_is_627": true,
+    "completed_and_unresolved_partition_matches_manifest": true,
     "document_104653_is_not_blocked": true,
     "gate_is_available": true,
-    "runtime_cycle_membership_is_unchanged": true,
-    "unresolved_count_is_5": true
+    "research_status_counts_match_corpus": true,
+    "runtime_cycle_membership_is_unchanged": true
   },
   "policy_version": "historical-context-semantic-gate-v1-open-review-whole-reply",
   "records": [
@@ -72,6 +75,14 @@
       "public_reply_decision": "eligible_allow",
       "quote_id": "0058570c2c7302e3816cfe8deb9603a35f5475f4f6331e93dfee347dfc82a20a",
       "quote_text": "Attempts to suppress national differences or to amalgamate different nations with distinct traditions into artificial states are very likely to fail, perhaps bloodily. The wise statesman will celebrate nationhood - and use it."
+    },
+    {
+      "attribution_eligible": true,
+      "open_review_disposition": null,
+      "otherwise_rendered_public_reply_suppressed": "",
+      "public_reply_decision": "eligible_allow",
+      "quote_id": "005fa8c8a8507c65218db36d6f4d5f27bcb7f3b3c76d020f43f67ecccae2f5aa",
+      "quote_text": "Communism had no idealism about it; it was totally contrary to the sanctity of the individual, totally contrary to everything we believe in."
     },
     {
       "attribution_eligible": true,
@@ -494,6 +505,14 @@
       "open_review_disposition": null,
       "otherwise_rendered_public_reply_suppressed": "",
       "public_reply_decision": "eligible_allow",
+      "quote_id": "1690ee1907a79d8388bc1e9afefec155122a11933e611c659a243efe98a1930b",
+      "quote_text": "Moreover, China and the other oppressive socialist states of Asia actually withstood the economic crisis quite well – prisons offer, after all, their own kind of security to the inmates."
+    },
+    {
+      "attribution_eligible": true,
+      "open_review_disposition": null,
+      "otherwise_rendered_public_reply_suppressed": "",
+      "public_reply_decision": "eligible_allow",
       "quote_id": "16c1d05225fe1d45d7ab950a5c54d39b70ef9453718a8678f405195d4af6969f",
       "quote_text": "The risk is that community comes to mean collective; collective comes to mean State; and thus the State expands to replace individual effort with subsidised activism."
     },
@@ -662,6 +681,14 @@
       "open_review_disposition": null,
       "otherwise_rendered_public_reply_suppressed": "",
       "public_reply_decision": "eligible_allow",
+      "quote_id": "20261fbbf96a0965781b24545408120b8a447106849c0879194d6d653a9d0ba4",
+      "quote_text": "It was the crushing of human personality which Communism embodied that has left so many in the former communist countries unwilling and even unable to shoulder responsibility for their own lives."
+    },
+    {
+      "attribution_eligible": true,
+      "open_review_disposition": null,
+      "otherwise_rendered_public_reply_suppressed": "",
+      "public_reply_decision": "eligible_allow",
       "quote_id": "204869c6d40d2610b92dbcbff883303e72a7d1ae972b74d8c25d94b0ec61994d",
       "quote_text": "The battle for women's rights has been largely won. The days when they were demanded and discussed in strident tones should be gone for ever. And I hope they are. I hated those strident tones that you still hear from some Women's Libbers."
     },
@@ -704,6 +731,14 @@
       "public_reply_decision": "eligible_allow",
       "quote_id": "22735d4de0d689151ee67f14a1e49943cdb2824246108fd34ece9a28261da78a",
       "quote_text": "I do not want this country to remain a place where taxation is wielded as a punishment for effort and success, and where envy and spite displace charity and compassion as our national ideals."
+    },
+    {
+      "attribution_eligible": true,
+      "open_review_disposition": null,
+      "otherwise_rendered_public_reply_suppressed": "",
+      "public_reply_decision": "eligible_allow",
+      "quote_id": "22bf6d38d735ee82a3103d2dca4c2750df751c6303cbd37e034a57a98f0e11b2",
+      "quote_text": "The free market disperses power throughout society — it's a kind of “economic democracy” — whereas socialism in all its forms concentrates power at the centre."
     },
     {
       "attribution_eligible": true,
@@ -984,6 +1019,14 @@
       "public_reply_decision": "eligible_allow",
       "quote_id": "343f56906e7263c4429c0dba4eea26694c6816ed7779c6bc14464839acca928d",
       "quote_text": "It is mankind and his activities which are changing the environment of our planet in damaging and dangerous ways."
+    },
+    {
+      "attribution_eligible": true,
+      "open_review_disposition": null,
+      "otherwise_rendered_public_reply_suppressed": "",
+      "public_reply_decision": "eligible_allow",
+      "quote_id": "3451254a76a4e6f4d4e76d7ab0b05713b3568338ba6534251804d9c5632533ba",
+      "quote_text": "From quite early on, communism could only be sustained in power by force and by the vested interests of the elite."
     },
     {
       "attribution_eligible": true,
@@ -2158,6 +2201,14 @@
       "open_review_disposition": null,
       "otherwise_rendered_public_reply_suppressed": "",
       "public_reply_decision": "eligible_allow",
+      "quote_id": "6fa969435d7e1ae1567c7134499b7d3c1fb6dbf7a08cb192b9a38c3a15b838d5",
+      "quote_text": "The Socialist immediately thinks of solving a problem by Government taking power and property and keeping it, and not by helping people to solve the problem by themselves and then handing back property."
+    },
+    {
+      "attribution_eligible": true,
+      "open_review_disposition": null,
+      "otherwise_rendered_public_reply_suppressed": "",
+      "public_reply_decision": "eligible_allow",
       "quote_id": "7066fdf6027a1cbdc45dad3ef5cd95d0ee67a6500e519480b3a0814a266dc428",
       "quote_text": "We're leaving Downing Street for the last time after eleven-and-a-half wonderful years, and we're very happy that we leave the United Kingdom in a very, very much better state than when we came here eleven and a half years ago."
     },
@@ -2336,6 +2387,14 @@
       "public_reply_decision": "eligible_allow",
       "quote_id": "7a92b09f320e1b0628eaf18ac5c7c758564d1934a9ed74935323fe94d2f6ba59",
       "quote_text": "Free enterprise is the only way to create the wealth that the nation needs and to provide a better life for all our people."
+    },
+    {
+      "attribution_eligible": true,
+      "open_review_disposition": null,
+      "otherwise_rendered_public_reply_suppressed": "",
+      "public_reply_decision": "eligible_allow",
+      "quote_id": "7b80b46a6b0b1bfa59f8acc9858cb2baa984f25675daa3e1da23e06a6397ce5c",
+      "quote_text": "All round the world Socialists are abandoning their dogma because they know that it does not work and brings neither prosperity nor dignity."
     },
     {
       "attribution_eligible": true,
@@ -3386,6 +3445,14 @@
       "quote_text": "The idea that some things are more politically correct than others is not new, of course. It has been the guiding sentiment of tyrants in every age who believe that if you can control what people read and thereby what they think then you can control them."
     },
     {
+      "attribution_eligible": true,
+      "open_review_disposition": null,
+      "otherwise_rendered_public_reply_suppressed": "",
+      "public_reply_decision": "eligible_allow",
+      "quote_id": "ac97f0f2c96bc2da3d05d666a328a13c65e3479ad1e51bdf8ffc1b25f9a7ce21",
+      "quote_text": "But Communism was only the extreme form of the socialist plague. Its failure was only the extreme failure of socialist doctrines throughout the world."
+    },
+    {
       "attribution_eligible": false,
       "open_review_disposition": null,
       "otherwise_rendered_public_reply_suppressed": "",
@@ -3400,6 +3467,14 @@
       "public_reply_decision": "eligible_allow",
       "quote_id": "ae1ce8a812279c8dd97b71cfcd5efc578ba06dea161ef2de4a2091205eba279e",
       "quote_text": "To the extent that the West is to blame at all for the ills of the Third World it is to the extent that the West created Marx and his successors, among whom must be numbered many of those who advised the Third World leaders in post-war years."
+    },
+    {
+      "attribution_eligible": true,
+      "open_review_disposition": null,
+      "otherwise_rendered_public_reply_suppressed": "",
+      "public_reply_decision": "eligible_allow",
+      "quote_id": "ae60e330e5d9ee1d250ccf5ce6735a55b8c472e9e2df590561d65a91fc26cf9f",
+      "quote_text": "For decades Socialists have extended their power until they control almost half the world's population. How has the theory worked out in practice? Disastrously. Wherever they have imposed their heavy hand, people are worse off and less free."
     },
     {
       "attribution_eligible": true,
@@ -3616,6 +3691,14 @@
       "public_reply_decision": "eligible_allow",
       "quote_id": "bb5ce4d8d92606299d573ba473fcec7c2a1756d2d79c1aa87b74d69a3019c1bc",
       "quote_text": "The idea that one can become, as Locke said, \"the dictator of principles\" and establish as the most basic principle \"that principles must not be questioned,\" is the essence of tyranny."
+    },
+    {
+      "attribution_eligible": true,
+      "open_review_disposition": null,
+      "otherwise_rendered_public_reply_suppressed": "",
+      "public_reply_decision": "eligible_allow",
+      "quote_id": "bb6575b417f97b79775369e23e40bb90dc9f703eeed7164f88ccff1515f068a9",
+      "quote_text": "We knew that the Stalinist system would always produce misery and tyranny, but could never produce prosperity and dignity—and we said so."
     },
     {
       "attribution_eligible": true,
@@ -4504,6 +4587,14 @@
       "public_reply_decision": "eligible_allow",
       "quote_id": "e7f47c3d78e910d0639668eca12491cb6406ad22191d4acc33dfb45562a5f44b",
       "quote_text": "The feminists hate me, don't they? And I don't blame them. For I hate feminism. It is poison."
+    },
+    {
+      "attribution_eligible": true,
+      "open_review_disposition": null,
+      "otherwise_rendered_public_reply_suppressed": "",
+      "public_reply_decision": "eligible_allow",
+      "quote_id": "e875cd25a45a7b70d44e7b6785eeb8f8cc96f3caaf59fb3cfd9ff877c387828b",
+      "quote_text": "Socialists oppose the widening of property ownership because it brings to every citizen a new independence and breaks down the old class divisions on which they thrive."
     },
     {
       "attribution_eligible": true,

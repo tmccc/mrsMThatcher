@@ -4,6 +4,7 @@ from datetime import datetime, timedelta, timezone
 from pathlib import Path
 import hashlib
 import inspect
+import json
 import os
 import subprocess
 import sys
@@ -14,7 +15,7 @@ import pytest
 import mrs_log_digest as digest
 import mrs_log_digest_generated_pool as generated_pool
 
-from tests.helpers.digest_corpus import write_corpus
+from tests.helpers.digest_corpus import rebind_corpus_hashes, write_corpus
 from tests.helpers.digest_generated_pool import pool, quarantine
 
 
@@ -69,9 +70,10 @@ def test_corpus_preserves_patched_parsing_then_separate_hash_reads(monkeypatch, 
     monkeypatch.setattr(digest, "_strict_native_json_object", parse_json)
     monkeypatch.setattr(digest, "file_sha256", hash_after_change)
     result = digest.historical_context_corpus_snapshot(tmp_path)
-    labels = ["research_packets", "unresolved_cases", "runtime_eligible_manifest", "source_role_audit", "semantic_gate_audit", "semantic_review_ledger"]
-    assert events == [event for label, path in zip(labels, paths.values()) for event in (("parse", f"historical corpus {label}"), ("hash", path))]
-    assert result["available"] is True
+    labels = ["research_packets", "unresolved_cases", "runtime_eligible_manifest", "source_role_audit", "semantic_gate_audit", "semantic_review_ledger", "corpus_manifest", "research_status", "active_source", "semantic_gate"]
+    assert events == [event for label, path in list(zip(labels, paths.values()))[:8] for event in (("parse", f"historical corpus {label}"), ("hash", path))] + [("hash", paths["source"]), ("hash", paths["gate_code"])]
+    assert result["available"] is False
+    assert "hash differs" in result["reason"]
     assert result["completed_packet_count"] == 2
     assert result["file_sha256"]["research_packets"] == hashlib.sha256(b'{"items":[]}').hexdigest()
     assert list(result["file_sha256"]) == sorted(labels)
@@ -261,7 +263,7 @@ assert images["health"] == "OK"
 assert images["active_generated_images"] == 3
 assert images["quarantined_generated_images"] == 1
 assert set(opened) == paths
-assert len(opened) == len(paths) + 6  # Corpus parsing and hashing are separate reads.
+assert len(opened) == len(paths) + 9  # Eight JSON inputs and the gate pins have separate hash reads.
 """
     result = subprocess.run(
         [sys.executable, "-B", "-c", script], cwd=base,
@@ -423,4 +425,91 @@ def test_current_corpus_snapshot_reports_counts_policies_and_hashes(tmp_path):
         "source_role_audit",
         "semantic_gate_audit",
         "semantic_review_ledger",
+        "corpus_manifest",
+        "research_status",
+        "active_source",
+        "semantic_gate",
     }
+
+
+@pytest.mark.parametrize("field", [
+    "completed_packet_count", "attribution_eligible_count",
+    "completed_attribution_ineligible_count", "unresolved_quote_count",
+])
+def test_corpus_snapshot_rejects_stale_audit_coverage(tmp_path, field):
+    """A syntactically valid old count cannot advertise a current snapshot."""
+    paths = write_corpus(tmp_path)
+    audit = json.loads(paths["gate"].read_text())
+    audit["coverage"][field] += 1
+    paths["gate"].write_text(json.dumps(audit))
+    snapshot = digest.historical_context_corpus_snapshot(tmp_path)
+    assert snapshot["available"] is False
+    assert field in snapshot["reason"]
+
+
+@pytest.mark.parametrize("label", [
+    "packets", "unresolved", "eligible", "roles", "ledger", "manifest", "status",
+    "source", "gate_code",
+])
+def test_corpus_snapshot_rejects_stale_audit_input_hashes(tmp_path, label):
+    """Even a semantically identical file must match the bytes actually audited."""
+    paths = write_corpus(tmp_path)
+    paths[label].write_bytes(paths[label].read_bytes() + b"\n")
+    snapshot = digest.historical_context_corpus_snapshot(tmp_path)
+    assert snapshot["available"] is False
+    assert "hash differs" in snapshot["reason"]
+
+
+@pytest.mark.parametrize("section,field,value", [
+    ("decision_counts", "eligible_allow", 3),
+    ("gate", "blocked_quote_count", 0),
+    ("gate", "semantic_review_ledger_sha256", "f" * 64),
+    ("gate", "blocked_projection_sha256", "f" * 64),
+    ("gate", "available", False),
+])
+def test_corpus_snapshot_rejects_stale_gate_decisions(tmp_path, section, field, value):
+    """Audit decisions must reproduce the hash-pinned live review ledger."""
+    paths = write_corpus(tmp_path)
+    audit = json.loads(paths["gate"].read_text())
+    audit[section][field] = value
+    paths["gate"].write_text(json.dumps(audit))
+    snapshot = digest.historical_context_corpus_snapshot(tmp_path)
+    assert snapshot["available"] is False
+    assert "inconsistent corpus" in snapshot["reason"]
+
+
+def test_corpus_snapshot_rejects_ledger_pin_mismatch_even_with_updated_file_hash(tmp_path):
+    """Refreshing one reported input hash cannot conceal a mismatched gate pin."""
+    paths = write_corpus(tmp_path)
+    gate = paths["gate_code"].read_text().replace(
+        hashlib.sha256(paths["ledger"].read_bytes()).hexdigest(), "f" * 64,
+    )
+    paths["gate_code"].write_text(gate)
+    audit = json.loads(paths["gate"].read_text())
+    audit["input_hashes"]["historical_context_reply_semantic_gate.py"] = hashlib.sha256(paths["gate_code"].read_bytes()).hexdigest()
+    paths["gate"].write_text(json.dumps(audit))
+    snapshot = digest.historical_context_corpus_snapshot(tmp_path)
+    assert snapshot["available"] is False
+    assert "semantic ledger pin differs" in snapshot["reason"]
+
+
+
+@pytest.mark.parametrize("label,field,reason", [
+    ("status", "corpus_hash", "research status corpus hash differs"),
+    ("roles", "attribution_eligible_quote_ids_sha256", "source-role eligible identity hash differs"),
+    ("manifest", "manifest_sha256", "manifest content hash differs"),
+])
+def test_corpus_snapshot_rejects_rebound_contradictory_internal_hashes(tmp_path, label, field, reason):
+    """Matching audit input hashes cannot legitimise contradictory internal hashes."""
+    paths = write_corpus(tmp_path)
+    value = json.loads(paths[label].read_text())
+    value[field] = "f" * 64
+    paths[label].write_text(json.dumps(value))
+    rebind_corpus_hashes(paths)
+    audit = json.loads(paths["gate"].read_text())
+    by_name = {path.name: path for path in paths.values()}
+    for name, expected in audit["input_hashes"].items():
+        assert hashlib.sha256(by_name[name.rsplit("/", 1)[-1]].read_bytes()).hexdigest() == expected
+    snapshot = digest.historical_context_corpus_snapshot(tmp_path)
+    assert snapshot["available"] is False
+    assert reason in snapshot["reason"]

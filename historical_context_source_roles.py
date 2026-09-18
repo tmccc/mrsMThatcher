@@ -1357,8 +1357,21 @@ def build_audit(
     openai_researched_evidence: dict[str, Any] | None = None,
     independent_review: dict[str, Any] | None = None,
     curated_evidence: dict[str, Any] | None = None,
+    audit_date: str | None = None,
 ) -> dict[str, Any]:
-    """Build the complete deterministic source-role sidecar."""
+    """Build a deterministic sidecar with explicit or retained provenance date."""
+    if audit_date is None:
+        previous = research_dir / AUDIT_FILENAME
+        if previous.exists():
+            audit_date = json.loads(previous.read_text(encoding="utf-8")).get("audit_date")
+        else:
+            status_path = research_dir / "final_unresolved/final_research_status.json"
+            if status_path.exists():
+                stamp = json.loads(status_path.read_text(encoding="utf-8")).get("generated_timestamp")
+                audit_date = stamp[:10] if isinstance(stamp, str) else None
+    if not isinstance(audit_date, str) or not re.fullmatch(r"\d{4}-\d{2}-\d{2}", audit_date):
+        raise ValueError("source-role audit requires an explicit ISO audit_date")
+    datetime.strptime(audit_date, "%Y-%m-%d")
     if recovered_evidence is not None:
         validate_recovery(recovered_evidence, packets)
     if source_resolution is not None:
@@ -1526,7 +1539,7 @@ def build_audit(
     return {
         "schema_version": AUDIT_SCHEMA_VERSION,
         "policy_version": POLICY_VERSION,
-        "audit_date": "2026-07-22",
+        "audit_date": audit_date,
         "source_file_hashes": source_file_hashes,
         "packet_count": len(items),
         "source_count": len(physical_sources),
@@ -1752,6 +1765,7 @@ def validate_and_attach_audit(
         openai_researched_evidence=openai_researched,
         independent_review=independent_review,
         curated_evidence=curated_evidence,
+        audit_date=audit.get("audit_date"),
     )
     if canonical_json(audit) != canonical_json(expected):
         raise RuntimeError("historical-context source-role audit differs from deterministic policy output")

@@ -84,6 +84,19 @@ def build_corpus_manifest(source: dict[str, Any]) -> dict[str, Any]:
     return payload
 
 
+def finalise_corpus_manifest(manifest: dict[str, Any]) -> dict[str, Any]:
+    """Recalculate aggregate counts and the canonical manifest content hash."""
+    payload = dict(manifest)
+    payload.pop("manifest_sha256", None)
+    payload["record_count"] = len(payload["records"])
+    payload["source_occurrence_count"] = sum(
+        len(row["source_occurrences"]) for row in payload["records"]
+    )
+    payload["manifest_sha256"] = hashlib.sha256(_canonical(payload)).hexdigest()
+    verify_corpus_manifest(payload)
+    return payload
+
+
 def verify_corpus_manifest(manifest: dict[str, Any]) -> None:
     """Verify corpus manifest."""
     expected = manifest.get("manifest_sha256")
@@ -96,6 +109,24 @@ def verify_corpus_manifest(manifest: dict[str, Any]) -> None:
         raise RuntimeError("immutable research manifest record count mismatch")
     if len({row["quote_id"] for row in manifest["records"]}) != expected_count:
         raise RuntimeError("duplicate quote IDs in corpus manifest")
+    owners: dict[int, str] = {}
+    for row in manifest["records"]:
+        occurrences = row.get("source_occurrences")
+        if not isinstance(occurrences, list) or not occurrences:
+            raise RuntimeError("missing corpus source occurrences")
+        if row.get("duplicate_occurrence_count", len(occurrences)) != len(occurrences):
+            raise RuntimeError("corpus duplicate occurrence count mismatch")
+        for occurrence in occurrences:
+            line = occurrence.get("line_number") if isinstance(occurrence, dict) else None
+            if type(line) is not int or line <= 0:
+                raise RuntimeError("invalid corpus source occurrence coordinate")
+            if line in owners:
+                raise RuntimeError(f"duplicate corpus source occurrence {line}")
+            if occurrence.get("quote_id", row["quote_id"]) != row["quote_id"]:
+                raise RuntimeError("corpus source occurrence identity mismatch")
+            owners[line] = row["quote_id"]
+    if type(manifest.get("source_occurrence_count")) is not int or manifest["source_occurrence_count"] != len(owners):
+        raise RuntimeError("corpus source occurrence count mismatch")
 
 
 def corpus_preflight(records: list[dict[str, Any]], completed: int = 0,

@@ -1,10 +1,10 @@
 """Materialise the reviewed 627-packet corpus for historical audit tests."""
 from __future__ import annotations
 
-import io
 from functools import cache
+import hashlib
+import io
 from pathlib import Path
-import subprocess
 import tarfile
 
 import pytest
@@ -12,6 +12,8 @@ import pytest
 
 ROOT = Path(__file__).resolve().parents[2]
 ORIGINAL_CORPUS_COMMIT = "9c142bc8485819061756a88ea99ef991a0683be0"
+FIXTURE_ARCHIVE = ROOT / "tests/fixtures/historical-corpus-627.tar.xz"
+FIXTURE_SHA256 = "2cac91c37f089b2af9fb28359f07ee437f5ef7ce0e902dc4d74329aa399913e7"
 RESEARCH_RELATIVE = Path("semantic_alignment_research/quote_research_full_001")
 _ROOT_FILES = (
     "mrsMThatcher.txt",
@@ -39,6 +41,7 @@ _RESEARCH_FILES = (
     "retry_analysis/full_retry_manifest.json",
     "corpus_manifest.json",
     "final_unresolved/final_research_status.json",
+    "final_unresolved/unresolved_cases.json",
     "final_unresolved/corpus_closure_audit.json",
     "retry_analysis/retry_validation_20/cost_ledger.json",
     "retry_batches/retry_batch_030_001_run/cost_ledger.json",
@@ -71,36 +74,34 @@ def historical_corpus_root(tmp_path_factory: pytest.TempPathFactory) -> Path:
 
 @cache
 def _materialise_historical_corpus(destination: Path) -> Path:
-    """Read exact original Git blobs without changing the growing checkout.
+    """Read the pinned historical fixture without Git or external resources.
 
     Historical tools deliberately pin this batch's sizes and findings. Tests of
     those tools need the corresponding inputs, while current-runtime tests must
-    continue to use the active corpus. A full repository history containing the
-    reviewed commit is required; missing history is a setup error, not a skip.
+    continue to use the active corpus. The bundle contains only the exact original
+    committed blobs in the allowlist below; see tests/fixtures/README.md.
     """
-    destination.mkdir()
     paths = [*_ROOT_FILES, *(str(RESEARCH_RELATIVE / name) for name in _RESEARCH_FILES)]
-    result = subprocess.run(
-        ["git", "archive", "--format=tar", ORIGINAL_CORPUS_COMMIT, *paths],
-        cwd=ROOT,
-        check=True,
-        stdout=subprocess.PIPE,
-        stderr=subprocess.PIPE,
-    )
+    bundle = FIXTURE_ARCHIVE.read_bytes()
+    if hashlib.sha256(bundle).hexdigest() != FIXTURE_SHA256:
+        raise AssertionError("Historical fixture archive hash mismatch")
     expected = set(paths)
-    extracted = set()
-    with tarfile.open(fileobj=io.BytesIO(result.stdout), mode="r:") as archive:
-        for member in archive:
-            if member.isdir():
-                continue
-            if not member.isfile() or member.name not in expected:
+    with tarfile.open(fileobj=io.BytesIO(bundle), mode="r:xz") as archive:
+        members = archive.getmembers()
+        found = set()
+        for member in members:
+            if not member.isfile() or member.name not in expected or member.name in found:
                 raise AssertionError(f"Unexpected historical fixture member: {member.name}")
+            found.add(member.name)
+        if found != expected:
+            raise AssertionError("Historical fixture archive has missing members")
+        # Require a new directory: existing symlinks must never redirect writes.
+        destination.mkdir()
+        for member in members:
             target = destination / member.name
             target.parent.mkdir(parents=True, exist_ok=True)
             with archive.extractfile(member) as source:
                 target.write_bytes(source.read())
-            extracted.add(member.name)
-    assert extracted == expected
     # Live posting history is intentionally untracked. Supply the committed
     # reviewed history fixture at the historical tools' conventional location.
     (destination / "historical_context_reply_history.json").write_bytes(

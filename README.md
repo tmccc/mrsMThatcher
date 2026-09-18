@@ -65,10 +65,10 @@ MRS_TEST_MODE=1 PYTEST_DISABLE_PLUGIN_AUTOLOAD=1 python3 -m pytest -q \
 Do not run serial and parallel suites concurrently in the same checkout.
 
 Historical research tests use `tests/helpers/historical_corpus.py` to read their
-original corpus from commit `9c142bc8485819061756a88ea99ef991a0683be0`.
-Keep that commit in the local Git history; a shallow clone needs the missing
-history fetched before these tests can run. Current runtime tests use the
-active quotation collection.
+original corpus from a checked-in, hash-verified compressed fixture. Shallow
+clones and source archives need no Git history or downloads to run these tests.
+See `tests/fixtures/README.md` for the fixture's contents and maintenance. Current
+runtime tests use the active quotation collection.
 
 Reusable bot test support lives in `tests/helpers`: `bot_runtime.py` owns the
 isolated bot import, `reply_fixtures.py` supplies reply evidence and receipt
