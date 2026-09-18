@@ -170,8 +170,18 @@ def test_runtime_context_reply_state_files_are_gitignored():
 
 def test_completed_corpus_validation_and_unresolved_rejection(corpus):
     packets, unresolved = corpus
-    assert len(packets) == 627 and len(unresolved) == 5 and not set(packets) & unresolved
-    assert packet_for_posted_quote(packets, unresolved, next(iter(unresolved)), "anything") is None
+    raw_packets = json.loads((RESEARCH / "research_packets.json").read_text())["items"]
+    status = json.loads((RESEARCH / "final_unresolved/final_research_status.json").read_text())
+    manifest = json.loads((RESEARCH / "corpus_manifest.json").read_text())
+    assert packets and set(packets) == set(raw_packets)
+    assert unresolved == set(status["unresolved_quote_ids"])
+    assert len(packets) == status["completed_quotes"]
+    assert len(unresolved) == status["unresolved_quotes"]
+    assert set(packets) | unresolved == {row["quote_id"] for row in manifest["records"]}
+    assert not set(packets) & unresolved
+    assert unresolved
+    for quote_id in unresolved:
+        assert packet_for_posted_quote(packets, unresolved, quote_id, "anything") is None
 
 
 def test_posted_quote_lookup_rejects_attribution_ineligible_completed_packet(corpus):

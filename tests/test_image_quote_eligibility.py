@@ -6,10 +6,13 @@ import pytest
 
 from semantic_alignment import image_quote_eligibility as eligibility
 from semantic_alignment.io import atomic_write_json, read_json
+from tests.helpers.historical_corpus import (
+    RESEARCH_RELATIVE,
+    historical_corpus_root,
+)
 
 
 ROOT = Path(__file__).resolve().parents[1]
-RESEARCH = ROOT / "semantic_alignment_research/quote_research_full_001"
 IMAGE_WORK = ROOT / "image_discovery_research/thatcher_image_hunt_002/integration_preparation"
 
 
@@ -28,8 +31,11 @@ def empty_result(candidate_id: str, image_hash: str) -> dict:
     }
 
 
-def test_canonical_corpus_has_exactly_626_and_excludes_six_unresolved():
-    packets, metadata = eligibility.load_completed_corpus(RESEARCH)
+def test_original_trial_corpus_has_627_and_excludes_five_unresolved(historical_corpus_root):
+    # This costed image-selection experiment has a frozen corpus contract.
+    packets, metadata = eligibility.load_completed_corpus(
+        historical_corpus_root / RESEARCH_RELATIVE
+    )
     ids = {row["quote_id"] for row in packets}
     assert len(ids) == 627
     assert metadata["unresolved_count"] == 5
@@ -45,8 +51,12 @@ def test_image_manifest_has_24_source_grounded_unique_candidates():
     assert all(row["identity_basis"] in {"archive_record", "source_caption", "source_metadata", "page_context"} for row in records)
 
 
-def test_compact_corpus_and_prompt_are_deterministic_and_do_not_leak_human_labels():
-    packets, _metadata = eligibility.load_completed_corpus(RESEARCH)
+def test_compact_corpus_and_prompt_are_deterministic_and_do_not_leak_human_labels(
+    historical_corpus_root,
+):
+    packets, _metadata = eligibility.load_completed_corpus(
+        historical_corpus_root / RESEARCH_RELATIVE
+    )
     compact_one = [eligibility.compact_quote_record(row) for row in packets]
     compact_two = [eligibility.compact_quote_record(row) for row in packets]
     images = eligibility.load_image_records(IMAGE_WORK)[:6]
@@ -96,9 +106,13 @@ def test_contradictory_no_match_flag_and_duplicate_quotes_are_rejected():
         eligibility.validate_batch_response(result, images, {"f" * 64})
 
 
-def test_prepare_uses_four_six_image_batches_and_exact_prompt_parity(tmp_path):
+def test_prepare_uses_four_six_image_batches_and_exact_prompt_parity(
+    tmp_path, historical_corpus_root,
+):
     output = tmp_path / "trial"
-    value = eligibility.prepare_trial(RESEARCH, IMAGE_WORK, output)
+    value = eligibility.prepare_trial(
+        historical_corpus_root / RESEARCH_RELATIVE, IMAGE_WORK, output
+    )
     manifest = value["manifest"]
     assert len(manifest["batches"]) == 4
     assert all(len(row["candidate_ids"]) == 6 for row in manifest["batches"])
@@ -114,9 +128,13 @@ def test_execution_requires_explicit_flag_and_exact_cost_confirmation(tmp_path):
         eligibility.run_trial(ROOT, tmp_path, execute=True, confirmed_cost=9.99)
 
 
-def test_human_evaluation_excludes_contradictory_decision_note(tmp_path):
+def test_human_evaluation_excludes_contradictory_decision_note(
+    tmp_path, historical_corpus_root,
+):
     output = tmp_path / "trial"
-    eligibility.prepare_trial(RESEARCH, IMAGE_WORK, output)
+    eligibility.prepare_trial(
+        historical_corpus_root / RESEARCH_RELATIVE, IMAGE_WORK, output
+    )
     rows, excluded = eligibility._human_evaluation_rows(output)
     assert len(rows) == 100
     assert len(excluded) == 1

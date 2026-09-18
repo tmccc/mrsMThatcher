@@ -1,5 +1,8 @@
 from __future__ import annotations
 
+import hashlib
+import json
+import re
 import subprocess
 from pathlib import Path
 
@@ -78,12 +81,76 @@ def test_discovery_excludes_only_untracked_operational_snapshots(
     assert violation_paths == {str(path) for path in first}
 
 
-def test_readme_uses_current_runtime_corpus_and_image_semantics() -> None:
-    readme = (PROJECT_ROOT / "README.md").read_text(encoding="utf-8")
+def _assert_readme_runtime_counts(
+    readme: str,
+    source_text: str,
+    runtime_eligible_quote_ids: list[str],
+) -> None:
+    """Compare documented counts with the supplied source and eligible records."""
+    source_ids = {
+        hashlib.sha256(" ".join(line.split()).encode("utf-8")).hexdigest()
+        for line in source_text.splitlines()
+        if line.strip()
+    }
+    eligible_ids = set(runtime_eligible_quote_ids)
+    assert eligible_ids <= source_ids
     normalised_readme = " ".join(readme.split())
 
-    assert "611 attribution-eligible" in normalised_readme
-    assert "619 canonical" in normalised_readme
+    assert re.search(
+        rf"\b{len(eligible_ids)} attribution-eligible\b", normalised_readme
+    )
+    assert re.search(rf"\b{len(source_ids)} canonical\b", normalised_readme)
+
+
+def test_readme_uses_current_runtime_corpus_and_image_semantics() -> None:
+    readme = (PROJECT_ROOT / "README.md").read_text(encoding="utf-8")
+    source_text = (PROJECT_ROOT / "mrsMThatcher.txt").read_text(encoding="utf-8")
+    manifest_path = (
+        PROJECT_ROOT
+        / "semantic_alignment_research"
+        / "quote_attribution_cleanup_001"
+        / "deployment_candidate"
+        / "runtime_eligible_quote_manifest.json"
+    )
+    runtime_manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+    _assert_readme_runtime_counts(
+        readme,
+        source_text,
+        runtime_manifest["runtime_eligible_quote_ids"],
+    )
+
+    normalised_readme = " ".join(readme.split())
     assert "removed from the bot runtime" in normalised_readme
     assert "currently no generated-image frequency cap" not in normalised_readme
     assert "docs/python_api.md" in readme
+
+
+@pytest.mark.parametrize(
+    ("documented_source_count", "documented_eligible_count", "is_current"),
+    [(3, 2, True), (2, 2, False), (3, 1, False)],
+)
+def test_readme_counts_follow_expanded_source_and_eligibility(
+    documented_source_count: int,
+    documented_eligible_count: int,
+    is_current: bool,
+) -> None:
+    source_text = (
+        "Existing quotation.\n"
+        "Existing   quotation.\n"
+        "Unresolved quotation.\n"
+        "New quotation—now admitted.\n"
+    )
+    eligible_ids = [
+        hashlib.sha256(text.encode("utf-8")).hexdigest()
+        for text in ("Existing quotation.", "New quotation—now admitted.")
+    ]
+    readme = (
+        f"The current {documented_source_count} canonical source records include "
+        f"{documented_eligible_count} attribution-eligible runtime quotations."
+    )
+
+    if is_current:
+        _assert_readme_runtime_counts(readme, source_text, eligible_ids)
+    else:
+        with pytest.raises(AssertionError):
+            _assert_readme_runtime_counts(readme, source_text, eligible_ids)

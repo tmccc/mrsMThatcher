@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 import os
 import subprocess
 import sys
@@ -11,6 +12,7 @@ import pytest
 
 import mrsMThatcher2 as bot
 import reply_evidence
+from historical_context_formatter import packet_is_attributed_to_margaret_thatcher
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -38,12 +40,12 @@ def sdk_free_environment(blocked: Path) -> dict[str, str]:
 def test_saved_corpus_validation_does_not_import_google_sdk(tmp_path: Path) -> None:
     blocked = blocked_google_path(tmp_path)
     code = (
-        "from pathlib import Path; "
+        "import json; from pathlib import Path; "
         "from historical_context_formatter import load_and_validate_corpus; "
         "from reply_evidence import EvidenceRepository; "
         f"p,u=load_and_validate_corpus(Path({str(RESEARCH)!r})); "
         f"r=EvidenceRepository(Path({str(RESEARCH)!r})); "
-        "print(len(p),len(u),len(r.packets))"
+        "print(json.dumps({'completed': sorted(p), 'unresolved': sorted(u), 'eligible': sorted(r.packets)}))"
     )
 
     result = subprocess.run(
@@ -57,7 +59,20 @@ def test_saved_corpus_validation_does_not_import_google_sdk(tmp_path: Path) -> N
     )
 
     assert result.returncode == 0, result.stderr
-    assert result.stdout.strip() == "627 5 611"
+    packets = json.loads((RESEARCH / "research_packets.json").read_text())["items"]
+    unresolved = json.loads(
+        (RESEARCH / "final_unresolved/final_research_status.json").read_text()
+    )["unresolved_quote_ids"]
+    expected_eligible = {
+        quote_id for quote_id, packet in packets.items()
+        if packet_is_attributed_to_margaret_thatcher(packet)
+    }
+    assert packets and expected_eligible
+    assert json.loads(result.stdout) == {
+        "completed": sorted(packets),
+        "unresolved": sorted(unresolved),
+        "eligible": sorted(expected_eligible),
+    }
 
 
 def test_normal_bootstrap_does_not_require_google_sdk_or_research_tree(

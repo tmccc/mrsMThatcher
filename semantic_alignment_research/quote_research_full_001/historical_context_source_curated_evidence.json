@@ -49,6 +49,49 @@
         }
       ]
     },
+    "005fa8c8a8507c65218db36d6f4d5f27bcb7f3b3c76d020f43f67ecccae2f5aa": {
+      "quote_id": "005fa8c8a8507c65218db36d6f4d5f27bcb7f3b3c76d020f43f67ecccae2f5aa",
+      "quote_text": "Communism had no idealism about it; it was totally contrary to the sanctity of the individual, totally contrary to everything we believe in.",
+      "quote_text_sha256": "005fa8c8a8507c65218db36d6f4d5f27bcb7f3b3c76d020f43f67ecccae2f5aa",
+      "sources": [
+        {
+          "assigned_roles": [
+            "wording_verification",
+            "attribution_support",
+            "source_event_support",
+            "historical_context_support"
+          ],
+          "author_or_speaker": "Margaret Thatcher",
+          "canonical_url": "https://www.margaretthatcher.org/document/109324",
+          "claims_supported": [
+            "wording",
+            "attribution",
+            "source_event",
+            "date",
+            "historical_context"
+          ],
+          "evidence_origin": "independently_reviewed_public_retrieval",
+          "exact_supporting_passage": "We were absolutely at one on the fundamental relationship between East and West on Communism, absolutely at one. Communism had no idealism about it; it was totally contrary to the sanctity of the individual, totally contrary to everything we believe in.",
+          "exact_supporting_passage_sha256": "02e9f7a677d1fa3e2cc8cf97af18d1184bb7cb6d3e9f7b129fc8452fb2b3ad13",
+          "page_independently_inspected": true,
+          "page_sha256": "390afd8985411fef2f5897324f9092a60a2cbb5abb50718786d6bc7c95da388f",
+          "rationale": "Codex inspected the saved source and its surrounding text and bibliographic metadata. Wording, attribution, date/occasion and the stated context are supported by the retained evidence checks. This records no human publication approval or independent verification against audio.",
+          "recorded_at": "2026-09-18",
+          "source_date": "1990-01-08",
+          "source_event": "Interview by Geoffrey Smith about Ronald Reagan, 10 Downing Street",
+          "source_id": "b078e2d4594b49bb308e4f52c59584ea5be36f44dbfb5891006fa41ef7c25995",
+          "source_publisher": "Margaret Thatcher Foundation",
+          "source_quality_class": "strong_primary_evidence",
+          "source_type": "official_primary_transcript",
+          "stable_locator": "Margaret Thatcher Foundation document 109324; saved transcript paragraph 42",
+          "supporting_context": "1990 Jan 8 Mo\n\nCold War: Margaret Thatcher interviewed about Ronald Reagan [released 2002]\n\n\n            Venue:\n            10 Downing Street\n          \n\n\n            Source:\n            Thatcher MSS (Churchill Archive Centre): THCR\n          \n\nCold War: Margaret Thatcher interviewed about Ronald Reagan [released 2002]\n\n\n            Editorial comments:\n            MT was interviewed by Geoffrey Smith for his book Reagan and Thatcher (London, 1990). The interview was not released at the time, although brief excerpts appeared in the book. (Geoffrey Smith's words have been paraphrased in the text here offered.)\n          ",
+          "supporting_context_sha256": "ef30a718ad804924106db83b71492d1d64939f66443cd734557447d7e9134a38",
+          "title": "Cold War: Margaret Thatcher interviewed about Ronald Reagan [released 2002]",
+          "url": "https://www.margaretthatcher.org/document/109324",
+          "wording_match_kind": "exact"
+        }
+      ]
+    },
     "00a61fc4f76648e2ccbf07fbdadec99afb0000789e85390bae28f11cb3f230ae": {
       "quote_id": "00a61fc4f76648e2ccbf07fbdadec99afb0000789e85390bae28f11cb3f230ae",
       "quote_text": "One reason I'm not a Marxist or a Socialist is because I know you can't fit people into theories. I was trained as a scientist - a chemist - and I know what a real theory is when I see one.",
@@ -1872,6 +1915,47 @@
         }
       ]
     },
+    "1690ee1907a79d8388bc1e9afefec155122a11933e611c659a243efe98a1930b": {
+      "quote_id": "1690ee1907a79d8388bc1e9afefec155122a11933e611c659a243efe98a1930b",
+      "quote_text": "Moreover, China and the other oppressive socialist states of Asia actually withstood the economic crisis quite well – prisons offer, after all, their own kind of security to the inmates.",
+      "quote_text_sha256": "1690ee1907a79d8388bc1e9afefec155122a11933e611c659a243efe98a1930b",
+      "sources": [
+        {
+          "assigned_roles": [
+            "wording_verification",
+            "attribution_support",
+            "source_event_support",
+            "historical_context_support"
+          ],
+          "author_or_speaker": "Margaret Thatcher",
+          "claims_supported": [
+            "wording",
+            "attribution",
+            "source_event",
+            "date",
+            "historical_context"
+          ],
+          "evidence_origin": "operator_supplied_bibliographic_citation",
+          "exact_supporting_passage": "Moreover, China and the other oppressive socialist states of Asia actually withstood the economic crisis quite well – prisons offer, after all, their own kind of security to the inmates.",
+          "exact_supporting_passage_sha256": "1690ee1907a79d8388bc1e9afefec155122a11933e611c659a243efe98a1930b",
+          "page_independently_inspected": true,
+          "pdf_sha256": "6619eb3401336585ef5d27c46fdd2dbc101a66c484620b57c8cda62ab1140872",
+          "rationale": "Codex inspected the saved source and its surrounding text and bibliographic metadata. Wording, attribution, date/occasion and the stated context are supported by the retained evidence checks. This records no human publication approval or independent verification against audio.",
+          "recorded_at": "2026-09-18",
+          "source_date": "2002",
+          "source_event": "Statecraft: Strategies for a Changing World, chapter “Asian Values”, section “Political Crises and Prospects”",
+          "source_id": "385f92ec742887a3608eaae341b8aa6863da2edd12487b7aecee6491b591ba5c",
+          "source_quality_class": "strong_primary_evidence",
+          "source_type": "thatcher_authored_primary_book",
+          "stable_locator": "Chapter “Asian Values”, section “Political Crises and Prospects”, p. 123 (printed pagination).",
+          "supporting_context": "But what of the wider effects of the Asian economic meltdown?\n\nApart from China, Burma and to a degree Vietnam, Asian populations did not live under regimes which were totalitarian before the 1997–98 economic crash.\n\nThe predominantly military government in Thailand, the quasi-authoritarian government of Kim Young Sam in South Korea, and the personal government of President Suharto in Indonesia – the governments which did fall as a result of the crash – were not in the full sense democratic. But neither were they responsible for evils on the scale of communist China.\n\nMoreover, China and the other oppressive socialist states of Asia actually withstood the economic crisis quite well – prisons offer, after all, their own kind of security to the inmates.",
+          "supporting_context_sha256": "fb3d56c0c1f5b49bca352c807c86824b1f7dbc478a2050eef506a4abe15a8822",
+          "title": "Margaret Thatcher, Statecraft: Strategies for a Changing World (2002), chapter “Asian Values”, section “Political Crises and Prospects”, p. 123.",
+          "url": "",
+          "wording_match_kind": "exact"
+        }
+      ]
+    },
     "16c1d05225fe1d45d7ab950a5c54d39b70ef9453718a8678f405195d4af6969f": {
       "quote_id": "16c1d05225fe1d45d7ab950a5c54d39b70ef9453718a8678f405195d4af6969f",
       "quote_text": "The risk is that community comes to mean collective; collective comes to mean State; and thus the State expands to replace individual effort with subsidised activism.",
@@ -2592,6 +2676,49 @@
         }
       ]
     },
+    "20261fbbf96a0965781b24545408120b8a447106849c0879194d6d653a9d0ba4": {
+      "quote_id": "20261fbbf96a0965781b24545408120b8a447106849c0879194d6d653a9d0ba4",
+      "quote_text": "It was the crushing of human personality which Communism embodied that has left so many in the former communist countries unwilling and even unable to shoulder responsibility for their own lives.",
+      "quote_text_sha256": "20261fbbf96a0965781b24545408120b8a447106849c0879194d6d653a9d0ba4",
+      "sources": [
+        {
+          "assigned_roles": [
+            "wording_verification",
+            "attribution_support",
+            "source_event_support",
+            "historical_context_support"
+          ],
+          "author_or_speaker": "Margaret Thatcher",
+          "canonical_url": "https://www.margaretthatcher.org/document/108324",
+          "claims_supported": [
+            "wording",
+            "attribution",
+            "source_event",
+            "date",
+            "historical_context"
+          ],
+          "evidence_origin": "independently_reviewed_public_retrieval",
+          "exact_supporting_passage": "Indeed much of the evil which still stalks the world was planted and cultivated first by Communism. It was the crushing of human personality which Communism embodied that has left so many in the former communist countries unwilling and even unable to shoulder responsibility for their own lives.",
+          "exact_supporting_passage_sha256": "06c95fe7ce4d9186b03b07fbf17dceedba4e37bdaeff49d3149e890c5157d3dd",
+          "page_independently_inspected": true,
+          "page_sha256": "0f8787700643649a19741e4657d3329e156dac57bb9bb256b15f3cb287d30719",
+          "rationale": "Codex inspected the saved source and its surrounding text and bibliographic metadata. Wording, attribution, date/occasion and the stated context are supported by the retained evidence checks. This records no human publication approval or independent verification against audio.",
+          "recorded_at": "2026-09-18",
+          "source_date": "1993-11-05",
+          "source_event": "Speaking text for a speech to the National Press Club, Washington DC",
+          "source_id": "e926bdb93f18ec8ed6f9c199396b037885170d47254f6ed36fdac4dc4c602077",
+          "source_publisher": "Margaret Thatcher Foundation",
+          "source_quality_class": "strong_primary_evidence",
+          "source_type": "official_primary_transcript",
+          "stable_locator": "Margaret Thatcher Foundation document 108324; saved transcript paragraph 7",
+          "supporting_context": "1993 Nov 5 Fr\n\nSpeech to the National Press Club\n\n\n            Venue:\n            National Press Club, Washington DC\n          \n\n\n            Source:\n            Thatcher MSS (Churchill Archive Centre): THCR [speaking text]\n          \n\n1. The collapse of the Evil Empire is the greatest and best political development of my adult lifetime.\n\n\n\n2. The collapse of Communism does not mean automatic and inevitable success for democracy\n\n",
+          "supporting_context_sha256": "bda282fa05c878fe170a47897c80619fcb80c38b05cf406dc3523f7f81e86ec1",
+          "title": "Speech to the National Press Club",
+          "url": "https://www.margaretthatcher.org/document/108324",
+          "wording_match_kind": "exact"
+        }
+      ]
+    },
     "204869c6d40d2610b92dbcbff883303e72a7d1ae972b74d8c25d94b0ec61994d": {
       "quote_id": "204869c6d40d2610b92dbcbff883303e72a7d1ae972b74d8c25d94b0ec61994d",
       "quote_text": "The battle for women's rights has been largely won. The days when they were demanded and discussed in strident tones should be gone for ever. And I hope they are. I hated those strident tones that you still hear from some Women's Libbers.",
@@ -2780,6 +2907,49 @@
           "supporting_context_sha256": "ff86008d62627957e970b11a8bf5c5804a3550a9ac75d5993d106d94db544d61",
           "title": "Margaret Thatcher Foundation, Article for The Sun (\"The Britain I Want\"), 1979-05-02 (Document 104066)",
           "url": "https://www.margaretthatcher.org/document/104066",
+          "wording_match_kind": "exact"
+        }
+      ]
+    },
+    "22bf6d38d735ee82a3103d2dca4c2750df751c6303cbd37e034a57a98f0e11b2": {
+      "quote_id": "22bf6d38d735ee82a3103d2dca4c2750df751c6303cbd37e034a57a98f0e11b2",
+      "quote_text": "The free market disperses power throughout society — it's a kind of “economic democracy” — whereas socialism in all its forms concentrates power at the centre.",
+      "quote_text_sha256": "22bf6d38d735ee82a3103d2dca4c2750df751c6303cbd37e034a57a98f0e11b2",
+      "sources": [
+        {
+          "assigned_roles": [
+            "wording_verification",
+            "attribution_support",
+            "source_event_support",
+            "historical_context_support"
+          ],
+          "author_or_speaker": "Margaret Thatcher",
+          "canonical_url": "https://www.margaretthatcher.org/document/108378",
+          "claims_supported": [
+            "wording",
+            "attribution",
+            "source_event",
+            "date",
+            "historical_context"
+          ],
+          "evidence_origin": "independently_reviewed_public_retrieval",
+          "exact_supporting_passage": "But let me insist on an important point. The difference between the collectivist, state-planned system and the liberal, free enterprise one is not just a matter of economics. It's also a matter of power. The free market disperses power throughout society — it's a kind of “economic democracy” — whereas socialism in all its forms concentrates power at the centre.",
+          "exact_supporting_passage_sha256": "15b889c85a9eeb4eb7fdf04bb19447afdad6fe7457bbed3ed04b4e09c8e4920f",
+          "page_independently_inspected": true,
+          "page_sha256": "86a5e224926529203558586decf9d622b283f29e0cc28d141b397bd7f8ce443c",
+          "rationale": "Codex inspected the saved source and its surrounding text and bibliographic metadata. Wording, attribution, date/occasion and the stated context are supported by the retained evidence checks. This records no human publication approval or independent verification against audio.",
+          "recorded_at": "2026-09-18",
+          "source_date": "1998-09-16",
+          "source_event": "Speech in Zagreb, Croatia",
+          "source_id": "a05793db330099c9f270dcca84a0bcfc6c70495646effc02f6dbed5770c0538b",
+          "source_publisher": "Margaret Thatcher Foundation",
+          "source_quality_class": "strong_primary_evidence",
+          "source_type": "official_primary_transcript",
+          "stable_locator": "Margaret Thatcher Foundation document 108378; saved transcript paragraph 18",
+          "supporting_context": "1998 Sep 16 We\n\nSpeech in Zagreb\n\n\n            Venue:\n            Zagreb, Croatia\n          \n\n\n            Source:\n            Thatcher MSS (Churchill Archive Centre): THCR\n          \n\nNor is free enterprise capitalism a free-for-all. This is not always fully understood in countries which are trying to make the difficult transition from socialism to capitalism. A properly functioning market economy must always be governed by clear rules of competition and there must be effective safeguards for investors. Capitalism cannot, in fact, operate without a strong administration to police the laws that provide its framework. And it cannot succeed without honesty. Racketeers, blackmarketeers and smugglers are not entrepreneurs — they are just plain criminals. Corruption and gangsterism are scourges which afflict many newly developing economies and states. They should be ruthlessly and fearlessly expunged. Otherwise not just the free market but freedom itself is in peril.\n\n",
+          "supporting_context_sha256": "3002574d7d9c44aaf677893d143b6e7070f2ff2f55f4b5f2b05e16bf6de8d431",
+          "title": "Speech in Zagreb",
+          "url": "https://www.margaretthatcher.org/document/108378",
           "wording_match_kind": "exact"
         }
       ]
@@ -3987,6 +4157,49 @@
           "supporting_context_sha256": "def5c21f55d2e11c6113bb6fd91cd060724bd2437258e6aca1b7f5f0b7e7629f",
           "title": "Margaret Thatcher Foundation, Speech to United Nations General Assembly (Global Environment), 1989-11-08 (Document 107817)",
           "url": "https://www.margaretthatcher.org/document/107817",
+          "wording_match_kind": "exact"
+        }
+      ]
+    },
+    "3451254a76a4e6f4d4e76d7ab0b05713b3568338ba6534251804d9c5632533ba": {
+      "quote_id": "3451254a76a4e6f4d4e76d7ab0b05713b3568338ba6534251804d9c5632533ba",
+      "quote_text": "From quite early on, communism could only be sustained in power by force and by the vested interests of the elite.",
+      "quote_text_sha256": "3451254a76a4e6f4d4e76d7ab0b05713b3568338ba6534251804d9c5632533ba",
+      "sources": [
+        {
+          "assigned_roles": [
+            "wording_verification",
+            "attribution_support",
+            "source_event_support",
+            "historical_context_support"
+          ],
+          "author_or_speaker": "Margaret Thatcher",
+          "canonical_url": "https://www.margaretthatcher.org/document/108368",
+          "claims_supported": [
+            "wording",
+            "attribution",
+            "source_event",
+            "date",
+            "historical_context"
+          ],
+          "evidence_origin": "independently_reviewed_public_retrieval",
+          "exact_supporting_passage": "Communism and socialism were always beset by fundamental, inherent weaknesses, which became more evident as time went by. Their system failed to mobilise talent and create wealth, failed to conform to the basic human impulses to provide for one's family and to express one's nationhood, and so ultimately failed to engage the loyalties of the system's subjects. From quite early on, communism could only be sustained in power by force and by the vested interests of the elite. And when faced with a resurgent capitalist West it crumbled. All that is true. But it is not the whole truth. \n\n\n\n",
+          "exact_supporting_passage_sha256": "c7d493b9882dd019e5dc6a53ea8e6f42aea29f5ce29a581d9b1fe9adc49255d7",
+          "page_independently_inspected": true,
+          "page_sha256": "127fb1aa8089234d338374c2bf0ef98d659adf4082d1d8f05a00f9d5950be1ed",
+          "rationale": "Codex inspected the saved source and its surrounding text and bibliographic metadata. Wording, attribution, date/occasion and the stated context are supported by the retained evidence checks. This records no human publication approval or independent verification against audio.",
+          "recorded_at": "2026-09-18",
+          "source_date": "1996-11-22",
+          "source_event": "Nicholas Ridley Memorial Lecture",
+          "source_id": "70a389c0cfcf5251dba55d0fdf1a15df2a6f5f5e244d407d4e27c4e6d4fba3fb",
+          "source_publisher": "Margaret Thatcher Foundation",
+          "source_quality_class": "strong_primary_evidence",
+          "source_type": "official_primary_transcript",
+          "stable_locator": "Margaret Thatcher Foundation document 108368, paragraph 54; Margaret Thatcher, The Collected Speeches of Margaret Thatcher, edited by Robin Harris, p. 636 (retained PDF page 658).",
+          "supporting_context": "Socialism Now–and why it is still a threat\n\nCommunism and socialism were always beset by fundamental, inherent weaknesses, which became more evident as time went by. Their system failed to mobilise talent and create wealth, failed to conform to the basic human impulses to provide for one's family and to express one's nationhood, and so ultimately failed to engage the loyalties of the system's subjects. From quite early on, communism could only be sustained in power by force and by the vested interests of the elite. And when faced with a resurgent capitalist West it crumbled. All that is true. But it is not the whole truth. \n\n\n\n\n\nSocialism in the broader sense–that is, not as defined by Clause 4 of the old Labour Party Constitution or the dogma of Marx, but as a system of pervasive state control and influence over people's lives–that socialism, corresponds to an ever-present weakness in human nature. \n\n\n\n",
+          "supporting_context_sha256": "ff7aec5eae5c1bf3a0baf4b8e7a356c3a2edcd22b6844528e96202384ea724a1",
+          "title": "Nicholas Ridley Memorial Lecture",
+          "url": "https://www.margaretthatcher.org/document/108368",
           "wording_match_kind": "exact"
         }
       ]
@@ -9003,6 +9216,49 @@
         }
       ]
     },
+    "6fa969435d7e1ae1567c7134499b7d3c1fb6dbf7a08cb192b9a38c3a15b838d5": {
+      "quote_id": "6fa969435d7e1ae1567c7134499b7d3c1fb6dbf7a08cb192b9a38c3a15b838d5",
+      "quote_text": "The Socialist immediately thinks of solving a problem by Government taking power and property and keeping it, and not by helping people to solve the problem by themselves and then handing back property.",
+      "quote_text_sha256": "6fa969435d7e1ae1567c7134499b7d3c1fb6dbf7a08cb192b9a38c3a15b838d5",
+      "sources": [
+        {
+          "assigned_roles": [
+            "wording_verification",
+            "attribution_support",
+            "source_event_support",
+            "historical_context_support"
+          ],
+          "author_or_speaker": "Margaret Thatcher",
+          "canonical_url": "https://www.margaretthatcher.org/document/102360",
+          "claims_supported": [
+            "wording",
+            "attribution",
+            "source_event",
+            "date",
+            "historical_context"
+          ],
+          "evidence_origin": "independently_reviewed_public_retrieval",
+          "exact_supporting_passage": "The truth is that the right hon. Gentleman welcomes the power of compulsion. He likes central direction. The Socialist immediately thinks of solving a problem by Government taking power and property and keeping it, and not by helping people to solve the problem by themselves and then handing back property.",
+          "exact_supporting_passage_sha256": "ebd9e241e650b53c217989965dda999539756524d395b4e658cbaa142fba30cf",
+          "page_independently_inspected": true,
+          "page_sha256": "3b610818a7594f8fd4953809e0e72ed72400a659856e3faa690bf1ab35ea6ddf",
+          "rationale": "Codex inspected the saved source and its surrounding text and bibliographic metadata. Wording, attribution, date/occasion and the stated context are supported by the retained evidence checks. This records no human publication approval or independent verification against audio.",
+          "recorded_at": "2026-09-18",
+          "source_date": "1974-05-06",
+          "source_event": "House of Commons second reading of the Housing Bill",
+          "source_id": "f6324ed72fd4d961507d6350401b9a8df7fef3a773e580e60e2dc76b50d2eea0",
+          "source_publisher": "Margaret Thatcher Foundation",
+          "source_quality_class": "strong_primary_evidence",
+          "source_type": "official_primary_transcript",
+          "stable_locator": "Margaret Thatcher Foundation document 102360; saved transcript paragraph 25",
+          "supporting_context": "1974 May 6 Mo\n\nHC S 2R [Housing Bill]\n\n\n            Venue:\n            House of Commons\n          \n\n\n            Source:\n            Hansard HC [873/56-68]\n          \n\nWe there have central control, direction, nationalisation, and municipalisation. There is the whole lot, one after another. I took the phrases out of the right hon. Gentleman's outline of policy and put them together. I believe that it was because the right hon. Gentleman's party had embarked on such a policy—and they would have introduced it if they could have done so—that they attracted fewer votes in the General Election than the Conservative Party. The right hon. Gentleman cannot argue that his party did not receive fewer votes. That happened because the policies to which I have just referred are not generally wanted by the people. Perhaps the Labour Party would have done better in the London borough elections but for similar reasons.\n\n\n\n\n            Editorial comments:\n            1637-1711.\n          ",
+          "supporting_context_sha256": "f66be51df074f3a57ac321804f2b9255086b5edac5d982bde77ec93687986331",
+          "title": "HC S 2R [Housing Bill]",
+          "url": "https://www.margaretthatcher.org/document/102360",
+          "wording_match_kind": "exact"
+        }
+      ]
+    },
     "7066fdf6027a1cbdc45dad3ef5cd95d0ee67a6500e519480b3a0814a266dc428": {
       "quote_id": "7066fdf6027a1cbdc45dad3ef5cd95d0ee67a6500e519480b3a0814a266dc428",
       "quote_text": "We're leaving Downing Street for the last time after eleven-and-a-half wonderful years, and we're very happy that we leave the United Kingdom in a very, very much better state than when we came here eleven and a half years ago.",
@@ -9818,6 +10074,49 @@
           "supporting_context_sha256": "f4dfd827a93a9c546d252f1906f544b63e604cd0cff3b67f8ea40e77a45e5377",
           "title": "Margaret Thatcher Foundation, Speech to Grantham Conservatives, 1977-03-04 (Document 103329)",
           "url": "https://www.margaretthatcher.org/document/103329",
+          "wording_match_kind": "exact"
+        }
+      ]
+    },
+    "7b80b46a6b0b1bfa59f8acc9858cb2baa984f25675daa3e1da23e06a6397ce5c": {
+      "quote_id": "7b80b46a6b0b1bfa59f8acc9858cb2baa984f25675daa3e1da23e06a6397ce5c",
+      "quote_text": "All round the world Socialists are abandoning their dogma because they know that it does not work and brings neither prosperity nor dignity.",
+      "quote_text_sha256": "7b80b46a6b0b1bfa59f8acc9858cb2baa984f25675daa3e1da23e06a6397ce5c",
+      "sources": [
+        {
+          "assigned_roles": [
+            "wording_verification",
+            "attribution_support",
+            "source_event_support",
+            "historical_context_support"
+          ],
+          "author_or_speaker": "Margaret Thatcher",
+          "canonical_url": "https://www.margaretthatcher.org/document/107406",
+          "claims_supported": [
+            "wording",
+            "attribution",
+            "source_event",
+            "date",
+            "historical_context"
+          ],
+          "evidence_origin": "independently_reviewed_public_retrieval",
+          "exact_supporting_passage": "I am grateful to my hon. Friend. All round the world Socialists are abandoning their dogma because they know that it does not work and brings neither prosperity nor dignity. The only Socialist party that is to the far Left of the Communist party is the one that sits opposite.",
+          "exact_supporting_passage_sha256": "e1730a8950313e039177328b9e73346ae63b17f9e7b5c4986e5fe294c95c37d7",
+          "page_independently_inspected": true,
+          "page_sha256": "e64ca4b85975cab5b60560c08390dc6c93166f6c35ab70cdd45741d43a01c206",
+          "rationale": "Codex inspected the saved source and its surrounding text and bibliographic metadata. Wording, attribution, date/occasion and the stated context are supported by the retained evidence checks. This records no human publication approval or independent verification against audio.",
+          "recorded_at": "2026-09-18",
+          "source_date": "1988-12-06",
+          "source_event": "Prime Minister’s Questions, House of Commons",
+          "source_id": "d959a93bb08adae5791489b6745a8268f958bfd5f6f6f64ae54ed802a568d32e",
+          "source_publisher": "Margaret Thatcher Foundation",
+          "source_quality_class": "strong_primary_evidence",
+          "source_type": "official_primary_transcript",
+          "stable_locator": "Margaret Thatcher Foundation document 107406; saved transcript paragraph 64",
+          "supporting_context": "1988 Dec 6 Tu\n\nHouse of Commons PQs\n\n\n            Venue:\n            House of Commons\n          \n\n\n            Source:\n            Hansard HC [143/167-72]\n          \n\nMr. Knapman\n\nIn the course of her busy day, will my right hon. Friend consider a recent report that appeared in Pravda and was reprinted this morning in the Financial Times, which states that over the past nine years my right hon. Friend has lifted the country out of its depressed state, privatised ailing industries and sacked incompetent people? Does she agree that the journalists of Pravda are more likely to grasp reality than Members of the Opposition parties in this House?\n\n\n            Editorial comments:\n            1515-1530.\n          ",
+          "supporting_context_sha256": "5055f0d2ee83805e0020c789691770a425d224ffe83453e037e7132fcd3cce98",
+          "title": "House of Commons PQs",
+          "url": "https://www.margaretthatcher.org/document/107406",
           "wording_match_kind": "exact"
         }
       ]
@@ -14460,6 +14759,92 @@
         }
       ]
     },
+    "ac97f0f2c96bc2da3d05d666a328a13c65e3479ad1e51bdf8ffc1b25f9a7ce21": {
+      "quote_id": "ac97f0f2c96bc2da3d05d666a328a13c65e3479ad1e51bdf8ffc1b25f9a7ce21",
+      "quote_text": "But Communism was only the extreme form of the socialist plague. Its failure was only the extreme failure of socialist doctrines throughout the world.",
+      "quote_text_sha256": "ac97f0f2c96bc2da3d05d666a328a13c65e3479ad1e51bdf8ffc1b25f9a7ce21",
+      "sources": [
+        {
+          "assigned_roles": [
+            "wording_verification",
+            "attribution_support",
+            "source_event_support",
+            "historical_context_support"
+          ],
+          "author_or_speaker": "Margaret Thatcher",
+          "canonical_url": "https://www.margaretthatcher.org/document/108282",
+          "claims_supported": [
+            "wording",
+            "attribution",
+            "source_event",
+            "date",
+            "historical_context"
+          ],
+          "evidence_origin": "independently_reviewed_public_retrieval",
+          "exact_supporting_passage": "But Communism was only the extreme form of the socialist plague. Its failure was only the extreme failure of socialist doctrines throughout the world.",
+          "exact_supporting_passage_sha256": "ac97f0f2c96bc2da3d05d666a328a13c65e3479ad1e51bdf8ffc1b25f9a7ce21",
+          "page_independently_inspected": true,
+          "page_sha256": "9378a7bcbf13073e5782c004b0baf5828574a2907098e5ff8d04994285e96b5a",
+          "rationale": "Codex inspected the saved source and its surrounding text and bibliographic metadata. Wording, attribution, date/occasion and the stated context are supported by the retained evidence checks. This records no human publication approval or independent verification against audio.",
+          "recorded_at": "2026-09-18",
+          "source_date": "1991-09-23",
+          "source_event": "First Clare Booth Luce Lecture, Washington DC",
+          "source_id": "ee1f5cc88814f548b54f9ab087fef2ae3b2746824398520a6df679afef585955",
+          "source_publisher": "Margaret Thatcher Foundation",
+          "source_quality_class": "strong_primary_evidence",
+          "source_type": "official_primary_transcript",
+          "stable_locator": "Margaret Thatcher Foundation document 108282; saved transcript paragraphs 37, 38",
+          "supporting_context": "1991 Sep 23 Mo\n\nFirst Clare Booth Luce Lecture\n\n\n            Venue:\n            Washington DC\n          \n\n\n            Source:\n            Thatcher MSS (Churchill Archive Centre): THCR\n          \n\nThe ruins of Marxist Communism in eastern Europe and the Soviet Union testify most eloquently to that.\n\n\n\nAnd in its downfall it has pulled down the neighbouring houses of socialism too.\n\n\n\nThis has opened up enormous opportunities for the next stage of conservatism in all our countries.",
+          "supporting_context_sha256": "112987ac298905bf4fae30be2ba692ed7a36bcd00a67a1ff2b930f31705a143f",
+          "title": "First Clare Booth Luce Lecture",
+          "url": "https://www.margaretthatcher.org/document/108282",
+          "wording_match_kind": "exact"
+        }
+      ]
+    },
+    "ae60e330e5d9ee1d250ccf5ce6735a55b8c472e9e2df590561d65a91fc26cf9f": {
+      "quote_id": "ae60e330e5d9ee1d250ccf5ce6735a55b8c472e9e2df590561d65a91fc26cf9f",
+      "quote_text": "For decades Socialists have extended their power until they control almost half the world's population. How has the theory worked out in practice? Disastrously. Wherever they have imposed their heavy hand, people are worse off and less free.",
+      "quote_text_sha256": "ae60e330e5d9ee1d250ccf5ce6735a55b8c472e9e2df590561d65a91fc26cf9f",
+      "sources": [
+        {
+          "assigned_roles": [
+            "wording_verification",
+            "attribution_support",
+            "source_event_support",
+            "historical_context_support"
+          ],
+          "author_or_speaker": "Margaret Thatcher",
+          "canonical_url": "https://www.margaretthatcher.org/document/103411",
+          "claims_supported": [
+            "wording",
+            "attribution",
+            "source_event",
+            "date",
+            "historical_context"
+          ],
+          "evidence_origin": "independently_reviewed_public_retrieval",
+          "exact_supporting_passage": "But one obvious reason stands out. Socialists criticised imperfect human reality in the name of a theory. So long as socialism was only a theory, it made criticism of other ways easy for them. They could claim that their way was best. But now we are beyond the days of theory. For decades Socialists have extended their power until they control almost half the world's population. How has the theory worked out in practice? Disastrously. Wherever they have imposed their heavy hand, people are worse off and less free.\n\n",
+          "exact_supporting_passage_sha256": "d48b3034c79f8db5a34bf09f3a23030f4e70fcc78c2978b31046f84bab5f2658",
+          "page_independently_inspected": true,
+          "page_sha256": "9dea1a7b720b2cd33e1cea493d2b6c678319e3d0a0d89e10b73cfb41348630a4",
+          "rationale": "Codex inspected the saved source and its surrounding text and bibliographic metadata. Wording, attribution, date/occasion and the stated context are supported by the retained evidence checks. This records no human publication approval or independent verification against audio.",
+          "recorded_at": "2026-09-18",
+          "source_date": "1977-07-04",
+          "source_event": "Speech to Greater London Young Conservatives (Iain Macleod Memorial Lecture - \"Dimensions of Conservatism\")",
+          "source_id": "738126a32dd083c219af15632158cb35b8f8bacad0899c1dc1adbc1b7d5c9bf1",
+          "source_publisher": "Margaret Thatcher Foundation",
+          "source_quality_class": "strong_primary_evidence",
+          "source_type": "official_primary_transcript",
+          "stable_locator": "Margaret Thatcher Foundation document 103411, paragraph 67, transcript page 30; Margaret Thatcher, The Collected Speeches of Margaret Thatcher, edited by Robin Harris, p. 67 (retained PDF page 89).",
+          "supporting_context": "Why then, you may ask, did socialist thought make so much headway? It is not only a fair question but a vitally important one for us. There are many possible answers. [end p29] \n\n\n\nBut one obvious reason stands out. Socialists criticised imperfect human reality in the name of a theory. So long as socialism was only a theory, it made criticism of other ways easy for them. They could claim that their way was best. But now we are beyond the days of theory. For decades Socialists have extended their power until they control almost half the world's population. How has the theory worked out in practice? Disastrously. Wherever they have imposed their heavy hand, people are worse off and less free.\n\n\n\nA leading Labour Party ideologist, Baroness Wootton, recently said proudly that during her lifetime she was glad to see that one-third of the world's population had come to earn its daily bread under socialism. [end p30] \n\n",
+          "supporting_context_sha256": "7adecc38a1dd0e600e6355834b3304eb402b20c196c8fb9fefecdc62e1d0b5e8",
+          "title": "Speech to Greater London Young Conservatives (Iain Macleod Memorial Lecture - \"Dimensions of Conservatism\")",
+          "url": "https://www.margaretthatcher.org/document/103411",
+          "wording_match_kind": "exact"
+        }
+      ]
+    },
     "ae7bbee968417c001b510b96936b28dc3c1aa1ce05e42c0a6e2424bf1030ab2d": {
       "quote_id": "ae7bbee968417c001b510b96936b28dc3c1aa1ce05e42c0a6e2424bf1030ab2d",
       "quote_text": "The State has sucked industry dry to finance its own schemes. But only thriving and profitable industry will give us the money to make real improvements in health, education and pensions.",
@@ -15420,6 +15805,49 @@
           "supporting_context_sha256": "bfbd58c52c52f668a787ae4b45c5a9513877533971159508f098c703b07114e7",
           "title": "Margaret Thatcher Foundation, The James Bryce Lecture (\"Reason and Religion: The Moral Foundations of Freedom\"), 1996-09-24 (Document 108364)",
           "url": "https://www.margaretthatcher.org/document/108364",
+          "wording_match_kind": "exact"
+        }
+      ]
+    },
+    "bb6575b417f97b79775369e23e40bb90dc9f703eeed7164f88ccff1515f068a9": {
+      "quote_id": "bb6575b417f97b79775369e23e40bb90dc9f703eeed7164f88ccff1515f068a9",
+      "quote_text": "We knew that the Stalinist system would always produce misery and tyranny, but could never produce prosperity and dignity—and we said so.",
+      "quote_text_sha256": "bb6575b417f97b79775369e23e40bb90dc9f703eeed7164f88ccff1515f068a9",
+      "sources": [
+        {
+          "assigned_roles": [
+            "wording_verification",
+            "attribution_support",
+            "source_event_support",
+            "historical_context_support"
+          ],
+          "author_or_speaker": "Margaret Thatcher",
+          "canonical_url": "https://www.margaretthatcher.org/document/108264",
+          "claims_supported": [
+            "wording",
+            "attribution",
+            "source_event",
+            "date",
+            "historical_context"
+          ],
+          "evidence_origin": "independently_reviewed_public_retrieval",
+          "exact_supporting_passage": "We knew that communism was spiritually bankrupt—and we said so. We knew that the Stalinist system would always produce misery and tyranny, but could never produce prosperity and dignity—and we said so. [end p6] \n\n",
+          "exact_supporting_passage_sha256": "bf475a926f368841029826500e9b975df41ee86e77629377fcdc36adefb3059d",
+          "page_independently_inspected": true,
+          "page_sha256": "b45a77b1ae89264f8f1d4fbae51f160e07176d0da9a555d2653d080c9ad7551a",
+          "rationale": "Codex inspected the saved source and its surrounding text and bibliographic metadata. Wording, attribution, date/occasion and the stated context are supported by the retained evidence checks. This records no human publication approval or independent verification against audio.",
+          "recorded_at": "2026-09-18",
+          "source_date": "1991-03-08",
+          "source_event": "Speech at Hoover Institution Lunch",
+          "source_id": "8f38ea1e813d38329b059354c097321123a0634b3d1e476966cf1bff09f3361d",
+          "source_publisher": "Margaret Thatcher Foundation",
+          "source_quality_class": "strong_primary_evidence",
+          "source_type": "official_primary_transcript",
+          "stable_locator": "Margaret Thatcher Foundation document 108264, paragraph 29, transcript page 6; Margaret Thatcher, The Collected Speeches of Margaret Thatcher, edited by Robin Harris, p. 462 (retained PDF page 484).",
+          "supporting_context": "Mr Chairman, I freely acknowledge that socialists and statists often begin by finding injustices and wanting to remove them. But they go on to the notion that only state ownership and state regulation can solve such problems. You can only believe that by ignoring the lessons of history, the lessons of politics and the lessons of economics. After the experience of this century and the testimony of Eastern Europe, intellectual irresponsibility on this scale is also moral irresponsibility.\n\n\n\nWe knew that communism was spiritually bankrupt—and we said so. We knew that the Stalinist system would always produce misery and tyranny, but could never produce prosperity and dignity—and we said so. [end p6] \n\n\n\nWe knew that the “captive nations” under communism wanted and deserved to be free—and we said so. We even to dared use the phrase “captive nations” .\n\n",
+          "supporting_context_sha256": "7e8d76c12d37984d385e8491128240b2d1869dedab40ca33b7aa7235aa63bb59",
+          "title": "Speech at Hoover Institution Lunch",
+          "url": "https://www.margaretthatcher.org/document/108264",
           "wording_match_kind": "exact"
         }
       ]
@@ -18925,6 +19353,49 @@
         }
       ]
     },
+    "e875cd25a45a7b70d44e7b6785eeb8f8cc96f3caaf59fb3cfd9ff877c387828b": {
+      "quote_id": "e875cd25a45a7b70d44e7b6785eeb8f8cc96f3caaf59fb3cfd9ff877c387828b",
+      "quote_text": "Socialists oppose the widening of property ownership because it brings to every citizen a new independence and breaks down the old class divisions on which they thrive.",
+      "quote_text_sha256": "e875cd25a45a7b70d44e7b6785eeb8f8cc96f3caaf59fb3cfd9ff877c387828b",
+      "sources": [
+        {
+          "assigned_roles": [
+            "wording_verification",
+            "attribution_support",
+            "source_event_support",
+            "historical_context_support"
+          ],
+          "author_or_speaker": "Margaret Thatcher",
+          "canonical_url": "https://www.margaretthatcher.org/document/105732",
+          "claims_supported": [
+            "wording",
+            "attribution",
+            "source_event",
+            "date",
+            "historical_context"
+          ],
+          "evidence_origin": "independently_reviewed_public_retrieval",
+          "exact_supporting_passage": "We are well on course for the denationalisation of British Telecom and British Airways in the coming year. Most fundamental of all, three quarters of a million families are buying their own council houses—a policy which the Labour party opposed the whole way—freeing themselves from the control of town halls. Indeed, owner-occupation is at an all-time record. Socialists oppose the widening of property ownership because it brings to every citizen a new independence and breaks down the old class divisions on which they thrive. We seek a country where every earner can be an owner—a country which is utterly repugnant to Socialism—so that capital and labour have a shared interest and class divisions are a thing of the past.",
+          "exact_supporting_passage_sha256": "b72efed0742d71436d31f3c3bffdb0874c0fd6586e87c771d746cc06346af1b0",
+          "page_independently_inspected": true,
+          "page_sha256": "c685702f6126735e60a2831c9ae9d729019a6c8155b35190279faf58dd808810",
+          "rationale": "Codex inspected the saved source and its surrounding text and bibliographic metadata. Wording, attribution, date/occasion and the stated context are supported by the retained evidence checks. This records no human publication approval or independent verification against audio.",
+          "recorded_at": "2026-09-18",
+          "source_date": "1984-07-31",
+          "source_event": "House of Commons debate on no confidence in Government economic policy",
+          "source_id": "f44dbea80debaf357928103af9260e4dbf24d226a75c3fd1eb8c4b2394a5f2da",
+          "source_publisher": "Margaret Thatcher Foundation",
+          "source_quality_class": "strong_primary_evidence",
+          "source_type": "official_primary_transcript",
+          "stable_locator": "Margaret Thatcher Foundation document 105732; saved transcript paragraph 34",
+          "supporting_context": "1984 Jul 31 Tu\n\nHC S: [No confidence in Government economic policy]\n\n\n            Venue:\n            House of Commons\n          \n\n\n            Source:\n            Hansard HC [65/241-52]\n          \n\n\n            Editorial comments:\n            1659-1750. Audio of the speech is also available on this site.\n          ",
+          "supporting_context_sha256": "fc9e7927babd6ebf8d9f91aa34eb1de9a2effd65ee83a917e1b16221e60ff2b6",
+          "title": "HC S: [No confidence in Government economic policy]",
+          "url": "https://www.margaretthatcher.org/document/105732",
+          "wording_match_kind": "exact"
+        }
+      ]
+    },
     "e90f4a60edbc00c3e3126b604ade8e6aa4e452f45d17414b944babce64ccd609": {
       "quote_id": "e90f4a60edbc00c3e3126b604ade8e6aa4e452f45d17414b944babce64ccd609",
       "quote_text": "Socialists say \"Government aid\". What they mean is \"taxpayers' aid\".",
@@ -21279,7 +21750,7 @@
     }
   },
   "policy_version": "historical-context-curated-evidence-v3-archive-provenance",
-  "quote_count": 442,
+  "quote_count": 453,
   "schema_version": 3,
   "source_adjudication_count": 1,
   "source_adjudications": [
@@ -21298,5 +21769,5 @@
       "wording_coverage": "normalised"
     }
   ],
-  "source_count": 443
+  "source_count": 454
 }

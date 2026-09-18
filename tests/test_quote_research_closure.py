@@ -5,6 +5,8 @@ from pathlib import Path
 
 import pytest
 
+from tests.helpers.historical_corpus import RESEARCH_RELATIVE, historical_corpus_root
+
 import semantic_alignment.quote_research_closure as closure
 from semantic_alignment.quote_research_closure import (
     EXPECTED_UNRESOLVED, build_unresolved_dossier, corpus_closure_audit, offline_only,
@@ -37,16 +39,16 @@ def isolate_generated_closure_outputs(tmp_path, monkeypatch):
     assert {path: path.read_bytes() for path in output.iterdir() if path.is_file()} == before
 
 
-def test_exactly_six_unresolved_and_complete_partition():
-    audit = corpus_closure_audit(RUN, strict=True)
+def test_original_closure_has_five_unresolved_and_complete_partition(historical_corpus_root):
+    audit = corpus_closure_audit(historical_corpus_root / RESEARCH_RELATIVE, strict=True)
     assert audit["counts"] == {"manifest": 632, "completed": 627, "unresolved": 5}
     assert audit["checks"]["completed_and_unresolved_disjoint"]
     assert audit["checks"]["manifest_partition_complete"]
     assert audit["checks"]["no_duplicate_completed_ids"]
 
 
-def test_all_completed_packets_validate_and_keep_manifest_identity():
-    audit = corpus_closure_audit(RUN, strict=True)
+def test_all_completed_packets_validate_and_keep_manifest_identity(historical_corpus_root):
+    audit = corpus_closure_audit(historical_corpus_root / RESEARCH_RELATIVE, strict=True)
     assert audit["checks"]["all_packets_schema_valid"]
     assert audit["checks"]["all_packet_identities_immutable"]
     assert audit["schema_errors"] == []
@@ -62,8 +64,8 @@ def test_attempt_history_is_chronological_and_complete():
         assert timestamps == sorted(timestamps)
 
 
-def test_cost_ledgers_reconcile():
-    costs = corpus_closure_audit(RUN, strict=True)["costs"]
+def test_cost_ledgers_reconcile(historical_corpus_root):
+    costs = corpus_closure_audit(historical_corpus_root / RESEARCH_RELATIVE, strict=True)["costs"]
     assert costs["staged_recovery_known_spend_usd"] == pytest.approx(14.2083834)
     assert costs["staged_recovery_ambiguous_exposure_usd"] == pytest.approx(.146008)
     assert costs["all_discovered_ledgers_known_spend_usd"] == pytest.approx(

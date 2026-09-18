@@ -4,7 +4,12 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
-from historical_context_formatter import load_and_validate_corpus
+from historical_context_formatter import (
+    load_and_validate_corpus,
+    load_and_validate_corpus_core,
+    packet_is_attributed_to_margaret_thatcher,
+    quote_text_hash,
+)
 from historical_context_mtf_corpus_evidence_admission import SOURCE_RECORDS
 from historical_context_reply_semantic_gate import (
     load_historical_context_semantic_gate,
@@ -88,7 +93,8 @@ def test_reviewed_mtf_bindings_are_exact_and_claim_scoped() -> None:
         }
         assert "/disks/" not in json.dumps(source)
     assert (exact, variants) == (4, 6)
-    assert len(packets) == 627
+    manifest = _load(RESEARCH / "corpus_manifest.json")
+    assert set(packets) == {row["quote_id"] for row in manifest["records"]} - unresolved
     assert len(unresolved) == 5
 
 
@@ -136,7 +142,19 @@ def test_transition_preserves_runtime_and_uses_current_gate_partition() -> None:
         "transition_packets": 10,
     }
     assert set(transition["items"]) == set(SOURCE_RECORDS)
-    assert runtime["runtime_eligible_quote_count"] == 611
+    packets, _unresolved = load_and_validate_corpus_core(RESEARCH)
+    expected_ids = {
+        quote_id for quote_id, packet in packets.items()
+        if packet_is_attributed_to_margaret_thatcher(packet)
+    }
+    assert set(SOURCE_RECORDS) <= expected_ids
+    assert set(runtime["resolved_manifest_quote_ids"]) == expected_ids
+    assert len(runtime["resolved_manifest_quote_ids"]) == len(expected_ids)
+    assert runtime["runtime_eligible_quote_count"] == len(expected_ids)
+    assert len(runtime["runtime_eligible_quote_ids"]) == len(expected_ids)
+    assert set(runtime["runtime_eligible_quote_ids"]) == {
+        quote_text_hash(packets[quote_id]["quote_text"]) for quote_id in expected_ids
+    }
     assert gate.available is True
     assert len(gate.blocked_dispositions) == 13
     assert not set(SOURCE_RECORDS) & set(gate.blocked_dispositions)

@@ -10,6 +10,10 @@ from typing import Any
 import pytest
 
 import historical_context_transport_url_redaction_transition as transition
+from tests.helpers.historical_corpus import (
+    RESEARCH_RELATIVE,
+    historical_corpus_root,
+)
 
 
 SECRET_VALUE = "fixture-signature-value-must-not-survive"
@@ -1349,18 +1353,17 @@ def test_semantic_veto_provenance_successor_rejects_binding_drift(
         )
 
 
-def test_current_repository_uses_exact_source_pin_successor_only():
-    manifest = transition.ROOT / transition.MANIFEST_FILENAME
+def test_original_release_uses_exact_source_pin_successor_only(historical_corpus_root):
+    # This frozen transition describes a source-pin-only change to the old
+    # corpus; later approved quotation additions are a different transition.
+    manifest = historical_corpus_root / transition.MANIFEST_FILENAME
     assert _sha(manifest) == (
         "4a08dda2241ac9cef89659f68bf99b27307f9525cbfdf4aee5290b9788058180"
     )
     assert transition.load_and_validate_transition(
         manifest,
-        research_dir=(
-            transition.ROOT
-            / "semantic_alignment_research/quote_research_full_001"
-        ),
-        root=transition.ROOT,
+        research_dir=historical_corpus_root / RESEARCH_RELATIVE,
+        root=historical_corpus_root,
     )
 
 

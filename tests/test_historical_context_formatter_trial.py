@@ -25,7 +25,10 @@ from semantic_alignment.historical_context_formatter_trial import (
     strict_audit,
 )
 
-RESEARCH = Path("semantic_alignment_research/quote_research_full_001")
+from tests.helpers.historical_corpus import (
+    RESEARCH_RELATIVE,
+    historical_corpus_root,
+)
 V1_GOLDEN_OUTPUTS = {
     "00426881d2746c35657e8bb3103febb15cf13f2342bb65604a23a278b608064d": "12a7f59258368688c1c87e648c9868bc1b70f4ce6917a0df9f5e0ac518622fc9",
     "e28d24c49780a4d8a0c248097ee4962f941fdf1b2ec687a1bf52cddabc95995b": "2e0fe6193506d15aeaeda83a5024d6a19f5eec664686fb3b25733b9aca9325a1",
@@ -46,16 +49,18 @@ REVIEWED_MEANING_REASON_CHANGES = {
 
 
 @pytest.fixture(scope="module")
-def corpus():
+def corpus(historical_corpus_root):
     # Frozen formatter-trial fixtures predate the source-role audit. Keep this
     # corpus audit-free so the byte-parity assertions continue to exercise V2.
-    return v1.load_and_validate_corpus(RESEARCH, load_source_role_audit=False)
+    return v1.load_and_validate_corpus(
+        historical_corpus_root / RESEARCH_RELATIVE, load_source_role_audit=False,
+    )
 
 
 @pytest.fixture(scope="module")
-def prepared(tmp_path_factory):
+def prepared(tmp_path_factory, historical_corpus_root):
     output = tmp_path_factory.mktemp("formatter_trial") / "trial"
-    prepare_trial(RESEARCH, output, 50)
+    prepare_trial(historical_corpus_root / RESEARCH_RELATIVE, output, 50)
     return output
 
 
@@ -95,15 +100,18 @@ def test_production_v1_golden_outputs_are_byte_stable(corpus):
         assert hashlib.sha256(text.encode()).hexdigest() == expected
 
 
-def test_promoted_v2_matches_frozen_candidate_or_reviewed_correction(corpus):
+def test_promoted_v2_matches_frozen_candidate_or_reviewed_correction(
+    corpus, historical_corpus_root,
+):
     packets, _ = corpus
-    raw_packets, _raw_unresolved = v1.load_and_validate_corpus_core(RESEARCH)
+    research = historical_corpus_root / RESEARCH_RELATIVE
+    raw_packets, _raw_unresolved = v1.load_and_validate_corpus_core(research)
     frozen = read_json(
         Path("semantic_alignment_research/historical_context_formatter_trial_001")
         / "formatter_v2_candidate.json"
     )["items"]
     corrections = read_json(
-        RESEARCH / "historical_context_packet_corrections.json"
+        research / "historical_context_packet_corrections.json"
     )["items"]
     transition = read_json(
         Path("historical_context_v8_v9_transition_manifest.json")
@@ -118,10 +126,10 @@ def test_promoted_v2_matches_frozen_candidate_or_reviewed_correction(corpus):
         Path("historical_context_v9_mtf_live_context_transition_manifest.json")
     )["items"]
     source_role_audit = read_json(
-        RESEARCH / "historical_context_source_role_audit.json"
+        research / "historical_context_source_role_audit.json"
     )["items"]
     curated = read_json(
-        RESEARCH / "historical_context_source_curated_evidence.json"
+        research / "historical_context_source_curated_evidence.json"
     )["items"]
     independently_reviewed_ids = {
         quote_id
@@ -397,10 +405,10 @@ def test_strict_audit_detects_stored_render_tampering(prepared, tmp_path):
     assert not audit["passed"] and any("v2" in error for error in audit["errors"])
 
 
-def test_prepare_writes_only_requested_trial_directory(tmp_path):
+def test_prepare_writes_only_requested_trial_directory(tmp_path, historical_corpus_root):
     production = [Path("mrsMThatcher_state.json"), Path("historical_context_reply_history.json"), Path("historical_context_reply_receipt.json")]
     before = {str(path): path.read_bytes() if path.exists() else None for path in production}
-    prepare_trial(RESEARCH, tmp_path / "trial", 50)
+    prepare_trial(historical_corpus_root / RESEARCH_RELATIVE, tmp_path / "trial", 50)
     after = {str(path): path.read_bytes() if path.exists() else None for path in production}
     assert before == after
 

@@ -87,12 +87,16 @@ def test_uncertain_packet_remains_available_to_explicit_context_formatter() -> N
     assert "Verification: Exact wording not verified" in result["text"]
 
 
-def test_runtime_regular_post_gate_uses_all_611_attribution_eligible_quotes(
+def test_runtime_regular_post_gate_uses_exact_declared_eligible_quotes(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     _configure_runtime_eligibility_assets(monkeypatch)
     eligible = bot.completed_research_quote_hashes()
-    assert len(eligible) == 611
+    manifest = json.loads(RUNTIME_ELIGIBILITY_MANIFEST.read_text(encoding="utf-8"))
+    expected_ids = set(manifest["runtime_eligible_quote_ids"])
+    assert expected_ids
+    assert eligible == expected_ids
+    assert len(eligible) == manifest["runtime_eligible_quote_count"]
 
 
 def test_exact_65_withdrawn_wording_exclusions_are_restored(
@@ -138,14 +142,18 @@ def test_exact_65_withdrawn_wording_exclusions_are_restored(
     ).items())) == fixture["research_confidence_counts"]
 
 
-def test_restored_611_quote_cycle_histories_do_not_false_exhaust_or_write_receipts(
+def test_eligible_quote_cycle_histories_do_not_false_exhaust_or_write_receipts(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     _configure_runtime_eligibility_assets(monkeypatch)
     monkeypatch.setattr(bot, "QUOTE_ANALYSIS_FILE", ROOT / "quote_analysis.json")
     eligible = bot.completed_research_quote_hashes()
-    assert len(eligible) == 611
+    manifest = json.loads(RUNTIME_ELIGIBILITY_MANIFEST.read_text(encoding="utf-8"))
+    expected_ids = set(manifest["runtime_eligible_quote_ids"])
+    assert expected_ids
+    assert eligible == expected_ids
+    assert len(eligible) == manifest["runtime_eligible_quote_count"]
 
     history_path = tmp_path / "lines_used.json"
     bot.save_used_set(history_path, set())

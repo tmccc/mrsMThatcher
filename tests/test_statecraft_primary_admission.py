@@ -5,7 +5,11 @@ import hashlib
 import json
 from pathlib import Path
 
-from historical_context_formatter import load_and_validate_corpus
+from historical_context_formatter import (
+    load_and_validate_corpus,
+    packet_is_attributed_to_margaret_thatcher,
+    quote_text_hash,
+)
 from historical_context_reply_semantic_gate import (
     load_historical_context_semantic_gate,
 )
@@ -111,7 +115,10 @@ def test_reviewed_statecraft_bindings_are_exact_and_claim_scoped() -> None:
             packet["quote_text"].encode("utf-8")
         ).hexdigest() == quote_id
 
-    assert len(packets) == 627
+    manifest = _load(
+        "semantic_alignment_research/quote_research_full_001/corpus_manifest.json"
+    )
+    assert set(packets) == {row["quote_id"] for row in manifest["records"]} - unresolved
     assert len(unresolved) == 5
     assert not set(EXPECTED) & unresolved
 
@@ -160,10 +167,22 @@ def test_runtime_partition_and_context_gate_are_fail_closed() -> None:
         eligible_quote_ids=runtime_ids,
     )
 
-    assert len(packets) == 627
+    manifest = _load(
+        "semantic_alignment_research/quote_research_full_001/corpus_manifest.json"
+    )
+    assert set(packets) == {row["quote_id"] for row in manifest["records"]} - unresolved
     assert len(unresolved) == 5
-    assert runtime["runtime_eligible_quote_count"] == 611
-    assert len(runtime_ids) == 611
+    expected_ids = {
+        quote_id for quote_id, packet in packets.items()
+        if packet_is_attributed_to_margaret_thatcher(packet)
+    }
+    assert runtime_ids == expected_ids
+    assert len(runtime["resolved_manifest_quote_ids"]) == len(expected_ids)
+    assert runtime["runtime_eligible_quote_count"] == len(expected_ids)
+    assert len(runtime["runtime_eligible_quote_ids"]) == len(expected_ids)
+    assert set(runtime["runtime_eligible_quote_ids"]) == {
+        quote_text_hash(packets[quote_id]["quote_text"]) for quote_id in expected_ids
+    }
     assert set(EXPECTED) <= runtime_ids
     assert gate.available is True
     assert len(gate.blocked_dispositions) == 13

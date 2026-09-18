@@ -7,7 +7,6 @@ import json
 import re
 import shutil
 import socket
-from collections import Counter
 from pathlib import Path
 from typing import Any
 
@@ -32,6 +31,7 @@ from historical_context_source_roles import (
     public_source_identity_diagnostics,
     public_sources,
 )
+from tests.helpers.historical_corpus import historical_corpus_root
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -49,15 +49,15 @@ INTERNAL_COLLECTIONS = (
     "model_proposed_source_leads",
     "renderable_sources",
 )
-IMMUTABLE_HASHES = {
-    ROOT / "mrsMThatcher.txt": "10310a9d62c03a87f2c1e55fa10286d1413216b8c0cb34cb0dbe4b3c12f19bee",
-    ROOT / "quote_analysis.json": "e53b6e1448335c060f941ddd90cfb8035d12014b691ac93036f606832408d39a",
-    RESEARCH / "research_packets.json": "5a49c91fc93f0734fb04d8f641ec93a8810a6f0878c8d0546f086a15cf7a7d2e",
-    RESEARCH / "corpus_manifest.json": "81f6b2974c30d5810afc74c24704f5ee3d3868a6b2d94859cad2fa8cebce12da",
-    RESEARCH / "historical_context_source_role_audit.json": "ea2a7ce7e9b841da20aa6db7c48cc2e14666f9791d3e7398d349d5104b892e3f",
-    RESEARCH / "unresolved_quotes.json": "6acb4d2dede398f74e488902c62c672437db8721f6f75c9adebdf323889feb4f",
-    RESEARCH / "final_unresolved/final_research_status.json": "766f2bbb0c722d4dfc85a4b3fda1de9cf9c97e39a5311ab92196aa81a67c826e",
-}
+PROTECTED_INPUT_PATHS = (
+    ROOT / "mrsMThatcher.txt",
+    ROOT / "quote_analysis.json",
+    RESEARCH / "research_packets.json",
+    RESEARCH / "corpus_manifest.json",
+    RESEARCH / "historical_context_source_role_audit.json",
+    RESEARCH / "unresolved_quotes.json",
+    RESEARCH / "final_unresolved/final_research_status.json",
+)
 
 
 @pytest.fixture(scope="module")
@@ -1278,11 +1278,11 @@ def test_public_urls_are_raw_safe_and_never_nested(corpus, title, url, expected_
         assert lines[source_index + 1] == expected_url
 
 
-def test_full_corpus_public_render_has_no_source_defects(corpus):
-    source_distribution: Counter[int] = Counter()
-    eligible = 0
+def test_full_corpus_public_render_has_no_source_defects(corpus, raw_corpus):
+    assert corpus[0]
+    assert set(corpus[0]) == set(raw_corpus[0])
+    assert corpus[1] == raw_corpus[1]
     for quote_id, packet in corpus[0].items():
-        eligible += packet_is_attributed_to_margaret_thatcher(packet)
         rendered = format_context_reply_public(packet)
         diagnostics = public_source_identity_diagnostics(packet)
         assert rendered is not None, quote_id
@@ -1314,12 +1314,9 @@ def test_full_corpus_public_render_has_no_source_defects(corpus):
         assert len(urls) == len(set(urls)), quote_id
         assert len(documents) == len(set(documents)), quote_id
         assert len(display_entries) == len(set(display_entries)), quote_id
-        source_distribution[len(rendered["sources"])] += 1
-
-    assert len(corpus[0]) == 627
-    assert len(corpus[1]) == 5
-    assert eligible == 611
-    assert source_distribution == Counter({0: 91, 1: 507, 2: 26, 3: 3})
+        assert rendered["sources"] == [
+            group["public_source"] for group in diagnostics["groups"]
+        ], quote_id
 
 
 def test_audit_conflict_guard_detects_distinctions_before_ready_status():
@@ -1411,13 +1408,13 @@ def test_audit_allows_one_reviewed_primary_to_consolidate_same_document():
 def test_corpus_quote_eligibility_cycle_confidence_and_evidence_are_unchanged(
     corpus, raw_corpus
 ):
-    before_hashes = {path: _sha256(path) for path in IMMUTABLE_HASHES}
+    before_hashes = {path: _sha256(path) for path in PROTECTED_INPUT_PATHS}
     packets, unresolved = corpus
     raw_packets, raw_unresolved = raw_corpus
 
-    assert before_hashes == IMMUTABLE_HASHES
-    assert unresolved == raw_unresolved and len(unresolved) == 5
-    assert set(packets) == set(raw_packets) and len(packets) == 627
+    assert packets
+    assert unresolved == raw_unresolved
+    assert set(packets) == set(raw_packets)
     for quote_id, packet in packets.items():
         stripped = {key: value for key, value in packet.items() if key != "_source_role_audit"}
         assert stripped == raw_packets[quote_id]
@@ -1444,24 +1441,30 @@ def test_corpus_quote_eligibility_cycle_confidence_and_evidence_are_unchanged(
         runtime_manifest["runtime_quote_aliases"].get(quote_id, quote_id)
         for quote_id in runtime_ids
     }
-    assert len(eligible_ids) == 611
+    expected_eligible_ids = {
+        quote_id for quote_id, packet in raw_packets.items()
+        if packet_is_attributed_to_margaret_thatcher(packet)
+    }
+    assert eligible_ids == expected_eligible_ids
+    assert len(runtime_ids) == runtime_manifest["runtime_eligible_quote_count"]
     assert runtime_ids <= cycle_ids
     assert runtime_ids <= set(quote_analysis)
     assert resolved_runtime_ids == eligible_ids
     assert set(runtime_manifest["resolved_manifest_quote_ids"]) == eligible_ids
     assert not eligible_ids & unresolved
-    assert {path: _sha256(path) for path in IMMUTABLE_HASHES} == before_hashes
+    assert {path: _sha256(path) for path in PROTECTED_INPUT_PATHS} == before_hashes
 
 
 def test_isolated_full_corpus_audit_is_deterministic_and_offline(
-    tmp_path, monkeypatch, capsys
+    tmp_path, monkeypatch, capsys, historical_corpus_root
 ):
+    # This CLI's coverage contract belongs to the original research release.
     copied_research = tmp_path / "research"
     reference_root = tmp_path / "reference"
-    shutil.copytree(RESEARCH, copied_research)
+    shutil.copytree(historical_corpus_root / RESEARCH.relative_to(ROOT), copied_research)
     reference_root.mkdir()
-    shutil.copy2(ROOT / "mrsMThatcher.txt", reference_root / "mrsMThatcher.txt")
-    shutil.copy2(ROOT / "quote_analysis.json", reference_root / "quote_analysis.json")
+    shutil.copy2(historical_corpus_root / "mrsMThatcher.txt", reference_root / "mrsMThatcher.txt")
+    shutil.copy2(historical_corpus_root / "quote_analysis.json", reference_root / "quote_analysis.json")
     before = {
         "research": _tree_hashes(copied_research),
         "reference": _tree_hashes(reference_root),
@@ -1484,13 +1487,24 @@ def test_isolated_full_corpus_audit_is_deterministic_and_offline(
     ]) == 0
     capsys.readouterr()
     written = json.loads(output.read_text())
+    current_packets, current_unresolved = load_and_validate_corpus(
+        copied_research, require_source_role_audit=True
+    )
+    expected_eligible_ids = {
+        quote_id for quote_id, packet in current_packets.items()
+        if packet_is_attributed_to_margaret_thatcher(packet)
+    }
+    expected_public_source_count = sum(
+        len(public_sources(packet)) for packet in current_packets.values()
+    )
 
     assert written == built
+    assert set(written["items"]) == set(current_packets)
     assert written["ready"] is True
-    assert written["counts"]["completed_packet_count"] == 627
-    assert written["counts"]["unresolved_quote_count"] == 5
-    assert written["counts"]["attribution_eligible_quote_count"] == 611
-    assert written["counts"]["rendered_packet_count"] == 627
+    assert written["counts"]["completed_packet_count"] == len(current_packets)
+    assert written["counts"]["unresolved_quote_count"] == len(current_unresolved)
+    assert written["counts"]["attribution_eligible_quote_count"] == len(expected_eligible_ids)
+    assert written["counts"]["rendered_packet_count"] == len(current_packets)
     assert written["counts"]["blocking_item_violation_count"] == 0
     assert written["counts"]["invariant_violation_count"] == 0
     assert written["source_file_hashes"][
@@ -1508,7 +1522,7 @@ def test_isolated_full_corpus_audit_is_deterministic_and_offline(
         "duplicate_canonical_identity_group_count"
     ] == 423
     assert written["after_deduplication"] == {
-        "public_source_record_count": 568,
+        "public_source_record_count": expected_public_source_count,
         "packets_with_duplicate_source_identity": 0,
         "duplicate_canonical_identity_group_count": 0,
         "duplicate_canonical_url_group_count": 0,
@@ -1516,10 +1530,10 @@ def test_isolated_full_corpus_audit_is_deterministic_and_offline(
         "repeated_archive_document_number_group_count": 0,
         "public_source_role_leakage_count": 0,
         "markdown_link_count": 0,
-            "malformed_or_nested_url_count": 0,
-            "identity_conflict_count": 0,
-            "identical_public_entry_conflict_count": 0,
-        }
+        "malformed_or_nested_url_count": 0,
+        "identity_conflict_count": 0,
+        "identical_public_entry_conflict_count": 0,
+    }
     known = written["items"][KNOWN_107352_ID]
     assert known["internal_source_record_count"] == 3
     assert known["distinct_canonical_source_count"] == 1

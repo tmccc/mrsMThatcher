@@ -144,8 +144,12 @@ def test_runtime_loader_applies_104653_correction_after_audit_attachment():
 def test_core_loader_returns_validated_raw_corpus_without_context_sidecars():
     packets, unresolved = load_and_validate_corpus_core(RESEARCH_DIR)
 
-    assert len(packets) == 627
-    assert len(unresolved) == 5
+    raw_packets = json.loads((RESEARCH_DIR / "research_packets.json").read_text())["items"]
+    status = json.loads((RESEARCH_DIR / "final_unresolved/final_research_status.json").read_text())
+    assert packets and packets == raw_packets
+    assert unresolved == set(status["unresolved_quote_ids"])
+    assert len(packets) == status["completed_quotes"]
+    assert len(unresolved) == status["unresolved_quotes"]
     assert set(packets).isdisjoint(unresolved)
     assert "_source_role_audit" not in packets[QUOTE_ID]
     assert packets[QUOTE_ID]["intended_argument"] != CORRECTED_MEANING

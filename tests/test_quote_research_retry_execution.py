@@ -156,7 +156,14 @@ def test_recovery_meta_report_accounts_for_all_candidates(tmp_path, monkeypatch)
     result = write_recovery_stage_meta_report(PARENT)
     assert result["unique_candidates_targeted"] == 170
     assert result["unique_candidates_recovered"] + result["unique_candidates_unresolved"] == 170
-    assert result["final_packet_count"] + result["final_unresolved_count"] == 632
+    manifest_ids = {row["quote_id"] for row in read_json(PARENT / "corpus_manifest.json")["records"]}
+    completed_ids = set(read_json(PARENT / "research_packets.json")["items"])
+    unresolved_ids = set(read_json(PARENT / "permanent_failures.json")["items"])
+    assert completed_ids.isdisjoint(unresolved_ids)
+    assert completed_ids | unresolved_ids == manifest_ids
+    assert result["final_packet_count"] == len(completed_ids)
+    assert result["final_unresolved_count"] == len(unresolved_ids)
+    assert set(result["final_unresolved_quote_ids"]) == unresolved_ids
     assert all(path.read_bytes() == contents for path, contents in output_hashes.items())
 
 

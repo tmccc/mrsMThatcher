@@ -131,7 +131,13 @@ def test_real_gate_is_hash_bound_and_contains_exact_115_13_6_7_policy():
     assert gate.blocks(NEW_UNREVIEWED) is False
     assert gate.blocks(REMEDIATED_PRIMARY) is False
     assert gate.blocks(RESOLVED_104653) is False
-    assert len(eligible) == 611
+    current_records = json.loads((RESEARCH / "research_packets.json").read_text())["items"]
+    expected_eligible = {
+        quote_id for quote_id, packet in current_records.items()
+        if packet_is_attributed_to_margaret_thatcher(packet)
+    }
+    assert eligible == expected_eligible
+    assert set(gate.blocked_dispositions) <= eligible
     with pytest.raises(TypeError):
         gate.blocked_dispositions["f" * 64] = "future_correction_needed"  # type: ignore[index]
 
@@ -284,8 +290,12 @@ def test_gate_rejects_present_corrections_omitted_from_authoritative_hashes(
         require_source_role_audit=True,
         require_packet_corrections_hash_binding=True,
     )
-    assert len(packets) == 627
-    assert len(unresolved) == 5
+    expected_packets = json.loads((copied_research / "research_packets.json").read_text())["items"]
+    expected_unresolved = json.loads(
+        (copied_research / "final_unresolved/final_research_status.json").read_text()
+    )["unresolved_quote_ids"]
+    assert set(packets) == set(expected_packets)
+    assert set(unresolved) == set(expected_unresolved)
 
 
 def test_gate_closes_when_a_reviewed_allowed_current_render_drifts(

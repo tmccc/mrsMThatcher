@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import copy
 import hashlib
 import json
 from pathlib import Path
@@ -82,7 +83,7 @@ def test_current_runtime_eligibility_manifest_validates_without_context_sidecars
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    research, _runtime_manifest = _configure_core_fixture(
+    research, runtime_manifest = _configure_core_fixture(
         tmp_path,
         monkeypatch,
     )
@@ -91,7 +92,108 @@ def test_current_runtime_eligibility_manifest_validates_without_context_sidecars
     # exact eligibility manifest, not on context-only role/correction files.
     assert not (research / "historical_context_source_role_audit.json").exists()
     assert not (research / "historical_context_packet_corrections.json").exists()
-    assert len(bot.load_completed_research_quote_hashes()) == 611
+    expected_ids = set(
+        json.loads(runtime_manifest.read_text(encoding="utf-8"))[
+            "runtime_eligible_quote_ids"
+        ]
+    )
+    assert expected_ids
+    assert MISATTRIBUTED_QUOTE_ID not in expected_ids
+    assert bot.load_completed_research_quote_hashes() == expected_ids
+
+
+@pytest.mark.parametrize("addition_count", [1, 11])
+def test_corpus_growth_preserves_existing_ids_and_requires_new_eligibility(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    addition_count: int,
+) -> None:
+    research, runtime_path = _configure_core_fixture(tmp_path, monkeypatch)
+    packets_path = research / "research_packets.json"
+    corpus_path = research / "corpus_manifest.json"
+    status_path = research / "final_unresolved/final_research_status.json"
+    packets = json.loads(packets_path.read_text(encoding="utf-8"))
+    corpus = json.loads(corpus_path.read_text(encoding="utf-8"))
+    status = json.loads(status_path.read_text(encoding="utf-8"))
+    runtime = json.loads(runtime_path.read_text(encoding="utf-8"))
+    original_ids = bot.load_completed_research_quote_hashes()
+    original_packets = dict(packets["items"])
+    source = bot.LINES_FILE.read_text(encoding="utf-8")
+    original_line_count = len(source.splitlines())
+    if source and not source.endswith("\n"):
+        source += "\n"
+    added_ids: set[str] = set()
+
+    # Reuse a schema-valid packet only inside this temporary fixture. These
+    # invented strings test corpus growth; they are not historical quotations.
+    template = packets["items"][runtime["resolved_manifest_quote_ids"][0]]
+    for number in range(addition_count):
+        text = f"Synthetic offline corpus addition number {number + 1}."
+        quote_id = hashlib.sha256(text.encode("utf-8")).hexdigest()
+        assert quote_id not in packets["items"]
+        packet = copy.deepcopy(template)
+        packet.update(quote_id=quote_id, quote_text=text, verified_text=text)
+        packets["items"][quote_id] = packet
+        corpus["records"].append(
+            {
+                "quote_id": quote_id,
+                "quote_hash": quote_id,
+                "quote_text": text,
+                "source_occurrences": [
+                    {"line_number": original_line_count + number + 1}
+                ],
+                "duplicate_occurrence_count": 1,
+            }
+        )
+        source += text + "\n"
+        added_ids.add(quote_id)
+
+    bot.LINES_FILE.write_text(source, encoding="utf-8")
+    _write_json(packets_path, packets)
+    corpus["record_count"] = len(corpus["records"])
+    corpus["source_occurrence_count"] += addition_count
+    corpus.pop("manifest_sha256")
+    corpus["manifest_sha256"] = hashlib.sha256(
+        json.dumps(
+            corpus, sort_keys=True, separators=(",", ":"), ensure_ascii=False
+        ).encode("utf-8")
+    ).hexdigest()
+    _write_json(corpus_path, corpus)
+    status["total_manifest_quotes"] = corpus["record_count"]
+    _write_json(status_path, status)
+    _rehash_status(research)
+    runtime["runtime_eligible_quote_ids"] = sorted(original_ids | added_ids)
+    runtime["resolved_manifest_quote_ids"] = sorted(
+        set(runtime["resolved_manifest_quote_ids"]) | added_ids
+    )
+    runtime["runtime_eligible_quote_count"] = len(original_ids | added_ids)
+    runtime["source_record_count"] = len(
+        {bot.quote_text_hash(line) for line in source.splitlines() if line.strip()}
+    )
+    runtime["source_file_hashes"]["active_source"] = hashlib.sha256(
+        bot.LINES_FILE.read_bytes()
+    ).hexdigest()
+    runtime["source_file_hashes"]["completed_quote_research"] = hashlib.sha256(
+        packets_path.read_bytes()
+    ).hexdigest()
+    _write_json(runtime_path, runtime)
+
+    actual_ids = bot.load_completed_research_quote_hashes()
+    assert actual_ids == original_ids | added_ids
+    assert actual_ids - original_ids == added_ids
+    assert all(packets["items"][key] == value for key, value in original_packets.items())
+
+    # Correct counts and hashes cannot excuse omitting a newly eligible packet.
+    missing_id = sorted(added_ids)[0]
+    runtime["runtime_eligible_quote_ids"].remove(missing_id)
+    runtime["resolved_manifest_quote_ids"].remove(missing_id)
+    runtime["runtime_eligible_quote_count"] -= 1
+    _write_json(runtime_path, runtime)
+    with pytest.raises(
+        RuntimeError,
+        match="differs from the validated canonical attribution partition",
+    ):
+        bot.load_completed_research_quote_hashes()
 
 
 def test_packet_mutation_with_stale_runtime_manifest_fails_closed(

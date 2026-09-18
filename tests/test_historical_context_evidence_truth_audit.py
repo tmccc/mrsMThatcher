@@ -5,6 +5,10 @@ from pathlib import Path
 import pytest
 
 import historical_context_evidence_truth_audit as truth_audit
+from tests.helpers.historical_corpus import (
+    RESEARCH_RELATIVE,
+    historical_corpus_root,
+)
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -183,18 +187,25 @@ def test_exact_mtf_identity_uses_production_canonicalizer():
     }) == []
 
 
-def test_full_audit_correlates_history_and_corpus_without_mutating_inputs():
+def test_full_audit_correlates_history_and_corpus_without_mutating_inputs(
+    historical_corpus_root: Path,
+):
+    # The truth-audit implementation requires the original 627/611 batch;
+    # retain its coverage and claim-review baseline rather than imply growth.
+    research = historical_corpus_root / RESEARCH_RELATIVE
     protected = [
         HISTORY,
-        RESEARCH / "research_packets.json",
-        RESEARCH / "historical_context_source_role_audit.json",
-        RESEARCH / "historical_context_packet_corrections.json",
-        RESEARCH / "historical_context_source_curated_evidence.json",
-        ROOT / "mrsMThatcher.txt",
-        ROOT / "quote_analysis.json",
+        research / "research_packets.json",
+        research / "historical_context_source_role_audit.json",
+        research / "historical_context_packet_corrections.json",
+        research / "historical_context_source_curated_evidence.json",
+        historical_corpus_root / "mrsMThatcher.txt",
+        historical_corpus_root / "quote_analysis.json",
     ]
     before = {path: _sha256(path) for path in protected}
-    audit = truth_audit.build_audit(RESEARCH, HISTORY, reference_root=ROOT)
+    audit = truth_audit.build_audit(
+        research, HISTORY, reference_root=historical_corpus_root,
+    )
     after = {path: _sha256(path) for path in protected}
 
     assert before == after
@@ -404,11 +415,17 @@ def test_full_audit_correlates_history_and_corpus_without_mutating_inputs():
     assert approximate["public_document_numbers"] == ["104066"]
 
 
-def test_output_guard_and_deterministic_cli_artifact(tmp_path):
+def test_output_guard_and_deterministic_cli_artifact(
+    tmp_path, monkeypatch, historical_corpus_root: Path,
+):
+    research = historical_corpus_root / RESEARCH_RELATIVE
+    # This CLI has no reference-root option; bind its ancillary input paths to
+    # the same frozen corpus as its explicit --research-dir argument.
+    monkeypatch.setattr(truth_audit, "ROOT", historical_corpus_root)
     with pytest.raises(ValueError, match="immutable production inputs"):
         truth_audit._validated_output_path(
             HISTORY,
-            research_dir=RESEARCH,
+            research_dir=research,
             history_path=HISTORY,
             overwrite=False,
         )
@@ -417,14 +434,14 @@ def test_output_guard_and_deterministic_cli_artifact(tmp_path):
     with pytest.raises(ValueError, match="prior audit artifact"):
         truth_audit._validated_output_path(
             foreign,
-            research_dir=RESEARCH,
+            research_dir=research,
             history_path=HISTORY,
             overwrite=True,
         )
 
     first = tmp_path / "truth-audit.json"
     assert truth_audit.main([
-        "--research-dir", str(RESEARCH),
+        "--research-dir", str(research),
         "--history", str(HISTORY),
         "--output", str(first),
     ]) == 0
@@ -434,7 +451,7 @@ def test_output_guard_and_deterministic_cli_artifact(tmp_path):
     assert first_value["interpretation"]["automatic_evidence_rewrite_authorised"] is False
 
     assert truth_audit.main([
-        "--research-dir", str(RESEARCH),
+        "--research-dir", str(research),
         "--history", str(HISTORY),
         "--output", str(first),
         "--overwrite",

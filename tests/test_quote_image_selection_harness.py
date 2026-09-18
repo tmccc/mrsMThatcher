@@ -14,6 +14,7 @@ import pytest
 
 import quote_image_selection_harness as harness
 from semantic_alignment.quote_image_semantic_veto import ShadowRuntime
+from tests.helpers.historical_corpus import historical_corpus_root
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -166,16 +167,19 @@ def test_immutable_verification_does_not_compare_sanitised_config_to_full_source
     assert harness.verify_immutable_sources(run_dir) == {"checked": 0, "changed": [], "passed": True}
 
 
-def test_canonical_completed_corpus_is_exact_partition(tmp_path: Path) -> None:
+def test_canonical_completed_corpus_is_exact_partition(
+    tmp_path: Path, historical_corpus_root: Path,
+) -> None:
+    """The frozen selection experiment retains its original corpus partition."""
     snapshot = tmp_path / "snapshot"
     snapshot.mkdir()
     (snapshot / "research_packets.json").symlink_to(
-        ROOT / "semantic_alignment_research/quote_research_full_001/research_packets.json"
+        historical_corpus_root / "semantic_alignment_research/quote_research_full_001/research_packets.json"
     )
     (snapshot / "final_research_status.json").symlink_to(
-        ROOT / "semantic_alignment_research/quote_research_full_001/final_unresolved/final_research_status.json"
+        historical_corpus_root / "semantic_alignment_research/quote_research_full_001/final_unresolved/final_research_status.json"
     )
-    (snapshot / "mrsMThatcher.txt").symlink_to(ROOT / "mrsMThatcher.txt")
+    (snapshot / "mrsMThatcher.txt").symlink_to(historical_corpus_root / "mrsMThatcher.txt")
     lines, unresolved = harness.write_eligible_quotes(snapshot)
     quote_ids = {hashlib.sha256(line.encode()).hexdigest() for line in lines}
     assert len(lines) == len(quote_ids) == 611

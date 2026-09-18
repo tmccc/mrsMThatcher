@@ -10,6 +10,42 @@ import pytest
 import quote_attribution_cleanup as cleanup
 
 
+def _runtime_source_records(source: bytes) -> list[dict]:
+    """Read current UTF-8 quotations without the historical cleanup's ASCII restriction."""
+    return [
+        {
+            "physical_line": number,
+            "text": text,
+            "quote_id": cleanup.quote_id(text),
+            "exact_quote_id": hashlib.sha256(text.encode("utf-8")).hexdigest(),
+        }
+        for number, text in enumerate(source.decode("utf-8").splitlines(), 1)
+        if text.strip()
+    ]
+
+
+def _assert_current_analysis(source: bytes, analysis: dict, overrides: dict) -> None:
+    """Check complete identities and line mappings independently of corpus size."""
+    records = _runtime_source_records(source)
+    expected_lines: dict[str, list[int]] = {}
+    for row in records:
+        expected_lines.setdefault(row["quote_id"], []).append(row["physical_line"])
+    assert analysis["source"]["source_sha256"] == hashlib.sha256(source).hexdigest()
+    assert analysis["source"]["line_count"] == len(source.splitlines())
+    assert analysis["source"]["non_empty_quote_count"] == len(records)
+    assert analysis["source"]["unique_quote_count"] == len(expected_lines)
+    assert set(analysis["items"]) == set(expected_lines)
+    assert analysis["current_hashes"] == sorted(expected_lines)
+    assert analysis["line_index"] == {
+        str(row["physical_line"]): row["quote_id"] for row in records
+    }
+    for qid, lines in expected_lines.items():
+        assert analysis["items"][qid]["quote_hash"] == qid
+        assert analysis["items"][qid]["line_numbers"] == lines
+    for qid, override in overrides["quote_overrides"].items():
+        assert override["expected_line_numbers"] == expected_lines[qid]
+
+
 def _configure_runtime_eligibility_assets(
     monkeypatch: pytest.MonkeyPatch,
 ):
@@ -70,9 +106,7 @@ def test_ambiguous_target_mapping_fails_closed() -> None:
 
 
 def test_candidate_deletion_preserves_retained_bytes_order_and_newline() -> None:
-    before = (cleanup.DEFAULT_RUN / "mrsMThatcher_before.txt").read_bytes() if (
-        cleanup.DEFAULT_RUN / "mrsMThatcher_before.txt"
-    ).exists() else (cleanup.ROOT / cleanup.SOURCE_NAME).read_bytes()
+    before = (cleanup.DEFAULT_RUN / "mrsMThatcher_before.txt").read_bytes()
     rows = cleanup.load_attribution_targets(cleanup.DEFAULT_REMEDIATION)
     _, mapped = cleanup.map_targets(before, rows)
     after = cleanup.build_after_payload(before, mapped)
@@ -92,18 +126,18 @@ def test_atomic_write_replaces_complete_file(tmp_path: Path) -> None:
     assert not list(tmp_path.glob(".source.txt.*"))
 
 
-def test_current_reduced_source_or_before_snapshot_has_expected_identity_partition() -> None:
+def test_current_source_excludes_historical_attribution_removals() -> None:
     source = cleanup.ROOT / cleanup.SOURCE_NAME
-    ids = {row["quote_id"] for row in cleanup.source_records(source.read_bytes())}
+    ids = {row["quote_id"] for row in _runtime_source_records(source.read_bytes())}
     targets = {row["quote_id"] for row in cleanup.load_attribution_targets(cleanup.DEFAULT_REMEDIATION)}
-    assert len(ids) in {632, 619}
-    assert (len(ids & targets) == 13) if len(ids) == 632 else not (ids & targets)
+    assert ids
+    assert not (ids & targets)
 
 
 def test_five_unresolved_records_remain_source_retained_and_ineligible() -> None:
     status = cleanup.read_json(cleanup.RESEARCH_RUN / "final_unresolved/final_research_status.json")
     unresolved = set(status["unresolved_quote_ids"])
-    source_ids = {row["exact_quote_id"] for row in cleanup.source_records((cleanup.ROOT / cleanup.SOURCE_NAME).read_bytes())}
+    source_ids = {row["exact_quote_id"] for row in _runtime_source_records((cleanup.ROOT / cleanup.SOURCE_NAME).read_bytes())}
     contracts = cleanup.jsonl(cleanup.DEFAULT_REMEDIATION / "quote_contracts_v3.jsonl")
     confirmed = {row["quote_id"] for row in contracts if row.get("thatcher_attribution_status") == "confirmed_thatcher"}
     assert len(unresolved) == 5
@@ -112,7 +146,7 @@ def test_five_unresolved_records_remain_source_retained_and_ineligible() -> None
 
 
 def test_five_established_whitespace_aliases_are_preserved() -> None:
-    rows = cleanup.source_records((cleanup.ROOT / cleanup.SOURCE_NAME).read_bytes())
+    rows = _runtime_source_records((cleanup.ROOT / cleanup.SOURCE_NAME).read_bytes())
     contracts = cleanup.jsonl(cleanup.DEFAULT_REMEDIATION / "quote_contracts_v3.jsonl")
     confirmed = {row["quote_id"] for row in contracts if row.get("thatcher_attribution_status") == "confirmed_thatcher"}
     aliases = {
@@ -224,7 +258,7 @@ def test_completed_research_gate_excludes_all_attribution_ineligible_source_cand
     completed = bot.completed_research_quote_hashes()
     source_hashes = {
         bot.quote_text_hash(row["text"])
-        for row in cleanup.source_records((cleanup.ROOT / cleanup.SOURCE_NAME).read_bytes())
+        for row in _runtime_source_records((cleanup.ROOT / cleanup.SOURCE_NAME).read_bytes())
     }
     unresolved = set(
         cleanup.read_json(cleanup.RESEARCH_RUN / "final_unresolved/final_research_status.json")["unresolved_quote_ids"]
@@ -234,8 +268,7 @@ def test_completed_research_gate_excludes_all_attribution_ineligible_source_cand
         "cf7a03be1c6e34efbcfec0cc8010544e2deab777a05cb0193d237814244f5c8e",
         "8c70978a89ef43e405dbc7eb0bb9751d9dbe631d63d9834ccf3dfde51a4a971c",
     }
-    assert len(source_hashes & completed) == 611
-    assert len(source_hashes - completed) == 8
+    assert completed == source_hashes - unresolved - false_positive_ids
     assert unresolved | false_positive_ids == source_hashes - completed
 
 
@@ -246,7 +279,8 @@ def test_test_mode_research_gate_still_requires_complete_integrity_assets(
     bot = _configure_runtime_eligibility_assets(monkeypatch)
     monkeypatch.setattr(bot, "TEST_MODE", True)
 
-    assert len(bot.completed_research_quote_hashes()) == 611
+    manifest = cleanup.read_json(bot.RUNTIME_ELIGIBLE_QUOTE_MANIFEST_FILE)
+    assert bot.completed_research_quote_hashes() == set(manifest["runtime_eligible_quote_ids"])
     monkeypatch.setattr(
         bot,
         "RUNTIME_ELIGIBLE_QUOTE_MANIFEST_FILE",
@@ -286,13 +320,19 @@ def test_frozen_current_winner_manifest_covers_all_reduced_active_quotes() -> No
     assert {row["quote_id"] for row in rows if row["quote_id"] in active} == active
 
 
-def test_active_quote_analysis_migration_preserves_all_retained_analysis_payloads() -> None:
-    source = (cleanup.ROOT / cleanup.SOURCE_NAME).read_bytes()
-    original = cleanup.read_json(cleanup.ROOT / "quote_analysis.json")
-    tombstones = cleanup.read_json(
-        cleanup.DEFAULT_RUN / "deployment_candidate/attribution_exclusion_tombstones.json"
-    )
-    tombstone_ids = {row["quote_id"] for row in tombstones["records"]}
+def test_historical_analysis_migration_preserves_retained_payloads() -> None:
+    before = (cleanup.DEFAULT_RUN / "mrsMThatcher_before.txt").read_bytes()
+    targets = cleanup.load_attribution_targets(cleanup.DEFAULT_REMEDIATION)
+    records, mapped = cleanup.map_targets(before, targets)
+    source = cleanup.build_after_payload(before, mapped)
+    tombstone_ids = {row["quote_id"] for row in targets}
+    # The one-off migration has a fixed historical contract. Synthetic payloads
+    # exercise preservation without borrowing today's expanding analysis file.
+    original = {"items": {
+        row["quote_id"]: {"analysis": {"topics": [row["quote_id"]]},
+                          "line_numbers": [row["physical_line"]]}
+        for row in records
+    }}
     migrated, audit = cleanup.build_migrated_quote_analysis(source, original, tombstone_ids)
     current_ids = {row["quote_id"] for row in cleanup.source_records(source)}
     assert set(migrated["items"]) == current_ids
@@ -304,24 +344,44 @@ def test_active_quote_analysis_migration_preserves_all_retained_analysis_payload
         for qid in current_ids
     )
     assert audit["analysis_payloads_preserved"] == 619
+    assert set(audit["removed_analysis_ids"]) == tombstone_ids
 
 
 def test_live_quote_analysis_and_overrides_match_cleaned_line_map() -> None:
     source = (cleanup.ROOT / cleanup.SOURCE_NAME).read_bytes()
-    records = cleanup.source_records(source)
     analysis = cleanup.read_json(cleanup.ROOT / "quote_analysis.json")
     overrides = cleanup.read_json(cleanup.ROOT / "quote_analysis_overrides.json")
-    expected_lines: dict[str, list[int]] = {}
-    for row in records:
-        expected_lines.setdefault(row["quote_id"], []).append(row["physical_line"])
-    assert analysis["source"]["source_sha256"] == hashlib.sha256(source).hexdigest()
-    assert len(analysis["items"]) == 619
-    assert len(analysis["line_index"]) == 620
-    for qid, override in overrides["quote_overrides"].items():
-        assert override["expected_line_numbers"] == expected_lines[qid]
+    _assert_current_analysis(source, analysis, overrides)
 
 
-def test_prepared_v3_shadow_manifest_covers_current_cycle_fail_closed() -> None:
+@pytest.mark.parametrize("extra_quotes", [0, 1, 11])
+def test_current_analysis_checks_allow_growth_and_reject_mapping_drift(extra_quotes: int) -> None:
+    texts = ["First quotation.", "Second quotation.", "First quotation."]
+    texts += [f"Additional quotation {i} — with Unicode punctuation." for i in range(extra_quotes)]
+    source = ("\n".join(texts) + "\n").encode("utf-8")
+    hashes = [cleanup.quote_id(text) for text in texts]
+    analysis = {
+        "source": {"source_sha256": hashlib.sha256(source).hexdigest(),
+                   "line_count": len(texts), "non_empty_quote_count": len(texts),
+                   "unique_quote_count": len(set(hashes))},
+        "current_hashes": sorted(set(hashes)),
+        "items": {qid: {"quote_hash": qid, "line_numbers": [i for i, h in enumerate(hashes, 1) if h == qid]}
+                  for qid in hashes},
+        "line_index": {str(i): qid for i, qid in enumerate(hashes, 1)},
+    }
+    overrides = {"quote_overrides": {hashes[0]: {"expected_line_numbers": [1, 3]}}}
+    _assert_current_analysis(source, analysis, overrides)
+    # A same-size but wrong map must fail; a length-only assertion would pass.
+    analysis["line_index"]["2"] = hashes[0]
+    with pytest.raises(AssertionError):
+        _assert_current_analysis(source, analysis, overrides)
+    analysis["line_index"]["2"] = hashes[1]
+    analysis["items"].pop(hashes[-1])
+    with pytest.raises(AssertionError):
+        _assert_current_analysis(source, analysis, overrides)
+
+
+def test_prepared_v3_shadow_manifest_preserves_its_historical_coverage() -> None:
     path = cleanup.DEFAULT_RUN / "deployment_candidate/material_veto_v3_shadow_manifest.json"
     if not path.is_file():
         pytest.skip("digest021 v3 shadow candidate not prepared yet")
@@ -342,7 +402,8 @@ def test_prepared_v3_shadow_manifest_covers_current_cycle_fail_closed() -> None:
     runtime = ShadowRuntime.load(
         cleanup.ROOT,
         config,
-        verify_source_hashes=True,
+        # Inspect the frozen pair decisions independently of today's corpus.
+        verify_source_hashes=False,
         enable_history=False,
     )
     assert runtime.available is True
@@ -350,16 +411,24 @@ def test_prepared_v3_shadow_manifest_covers_current_cycle_fail_closed() -> None:
     eligibility = cleanup.read_json(
         cleanup.DEFAULT_RUN / "deployment_candidate/runtime_eligible_quote_manifest.json"
     )
-    expected_runtime_ids = set(eligibility["runtime_eligible_quote_ids"])
+    current_runtime_ids = set(eligibility["runtime_eligible_quote_ids"])
+    expected_runtime_ids = set(manifest["runtime_eligible_quote_ids"])
     runtime = ShadowRuntime.load(
         cleanup.ROOT,
         config,
-        verify_source_hashes=True,
+        verify_source_hashes=False,
         enable_history=False,
         expected_runtime_quote_ids=expected_runtime_ids,
     )
     assert runtime.available is True
     assert runtime.status == "allow"
+    if current_runtime_ids != expected_runtime_ids:
+        current = ShadowRuntime.load(
+            cleanup.ROOT, config, verify_source_hashes=True,
+            enable_history=False, expected_runtime_quote_ids=current_runtime_ids,
+        )
+        assert current.available is False
+        assert current.status == "manifest_stale"
     pair_quote_ids = {
         row["quote_id"]
         for row in [
@@ -388,7 +457,7 @@ def test_prepared_v3_shadow_manifest_covers_current_cycle_fail_closed() -> None:
     stale = ShadowRuntime.load(
         cleanup.ROOT,
         config,
-        verify_source_hashes=True,
+        verify_source_hashes=False,
         enable_history=False,
         expected_runtime_quote_ids=expected_runtime_ids - {next(iter(expected_runtime_ids))},
     )

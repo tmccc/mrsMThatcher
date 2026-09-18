@@ -11,6 +11,7 @@ import pytest
 from jsonschema import validate as validate_json_schema
 
 import reply_strategy as reply_strategy_module
+from historical_context_formatter import packet_is_attributed_to_margaret_thatcher
 from reply_evidence import EvidencePassage, EvidenceRepository
 from reply_strategy import (
     AIReply,
@@ -3157,7 +3158,14 @@ def test_v1_draft_audit_never_interprets_or_migrates_content(tmp_path: Path) -> 
 def test_real_repository_contains_only_authorised_completed_packets(
     real_repository: EvidenceRepository,
 ) -> None:
-    assert len(real_repository.packets) == 611
+    saved_packets = json.loads((RESEARCH / "research_packets.json").read_text())["items"]
+    expected_ids = {
+        quote_id for quote_id, packet in saved_packets.items()
+        if packet_is_attributed_to_margaret_thatcher(packet)
+    }
+    assert expected_ids
+    assert set(real_repository.packets) == expected_ids
+    assert real_repository.attribution_eligible_packet_count == len(expected_ids)
     assert len(real_repository.passages) > 7_000
     assert all(len(quote_id) == 64 for quote_id in real_repository.packets)
     assert all(len(evidence_id) == 64 for evidence_id in real_repository.passages)

@@ -6,6 +6,11 @@ from pathlib import Path
 
 import pytest
 
+from tests.helpers.historical_corpus import (
+    RESEARCH_RELATIVE,
+    historical_corpus_root,
+)
+
 from semantic_alignment.relation_aware_veto import (
     CONTRACT_FIELDS,
     CONTRACT_SCHEMA,
@@ -851,10 +856,11 @@ def test_transport_parity_rejects_setting_drift():
         require_transport_parity(developer, vertex, CONTRACT_SCHEMA, 10)
 
 
-def test_real_corpora_reconcile_without_unresolved_or_ineligible_images():
+def test_real_corpora_reconcile_without_unresolved_or_ineligible_images(historical_corpus_root):
     project = Path(__file__).resolve().parents[1]
+    # Reproduce the original relation-veto trial and its authorised image set.
     packets, metadata = load_completed_corpus(
-        project / "semantic_alignment_research/quote_research_full_001"
+        historical_corpus_root / RESEARCH_RELATIVE
     )
     images, image_metadata = load_image_corpus(
         project,

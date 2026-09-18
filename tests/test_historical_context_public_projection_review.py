@@ -7,6 +7,9 @@ from pathlib import Path
 
 import pytest
 
+import historical_context_public_projection_review as projection_review
+from tests.helpers.historical_corpus import RESEARCH_RELATIVE, historical_corpus_root
+
 from historical_context_public_projection_review import (
     B32_QUOTE_ID,
     CLEAN_EVENT_ONLY_CONTEXT,
@@ -32,8 +35,11 @@ from historical_context_public_projection_review import (
 
 
 @pytest.fixture(scope="module")
-def review():
-    return build_review()
+def review(historical_corpus_root):
+    """Review the original release with its exact source and gate bindings."""
+    with pytest.MonkeyPatch.context() as patch:
+        patch.setattr(projection_review, "ROOT", historical_corpus_root)
+        return build_review(historical_corpus_root / RESEARCH_RELATIVE)
 
 
 def test_projection_review_covers_all_72_cumulative_field_changes(review):
@@ -337,7 +343,13 @@ def test_projection_review_records_safe_outputs_and_non_promoting_hints(review):
     )
 
 
-def test_projection_review_cli_is_byte_deterministic(tmp_path, capsys):
+def test_projection_review_cli_is_byte_deterministic(
+    tmp_path, capsys, monkeypatch, historical_corpus_root,
+):
+    monkeypatch.setattr(projection_review, "ROOT", historical_corpus_root)
+    monkeypatch.setattr(
+        projection_review, "DEFAULT_RESEARCH_DIR", historical_corpus_root / RESEARCH_RELATIVE,
+    )
     first = tmp_path / "first" / "projection-review.json"
     second = tmp_path / "second" / "projection-review.json"
 

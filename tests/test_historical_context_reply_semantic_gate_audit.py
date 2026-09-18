@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+from functools import partial
 from pathlib import Path
 
 import pytest
@@ -10,21 +11,68 @@ import historical_context_reply_semantic_gate_audit as gate_audit_module
 from historical_context_reply_semantic_gate import HistoricalContextSemanticGate
 from historical_context_reply_semantic_gate_audit import (
     KNOWN_104653_QUOTE_ID,
-    build_audit,
     main,
 )
-
-
-ROOT = Path(__file__).resolve().parents[1]
-RESEARCH = ROOT / "semantic_alignment_research" / "quote_research_full_001"
+from tests.helpers.historical_corpus import (
+    RESEARCH_RELATIVE,
+    historical_corpus_root,
+)
 
 
 def _hash(path: Path) -> str:
     return hashlib.sha256(path.read_bytes()).hexdigest()
 
 
-def test_gate_audit_processes_every_packet_without_changing_regular_eligibility():
-    audit = build_audit()
+@pytest.fixture
+def historical_audit(
+    historical_corpus_root: Path,
+    monkeypatch: pytest.MonkeyPatch,
+):
+    """Run the frozen audit against its original, hash-bound corpus."""
+    research = historical_corpus_root / RESEARCH_RELATIVE
+    runtime_manifest = (
+        historical_corpus_root
+        / "semantic_alignment_research"
+        / "quote_attribution_cleanup_001"
+        / "deployment_candidate"
+        / "runtime_eligible_quote_manifest.json"
+    )
+    ledger = (
+        historical_corpus_root
+        / "historical_context_published_reply_semantic_review.json"
+    )
+    # The live gate deliberately pins the current ledger. This historical
+    # audit must pin its own ledger while retaining the real gate validator.
+    monkeypatch.setattr(
+        gate_audit_module,
+        "load_historical_context_semantic_gate",
+        partial(
+            gate_audit_module.load_historical_context_semantic_gate,
+            expected_ledger_sha256=_hash(ledger),
+        ),
+    )
+    builder = partial(
+        gate_audit_module.build_audit,
+        root=historical_corpus_root,
+        research_dir=research,
+        runtime_manifest_path=runtime_manifest,
+    )
+    monkeypatch.setattr(gate_audit_module, "build_audit", builder)
+    # The CLI accepts only an output path, so bind both its builder and its
+    # immutable-input guard to the same original inputs.
+    monkeypatch.setattr(gate_audit_module, "ROOT", historical_corpus_root)
+    monkeypatch.setattr(gate_audit_module, "DEFAULT_RESEARCH_DIR", research)
+    monkeypatch.setattr(gate_audit_module, "RUNTIME_ELIGIBLE_MANIFEST", runtime_manifest)
+    monkeypatch.setattr(gate_audit_module, "SEMANTIC_REVIEW_PATH", ledger)
+    return builder
+
+
+def test_gate_audit_processes_every_packet_without_changing_regular_eligibility(
+    historical_audit,
+):
+    # This offline audit enforces its original 627/611/5 batch in its own
+    # invariants. These expectations preserve that contract, not corpus growth.
+    audit = historical_audit()
 
     assert audit["coverage"]["completed_packet_count"] == 627
     assert audit["coverage"]["attribution_eligible_count"] == 611
@@ -45,8 +93,11 @@ def test_gate_audit_processes_every_packet_without_changing_regular_eligibility(
     assert all(audit["invariants"].values())
 
 
-def test_gate_audit_records_exact_suppressed_replies_and_allows_104653():
-    audit = build_audit()
+def test_gate_audit_records_exact_suppressed_replies_and_allows_104653(
+    historical_audit,
+):
+    # Exact review dispositions and coverage belong to the same original batch.
+    audit = historical_audit()
     records = audit["records"]
 
     assert len(records) == 627
@@ -81,15 +132,17 @@ def test_gate_audit_records_exact_suppressed_replies_and_allows_104653():
     assert known["otherwise_rendered_public_reply_suppressed"] == ""
 
 
-def test_gate_audit_cli_is_deterministic_and_does_not_mutate_inputs(tmp_path: Path):
+def test_gate_audit_cli_is_deterministic_and_does_not_mutate_inputs(
+    tmp_path: Path,
+    historical_corpus_root: Path,
+    historical_audit,
+):
+    research = historical_corpus_root / RESEARCH_RELATIVE
     protected = [
-        RESEARCH / "research_packets.json",
-        RESEARCH / "historical_context_source_role_audit.json",
-        ROOT / "historical_context_published_reply_semantic_review.json",
-        ROOT
-        / "tests"
-        / "fixtures"
-        / "historical_context_reply_history.reviewed.json",
+        research / "research_packets.json",
+        research / "historical_context_source_role_audit.json",
+        historical_corpus_root / "historical_context_published_reply_semantic_review.json",
+        historical_corpus_root / "historical_context_reply_history.json",
     ]
     before = {path: _hash(path) for path in protected}
     first = tmp_path / "historical_context_reply_semantic_gate_audit.first.json"
@@ -109,16 +162,18 @@ def test_gate_audit_cli_is_deterministic_and_does_not_mutate_inputs(tmp_path: Pa
     with pytest.raises(ValueError, match="immutable production input"):
         main([
             "--output",
-            str(RESEARCH / "research_packets.json"),
+            str(research / "research_packets.json"),
             "--overwrite",
         ])
 
 
 def test_gate_audit_rejects_runtime_ids_not_resolved_through_aliases(
     tmp_path: Path,
+    historical_corpus_root: Path,
+    historical_audit,
 ):
     source = (
-        ROOT
+        historical_corpus_root
         / "semantic_alignment_research"
         / "quote_attribution_cleanup_001"
         / "deployment_candidate"
@@ -132,15 +187,19 @@ def test_gate_audit_rejects_runtime_ids_not_resolved_through_aliases(
         encoding="utf-8",
     )
 
-    audit = build_audit(runtime_manifest_path=mutated)
+    audit = historical_audit(runtime_manifest_path=mutated)
 
     assert audit["invariants"]["runtime_cycle_membership_is_unchanged"] is False
     assert audit["invariant_failure_count"] == 1
 
 
-def test_gate_audit_binds_runtime_manifest_to_active_source_hash(tmp_path: Path):
+def test_gate_audit_binds_runtime_manifest_to_active_source_hash(
+    tmp_path: Path,
+    historical_corpus_root: Path,
+    historical_audit,
+):
     source = (
-        ROOT
+        historical_corpus_root
         / "semantic_alignment_research"
         / "quote_attribution_cleanup_001"
         / "deployment_candidate"
@@ -154,7 +213,7 @@ def test_gate_audit_binds_runtime_manifest_to_active_source_hash(tmp_path: Path)
         encoding="utf-8",
     )
 
-    audit = build_audit(runtime_manifest_path=mutated)
+    audit = historical_audit(runtime_manifest_path=mutated)
 
     assert audit["invariants"]["runtime_cycle_membership_is_unchanged"] is False
     assert audit["invariant_failure_count"] == 1
@@ -162,6 +221,7 @@ def test_gate_audit_binds_runtime_manifest_to_active_source_hash(tmp_path: Path)
 
 def test_gate_audit_models_unavailable_gate_as_whole_lane_block(
     monkeypatch: pytest.MonkeyPatch,
+    historical_audit,
 ):
     monkeypatch.setattr(
         gate_audit_module,
@@ -171,10 +231,11 @@ def test_gate_audit_models_unavailable_gate_as_whole_lane_block(
         ),
     )
 
-    audit = build_audit()
+    audit = historical_audit()
 
     assert audit["gate"]["available"] is False
     assert audit["gate"]["reviewed_blocked_quote_count"] == 0
+    # The original-batch audit must block that entire eligible lane on failure.
     assert audit["gate"]["blocked_quote_count"] == 611
     assert audit["decision_counts"] == {
         "blocked_semantic_gate_unavailable": 611,

@@ -3,6 +3,7 @@ from __future__ import annotations
 import hashlib
 import json
 import socket
+from functools import partial
 from pathlib import Path
 
 import pytest
@@ -10,6 +11,7 @@ import pytest
 import historical_context_local_corpus_reaudit as reaudit
 import historical_context_search_research as research
 from historical_context_local_archive import LocalArchiveMirror, LocalMTFDocumentIndex
+from tests.helpers.historical_corpus import historical_corpus_root
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -286,8 +288,18 @@ def current_claim(
     }
 
 
-def test_derives_all_current_611_eligible_quotes() -> None:
-    derived = reaudit.derive_eligible_targets(ROOT, prepare_search_strategy=False)
+def test_derives_original_batch_eligible_quotes(
+    historical_corpus_root: Path, monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    # This offline re-audit explicitly requires the original 611-member batch;
+    # do not disguise that implementation constraint with dynamic expectations.
+    ledger = historical_corpus_root / "historical_context_published_reply_semantic_review.json"
+    monkeypatch.setattr(
+        reaudit, "load_historical_context_semantic_gate",
+        partial(reaudit.load_historical_context_semantic_gate,
+                expected_ledger_sha256=hashlib.sha256(ledger.read_bytes()).hexdigest()),
+    )
+    derived = reaudit.derive_eligible_targets(historical_corpus_root, prepare_search_strategy=False)
     assert len(derived["targets"]) == 611
     assert len({row["quote_id"] for row in derived["targets"]}) == 611
     assert all(row["quotation_text"] for row in derived["targets"])

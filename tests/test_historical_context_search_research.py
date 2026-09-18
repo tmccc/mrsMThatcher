@@ -4253,10 +4253,25 @@ def _query_strategy_plan(
     return target, index, rows, diagnostics
 
 
-def test_query_strategy_uses_exactly_the_611_eligible_quotes_for_frequency() -> None:
-    index = query_strategy.load_eligible_corpus_index(research.ROOT)
+def test_query_strategy_uses_exactly_the_current_eligible_quotes_for_frequency() -> None:
+    eligible_path = (
+        research.ROOT
+        / "semantic_alignment_research"
+        / "quote_attribution_cleanup_001"
+        / "deployment_candidate"
+        / "runtime_eligible_quote_manifest.json"
+    )
+    eligible_ids = json.loads(eligible_path.read_text(encoding="utf-8"))[
+        "runtime_eligible_quote_ids"
+    ]
+    index = query_strategy.load_eligible_corpus_index(
+        research.ROOT, expected_count=len(eligible_ids)
+    )
     policy = query_strategy.policy_document(index)
-    assert policy["corpus_index"]["corpus_size"] == 611
+    assert policy["corpus_index"]["corpus_size"] == len(set(eligible_ids))
+    assert index.source_metadata["eligible_quote_ids_sha256"] == (
+        query_strategy.canonical_hash(eligible_ids)
+    )
     assert policy["corpus_index"]["index_sha256"] == index.summary()["index_sha256"]
 
 

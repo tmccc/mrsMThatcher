@@ -6,6 +6,12 @@ import json
 from collections import Counter
 from pathlib import Path
 
+from historical_context_formatter import (
+    load_and_validate_corpus_core,
+    packet_is_attributed_to_margaret_thatcher,
+    quote_text_hash,
+)
+
 
 ROOT = Path(__file__).resolve().parents[1]
 RESEARCH = ROOT / "semantic_alignment_research" / "quote_research_full_001"
@@ -90,7 +96,7 @@ def test_curated_bindings_are_present_without_private_paths():
         assert "historical_context" in source["claims_supported"]
 
 
-def test_priority_a_gate_resolution_preserves_the_611_cycle():
+def test_priority_a_gate_resolution_preserves_historical_and_current_partitions():
     gate = _load(ROOT / "historical_context_reply_semantic_gate_audit.json")
     runtime = _load(
         ROOT
@@ -111,9 +117,19 @@ def test_priority_a_gate_resolution_preserves_the_611_cycle():
         records[quote_id]["public_reply_decision"] == "eligible_allow"
         for quote_id in PRIORITY_A_IDS
     )
-    assert runtime["runtime_eligible_quote_count"] == 611
-    assert len(runtime["runtime_eligible_quote_ids"]) == 611
-    assert len(set(runtime["runtime_eligible_quote_ids"])) == 611
+    packets, _unresolved = load_and_validate_corpus_core(RESEARCH)
+    expected_ids = {
+        quote_id for quote_id, packet in packets.items()
+        if packet_is_attributed_to_margaret_thatcher(packet)
+    }
+    assert PRIORITY_A_IDS <= expected_ids
+    assert set(runtime["resolved_manifest_quote_ids"]) == expected_ids
+    assert len(runtime["resolved_manifest_quote_ids"]) == len(expected_ids)
+    assert runtime["runtime_eligible_quote_count"] == len(expected_ids)
+    assert len(runtime["runtime_eligible_quote_ids"]) == len(expected_ids)
+    assert set(runtime["runtime_eligible_quote_ids"]) == {
+        quote_text_hash(packets[quote_id]["quote_text"]) for quote_id in expected_ids
+    }
 
 
 def test_semantic_veto_shadow_rebind_preserves_every_matrix_entry():

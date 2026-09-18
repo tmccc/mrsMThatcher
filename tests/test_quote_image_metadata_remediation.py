@@ -9,9 +9,21 @@ import pytest
 
 import quote_image_metadata_remediation as rem
 from semantic_alignment.relation_aware_veto import maximum_cost
+from tests.helpers.historical_corpus import (
+    RESEARCH_RELATIVE,
+    historical_corpus_root,
+)
 
 
 RUN = Path("semantic_alignment_research/quote_image_metadata_remediation_001")
+
+
+@pytest.fixture
+def historical_research(historical_corpus_root, monkeypatch):
+    """Bind the completed remediation experiment to its original packets."""
+    research = historical_corpus_root / RESEARCH_RELATIVE
+    monkeypatch.setattr(rem, "RESEARCH_DIR", research)
+    return research
 
 
 def quote(**updates):
@@ -114,7 +126,7 @@ def test_offline_network_guard_blocks_dns_and_socket() -> None:
             socket.socket().connect(("127.0.0.1", 9))
 
 
-def test_corpus_contract_counts_and_unresolved_exclusion() -> None:
+def test_corpus_contract_counts_and_unresolved_exclusion(historical_research) -> None:
     packets = rem.load_packets()
     quotes, images = rem.load_contracts(RUN)
     assert len(packets) == 627
@@ -224,7 +236,7 @@ def test_source_occasion_and_date_are_not_visual_requirements() -> None:
     assert rem.deterministic_pair_decision(row, image(date_or_period="1984"))["decision"] == "allow"
 
 
-def test_named_institution_is_not_automatically_visually_required() -> None:
+def test_named_institution_is_not_automatically_visually_required(historical_research) -> None:
     packets = rem.load_packets()
     old = json.loads((rem.V2_DIR / "semantic_contracts_v2.json").read_text())["records"]
     quote_id = "8143e19d5c4d4e159aa40941118a0aeadf1ea316ed4b0f4ba9f93345326fc407"
@@ -234,7 +246,7 @@ def test_named_institution_is_not_automatically_visually_required() -> None:
     assert "quote_entity_overreach" in {row["code"] for row in defects}
 
 
-def test_falklands_source_occasion_does_not_require_commons_scene() -> None:
+def test_falklands_source_occasion_does_not_require_commons_scene(historical_research) -> None:
     packets = rem.load_packets()
     old = json.loads((rem.V2_DIR / "semantic_contracts_v2.json").read_text())["records"]
     quote_id = "c748bcf2c3e7304875dbeebc43d02084393225e0ca9c48a668375c1d276751e7"

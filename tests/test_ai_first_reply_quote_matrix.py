@@ -36,12 +36,19 @@ def test_complete_matrix_has_ten_scenarios_for_all_eligible_quotes(
     repository: EvidenceRepository,
     fixtures: list[dict],
 ) -> None:
-    assert repository.attribution_eligible_packet_count == 611
-    assert len(fixtures) == 6_110
-    assert len({row["case_id"] for row in fixtures}) == 6_110
+    expected_ids = set(repository.packets)
+    assert expected_ids
+    assert repository.attribution_eligible_packet_count == len(expected_ids)
+    assert len(matrix.SCENARIOS) == 10
+    expected_pairs = {
+        (quote_id, scenario["scenario_id"])
+        for quote_id in expected_ids for scenario in matrix.SCENARIOS
+    }
+    assert {(row["quote_id"], row["scenario_id"]) for row in fixtures} == expected_pairs
+    assert len(fixtures) == len({row["case_id"] for row in fixtures}) == len(expected_pairs)
     assert set(Counter(row["quote_id"] for row in fixtures).values()) == {10}
     assert Counter(row["scenario_id"] for row in fixtures) == {
-        row["scenario_id"]: 611 for row in matrix.SCENARIOS
+        row["scenario_id"]: len(expected_ids) for row in matrix.SCENARIOS
     }
     assert all(row["quote_text"].casefold() != "unknown" for row in fixtures)
 
@@ -68,10 +75,12 @@ def test_every_fixture_is_a_valid_separated_production_context(fixtures: list[di
 
 
 def test_context_distraction_does_not_leak_quote_into_incoming_contribution(
+    repository: EvidenceRepository,
     fixtures: list[dict],
 ) -> None:
     cases = [row for row in fixtures if row["scenario_id"] == "quoted_context_distraction"]
-    assert len(cases) == 611
+    assert {row["quote_id"] for row in cases} == set(repository.packets)
+    assert len(cases) == len(repository.packets)
     assert {row["contribution"] for row in cases} == {
         "Anyway, what should I cook for dinner tonight?"
     }
@@ -81,7 +90,11 @@ def test_context_distraction_does_not_leak_quote_into_incoming_contribution(
 def test_paid_sample_is_balanced_and_risk_targeted_without_duplicates(
     repository: EvidenceRepository,
     fixtures: list[dict],
+    monkeypatch: pytest.MonkeyPatch,
 ) -> None:
+    expected_ids = set(repository.packets)
+    # The historical evaluator pins its run size; this test supplies the current fixture size.
+    monkeypatch.setattr(matrix, "EXPECTED_QUOTE_COUNT", len(expected_ids))
     sample = matrix.build_paid_sample(fixtures, targeted_per_scenario=20)
     validation = matrix.validate_matrix(
         repository,
@@ -91,15 +104,17 @@ def test_paid_sample_is_balanced_and_risk_targeted_without_duplicates(
     )
 
     assert validation["passed"] is True
-    assert len(sample) == 811
-    assert len({row["case_id"] for row in sample}) == 811
+    expected_targeted_count = 20 * len(matrix.SCENARIOS)
+    expected_sample_count = len(expected_ids) + expected_targeted_count
+    assert len(sample) == len({row["case_id"] for row in sample}) == expected_sample_count
     balanced = [row for row in sample if row["sample_role"] == "balanced_corpus"]
     targeted = [row for row in sample if row["sample_role"] == "risk_targeted"]
-    assert len({row["quote_id"] for row in balanced}) == 611
+    assert {row["quote_id"] for row in balanced} == expected_ids
+    assert len(balanced) == len(expected_ids)
     balanced_counts = Counter(row["scenario_id"] for row in balanced)
-    assert max(balanced_counts.values()) - min(balanced_counts.values()) == 1
-    assert set(balanced_counts.values()) == {61, 62}
-    assert len({row["quote_id"] for row in targeted}) == 200
+    assert set(balanced_counts) == {row["scenario_id"] for row in matrix.SCENARIOS}
+    assert max(balanced_counts.values()) - min(balanced_counts.values()) <= 1
+    assert len({row["quote_id"] for row in targeted}) == expected_targeted_count
     assert set(Counter(row["scenario_id"] for row in targeted).values()) == {20}
 
 

@@ -8,6 +8,10 @@ from pathlib import Path
 import pytest
 
 import historical_context_public_render_review as review_module
+from tests.helpers.historical_corpus import (
+    RESEARCH_RELATIVE,
+    historical_corpus_root,
+)
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -53,8 +57,13 @@ def _historical_context_reply_literal() -> dict:
 
 
 @pytest.fixture(scope="module")
-def review() -> dict:
-    before = {path: _sha256(path) for path in IMMUTABLE_INPUTS}
+def review(historical_corpus_root: Path) -> dict:
+    research = historical_corpus_root / RESEARCH_RELATIVE
+    protected = tuple(
+        historical_corpus_root / path.relative_to(ROOT)
+        for path in IMMUTABLE_INPUTS
+    )
+    before = {path: _sha256(path) for path in protected}
     monkeypatch = pytest.MonkeyPatch()
 
     def blocked(*_args, **_kwargs):
@@ -66,14 +75,14 @@ def review() -> dict:
     monkeypatch.setattr(socket.socket, "sendto", blocked)
     try:
         result = review_module.build_render_review(
-            RESEARCH, reference_root=ROOT,
+            research, reference_root=historical_corpus_root,
         )
         independent_result = review_module.build_render_review(
-            RESEARCH, reference_root=ROOT,
+            research, reference_root=historical_corpus_root,
         )
     finally:
         monkeypatch.undo()
-    assert {path: _sha256(path) for path in IMMUTABLE_INPUTS} == before
+    assert {path: _sha256(path) for path in protected} == before
     assert independent_result == result
     assert review_module.render_review_text(independent_result) == (
         review_module.render_review_text(result)
@@ -81,7 +90,12 @@ def review() -> dict:
     return result
 
 
-def test_all_quote_review_uses_public_formatter_and_surfaces_review_queues(review):
+def test_all_quote_review_uses_public_formatter_and_surfaces_review_queues(
+    review, historical_corpus_root: Path,
+):
+    # This review deliberately reports blockers outside its original 627/611/5
+    # batch. Its detailed distribution checks are that batch's review baseline.
+    research = historical_corpus_root / RESEARCH_RELATIVE
     summary = review["summary"]
     assert summary["review_ready"] is True
     assert summary["audit_ready"] is True
@@ -133,10 +147,10 @@ def test_all_quote_review_uses_public_formatter_and_surfaces_review_queues(revie
     assert "unresolved_quotes.json" in review["source_file_hashes"]
     assert review["source_file_hashes"][
         "historical_context_packet_corrections.json"
-    ] == _sha256(RESEARCH / "historical_context_packet_corrections.json")
+    ] == _sha256(research / "historical_context_packet_corrections.json")
     assert review["source_file_hashes"][
         "historical_context_source_curated_evidence.json"
-    ] == _sha256(RESEARCH / "historical_context_source_curated_evidence.json")
+    ] == _sha256(research / "historical_context_source_curated_evidence.json")
     posting_defaults = _historical_context_reply_literal()
     assert review["formatter_options"] == {
         key: posting_defaults[key] for key in review["formatter_options"]
@@ -203,14 +217,16 @@ def test_review_text_is_deterministic_complete_and_scan_friendly(review):
 
 def test_review_cli_writes_only_explicit_safe_output(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch, review: dict,
+    historical_corpus_root: Path,
 ):
+    research = historical_corpus_root / RESEARCH_RELATIVE
     monkeypatch.setattr(
         review_module, "build_render_review", lambda *_args, **_kwargs: review,
     )
     output = tmp_path / "historical_context_all_quotes_render_review.txt"
     assert review_module.main([
-        "--research-dir", str(RESEARCH),
-        "--reference-root", str(ROOT),
+        "--research-dir", str(research),
+        "--reference-root", str(historical_corpus_root),
         "--output", str(output),
     ]) == 0
     assert output.read_text(encoding="utf-8") == review_module.render_review_text(
@@ -219,13 +235,13 @@ def test_review_cli_writes_only_explicit_safe_output(
 
     with pytest.raises(FileExistsError, match="already exists"):
         review_module.main([
-            "--research-dir", str(RESEARCH),
-            "--reference-root", str(ROOT),
+            "--research-dir", str(research),
+            "--reference-root", str(historical_corpus_root),
             "--output", str(output),
         ])
     assert review_module.main([
-        "--research-dir", str(RESEARCH),
-        "--reference-root", str(ROOT),
+        "--research-dir", str(research),
+        "--reference-root", str(historical_corpus_root),
         "--output", str(output),
         "--overwrite",
     ]) == 0
@@ -234,37 +250,37 @@ def test_review_cli_writes_only_explicit_safe_output(
     unknown.write_text("not a review artifact\n", encoding="utf-8")
     with pytest.raises(ValueError, match="prior render-review artifact"):
         review_module.main([
-            "--research-dir", str(RESEARCH),
-            "--reference-root", str(ROOT),
+            "--research-dir", str(research),
+            "--reference-root", str(historical_corpus_root),
             "--output", str(unknown),
             "--overwrite",
         ])
 
     with pytest.raises(ValueError, match="filename must identify"):
         review_module.main([
-            "--research-dir", str(RESEARCH),
-            "--reference-root", str(ROOT),
-            "--output", str(ROOT / "mrsMThatcher.txt"),
+            "--research-dir", str(research),
+            "--reference-root", str(historical_corpus_root),
+            "--output", str(historical_corpus_root / "mrsMThatcher.txt"),
         ])
 
     symlink = tmp_path / "historical_context_symlink_render_review.txt"
     symlink.symlink_to(output)
     with pytest.raises(ValueError, match="symbolic link"):
         review_module.main([
-            "--research-dir", str(RESEARCH),
-            "--reference-root", str(ROOT),
+            "--research-dir", str(research),
+            "--reference-root", str(historical_corpus_root),
             "--output", str(symlink),
             "--overwrite",
         ])
 
     with pytest.raises(ValueError, match="outside the immutable research"):
         review_module.main([
-            "--research-dir", str(RESEARCH),
-            "--reference-root", str(ROOT),
+            "--research-dir", str(research),
+            "--reference-root", str(historical_corpus_root),
             "--output", str(
-                RESEARCH / "historical_context_must_not_render_review.txt"
+                research / "historical_context_must_not_render_review.txt"
             ),
         ])
     assert not (
-        RESEARCH / "historical_context_must_not_render_review.txt"
+        research / "historical_context_must_not_render_review.txt"
     ).exists()

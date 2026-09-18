@@ -8,10 +8,12 @@ import pytest
 from semantic_alignment import hybrid_reply_retrieval as hybrid
 from semantic_alignment import image_quote_shortlist_rerank as rerank
 from semantic_alignment.bakeoff import anthropic_output_schema
+from tests.helpers.historical_corpus import (
+    RESEARCH_RELATIVE, historical_corpus_root,
+)
 
 
 ROOT = Path(__file__).resolve().parents[1]
-RESEARCH = ROOT / "semantic_alignment_research/quote_research_full_001"
 WORK = ROOT / "image_discovery_research/thatcher_image_hunt_002/integration_preparation"
 RETRIEVAL = ROOT / "semantic_alignment_research/hybrid_reply_retrieval_001"
 
@@ -86,9 +88,12 @@ def response_fixture(batch: list[dict]) -> dict:
     } for row in batch]}
 
 
-def test_corpus_backed_shortlists_are_complete_deterministic_and_exclude_unresolved():
-    first, first_meta = rerank.build_shortlists(RESEARCH, WORK, RETRIEVAL)
-    second, second_meta = rerank.build_shortlists(RESEARCH, WORK, RETRIEVAL)
+def test_corpus_backed_shortlists_are_complete_deterministic_and_exclude_unresolved(
+    historical_corpus_root: Path,
+):
+    research = historical_corpus_root / RESEARCH_RELATIVE
+    first, first_meta = rerank.build_shortlists(research, WORK, RETRIEVAL)
+    second, second_meta = rerank.build_shortlists(research, WORK, RETRIEVAL)
     assert first == second
     assert len(first) == 24
     assert {len(row["prompt_quotes"]) for row in first} == {25}
@@ -101,8 +106,8 @@ def test_corpus_backed_shortlists_are_complete_deterministic_and_exclude_unresol
     assert first_meta["embedding_model"] == second_meta["embedding_model"]
 
 
-def test_image_level_calibration_and_evaluation_are_disjoint():
-    packets, _metadata = rerank.load_completed_corpus(RESEARCH)
+def test_image_level_calibration_and_evaluation_are_disjoint(historical_corpus_root: Path):
+    packets, _metadata = rerank.load_completed_corpus(historical_corpus_root / RESEARCH_RELATIVE)
     split = rerank.calibration_split(WORK, {row["quote_id"] for row in packets})
     assert len(split["calibration_image_ids"]) == 6
     assert len(split["evaluation_image_ids"]) == 18
@@ -151,9 +156,11 @@ def test_unsuitable_may_record_attempted_basis_but_suitable_requires_positive_ba
         rerank.validate_response(value, batch)
 
 
-def test_prepare_has_four_provider_prompt_parity_and_bounded_preflight(tmp_path):
+def test_prepare_has_four_provider_prompt_parity_and_bounded_preflight(
+    tmp_path: Path, historical_corpus_root: Path,
+):
     output = tmp_path / "trial"
-    value = rerank.prepare_trial(RESEARCH, WORK, RETRIEVAL, output)
+    value = rerank.prepare_trial(historical_corpus_root / RESEARCH_RELATIVE, WORK, RETRIEVAL, output)
     manifest = value["manifest"]
     hashes = list(manifest["provider_prompt_hashes"].values())
     assert len(manifest["batches"]) == 4

@@ -11,6 +11,10 @@ import mrsMThatcher2 as bot
 import mrs_log_digest as digest
 from reply_evidence import retrieve_research_packets
 import semantic_alignment.hybrid_reply_retrieval as hybrid
+from tests.helpers.historical_corpus import (
+    RESEARCH_RELATIVE,
+    historical_corpus_root,
+)
 from semantic_alignment.hybrid_reply_retrieval import (
     DOCUMENT_TEMPLATE_VERSION,
     MODEL_ID,
@@ -34,8 +38,11 @@ from semantic_alignment.hybrid_reply_retrieval import (
 RESEARCH = Path("semantic_alignment_research/quote_research_full_001")
 
 
-def test_corpus_invariants_and_unresolved_exclusion():
-    packets, unresolved, metadata = validate_corpus_invariants(RESEARCH)
+def test_corpus_invariants_and_unresolved_exclusion(historical_corpus_root):
+    # The offline hybrid trial pins the reviewed corpus and closure hashes.
+    packets, unresolved, metadata = validate_corpus_invariants(
+        historical_corpus_root / RESEARCH_RELATIVE
+    )
     assert len(packets) == 627
     assert len(unresolved) == 5
     assert set(packets).isdisjoint(unresolved)
@@ -44,8 +51,12 @@ def test_corpus_invariants_and_unresolved_exclusion():
     )
 
 
-def test_retrieval_document_is_deterministic_bounded_and_excludes_sources():
-    packets, _, _ = validate_corpus_invariants(RESEARCH)
+def test_retrieval_document_is_deterministic_bounded_and_excludes_sources(
+    historical_corpus_root,
+):
+    packets, _, _ = validate_corpus_invariants(
+        historical_corpus_root / RESEARCH_RELATIVE
+    )
     quote_id = sorted(packets)[0]
     first = build_retrieval_document(quote_id, packets[quote_id])
     second = build_retrieval_document(quote_id, packets[quote_id])

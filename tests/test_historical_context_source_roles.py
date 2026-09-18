@@ -441,11 +441,15 @@ def test_representative_public_outputs_are_evidence_accurate_without_diagnostics
 def test_complete_audit_preserves_all_quote_identities_and_eligibility(corpus, audit):
     packets, unresolved = corpus
     eligible = {q for q, packet in packets.items() if packet_is_attributed_to_margaret_thatcher(packet)}
-    assert len(packets) == 627
-    assert len(unresolved) == 5
-    assert len(eligible) == 611
-    assert audit["packet_count"] == 627
-    assert audit["attribution_eligible_quote_count"] == 611
+    saved_packets = json.loads((RESEARCH_DIR / "research_packets.json").read_text())["items"]
+    saved_unresolved = json.loads(
+        (RESEARCH_DIR / "final_unresolved/final_research_status.json").read_text()
+    )["unresolved_quote_ids"]
+    assert set(packets) == set(saved_packets)
+    assert set(unresolved) == set(saved_unresolved)
+    assert eligible
+    assert audit["packet_count"] == len(packets)
+    assert audit["attribution_eligible_quote_count"] == len(eligible)
     assert set(audit["items"]) == set(packets)
     assert all(audit["items"][q]["quote_text"] == packet["quote_text"]
                for q, packet in packets.items())
@@ -467,7 +471,7 @@ def test_audited_and_audit_free_corpora_have_identical_eligible_quotes(corpus):
 
     assert audited_unresolved == raw_unresolved
     assert audited_eligible == raw_eligible
-    assert len(audited_eligible) == 611
+    assert audited_eligible
     assert {
         quote_id: packet["quote_text"] for quote_id, packet in audited.items()
     } == {
@@ -561,7 +565,7 @@ def test_every_eligible_public_rendering_omits_detailed_confidence(corpus):
         packet for packet in packets.values()
         if packet_is_attributed_to_margaret_thatcher(packet)
     ]
-    assert len(eligible) == 611
+    assert eligible
     allowed_labels = {
         "Exact wording verified",
         "Historically verified variant",
