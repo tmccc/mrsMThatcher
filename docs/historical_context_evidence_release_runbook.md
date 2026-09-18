@@ -37,6 +37,11 @@ shows the quotations and actual formatted context replies. These private batch
 inputs are not production commit contents. Keep the preparation record separate
 from the later installation result.
 
+The retained September staging tree predates the integrity repairs in
+`a23c5cf3`; it is not a release candidate for those repairs. Reproduce it with
+current code and its original base when needed, rather than installing the old
+tree or its old `validation.json`.
+
 From the isolated checkout, with its original base files still in place:
 
 ```bash
@@ -56,8 +61,13 @@ The command builds `staged/`, `previews.json`, `PREVIEW.md` and `validation.json
 in a new temporary directory. It publishes them only after validation succeeds;
 an ordinary preparation/publication failure preserves the previous completed
 outputs. Leftovers from earlier staging runs never enter the new tree or its
-changed-file list. Symlink inputs and destinations are rejected. It does not install anything or call an AI provider. It
-preserves old quotation bytes, extends the existing runtime formats and generates
+changed-file list. A failed invocation can therefore leave an older, completed
+tree in place: require a successful current invocation and verify its batch
+timestamp, base and prepared hashes before using its allowlist. Directory
+existence alone does not establish that preparation succeeded.
+Symlink inputs and destinations are rejected. The command does not install
+anything or call an AI provider. It preserves old quotation bytes, extends the
+existing runtime formats and generates
 conservative image-selection metadata. Repeating it against the same base
 reproduces the same outputs; running it after the quotations have been added to
 the base correctly rejects duplicates. To reproduce this particular batch, use
@@ -175,7 +185,46 @@ The September batch's preparation recorded 631 physical lines, 630 unique
 quotations, 622 eligible quotations, 638 completed packets and five unresolved
 records. These describe that batch, not requirements for future releases.
 
+Before committing, run this read-only consistency check from the assembled
+isolated candidate's root, containing current code and the complete prepared
+file set. Do not run it from the partial `staged/` overlay. It checks canonical
+occurrence coordinates, regenerates the semantic audit in memory with the
+gate's actual default pin, and requires the digest to accept the same corpus:
+
+```bash
+python3 -B - <<'PY'
+import json
+from pathlib import Path
+from semantic_alignment.quote_research_corpus import verify_corpus_manifest
+from historical_context_reply_semantic_gate_audit import build_audit
+from mrs_log_digest import historical_context_corpus_snapshot
+
+root = Path.cwd()
+corpus = root / "semantic_alignment_research/quote_research_full_001"
+verify_corpus_manifest(json.loads((corpus / "corpus_manifest.json").read_text()))
+saved = json.loads((root / "historical_context_reply_semantic_gate_audit.json").read_text())
+assert build_audit(generated_at=saved["generated_at"]) == saved, "stale semantic audit"
+assert saved["invariant_failure_count"] == 0, "semantic audit invariants failed"
+snapshot = historical_context_corpus_snapshot(root)
+assert snapshot["available"], snapshot.get("reason", "corpus unavailable")
+print(saved["coverage"], saved["decision_counts"])
+PY
+```
+
+Check the supplied batch date against regenerated provenance metadata and inspect
+the diff for changes to existing records, reply renderings and review decisions.
+If a check fails, fix the input or generator and regenerate the coherent set;
+do not hand-edit counts, hashes, gate pins or test expectations to make it pass.
+The same read-only check can validate deployed files during a content release.
+Historical test fixtures remain frozen: additions do not require refreshing
+their baseline or introducing a dependency on local Git history.
+
 ## Deploy and verify
+
+For edits confined to human-readable documentation, use the canonical
+procedure's documentation-only exception: inspect the entire pending release,
+fast-forward the documentation, and leave services and runtime controls alone.
+The remaining steps here apply to code or corpus releases.
 
 After the operator has accepted the public previews, retain the changed-file
 list and validation result and use the canonical deployment procedure. Existing

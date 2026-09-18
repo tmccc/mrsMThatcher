@@ -1071,6 +1071,15 @@ been reviewed, tested, committed and pushed. A new or untested code change must
 complete its appropriate validation before it becomes an approved deployment
 candidate. Deployment does not require rerunning the complete test suite.
 
+For a release containing only human-readable documentation changes, inspect the
+entire diff from production `HEAD` to the approved target, not just the latest
+commit. If every changed file is documentation (not a runtime prompt, input,
+configuration or generated data), fetch and fast-forward the clean production
+`master` to that pushed commit, then verify the resulting revision and clean
+status. Do not pause, stop, restart or reload anything, change runtime controls,
+or rerun tests solely for that documentation update. Any code or runtime-data
+change in the pending range requires the normal procedure below.
+
 Changes to canonical historical evidence or the generated corpus use the
 [historical-context evidence runbook](docs/historical_context_evidence_release_runbook.md)
 for content validation.
