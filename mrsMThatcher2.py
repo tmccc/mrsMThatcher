@@ -8245,12 +8245,29 @@ def _legacy_ai_reply_receipt_draft_is_valid(data: dict, text: object) -> bool:
     )
 
 
+def _reply_receipt_values_owner() -> _reply_receipt_values.ReplyReceiptValues:
+    """Bind current receipt value boundaries without reading the clock or state."""
+    return _reply_receipt_values.ReplyReceiptValues(
+        bounded_tweet_id_value=bounded_tweet_id_value,
+        valid_string_post_id=valid_string_post_id,
+        receipt_int=receipt_int,
+        valid_receipt_epoch=valid_receipt_epoch,
+        safe_reply_cap_date_str=safe_reply_cap_date_str,
+        legacy_draft_is_valid=_legacy_ai_reply_receipt_draft_is_valid,
+        draft_is_valid=ai_reply_receipt_draft_is_valid,
+        legacy_tested_strategy_version=_LEGACY_TESTED_REPLY_STRATEGY_VERSION,
+        legacy_ai_first_strategy_version=_LEGACY_AI_FIRST_REPLY_STRATEGY_VERSION,
+        canonical_atomic_json_bytes=canonical_atomic_json_bytes,
+        now_epoch=now_epoch,
+        reply_cap_date_str=reply_cap_date_str,
+        log=log,
+        invalid_receipt=InvalidConfirmedReplyReceipt,
+    )
+
+
 def mention_pagination_provenance_is_valid(value: object) -> bool:
     """Validate the exact mention continuation bound to a reply receipt."""
-    return _reply_receipt_values.mention_pagination_provenance_is_valid(
-        value,
-        bounded_tweet_id_value=bounded_tweet_id_value,
-    )
+    return _reply_receipt_values_owner().pagination_is_valid(value)
 
 
 def _conversational_reply_receipt_is_semantically_valid(
@@ -8260,23 +8277,10 @@ def _conversational_reply_receipt_is_semantically_valid(
     legacy_recovery: bool = False,
 ) -> bool:
     """Validate one current receipt or a frozen lifecycle-recovery receipt."""
-    return _reply_receipt_values._conversational_reply_receipt_is_semantically_valid(
+    return _reply_receipt_values_owner().validate(
         data,
         lifecycle_state=lifecycle_state,
         legacy_recovery=legacy_recovery,
-        valid_string_post_id=valid_string_post_id,
-        receipt_int=receipt_int,
-        valid_receipt_epoch=valid_receipt_epoch,
-        safe_reply_cap_date_str=safe_reply_cap_date_str,
-        mention_pagination_provenance_is_valid=mention_pagination_provenance_is_valid,
-        _legacy_ai_reply_receipt_draft_is_valid=_legacy_ai_reply_receipt_draft_is_valid,
-        ai_reply_receipt_draft_is_valid=ai_reply_receipt_draft_is_valid,
-        _LEGACY_TESTED_REPLY_STRATEGY_VERSION=_LEGACY_TESTED_REPLY_STRATEGY_VERSION,
-        _LEGACY_AI_FIRST_REPLY_STRATEGY_VERSION=_LEGACY_AI_FIRST_REPLY_STRATEGY_VERSION,
-        conversational_sending_receipt_from_confirmed=conversational_sending_receipt_from_confirmed,
-        _legacy_sending_reply_receipt_is_semantically_valid=_legacy_sending_reply_receipt_is_semantically_valid,
-        sending_reply_receipt_is_semantically_valid=sending_reply_receipt_is_semantically_valid,
-        canonical_atomic_json_bytes=canonical_atomic_json_bytes,
     )
 
 
@@ -8289,43 +8293,27 @@ def conversational_sending_receipt_from_confirmed(
     remain readable for local reconciliation, but cannot use this function to
     retire a current transport journal.
     """
-    return _reply_receipt_values.conversational_sending_receipt_from_confirmed(
-        confirmed_receipt,
-        receipt_int=receipt_int,
-        safe_reply_cap_date_str=safe_reply_cap_date_str,
-    )
+    return _reply_receipt_values_owner().sending_from_confirmed(confirmed_receipt)
 
 
 def confirmed_reply_receipt_is_semantically_valid(data: dict) -> bool:
     """Return whether a confirmed-reply receipt is internally consistent."""
-    return _reply_receipt_values.confirmed_reply_receipt_is_semantically_valid(
-        data,
-        _conversational_reply_receipt_is_semantically_valid=_conversational_reply_receipt_is_semantically_valid,
-    )
+    return _reply_receipt_values_owner().confirmed_is_valid(data)
 
 
 def sending_reply_receipt_is_semantically_valid(data: dict) -> bool:
     """Return whether a pre-send conversational-reply receipt is complete."""
-    return _reply_receipt_values.sending_reply_receipt_is_semantically_valid(
-        data,
-        _conversational_reply_receipt_is_semantically_valid=_conversational_reply_receipt_is_semantically_valid,
-    )
+    return _reply_receipt_values_owner().sending_is_valid(data)
 
 
 def _legacy_confirmed_reply_receipt_is_semantically_valid(data: dict) -> bool:
     """Accept a frozen draft only for local recovery after remote confirmation."""
-    return _reply_receipt_values._legacy_confirmed_reply_receipt_is_semantically_valid(
-        data,
-        _conversational_reply_receipt_is_semantically_valid=_conversational_reply_receipt_is_semantically_valid,
-    )
+    return _reply_receipt_values_owner().legacy_confirmed_is_valid(data)
 
 
 def _legacy_sending_reply_receipt_is_semantically_valid(data: dict) -> bool:
     """Recognise a frozen sending receipt as a barrier, never send authority."""
-    return _reply_receipt_values._legacy_sending_reply_receipt_is_semantically_valid(
-        data,
-        _conversational_reply_receipt_is_semantically_valid=_conversational_reply_receipt_is_semantically_valid,
-    )
+    return _reply_receipt_values_owner().legacy_sending_is_valid(data)
 
 
 def load_confirmed_reply_receipt() -> tuple[str, dict | None]:
@@ -8371,12 +8359,7 @@ def write_sending_reply_receipt(receipt: dict) -> None:
 
 def bind_conversational_reply_attempt_time(receipt_template: dict) -> dict:
     """Bind a schema-v4 reply template to its immediately pre-send time."""
-    return _reply_receipt_values.bind_conversational_reply_attempt_time(
-        receipt_template,
-        now_epoch=now_epoch,
-        reply_cap_date_str=reply_cap_date_str,
-        sending_reply_receipt_is_semantically_valid=sending_reply_receipt_is_semantically_valid,
-    )
+    return _reply_receipt_values_owner().bind_attempt(receipt_template)
 
 
 def _confirmed_reply_receipt_from_sending(
@@ -8386,12 +8369,10 @@ def _confirmed_reply_receipt_from_sending(
     confirmation_epoch: int,
 ) -> dict:
     """Build the confirmed form without mutating its durable sending input."""
-    return _reply_receipt_values._confirmed_reply_receipt_from_sending(
+    return _reply_receipt_values_owner().confirmed_from_sending(
         sending_receipt,
         reply_post_id=reply_post_id,
         confirmation_epoch=confirmation_epoch,
-        reply_cap_date_str=reply_cap_date_str,
-        canonical_atomic_json_bytes=canonical_atomic_json_bytes,
     )
 
 
@@ -8400,11 +8381,9 @@ def _reply_confirmation_epoch_after_remote_success(
     observed_epoch: int | None = None,
 ) -> int:
     """Return a conservative monotonic wall time after remote confirmation."""
-    return _reply_receipt_values._reply_confirmation_epoch_after_remote_success(
-        sending_receipt, observed_epoch,
-        now_epoch=now_epoch,
-        receipt_int=receipt_int,
-        log=log,
+    return _reply_receipt_values_owner().observed_confirmation_epoch(
+        sending_receipt,
+        observed_epoch,
     )
 
 
@@ -8494,11 +8473,7 @@ def remove_confirmed_reply_receipt(
 
 def conversational_reply_confirmation_epoch(receipt: dict) -> int:
     """Return the best available confirmed time for a reply receipt."""
-    return _reply_receipt_values.conversational_reply_confirmation_epoch(
-        receipt,
-        receipt_int=receipt_int,
-        InvalidConfirmedReplyReceipt=InvalidConfirmedReplyReceipt,
-    )
+    return _reply_receipt_values_owner().confirmation_epoch(receipt)
 
 
 def _valid_iso_date(value: object) -> bool:

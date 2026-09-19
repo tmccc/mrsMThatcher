@@ -42,6 +42,7 @@ need. A recovered draft can bypass model evaluation.
 | Pending-draft validation, storage, recovery, clearing and receipt-draft checks | `ReplyDrafts` in [mrs_bot_reply_drafts.py](../mrs_bot_reply_drafts.py) |
 | Confirmed-reply history recording and selection | `ReplyHistory` in [mrs_bot_reply_history.py](../mrs_bot_reply_history.py) |
 | Ineligible-target retirement | [mrs_bot_reply_state.py](../mrs_bot_reply_state.py) |
+| Receipt validation, source reconstruction and time binding | `ReplyReceiptValues` in [mrs_bot_reply_receipt_values.py](../mrs_bot_reply_receipt_values.py) |
 | Save draft, prepare receipt, send and commit confirmation | [mrs_bot_reply_preparation.py](../mrs_bot_reply_preparation.py), [mrs_bot_reply_delivery.py](../mrs_bot_reply_delivery.py), [mrs_bot_reply_reconciliation.py](../mrs_bot_reply_reconciliation.py) |
 
 [mrs_bot_reply_cycle_interfaces.py](../mrs_bot_reply_cycle_interfaces.py) describes

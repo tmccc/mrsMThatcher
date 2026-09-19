@@ -1,14 +1,14 @@
 from __future__ import annotations
 
+from dataclasses import FrozenInstanceError, replace
 import hashlib
+import inspect
 from pathlib import Path
 import subprocess
 import sys
 from unittest.mock import Mock, call
 
 import pytest
-
-from tests.helpers.adapter_assertions import assert_adapters_forward_current_dependencies
 
 import mrs_bot_reply_receipt_values as values
 from tests.helpers.legacy_reply_fixtures import (
@@ -27,7 +27,7 @@ from tests.helpers.reply_fixtures import (
 
 def test_import_needs_no_runtime_access():
     code = """
-import builtins, collections.abc, hashlib, io, logging, os, random, re, socket, sys
+import builtins, collections.abc, dataclasses, hashlib, io, logging, os, random, re, socket, sys
 from pathlib import Path
 
 def forbidden(*args, **kwargs):
@@ -60,36 +60,108 @@ assert 'single_call_reply' not in sys.modules
     assert values.hashlib is bot.hashlib and values.re is bot.re
 
 
-def test_adapters_forward_current_dependencies_arguments_results_and_errors(monkeypatch):
-    names = (
-        "mention_pagination_provenance_is_valid",
-        "_conversational_reply_receipt_is_semantically_valid",
-        "conversational_sending_receipt_from_confirmed",
-        "confirmed_reply_receipt_is_semantically_valid",
-        "sending_reply_receipt_is_semantically_valid",
-        "_legacy_confirmed_reply_receipt_is_semantically_valid",
-        "_legacy_sending_reply_receipt_is_semantically_valid",
-        "bind_conversational_reply_attempt_time",
-        "_confirmed_reply_receipt_from_sending",
-        "_reply_confirmation_epoch_after_remote_success",
-        "conversational_reply_confirmation_epoch",
-    )
-    assert_adapters_forward_current_dependencies(
-        monkeypatch, bot=bot, implementation=values, names=names,
-    )
+OWNER_INPUTS = {
+    "bounded_tweet_id_value": "bounded_tweet_id_value",
+    "valid_string_post_id": "valid_string_post_id", "receipt_int": "receipt_int",
+    "valid_receipt_epoch": "valid_receipt_epoch", "safe_reply_cap_date_str": "safe_reply_cap_date_str",
+    "legacy_draft_is_valid": "_legacy_ai_reply_receipt_draft_is_valid",
+    "draft_is_valid": "ai_reply_receipt_draft_is_valid",
+    "legacy_tested_strategy_version": "_LEGACY_TESTED_REPLY_STRATEGY_VERSION",
+    "legacy_ai_first_strategy_version": "_LEGACY_AI_FIRST_REPLY_STRATEGY_VERSION",
+    "canonical_atomic_json_bytes": "canonical_atomic_json_bytes",
+    "now_epoch": "now_epoch", "reply_cap_date_str": "reply_cap_date_str",
+    "log": "log", "invalid_receipt": "InvalidConfirmedReplyReceipt",
+}
 
 
-def test_lifecycle_dispatch_uses_current_root_callback_and_exact_flags(monkeypatch):
+@pytest.fixture
+def make_owner():
+    """Compose receipt values with the existing isolated validation boundaries."""
+    def build(**overrides):
+        current = {field: getattr(bot, name) for field, name in OWNER_INPUTS.items()}
+        return values.ReplyReceiptValues(**{**current, **overrides})
+    return build
+
+
+def test_owner_composition_binds_current_dependencies_without_calling_them(monkeypatch):
+    snapshots = []
+    for _ in range(2):
+        current = {field: Mock() for field in OWNER_INPUTS}
+        for field, name in OWNER_INPUTS.items():
+            monkeypatch.setattr(bot, name, current[field])
+        owner = bot._reply_receipt_values_owner()
+        assert isinstance(owner, values.ReplyReceiptValues)
+        for field, value in current.items():
+            assert getattr(owner, field) is value
+            value.assert_not_called()
+        snapshots.append((owner, current))
+    first, inputs = snapshots[0]
+    assert first is not snapshots[1][0]
+    assert all(getattr(first, field) is value for field, value in inputs.items())
+    with pytest.raises(FrozenInstanceError):
+        first.legacy_tested_strategy_version = "changed"
+
+
+def test_adapters_preserve_defaults_arguments_result_identity_and_errors(monkeypatch):
+    methods = {
+        "mention_pagination_provenance_is_valid": "pagination_is_valid",
+        "_conversational_reply_receipt_is_semantically_valid": "validate",
+        "conversational_sending_receipt_from_confirmed": "sending_from_confirmed",
+        "confirmed_reply_receipt_is_semantically_valid": "confirmed_is_valid",
+        "sending_reply_receipt_is_semantically_valid": "sending_is_valid",
+        "_legacy_confirmed_reply_receipt_is_semantically_valid": "legacy_confirmed_is_valid",
+        "_legacy_sending_reply_receipt_is_semantically_valid": "legacy_sending_is_valid",
+        "bind_conversational_reply_attempt_time": "bind_attempt",
+        "_confirmed_reply_receipt_from_sending": "confirmed_from_sending",
+        "_reply_confirmation_epoch_after_remote_success": "observed_confirmation_epoch",
+        "conversational_reply_confirmation_epoch": "confirmation_epoch",
+    }
+    for name, method_name in methods.items():
+        adapter = getattr(bot, name)
+        public = inspect.signature(adapter).parameters
+        args = tuple(object() for param in public.values() if param.kind == param.POSITIONAL_OR_KEYWORD)
+        for use_defaults in (True, False):
+            owner = Mock(spec=values.ReplyReceiptValues)
+            factory = Mock(return_value=owner)
+            monkeypatch.setattr(bot, "_reply_receipt_values_owner", factory)
+            implementation = getattr(owner, method_name)
+            result = object()
+            implementation.return_value = result
+            options = {
+                key: object() for key, param in public.items()
+                if param.kind == param.KEYWORD_ONLY
+                and (not use_defaults or param.default is param.empty)
+            }
+            expected = {
+                key: param.default for key, param in public.items()
+                if param.kind == param.KEYWORD_ONLY and param.default is not param.empty
+            } | options
+            assert adapter(*args, **options) is result
+            factory.assert_called_once_with()
+            actual_args, actual_kwargs = implementation.call_args
+            assert len(actual_args) == len(args)
+            assert all(actual is original for actual, original in zip(actual_args, args))
+            assert actual_kwargs.keys() == expected.keys()
+            assert all(actual_kwargs[key] is value for key, value in expected.items())
+            failure = TypeError(name)
+            implementation.side_effect = failure
+            with pytest.raises(TypeError) as caught:
+                adapter(*args, **options)
+            assert caught.value is failure
+
+
+def test_lifecycle_dispatch_uses_owned_validator_and_exact_flags(monkeypatch, make_owner):
     data, result = object(), object()
+    owner = make_owner()
     for name, lifecycle, legacy in (
-        ("confirmed_reply_receipt_is_semantically_valid", "confirmed", False),
-        ("sending_reply_receipt_is_semantically_valid", "sending", False),
-        ("_legacy_confirmed_reply_receipt_is_semantically_valid", "confirmed", True),
-        ("_legacy_sending_reply_receipt_is_semantically_valid", "sending", True),
+        ("confirmed_is_valid", "confirmed", False),
+        ("sending_is_valid", "sending", False),
+        ("legacy_confirmed_is_valid", "confirmed", True),
+        ("legacy_sending_is_valid", "sending", True),
     ):
         callback = Mock(return_value=result)
-        monkeypatch.setattr(bot, "_conversational_reply_receipt_is_semantically_valid", callback)
-        assert getattr(bot, name)(data) is result
+        monkeypatch.setattr(values.ReplyReceiptValues, "validate", callback)
+        assert getattr(owner, name)(data) is result
         options = {"lifecycle_state": lifecycle}
         if legacy:
             options["legacy_recovery"] = True
@@ -97,10 +169,10 @@ def test_lifecycle_dispatch_uses_current_root_callback_and_exact_flags(monkeypat
 
 
 @pytest.fixture(params=["current", *CASE_IDS])
-def receipt_family(request):
+def receipt_family(request, make_owner):
     if request.param == "current":
         sending = unit_sending_v4_reply_receipt()
-        confirmed = bot._confirmed_reply_receipt_from_sending(
+        confirmed = make_owner().confirmed_from_sending(
             sending, reply_post_id="999", confirmation_epoch=2_000_000_005,
         )
         return sending, confirmed, False
@@ -108,28 +180,30 @@ def receipt_family(request):
     return case["sending_receipt"], _confirmed_receipt(case), True
 
 
-def test_source_validation_uses_current_family_callbacks_in_order(monkeypatch, receipt_family):
+def test_source_validation_uses_current_family_callbacks_in_order(monkeypatch, make_owner, receipt_family):
     sending, confirmed, legacy = receipt_family
-    validate = (
-        bot._legacy_confirmed_reply_receipt_is_semantically_valid
-        if legacy else bot.confirmed_reply_receipt_is_semantically_valid
-    )
-    assert validate(confirmed)
+    owner = make_owner()
+    validator_name = "legacy_confirmed_is_valid" if legacy else "confirmed_is_valid"
+    assert getattr(owner, validator_name)(confirmed)
     if legacy:
-        assert not bot.sending_reply_receipt_is_semantically_valid(sending)
+        assert not owner.sending_is_valid(sending)
     trace = Mock()
     trace.draft = Mock(return_value=True)
-    trace.reconstruct = Mock(wraps=bot.conversational_sending_receipt_from_confirmed)
+    trace.reconstruct = Mock(wraps=owner.sending_from_confirmed)
     trace.sending = Mock(return_value=True)
     trace.canonical = Mock(wraps=bot.canonical_atomic_json_bytes)
-    prefix = "_legacy_" if legacy else ""
-    other_prefix = "" if legacy else "_legacy_"
-    monkeypatch.setattr(bot, prefix + "ai_reply_receipt_draft_is_valid", trace.draft)
-    monkeypatch.setattr(bot, other_prefix + "ai_reply_receipt_draft_is_valid", Mock(side_effect=AssertionError("wrong draft family")))
-    monkeypatch.setattr(bot, "conversational_sending_receipt_from_confirmed", trace.reconstruct)
-    monkeypatch.setattr(bot, prefix + "sending_reply_receipt_is_semantically_valid", trace.sending)
-    monkeypatch.setattr(bot, other_prefix + "sending_reply_receipt_is_semantically_valid", Mock(side_effect=AssertionError("wrong source family")))
-    monkeypatch.setattr(bot, "canonical_atomic_json_bytes", trace.canonical)
+    wrong_family = Mock(side_effect=AssertionError("wrong draft family"))
+    owner = replace(
+        owner, canonical_atomic_json_bytes=trace.canonical,
+        legacy_draft_is_valid=trace.draft if legacy else wrong_family,
+        draft_is_valid=wrong_family if legacy else trace.draft,
+    )
+    sending_method = "legacy_sending_is_valid" if legacy else "sending_is_valid"
+    other_method = "sending_is_valid" if legacy else "legacy_sending_is_valid"
+    monkeypatch.setattr(values.ReplyReceiptValues, "sending_from_confirmed", trace.reconstruct)
+    monkeypatch.setattr(values.ReplyReceiptValues, sending_method, trace.sending)
+    monkeypatch.setattr(values.ReplyReceiptValues, other_method, Mock(side_effect=AssertionError("wrong source family")))
+    validate = getattr(owner, validator_name)
 
     assert validate(confirmed)
     assert [entry[0] for entry in trace.mock_calls] == ["draft", "reconstruct", "sending", "canonical"]
@@ -159,27 +233,27 @@ def test_source_validation_uses_current_family_callbacks_in_order(monkeypatch, r
     assert [entry[0] for entry in trace.mock_calls] == ["draft"]
 
 
-def test_source_reconstruction_errors_are_caught_before_hashing(monkeypatch):
+def test_source_reconstruction_errors_are_caught_before_hashing(monkeypatch, make_owner):
     sending = unit_sending_v4_reply_receipt()
     confirmed = bot._confirmed_reply_receipt_from_sending(
         sending, reply_post_id="999", confirmation_epoch=2_000_000_005,
     )
     reconstruct = Mock(side_effect=ValueError("invalid source"))
     canonical = Mock(side_effect=UnicodeError("unencodable source"))
-    monkeypatch.setattr(bot, "conversational_sending_receipt_from_confirmed", reconstruct)
-    monkeypatch.setattr(bot, "canonical_atomic_json_bytes", canonical)
-    assert not bot.confirmed_reply_receipt_is_semantically_valid(confirmed)
+    monkeypatch.setattr(values.ReplyReceiptValues, "sending_from_confirmed", reconstruct)
+    owner = make_owner(canonical_atomic_json_bytes=canonical)
+    assert not owner.confirmed_is_valid(confirmed)
     canonical.assert_not_called()
     reconstruct.side_effect = None
     reconstruct.return_value = sending
     with pytest.raises(UnicodeError) as caught:
-        bot.confirmed_reply_receipt_is_semantically_valid(confirmed)
+        owner.confirmed_is_valid(confirmed)
     assert caught.value is canonical.side_effect
     assert canonical.call_args.args[0] is sending
 
 
 @pytest.mark.parametrize("lane", ["mention", "quote_tweet"])
-def test_attempt_binding_preserves_references_and_clock_date_validation_order(monkeypatch, lane):
+def test_attempt_binding_preserves_references_and_clock_date_validation_order(monkeypatch, make_owner, lane):
     template = unit_v4_reply_receipt_template(lane=lane)
     reply = unit_approved_reply(template["reply_context"], text=template["reply_text"])
     template["reply_text"], template["ai_reply_draft"] = reply, reply.draft_record
@@ -187,13 +261,12 @@ def test_attempt_binding_preserves_references_and_clock_date_validation_order(mo
     trace = Mock()
     trace.clock.return_value = 2_000_000_000
     trace.date = Mock(wraps=bot.reply_cap_date_str)
-    trace.validate = Mock(wraps=bot.sending_reply_receipt_is_semantically_valid)
-    monkeypatch.setattr(bot, "now_epoch", trace.clock)
-    monkeypatch.setattr(bot, "reply_cap_date_str", trace.date)
-    monkeypatch.setattr(bot, "sending_reply_receipt_is_semantically_valid", trace.validate)
+    owner = make_owner(now_epoch=trace.clock, reply_cap_date_str=trace.date)
+    trace.validate = Mock(wraps=owner.sending_is_valid)
+    monkeypatch.setattr(values.ReplyReceiptValues, "sending_is_valid", trace.validate)
 
-    prepared = bot.bind_conversational_reply_attempt_time(template)
-    # The real validator also reaches the current date helper through its safe wrapper.
+    prepared = owner.bind_attempt(template)
+    # Validation retains its separate safe date boundary.
     assert [entry[0] for entry in trace.mock_calls][:3] == ["clock", "date", "validate"]
     assert trace.date.call_args.args == (2_000_000_000,)
     assert trace.validate.call_args.args[0] is prepared
@@ -204,26 +277,25 @@ def test_attempt_binding_preserves_references_and_clock_date_validation_order(mo
     trace.reset_mock()
     trace.validate.return_value = False
     with pytest.raises(RuntimeError, match="^Internal error: prepared reply attempt failed validation$"):
-        bot.bind_conversational_reply_attempt_time(template)
+        owner.bind_attempt(template)
     assert [entry[0] for entry in trace.mock_calls] == ["clock", "date", "validate"]
     assert bot.canonical_atomic_json_bytes(template) == before
     trace.reset_mock()
     with pytest.raises(RuntimeError, match="^Reply attempt template already contains timing fields$"):
-        bot.bind_conversational_reply_attempt_time({**template, "confirmation_epoch": None})
+        owner.bind_attempt({**template, "confirmation_epoch": None})
     assert not trace.mock_calls
 
 
 @pytest.mark.parametrize("lane", ["mention", "quote_tweet"])
-def test_projection_and_reconstruction_keep_shallow_copies_and_exact_hash_input(monkeypatch, lane):
+def test_projection_and_reconstruction_keep_shallow_copies_and_exact_hash_input(make_owner, lane):
     sending = unit_sending_v4_reply_receipt(lane=lane)
     reply = unit_approved_reply(sending["reply_context"], text=sending["reply_text"])
     sending["reply_text"], sending["ai_reply_draft"] = reply, reply.draft_record
     before = dict(sending)
     canonical = Mock(return_value=b"exact current canonical sending bytes\n")
     date = Mock(return_value="confirmation-date")
-    monkeypatch.setattr(bot, "canonical_atomic_json_bytes", canonical)
-    monkeypatch.setattr(bot, "reply_cap_date_str", date)
-    confirmed = bot._confirmed_reply_receipt_from_sending(
+    owner = make_owner(canonical_atomic_json_bytes=canonical, reply_cap_date_str=date)
+    confirmed = owner.confirmed_from_sending(
         sending, reply_post_id=999, confirmation_epoch=2_000_000_005,
     )
     assert canonical.call_args.args[0] is sending
@@ -239,9 +311,8 @@ def test_projection_and_reconstruction_keep_shallow_copies_and_exact_hash_input(
     confirmed_before = dict(confirmed)
     integer = Mock(wraps=bot.receipt_int)
     safe_date = Mock(return_value="attempt-date")
-    monkeypatch.setattr(bot, "receipt_int", integer)
-    monkeypatch.setattr(bot, "safe_reply_cap_date_str", safe_date)
-    reconstructed = bot.conversational_sending_receipt_from_confirmed(confirmed)
+    owner = replace(owner, receipt_int=integer, safe_reply_cap_date_str=safe_date)
+    reconstructed = owner.sending_from_confirmed(confirmed)
     integer.assert_called_once_with(confirmed["attempt_epoch"])
     safe_date.assert_called_once_with(2_000_000_000)
     assert reconstructed is not confirmed and confirmed is not sending
@@ -257,35 +328,33 @@ def test_projection_and_reconstruction_keep_shallow_copies_and_exact_hash_input(
     assert sending == before and confirmed == confirmed_before
 
 
-def test_confirmation_projection_preserves_existing_version_equality(monkeypatch):
+def test_confirmation_projection_preserves_existing_version_equality(make_owner):
     sending = unit_sending_v4_reply_receipt()
     sending["schema_version"] = 4.0
     canonical = Mock(wraps=bot.canonical_atomic_json_bytes)
-    monkeypatch.setattr(bot, "canonical_atomic_json_bytes", canonical)
-    confirmed = bot._confirmed_reply_receipt_from_sending(
+    owner = make_owner(canonical_atomic_json_bytes=canonical)
+    confirmed = owner.confirmed_from_sending(
         sending, reply_post_id=999, confirmation_epoch=2_000_000_005,
     )
     assert confirmed["confirmation_epoch"] == 2_000_000_005
     assert canonical.call_args.args[0] is sending
     canonical.reset_mock()
     sending["schema_version"] = 3
-    confirmed = bot._confirmed_reply_receipt_from_sending(
+    confirmed = owner.confirmed_from_sending(
         sending, reply_post_id=999, confirmation_epoch=2_000_000_005,
     )
     assert confirmed == {**sending, "lifecycle_state": "confirmed", "reply_post_id": "999"}
     canonical.assert_not_called()
 
 
-def test_observed_confirmation_uses_current_clock_converter_and_exact_warning(monkeypatch):
+def test_observed_confirmation_uses_current_clock_converter_and_exact_warning(make_owner):
     trace = Mock()
     trace.clock.return_value = "19"
     trace.integer.return_value = 20
-    monkeypatch.setattr(bot, "now_epoch", trace.clock)
-    monkeypatch.setattr(bot, "receipt_int", trace.integer)
-    monkeypatch.setattr(bot, "log", trace.log)
+    owner = make_owner(now_epoch=trace.clock, receipt_int=trace.integer, log=trace.log)
     attempt = object()
     sending = {"schema_version": 4.0, "attempt_epoch": attempt}
-    assert bot._reply_confirmation_epoch_after_remote_success(sending) == 20
+    assert owner.observed_confirmation_epoch(sending) == 20
     assert trace.mock_calls == [
         call.clock(), call.integer(attempt),
         call.log.warning(
@@ -295,10 +364,10 @@ def test_observed_confirmation_uses_current_clock_converter_and_exact_warning(mo
         ),
     ]
     trace.reset_mock()
-    assert bot._reply_confirmation_epoch_after_remote_success({"schema_version": 3}, 23.9) == 23
+    assert owner.observed_confirmation_epoch({"schema_version": 3}, 23.9) == 23
     assert not trace.mock_calls
     with pytest.raises(ValueError):
-        bot._reply_confirmation_epoch_after_remote_success(sending, "invalid")
+        owner.observed_confirmation_epoch(sending, "invalid")
     assert not trace.mock_calls
 
 
@@ -306,34 +375,33 @@ def test_observed_confirmation_uses_current_clock_converter_and_exact_warning(mo
     (4.0, "confirmation_epoch", "Schema-v4 confirmed reply receipt lacks a confirmation epoch"),
     (3, "reply_epoch", "Legacy confirmed reply receipt lacks its best-known reply epoch"),
 ])
-def test_best_confirmation_time_uses_current_converter_and_exception(monkeypatch, version, field, message):
+def test_best_confirmation_time_uses_current_converter_and_exception(make_owner, version, field, message):
     class CurrentReceiptError(Exception):
         pass
 
     raw, converted = object(), object()
     integer = Mock(return_value=converted)
-    monkeypatch.setattr(bot, "receipt_int", integer)
-    monkeypatch.setattr(bot, "InvalidConfirmedReplyReceipt", CurrentReceiptError)
+    owner = make_owner(receipt_int=integer, invalid_receipt=CurrentReceiptError)
     receipt = {"schema_version": version, field: raw}
-    assert bot.conversational_reply_confirmation_epoch(receipt) is converted
+    assert owner.confirmation_epoch(receipt) is converted
     integer.assert_called_once_with(raw)
     integer.return_value = None
     with pytest.raises(CurrentReceiptError) as caught:
-        bot.conversational_reply_confirmation_epoch(receipt)
+        owner.confirmation_epoch(receipt)
     assert type(caught.value) is CurrentReceiptError
     assert str(caught.value) == message
 
 
-def test_pagination_uses_current_id_callback_before_token_validation(monkeypatch):
+def test_pagination_uses_current_id_callback_before_token_validation(make_owner):
     bounded = Mock(return_value=0)
-    monkeypatch.setattr(bot, "bounded_tweet_id_value", bounded)
-    assert bot.mention_pagination_provenance_is_valid({"base_since_id": "", "next_token": "page-2"})
+    owner = make_owner(bounded_tweet_id_value=bounded)
+    assert owner.pagination_is_valid({"base_since_id": "", "next_token": "page-2"})
     bounded.assert_called_once_with("", allow_empty=True)
     bounded.reset_mock()
-    assert not bot.mention_pagination_provenance_is_valid({"base_since_id": ""})
+    assert not owner.pagination_is_valid({"base_since_id": ""})
     bounded.assert_not_called()
     failure = ValueError("current ID validator failed")
     bounded.side_effect = failure
     with pytest.raises(ValueError) as caught:
-        bot.mention_pagination_provenance_is_valid({"base_since_id": "", "next_token": None})
+        owner.pagination_is_valid({"base_since_id": "", "next_token": None})
     assert caught.value is failure
