@@ -158,7 +158,7 @@ One commit with subject `Add generated image review web app` includes the review
 
 ## 39. Safe LAN guidance
 
-Create ignored `.generated-image-review.env` from the example, use long random values and mode 600, load it into the environment, then explicitly run with `--host 0.0.0.0`. Restrict firewall access to the owner's LAN address; do not expose publicly or port-forward.
+Use loopback plus an SSH tunnel, or credentials with TLS (`--tls-cert`/`--tls-key`). A non-loopback listener also requires an explicit public Host. A trusted HTTPS reverse proxy is supported only with `--trusted-proxy-origin`; restrict its plaintext backend to the proxy. See `tools/generated_image_review_app/README.md` for the current secure launcher options.
 
 ## 40. Restart after real quarantine
 

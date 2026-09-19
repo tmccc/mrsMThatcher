@@ -1,6 +1,18 @@
 # Generated Image Review
 
-Private swipe-review utility for generated Margaret Thatcher quote images.
+Compatibility launcher for the swipe workflow in `tools.generated_image_review_app.swipe`.
+Both review workflows use the same authenticated request boundary. The SQLite database
+and all initial, confirmation, reconfirmation and undo decisions are retained in place;
+no database conversion is needed. Keep using the same `--database` and `--export-file`.
+
+Non-loopback service requires `MRS_REVIEW_USERNAME` and `MRS_REVIEW_PASSWORD` and
+TLS (`--tls-cert` / `--tls-key`) or `--trusted-proxy-origin https://review.example`.
+Use `--public-host review.example` to allow the actual HTTP Host. A trusted proxy
+must terminate TLS, preserve that Host, restrict access to its backend and strip
+untrusted forwarding headers. Never expose the plaintext backend to LAN clients.
+Loopback development permits no credentials; requests still require signed CSRF,
+valid Host/Origin and bounded bodies. Export is a CSRF-protected POST.
+
 
 The app reviews grade `X` images by default, stores every decision in SQLite, supports undo after restart, and exports a clean JSON overrides file. It does not modify the original assessment export or the generated-image corpus.
 
@@ -20,11 +32,11 @@ python3 app.py \
   --corpus-root /disks/disk1/etc/mrsMThatcher/openai_generated_quote_images \
   --database /disks/disk1/etc/mrsMThatcher/review/generated_image_review.sqlite3 \
   --export-file /disks/disk1/etc/mrsMThatcher/generated_image_overrides.json \
-  --host 0.0.0.0 \
+  --host 127.0.0.1 \
   --port 8765
 ```
 
-Open `http://SERVER:8765/` from the phone, tablet, or desktop browser.
+Open `http://127.0.0.1:8765/` locally, or use an SSH tunnel from another device.
 
 ## Confirmation Pass
 
@@ -36,7 +48,7 @@ python3 app.py \
   --database /disks/disk1/etc/mrsMThatcher/review/generated_image_review.sqlite3 \
   --export-file /disks/disk1/etc/mrsMThatcher/generated_image_overrides.json \
   --mode confirm-allowed \
-  --host 0.0.0.0 \
+  --host 127.0.0.1 \
   --port 8765
 ```
 
@@ -55,7 +67,7 @@ python3 app.py \
   --database /disks/disk1/etc/mrsMThatcher/review/generated_image_review.sqlite3 \
   --export-file /disks/disk1/etc/mrsMThatcher/generated_image_overrides.json \
   --mode reconfirm-allowed \
-  --host 0.0.0.0 \
+  --host 127.0.0.1 \
   --port 8765
 ```
 
@@ -76,7 +88,7 @@ export GIR_MODE=review
 Production-style Uvicorn invocation using the environment variables:
 
 ```bash
-uvicorn tools.generated_image_review.app:configured_app --factory --host 0.0.0.0 --port 8765
+uvicorn tools.generated_image_review.app:configured_app --factory --host 127.0.0.1 --port 8765
 ```
 
 ## Assessment Input
@@ -126,7 +138,7 @@ Only rows with `undone_at IS NULL` are effective. First-pass decisions use stage
 
 ## Export
 
-The app writes the export atomically after each decision and undo, and also exposes `GET /api/export`.
+The app writes the export atomically after each decision and undo, and also exposes `POST /api/export (authenticated, with a signed CSRF token)`.
 
 Format:
 
@@ -154,7 +166,7 @@ SQLite remains the authoritative store.
 - `POST /api/decision`
 - `POST /api/undo`
 - `GET /api/progress`
-- `GET /api/export`
+- `POST /api/export (authenticated, with a signed CSRF token)`
 - `GET /image/{quote_hash}`
 
 The decision endpoint rejects stale decisions if the submitted quote hash is not the current first pending item.

@@ -1,5 +1,20 @@
 # MrsMThatcher Bot
 
+Supported runtime and full-suite platform: CPython 3.10 on Linux (x86-64).
+Production locking requires Linux open-file-description locks (`F_OFD_SETLK`
+and `F_OFD_GETLK`), `flock`, an accessible `/proc/self/fdinfo`, and AF_UNIX
+abstract sockets. These protections are mandatory; other operating systems are
+not supported for production or the lock integration suite. Live module reload
+is refused after bootstrap or lock acquisition; restart through the normal
+controlled lifecycle instead.
+
+Runtime-control deadline strings must include an explicit timezone offset, for
+example `2030-01-02T03:04:05+00:00` or `2030-01-02T03:04:05Z`. Integer Unix epochs
+are also accepted. Timezone-less dates fail closed, independent of host settings.
+The one-shot `--test-cycle` and `--test-main-tick` modes return status 3 after a
+remote-write safety stop has obtained durable restart authority; successful
+no-post outcomes return zero.
+
 ## Local Integration Harness
 
 All bot-code test runs have a documentation prerequisite. The root pytest
@@ -417,7 +432,7 @@ never shortened away. The reviewed corpus fits below 650 weighted characters.
 Mention, quote-tweet and hot-post replies use one production strategy. Existing
 deterministic eligibility and scheduling run first; the bot then assembles
 bounded conversation context and locally retrieved trusted facts, makes one
-OpenAI Responses API call, applies strict mechanical validation, and passes a
+OpenAI Responses API call, applies local schema, factual and mechanical validation, and passes a
 valid reply to the existing durable X-write path. A valid `no_reply` is the
 editorial decision. Provider, schema and local-validation failures are
 operational failures and do not count as editorial declines.
@@ -444,6 +459,30 @@ change retry, retirement or provider-health decisions.
 There is no shadow, fallback, reviewer, secondary provider, claim-audit call,
 repair call or separate visual-description call. An image-bearing candidate
 supplies up to two locally validated images in the same Sol request.
+
+Every checkable assertion must appear in `factual_claims` with exact reply text
+and supporting `fact_ids`. Each claim must copy a complete trusted passage;
+unknown paraphrases, omitted claims and context-dependent pronouns or relative
+dates fail closed. Fact IDs alone and the model's `reply_kind` do not grant
+factual authority. A small closed grammar keeps ordinary courtesies, clarification
+questions and abstract value judgements available without external evidence.
+Unsupported prose is rejected locally without another model call.
+
+Draft schema 4 binds the full claim inventory, source-record hashes and UTC
+`time_context` to its hash. A changed UTC date or source timestamp invalidates a
+pending draft. Old schema-3 pending drafts are discarded; frozen validation still
+permits reconciliation of already-started or confirmed schema-3 receipts.
+
+Image downloads require exact declared lengths and complete Pillow decoding,
+with limits of 8,192 pixels per dimension, 16 million pixels per frame, 32 frames
+and 32 million decoded frame pixels in total. Each image remains bounded to
+20 MiB; the complete JSON provider request, including base64 and all images, is
+bounded to 32 MiB. Malformed images never reach the provider.
+
+A 429 receives at most one immediate retry, and only when provider metadata
+specifies a delay of at most one second. Longer or unknown delays persist a
+cooldown and defer the candidate. Recovered 429s also persist provider-health
+and cooldown accounting before decision telemetry or another candidate call.
 
 Configure it through the ignored local configuration after review:
 
@@ -612,6 +651,23 @@ epochs invalidate the complete control document.
 The bot and digest share these validation rules. If `generation` is present,
 it must be a non-negative integer; `null` is invalid. Both use the bot's
 existing maximum timestamp of `4102531200`.
+
+Durable bot state uses reader version 5 with an embedded monotonic generation
+and content digest. Startup selects the newest complete sealed generation and
+repairs replicas; failure to publish `.bak1` cannot invalidate a committed primary.
+Legacy state migrates under the singleton/state lock only when its authority is
+unambiguous. Conflicting legacy documents require operator reconciliation; the
+loader does not guess from backup filenames. Older readers are fenced out.
+
+State and used histories are bounded to 64 MiB of encoded JSON. Saves reject
+non-finite numbers, invalid state and over-limit growth before replacing existing
+authority. Durable identity collections are retained rather than silently pruned.
+Receipts and transport journals are retired only with exact, fsynced state and
+history proofs, rechecked at destructive boundaries. Files must be owned by the
+runtime UID and never writable by group/others; new files use mode 0600 and state
+directories must be owned and protected from other writers. See
+[the durability remediation notes](docs/fresh-eyes-state-remediation.md) for the
+migration and failure-boundary contract.
 
 Normal operational commands require `bot_state.json` (or a valid configured
 backup), `lines_used.json`, and `images_used.json`. They refuse to infer a new

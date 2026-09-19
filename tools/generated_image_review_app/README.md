@@ -5,7 +5,7 @@ Local, server-rendered review UI for the approved generated-image pool. “Remov
 ## Safety model
 
 - Read-only by default; `--allow-changes` is required for quarantine/restore.
-- Binds to `127.0.0.1` by default. Non-loopback binding refuses startup unless `MRS_REVIEW_USERNAME` and `MRS_REVIEW_PASSWORD` are set.
+- Binds to `127.0.0.1` by default. Non-loopback binding requires `MRS_REVIEW_USERNAME`, `MRS_REVIEW_PASSWORD` and TLS or an explicitly configured trusted HTTPS reverse proxy.
 - State-changing forms require signed CSRF tokens and explicit count-specific confirmation phrases.
 - Writes are confined to the generated pool, `generated_image_analysis.json`, `generated_image_identity_dependence_audit.json`, app data, and quarantine tree.
 - Bot state, used histories, lines, config, logs, receipts, lock, X, xAI, and process control are outside the application.
@@ -29,18 +29,23 @@ Browse `http://127.0.0.1:8765/` locally or use an SSH tunnel from another machin
 python3 -m tools.generated_image_review_app.app --host 127.0.0.1 --port 8765 --allow-changes
 ```
 
-## LAN access
+## Remote access
 
-Set credentials in an ignored environment file and bind explicitly:
+Prefer a loopback listener and SSH tunnel. For direct TLS, set credentials in an
+ignored environment file and use `--tls-cert /path/cert.pem --tls-key /path/key.pem`
+with `--host 0.0.0.0 --public-host review.example`.
 
-```bash
-set -a
-. .generated-image-review.env
-set +a
-python3 -m tools.generated_image_review_app.app --host 0.0.0.0 --port 8765 --allow-changes
-```
+For an explicitly trusted TLS reverse proxy, use
+`--trusted-proxy-origin https://review.example --public-host review.example`.
+The proxy must preserve Host, strip untrusted forwarding headers and restrict
+backend access to the proxy alone (prefer loopback). Do not expose its plaintext
+backend to LAN users. All requests require the configured Host; cross-origin
+requests are rejected. Both workflows share signed CSRF, bounded request bodies,
+constant-time credential verification and security headers.
 
-Do not expose this service to the public internet or configure port forwarding. Prefer a firewall rule limited to the owner's LAN address. Secrets are never printed.
+The legacy swipe launcher delegates to `tools.generated_image_review_app.swipe`.
+Its existing SQLite decisions, staged confirmation, undo and JSON export remain
+compatible. Export is a protected POST, and no database migration is required.
 
 ## Workflow
 
