@@ -1,4 +1,4 @@
-"""Own verified parent paths and prepared single-call reply contexts.
+"""Own verified parent paths and prepared normal and quote reply contexts.
 
 ReplyContext binds current lookup, validation, media, clock and policy boundaries
 without retaining caller state. Parent traversal, quote selection, structural
@@ -95,6 +95,7 @@ class ReplyContext:
     always_fetch_parent: bool
     context_validation_error: type[Exception]
     incoming_maximum_chars: int
+    maximum_visible_chars: int
     skip_own_auto_replies: bool
     bound_visible_conversation: Callable
     current_utc_datetime: Callable
@@ -517,4 +518,69 @@ class ReplyContext:
         )
         prepared = PreparedReplyContext(context, prepared_media_context)
         self.log_summary("Single-call reply context", prepared)
+        return prepared
+
+    def build_quote(
+        self,
+        original_tweet: dict,
+        quote_tweet: dict,
+    ) -> PreparedReplyContext:
+        """Build the canonical two-turn context for a direct quote-tweet."""
+
+        target_id = str(quote_tweet.get("id") or "")
+        original_id = str(original_tweet.get("id") or "")
+        author_id = str(quote_tweet.get("author_id") or "")
+        target_turn = self.post(
+            quote_tweet,
+            principal_author_id=author_id,
+            maximum_chars=self.incoming_maximum_chars,
+        )
+        original_turn = {
+            "post_id": original_id,
+            "author_role": "account",
+            "text": trim_context_text(
+                tweet_context_text(original_tweet),
+                max(1, self.maximum_visible_chars - len(target_turn["text"])),
+            ),
+        }
+        bounded_visible = self.bound_visible_conversation(
+            [original_turn, target_turn],
+            target_post_id=target_id,
+        )
+        visible = [
+            {
+                "post_id": turn["post_id"],
+                "author_role": turn["role"],
+                "text": turn["text"],
+            }
+            for turn in bounded_visible
+        ]
+        context: dict[str, object] = {
+            "target_id": target_id,
+            "thread_id": str(
+                quote_tweet.get("conversation_id") or target_id
+            ),
+            "root_post_id": original_id,
+            "parent_post_id": original_id,
+            "lane": "quote_tweet",
+            "incoming_contribution": target_turn["text"],
+            "quoted_post": copy.deepcopy(original_turn),
+            "quoted_post_id": original_turn["post_id"],
+            "quoted_post_relationship": "target_quote",
+            "parent_thread": [copy.deepcopy(original_turn)],
+            "visible_conversation": visible,
+            "visual_description": None,
+            "clarification_request": None,
+            "current_date": self.current_utc_datetime().astimezone(timezone.utc).strftime("%Y-%m-%d"),
+            "target_author_id": author_id,
+            "target_created_at": str(quote_tweet.get("created_at") or ""),
+        }
+        media_context = self.reply_media_context_for_candidate(
+            quote_tweet,
+            lane="quote_tweet",
+            target_id=target_id,
+            quoted_candidate=original_tweet,
+        )
+        prepared = PreparedReplyContext(context, media_context)
+        self.log_summary("Single-call quote-tweet context", prepared)
         return prepared

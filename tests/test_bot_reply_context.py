@@ -18,6 +18,7 @@ from mrs_bot_reply_cycle_interfaces import PreparedReplyContext
 import mrs_bot_reply_context as reply_context
 from tests.helpers.bot_runtime import SCENARIOS, bot
 from tests.helpers.bot_fixtures import isolate_bot_runtime  # noqa: F401
+from tests.helpers.reply_fixtures import patch_reply_context_method
 from tests.fake_api_server import load_scenario
 
 
@@ -69,6 +70,7 @@ OWNER_INPUTS = {
     "always_fetch_parent": "ALWAYS_FETCH_PARENT_FOR_CONTEXT",
     "context_validation_error": "ContextValidationError",
     "incoming_maximum_chars": "REPLY_INCOMING_MAX_CHARS",
+    "maximum_visible_chars": "MAX_VISIBLE_TEXT_CHARACTERS",
     "skip_own_auto_replies": "SKIP_REPLIES_TO_OWN_AUTO_REPLIES",
     "bound_visible_conversation": "bound_visible_conversation",
     "current_utc_datetime": "current_utc_datetime",
@@ -88,12 +90,14 @@ def make_owner():
 
 def test_owner_composition_binds_current_dependencies_without_calling_them(monkeypatch):
     default = inspect.signature(bot._reply_context_post).parameters["maximum_chars"].default
+    parameters = inspect.signature(reply_context.ReplyContext).parameters
+    assert len(parameters) == 21
+    assert parameters.keys() == OWNER_INPUTS.keys() | {"default_post_maximum_chars"}
     snapshots = []
     for _ in range(2):
         current = {field: Mock() for field in OWNER_INPUTS}
         for field, name in OWNER_INPUTS.items():
             monkeypatch.setattr(bot, name, current[field])
-        monkeypatch.setattr(bot, "MAX_VISIBLE_TEXT_CHARACTERS", object())
         owner = bot._reply_context_owner()
         assert isinstance(owner, reply_context.ReplyContext)
         assert owner.default_post_maximum_chars == default
@@ -118,10 +122,14 @@ def test_adapters_preserve_defaults_argument_result_identity_and_native_errors(m
         "_parent_path_is_contiguous": "parent_path_is_contiguous",
         "_parent_path_is_chronological": "parent_path_is_chronological",
         "build_context_for_reply_ai": "build",
+        "build_quote_tweet_reply_context": "build_quote",
     }
     for name, method_name in methods.items():
         adapter = getattr(bot, name)
         public = inspect.signature(adapter).parameters
+        if method_name == "build_quote":
+            assert tuple(public) == ("original_tweet", "quote_tweet")
+            assert all(param.kind is param.POSITIONAL_OR_KEYWORD for param in public.values())
         args = tuple(object() for param in public.values() if param.kind == param.POSITIONAL_OR_KEYWORD)
         for use_defaults in (True, False):
             owner = Mock(spec=reply_context.ReplyContext)
@@ -177,6 +185,9 @@ def test_visible_post_omitted_maximum_keeps_definition_time_default_after_config
     monkeypatch.setattr(reply_context, "trim_context_text", trim)
     monkeypatch.setattr(bot, "MAX_VISIBLE_TEXT_CHARACTERS", 7)
     monkeypatch.setattr(bot, "MY_USER_ID", "200")
+    owner = bot._reply_context_owner()
+    assert owner.maximum_visible_chars == 7
+    assert owner.default_post_maximum_chars == fixed
 
     omitted = bot._reply_context_post(tweet, principal_author_id="200")
     explicit = bot._reply_context_post(tweet, principal_author_id="200", maximum_chars=7)
@@ -185,6 +196,67 @@ def test_visible_post_omitted_maximum_keeps_definition_time_default_after_config
     assert explicit == {"post_id": "100", "author_role": "account", "text": "xxxx..."}
     assert [entry.args[1] for entry in trim.call_args_list] == [fixed, 7]
     assert inspect.signature(bot._reply_context_post).parameters["maximum_chars"].default == fixed
+
+
+def test_quote_context_preserves_budget_roles_reference_boundaries_and_media_before_summary(monkeypatch, make_owner):
+    original = {"id": 900, "text": "original account text " * 20}
+    quote = {
+        "id": 910, "author_id": 310, "conversation_id": 911,
+        "created_at": "2026-06-30T10:00:00Z", "text": "target commentary " * 10,
+    }
+    before = copy.deepcopy((original, quote))
+    trace = Mock()
+    for name in ("tweet_context_text", "trim_context_text"):
+        callback = Mock(wraps=getattr(reply_context, name))
+        trace.attach_mock(callback, name)
+        monkeypatch.setattr(reply_context, name, callback)
+    trace.attach_mock(Mock(wraps=bot.bound_visible_conversation), "bound_visible_conversation")
+    media = {"photos": []}
+    trace.attach_mock(Mock(return_value=media), "media")
+    owner = make_owner(
+        incoming_maximum_chars=30, maximum_visible_chars=60,
+        bound_visible_conversation=trace.bound_visible_conversation,
+        reply_media_context_for_candidate=trace.media,
+        current_utc_datetime=lambda: datetime(2030, 2, 3),
+    )
+    trace.attach_mock(Mock(wraps=owner.post), "post")
+    trace.attach_mock(Mock(wraps=owner.log_summary), "log_summary")
+    patch_reply_context_method(monkeypatch, "post", trace.post)
+    patch_reply_context_method(monkeypatch, "log_summary", trace.log_summary)
+
+    prepared_context = owner.build_quote(original, quote)
+    assert prepared_context is not None
+    context = prepared_context.context
+
+    assert [c[0] for c in trace.mock_calls] == [
+        "post", "tweet_context_text", "trim_context_text",
+        "tweet_context_text", "trim_context_text", "bound_visible_conversation",
+        "media", "log_summary",
+    ]
+    assert trace.post.call_args.args[0] is quote
+    assert trace.post.call_args.kwargs == {"principal_author_id": "310", "maximum_chars": 30}
+    assert trace.tweet_context_text.call_args.args[0] is original
+    assert trace.trim_context_text.call_args.args[1] == 60 - len(context["incoming_contribution"])
+    original_turn, target_turn = trace.bound_visible_conversation.call_args.args[0]
+    assert original_turn["author_role"] == "account"
+    assert target_turn["author_role"] == "user"
+    assert [turn["post_id"] for turn in context["visible_conversation"]] == ["900", "910"]
+    assert sum(len(turn["text"]) for turn in context["visible_conversation"]) <= 60
+    assert context["quoted_post"] == context["parent_thread"][0] == original_turn
+    assert context["quoted_post"] is not original_turn
+    assert context["parent_thread"][0] is not original_turn
+    assert context["quoted_post"] is not context["parent_thread"][0]
+    assert context["current_date"] == "2030-02-03"
+    assert context["thread_id"] == "911"
+    assert context["target_author_id"] == "310"
+    assert context["target_created_at"] == quote["created_at"]
+    assert prepared_context.media_context is media
+    assert trace.media.call_args.args[0] is quote
+    assert trace.media.call_args.kwargs["quoted_candidate"] is original
+    assert trace.log_summary.call_args.args[1] is prepared_context
+    context["quoted_post"]["text"] = "changed copy"
+    assert context["parent_thread"][0]["text"] == original_turn["text"]
+    assert (original, quote) == before
 
 
 def test_parent_chain_keeps_current_callback_order_and_original_parent_references(monkeypatch, make_owner):
@@ -334,6 +406,14 @@ def test_context_preserves_canonical_rejection_and_native_bound_media_errors(mon
         with pytest.raises(TypeError) as caught:
             owner.build(target, bot.default_state())
         assert caught.value is failure
+    assert media.call_count == (1 if boundary == "media" else 0)
+    summary.assert_not_called()
+
+    bound.reset_mock()
+    media.reset_mock()
+    with pytest.raises(type(failure)) as caught:
+        owner.build_quote({"id": "900", "text": "Quoted account post"}, target)
+    assert caught.value is failure
     assert media.call_count == (1 if boundary == "media" else 0)
     summary.assert_not_called()
 

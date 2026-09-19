@@ -2,8 +2,6 @@ from __future__ import annotations
 
 from tests.helpers.reply_evaluation import legacy_reply_evaluator
 
-import copy
-from datetime import datetime
 import inspect
 import json
 from pathlib import Path
@@ -68,7 +66,6 @@ def test_adapters_forward_current_dependencies_arguments_results_and_errors(monk
     names = {
         "quote_tweet_is_old_enough": 4,
         "quote_tweet_directly_quotes_original": 0,
-        "build_quote_tweet_reply_context": 10,
         "mark_quote_tweet_skipped": 1,
         "mark_quote_tweet_replied": 2,
         "mark_quote_spam_author": 2,
@@ -221,65 +218,6 @@ def test_profile_alias_preserves_coercion_whitespace_metrics_and_native_shape_er
     for user in ([1], {"public_metrics": [1]}):
         with pytest.raises(AttributeError):
             bot.quote_author_profile_text({"_author_user": user})
-
-
-def test_context_preserves_budget_roles_reference_boundaries_and_media_before_summary(monkeypatch):
-    original = {"id": 900, "text": "original account text " * 20}
-    quote = {
-        "id": 910, "author_id": 310, "conversation_id": 911,
-        "created_at": "2026-06-30T10:00:00Z", "text": "target commentary " * 10,
-    }
-    before = copy.deepcopy((original, quote))
-    trace = Mock()
-    for name in (
-        "_reply_context_post", "tweet_context_text", "trim_context_text",
-        "bound_visible_conversation", "_log_single_call_context_summary",
-    ):
-        callback = Mock(wraps=getattr(bot, name))
-        trace.attach_mock(callback, name)
-        monkeypatch.setattr(bot, name, callback)
-        if name in {"tweet_context_text", "trim_context_text"}:
-            monkeypatch.setattr(context_owner, name, callback)
-    media = {"photos": []}
-    trace.attach_mock(Mock(return_value=media), "media")
-    monkeypatch.setattr(bot, "reply_media_context_for_candidate", trace.media)
-    monkeypatch.setattr(bot, "current_utc_datetime", lambda: datetime(2030, 2, 3))
-    monkeypatch.setattr(bot, "REPLY_INCOMING_MAX_CHARS", 30)
-    monkeypatch.setattr(bot, "MAX_VISIBLE_TEXT_CHARACTERS", 60)
-
-    prepared_context = bot.build_quote_tweet_reply_context(original, quote)
-    assert prepared_context is not None
-    context = prepared_context.context
-
-    assert [c[0] for c in trace.mock_calls] == [
-        "_reply_context_post", "tweet_context_text", "trim_context_text",
-        "tweet_context_text", "trim_context_text", "bound_visible_conversation",
-        "media", "_log_single_call_context_summary",
-    ]
-    assert trace._reply_context_post.call_args.args[0] is quote
-    assert trace._reply_context_post.call_args.kwargs == {"principal_author_id": "310", "maximum_chars": 30}
-    assert trace.tweet_context_text.call_args.args[0] is original
-    assert trace.trim_context_text.call_args.args[1] == 60 - len(context["incoming_contribution"])
-    original_turn, target_turn = trace.bound_visible_conversation.call_args.args[0]
-    assert original_turn["author_role"] == "account"
-    assert target_turn["author_role"] == "user"
-    assert [turn["post_id"] for turn in context["visible_conversation"]] == ["900", "910"]
-    assert sum(len(turn["text"]) for turn in context["visible_conversation"]) <= 60
-    assert context["quoted_post"] == context["parent_thread"][0] == original_turn
-    assert context["quoted_post"] is not original_turn
-    assert context["parent_thread"][0] is not original_turn
-    assert context["quoted_post"] is not context["parent_thread"][0]
-    assert context["current_date"] == "2030-02-03"
-    assert context["thread_id"] == "911"
-    assert context["target_author_id"] == "310"
-    assert context["target_created_at"] == quote["created_at"]
-    assert prepared_context.media_context is media
-    assert trace.media.call_args.args[0] is quote
-    assert trace.media.call_args.kwargs["quoted_candidate"] is original
-    assert trace._log_single_call_context_summary.call_args.args[1] is prepared_context
-    context["quoted_post"]["text"] = "changed copy"
-    assert context["parent_thread"][0]["text"] == original_turn["text"]
-    assert (original, quote) == before
 
 
 def test_markers_preserve_bounded_and_durable_lists_and_mutation_before_failure(monkeypatch):

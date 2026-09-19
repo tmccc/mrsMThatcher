@@ -3619,6 +3619,7 @@ def _reply_context_owner() -> _reply_context.ReplyContext:
         always_fetch_parent=ALWAYS_FETCH_PARENT_FOR_CONTEXT,
         context_validation_error=ContextValidationError,
         incoming_maximum_chars=REPLY_INCOMING_MAX_CHARS,
+        maximum_visible_chars=MAX_VISIBLE_TEXT_CHARACTERS,
         skip_own_auto_replies=SKIP_REPLIES_TO_OWN_AUTO_REPLIES,
         bound_visible_conversation=bound_visible_conversation,
         current_utc_datetime=current_utc_datetime,
@@ -8826,19 +8827,9 @@ def build_quote_tweet_reply_context(
     quote_tweet: dict,
 ) -> _reply_cycle_interfaces.PreparedReplyContext:
     """Build the canonical two-turn context for a direct quote-tweet."""
-    return _quote_reply_cycle.build_quote_tweet_reply_context(
+    return _reply_context_owner().build_quote(
         original_tweet,
         quote_tweet,
-        MAX_VISIBLE_TEXT_CHARACTERS=MAX_VISIBLE_TEXT_CHARACTERS,
-        REPLY_INCOMING_MAX_CHARS=REPLY_INCOMING_MAX_CHARS,
-        _log_single_call_context_summary=_log_single_call_context_summary,
-        _reply_context_post=_reply_context_post,
-        bound_visible_conversation=bound_visible_conversation,
-        copy=copy,
-        current_utc_datetime=current_utc_datetime,
-        reply_media_context_for_candidate=reply_media_context_for_candidate,
-        trim_context_text=trim_context_text,
-        tweet_context_text=tweet_context_text,
     )
 
 

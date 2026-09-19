@@ -1,4 +1,4 @@
-"""Own the quote-tweet reply cycle, eligibility, context and lane markers.
+"""Own the quote-tweet reply cycle, eligibility and lane markers.
 
 The cycle receives typed settings, persistence and delivery boundaries plus
 evaluation and accounting owners; helper adapters retain current policy and
@@ -18,12 +18,9 @@ configuration, clients or state.
 
 from __future__ import annotations
 
-from datetime import timezone
-
 from collections.abc import Callable
 from dataclasses import dataclass
 from logging import Logger
-from types import ModuleType
 from typing import TYPE_CHECKING
 
 from mrs_bot_daily_reply_accounting import daily_author_reply_counts
@@ -128,82 +125,6 @@ def quote_author_profile_text(quote_tweet: dict) -> str:
         )
 
     return "\n".join(part for part in parts if part.strip())
-
-
-def build_quote_tweet_reply_context(
-    original_tweet: dict,
-    quote_tweet: dict,
-    *,
-    MAX_VISIBLE_TEXT_CHARACTERS: int,
-    REPLY_INCOMING_MAX_CHARS: int,
-    _log_single_call_context_summary: Callable,
-    _reply_context_post: Callable,
-    bound_visible_conversation: Callable,
-    copy: ModuleType,
-    current_utc_datetime: Callable,
-    reply_media_context_for_candidate: Callable,
-    trim_context_text: Callable,
-    tweet_context_text: Callable,
-) -> PreparedReplyContext:
-    """Build the canonical two-turn context for a direct quote-tweet."""
-
-    target_id = str(quote_tweet.get("id") or "")
-    original_id = str(original_tweet.get("id") or "")
-    author_id = str(quote_tweet.get("author_id") or "")
-    target_turn = _reply_context_post(
-        quote_tweet,
-        principal_author_id=author_id,
-        maximum_chars=REPLY_INCOMING_MAX_CHARS,
-    )
-    original_turn = {
-        "post_id": original_id,
-        "author_role": "account",
-        "text": trim_context_text(
-            tweet_context_text(original_tweet),
-            max(1, MAX_VISIBLE_TEXT_CHARACTERS - len(target_turn["text"])),
-        ),
-    }
-    bounded_visible = bound_visible_conversation(
-        [original_turn, target_turn],
-        target_post_id=target_id,
-    )
-    visible = [
-        {
-            "post_id": turn["post_id"],
-            "author_role": turn["role"],
-            "text": turn["text"],
-        }
-        for turn in bounded_visible
-    ]
-    context: dict[str, object] = {
-        "target_id": target_id,
-        "thread_id": str(
-            quote_tweet.get("conversation_id") or target_id
-        ),
-        "root_post_id": original_id,
-        "parent_post_id": original_id,
-        "lane": "quote_tweet",
-        "incoming_contribution": target_turn["text"],
-        "quoted_post": copy.deepcopy(original_turn),
-        "quoted_post_id": original_turn["post_id"],
-        "quoted_post_relationship": "target_quote",
-        "parent_thread": [copy.deepcopy(original_turn)],
-        "visible_conversation": visible,
-        "visual_description": None,
-        "clarification_request": None,
-        "current_date": current_utc_datetime().astimezone(timezone.utc).strftime("%Y-%m-%d"),
-        "target_author_id": author_id,
-        "target_created_at": str(quote_tweet.get("created_at") or ""),
-    }
-    media_context = reply_media_context_for_candidate(
-        quote_tweet,
-        lane="quote_tweet",
-        target_id=target_id,
-        quoted_candidate=original_tweet,
-    )
-    prepared = PreparedReplyContext(context, media_context)
-    _log_single_call_context_summary("Single-call quote-tweet context", prepared)
-    return prepared
 
 
 def mark_quote_tweet_skipped(
