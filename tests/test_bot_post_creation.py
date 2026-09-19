@@ -24,6 +24,7 @@ DEPENDENCIES = {'validate_media_upload_payload_metadata': ['copy'],
                      'x_request'],
  'upload_media': ['AmbiguousRemotePostOutcome',
                   'MEDIA_UPLOAD_RECEIPT_FILE',
+                  'MediaUploadPreflightError',
                   'MediaUploadReceiptError',
                   'Path',
                   'RemoteOperationsPaused',
@@ -330,6 +331,29 @@ def test_outer_media_binding_validation_guard_confirmation_order(monkeypatch, tm
     assert events.begin.call_args.kwargs["payload_metadata"] is state.metadata
     assert events.bind.call_args.kwargs["payload_metadata"] is state.metadata
     assert events.upload.call_args.kwargs["payload"] is state.payload
+
+
+def test_image_preflight_failure_never_reaches_upload_or_creates_an_ambiguity(monkeypatch, tmp_path):
+    events, state = _media_boundary(monkeypatch, tmp_path)
+    failure = bot.MediaUploadPreflightError("source image is not durably present")
+    events.begin.side_effect = failure
+    with pytest.raises(bot.MediaUploadPreflightError) as caught:
+        bot.upload_media(state.image, lane="daily_meme")
+    assert caught.value is failure
+    for name in ("bind", "guard", "upload", "confirm", "abort", "marker"):
+        getattr(events, name).assert_not_called()
+
+
+@pytest.mark.parametrize("boundary", ["begin", "bind"])
+def test_uncertain_receipt_setup_remains_ambiguous(monkeypatch, tmp_path, boundary):
+    events, state = _media_boundary(monkeypatch, tmp_path)
+    failure = bot.MediaUploadReceiptError("unsafe durable transaction directory")
+    getattr(events, boundary).side_effect = failure
+    with pytest.raises(bot.AmbiguousRemotePostOutcome) as caught:
+        bot.upload_media(state.image, lane="daily_meme")
+    assert caught.value.__cause__ is failure
+    events.upload.assert_not_called()
+    events.abort.assert_not_called()
 
 
 @pytest.mark.parametrize("boundary", ["guard", "confirm"])

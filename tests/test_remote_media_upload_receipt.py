@@ -1355,12 +1355,49 @@ def test_confirmed_handoff_owner_requires_writer_epoch_range(
         )
 
 
+@pytest.mark.parametrize("lane", ["quote_image", "daily_meme"])
+@pytest.mark.parametrize("fault", ["writable_directory", "writable_image", "missing_image"])
+def test_image_preflight_failure_leaves_no_receipt_and_repair_allows_upload(
+    tmp_path: Path, lane: str, fault: str,
+) -> None:
+    """Local asset faults precede durable authority and can be repaired safely."""
+
+    image_directory = tmp_path / "images"
+    image_directory.mkdir(mode=0o755)
+    _, image_path, metadata = _fixture(image_directory, lane=lane)
+    receipt_path = tmp_path / "media.json"
+    original = image_path.read_bytes()
+    if fault == "writable_directory":
+        image_directory.chmod(0o775)
+    elif fault == "writable_image":
+        image_path.chmod(0o666)
+    else:
+        image_path.unlink()
+
+    with pytest.raises(media_receipt.MediaUploadPreflightError):
+        _begin(receipt_path, image_path, metadata, lane=lane)
+    assert not receipt_path.exists()
+    assert not media_receipt.fence_path_for_receipt(receipt_path).exists()
+    assert not media_receipt.media_upload_receipt_is_blocking(receipt_path)
+
+    image_directory.chmod(0o755)
+    if not image_path.exists():
+        _durable_write(image_path, original)
+    image_path.chmod(0o600)
+    authority = _begin(receipt_path, image_path, metadata, lane=lane)
+    payload = _consume(receipt_path, image_path, metadata, authority, lane=lane)
+    assert payload.data == original
+    _confirm_media_upload(receipt_path, authority, media_id="780001")
+
+
 def test_existing_unknown_receipt_is_never_overwritten(tmp_path: Path) -> None:
     receipt_path, image_path, metadata = _fixture(tmp_path)
     _durable_write(receipt_path, b"not-json")
     before = receipt_path.read_bytes()
-    with pytest.raises(media_receipt.MediaUploadReceiptError, match="unresolved"):
+    image_path.unlink()
+    with pytest.raises(media_receipt.MediaUploadReceiptError, match="unresolved") as caught:
         _begin(receipt_path, image_path, metadata)
+    assert not isinstance(caught.value, media_receipt.MediaUploadPreflightError)
     assert receipt_path.read_bytes() == before
 
 

@@ -12,6 +12,7 @@ event collection and report assembly remain with their existing owners.
 """
 from __future__ import annotations
 
+import ast
 import hashlib
 import json
 import re
@@ -102,6 +103,76 @@ def _normalise_incident_text(value: str) -> str:
     return re.sub(r"\s+", " ", text).strip()
 
 
+def _local_media_preflight_reason(message: str) -> Optional[str]:
+    """Recognise a typed preflight failure or the exact legacy source-read cause.
+
+    A permission error elsewhere in receipt establishment can follow a durable
+    write. Legacy exceptions are therefore reclassified only when the immediate
+    cause proves that the initial image read failed before receipt publication.
+    """
+    text = str(message or "")
+    final_line = _incident_exception_line(text)
+    typed = re.fullmatch(
+        r"(?:remote_media_upload_receipt\.)?MediaUploadPreflightError: (.+)",
+        final_line,
+    )
+    if typed:
+        return typed.group(1)
+    if final_line != (
+        "AmbiguousRemotePostOutcome: Could not establish the "
+        "restart-persistent media-upload receipt"
+    ):
+        return None
+    tracebacks = text.split("Traceback (most recent call last):\n")
+    if len(tracebacks) < 3:
+        return None
+    cause = tracebacks[-2]
+    frames = re.findall(r'  File "([^"\n]+)", line \d+, in ([^\n]+)\n([^\n]*)', cause)
+    if [(path.rsplit("/", 1)[-1], name) for path, name, _code in frames] != [
+        ("mrs_bot_post_creation.py", "upload_media"),
+        ("remote_media_upload_receipt.py", "begin_media_upload"),
+        ("remote_media_upload_receipt.py", "_read_stable_regular"),
+        ("remote_media_upload_receipt.py", "_open_directory"),
+    ]:
+        return None
+    if (
+        frames[1][2].strip()
+        != "image = _read_stable_regular(image_path, maximum=IMAGE_MAX_BYTES)"
+        or frames[2][2].strip() != "directory_fd = _open_directory(path.parent)"
+        or not cause.rstrip().endswith(
+            "remote_media_upload_receipt.MediaUploadReceiptError: unsafe durable transaction directory\n\n"
+            "The above exception was the direct cause of the following exception:"
+        )
+    ):
+        return None
+    return "source image directory ownership or permissions failed local preflight"
+
+
+def _media_preflight_lane(message: str) -> str:
+    """Return the image-posting lane explicitly identified in retained text."""
+    lowered = str(message or "").lower()
+    explicit = re.search(r"\blane=[\"']?(daily_meme|quote_image)\b", lowered)
+    if explicit:
+        return explicit.group(1)
+    if "daily meme" in lowered:
+        return "daily_meme"
+    if "quote/image" in lowered:
+        return "quote_image"
+    return "unknown"
+
+
+def _media_preflight_image(message: str) -> str:
+    """Decode the explicit repr-quoted source basename from a typed failure."""
+    reason = _local_media_preflight_reason(message) or ""
+    match = re.search(r'''\bimage=("(?:\\.|[^"\\])*"|'(?:\\.|[^'\\])*')''', reason)
+    if match is None:
+        return ""
+    try:
+        return str(ast.literal_eval(match.group(1)))
+    except (SyntaxError, ValueError):
+        return ""
+
+
 def _remote_write_barrier_category(message: str) -> Optional[str]:
     """Recognise outer safety diagnoses before handled errors in chained tracebacks."""
     lowered = str(message or "").lower()
@@ -154,6 +225,8 @@ def classify_operational_error(
     text = str(message or "")
     lowered = text.lower()
     exception_line = incident_exception_line(text).lower()
+    if _local_media_preflight_reason(text) is not None:
+        return "local_media_preflight_failure"
     barrier_category = _remote_write_barrier_category(text)
     if barrier_category is not None:
         return barrier_category
@@ -398,7 +471,15 @@ def observe_error_warning(
             "_fingerprint": record_fingerprint(r),
             "source_refs": [record_source_ref(r, input_file_indexes)],
         }
-        if classify_operational_error(msg) == "remote_operations_paused":
+        error_category = classify_operational_error(msg)
+        if error_category == "local_media_preflight_failure":
+            lane = _media_preflight_lane(msg)
+            pending = {"daily_meme": pending_meme, "quote_image": pending_quote}.get(lane, {})
+            error_item["_media_preflight_lane"] = lane
+            error_item["_media_preflight_image"] = (
+                _media_preflight_image(msg) or str(pending.get("image") or "")
+            )
+        if error_category == "remote_operations_paused":
             source = str(r.src or "").lower()
             pending_lane = ""
             if "historical_context" in source:
@@ -1644,6 +1725,13 @@ def _group_operational_incidents(
             item["_pause_scope_evidence"] = pause_evidence
             item["_pause_control_keys"] = pause_keys
             signature = f"{category}:{pause_scope}"
+        elif category == "local_media_preflight_failure":
+            lane = str(item.get("_media_preflight_lane") or _media_preflight_lane(raw))
+            image = _media_preflight_image(raw) or str(item.get("_media_preflight_image") or "")
+            reason = normalise_incident_text(_local_media_preflight_reason(raw) or root)
+            item["_media_preflight_lane"] = lane
+            item["_media_preflight_image"] = image
+            signature = f"{category}:{lane}:{image}:{reason}"
         else:
             signature = (
                 category
@@ -2027,6 +2115,29 @@ def summarise_operational_error_health(
                 pipeline_identity, last_time
             )
             status = "historical_resolved" if resolved else "current_unresolved"
+        elif category == "local_media_preflight_failure":
+            lane = str(ordered[0].get("_media_preflight_lane") or "unknown")
+            image = str(ordered[0].get("_media_preflight_image") or "")
+            success_kind = {
+                "daily_meme": "daily_meme_posted",
+                "quote_image": "quote_image_posted",
+            }.get(lane)
+            later_successes = [
+                ts for event in events
+                if success_kind is not None and image
+                and event.get("kind") == success_kind
+                and (ts := get_event_time(event)) is not None
+                and ts > last_time
+                and str(event.get("file") or event.get("image_basename") or event.get("image") or "").rsplit("/", 1)[-1]
+                == image.rsplit("/", 1)[-1]
+            ]
+            resolved = bool(later_successes)
+            resolution_time = min(later_successes) if resolved else None
+            resolution_reason = (
+                f"later {success_kind.replace('_', ' ')} observed after local source-image preflight failure"
+                if resolved else ""
+            )
+            status = "historical_resolved" if resolved else "current_unresolved"
         elif category == "x_api_rate_limit":
             cooldown_deadlines: List[datetime] = []
             for item in ordered:
@@ -2135,6 +2246,13 @@ def summarise_operational_error_health(
             representative = (
                 "Remote operations paused for "
                 + remote_operation_scope_labels.get(pause_scope, pause_scope)
+            )
+        elif category == "local_media_preflight_failure":
+            representative = (
+                "Local media preflight failed before receipt publication or upload; "
+                + str(ordered[0].get("_media_preflight_lane") or "unknown")
+                + ": "
+                + str(_local_media_preflight_reason(str(ordered[0].get("_raw_message") or ordered[0].get("message") or "")) or "")
             )
         elif pipeline_identity is not None:
             reasons = Counter(

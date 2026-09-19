@@ -791,6 +791,13 @@ later mode-0400 reconciliation audit is hash-bound to its archived evidence and
 the current barrier namespace is clear. The digest never reconciles, retires,
 or writes any of this protocol state.
 
+Source-image validation failures before media receipt publication are local
+preflight failures. Repeated errors for the same lane and image form one
+incident; a later successful publication for that image resolves it. The digest
+also recognises older mislabelled ambiguity errors when their full traceback
+proves this pre-publication source-image failure. Historical error records remain
+visible; genuine uncertain uploads still require reconciliation evidence.
+
 An X POST transport timeout is not proof of failure: X may have accepted the
 write. A new ambiguous outcome first creates and synchronises
 `ambiguous_post_outcome.restart_barrier.json`, then adds the same-inode
@@ -867,6 +874,12 @@ ambiguous and restart-visible; the legacy v1.1 upload helper refuses before
 transport and is never an automatic fallback. Raw X, media and provider
 transports receive no unbound authority and cannot bypass an unresolved
 transaction object.
+
+Image files and their immediate containing directories must be owned by the bot
+user and must not permit group or public writes. A source-image failure before
+receipt publication raises `MediaUploadPreflightError` and uses the ordinary
+local-failure scheduling delay. Failures involving existing receipts or begun
+receipt publication retain their remote-write barrier handling.
 
 One narrower stopped recovery exists for an ambiguous media upload before any
 tweet-create attempt. `tools/reconcile_remote_write_safety_marker.py

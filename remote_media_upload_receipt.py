@@ -84,6 +84,10 @@ class MediaUploadReceiptError(RuntimeError):
     """A media receipt or one of its bound inputs is unsafe or stale."""
 
 
+class MediaUploadPreflightError(MediaUploadReceiptError):
+    """The source image failed validation before publishing any upload receipt."""
+
+
 @dataclass(frozen=True)
 class MediaUploadAuthority:
     """One-shot authority bound to exact durable receipt and fence inodes."""
@@ -1059,8 +1063,16 @@ def begin_media_upload(
         raise MediaUploadReceiptError("media-upload receipt is already unresolved")
     try:
         image = _read_stable_regular(image_path, maximum=IMAGE_MAX_BYTES)
-    except FileNotFoundError as exc:
-        raise MediaUploadReceiptError("source image is not durably present") from exc
+    except (MediaUploadReceiptError, OSError) as exc:
+        reason = (
+            "source image is not durably present"
+            if isinstance(exc, FileNotFoundError)
+            else str(exc)
+        )
+        raise MediaUploadPreflightError(
+            "Source image preflight failed before media receipt publication "
+            f"(lane={lane} image={image_path.name!r}): {reason}"
+        ) from exc
     image_hash = hashlib.sha256(image.data).hexdigest()
     metadata_value = dict(payload_metadata)
     metadata_hash = _metadata_hash(metadata_value)

@@ -137,7 +137,7 @@ def test_due_success_uses_original_objects_without_error_retry(lane, tick):
 
 
 @pytest.mark.parametrize("lane", ["quote", "meme"])
-@pytest.mark.parametrize("failure_kind", ["ambiguous", "unrecoverable", "confirmed", "api", "unexpected"])
+@pytest.mark.parametrize("failure_kind", ["ambiguous", "unrecoverable", "confirmed", "api", "unexpected", "preflight"])
 def test_post_outcome_controls_retry_and_api_error_accounting(lane, failure_kind, tick):
     failures = {
         "ambiguous": bot.AmbiguousRemotePostOutcome("uncertain", service="x"),
@@ -145,6 +145,7 @@ def test_post_outcome_controls_retry_and_api_error_accounting(lane, failure_kind
         "confirmed": bot.ConfirmedPostLocalPersistenceError("confirmed"),
         "api": bot.ApiError("request rejected", service="x", status_code=429),
         "unexpected": RuntimeError("local failure"),
+        "preflight": bot.MediaUploadPreflightError("source image failed before publication"),
     }
     failure = failures[failure_kind]
     post = tick.post_random_quote if lane == "quote" else tick.post_next_meme

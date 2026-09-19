@@ -117,6 +117,7 @@ def upload_media(
     lane: str,
     AmbiguousRemotePostOutcome: Any,
     MEDIA_UPLOAD_RECEIPT_FILE: Any,
+    MediaUploadPreflightError: Any,
     MediaUploadReceiptError: Any,
     Path: Any,
     RemoteOperationsPaused: Any,
@@ -162,6 +163,10 @@ def upload_media(
             mime_type=mime_type,
             payload_metadata=payload_metadata,
         )
+    except MediaUploadPreflightError:
+        # No receipt was published and no upload was attempted. Let the
+        # scheduler apply its ordinary local-failure retry delay.
+        raise
     except MediaUploadReceiptError as exc:
         raise AmbiguousRemotePostOutcome(
             "Could not establish the restart-persistent media-upload receipt",
