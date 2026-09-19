@@ -10,8 +10,9 @@ supplied current root maybe_reply_to_mentions callback with the original state.
 Discovery/pagination, counters/watermarks/quarantine policy, pipeline/evidence,
 context/media, persistence, reconciliation and delivery stay in their existing
 locations. Explicit calls may read providers, generate a reply, save state and
-publish through those callbacks. Import of the standard library and inert interfaces performs no file,
-environment, provider or RNG work and retains no callbacks or configuration.
+publish through those callbacks. Fixed check statuses and dependency-free state
+helpers are imported from their inert owners. Imports perform no file,
+environment, provider or RNG work and retain no callbacks or configuration.
 """
 
 from __future__ import annotations
@@ -23,15 +24,29 @@ from logging import Logger
 from typing import TYPE_CHECKING
 
 from mrs_bot_reply_cycle_interfaces import (
+    NORMAL_CHECK_STATUS_API_ERROR,
+    NORMAL_CHECK_STATUS_CHECKED,
+    NORMAL_CHECK_STATUS_DISABLED,
+    NORMAL_CHECK_STATUS_POSTED,
+    NORMAL_CHECK_STATUS_SKIPPED_CAP,
+    NORMAL_CHECK_STATUS_SKIPPED_COOLDOWN,
+    NORMAL_CHECK_STATUS_SKIPPED_SPACING,
     EvaluateReply, NormalReplyConfig,
     ReplyCycleDelivery, ReplyCyclePersistence,
 )
 from mrs_bot_reply_delivery import ReplyDeliveryStop, deliver_prepared_reply
+from mrs_bot_reply_evaluation_state import (
+    completed_mention_watermark_covers_target,
+    terminal_reply_evaluation,
+)
 from mrs_bot_reply_preparation import (
     build_sending_reply_receipt,
     persist_validated_reply_draft,
 )
-from mrs_bot_reply_state import retire_ineligible_reply_draft
+from mrs_bot_reply_state import (
+    pending_ai_reply_draft_key,
+    retire_ineligible_reply_draft,
+)
 
 if TYPE_CHECKING:
     from single_call_reply import PipelineResult
@@ -78,13 +93,6 @@ def maybe_reply_to_mentions(
     ApiError: type[Exception],
     ConfirmedReplyLocalPersistenceError: type[Exception],
     config: NormalReplyConfig,
-    NORMAL_CHECK_STATUS_API_ERROR: str,
-    NORMAL_CHECK_STATUS_CHECKED: str,
-    NORMAL_CHECK_STATUS_DISABLED: str,
-    NORMAL_CHECK_STATUS_POSTED: str,
-    NORMAL_CHECK_STATUS_SKIPPED_CAP: str,
-    NORMAL_CHECK_STATUS_SKIPPED_COOLDOWN: str,
-    NORMAL_CHECK_STATUS_SKIPPED_SPACING: str,
     PipelineResult: type,
     ProvedRemotePostNonSuccess: type[Exception],
     RemoteOperationsPaused: type[Exception],
@@ -104,7 +112,6 @@ def maybe_reply_to_mentions(
     clarification_thread_is_terminal: Callable,
     clear_author_evaluation_quarantine_history: Callable,
     persistence: ReplyCyclePersistence,
-    completed_mention_watermark_covers_target: Callable,
     conversational_reply_pipeline_enabled: Callable,
     daily_author_reply_count: Callable,
     daily_author_reply_counts: Callable,
@@ -123,7 +130,6 @@ def maybe_reply_to_mentions(
     maybe_reply_to_mentions: Callable,
     mention_pagination_provenance_is_valid: Callable,
     now_epoch: Callable,
-    pending_ai_reply_draft_key: Callable,
     pending_mention_candidates: Callable,
     prune_author_evaluation_quarantines: Callable,
     prune_completed_mention_quarantine_evaluations: Callable,
@@ -135,7 +141,6 @@ def maybe_reply_to_mentions(
     reply_evidence_repository: Callable,
     reply_target_is_directly_eligible: Callable,
     reset_daily_reply_count_if_needed: Callable,
-    terminal_reply_evaluation: Callable,
     trim_context_text: Callable,
     valid_tweets_sorted_by_id: Callable,
 ) -> str:
@@ -306,10 +311,8 @@ def maybe_reply_to_mentions(
             persistence=persistence, log=log, log_event=log_event,
             mark_mention_seen_if_applicable=mark_mention_seen_if_applicable,
             maybe_mark_hot_post_reply_skipped=maybe_mark_hot_post_reply_skipped,
-            pending_ai_reply_draft_key=pending_ai_reply_draft_key,
             record_terminal_reply_evaluation=record_terminal_reply_evaluation,
             reply_target_is_directly_eligible=reply_target_is_directly_eligible,
-            terminal_reply_evaluation=terminal_reply_evaluation,
         )
         if not eligible:
             continue
@@ -332,7 +335,6 @@ def maybe_reply_to_mentions(
             config=config,
             active_author_evaluation_quarantine=active_author_evaluation_quarantine,
             cache_tweet=cache_tweet,
-            completed_mention_watermark_covers_target=completed_mention_watermark_covers_target,
             daily_author_reply_count=daily_author_reply_count,
             is_probably_spam_or_not_worth_replying=is_probably_spam_or_not_worth_replying, log=log,
             log_event=log_event, mark_mention_seen_if_applicable=mark_mention_seen_if_applicable,
@@ -346,8 +348,7 @@ def maybe_reply_to_mentions(
         flush_quarantine_retirements()
         context_result = _prepare_reply_context(
             state, candidate, clarification,
-            ApiError=ApiError, NORMAL_CHECK_STATUS_API_ERROR=NORMAL_CHECK_STATUS_API_ERROR,
-            NORMAL_CHECK_STATUS_CHECKED=NORMAL_CHECK_STATUS_CHECKED, PipelineResult=PipelineResult,
+            ApiError=ApiError, PipelineResult=PipelineResult,
             config=config,
             RemoteOperationsPaused=RemoteOperationsPaused,
             ReplyEvidenceUnavailable=ReplyEvidenceUnavailable,
@@ -369,8 +370,6 @@ def maybe_reply_to_mentions(
         evaluation_result = _evaluate_reply(
             state, candidate, reply_context, media_context, progress,
             ApiError=ApiError, config=config,
-            NORMAL_CHECK_STATUS_API_ERROR=NORMAL_CHECK_STATUS_API_ERROR,
-            NORMAL_CHECK_STATUS_CHECKED=NORMAL_CHECK_STATUS_CHECKED,
             RemoteOperationsPaused=RemoteOperationsPaused,
             evaluate_single_call_reply=evaluate_single_call_reply, log=log, log_event=log_event,
             persistence=persistence, record_api_error=record_api_error,
@@ -385,7 +384,6 @@ def maybe_reply_to_mentions(
         if not reply_text:
             outcome = _retire_or_defer_no_reply(
                 state, candidate, evaluation_result, current,
-                NORMAL_CHECK_STATUS_API_ERROR=NORMAL_CHECK_STATUS_API_ERROR,
                 _is_terminal_candidate_local_failure=_is_terminal_candidate_local_failure, log=log,
                 log_event=log_event, mark_mention_seen_if_applicable=mark_mention_seen_if_applicable,
                 maybe_mark_hot_post_reply_skipped=maybe_mark_hot_post_reply_skipped,
@@ -399,7 +397,6 @@ def maybe_reply_to_mentions(
 
         receipt_template = _prepare_reply_receipt(
             state, candidate, reply_text, reply_context, clarification,
-            NORMAL_CHECK_STATUS_API_ERROR=NORMAL_CHECK_STATUS_API_ERROR,
             SINGLE_CALL_STRATEGY_VERSION=SINGLE_CALL_STRATEGY_VERSION,
             ValidatedReply=ValidatedReply,
             _log_validated_single_call_reply=_log_validated_single_call_reply,
@@ -417,8 +414,6 @@ def maybe_reply_to_mentions(
             AmbiguousRemotePostOutcome=AmbiguousRemotePostOutcome, ApiError=ApiError,
             ConfirmedReplyLocalPersistenceError=ConfirmedReplyLocalPersistenceError,
             config=config,
-            NORMAL_CHECK_STATUS_API_ERROR=NORMAL_CHECK_STATUS_API_ERROR,
-            NORMAL_CHECK_STATUS_CHECKED=NORMAL_CHECK_STATUS_CHECKED,
             ProvedRemotePostNonSuccess=ProvedRemotePostNonSuccess,
             UnrecoverableConfirmedReplyPersistenceError=UnrecoverableConfirmedReplyPersistenceError,
             api_error_is_reply_not_allowed=api_error_is_reply_not_allowed,
@@ -436,9 +431,6 @@ def maybe_reply_to_mentions(
         status = _finalise_confirmed_reply(
             state, candidate, receipt,
             delivery=delivery,
-
-
-            NORMAL_CHECK_STATUS_POSTED=NORMAL_CHECK_STATUS_POSTED,
             log=log,
             log_event=log_event,
         )
@@ -480,10 +472,8 @@ def _candidate_is_eligible(
     log_event: Callable,
     mark_mention_seen_if_applicable: Callable,
     maybe_mark_hot_post_reply_skipped: Callable,
-    pending_ai_reply_draft_key: Callable,
     record_terminal_reply_evaluation: Callable,
     reply_target_is_directly_eligible: Callable,
-    terminal_reply_evaluation: Callable,
 ) -> bool:
     """Retire already handled and directly ineligible targets before context work."""
     if candidate.mention_id in replied_to_ids:
@@ -584,7 +574,6 @@ def _author_allows_evaluation(
     config: NormalReplyConfig,
     active_author_evaluation_quarantine: Callable,
     cache_tweet: Callable,
-    completed_mention_watermark_covers_target: Callable,
     daily_author_reply_count: Callable,
     is_probably_spam_or_not_worth_replying: Callable,
     log: Logger,
@@ -680,8 +669,6 @@ def _prepare_reply_context(
     clarification: dict | None,
     *,
     ApiError: type[Exception],
-    NORMAL_CHECK_STATUS_API_ERROR: str,
-    NORMAL_CHECK_STATUS_CHECKED: str,
     PipelineResult: type,
     config: NormalReplyConfig,
     RemoteOperationsPaused: type[Exception],
@@ -792,8 +779,6 @@ def _evaluate_reply(
     *,
     ApiError: type[Exception],
     config: NormalReplyConfig,
-    NORMAL_CHECK_STATUS_API_ERROR: str,
-    NORMAL_CHECK_STATUS_CHECKED: str,
     RemoteOperationsPaused: type[Exception],
     evaluate_single_call_reply: EvaluateReply,
     log: Logger,
@@ -885,7 +870,6 @@ def _retire_or_defer_no_reply(
     evaluation: PipelineResult,
     current: int,
     *,
-    NORMAL_CHECK_STATUS_API_ERROR: str,
     _is_terminal_candidate_local_failure: Callable,
     log: Logger,
     log_event: Callable,
@@ -982,7 +966,6 @@ def _prepare_reply_receipt(
     reply_context: dict,
     clarification: dict | None,
     *,
-    NORMAL_CHECK_STATUS_API_ERROR: str,
     SINGLE_CALL_STRATEGY_VERSION: str,
     ValidatedReply: type,
     _log_validated_single_call_reply: Callable,
@@ -1143,8 +1126,6 @@ def _deliver_reply(
     ApiError: type[Exception],
     ConfirmedReplyLocalPersistenceError: type[Exception],
     config: NormalReplyConfig,
-    NORMAL_CHECK_STATUS_API_ERROR: str,
-    NORMAL_CHECK_STATUS_CHECKED: str,
     ProvedRemotePostNonSuccess: type[Exception],
     UnrecoverableConfirmedReplyPersistenceError: type[Exception],
     api_error_is_reply_not_allowed: Callable,
@@ -1212,7 +1193,6 @@ def _finalise_confirmed_reply(
     candidate: _ReplyCandidate,
     receipt: dict,
     *,
-    NORMAL_CHECK_STATUS_POSTED: str,
     log: Logger,
     log_event: Callable,
     delivery: ReplyCycleDelivery,

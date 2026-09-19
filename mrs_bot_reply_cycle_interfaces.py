@@ -1,4 +1,4 @@
-"""Typed, per-invocation settings and boundaries shared by reply cycles.
+"""Fixed check statuses, per-invocation settings and shared reply-cycle boundaries.
 
 These records describe configuration, draft persistence, delivery and prepared
 context/media results. The root supplies current callbacks for each check, and
@@ -15,6 +15,15 @@ from typing import TYPE_CHECKING, Protocol
 
 if TYPE_CHECKING:
     from single_call_reply import PipelineResult
+
+
+NORMAL_CHECK_STATUS_CHECKED = "checked"
+NORMAL_CHECK_STATUS_POSTED = "posted"
+NORMAL_CHECK_STATUS_SKIPPED_SPACING = "skipped_spacing"
+NORMAL_CHECK_STATUS_SKIPPED_CAP = "skipped_cap"
+NORMAL_CHECK_STATUS_SKIPPED_COOLDOWN = "skipped_cooldown"
+NORMAL_CHECK_STATUS_DISABLED = "disabled"
+NORMAL_CHECK_STATUS_API_ERROR = "api_error"
 
 
 @dataclass(frozen=True)

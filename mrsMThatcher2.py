@@ -521,13 +521,13 @@ QUOTE_CHECK_STATUS_SKIPPED_CAP = "skipped_cap"
 QUOTE_CHECK_STATUS_SKIPPED_COOLDOWN = "skipped_cooldown"
 QUOTE_CHECK_STATUS_DISABLED = "disabled"
 
-NORMAL_CHECK_STATUS_CHECKED = "checked"
-NORMAL_CHECK_STATUS_POSTED = "posted"
-NORMAL_CHECK_STATUS_SKIPPED_SPACING = "skipped_spacing"
-NORMAL_CHECK_STATUS_SKIPPED_CAP = "skipped_cap"
-NORMAL_CHECK_STATUS_SKIPPED_COOLDOWN = "skipped_cooldown"
-NORMAL_CHECK_STATUS_DISABLED = "disabled"
-NORMAL_CHECK_STATUS_API_ERROR = "api_error"
+NORMAL_CHECK_STATUS_CHECKED = _reply_cycle_interfaces.NORMAL_CHECK_STATUS_CHECKED
+NORMAL_CHECK_STATUS_POSTED = _reply_cycle_interfaces.NORMAL_CHECK_STATUS_POSTED
+NORMAL_CHECK_STATUS_SKIPPED_SPACING = _reply_cycle_interfaces.NORMAL_CHECK_STATUS_SKIPPED_SPACING
+NORMAL_CHECK_STATUS_SKIPPED_CAP = _reply_cycle_interfaces.NORMAL_CHECK_STATUS_SKIPPED_CAP
+NORMAL_CHECK_STATUS_SKIPPED_COOLDOWN = _reply_cycle_interfaces.NORMAL_CHECK_STATUS_SKIPPED_COOLDOWN
+NORMAL_CHECK_STATUS_DISABLED = _reply_cycle_interfaces.NORMAL_CHECK_STATUS_DISABLED
+NORMAL_CHECK_STATUS_API_ERROR = _reply_cycle_interfaces.NORMAL_CHECK_STATUS_API_ERROR
 
 REPLY_EVALUATION_MIN_RETENTION_SECONDS = 30 * 24 * 60 * 60
 REPLY_EVALUATION_MAX_RECORDS = 25_000
@@ -8835,13 +8835,6 @@ def maybe_reply_to_mentions(
         AmbiguousRemotePostOutcome=AmbiguousRemotePostOutcome,
         ApiError=ApiError,
         ConfirmedReplyLocalPersistenceError=ConfirmedReplyLocalPersistenceError,
-        NORMAL_CHECK_STATUS_API_ERROR=NORMAL_CHECK_STATUS_API_ERROR,
-        NORMAL_CHECK_STATUS_CHECKED=NORMAL_CHECK_STATUS_CHECKED,
-        NORMAL_CHECK_STATUS_DISABLED=NORMAL_CHECK_STATUS_DISABLED,
-        NORMAL_CHECK_STATUS_POSTED=NORMAL_CHECK_STATUS_POSTED,
-        NORMAL_CHECK_STATUS_SKIPPED_CAP=NORMAL_CHECK_STATUS_SKIPPED_CAP,
-        NORMAL_CHECK_STATUS_SKIPPED_COOLDOWN=NORMAL_CHECK_STATUS_SKIPPED_COOLDOWN,
-        NORMAL_CHECK_STATUS_SKIPPED_SPACING=NORMAL_CHECK_STATUS_SKIPPED_SPACING,
         PipelineResult=PipelineResult,
         ProvedRemotePostNonSuccess=ProvedRemotePostNonSuccess,
         RemoteOperationsPaused=RemoteOperationsPaused,
@@ -8860,7 +8853,6 @@ def maybe_reply_to_mentions(
         clarification_reply_context=clarification_reply_context,
         clarification_thread_is_terminal=clarification_thread_is_terminal,
         clear_author_evaluation_quarantine_history=clear_author_evaluation_quarantine_history,
-        completed_mention_watermark_covers_target=completed_mention_watermark_covers_target,
         conversational_reply_pipeline_enabled=conversational_reply_pipeline_enabled,
         daily_author_reply_count=daily_author_reply_count,
         daily_author_reply_counts=daily_author_reply_counts,
@@ -8879,7 +8871,6 @@ def maybe_reply_to_mentions(
         maybe_reply_to_mentions=maybe_reply_to_mentions,
         mention_pagination_provenance_is_valid=mention_pagination_provenance_is_valid,
         now_epoch=now_epoch,
-        pending_ai_reply_draft_key=pending_ai_reply_draft_key,
         pending_mention_candidates=pending_mention_candidates,
         prune_author_evaluation_quarantines=prune_author_evaluation_quarantines,
         prune_completed_mention_quarantine_evaluations=prune_completed_mention_quarantine_evaluations,
@@ -8891,7 +8882,6 @@ def maybe_reply_to_mentions(
         reply_evidence_repository=reply_evidence_repository,
         reply_target_is_directly_eligible=reply_target_is_directly_eligible,
         reset_daily_reply_count_if_needed=reset_daily_reply_count_if_needed,
-        terminal_reply_evaluation=terminal_reply_evaluation,
         trim_context_text=trim_context_text,
         valid_tweets_sorted_by_id=valid_tweets_sorted_by_id,
     )

@@ -118,8 +118,6 @@ def prepare_delivery(lane, outcome, *, save_failure=None, retirement_failure=Non
         )
         dependencies.update(
             config=NormalReplyConfig(**settings, maximum_fresh_evaluations=3, incoming_max_chars=1000),
-            NORMAL_CHECK_STATUS_API_ERROR="api_error",
-            NORMAL_CHECK_STATUS_CHECKED="checked",
             append_unique_durable=trace.append,
             mark_mention_seen_if_applicable=trace.mark_seen,
         )

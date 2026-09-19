@@ -12,6 +12,9 @@ from unittest.mock import Mock, call
 import pytest
 
 import mrs_bot_normal_reply_cycle as cycle
+import mrs_bot_reply_cycle_interfaces as interfaces
+import mrs_bot_reply_evaluation_state as evaluation_state
+import mrs_bot_reply_state as reply_state
 from tests.helpers.mention_fixtures import (
     editorial_no_reply,
     mention,
@@ -37,7 +40,7 @@ def forbidden(*args, **kwargs):
 
 original_import = builtins.__import__
 def guarded_import(name, *args, **kwargs):
-    if name in {'mrsMThatcher2', 'requests', 'openai', 'single_call_reply', 'reply_evidence'} or name.startswith('mrs_bot_') and name not in {'mrs_bot_normal_reply_cycle', 'mrs_bot_reply_cycle_interfaces', 'mrs_bot_reply_preparation', 'mrs_bot_reply_delivery', 'mrs_bot_reply_state'}:
+    if name in {'mrsMThatcher2', 'requests', 'openai', 'single_call_reply', 'reply_evidence'} or name.startswith('mrs_bot_') and name not in {'mrs_bot_normal_reply_cycle', 'mrs_bot_reply_cycle_interfaces', 'mrs_bot_reply_preparation', 'mrs_bot_reply_delivery', 'mrs_bot_reply_state', 'mrs_bot_reply_evaluation_state'}:
         forbidden()
     return original_import(name, *args, **kwargs)
 
@@ -64,7 +67,23 @@ assert 'single_call_reply' not in sys.modules
 def test_adapter_forwards_current_dependencies_arguments_results_and_errors(monkeypatch):
     adapter = bot.maybe_reply_to_mentions
     public = inspect.signature(adapter).parameters
-    dependencies = inspect.signature(cycle.maybe_reply_to_mentions).parameters.keys() - public.keys()
+    parameters = inspect.signature(cycle.maybe_reply_to_mentions).parameters
+    assert tuple(public) == ("state", "_fresh_mention_ai_evaluations", "_skip_hot_post_fetch")
+    assert public["state"].kind is inspect.Parameter.POSITIONAL_OR_KEYWORD
+    assert public["_fresh_mention_ai_evaluations"].default == 0
+    assert public["_skip_hot_post_fetch"].default is False
+    assert len(parameters) == 59
+    assert sum(param.kind is inspect.Parameter.KEYWORD_ONLY for param in parameters.values()) == 58
+    removed = {
+        name for name in vars(interfaces) if name.startswith("NORMAL_CHECK_STATUS_")
+    } | {
+        "pending_ai_reply_draft_key", "completed_mention_watermark_covers_target",
+        "terminal_reply_evaluation",
+    }
+    for name, function in inspect.getmembers(cycle, inspect.isfunction):
+        if function.__module__ == cycle.__name__:
+            assert removed.isdisjoint(inspect.signature(function).parameters), name
+    dependencies = parameters.keys() - public.keys()
     assert {"config", "persistence", "delivery"} <= dependencies
     state, result = {}, object()
     owner = Mock(return_value=result)
@@ -92,6 +111,30 @@ def test_adapter_forwards_current_dependencies_arguments_results_and_errors(monk
     with pytest.raises(TypeError) as caught:
         adapter(state)
     assert caught.value is failure
+
+
+def test_fixed_statuses_and_dependency_free_helpers_use_their_owners():
+    statuses = {
+        "NORMAL_CHECK_STATUS_CHECKED": "checked",
+        "NORMAL_CHECK_STATUS_POSTED": "posted",
+        "NORMAL_CHECK_STATUS_SKIPPED_SPACING": "skipped_spacing",
+        "NORMAL_CHECK_STATUS_SKIPPED_CAP": "skipped_cap",
+        "NORMAL_CHECK_STATUS_SKIPPED_COOLDOWN": "skipped_cooldown",
+        "NORMAL_CHECK_STATUS_DISABLED": "disabled",
+        "NORMAL_CHECK_STATUS_API_ERROR": "api_error",
+    }
+    for name, expected in statuses.items():
+        value = getattr(interfaces, name)
+        assert value == expected
+        assert getattr(cycle, name) is value
+        assert getattr(bot, name) is value
+    for name, owner in (
+        ("pending_ai_reply_draft_key", reply_state),
+        ("completed_mention_watermark_covers_target", evaluation_state),
+        ("terminal_reply_evaluation", evaluation_state),
+    ):
+        assert getattr(cycle, name) is getattr(owner, name)
+        assert getattr(bot, name) is getattr(owner, name)
 
 
 @pytest.mark.parametrize("initial_count,model_calls", [(2, 1), (2, 0), (4, 1)])
@@ -214,12 +257,12 @@ def test_ineligible_mention_draft_retirement_precedes_seen_marker_and_durable_sa
     candidate = mention(105, 205)
     candidate["entities"] = {"mentions": []}
     queue_active_mention(state, candidate, base_since_id="99")
-    state["pending_ai_reply_drafts"] = {"custom-key": {
+    state["pending_ai_reply_drafts"] = {"mention:105": {
         "strategy_version": "stored-strategy", "reply_kind": "direct_reply",
         "reason_code": "answer_question", "validated_draft_hash": "stored-hash",
     }}
-    key = Mock(return_value="custom-key")
-    monkeypatch.setattr(bot, "pending_ai_reply_draft_key", key)
+    key = Mock(wraps=cycle.pending_ai_reply_draft_key)
+    monkeypatch.setattr(cycle, "pending_ai_reply_draft_key", key)
     trace = []
 
     for label, name in (
@@ -249,7 +292,7 @@ def test_ineligible_mention_draft_retirement_precedes_seen_marker_and_durable_sa
         ("terminal", None), ("mark", None), ("reply_target_terminal", None),
         ("seen", None), ("save", True), ("save", None),
     ]
-    assert key.call_args_list == [call("105", "mention"), call("105", "mention")]
+    key.assert_called_once_with("105", "mention")
     saved = json.loads(bot.STATE_FILE.read_text())
     assert "pending_ai_reply_drafts" not in saved
     assert saved["mention_pending_candidates"] == {}
