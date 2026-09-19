@@ -14,6 +14,7 @@ from unittest.mock import Mock, call
 import pytest
 
 import mrs_bot_quote_reply_cycle as cycle
+import mrs_bot_daily_reply_accounting as accounting_owner
 import mrs_bot_reply_context as context_owner
 import mrs_bot_reply_cycle_interfaces as interfaces
 import mrs_bot_reply_evaluation_state as evaluation_state
@@ -21,6 +22,7 @@ from tests.helpers.bot_runtime import SOURCE_GET_TWEET_BY_ID, bot
 from tests.helpers.bot_fixtures import isolate_bot_runtime  # noqa: F401
 from tests.helpers.reply_fixtures import (
     configure_quote_cycle as _configure_cycle,
+    patch_reply_owner_method,
     patch_reply_draft_method,
     patch_reply_history_method,
     unit_approved_reply,
@@ -38,7 +40,7 @@ def forbidden(*args, **kwargs):
 
 original_import = builtins.__import__
 def guarded_import(name, *args, **kwargs):
-    if name in {'mrsMThatcher2', 'requests', 'openai', 'single_call_reply', 'reply_evidence'} or name.startswith('mrs_bot_') and name not in {'mrs_bot_quote_reply_cycle', 'mrs_bot_reply_cycle_interfaces', 'mrs_bot_reply_preparation', 'mrs_bot_reply_delivery', 'mrs_bot_reply_evaluation_state', 'mrs_bot_author_quarantines'}:
+    if name in {'mrsMThatcher2', 'requests', 'openai', 'single_call_reply', 'reply_evidence'} or name.startswith('mrs_bot_') and name not in {'mrs_bot_quote_reply_cycle', 'mrs_bot_reply_cycle_interfaces', 'mrs_bot_reply_preparation', 'mrs_bot_reply_delivery', 'mrs_bot_reply_evaluation_state', 'mrs_bot_author_quarantines', 'mrs_bot_daily_reply_accounting'}:
         forbidden()
     return original_import(name, *args, **kwargs)
 
@@ -72,6 +74,10 @@ def test_adapters_forward_current_dependencies_arguments_results_and_errors(monk
         "mark_quote_spam_author": 2,
         "maybe_reply_to_quote_tweets": None,
     }
+    owner_factories = {
+        "reply_evaluations": "_reply_evaluation_owner",
+        "accounting": "_daily_reply_accounting_owner",
+    }
     for name, count in names.items():
         adapter = getattr(bot, name)
         public = inspect.signature(adapter).parameters
@@ -80,18 +86,20 @@ def test_adapters_forward_current_dependencies_arguments_results_and_errors(monk
         if count is None:
             assert tuple(public) == ("state",)
             assert public["state"].kind is inspect.Parameter.POSITIONAL_OR_KEYWORD
-            assert len(parameters) == 47
-            assert sum(param.kind is inspect.Parameter.KEYWORD_ONLY for param in parameters.values()) == 46
+            assert len(parameters) == 44
+            assert sum(param.kind is inspect.Parameter.KEYWORD_ONLY for param in parameters.values()) == 43
             removed = {
                 key for key in vars(interfaces) if key.startswith("QUOTE_CHECK_STATUS_")
             } | {
                 "terminal_reply_evaluation", "quote_author_profile_text",
-                "quote_tweet_directly_quotes_original",
+                "quote_tweet_directly_quotes_original", "daily_author_reply_count",
+                "daily_author_reply_counts", "record_terminal_reply_evaluation",
+                "reset_daily_quote_reply_count_if_needed", "reset_daily_reply_count_if_needed",
             }
             for helper_name, function in inspect.getmembers(cycle, inspect.isfunction):
                 if function.__module__ == cycle.__name__:
                     assert removed.isdisjoint(inspect.signature(function).parameters), helper_name
-            assert {"config", "persistence", "delivery"} <= dependencies
+            assert {"config", "persistence", "delivery", *owner_factories} <= dependencies
         else:
             assert len(dependencies) == count
         args = tuple(object() for _ in public)
@@ -101,17 +109,23 @@ def test_adapters_forward_current_dependencies_arguments_results_and_errors(monk
             patch.setattr(cycle, name, owner)
             for _ in range(2):
                 current = {key: object() for key in dependencies}
+                factories = {}
                 for key, value in current.items():
                     if key == "config":
                         patch.setattr(bot._reply_cycle_interfaces, "QuoteReplyConfig", Mock(return_value=value))
                     elif key in {"persistence", "delivery"}:
                         patch.setattr(bot, f"_reply_cycle_{key}", Mock(return_value=value))
+                    elif key in owner_factories:
+                        factories[key] = Mock(return_value=value)
+                        patch.setattr(bot, owner_factories[key], factories[key])
                     elif key == "recovery_comparison_account_replies":
                         history = Mock(recovery_replies=value)
                         patch.setattr(bot, "_reply_history_owner", Mock(return_value=history))
                     else:
                         patch.setattr(bot, key, value)
                 assert adapter(*args) is result, name
+                for factory in factories.values():
+                    factory.assert_called_once_with()
                 actual_args, actual_kwargs = owner.call_args
                 assert len(actual_args) == len(args)
                 assert all(actual is expected for actual, expected in zip(actual_args, args))
@@ -140,6 +154,8 @@ def test_fixed_statuses_and_terminal_lookup_use_their_owners():
         assert getattr(bot, name) is value
     assert cycle.terminal_reply_evaluation is evaluation_state.terminal_reply_evaluation
     assert bot.terminal_reply_evaluation is evaluation_state.terminal_reply_evaluation
+    assert cycle.daily_author_reply_counts is accounting_owner.daily_author_reply_counts
+    assert bot.daily_author_reply_counts is accounting_owner.daily_author_reply_counts
 
 
 def test_age_uses_current_parser_clock_delay_and_native_errors(monkeypatch):
@@ -310,11 +326,18 @@ def test_both_daily_resets_and_confirmed_reconciliation_precede_barrier_when_dis
                  daily_quote_reply_date="2000-01-01", daily_quote_reply_count=12)
     monkeypatch.setattr(bot, "ENABLE_QUOTE_TWEET_CHECKS", False)
     trace = Mock()
-    for name in ("reset_daily_reply_count_if_needed", "reset_daily_quote_reply_count_if_needed",
-                 "reconcile_confirmed_reply_receipt"):
-        callback = Mock(wraps=getattr(bot, name))
+    accounting = bot._daily_reply_accounting_owner()
+    resets = {
+        "reset_daily_reply_count_if_needed": "reset",
+        "reset_daily_quote_reply_count_if_needed": "reset_quotes",
+    }
+    for name in (*resets, "reconcile_confirmed_reply_receipt"):
+        callback = Mock(wraps=getattr(accounting, resets[name]) if name in resets else getattr(bot, name))
         trace.attach_mock(callback, name)
-        monkeypatch.setattr(bot, name, callback)
+        if name in resets:
+            patch_reply_owner_method(monkeypatch, accounting_owner.DailyReplyAccounting, resets[name], callback)
+        else:
+            monkeypatch.setattr(bot, name, callback)
     original_barrier = bot.block_if_ambiguous_remote_post
 
     def barrier():
@@ -532,7 +555,7 @@ def test_native_context_preparation_failures_escape_without_retirement(monkeypat
         monkeypatch.setattr(bot, "cache_tweet", Mock(side_effect=failure))
     save, retire, generate = Mock(), Mock(), Mock()
     monkeypatch.setattr(bot, "save_state", save)
-    monkeypatch.setattr(bot, "record_terminal_reply_evaluation", retire)
+    patch_reply_owner_method(monkeypatch, evaluation_state.ReplyEvaluations, "record", retire)
     monkeypatch.setattr(bot, "evaluate_single_call_reply", legacy_reply_evaluator(generate))
 
     with pytest.raises(ValueError) as caught:
@@ -584,9 +607,13 @@ def test_context_failures_retire_in_order_before_later_model_work(
         ("terminal", "record_terminal_reply_evaluation"),
         ("skip", "mark_quote_tweet_skipped"),
     ):
-        callback = Mock(wraps=getattr(bot, name))
+        original_callback = bot._reply_evaluation_owner().record if label == "terminal" else getattr(bot, name)
+        callback = Mock(wraps=original_callback)
         trace.attach_mock(callback, label)
-        monkeypatch.setattr(bot, name, callback)
+        if label == "terminal":
+            patch_reply_owner_method(monkeypatch, evaluation_state.ReplyEvaluations, "record", callback)
+        else:
+            monkeypatch.setattr(bot, name, callback)
     persistence_failure = RuntimeError("durable retirement failed")
     save_state = bot.save_state
 

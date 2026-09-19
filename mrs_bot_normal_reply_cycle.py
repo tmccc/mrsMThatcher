@@ -1,7 +1,9 @@
 """Run the normal mention and hot-post reply cycle through current root authority.
 
-The root supplies typed settings, persistence and delivery boundaries plus
-current policy callbacks, logger and application classes on each invocation. Private helpers separate candidate eligibility,
+The root supplies typed settings, persistence and delivery boundaries,
+quarantine, evaluation, clarification and accounting owners, plus current policy
+callbacks, logger and application classes on each invocation. Private helpers
+separate candidate eligibility,
 context/model evaluation, draft/receipt preparation and delivery/recovery. The
 cycle retains operation order, shared budget/quarantine progress, receipt
 durability and error routing. Backlog continuation calls the
@@ -23,6 +25,8 @@ from dataclasses import dataclass
 from logging import Logger
 from typing import TYPE_CHECKING
 
+from mrs_bot_author_quarantines import clear_author_evaluation_quarantine_history
+from mrs_bot_daily_reply_accounting import daily_author_reply_counts
 from mrs_bot_reply_cycle_interfaces import (
     NORMAL_CHECK_STATUS_API_ERROR,
     NORMAL_CHECK_STATUS_CHECKED,
@@ -49,6 +53,10 @@ from mrs_bot_reply_state import (
 )
 
 if TYPE_CHECKING:
+    from mrs_bot_author_quarantines import AuthorQuarantines
+    from mrs_bot_daily_reply_accounting import DailyReplyAccounting
+    from mrs_bot_reply_clarifications import ClarificationReplies
+    from mrs_bot_reply_evaluation_state import ReplyEvaluations
     from single_call_reply import PipelineResult
 
 
@@ -88,7 +96,7 @@ def maybe_reply_to_mentions(
     delivery: ReplyCycleDelivery,
     _fresh_mention_ai_evaluations: int = 0,
     _skip_hot_post_fetch: bool = False,
-    AUTHOR_EVALUATION_QUARANTINE_EVIDENCE_POLICY: str,
+    author_quarantines: AuthorQuarantines,
     AmbiguousRemotePostOutcome: type[Exception],
     ApiError: type[Exception],
     ConfirmedReplyLocalPersistenceError: type[Exception],
@@ -103,18 +111,14 @@ def maybe_reply_to_mentions(
     _is_terminal_candidate_local_failure: Callable,
     _log_validated_single_call_reply: Callable,
     _record_single_call_result: Callable,
-    active_author_evaluation_quarantine: Callable,
     api_error_is_reply_not_allowed: Callable,
     append_unique_durable: Callable,
     build_context_for_reply_ai: Callable,
     cache_tweet: Callable,
-    clarification_reply_context: Callable,
-    clarification_thread_is_terminal: Callable,
-    clear_author_evaluation_quarantine_history: Callable,
+    clarifications: ClarificationReplies,
     persistence: ReplyCyclePersistence,
     conversational_reply_pipeline_enabled: Callable,
-    daily_author_reply_count: Callable,
-    daily_author_reply_counts: Callable,
+    accounting: DailyReplyAccounting,
     dedupe_reply_candidates: Callable,
     evaluate_single_call_reply: EvaluateReply,
     get_hot_post_reply_candidates: Callable,
@@ -131,16 +135,11 @@ def maybe_reply_to_mentions(
     mention_pagination_provenance_is_valid: Callable,
     now_epoch: Callable,
     pending_mention_candidates: Callable,
-    prune_author_evaluation_quarantines: Callable,
-    prune_completed_mention_quarantine_evaluations: Callable,
-    prune_reply_evaluation_records: Callable,
+    reply_evaluations: ReplyEvaluations,
     record_api_error: Callable,
-    record_qualifying_author_no_reply: Callable,
-    record_terminal_reply_evaluation: Callable,
     recovery_comparison_account_replies: Callable,
     reply_evidence_repository: Callable,
     reply_target_is_directly_eligible: Callable,
-    reset_daily_reply_count_if_needed: Callable,
     trim_context_text: Callable,
     valid_tweets_sorted_by_id: Callable,
 ) -> str:
@@ -150,7 +149,7 @@ def maybe_reply_to_mentions(
     # local transaction, not permission for a new remote write.  Reconcile it
     # before the general journal barrier so a restart can finish the exact
     # durable transaction without first weakening that barrier.
-    reset_daily_reply_count_if_needed(state)
+    accounting.reset(state)
     prior_reply_status, _prior_reply = delivery.load_receipt()
     if prior_reply_status == "valid" and delivery.reconcile_receipt(state):
         log.warning(
@@ -199,7 +198,7 @@ def maybe_reply_to_mentions(
         return NORMAL_CHECK_STATUS_SKIPPED_CAP
 
     current = now_epoch()
-    if prune_author_evaluation_quarantines(state, current_epoch=current):
+    if author_quarantines.prune(state, current_epoch=current):
         persistence.save(state)
 
     seconds_since_last_reply = current - int(state.get("last_reply_epoch", 0))
@@ -262,9 +261,9 @@ def maybe_reply_to_mentions(
 
     def prune_quarantine_retirement_batch() -> None:
         if progress.evaluation_record_pruning_pending:
-            prune_reply_evaluation_records(state)
+            reply_evaluations.prune(state)
         else:
-            prune_completed_mention_quarantine_evaluations(state)
+            reply_evaluations.prune_completed_mentions(state)
         progress.evaluation_record_pruning_pending = False
 
     def flush_quarantine_retirements() -> None:
@@ -307,18 +306,18 @@ def maybe_reply_to_mentions(
         eligible = _candidate_is_eligible(
             state, candidate, replied_to_ids, progress, prune_quarantine_retirement_batch,
             config=config,
-            clarification_thread_is_terminal=clarification_thread_is_terminal,
+            clarifications=clarifications,
             persistence=persistence, log=log, log_event=log_event,
             mark_mention_seen_if_applicable=mark_mention_seen_if_applicable,
             maybe_mark_hot_post_reply_skipped=maybe_mark_hot_post_reply_skipped,
-            record_terminal_reply_evaluation=record_terminal_reply_evaluation,
+            reply_evaluations=reply_evaluations,
             reply_target_is_directly_eligible=reply_target_is_directly_eligible,
         )
         if not eligible:
             continue
 
         try:
-            clarification = clarification_reply_context(state, mention, current=current)
+            clarification = clarifications.context(state, mention, current=current)
         except RemoteOperationsPaused:
             flush_quarantine_retirements()
             persistence.save(state, durable=True)
@@ -331,15 +330,14 @@ def maybe_reply_to_mentions(
             return NORMAL_CHECK_STATUS_API_ERROR
         eligible = _author_allows_evaluation(
             state, candidate, clarification, current, progress,
-            AUTHOR_EVALUATION_QUARANTINE_EVIDENCE_POLICY=AUTHOR_EVALUATION_QUARANTINE_EVIDENCE_POLICY,
+            author_quarantines=author_quarantines,
             config=config,
-            active_author_evaluation_quarantine=active_author_evaluation_quarantine,
             cache_tweet=cache_tweet,
-            daily_author_reply_count=daily_author_reply_count,
+            accounting=accounting,
             is_probably_spam_or_not_worth_replying=is_probably_spam_or_not_worth_replying, log=log,
             log_event=log_event, mark_mention_seen_if_applicable=mark_mention_seen_if_applicable,
             maybe_mark_hot_post_reply_skipped=maybe_mark_hot_post_reply_skipped,
-            record_terminal_reply_evaluation=record_terminal_reply_evaluation,
+            reply_evaluations=reply_evaluations,
             persistence=persistence,
         )
         if not eligible:
@@ -357,7 +355,7 @@ def maybe_reply_to_mentions(
             mark_mention_seen_if_applicable=mark_mention_seen_if_applicable,
             maybe_mark_hot_post_reply_skipped=maybe_mark_hot_post_reply_skipped,
             record_api_error=record_api_error,
-            record_terminal_reply_evaluation=record_terminal_reply_evaluation,
+            reply_evaluations=reply_evaluations,
             reply_evidence_repository=reply_evidence_repository,
             persistence=persistence, trim_context_text=trim_context_text,
         )
@@ -387,8 +385,8 @@ def maybe_reply_to_mentions(
                 _is_terminal_candidate_local_failure=_is_terminal_candidate_local_failure, log=log,
                 log_event=log_event, mark_mention_seen_if_applicable=mark_mention_seen_if_applicable,
                 maybe_mark_hot_post_reply_skipped=maybe_mark_hot_post_reply_skipped,
-                record_qualifying_author_no_reply=record_qualifying_author_no_reply,
-                record_terminal_reply_evaluation=record_terminal_reply_evaluation,
+                author_quarantines=author_quarantines,
+                reply_evaluations=reply_evaluations,
                 persistence=persistence,
             )
             if outcome.status is not None:
@@ -401,7 +399,6 @@ def maybe_reply_to_mentions(
             ValidatedReply=ValidatedReply,
             _log_validated_single_call_reply=_log_validated_single_call_reply,
             delivery=delivery,
-            clear_author_evaluation_quarantine_history=clear_author_evaluation_quarantine_history,
             log=log, log_event=log_event,
             mention_pagination_provenance_is_valid=mention_pagination_provenance_is_valid,
             persistence=persistence,
@@ -423,7 +420,7 @@ def maybe_reply_to_mentions(
             mark_mention_seen_if_applicable=mark_mention_seen_if_applicable,
             delivery=delivery,
             record_api_error=record_api_error,
-            record_terminal_reply_evaluation=record_terminal_reply_evaluation,
+            reply_evaluations=reply_evaluations,
         )
         if isinstance(receipt, _CandidateStop):
             return receipt.status
@@ -466,13 +463,13 @@ def _candidate_is_eligible(
     prune_quarantine_retirement_batch: Callable,
     *,
     config: NormalReplyConfig,
-    clarification_thread_is_terminal: Callable,
+    clarifications: ClarificationReplies,
     persistence: ReplyCyclePersistence,
     log: Logger,
     log_event: Callable,
     mark_mention_seen_if_applicable: Callable,
     maybe_mark_hot_post_reply_skipped: Callable,
-    record_terminal_reply_evaluation: Callable,
+    reply_evaluations: ReplyEvaluations,
     reply_target_is_directly_eligible: Callable,
 ) -> bool:
     """Retire already handled and directly ineligible targets before context work."""
@@ -512,7 +509,7 @@ def _candidate_is_eligible(
         mark_mention_seen_if_applicable(state, candidate.mention)
         return False
 
-    if clarification_thread_is_terminal(state, candidate.mention):
+    if clarifications.thread_is_terminal(state, candidate.mention):
         log.info(
             "Skipping %s %s: clarification already completed and thread is terminal",
             candidate.source,
@@ -544,7 +541,7 @@ def _candidate_is_eligible(
             pending_ai_reply_draft_key=pending_ai_reply_draft_key,
             log_event=log_event,
             clear_pending_ai_reply=persistence.clear,
-            record_terminal_reply_evaluation=record_terminal_reply_evaluation,
+            record_terminal_reply_evaluation=reply_evaluations.record,
         )
         maybe_mark_hot_post_reply_skipped(state, candidate.mention, reason="reply_not_permitted")
         log_event(
@@ -570,25 +567,24 @@ def _author_allows_evaluation(
     current: int,
     progress: _ReplyCycleProgress,
     *,
-    AUTHOR_EVALUATION_QUARANTINE_EVIDENCE_POLICY: str,
+    author_quarantines: AuthorQuarantines,
     config: NormalReplyConfig,
-    active_author_evaluation_quarantine: Callable,
     cache_tweet: Callable,
-    daily_author_reply_count: Callable,
+    accounting: DailyReplyAccounting,
     is_probably_spam_or_not_worth_replying: Callable,
     log: Logger,
     log_event: Callable,
     mark_mention_seen_if_applicable: Callable,
     maybe_mark_hot_post_reply_skipped: Callable,
-    record_terminal_reply_evaluation: Callable,
+    reply_evaluations: ReplyEvaluations,
     persistence: ReplyCyclePersistence,
 ) -> bool:
     """Apply the eager author/spam checks and batch mention quarantine retirements."""
-    author_cap_reached = daily_author_reply_count(state, candidate.author_id) >= config.maximum_daily_author_replies
+    author_cap_reached = accounting.author_count(state, candidate.author_id) >= config.maximum_daily_author_replies
     local_spam_rejection = is_probably_spam_or_not_worth_replying(candidate.incoming_text)
 
     if candidate.source == "mention" and clarification is None:
-        quarantine = active_author_evaluation_quarantine(
+        quarantine = author_quarantines.active(
             state,
             candidate.author_id,
             current_epoch=current,
@@ -616,14 +612,14 @@ def _author_allows_evaluation(
             )
             mark_mention_seen_if_applicable(state, candidate.mention)
             if not completed_mention_watermark_covers_target(state, candidate.mention_id):
-                record_terminal_reply_evaluation(
+                reply_evaluations.record(
                     state,
                     target_id=candidate.mention_id,
                     lane="mention",
                     reason=reason,
                     prune_records=False,
                     evidence_policy=(
-                        AUTHOR_EVALUATION_QUARANTINE_EVIDENCE_POLICY
+                        author_quarantines.evidence_policy
                     ),
                 )
                 progress.evaluation_record_pruning_pending = True
@@ -680,7 +676,7 @@ def _prepare_reply_context(
     mark_mention_seen_if_applicable: Callable,
     maybe_mark_hot_post_reply_skipped: Callable,
     record_api_error: Callable,
-    record_terminal_reply_evaluation: Callable,
+    reply_evaluations: ReplyEvaluations,
     reply_evidence_repository: Callable,
     persistence: ReplyCyclePersistence,
     trim_context_text: Callable,
@@ -725,7 +721,7 @@ def _prepare_reply_context(
             lane=str(candidate.source),
             target_id=candidate.mention_id,
         )
-        record_terminal_reply_evaluation(
+        reply_evaluations.record(
             state,
             target_id=candidate.mention_id,
             lane=str(candidate.source),
@@ -875,8 +871,8 @@ def _retire_or_defer_no_reply(
     log_event: Callable,
     mark_mention_seen_if_applicable: Callable,
     maybe_mark_hot_post_reply_skipped: Callable,
-    record_qualifying_author_no_reply: Callable,
-    record_terminal_reply_evaluation: Callable,
+    author_quarantines: AuthorQuarantines,
+    reply_evaluations: ReplyEvaluations,
     persistence: ReplyCyclePersistence,
 ) -> _CandidateStop:
     """Distinguish terminal local/editorial outcomes from retryable evaluation failures."""
@@ -893,7 +889,7 @@ def _retire_or_defer_no_reply(
             failure_category,
             failure_reason,
         )
-        record_terminal_reply_evaluation(
+        reply_evaluations.record(
             state,
             target_id=candidate.mention_id,
             lane=str(candidate.source),
@@ -930,14 +926,14 @@ def _retire_or_defer_no_reply(
         or evaluation.reason
         or "model_selected_no_reply"
     )
-    record_terminal_reply_evaluation(
+    reply_evaluations.record(
         state,
         target_id=candidate.mention_id,
         lane=str(candidate.source),
         reason=reason_code,
     )
     if candidate.source == "mention" and reason_code == "spam_or_abuse":
-        record_qualifying_author_no_reply(
+        author_quarantines.record_no_reply(
             state,
             candidate.author_id,
             current_epoch=current,
@@ -970,7 +966,6 @@ def _prepare_reply_receipt(
     ValidatedReply: type,
     _log_validated_single_call_reply: Callable,
     delivery: ReplyCycleDelivery,
-    clear_author_evaluation_quarantine_history: Callable,
     log: Logger,
     log_event: Callable,
     mention_pagination_provenance_is_valid: Callable,
@@ -1081,7 +1076,7 @@ def _retire_terminal_target(
     log_ai_reply_posting_outcome: Callable,
     log_event: Callable,
     mark_mention_seen_if_applicable: Callable,
-    record_terminal_reply_evaluation: Callable,
+    reply_evaluations: ReplyEvaluations,
 ) -> None:
     """Record a terminal mention/hot-post outcome and durably retire its draft."""
     log_ai_reply_posting_outcome(
@@ -1091,7 +1086,7 @@ def _retire_terminal_target(
         target_id=candidate.mention_id,
         failure_reason=failure_reason,
     )
-    record_terminal_reply_evaluation(
+    reply_evaluations.record(
         state,
         target_id=candidate.mention_id,
         lane=str(candidate.source),
@@ -1137,7 +1132,7 @@ def _deliver_reply(
     mark_mention_seen_if_applicable: Callable,
     delivery: ReplyCycleDelivery,
     record_api_error: Callable,
-    record_terminal_reply_evaluation: Callable,
+    reply_evaluations: ReplyEvaluations,
 ) -> dict | _CandidateStop:
     """Deliver through the shared boundary, retaining normal-lane retirement and statuses."""
     def retire_terminal_target(failure_reason: str) -> None:
@@ -1162,7 +1157,7 @@ def _deliver_reply(
             log_ai_reply_posting_outcome=log_ai_reply_posting_outcome,
             log_event=log_event,
             mark_mention_seen_if_applicable=mark_mention_seen_if_applicable,
-            record_terminal_reply_evaluation=record_terminal_reply_evaluation,
+            reply_evaluations=reply_evaluations,
         )
 
     outcome = deliver_prepared_reply(

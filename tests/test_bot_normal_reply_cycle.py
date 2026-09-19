@@ -12,7 +12,10 @@ from unittest.mock import Mock, call
 import pytest
 
 import mrs_bot_normal_reply_cycle as cycle
+import mrs_bot_author_quarantines as quarantine_owner
+import mrs_bot_daily_reply_accounting as accounting_owner
 import mrs_bot_reply_cycle_interfaces as interfaces
+from mrs_bot_reply_clarifications import ClarificationReplies
 import mrs_bot_reply_evaluation_state as evaluation_state
 import mrs_bot_reply_state as reply_state
 from tests.helpers.mention_fixtures import (
@@ -24,6 +27,7 @@ from tests.helpers.bot_runtime import bot
 from tests.helpers.bot_fixtures import isolate_bot_runtime  # noqa: F401
 from tests.helpers.reply_fixtures import (
     configure_normal_cycle as _configure_cycle,
+    patch_reply_owner_method,
     patch_reply_draft_method,
     patch_reply_history_method,
     unit_approved_reply,
@@ -42,7 +46,7 @@ def forbidden(*args, **kwargs):
 
 original_import = builtins.__import__
 def guarded_import(name, *args, **kwargs):
-    if name in {'mrsMThatcher2', 'requests', 'openai', 'single_call_reply', 'reply_evidence'} or name.startswith('mrs_bot_') and name not in {'mrs_bot_normal_reply_cycle', 'mrs_bot_reply_cycle_interfaces', 'mrs_bot_reply_preparation', 'mrs_bot_reply_delivery', 'mrs_bot_reply_state', 'mrs_bot_reply_drafts', 'mrs_bot_reply_history', 'mrs_bot_reply_evaluation_state', 'mrs_bot_author_quarantines'}:
+    if name in {'mrsMThatcher2', 'requests', 'openai', 'single_call_reply', 'reply_evidence'} or name.startswith('mrs_bot_') and name not in {'mrs_bot_normal_reply_cycle', 'mrs_bot_reply_cycle_interfaces', 'mrs_bot_reply_preparation', 'mrs_bot_reply_delivery', 'mrs_bot_reply_state', 'mrs_bot_reply_drafts', 'mrs_bot_reply_history', 'mrs_bot_reply_evaluation_state', 'mrs_bot_author_quarantines', 'mrs_bot_daily_reply_accounting'}:
         forbidden()
     return original_import(name, *args, **kwargs)
 
@@ -74,35 +78,53 @@ def test_adapter_forwards_current_dependencies_arguments_results_and_errors(monk
     assert public["state"].kind is inspect.Parameter.POSITIONAL_OR_KEYWORD
     assert public["_fresh_mention_ai_evaluations"].default == 0
     assert public["_skip_hot_post_fetch"].default is False
-    assert len(parameters) == 59
-    assert sum(param.kind is inspect.Parameter.KEYWORD_ONLY for param in parameters.values()) == 58
+    assert len(parameters) == 50
+    assert sum(param.kind is inspect.Parameter.KEYWORD_ONLY for param in parameters.values()) == 49
     removed = {
         name for name in vars(interfaces) if name.startswith("NORMAL_CHECK_STATUS_")
     } | {
         "pending_ai_reply_draft_key", "completed_mention_watermark_covers_target",
-        "terminal_reply_evaluation",
+        "terminal_reply_evaluation", "AUTHOR_EVALUATION_QUARANTINE_EVIDENCE_POLICY",
+        "active_author_evaluation_quarantine", "clarification_reply_context",
+        "clarification_thread_is_terminal", "clear_author_evaluation_quarantine_history",
+        "daily_author_reply_count", "daily_author_reply_counts",
+        "prune_author_evaluation_quarantines", "prune_completed_mention_quarantine_evaluations",
+        "prune_reply_evaluation_records", "record_qualifying_author_no_reply",
+        "record_terminal_reply_evaluation", "reset_daily_reply_count_if_needed",
     }
     for name, function in inspect.getmembers(cycle, inspect.isfunction):
         if function.__module__ == cycle.__name__:
             assert removed.isdisjoint(inspect.signature(function).parameters), name
     dependencies = parameters.keys() - public.keys()
-    assert {"config", "persistence", "delivery"} <= dependencies
+    owner_factories = {
+        "author_quarantines": "_author_quarantine_owner",
+        "reply_evaluations": "_reply_evaluation_owner",
+        "clarifications": "_clarification_reply_owner",
+        "accounting": "_daily_reply_accounting_owner",
+    }
+    assert {"config", "persistence", "delivery", *owner_factories} <= dependencies
     state, result = {}, object()
     owner = Mock(return_value=result)
     monkeypatch.setattr(cycle, "maybe_reply_to_mentions", owner)
     for options in ({}, {"_fresh_mention_ai_evaluations": 3, "_skip_hot_post_fetch": True}):
         current = {key: object() for key in dependencies}
+        factories = {}
         for key, value in current.items():
             if key == "config":
                 monkeypatch.setattr(bot._reply_cycle_interfaces, "NormalReplyConfig", Mock(return_value=value))
             elif key in {"persistence", "delivery"}:
                 monkeypatch.setattr(bot, f"_reply_cycle_{key}", Mock(return_value=value))
+            elif key in owner_factories:
+                factories[key] = Mock(return_value=value)
+                monkeypatch.setattr(bot, owner_factories[key], factories[key])
             elif key == "recovery_comparison_account_replies":
                 history = Mock(recovery_replies=value)
                 monkeypatch.setattr(bot, "_reply_history_owner", Mock(return_value=history))
             else:
                 monkeypatch.setattr(bot, key, value)
         assert adapter(state, **options) is result
+        for factory in factories.values():
+            factory.assert_called_once_with()
         args, kwargs = owner.call_args
         assert len(args) == 1 and args[0] is state
         expected = {
@@ -137,6 +159,8 @@ def test_fixed_statuses_and_dependency_free_helpers_use_their_owners():
         ("pending_ai_reply_draft_key", reply_state),
         ("completed_mention_watermark_covers_target", evaluation_state),
         ("terminal_reply_evaluation", evaluation_state),
+        ("clear_author_evaluation_quarantine_history", quarantine_owner),
+        ("daily_author_reply_counts", accounting_owner),
     ):
         assert getattr(cycle, name) is getattr(owner, name)
         assert getattr(bot, name) is getattr(owner, name)
@@ -146,6 +170,8 @@ def test_fixed_statuses_and_dependency_free_helpers_use_their_owners():
 def test_backlog_continuation_uses_current_root_state_and_budget(monkeypatch, initial_count, model_calls):
     _configure_cycle(monkeypatch)
     adapter = bot.maybe_reply_to_mentions
+    cycle_entry = Mock(wraps=cycle.maybe_reply_to_mentions)
+    monkeypatch.setattr(cycle, "maybe_reply_to_mentions", cycle_entry)
 
     def generate(context, *args, evaluation_outcome, **kwargs):
         editorial_no_reply(context, *args, evaluation_outcome=evaluation_outcome, **kwargs)
@@ -167,6 +193,17 @@ def test_backlog_continuation_uses_current_root_state_and_budget(monkeypatch, in
             assert saved["mention_pending_candidates"] == {}
             assert saved["mention_backlog"] == state["mention_backlog"]
             assert saved["reply_evaluation_records"]["105"]["outcome"] == "no_reply"
+            previous = cycle_entry.call_args.kwargs
+            current_clock = Mock(return_value=bot.now_epoch())
+            with monkeypatch.context() as patch:
+                patch.setattr(bot, "ENABLE_AUTO_REPLIES", False)
+                patch.setattr(bot, "now_epoch", current_clock)
+                assert adapter(actual_state, **kwargs) == bot.NORMAL_CHECK_STATUS_DISABLED
+            continued = cycle_entry.call_args.kwargs
+            for name in ("author_quarantines", "reply_evaluations", "clarifications", "accounting"):
+                assert continued[name] is not previous[name]
+            assert continued["author_quarantines"].now_epoch is current_clock
+            assert continued["reply_evaluations"].now_epoch is current_clock
             return result
 
         current_callback = Mock(side_effect=continue_backlog)
@@ -280,7 +317,11 @@ def test_ineligible_mention_draft_retirement_precedes_seen_marker_and_durable_sa
         ("seen", "mark_mention_seen_if_applicable"),
         ("save", "save_state"),
     ):
-        original = bot._reply_draft_owner().clear if label == "clear" else getattr(bot, name)
+        original = (
+            bot._reply_draft_owner().clear if label == "clear"
+            else bot._reply_evaluation_owner().record if label == "terminal"
+            else getattr(bot, name)
+        )
 
         def observe(*args, _label=label, _original=original, **kwargs):
             trace.append((_label, kwargs.get("durable")))
@@ -288,6 +329,8 @@ def test_ineligible_mention_draft_retirement_precedes_seen_marker_and_durable_sa
 
         if label == "clear":
             patch_reply_draft_method(monkeypatch, "clear", observe)
+        elif label == "terminal":
+            patch_reply_owner_method(monkeypatch, evaluation_state.ReplyEvaluations, "record", observe)
         else:
             monkeypatch.setattr(bot, name, observe)
     monkeypatch.setattr(bot, "log_event", lambda event, **kwargs: trace.append((event, None)))
@@ -381,9 +424,13 @@ def test_daily_reset_and_confirmed_reconciliation_precede_barrier_when_disabled(
         ("reset", "reset_daily_reply_count_if_needed"),
         ("reconcile", "reconcile_confirmed_reply_receipt"),
     ):
-        callback = Mock(wraps=getattr(bot, name))
+        original = bot._daily_reply_accounting_owner().reset if label == "reset" else getattr(bot, name)
+        callback = Mock(wraps=original)
         trace.attach_mock(callback, label)
-        monkeypatch.setattr(bot, name, callback)
+        if label == "reset":
+            patch_reply_owner_method(monkeypatch, accounting_owner.DailyReplyAccounting, "reset", callback)
+        else:
+            monkeypatch.setattr(bot, name, callback)
     original_barrier = bot.block_if_ambiguous_remote_post
 
     def barrier():
@@ -437,7 +484,7 @@ def test_clarification_refresh_failure_defers_without_losing_candidate(monkeypat
     state = bot.default_state()
     queue_active_mention(state, mention(105, 205), base_since_id="99")
     failure = bot.ApiError("temporary question lookup failure", service="x", status_code=503, request_method="GET", request_path="/2/tweets/100")
-    monkeypatch.setattr(bot, "clarification_reply_context", Mock(side_effect=failure))
+    patch_reply_owner_method(monkeypatch, ClarificationReplies, "context", Mock(side_effect=failure))
     assert bot.maybe_reply_to_mentions(state) == bot.NORMAL_CHECK_STATUS_API_ERROR
     assert "105" in state["mention_pending_candidates"]
     assert "105" in json.loads(bot.STATE_FILE.read_text())["mention_pending_candidates"]

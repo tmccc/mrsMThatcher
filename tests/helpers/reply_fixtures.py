@@ -83,6 +83,15 @@ class UnitReplyEvidenceRepository:
 UNIT_REPLY_REPOSITORY = UnitReplyEvidenceRepository()
 
 
+def patch_reply_owner_method(monkeypatch, owner_type, method: str, callback) -> None:
+    """Replace an owned operation without adding self to observed arguments."""
+
+    def invoke(_owner, *args, **kwargs):
+        return callback(*args, **kwargs)
+
+    monkeypatch.setattr(owner_type, method, invoke)
+
+
 def patch_reply_draft_method(monkeypatch, method: str, callback) -> None:
     """Replace an owned draft operation using its existing public argument shape."""
 

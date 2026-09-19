@@ -14,7 +14,7 @@ from tests.helpers.reply_fixtures import configure_normal_cycle as _configure_cy
 from tests.helpers.mention_fixtures import mention, queue_active_mention
 from tests.helpers.bot_runtime import bot
 from tests.helpers.bot_fixtures import isolate_bot_runtime  # noqa: F401
-from tests.helpers.reply_fixtures import reply_evaluation_record
+from tests.helpers.reply_fixtures import reply_evaluation_record, patch_reply_owner_method
 
 
 def test_import_needs_no_runtime_access():
@@ -284,11 +284,12 @@ def test_quarantine_skip_batch_is_durable_across_real_state_reload(monkeypatch):
     for epoch in (1_999_999_997, 1_999_999_998, 1_999_999_999):
         bot.record_qualifying_author_no_reply(state, "200", current_epoch=epoch)
     save = Mock(wraps=bot.save_state)
-    record = Mock(wraps=bot.record_terminal_reply_evaluation)
-    prune = Mock(wraps=bot.prune_reply_evaluation_records)
+    owner = bot._reply_evaluation_owner()
+    record = Mock(wraps=owner.record)
+    prune = Mock(wraps=owner.prune)
     monkeypatch.setattr(bot, "save_state", save)
-    monkeypatch.setattr(bot, "record_terminal_reply_evaluation", record)
-    monkeypatch.setattr(bot, "prune_reply_evaluation_records", prune)
+    patch_reply_owner_method(monkeypatch, evaluation_state.ReplyEvaluations, "record", record)
+    patch_reply_owner_method(monkeypatch, evaluation_state.ReplyEvaluations, "prune", prune)
 
     assert bot.maybe_reply_to_mentions(
         state, _fresh_mention_ai_evaluations=bot.MAX_MENTIONS_PER_CHECK,

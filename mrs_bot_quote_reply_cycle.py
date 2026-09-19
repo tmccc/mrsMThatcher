@@ -1,7 +1,8 @@
 """Own the quote-tweet reply cycle, eligibility, context and lane markers.
 
-The cycle receives typed settings, persistence and delivery boundaries; helper
-adapters retain current policy and application authority. The dependency-free
+The cycle receives typed settings, persistence and delivery boundaries plus
+evaluation and accounting owners; helper adapters retain current policy and
+application authority. The dependency-free
 profile formatter is a root alias. Private helpers separate lookup, eligibility,
 context, evaluation and durable delivery. The cycle alone owns the shared
 candidate budget and preserves context/media references and receipt recovery.
@@ -25,6 +26,7 @@ from logging import Logger
 from types import ModuleType
 from typing import TYPE_CHECKING
 
+from mrs_bot_daily_reply_accounting import daily_author_reply_counts
 from mrs_bot_reply_cycle_interfaces import (
     QUOTE_CHECK_STATUS_CHECKED,
     QUOTE_CHECK_STATUS_DISABLED,
@@ -43,6 +45,8 @@ from mrs_bot_reply_preparation import (
 )
 
 if TYPE_CHECKING:
+    from mrs_bot_daily_reply_accounting import DailyReplyAccounting
+    from mrs_bot_reply_evaluation_state import ReplyEvaluations
     from single_call_reply import PipelineResult
 
 
@@ -306,8 +310,7 @@ def maybe_reply_to_quote_tweets(
     clean_text_for_reply_context: Callable,
     persistence: ReplyCyclePersistence,
     conversational_reply_pipeline_enabled: Callable,
-    daily_author_reply_count: Callable,
-    daily_author_reply_counts: Callable,
+    accounting: DailyReplyAccounting,
     evaluate_single_call_reply: EvaluateReply,
     get_quote_tweets_for_posts: Callable,
     get_tweet_by_id_cached: Callable,
@@ -322,19 +325,17 @@ def maybe_reply_to_quote_tweets(
     now_epoch: Callable,
     quote_tweet_is_old_enough: Callable,
     record_api_error: Callable,
-    record_terminal_reply_evaluation: Callable,
+    reply_evaluations: ReplyEvaluations,
     recovery_comparison_account_replies: Callable,
     reply_evidence_repository: Callable,
-    reset_daily_quote_reply_count_if_needed: Callable,
-    reset_daily_reply_count_if_needed: Callable,
     valid_tweets_sorted_by_id: Callable,
 ) -> str:
     """Process eligible quote-tweet candidates under all reply limits."""
     log.info("Starting quote-tweet reply check")
     # Finish an exact confirmed local transaction before the unresolved-
     # journal guard rejects every new remote lane.
-    reset_daily_reply_count_if_needed(state)
-    reset_daily_quote_reply_count_if_needed(state)
+    accounting.reset(state)
+    accounting.reset_quotes(state)
     prior_reply_status, _prior_reply = delivery.load_receipt()
     if prior_reply_status == "valid" and delivery.reconcile_receipt(state):
         log.warning(
@@ -481,7 +482,7 @@ def maybe_reply_to_quote_tweets(
                 config=config,
                 cache_tweet=cache_tweet,
                 clean_text_for_reply_context=clean_text_for_reply_context,
-                daily_author_reply_count=daily_author_reply_count,
+                accounting=accounting,
                 is_probably_spam_or_not_worth_replying=is_probably_spam_or_not_worth_replying,
                 log=log,
                 log_event=log_event,
@@ -506,7 +507,7 @@ def maybe_reply_to_quote_tweets(
                 log=log,
                 mark_quote_tweet_skipped=mark_quote_tweet_skipped,
                 record_api_error=record_api_error,
-                record_terminal_reply_evaluation=record_terminal_reply_evaluation,
+                reply_evaluations=reply_evaluations,
                 persistence=persistence,
             )
             if isinstance(prepared, _QuoteCandidateStop):
@@ -542,7 +543,7 @@ def maybe_reply_to_quote_tweets(
                 _is_terminal_candidate_local_failure=_is_terminal_candidate_local_failure,
                 log=log,
                 mark_quote_tweet_skipped=mark_quote_tweet_skipped,
-                record_terminal_reply_evaluation=record_terminal_reply_evaluation,
+                reply_evaluations=reply_evaluations,
                 persistence=persistence,
             )
             if decision is not None:
@@ -584,7 +585,7 @@ def maybe_reply_to_quote_tweets(
                 mark_quote_tweet_skipped=mark_quote_tweet_skipped,
                 delivery=delivery,
                 record_api_error=record_api_error,
-                record_terminal_reply_evaluation=record_terminal_reply_evaluation,
+                reply_evaluations=reply_evaluations,
             )
             if isinstance(receipt, _QuoteCandidateStop):
                 return receipt.status
@@ -742,7 +743,7 @@ def _author_allows_evaluation(
     config: QuoteReplyConfig,
     cache_tweet: Callable,
     clean_text_for_reply_context: Callable,
-    daily_author_reply_count: Callable,
+    accounting: DailyReplyAccounting,
     is_probably_spam_or_not_worth_replying: Callable,
     log: Logger,
     log_event: Callable,
@@ -765,7 +766,7 @@ def _author_allows_evaluation(
         spam_check_text
     )
 
-    if daily_author_reply_count(state, author_id) >= config.maximum_daily_author_replies:
+    if accounting.author_count(state, author_id) >= config.maximum_daily_author_replies:
         log.info(
             "Skipping quote tweet %s: already reached per-author daily cap for author_id=%s",
             quote_id,
@@ -835,7 +836,7 @@ def _prepare_reply_context(
     log: Logger,
     mark_quote_tweet_skipped: Callable,
     record_api_error: Callable,
-    record_terminal_reply_evaluation: Callable,
+    reply_evaluations: ReplyEvaluations,
     persistence: ReplyCyclePersistence,
 ) -> PreparedReplyContext | _QuoteCandidateStop:
     """Refetch media, cache the quote and build context before charging its candidate budget."""
@@ -856,7 +857,7 @@ def _prepare_reply_context(
             lane="quote_tweet",
             target_id=quote_id,
         )
-        record_terminal_reply_evaluation(
+        reply_evaluations.record(
             state,
             target_id=quote_id,
             lane="quote_tweet",
@@ -1019,7 +1020,7 @@ def _resolve_reply_evaluation(
     _is_terminal_candidate_local_failure: Callable,
     log: Logger,
     mark_quote_tweet_skipped: Callable,
-    record_terminal_reply_evaluation: Callable,
+    reply_evaluations: ReplyEvaluations,
     persistence: ReplyCyclePersistence,
 ) -> _QuoteCandidateStop | None:
     """Retire terminal decisions, defer retryable failures, or allow a validated reply through."""
@@ -1037,7 +1038,7 @@ def _resolve_reply_evaluation(
                 failure_category,
                 failure_reason,
             )
-            record_terminal_reply_evaluation(
+            reply_evaluations.record(
                 state,
                 target_id=quote_id,
                 lane="quote_tweet",
@@ -1061,7 +1062,7 @@ def _resolve_reply_evaluation(
             or evaluation.reason
             or "model_selected_no_reply"
         )
-        record_terminal_reply_evaluation(
+        reply_evaluations.record(
             state,
             target_id=quote_id,
             lane="quote_tweet",
@@ -1157,7 +1158,7 @@ def _retire_terminal_target(
     log_ai_reply_posting_outcome: Callable,
     log_event: Callable,
     mark_quote_tweet_skipped: Callable,
-    record_terminal_reply_evaluation: Callable,
+    reply_evaluations: ReplyEvaluations,
 ) -> None:
     """Record a terminal quote outcome and durably skip its target and draft."""
     log_ai_reply_posting_outcome(
@@ -1174,7 +1175,7 @@ def _retire_terminal_target(
         outcome="reply_not_permitted",
         reason=reason,
     )
-    record_terminal_reply_evaluation(
+    reply_evaluations.record(
         state,
         target_id=quote_id,
         lane="quote_tweet",
@@ -1206,7 +1207,7 @@ def _deliver_reply(
     mark_quote_tweet_skipped: Callable,
     delivery: ReplyCycleDelivery,
     record_api_error: Callable,
-    record_terminal_reply_evaluation: Callable,
+    reply_evaluations: ReplyEvaluations,
 ) -> dict | _QuoteCandidateStop:
     """Deliver through the shared boundary, retaining quote-lane retirement and statuses."""
     def retire_terminal_target(failure_reason: str) -> None:
@@ -1231,7 +1232,7 @@ def _deliver_reply(
             log_ai_reply_posting_outcome=log_ai_reply_posting_outcome,
             log_event=log_event,
             mark_quote_tweet_skipped=mark_quote_tweet_skipped,
-            record_terminal_reply_evaluation=record_terminal_reply_evaluation,
+            reply_evaluations=reply_evaluations,
         )
 
     outcome = deliver_prepared_reply(

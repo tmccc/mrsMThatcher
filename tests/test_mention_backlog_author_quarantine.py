@@ -2,7 +2,8 @@ from __future__ import annotations
 
 from mrs_bot_reply_cycle_interfaces import PreparedReplyContext
 from tests.helpers.reply_evaluation import legacy_reply_evaluator
-from tests.helpers.reply_fixtures import patch_reply_draft_method
+from tests.helpers.reply_fixtures import patch_reply_draft_method, patch_reply_owner_method
+from mrs_bot_reply_clarifications import ClarificationReplies
 
 import copy
 import json
@@ -173,11 +174,7 @@ def test_digest_author_no_reply_chronology_survives_restarts_and_skips_quarantin
         "current_datetime",
         lambda: datetime.fromtimestamp(clock["epoch"], tz=LONDON),
     )
-    monkeypatch.setattr(
-        bot,
-        "clarification_reply_context",
-        lambda *_args, **_kwargs: None,
-    )
+    patch_reply_owner_method(monkeypatch, ClarificationReplies, "context", lambda *_args, **_kwargs: None)
 
     context_targets: list[str] = []
 
@@ -480,7 +477,7 @@ def test_three_explicit_spam_no_replies_start_quarantine_and_skip_next(
         candidates,
         current_epoch=current,
     )
-    monkeypatch.setattr(bot, "clarification_reply_context", lambda *_args, **_kwargs: None)
+    patch_reply_owner_method(monkeypatch, ClarificationReplies, "context", lambda *_args, **_kwargs: None)
     context_targets: list[str] = []
 
     def build_context(candidate: dict, _state: dict) -> PreparedReplyContext | None:
@@ -550,11 +547,7 @@ def test_non_spam_editorial_no_replies_do_not_create_quarantine_strikes(
         candidates,
         current_epoch=current,
     )
-    monkeypatch.setattr(
-        bot,
-        "clarification_reply_context",
-        lambda *_args, **_kwargs: None,
-    )
+    patch_reply_owner_method(monkeypatch, ClarificationReplies, "context", lambda *_args, **_kwargs: None)
     reasons = iter(
         ["completed_exchange", "irrelevant", "insufficient_context", "already_answered"]
     )
@@ -627,11 +620,7 @@ def test_approved_reply_production_branch_clears_author_strikes(
         [candidate],
         current_epoch=start + 2,
     )
-    monkeypatch.setattr(
-        bot,
-        "clarification_reply_context",
-        lambda *_args, **_kwargs: None,
-    )
+    patch_reply_owner_method(monkeypatch, ClarificationReplies, "context", lambda *_args, **_kwargs: None)
     generation_targets: list[str] = []
     approved_reply = ValidatedReply(
         "Thank you for the contribution.",
@@ -878,7 +867,7 @@ def test_active_quarantine_reports_one_skipped_pipeline_evaluation(
     candidate = mention(100, 200)
     queue_active_mention(state, candidate, base_since_id="99")
     configure_provider_free_mention_check(monkeypatch, [candidate], current_epoch=current)
-    monkeypatch.setattr(bot, "clarification_reply_context", lambda *_args, **_kwargs: None)
+    patch_reply_owner_method(monkeypatch, ClarificationReplies, "context", lambda *_args, **_kwargs: None)
     events: list[tuple[str, dict]] = []
     monkeypatch.setattr(
         bot,
@@ -937,17 +926,13 @@ def test_active_quarantine_permits_valid_clarification_candidate(
     candidate = mention(100, 200, "@MrsMThatcher That did not answer my question.")
     queue_active_mention(state, candidate, base_since_id="99")
     configure_provider_free_mention_check(monkeypatch, [candidate], current_epoch=current)
-    monkeypatch.setattr(
-        bot,
-        "clarification_reply_context",
-        lambda *_args, **_kwargs: {
+    patch_reply_owner_method(monkeypatch, ClarificationReplies, "context", lambda *_args, **_kwargs: {
             "thread_id": "100",
             "prior_bot_reply_id": "90",
             "original_question_id": "80",
             "question_text": "What policy follows from that?",
             "trigger": "explicit_correction",
-        },
-    )
+        })
     evaluated: list[str] = []
 
     def run_pipeline(
@@ -1003,17 +988,13 @@ def test_active_quarantine_clarification_still_obeys_author_cap(
     state["daily_replied_author_counts"] = {
         "200": bot.MAX_REPLIES_PER_AUTHOR_PER_DAY
     }
-    monkeypatch.setattr(
-        bot,
-        "clarification_reply_context",
-        lambda *_args, **_kwargs: {
+    patch_reply_owner_method(monkeypatch, ClarificationReplies, "context", lambda *_args, **_kwargs: {
             "thread_id": "100",
             "prior_bot_reply_id": "90",
             "original_question_id": "80",
             "question_text": "What policy follows from that?",
             "trigger": "explicit_correction",
-        },
-    )
+        })
     monkeypatch.setattr(
         bot,
         "build_context_for_reply_ai",
@@ -1097,17 +1078,13 @@ def test_expired_quarantine_allows_valid_clarification_candidate(
     current = start + 2 + bot.AUTHOR_NO_REPLY_QUARANTINE_SECONDS
     candidate = mention(100, 200, "@MrsMThatcher That did not answer my question.")
     configure_provider_free_mention_check(monkeypatch, [candidate], current_epoch=current)
-    monkeypatch.setattr(
-        bot,
-        "clarification_reply_context",
-        lambda *_args, **_kwargs: {
+    patch_reply_owner_method(monkeypatch, ClarificationReplies, "context", lambda *_args, **_kwargs: {
             "thread_id": "100",
             "prior_bot_reply_id": "90",
             "original_question_id": "80",
             "question_text": "What policy follows from that?",
             "trigger": "explicit_correction",
-        },
-    )
+        })
     evaluated: list[str] = []
 
     def no_reply(
@@ -1684,7 +1661,7 @@ def test_quarantine_skips_batch_one_durable_state_write(
         candidates,
         current_epoch=current,
     )
-    monkeypatch.setattr(bot, "clarification_reply_context", lambda *_args, **_kwargs: None)
+    patch_reply_owner_method(monkeypatch, ClarificationReplies, "context", lambda *_args, **_kwargs: None)
     events: list[tuple[str, dict]] = []
     monkeypatch.setattr(
         bot,
@@ -1740,7 +1717,7 @@ def test_quarantine_does_not_credit_deterministic_gate_overlap(
     candidate = mention(100, 200)
     queue_active_mention(state, candidate, base_since_id="99")
     configure_provider_free_mention_check(monkeypatch, [candidate], current_epoch=current)
-    monkeypatch.setattr(bot, "clarification_reply_context", lambda *_args, **_kwargs: None)
+    patch_reply_owner_method(monkeypatch, ClarificationReplies, "context", lambda *_args, **_kwargs: None)
     local_filter_calls: list[str] = []
 
     def local_filter(text: str) -> bool:

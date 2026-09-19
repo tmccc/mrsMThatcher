@@ -96,7 +96,7 @@ def prepare_delivery(lane, outcome, *, save_failure=None, retirement_failure=Non
         persistence=persistence, delivery=delivery, log=trace.log,
         log_ai_reply_posting_outcome=trace.posting_outcome,
         log_event=trace.event, record_api_error=trace.api_error,
-        record_terminal_reply_evaluation=trace.record,
+        reply_evaluations=SimpleNamespace(record=trace.record),
     )
     if lane == "quote_tweet":
         dependencies.update(

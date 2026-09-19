@@ -60,6 +60,12 @@ deferred in-memory pruning;
 `quarantine_retirements_pending` tracks bookkeeping still needing a durable save.
 These are different obligations even when they arise from the same candidate.
 
+The root creates the relevant state owners once per lane invocation.
+Private lane helpers use those owners directly;
+backlog continuation re-enters the current root callback and receives fresh
+owners. Clocks, date reads and durable saves still occur at their original
+operation boundaries.
+
 For a change to saved-draft behaviour, start with `ReplyDrafts`. Its `store`,
 `recover` and `receipt_draft_is_valid` methods call its own `validate` method;
 internal draft operations do not return through root adapters. Each validation

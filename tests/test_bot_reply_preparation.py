@@ -47,9 +47,10 @@ class StringProbe:
 
 
 @pytest.fixture(params=["mention", "hot_post_reply", "quote_tweet"])
-def preparation(request):
+def preparation(request, monkeypatch):
     lane = request.param
     trace = Mock()
+    monkeypatch.setattr(normal_cycle, "clear_author_evaluation_quarantine_history", trace.clear_quarantine)
     shared = {"values": []}
     context = CopyProbe({"shared": shared, "alias": shared}, trace.copy_context)
     reply = ApprovedReply("A validated reply.")
@@ -102,7 +103,7 @@ def preparation(request):
                 ValidatedReply=ApprovedReply,
                 _is_terminal_candidate_local_failure=Mock(),
                 log=common["log"], mark_quote_tweet_skipped=Mock(),
-                record_terminal_reply_evaluation=Mock(), persistence=persistence,
+                reply_evaluations=SimpleNamespace(record=Mock()), persistence=persistence,
             )
             if decision is not None:
                 return decision
@@ -116,7 +117,6 @@ def preparation(request):
             normal_cycle._ReplyCandidate(target, "105", "205", "Incoming text", lane, lane),
             case.reply, context, clarification,
             ValidatedReply=ApprovedReply,
-            clear_author_evaluation_quarantine_history=trace.clear_quarantine,
             mention_pagination_provenance_is_valid=trace.valid_pagination,
             **common,
         )
