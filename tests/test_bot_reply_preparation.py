@@ -13,6 +13,7 @@ import mrs_bot_normal_reply_cycle as normal_cycle
 import mrs_bot_quote_reply_cycle as quote_cycle
 from mrs_bot_reply_cycle_interfaces import (
     NORMAL_CHECK_STATUS_API_ERROR,
+    QUOTE_CHECK_STATUS_CHECKED,
     ReplyCycleDelivery,
     ReplyCyclePersistence,
 )
@@ -98,7 +99,7 @@ def preparation(request):
         if lane == "quote_tweet":
             decision = quote_cycle._resolve_reply_evaluation(
                 "105", SimpleNamespace(reply=case.reply), state,
-                QUOTE_CHECK_STATUS_CHECKED="quote_checked", ValidatedReply=ApprovedReply,
+                ValidatedReply=ApprovedReply,
                 _is_terminal_candidate_local_failure=Mock(),
                 log=common["log"], mark_quote_tweet_skipped=Mock(),
                 record_terminal_reply_evaluation=Mock(), persistence=persistence,
@@ -108,7 +109,7 @@ def preparation(request):
             return quote_cycle._prepare_reply_receipt(
                 quote_cycle._QuoteCandidate(target, "105", "205", "Incoming text"),
                 StringProbe("900", trace.original_id), case.reply, context, state,
-                QUOTE_CHECK_STATUS_CHECKED="quote_checked", **common,
+                **common,
             )
         return normal_cycle._prepare_reply_receipt(
             state,
@@ -237,7 +238,7 @@ def test_rejected_draft_logs_exact_lane_outcome_before_durable_save(preparation,
         assert caught.value is failure
     else:
         result = case.run()
-        assert result.status == ("quote_checked" if case.lane == "quote_tweet" else NORMAL_CHECK_STATUS_API_ERROR)
+        assert result.status == (QUOTE_CHECK_STATUS_CHECKED if case.lane == "quote_tweet" else NORMAL_CHECK_STATUS_API_ERROR)
 
     expected = case.steps[:case.steps.index("save")] + ["error", "event", "save"]
     assert [item[0] for item in case.trace.mock_calls] == expected
@@ -260,7 +261,7 @@ def test_unvalidated_reply_stops_before_quarantine_or_shared_preparation(prepara
     case = preparation
     case.reply = "Not a validated reply object"
     result = case.run()
-    assert result.status == ("quote_checked" if case.lane == "quote_tweet" else NORMAL_CHECK_STATUS_API_ERROR)
+    assert result.status == (QUOTE_CHECK_STATUS_CHECKED if case.lane == "quote_tweet" else NORMAL_CHECK_STATUS_API_ERROR)
     assert [item[0] for item in case.trace.mock_calls] == ["error", "save"]
     if case.lane == "quote_tweet":
         expected_log = (

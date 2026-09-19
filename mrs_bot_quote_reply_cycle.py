@@ -9,8 +9,10 @@ candidate budget and preserves context/media references and receipt recovery.
 Watch-list/own-post lookup and quote discovery, shared context/media/evidence,
 counters, pipeline, persistence, reconciliation and delivery remain in their
 existing locations. Explicit calls may read providers, generate, save caller
-state and publish through supplied callbacks. Import of the standard library and inert interfaces does
-no runtime I/O and retains no callbacks, configuration, clients or state.
+state and publish through supplied callbacks. Fixed check statuses and terminal
+evaluation lookup are imported from their inert owners; dependency-free quote
+helpers are called locally. Imports do no runtime I/O and retain no callbacks,
+configuration, clients or state.
 """
 
 from __future__ import annotations
@@ -24,10 +26,17 @@ from types import ModuleType
 from typing import TYPE_CHECKING
 
 from mrs_bot_reply_cycle_interfaces import (
+    QUOTE_CHECK_STATUS_CHECKED,
+    QUOTE_CHECK_STATUS_DISABLED,
+    QUOTE_CHECK_STATUS_POSTED,
+    QUOTE_CHECK_STATUS_SKIPPED_CAP,
+    QUOTE_CHECK_STATUS_SKIPPED_COOLDOWN,
+    QUOTE_CHECK_STATUS_SKIPPED_SPACING,
     EvaluateReply, PreparedReplyContext, QuoteReplyConfig,
     ReplyCycleDelivery, ReplyCyclePersistence,
 )
 from mrs_bot_reply_delivery import ReplyDeliveryStop, deliver_prepared_reply
+from mrs_bot_reply_evaluation_state import terminal_reply_evaluation
 from mrs_bot_reply_preparation import (
     build_sending_reply_receipt,
     persist_validated_reply_draft,
@@ -281,12 +290,6 @@ def maybe_reply_to_quote_tweets(
     config: QuoteReplyConfig,
     PipelineResult: type,
     ProvedRemotePostNonSuccess: type[Exception],
-    QUOTE_CHECK_STATUS_CHECKED: str,
-    QUOTE_CHECK_STATUS_DISABLED: str,
-    QUOTE_CHECK_STATUS_POSTED: str,
-    QUOTE_CHECK_STATUS_SKIPPED_CAP: str,
-    QUOTE_CHECK_STATUS_SKIPPED_COOLDOWN: str,
-    QUOTE_CHECK_STATUS_SKIPPED_SPACING: str,
     RemoteOperationsPaused: type[Exception],
     ReplyEvidenceUnavailable: type[Exception],
     SINGLE_CALL_STRATEGY_VERSION: str,
@@ -317,8 +320,6 @@ def maybe_reply_to_quote_tweets(
     mark_quote_spam_author: Callable,
     mark_quote_tweet_skipped: Callable,
     now_epoch: Callable,
-    quote_author_profile_text: Callable,
-    quote_tweet_directly_quotes_original: Callable,
     quote_tweet_is_old_enough: Callable,
     record_api_error: Callable,
     record_terminal_reply_evaluation: Callable,
@@ -326,7 +327,6 @@ def maybe_reply_to_quote_tweets(
     reply_evidence_repository: Callable,
     reset_daily_quote_reply_count_if_needed: Callable,
     reset_daily_reply_count_if_needed: Callable,
-    terminal_reply_evaluation: Callable,
     valid_tweets_sorted_by_id: Callable,
 ) -> str:
     """Process eligible quote-tweet candidates under all reply limits."""
@@ -426,7 +426,6 @@ def maybe_reply_to_quote_tweets(
             state,
             quote_tweets,
             ApiError=ApiError,
-            QUOTE_CHECK_STATUS_CHECKED=QUOTE_CHECK_STATUS_CHECKED,
             api_error_is_permanent_target_failure=api_error_is_permanent_target_failure,
             get_tweet_by_id_cached=get_tweet_by_id_cached,
             in_api_cooldown=in_api_cooldown,
@@ -469,10 +468,8 @@ def maybe_reply_to_quote_tweets(
                 config=config,
                 log=log,
                 mark_quote_tweet_skipped=mark_quote_tweet_skipped,
-                quote_tweet_directly_quotes_original=quote_tweet_directly_quotes_original,
                 quote_tweet_is_old_enough=quote_tweet_is_old_enough,
                 persistence=persistence,
-                terminal_reply_evaluation=terminal_reply_evaluation,
             ):
                 continue
             if not _author_allows_evaluation(
@@ -490,7 +487,6 @@ def maybe_reply_to_quote_tweets(
                 log_event=log_event,
                 mark_quote_spam_author=mark_quote_spam_author,
                 mark_quote_tweet_skipped=mark_quote_tweet_skipped,
-                quote_author_profile_text=quote_author_profile_text,
                 persistence=persistence,
             ):
                 continue
@@ -502,7 +498,6 @@ def maybe_reply_to_quote_tweets(
                 ApiError=ApiError,
                 ContextValidationError=ContextValidationError,
                 PipelineResult=PipelineResult,
-                QUOTE_CHECK_STATUS_CHECKED=QUOTE_CHECK_STATUS_CHECKED,
                 _record_single_call_result=_record_single_call_result,
                 api_error_is_permanent_target_failure=api_error_is_permanent_target_failure,
                 build_quote_tweet_reply_context=build_quote_tweet_reply_context,
@@ -526,7 +521,6 @@ def maybe_reply_to_quote_tweets(
                 prepared,
                 state,
                 ApiError=ApiError,
-                QUOTE_CHECK_STATUS_CHECKED=QUOTE_CHECK_STATUS_CHECKED,
                 RemoteOperationsPaused=RemoteOperationsPaused,
                 ReplyEvidenceUnavailable=ReplyEvidenceUnavailable,
                 evaluate_single_call_reply=evaluate_single_call_reply,
@@ -544,7 +538,6 @@ def maybe_reply_to_quote_tweets(
                 candidate.quote_id,
                 evaluation,
                 state,
-                QUOTE_CHECK_STATUS_CHECKED=QUOTE_CHECK_STATUS_CHECKED,
                 ValidatedReply=ValidatedReply,
                 _is_terminal_candidate_local_failure=_is_terminal_candidate_local_failure,
                 log=log,
@@ -563,7 +556,6 @@ def maybe_reply_to_quote_tweets(
                 reply_text,
                 reply_context,
                 state,
-                QUOTE_CHECK_STATUS_CHECKED=QUOTE_CHECK_STATUS_CHECKED,
                 SINGLE_CALL_STRATEGY_VERSION=SINGLE_CALL_STRATEGY_VERSION,
                 _log_validated_single_call_reply=_log_validated_single_call_reply,
                 delivery=delivery,
@@ -583,7 +575,6 @@ def maybe_reply_to_quote_tweets(
                 ConfirmedReplyLocalPersistenceError=ConfirmedReplyLocalPersistenceError,
                 config=config,
                 ProvedRemotePostNonSuccess=ProvedRemotePostNonSuccess,
-                QUOTE_CHECK_STATUS_CHECKED=QUOTE_CHECK_STATUS_CHECKED,
                 UnrecoverableConfirmedReplyPersistenceError=UnrecoverableConfirmedReplyPersistenceError,
                 api_error_is_reply_not_allowed=api_error_is_reply_not_allowed,
                 persistence=persistence,
@@ -603,10 +594,6 @@ def maybe_reply_to_quote_tweets(
                 receipt,
                 state,
                 delivery=delivery,
-
-
-                QUOTE_CHECK_STATUS_POSTED=QUOTE_CHECK_STATUS_POSTED,
-
                 log=log,
                 log_event=log_event,
             )
@@ -622,7 +609,6 @@ def _lookup_quote_candidates(
     quote_tweets: list[dict],
     *,
     ApiError: type[Exception],
-    QUOTE_CHECK_STATUS_CHECKED: str,
     api_error_is_permanent_target_failure: Callable,
     get_tweet_by_id_cached: Callable,
     in_api_cooldown: Callable,
@@ -668,10 +654,8 @@ def _candidate_is_eligible(
     config: QuoteReplyConfig,
     log: Logger,
     mark_quote_tweet_skipped: Callable,
-    quote_tweet_directly_quotes_original: Callable,
     quote_tweet_is_old_enough: Callable,
     persistence: ReplyCyclePersistence,
-    terminal_reply_evaluation: Callable,
 ) -> bool:
     """Apply identity, relationship and age gates against the cycle's original snapshots."""
     quote_tweet = candidate.tweet
@@ -764,7 +748,6 @@ def _author_allows_evaluation(
     log_event: Callable,
     mark_quote_spam_author: Callable,
     mark_quote_tweet_skipped: Callable,
-    quote_author_profile_text: Callable,
     persistence: ReplyCyclePersistence,
 ) -> bool:
     """Check cleaned text and author limits, retaining cap context and newly found spam."""
@@ -844,7 +827,6 @@ def _prepare_reply_context(
     ApiError: type[Exception],
     ContextValidationError: type[Exception],
     PipelineResult: type,
-    QUOTE_CHECK_STATUS_CHECKED: str,
     _record_single_call_result: Callable,
     api_error_is_permanent_target_failure: Callable,
     build_quote_tweet_reply_context: Callable,
@@ -955,7 +937,6 @@ def _evaluate_reply(
     state: dict,
     *,
     ApiError: type[Exception],
-    QUOTE_CHECK_STATUS_CHECKED: str,
     RemoteOperationsPaused: type[Exception],
     ReplyEvidenceUnavailable: type[Exception],
     evaluate_single_call_reply: EvaluateReply,
@@ -1034,7 +1015,6 @@ def _resolve_reply_evaluation(
     evaluation: PipelineResult,
     state: dict,
     *,
-    QUOTE_CHECK_STATUS_CHECKED: str,
     ValidatedReply: type,
     _is_terminal_candidate_local_failure: Callable,
     log: Logger,
@@ -1113,7 +1093,6 @@ def _prepare_reply_receipt(
     reply_context: dict,
     state: dict,
     *,
-    QUOTE_CHECK_STATUS_CHECKED: str,
     SINGLE_CALL_STRATEGY_VERSION: str,
     _log_validated_single_call_reply: Callable,
     delivery: ReplyCycleDelivery,
@@ -1218,7 +1197,6 @@ def _deliver_reply(
     ConfirmedReplyLocalPersistenceError: type[Exception],
     config: QuoteReplyConfig,
     ProvedRemotePostNonSuccess: type[Exception],
-    QUOTE_CHECK_STATUS_CHECKED: str,
     UnrecoverableConfirmedReplyPersistenceError: type[Exception],
     api_error_is_reply_not_allowed: Callable,
     persistence: ReplyCyclePersistence,
@@ -1282,7 +1260,6 @@ def _finalise_confirmed_reply(
     receipt: dict,
     state: dict,
     *,
-    QUOTE_CHECK_STATUS_POSTED: str,
     log: Logger,
     log_event: Callable,
     delivery: ReplyCycleDelivery,

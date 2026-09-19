@@ -514,12 +514,12 @@ QUOTE_LOOKUP_MAX_PAGES_PER_POST = 3
 QUOTE_REPEATED_CURSOR_BACKOFF_SECONDS = 21600
 QUOTE_REPEATED_CURSOR_SUPPRESSION_MAX_ENTRIES = 64
 
-QUOTE_CHECK_STATUS_CHECKED = "checked"
-QUOTE_CHECK_STATUS_POSTED = "posted"
-QUOTE_CHECK_STATUS_SKIPPED_SPACING = "skipped_spacing"
-QUOTE_CHECK_STATUS_SKIPPED_CAP = "skipped_cap"
-QUOTE_CHECK_STATUS_SKIPPED_COOLDOWN = "skipped_cooldown"
-QUOTE_CHECK_STATUS_DISABLED = "disabled"
+QUOTE_CHECK_STATUS_CHECKED = _reply_cycle_interfaces.QUOTE_CHECK_STATUS_CHECKED
+QUOTE_CHECK_STATUS_POSTED = _reply_cycle_interfaces.QUOTE_CHECK_STATUS_POSTED
+QUOTE_CHECK_STATUS_SKIPPED_SPACING = _reply_cycle_interfaces.QUOTE_CHECK_STATUS_SKIPPED_SPACING
+QUOTE_CHECK_STATUS_SKIPPED_CAP = _reply_cycle_interfaces.QUOTE_CHECK_STATUS_SKIPPED_CAP
+QUOTE_CHECK_STATUS_SKIPPED_COOLDOWN = _reply_cycle_interfaces.QUOTE_CHECK_STATUS_SKIPPED_COOLDOWN
+QUOTE_CHECK_STATUS_DISABLED = _reply_cycle_interfaces.QUOTE_CHECK_STATUS_DISABLED
 
 NORMAL_CHECK_STATUS_CHECKED = _reply_cycle_interfaces.NORMAL_CHECK_STATUS_CHECKED
 NORMAL_CHECK_STATUS_POSTED = _reply_cycle_interfaces.NORMAL_CHECK_STATUS_POSTED
@@ -9061,12 +9061,6 @@ def maybe_reply_to_quote_tweets(state: dict) -> str:
         ContextValidationError=ContextValidationError,
         PipelineResult=PipelineResult,
         ProvedRemotePostNonSuccess=ProvedRemotePostNonSuccess,
-        QUOTE_CHECK_STATUS_CHECKED=QUOTE_CHECK_STATUS_CHECKED,
-        QUOTE_CHECK_STATUS_DISABLED=QUOTE_CHECK_STATUS_DISABLED,
-        QUOTE_CHECK_STATUS_POSTED=QUOTE_CHECK_STATUS_POSTED,
-        QUOTE_CHECK_STATUS_SKIPPED_CAP=QUOTE_CHECK_STATUS_SKIPPED_CAP,
-        QUOTE_CHECK_STATUS_SKIPPED_COOLDOWN=QUOTE_CHECK_STATUS_SKIPPED_COOLDOWN,
-        QUOTE_CHECK_STATUS_SKIPPED_SPACING=QUOTE_CHECK_STATUS_SKIPPED_SPACING,
         RemoteOperationsPaused=RemoteOperationsPaused,
         ReplyEvidenceUnavailable=ReplyEvidenceUnavailable,
         SINGLE_CALL_STRATEGY_VERSION=SINGLE_CALL_STRATEGY_VERSION,
@@ -9096,8 +9090,6 @@ def maybe_reply_to_quote_tweets(state: dict) -> str:
         mark_quote_spam_author=mark_quote_spam_author,
         mark_quote_tweet_skipped=mark_quote_tweet_skipped,
         now_epoch=now_epoch,
-        quote_author_profile_text=quote_author_profile_text,
-        quote_tweet_directly_quotes_original=quote_tweet_directly_quotes_original,
         quote_tweet_is_old_enough=quote_tweet_is_old_enough,
         record_api_error=record_api_error,
         record_terminal_reply_evaluation=record_terminal_reply_evaluation,
@@ -9105,7 +9097,6 @@ def maybe_reply_to_quote_tweets(state: dict) -> str:
         reply_evidence_repository=reply_evidence_repository,
         reset_daily_quote_reply_count_if_needed=reset_daily_quote_reply_count_if_needed,
         reset_daily_reply_count_if_needed=reset_daily_reply_count_if_needed,
-        terminal_reply_evaluation=terminal_reply_evaluation,
         valid_tweets_sorted_by_id=valid_tweets_sorted_by_id,
     )
 

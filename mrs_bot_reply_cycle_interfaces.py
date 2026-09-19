@@ -26,6 +26,14 @@ NORMAL_CHECK_STATUS_DISABLED = "disabled"
 NORMAL_CHECK_STATUS_API_ERROR = "api_error"
 
 
+QUOTE_CHECK_STATUS_CHECKED = "checked"
+QUOTE_CHECK_STATUS_POSTED = "posted"
+QUOTE_CHECK_STATUS_SKIPPED_SPACING = "skipped_spacing"
+QUOTE_CHECK_STATUS_SKIPPED_CAP = "skipped_cap"
+QUOTE_CHECK_STATUS_SKIPPED_COOLDOWN = "skipped_cooldown"
+QUOTE_CHECK_STATUS_DISABLED = "disabled"
+
+
 @dataclass(frozen=True)
 class PreparedReplyContext:
     """Canonical model/persistence context and separately collected native media."""

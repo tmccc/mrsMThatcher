@@ -104,7 +104,6 @@ def prepare_delivery(lane, outcome, *, save_failure=None, retirement_failure=Non
                 **settings, quote_checks_enabled=True,
                 maximum_candidates=3, maximum_daily_quote_replies=3,
             ),
-            QUOTE_CHECK_STATUS_CHECKED="checked",
             mark_quote_tweet_skipped=trace.mark_skipped,
         )
 

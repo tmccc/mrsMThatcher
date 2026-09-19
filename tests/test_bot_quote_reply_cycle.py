@@ -14,6 +14,8 @@ from unittest.mock import Mock, call
 import pytest
 
 import mrs_bot_quote_reply_cycle as cycle
+import mrs_bot_reply_cycle_interfaces as interfaces
+import mrs_bot_reply_evaluation_state as evaluation_state
 from tests.helpers.bot_runtime import SOURCE_GET_TWEET_BY_ID, bot
 from tests.helpers.bot_fixtures import isolate_bot_runtime  # noqa: F401
 from tests.helpers.reply_fixtures import (
@@ -33,7 +35,7 @@ def forbidden(*args, **kwargs):
 
 original_import = builtins.__import__
 def guarded_import(name, *args, **kwargs):
-    if name in {'mrsMThatcher2', 'requests', 'openai', 'single_call_reply', 'reply_evidence'} or name.startswith('mrs_bot_') and name not in {'mrs_bot_quote_reply_cycle', 'mrs_bot_reply_cycle_interfaces', 'mrs_bot_reply_preparation', 'mrs_bot_reply_delivery'}:
+    if name in {'mrsMThatcher2', 'requests', 'openai', 'single_call_reply', 'reply_evidence'} or name.startswith('mrs_bot_') and name not in {'mrs_bot_quote_reply_cycle', 'mrs_bot_reply_cycle_interfaces', 'mrs_bot_reply_preparation', 'mrs_bot_reply_delivery', 'mrs_bot_reply_evaluation_state'}:
         forbidden()
     return original_import(name, *args, **kwargs)
 
@@ -70,8 +72,22 @@ def test_adapters_forward_current_dependencies_arguments_results_and_errors(monk
     for name, count in names.items():
         adapter = getattr(bot, name)
         public = inspect.signature(adapter).parameters
-        dependencies = inspect.signature(getattr(cycle, name)).parameters.keys() - public.keys()
+        parameters = inspect.signature(getattr(cycle, name)).parameters
+        dependencies = parameters.keys() - public.keys()
         if count is None:
+            assert tuple(public) == ("state",)
+            assert public["state"].kind is inspect.Parameter.POSITIONAL_OR_KEYWORD
+            assert len(parameters) == 47
+            assert sum(param.kind is inspect.Parameter.KEYWORD_ONLY for param in parameters.values()) == 46
+            removed = {
+                key for key in vars(interfaces) if key.startswith("QUOTE_CHECK_STATUS_")
+            } | {
+                "terminal_reply_evaluation", "quote_author_profile_text",
+                "quote_tweet_directly_quotes_original",
+            }
+            for helper_name, function in inspect.getmembers(cycle, inspect.isfunction):
+                if function.__module__ == cycle.__name__:
+                    assert removed.isdisjoint(inspect.signature(function).parameters), helper_name
             assert {"config", "persistence", "delivery"} <= dependencies
         else:
             assert len(dependencies) == count
@@ -100,6 +116,24 @@ def test_adapters_forward_current_dependencies_arguments_results_and_errors(monk
             with pytest.raises(TypeError) as caught:
                 adapter(*args)
             assert caught.value is failure
+
+
+def test_fixed_statuses_and_terminal_lookup_use_their_owners():
+    statuses = {
+        "QUOTE_CHECK_STATUS_CHECKED": "checked",
+        "QUOTE_CHECK_STATUS_POSTED": "posted",
+        "QUOTE_CHECK_STATUS_SKIPPED_SPACING": "skipped_spacing",
+        "QUOTE_CHECK_STATUS_SKIPPED_CAP": "skipped_cap",
+        "QUOTE_CHECK_STATUS_SKIPPED_COOLDOWN": "skipped_cooldown",
+        "QUOTE_CHECK_STATUS_DISABLED": "disabled",
+    }
+    for name, expected in statuses.items():
+        value = getattr(interfaces, name)
+        assert value == expected
+        assert getattr(cycle, name) is value
+        assert getattr(bot, name) is value
+    assert cycle.terminal_reply_evaluation is evaluation_state.terminal_reply_evaluation
+    assert bot.terminal_reply_evaluation is evaluation_state.terminal_reply_evaluation
 
 
 def test_age_uses_current_parser_clock_delay_and_native_errors(monkeypatch):
