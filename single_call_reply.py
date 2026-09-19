@@ -510,6 +510,14 @@ def bound_visible_conversation(
     return clean
 
 
+def _canonical_fact_passage(record: Mapping[str, Any]) -> str:
+    """Use the same passage whitespace for initial and persisted claim checks."""
+
+    return " ".join(
+        str(record.get("passage") or record.get("statement") or "").split()
+    )
+
+
 def compact_fact_records(
     records: Sequence[Mapping[str, Any]],
 ) -> tuple[list[dict[str, str]], dict[str, dict[str, str]]]:
@@ -523,9 +531,7 @@ def compact_fact_records(
             break
         if not isinstance(record, Mapping):
             continue
-        passage = " ".join(
-            str(record.get("passage") or record.get("statement") or "").split()
-        )
+        passage = _canonical_fact_passage(record)
         source = " ".join(
             str(
                 record.get("source_title")
@@ -2393,7 +2399,12 @@ def validate_persisted_draft(
         )
     validation_payload = {
         "trusted_facts": [
-            {"id": source["fact_id"], "passage": passages[source["source_identity"]].prompt_record()["passage"]}
+            {
+                "id": source["fact_id"],
+                "passage": _canonical_fact_passage(
+                    passages[source["source_identity"]].prompt_record()
+                ),
+            }
             for source in sources
         ],
         "visible_conversation": visible,

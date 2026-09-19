@@ -229,6 +229,7 @@ def resume_interrupted_source_receipt_retirement_if_present(
     canonical_atomic_json_bytes: Any,
     historical_context_reply_store: Any,
     inspect_transport_state: Any,
+    inspect_interrupted_receipt_retirement: Any,
     journal_path_for_receipt: Any,
     load_confirmed_reply_receipt: Any,
     load_meme_post_receipt: Any,
@@ -269,8 +270,17 @@ def resume_interrupted_source_receipt_retirement_if_present(
             "multiple source-receipt retirement lanes require manual inspection"
         )
     source_path = active[0]
-    commit_proof = (
+    retirement = (
         None if source_path == HISTORICAL_CONTEXT_REPLY_RECEIPT_FILE
+        else inspect_interrupted_receipt_retirement(source_path)
+    )
+    if retirement is not None and not retirement.valid:
+        raise ExactReceiptRetirementError(retirement.detail)
+    non_success = bool(
+        retirement is not None and retirement.disposition == "definite_non_success"
+    )
+    commit_proof = (
+        None if source_path == HISTORICAL_CONTEXT_REPLY_RECEIPT_FILE or non_success
         else recover_state_receipt_commit_proof(source_path)
     )
     if source_path == HISTORICAL_CONTEXT_REPLY_RECEIPT_FILE:
@@ -281,6 +291,10 @@ def resume_interrupted_source_receipt_retirement_if_present(
         if transport_journal_is_blocking(path)
     ]
     if blocking_journals:
+        if non_success:
+            raise ExactReceiptRetirementError(
+                "non-success source retirement overlaps a transport journal"
+            )
         owning_journal = journal_path_for_receipt(source_path)
         if len(blocking_journals) != 1 or (
             blocking_journals[0].absolute() != owning_journal.absolute()
@@ -344,6 +358,7 @@ def resume_interrupted_source_receipt_retirement_if_present(
         mutation_authority=state_commit_mutation_authority(
             commit_proof, "interrupted source receipt retirement resume"
         ),
+        **({"expected_retirement": retirement} if non_success else {}),
     )
     log.warning(
         "Resumed interrupted exact source-receipt retirement path=%s phase=%s",
@@ -357,6 +372,7 @@ def retire_current_source_receipt(
     receipt_path: Path,
     expected_receipt_bytes: bytes,
     *,
+    disposition: str | None = None,
     latch_source_receipt_retirement_uncertainty: Any,
     retire_or_resume_exact_receipt: Any,
     transaction_mutation_authority: Any,
@@ -370,6 +386,7 @@ def retire_current_source_receipt(
             "source receipt exact retirement"
         ),
         on_retirement_uncertainty=latch_source_receipt_retirement_uncertainty,
+        **({"disposition": disposition} if disposition is not None else {}),
     )
 
 

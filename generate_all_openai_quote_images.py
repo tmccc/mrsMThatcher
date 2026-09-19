@@ -44,6 +44,10 @@ Default output:
 
     /disks/disk1/etc/mrsMThatcher/openai_generated_quote_images
 
+New output directories are created with mode 0700. Existing unsafe budget
+directories remain rejected. A --dry-run writes prompts and manifests without
+initializing or changing the durable attempt-cost ledger or its lock.
+
 Output layout:
 
     openai_generated_quote_images/
@@ -1670,7 +1674,7 @@ def main() -> int:
         action="store_true",
         help=(
             "Validate, write prompts and manifests, "
-            "but make no API calls"
+            "but make no API calls or initialize/change the cost ledger"
         ),
     )
 
@@ -1817,6 +1821,7 @@ def main() -> int:
         return 2
 
     args.out.mkdir(
+        mode=0o700,
         parents=True,
         exist_ok=True,
     )
@@ -2092,7 +2097,12 @@ def main() -> int:
         run_manifest,
     )
 
-    budget = AttemptBudget(args.out / "attempt_cost_reservations.json", per_request=args.estimated_cost_per_image, ceiling=args.max_estimated_cost)
+    if not args.dry_run:
+        budget = AttemptBudget(
+            args.out / "attempt_cost_reservations.json",
+            per_request=args.estimated_cost_per_image,
+            ceiling=args.max_estimated_cost,
+        )
     session = requests.Session()
     session.trust_env = False
 

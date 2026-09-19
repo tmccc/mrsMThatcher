@@ -38,6 +38,7 @@ DEPENDENCIES = {'confirmed_context_outbox_matches_receipt': [],
                                                              'canonical_atomic_json_bytes',
                                                              'historical_context_reply_store',
                                                              'inspect_transport_state',
+                                                             'inspect_interrupted_receipt_retirement',
                                                              'journal_path_for_receipt',
                                                              'load_confirmed_reply_receipt',
                                                              'load_meme_post_receipt',
@@ -96,7 +97,7 @@ DEPENDENCIES = {'confirmed_context_outbox_matches_receipt': [],
 SIGNATURES = {'confirmed_context_outbox_matches_receipt': "(context_reply: 'dict', receipt: 'dict') -> 'bool'",
  'require_historical_context_retirement_outbox_authority': "() -> 'None'",
  'resume_interrupted_source_receipt_retirement_if_present': "() -> 'bool'",
- 'retire_current_source_receipt': "(receipt_path: 'Path', expected_receipt_bytes: 'bytes', *, commit_proof=None) -> "
+ 'retire_current_source_receipt': "(receipt_path: 'Path', expected_receipt_bytes: 'bytes', *, commit_proof=None, disposition: 'str | None' = None) -> "
                                   "'None'",
  'resume_interrupted_confirmed_media_retirement_if_present': "() -> 'bool'",
  'expected_lane_transport_source_receipt_bytes': "(*, receipt: 'dict', lane: 'str', "

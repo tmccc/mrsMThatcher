@@ -176,7 +176,8 @@ def test_removal_keeps_secure_reader_equality_disposition_and_canonical_retireme
     reader.assert_called_once_with(bot.CONFIRMED_REPLY_RECEIPT_FILE)
     canonical.assert_called_once_with(receipt)
     assert canonical.call_args.args[0] is receipt
-    retire.assert_called_once_with(bot.CONFIRMED_REPLY_RECEIPT_FILE, b"current canonical receipt", commit_proof=None)
+    retire.assert_called_once_with(bot.CONFIRMED_REPLY_RECEIPT_FILE, b"current canonical receipt",
+                                   commit_proof=None, disposition="definite_non_success")
     retire.reset_mock()
     reader.return_value = (True, {**receipt, "target_id": "101"})
     with pytest.raises(bot.InvalidConfirmedReplyReceipt, match="transaction identity changed"):

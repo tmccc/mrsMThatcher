@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import hashlib
 import json
 import os
 import stat
@@ -627,3 +628,174 @@ def test_fresh_process_resume_fails_closed_on_replacement_or_type_mutation(
     else:
         assert not os.path.lexists(journal_path)
         assert not os.path.lexists(fence_path)
+
+
+NON_SUCCESS_RESTART_DRIVER = textwrap.dedent(
+    r"""
+    import json
+    import os
+    import socket
+    import sys
+    from pathlib import Path
+
+    def forbidden_network(*args, **kwargs):
+        raise AssertionError("retirement recovery must stay offline")
+
+    socket.create_connection = socket.socket.connect = forbidden_network
+    os.environ["MRS_BASE_DIR"] = sys.argv[1]
+    os.environ["MRS_LOG_FILE"] = str(Path(sys.argv[1]) / "test.log")
+    import exact_receipt_retirement as exact
+    import mrsMThatcher2 as bot
+    from tests.helpers.receipt_fixtures import production_lane_documents
+
+    lane, action, point = sys.argv[2:5]
+    source, _, _, _, _ = production_lane_documents(lane)
+    if lane != "conversational_reply":
+        source["lifecycle_state"] = sys.argv[5]
+    path = {
+        "quote_image": bot.REGULAR_POST_RECEIPT_FILE,
+        "daily_meme": bot.MEME_POST_RECEIPT_FILE,
+        "conversational_reply": bot.CONFIRMED_REPLY_RECEIPT_FILE,
+    }[lane]
+    if action == "crash":
+        exact.initialise_retirement_ledger(
+            path, mutation_authority=bot.transaction_mutation_authority("test setup")
+        )
+        path.write_bytes(bot.canonical_atomic_json_bytes(source))
+        path.chmod(0o600)
+        original_move = exact._move_exact_to_cleanup
+
+        def interrupted_move(*args, **kwargs):
+            if point == "prepared_guard":
+                os._exit(81)
+            original_move(*args, **kwargs)
+            if point == "source_moved" or kwargs.get("source_name") == exact.retirement_auxiliary_paths(path)[1].name:
+                os._exit(82)
+
+        exact._move_exact_to_cleanup = interrupted_move
+        if lane == "conversational_reply":
+            bot.remove_confirmed_reply_receipt(source, sending_disposition="definite_non_success")
+        else:
+            bot.remove_main_post_attempt(source, sending_disposition="definite_non_success")
+        raise AssertionError("crash point was not reached")
+    try:
+        bot.reconcile_runtime_historical_context_state()
+    except BaseException:
+        assert bot._AMBIGUOUS_REMOTE_POST_SEEN is True
+        raise
+    assert bot._AMBIGUOUS_REMOTE_POST_SEEN is False
+    assert not any(os.path.lexists(p) for p in exact.retirement_barrier_paths(path))
+    assert exact.inspect_retirement_ledger(path).state == "completed"
+    """
+)
+
+
+def run_non_success_restart(tmp_path, lane, action, point, lifecycle="sending"):
+    return subprocess.run(
+        [sys.executable, "-c", NON_SUCCESS_RESTART_DRIVER,
+         str(tmp_path), lane, action, point, lifecycle],
+        cwd=Path(__file__).resolve().parents[1], text=True, capture_output=True,
+        check=False, timeout=20,
+    )
+
+
+@pytest.mark.parametrize("lane", ["quote_image", "daily_meme", "conversational_reply"])
+@pytest.mark.parametrize("point", ["prepared_guard", "source_moved", "commit_guard_moved"])
+def test_non_success_retirement_resumes_through_real_root_startup(tmp_path, lane, point):
+    crashed = run_non_success_restart(tmp_path, lane, "crash", point)
+    assert crashed.returncode in {81, 82}, crashed.stderr
+    resumed = run_non_success_restart(tmp_path, lane, "resume", point)
+    assert resumed.returncode == 0, resumed.stderr
+
+
+@pytest.mark.parametrize("mutation", [
+    "legacy_disposition", "null_disposition", "unknown_disposition",
+    "forged_hash", "wrong_lane", "source_replaced", "source_symlink",
+    "blocking_journal", "ledger_disposition",
+])
+def test_non_success_restart_preserves_invalid_or_unauthorised_namespace(tmp_path, mutation):
+    point = "commit_guard_moved" if mutation == "ledger_disposition" else "prepared_guard"
+    crashed = run_non_success_restart(tmp_path, "quote_image", "crash", point)
+    assert crashed.returncode in {81, 82}, crashed.stderr
+    path = tmp_path / "regular_post_receipt.json"
+    guard = exact.retirement_auxiliary_paths(path)[0]
+    changed = guard
+    if mutation == "source_replaced":
+        replacement = path.with_name("replacement")
+        write_exact(replacement, path.read_bytes())
+        os.replace(replacement, path)
+    elif mutation == "source_symlink":
+        replacement = path.with_name("replacement")
+        path.rename(replacement)
+        path.symlink_to(replacement)
+    elif mutation == "blocking_journal":
+        changed = journal.journal_path_for_receipt(path)
+        write_exact(changed, b'{"unproved":"remote outcome"}\n')
+    else:
+        if mutation == "ledger_disposition":
+            changed = exact.retirement_ledger_path_for_receipt(path)
+        document = json.loads(changed.read_bytes())
+        if mutation == "legacy_disposition":
+            document.pop("disposition")
+        elif mutation == "null_disposition":
+            document["disposition"] = None
+        elif mutation == "unknown_disposition":
+            document["disposition"] = "confirmed_state_fallback"
+        elif mutation == "forged_hash":
+            document["expected_sha256"] = "0" * 64
+        elif mutation == "wrong_lane":
+            document["source_basename"] = "meme_post_receipt.json"
+        else:
+            document["source_binding"].pop("disposition")
+        write_exact(changed, exact._canonical_json(document))
+    before = namespace_snapshot(path)
+    changed_bytes = changed.read_bytes()
+    resumed = run_non_success_restart(tmp_path, "quote_image", "resume", point)
+    assert resumed.returncode != 0
+    assert namespace_snapshot(path) == before
+    assert changed.read_bytes() == changed_bytes
+
+
+@pytest.mark.parametrize("replacement_kind", ["same_bytes", "confirmed"])
+def test_non_success_root_decision_binds_source_identity_through_resume(
+    tmp_path, monkeypatch, replacement_kind,
+):
+    crashed = run_non_success_restart(tmp_path, "quote_image", "crash", "prepared_guard")
+    assert crashed.returncode == 81, crashed.stderr
+    path = configure_lane_paths(monkeypatch, tmp_path)[0]
+    original_resume = bot.resume_interrupted_receipt_retirement
+    substituted = []
+
+    def replace_before_resume(source, **kwargs):
+        guard = exact.retirement_auxiliary_paths(source)[0]
+        marker = json.loads(guard.read_bytes())
+        data = source.read_bytes()
+        if replacement_kind == "confirmed":
+            _, _, _, data, _ = production_lane_documents("quote_image")
+            marker.pop("disposition")
+        replacement = source.with_name("replacement")
+        write_exact(replacement, data)
+        os.replace(replacement, source)
+        marker["source_identity"] = exact.FileIdentity.from_stat(source.stat()).to_document()
+        marker["expected_sha256"] = hashlib.sha256(data).hexdigest()
+        marker["expected_size"] = len(data)
+        write_exact(guard, exact._canonical_json(marker))
+        assert exact.inspect_interrupted_receipt_retirement(source).valid
+        substituted.append(namespace_snapshot(source))
+        return original_resume(source, **kwargs)
+
+    monkeypatch.setattr(bot, "resume_interrupted_receipt_retirement", replace_before_resume)
+    with pytest.raises(exact.ExactReceiptRetirementError, match="authorised disposition"):
+        bot.resume_interrupted_source_receipt_retirement_if_present()
+    assert len(substituted) == 1
+    assert namespace_snapshot(path) == substituted[0]
+
+
+@pytest.mark.parametrize("lane", ["quote_image", "daily_meme"])
+def test_non_success_attempting_receipt_resumes_after_proved_failure(tmp_path, lane):
+    crashed = run_non_success_restart(
+        tmp_path, lane, "crash", "prepared_guard", lifecycle="attempting",
+    )
+    assert crashed.returncode == 81, crashed.stderr
+    resumed = run_non_success_restart(tmp_path, lane, "resume", "prepared_guard")
+    assert resumed.returncode == 0, resumed.stderr

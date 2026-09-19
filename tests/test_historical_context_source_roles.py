@@ -1328,7 +1328,8 @@ def test_researched_source_accepts_token_identical_wording_without_final_punctua
     assert verified is not None
 
 
-def test_grounded_result_resolves_to_direct_page_and_requires_attribution(corpus):
+@pytest.mark.parametrize("token", ["token", "dG9rZW4=", "dGVzdA=="])
+def test_grounded_result_resolves_to_direct_page_and_requires_attribution(corpus, token):
     packet = corpus[0][
         "313172d18e2d915e514e4a202a8b1bcbb077472c2504dee63fe98edaf60e0b3a"
     ]
@@ -1339,7 +1340,7 @@ def test_grounded_result_resolves_to_direct_page_and_requires_attribution(corpus
     quote = packet["quote_text"]
     source = {
         "title": "heraldscotland.com",
-        "url": "https://vertexaisearch.cloud.google.com/grounding-api-redirect/token",
+        "url": "https://vertexaisearch.cloud.google.com/grounding-api-redirect/" + token,
     }
     verified, reason = verify_grounding_source(
         source, packet,

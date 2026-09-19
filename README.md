@@ -476,7 +476,9 @@ disagreement and humour have no closed vocabulary or template requirement.
 Deterministic validation checks the structured inventory, exact ordered claim
 spans, fact-ID membership, evidence identity and durable hashes. Declared facts
 must still copy a complete trusted passage; context-dependent pronouns and
-relative dates in those passages are conservatively rejected. These checks do
+relative dates in those passages are conservatively rejected. Creation and
+recovery use the same passage whitespace normalization, while source-record
+hashes still bind the original evidence. These checks do
 not establish arbitrary semantic entailment, classify the remaining prose or
 detect every omitted assertion. The model remains responsible for meaning and
 inventory completeness. Fact IDs, subjective prefixes and reply-kind labels
@@ -934,6 +936,14 @@ If the final unlink succeeds but its directory fsync is not acknowledged, the
 current daemon latches fail closed; a fresh marker-only resumer deliberately
 does not infer completion from all-absent state without separate idempotence
 authority.
+
+Definitely unsuccessful sending attempts record that disposition in the exact
+retirement guards and completion ledger. Restart recovery binds it to the
+receipt digest and original file identity, and refuses an overlapping transport
+journal. Confirmed posts still require their committed-state proof; legacy
+markers without a disposition remain readable but do not acquire failed-attempt
+authority. Older binaries reject the extended failed-attempt bindings; preserve
+those ledgers during any rollback.
 
 Fail-closed does not imply complete automatic recovery. An exact staging entry
 left around an identity-bound exchange, or a partially completed offline marker

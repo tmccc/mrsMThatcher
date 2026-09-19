@@ -10,9 +10,12 @@ import json
 import hashlib
 from datetime import datetime
 from pathlib import Path
+from unittest.mock import Mock
 
 import pytest
 
+import single_call_reply as pipeline
+from reply_evidence import EvidenceRepository
 from tests.helpers.bot_runtime import bot
 from tests.helpers.bot_fixtures import isolate_bot_runtime
 from tests.helpers.reply_fixtures import (
@@ -23,6 +26,11 @@ from tests.helpers.reply_fixtures import (
     unit_confirmed_reply_receipt,
 )
 from single_call_reply import ValidatedReply
+from tests.helpers.single_call_fixtures import (
+    enabled_config,
+    raw_decision,
+    response_envelope,
+)
 
 
 pytestmark = pytest.mark.allow_loopback_network
@@ -44,6 +52,97 @@ def test_pending_ai_reply_survives_state_round_trip_and_is_reused(
     assert reused == reply
     assert isinstance(reused, ValidatedReply)
     assert reused.draft_record == reply.draft_record
+
+
+@pytest.mark.parametrize("whitespace", ["  ", "\t", "\n"], ids=["spaces", "tab", "newline"])
+def test_real_factual_passage_whitespace_survives_pending_draft_round_trip(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    whitespace: str,
+) -> None:
+    """Reuse canonical fact prose while keeping raw evidence and claims bound."""
+
+    project_root = Path(__file__).resolve().parents[1]
+    document = json.loads(
+        (project_root / "reply_factual_evidence.json").read_text(encoding="utf-8")
+    )
+    record = next(
+        row for row in document["records"]
+        if row["fact_id"] == "berlin-wall-east-berliners-cross-west-1989"
+    )
+    canonical_passage = record["passage"]
+    record["passage"] = canonical_passage.replace("After new", f"After{whitespace}new")
+    evidence_path = tmp_path / "reply_factual_evidence.json"
+    evidence_path.write_text(json.dumps(document), encoding="utf-8")
+    research_dir = project_root / "semantic_alignment_research" / "quote_research_full_001"
+    repository = EvidenceRepository(research_dir, factual_evidence_path=evidence_path)
+    passage = next(
+        source for source in repository.passages.values()
+        if source.passage == record["passage"]
+    )
+    context = unit_reply_context(
+        target_id="100",
+        contribution="How did East Berliners cross to the West when the Berlin Wall fell?",
+    )
+    payload, fact_map = pipeline.build_model_payload(context=context, repository=repository)
+    fact_id = next(
+        row["id"] for row in payload["trusted_facts"]
+        if row["passage"] == canonical_passage
+    )
+    assert fact_map[fact_id]["source_identity"] == passage.evidence_id
+    assert fact_map[fact_id]["source_record_sha256"] == pipeline.value_sha256(
+        passage.prompt_record()
+    )
+    transport = Mock(return_value={"response": response_envelope(raw_decision(
+        kind="direct_factual", reply=canonical_passage, facts=[fact_id],
+    ))})
+    result = pipeline.run_reply_pipeline(
+        context=context,
+        config=enabled_config(),
+        repository=repository,
+        transport=transport,
+    )
+    assert result.status == "reply"
+    assert result.reply is not None
+    reply = result.reply
+    monkeypatch.setattr(bot, "reply_evidence_repository", lambda: repository)
+    state = bot.default_state()
+    assert bot.store_pending_ai_reply(state, "100", "mention", reply, context=context)
+    assert pipeline.validate_persisted_draft(
+        reply.draft_record, context=context, repository=repository,
+    ) == reply.draft_record
+    bot.save_state(state, durable=True)
+    loaded = bot.load_state()
+    reused = bot.pending_ai_reply(loaded, "100", "mention", context=context)
+    assert isinstance(reused, ValidatedReply)
+    assert reused == canonical_passage
+    assert reused.draft_record == reply.draft_record
+    assert transport.call_count == 1
+
+    changed_claim = copy.deepcopy(reply.draft_record)
+    changed_claim["proposed_reply"] = canonical_passage.replace("seven", "eight")
+    changed_claim["factual_claims"][0]["text"] = changed_claim["proposed_reply"]
+    changed_claim.pop("validated_draft_hash")
+    changed_claim["validated_draft_hash"] = pipeline.value_sha256(changed_claim)
+    with pytest.raises(pipeline.ReplyValidationError, match="unsupported_factual_claim"):
+        pipeline.validate_persisted_draft(
+            changed_claim, context=context, repository=repository,
+        )
+
+    # Even whitespace-only evidence changes must retain the raw-record binding.
+    record["passage"] = canonical_passage
+    evidence_path.write_text(json.dumps(document), encoding="utf-8")
+    changed_repository = EvidenceRepository(research_dir, factual_evidence_path=evidence_path)
+    with pytest.raises(ValueError, match="source record changed"):
+        pipeline.validate_persisted_draft(
+            reply.draft_record, context=context, repository=changed_repository,
+        )
+    monkeypatch.setattr(bot, "reply_evidence_repository", lambda: changed_repository)
+    assert bot.pending_ai_reply(loaded, "100", "mention", context=context) is None
+    assert not bot.store_pending_ai_reply(
+        bot.default_state(), "100", "mention", reply, context=context,
+    )
+    assert transport.call_count == 1
 
 
 def test_confirmed_reply_reconciliation_clears_pending_ai_draft() -> None:

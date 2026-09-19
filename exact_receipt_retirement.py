@@ -34,7 +34,7 @@ import json
 import os
 import re
 import stat
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from pathlib import Path
 from typing import Any, Callable, Final
 
@@ -156,6 +156,7 @@ class RetirementExpectation:
     size: int
     identity: FileIdentity
     data: bytes | None = None
+    disposition: str | None = None
 
 
 @dataclass(frozen=True)
@@ -184,6 +185,8 @@ class ReceiptRetirementInspection:
     cleanup_path: str
     guard_staging_path: str
     commit_staging_path: str
+    source_identity: FileIdentity | None = None
+    disposition: str | None = None
 
 
 @dataclass(frozen=True)
@@ -209,6 +212,7 @@ class RetirementLedgerRecord:
     source_identity: FileIdentity | None
     commit_sha256: str
     data: bytes
+    disposition: str | None = None
 
 
 @dataclass(frozen=True)
@@ -479,6 +483,7 @@ def _marker_document(
     phase: str,
 ) -> dict[str, Any]:
     return {
+        **({"disposition": expectation.disposition} if expectation.disposition else {}),
         "document_kind": RETIREMENT_DOCUMENT_KIND,
         "expected_sha256": expectation.sha256,
         "expected_size": expectation.size,
@@ -519,6 +524,7 @@ def _ledger_document(
     binding = None
     if expectation is not None:
         binding = {
+            **({"disposition": expectation.disposition} if expectation.disposition else {}),
             "expected_sha256": expectation.sha256,
             "expected_size": expectation.size,
             "source_identity": expectation.identity.to_document(),
@@ -533,6 +539,14 @@ def _ledger_document(
         "source_binding": binding,
         "state": state,
     }
+
+
+def _valid_disposition_keys(value: dict, required: frozenset) -> bool:
+    """Accept only legacy bindings or the explicit proved-non-success extension."""
+    return frozenset(value) == required or (
+        frozenset(value) == required | {"disposition"}
+        and value["disposition"] == "definite_non_success"
+    )
 
 
 def _parse_ledger_record(
@@ -586,7 +600,7 @@ def _parse_ledger_record(
         )
     if (
         not isinstance(binding, dict)
-        or frozenset(binding) != _LEDGER_BINDING_KEYS
+        or not _valid_disposition_keys(binding, _LEDGER_BINDING_KEYS)
         or not isinstance(commit_sha256, str)
         or re.fullmatch(r"[0-9a-f]{64}", commit_sha256) is None
         or sequence <= 0
@@ -642,6 +656,7 @@ def _parse_ledger_record(
         source_identity=source_identity,
         commit_sha256=commit_sha256,
         data=entry.data,
+        disposition=binding.get("disposition"),
     )
 
 
@@ -670,7 +685,7 @@ def _parse_marker_unbound(
     if entry.identity.mode != RETIREMENT_MODE:
         raise ExactReceiptRetirementError("receipt retirement marker mode is unsafe")
     value = _strict_object(entry.data, label="receipt retirement marker")
-    if frozenset(value) != _MARKER_KEYS:
+    if not _valid_disposition_keys(value, _MARKER_KEYS):
         raise ExactReceiptRetirementError("receipt retirement marker keys differ")
     identity = value.get("source_identity")
     if not isinstance(identity, dict) or frozenset(identity) != _IDENTITY_KEYS:
@@ -726,6 +741,7 @@ def _parse_marker_unbound(
         sha256=marker_hash,
         size=marker_size,
         identity=source_identity,
+        disposition=value.get("disposition"),
     )
 
 
@@ -1170,6 +1186,7 @@ def _ledger_matches_completion(
         and record.expected_sha256 == expectation.sha256
         and record.expected_size == expectation.size
         and record.source_identity == expectation.identity
+        and record.disposition == expectation.disposition
         and record.commit_sha256 == commit_sha256
     )
 
@@ -1545,6 +1562,7 @@ def _expectations_agree(
         first.sha256 == second.sha256
         and first.size == second.size
         and first.identity == second.identity
+        and first.disposition == second.disposition
     )
 
 
@@ -1596,6 +1614,8 @@ def _inspection(
             cleanup_path=os.fspath(paths.cleanup),
             guard_staging_path=os.fspath(paths.guard_staging),
             commit_staging_path=os.fspath(paths.commit_staging),
+            source_identity=expectation.identity if expectation is not None else None,
+            disposition=expectation.disposition if expectation is not None else None,
         )
 
     ledger_path, exchange_path = retirement_ledger_paths(source)
@@ -1641,6 +1661,7 @@ def _inspection(
             size=ledger.expected_size,
             identity=ledger.source_identity,
             data=expected,
+            disposition=ledger.disposition,
         )
 
     source_entry = entries["source"]
@@ -1738,6 +1759,7 @@ def _inspection(
             size=expectation.size,
             identity=expectation.identity,
             data=expected,
+            disposition=expectation.disposition,
         )
 
     def agree(*expectations: RetirementExpectation) -> RetirementExpectation:
@@ -1769,6 +1791,7 @@ def _inspection(
             size=expectation.size,
             identity=expectation.identity,
             data=entry.data,
+            disposition=expectation.disposition,
         )
 
     try:
@@ -2103,19 +2126,24 @@ def retire_exact_receipt(
     expected_mode: int = RETIREMENT_MODE,
     maximum_receipt_bytes: int = DEFAULT_MAXIMUM_RECEIPT_BYTES,
     independently_authorised_absence: bool = False,
+    disposition: str | None = None,
 ) -> ReceiptRetirementResult:
     """Retire only ``expected_bytes`` and resume every valid crash state.
 
     The caller must have completed all protected local transitions before
     invoking this function.  A returned result means every transient
     retirement pathname has been durably removed and the permanent ledger
-    retains the exact completed generation.
+    retains the exact completed generation. An explicit ``definite_non_success``
+    disposition is durable in the initial guard, all successor markers and the
+    existing completion ledger; omission preserves legacy confirmed authority.
     """
 
     require_transaction_mutation_authority(
         mutation_authority,
         operation="exact receipt retirement",
     )
+    if disposition not in {None, "definite_non_success"}:
+        raise ExactReceiptRetirementError("unsupported receipt retirement disposition")
     expected = bytes(expected_bytes)
     if not expected or len(expected) > maximum_receipt_bytes:
         raise ExactReceiptRetirementError("expected receipt bytes are empty or oversized")
@@ -2127,6 +2155,7 @@ def retire_exact_receipt(
         independently_authorised_absence=independently_authorised_absence,
         require_interrupted=False,
         mutation_authority=mutation_authority,
+        disposition=disposition,
     )
 
 
@@ -2136,6 +2165,7 @@ def retire_or_resume_exact_receipt(
     *,
     mutation_authority: TransactionMutationAuthority,
     on_retirement_uncertainty: Callable[[], None] | None = None,
+    disposition: str | None = None,
 ) -> ReceiptRetirementResult:
     """Retire one source through the shared fail-closed call boundary.
 
@@ -2159,6 +2189,7 @@ def retire_or_resume_exact_receipt(
             source_path,
             expected_receipt_bytes,
             mutation_authority=mutation_authority,
+            disposition=disposition,
         )
     except BaseException:
         if on_retirement_uncertainty is not None:
@@ -2172,6 +2203,7 @@ def resume_interrupted_receipt_retirement(
     mutation_authority: TransactionMutationAuthority | None = None,
     expected_mode: int = RETIREMENT_MODE,
     maximum_receipt_bytes: int = DEFAULT_MAXIMUM_RECEIPT_BYTES,
+    expected_retirement: ReceiptRetirementInspection | None = None,
 ) -> ReceiptRetirementResult:
     """Resume only a marker-proved interrupted retirement in a fresh process.
 
@@ -2179,7 +2211,9 @@ def resume_interrupted_receipt_retirement(
     original filesystem identity are derived from strict canonical staging or
     final markers and cross-checked against any surviving source/cleanup bytes.
     A fresh source, an all-absent namespace, and a namespace with no auxiliary
-    proof are deliberately rejected.
+    proof are deliberately rejected. When supplied, ``expected_retirement``
+    binds the caller's inspected disposition, digest and source identity through
+    every mutation, including the final ledger-backed cleanup.
     """
 
     require_transaction_mutation_authority(
@@ -2194,6 +2228,7 @@ def resume_interrupted_receipt_retirement(
         independently_authorised_absence=False,
         require_interrupted=True,
         mutation_authority=mutation_authority,
+        expected_retirement=expected_retirement,
     )
 
 
@@ -2206,12 +2241,30 @@ def _run_retirement(
     independently_authorised_absence: bool,
     require_interrupted: bool,
     mutation_authority: TransactionMutationAuthority,
+    disposition: str | None = None,
+    expected_retirement: ReceiptRetirementInspection | None = None,
 ) -> ReceiptRetirementResult:
     def verify_authority() -> None:
         """Revalidate protected commit and instance lock at each mutation boundary."""
         require_transaction_mutation_authority(
             mutation_authority, operation="exact receipt retirement transition",
         )
+        if expected_retirement is not None:
+            current, _, _, _ = _inspection(
+                source=source, expected=None, directory_fd=directory_fd,
+                expected_mode=expected_mode, maximum=maximum_receipt_bytes,
+                independently_authorised_absence=False,
+            )
+            if (
+                not current.valid
+                or current.source_path != expected_retirement.source_path
+                or current.expected_sha256 != expected_retirement.expected_sha256
+                or current.source_identity != expected_retirement.source_identity
+                or current.disposition != expected_retirement.disposition
+            ):
+                raise ExactReceiptRetirementError(
+                    "receipt retirement no longer matches its authorised disposition"
+                )
 
     source = _absolute_path(source_path)
     paths = _retirement_paths(source)
@@ -2252,6 +2305,8 @@ def _run_retirement(
                     )
             if not inspection.valid:
                 raise ExactReceiptRetirementError(inspection.detail)
+            if inspection.phase == "fresh" and expectation is not None:
+                expectation = replace(expectation, disposition=disposition)
             if expectation is not None:
                 if (
                     bound_expectation is not None

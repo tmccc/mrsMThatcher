@@ -67,13 +67,24 @@ def test_unique_redirects_are_bounded_and_closed():
     "https://vertexaisearch.cloud.google.com.evil.example/grounding-api-redirect/a",
     "https://user@vertexaisearch.cloud.google.com/grounding-api-redirect/a",
     "https://vertexaisearch.cloud.google.com/other/grounding-api-redirect/a",
+    "https://vertexaisearch.cloud.google.com/grounding-api-redirect/a===",
+    "https://vertexaisearch.cloud.google.com/grounding-api-redirect/a=b",
+    "https://vertexaisearch.cloud.google.com/grounding-api-redirect/a==/other",
+    "https://vertexaisearch.cloud.google.com/grounding-api-redirect/a%2Fother==",
 ])
 def test_grounding_endpoint_requires_exact_origin_and_path(url):
     assert not fetch.is_google_grounding_url(url)
 
 
-def test_grounding_endpoint_expected_url():
-    assert fetch.is_google_grounding_url("https://vertexaisearch.cloud.google.com/grounding-api-redirect/a")
+@pytest.mark.parametrize("token", ["a", "dG9rZW4=", "dGVzdA=="])
+def test_grounding_endpoint_expected_url(token):
+    from historical_context_source_resolution import source_scope
+
+    url = "https://vertexaisearch.cloud.google.com/grounding-api-redirect/" + token
+    assert fetch.is_google_grounding_url(url)
+    assert source_scope({"quote": {"sources": [{"url": url}]}}, {"quote"}) == {
+        url: ["quote"],
+    }
 
 
 @pytest.mark.parametrize("private", ["127.0.0.1", "10.1.2.3", "169.254.169.254", "::1", "fe80::1"])

@@ -43,7 +43,8 @@ def is_google_grounding_url(url: str) -> bool:
         return (
             parsed.scheme == "https"
             and parsed.netloc == _REDIRECT_HOST
-            and re.fullmatch(r"/grounding-api-redirect/[A-Za-z0-9_-]+", parsed.path) is not None
+            # Google's opaque URL-safe tokens may retain base64 padding.
+            and re.fullmatch(r"/grounding-api-redirect/[A-Za-z0-9_-]+={0,2}", parsed.path) is not None
             and not parsed.fragment
         )
     except ValueError:

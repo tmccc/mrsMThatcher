@@ -4437,6 +4437,7 @@ def resume_interrupted_source_receipt_retirement_if_present() -> bool:
         load_confirmed_reply_receipt=load_confirmed_reply_receipt,
         load_meme_post_receipt=load_meme_post_receipt,
         load_regular_post_receipt=load_regular_post_receipt,
+        inspect_interrupted_receipt_retirement=inspect_interrupted_receipt_retirement,
         log=log,
         remote_write_transport_journal_paths=remote_write_transport_journal_paths,
         require_historical_context_retirement_outbox_authority=require_historical_context_retirement_outbox_authority,
@@ -4524,11 +4525,13 @@ def retire_current_source_receipt(
     expected_receipt_bytes: bytes,
     *,
     commit_proof=None,
+    disposition: str | None = None,
 ) -> None:
     """Resume a prepared removal, or start retirement when no journal existed."""
     return _receipt_retirement.retire_current_source_receipt(
         receipt_path,
         expected_receipt_bytes,
+        disposition=disposition,
         latch_source_receipt_retirement_uncertainty=latch_source_receipt_retirement_uncertainty,
         retire_or_resume_exact_receipt=retire_or_resume_exact_receipt,
         transaction_mutation_authority=functools.partial(state_commit_mutation_authority, commit_proof),
@@ -5881,7 +5884,11 @@ def remove_main_post_attempt(
         load_receipt_json_no_follow=load_receipt_json_no_follow,
         log=log,
         main_post_attempt_path=main_post_attempt_path,
-        retire_current_source_receipt=functools.partial(retire_current_source_receipt, commit_proof=commit_proof),
+        retire_current_source_receipt=functools.partial(
+            retire_current_source_receipt, commit_proof=commit_proof,
+            **({"disposition": "definite_non_success"}
+               if sending_disposition == "definite_non_success" else {}),
+        ),
     )
 
 
@@ -8554,7 +8561,12 @@ def remove_confirmed_reply_receipt(
         CONFIRMED_REPLY_RECEIPT_FILE=CONFIRMED_REPLY_RECEIPT_FILE,
         load_receipt_json_no_follow=load_receipt_json_no_follow,
         InvalidConfirmedReplyReceipt=InvalidConfirmedReplyReceipt,
-        retire_current_source_receipt=functools.partial(retire_current_source_receipt, commit_proof=commit_proof),
+        retire_current_source_receipt=functools.partial(
+            retire_current_source_receipt, commit_proof=commit_proof,
+            **({"disposition": "definite_non_success"}
+               if receipt.get("lifecycle_state") == "sending"
+               and sending_disposition == "definite_non_success" else {}),
+        ),
         canonical_atomic_json_bytes=canonical_atomic_json_bytes,
         log=log,
     )
