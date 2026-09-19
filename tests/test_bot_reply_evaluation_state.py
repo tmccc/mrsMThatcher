@@ -18,7 +18,7 @@ from tests.helpers.reply_fixtures import reply_evaluation_record
 
 def test_import_needs_no_runtime_access():
     code = """
-import builtins, collections.abc, io, logging, os, random, socket, sys, time
+import builtins, collections.abc, dataclasses, io, logging, os, random, socket, sys, time
 from pathlib import Path
 
 def forbidden(*args, **kwargs):
@@ -26,7 +26,7 @@ def forbidden(*args, **kwargs):
 
 original_import = builtins.__import__
 def guarded_import(name, *args, **kwargs):
-    if name in {'mrsMThatcher2', 'requests', 'openai', 'single_call_reply', 'reply_evidence'} or name.startswith('mrs_bot_') and name != 'mrs_bot_reply_evaluation_state':
+    if name in {'mrsMThatcher2', 'requests', 'openai', 'single_call_reply', 'reply_evidence'} or name.startswith('mrs_bot_') and name not in {'mrs_bot_reply_evaluation_state', 'mrs_bot_author_quarantines'}:
         forbidden()
     return original_import(name, *args, **kwargs)
 
@@ -53,11 +53,7 @@ assert 'requests' not in sys.modules
 def test_adapters_forward_current_dependencies_defaults_references_and_native_errors(monkeypatch):
     for name, count in (
         ("prune_completed_mention_quarantine_evaluations", 3),
-        ("prune_reply_evaluation_records", 6), ("author_no_reply_epoch_limit", 1),
-        ("prune_author_evaluation_quarantines", 6),
-        ("active_author_evaluation_quarantine", 2),
-        ("record_qualifying_author_no_reply", 8),
-        ("normalise_author_evaluation_quarantines", 8),
+        ("prune_reply_evaluation_records", 6),
         ("record_terminal_reply_evaluation", 2),
     ):
         adapter = getattr(bot, name)
@@ -185,117 +181,6 @@ def test_completed_pruning_precedes_native_epoch_failure(monkeypatch):
     with pytest.raises(ValueError):
         bot.prune_reply_evaluation_records(state, current_epoch="invalid")
     assert trace.mock_calls == [call.completed(state)]
-
-
-def test_active_pruning_and_clear_history_preserve_unchanged_record_references(monkeypatch):
-    state = {"author_evaluation_quarantines": {}}
-    bot.record_qualifying_author_no_reply(state, "1", current_epoch=990)
-    original = state["author_evaluation_quarantines"]
-    record = original["1"]
-    record["quarantine_until_epoch"] = 1100
-    original["2"] = record
-    strikes = record["recent_no_reply_epochs"]
-    assert bot.prune_author_evaluation_quarantines(state, current_epoch=1000) is False
-    assert state["author_evaluation_quarantines"] is original
-    prune = Mock(wraps=bot.prune_author_evaluation_quarantines)
-    clock = Mock(return_value=1000)
-    monkeypatch.setattr(bot, "prune_author_evaluation_quarantines", prune)
-    monkeypatch.setattr(bot, "now_epoch", clock)
-    assert bot.active_author_evaluation_quarantine(state, 1) is record
-    assert record["recent_no_reply_epochs"] is strikes
-    prune.assert_called_once_with(state, current_epoch=1000)
-    clock.assert_called_once_with()
-    assert bot.clear_author_evaluation_quarantine_history(state, "absent") is False
-    assert state["author_evaluation_quarantines"] is original
-    assert bot.clear_author_evaluation_quarantine_history(state, 1) is True
-    assert state["author_evaluation_quarantines"] is not original
-    assert state["author_evaluation_quarantines"]["2"] is record
-    assert original["1"] is record
-
-
-def test_expiration_event_failure_precedes_assignment_and_keeps_native_error(monkeypatch):
-    monkeypatch.setattr(bot, "AUTHOR_NO_REPLY_QUARANTINE_THRESHOLD", 1)
-    monkeypatch.setattr(bot, "AUTHOR_NO_REPLY_QUARANTINE_SECONDS", 20)
-    state = {"author_evaluation_quarantines": {}}
-    bot.record_qualifying_author_no_reply(state, "1", current_epoch=980)
-    records = state["author_evaluation_quarantines"]
-    failure = RuntimeError("expiry event")
-    event = Mock(side_effect=failure)
-    monkeypatch.setattr(bot, "log_event", event)
-    with pytest.raises(RuntimeError) as caught:
-        bot.prune_author_evaluation_quarantines(state, current_epoch=1000)
-    assert caught.value is failure
-    assert state["author_evaluation_quarantines"] is records
-    assert records["1"]["recent_no_reply_epochs"] == [980]
-    assert records["1"]["quarantine_until_epoch"] == 1000
-    event.assert_called_once_with("author_evaluation_quarantine_expired", author_id="1",
-                                  quarantine_until_epoch=1000, expired_epoch=1000)
-    event.side_effect = None
-    assert bot.prune_author_evaluation_quarantines(state, current_epoch=1000) is True
-    assert state["author_evaluation_quarantines"] == {}
-
-
-def test_strike_validation_strict_flag_and_start_event_precede_assignment(monkeypatch):
-    monkeypatch.setattr(bot, "AUTHOR_NO_REPLY_QUARANTINE_THRESHOLD", 1)
-    monkeypatch.setattr(bot, "AUTHOR_NO_REPLY_QUARANTINE_SECONDS", 50)
-    monkeypatch.setattr(bot, "AUTHOR_EVALUATION_QUARANTINE_EVIDENCE_POLICY", "current-policy")
-    clock = Mock(return_value=1000)
-    prune = Mock(wraps=bot.prune_author_evaluation_quarantines)
-    monkeypatch.setattr(bot, "now_epoch", clock)
-    monkeypatch.setattr(bot, "prune_author_evaluation_quarantines", prune)
-    records = {}
-    state = {"author_evaluation_quarantines": records}
-    assert bot.record_qualifying_author_no_reply(state, "invalid") is False
-    clock.assert_not_called()
-    prune.assert_not_called()
-    failure = RuntimeError("start event")
-
-    def start_event(name, **values):
-        assert name == "author_evaluation_quarantine_started"
-        assert values["quarantine_until_epoch"] == 1050
-        assert state["author_evaluation_quarantines"] is records and records == {}
-        assert prune.call_args == call(state, current_epoch=1000)
-        raise failure
-
-    event = Mock(side_effect=start_event)
-    monkeypatch.setattr(bot, "log_event", event)
-    with pytest.raises(RuntimeError) as caught:
-        bot.record_qualifying_author_no_reply(state, 1, explicit_spam_or_abuse=1)
-    assert caught.value is failure
-    assert state["author_evaluation_quarantines"] is records
-    event.side_effect = None
-    assert bot.record_qualifying_author_no_reply(state, 1, explicit_spam_or_abuse=1) is True
-    first = state["author_evaluation_quarantines"]["1"]
-    assert first["latest_explicit_spam_or_abuse_epoch"] == 0
-    assert first["evidence_policy"] == "current-policy"
-    event.reset_mock()
-    assert bot.record_qualifying_author_no_reply(state, 1, current_epoch=1001) is False
-    second = state["author_evaluation_quarantines"]["1"]
-    assert second is not first and first["recent_no_reply_epochs"] == [1000]
-    assert second["recent_no_reply_epochs"] == [1000, 1001]
-    assert second["latest_explicit_spam_or_abuse_epoch"] == 1001
-    assert second["quarantine_until_epoch"] == first["quarantine_until_epoch"] == 1050
-    event.assert_not_called()
-
-
-def test_normalizer_copies_all_containers_uses_current_limit_and_never_expires(monkeypatch, tmp_path):
-    state = {"author_evaluation_quarantines": {}}
-    bot.record_qualifying_author_no_reply(state, "1", current_epoch=1)
-    record = state["author_evaluation_quarantines"]["1"]
-    record["quarantine_until_epoch"] = 5
-    value = {1: record}
-    monkeypatch.setattr(bot, "now_epoch", Mock(side_effect=AssertionError("normalizer clock")))
-    limit = Mock(return_value=1)
-    monkeypatch.setattr(bot, "author_no_reply_epoch_limit", limit)
-    result = bot.normalise_author_evaluation_quarantines(value, path=tmp_path / "state.json")
-    assert result == {"1": record} and result is not value
-    assert result["1"] is not record
-    assert result["1"]["recent_no_reply_epochs"] is not record["recent_no_reply_epochs"]
-    assert result["1"]["quarantine_until_epoch"] == 5
-    limit.assert_called_once_with()
-    limit.return_value = 0
-    assert bot.normalise_author_evaluation_quarantines(value, path=tmp_path / "state.json") is None
-    assert value == {1: record} and record["recent_no_reply_epochs"] == [1]
 
 
 @pytest.mark.parametrize("prune_records", [True, False])

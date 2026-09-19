@@ -260,6 +260,7 @@ import mrs_bot_hot_post_discovery as _hot_post_discovery
 import mrs_bot_mention_discovery as _mention_discovery
 import mrs_bot_mention_authority as _mention_authority
 import mrs_bot_reply_evaluation_state as _reply_evaluation_state
+import mrs_bot_author_quarantines as _author_quarantines
 import mrs_bot_tweet_lookup_cache as _tweet_lookup_cache
 import mrs_bot_reply_context as _reply_context
 import mrs_bot_reply_native_media as _reply_native_media
@@ -2511,11 +2512,27 @@ def prune_reply_evaluation_records(
     )
 
 
-def author_no_reply_epoch_limit() -> int:
-    """Delegate reply evaluation state with current root dependencies."""
-    return _reply_evaluation_state.author_no_reply_epoch_limit(
-        AUTHOR_NO_REPLY_QUARANTINE_THRESHOLD=AUTHOR_NO_REPLY_QUARANTINE_THRESHOLD,
+def _author_quarantine_owner() -> _author_quarantines.AuthorQuarantines:
+    """Bind current author quarantine policy without reading state or the clock."""
+    return _author_quarantines.AuthorQuarantines(
+        now_epoch=now_epoch,
+        log=log,
+        log_event=log_event,
+        maximum_state_epoch=MAX_REASONABLE_STATE_EPOCH,
+        threshold=AUTHOR_NO_REPLY_QUARANTINE_THRESHOLD,
+        window_seconds=AUTHOR_NO_REPLY_QUARANTINE_WINDOW_SECONDS,
+        quarantine_seconds=AUTHOR_NO_REPLY_QUARANTINE_SECONDS,
+        evidence_policy=AUTHOR_EVALUATION_QUARANTINE_EVIDENCE_POLICY,
+        legacy_evidence_policy=AUTHOR_EVALUATION_QUARANTINE_LEGACY_EVIDENCE_POLICY,
+        previous_evidence_policy=AUTHOR_EVALUATION_QUARANTINE_PREVIOUS_EVIDENCE_POLICY,
+        seeded_evidence_policy=AUTHOR_EVALUATION_QUARANTINE_SEEDED_EVIDENCE_POLICY,
+        single_sol_v1_evidence_policy=AUTHOR_EVALUATION_QUARANTINE_SINGLE_SOL_V1_EVIDENCE_POLICY,
     )
+
+
+def author_no_reply_epoch_limit() -> int:
+    """Return retention sized from the effective runtime quarantine threshold."""
+    return _author_quarantine_owner().epoch_limit()
 
 
 def prune_author_evaluation_quarantines(
@@ -2523,17 +2540,8 @@ def prune_author_evaluation_quarantines(
     *,
     current_epoch: int | None = None,
 ) -> bool:
-    """Delegate reply evaluation state with current root dependencies."""
-    return _reply_evaluation_state.prune_author_evaluation_quarantines(
-        state,
-        current_epoch=current_epoch,
-        AUTHOR_EVALUATION_QUARANTINE_EVIDENCE_POLICY=AUTHOR_EVALUATION_QUARANTINE_EVIDENCE_POLICY,
-        AUTHOR_NO_REPLY_QUARANTINE_WINDOW_SECONDS=AUTHOR_NO_REPLY_QUARANTINE_WINDOW_SECONDS,
-        MAX_REASONABLE_STATE_EPOCH=MAX_REASONABLE_STATE_EPOCH,
-        author_no_reply_epoch_limit=author_no_reply_epoch_limit,
-        log_event=log_event,
-        now_epoch=now_epoch,
-    )
+    """Expire quarantines and discard author strikes outside the live window."""
+    return _author_quarantine_owner().prune(state, current_epoch=current_epoch)
 
 
 def active_author_evaluation_quarantine(
@@ -2542,13 +2550,8 @@ def active_author_evaluation_quarantine(
     *,
     current_epoch: int | None = None,
 ) -> dict | None:
-    """Delegate reply evaluation state with current root dependencies."""
-    return _reply_evaluation_state.active_author_evaluation_quarantine(
-        state, author_id,
-        current_epoch=current_epoch,
-        now_epoch=now_epoch,
-        prune_author_evaluation_quarantines=prune_author_evaluation_quarantines,
-    )
+    """Return an active mention-lane author quarantine, expiring old state first."""
+    return _author_quarantine_owner().active(state, author_id, current_epoch=current_epoch)
 
 
 def record_qualifying_author_no_reply(
@@ -2558,23 +2561,16 @@ def record_qualifying_author_no_reply(
     current_epoch: int | None = None,
     explicit_spam_or_abuse: bool = True,
 ) -> bool:
-    """Delegate reply evaluation state with current root dependencies."""
-    return _reply_evaluation_state.record_qualifying_author_no_reply(
-        state, author_id,
+    """Add one mechanically valid editorial no-reply strike for an author."""
+    return _author_quarantine_owner().record_no_reply(
+        state,
+        author_id,
         current_epoch=current_epoch,
         explicit_spam_or_abuse=explicit_spam_or_abuse,
-        AUTHOR_EVALUATION_QUARANTINE_EVIDENCE_POLICY=AUTHOR_EVALUATION_QUARANTINE_EVIDENCE_POLICY,
-        AUTHOR_NO_REPLY_QUARANTINE_SECONDS=AUTHOR_NO_REPLY_QUARANTINE_SECONDS,
-        AUTHOR_NO_REPLY_QUARANTINE_THRESHOLD=AUTHOR_NO_REPLY_QUARANTINE_THRESHOLD,
-        AUTHOR_NO_REPLY_QUARANTINE_WINDOW_SECONDS=AUTHOR_NO_REPLY_QUARANTINE_WINDOW_SECONDS,
-        author_no_reply_epoch_limit=author_no_reply_epoch_limit,
-        log_event=log_event,
-        now_epoch=now_epoch,
-        prune_author_evaluation_quarantines=prune_author_evaluation_quarantines,
     )
 
 
-clear_author_evaluation_quarantine_history = _reply_evaluation_state.clear_author_evaluation_quarantine_history
+clear_author_evaluation_quarantine_history = _author_quarantines.clear_author_evaluation_quarantine_history
 
 
 def normalise_tweet_cache_entry(tweet_id: object, entry: dict, *, path: Path) -> dict[str, object] | None:
@@ -2722,19 +2718,8 @@ def mention_pagination_has_canonical_page_ownership(
 
 
 def normalise_author_evaluation_quarantines(value: object, *, path: Path) -> dict | None:
-    """Delegate reply evaluation state with current root dependencies."""
-    return _reply_evaluation_state.normalise_author_evaluation_quarantines(
-        value,
-        path=path,
-        AUTHOR_EVALUATION_QUARANTINE_EVIDENCE_POLICY=AUTHOR_EVALUATION_QUARANTINE_EVIDENCE_POLICY,
-        AUTHOR_EVALUATION_QUARANTINE_LEGACY_EVIDENCE_POLICY=AUTHOR_EVALUATION_QUARANTINE_LEGACY_EVIDENCE_POLICY,
-        AUTHOR_EVALUATION_QUARANTINE_PREVIOUS_EVIDENCE_POLICY=AUTHOR_EVALUATION_QUARANTINE_PREVIOUS_EVIDENCE_POLICY,
-        AUTHOR_EVALUATION_QUARANTINE_SEEDED_EVIDENCE_POLICY=AUTHOR_EVALUATION_QUARANTINE_SEEDED_EVIDENCE_POLICY,
-        AUTHOR_EVALUATION_QUARANTINE_SINGLE_SOL_V1_EVIDENCE_POLICY=AUTHOR_EVALUATION_QUARANTINE_SINGLE_SOL_V1_EVIDENCE_POLICY,
-        MAX_REASONABLE_STATE_EPOCH=MAX_REASONABLE_STATE_EPOCH,
-        author_no_reply_epoch_limit=author_no_reply_epoch_limit,
-        log=log,
-    )
+    """Validate compact per-author no-reply strike and quarantine records."""
+    return _author_quarantine_owner().normalise(value, path=path)
 
 
 def normalise_optional_scalar(value: object, *, key: str, path: Path) -> str | None:
