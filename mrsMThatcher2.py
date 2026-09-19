@@ -2484,14 +2484,21 @@ def normalise_quote_repeated_cursor_suppressions(
 completed_mention_watermark_covers_target = _reply_evaluation_state.completed_mention_watermark_covers_target
 
 
-def prune_completed_mention_quarantine_evaluations(state: dict) -> int:
-    """Delegate reply evaluation state with current root dependencies."""
-    return _reply_evaluation_state.prune_completed_mention_quarantine_evaluations(
-        state,
-        AUTHOR_EVALUATION_QUARANTINE_EVIDENCE_POLICY=AUTHOR_EVALUATION_QUARANTINE_EVIDENCE_POLICY,
-        completed_mention_watermark_covers_target=completed_mention_watermark_covers_target,
+def _reply_evaluation_owner() -> _reply_evaluation_state.ReplyEvaluations:
+    """Bind current terminal evaluation limits without reading state or the clock."""
+    return _reply_evaluation_state.ReplyEvaluations(
+        now_epoch=now_epoch,
         log=log,
+        quarantine_evidence_policy=AUTHOR_EVALUATION_QUARANTINE_EVIDENCE_POLICY,
+        maximum_state_epoch=MAX_REASONABLE_STATE_EPOCH,
+        maximum_records=REPLY_EVALUATION_MAX_RECORDS,
+        minimum_retention_seconds=REPLY_EVALUATION_MIN_RETENTION_SECONDS,
     )
+
+
+def prune_completed_mention_quarantine_evaluations(state: dict) -> int:
+    """Drop unsafe legacy or watermark-covered local quarantine skips."""
+    return _reply_evaluation_owner().prune_completed_mentions(state)
 
 
 def prune_reply_evaluation_records(
@@ -2499,17 +2506,8 @@ def prune_reply_evaluation_records(
     *,
     current_epoch: int | None = None,
 ) -> None:
-    """Delegate reply evaluation state with current root dependencies."""
-    return _reply_evaluation_state.prune_reply_evaluation_records(
-        state,
-        current_epoch=current_epoch,
-        MAX_REASONABLE_STATE_EPOCH=MAX_REASONABLE_STATE_EPOCH,
-        REPLY_EVALUATION_MAX_RECORDS=REPLY_EVALUATION_MAX_RECORDS,
-        REPLY_EVALUATION_MIN_RETENTION_SECONDS=REPLY_EVALUATION_MIN_RETENTION_SECONDS,
-        log=log,
-        now_epoch=now_epoch,
-        prune_completed_mention_quarantine_evaluations=prune_completed_mention_quarantine_evaluations,
-    )
+    """Prune old terminal evaluations while preserving recent replay protection."""
+    return _reply_evaluation_owner().prune(state, current_epoch=current_epoch)
 
 
 def _author_quarantine_owner() -> _author_quarantines.AuthorQuarantines:
@@ -8053,8 +8051,8 @@ def record_terminal_reply_evaluation(
     prune_records: bool = True,
     evidence_policy: str | None = None,
 ) -> None:
-    """Delegate reply evaluation state with current root dependencies."""
-    return _reply_evaluation_state.record_terminal_reply_evaluation(
+    """Record terminal reply evaluation."""
+    return _reply_evaluation_owner().record(
         state,
         target_id=target_id,
         lane=lane,
@@ -8062,8 +8060,6 @@ def record_terminal_reply_evaluation(
         outcome=outcome,
         prune_records=prune_records,
         evidence_policy=evidence_policy,
-        now_epoch=now_epoch,
-        prune_reply_evaluation_records=prune_reply_evaluation_records,
     )
 
 

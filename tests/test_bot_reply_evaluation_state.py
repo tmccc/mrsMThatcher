@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from dataclasses import FrozenInstanceError
 import inspect
 from pathlib import Path
 import subprocess
@@ -50,42 +51,78 @@ assert 'requests' not in sys.modules
     assert result.returncode == 0, result.stderr + result.stdout
 
 
-def test_adapters_forward_current_dependencies_defaults_references_and_native_errors(monkeypatch):
-    for name, count in (
-        ("prune_completed_mention_quarantine_evaluations", 3),
-        ("prune_reply_evaluation_records", 6),
-        ("record_terminal_reply_evaluation", 2),
-    ):
+OWNER_INPUTS = {
+    "now_epoch": "now_epoch", "log": "log",
+    "quarantine_evidence_policy": "AUTHOR_EVALUATION_QUARANTINE_EVIDENCE_POLICY",
+    "maximum_state_epoch": "MAX_REASONABLE_STATE_EPOCH",
+    "maximum_records": "REPLY_EVALUATION_MAX_RECORDS",
+    "minimum_retention_seconds": "REPLY_EVALUATION_MIN_RETENTION_SECONDS",
+}
+
+
+@pytest.fixture
+def make_owner():
+    """Compose terminal ledger operations with isolated runtime boundaries."""
+    def build(**overrides):
+        current = {field: getattr(bot, name) for field, name in OWNER_INPUTS.items()}
+        return evaluation_state.ReplyEvaluations(**{**current, **overrides})
+    return build
+
+
+def test_owner_composition_binds_current_dependencies_without_calling_them(monkeypatch):
+    snapshots = []
+    for _ in range(2):
+        current = {field: Mock() for field in OWNER_INPUTS}
+        for field, name in OWNER_INPUTS.items():
+            monkeypatch.setattr(bot, name, current[field])
+        owner = bot._reply_evaluation_owner()
+        assert isinstance(owner, evaluation_state.ReplyEvaluations)
+        for field, value in current.items():
+            assert getattr(owner, field) is value
+            value.assert_not_called()
+        snapshots.append((owner, current))
+    first, inputs = snapshots[0]
+    assert first is not snapshots[1][0]
+    assert all(getattr(first, field) is value for field, value in inputs.items())
+    with pytest.raises(FrozenInstanceError):
+        first.maximum_records = 1
+
+
+def test_adapters_preserve_defaults_argument_result_identity_and_native_errors(monkeypatch):
+    methods = {
+        "prune_completed_mention_quarantine_evaluations": "prune_completed_mentions",
+        "prune_reply_evaluation_records": "prune",
+        "record_terminal_reply_evaluation": "record",
+    }
+    for name, method_name in methods.items():
         adapter = getattr(bot, name)
         public = inspect.signature(adapter).parameters
-        dependencies = inspect.signature(getattr(evaluation_state, name)).parameters.keys() - public.keys()
-        assert len(dependencies) == count
         args = tuple(object() for param in public.values() if param.kind == param.POSITIONAL_OR_KEYWORD)
-        result = object()
-        owner = Mock(return_value=result)
-        with monkeypatch.context() as patch:
-            patch.setattr(evaluation_state, name, owner)
-            for use_defaults in (True, False):
-                current = {key: object() for key in dependencies}
-                for key, value in current.items():
-                    patch.setattr(bot, key, value)
-                options = {
-                    key: object() for key, param in public.items()
-                    if param.kind == param.KEYWORD_ONLY
-                    and (not use_defaults or param.default is param.empty)
-                }
-                expected = {
-                    key: param.default for key, param in public.items()
-                    if param.kind == param.KEYWORD_ONLY and param.default is not param.empty
-                } | options | current
-                assert adapter(*args, **options) is result
-                actual_args, actual_kwargs = owner.call_args
-                assert len(actual_args) == len(args)
-                assert all(actual is original for actual, original in zip(actual_args, args))
-                assert actual_kwargs.keys() == expected.keys()
-                assert all(actual_kwargs[key] is value for key, value in expected.items())
+        for use_defaults in (True, False):
+            owner = Mock(spec=evaluation_state.ReplyEvaluations)
+            factory = Mock(return_value=owner)
+            monkeypatch.setattr(bot, "_reply_evaluation_owner", factory)
+            implementation = getattr(owner, method_name)
+            result = object()
+            implementation.return_value = result
+            options = {
+                key: object() for key, param in public.items()
+                if param.kind == param.KEYWORD_ONLY
+                and (not use_defaults or param.default is param.empty)
+            }
+            expected = {
+                key: param.default for key, param in public.items()
+                if param.kind == param.KEYWORD_ONLY and param.default is not param.empty
+            } | options
+            assert adapter(*args, **options) is result
+            factory.assert_called_once_with()
+            actual_args, actual_kwargs = implementation.call_args
+            assert len(actual_args) == len(args)
+            assert all(actual is original for actual, original in zip(actual_args, args))
+            assert actual_kwargs.keys() == expected.keys()
+            assert all(actual_kwargs[key] is value for key, value in expected.items())
             failure = TypeError(name)
-            owner.side_effect = failure
+            implementation.side_effect = failure
             with pytest.raises(TypeError) as caught:
                 adapter(*args, **options)
             assert caught.value is failure
@@ -96,18 +133,18 @@ def test_adapters_forward_current_dependencies_defaults_references_and_native_er
 
 def test_completed_watermark_keeps_original_digit_and_pending_contract():
     state = {"last_seen_mention_id": str(10**90), "mention_pending_candidates": {}}
-    assert bot.completed_mention_watermark_covers_target(state, 10**89)
+    assert evaluation_state.completed_mention_watermark_covers_target(state, 10**89)
     state["mention_pending_candidates"]["1"] = {}
-    assert not bot.completed_mention_watermark_covers_target(state, 1)
-    assert not bot.completed_mention_watermark_covers_target(state, " 2")
+    assert not evaluation_state.completed_mention_watermark_covers_target(state, 1)
+    assert not evaluation_state.completed_mention_watermark_covers_target(state, " 2")
     state["mention_pending_candidates"] = None
-    assert not bot.completed_mention_watermark_covers_target(state, 2)
+    assert not evaluation_state.completed_mention_watermark_covers_target(state, 2)
     state["mention_pending_candidates"] = {}
     with pytest.raises(ValueError):
-        bot.completed_mention_watermark_covers_target(state, "²")
+        evaluation_state.completed_mention_watermark_covers_target(state, "²")
 
 
-def test_completed_pruning_keeps_record_references_and_assigns_before_log_failure(monkeypatch):
+def test_completed_pruning_keeps_record_references_and_assigns_before_log_failure(monkeypatch, make_owner):
     policy = bot.AUTHOR_EVALUATION_QUARANTINE_EVIDENCE_POLICY
     retained = dict(reply_evaluation_record("3", 950),
                     reason="author_evaluation_quarantine", evidence_policy=policy)
@@ -118,13 +155,13 @@ def test_completed_pruning_keeps_record_references_and_assigns_before_log_failur
     }
     state = {"reply_evaluation_records": original}
     covered = Mock(side_effect=lambda received, target: received is state and target == "2")
-    monkeypatch.setattr(bot, "completed_mention_watermark_covers_target", covered)
+    monkeypatch.setattr(evaluation_state, "completed_mention_watermark_covers_target", covered)
     failure = RuntimeError("retirement log")
     logger = Mock()
     logger.info.side_effect = failure
-    monkeypatch.setattr(bot, "log", logger)
+    owner = make_owner(log=logger)
     with pytest.raises(RuntimeError) as caught:
-        bot.prune_completed_mention_quarantine_evaluations(state)
+        owner.prune_completed_mentions(state)
     assert caught.value is failure
     assert covered.call_args_list == [call(state, "2"), call(state, "3")]
     records = state["reply_evaluation_records"]
@@ -132,15 +169,12 @@ def test_completed_pruning_keeps_record_references_and_assigns_before_log_failur
     assert records["3"] is retained and records["4"] is unrelated
     assert list(original) == [1, 2, "3", 4]
     assert logger.info.call_args.args[1] == 2
-    assert bot.prune_completed_mention_quarantine_evaluations(state) == 0
+    assert owner.prune_completed_mentions(state) == 0
     assert state["reply_evaluation_records"] is records
     assert logger.info.call_count == 1
 
 
-def test_retention_keeps_bad_epochs_and_shallow_copies_with_original_log_order(monkeypatch):
-    monkeypatch.setattr(bot, "REPLY_EVALUATION_MAX_RECORDS", 2)
-    monkeypatch.setattr(bot, "REPLY_EVALUATION_MIN_RETENTION_SECONDS", 100)
-    monkeypatch.setattr(bot, "MAX_REASONABLE_STATE_EPOCH", 1000)
+def test_retention_keeps_bad_epochs_and_shallow_copies_with_original_log_order(monkeypatch, make_owner):
     nested = {"shared": []}
     records = {key: dict(reply_evaluation_record(key, epoch), extra=nested)
                for key, epoch in (("cutoff", 900), ("recent", 950), ("skip", 970),
@@ -149,9 +183,8 @@ def test_retention_keeps_bad_epochs_and_shallow_copies_with_original_log_order(m
         records[key]["reason"] = "author_evaluation_quarantine"
     state = {"reply_evaluation_records": records}
     trace = []
-    monkeypatch.setattr(bot, "prune_completed_mention_quarantine_evaluations",
-                        lambda received: trace.append(("completed", received)))
-    monkeypatch.setattr(bot, "now_epoch", lambda: trace.append(("clock", state)) or 1000)
+    monkeypatch.setattr(evaluation_state.ReplyEvaluations, "prune_completed_mentions",
+                        Mock(side_effect=lambda received: trace.append(("completed", received))))
 
     def warning(*args):
         assert state["reply_evaluation_records"] is records
@@ -161,8 +194,12 @@ def test_retention_keeps_bad_epochs_and_shallow_copies_with_original_log_order(m
         assert state["reply_evaluation_records"] is not records
         trace.append(("info", args))
 
-    monkeypatch.setattr(bot, "log", Mock(warning=warning, info=info))
-    bot.prune_reply_evaluation_records(state)
+    owner = make_owner(
+        maximum_records=2, minimum_retention_seconds=100, maximum_state_epoch=1000,
+        now_epoch=lambda: trace.append(("clock", state)) or 1000,
+        log=Mock(warning=warning, info=info),
+    )
+    owner.prune(state)
     assert trace[:2] == [("completed", state), ("clock", state)]
     assert [event[0] for event in trace] == ["completed", "clock", "warning", "warning", "info"]
     retained = state["reply_evaluation_records"]
@@ -173,36 +210,36 @@ def test_retention_keeps_bad_epochs_and_shallow_copies_with_original_log_order(m
     assert list(records) == ["cutoff", "recent", "skip", "bool", "future"]
 
 
-def test_completed_pruning_precedes_native_epoch_failure(monkeypatch):
+def test_completed_pruning_precedes_native_epoch_failure(monkeypatch, make_owner):
     state = {"reply_evaluation_records": {"1": reply_evaluation_record("1", 1)}}
     trace = Mock()
-    monkeypatch.setattr(bot, "prune_completed_mention_quarantine_evaluations", trace.completed)
-    monkeypatch.setattr(bot, "now_epoch", trace.clock)
+    monkeypatch.setattr(evaluation_state.ReplyEvaluations, "prune_completed_mentions", trace.completed)
+    owner = make_owner(now_epoch=trace.clock)
     with pytest.raises(ValueError):
-        bot.prune_reply_evaluation_records(state, current_epoch="invalid")
+        owner.prune(state, current_epoch="invalid")
     assert trace.mock_calls == [call.completed(state)]
 
 
 @pytest.mark.parametrize("prune_records", [True, False])
-def test_terminal_recording_keeps_batch_identity_and_assignment_before_prune_error(monkeypatch, prune_records):
+def test_terminal_recording_keeps_batch_identity_and_assignment_before_prune_error(monkeypatch, make_owner, prune_records):
     existing = reply_evaluation_record("existing", 1)
     records = {"existing": existing}
     state = {"reply_evaluation_records": records}
     clock = Mock(return_value=1000)
-    monkeypatch.setattr(bot, "now_epoch", clock)
+    owner = make_owner(now_epoch=clock)
     failure = RuntimeError("terminal pruning")
     prune = Mock(side_effect=failure)
-    monkeypatch.setattr(bot, "prune_reply_evaluation_records", prune)
+    monkeypatch.setattr(evaluation_state.ReplyEvaluations, "prune", prune)
     options = dict(target_id=7, lane=8, reason="", prune_records=prune_records)
     if prune_records:
         with pytest.raises(RuntimeError) as caught:
-            bot.record_terminal_reply_evaluation(state, **options)
+            owner.record(state, **options)
         assert caught.value is failure
         prune.assert_called_once_with(state)
         assert state["reply_evaluation_records"] is not records
         assert "7" not in records
     else:
-        assert bot.record_terminal_reply_evaluation(state, **options) is None
+        assert owner.record(state, **options) is None
         prune.assert_not_called()
         assert state["reply_evaluation_records"] is records
     assert state["reply_evaluation_records"]["existing"] is existing
@@ -212,18 +249,31 @@ def test_terminal_recording_keeps_batch_identity_and_assignment_before_prune_err
     clock.assert_called_once_with()
     for outcome in ("no_reply", "operational_failure", "reply_not_permitted"):
         record["outcome"] = outcome
-        assert bot.terminal_reply_evaluation(state, 7) is record
+        assert evaluation_state.terminal_reply_evaluation(state, 7) is record
     record["outcome"] = "reply"
-    assert bot.terminal_reply_evaluation(state, 7) is None
+    assert evaluation_state.terminal_reply_evaluation(state, 7) is None
 
 
-def test_invalid_terminal_outcome_precedes_state_and_clock_access(monkeypatch):
+def test_invalid_terminal_outcome_precedes_state_and_clock_access(make_owner):
     clock = Mock(side_effect=AssertionError("terminal clock"))
-    monkeypatch.setattr(bot, "now_epoch", clock)
+    owner = make_owner(now_epoch=clock)
     with pytest.raises(ValueError, match="Unsupported terminal reply outcome"):
-        bot.record_terminal_reply_evaluation(object(), target_id="1", lane="mention",
-                                             reason="invalid", outcome="reply")
+        owner.record(object(), target_id="1", lane="mention",
+                     reason="invalid", outcome="reply")
     clock.assert_not_called()
+
+
+def test_recording_and_pruning_sample_clock_separately(make_owner):
+    previous = reply_evaluation_record("old", 995)
+    original = {"old": previous}
+    state = {"reply_evaluation_records": original}
+    clock = Mock(side_effect=[1000, 1100])
+    owner = make_owner(now_epoch=clock, maximum_records=1, minimum_retention_seconds=50)
+    owner.record(state, target_id="new", lane="mention", reason="completed_exchange")
+    assert clock.call_args_list == [call(), call()]
+    assert list(state["reply_evaluation_records"]) == ["new"]
+    assert state["reply_evaluation_records"]["new"]["evaluated_epoch"] == 1000
+    assert original == {"old": previous} and original["old"] is previous
 
 
 def test_quarantine_skip_batch_is_durable_across_real_state_reload(monkeypatch):
