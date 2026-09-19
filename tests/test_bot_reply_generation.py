@@ -23,7 +23,7 @@ from tests.helpers.single_call_fixtures import (
 )
 from tests.helpers.bot_runtime import bot
 from tests.helpers.bot_fixtures import isolate_bot_runtime  # noqa: F401
-from tests.helpers.reply_fixtures import image_case, patch_reply_history_method  # noqa: F401
+from tests.helpers.reply_fixtures import patch_reply_history_method
 
 
 def test_import_needs_no_runtime_access_and_constants_are_shared_objects():
@@ -36,7 +36,7 @@ def forbidden(*args, **kwargs):
 
 original_import = builtins.__import__
 def guarded_import(name, *args, **kwargs):
-    if name in {'mrsMThatcher2', 'requests', 'openai', 'single_call_reply', 'reply_evidence'} or name.startswith('mrs_bot_') and name != 'mrs_bot_reply_generation':
+    if name in {'mrsMThatcher2', 'requests', 'openai', 'single_call_reply', 'reply_evidence'} or name.startswith('mrs_bot_') and name not in {'mrs_bot_reply_generation', 'mrs_bot_reply_native_media'}:
         forbidden()
     return original_import(name, *args, **kwargs)
 
@@ -77,7 +77,7 @@ assert 'single_call_reply' not in sys.modules
 
 def test_adapters_forward_current_dependencies_arguments_results_and_errors(monkeypatch):
     names = (
-        "log_ai_reply_posting_outcome", "_safe_reply_image_url", "collect_reply_images",
+        "log_ai_reply_posting_outcome",
         "_definite_connection_failure_before_transmission", "_openai_api_error",
         "_openai_retry_metadata", "_is_openai_provider_health_failure",
         "_is_terminal_candidate_local_failure", "openai_responses_reply_call",
@@ -131,84 +131,6 @@ def test_evaluation_adapter_binds_current_history_and_preserves_other_dependenci
     with pytest.raises(TypeError) as caught:
         adapter(context, media, state=state)
     assert caught.value is failure
-
-
-def test_image_collection_uses_current_requests_bounds_and_validation_reference(monkeypatch, image_case):
-    response, media = image_case
-    chunks = list(response.iter_content(chunk_size=64 * 1024))
-    data = b"".join(chunks)
-    response.iter_content = Mock(return_value=iter([None, b"", bytearray(b"ignored"), *chunks]))
-    response.headers["Content-Length"] = str(len(data))
-    trace = Mock()
-    trace.get.return_value = response
-    trace.timeout.return_value = 17
-    response.close = trace.close = Mock(wraps=response.close)
-
-    def validate(images):
-        assert response.closed
-        return images
-
-    trace.validate.side_effect = validate
-    monkeypatch.setattr(bot, "requests", SimpleNamespace(get=trace.get, RequestException=bot.requests.RequestException))
-    monkeypatch.setattr(bot, "request_timeout", trace.timeout)
-    monkeypatch.setattr(bot, "require_remote_operation_unpaused", trace.pause)
-    monkeypatch.setattr(bot, "validate_supplied_images", trace.validate)
-    monkeypatch.setattr(bot, "MAX_SUPPLIED_IMAGES", 1)
-    monkeypatch.setattr(bot, "SINGLE_CALL_MAX_IMAGE_BYTES", len(data))
-    monkeypatch.setattr(bot, "_REPLY_IMAGE_MIME_TYPES", {"image/png"})
-
-    result = bot.collect_reply_images(media)
-    assert result is trace.validate.call_args.args[0]
-    assert result == [{
-        "identity": "native-photo", "mime_type": "image/png", "data": data,
-        "attachment_role": "target_contribution", "source_post_id": "target",
-    }]
-    assert [entry[0] for entry in trace.mock_calls] == ["pause", "timeout", "get", "close", "validate"]
-    trace.pause.assert_called_once_with("candidate image collection 1/1")
-    trace.get.assert_called_once_with(
-        media["photos"][0]["url"], stream=True, allow_redirects=False, timeout=17,
-        headers={"Accept": "image/jpeg,image/png,image/webp,image/gif", "Accept-Encoding": "identity"},
-    )
-    response.iter_content.assert_called_once_with(chunk_size=64 * 1024)
-
-
-@pytest.mark.parametrize("failure_site", ["stream", "validation"])
-def test_image_failure_closes_response_before_propagating_original_cause(monkeypatch, image_case, failure_site):
-    response, media = image_case
-    failure = bot.requests.Timeout("fixture stream failure") if failure_site == "stream" else ValueError("fixture validation failure")
-    validate = Mock(side_effect=failure)
-    if failure_site == "stream":
-        response.iter_content = Mock(side_effect=failure)
-    monkeypatch.setattr(bot, "requests", SimpleNamespace(get=Mock(return_value=response), RequestException=bot.requests.RequestException))
-    monkeypatch.setattr(bot, "require_remote_operation_unpaused", Mock())
-    monkeypatch.setattr(bot, "validate_supplied_images", validate)
-    response.close = Mock(wraps=response.close)
-    expected = bot.ReplyMediaTransientUnavailable if failure_site == "stream" else bot.ReplyMediaUnavailable
-    with pytest.raises(expected) as caught:
-        bot.collect_reply_images(media)
-    assert type(caught.value) is expected
-    assert caught.value.__cause__ is failure
-    assert response.closed
-    response.close.assert_called_once_with()
-    assert validate.call_count == int(failure_site == "validation")
-
-
-def test_url_validation_reads_current_policy_and_preserves_exception_cause(monkeypatch):
-    class CurrentMediaError(bot.ReplyMediaUnavailable):
-        pass
-
-    monkeypatch.setattr(bot, "ReplyMediaUnavailable", CurrentMediaError)
-    monkeypatch.setattr(bot, "TEST_MODE", False)
-    assert bot._safe_reply_image_url(" https://pbs.twimg.com:443/media/photo.png ") == "https://pbs.twimg.com:443/media/photo.png"
-    with pytest.raises(CurrentMediaError, match="trusted X media origin"):
-        bot._safe_reply_image_url("http://127.0.0.1/media/photo.png")
-    monkeypatch.setattr(bot, "TEST_MODE", True)
-    assert bot._safe_reply_image_url("http://127.0.0.1/media/photo.png") == "http://127.0.0.1/media/photo.png"
-    failure = ValueError("fixture invalid port")
-    monkeypatch.setattr(bot, "urlsplit", Mock(side_effect=failure))
-    with pytest.raises(CurrentMediaError, match="invalid port") as caught:
-        bot._safe_reply_image_url("https://pbs.twimg.com:bad/media/photo.png")
-    assert caught.value.__cause__ is failure
 
 
 def test_failure_predicates_use_current_distinct_category_sets(monkeypatch):

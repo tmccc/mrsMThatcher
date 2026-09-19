@@ -1,14 +1,13 @@
-"""Collect reply images and orchestrate the current single-call reply decision.
+"""Orchestrate the current single-call reply decision.
 
-Root adapters supply current callbacks, settings, application classes and the
-requests object on each call. Explicit calls may fetch bounded native images,
-send the existing Responses request with its bounded retry policy, emit outcome
-and usage events, return the typed decision result and account for provider
-failures through the root callback. The actual reply pipeline, evidence lookup,
-draft/history helpers, cooldown persistence, terminal evaluation, posting and
-durable state authority remain in their existing locations.
+Root adapters supply current callbacks, settings and application classes on each
+call. Explicit calls collect images through the media boundary, send the existing
+Responses request with its bounded retry policy, emit outcome and usage events,
+return the typed decision result and account for provider failures through the
+root callback. Evidence lookup, draft/history helpers, cooldown persistence,
+terminal evaluation, posting and durable state retain their existing authority.
 
-Import uses the standard library and pure validation vocabulary. It
+Import uses the standard library and inert media and validation owners. It
 performs no file, environment, provider or RNG work and retains no callbacks or
 runtime state. Root constant names directly alias these same objects.
 """
@@ -20,15 +19,8 @@ import math
 import re
 from collections.abc import Callable, Mapping
 
+from mrs_bot_reply_native_media import _REPLY_IMAGE_MIME_TYPES
 from single_call_reply_validation import normalise_validation_error_codes
-
-
-_REPLY_IMAGE_MIME_TYPES = {
-    "image/jpeg",
-    "image/png",
-    "image/webp",
-    "image/gif",
-}
 
 
 _OPENAI_PROVIDER_HEALTH_FAILURE_CATEGORIES = frozenset(
@@ -87,164 +79,6 @@ def log_ai_reply_posting_outcome(
         validated_draft_hash=metadata.get("validated_draft_hash"),
         failure_reason=failure_reason,
     )
-
-
-def _safe_reply_image_url(
-    value: object,
-    *,
-    urlsplit: Callable,
-    ReplyMediaUnavailable: type,
-    TEST_MODE: bool,
-    endpoint_is_loopback: Callable,
-) -> str:
-    url = str(value or "").strip()
-    try:
-        parsed = urlsplit(url)
-        port = parsed.port
-    except ValueError as exc:
-        raise ReplyMediaUnavailable("candidate image URL has an invalid port") from exc
-    trusted_production_origin = bool(
-        parsed.scheme == "https"
-        and parsed.hostname == "pbs.twimg.com"
-        and port in {None, 443}
-    )
-    trusted_test_origin = bool(
-        TEST_MODE
-        and parsed.scheme == "http"
-        and endpoint_is_loopback(url)
-        and parsed.path.startswith("/media/")
-    )
-    if (
-        not (trusted_production_origin or trusted_test_origin)
-        or parsed.username is not None
-        or parsed.password is not None
-        or not parsed.path.startswith("/media/")
-        or parsed.fragment
-    ):
-        raise ReplyMediaUnavailable("candidate image URL is outside the trusted X media origin")
-    return url
-
-
-def collect_reply_images(
-    media_context: dict | None,
-    *,
-    MAX_SUPPLIED_IMAGES: int,
-    ReplyMediaUnavailable: type,
-    _safe_reply_image_url: Callable,
-    require_remote_operation_unpaused: Callable,
-    requests: object,
-    request_timeout: Callable,
-    ReplyMediaTransientUnavailable: type,
-    _REPLY_IMAGE_MIME_TYPES: set[str],
-    SINGLE_CALL_MAX_IMAGE_BYTES: int,
-    validate_supplied_images: Callable,
-) -> list[dict[str, object]]:
-    """Collect up to two already-identified native X images with hard bounds."""
-
-    if not isinstance(media_context, dict):
-        return []
-    status = media_context.get("status")
-    expected = int(media_context.get("photos_expected", 0) or 0)
-    if status == "none" and expected == 0:
-        return []
-    photos = media_context.get("photos")
-    required_count = min(expected, MAX_SUPPLIED_IMAGES)
-    if (
-        status != "supplied"
-        or not isinstance(photos, list)
-        or required_count < 1
-        or len(photos) != required_count
-    ):
-        raise ReplyMediaUnavailable("material candidate image metadata is incomplete")
-    collected: list[dict[str, object]] = []
-    for index, photo in enumerate(photos, 1):
-        if not isinstance(photo, dict):
-            raise ReplyMediaUnavailable("candidate image metadata is invalid")
-        identity = str(photo.get("media_key") or "").strip()
-        if not identity:
-            raise ReplyMediaUnavailable("candidate image lacks a stable identity")
-        url = _safe_reply_image_url(photo.get("url"))
-        require_remote_operation_unpaused(
-            f"candidate image collection {index}/{len(photos)}"
-        )
-        response = None
-        try:
-            response = requests.get(
-                url,
-                stream=True,
-                allow_redirects=False,
-                timeout=request_timeout(),
-                headers={"Accept": "image/jpeg,image/png,image/webp,image/gif", "Accept-Encoding": "identity"},
-            )
-            if response.status_code != 200:
-                failure_type = (
-                    ReplyMediaTransientUnavailable
-                    if response.status_code in {408, 425, 429}
-                    or 500 <= response.status_code < 600
-                    else ReplyMediaUnavailable
-                )
-                raise failure_type(
-                    f"candidate image returned HTTP {response.status_code}"
-                )
-            if str(response.headers.get("Content-Encoding") or "identity").lower() != "identity":
-                raise ReplyMediaUnavailable("candidate image transfer encoding is unsupported")
-            if response.headers.get("Location"):
-                raise ReplyMediaUnavailable("candidate image attempted a redirect")
-            mime_type = str(
-                response.headers.get("Content-Type") or ""
-            ).split(";", 1)[0].strip().lower()
-            if mime_type not in _REPLY_IMAGE_MIME_TYPES:
-                raise ReplyMediaUnavailable("candidate image type is unsupported")
-            raw_length = response.headers.get("Content-Length")
-            content_length = None
-            if raw_length is not None:
-                try:
-                    content_length = int(raw_length)
-                except ValueError as exc:
-                    raise ReplyMediaUnavailable(
-                        "candidate image length is invalid"
-                    ) from exc
-                if not 1 <= content_length <= SINGLE_CALL_MAX_IMAGE_BYTES:
-                    raise ReplyMediaUnavailable(
-                        "candidate image length is outside the safe bound"
-                    )
-            chunks: list[bytes] = []
-            total = 0
-            for chunk in response.iter_content(chunk_size=64 * 1024):
-                if not isinstance(chunk, bytes) or not chunk:
-                    continue
-                total += len(chunk)
-                if total > SINGLE_CALL_MAX_IMAGE_BYTES:
-                    raise ReplyMediaUnavailable("candidate image exceeds the safe bound")
-                chunks.append(chunk)
-            if content_length is not None and total != content_length:
-                failure_type = (ReplyMediaTransientUnavailable if total < content_length else ReplyMediaUnavailable)
-                raise failure_type("candidate image body differs from declared length")
-            image_bytes = b"".join(chunks)
-        except ReplyMediaUnavailable:
-            raise
-        except requests.RequestException as exc:
-            raise ReplyMediaTransientUnavailable(
-                "candidate image could not be obtained safely"
-            ) from exc
-        finally:
-            if response is not None:
-                close_response = getattr(response, "close", None)
-                if callable(close_response):
-                    close_response()
-        collected.append(
-            {
-                "identity": identity,
-                "mime_type": mime_type,
-                "data": image_bytes,
-                "attachment_role": str(photo.get("attachment_role") or ""),
-                "source_post_id": str(photo.get("source_post_id") or ""),
-            }
-        )
-    try:
-        return validate_supplied_images(collected)
-    except (RuntimeError, TypeError, ValueError) as exc:
-        raise ReplyMediaUnavailable("candidate image bytes failed validation") from exc
 
 
 def _definite_connection_failure_before_transmission(

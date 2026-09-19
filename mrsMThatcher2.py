@@ -3699,12 +3699,29 @@ clean_text_for_reply_context = _reply_context.clean_text_for_reply_context
 attach_media_to_tweets = _reply_native_media.attach_media_to_tweets
 
 
-def candidate_native_photo_media(candidate: dict) -> tuple[list[dict], int]:
-    """Delegate photo selection with the current root cap."""
-    return _reply_native_media.candidate_native_photo_media(
-        candidate,
-        MAX_REPLY_CONTEXT_PHOTOS=MAX_REPLY_CONTEXT_PHOTOS,
+def _reply_media_owner() -> _reply_native_media.ReplyMedia:
+    """Bind current media policy and capabilities without performing work."""
+    return _reply_native_media.ReplyMedia(
+        maximum_context_photos=MAX_REPLY_CONTEXT_PHOTOS,
+        maximum_supplied_images=MAX_SUPPLIED_IMAGES,
+        maximum_image_bytes=SINGLE_CALL_MAX_IMAGE_BYTES,
+        image_mime_types=_REPLY_IMAGE_MIME_TYPES,
+        log=log,
+        urlsplit=urlsplit,
+        media_unavailable=ReplyMediaUnavailable,
+        media_transient_unavailable=ReplyMediaTransientUnavailable,
+        test_mode=TEST_MODE,
+        endpoint_is_loopback=endpoint_is_loopback,
+        require_remote_operation_unpaused=require_remote_operation_unpaused,
+        requests=requests,
+        request_timeout=request_timeout,
+        validate_supplied_images=validate_supplied_images,
     )
+
+
+def candidate_native_photo_media(candidate: dict) -> tuple[list[dict], int]:
+    """Select candidate photos through the media owner."""
+    return _reply_media_owner().candidate_photos(candidate)
 
 
 def reply_media_context_for_candidate(
@@ -3714,15 +3731,12 @@ def reply_media_context_for_candidate(
     target_id: str,
     quoted_candidate: dict | None = None,
 ) -> dict:
-    """Delegate media context with the current root cap, callback and logger."""
-    return _reply_native_media.reply_media_context_for_candidate(
+    """Build media context through the media owner."""
+    return _reply_media_owner().context(
         candidate,
         lane=lane,
         target_id=target_id,
         quoted_candidate=quoted_candidate,
-        MAX_REPLY_CONTEXT_PHOTOS=MAX_REPLY_CONTEXT_PHOTOS,
-        candidate_native_photo_media=candidate_native_photo_media,
-        log=log,
     )
 
 
@@ -7820,7 +7834,7 @@ def recent_same_author_account_interactions(
 _reply_target_epoch = _reply_history._reply_target_epoch
 
 
-_REPLY_IMAGE_MIME_TYPES = _reply_generation._REPLY_IMAGE_MIME_TYPES
+_REPLY_IMAGE_MIME_TYPES = _reply_native_media._REPLY_IMAGE_MIME_TYPES
 
 
 class ReplyMediaUnavailable(RuntimeError):
@@ -7832,31 +7846,13 @@ class ReplyMediaTransientUnavailable(ReplyMediaUnavailable):
 
 
 def _safe_reply_image_url(value: object) -> str:
-    """Delegate reply generation with current root dependencies."""
-    return _reply_generation._safe_reply_image_url(
-        value,
-        urlsplit=urlsplit,
-        ReplyMediaUnavailable=ReplyMediaUnavailable,
-        TEST_MODE=TEST_MODE,
-        endpoint_is_loopback=endpoint_is_loopback,
-    )
+    """Check the trusted image origin through the media owner."""
+    return _reply_media_owner().safe_url(value)
 
 
 def collect_reply_images(media_context: dict | None) -> list[dict[str, object]]:
     """Collect up to two already-identified native X images with hard bounds."""
-    return _reply_generation.collect_reply_images(
-        media_context,
-        MAX_SUPPLIED_IMAGES=MAX_SUPPLIED_IMAGES,
-        ReplyMediaUnavailable=ReplyMediaUnavailable,
-        _safe_reply_image_url=_safe_reply_image_url,
-        require_remote_operation_unpaused=require_remote_operation_unpaused,
-        requests=requests,
-        request_timeout=request_timeout,
-        ReplyMediaTransientUnavailable=ReplyMediaTransientUnavailable,
-        _REPLY_IMAGE_MIME_TYPES=_REPLY_IMAGE_MIME_TYPES,
-        SINGLE_CALL_MAX_IMAGE_BYTES=SINGLE_CALL_MAX_IMAGE_BYTES,
-        validate_supplied_images=validate_supplied_images,
-    )
+    return _reply_media_owner().collect(media_context)
 
 
 def _definite_connection_failure_before_transmission(
