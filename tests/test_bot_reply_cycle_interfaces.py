@@ -15,7 +15,11 @@ from tests.helpers.reply_fixtures import configure_quote_cycle as configure_quot
 from tests.helpers.mention_fixtures import mention
 from tests.helpers.bot_runtime import bot
 from tests.helpers.bot_fixtures import isolate_bot_runtime  # noqa: F401
-from tests.helpers.reply_fixtures import unit_approved_reply, unit_reply_context
+from tests.helpers.reply_fixtures import (
+    patch_reply_draft_method,
+    unit_approved_reply,
+    unit_reply_context,
+)
 
 
 def prepare_cycle(monkeypatch, lane):
@@ -44,12 +48,22 @@ def test_cycle_boundaries_capture_current_callbacks_and_config_between_calls(mon
     result = object()
     owner = Mock(return_value=result)
     monkeypatch.setattr(module, name, owner)
+    draft_owner_factory = bot._reply_draft_owner
+    draft_owners = []
+
+    def make_drafts():
+        drafts = draft_owner_factory()
+        draft_owners.append(drafts)
+        return drafts
+
+    factory = Mock(side_effect=make_drafts)
+    monkeypatch.setattr(bot, "_reply_draft_owner", factory)
     state = {}
     snapshots = []
     for index in range(2):
-        save, recover, post = Mock(), Mock(), Mock()
+        save, evidence, post = Mock(), Mock(), Mock()
         monkeypatch.setattr(bot, "save_state", save)
-        monkeypatch.setattr(bot, "recover_pending_ai_reply", recover)
+        monkeypatch.setattr(bot, "reply_evidence_repository", evidence)
         monkeypatch.setattr(bot, "post_conversational_reply_with_durable_identity", post)
         monkeypatch.setattr(bot, "ENABLE_AUTO_REPLIES", bool(index))
         monkeypatch.setattr(bot, "MAX_AUTO_REPLIES_PER_DAY", 20 + index)
@@ -59,14 +73,25 @@ def test_cycle_boundaries_capture_current_callbacks_and_config_between_calls(mon
         config, persistence, delivery = (supplied[key] for key in ("config", "persistence", "delivery"))
         assert config.enabled is bool(index)
         assert config.maximum_daily_replies == 20 + index
-        assert persistence.save is save and persistence.recover is recover
+        assert factory.call_count == index + 1
+        drafts = draft_owners[-1]
+        assert persistence.save is save
+        for method in ("recover", "store", "clear"):
+            bound_method = getattr(persistence, method)
+            assert bound_method.__self__ is drafts
+            assert bound_method.__func__ is getattr(type(drafts), method)
+        assert drafts.evidence_repository is evidence
+        evidence.assert_not_called()
         assert delivery.post is post
         assert delivery.finalise is bot.finalise_confirmed_reply
         with pytest.raises(FrozenInstanceError):
             persistence.save = Mock()
-        snapshots.append((persistence, save))
+        snapshots.append((persistence, save, evidence))
     assert snapshots[0][0].save is snapshots[0][1]
     assert snapshots[0][0].save is not snapshots[1][0].save
+    assert draft_owners[0] is not draft_owners[1]
+    assert draft_owners[0].evidence_repository is snapshots[0][2]
+    assert draft_owners[0].evidence_repository is not draft_owners[1].evidence_repository
     assert state == {}
 
 
@@ -120,8 +145,12 @@ def test_cycles_consume_typed_results_through_durable_outcomes(monkeypatch, lane
     monkeypatch.setattr(bot, "generate_single_call_reply", Mock(side_effect=AssertionError("legacy evaluator used")))
     monkeypatch.setattr(bot, "pending_ai_reply", Mock(side_effect=AssertionError("legacy recovery used")))
     monkeypatch.setattr(bot, "reply_target_is_available_immediately_before_send", Mock(return_value=True))
-    recovery = Mock(wraps=bot.recover_pending_ai_reply)
-    monkeypatch.setattr(bot, "recover_pending_ai_reply", recovery)
+    recovery = Mock(wraps=bot._reply_draft_owner().recover)
+    patch_reply_draft_method(monkeypatch, "recover", recovery)
+    for name in (
+        "recover_pending_ai_reply", "store_pending_ai_reply", "validate_current_ai_reply_draft",
+    ):
+        monkeypatch.setattr(bot, name, Mock(side_effect=AssertionError("draft owner used root adapter")))
 
     def post(**kwargs):
         assert kwargs["state"] is state
@@ -229,8 +258,8 @@ def test_typed_local_failure_keeps_prior_429_cooldown_and_terminal_retirement(mo
 
 def test_recovery_distinguishes_absent_obsolete_invalid_and_recovered_drafts(monkeypatch):
     context = unit_reply_context()
-    validate = Mock(wraps=bot.validate_current_ai_reply_draft)
-    monkeypatch.setattr(bot, "validate_current_ai_reply_draft", validate)
+    validate = Mock(wraps=bot._reply_draft_owner().validate)
+    patch_reply_draft_method(monkeypatch, "validate", validate)
     assert bot.recover_pending_ai_reply({}, "100", "mention", context=context) is None
     validate.assert_not_called()
     obsolete_state = {"pending_ai_reply_drafts": {"mention:100": {"schema_version": 0}}}

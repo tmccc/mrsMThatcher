@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from mrs_bot_reply_cycle_interfaces import PreparedReplyContext
 from tests.helpers.reply_evaluation import legacy_reply_evaluator
+from tests.helpers.reply_fixtures import patch_reply_draft_method
 
 import copy
 import json
@@ -659,7 +660,7 @@ def test_approved_reply_production_branch_clears_author_strikes(
         assert current_state["author_evaluation_quarantines"] == {}
         raise ApprovedBranchReached
 
-    monkeypatch.setattr(bot, "store_pending_ai_reply", stop_after_approved_branch)
+    patch_reply_draft_method(monkeypatch, "store", stop_after_approved_branch)
 
     with pytest.raises(ApprovedBranchReached):
         bot.maybe_reply_to_mentions(state)

@@ -20,6 +20,7 @@ from tests.helpers.bot_runtime import SOURCE_GET_TWEET_BY_ID, bot
 from tests.helpers.bot_fixtures import isolate_bot_runtime  # noqa: F401
 from tests.helpers.reply_fixtures import (
     configure_quote_cycle as _configure_cycle,
+    patch_reply_draft_method,
     unit_approved_reply,
     unit_confirmed_v4_reply_receipt,
 )
@@ -370,12 +371,20 @@ def test_reused_draft_keeps_context_references_durability_and_pre_send_availabil
     bot.save_state(state, durable=True)
     bot.reply_media_context_for_candidate.reset_mock()
     trace = Mock()
+    draft_methods = {"recover_pending_ai_reply": "recover", "store_pending_ai_reply": "store"}
     for name in ("cache_tweet", "save_state", "build_quote_tweet_reply_context",
                  "reply_evidence_repository", "recovery_comparison_account_replies",
                  "recover_pending_ai_reply", "store_pending_ai_reply", "bind_conversational_reply_attempt_time"):
-        callback = Mock(wraps=getattr(bot, name))
+        original = (
+            getattr(bot._reply_draft_owner(), draft_methods[name])
+            if name in draft_methods else getattr(bot, name)
+        )
+        callback = Mock(wraps=original)
         trace.attach_mock(callback, name)
-        monkeypatch.setattr(bot, name, callback)
+        if name in draft_methods:
+            patch_reply_draft_method(monkeypatch, draft_methods[name], callback)
+        else:
+            monkeypatch.setattr(bot, name, callback)
     monkeypatch.setattr(bot, "evaluate_single_call_reply", legacy_reply_evaluator(Mock(side_effect=AssertionError("draft must be reused"))))
 
     def unavailable(target_id):
@@ -687,7 +696,10 @@ def test_pre_generation_failures_keep_their_own_exception_boundary(monkeypatch, 
     evidence_failure = boundary == "reply_evidence_repository"
     failure = (bot.ReplyEvidenceUnavailable("evidence unavailable")
                if evidence_failure else ValueError("outside generation"))
-    monkeypatch.setattr(bot, boundary, Mock(side_effect=failure))
+    if boundary == "recover_pending_ai_reply":
+        patch_reply_draft_method(monkeypatch, "recover", Mock(side_effect=failure))
+    else:
+        monkeypatch.setattr(bot, boundary, Mock(side_effect=failure))
     save, health, generate = Mock(), Mock(), Mock()
     monkeypatch.setattr(bot, "save_state", save)
     monkeypatch.setattr(bot, "record_api_error", health)

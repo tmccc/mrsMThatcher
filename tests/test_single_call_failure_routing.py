@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from mrs_bot_reply_cycle_interfaces import PreparedReplyContext
 from tests.helpers.reply_evaluation import legacy_reply_evaluator
+from tests.helpers.reply_fixtures import patch_reply_draft_method
 
 import copy
 import io
@@ -447,7 +448,7 @@ def test_rejected_reply_survives_real_log_to_digest_json_without_becoming_publis
     def forbidden(*_args, **_kwargs):
         pytest.fail("Rejected diagnostic text reached the publishable-draft path")
 
-    monkeypatch.setattr(bot, "store_pending_ai_reply", forbidden)
+    patch_reply_draft_method(monkeypatch, "store", forbidden)
     source_context = pipeline_context(turns=1)
     source_context["target_id"] = "2090000000000000001"
     assert bot.generate_single_call_reply(source_context, None, state=state) is None

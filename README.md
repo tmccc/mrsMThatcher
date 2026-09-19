@@ -231,6 +231,7 @@ deployed as a coherent set:
 - `mrs_bot_daily_meme.py`
 - `mrs_bot_legacy_reply_validation.py`
 - `mrs_bot_reply_state.py`
+- `mrs_bot_reply_drafts.py`
 - `mrs_bot_reply_generation.py`
 - `mrs_bot_reply_cycle_interfaces.py`
 - `mrs_bot_reply_preparation.py`

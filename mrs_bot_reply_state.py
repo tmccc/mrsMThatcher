@@ -1,267 +1,27 @@
-"""Manage current local reply drafts and query already-confirmed reply history.
+"""Coordinate ineligible-draft retirement and query confirmed reply history.
 
-Root adapters and reply-lane owners supply current helpers, limits,
-configuration, logger, exception and result classes on each call. Shared
-ineligible-draft retirement leaves candidate bookkeeping and saves to its lane.
-The fixed conversational-lane set lives here;
-its root name remains a direct alias. Bodies preserve existing validation,
-reference, copying, ordering and recovery boundaries. Provider transport, durable
-history writes, state persistence and receipt lifecycle authority remain with
-their existing owners. Import uses the standard library and pure validation
-vocabulary and performs no file, environment, provider or RNG work. No
-callbacks or mutable state are retained.
+Root adapters and reply-lane owners supply current helpers, limits and
+configuration on each call. Shared ineligible-draft retirement leaves candidate
+bookkeeping and saves to its lane. Pending draft lifecycle rules live in
+mrs_bot_reply_drafts; its key helper is re-exported here for compatibility.
+The fixed conversational-lane set lives here and its root name remains a direct
+alias. History bodies preserve existing reference and ordering boundaries.
+Import performs no file, environment, provider or RNG work. No callbacks or
+mutable state are retained.
 """
 
 from __future__ import annotations
 
-import copy
 import hashlib
-import logging
 from collections.abc import Callable
 from datetime import datetime
 
-from single_call_reply_validation import (
-    normalise_validation_error_codes,
-    rejected_reply_text_fields,
-)
+from mrs_bot_reply_drafts import pending_ai_reply_draft_key
 
 
 CONVERSATIONAL_REPLY_HISTORY_LANES = frozenset(
     {"mention", "hot_post_reply", "quote_tweet", "conversational_reply"}
 )
-
-
-def pending_ai_reply_draft_key(target_id: object, candidate_source: object) -> str:
-    """Return the current single-call pending reply draft key."""
-
-    return f"{str(candidate_source or 'mention')}:{str(target_id)}"
-
-
-def validate_current_ai_reply_draft(
-    draft: object,
-    *,
-    context: dict[str, object],
-    recent_replies: list[object] | None = None,
-    validate_single_call_persisted_draft: Callable,
-    reply_evidence_repository: Callable,
-) -> dict:
-    """Validate only a current single-call durable reply draft."""
-
-    return validate_single_call_persisted_draft(
-        draft,
-        context=context,
-        repository=reply_evidence_repository(),
-        recent_account_replies=recent_replies or [],
-    )
-
-
-def store_pending_ai_reply(
-    state: dict,
-    target_id: str,
-    candidate_source: str,
-    reply: str,
-    *,
-    context: dict[str, object],
-    ValidatedReply: type,
-    validate_current_ai_reply_draft: Callable,
-    log: logging.Logger,
-    pending_ai_reply_draft_key: Callable,
-) -> bool:
-    """Store a mechanically validated single-call draft."""
-
-    if not isinstance(reply, ValidatedReply):
-        return False
-    try:
-        validated = validate_current_ai_reply_draft(
-            reply.draft_record,
-            context=context,
-        )
-    except (KeyError, OSError, RuntimeError, TypeError, ValueError) as exc:
-        log.warning(
-            "Refusing invalid single-call pending reply draft target_id=%s "
-            "source=%s reason=%s",
-            target_id,
-            candidate_source,
-            exc,
-        )
-        return False
-    if (
-        validated["target_id"] != str(target_id)
-        or validated["candidate_source"] != str(candidate_source)
-        or validated["proposed_reply"] != str(reply)
-    ):
-        return False
-    drafts = state.setdefault("pending_ai_reply_drafts", {})
-    if not isinstance(drafts, dict):
-        return False
-    drafts[pending_ai_reply_draft_key(target_id, candidate_source)] = (
-        copy.deepcopy(validated)
-    )
-    while len(drafts) > 100:
-        drafts.pop(next(iter(drafts)))
-    return True
-
-
-def recover_pending_ai_reply(
-    state: dict,
-    target_id: str,
-    candidate_source: str,
-    *,
-    context: dict[str, object],
-    recent_replies: list[object] | None = None,
-    pending_ai_reply_draft_key: Callable,
-    validate_current_ai_reply_draft: Callable,
-    ReplyEvidenceUnavailable: type,
-    ReplyValidationError: type,
-    log: logging.Logger,
-    _record_single_call_result: Callable,
-    PipelineResult: type,
-    log_event: Callable,
-    SINGLE_CALL_STRATEGY_VERSION: str,
-    SINGLE_CALL_MODEL: str,
-    ValidatedReply: type,
-) -> PipelineResult | None:
-    """Return a recovered decision, a discarded/failed draft result, or no draft.
-
-    Obsolete draft shapes may be regenerated. A current draft that fails local
-    reply validation is a terminal zero-call evaluation for this candidate.
-    """
-
-    drafts = state.get("pending_ai_reply_drafts", {})
-    if not isinstance(drafts, dict):
-        return None
-    key = pending_ai_reply_draft_key(target_id, candidate_source)
-    record = drafts.get(key)
-    if record is None:
-        return None
-    try:
-        validated = validate_current_ai_reply_draft(
-            record,
-            context=context,
-            recent_replies=recent_replies,
-        )
-    except ReplyEvidenceUnavailable:
-        raise
-    except ReplyValidationError as exc:
-        validation_codes, _omitted = normalise_validation_error_codes(
-            getattr(exc, "errors", ())
-        )
-        rejected_text = rejected_reply_text_fields(
-            record.get("proposed_reply") if isinstance(record, dict) else None
-        )
-        if record is not None:
-            log.warning(
-                "Retiring pending reply draft that fails current local "
-                "validation target_id=%s source=%s reason=%s",
-                target_id,
-                candidate_source,
-                ",".join(validation_codes) or "validation_details_unavailable",
-            )
-            drafts.pop(key, None)
-            if not drafts:
-                state.pop("pending_ai_reply_drafts", None)
-        visible = [
-            turn
-            for turn in (context.get("visible_conversation") or [])
-            if isinstance(turn, dict)
-        ]
-        result = PipelineResult(
-            status="operational_failure",
-            reason="persisted_draft_local_validation_failed",
-            error_category="local_validation",
-            model_call_count=0,
-            local_validation_status="failed",
-            validation_error_codes=validation_codes,
-            rejected_reply_text=rejected_text["rejected_reply_text"],
-            rejected_reply_text_character_count=(
-                rejected_text["rejected_reply_text_character_count"]
-            ),
-            payload_sha256=(
-                str(record.get("model_payload_sha256"))
-                if isinstance(record, dict)
-                else None
-            ),
-            visible_turn_count=len(visible),
-            visible_character_count=sum(
-                len(str(turn.get("text") or "")) for turn in visible
-            ),
-            recent_conversational_reply_count=len(recent_replies or []),
-            supplied_image_count=(
-                len(record.get("supplied_images") or [])
-                if isinstance(record, dict)
-                else 0
-            ),
-        )
-        _record_single_call_result(result, lane=candidate_source, target_id=target_id)
-        return result
-    except (KeyError, OSError, RuntimeError, TypeError, ValueError) as exc:
-        if record is not None:
-            log.warning(
-                "Discarding obsolete or invalid pending reply draft "
-                "target_id=%s source=%s reason=%s",
-                target_id,
-                candidate_source,
-                exc,
-            )
-            drafts.pop(key, None)
-            if not drafts:
-                state.pop("pending_ai_reply_drafts", None)
-        return PipelineResult(
-            status="draft_discarded",
-            reason="obsolete_or_invalid_persisted_draft",
-            error_category="draft_validation",
-        )
-    metadata = {
-        "strategy_version": validated["strategy_version"],
-        "reply_kind": validated["reply_kind"],
-        "reason_code": validated["reason_code"],
-        "used_fact_ids": list(validated["used_fact_ids"]),
-        "used_fact_count": len(validated["used_fact_ids"]),
-        "trusted_fact_count": len(validated["trusted_fact_ids"]),
-        "model_call_count": validated["model_call_count"],
-        "validated_draft_hash": validated["validated_draft_hash"],
-        "recovered_without_provider_call": True,
-    }
-    log_event(
-        "single_call_reply_draft_recovered",
-        lane=str(candidate_source),
-        target_id=str(target_id),
-        strategy_version=SINGLE_CALL_STRATEGY_VERSION,
-        model=SINGLE_CALL_MODEL,
-        validated_draft_hash=validated["validated_draft_hash"],
-        model_call_count=0,
-    )
-    return PipelineResult(
-        status="reply",
-        reason="persisted_draft_recovered",
-        decision="reply",
-        reply_kind=validated["reply_kind"],
-        reason_code=validated["reason_code"],
-        reply=ValidatedReply(validated["proposed_reply"], copy.deepcopy(validated), metadata),
-        used_fact_ids=tuple(validated["used_fact_ids"]),
-        model_call_count=0,
-        local_validation_status="passed",
-        payload_sha256=validated["model_payload_sha256"],
-        trusted_fact_count=len(validated["trusted_fact_ids"]),
-        supplied_image_count=len(validated.get("supplied_images") or []),
-    )
-
-
-def clear_pending_ai_reply(
-    state: dict,
-    target_id: str,
-    candidate_source: str,
-    *,
-    pending_ai_reply_draft_key: Callable,
-) -> None:
-    """Clear one pending reply draft after a terminal outcome or reconciliation."""
-
-    drafts = state.get("pending_ai_reply_drafts")
-    if not isinstance(drafts, dict):
-        return
-    drafts.pop(pending_ai_reply_draft_key(target_id, candidate_source), None)
-    if not drafts:
-        state.pop("pending_ai_reply_drafts", None)
 
 
 def retire_ineligible_reply_draft(
@@ -583,21 +343,3 @@ def _reply_target_epoch(context: dict[str, object]) -> int | None:
     if parsed.tzinfo is None:
         return None
     return int(parsed.timestamp())
-
-
-def ai_reply_receipt_draft_is_valid(
-    data: dict,
-    text: object,
-    *,
-    validate_current_ai_reply_draft: Callable,
-) -> bool:
-    """Return whether a receipt carries a valid current single-call draft."""
-    context = data.get("reply_context")
-    draft = data.get("ai_reply_draft")
-    if not isinstance(context, dict) or not isinstance(draft, dict):
-        return False
-    try:
-        validated = validate_current_ai_reply_draft(draft, context=context)
-    except (KeyError, OSError, RuntimeError, TypeError, ValueError):
-        return False
-    return validated["proposed_reply"] == text

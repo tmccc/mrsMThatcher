@@ -27,6 +27,7 @@ from tests.helpers.bot_fixtures import (
 )
 from tests.helpers.reply_fixtures import (
     UNIT_REPLY_REPOSITORY,
+    patch_reply_draft_method,
     unit_reply_context,
     unit_approved_reply,
     unit_confirmed_reply_receipt,
@@ -400,7 +401,7 @@ def test_strategy_persistence_failure_blocks_quote_tweet_x_write(
                 mode="opinion_or_principle",
             )),
         )
-        monkeypatch.setattr(bot, "store_pending_ai_reply", lambda *_args, **_kwargs: False)
+        patch_reply_draft_method(monkeypatch, "store", lambda *_args, **_kwargs: False)
         monkeypatch.setattr(
             bot,
             "create_post",
@@ -1371,7 +1372,7 @@ def test_strategy_persistence_failure_blocks_mention_x_write(
             mode="opinion_or_principle",
         )),
     )
-    monkeypatch.setattr(bot, "store_pending_ai_reply", lambda *_args, **_kwargs: False)
+    patch_reply_draft_method(monkeypatch, "store", lambda *_args, **_kwargs: False)
     monkeypatch.setattr(
         bot,
         "create_post",

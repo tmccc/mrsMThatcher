@@ -83,6 +83,17 @@ class UnitReplyEvidenceRepository:
 UNIT_REPLY_REPOSITORY = UnitReplyEvidenceRepository()
 
 
+def patch_reply_draft_method(monkeypatch, method: str, callback) -> None:
+    """Replace an owned draft operation using its existing public argument shape."""
+
+    from mrs_bot_reply_drafts import ReplyDrafts
+
+    def invoke(_owner, *args, **kwargs):
+        return callback(*args, **kwargs)
+
+    monkeypatch.setattr(ReplyDrafts, method, invoke)
+
+
 def unit_reply_context(
     *,
     target_id: str = "100",

@@ -246,6 +246,7 @@ import mrs_bot_quote_posting as _quote_posting
 import mrs_bot_daily_meme as _daily_meme
 import mrs_bot_legacy_reply_validation as _legacy_reply_validation
 import mrs_bot_reply_state as _reply_state
+import mrs_bot_reply_drafts as _reply_drafts
 import mrs_bot_reply_generation as _reply_generation
 import mrs_bot_reply_receipt_values as _reply_receipt_values
 import mrs_bot_reply_reconciliation as _reply_reconciliation
@@ -7705,7 +7706,24 @@ def is_probably_spam_or_not_worth_replying(text: str) -> bool:
     )
 
 
-pending_ai_reply_draft_key = _reply_state.pending_ai_reply_draft_key
+def _reply_draft_owner() -> _reply_drafts.ReplyDrafts:
+    """Bind current draft dependencies without acquiring evidence or caller state."""
+    return _reply_drafts.ReplyDrafts(
+        validate_persisted_draft=validate_single_call_persisted_draft,
+        evidence_repository=reply_evidence_repository,
+        record_result=_record_single_call_result,
+        log_event=log_event,
+        log=log,
+        strategy_version=SINGLE_CALL_STRATEGY_VERSION,
+        model=SINGLE_CALL_MODEL,
+        result_type=PipelineResult,
+        reply_type=ValidatedReply,
+        evidence_unavailable=ReplyEvidenceUnavailable,
+        validation_error=ReplyValidationError,
+    )
+
+
+pending_ai_reply_draft_key = _reply_drafts.pending_ai_reply_draft_key
 
 
 def validate_current_ai_reply_draft(
@@ -7714,13 +7732,9 @@ def validate_current_ai_reply_draft(
     context: dict[str, object],
     recent_replies: list[object] | None = None,
 ) -> dict:
-    """Delegate reply state with current root dependencies."""
-    return _reply_state.validate_current_ai_reply_draft(
-        draft,
-        context=context,
-        recent_replies=recent_replies,
-        validate_single_call_persisted_draft=validate_single_call_persisted_draft,
-        reply_evidence_repository=reply_evidence_repository,
+    """Validate a current draft through its owner."""
+    return _reply_draft_owner().validate(
+        draft, context=context, recent_replies=recent_replies,
     )
 
 
@@ -7732,14 +7746,9 @@ def store_pending_ai_reply(
     *,
     context: dict[str, object],
 ) -> bool:
-    """Delegate reply state with current root dependencies."""
-    return _reply_state.store_pending_ai_reply(
-        state, target_id, candidate_source, reply,
-        context=context,
-        ValidatedReply=ValidatedReply,
-        validate_current_ai_reply_draft=validate_current_ai_reply_draft,
-        log=log,
-        pending_ai_reply_draft_key=pending_ai_reply_draft_key,
+    """Store a validated pending draft through its owner."""
+    return _reply_draft_owner().store(
+        state, target_id, candidate_source, reply, context=context,
     )
 
 
@@ -7774,31 +7783,16 @@ def recover_pending_ai_reply(
     context: dict[str, object],
     recent_replies: list[object] | None = None,
 ) -> PipelineResult | None:
-    """Delegate reply state with current root dependencies."""
-    return _reply_state.recover_pending_ai_reply(
+    """Recover a pending draft through its owner without a provider call."""
+    return _reply_draft_owner().recover(
         state, target_id, candidate_source,
-        context=context,
-        recent_replies=recent_replies,
-        pending_ai_reply_draft_key=pending_ai_reply_draft_key,
-        validate_current_ai_reply_draft=validate_current_ai_reply_draft,
-        ReplyEvidenceUnavailable=ReplyEvidenceUnavailable,
-        ReplyValidationError=ReplyValidationError,
-        log=log,
-        _record_single_call_result=_record_single_call_result,
-        PipelineResult=PipelineResult,
-        log_event=log_event,
-        SINGLE_CALL_STRATEGY_VERSION=SINGLE_CALL_STRATEGY_VERSION,
-        SINGLE_CALL_MODEL=SINGLE_CALL_MODEL,
-        ValidatedReply=ValidatedReply,
+        context=context, recent_replies=recent_replies,
     )
 
 
 def clear_pending_ai_reply(state: dict, target_id: str, candidate_source: str) -> None:
-    """Delegate reply state with current root dependencies."""
-    return _reply_state.clear_pending_ai_reply(
-        state, target_id, candidate_source,
-        pending_ai_reply_draft_key=pending_ai_reply_draft_key,
-    )
+    """Clear a pending draft through its owner."""
+    return _reply_draft_owner().clear(state, target_id, candidate_source)
 
 
 def log_ai_reply_posting_outcome(
@@ -8161,11 +8155,8 @@ def record_terminal_reply_evaluation(
 
 
 def ai_reply_receipt_draft_is_valid(data: dict, text: object) -> bool:
-    """Delegate reply state with current root dependencies."""
-    return _reply_state.ai_reply_receipt_draft_is_valid(
-        data, text,
-        validate_current_ai_reply_draft=validate_current_ai_reply_draft,
-    )
+    """Validate the current draft carried by a receipt through its owner."""
+    return _reply_draft_owner().receipt_draft_is_valid(data, text)
 
 
 _LEGACY_TESTED_REPLY_STRATEGY_VERSION = _legacy_reply_validation._LEGACY_TESTED_REPLY_STRATEGY_VERSION
@@ -8787,10 +8778,11 @@ def finalise_confirmed_reply(
 
 
 def _reply_cycle_persistence() -> _reply_cycle_interfaces.ReplyCyclePersistence:
-    """Bind current local persistence callbacks for one cycle invocation."""
+    """Bind one draft owner and the current durable save for a cycle invocation."""
+    drafts = _reply_draft_owner()
     return _reply_cycle_interfaces.ReplyCyclePersistence(
-        save=save_state, recover=recover_pending_ai_reply,
-        store=store_pending_ai_reply, clear=clear_pending_ai_reply,
+        save=save_state, recover=drafts.recover,
+        store=drafts.store, clear=drafts.clear,
     )
 
 

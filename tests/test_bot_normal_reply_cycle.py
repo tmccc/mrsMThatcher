@@ -24,6 +24,7 @@ from tests.helpers.bot_runtime import bot
 from tests.helpers.bot_fixtures import isolate_bot_runtime  # noqa: F401
 from tests.helpers.reply_fixtures import (
     configure_normal_cycle as _configure_cycle,
+    patch_reply_draft_method,
     unit_approved_reply,
     unit_confirmed_v4_reply_receipt,
     unit_reply_context,
@@ -40,7 +41,7 @@ def forbidden(*args, **kwargs):
 
 original_import = builtins.__import__
 def guarded_import(name, *args, **kwargs):
-    if name in {'mrsMThatcher2', 'requests', 'openai', 'single_call_reply', 'reply_evidence'} or name.startswith('mrs_bot_') and name not in {'mrs_bot_normal_reply_cycle', 'mrs_bot_reply_cycle_interfaces', 'mrs_bot_reply_preparation', 'mrs_bot_reply_delivery', 'mrs_bot_reply_state', 'mrs_bot_reply_evaluation_state'}:
+    if name in {'mrsMThatcher2', 'requests', 'openai', 'single_call_reply', 'reply_evidence'} or name.startswith('mrs_bot_') and name not in {'mrs_bot_normal_reply_cycle', 'mrs_bot_reply_cycle_interfaces', 'mrs_bot_reply_preparation', 'mrs_bot_reply_delivery', 'mrs_bot_reply_state', 'mrs_bot_reply_drafts', 'mrs_bot_reply_evaluation_state'}:
         forbidden()
     return original_import(name, *args, **kwargs)
 
@@ -189,7 +190,10 @@ def test_draft_recovery_errors_propagate_before_generation(monkeypatch, callback
     state = bot.default_state()
     queue_active_mention(state, mention(105, 205), base_since_id="99")
     failure = RuntimeError("draft recovery failed locally")
-    monkeypatch.setattr(bot, callback, Mock(side_effect=failure))
+    if callback == "recover_pending_ai_reply":
+        patch_reply_draft_method(monkeypatch, "recover", Mock(side_effect=failure))
+    else:
+        monkeypatch.setattr(bot, callback, Mock(side_effect=failure))
     saved = Mock(wraps=bot.save_state)
     accounted = Mock(wraps=bot.record_api_error)
     monkeypatch.setattr(bot, "save_state", saved)
@@ -272,13 +276,16 @@ def test_ineligible_mention_draft_retirement_precedes_seen_marker_and_durable_sa
         ("seen", "mark_mention_seen_if_applicable"),
         ("save", "save_state"),
     ):
-        original = getattr(bot, name)
+        original = bot._reply_draft_owner().clear if label == "clear" else getattr(bot, name)
 
         def observe(*args, _label=label, _original=original, **kwargs):
             trace.append((_label, kwargs.get("durable")))
             return _original(*args, **kwargs)
 
-        monkeypatch.setattr(bot, name, observe)
+        if label == "clear":
+            patch_reply_draft_method(monkeypatch, "clear", observe)
+        else:
+            monkeypatch.setattr(bot, name, observe)
     monkeypatch.setattr(bot, "log_event", lambda event, **kwargs: trace.append((event, None)))
     context = Mock(side_effect=AssertionError("ineligible target must not build context"))
     monkeypatch.setattr(bot, "build_context_for_reply_ai", context)

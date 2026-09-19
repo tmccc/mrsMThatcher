@@ -39,7 +39,8 @@ need. A recovered draft can bypass model evaluation.
 | Candidate discovery and durable mention queue | [mrs_bot_mention_discovery.py](../mrs_bot_mention_discovery.py), [mrs_bot_hot_post_discovery.py](../mrs_bot_hot_post_discovery.py), [mrs_bot_quote_discovery.py](../mrs_bot_quote_discovery.py) |
 | Verified conversation context | [mrs_bot_reply_context.py](../mrs_bot_reply_context.py) |
 | Provider integration and local decision/validation | [mrs_bot_reply_generation.py](../mrs_bot_reply_generation.py), then [single_call_reply.py](../single_call_reply.py) |
-| Pending drafts and retirement | [mrs_bot_reply_state.py](../mrs_bot_reply_state.py) |
+| Pending-draft validation, storage, recovery, clearing and receipt-draft checks | `ReplyDrafts` in [mrs_bot_reply_drafts.py](../mrs_bot_reply_drafts.py) |
+| Confirmed-reply history and ineligible-target retirement | [mrs_bot_reply_state.py](../mrs_bot_reply_state.py) |
 | Save draft, prepare receipt, send and commit confirmation | [mrs_bot_reply_preparation.py](../mrs_bot_reply_preparation.py), [mrs_bot_reply_delivery.py](../mrs_bot_reply_delivery.py), [mrs_bot_reply_reconciliation.py](../mrs_bot_reply_reconciliation.py) |
 
 [mrs_bot_reply_cycle_interfaces.py](../mrs_bot_reply_cycle_interfaces.py) describes
@@ -50,6 +51,18 @@ and receipts. In the normal cycle, `evaluation_record_pruning_pending` tracks
 deferred in-memory pruning;
 `quarantine_retirements_pending` tracks bookkeeping still needing a durable save.
 These are different obligations even when they arise from the same candidate.
+
+For a change to saved-draft behaviour, start with `ReplyDrafts`. Its `store`,
+`recover` and `receipt_draft_is_valid` methods call its own `validate` method;
+internal draft operations do not return through root adapters. Each validation
+acquires current evidence. Recovery distinguishes an absent draft, an obsolete
+draft, a terminal validation failure and a reusable reply with zero model calls.
+The root's `_reply_draft_owner()` binds current dependencies without loading
+evidence. `_reply_cycle_persistence()` creates one owner per cycle invocation
+and supplies its bound `recover`, `store` and `clear` methods alongside the
+existing durable-save callback. Root draft functions remain compatibility entry
+points. Draft behaviour tests live in `tests/test_bot_reply_drafts.py`; cycle
+tests retain budget, save-order and terminal-retirement checks.
 
 ## Digest input, analysis and reporting
 
