@@ -304,7 +304,6 @@ import mrs_bot_runtime_state_helpers as _runtime_state_helpers
 from single_call_reply import (
     MAX_IMAGE_BYTES as SINGLE_CALL_MAX_IMAGE_BYTES,
     MAX_RECENT_ACCOUNT_REPLIES,
-    MAX_REPLY_SENTENCES,
     MAX_SAME_AUTHOR_INTERACTIONS,
     MAX_SUPPLIED_IMAGES,
     MAX_TRUSTED_FACTS,

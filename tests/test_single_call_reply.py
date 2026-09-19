@@ -32,10 +32,10 @@ def test_frozen_prompt_and_schema_hashes() -> None:
     """Pin the exact reviewed prompt bytes and local response contract."""
 
     assert pipeline.PROMPT_SHA256 == (
-        "a0a124490144f2ed2bfff85362d96d5b9853204554752758d29ababbe0fbdbdd"
+        "c1e6145bd90b9811258e91b598ff695ab69900878ed7c03e9210676638377d67"
     )
     assert pipeline.RESPONSE_SCHEMA_SHA256 == (
-        "6ddc2a1d5af7b3c66af2a3e8d9c357c7fc86198553b8be1db2f263751842cbd4"
+        "936ea48c371babd74944a227619531139f0386a28ac64130ccfae246b14655b5"
     )
     assert "uniqueItems" in pipeline.RESPONSE_SCHEMA["properties"]["used_fact_ids"]
     assert "uniqueItems" not in pipeline.provider_response_schema()["properties"][
@@ -321,7 +321,7 @@ def test_fact_compaction_deduplicates_without_history_contaminating_retrieval() 
     assert payload["visible_conversation"][0]["text"] == (
         "DIRECTLY-QUOTED-SUBJECT"
     )
-    assert len(payload["trusted_facts"]) == 2
+    assert len(payload["trusted_facts"]) == 3
 
 
 def test_trusted_fact_retrieval_excludes_uncertain_and_interpretive_passages() -> None:
@@ -1071,15 +1071,14 @@ def test_bare_ambiguous_cjk_hostname_form_is_rejected(address: str) -> None:
         "「責任が大切です。原則は行動を導きます。」",
     ],
 )
-def test_sentence_count_accepts_abbreviations_and_unicode_closers(
+def test_reply_accepts_abbreviations_and_unicode_closers(
     reply: str,
 ) -> None:
-    """Do not manufacture extra sentences from punctuation conventions."""
+    """Keep ordinary punctuation valid without imposing a sentence count."""
 
     payload, _mapping = pipeline.build_model_payload(
         context=context(), repository=FakeRepository()
     )
-    assert pipeline.sentence_count(reply) <= pipeline.MAX_REPLY_SENTENCES
     assert_prose_has_no_mechanical_errors(reply, payload)
 
 
@@ -1114,7 +1113,7 @@ def test_sentence_count_accepts_abbreviations_and_unicode_closers(
         "The Govt. Department acted. We agreed.",
     ],
 )
-def test_sentence_count_accepts_clear_capitalised_abbreviation_continuations(
+def test_reply_accepts_capitalised_abbreviation_continuations(
     reply: str,
 ) -> None:
     """Recognise common title, entity and clause-initial time continuations."""
@@ -1122,7 +1121,6 @@ def test_sentence_count_accepts_clear_capitalised_abbreviation_continuations(
     payload, _mapping = pipeline.build_model_payload(
         context=context(), repository=FakeRepository()
     )
-    assert pipeline.sentence_count(reply) == 2
     assert_prose_has_no_mechanical_errors(reply, payload)
 
 
@@ -1136,9 +1134,6 @@ def test_sentence_count_accepts_clear_capitalised_abbreviation_continuations(
         "I live in the U.K. “It is cold.” It is wet.",
         "I live in the U.K. (It is cold.) It is wet.",
         "I live in the U.K. 2025 was cold. It changed.",
-        "He lives in the U.K.It matters. We agree.",
-        "A.It works. It is fine.",
-        "Prof.She agrees. We proceed.",
         "I live in the U.K.“It is cold.” It is wet.",
         "At 3 p.m. It mattered. We left.",
         "By 5 p.m. We stopped. They left.",
@@ -1164,25 +1159,15 @@ def test_sentence_count_accepts_clear_capitalised_abbreviation_continuations(
         "དང་པོ། གཉིས་པ། གསུམ་པ།",
     ],
 )
-def test_sentence_count_rejects_unicode_or_abbreviated_three_sentences(
+def test_reply_accepts_unicode_or_abbreviated_three_sentences(
     reply: str,
 ) -> None:
-    """Keep the two-sentence ceiling across scripts and abbreviations."""
+    """Sentence count does not reject otherwise valid short prose."""
 
     payload, _mapping = pipeline.build_model_payload(
         context=context(), repository=FakeRepository()
     )
-    assert pipeline.sentence_count(reply) == 3
-    with pytest.raises(pipeline.ReplyValidationError) as raised:
-        pipeline.validate_model_output(raw_decision(reply=reply), payload=payload)
-    assert "reply_sentence_limit_exceeded" in raised.value.errors
-
-
-def test_inverted_question_mark_is_not_a_sentence_terminator() -> None:
-    """Count Spanish opening punctuation only at the closing question mark."""
-
-    reply = "¿Qué tal? Bien."
-    assert pipeline.sentence_count(reply) == 2
+    assert_prose_has_no_mechanical_errors(reply, payload)
 
 
 @pytest.mark.parametrize("separator", ["\N{LINE SEPARATOR}", "\N{PARAGRAPH SEPARATOR}"])
@@ -1275,9 +1260,9 @@ def test_no_reply_is_editorial_but_invalid_output_is_operational() -> None:
             ("duplicate_used_fact_ids",),
         ),
         (
-            raw_decision(reply="First point. Second point. Third point."),
+            raw_decision(reply="First point. Second point. " * 15),
             "local_validation",
-            ("reply_sentence_limit_exceeded",),
+            ("invalid_reply_length_or_whitespace",),
         ),
         (
             raw_decision(kind="direct_factual", reply="I am an automated account."),

@@ -1,0 +1,170 @@
+{
+  "source_commit": "3f816f05799292b568681d28868b7b2ffe7b314a",
+  "cases": [
+    {
+      "case_id": "social",
+      "sending_receipt": {
+        "schema_version": 4,
+        "target_id": "100",
+        "author_id": "200",
+        "candidate_source": "mention",
+        "conversation_id": "100",
+        "reply_text": "Thank you for the observation.",
+        "reply_context": {
+          "target_id": "100",
+          "thread_id": "100",
+          "root_post_id": "100",
+          "parent_post_id": null,
+          "lane": "mention",
+          "incoming_contribution": "A contribution.",
+          "quoted_post": null,
+          "parent_thread": [],
+          "visible_conversation": [
+            {
+              "post_id": "100",
+              "author_role": "user",
+              "text": "A contribution."
+            }
+          ],
+          "visual_description": null,
+          "clarification_request": null,
+          "current_date": "2026-07-20",
+          "target_author_id": "200",
+          "target_created_at": "2026-07-20T12:00:00Z"
+        },
+        "ai_reply_draft": {
+          "draft_schema_version": 4,
+          "strategy_version": "single-sol-reply-20260904",
+          "target_id": "100",
+          "target_author_id": "200",
+          "root_post_id": "100",
+          "parent_post_id": null,
+          "candidate_source": "mention",
+          "incoming_contribution_sha256": "0e16364f73da83630f743f04aef446711097115f9f082ae0123a1a62abc92d57",
+          "canonical_visible_context_sha256": "7cb6c29ac0628fa6ec53cb82f10d9c8165e7688e28012068241b59664ddebe94",
+          "quoted_subject_sha256": null,
+          "model_payload_sha256": "40f476ec9caf0c0d996e6cd8b140fec78f0797aa4f147bbd2b1e6ad810b6451c",
+          "prompt_sha256": "a0a124490144f2ed2bfff85362d96d5b9853204554752758d29ababbe0fbdbdd",
+          "response_schema_sha256": "6ddc2a1d5af7b3c66af2a3e8d9c357c7fc86198553b8be1db2f263751842cbd4",
+          "model": "gpt-5.6-sol",
+          "reasoning_effort": "high",
+          "temperature": 1,
+          "proposed_reply": "Thank you for the observation.",
+          "reply_kind": "social",
+          "reason_code": "useful_reply",
+          "trusted_fact_ids": [
+            "F1"
+          ],
+          "used_fact_ids": [],
+          "factual_claims": [],
+          "time_context": {
+            "current_date": "2026-07-20",
+            "target_created_at": "2026-07-20T12:00:00Z"
+          },
+          "used_fact_sources": [],
+          "supplied_images": [],
+          "model_call_count": 1,
+          "created_at": "2026-09-19T12:00:00Z",
+          "validated_draft_hash": "26add54284f5ae2776ba62c895acd13c37d1354293351f23401fe01ad8911b41"
+        },
+        "lifecycle_state": "sending",
+        "attempt_epoch": 1789819200,
+        "reply_epoch": 1789819200,
+        "daily_reply_date": "2026-09-19"
+      },
+      "source_receipt_sha256": "4c2d42ea46dbba717d90be05740bc5df5f8daee0b5b568bbacb1fbcde0f1620e",
+      "reply_post_id": "9100",
+      "confirmation_epoch": 1789819205
+    },
+    {
+      "case_id": "factual",
+      "sending_receipt": {
+        "schema_version": 4,
+        "target_id": "100",
+        "author_id": "200",
+        "candidate_source": "mention",
+        "conversation_id": "100",
+        "reply_text": "Trusted passage 1.",
+        "reply_context": {
+          "target_id": "100",
+          "thread_id": "100",
+          "root_post_id": "100",
+          "parent_post_id": null,
+          "lane": "mention",
+          "incoming_contribution": "A contribution.",
+          "quoted_post": null,
+          "parent_thread": [],
+          "visible_conversation": [
+            {
+              "post_id": "100",
+              "author_role": "user",
+              "text": "A contribution."
+            }
+          ],
+          "visual_description": null,
+          "clarification_request": null,
+          "current_date": "2026-07-20",
+          "target_author_id": "200",
+          "target_created_at": "2026-07-20T12:00:00Z"
+        },
+        "ai_reply_draft": {
+          "draft_schema_version": 4,
+          "strategy_version": "single-sol-reply-20260904",
+          "target_id": "100",
+          "target_author_id": "200",
+          "root_post_id": "100",
+          "parent_post_id": null,
+          "candidate_source": "mention",
+          "incoming_contribution_sha256": "0e16364f73da83630f743f04aef446711097115f9f082ae0123a1a62abc92d57",
+          "canonical_visible_context_sha256": "7cb6c29ac0628fa6ec53cb82f10d9c8165e7688e28012068241b59664ddebe94",
+          "quoted_subject_sha256": null,
+          "model_payload_sha256": "40f476ec9caf0c0d996e6cd8b140fec78f0797aa4f147bbd2b1e6ad810b6451c",
+          "prompt_sha256": "a0a124490144f2ed2bfff85362d96d5b9853204554752758d29ababbe0fbdbdd",
+          "response_schema_sha256": "6ddc2a1d5af7b3c66af2a3e8d9c357c7fc86198553b8be1db2f263751842cbd4",
+          "model": "gpt-5.6-sol",
+          "reasoning_effort": "high",
+          "temperature": 1,
+          "proposed_reply": "Trusted passage 1.",
+          "reply_kind": "direct_factual",
+          "reason_code": "useful_reply",
+          "trusted_fact_ids": [
+            "F1"
+          ],
+          "used_fact_ids": [
+            "F1"
+          ],
+          "factual_claims": [
+            {
+              "fact_ids": [
+                "F1"
+              ],
+              "text": "Trusted passage 1."
+            }
+          ],
+          "time_context": {
+            "current_date": "2026-07-20",
+            "target_created_at": "2026-07-20T12:00:00Z"
+          },
+          "used_fact_sources": [
+            {
+              "fact_id": "F1",
+              "source_identity": "evidence-1",
+              "source_record_sha256": "a1d90c5e1cde3f7b253a39734b22cb0805613990b5dca4d78c8de031da656195"
+            }
+          ],
+          "supplied_images": [],
+          "model_call_count": 1,
+          "created_at": "2026-09-19T12:00:00Z",
+          "validated_draft_hash": "be80ee1ebf25ad3642eaf2c22e0ed1da32567547dde32d878fae897b561fc7cc"
+        },
+        "lifecycle_state": "sending",
+        "attempt_epoch": 1789819200,
+        "reply_epoch": 1789819200,
+        "daily_reply_date": "2026-09-19"
+      },
+      "source_receipt_sha256": "404e060e75067dee8e0904cfa00a7cc97675d93769f308931fa61781211d5779",
+      "reply_post_id": "9101",
+      "confirmation_epoch": 1789819205
+    }
+  ]
+}

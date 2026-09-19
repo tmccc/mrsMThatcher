@@ -22,7 +22,7 @@ from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from typing import Any, Callable, Mapping, Sequence
 
-from single_call_reply_grounding import canonical_time_context, grounding_errors
+from single_call_reply_grounding import MAX_FACTUAL_CLAIMS, canonical_time_context, grounding_errors
 from single_call_reply_images import verify_complete_image
 
 from single_call_reply_validation import (
@@ -38,7 +38,6 @@ MODEL = "gpt-5.6-sol"
 REASONING_EFFORT = "high"
 TEMPERATURE = 1
 MAX_OUTPUT_TOKENS = 8_192
-MAX_REPLY_SENTENCES = 2
 MAX_WEIGHTED_CHARACTERS = 270
 MAX_VISIBLE_TURNS = 12
 MAX_VISIBLE_TEXT_CHARACTERS = 12_000
@@ -60,9 +59,15 @@ MAX_QUOTED_SUBJECT_TEXT_CHARACTERS = MAX_VISIBLE_TEXT_CHARACTERS
 MAX_MODEL_PAYLOAD_BYTES = 1024 * 1024
 # Below the provider 50 MB image request budget, including base64 and JSON.
 MAX_ENCODED_PROVIDER_REQUEST_BYTES = 32 * 1024 * 1024
-PROMPT_CACHE_KEY = "mrsMThatcher-single-sol-a0a124490144f2ed"
+PROMPT_CACHE_KEY = "mrsMThatcher-single-sol-c1e6145bd90b9811"
 PROMPT_CACHE_OPTIONS = {"mode": "implicit", "ttl": "30m"}
 RESEARCH_CORPUS_PATH = "semantic_alignment_research/quote_research_full_001"
+_ACCOUNT_FACT_RECORD = {
+    "evidence_id": "mrsMThatcher:runtime-account:v1",
+    "passage": "The MrsMThatcher quotation account uses AI-generated conversational replies and is not Margaret Thatcher.",
+    "source_title": "MrsMThatcher runtime account configuration",
+    "stable_locator": "single_call_reply.py:account-identity-v1",
+}
 
 SYSTEM_PROMPT = """You make the complete editorial decision for a Margaret Thatcher quotation
 account on X. Either remain silent or return the exact public reply. No later
@@ -101,6 +106,11 @@ Do not fill gaps from memory. Do not confirm a quotation, speaker, translation,
 date, source, motive, prevalence, allegation or causal claim unless the supplied
 facts establish it.
 
+The locally defined account-identity fact is authoritative for the MrsMThatcher
+account's identity and use of AI-generated conversational replies. Cite it when
+answering a relevant transparency question. It does not establish who wrote
+another account's post. Do not add identity disclaimers to unrelated replies.
+
 When trusted facts directly answer a factual question, answer it in the first
 sentence and list every fact ID relied upon. When they do not, use a
 premise-neutral principle reply, one genuinely useful clarification, or
@@ -112,8 +122,8 @@ premise. Either reject the premise briefly when that adds value or choose
 no_reply. Strong criticism of a government, party, voluntary ideology or
 specific conduct is not automatically group hostility.
 
-Write one or two natural British-English sentences, no more than 270 weighted
-characters. Be direct, conversational and specific. Avoid boilerplate,
+Write a concise, natural British-English reply, no more than 270 weighted
+characters. There is no sentence-count limit. Be direct, conversational and specific. Avoid boilerplate,
 ceremonial acknowledgements, recurring openings, needless questions and replies
 substantially duplicating the visible thread or recent account replies. Do not
 use emoji, hashtags, URLs, domain names, email addresses or network addresses.
@@ -185,7 +195,7 @@ RESPONSE_SCHEMA: dict[str, Any] = {
             "uniqueItems": True,
         },
         "factual_claims": {
-            "type": "array", "maxItems": 2,
+            "type": "array", "maxItems": MAX_FACTUAL_CLAIMS,
             "items": {"type": "object", "additionalProperties": False,
                       "properties": {"text": {"type": "string", "maxLength": 270},
                                      "fact_ids": {"type": "array", "maxItems": 32,
@@ -232,10 +242,10 @@ def text_sha256(value: str) -> str:
 PROMPT_SHA256 = text_sha256(SYSTEM_PROMPT)
 RESPONSE_SCHEMA_SHA256 = value_sha256(RESPONSE_SCHEMA)
 EXPECTED_PROMPT_SHA256 = (
-    "a0a124490144f2ed2bfff85362d96d5b9853204554752758d29ababbe0fbdbdd"
+    "c1e6145bd90b9811258e91b598ff695ab69900878ed7c03e9210676638377d67"
 )
 EXPECTED_RESPONSE_SCHEMA_SHA256 = (
-    "6ddc2a1d5af7b3c66af2a3e8d9c357c7fc86198553b8be1db2f263751842cbd4"
+    "936ea48c371babd74944a227619531139f0386a28ac64130ccfae246b14655b5"
 )
 if PROMPT_SHA256 != EXPECTED_PROMPT_SHA256:
     raise RuntimeError("single-call system prompt bytes changed")
@@ -699,7 +709,19 @@ def _trusted_facts(
         preferred_quote_id=preferred_quote_id,
         trusted_only=True,
     )
-    return compact_fact_records([passage.prompt_record() for passage in passages])
+    records = [passage.prompt_record() for passage in passages[:MAX_TRUSTED_FACTS - 1]]
+    records.append(_ACCOUNT_FACT_RECORD)
+    return compact_fact_records(records)
+
+
+def _fact_source_record(repository: object, identity: object) -> dict | None:
+    """Resolve local account authority and corpus evidence identically on recovery."""
+
+    if identity == _ACCOUNT_FACT_RECORD["evidence_id"]:
+        return copy.deepcopy(_ACCOUNT_FACT_RECORD)
+    passages = getattr(repository, "passages", {})
+    passage = passages.get(identity) if isinstance(passages, dict) else None
+    return passage.prompt_record() if passage is not None else None
 
 
 def _same_author_interactions(value: object) -> list[dict[str, str]]:
@@ -1222,380 +1244,6 @@ def _provider_usage(response: object) -> dict[str, int]:
     return usage
 
 
-_SENTENCE_TERMINAL_RANGES = (
-    (0x0021, 0x0021), (0x002E, 0x002E), (0x003F, 0x003F),
-    (0x0589, 0x0589), (0x061D, 0x061F), (0x06D4, 0x06D4),
-    (0x0700, 0x0702), (0x07F9, 0x07F9), (0x0837, 0x0837),
-    (0x0839, 0x0839), (0x083D, 0x083E), (0x0964, 0x0965),
-    (0x104A, 0x104B), (0x1362, 0x1362), (0x1367, 0x1368),
-    (0x166E, 0x166E), (0x1735, 0x1736), (0x1803, 0x1803),
-    (0x1809, 0x1809), (0x1944, 0x1945), (0x1AA8, 0x1AAB),
-    (0x1B5A, 0x1B5B), (0x1B5E, 0x1B5F), (0x1B7D, 0x1B7E),
-    (0x1C3B, 0x1C3C), (0x1C7E, 0x1C7F), (0x203C, 0x203D),
-    (0x2047, 0x2049), (0x2E2E, 0x2E2E), (0x2E3C, 0x2E3C),
-    (0x2E53, 0x2E54), (0x3002, 0x3002), (0xA4FF, 0xA4FF),
-    (0xA60E, 0xA60F), (0xA6F3, 0xA6F3), (0xA6F7, 0xA6F7),
-    (0xA876, 0xA877), (0xA8CE, 0xA8CF), (0xA92F, 0xA92F),
-    (0xA9C8, 0xA9C9), (0xAA5D, 0xAA5F), (0xAAF0, 0xAAF1),
-    (0xABEB, 0xABEB), (0xFE52, 0xFE52), (0xFE56, 0xFE57),
-    (0xFF01, 0xFF01), (0xFF0E, 0xFF0E), (0xFF1F, 0xFF1F),
-    (0xFF61, 0xFF61), (0x10A56, 0x10A57), (0x10F55, 0x10F59),
-    (0x10F86, 0x10F89), (0x11047, 0x11048), (0x110BE, 0x110C1),
-    (0x11141, 0x11143), (0x111C5, 0x111C6), (0x111CD, 0x111CD),
-    (0x111DE, 0x111DF), (0x11238, 0x11239), (0x1123B, 0x1123C),
-    (0x112A9, 0x112A9), (0x1144B, 0x1144C), (0x115C2, 0x115C3),
-    (0x115C9, 0x115D7), (0x11641, 0x11642), (0x1173C, 0x1173E),
-    (0x11944, 0x11944), (0x11946, 0x11946), (0x11A42, 0x11A43),
-    (0x11A9B, 0x11A9C), (0x11C41, 0x11C42), (0x11EF7, 0x11EF8),
-    (0x16A6E, 0x16A6F), (0x16AF5, 0x16AF5), (0x16B37, 0x16B38),
-    (0x16B44, 0x16B44), (0x16E98, 0x16E98), (0x1BC9F, 0x1BC9F),
-    (0x1DA88, 0x1DA88),
-)
-
-
-def _is_sentence_terminator(character: str) -> bool:
-    """Recognise Unicode sentence terminals without counting opening marks."""
-
-    codepoint = ord(character)
-    return bool(
-        character == "\N{HORIZONTAL ELLIPSIS}"
-        or codepoint == 0x037E  # GREEK QUESTION MARK
-        or codepoint == 0x05C3  # HEBREW PUNCTUATION SOF PASUQ
-        or 0x0F0D <= codepoint <= 0x0F12  # Tibetan shad family
-        or any(low <= codepoint <= high for low, high in _SENTENCE_TERMINAL_RANGES)
-    )
-
-
-_TITLE_ABBREVIATIONS = frozenset({"dr", "hon", "mr", "mrs", "ms", "prof", "rt", "st", "vs"})
-_CONTEXTUAL_ABBREVIATIONS = frozenset({"etc", "govt", "mp"})
-_CONTEXTUAL_CAPITAL_CONTINUATIONS = {
-    "govt": frozenset({"department", "office"}),
-}
-_COMMON_SENTENCE_START_WORDS = frozenset(
-    {
-        "a", "an", "as", "because", "but", "he", "her", "here", "his",
-        "however", "i", "if", "in", "it", "meanwhile", "nevertheless",
-        "no", "nor", "now", "on", "otherwise", "our", "she", "so",
-        "that", "the", "their", "then", "there", "therefore", "they",
-        "this", "those", "thus", "we", "what", "when", "where", "which",
-        "while", "who", "why", "yet", "you",
-    }
-)
-_DOTTED_ENTITY_CONTINUATIONS = frozenset(
-    {
-        "commission", "congress", "court", "government", "parliament",
-        "president", "supreme", "treasury", "union",
-    }
-)
-
-
-def _time_abbreviation_starts_clause(text: str, abbreviation_start: int) -> bool:
-    """Recognise a clock phrase that introduces the current clause."""
-
-    return bool(
-        re.search(
-            r"(?i)(?:^|[.!?]\s+)(?:after|around|at|before|by|from|until)\s+"
-            r"(?:about\s+)?\d{1,2}(?::\d{2})?\s*$",
-            text[:abbreviation_start],
-        )
-    )
-
-
-def _time_abbreviation_has_zone_suffix(text: str, end: int) -> bool:
-    """Recognise a timezone/location qualifier following a clock value."""
-
-    return bool(
-        re.match(
-            r"\s+(?:[A-Z]{2,5}(?=[\s.,;:!?)]|$)|"
-            r"[A-Z][A-Za-z'-]+\s+(?:(?i:summer|standard)\s+)?(?i:time)\b)",
-            text[end:],
-        )
-    )
-
-
-def _period_has_clear_continuation(text: str, end: int) -> bool:
-    """Return whether punctuation/casing proves a period is non-terminal."""
-
-    index = end
-    while index < len(text) and (
-        text[index]
-        in {
-            '"',
-            "'",
-            "\N{RIGHT SINGLE QUOTATION MARK}",
-            "\N{RIGHT DOUBLE QUOTATION MARK}",
-        }
-        or unicodedata.category(text[index]) in {"Pe", "Pf"}
-    ):
-        index += 1
-    if index >= len(text):
-        return True
-    if not text[index].isspace():
-        return bool(
-            text[index].islower()
-            or text[index] in {",", ";", ":"}
-            or unicodedata.category(text[index]) == "Pd"
-        )
-    while index < len(text) and text[index].isspace():
-        index += 1
-    while index < len(text) and (
-        text[index]
-        in {
-            '"',
-            "'",
-            "\N{LEFT SINGLE QUOTATION MARK}",
-            "\N{LEFT DOUBLE QUOTATION MARK}",
-        }
-        or unicodedata.category(text[index]) in {"Pi", "Ps"}
-    ):
-        index += 1
-    while index < len(text) and text[index].isspace():
-        index += 1
-    return index < len(text) and text[index].islower()
-
-
-def _following_spaced_word(text: str, end: int) -> tuple[str, bool]:
-    """Return the following word and whether an opening wrapper precedes it."""
-
-    index = end
-    while index < len(text) and (
-        text[index]
-        in {
-            '"',
-            "'",
-            "\N{RIGHT SINGLE QUOTATION MARK}",
-            "\N{RIGHT DOUBLE QUOTATION MARK}",
-        }
-        or unicodedata.category(text[index]) in {"Pe", "Pf"}
-    ):
-        index += 1
-    if index >= len(text) or not text[index].isspace():
-        return "", False
-    while index < len(text) and text[index].isspace():
-        index += 1
-    opened = False
-    while index < len(text) and (
-        text[index]
-        in {
-            '"',
-            "'",
-            "\N{LEFT SINGLE QUOTATION MARK}",
-            "\N{LEFT DOUBLE QUOTATION MARK}",
-        }
-        or unicodedata.category(text[index]) in {"Pi", "Ps"}
-    ):
-        opened = True
-        index += 1
-    while index < len(text) and text[index].isspace():
-        index += 1
-    match = re.match(r"([^\W\d_]+)", text[index:], re.UNICODE)
-    return (match.group(1) if match is not None else ""), opened
-
-
-def _dotted_entity_starts_clause(text: str, abbreviation_start: int) -> bool:
-    """Return whether an initial dotted entity name clearly continues."""
-
-    return bool(
-        re.search(
-            r"(?i)(?:^|[.!?]\s+)(?:the\s+)?$",
-            text[:abbreviation_start],
-        )
-    )
-
-
-def _wrapped_phrase_continues_sentence(text: str, end: int) -> bool:
-    """Recognise a quoted/parenthetical subject followed by a predicate."""
-
-    index = end
-    while index < len(text) and text[index].isspace():
-        index += 1
-    if index >= len(text):
-        return False
-    closers = {
-        '"': '"',
-        "'": "'",
-        "\N{LEFT DOUBLE QUOTATION MARK}": "\N{RIGHT DOUBLE QUOTATION MARK}",
-        "\N{LEFT SINGLE QUOTATION MARK}": "\N{RIGHT SINGLE QUOTATION MARK}",
-        "(": ")",
-        "[": "]",
-        "{": "}",
-        "«": "»",
-        "‹": "›",
-        "「": "」",
-        "『": "』",
-        "【": "】",
-        "〈": "〉",
-        "《": "》",
-        "〔": "〕",
-    }
-    closer = closers.get(text[index])
-    if closer is not None:
-        close_index = text.find(closer, index + 1)
-    elif unicodedata.category(text[index]) in {"Pi", "Ps"}:
-        close_index = next(
-            (
-                candidate_index
-                for candidate_index in range(index + 1, len(text))
-                if unicodedata.category(text[candidate_index]) in {"Pe", "Pf"}
-            ),
-            -1,
-        )
-    else:
-        return False
-    if close_index < 0 or any(
-        _is_sentence_terminator(character)
-        for character in text[index + 1 : close_index]
-    ):
-        return False
-    remainder = text[close_index + 1 :].lstrip()
-    return bool(remainder and remainder[0].islower())
-
-
-def _period_is_abbreviation(text: str, start: int, end: int) -> bool:
-    # Both stops in common dotted abbreviations are internal boundaries.  The
-    # first check recognises the next dotted initial (``e.g.``/``U.K.``); the
-    # second recognises the complete two-or-more-initial form.
-    if (
-        start > 0
-        and start + 2 < len(text)
-        and text[start - 1].isalpha()
-        and text[start + 1].isalpha()
-        and text[start + 2] == "."
-    ):
-        return True
-    dotted = re.search(r"(?i)(?<![A-Za-z])(?:[A-Za-z]\.){2,}$", text[:end])
-    if dotted is not None:
-        if _period_has_clear_continuation(text, end):
-            return True
-        following_word, opened = _following_spaced_word(text, end)
-        abbreviation = dotted.group(0).casefold()
-        if opened:
-            return bool(
-                abbreviation
-                in {"a.m.", "e.u.", "p.m.", "u.k.", "u.n.", "u.s."}
-                and _wrapped_phrase_continues_sentence(text, end)
-            )
-        if abbreviation in {"e.g.", "i.e."}:
-            return bool(
-                following_word
-                and following_word.casefold() not in _COMMON_SENTENCE_START_WORDS
-            )
-        if not following_word:
-            return False
-        if abbreviation in {"a.m.", "p.m."}:
-            return bool(
-                following_word.casefold() not in _COMMON_SENTENCE_START_WORDS
-                and (
-                    _time_abbreviation_starts_clause(text, dotted.start())
-                    or _time_abbreviation_has_zone_suffix(text, end)
-                )
-            )
-        return bool(
-            abbreviation in {"e.u.", "u.k.", "u.n.", "u.s."}
-            and following_word.casefold() not in _COMMON_SENTENCE_START_WORDS
-            and (
-                following_word.casefold() in _DOTTED_ENTITY_CONTINUATIONS
-                or _dotted_entity_starts_clause(text, dotted.start())
-            )
-        )
-    preceding = re.search(r"([A-Za-z]+)$", text[:start])
-    if preceding is None:
-        return False
-    word = preceding.group(1)
-    if len(word) == 1 and word.isupper():
-        following_word, opened = _following_spaced_word(text, end)
-        return bool(
-            not opened
-            and following_word
-            and following_word[0].isupper()
-            and following_word.casefold() not in _COMMON_SENTENCE_START_WORDS
-            and (
-                not text[: preceding.start()].strip()
-                or re.match(r"\s+[A-Z]\.", text[end:])
-                or re.search(
-                    r"(?:^|\s)(?:[A-Z]\.\s+)+[A-Z]\.$",
-                    text[:end],
-                )
-            )
-        )
-    folded = word.casefold()
-    remainder = text[end:].lstrip()
-    if word == "No":
-        return bool(remainder and remainder[0].isdigit())
-    if folded in _TITLE_ABBREVIATIONS:
-        if _period_has_clear_continuation(text, end):
-            return True
-        following_word, opened = _following_spaced_word(text, end)
-        if opened:
-            return _wrapped_phrase_continues_sentence(text, end)
-        return bool(
-            following_word
-            and following_word[0].isupper()
-            and following_word.casefold() not in _COMMON_SENTENCE_START_WORDS
-        )
-    return bool(
-        folded in _CONTEXTUAL_ABBREVIATIONS
-        and (
-            _period_has_clear_continuation(text, end)
-            or (
-                (following_word := _following_spaced_word(text, end)[0]).casefold()
-                in _CONTEXTUAL_CAPITAL_CONTINUATIONS.get(folded, frozenset())
-            )
-        )
-    )
-
-
-def sentence_count(text: str) -> int:
-    """Count user-visible Unicode sentence boundaries."""
-
-    joined = " ".join(str(text or "").split())
-    compact = "".join(
-        unicodedata.normalize("NFKC", character)
-        if character in {"\N{SMALL FULL STOP}", "\N{FULLWIDTH FULL STOP}"}
-        else character
-        if _is_sentence_terminator(character)
-        else unicodedata.normalize("NFKC", character)
-        for character in joined
-    )
-    if not compact:
-        return 0
-    count = 0
-    index = 0
-    trailing = True
-    while index < len(compact):
-        if not _is_sentence_terminator(compact[index]):
-            index += 1
-            continue
-        start = index
-        index += 1
-        while index < len(compact) and _is_sentence_terminator(compact[index]):
-            index += 1
-        if compact[start:index] == ".":
-            before = compact[start - 1] if start else ""
-            after = compact[index] if index < len(compact) else ""
-            if (before.isdigit() and after.isdigit()) or _period_is_abbreviation(
-                compact, start, index
-            ):
-                continue
-        count += 1
-        trailing = False
-        while index < len(compact) and (
-            compact[index]
-            in {
-                '"',
-                "'",
-                "\N{RIGHT SINGLE QUOTATION MARK}",
-                "\N{RIGHT DOUBLE QUOTATION MARK}",
-            }
-            or unicodedata.category(compact[index]) in {"Pe", "Pf"}
-        ):
-            index += 1
-        while index < len(compact) and compact[index].isspace():
-            index += 1
-        trailing = index < len(compact)
-    return count + int(trailing or count == 0)
-
-
 def x_weighted_length(text: str) -> int:
     """Return X's weighted length for link-free reply prose."""
 
@@ -2053,8 +1701,6 @@ def validate_model_output(
             or not 1 <= x_weighted_length(reply) <= MAX_WEIGHTED_CHARACTERS
         ):
             errors.append("invalid_reply_length_or_whitespace")
-        if sentence_count(reply) > MAX_REPLY_SENTENCES:
-            errors.append("reply_sentence_limit_exceeded")
         if reply_kind == "no_reply":
             errors.append("reply_kind_inconsistent")
         if reason_code != "useful_reply":
@@ -2333,7 +1979,7 @@ def validate_persisted_draft(
     sources = draft.get("used_fact_sources")
     if not isinstance(sources, list) or [item.get("fact_id") for item in sources if isinstance(item, dict)] != used_ids:
         raise ValueError("pending single-call draft fact bindings mismatch")
-    passages = getattr(repository, "passages", {})
+    source_records = {}
     for source in sources:
         if not isinstance(source, dict) or set(source) != {
             "fact_id",
@@ -2342,11 +1988,10 @@ def validate_persisted_draft(
         }:
             raise ValueError("pending single-call source binding is invalid")
         identity = source.get("source_identity")
-        passage = passages.get(identity) if isinstance(passages, dict) else None
-        if passage is None or source.get("source_record_sha256") != value_sha256(
-            passage.prompt_record()
-        ):
+        record = _fact_source_record(repository, identity)
+        if record is None or source.get("source_record_sha256") != value_sha256(record):
             raise ValueError("pending single-call source record changed")
+        source_records[source["fact_id"]] = record
     image_bindings = draft.get("supplied_images")
     if not isinstance(image_bindings, list) or len(image_bindings) > MAX_SUPPLIED_IMAGES:
         raise ValueError("pending single-call image bindings are invalid")
@@ -2402,7 +2047,7 @@ def validate_persisted_draft(
             {
                 "id": source["fact_id"],
                 "passage": _canonical_fact_passage(
-                    passages[source["source_identity"]].prompt_record()
+                    source_records[source["fact_id"]]
                 ),
             }
             for source in sources

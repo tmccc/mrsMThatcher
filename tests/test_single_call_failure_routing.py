@@ -409,7 +409,7 @@ def test_validation_diagnostics_preserve_candidate_and_provider_health_routing(
     ("reply", "kind", "code"),
     [
         ("Yes, this account is automated.", "direct_factual", "direct_factual_missing_fact_id"),
-        ("Een antwoord. Nog een zin. En een derde.", "principle", "reply_sentence_limit_exceeded"),
+        ("Een antwoord. " * 30, "principle", "invalid_reply_length_or_whitespace"),
         ("Een antwoord.\n日本語の返信。", "principle", "reply_contains_line_break"),
     ],
 )

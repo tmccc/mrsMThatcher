@@ -69,12 +69,12 @@ fallback, reviewer or secondary conversational provider path.
 - Storage: `false`
 - Output: strict `json_schema` named `single_call_reply_decision`
 - Tools: none
-- Prompt cache key: `mrsMThatcher-single-sol-a0a124490144f2ed`
+- Prompt cache key: `mrsMThatcher-single-sol-c1e6145bd90b9811`
 - Prompt cache: options explicitly supplied in implicit mode with a 30-minute TTL
 - Frozen prompt SHA-256:
-  `a0a124490144f2ed2bfff85362d96d5b9853204554752758d29ababbe0fbdbdd`
+  `c1e6145bd90b9811258e91b598ff695ab69900878ed7c03e9210676638377d67`
 - Frozen local schema SHA-256:
-  `6ddc2a1d5af7b3c66af2a3e8d9c357c7fc86198553b8be1db2f263751842cbd4`
+  `936ea48c371babd74944a227619531139f0386a28ac64130ccfae246b14655b5`
 
 Only OpenAI's unsupported provider-side `uniqueItems` keyword is omitted from
 the request schema; fact-ID uniqueness remains mandatory locally. Candidate
@@ -85,7 +85,8 @@ same request. No base64 data is logged.
 
 The model sees no more than 12 visible turns, 12,000 visible-text characters,
 eight prior same-author interaction pairs, 30 recent confirmed conversational
-replies, 32 compact facts drawn from no more than eight local evidence packets,
+replies, up to 31 compact facts drawn from eight local evidence packets plus
+one locally authoritative account-identity fact,
 and two images. The verified visible path preserves the subject/root; the target
 occurs once, at the end. Recent same-author pairs come from the existing bounded
 `ai_reply_history`, which is populated only after remote confirmation and is
@@ -95,7 +96,7 @@ The response is parsed once with duplicate-key rejection and exact fields and
 enums. The completed Responses envelope must also contain one identified,
 completed assistant message with exactly one output-text item. Mechanical
 validation enforces decision consistency, grounding IDs for direct factual
-replies, Unicode validity, two sentences, 270 weighted characters, no line
+replies, Unicode validity, 270 weighted characters, no line
 breaks, real links/domains/email/network addresses, mentions, hashtags, emoji
 or genuine duplicate recent prose. It deliberately does not impose a language
 or script restriction. Natural CJK prose remains valid with either native or

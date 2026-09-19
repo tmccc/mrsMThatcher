@@ -11,6 +11,8 @@ import re
 from collections.abc import Mapping
 from datetime import date, datetime, timezone
 
+MAX_FACTUAL_CLAIMS = 32
+
 _CONTEXT_DEPENDENT_FACT = re.compile(
     r"\b(?:i|we|you|he|she|it|they|me|us|him|her|them|my|our|your|his|its|their|"
     r"mine|ours|yours|hers|theirs|this|that|these|those|here|there|now|today|"
@@ -21,7 +23,7 @@ _CONTEXT_DEPENDENT_FACT = re.compile(
 
 def grounding_errors(reply: str, claims: object, used_ids: list[str], facts: object) -> list[str]:
     """Check declared spans and exact evidence, not undeclared prose or meaning."""
-    if not isinstance(claims, list) or len(claims) > 2:
+    if not isinstance(claims, list) or len(claims) > MAX_FACTUAL_CLAIMS:
         return ['invalid_factual_claims']
     facts_by_id = {
         row.get('id'): row.get('passage') for row in facts

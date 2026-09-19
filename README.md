@@ -445,7 +445,7 @@ operational failures and do not count as editorial declines.
 
 Schema and local-validation failures record the specific failed rules in
 `validation_error_codes`, such as `reply_contains_mention` or
-`reply_sentence_limit_exceeded`. The structured decision event also records the
+`invalid_reply_length_or_whitespace`. The structured decision event also records the
 rejected proposed reply in `rejected_reply_text`, extracted only from the model's
 JSON `reply` field or a rejected pending draft. It preserves whitespace and valid
 Unicode, retains at most 4,000 characters, and reports the original length in
@@ -483,8 +483,19 @@ not establish arbitrary semantic entailment, classify the remaining prose or
 detect every omitted assertion. The model remains responsible for meaning and
 inventory completeness. Fact IDs, subjective prefixes and reply-kind labels
 are not evidence of support. This design does not guarantee hallucination-free
-replies. Length, sentence, duplicate, link, mention, hashtag and emoji limits
-remain mandatory for all prose.
+replies. The 270-weighted-character limit and duplicate, link, mention, hashtag
+and emoji checks remain mandatory. There is no sentence-count limit; the model
+is asked for concise natural prose. The factual inventory supports up to 32
+claims, matching the bounded fact budget rather than imposing a sentence ceiling.
+
+One fact slot is reserved for a locally defined account-identity record: the
+MrsMThatcher quotation account uses AI-generated conversational replies and is
+not Margaret Thatcher. This lets relevant transparency answers cite an honest
+local authority through the same claim and source-hash checks as other facts.
+It does not establish authorship of another account's posts. Draft recovery
+resolves the same record; changes to its source or content invalidate an unsent
+draft that relied on it. Previously logged sentence-limit failures remain
+readable in the digest.
 
 Draft schema 4 binds the declared claim inventory, source-record hashes and UTC
 `time_context` to its hash. A changed UTC date or source timestamp invalidates a

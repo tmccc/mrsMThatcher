@@ -75,7 +75,7 @@ def test_supported_claim_coexists_with_natural_conversation_and_durable_bindings
     [{"text": FACT, "fact_ids": ["F1", "F1"]}],
     [{"text": FACT, "fact_ids": [1]}],
     [{"text": FACT, "fact_ids": ["F1"], "extra": True}],
-    [{"text": FACT, "fact_ids": ["F1"]}] * 3,
+    [{"text": FACT, "fact_ids": ["F1"]}] * 33,
 ])
 def test_malformed_claim_inventories_remain_rejected(claims):
     """Free prose does not relax the declared inventory's schema."""
@@ -87,7 +87,7 @@ def test_malformed_claim_inventories_remain_rejected(claims):
 
 
 @pytest.mark.parametrize("text,claims,used,error", [
-    (FACT, [{"text": FACT, "fact_ids": ["F2"]}], ["F2"], "unknown_fact_id"),
+    (FACT, [{"text": FACT, "fact_ids": ["F3"]}], ["F3"], "unknown_fact_id"),
     (FACT, [{"text": "Absent text.", "fact_ids": ["F1"]}], ["F1"], "inventory_mismatch"),
     (FACT, [{"text": FACT, "fact_ids": ["F1"]}] * 2, ["F1"], "inventory_mismatch"),
     ("Perhaps " + FACT, [{"text": FACT, "fact_ids": ["F1"]}], ["F1"], "inventory_mismatch"),
@@ -127,7 +127,6 @@ def test_no_reply_remains_valid():
 
 @pytest.mark.parametrize("text,error", [
     ("Thank you for taking the time to explain. " * 8, "invalid_reply_length"),
-    ("Thank you. I appreciate the care. Let us leave it there.", "sentence_limit"),
     ("Thank you; see https://example.org.", "link_or_address"),
     ("Thank you @reader.", "mention"),
     ("Thank you for explaining #kindness.", "hashtag"),
@@ -146,3 +145,39 @@ def test_natural_conversation_cannot_repeat_recent_reply():
     text = NATURAL_REPLIES[0][1]
     with pytest.raises(pipeline.ReplyValidationError, match="exact_duplicate_reply"):
         pipeline.validate_model_output(raw_decision(reply=text), payload=payload, comparison_replies=[text])
+
+
+@pytest.mark.parametrize("text", [
+    "Thank you. I appreciate the care. Let us leave it there.",
+    "Not quite. A free economy gives people more scope to improve their position, "
+    "but poverty is not always chosen and no outcome is just merely because it "
+    "occurs in a market. Socialism’s deeper fault is that political control "
+    "suppresses freedom and prosperity.",
+])
+def test_three_sentence_reply_survives_validation_and_recovery(text):
+    """Retain concise replies previously lost solely to the sentence ceiling."""
+    source, repository, payload, facts = evidence_inputs()
+    output = pipeline.validate_model_output(raw_decision(reply=text), payload=payload)
+    draft = pipeline.create_durable_draft(
+        output=output, payload=payload, fact_map=facts, images=[], target_author_id="200",
+    )
+    assert pipeline.validate_persisted_draft(draft, context=source, repository=repository) == draft
+
+
+def test_three_supported_factual_sentences_survive_validation_and_recovery():
+    """The factual inventory must not impose an indirect two-sentence ceiling."""
+    repository = FakeRepository(3)
+    source = context()
+    payload, facts = pipeline.build_model_payload(context=source, repository=repository)
+    claims = [{"text": fact["passage"], "fact_ids": [fact["id"]]}
+              for fact in payload["trusted_facts"][:3]]
+    response = json.loads(raw_decision(
+        kind="direct_factual", reply=" ".join(claim["text"] for claim in claims),
+        facts=["F1", "F2", "F3"],
+    ))
+    response["factual_claims"] = claims
+    output = pipeline.validate_model_output(json.dumps(response), payload=payload)
+    draft = pipeline.create_durable_draft(
+        output=output, payload=payload, fact_map=facts, images=[], target_author_id="200",
+    )
+    assert pipeline.validate_persisted_draft(draft, context=source, repository=repository) == draft

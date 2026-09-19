@@ -1,4 +1,4 @@
-"""Recover frozen a4639e7 replies without authorising another model or X call."""
+"""Recover frozen schema-4 replies without authorising another model or X call."""
 
 from __future__ import annotations
 
@@ -23,8 +23,17 @@ from tests.test_legacy_conversational_reply_recovery import (
 )
 
 
-FIXTURE = Path(__file__).parent / "fixtures/a4639e7_single_call_reply_receipts.json"
-CASES = json.loads(FIXTURE.read_text(encoding="utf-8"))["cases"]
+FIXTURES = (
+    "a4639e7_single_call_reply_receipts.json",
+    "3f816f05_single_call_reply_receipts.json",
+)
+CASES = [
+    {**case, "source_fixture": filename}
+    for filename in FIXTURES
+    for case in json.loads(
+        (Path(__file__).parent / "fixtures" / filename).read_text(encoding="utf-8")
+    )["cases"]
+]
 
 
 @pytest.fixture(autouse=True)
@@ -33,7 +42,7 @@ def no_current_repository_needed(monkeypatch):
     monkeypatch.setattr(bot, "reply_evidence_repository", lambda: object())
 
 
-@pytest.fixture(params=CASES, ids=lambda value: value["case_id"])
+@pytest.fixture(params=CASES, ids=lambda value: f'{value["source_fixture"]}-{value["case_id"]}')
 def case(request):
     """Return the exact pre-change receipt with independent mutable ownership."""
     return copy.deepcopy(request.param)
@@ -113,8 +122,9 @@ def test_confirmed_frozen_receipt_reconciles_and_remains_deduplicated_after_relo
     "claim_span", "claim_ids", "claim_extra_field", "time_context", "context_time",
     "context_author", "context_text", "bad_image_role", "draft_hash",
 ])
-def test_frozen_schema4_rejects_tampering_even_when_draft_rehashed(corruption):
-    case = copy.deepcopy(CASES[1])
+@pytest.mark.parametrize("factual_case", [row for row in CASES if row["case_id"] == "factual"], ids=lambda row: row["source_fixture"])
+def test_frozen_schema4_rejects_tampering_even_when_draft_rehashed(corruption, factual_case):
+    case = copy.deepcopy(factual_case)
     sending = case["sending_receipt"]
     draft = sending["ai_reply_draft"]
     if corruption == "unknown_prompt":
@@ -157,7 +167,11 @@ def test_frozen_schema4_confirmed_receipt_requires_exact_source_hash(case):
 
 def test_frozen_confirmed_journal_cannot_promote_different_receipt(case):
     journal = _seed_confirmed_legacy_transport(case)
-    other = copy.deepcopy(CASES[1 if case["case_id"] == "social" else 0]["sending_receipt"])
+    other = copy.deepcopy(next(
+        row["sending_receipt"] for row in CASES
+        if row["source_fixture"] == case["source_fixture"]
+        and row["case_id"] != case["case_id"]
+    ))
     _persist_receipt(other)
     source_before = bot.CONFIRMED_REPLY_RECEIPT_FILE.read_bytes()
     journal_before = journal.read_bytes()

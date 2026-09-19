@@ -5038,7 +5038,7 @@ def test_native_photo_uses_one_multimodal_responses_request(
         )
         assert request["text"]["format"]["strict"] is True
         assert hashlib.sha256(request["instructions"].encode("utf-8")).hexdigest() == (
-            "a0a124490144f2ed2bfff85362d96d5b9853204554752758d29ababbe0fbdbdd"
+            "c1e6145bd90b9811258e91b598ff695ab69900878ed7c03e9210676638377d67"
         )
         assert isinstance(request["input"], list)
         content = request["input"][0]["content"]

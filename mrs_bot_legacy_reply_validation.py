@@ -750,9 +750,13 @@ def _legacy_single_sol_reply_draft_is_valid(
         or type(draft.get("temperature")) is not int
         or draft.get("temperature") != 1
         or draft.get("model_call_count") != 1
-        or draft.get("prompt_sha256") != (
-            _LEGACY_SINGLE_SOL_SCHEMA4_PROMPT_SHA256
-            if schema_version == 4 else _LEGACY_SINGLE_SOL_PROMPT_SHA256
+        or draft.get("prompt_sha256") not in (
+            (
+                _LEGACY_SINGLE_SOL_SCHEMA4_PROMPT_SHA256,
+                # 3f816f05 retained schema 4 while restoring natural replies.
+                "a0a124490144f2ed2bfff85362d96d5b9853204554752758d29ababbe0fbdbdd",
+            )
+            if schema_version == 4 else (_LEGACY_SINGLE_SOL_PROMPT_SHA256,)
         )
         or draft.get("response_schema_sha256")
         != (
