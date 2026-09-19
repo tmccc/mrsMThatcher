@@ -49,7 +49,7 @@ NOW = 1_700_000_000
         (b'{"pause_all_until":"1700000001"}', False, []),
         (b'{"pause_all_until":"2030-01-02T03:04:05+00:00"}', True,
          ["pause_all_until"]),
-        (b'{"pause_all_until":"2030-01-02 03:04"}', True, ["pause_all_until"]),
+        (b'{"pause_all_until":"2030-01-02 03:04"}', False, []),
         (b'{"pause_all_until":"not a date"}', False, []),
         (b'{"unexpected":false}', False, []),
         (b'{"pause_all":true,"pause_all":false}', False, []),

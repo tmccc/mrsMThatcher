@@ -259,6 +259,7 @@ def test_namespace_identity_eager_fallbacks_and_live_order(monkeypatch):
         "HOT_POST_REPLY_SEARCH_API_MAX_RESULTS",
         *SHADOW_KEYS, "MEME_TRIGGER_AFTER_HOUR", "MEME_FALLBACK_HOUR", "MEME_FALLBACK_MINUTE",
         "POST_SLEEP_MIN", "POST_SLEEP_MAX",
+        "QUOTE_CHECK_SPACING_RETRY_SECONDS", "QUOTE_CHECK_EVERY_SECONDS",
         "MEME_DELAY_AFTER_MAIN_POST_MIN_SECONDS", "MEME_DELAY_AFTER_MAIN_POST_MAX_SECONDS",
     ]
     assert trace == [event for key in keys for event in ("namespace", key)]

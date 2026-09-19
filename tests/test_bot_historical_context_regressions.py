@@ -36,8 +36,9 @@ def test_regular_post_context_stage_runs_only_after_durable_main_post(
     original_save = bot.save_regular_post_protected_state
 
     def tracked_save(*args, **kwargs):
-        original_save(*args, **kwargs)
+        proof = original_save(*args, **kwargs)
         saved["done"] = True
+        return proof
 
     def context(**kwargs):
         assert saved["done"] is True

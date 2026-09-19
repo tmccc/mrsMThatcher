@@ -1,11 +1,13 @@
 from __future__ import annotations
 
 from pathlib import Path
+import functools
+import inspect
 import signal
 import subprocess
 import sys
 from types import SimpleNamespace
-from unittest.mock import Mock, call, mock_open
+from unittest.mock import Mock, call
 
 import pytest
 
@@ -65,7 +67,6 @@ def test_adapters_forward_current_dependencies_arguments_results_and_errors(monk
         "write_sending_reply_receipt",
         "promote_sending_reply_receipt",
         "_promote_legacy_sending_reply_receipt_from_confirmed_transport",
-        "remove_confirmed_reply_receipt",
         "retire_proved_rejected_conversational_reply_receipt",
         "post_conversational_reply_with_durable_identity",
     )
@@ -163,35 +164,73 @@ def test_writer_checks_retirement_namespace_validation_then_create_and_preserves
     assert caught.value.__cause__ is race
 
 
-def test_removal_keeps_open_json_equality_disposition_and_canonical_retirement(monkeypatch):
+def test_removal_keeps_secure_reader_equality_disposition_and_canonical_retirement(monkeypatch):
     receipt = unit_sending_v4_reply_receipt()
-    opened = mock_open()
-    decoder = Mock(return_value=dict(receipt))
+    reader = Mock(return_value=(True, dict(receipt)))
     retire = Mock()
-    monkeypatch.setattr(delivery, "open", opened, raising=False)
-    monkeypatch.setattr(bot, "json", SimpleNamespace(load=decoder))
+    monkeypatch.setattr(bot, "load_receipt_json_no_follow", reader)
     monkeypatch.setattr(bot, "retire_current_source_receipt", retire)
     canonical = Mock(return_value=b"current canonical receipt")
     monkeypatch.setattr(bot, "canonical_atomic_json_bytes", canonical)
     bot.remove_confirmed_reply_receipt(receipt, sending_disposition="definite_non_success")
-    opened.assert_called_once_with(bot.CONFIRMED_REPLY_RECEIPT_FILE, "r", encoding="utf-8")
-    decoder.assert_called_once_with(opened.return_value.__enter__.return_value)
+    reader.assert_called_once_with(bot.CONFIRMED_REPLY_RECEIPT_FILE)
     canonical.assert_called_once_with(receipt)
     assert canonical.call_args.args[0] is receipt
-    retire.assert_called_once_with(bot.CONFIRMED_REPLY_RECEIPT_FILE, b"current canonical receipt")
+    retire.assert_called_once_with(bot.CONFIRMED_REPLY_RECEIPT_FILE, b"current canonical receipt", commit_proof=None)
     retire.reset_mock()
-    decoder.return_value = {**receipt, "target_id": "101"}
+    reader.return_value = (True, {**receipt, "target_id": "101"})
     with pytest.raises(bot.InvalidConfirmedReplyReceipt, match="transaction identity changed"):
         bot.remove_confirmed_reply_receipt(receipt)
-    decoder.return_value = dict(receipt)
+    reader.return_value = (True, dict(receipt))
     with pytest.raises(ValueError, match="explicit disposition"):
         bot.remove_confirmed_reply_receipt(receipt)
     failure = ValueError("current JSON decoder failed")
-    decoder.side_effect = failure
+    reader.side_effect = failure
     with pytest.raises(ValueError) as caught:
         bot.remove_confirmed_reply_receipt(receipt)
     assert caught.value is failure
+    reader.side_effect = None
+    reader.return_value = (False, None)
+    with pytest.raises(FileNotFoundError):
+        bot.remove_confirmed_reply_receipt(receipt)
     retire.assert_not_called()
+
+
+def test_root_removal_binds_real_commit_proof_and_current_secure_reader(monkeypatch):
+    from mrs_bot_state_generation import record_receipt_commit
+
+    sending = unit_sending_v4_reply_receipt()
+    receipt = bot._confirmed_reply_receipt_from_sending(
+        sending, reply_post_id="999", confirmation_epoch=sending["attempt_epoch"],
+    )
+    state = bot.default_state()
+    record_receipt_commit(state, receipt)
+    proof = bot.save_state(state, durable=True)
+    name = "remove_confirmed_reply_receipt"
+    dependencies = inspect.signature(delivery.remove_confirmed_reply_receipt).parameters.keys() - inspect.signature(bot.remove_confirmed_reply_receipt).parameters.keys()
+    for _ in range(2):
+        with monkeypatch.context() as patch:
+            callback = Mock(return_value=object())
+            patch.setattr(delivery, name, callback)
+            current = {key: Mock() for key in dependencies}
+            for key, value in current.items():
+                patch.setattr(bot, key, value)
+            assert bot.remove_confirmed_reply_receipt(receipt, commit_proof=proof) is callback.return_value
+            authority = callback.call_args.kwargs["retire_current_source_receipt"]
+            assert isinstance(authority, functools.partial)
+            assert authority.func is current["retire_current_source_receipt"]
+            assert authority.args == () and authority.keywords == {"commit_proof": proof}
+            callback.assert_called_once_with(receipt, sending_disposition=None,
+                **{**current, "retire_current_source_receipt": authority})
+            with pytest.raises(RuntimeError, match="exact durable state commit"):
+                bot.remove_confirmed_reply_receipt(receipt)
+            with pytest.raises(RuntimeError, match="does not bind this exact receipt"):
+                bot.remove_confirmed_reply_receipt({**receipt, "reply_post_id": "1000"}, commit_proof=proof)
+            failure = TypeError("current owner failure")
+            callback.side_effect = failure
+            with pytest.raises(TypeError) as caught:
+                bot.remove_confirmed_reply_receipt(receipt, commit_proof=proof)
+            assert caught.value is failure
 
 
 def _deliver(receipt, state=None):
@@ -343,7 +382,7 @@ def test_backup_failure_allows_fallback_only_with_matching_canonical_state(monke
     def save_then_fail(actual_state, *, durable):
         assert actual_state is state and durable is True
         if canonical_committed:
-            original_save(actual_state, durable=True)
+            backup_error.commit_proof = original_save(actual_state, durable=True)
         raise backup_error
 
     monkeypatch.setattr(bot, "save_state", save_then_fail)
@@ -363,7 +402,7 @@ def test_backup_failure_allows_fallback_only_with_matching_canonical_state(monke
     remote.assert_called_once()
     if canonical_committed:
         assert [entry[0] for entry in trace.mock_calls] == ["journal", "receipt", "end"]
-        assert trace.receipt.call_args.kwargs == {"sending_disposition": "confirmed_state_fallback"}
+        assert trace.receipt.call_args.kwargs == {"sending_disposition": "confirmed_state_fallback", "commit_proof": backup_error.commit_proof}
         assert trace.journal.call_args.kwargs["receipt"] is trace.receipt.call_args.args[0]
         assert bot.json_file_matches(bot.STATE_FILE, state)
         assert state["replied_to_ids"] == [receipt["target_id"]]
@@ -416,3 +455,31 @@ def test_incomplete_fallback_without_receipt_or_marker_retains_sigint_and_promot
         remote.assert_called_once()
     finally:
         signal.signal(signal.SIGINT, original_handler)
+
+
+@pytest.mark.parametrize("namespace", ["symlink", "hardlink", "writable", "unsafe_directory"])
+def test_root_reply_retirement_rejects_unsafe_reader_authority(monkeypatch, tmp_path, namespace):
+    import os
+
+    receipt = unit_sending_v4_reply_receipt()
+    path = tmp_path / "receipt.json"
+    path.write_bytes(bot.canonical_atomic_json_bytes(receipt))
+    if namespace == "symlink":
+        target = tmp_path / "target.json"
+        path.rename(target)
+        path.symlink_to(target)
+    elif namespace == "hardlink":
+        os.link(path, tmp_path / "extra-link.json")
+    elif namespace == "writable":
+        path.chmod(0o660)
+    else:
+        tmp_path.chmod(0o770)
+    retire = Mock(side_effect=AssertionError("unsafe receipt reached retirement"))
+    monkeypatch.setattr(bot, "CONFIRMED_REPLY_RECEIPT_FILE", path)
+    monkeypatch.setattr(bot, "retire_current_source_receipt", retire)
+    try:
+        with pytest.raises(bot.UnsafeReceiptNamespace):
+            bot.remove_confirmed_reply_receipt(receipt, sending_disposition="definite_non_success")
+    finally:
+        tmp_path.chmod(0o700)
+    retire.assert_not_called()

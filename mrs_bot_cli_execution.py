@@ -5,7 +5,21 @@ module performs no runtime work at import and retains no runtime authority.
 """
 from __future__ import annotations
 
-from typing import Any
+from collections.abc import Callable
+from typing import Any, Protocol
+
+
+class _BarrierLogger(Protocol):
+    def critical(self, message: str, *args: object, **kwargs: object) -> None: ...
+
+
+def _safe_barrier_log(log: _BarrierLogger, message: str, *args: object, **kwargs: object) -> None:
+    try:
+        log.critical(message, *args, **kwargs)
+    except Exception:
+        # An unavailable logging sink cannot defeat a process-local barrier.
+        # BaseException retains the existing controlled signal semantics.
+        pass
 
 
 def run_test_cycle(
@@ -61,7 +75,8 @@ def run_test_cycle(
     def finish_if_ambiguity_blocked() -> bool:
         if not ambiguous_remote_post_is_blocking():
             return False
-        log.critical("Test cycle stopped after an ambiguous remote post; no later lane will run")
+        _safe_barrier_log(log, "Test cycle stopped after an ambiguous remote post; no later lane will run")
+        wait_for_durable_barrier_before_one_shot_exit(lane="test_cycle")
         save_state(state)
         return True
 
@@ -72,7 +87,8 @@ def run_test_cycle(
             AmbiguousRemotePostOutcome,
             UnrecoverableConfirmedReplyPersistenceError,
         ):
-            log.critical(
+            _safe_barrier_log(
+                log,
                 "Test-cycle %s reply lane stopped by the global remote-write "
                 "safety barrier",
                 lane,
@@ -89,9 +105,9 @@ def run_test_cycle(
             maybe_reply_to_quote_tweets,
         )
         if safety_stopped:
-            return 0
+            return 3
         if finish_if_ambiguity_blocked():
-            return 0
+            return 3
         log.info("Test-cycle quote-tweet check status=%s", quote_status)
         log_event("quote_check_status", status=quote_status, priority="test_cycle")
         after_quote_epoch = int(state.get("last_reply_epoch", 0) or 0)
@@ -106,9 +122,9 @@ def run_test_cycle(
                 maybe_reply_to_mentions,
             )
             if safety_stopped:
-                return 0
+                return 3
             if finish_if_ambiguity_blocked():
-                return 0
+                return 3
             after_reply_epoch = int(state.get("last_reply_epoch", 0) or 0)
             if after_reply_epoch != after_quote_epoch:
                 state["next_reply_lane_priority"] = "quote"
@@ -120,9 +136,9 @@ def run_test_cycle(
             maybe_reply_to_mentions,
         )
         if safety_stopped:
-            return 0
+            return 3
         if finish_if_ambiguity_blocked():
-            return 0
+            return 3
         after_reply_epoch = int(state.get("last_reply_epoch", 0) or 0)
 
         if after_reply_epoch != before_reply_epoch:
@@ -135,9 +151,9 @@ def run_test_cycle(
                 maybe_reply_to_quote_tweets,
             )
             if safety_stopped:
-                return 0
+                return 3
             if finish_if_ambiguity_blocked():
-                return 0
+                return 3
             log.info("Test-cycle quote-tweet check status=%s", quote_status)
             log_event("quote_check_status", status=quote_status, priority="test_cycle")
             after_quote_epoch = int(state.get("last_reply_epoch", 0) or 0)
@@ -173,9 +189,8 @@ def run_test_main_tick(
     if not require_test_mode("--test-main-tick"):
         return 2
     require_production_bootstrap()
-    report_bot_health_progress("startup")
-
     acquire_instance_lock()
+    report_bot_health_progress("startup")
     report_bot_health_progress("recovery")
     require_established_installation_after_ledger_recovery()
     reconcile_runtime_historical_context_state()
@@ -205,7 +220,7 @@ def run_test_main_tick(
         wait_for_durable_barrier_before_one_shot_exit(
             lane="production_reply_tick",
         )
-        return 0
+        return 3
 
     save_state(state)
     log.info("Test production reply-lane tick finished")
@@ -229,30 +244,47 @@ def require_test_mode(
 def wait_for_durable_barrier_before_one_shot_exit(
     *,
     lane: str,
-    durable_remote_write_safety_barrier_exists: Any,
-    log: Any,
-    remote_write_safety_incident_is_latched: Any,
-    sleep: Any,
+    durable_remote_write_safety_barrier_exists: Callable[[], bool],
+    log: _BarrierLogger,
+    remote_write_safety_incident_is_latched: Callable[[], bool],
+    sleep: Callable[[int], None],
 ) -> None:
     """Keep a one-shot posting process alive while its only barrier is memory."""
-    if (
-        not remote_write_safety_incident_is_latched()
-        or durable_remote_write_safety_barrier_exists()
-    ):
+    if not remote_write_safety_incident_is_latched():
         return
-    log.critical(
-        "The one-shot %s command cannot exit because its only remote-write safety "
-        "barrier is process-local. Create and verify a durable reconciliation "
-        "marker before terminating this process.",
-        lane,
-    )
-    while not durable_remote_write_safety_barrier_exists():
+
+    waiting = False
+    while True:
+        try:
+            durable = durable_remote_write_safety_barrier_exists()
+        except Exception:
+            durable = False
+            _safe_barrier_log(
+                log,
+                "The one-shot %s durable safety marker could not be inspected; "
+                "the process remains latched and will retry in 60 seconds",
+                lane,
+                exc_info=True,
+            )
+        if durable:
+            if waiting:
+                _safe_barrier_log(
+                    log,
+                    "A durable remote-write safety marker is now present for one-shot lane=%s; "
+                    "process exit is restart-safe",
+                    lane,
+                )
+            return
+        if not waiting:
+            _safe_barrier_log(
+                log,
+                "The one-shot %s command cannot exit because its only remote-write safety "
+                "barrier is process-local. Create and verify a durable reconciliation "
+                "marker before terminating this process.",
+                lane,
+            )
+            waiting = True
         sleep(60)
-    log.critical(
-        "A durable remote-write safety marker is now present for one-shot lane=%s; "
-        "process exit is restart-safe",
-        lane,
-    )
 
 
 def run_test_post_quote(
@@ -309,7 +341,8 @@ def run_test_post_quote(
     try:
         post_random_quote(lines_used, images_used, state)
     except UnrecoverableConfirmedPostPersistenceError:
-        log.critical(
+        _safe_barrier_log(
+            log,
             "REMOTE X POST WAS CONFIRMED WITHOUT A COMPLETE DURABLE LOCAL "
             "REPRESENTATION. The one-shot quote process must not exit while only "
             "its in-memory safety latch survives.",
@@ -318,7 +351,8 @@ def run_test_post_quote(
         wait_for_durable_barrier_before_one_shot_exit(lane="quote_image")
         return 3
     except ConfirmedPostLocalPersistenceError:
-        log.critical(
+        _safe_barrier_log(
+            log,
             "REMOTE X POST WAS CONFIRMED; DO NOT RETRY MANUALLY. "
             "Test quote/image local persistence/recovery needs attention.",
             exc_info=True,
@@ -326,7 +360,8 @@ def run_test_post_quote(
         save_state(state)
         return 3
     except AmbiguousRemotePostOutcome as exc:
-        log.critical(
+        _safe_barrier_log(
+            log,
             "The one-shot quote remote outcome is ambiguous; refusing normal exit "
             "while only an in-memory safety latch survives.",
             exc_info=True,
@@ -392,7 +427,8 @@ def run_test_post_meme(
     try:
         post_next_meme(state)
     except UnrecoverableConfirmedPostPersistenceError:
-        log.critical(
+        _safe_barrier_log(
+            log,
             "REMOTE X POST WAS CONFIRMED WITHOUT A COMPLETE DURABLE LOCAL "
             "REPRESENTATION. The one-shot meme process must not exit while only "
             "its in-memory safety latch survives.",
@@ -401,7 +437,8 @@ def run_test_post_meme(
         wait_for_durable_barrier_before_one_shot_exit(lane="daily_meme")
         return 3
     except ConfirmedPostLocalPersistenceError:
-        log.critical(
+        _safe_barrier_log(
+            log,
             "REMOTE X POST WAS CONFIRMED; DO NOT RETRY MANUALLY. "
             "Test daily meme local persistence/recovery needs attention.",
             exc_info=True,
@@ -409,7 +446,8 @@ def run_test_post_meme(
         save_state(state)
         return 3
     except AmbiguousRemotePostOutcome as exc:
-        log.critical(
+        _safe_barrier_log(
+            log,
             "The one-shot meme remote outcome is ambiguous; refusing normal exit "
             "while only an in-memory safety latch survives.",
             exc_info=True,

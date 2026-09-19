@@ -15,6 +15,8 @@ from typing import Any, Callable
 from urllib.parse import parse_qsl, urlencode, urlsplit, urlunsplit
 
 import requests
+
+from public_source_fetch import fetch_public, is_google_grounding_url
 from google import genai
 from google.genai import errors, types
 
@@ -465,7 +467,10 @@ class DeveloperClient:
             json={"contents": [{"role": "user", "parts": [{"text": prompt}]}],
                   "tools": [developer_search_tool()], "generationConfig": generation_config()},
             timeout=(20, 300),
+            allow_redirects=False,
         )
+        if 300 <= response.status_code < 400:
+            raise ValueError("provider redirect refused")
         response.raise_for_status()
         raw = response.json()
         return _normalise_response(
@@ -604,7 +609,7 @@ def _passage_wording_match(
 def verify_source(
     source: dict[str, Any],
     packet: dict[str, Any],
-    request: Callable[..., Any] = requests.get,
+    request: Callable[..., Any] | None = None,
 ) -> tuple[dict[str, Any] | None, str | None]:
     """Fetch a proposed source and retain it only when its passage exists."""
     url = str(source["url"]).strip()
@@ -615,10 +620,7 @@ def verify_source(
     if authority is None and source["source_quality_class"] != "secondary_recollection":
         return None, "unrecognised_source_authority"
     try:
-        response = request(
-            url, allow_redirects=True, timeout=(10, 30), stream=True,
-            headers={"User-Agent": "MrsMThatcher-source-audit/1.0"},
-        )
+        response = fetch_public(url, request=request, max_bytes=MAXIMUM_BODY_BYTES)
         if not response.ok:
             return None, f"http_{response.status_code}"
         content = bytearray()
@@ -741,22 +743,19 @@ def _approximate_wording_passage(
 def verify_grounding_source(
     grounding_source: dict[str, Any],
     packet: dict[str, Any],
-    request: Callable[..., Any] = requests.get,
+    request: Callable[..., Any] | None = None,
 ) -> tuple[dict[str, Any] | None, str | None]:
     """Resolve a provider-linked search result and verify wording on its page."""
     url = str(grounding_source.get("url") or "").strip()
     if not url:
         return None, "grounding_url_missing"
     if (
-        "grounding-api-redirect" not in url
+        not is_google_grounding_url(url)
         and _source_authority(url) is None
     ):
         return None, "unrecognised_source_authority"
     try:
-        response = request(
-            url, allow_redirects=True, timeout=(10, 30), stream=True,
-            headers={"User-Agent": "MrsMThatcher-source-audit/1.0"},
-        )
+        response = fetch_public(url, request=request, max_bytes=MAXIMUM_BODY_BYTES)
         if not response.ok:
             return None, f"http_{response.status_code}"
         content = bytearray()

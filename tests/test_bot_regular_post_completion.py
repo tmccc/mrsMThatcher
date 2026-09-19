@@ -111,6 +111,7 @@ def test_completion_does_not_wrap_interrupts_or_continue(lane, fail_at):
 @pytest.mark.parametrize("lane", ["live", "recovery"])
 def test_completion_reads_event_and_transport_fields_at_their_original_stages(lane):
     case = _completion_case(lane)
+    proof = object()
 
     def save(lines, images, state, *, durable):
         assert lines is case.lines and images is case.images and state is case.state
@@ -120,6 +121,7 @@ def test_completion_reads_event_and_transport_fields_at_their_original_stages(la
         case.receipt["image_no"] = 22
         case.image_choice["image_hash"] = "after-save"
         case.image_choice["score"] = 3
+        return proof
 
     def enqueue(receipt):
         assert receipt is case.receipt
@@ -142,7 +144,8 @@ def test_completion_reads_event_and_transport_fields_at_their_original_stages(la
     case.callbacks["retire"].assert_called_once_with(
         receipt_path=case.common["REGULAR_POST_RECEIPT_FILE"], receipt=case.receipt,
         lane="quote_image", post_id="950001" if lane == "live" else "950002",
+        commit_proof=proof,
     )
-    assert case.callbacks["remove"].call_args.args[0] is case.receipt
+    case.callbacks["remove"].assert_called_once_with(case.receipt, commit_proof=proof)
     case.root.assert_called_once()
     case.context.assert_called_once()

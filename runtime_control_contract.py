@@ -79,17 +79,15 @@ def parse_control_time(
         text = value.strip()
         if not text or text.isdigit():
             raise ValueError("control timestamp string must use a documented date format")
-        for fmt in ("%Y-%m-%d %H:%M:%S", "%Y-%m-%d %H:%M", "%Y-%m-%dT%H:%M:%S", "%Y-%m-%dT%H:%M"):
-            try:
-                epoch = int(datetime.strptime(text, fmt).timestamp())
-                break
-            except ValueError:
-                pass
-        else:
-            try:
-                epoch = int(datetime.fromisoformat(text).timestamp())
-            except ValueError as exc:
-                raise ValueError(f"Cannot parse control time {value!r}") from exc
+        try:
+            # Python 3.10 needs the explicit offset spelling for UTC Z.
+            canonical = text[:-1] + "+00:00" if text.endswith("Z") else text
+            parsed = datetime.fromisoformat(canonical)
+        except ValueError as exc:
+            raise ValueError(f"Cannot parse control time {value!r}") from exc
+        if parsed.tzinfo is None or parsed.utcoffset() is None:
+            raise ValueError("control timestamp must include an explicit timezone offset")
+        epoch = int(parsed.timestamp())
     if epoch < 0 or epoch > MAX_REASONABLE_STATE_EPOCH:
         raise ValueError(f"control timestamp is outside the supported epoch range: {epoch}")
     return epoch

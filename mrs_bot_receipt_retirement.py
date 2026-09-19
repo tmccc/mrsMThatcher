@@ -240,6 +240,8 @@ def resume_interrupted_source_receipt_retirement_if_present(
     retire_lane_transport_journal_if_present: Any,
     retirement_auxiliary_barrier_exists: Any,
     transaction_mutation_authority: Any,
+    recover_state_receipt_commit_proof: Any,
+    state_commit_mutation_authority: Any,
     transport_journal_is_blocking: Any,
 ) -> bool:
     """Finish one journal-free source retirement under the process lock.
@@ -267,6 +269,10 @@ def resume_interrupted_source_receipt_retirement_if_present(
             "multiple source-receipt retirement lanes require manual inspection"
         )
     source_path = active[0]
+    commit_proof = (
+        None if source_path == HISTORICAL_CONTEXT_REPLY_RECEIPT_FILE
+        else recover_state_receipt_commit_proof(source_path)
+    )
     if source_path == HISTORICAL_CONTEXT_REPLY_RECEIPT_FILE:
         require_historical_context_retirement_outbox_authority()
     blocking_journals = [
@@ -326,6 +332,7 @@ def resume_interrupted_source_receipt_retirement_if_present(
                 "prepared source receipt is unavailable or invalid"
             )
         retire_lane_transport_journal_if_present(
+            commit_proof=commit_proof,
             receipt_path=source_path,
             receipt=receipt,
             lane=lane,
@@ -334,8 +341,8 @@ def resume_interrupted_source_receipt_retirement_if_present(
         )
     result = resume_interrupted_receipt_retirement(
         source_path,
-        mutation_authority=transaction_mutation_authority(
-            "interrupted source receipt retirement resume"
+        mutation_authority=state_commit_mutation_authority(
+            commit_proof, "interrupted source receipt retirement resume"
         ),
     )
     log.warning(

@@ -811,7 +811,9 @@ def post_next_meme(
                 record_recent_own_post(state, str(posted_id))
             except Exception:
                 log.critical("Emergency in-memory cache/recent update failed after confirmed meme post", exc_info=True)
-            save_state(state, durable=True)
+            from mrs_bot_state_generation import record_receipt_commit
+            record_receipt_commit(state, main_post_attempt)
+            commit_proof = save_state(state, durable=True)
             emergency_state_write_succeeded = True
             emergency_state_complete = confirmed_meme_emergency_representation_is_complete(
                 post_id=str(posted_id),
@@ -821,7 +823,8 @@ def post_next_meme(
                 main_post_attempt=main_post_attempt,
             )
         except Exception as emergency_exc:
-            if isinstance(emergency_exc, StateBackupWriteError) and json_file_matches(STATE_FILE, state):
+            if isinstance(emergency_exc, StateBackupWriteError) and json_file_matches(STATE_FILE, state, commit_proof=getattr(emergency_exc, "commit_proof", None)):
+                commit_proof = emergency_exc.commit_proof
                 emergency_state_write_succeeded = True
                 emergency_state_complete = confirmed_meme_emergency_representation_is_complete(
                     post_id=str(posted_id),
@@ -863,6 +866,7 @@ def post_next_meme(
         status_after_fallback, _current_after_fallback = load_meme_post_receipt()
         if status_after_fallback == "sending":
             retire_lane_transport_journal_if_present(
+                commit_proof=commit_proof,
                 receipt_path=MEME_POST_RECEIPT_FILE,
                 receipt=main_post_attempt,
                 lane="daily_meme",
@@ -871,6 +875,7 @@ def post_next_meme(
             remove_main_post_attempt(
                 main_post_attempt,
                 sending_disposition="confirmed_state_fallback",
+                commit_proof=commit_proof,
             )
         elif status_after_fallback != "valid":
             raise UnrecoverableConfirmedPostPersistenceError(
@@ -906,7 +911,9 @@ def post_next_meme(
             post_type="daily_meme",
         )
         record_recent_own_post(state, str(posted_id))
-        save_state(state, durable=True)
+        from mrs_bot_state_generation import record_receipt_commit
+        record_receipt_commit(state, receipt)
+        commit_proof = save_state(state, durable=True)
     except Exception as exc:
         log.critical(
             "Confirmed meme post_id=%s but stage=durable_state_and_schedule_update failed; receipt remains for reconciliation",
@@ -924,12 +931,13 @@ def post_next_meme(
         raise ConfirmedPostLocalPersistenceError(f"Confirmed meme post {posted_id} but durable state save failed")
     try:
         retire_lane_transport_journal_if_present(
+            commit_proof=commit_proof,
             receipt_path=MEME_POST_RECEIPT_FILE,
             receipt=receipt,
             lane="daily_meme",
             post_id=str(posted_id),
         )
-        remove_meme_post_receipt(receipt)
+        remove_meme_post_receipt(receipt, commit_proof=commit_proof)
     except Exception as exc:
         log.critical(
             "Confirmed meme post_id=%s but stage=meme_receipt_confirmation failed after durable state save",

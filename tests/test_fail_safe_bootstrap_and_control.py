@@ -147,6 +147,9 @@ transition = sys.argv[2]
 sys.argv = ["driver"]
 if transition == "late_enable":
     os.environ.pop("MRS_TEST_MODE", None)
+    os.environ["X_API_BASE_URL"] = "https://api.x.com"
+    os.environ["X_UPLOAD_BASE_URL"] = "https://upload.twitter.com"
+    os.environ["OPENAI_API_BASE_URL"] = "https://api.openai.com/v1"
 else:
     os.environ["MRS_TEST_MODE"] = "1"
 
@@ -193,6 +196,9 @@ transition = sys.argv[2]
 sys.argv = ["mrsMThatcher2.py", mode]
 if transition == "late_enable":
     os.environ.pop("MRS_TEST_MODE", None)
+    os.environ["X_API_BASE_URL"] = "https://api.x.com"
+    os.environ["X_UPLOAD_BASE_URL"] = "https://upload.twitter.com"
+    os.environ["OPENAI_API_BASE_URL"] = "https://api.openai.com/v1"
 else:
     os.environ["MRS_TEST_MODE"] = "1"
 
@@ -1145,7 +1151,7 @@ def test_runtime_control_accepts_exact_integral_float_time(tmp_path, monkeypatch
 
 def test_runtime_control_preserves_date_string_representation(tmp_path, monkeypatch):
     path = tmp_path / "control.json"
-    timestamp = "2030-01-02T03:04:05"
+    timestamp = "2030-01-02T03:04:05+00:00"
     path.write_text(
         json.dumps({"disable_all_until": timestamp}),
         encoding="utf-8",

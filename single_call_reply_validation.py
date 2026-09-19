@@ -20,9 +20,13 @@ SCHEMA_VALIDATION_ERROR_CODES = frozenset({
     "reply_not_string",
     "invalid_used_fact_ids",
     "invalid_reason_code",
+    "invalid_factual_claims",
 })
 MECHANICAL_VALIDATION_ERROR_CODES = frozenset({
     "duplicate_used_fact_ids",
+    "unsupported_factual_claim",
+    "factual_claim_inventory_mismatch",
+    "factual_claim_fact_ids_mismatch",
     "unknown_fact_id",
     "invalid_reply_length_or_whitespace",
     "reply_sentence_limit_exceeded",

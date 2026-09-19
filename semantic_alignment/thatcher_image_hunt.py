@@ -24,6 +24,8 @@ from urllib.parse import unquote, urljoin, urlparse
 
 import imagehash
 import numpy as np
+from public_source_fetch import fetch_public, public_url_syntax
+
 import requests
 from bs4 import BeautifulSoup
 from google import genai
@@ -695,7 +697,10 @@ class GeminiHuntClient:
             headers={"Content-Type": "application/json", "x-goog-api-key": self.api_key},
             json=self.developer_grounded_payload(prompt, schema),
             timeout=(20, self.timeout_seconds),
+            allow_redirects=False,
         )
+        if 300 <= response.status_code < 400:
+            raise ValueError("provider redirect refused")
         response.raise_for_status()
         elapsed = time.monotonic() - started
         raw = response.json()
@@ -1042,22 +1047,10 @@ def _normalise_url(url: str) -> str:
 
 def validate_public_url(url: str, *, resolve_dns: bool = True) -> str:
     """Validate public URL."""
-    normalised = _normalise_url(url)
-    hostname = urlparse(normalised).hostname or ""
-    if hostname.casefold() in {"localhost", "localhost.localdomain"}:
-        raise ValueError("local URL rejected")
-    try:
-        address = ipaddress.ip_address(hostname.strip("[]"))
-        if not address.is_global:
-            raise ValueError("non-public URL rejected")
-    except ValueError as exc:
-        if "non-public" in str(exc):
-            raise
-        if resolve_dns:
-            for answer in socket.getaddrinfo(hostname, None):
-                resolved = ipaddress.ip_address(answer[4][0])
-                if not resolved.is_global:
-                    raise ValueError("URL resolves to a non-public address")
+    normalised = public_url_syntax(url)
+    if resolve_dns:
+        from historical_context_search_research import validate_public_url as validate
+        return validate(normalised, resolver=socket.getaddrinfo)
     return normalised
 
 
@@ -1089,10 +1082,10 @@ def resolve_grounded_sources(
             resolved.append(row)
             continue
         try:
-            url = validate_public_url(row["original_url"])
-            response = session.get(url, timeout=timeout, allow_redirects=True, stream=True)
+            url = public_url_syntax(row["original_url"])
+            response = fetch_public(url, request=session.get, timeout=timeout)
             response.raise_for_status()
-            row["resolved_url"] = validate_public_url(response.url)
+            row["resolved_url"] = public_url_syntax(response.url)
             response.close()
         except Exception as exc:
             row["resolution_error"] = f"{type(exc).__name__}: {exc}"[:1000]
@@ -1429,7 +1422,9 @@ def _commons_api_json(
     for attempt in (1, 2):
         request = session.post if use_post else session.get
         keyword = "data" if use_post else "params"
-        response = request("https://commons.wikimedia.org/w/api.php", **{keyword: params}, timeout=timeout)
+        response = request("https://commons.wikimedia.org/w/api.php", **{keyword: params}, timeout=timeout, allow_redirects=False)
+        if 300 <= response.status_code < 400:
+            raise ValueError("Commons API redirect refused")
         if response.status_code == 429:
             retry_after = min(float(response.headers.get("Retry-After") or 2), 60.0)
             rate_limits.append({"attempt": attempt, "retry_after": retry_after, "timestamp": utc_now()})
@@ -1681,10 +1676,10 @@ def fetch_source_page(
     record: dict[str, Any], session: requests.Session, *, timeout: float = 30,
 ) -> tuple[dict[str, Any], list[dict[str, Any]]]:
     """Fetch source page."""
-    url = validate_public_url(record["source_page_url"])
-    response = session.get(url, timeout=timeout, allow_redirects=True)
+    url = public_url_syntax(record["source_page_url"])
+    response = fetch_public(url, request=session.get, timeout=timeout, max_bytes=5 * 1024 * 1024)
     response.raise_for_status()
-    final_url = validate_public_url(response.url)
+    final_url = public_url_syntax(response.url)
     content_type = str(response.headers.get("Content-Type") or "")
     if "html" not in content_type.casefold() and not response.text.lstrip().startswith(("<!DOCTYPE", "<html", "<HTML")):
         raise ValueError("source page is not HTML")
@@ -1742,10 +1737,10 @@ def download_candidate(
     """Download candidate."""
     if candidate.get("identity_confidence") == "low" or not candidate.get("identity_evidence"):
         raise ValueError("candidate attribution is not source-verified")
-    url = validate_public_url(candidate["direct_image_url"])
+    url = public_url_syntax(candidate["direct_image_url"])
     response = None
     for attempt in (1, 2):
-        response = session.get(url, timeout=timeout, stream=True, allow_redirects=True)
+        response = fetch_public(url, request=session.get, timeout=timeout, max_bytes=MAX_DOWNLOAD_BYTES)
         if response.status_code == 429 and attempt == 1:
             retry_after = min(float(response.headers.get("Retry-After") or 5), 60.0)
             response.close()
@@ -1758,7 +1753,7 @@ def download_candidate(
         response.raise_for_status()
         break
     assert response is not None
-    final_url = validate_public_url(response.url)
+    final_url = public_url_syntax(response.url)
     content_type = str(response.headers.get("Content-Type") or "").split(";", 1)[0].casefold()
     payload = bytearray()
     for chunk in response.iter_content(1024 * 128):
@@ -1768,10 +1763,9 @@ def download_candidate(
     if payload[:100].lstrip().startswith((b"<", b"<!")):
         raise ValueError("HTML response masquerades as an image")
     try:
+        from single_call_reply_images import verify_complete_image
+        verify_complete_image(bytes(payload), content_type)
         with Image.open(__import__("io").BytesIO(payload)) as image:
-            image.verify()
-        with Image.open(__import__("io").BytesIO(payload)) as image:
-            image.load()
             image_format = str(image.format or "").upper()
             width, height = image.size
     except (UnidentifiedImageError, OSError) as exc:

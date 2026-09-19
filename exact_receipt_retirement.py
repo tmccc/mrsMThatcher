@@ -328,8 +328,9 @@ def _open_directory(path: Path) -> int:
             os.close(descriptor)
             descriptor = child
         metadata = os.fstat(descriptor)
-        if not stat.S_ISDIR(metadata.st_mode):
-            raise ExactReceiptRetirementError("receipt parent is not a directory")
+        if (not stat.S_ISDIR(metadata.st_mode) or metadata.st_uid != os.geteuid()
+                or stat.S_IMODE(metadata.st_mode) & 0o022):
+            raise ExactReceiptRetirementError("unsafe receipt parent ownership or permissions")
         return descriptor
     except ExactReceiptRetirementError:
         if descriptor is not None:
@@ -914,12 +915,15 @@ def _move_exact_to_cleanup(
     cleanup_name: str,
     expected_entry: StableEntry,
     maximum: int,
+    verify_authority: Callable[[], None] | None = None,
 ) -> None:
     current = _read_stable_entry(directory_fd, source_name, maximum=maximum)
     if current is None or current != expected_entry:
         raise ExactReceiptRetirementError(
             "receipt retirement source changed before its no-replace move"
         )
+    if verify_authority is not None:
+        verify_authority()
     _rename_noreplace(directory_fd, source_name, cleanup_name)
     try:
         _fsync_directory(directory_fd)
@@ -951,6 +955,7 @@ def _unlink_exact_cleanup(
     cleanup_name: str,
     expected_entry: StableEntry,
     maximum: int,
+    verify_authority: Callable[[], None] | None = None,
 ) -> None:
     nofollow = getattr(os, "O_NOFOLLOW", 0)
     if not nofollow:
@@ -1001,6 +1006,8 @@ def _unlink_exact_cleanup(
             raise ExactReceiptRetirementError(
                 "receipt retirement cleanup entry changed before removal"
             )
+        if verify_authority is not None:
+            verify_authority()
         os.unlink(cleanup_name, dir_fd=directory_fd)
         _fsync_directory(directory_fd)
         retired = os.fstat(descriptor)
@@ -2119,6 +2126,7 @@ def retire_exact_receipt(
         maximum_receipt_bytes=maximum_receipt_bytes,
         independently_authorised_absence=independently_authorised_absence,
         require_interrupted=False,
+        mutation_authority=mutation_authority,
     )
 
 
@@ -2185,6 +2193,7 @@ def resume_interrupted_receipt_retirement(
         maximum_receipt_bytes=maximum_receipt_bytes,
         independently_authorised_absence=False,
         require_interrupted=True,
+        mutation_authority=mutation_authority,
     )
 
 
@@ -2196,7 +2205,14 @@ def _run_retirement(
     maximum_receipt_bytes: int,
     independently_authorised_absence: bool,
     require_interrupted: bool,
+    mutation_authority: TransactionMutationAuthority,
 ) -> ReceiptRetirementResult:
+    def verify_authority() -> None:
+        """Revalidate protected commit and instance lock at each mutation boundary."""
+        require_transaction_mutation_authority(
+            mutation_authority, operation="exact receipt retirement transition",
+        )
+
     source = _absolute_path(source_path)
     paths = _retirement_paths(source)
     directory_fd = _open_directory(source.parent)
@@ -2205,6 +2221,7 @@ def _run_retirement(
     bound_expectation: RetirementExpectation | None = None
     try:
         for _ in range(24):
+            verify_authority()
             ledger_path, exchange_path = retirement_ledger_paths(source)
             _recover_ledger_exchange(
                 directory_fd,
@@ -2299,6 +2316,7 @@ def _run_retirement(
                     cleanup_name=paths.cleanup.name,
                     expected_entry=source_entry,
                     maximum=maximum_receipt_bytes,
+                    verify_authority=verify_authority,
                 )
                 transitions.append("source_moved_to_cleanup")
                 continue
@@ -2338,6 +2356,7 @@ def _run_retirement(
                     cleanup_name=paths.cleanup.name,
                     expected_entry=displaced,
                     maximum=maximum_receipt_bytes,
+                    verify_authority=verify_authority,
                 )
                 transitions.append("displaced_source_removed")
                 continue
@@ -2350,6 +2369,7 @@ def _run_retirement(
                     cleanup_name=paths.cleanup.name,
                     expected_entry=guard_entry,
                     maximum=maximum_receipt_bytes,
+                    verify_authority=verify_authority,
                 )
                 transitions.append("prepare_guard_moved_to_cleanup")
                 continue
@@ -2361,6 +2381,7 @@ def _run_retirement(
                     cleanup_name=paths.cleanup.name,
                     expected_entry=moved_guard,
                     maximum=maximum_receipt_bytes,
+                    verify_authority=verify_authority,
                 )
                 transitions.append("prepare_guard_removed")
                 continue
@@ -2386,6 +2407,7 @@ def _run_retirement(
                     cleanup_name=paths.cleanup.name,
                     expected_entry=commit_entry,
                     maximum=maximum_receipt_bytes,
+                    verify_authority=verify_authority,
                 )
                 transitions.append("commit_guard_moved_to_cleanup")
                 continue
@@ -2397,6 +2419,7 @@ def _run_retirement(
                     cleanup_name=paths.cleanup.name,
                     expected_entry=moved_commit,
                     maximum=maximum_receipt_bytes,
+                    verify_authority=verify_authority,
                 )
                 transitions.append("commit_guard_removed")
                 continue

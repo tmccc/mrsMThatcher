@@ -334,6 +334,7 @@ print(journal._configured_x_request_reload_record(owner)[0])
         os.environ,
         PYTHONPATH=str(Path(bot.__file__).resolve().parent),
         MRS_TEST_MODE="0",
+        OPENAI_API_BASE_URL="https://api.openai.com/v1",
     )
     result = subprocess.run(
         [sys.executable, "-c", code],
@@ -392,8 +393,10 @@ else:
         os.environ,
         PYTHONPATH=str(Path(bot.__file__).resolve().parent),
         MRS_TEST_MODE="0",
+        OPENAI_API_BASE_URL="https://api.openai.com/v1",
         MRS_BASE_DIR=str(tmp_path),
         MRS_LOG_FILE=str(tmp_path / "wrong-owner.log"),
+        X_UPLOAD_BASE_URL="https://upload.twitter.com",
         X_API_BASE_URL="https://api.x.com",
         MRS_REQUEST_TIMEOUT_SECONDS="60",
     )
@@ -492,9 +495,14 @@ for name in (
 """,
         "poisoned-fingerprint": """
 b._X_REQUEST_PROVIDER_INSTALLED_BY_MODULE = True
-b._SEALED_X_REQUEST_PROVIDER_RELOAD_FINGERPRINT = (
-    b._x_request_provider_reload_fingerprint_from_environment()
-)
+try:
+    b._SEALED_X_REQUEST_PROVIDER_RELOAD_FINGERPRINT = (
+        b._x_request_provider_reload_fingerprint_from_environment()
+    )
+except ValueError:
+    # Production origin validation also refuses constructing the hostile
+    # loopback fingerprint before reload; a forged global remains no authority.
+    b._SEALED_X_REQUEST_PROVIDER_RELOAD_FINGERPRINT = ("forged",)
 """,
     }[bot_global_attack]
     code = f"""
@@ -544,6 +552,7 @@ print(
         os.environ,
         PYTHONPATH=str(Path(bot.__file__).resolve().parent),
         MRS_TEST_MODE="0",
+        OPENAI_API_BASE_URL="https://api.openai.com/v1",
         MRS_BASE_DIR=str(tmp_path),
         MRS_LOG_FILE=str(tmp_path / "reload-live.log"),
         X_API_BASE_URL="https://api.x.com",
@@ -613,6 +622,7 @@ print(
         os.environ,
         PYTHONPATH=str(Path(bot.__file__).resolve().parent),
         MRS_TEST_MODE="0",
+        OPENAI_API_BASE_URL="https://api.openai.com/v1",
         MRS_BASE_DIR=str(tmp_path),
         MRS_LOG_FILE=str(tmp_path / "mutable-test-globals.log"),
         X_API_BASE_URL="https://api.x.com",
@@ -745,8 +755,8 @@ import mrsMThatcher2
         text=True,
         capture_output=True,
     )
-    assert result.returncode == 2
-    assert "Refusing to run in MRS_TEST_MODE with live endpoint" in (
+    assert result.returncode != 0
+    assert "endpoint must use an expected HTTPS provider origin" in (
         result.stdout + result.stderr
     )
 

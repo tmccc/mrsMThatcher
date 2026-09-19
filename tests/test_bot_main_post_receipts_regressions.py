@@ -135,7 +135,6 @@ def test_stale_meme_receipt_replay_preserves_newer_daily_guard_and_schedule(
         "verify_lane_transport_source_lineage_if_present",
         lambda **_kwargs: True,
     )
-    monkeypatch.setattr(bot, "save_state", lambda *_args, **_kwargs: None)
     monkeypatch.setattr(
         bot,
         "retire_lane_transport_journal_if_present",
@@ -144,7 +143,7 @@ def test_stale_meme_receipt_replay_preserves_newer_daily_guard_and_schedule(
     monkeypatch.setattr(
         bot,
         "remove_meme_post_receipt",
-        lambda _receipt: receipt_path.unlink(),
+        lambda _receipt, **_kwargs: receipt_path.unlink(),
     )
     monkeypatch.setattr(
         bot,
@@ -165,9 +164,9 @@ def test_stale_meme_receipt_replay_preserves_newer_daily_guard_and_schedule(
         "last_meme_post_epoch": newer_epoch,
         "next_meme_post_epoch": newer_next,
         "meme_schedule_version": bot.MEME_SCHEDULE_VERSION,
-        "next_meme_schedule_mode": "fallback_future",
-        "next_meme_schedule_date": bot.epoch_date_str(newer_next),
-        "meme_anchor_quote_post_epoch": 123,
+        "next_meme_schedule_mode": "after_first_quote_after_midday",
+        "next_meme_schedule_date": bot.epoch_date_str(newer_epoch),
+        "meme_anchor_quote_post_epoch": newer_epoch,
         "posted_meme_filenames": ["002_meme.png"],
     }
     current_date = bot.epoch_date_str(newer_epoch)
@@ -178,8 +177,8 @@ def test_stale_meme_receipt_replay_preserves_newer_daily_guard_and_schedule(
     assert state["last_main_post_id"] == "970002"
     assert state["last_meme_post_epoch"] == newer_epoch
     assert state["next_meme_post_epoch"] == newer_next
-    assert state["next_meme_schedule_mode"] == "fallback_future"
-    assert state["meme_anchor_quote_post_epoch"] == 123
+    assert state["next_meme_schedule_mode"] == "after_first_quote_after_midday"
+    assert state["meme_anchor_quote_post_epoch"] == newer_epoch
     assert state["posted_meme_filenames"] == [
         "001_meme.png",
         "002_meme.png",
@@ -243,13 +242,15 @@ def test_regular_receipt_reconciliation_preserves_legacy_counter_and_replays_onc
     receipt = valid_regular_receipt(image_basename=image_basename)
     bot.atomic_write_json(receipt_file, receipt)
     monkeypatch.setattr(bot, "REGULAR_POST_RECEIPT_FILE", receipt_file)
-    monkeypatch.setattr(bot, "save_regular_post_protected_state", lambda *args, **kwargs: None)
+    monkeypatch.setattr(bot, "LINES_USED_FILE", tmp_path / "lines_used.json")
+    monkeypatch.setattr(bot, "IMAGES_USED_FILE", tmp_path / "images_used.json")
     monkeypatch.setattr(bot, "cache_tweet", lambda *args, **kwargs: None)
     monkeypatch.setattr(bot, "record_recent_own_post", lambda *args, **kwargs: None)
     caplog.set_level(logging.INFO, logger=bot.log.name)
     lines_used: set[str] = set()
     images_used: set[str] = set()
-    state = {"original_regular_posts_since_generated_image": initial_count}
+    state = bot.default_state()
+    state["original_regular_posts_since_generated_image"] = initial_count
 
     assert bot.reconcile_regular_post_receipt(lines_used, images_used, state) is True
     assert state["original_regular_posts_since_generated_image"] == initial_count
@@ -472,9 +473,16 @@ def test_protected_durable_saves_complete_before_receipt_removal(
         "text": "Good quote.",
     }
     bot.atomic_write_json(receipt_file, receipt)
-    monkeypatch.setattr(bot, "save_quote_used_hashes", lambda *args, **kwargs: calls.append("quote"))
-    monkeypatch.setattr(bot, "save_image_used_basenames", lambda *args, **kwargs: calls.append("image"))
-    monkeypatch.setattr(bot, "save_state", lambda *args, **kwargs: calls.append("state"))
+    for name, label in (("save_quote_used_hashes", "quote"),
+                        ("save_image_used_basenames", "image"), ("save_state", "state")):
+        original = getattr(bot, name)
+
+        def observed(*args, _original=original, _label=label, **kwargs):
+            """Observe real durable writes without replacing their authority."""
+            calls.append(_label)
+            return _original(*args, **kwargs)
+
+        monkeypatch.setattr(bot, name, observed)
     monkeypatch.setattr(
         bot,
         "remove_regular_post_receipt",
@@ -631,7 +639,6 @@ def test_valid_receipt_reconciles_idempotently(
         "text": "Good quote.",
     }
     bot.atomic_write_json(receipt_file, receipt)
-    monkeypatch.setattr(bot, "save_state", lambda state, **kwargs: None)
     monkeypatch.setattr(
         bot,
         "historical_context_reply",
@@ -690,7 +697,6 @@ def test_old_receipt_does_not_move_main_post_state_behind_newer_meme(
         "next_meme_schedule_mode": "fallback_future",
         "next_meme_schedule_date": "2027-01-18",
     }
-    monkeypatch.setattr(bot, "save_state", lambda state, **kwargs: None)
 
     assert bot.reconcile_regular_post_receipt(set(), set(), state) is True
     assert state["last_main_post_id"] == "960001"

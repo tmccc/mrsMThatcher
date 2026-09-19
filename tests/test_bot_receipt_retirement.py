@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import inspect
+import functools
 from pathlib import Path
 import subprocess
 import sys
@@ -48,6 +49,8 @@ DEPENDENCIES = {'confirmed_context_outbox_matches_receipt': [],
                                                              'retire_lane_transport_journal_if_present',
                                                              'retirement_auxiliary_barrier_exists',
                                                              'transaction_mutation_authority',
+                                                             'recover_state_receipt_commit_proof',
+                                                             'state_commit_mutation_authority',
                                                              'transport_journal_is_blocking'],
  'retire_current_source_receipt': ['latch_source_receipt_retirement_uncertainty',
                                    'retire_or_resume_exact_receipt',
@@ -93,7 +96,7 @@ DEPENDENCIES = {'confirmed_context_outbox_matches_receipt': [],
 SIGNATURES = {'confirmed_context_outbox_matches_receipt': "(context_reply: 'dict', receipt: 'dict') -> 'bool'",
  'require_historical_context_retirement_outbox_authority': "() -> 'None'",
  'resume_interrupted_source_receipt_retirement_if_present': "() -> 'bool'",
- 'retire_current_source_receipt': "(receipt_path: 'Path', expected_receipt_bytes: 'bytes') -> "
+ 'retire_current_source_receipt': "(receipt_path: 'Path', expected_receipt_bytes: 'bytes', *, commit_proof=None) -> "
                                   "'None'",
  'resume_interrupted_confirmed_media_retirement_if_present': "() -> 'bool'",
  'expected_lane_transport_source_receipt_bytes': "(*, receipt: 'dict', lane: 'str', "
@@ -104,7 +107,7 @@ SIGNATURES = {'confirmed_context_outbox_matches_receipt': "(context_reply: 'dict
                                                     "-> 'bool'",
  'retire_lane_transport_journal_if_present': "(*, receipt_path: 'Path', receipt: 'dict', lane: "
                                              "'str', post_id: 'str', current_receipt_bytes: 'bytes "
-                                             "| None' = None) -> 'bool'"}
+                                             "| None' = None, commit_proof=None) -> 'bool'"}
 
 
 def test_import_needs_no_runtime_access():
@@ -163,6 +166,14 @@ def test_adapters_preserve_signatures_current_dependencies_references_and_errors
                 assert len(args) == len(positional)
                 assert all(value is expected[key] for key, value in zip(positional, args))
                 supplied = {key: expected[key] for key in keyword_only} | current
+                if name in {"retire_current_source_receipt", "retire_lane_transport_journal_if_present"}:
+                    proof = supplied.pop("commit_proof")
+                    authority = kwargs["transaction_mutation_authority"]
+                    assert isinstance(authority, functools.partial)
+                    assert authority.func is bot.state_commit_mutation_authority
+                    assert authority.args == (proof,)
+                    assert authority.keywords == {}
+                    supplied["transaction_mutation_authority"] = authority
                 assert kwargs.keys() == supplied.keys()
                 assert all(kwargs[key] is value for key, value in supplied.items())
                 return result
@@ -335,7 +346,7 @@ def test_source_resume_orders_context_journal_and_current_source_authority(monke
 
     def retire_journal(**kwargs):
         assert kwargs == dict(receipt_path=path, receipt=receipt, lane="historical_context_reply",
-                              post_id=post_id, current_receipt_bytes=current_bytes)
+                              post_id=post_id, current_receipt_bytes=current_bytes, commit_proof=None)
         assert kwargs["receipt"] is receipt and kwargs["current_receipt_bytes"] is current_bytes
         return note("retire_journal", True)
 
@@ -578,14 +589,20 @@ def test_journal_retirement_orders_source_guard_and_separately_issued_authoritie
     monkeypatch.setattr(bot, "prepare_exact_receipt_retirement", prepare)
     monkeypatch.setattr(bot, "retire_confirmed_transport_transaction", retire)
     options = dict(receipt_path=path, receipt=receipt, lane="quote_image", post_id=post_id, current_receipt_bytes=current_bytes)
+    def invoke_owner():
+        return owner.retire_lane_transport_journal_if_present(
+            **options, **{name: getattr(bot, name) for name in
+                         DEPENDENCIES["retire_lane_transport_journal_if_present"]},
+        )
+
     order = ["source", "authority1", "prepare", "authority2", "retire"]
     if stop:
         with pytest.raises(OSError) as caught:
-            bot.retire_lane_transport_journal_if_present(**options)
+            invoke_owner()
         assert caught.value is failure
         assert events == order[:order.index(stop) + 1]
     else:
-        assert bot.retire_lane_transport_journal_if_present(**options) is True
+        assert invoke_owner() is True
         assert events == order
         assert authority.call_args_list == [call("source receipt retirement preparation"), call("confirmed transport journal retirement")]
         assert prepare.call_args.args[0] is path and prepare.call_args.args[1] is current_bytes
@@ -598,3 +615,18 @@ def test_journal_retirement_orders_source_guard_and_separately_issued_authoritie
         assert retire.call_args.kwargs["expected_source_receipt_bytes"] is source_bytes
     assert expected.call_args.kwargs["receipt"] is receipt
     assert expected.call_args.kwargs["current_receipt_bytes"] is current_bytes
+
+
+@pytest.mark.parametrize("lane", ["quote_image", "daily_meme", "conversational_reply"])
+@pytest.mark.parametrize("proof", [None, object()])
+def test_root_retirement_requires_real_state_proof_before_owner(monkeypatch, tmp_path, lane, proof):
+    invoked = Mock(side_effect=AssertionError("retirement owner must not run"))
+    monkeypatch.setattr(bot, "_receipt_retirement", SimpleNamespace(
+        retire_lane_transport_journal_if_present=invoked,
+    ))
+    with pytest.raises(RuntimeError, match="exact durable state commit"):
+        bot.retire_lane_transport_journal_if_present(
+            receipt_path=tmp_path / "receipt", receipt={}, lane=lane,
+            post_id="950001", commit_proof=proof,
+        )
+    invoked.assert_not_called()

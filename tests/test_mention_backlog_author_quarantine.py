@@ -60,10 +60,12 @@ def london_epoch(day: int, hour: int, minute: int, second: int) -> int:
 @pytest.mark.parametrize("body", [
     b"", b"{}", b'{"errors":[{"detail":"Temporarily unavailable"}]}',
 ])
-def test_incomplete_http_continuation_preserves_durable_unread_mentions(monkeypatch, body):
+def test_incomplete_http_continuation_preserves_durable_unread_mentions(monkeypatch, tmp_path, body):
     """An invalid 2xx continuation must remain retryable across state reload."""
     from unittest.mock import Mock
 
+    monkeypatch.setattr(bot, "STATE_FILE", tmp_path / "bot_state.json")
+    monkeypatch.setattr(bot, "STATE_BACKUP_COUNT", 2)
     monkeypatch.setattr(bot, "MENTIONS_MAX_PAGES_PER_CHECK", 1)
     first = bot.requests.Response()
     first.status_code = 200
@@ -2025,40 +2027,53 @@ def test_stale_pending_traversal_is_recovered_during_state_load(
 
 
 @pytest.mark.parametrize("pending", CORRUPT_PENDING_IDENTITIES)
-def test_corrupt_pending_identity_prefers_usable_backup(
+@pytest.mark.parametrize("generation_ordered", [False, True], ids=["ambiguous-legacy", "sealed-newer-backup"])
+def test_corrupt_pending_identity_requires_provable_backup_authority(
     pending: dict,
+    generation_ordered: bool,
     tmp_path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
+    """Discardable pending corruption cannot erase durable reply-history ambiguity."""
+    from mrs_bot_state_generation import encode_generation
+
     state_path = tmp_path / "bot_state.json"
+    backup_path = tmp_path / "bot_state.json.bak1"
     monkeypatch.setattr(bot, "STATE_FILE", state_path)
     monkeypatch.setattr(bot, "STATE_BACKUP_COUNT", 1)
-    bot.atomic_write_json(
-        state_path,
-        {
-            "last_seen_mention_id": "99",
-            "mention_backlog": mention_backlog(since_id="99"),
-            "mention_pagination": {
-                "base_since_id": "99",
-                "next_token": "A",
-            },
-            "mention_pending_candidates": pending,
-            "replied_to_ids": ["from-primary"],
-        },
-    )
-    bot.atomic_write_json(
-        tmp_path / "bot_state.json.bak1",
-        {
-            "last_seen_mention_id": "77",
-            "replied_to_ids": ["from-backup"],
-        },
-    )
+    primary = {
+        "last_seen_mention_id": "99",
+        "mention_backlog": mention_backlog(since_id="99"),
+        "mention_pagination": {"base_since_id": "99", "next_token": "A"},
+        "mention_pending_candidates": pending,
+        "replied_to_ids": ["from-primary"],
+    }
+    backup = {
+        "last_seen_mention_id": "77",
+        "replied_to_ids": ["from-backup"],
+    }
+    for sequence, (path, document) in enumerate(((state_path, primary), (backup_path, backup)), start=1):
+        if generation_ordered:
+            document, _encoded = encode_generation(
+                bot.state_document_for_persistence(document), sequence,
+                bot.DURABLE_RUNTIME_JSON_MAX_BYTES,
+            )
+        bot.atomic_write_json(path, document, durable=True)
+
+    if not generation_ordered:
+        before = {path: path.read_bytes() for path in (state_path, backup_path)}
+        with pytest.raises(RuntimeError, match="diverge|ambiguous"):
+            bot.load_state()
+        assert {path: path.read_bytes() for path in (state_path, backup_path)} == before
+        return
 
     state = bot.load_state()
-
     assert state["last_seen_mention_id"] == "77"
     assert state["replied_to_ids"] == ["from-backup"]
     assert state["mention_pending_candidates"] == {}
+    assert state["_state_generation"]["sequence"] > 2
+    assert state_path.read_bytes() == backup_path.read_bytes()
+    assert bot.load_state()["replied_to_ids"] == ["from-backup"]
 
 
 @pytest.mark.parametrize("pending", CORRUPT_PENDING_IDENTITIES)

@@ -655,13 +655,20 @@ def test_pause_after_tweet_authority_consumption_is_prospective_and_confirms_onc
         reply_post_id=details.post_id,
         confirmation_epoch=details.confirmation_epoch,
     )
+    from mrs_bot_state_generation import record_receipt_commit
+
+    state = bot.default_state()
+    bot.apply_confirmed_reply_receipt(state, confirmed)
+    record_receipt_commit(state, confirmed)
+    proof = bot.save_state(state, durable=True)
     bot.retire_lane_transport_journal_if_present(
         receipt_path=bot.CONFIRMED_REPLY_RECEIPT_FILE,
         receipt=confirmed,
         lane="conversational_reply",
         post_id=details.post_id,
+        commit_proof=proof,
     )
-    bot.remove_confirmed_reply_receipt(confirmed)
+    bot.remove_confirmed_reply_receipt(confirmed, commit_proof=proof)
     assert not bot.CONFIRMED_REPLY_RECEIPT_FILE.exists()
     assert not Path(details.journal_path).exists()
     assert not bot.fence_path_for_journal(Path(details.journal_path)).exists()
@@ -3401,7 +3408,7 @@ def test_deleted_mention_reply_is_terminal_without_transport_barriers_or_quota(
     later_sending = unit_sending_v4_reply_receipt(
         target_id="101",
         author_id="201",
-        text="A later unrelated reply.",
+        text="Thank you for sharing.",
         epoch=2_000_000_001,
         attempt_epoch=2_000_000_001,
     )
@@ -3425,14 +3432,18 @@ def test_deleted_mention_reply_is_terminal_without_transport_barriers_or_quota(
     )
     assert response == {"data": {"id": "900001"}}
     bot.apply_confirmed_reply_receipt(restarted, confirmed)
-    bot.save_state(restarted, durable=True)
+    from mrs_bot_state_generation import record_receipt_commit
+
+    record_receipt_commit(restarted, confirmed)
+    proof = bot.save_state(restarted, durable=True)
     bot.retire_lane_transport_journal_if_present(
         receipt_path=bot.CONFIRMED_REPLY_RECEIPT_FILE,
         receipt=confirmed,
         lane="conversational_reply",
         post_id="900001",
+        commit_proof=proof,
     )
-    bot.remove_confirmed_reply_receipt(confirmed)
+    bot.remove_confirmed_reply_receipt(confirmed, commit_proof=proof)
     assert remote_calls == ["GET /2/tweets/100", "POST /2/tweets", "later"]
     assert bot.ambiguous_remote_post_is_blocking() is False
 
@@ -4388,14 +4399,18 @@ def test_conversational_success_retires_journal_only_after_state_commit(
     journal_path = bot.journal_path_for_receipt(bot.CONFIRMED_REPLY_RECEIPT_FILE)
     assert journal_path.exists()
     bot.apply_confirmed_reply_receipt(state, confirmed)
-    bot.save_state(state, durable=True)
+    from mrs_bot_state_generation import record_receipt_commit
+
+    record_receipt_commit(state, confirmed)
+    proof = bot.save_state(state, durable=True)
     bot.retire_lane_transport_journal_if_present(
         receipt_path=bot.CONFIRMED_REPLY_RECEIPT_FILE,
         receipt=confirmed,
         lane="conversational_reply",
         post_id="980001",
+        commit_proof=proof,
     )
-    bot.remove_confirmed_reply_receipt(confirmed)
+    bot.remove_confirmed_reply_receipt(confirmed, commit_proof=proof)
 
     assert not journal_path.exists()
     assert not bot.CONFIRMED_REPLY_RECEIPT_FILE.exists()

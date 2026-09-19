@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import builtins
 import inspect
+import functools
 from pathlib import Path
 import subprocess
 import sys
@@ -59,14 +60,14 @@ assert 'single_call_reply' not in sys.modules
         ("main_post_attempt_path", "(attempt: 'dict') -> 'Path'", 2),
         ("write_main_post_attempt", "(attempt: 'dict') -> 'None'", 11),
         ("mark_main_post_attempt_attempting", "(attempt: 'dict') -> 'dict'", 10),
-        ("remove_main_post_attempt", "(attempt: 'dict', *, sending_disposition: 'str') -> 'None'", 7),
+        ("remove_main_post_attempt", "(attempt: 'dict', *, sending_disposition: 'str', commit_proof=None) -> 'None'", 7),
         ("finalize_confirmed_pending_schedule_receipt", "(pending: 'dict') -> 'dict'", 10),
         ("write_regular_post_receipt", "(receipt: 'dict') -> 'None'", 14),
         ("load_regular_post_receipt", "() -> 'tuple[str, dict | None]'", 6),
-        ("remove_regular_post_receipt", "(receipt: 'dict') -> 'None'", 4),
+        ("remove_regular_post_receipt", "(receipt: 'dict', *, commit_proof=None) -> 'None'", 4),
         ("write_meme_post_receipt", "(receipt: 'dict') -> 'None'", 14),
         ("load_meme_post_receipt", "() -> 'tuple[str, dict | None]'", 6),
-        ("remove_meme_post_receipt", "(receipt: 'dict') -> 'None'", 4),
+        ("remove_meme_post_receipt", "(receipt: 'dict', *, commit_proof=None) -> 'None'", 4),
     ],
 )
 def test_adapters_forward_current_dependencies_signatures_references_and_errors(
@@ -89,18 +90,32 @@ def test_adapters_forward_current_dependencies_signatures_references_and_errors(
     ) else ()
     options = {key: object() for key, p in parameters.items()
                if p.kind is inspect.Parameter.KEYWORD_ONLY}
+    if "commit_proof" in options:
+        from mrs_bot_state_generation import record_receipt_commit
+        state = bot.default_state()
+        record_receipt_commit(state, args[0])
+        options["commit_proof"] = bot.save_state(state, durable=True)
     for _ in range(2):
         with monkeypatch.context() as patch:
-            current = {key: object() for key in dependencies}
+            current = {key: Mock() if key == "retire_current_source_receipt" else object()
+                       for key in dependencies}
             owner = Mock(return_value={"original return": []})
             patch.setattr(bot, "_main_post_receipt_storage", SimpleNamespace(**{name: owner}))
             for key, dependency in current.items():
                 patch.setattr(bot, key, dependency)
             assert adapter(*args, **options) is owner.return_value
-            owner.assert_called_once_with(*args, **options, **current)
+            forwarded = {**options, **current}
+            if "commit_proof" in options:
+                proof = forwarded.pop("commit_proof")
+                retirement = owner.call_args.kwargs["retire_current_source_receipt"]
+                assert isinstance(retirement, functools.partial)
+                assert retirement.func is current["retire_current_source_receipt"]
+                assert retirement.args == () and retirement.keywords == {"commit_proof": proof}
+                forwarded["retire_current_source_receipt"] = retirement
+            owner.assert_called_once_with(*args, **forwarded)
             assert all(actual is original for actual, original in zip(owner.call_args.args, args))
             assert all(owner.call_args.kwargs[key] is value
-                       for key, value in {**options, **current}.items())
+                       for key, value in forwarded.items())
             failure = TypeError("current owner failure")
             owner.side_effect = failure
             with pytest.raises(TypeError) as caught:
@@ -570,36 +585,34 @@ def test_loaders_keep_read_only_catch_status_references_and_lane_specific_checks
     assert getattr(trace, semantic).call_count == (0 if prefix == "regular" else 1)
 
 
-def test_attempt_retirement_keeps_disposition_reader_identity_and_wide_missing_scope(monkeypatch, tmp_path):
+def test_attempt_retirement_keeps_disposition_secure_reader_and_missing_scope(monkeypatch, tmp_path):
     attempt = schema_current_main_attempt("quote_image")
     current = dict(attempt)
     path = tmp_path / "attempt.json"
-    path.write_text("{}", encoding="utf-8")
     trace = _callbacks(
         monkeypatch, current_main_post_attempt_is_semantically_valid=True,
         main_post_attempt_path=path, canonical_atomic_json_bytes=b"canonical",
-        retire_current_source_receipt=None,
+        retire_current_source_receipt=None, load_receipt_json_no_follow=(True, current),
     )
-    json_reader = Mock(return_value=current)
-    trace.attach_mock(json_reader, "read_json")
-    monkeypatch.setattr(bot, "json", SimpleNamespace(load=json_reader))
-    handles = []
 
-    def recorded_open(*args, **kwargs):
-        trace.open(*args, **kwargs)
-        handle = builtins.open(*args, **kwargs)
-        handles.append(handle)
-        return handle
+    def remove(attempt, *, sending_disposition):
+        return storage.remove_main_post_attempt(
+            attempt, sending_disposition=sending_disposition,
+            **{key: getattr(bot, key) for key in (
+                "AmbiguousRemotePostOutcome", "canonical_atomic_json_bytes",
+                "current_main_post_attempt_is_semantically_valid", "load_receipt_json_no_follow", "log",
+                "main_post_attempt_path", "retire_current_source_receipt")},
+        )
 
-    monkeypatch.setattr(storage, "open", recorded_open, raising=False)
     with pytest.raises(ValueError, match="explicit disposition"):
-        bot.remove_main_post_attempt(attempt, sending_disposition="unproved")
+        remove(attempt, sending_disposition="unproved")
     assert not trace.mock_calls
-    assert bot.remove_main_post_attempt(attempt, sending_disposition="definite_non_success") is None
-    expected = ["current_main_post_attempt_is_semantically_valid", "main_post_attempt_path", "open", "read_json", "current_main_post_attempt_is_semantically_valid", "canonical_atomic_json_bytes", "retire_current_source_receipt", "log.info"]
+    assert remove(attempt, sending_disposition="definite_non_success") is None
+    expected = ["current_main_post_attempt_is_semantically_valid", "main_post_attempt_path",
+                "load_receipt_json_no_follow", "current_main_post_attempt_is_semantically_valid",
+                "canonical_atomic_json_bytes", "retire_current_source_receipt", "log.info"]
     assert _steps(trace) == expected
-    trace.open.assert_called_once_with(path, "r", encoding="utf-8")
-    assert json_reader.call_args.args[0] is handles[0] and handles[0].closed
+    trace.load_receipt_json_no_follow.assert_called_once_with(path)
     assert trace.current_main_post_attempt_is_semantically_valid.call_args_list[0].args[0] is attempt
     assert trace.current_main_post_attempt_is_semantically_valid.call_args_list[1].args[0] is current
     assert trace.canonical_atomic_json_bytes.call_args.args[0] is attempt
@@ -608,20 +621,24 @@ def test_attempt_retirement_keeps_disposition_reader_identity_and_wide_missing_s
     failure = FileNotFoundError("logger inside original retirement try")
     trace.log.info.side_effect = failure
     with pytest.raises(bot.AmbiguousRemotePostOutcome) as caught:
-        bot.remove_main_post_attempt(attempt, sending_disposition="confirmed_state_fallback")
+        remove(attempt, sending_disposition="confirmed_state_fallback")
     assert caught.value.__cause__ is failure and _steps(trace) == expected
     trace.reset_mock()
     failure = ValueError("malformed JSON")
-    json_reader.side_effect = failure
+    trace.load_receipt_json_no_follow.side_effect = failure
     with pytest.raises(ValueError) as caught:
-        bot.remove_main_post_attempt(attempt, sending_disposition="definite_non_success")
-    assert caught.value is failure and _steps(trace) == expected[:4]
-    json_reader.side_effect = None
-    json_reader.return_value = {**attempt, "attempt_id": "changed"}
-    trace.reset_mock()
-    with pytest.raises(bot.AmbiguousRemotePostOutcome, match="changed main-post"):
-        bot.remove_main_post_attempt(attempt, sending_disposition="definite_non_success")
-    assert _steps(trace) == expected[:4]
+        remove(attempt, sending_disposition="definite_non_success")
+    assert caught.value is failure and _steps(trace) == expected[:3]
+    trace.load_receipt_json_no_follow.side_effect = None
+    for present, value, message in (
+        (True, {**attempt, "attempt_id": "changed"}, "changed main-post"),
+        (False, None, "disappeared"),
+    ):
+        trace.reset_mock()
+        trace.load_receipt_json_no_follow.return_value = (present, value)
+        with pytest.raises(bot.AmbiguousRemotePostOutcome, match=message):
+            remove(attempt, sending_disposition="definite_non_success")
+        assert _steps(trace) == expected[:3]
 
 
 @pytest.mark.parametrize("prefix", ["regular", "meme"])
@@ -629,7 +646,12 @@ def test_reconciled_retirement_uses_original_canonical_bytes_before_logging(monk
     receipt = {"original": []}
     path = getattr(bot, f"{prefix.upper()}_POST_RECEIPT_FILE")
     trace = _callbacks(monkeypatch, canonical_atomic_json_bytes=b"canonical", retire_current_source_receipt=None)
-    remove = getattr(bot, f"remove_{prefix}_post_receipt")
+    def remove(receipt):
+        return getattr(storage, f"remove_{prefix}_post_receipt")(
+            receipt, **{key: getattr(bot, key) for key in (
+                f"{prefix.upper()}_POST_RECEIPT_FILE", "canonical_atomic_json_bytes",
+                "log", "retire_current_source_receipt")},
+        )
     assert remove(receipt) is None
     assert _steps(trace) == ["canonical_atomic_json_bytes", "retire_current_source_receipt", "log.info"]
     assert trace.canonical_atomic_json_bytes.call_args.args[0] is receipt
@@ -641,3 +663,47 @@ def test_reconciled_retirement_uses_original_canonical_bytes_before_logging(monk
         remove(receipt)
     assert caught.value is failure
     assert _steps(trace) == ["canonical_atomic_json_bytes", "retire_current_source_receipt"]
+
+
+@pytest.mark.parametrize("prefix", ["regular", "meme"])
+def test_root_reconciled_retirement_rejects_unbound_receipt_before_owner(monkeypatch, prefix):
+    from mrs_bot_state_generation import record_receipt_commit
+
+    state = bot.default_state()
+    record_receipt_commit(state, {"original": []})
+    proof = bot.save_state(state, durable=True)
+    owner = Mock(side_effect=AssertionError("unbound receipt reached retirement owner"))
+    monkeypatch.setattr(bot, "_main_post_receipt_storage", SimpleNamespace(
+        **{f"remove_{prefix}_post_receipt": owner},
+    ))
+    with pytest.raises(RuntimeError, match="does not bind this exact receipt"):
+        getattr(bot, f"remove_{prefix}_post_receipt")({"replacement": []}, commit_proof=proof)
+    owner.assert_not_called()
+
+
+@pytest.mark.parametrize("namespace", ["symlink", "hardlink", "writable", "unsafe_directory"])
+def test_root_attempt_retirement_rejects_unsafe_reader_authority_before_callback(monkeypatch, tmp_path, namespace):
+    import os
+
+    attempt = schema_current_main_attempt("quote_image")
+    path = tmp_path / "attempt.json"
+    path.write_bytes(bot.canonical_atomic_json_bytes(attempt))
+    if namespace == "symlink":
+        target = tmp_path / "target.json"
+        path.rename(target)
+        path.symlink_to(target)
+    elif namespace == "hardlink":
+        os.link(path, tmp_path / "extra-link.json")
+    elif namespace == "writable":
+        path.chmod(0o660)
+    else:
+        tmp_path.chmod(0o770)
+    retirement = Mock(side_effect=AssertionError("unsafe authority reached retirement"))
+    monkeypatch.setattr(bot, "main_post_attempt_path", lambda _: path)
+    monkeypatch.setattr(bot, "retire_current_source_receipt", retirement)
+    try:
+        with pytest.raises(bot.UnsafeReceiptNamespace):
+            bot.remove_main_post_attempt(attempt, sending_disposition="definite_non_success")
+    finally:
+        tmp_path.chmod(0o700)
+    retirement.assert_not_called()

@@ -53,7 +53,6 @@ def test_post_random_quote_retries_alternate_quote_when_first_has_no_image_match
             kwargs, {"data": {"id": "950001"}}
         ),
     )
-    monkeypatch.setattr(bot, "save_state", lambda state, **kwargs: None)
     monkeypatch.setattr(bot, "maybe_schedule_meme_after_quote_post", lambda state, quote_post_epoch=None, **kwargs: None)
     monkeypatch.setattr(bot, "cache_tweet", lambda *args, **kwargs: None)
     monkeypatch.setattr(bot, "record_recent_own_post", lambda *args, **kwargs: None)

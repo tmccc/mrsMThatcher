@@ -13,6 +13,14 @@ HASH_B = "b" * 64
 HASH_C = "c" * 64
 
 
+def csrf_client(app):
+    client = TestClient(app, base_url="http://127.0.0.1")
+    response = client.get("/")
+    assert response.status_code == 200
+    client.headers["X-CSRF-Token"] = response.headers["X-CSRF-Token"]
+    return client
+
+
 def make_fixture(tmp_path: Path) -> tuple[Path, Path]:
     corpus = tmp_path / "corpus"
     for quote_hash, quote in [(HASH_A, "Quote A"), (HASH_B, "Quote B"), (HASH_C, "Quote C")]:
@@ -54,7 +62,7 @@ def client_for(tmp_path: Path) -> TestClient:
             grade="X",
         )
     )
-    return TestClient(app)
+    return csrf_client(app)
 
 
 def app_for(tmp_path: Path, *, mode: str = "review"):
@@ -91,7 +99,7 @@ def test_next_progress_decision_undo_and_export(tmp_path: Path) -> None:
 
         response = client.post("/api/decision", json={"quote_hash": HASH_A, "decision": "reject"})
         assert response.status_code == 200
-        response = client.get("/api/export")
+        response = client.post("/api/export")
         assert response.status_code == 200
         export_data = json.loads((tmp_path / "overrides.json").read_text(encoding="utf-8"))
         assert export_data["items"][HASH_A]["decision"] == "reject"
@@ -122,10 +130,10 @@ def test_restart_preserves_progress(tmp_path: Path) -> None:
         export_file=tmp_path / "overrides.json",
         grade="X",
     )
-    with TestClient(create_app(config)) as client:
+    with csrf_client(create_app(config)) as client:
         assert client.post("/api/decision", json={"quote_hash": HASH_A, "decision": "allow"}).status_code == 200
 
-    with TestClient(create_app(config)) as client:
+    with csrf_client(create_app(config)) as client:
         data = client.get("/api/next").json()
         assert data["item"]["quote_hash"] == HASH_B
         assert data["progress"]["reviewed"] == 1
@@ -143,7 +151,7 @@ def test_app_can_start_without_assessment_file_using_corpus_index(tmp_path: Path
         )
     )
 
-    with TestClient(app) as client:
+    with csrf_client(app) as client:
         data = client.get("/api/next").json()
         assert data["item"]["quote_hash"] == HASH_A
         assert data["item"]["grade"] == "unreviewed"
@@ -151,11 +159,11 @@ def test_app_can_start_without_assessment_file_using_corpus_index(tmp_path: Path
 
 
 def test_confirm_allowed_mode_reviews_only_initial_allows(tmp_path: Path) -> None:
-    with TestClient(app_for(tmp_path, mode="review")) as client:
+    with csrf_client(app_for(tmp_path, mode="review")) as client:
         assert client.post("/api/decision", json={"quote_hash": HASH_A, "decision": "allow"}).status_code == 200
         assert client.post("/api/decision", json={"quote_hash": HASH_B, "decision": "reject"}).status_code == 200
 
-    with TestClient(app_for(tmp_path, mode="confirm-allowed")) as client:
+    with csrf_client(app_for(tmp_path, mode="confirm-allowed")) as client:
         data = client.get("/api/next").json()
         assert data["mode"] == "confirm-allowed"
         assert data["progress"] == {"total": 1, "reviewed": 0, "remaining": 1, "allowed": 0, "rejected": 0}
@@ -176,10 +184,10 @@ def test_confirm_allowed_mode_reviews_only_initial_allows(tmp_path: Path) -> Non
 
 
 def test_confirm_allowed_undo_restores_confirmation_item_not_initial_queue(tmp_path: Path) -> None:
-    with TestClient(app_for(tmp_path, mode="review")) as client:
+    with csrf_client(app_for(tmp_path, mode="review")) as client:
         assert client.post("/api/decision", json={"quote_hash": HASH_A, "decision": "allow"}).status_code == 200
 
-    with TestClient(app_for(tmp_path, mode="confirm-allowed")) as client:
+    with csrf_client(app_for(tmp_path, mode="confirm-allowed")) as client:
         assert client.post("/api/decision", json={"quote_hash": HASH_A, "decision": "allow"}).status_code == 200
         data = client.post("/api/undo", json={}).json()
         assert data["undone"]["quote_hash"] == HASH_A
@@ -188,15 +196,15 @@ def test_confirm_allowed_undo_restores_confirmation_item_not_initial_queue(tmp_p
 
 
 def test_reconfirm_allowed_mode_reviews_only_confirmation_allows(tmp_path: Path) -> None:
-    with TestClient(app_for(tmp_path, mode="review")) as client:
+    with csrf_client(app_for(tmp_path, mode="review")) as client:
         assert client.post("/api/decision", json={"quote_hash": HASH_A, "decision": "allow"}).status_code == 200
         assert client.post("/api/decision", json={"quote_hash": HASH_B, "decision": "allow"}).status_code == 200
 
-    with TestClient(app_for(tmp_path, mode="confirm-allowed")) as client:
+    with csrf_client(app_for(tmp_path, mode="confirm-allowed")) as client:
         assert client.post("/api/decision", json={"quote_hash": HASH_A, "decision": "allow"}).status_code == 200
         assert client.post("/api/decision", json={"quote_hash": HASH_B, "decision": "reject"}).status_code == 200
 
-    with TestClient(app_for(tmp_path, mode="reconfirm-allowed")) as client:
+    with csrf_client(app_for(tmp_path, mode="reconfirm-allowed")) as client:
         data = client.get("/api/next").json()
         assert data["mode"] == "reconfirm-allowed"
         assert data["progress"] == {"total": 1, "reviewed": 0, "remaining": 1, "allowed": 0, "rejected": 0}

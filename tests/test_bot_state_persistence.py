@@ -57,7 +57,7 @@ def test_adapters_forward_current_dependencies_references_and_native_errors(monk
     for name, count in (
         ("state_document_for_persistence", 6), ("copy_state_backup", 6),
         ("rotate_state_backups_before_commit", 4), ("write_latest_state_backup", 4),
-        ("save_state", 14),
+        ("save_state", 15),
     ):
         adapter = getattr(bot, name)
         public = inspect.signature(adapter).parameters
@@ -192,6 +192,7 @@ def test_backup_copies_exact_stable_bytes_with_close_replace_and_optional_fsync(
     source, destination = tmp_path / "source.json", tmp_path / "nested" / "backup.json"
     data = b'{ "z": 1, "a": "\xc3\xa9" }\n\n'
     source.write_bytes(data)
+    source.chmod(0o600)
     trace.read.side_effect = bot.read_stable_owned_json_bytes_no_follow
     monkeypatch.setattr(bot, "read_stable_owned_json_bytes_no_follow", trace.read)
     bot.copy_state_backup(source, destination, durable=durable)
@@ -240,6 +241,7 @@ def test_backup_missing_source_and_native_reader_errors_precede_destination_io(t
 def test_rotation_moves_reverse_generations_before_copy_and_latest_is_independent(tmp_path, monkeypatch):
     state = bot.STATE_FILE
     state.write_bytes(b'{ "canonical": true }')
+    state.chmod(0o600)
     for index in range(1, 5):
         state.with_name(f"{state.name}.bak{index}").write_bytes(str(index).encode())
     trace = Mock()
@@ -312,49 +314,26 @@ def test_rotation_suppresses_only_ordinary_copy_errors_and_latest_propagates(err
 
 
 @pytest.mark.parametrize("durable", [False, True])
-def test_save_security_summary_write_close_rotate_replace_latest_order(durable, monkeypatch, observed_io):
-    trace, handles = observed_io
-    state_file = bot.STATE_FILE
-    state_file.write_bytes(b"previous canonical")
-    state, summary = {"runtime": []}, {"key_count": 1}
-    document = {"z": float("inf"), "é": ["value"]}
-    trace.guard.return_value = False
-    trace.summary.return_value = summary
-    trace.document.return_value = document
-    trace.rotate.side_effect = lambda **kwargs: state_file.read_bytes() == b"previous canonical" or pytest.fail("rotation ran after canonical commit")
-    trace.latest.side_effect = lambda **kwargs: state_file.read_bytes() == json.dumps(document, indent=2, sort_keys=True).encode() or pytest.fail("latest ran before canonical commit")
-    for name, callback in (
-        ("test_process_production_state_write_blocked", trace.guard),
-        ("state_debug_summary", trace.summary), ("log_json_debug", trace.summary_log),
-        ("state_document_for_persistence", trace.document),
-        ("rotate_state_backups_before_commit", trace.rotate),
-        ("write_latest_state_backup", trace.latest),
-    ):
-        monkeypatch.setattr(bot, name, callback)
-    monkeypatch.setattr(bot, "log", trace.log)
-    bot.save_state(state, durable=durable)
-    assert [c[0] for c in trace.mock_calls if c[0] != "write"] == (
-        ["guard", "log.debug", "summary", "summary_log", "document", "mkstemp", "path", "fdopen", "fchmod", "dump"]
-        + (["flush", "fsync"] if durable else [])
-        + ["close", "rotate", "replace"] + (["parent"] if durable else []) + ["latest"]
-    )
-    trace.guard.assert_called_once_with(state_file)
-    trace.log.debug.assert_called_once_with("Saving state to %s", state_file)
-    assert trace.summary.call_args.args[0] is trace.document.call_args.args[0] is state
-    trace.summary_log.assert_called_once_with("State summary being saved", summary)
-    assert trace.summary_log.call_args.args[1] is summary
-    assert trace.dump.call_args.args[0] is document
-    assert trace.dump.call_args.kwargs == {"indent": 2, "sort_keys": True}
-    descriptor = trace.fdopen.call_args.args[0]
-    trace.fdopen.assert_called_once_with(descriptor, "w", encoding="utf-8")
-    trace.fchmod.assert_called_once_with(descriptor, 0o600)
-    trace.rotate.assert_called_once_with(durable=durable)
-    trace.latest.assert_called_once_with(durable=durable)
-    assert handles[0].closed and state_file.stat().st_mode & 0o777 == 0o600
-    assert state_file.read_bytes() == json.dumps(document, indent=2, sort_keys=True).encode()
-    if durable:
-        trace.fsync.assert_called_once_with(descriptor)
-        trace.parent.assert_called_once_with(state_file, strict=True)
+def test_save_publishes_one_valid_fsynced_generation_and_exact_proof(durable, monkeypatch):
+    state = bot.default_state()
+    state["extension"] = ["é"]
+    real_fsync = bot.fsync_parent_dir
+    calls = []
+
+    def fsync(path, *, strict=False):
+        calls.append((path, strict))
+        return real_fsync(path, strict=strict)
+
+    monkeypatch.setattr(bot, "fsync_parent_dir", fsync)
+    proof = bot.save_state(state, durable=durable)
+    proof.require_current()
+    from mrs_bot_state_generation import canonical_bytes, generation_number
+    document = json.loads(bot.STATE_FILE.read_bytes())
+    assert generation_number(document) == proof.sequence
+    assert bot.STATE_FILE.read_bytes() == canonical_bytes(document)
+    assert bot.STATE_FILE.stat().st_mode & 0o777 == 0o600
+    assert (bot.STATE_FILE, True) in calls
+    assert bot.load_state()["extension"] == ["é"]
 
 
 def test_save_security_and_document_failure_precede_io(tmp_path, monkeypatch):
@@ -384,7 +363,8 @@ def test_save_security_and_document_failure_precede_io(tmp_path, monkeypatch):
 def test_publication_hard_exit_closes_and_removes_temp_without_changing_target(operation, monkeypatch, observed_io):
     trace, handles = observed_io
     target = bot.STATE_FILE
-    target.write_bytes(b"previous canonical")
+    target.write_bytes(b"{}")
+    target.chmod(0o600)
     failure = KeyboardInterrupt("publication interrupted")
     trace.replace.side_effect = failure
     latest = Mock()
@@ -396,26 +376,23 @@ def test_publication_hard_exit_closes_and_removes_temp_without_changing_target(o
             bot.copy_state_backup(target, target)
     assert caught.value is failure
     assert handles[0].closed
-    assert target.read_bytes() == b"previous canonical"
+    assert target.read_bytes() == b"{}"
     assert not list(target.parent.glob(f".{target.name}.*"))
     trace.parent.assert_not_called()
     latest.assert_not_called()
 
 
-def test_native_serialization_failure_cleans_temp_and_does_not_rotate(monkeypatch, observed_io):
-    trace, handles = observed_io
-    failure = TypeError("native serializer failure")
-    trace.dump.side_effect = failure
-    rotate = Mock()
+def test_native_serialization_failure_precedes_any_temporary_or_backup_io(monkeypatch):
+    bot.save_state(bot.default_state())
+    files = {path: path.read_bytes() for path in bot.STATE_FILE.parent.glob("bot_state.json*")}
+    rotate, temporary = Mock(), Mock()
     monkeypatch.setattr(bot, "rotate_state_backups_before_commit", rotate)
-    with pytest.raises(TypeError) as caught:
-        bot.save_state({})
-    assert caught.value is failure
-    assert handles[0].closed
-    assert not bot.STATE_FILE.exists()
-    assert not list(bot.STATE_FILE.parent.glob(f".{bot.STATE_FILE.name}.*"))
+    monkeypatch.setattr(bot, "tempfile", SimpleNamespace(mkstemp=temporary))
+    with pytest.raises(TypeError):
+        bot.save_state({"extension": object()})
+    assert {path: path.read_bytes() for path in files} == files
     rotate.assert_not_called()
-    trace.replace.assert_not_called()
+    temporary.assert_not_called()
 
 
 @pytest.mark.parametrize("error_type", [OSError, KeyboardInterrupt])
@@ -430,7 +407,9 @@ def test_latest_failure_follows_canonical_commit_and_only_ordinary_error_is_wrap
     state = {"extension": ["preserved"]}
     with pytest.raises(expected) as caught:
         bot.save_state(state, durable=True)
-    assert bot.STATE_FILE.read_bytes() == json.dumps(bot.state_document_for_persistence(state), indent=2, sort_keys=True).encode()
+    from mrs_bot_state_generation import generation_number
+    assert generation_number(json.loads(bot.STATE_FILE.read_bytes())) >= 1
+    assert json.loads(bot.STATE_FILE.read_bytes())["extension"] == ["preserved"]
     if error_type is OSError:
         assert str(caught.value) == f"Canonical state committed but latest backup write failed: {bot.STATE_FILE}"
         assert caught.value.__cause__ is failure

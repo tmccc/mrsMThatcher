@@ -276,7 +276,8 @@ def test_commons_metadata_can_use_read_only_post_for_long_title_batches():
         def get(self, *_args, **_kwargs):
             raise AssertionError("long metadata request used GET")
 
-        def post(self, url, *, data, timeout):
+        def post(self, url, *, data, timeout, allow_redirects):
+            assert allow_redirects is False
             assert url.endswith("/w/api.php")
             assert data["action"] == "query" and data["prop"] == "imageinfo"
             assert timeout == 45
@@ -873,3 +874,24 @@ def test_exact_cost_confirmation_required_before_clients(monkeypatch, tmp_path):
     monkeypatch.setattr(hunt, "create_clients", lambda: (_ for _ in ()).throw(AssertionError("should not create")))
     with pytest.raises(RuntimeError, match="exact --confirm"):
         hunt.run_pipeline(BASELINE, tmp_path / "image_discovery_research" / "run", execute=True, confirmed_cost=4.99)
+
+
+@pytest.mark.parametrize("body,mime", [
+    (b"\x89PNG\r\n\x1a\n", "image/png"),
+    (png_bytes()[:-4], "image/png"),
+    (png_bytes(), "image/jpeg"),
+])
+def test_hunt_download_requires_complete_image_and_matching_mime(tmp_path, body, mime):
+    candidate = {"direct_image_url": "https://public.example/photo", "identity_confidence": "high", "identity_evidence": "catalogue", "candidate_id": "fixture"}
+    with pytest.raises(ValueError):
+        hunt.download_candidate(candidate, tmp_path, FakeSession(FakeResponse(body, mime)))
+    assert not (tmp_path / "downloaded").exists()
+
+
+def test_hunt_download_rejects_oversized_decoded_dimensions(tmp_path):
+    import io
+    encoded = io.BytesIO()
+    Image.new("RGB", (8193, 1)).save(encoded, format="PNG")
+    candidate = {"direct_image_url": "https://public.example/photo", "identity_confidence": "high", "identity_evidence": "catalogue", "candidate_id": "fixture"}
+    with pytest.raises(ValueError, match="dimensions"):
+        hunt.download_candidate(candidate, tmp_path, FakeSession(FakeResponse(encoded.getvalue())))

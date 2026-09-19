@@ -665,11 +665,13 @@ def _legacy_single_sol_reply_draft_is_valid(
     SINGLE_CALL_MAX_IMAGE_BYTES: int,
 ) -> bool:
     schema_version = draft.get("draft_schema_version")
-    if type(schema_version) is not int or schema_version not in {1, 2}:
+    if type(schema_version) is not int or schema_version not in {1, 2, 3}:
         return False
     expected = set(_LEGACY_SINGLE_SOL_REPLY_DRAFT_FIELDS)
-    if schema_version == 2:
+    if schema_version >= 2:
         expected.add("target_author_id")
+    if schema_version == 3:
+        expected.add("quoted_subject_sha256")
     if set(draft) != expected:
         return False
     if (
@@ -704,7 +706,7 @@ def _legacy_single_sol_reply_draft_is_valid(
         or context.get("target_id") != data.get("target_id")
         or context_author_id != data.get("author_id")
         or draft.get("target_id") != context.get("target_id")
-        or (schema_version == 2 and draft.get("target_author_id") != context_author_id)
+        or (schema_version >= 2 and draft.get("target_author_id") != context_author_id)
     ):
         return False
     try:
@@ -729,6 +731,17 @@ def _legacy_single_sol_reply_draft_is_valid(
         or not _legacy_reply_sha256_is_valid(draft.get("model_payload_sha256"))
     ):
         return False
+    if schema_version == 3:
+        # This validator is exclusively for already-started lifecycle receipts;
+        # it must never be used to approve a new send or recover a pending draft.
+        from single_call_reply import _quoted_subject
+        try:
+            quoted = _quoted_subject(context, visible_post_ids={turn["post_id"] for turn in visible})
+        except (KeyError, RuntimeError, TypeError, ValueError):
+            return False
+        expected_quoted_hash = _legacy_reply_value_sha256(quoted) if quoted is not None else None
+        if draft.get("quoted_subject_sha256") != expected_quoted_hash:
+            return False
     trusted_ids = draft.get("trusted_fact_ids")
     used_ids = draft.get("used_fact_ids")
     if (
@@ -758,10 +771,14 @@ def _legacy_single_sol_reply_draft_is_valid(
     image_bindings = draft.get("supplied_images")
     if not isinstance(image_bindings, list) or len(image_bindings) > MAX_SUPPLIED_IMAGES:
         return False
+    saw_quoted = False
     for binding in image_bindings:
+        image_fields = {"identity", "sha256", "mime_type", "byte_count"}
+        if schema_version == 3:
+            image_fields.update({"attachment_role", "source_post_id"})
         if (
             not isinstance(binding, dict)
-            or set(binding) != {"identity", "sha256", "mime_type", "byte_count"}
+            or set(binding) != image_fields
             or not isinstance(binding.get("identity"), str)
             or not binding["identity"]
             or not _legacy_reply_sha256_is_valid(binding.get("sha256"))
@@ -770,6 +787,17 @@ def _legacy_single_sol_reply_draft_is_valid(
             or not 1 <= binding["byte_count"] <= SINGLE_CALL_MAX_IMAGE_BYTES
         ):
             return False
+        if schema_version == 3:
+            from single_call_reply import quoted_post_reference_id
+            if binding.get("attachment_role") == "target_contribution":
+                if saw_quoted or binding.get("source_post_id") != context.get("target_id"):
+                    return False
+            elif binding.get("attachment_role") == "quoted_subject":
+                saw_quoted = True
+                if not quoted_post_reference_id(context) or binding.get("source_post_id") != quoted_post_reference_id(context):
+                    return False
+            else:
+                return False
     return True
 
 

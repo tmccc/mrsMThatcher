@@ -898,11 +898,12 @@ def test_regular_receipt_replay_clears_after_policy_skip_without_context_write(
         durable=True,
     )
     monkeypatch.setattr(bot, "REGULAR_POST_RECEIPT_FILE", regular_receipt)
-    monkeypatch.setattr(
-        bot,
-        "save_regular_post_protected_state",
-        lambda *_args, **_kwargs: None,
-    )
+    # Receipt retirement now requires the real, composite durable authority.
+    # Keep every part of that proof inside this test's private directory.
+    monkeypatch.setattr(bot, "STATE_FILE", tmp_path / "bot_state.json")
+    monkeypatch.setattr(bot, "STATE_BACKUP_COUNT", 0)
+    monkeypatch.setattr(bot, "LINES_USED_FILE", tmp_path / "lines_used.json")
+    monkeypatch.setattr(bot, "IMAGES_USED_FILE", tmp_path / "images_used.json")
     monkeypatch.setattr(bot, "cache_tweet", lambda *_args, **_kwargs: None)
     monkeypatch.setattr(bot, "record_recent_own_post", lambda *_args, **_kwargs: None)
     monkeypatch.setattr(
@@ -930,5 +931,8 @@ def test_regular_receipt_replay_clears_after_policy_skip_without_context_write(
     assert OPEN_FUTURE in lines_used
     assert "t01.jpg" in images_used
     assert state["last_main_post_id"] == "950001"
+    assert bot.load_state()["last_main_post_id"] == "950001"
+    assert OPEN_FUTURE in bot.load_used_set(bot.LINES_USED_FILE)
+    assert "t01.jpg" in bot.load_used_set(bot.IMAGES_USED_FILE)
     assert not (tmp_path / "history.json").exists()
     assert not (tmp_path / "context-receipt.json").exists()

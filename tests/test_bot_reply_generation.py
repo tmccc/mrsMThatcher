@@ -120,7 +120,7 @@ def test_image_collection_uses_current_requests_bounds_and_validation_reference(
     trace.pause.assert_called_once_with("candidate image collection 1/1")
     trace.get.assert_called_once_with(
         media["photos"][0]["url"], stream=True, allow_redirects=False, timeout=17,
-        headers={"Accept": "image/jpeg,image/png,image/webp,image/gif"},
+        headers={"Accept": "image/jpeg,image/png,image/webp,image/gif", "Accept-Encoding": "identity"},
     )
     response.iter_content.assert_called_once_with(chunk_size=64 * 1024)
 
@@ -178,7 +178,7 @@ def test_failure_predicates_use_current_distinct_category_sets(monkeypatch):
 
 @pytest.mark.parametrize("malformed", [False, True])
 def test_transport_keeps_request_reference_and_closes_retry_responses_in_order(monkeypatch, malformed):
-    first = FakeHttpResponse(429, headers={"Retry-After": " 1.2 "})
+    first = FakeHttpResponse(429, headers={"Retry-After": " 0.2 "})
     envelope = response_envelope(raw_decision())
     second = FakeHttpResponse(200, body=envelope)
     failure = TypeError("fixture malformed JSON")
@@ -209,16 +209,16 @@ def test_transport_keeps_request_reference_and_closes_retry_responses_in_order(m
         assert caught.value.__cause__ is failure
         assert caught.value.error_category == "provider_envelope"
         assert caught.value.status_code == 429
-        assert caught.value.reset_epoch == 2_000_000_002
-        assert caught.value.retry_after_seconds == 2
+        assert caught.value.reset_epoch == 2_000_000_001
+        assert caught.value.retry_after_seconds == 1
         assert caught.value.request_attempt_count == 2
     else:
         result = bot.openai_responses_reply_call(**options)
         assert result["response"] is envelope
         assert result == {
             "response": envelope, "latency_ms": 13, "request_attempt_count": 2,
-            "provider_status_code": 429, "provider_reset_epoch": 2_000_000_002,
-            "provider_retry_after_seconds": 2,
+            "provider_status_code": 429, "provider_reset_epoch": 2_000_000_001,
+            "provider_retry_after_seconds": 1,
         }
     assert first.closed and second.closed
     assert [entry[0] for entry in trace.mock_calls] == [

@@ -38,6 +38,9 @@ import historical_context_outbox as outbox_module  # noqa: E402
 import mrsMThatcher2 as bot  # noqa: E402
 
 _REAL_CREATE_POST = bot.create_post
+_REAL_SAVE_STATE = bot.save_state
+_REAL_SAVE_QUOTE_USED_HASHES = bot.save_quote_used_hashes
+_REAL_SAVE_IMAGE_USED_BASENAMES = bot.save_image_used_basenames
 
 for _name, _value in _ORIGINAL_ENV.items():
     if _value is None:
@@ -51,6 +54,13 @@ from tests.helpers.historical_context_fixtures import (
     _bind_context_attempt_to_source_receipt,
     isolated_incident_paths,
 )
+
+
+def _enable_incident_protected_saves(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Opt these replay tests into real writes only at isolated incident paths."""
+    monkeypatch.setattr(bot, "save_state", _REAL_SAVE_STATE)
+    monkeypatch.setattr(bot, "save_quote_used_hashes", _REAL_SAVE_QUOTE_USED_HASHES)
+    monkeypatch.setattr(bot, "save_image_used_basenames", _REAL_SAVE_IMAGE_USED_BASENAMES)
 
 
 def _proved_failure_history_item(
@@ -404,24 +414,33 @@ def test_confirmed_main_receipt_replay_has_exact_decoupling_order_and_no_x_repos
     original_apply = bot.apply_regular_post_receipt
     original_enqueue = bot.enqueue_historical_context_obligation
     original_remove = bot.remove_regular_post_receipt
+    original_save = bot.save_regular_post_protected_state
+    _enable_incident_protected_saves(monkeypatch)
 
     def tracked_apply(*args, **kwargs):
         result = original_apply(*args, **kwargs)
         order.append("main_state_applied")
         return result
 
-    def tracked_save(*_args, **_kwargs):
+    def tracked_save(*args, **kwargs):
+        proof = original_save(*args, **kwargs)
+        proof.require_receipt(receipt)
         order.append("main_state_saved")
+        return proof
 
     def tracked_enqueue(value: dict):
         obligation = original_enqueue(value)
         order.append("context_obligation_enqueued")
         return obligation
 
-    def tracked_remove(receipt_to_remove: dict):
+    def tracked_remove(receipt_to_remove: dict, *, commit_proof):
         assert receipt_to_remove == receipt
         assert bot.HISTORICAL_CONTEXT_REPLY_OUTBOX_FILE.exists()
-        original_remove(receipt_to_remove)
+        commit_proof.require_receipt(receipt_to_remove)
+        assert bot.load_state()["last_main_post_id"] == receipt["post_id"]
+        assert receipt["quote_hash"] in bot.load_used_set(bot.LINES_USED_FILE)
+        assert receipt["image_basename"] in bot.load_used_set(bot.IMAGES_USED_FILE)
+        original_remove(receipt_to_remove, commit_proof=commit_proof)
         order.append("main_receipt_removed")
 
     def context_only_attempt(**_kwargs):
@@ -446,7 +465,7 @@ def test_confirmed_main_receipt_replay_has_exact_decoupling_order_and_no_x_repos
 
     lines_used: set[str] = set()
     images_used: set[str] = set()
-    state: dict = {}
+    state = bot.default_state()
     assert bot.reconcile_regular_post_receipt(lines_used, images_used, state) is True
     assert bot.reconcile_regular_post_receipt(lines_used, images_used, state) is False
 
@@ -468,9 +487,9 @@ def test_confirmed_main_receipt_replay_has_exact_decoupling_order_and_no_x_repos
         obligation["context_reply"]["state"]
         == "context_reply_not_required"
     )
-    assert not bot.LINES_USED_FILE.exists()
-    assert not bot.IMAGES_USED_FILE.exists()
-    assert not bot.STATE_FILE.exists()
+    assert receipt["quote_hash"] in bot.load_used_set(bot.LINES_USED_FILE)
+    assert receipt["image_basename"] in bot.load_used_set(bot.IMAGES_USED_FILE)
+    assert bot.load_state()["last_main_post_id"] == receipt["post_id"]
     assert not bot.HISTORICAL_CONTEXT_REPLY_HISTORY_FILE.exists()
     assert not bot.HISTORICAL_CONTEXT_REPLY_RECEIPT_FILE.exists()
 
@@ -490,11 +509,7 @@ def test_confirmed_main_reconciliation_survives_unexpected_auxiliary_worker_faul
         {**bot.historical_context_reply, "enabled": True},
     )
     monkeypatch.setattr(bot, "now_epoch", lambda: receipt["quote_post_epoch"])
-    monkeypatch.setattr(
-        bot,
-        "save_regular_post_protected_state",
-        lambda *_args, **_kwargs: None,
-    )
+    _enable_incident_protected_saves(monkeypatch)
     monkeypatch.setattr(
         bot,
         "process_due_historical_context_obligations",
@@ -505,7 +520,7 @@ def test_confirmed_main_reconciliation_survives_unexpected_auxiliary_worker_faul
 
     lines_used: set[str] = set()
     images_used: set[str] = set()
-    state: dict = {}
+    state = bot.default_state()
     assert bot.reconcile_regular_post_receipt(lines_used, images_used, state) is True
 
     assert not bot.REGULAR_POST_RECEIPT_FILE.exists()
@@ -618,19 +633,18 @@ def test_main_receipt_replay_accepts_all_existing_outbox_terminal_and_active_sta
         "now_epoch",
         lambda: receipt["quote_post_epoch"] + 20,
     )
-    monkeypatch.setattr(
-        bot,
-        "save_regular_post_protected_state",
-        lambda *_args, **_kwargs: None,
-    )
+    _enable_incident_protected_saves(monkeypatch)
     monkeypatch.setattr(
         bot,
         "maybe_post_historical_context_reply",
         lambda **_kwargs: {"status": "skipped_future_policy"},
     )
 
-    assert bot.reconcile_regular_post_receipt(set(), set(), {}) is True
+    assert bot.reconcile_regular_post_receipt(set(), set(), bot.default_state()) is True
     assert not bot.REGULAR_POST_RECEIPT_FILE.exists()
+    assert bot.load_state()["last_main_post_id"] == receipt["post_id"]
+    assert receipt["quote_hash"] in bot.load_used_set(bot.LINES_USED_FILE)
+    assert receipt["image_basename"] in bot.load_used_set(bot.IMAGES_USED_FILE)
     assert store.get(receipt["post_id"])["main_post"]["state"] == (
         "main_post_confirmed"
     )

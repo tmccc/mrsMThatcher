@@ -272,7 +272,7 @@ def test_confirmed_mention_reply_save_failure_replays_after_restart(
         def fail_first_post_success_save(state: dict, **kwargs: object) -> None:
             if server.posts:
                 raise OSError("injected post-success save failure")
-            original_save_state(state, **kwargs)
+            return original_save_state(state, **kwargs)
 
         monkeypatch.setattr(bot, "save_state", fail_first_post_success_save)
         first_state = bot.load_state()
@@ -1105,38 +1105,49 @@ def test_confirmed_receipt_reconciliation_cannot_authorise_stale_pending_state(
     assert restarted["daily_replied_author_counts"] == {"205": 1}
 
 
-def test_receipt_recovery_from_older_backup_without_page_ownership_is_guarded(
+@pytest.mark.parametrize("generation_ordered", [False, True], ids=["legacy-refusal", "sealed-recovery"])
+def test_receipt_recovery_from_backup_without_page_ownership_is_guarded(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
+    generation_ordered: bool,
 ) -> None:
+    from mrs_bot_state_generation import encode_generation
+
     state_path = tmp_path / "bot_state.json"
+    backup_path = tmp_path / "bot_state.json.bak1"
     monkeypatch.setattr(bot, "STATE_FILE", state_path)
     monkeypatch.setattr(bot, "STATE_BACKUP_COUNT", 1)
-    bot.atomic_write_json(
-        state_path,
-        {
-            "last_seen_mention_id": "99",
-            "mention_pending_candidates": {
-                "105": {
-                    "id": "106",
-                    "author_id": "205",
-                    "conversation_id": "105",
-                    "text": "Corrupt primary identity.",
-                }
-            },
+    primary = {
+        "last_seen_mention_id": "99",
+        "mention_pending_candidates": {
+            "105": {
+                "id": "106", "author_id": "205", "conversation_id": "105",
+                "text": "Corrupt primary identity.",
+            }
         },
-    )
-    bot.atomic_write_json(
-        tmp_path / "bot_state.json.bak1",
-        {
-            "last_seen_mention_id": "99",
-            "replied_to_ids": [],
-        },
-    )
+    }
+    backup = {"last_seen_mention_id": "99", "replied_to_ids": []}
+    for sequence, (path, document) in enumerate(((state_path, primary), (backup_path, backup)), start=1):
+        if generation_ordered:
+            document, _encoded = encode_generation(
+                bot.state_document_for_persistence(document), sequence,
+                bot.DURABLE_RUNTIME_JSON_MAX_BYTES,
+            )
+        bot.atomic_write_json(path, document, durable=True)
+    if not generation_ordered:
+        before = {path: path.read_bytes() for path in (state_path, backup_path)}
+        with pytest.raises(RuntimeError, match="diverge|ambiguous"):
+            bot.load_state()
+        assert {path: path.read_bytes() for path in (state_path, backup_path)} == before
+        return
+
     state = bot.load_state()
     assert state["last_seen_mention_id"] == "99"
     assert state["mention_backlog"] == {}
     assert state["mention_pagination"] == {}
+    assert state["mention_backlog_reset_guard"] == {}
+    assert state["_state_generation"]["sequence"] > 2
+    assert state_path.read_bytes() == backup_path.read_bytes()
 
     receipt = unit_confirmed_v3_reply_receipt(
         target_id="105",
@@ -1910,17 +1921,17 @@ def test_final_receipt_cleanup_fsync_failure_latches_every_public_lane(
         path = bot.REGULAR_POST_RECEIPT_FILE
         receipt = {"unit": lane}
         bot.atomic_write_json(path, receipt, durable=True)
-        retire = lambda: bot.remove_regular_post_receipt(receipt)
+        retire = lambda: bot.remove_regular_post_receipt(receipt, commit_proof=proof)
     elif lane == "daily_meme":
         path = bot.MEME_POST_RECEIPT_FILE
         receipt = {"unit": lane}
         bot.atomic_write_json(path, receipt, durable=True)
-        retire = lambda: bot.remove_meme_post_receipt(receipt)
+        retire = lambda: bot.remove_meme_post_receipt(receipt, commit_proof=proof)
     elif lane == "conversational_reply":
         path = bot.CONFIRMED_REPLY_RECEIPT_FILE
         receipt = unit_confirmed_reply_receipt()
         bot.atomic_write_json(path, receipt, durable=True)
-        retire = lambda: bot.remove_confirmed_reply_receipt(receipt)
+        retire = lambda: bot.remove_confirmed_reply_receipt(receipt, commit_proof=proof)
     else:
         from historical_context_formatter import HistoricalContextReplyStore
 
@@ -1936,6 +1947,12 @@ def test_final_receipt_cleanup_fsync_failure_latches_every_public_lane(
             ),
         )
         retire = lambda: store._retire_exact_receipt(path.read_bytes())
+
+    if lane != "historical_context":
+        from mrs_bot_state_generation import record_receipt_commit
+        state = bot.default_state()
+        record_receipt_commit(state, receipt)
+        proof = bot.save_state(state, durable=True)
 
     paths = exact_retirement_module.retirement_barrier_paths(path)
     real_fsync = exact_retirement_module._fsync_directory
@@ -2216,9 +2233,9 @@ def test_confirmed_reply_normal_success_uses_durable_state_before_receipt_remova
 
         def tracking_save_state(state: dict, **kwargs: object) -> None:
             save_calls.append(bool(kwargs.get("durable", False)))
-            original_save_state(state, **kwargs)
+            return original_save_state(state, **kwargs)
 
-        def tracking_remove_receipt(receipt: dict | None = None) -> None:
+        def tracking_remove_receipt(receipt: dict | None = None, *, commit_proof=None) -> None:
             nonlocal receipt_remove_seen
             assert save_calls and save_calls[-1] is True
             receipt_remove_seen = True
@@ -2299,8 +2316,8 @@ def test_confirmed_quote_tweet_reply_save_failure_replays_after_restart(
 ) -> None:
     scenario = load_scenario(SCENARIOS / "quote_tweet_reply.json")
     scenario["grok_replies"] = [
-        "A point is useful only when it survives contact with reality. This one rather does.",
-        "A point is useful only when it survives contact with reality. This one rather does.",
+        "Responsibility matters more than rhetoric.",
+        "Responsibility matters more than rhetoric.",
     ]
     server = FakeApiServer(scenario).start()
     try:
@@ -2336,7 +2353,7 @@ def test_confirmed_quote_tweet_reply_save_failure_replays_after_restart(
             "evaluate_single_call_reply",
             legacy_reply_evaluator(lambda context, *_args, **_kwargs: unit_approved_reply(
                 context,
-                text="A point is useful only when it survives contact with reality.",
+                text="Responsibility matters.",
                 mode="opinion_or_principle",
             )),
         )
@@ -2364,7 +2381,7 @@ def test_confirmed_quote_tweet_reply_save_failure_replays_after_restart(
         def fail_first_post_success_save(state: dict, **kwargs: object) -> None:
             if server.posts:
                 raise OSError("injected quote post-success save failure")
-            original_save_state(state, **kwargs)
+            return original_save_state(state, **kwargs)
 
         monkeypatch.setattr(bot, "save_state", fail_first_post_success_save)
         first_state = bot.load_state()
@@ -2401,7 +2418,7 @@ def test_quote_tweet_receipt_reconciled_by_mention_lane_counts_quote_reply(
 ) -> None:
     scenario = load_scenario(SCENARIOS / "quote_tweet_reply.json")
     scenario["grok_replies"] = [
-        "A point is useful only when it survives contact with reality. This one rather does.",
+        "Responsibility matters more than rhetoric.",
     ]
     server = FakeApiServer(scenario).start()
     try:
@@ -2441,7 +2458,7 @@ def test_quote_tweet_receipt_reconciled_by_mention_lane_counts_quote_reply(
             "evaluate_single_call_reply",
             legacy_reply_evaluator(lambda context, *_args, **_kwargs: unit_approved_reply(
                 context,
-                text="A point is useful only when it survives contact with reality.",
+                text="Responsibility matters.",
                 mode="opinion_or_principle",
             )),
         )
@@ -2470,7 +2487,7 @@ def test_quote_tweet_receipt_reconciled_by_mention_lane_counts_quote_reply(
         def fail_first_post_success_save(state: dict, **kwargs: object) -> None:
             if server.posts:
                 raise OSError("injected quote post-success save failure")
-            original_save_state(state, **kwargs)
+            return original_save_state(state, **kwargs)
 
         monkeypatch.setattr(bot, "save_state", fail_first_post_success_save)
         first_state = bot.load_state()

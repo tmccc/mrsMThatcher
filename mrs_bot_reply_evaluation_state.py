@@ -86,7 +86,7 @@ def prune_reply_evaluation_records(
     """Prune old terminal evaluations while preserving recent replay protection."""
     prune_completed_mention_quarantine_evaluations(state)
     records = state.get("reply_evaluation_records")
-    if not isinstance(records, dict):
+    if not isinstance(records, dict) or not records:
         return
     if current_epoch is None:
         current_epoch = now_epoch()
@@ -193,6 +193,8 @@ def prune_author_evaluation_quarantines(
     if not isinstance(records, dict):
         state["author_evaluation_quarantines"] = {}
         return True
+    if not records:
+        return False
     current = now_epoch() if current_epoch is None else int(current_epoch)
     cutoff = current - AUTHOR_NO_REPLY_QUARANTINE_WINDOW_SECONDS
     retained: dict[str, dict[str, object]] = {}

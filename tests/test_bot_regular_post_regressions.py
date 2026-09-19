@@ -119,10 +119,8 @@ def test_confirmed_regular_post_receipt_recovers_local_persistence_failures(
         monkeypatch.setattr(bot, "save_state", lambda state, **kwargs: (_ for _ in ()).throw(OSError("state write failed")))
     elif failure == "quote_history":
         monkeypatch.setattr(bot, "save_quote_used_hashes", lambda *args, **kwargs: (_ for _ in ()).throw(OSError("quote history failed")))
-        monkeypatch.setattr(bot, "save_state", lambda state, **kwargs: None)
     else:
         monkeypatch.setattr(bot, "save_image_used_basenames", lambda *args, **kwargs: (_ for _ in ()).throw(OSError("image history failed")))
-        monkeypatch.setattr(bot, "save_state", lambda state, **kwargs: None)
 
     with pytest.raises(bot.ConfirmedPostLocalPersistenceError):
         bot.post_random_quote(lines_used, images_used, state)
@@ -135,7 +133,7 @@ def test_confirmed_regular_post_receipt_recovers_local_persistence_failures(
     assert quote_hash in lines_used
     assert "t01.jpg" in images_used
 
-    monkeypatch.setattr(bot, "save_state", lambda state, **kwargs: None if failure != "save_state" else original_save_state(state, **kwargs))
+    monkeypatch.setattr(bot, "save_state", original_save_state)
     monkeypatch.setattr(bot, "save_quote_used_hashes", original_save_quote)
     monkeypatch.setattr(bot, "save_image_used_basenames", original_save_image)
 
@@ -284,7 +282,8 @@ def test_regular_emergency_parent_fsync_failure_still_latches(
     with pytest.raises(bot.UnrecoverableConfirmedPostPersistenceError):
         bot.post_random_quote(lines_used, images_used, state)
 
-    assert bot.json_file_matches(bot.STATE_FILE, state) is True
+    # Replacement is visible, but failed directory fsync did not issue a commit proof.
+    assert json.loads(bot.STATE_FILE.read_bytes())["last_main_post_id"] == state["last_main_post_id"]
     assert bot.ambiguous_remote_post_is_blocking() is True
     marker = json.loads(bot.AMBIGUOUS_POST_OUTCOME_FILE.read_text(encoding="utf-8"))
     assert "state" in marker["failure_components"]

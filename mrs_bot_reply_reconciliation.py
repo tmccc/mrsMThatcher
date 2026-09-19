@@ -422,15 +422,18 @@ def finalise_confirmed_reply(
         if quote_reply else "Recorded and cached own auto-reply id=%s",
         own_reply_id,
     )
-    save_state(state, durable=True)
+    from mrs_bot_state_generation import record_receipt_commit
+    record_receipt_commit(state, receipt)
+    commit_proof = save_state(state, durable=True)
     try:
         retire_lane_transport_journal_if_present(
+            commit_proof=commit_proof,
             receipt_path=CONFIRMED_REPLY_RECEIPT_FILE,
             receipt=receipt,
             lane="conversational_reply",
             post_id=own_reply_id,
         )
-        remove_confirmed_reply_receipt(receipt)
+        remove_confirmed_reply_receipt(receipt, commit_proof=commit_proof)
     except Exception as exc:
         log.critical(
             "Confirmed quote-tweet reply id=%s to target=%s was saved but receipt removal failed"
@@ -492,7 +495,9 @@ def reconcile_confirmed_reply_receipt(
     )
     apply_confirmed_reply_receipt(state, receipt)
     try:
-        save_state(state, durable=True)
+        from mrs_bot_state_generation import record_receipt_commit
+        record_receipt_commit(state, receipt)
+        commit_proof = save_state(state, durable=True)
     except Exception as exc:
         log.critical(
             "Confirmed reply receipt was applied in memory but state save failed; receipt remains for retry",
@@ -501,12 +506,13 @@ def reconcile_confirmed_reply_receipt(
         raise ConfirmedReplyLocalPersistenceError("Confirmed reply receipt reconciliation state save failed") from exc
     try:
         retire_lane_transport_journal_if_present(
+            commit_proof=commit_proof,
             receipt_path=CONFIRMED_REPLY_RECEIPT_FILE,
             receipt=receipt,
             lane="conversational_reply",
             post_id=str(receipt["reply_post_id"]),
         )
-        remove_confirmed_reply_receipt(receipt)
+        remove_confirmed_reply_receipt(receipt, commit_proof=commit_proof)
     except Exception as exc:
         log.critical("Confirmed reply receipt state was saved but receipt removal failed", exc_info=True)
         raise ConfirmedReplyLocalPersistenceError("Confirmed reply receipt removal failed") from exc

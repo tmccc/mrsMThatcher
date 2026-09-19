@@ -344,20 +344,27 @@ def test_reconciliation_preserves_commit_order_references_and_failure_causes(mon
         )
         trace.log.critical.assert_called_once_with(expected_log, exc_info=True)
     assert [entry[0] for entry in trace.mock_calls] == order
-    assert state == {"applied": True}
+    assert state["applied"] is True
+    from mrs_bot_state_generation import canonical_bytes
+    import hashlib
+    receipt_hash = hashlib.sha256(canonical_bytes(receipt) + b"\n").hexdigest()
+    assert state["_confirmed_receipt_commits"] == {
+        receipt_hash: {"quote_hash": "", "image_basename": ""}
+    }
     trace.load.assert_called_once_with()
     for callback in (trace.lineage, trace.retire):
         if callback.called:
             assert callback.call_args == call(
                 receipt_path=bot.CONFIRMED_REPLY_RECEIPT_FILE, receipt=receipt,
                 lane="conversational_reply", post_id="999",
+                **({"commit_proof": trace.save.return_value} if callback is trace.retire else {}),
             )
             assert callback.call_args.kwargs["receipt"] is receipt
             assert callback.call_args.kwargs["receipt_path"] is bot.CONFIRMED_REPLY_RECEIPT_FILE
     trace.save.assert_called_once_with(state, durable=True)
     assert trace.save.call_args.args[0] is state
     if trace.remove.called:
-        trace.remove.assert_called_once_with(receipt)
+        trace.remove.assert_called_once_with(receipt, commit_proof=trace.save.return_value)
         assert trace.remove.call_args.args[0] is receipt
 
 

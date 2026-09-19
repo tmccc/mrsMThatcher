@@ -138,6 +138,7 @@ def validate_runtime_config_values(
 
     for min_key, max_key in (
         ("POST_SLEEP_MIN", "POST_SLEEP_MAX"),
+        ("QUOTE_CHECK_SPACING_RETRY_SECONDS", "QUOTE_CHECK_EVERY_SECONDS"),
         ("MEME_DELAY_AFTER_MAIN_POST_MIN_SECONDS", "MEME_DELAY_AFTER_MAIN_POST_MAX_SECONDS"),
     ):
         try:

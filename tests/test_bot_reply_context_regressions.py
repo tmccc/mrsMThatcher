@@ -1224,6 +1224,7 @@ def test_image_only_direct_quote_reaches_one_multimodal_sol_call(
                                             "decision": "reply",
                                             "reply_kind": "principle",
                                             "reply": "Judgment matters more than appearances.",
+                                            "factual_claims": [],
                                             "used_fact_ids": [],
                                             "reason_code": "useful_reply",
                                         },
@@ -1240,7 +1241,7 @@ def test_image_only_direct_quote_reaches_one_multimodal_sol_call(
             {
                 "identity": "photo-1",
                 "mime_type": "image/jpeg",
-                "data": b"\xff\xd8\xffimage",
+                "data": __import__("tests.helpers.single_call_fixtures", fromlist=["valid_jpeg"]).valid_jpeg(),
                 "attachment_role": "quoted_subject",
                 "source_post_id": "900",
             }

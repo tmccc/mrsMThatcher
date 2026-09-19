@@ -21,7 +21,7 @@ from single_call_reply_validation import (
     rejected_reply_text_fields,
 )
 from tests.helpers.single_call_fixtures import (
-    FakeRepository, context, enabled_config, raw_decision, response_envelope,
+    FakeRepository, context, enabled_config, raw_decision, response_envelope, valid_png, valid_jpeg,
 )
 
 
@@ -32,10 +32,10 @@ def test_frozen_prompt_and_schema_hashes() -> None:
     """Pin the exact reviewed prompt bytes and local response contract."""
 
     assert pipeline.PROMPT_SHA256 == (
-        "7bfa91fb2d9b1175560abb33e43f2ced6910d8e63cadd1f8f04935b6dc2f2560"
+        "21986468ecdfe0e38a5c4c15bb6b52323e38d5a6a1d7ed79befb0829a9942b19"
     )
     assert pipeline.RESPONSE_SCHEMA_SHA256 == (
-        "3b1e23015cebe3b75eacde04ebfd4344fa25117f047cdcf83241b0ce709872ce"
+        "6ddc2a1d5af7b3c66af2a3e8d9c357c7fc86198553b8be1db2f263751842cbd4"
     )
     assert "uniqueItems" in pipeline.RESPONSE_SCHEMA["properties"]["used_fact_ids"]
     assert "uniqueItems" not in pipeline.provider_response_schema()["properties"][
@@ -434,7 +434,7 @@ def test_real_trusted_facts_are_field_and_source_audit_bound() -> None:
 def test_audit_source_identity_mutation_invalidates_persisted_fact_binding() -> None:
     """Bind durable facts to the selected audit record, not display text alone."""
 
-    quote_id = "3cced21d7f9bc45fd5479288c7b413bad5e0e48fcf71f103251b6284c8528f12"
+    quote_id = "025f0aaeb01b29a6285ae85c4f33c2b9d84c1aad435f0f6036151c39320c3eac"
 
     def repository_for(packet: dict[str, object]) -> EvidenceRepository:
         repository = object.__new__(EvidenceRepository)
@@ -478,11 +478,13 @@ def test_audit_source_identity_mutation_invalidates_persisted_fact_binding() -> 
         },
         "visible_conversation": visible,
         "trusted_facts": compact,
+        "time_context": {"current_date": source_context["current_date"], "target_created_at": None},
     }
     output = {
         "decision": "reply",
         "reply_kind": "principle",
-        "reply": "Responsibility matters more than rhetoric.",
+        "reply": original_passage.passage,
+        "factual_claims": [{"text": original_passage.passage, "fact_ids": ["F1"]}],
         "used_fact_ids": ["F1"],
         "reason_code": "useful_reply",
     }
@@ -620,14 +622,14 @@ def test_mixed_image_provenance_is_bound_to_payload_request_and_draft() -> None:
         {
             "identity": "target-image",
             "mime_type": "image/png",
-            "data": b"\x89PNG\r\n\x1a\ntarget",
+            "data": valid_png(),
             "attachment_role": "target_contribution",
             "source_post_id": "target",
         },
         {
             "identity": "quote-image",
             "mime_type": "image/jpeg",
-            "data": b"\xff\xd8\xffquoted",
+            "data": valid_jpeg(),
             "attachment_role": "quoted_subject",
             "source_post_id": "quoted-900",
         },
@@ -684,7 +686,7 @@ def test_mixed_image_provenance_is_bound_to_payload_request_and_draft() -> None:
             {
                 "identity": "wrong-target",
                 "mime_type": "image/png",
-                "data": b"\x89PNG\r\n\x1a\nwrong",
+                "data": valid_png(),
                 "attachment_role": "target_contribution",
                 "source_post_id": "someone-else",
             }
@@ -700,7 +702,7 @@ def test_mixed_image_provenance_is_bound_to_payload_request_and_draft() -> None:
             {
                 "identity": "target-second",
                 "mime_type": "image/png",
-                "data": b"\x89PNG\r\n\x1a\ntarget",
+                "data": valid_png(),
                 "attachment_role": "target_contribution",
                 "source_post_id": "target",
             },
@@ -802,7 +804,7 @@ def test_image_candidate_is_one_multimodal_request() -> None:
             {
                 "identity": "media-1",
                 "mime_type": "image/png",
-                "data": b"\x89PNG\r\n\x1a\nvalidated-test-bytes",
+                "data": valid_png(),
                 "attachment_role": "target_contribution",
                 "source_post_id": "target",
             }
@@ -1007,9 +1009,7 @@ def test_foreign_language_prose_is_not_rejected(reply: str) -> None:
     payload, _mapping = pipeline.build_model_payload(
         context=context(), repository=FakeRepository()
     )
-    assert pipeline.validate_model_output(
-        raw_decision(reply=reply), payload=payload
-    )["reply"] == reply
+    assert_prose_has_no_mechanical_errors(reply, payload)
 
 
 @pytest.mark.parametrize(
@@ -1037,9 +1037,7 @@ def test_cjk_sentence_stops_before_idn_words_remain_prose(reply: str) -> None:
         context=context(), repository=FakeRepository()
     )
     assert pipeline.contains_link_or_address(reply) is False
-    assert pipeline.validate_model_output(
-        raw_decision(reply=reply), payload=payload
-    )["reply"] == reply
+    assert_prose_has_no_mechanical_errors(reply, payload)
 
 
 @pytest.mark.parametrize(
@@ -1082,9 +1080,7 @@ def test_sentence_count_accepts_abbreviations_and_unicode_closers(
         context=context(), repository=FakeRepository()
     )
     assert pipeline.sentence_count(reply) <= pipeline.MAX_REPLY_SENTENCES
-    assert pipeline.validate_model_output(
-        raw_decision(reply=reply), payload=payload
-    )["reply"] == reply
+    assert_prose_has_no_mechanical_errors(reply, payload)
 
 
 @pytest.mark.parametrize(
@@ -1127,9 +1123,7 @@ def test_sentence_count_accepts_clear_capitalised_abbreviation_continuations(
         context=context(), repository=FakeRepository()
     )
     assert pipeline.sentence_count(reply) == 2
-    assert pipeline.validate_model_output(
-        raw_decision(reply=reply), payload=payload
-    )["reply"] == reply
+    assert_prose_has_no_mechanical_errors(reply, payload)
 
 
 @pytest.mark.parametrize(
@@ -1632,3 +1626,15 @@ def test_production_import_closure_excludes_retired_conversational_modules() -> 
 
     assert "reply_strategy" not in visited
     assert "tested_reply_pipeline" not in visited
+
+
+def assert_prose_has_no_mechanical_errors(reply: str, payload: dict) -> None:
+    """Keep punctuation tests independent of unsupported factual propositions.
+
+    These historical/foreign sentences test Unicode, links and sentence limits;
+    they are not approved source evidence. The factual gate may reject them.
+    """
+    try:
+        pipeline.validate_model_output(raw_decision(reply=reply), payload=payload)
+    except pipeline.ReplyValidationError as exc:
+        assert set(exc.errors) <= {"factual_claim_inventory_mismatch"}

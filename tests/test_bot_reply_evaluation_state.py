@@ -178,7 +178,7 @@ def test_retention_keeps_bad_epochs_and_shallow_copies_with_original_log_order(m
 
 
 def test_completed_pruning_precedes_native_epoch_failure(monkeypatch):
-    state = {"reply_evaluation_records": {}}
+    state = {"reply_evaluation_records": {"1": reply_evaluation_record("1", 1)}}
     trace = Mock()
     monkeypatch.setattr(bot, "prune_completed_mention_quarantine_evaluations", trace.completed)
     monkeypatch.setattr(bot, "now_epoch", trace.clock)
@@ -362,7 +362,9 @@ def test_quarantine_skip_batch_is_durable_across_real_state_reload(monkeypatch):
     save.assert_called_once_with(state, durable=True)
     assert [item.kwargs["target_id"] for item in record.call_args_list] == ["104", "105"]
     assert all(item.kwargs["prune_records"] is False for item in record.call_args_list)
-    prune.assert_called_once_with(state)
+    # Batch pruning mutates runtime state once; publication also validates
+    # detached candidate documents through the same reader contract.
+    assert sum(item.args[0] is state for item in prune.call_args_list) == 1
     loaded = bot.load_state()
     assert loaded["mention_pending_candidates"] == {}
     assert loaded["mention_backlog"] == state["mention_backlog"]

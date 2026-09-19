@@ -216,7 +216,7 @@ def test_context_keeps_usable_suffix_raw_ancestor_quote_and_media_copy_metadata_
     trace.media.side_effect = prepare_media
     monkeypatch.setattr(bot, "reply_media_context_for_candidate", trace.media)
     trace.clock.return_value = datetime(2030, 2, 3)
-    monkeypatch.setattr(bot, "current_datetime", trace.clock)
+    monkeypatch.setattr(bot, "current_utc_datetime", trace.clock)
 
     prepared_context = bot.build_context_for_reply_ai(target, state)
     assert prepared_context is not None

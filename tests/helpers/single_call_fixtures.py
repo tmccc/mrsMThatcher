@@ -4,6 +4,8 @@ from __future__ import annotations
 
 import copy
 import json
+import io
+from PIL import Image
 from dataclasses import dataclass
 
 import single_call_reply as pipeline
@@ -124,6 +126,7 @@ def raw_decision(
             "reply_kind": kind,
             "reply": reply,
             "used_fact_ids": facts or [],
+            "factual_claims": ([{"text": reply, "fact_ids": facts}] if facts else []),
             "reason_code": reason,
         },
         ensure_ascii=False,
@@ -188,8 +191,22 @@ class FakeHttpResponse:
     def iter_content(self, *, chunk_size: int):
         """Yield deterministic image bytes for media-download tests."""
         del chunk_size
-        yield b"\x89PNG\r\n\x1a\nfixture"
+        yield valid_png()
 
     def close(self) -> None:
         """Record that the response was closed."""
         self.closed = True
+
+
+def valid_png() -> bytes:
+    """Encode a complete small image instead of a signature-only placeholder."""
+    stream = io.BytesIO()
+    Image.new("RGB", (2, 2), "red").save(stream, format="PNG")
+    return stream.getvalue()
+
+
+def valid_jpeg() -> bytes:
+    """Encode a complete small JPEG for multimodal request fixtures."""
+    stream = io.BytesIO()
+    Image.new("RGB", (2, 2), "red").save(stream, format="JPEG")
+    return stream.getvalue()

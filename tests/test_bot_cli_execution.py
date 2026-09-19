@@ -259,7 +259,7 @@ def test_test_mode_uses_current_frozen_authority_and_exact_error(monkeypatch, au
 
 
 @pytest.mark.parametrize("latched,proofs", [(False, []), (True, [True]), (True, [False, False, True])])
-def test_durable_wait_checks_incident_first_and_repeats_proof_before_sleep(monkeypatch, latched, proofs):
+def test_durable_wait_checks_incident_first_and_throttles_each_retry(monkeypatch, latched, proofs):
     trace = Mock()
     for name in ("remote_write_safety_incident_is_latched", "durable_remote_write_safety_barrier_exists", "sleep", "log"):
         monkeypatch.setattr(bot, name, getattr(trace, name))
@@ -277,8 +277,8 @@ def test_durable_wait_checks_incident_first_and_repeats_proof_before_sleep(monke
                 "barrier is process-local. Create and verify a durable reconciliation "
                 "marker before terminating this process.", lane,
             ),
-            call.durable_remote_write_safety_barrier_exists(), call.sleep(60),
-            call.durable_remote_write_safety_barrier_exists(),
+            call.sleep(60), call.durable_remote_write_safety_barrier_exists(),
+            call.sleep(60), call.durable_remote_write_safety_barrier_exists(),
             call.log.critical(
                 "A durable remote-write safety marker is now present for one-shot lane=%s; "
                 "process exit is restart-safe", lane,
@@ -440,6 +440,10 @@ def test_post_handler_failures_escape_without_later_bookkeeping(monkeypatch, kin
         callback = getattr(callback, part)
     failure = ValueError("handler boundary")
     callback.side_effect = failure
+    if boundary == "log.critical":
+        assert getattr(bot, case.name)() == 3
+        case.trace.wait_for_durable_barrier_before_one_shot_exit.assert_called_once_with(lane=case.lane)
+        return
     with pytest.raises(ValueError) as caught:
         getattr(bot, case.name)()
     assert caught.value is failure
@@ -517,24 +521,28 @@ def test_cycle_closures_keep_state_status_identity_priority_and_save_log_order(m
 def test_cycle_ambiguity_predicate_saves_and_stops_before_result_log_or_later_lane(monkeypatch, priority, blocked_after):
     trace, state, _status, _prefix = _cycle_trace(monkeypatch, priority)
     trace.ambiguous_remote_post_is_blocking.side_effect = [False] * (blocked_after - 1) + [True]
-    assert bot.run_test_cycle() == 0
+    assert bot.run_test_cycle() == 3
     assert trace.maybe_reply_to_mentions.call_count + trace.maybe_reply_to_quote_tweets.call_count == blocked_after
-    assert trace.mock_calls[-3:] == [
+    assert trace.mock_calls[-4:] == [
         call.ambiguous_remote_post_is_blocking(),
         call.log.critical("Test cycle stopped after an ambiguous remote post; no later lane will run"),
+        call.wait_for_durable_barrier_before_one_shot_exit(lane="test_cycle"),
         call.save_state(state),
     ]
-    trace.wait_for_durable_barrier_before_one_shot_exit.assert_not_called()
+    trace.wait_for_durable_barrier_before_one_shot_exit.assert_called_once_with(lane="test_cycle")
     assert trace.log_event.call_count == blocked_after - 1
 
 
 @pytest.mark.parametrize("priority,error_name", [("normal", "UnrecoverableConfirmedReplyPersistenceError"), ("quote", "AmbiguousRemotePostOutcome")])
-def test_cycle_second_lane_safety_catch_waits_and_returns_without_final_save(monkeypatch, priority, error_name):
+@pytest.mark.parametrize("logging_fails", [False, True])
+def test_cycle_second_lane_safety_catch_waits_and_returns_without_final_save(monkeypatch, priority, error_name, logging_fails):
     trace, state, _status, _prefix = _cycle_trace(monkeypatch, priority)
     second = trace.maybe_reply_to_quote_tweets if priority == "normal" else trace.maybe_reply_to_mentions
     second.side_effect = _post_error(error_name)
+    if logging_fails:
+        trace.log.critical.side_effect = OSError("logging unavailable")
     lane = "quote_tweet" if priority == "normal" else "normal"
-    assert bot.run_test_cycle() == 0
+    assert bot.run_test_cycle() == 3
     assert second.call_args.args[0] is state
     assert trace.mock_calls[-2:] == [
         call.log.critical("Test-cycle %s reply lane stopped by the global remote-write safety barrier", lane, exc_info=True),
@@ -591,9 +599,9 @@ def test_tick_eager_scheduler_reads_health_order_and_barrier_before_completion(m
     trace.now_epoch.return_value = current
     trace.scheduler_epoch_from_state.side_effect = [(reply_epoch, changed[0]), (quote_epoch, changed[1])]
     trace.ambiguous_remote_post_is_blocking.return_value = blocked
-    assert bot.run_test_main_tick() == 0
+    assert bot.run_test_main_tick() == (3 if blocked else 0)
     expected = _preamble("--test-main-tick")
-    expected.insert(2, call.report_bot_health_progress("startup"))
+    expected.insert(3, call.report_bot_health_progress("startup"))
     expected.insert(4, call.report_bot_health_progress("recovery"))
     expected += [
         call.log.info("Running one test production reply-lane tick"), call.load_runtime_state(), call.now_epoch(),

@@ -550,7 +550,9 @@ def test_core_state_writers_never_follow_predictable_temporary_symlinks(
     bot.save_used_set(bot.LINES_USED_FILE, {"a", "b"}, durable=True)
 
     assert external.read_text(encoding="utf-8") == "untouched"
-    assert bot.load_state() == bot.default_state()
+    loaded = bot.load_state()
+    assert loaded.pop("_state_generation")["sequence"] >= 1
+    assert loaded == bot.default_state()
     assert bot.load_used_set(bot.LINES_USED_FILE) == {"a", "b"}
 
 
@@ -936,7 +938,7 @@ def test_state_backup_is_an_existing_recovery_candidate(tmp_path, monkeypatch):
     "value,valid",
     [
         (True, False), (False, False), (1, True), (0, True), (1.0, True),
-        (1.5, False), ("1", False), ("2026-07-11 12:00", True),
+        (1.5, False), ("1", False), ("2026-07-11 12:00", False), ("2026-07-11 12:00+00:00", True),
         (None, False), (math.nan, False), (math.inf, False), (-1, False),
         (bot.MAX_REASONABLE_STATE_EPOCH + 1, False),
     ],

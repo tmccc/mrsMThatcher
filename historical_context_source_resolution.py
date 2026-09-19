@@ -15,6 +15,8 @@ from pathlib import Path
 from typing import Any, Callable
 from urllib.parse import unquote_plus, urlsplit, urlunsplit
 
+from public_source_fetch import fetch_public, is_google_grounding_url
+
 
 RESOLUTION_SCHEMA_VERSION = 1
 RESOLUTION_POLICY_VERSION = (
@@ -232,13 +234,7 @@ def _fetch_one(
         "retrieved_at": _utc_now(),
     }
     try:
-        response = request(
-            url,
-            allow_redirects=True,
-            timeout=(10, 30),
-            stream=True,
-            headers={"User-Agent": "MrsMThatcher-source-audit/1.0"},
-        )
+        response = fetch_public(url, request=request, max_bytes=MAXIMUM_BODY_BYTES)
         content = bytearray()
         truncated = False
         for block in response.iter_content(64 * 1024):
@@ -311,8 +307,7 @@ def source_scope(
             url = str(source.get("url") or "").strip()
             parsed = urlsplit(url)
             if (
-                parsed.netloc.casefold() == _REDIRECT_HOST
-                and parsed.path.startswith("/grounding-api-redirect/")
+                is_google_grounding_url(url)
             ):
                 urls.setdefault(url, set()).add(quote_id)
     return {url: sorted(ids) for url, ids in sorted(urls.items())}

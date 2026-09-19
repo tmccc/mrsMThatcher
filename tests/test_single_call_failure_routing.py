@@ -137,8 +137,8 @@ def test_second_429_metadata_reaches_global_openai_cooldown(
 
     current = 2_000_000_000
     responses = [
-        FakeHttpResponse(429, headers={"Retry-After": "30"}),
-        FakeHttpResponse(429, headers={"Retry-After": "120"}),
+        FakeHttpResponse(429, headers={"Retry-After": "1"}),
+        FakeHttpResponse(429, headers={"Retry-After": "1"}),
     ]
     events: list[tuple[str, dict[str, object]]] = []
     state = bot.default_state()
@@ -169,12 +169,12 @@ def test_second_429_metadata_reaches_global_openai_cooldown(
     assert responses == []
     assert outcome["error_category"] == "provider_http_429"
     assert state["openai_error_epochs"] == [current]
-    assert state["openai_api_cooldown_until_epoch"] == current + 120 + 60
+    assert state["openai_api_cooldown_until_epoch"] == current + 1 + 60
     assert state["openai_api_cooldown_reason"] == "openai returned 429/rate limit"
     decision = next(fields for event, fields in events if event == "single_call_reply_decision")
     assert decision["provider_status_code"] == 429
-    assert decision["provider_reset_epoch"] == current + 120
-    assert decision["provider_retry_after_seconds"] == 120
+    assert decision["provider_reset_epoch"] == current + 1
+    assert decision["provider_retry_after_seconds"] == 1
     assert decision["provider_request_attempt_count"] == 2
     assert state.get("reply_evaluation_records", {}) == {}
     assert state["author_evaluation_quarantines"] == {}
@@ -190,7 +190,7 @@ def test_first_429_metadata_survives_a_different_second_failure(
     """Preserve the first rate-limit signal through the bounded retry."""
 
     current = 2_000_000_000
-    first = FakeHttpResponse(429, headers={"Retry-After": "120"})
+    first = FakeHttpResponse(429, headers={"Retry-After": "1"})
     responses: list[object] = [first]
     if second_failure == "http_503":
         responses.append(FakeHttpResponse(503))
@@ -236,13 +236,13 @@ def test_first_429_metadata_survives_a_different_second_failure(
         else "provider_ambiguous_timeout"
     )
     assert state["openai_error_epochs"] == [current]
-    assert state["openai_api_cooldown_until_epoch"] == current + 120 + 60
+    assert state["openai_api_cooldown_until_epoch"] == current + 1 + 60
     decision = next(
         fields for event, fields in events if event == "single_call_reply_decision"
     )
     assert decision["provider_status_code"] == 429
-    assert decision["provider_reset_epoch"] == current + 120
-    assert decision["provider_retry_after_seconds"] == 120
+    assert decision["provider_reset_epoch"] == current + 1
+    assert decision["provider_retry_after_seconds"] == 1
     assert decision["provider_request_attempt_count"] == 2
 
 
@@ -254,7 +254,7 @@ def test_first_429_metadata_survives_a_malformed_success_envelope(
     """Keep rate-limit health metadata when the bounded retry is malformed."""
 
     current = 2_000_000_000
-    first = FakeHttpResponse(429, headers={"Retry-After": "120"})
+    first = FakeHttpResponse(429, headers={"Retry-After": "1"})
     second = FakeHttpResponse(200, body=[])
     if second_envelope == "malformed_json":
         second.json = lambda: (_ for _ in ()).throw(ValueError("bad JSON"))
@@ -288,13 +288,13 @@ def test_first_429_metadata_survives_a_malformed_success_envelope(
     assert responses == []
     assert outcome["error_category"] == "provider_envelope"
     assert state["openai_error_epochs"] == [current]
-    assert state["openai_api_cooldown_until_epoch"] == current + 120 + 60
+    assert state["openai_api_cooldown_until_epoch"] == current + 1 + 60
     decision = next(
         fields for event, fields in events if event == "single_call_reply_decision"
     )
     assert decision["provider_status_code"] == 429
-    assert decision["provider_reset_epoch"] == current + 120
-    assert decision["provider_retry_after_seconds"] == 120
+    assert decision["provider_reset_epoch"] == current + 1
+    assert decision["provider_retry_after_seconds"] == 1
     assert decision["provider_request_attempt_count"] == 2
 
 
@@ -305,7 +305,7 @@ def test_first_429_then_local_rejection_preserves_both_dispositions(
 
     current = 2_000_000_000
     responses = [
-        FakeHttpResponse(429, headers={"Retry-After": "120"}),
+        FakeHttpResponse(429, headers={"Retry-After": "1"}),
         FakeHttpResponse(
             200,
             body=response_envelope(raw_decision(reply="word " * 200)),
@@ -339,7 +339,7 @@ def test_first_429_then_local_rejection_preserves_both_dispositions(
     assert outcome["error_category"] == "local_validation"
     assert bot._is_terminal_candidate_local_failure(outcome) is True
     assert state["openai_error_epochs"] == [current]
-    assert state["openai_api_cooldown_until_epoch"] == current + 120 + 60
+    assert state["openai_api_cooldown_until_epoch"] == current + 1 + 60
     decision = next(
         fields for event, fields in events if event == "single_call_reply_decision"
     )
@@ -482,14 +482,14 @@ def test_rejected_reply_survives_real_log_to_digest_json_without_becoming_publis
     assert report["published_reply_text_health"]["confirmed_record_count"] == 0
 
 
-def test_first_429_then_valid_decision_is_success_not_provider_failure(
+def test_first_429_then_valid_decision_retains_rate_limit_health(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     """Expose retry metadata but do not fail a recovered valid decision."""
 
     current = 2_000_000_000
     responses = [
-        FakeHttpResponse(429, headers={"Retry-After": "120"}),
+        FakeHttpResponse(429, headers={"Retry-After": "1"}),
         FakeHttpResponse(200, body=_no_reply_response()),
     ]
     events: list[tuple[str, dict[str, object]]] = []
@@ -520,13 +520,13 @@ def test_first_429_then_valid_decision_is_success_not_provider_failure(
 
     assert responses == []
     assert outcome["status"] == "no_reply"
-    assert state["openai_error_epochs"] == []
-    assert state["openai_api_cooldown_until_epoch"] == 0
+    assert state["openai_error_epochs"] == [current]
+    assert state["openai_api_cooldown_until_epoch"] == current + 61
     decision = next(
         fields for event, fields in events if event == "single_call_reply_decision"
     )
     assert decision["provider_status_code"] == 429
-    assert decision["provider_retry_after_seconds"] == 120
+    assert decision["provider_retry_after_seconds"] == 1
     assert decision["provider_request_attempt_count"] == 2
 
 
@@ -558,7 +558,7 @@ def test_new_429_cooldown_stops_later_candidate_in_same_lane_cycle(
             monkeypatch, candidates, current_epoch=current
         )
     responses = [
-        FakeHttpResponse(429, headers={"Retry-After": "120"}),
+        FakeHttpResponse(429, headers={"Retry-After": "1"}),
         FakeHttpResponse(
             200,
             body=response_envelope(raw_decision(reply="word " * 200)),
@@ -594,7 +594,7 @@ def test_new_429_cooldown_stops_later_candidate_in_same_lane_cycle(
     )
     assert bot.terminal_reply_evaluation(state, "101") is None
     assert state["openai_error_epochs"] == [current]
-    assert state["openai_api_cooldown_until_epoch"] == current + 120 + 60
+    assert state["openai_api_cooldown_until_epoch"] == current + 1 + 60
     assert state["author_evaluation_quarantines"] == {}
     assert state["daily_reply_count"] == 0
     assert state["daily_quote_reply_count"] == 0
@@ -630,7 +630,7 @@ def test_new_429_cooldown_stops_later_quote_candidate_in_same_cycle(
         }
     )
     scenario["openai_responses"] = [
-        {"status": 429},
+        {"status": 429, "headers": {"Retry-After": "1"}},
         {"body": response_envelope(raw_decision(reply="word " * 200))},
         {"body": _no_reply_response()},
     ]

@@ -739,10 +739,13 @@ def _read_stable_regular(
         raise
     except OSError as exc:
         raise TransportJournalError(f"cannot inspect durable file: {path.name}") from exc
+    directory_fd = _open_directory(path.parent)
+    os.close(directory_fd)
     if (
         not stat.S_ISREG(before.st_mode)
         or before.st_nlink not in allowed_link_counts
         or before.st_uid != os.geteuid()
+        or stat.S_IMODE(before.st_mode) & 0o022
         or before.st_size <= 0
         or before.st_size > maximum
         or (
@@ -905,13 +908,19 @@ def _write_all(descriptor: int, data: bytes) -> None:
 
 
 def _open_directory(path: Path) -> int:
+    """Open an owned, non-writable-by-others directory without following links."""
+    from mrs_bot_state_generation import directory_identity
+
     try:
-        metadata = os.stat(path, follow_symlinks=False)
-    except OSError as exc:
-        raise TransportJournalError("transport journal directory is unavailable") from exc
-    if not stat.S_ISDIR(metadata.st_mode):
-        raise TransportJournalError("transport journal parent is not a directory")
-    return os.open(path, os.O_RDONLY | getattr(os, "O_DIRECTORY", 0))
+        before = directory_identity(path)
+        descriptor = os.open(path, os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW)
+        opened = os.fstat(descriptor)
+        if (opened.st_dev, opened.st_ino, opened.st_uid, opened.st_mode) != before:
+            os.close(descriptor)
+            raise ValueError("directory identity changed")
+        return descriptor
+    except (OSError, ValueError) as exc:
+        raise TransportJournalError("unsafe durable transaction directory") from exc
 
 
 def _publish_new(path: Path, data: bytes) -> None:
@@ -4340,6 +4349,9 @@ def retire_confirmed_transport_transaction(
                     current_fence,
                     maximum=JOURNAL_MAX_BYTES,
                     label="confirmed transport fence",
+                    pre_unlink_verifier=lambda: require_transaction_mutation_authority(
+                        mutation_authority, operation="confirmed retirement unlink",
+                    ),
                 )
             require_exact_prepared_source("journal")
             if state.journal is not None:
@@ -4354,6 +4366,9 @@ def retire_confirmed_transport_transaction(
                     current_journal,
                     maximum=JOURNAL_MAX_BYTES,
                     label="confirmed transport journal",
+                    pre_unlink_verifier=lambda: require_transaction_mutation_authority(
+                        mutation_authority, operation="confirmed retirement unlink",
+                    ),
                 )
             require_exact_prepared_source("completion")
         finally:
@@ -4415,6 +4430,9 @@ def retire_confirmed_transport_transaction(
                 current_journal,
                 maximum=JOURNAL_MAX_BYTES,
                 label="confirmed transport journal",
+                pre_unlink_verifier=lambda: require_transaction_mutation_authority(
+                    mutation_authority, operation="confirmed retirement unlink",
+                ),
             )
         require_exact_guarded_receipt("fence")
         if state.fence is not None:
@@ -4429,6 +4447,9 @@ def retire_confirmed_transport_transaction(
                 current_fence,
                 maximum=JOURNAL_MAX_BYTES,
                 label="confirmed transport fence",
+                pre_unlink_verifier=lambda: require_transaction_mutation_authority(
+                    mutation_authority, operation="confirmed retirement unlink",
+                ),
             )
         _current_receipt, current_guard = require_exact_guarded_receipt("guard")
         _unlink_exact_stable_file(
@@ -4437,6 +4458,9 @@ def retire_confirmed_transport_transaction(
             current_guard,
             maximum=JOURNAL_MAX_BYTES,
             label="confirmed transport retirement guard",
+            pre_unlink_verifier=lambda: require_transaction_mutation_authority(
+                mutation_authority, operation="confirmed retirement unlink",
+            ),
         )
     finally:
         os.close(directory_fd)

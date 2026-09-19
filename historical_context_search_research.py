@@ -1509,7 +1509,8 @@ class GoogleDiscoveryEngineResourceClient:
         rows: list[dict[str, Any]] = []
         page_token = ""
         seen_tokens: set[str] = set()
-        while True:
+        maximum_pages, maximum_items = 100, 10000
+        for page_number in range(maximum_pages):
             parameters: dict[str, str | int] = {"pageSize": page_size}
             if page_token:
                 parameters["pageToken"] = page_token
@@ -1555,6 +1556,8 @@ class GoogleDiscoveryEngineResourceClient:
                 raise SearchBackendNotConfigured(
                     "Discovery Engine resource-list rows were invalid"
                 )
+            if len(page_rows) > page_size or len(rows) + len(page_rows) > maximum_items:
+                raise SearchBackendNotConfigured("Discovery Engine resource-list item limit exceeded")
             rows.extend(dict(row) for row in page_rows)
             next_token = str(payload.get("nextPageToken") or "")
             if not next_token:
@@ -1565,6 +1568,7 @@ class GoogleDiscoveryEngineResourceClient:
                 )
             seen_tokens.add(next_token)
             page_token = next_token
+        raise SearchBackendNotConfigured("Discovery Engine resource-list page limit exceeded")
 
     def list_engines(self) -> list[dict[str, Any]]:
         """List all engines beneath the configured collection."""
@@ -2553,37 +2557,54 @@ def _pinned_public_get(
     *,
     headers: Mapping[str, str],
     timeout: tuple[float, float],
-    resolver: Callable[..., Any] = socket.getaddrinfo,
+    resolver: Callable[..., Any] | None = None,
+    deadline: float | None = None,
+    preserve_transport_url: bool = False,
 ) -> _PinnedHTTPResponse:
     """Resolve, validate and connect to the same public address, retaining Host/SNI."""
     canonical = canonicalise_url(url)
     parsed = urlsplit(canonical)
     host = parsed.hostname or ""
     port = parsed.port or (443 if parsed.scheme == "https" else 80)
-    addresses = _resolved_addresses(host, port, resolver)
+    from public_source_deadline import DeadlineSocket, bounded_dns, remaining_seconds
+    if deadline is not None and resolver is None:
+        try:
+            literal = ipaddress.ip_address(host)
+        except ValueError:
+            answers = bounded_dns(host, port, deadline=deadline)
+            addresses = _resolved_addresses(host, port, lambda *_args, **_kwargs: answers)
+        else:
+            addresses = [literal]
+    else:
+        addresses = _resolved_addresses(host, port, resolver or socket.getaddrinfo)
+    if deadline is not None:
+        remaining_seconds(deadline)
     if any(not _address_is_public(address) for address in addresses):
         raise UnsafeURL("URL resolves to a non-public address at connection time")
-    target = parsed.path or "/"
-    if parsed.query:
-        target += "?" + parsed.query
+    transport = urlsplit(url) if preserve_transport_url else parsed
+    target = quote(transport.path or "/", safe="/%:@!$&'()*+,;=-._~")
+    if transport.query:
+        target += "?" + quote(transport.query, safe="/%?:@!$&'()*+,;=-._~")
     request_headers = dict(headers)
     request_headers["Host"] = _http_host_header(host, port, parsed.scheme)
     last_error: BaseException | None = None
     for address in addresses[:MAXIMUM_PUBLIC_ADDRESS_ATTEMPTS]:
+        remaining = remaining_seconds(deadline) if deadline is not None else None
         raw_socket: socket.socket | None = None
         connection: http.client.HTTPConnection | None = None
         try:
             raw_socket = socket.create_connection(
-                (str(address), port), timeout=float(timeout[0]),
+                (str(address), port), timeout=min(float(timeout[0]), remaining) if remaining is not None else float(timeout[0]),
             )
-            raw_socket.settimeout(float(timeout[1]))
+            raw_socket.settimeout(min(float(timeout[1]), remaining_seconds(deadline)) if deadline is not None else float(timeout[1]))
             if parsed.scheme == "https":
                 raw_socket = ssl.create_default_context().wrap_socket(
                     raw_socket, server_hostname=host,
                 )
-                raw_socket.settimeout(float(timeout[1]))
+                raw_socket.settimeout(min(float(timeout[1]), remaining_seconds(deadline)) if deadline is not None else float(timeout[1]))
             connection = http.client.HTTPConnection(host, port, timeout=float(timeout[1]))
-            connection.sock = raw_socket
+            connection.sock = (DeadlineSocket(raw_socket, deadline=deadline, read_timeout=float(timeout[1]))
+                               if deadline is not None else raw_socket)
             connection.request("GET", target, headers=request_headers)
             return _PinnedHTTPResponse(connection.getresponse(), connection)
         except (OSError, ssl.SSLError, http.client.HTTPException) as exc:

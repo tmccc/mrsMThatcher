@@ -1098,7 +1098,6 @@ def test_startup_regular_receipt_replay_preserves_newer_production_schedule(
     monkeypatch.setattr(bot, "current_image_paths", lambda: [])
     monkeypatch.setattr(bot, "load_runtime_state", lambda: state)
     monkeypatch.setattr(bot, "seed_recent_own_post_ids_from_cache", lambda state: None)
-    monkeypatch.setattr(bot, "save_state", lambda state, **kwargs: None)
     monkeypatch.setattr(bot, "now_epoch", lambda: first_tick_epoch)
     monkeypatch.setattr(
         bot,

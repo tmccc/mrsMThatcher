@@ -10,6 +10,8 @@ Import performs no file, environment, clock, provider or RNG work.
 
 from __future__ import annotations
 
+from datetime import timezone
+
 from collections.abc import Callable
 from logging import Logger
 from types import ModuleType
@@ -389,7 +391,7 @@ def build_context_for_reply_ai(
     bound_visible_conversation: Callable,
     build_parent_chain: Callable,
     copy: ModuleType,
-    current_datetime: Callable,
+    current_utc_datetime: Callable,
     get_immediate_parent_id: Callable,
     is_our_auto_reply: Callable,
     log: Logger,
@@ -562,7 +564,7 @@ def build_context_for_reply_ai(
         "visible_conversation": visible,
         "visual_description": None,
         "clarification_request": None,
-        "current_date": current_datetime().strftime("%Y-%m-%d"),
+        "current_date": current_utc_datetime().astimezone(timezone.utc).strftime("%Y-%m-%d"),
         "target_author_id": author_id,
         "target_created_at": str(mention.get("created_at") or ""),
     }

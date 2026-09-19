@@ -84,7 +84,7 @@ assert 'requests' not in sys.modules
 assert 'single_call_reply' not in sys.modules
 assert 'transaction_mutation_authority' not in sys.modules
 assert mrs_bot_main_post_confirmation_persistence.atomic_json_file_exactly_matches.__annotations__['return'] == 'bool'
-assert mrs_bot_main_post_confirmation_persistence.emergency_persist_confirmed_regular_post.__annotations__['return'] == 'list[str]'
+assert mrs_bot_main_post_confirmation_persistence.emergency_persist_confirmed_regular_post.__annotations__['return'] == 'RegularPostPersistenceResult'
 assert 'historical_context_formatter' not in sys.modules
 """
     result = subprocess.run(
@@ -102,9 +102,9 @@ def test_public_signatures_and_current_adapter_references(monkeypatch, name):
             "(attempt: 'dict', *, post_id: 'str', confirmation_epoch: 'int', image_summary: 'str' = '') -> 'dict'"
         ),
         "save_regular_post_protected_state": (
-            "(lines_used: 'set', images_used: 'set', state: 'dict', *, durable: 'bool') -> 'None'"
+            "(lines_used: 'set', images_used: 'set', state: 'dict', *, durable: 'bool') -> 'StateCommitProof'"
         ),
-        "emergency_persist_confirmed_regular_post": "(lines_used: 'set', images_used: 'set', state: 'dict') -> 'list[str]'",
+        "emergency_persist_confirmed_regular_post": "(lines_used: 'set', images_used: 'set', state: 'dict') -> 'RegularPostPersistenceResult'",
     }
     public, extracted = getattr(bot, name), getattr(owner, name)
     assert bot._main_post_confirmation_persistence is owner
@@ -142,48 +142,55 @@ def test_public_signatures_and_current_adapter_references(monkeypatch, name):
                    for key, value in {**forwarded, **dependencies}.items())
 
 
-def test_exact_bytes_and_native_equality_result(tmp_path, monkeypatch):
+def test_exact_canonical_bytes_require_secure_file_authority(tmp_path):
+    import os
+
     path, value = tmp_path / "receipt.json", {"a": 1}
-    path.write_bytes(b'{\n  "a": 1\n}\n')
+    path.write_bytes(bot.canonical_atomic_json_bytes(value))
     assert bot.atomic_json_file_exactly_matches(path, value) is True
     path.write_bytes(b'{"a":1}\n')
     assert bot.atomic_json_file_exactly_matches(path, value) is False
-    trace, result, canonical = Mock(), object(), object()
+    path.write_bytes(bot.canonical_atomic_json_bytes(value))
+    alias = tmp_path / "alias"
+    alias.symlink_to(path)
+    assert bot.atomic_json_file_exactly_matches(alias, value) is False
+    alias.unlink()
+    os.link(path, alias)
+    assert bot.atomic_json_file_exactly_matches(path, value) is False
+    alias.unlink()
+    path.chmod(0o622)
+    assert bot.atomic_json_file_exactly_matches(path, value) is False
+    path.chmod(0o600)
+    assert bot.atomic_json_file_exactly_matches(path, value) is True
+    tmp_path.chmod(0o777)
+    try:
+        assert bot.atomic_json_file_exactly_matches(path, value) is False
+    finally:
+        tmp_path.chmod(0o700)
 
-    class ReadValue:
-        def __eq__(self, other):
-            trace.compare(other)
-            return result
 
-    trace.read_bytes.return_value = ReadValue()
-    trace.canonical.return_value = canonical
-    monkeypatch.setattr(bot, "canonical_atomic_json_bytes", trace.canonical)
-    assert bot.atomic_json_file_exactly_matches(trace, value) is result
-    assert trace.mock_calls == [call.read_bytes(), call.canonical(value), call.compare(canonical)]
-    assert trace.canonical.call_args.args[0] is value
-
-
-@pytest.mark.parametrize("boundary", ["read_bytes", "canonical", "compare"])
+@pytest.mark.parametrize("boundary", ["canonical", "directory_identity", "file_identity", "require_current"])
 @pytest.mark.parametrize("error_type", [ValueError, KeyboardInterrupt])
-def test_exact_comparison_exception_scope(monkeypatch, boundary, error_type):
-    trace, error = Mock(), error_type("comparison boundary")
+def test_exact_comparison_exception_scope(monkeypatch, tmp_path, boundary, error_type):
+    import mrs_bot_state_generation as generation
 
-    class ReadValue:
-        def __eq__(self, other):
-            return trace.compare(other)
-
-    trace.read_bytes.return_value = ReadValue()
-    getattr(trace, boundary).side_effect = error
-    monkeypatch.setattr(bot, "canonical_atomic_json_bytes", trace.canonical)
+    path, value = tmp_path / "receipt.json", {"a": 1}
+    path.write_bytes(bot.canonical_atomic_json_bytes(value))
+    error = error_type("comparison boundary")
+    callback = Mock(side_effect=error)
+    if boundary == "canonical":
+        monkeypatch.setattr(bot, "canonical_atomic_json_bytes", callback)
+    elif boundary == "require_current":
+        monkeypatch.setattr(generation.StateCommitProof, boundary, callback)
+    else:
+        monkeypatch.setattr(generation, boundary, callback)
     if isinstance(error, Exception):
-        assert bot.atomic_json_file_exactly_matches(trace, object()) is False
+        assert bot.atomic_json_file_exactly_matches(path, value) is False
     else:
         with pytest.raises(error_type) as caught:
-            bot.atomic_json_file_exactly_matches(trace, object())
+            bot.atomic_json_file_exactly_matches(path, value)
         assert caught.value is error
-    assert [entry[0] for entry in trace.mock_calls] == ["read_bytes", "canonical", "compare"][:
-        ["read_bytes", "canonical", "compare"].index(boundary) + 1
-    ]
+    callback.assert_called_once()
 
 
 def _promotion(monkeypatch, lane="quote_image"):
@@ -439,7 +446,10 @@ def test_recovery_diagnostic_failures_keep_native_scope(monkeypatch, boundary):
 
 @pytest.mark.parametrize("failure", [None, "quote", "convert", "image", "state"])
 def test_protected_save_order_references_and_native_partial_progress(monkeypatch, failure):
+    import mrs_bot_state_generation as generation
+
     events, lines, state, durable = [], set(), {}, object()
+    state_proof, history_proof = object(), object()
     error = KeyboardInterrupt("state") if failure == "state" else ValueError("save")
 
     def record(name):
@@ -466,22 +476,34 @@ def test_protected_save_order_references_and_native_partial_progress(monkeypatch
     def save(value, **kwargs):
         assert value is state and kwargs["durable"] is durable
         record("state")
+        return state_proof
+
+    def protect(proof, files):
+        assert proof is state_proof
+        assert files == ((bot.LINES_USED_FILE, b"[]\n"),
+                         (bot.IMAGES_USED_FILE, b'[\n  "synthetic.jpg"\n]\n'))
+        record("proof")
+        return history_proof
 
     monkeypatch.setattr(bot, "save_quote_used_hashes", quote)
     monkeypatch.setattr(bot, "save_image_used_basenames", image)
     monkeypatch.setattr(bot, "save_state", save)
+    monkeypatch.setattr(generation, "protect_history_files", protect)
     if failure:
         with pytest.raises(type(error)) as caught:
             bot.save_regular_post_protected_state(lines, images, state, durable=durable)
         assert caught.value is error
     else:
-        assert bot.save_regular_post_protected_state(lines, images, state, durable=durable) is None
-    order = ["quote", "convert", "image", "state"]
+        assert bot.save_regular_post_protected_state(lines, images, state, durable=durable) is history_proof
+    order = ["quote", "convert", "image", "state", "convert", "proof"]
     assert events == (order[:order.index(failure) + 1] if failure else order)
 
 
 def _persistence(monkeypatch):
+    import mrs_bot_state_generation as generation
+
     trace = Mock()
+    monkeypatch.setattr(generation, "protect_history_files", trace.protect_history_files)
     for name in ("save_quote_used_hashes", "save_image_used_basenames", "save_state", "json_file_matches", "log"):
         monkeypatch.setattr(bot, name, getattr(trace, name))
     return trace
@@ -495,20 +517,31 @@ def test_emergency_backup_exception_is_state_only_and_exactly_checked(monkeypatc
     t, lines, state = _persistence(monkeypatch), set(), {}
     callbacks = {"quote_history": t.save_quote_used_hashes,
                  "image_history": t.save_image_used_basenames, "state": t.save_state}
-    callbacks[component].side_effect = (bot.StateBackupWriteError if backup else OSError)("component")
+    error = (bot.StateBackupWriteError if backup else OSError)("component")
+    proof = object()
+    if backup:
+        error.commit_proof = proof
+    callbacks[component].side_effect = error
     t.json_file_matches.return_value = canonical
     first = bot.emergency_persist_confirmed_regular_post(lines, {7, "7"}, state)
     second = bot.emergency_persist_confirmed_regular_post(lines, {7, "7"}, state)
     accepted = component == "state" and backup and canonical
-    assert first == second == ([] if accepted else [component]) and first is not second
+    assert first == second and first is not second
+    assert first.failures == (() if accepted else (component,))
+    assert first.commit_proof is (t.protect_history_files.return_value if accepted else None)
+    if accepted:
+        t.protect_history_files.assert_called_with(proof, (
+            (bot.LINES_USED_FILE, b"[]\n"),
+            (bot.IMAGES_USED_FILE, b'[\n  "7"\n]\n'),
+        ))
     assert t.json_file_matches.call_count == (2 if component == "state" and backup else 0)
     if component == "state" and backup:
-        t.json_file_matches.assert_called_with(bot.STATE_FILE, state)
+        t.json_file_matches.assert_called_with(bot.STATE_FILE, state, commit_proof=proof)
         assert t.json_file_matches.call_args.args[1] is state
     names = ["save_quote_used_hashes", "save_image_used_basenames", "save_state"]
     position = names.index({"quote_history": "save_quote_used_hashes", "image_history": "save_image_used_basenames", "state": "save_state"}[component]) + 1
     names[position:position] = (["json_file_matches"] if component == "state" and backup else []) + ["log.warning" if accepted else "log.critical"]
-    assert [entry[0] for entry in t.mock_calls] == names * 2
+    assert [entry[0] for entry in t.mock_calls] == (names + (["protect_history_files"] if accepted else [])) * 2
     assert t.save_quote_used_hashes.call_args.args[1] is lines
     t.save_image_used_basenames.assert_called_with(bot.IMAGES_USED_FILE, {"7"}, durable=True)
     assert t.save_state.call_args.args[0] is state
@@ -533,7 +566,9 @@ def test_emergency_lazy_image_conversion_append_before_log_and_baseexception_esc
 
     monkeypatch.setattr(bot, "log", SimpleNamespace(critical=critical))
     if error_type is ValueError:
-        assert bot.emergency_persist_confirmed_regular_post(set(), {Image()}, {}) == ["quote_history", "image_history"]
+        result = bot.emergency_persist_confirmed_regular_post(set(), {Image()}, {})
+        assert result.failures == ("quote_history", "image_history")
+        assert result.commit_proof is None
         assert events == [("quote_history", ["quote_history"]), "convert",
                           ("image_history", ["quote_history", "image_history"])]
         t.save_state.assert_called_once()
@@ -555,6 +590,7 @@ def test_emergency_diagnostic_errors_escape_natively(monkeypatch, boundary):
         t.log.critical.side_effect = error
     else:
         t.save_state.side_effect = bot.StateBackupWriteError("backup")
+        t.save_state.side_effect.commit_proof = object()
         t.json_file_matches.return_value = True
         (t.json_file_matches if boundary == "match" else t.log.warning).side_effect = error
     with pytest.raises(KeyboardInterrupt) as caught:
@@ -563,3 +599,29 @@ def test_emergency_diagnostic_errors_escape_natively(monkeypatch, boundary):
     if boundary == "critical":
         t.save_image_used_basenames.assert_not_called()
         t.save_state.assert_not_called()
+
+
+def test_emergency_backup_error_without_exact_commit_proof_is_not_success(monkeypatch):
+    trace = _persistence(monkeypatch)
+    trace.save_state.side_effect = bot.StateBackupWriteError("no exact commit proof")
+    trace.json_file_matches.return_value = True
+    result = bot.emergency_persist_confirmed_regular_post(set(), set(), {})
+    assert result.failures == ("state",) and result.commit_proof is None
+    trace.json_file_matches.assert_not_called()
+    trace.log.critical.assert_called_once()
+
+
+def test_emergency_result_carries_exact_history_proof_or_fails_closed(monkeypatch):
+    trace = _persistence(monkeypatch)
+    state = {}
+    result = bot.emergency_persist_confirmed_regular_post(set(), set(), state)
+    assert result.failures == ()
+    assert result.commit_proof is trace.protect_history_files.return_value
+    trace.protect_history_files.assert_called_once_with(trace.save_state.return_value, (
+        (bot.LINES_USED_FILE, b"[]\n"), (bot.IMAGES_USED_FILE, b"[]\n"),
+    ))
+    trace.protect_history_files.side_effect = OSError("history replaced before proof")
+    result = bot.emergency_persist_confirmed_regular_post(set(), set(), state)
+    assert result.failures == ("protected_commit_proof",)
+    assert result.commit_proof is None
+    trace.log.critical.assert_called_once_with("Emergency protected state proof failed", exc_info=True)

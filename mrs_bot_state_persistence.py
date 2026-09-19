@@ -1,21 +1,22 @@
-"""Publish durable state and backup generations through current root dependencies.
+"""Publish validated, sealed state generations and exact commit proofs.
 
-Five root adapters supply current paths, counts, compatibility constants, modules,
-error classes, security and logging helpers, and nested callbacks on each call.
-Original bodies retain shallow state versus deep fence copies, exact source bytes,
-optional fsync, reverse backup rotation, and canonical commit before latest backup.
-Source/receipt I/O, state loading, validation and persistence callers remain in
-existing locations. Explicit calls prepare documents or write supplied paths;
-this owner retains no callbacks, configuration, paths, state or descriptors and
-performs no import-time runtime work or reverse application import.
-"""
+Every document is encoded and reader-validated before any backup mutation.
+Canonical replacement and directory fsync establish authority independently of
+replica publication. Current paths, reader policy and lock ownership are supplied
+by the root; this module performs no import-time runtime work."""
 
 from __future__ import annotations
+
+import hashlib
 
 from collections.abc import Callable
 from logging import Logger
 from pathlib import Path
 from types import ModuleType
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from mrs_bot_state_generation import StateCommitProof
 
 
 def state_document_for_persistence(
@@ -155,15 +156,34 @@ def save_state(
     tempfile: ModuleType,
     test_process_production_state_write_blocked: Callable[..., bool],
     write_latest_state_backup: Callable[..., None],
-) -> None:
+    state_generation_context: Callable,
+) -> StateCommitProof:
     """Persist state atomically, logging only a value-free structural summary."""
     if test_process_production_state_write_blocked(STATE_FILE):
         raise RuntimeError(f"Refusing test-process write to production state: {STATE_FILE}")
     log.debug("Saving state to %s", STATE_FILE)
     log_json_debug("State summary being saved", state_debug_summary(state))
-    persisted_state = state_document_for_persistence(state)
+    from mrs_bot_state_generation import (
+        GENERATION_KEY, StateCommitProof, canonical_bytes, directory_identity,
+        encode_generation, strict_document,
+    )
 
-    STATE_FILE.parent.mkdir(parents=True, exist_ok=True)
+    persisted_state = state_document_for_persistence(state)
+    context = state_generation_context()
+    # Serialize a detached document before touching even a backup. This also
+    # rejects unsupported Python objects and nonfinite values in extension data.
+    candidate = strict_document(canonical_bytes(persisted_state))
+    if context.validate(candidate, path=STATE_FILE) is None:
+        raise ValueError('state document fails persisted-state validation')
+    # Check the size of the complete envelope before any directory/file mutation.
+    context.require_lock('state generation publication')
+    sequence = context.next_sequence(STATE_FILE)
+    persisted_state, data = encode_generation(candidate, sequence, context.maximum_bytes)
+    if context.validate(strict_document(data), path=STATE_FILE) is None:
+        raise ValueError('state document fails persisted-state validation')
+
+    STATE_FILE.parent.mkdir(parents=True, exist_ok=True, mode=0o700)
+    directory = directory_identity(STATE_FILE.parent)
 
     descriptor, temporary_name = tempfile.mkstemp(
         prefix=f".{STATE_FILE.name}.",
@@ -171,26 +191,47 @@ def save_state(
     )
     temporary = Path(temporary_name)
     try:
-        with os.fdopen(descriptor, "w", encoding="utf-8") as handle:
+        with os.fdopen(descriptor, "wb") as handle:
             os.fchmod(handle.fileno(), 0o600)
-            json.dump(persisted_state, handle, indent=2, sort_keys=True)
-            if durable:
-                handle.flush()
-                os.fsync(handle.fileno())
+            handle.write(data)
+            # Every published generation is a commit, including periodic saves.
+            handle.flush()
+            os.fsync(handle.fileno())
+            committed_identity = os.fstat(handle.fileno())
 
         rotate_state_backups_before_commit(durable=durable)
+        context.require_lock('state generation replacement')
+        if directory_identity(STATE_FILE.parent) != directory:
+            raise RuntimeError('state directory changed before replacement')
         os.replace(temporary, STATE_FILE)
-        if durable:
-            fsync_parent_dir(STATE_FILE, strict=durable)
+        fsync_parent_dir(STATE_FILE, strict=True)
+        current_identity = os.lstat(STATE_FILE)
+        if (current_identity.st_dev, current_identity.st_ino) != (
+            committed_identity.st_dev, committed_identity.st_ino
+        ):
+            raise RuntimeError('state inode changed during commit')
     except BaseException:
         try:
             temporary.unlink()
         except FileNotFoundError:
             pass
         raise
+    proof = StateCommitProof(
+        STATE_FILE, directory, tuple(getattr(current_identity, field) for field in (
+            "st_dev", "st_ino", "st_mode", "st_nlink", "st_uid", "st_size",
+            "st_ctime_ns", "st_mtime_ns")),
+        hashlib.sha256(data).hexdigest(), sequence, context.maximum_bytes,
+        receipt_digests=frozenset(persisted_state.get('_confirmed_receipt_commits', {})),
+    )
+    proof.require_current()
+    state[GENERATION_KEY] = persisted_state[GENERATION_KEY]
     try:
         write_latest_state_backup(durable=durable)
     except Exception as exc:
-        raise StateBackupWriteError(
+        error = StateBackupWriteError(
             f"Canonical state committed but latest backup write failed: {STATE_FILE}"
-        ) from exc
+        )
+        error.commit_proof = proof
+        raise error from exc
+    proof.require_current()
+    return proof

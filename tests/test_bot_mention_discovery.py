@@ -109,7 +109,8 @@ def test_queue_recovery_saves_before_sorting_and_keeps_returned_record_reference
         assert [entry[0] for entry in trace.mock_calls] == ["authority", "save"]
     else:
         result = bot.pending_mention_candidates(state)
-        assert [entry[0] for entry in trace.mock_calls] == ["authority", "save", "sort"]
+        assert [entry[0] for entry in trace.mock_calls
+                if entry[0] != "authority" or entry.args[0] is state] == ["authority", "save", "sort"]
         assert [row["id"] for row in result] == ["97", "98"]
         assert all(row is state["mention_pending_candidates"][row["id"]] for row in result)
         assert all(row is state["mention_pending_candidates"][row["id"]] for row in trace.sort.call_args.args[0])
@@ -117,7 +118,9 @@ def test_queue_recovery_saves_before_sorting_and_keeps_returned_record_reference
         saved = json.loads(bot.STATE_FILE.read_text())
         assert set(saved["mention_pending_candidates"]) == {"97", "98"}
         assert saved["mention_backlog_reset_guard"]["head_traversal_started"] is False
-    trace.authority.assert_called_once_with(state, path=bot.STATE_FILE, recover_pending_identity=True)
+    original_calls = [entry for entry in trace.authority.call_args_list if entry.args[0] is state]
+    assert len(original_calls) == 1
+    assert original_calls[0].kwargs == {"path": bot.STATE_FILE, "recover_pending_identity": True}
     trace.save.assert_called_once_with(state, durable=True)
 
 
@@ -175,7 +178,8 @@ def test_real_pages_keep_media_cache_queue_references_and_final_commit_order(mon
         original = getattr(bot, name)
 
         def observe(*args, _label=label, _callback=original, **kwargs):
-            trace.append(_label + (":" + kwargs["tweet_id"] if _label == "cache" else ""))
+            if _label != "prune" or args[0] is state:
+                trace.append(_label + (":" + kwargs["tweet_id"] if _label == "cache" else ""))
             if _label == "media":
                 assert args[0] is responses[-1]["data"] and args[1] is responses[-1]["includes"]
             if _label == "cache":

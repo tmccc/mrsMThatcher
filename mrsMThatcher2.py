@@ -4,8 +4,21 @@
 
 from __future__ import annotations
 
+# importlib.reload executes in the existing module dictionary. Refuse before
+# reassigning any descriptor, latch, signal guard, bootstrap or client authority.
+if globals().get("_LIFECYCLE_AUTHORITY_ACQUIRED", False):
+    raise RuntimeError("Refusing to reload mrsMThatcher2 after lifecycle authority was acquired")
+_LIFECYCLE_AUTHORITY_ACQUIRED = False
+
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from mrs_bot_state_generation import StateCommitProof
+    from mrs_bot_main_post_confirmation_persistence import RegularPostPersistenceResult
+
 import base64
 import hashlib
+import functools
 import json
 import math
 import os
@@ -111,7 +124,12 @@ def _normalise_x_origin_before_runtime_configuration(raw: object) -> str:
     if ":" in host and not host.startswith("["):
         host = f"[{host}]"
     netloc = host if port is None else f"{host}:{port}"
-    return urlunsplit((parsed.scheme.lower(), netloc, "", "", ""))
+    from provider_endpoint_policy import validate_provider_endpoint
+    normalised = urlunsplit((parsed.scheme.lower(), netloc, "", "", ""))
+    validate_provider_endpoint(
+        normalised, provider="x", test_mode=_CANDIDATE_IMPORT_TIME_TEST_MODE,
+    )
+    return normalised
 
 
 def _effective_request_timeout_before_runtime_configuration(raw: object) -> float:
@@ -207,7 +225,7 @@ import tempfile
 import threading
 from collections.abc import Callable
 from collections import Counter
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from glob import glob
 from logging.handlers import RotatingFileHandler
 from pathlib import Path
@@ -705,12 +723,13 @@ LOCAL_CONFIG_MAX_BYTES = 64 * 1024
 CONTROL_FILE = BASE_DIR / "mrsMThatcher.control.json"
 LOCK_FILE = BASE_DIR / "mrsMThatcher.lock"
 STATE_BACKUP_COUNT = 5
-STATE_READER_VERSION = 4
-STATE_MINIMUM_READER_VERSION = 4
+STATE_READER_VERSION = 5
+STATE_MINIMUM_READER_VERSION = 5
 STATE_READER_COMPATIBILITY_FENCE = {
     "__mrs_state_reader_compatibility_fence__": STATE_MINIMUM_READER_VERSION,
 }
 STATE_PREVIOUS_READER_COMPATIBILITY_FENCES = (
+    {"__mrs_state_reader_compatibility_fence__": 4},
     {"__mrs_state_reader_compatibility_fence__": 2},
 )
 
@@ -995,7 +1014,9 @@ def acquire_instance_lock() -> None:
     global _STATE_DIR_LOCK_IDENTITY
     global _LOCK_SOCKET
     global _LOCK_SOCKET_NAME
+    global _LIFECYCLE_AUTHORITY_ACQUIRED
 
+    _LIFECYCLE_AUTHORITY_ACQUIRED = True
     if _LOCK_FH is not None:
         require_instance_lock_for_remote_write("Instance-lock reuse")
         return
@@ -1228,6 +1249,7 @@ def acquire_instance_lock() -> None:
                 except OSError:
                     pass
         raise
+    initialise_bot_health_reporting()
     log.info("Acquired instance lock %s", LOCK_FILE)
 
 
@@ -1564,11 +1586,11 @@ def production_bootstrap(
     """Apply and validate deployment-local configuration exactly once."""
     global _HISTORICAL_CONTEXT_CORPUS_SNAPSHOT
     global _HISTORICAL_CONTEXT_RUNTIME_UNAVAILABLE_REASON
-    global _PRODUCTION_BOOTSTRAPPED, log
+    global _PRODUCTION_BOOTSTRAPPED, _LIFECYCLE_AUTHORITY_ACQUIRED, log
     if _PRODUCTION_BOOTSTRAPPED:
         return
+    _LIFECYCLE_AUTHORITY_ACQUIRED = True
     log = setup_logging(log_path=log_path, configure_file_logging=configure_file_logging)
-    initialise_bot_health_reporting()
     apply_local_config()
     errors = validate_runtime_config_values(
         {name: globals()[name] for name in LOCAL_CONFIG_ALLOWED_KEYS if name in globals()}
@@ -1955,19 +1977,22 @@ AUTH = OAuth1(
 )
 
 
-def normalise_base_url(raw: str, *, require_origin: bool = False) -> str:
+def normalise_base_url(raw: str, *, require_origin: bool = False, provider: str | None = None) -> str:
     """Return one validated API base or fail during configuration.
 
     Route classification is performed against paths which this module appends
     itself.  A configured path prefix, query, fragment or user-info component
     could make the literal route and the prepared on-wire route disagree, so
-    the X request and upload bases must be origins.  The OpenAI provider retains
-    its explicit ``/v1`` base because it does not participate in X route
-    classification.
+    the X request and upload bases must be origins. Versioned OpenAI and xAI
+    bases remain usable through this generic normalizer. Credential-bearing
+    configuration passes its explicit provider to prevent cross-provider
+    credential disclosure.
     """
     return _request_route_values.normalise_base_url(
         raw,
         require_origin=require_origin,
+        provider=provider,
+        test_mode=TEST_MODE,
         _normalise_x_origin_before_runtime_configuration=_normalise_x_origin_before_runtime_configuration,
         urlsplit=urlsplit,
         urlunsplit=urlunsplit,
@@ -1999,7 +2024,9 @@ X_UPLOAD_BASE = normalise_base_url(
     os.getenv("X_UPLOAD_BASE_URL", X_BASE),
     require_origin=True,
 )
-OPENAI_BASE = normalise_base_url(os.getenv("OPENAI_API_BASE_URL", "https://api.openai.com/v1"))
+OPENAI_BASE = normalise_base_url(
+    os.getenv("OPENAI_API_BASE_URL", "https://api.openai.com/v1"), provider="openai",
+)
 LIVE_ENDPOINT_TEST_OVERRIDE_PHRASE = "I_UNDERSTAND_THIS_CAN_POST_TO_LIVE_X"
 
 
@@ -2903,7 +2930,20 @@ class StateBackupWriteError(RuntimeError):
     pass
 
 
-def save_state(state: dict, *, durable: bool = False) -> None:
+def state_generation_context():
+    """Bind current reader limits, validation and lock ownership to publication."""
+    from mrs_bot_state_generation import StateGenerationContext
+
+    return StateGenerationContext(
+        maximum_bytes=DURABLE_RUNTIME_JSON_MAX_BYTES,
+        backup_count=STATE_BACKUP_COUNT,
+        validate=normalise_state_candidate,
+        read=read_stable_owned_json_bytes_no_follow,
+        require_lock=require_instance_lock_for_remote_write,
+    )
+
+
+def save_state(state: dict, *, durable: bool = False) -> StateCommitProof:
     """Persist state atomically, logging only a value-free structural summary."""
     return _state_persistence.save_state(
         state,
@@ -2922,6 +2962,7 @@ def save_state(state: dict, *, durable: bool = False) -> None:
         tempfile=tempfile,
         test_process_production_state_write_blocked=test_process_production_state_write_blocked,
         write_latest_state_backup=write_latest_state_backup,
+        state_generation_context=state_generation_context,
     )
 
 
@@ -3037,6 +3078,11 @@ def now_epoch() -> int:
     if TEST_MODE and os.getenv("MRS_FAKE_NOW_EPOCH"):
         return int(os.getenv("MRS_FAKE_NOW_EPOCH", "0"))
     return int(datetime.now().timestamp())
+
+
+def current_utc_datetime() -> datetime:
+    """Return authoritative UTC time for reply payload and draft binding."""
+    return datetime.fromtimestamp(now_epoch(), tz=timezone.utc)
 
 
 def current_datetime() -> datetime:
@@ -3863,7 +3909,7 @@ def build_context_for_reply_ai(
         bound_visible_conversation=bound_visible_conversation,
         build_parent_chain=build_parent_chain,
         copy=copy,
-        current_datetime=current_datetime,
+        current_utc_datetime=current_utc_datetime,
         get_immediate_parent_id=get_immediate_parent_id,
         is_our_auto_reply=is_our_auto_reply,
         log=log,
@@ -4398,6 +4444,8 @@ def resume_interrupted_source_receipt_retirement_if_present() -> bool:
         retire_lane_transport_journal_if_present=retire_lane_transport_journal_if_present,
         retirement_auxiliary_barrier_exists=retirement_auxiliary_barrier_exists,
         transaction_mutation_authority=transaction_mutation_authority,
+        recover_state_receipt_commit_proof=recover_state_receipt_commit_proof,
+        state_commit_mutation_authority=state_commit_mutation_authority,
         transport_journal_is_blocking=transport_journal_is_blocking,
     )
 
@@ -4429,9 +4477,53 @@ def latch_source_receipt_retirement_uncertainty() -> None:
     _AMBIGUOUS_REMOTE_POST_SEEN = True
 
 
+def recover_state_receipt_commit_proof(receipt_path: Path):
+    """Rebind an interrupted receipt marker to its persisted confirmed-state effect."""
+    from mrs_bot_state_generation import protect_history_files
+
+    inspection = inspect_interrupted_receipt_retirement(receipt_path)
+    if not inspection.valid:
+        raise RuntimeError("interrupted receipt retirement has no stable marker")
+    state = load_state()
+    entry = state.get("_confirmed_receipt_commits", {}).get(inspection.expected_sha256)
+    if not isinstance(entry, dict):
+        raise RuntimeError("interrupted retirement is not bound to a committed state generation")
+    files = []
+    if receipt_path == REGULAR_POST_RECEIPT_FILE:
+        for path, key in ((LINES_USED_FILE, "quote_hash"), (IMAGES_USED_FILE, "image_basename")):
+            present, data = read_stable_owned_json_bytes_no_follow(path)
+            if not present or data is None:
+                raise RuntimeError("interrupted regular receipt has no durable used history")
+            try:
+                history = coerce_used_set(json.loads(data), path=path)
+            except (TypeError, ValueError) as exc:
+                raise RuntimeError("interrupted regular receipt has unreadable used history") from exc
+            if entry.get(key) not in history:
+                raise RuntimeError("interrupted regular receipt has no matching durable used history")
+            files.append((path, data))
+    proof = save_state(state, durable=True)
+    return protect_history_files(proof, tuple(files)) if files else proof
+
+
+def state_commit_mutation_authority(commit_proof, operation: str):
+    """Bind exact state-generation proof to every low-level retirement mutation."""
+    if commit_proof is None:
+        return transaction_mutation_authority(operation)
+
+    def verify(current_operation: str) -> None:
+        """Reprove both instance ownership and the committed generation."""
+        from mrs_bot_state_generation import require_commit_proof
+        require_instance_lock_for_remote_write(current_operation)
+        require_commit_proof(commit_proof)
+
+    return issue_transaction_mutation_authority(verify, operation=operation)
+
+
 def retire_current_source_receipt(
     receipt_path: Path,
     expected_receipt_bytes: bytes,
+    *,
+    commit_proof=None,
 ) -> None:
     """Resume a prepared removal, or start retirement when no journal existed."""
     return _receipt_retirement.retire_current_source_receipt(
@@ -4439,7 +4531,7 @@ def retire_current_source_receipt(
         expected_receipt_bytes,
         latch_source_receipt_retirement_uncertainty=latch_source_receipt_retirement_uncertainty,
         retire_or_resume_exact_receipt=retire_or_resume_exact_receipt,
-        transaction_mutation_authority=transaction_mutation_authority,
+        transaction_mutation_authority=functools.partial(state_commit_mutation_authority, commit_proof),
     )
 
 
@@ -4582,8 +4674,13 @@ def retire_lane_transport_journal_if_present(
     lane: str,
     post_id: str,
     current_receipt_bytes: bytes | None = None,
+    commit_proof=None,
 ) -> bool:
     """Retire a confirmed journal while an exact source-removal guard overlaps."""
+    if lane in {"quote_image", "daily_meme", "conversational_reply"}:
+        from mrs_bot_state_generation import require_commit_proof
+        require_commit_proof(commit_proof)
+        commit_proof.require_receipt(receipt)
     return _receipt_retirement.retire_lane_transport_journal_if_present(
         receipt_path=receipt_path,
         receipt=receipt,
@@ -4595,7 +4692,7 @@ def retire_lane_transport_journal_if_present(
         journal_path_for_receipt=journal_path_for_receipt,
         prepare_exact_receipt_retirement=prepare_exact_receipt_retirement,
         retire_confirmed_transport_transaction=retire_confirmed_transport_transaction,
-        transaction_mutation_authority=transaction_mutation_authority,
+        transaction_mutation_authority=functools.partial(state_commit_mutation_authority, commit_proof),
         transport_journal_is_blocking=transport_journal_is_blocking,
     )
 
@@ -5376,6 +5473,7 @@ def atomic_write_json(path: Path, value: object, *, durable: bool = False) -> No
         value,
         durable=durable,
         Path=Path,
+        DURABLE_RUNTIME_JSON_MAX_BYTES=DURABLE_RUNTIME_JSON_MAX_BYTES,
         fsync_parent_dir=fsync_parent_dir,
         json=json,
         os=os,
@@ -5385,7 +5483,7 @@ def atomic_write_json(path: Path, value: object, *, durable: bool = False) -> No
 
 def canonical_atomic_json_bytes(value: object) -> bytes:
     """Return the exact byte representation used by ``atomic_write_json``."""
-    return (json.dumps(value, indent=2, sort_keys=True) + "\n").encode("utf-8")
+    return (json.dumps(value, indent=2, sort_keys=True, allow_nan=False) + "\n").encode("utf-8")
 
 
 RECEIPT_JSON_MAX_BYTES = 1024 * 1024
@@ -5767,18 +5865,23 @@ def remove_main_post_attempt(
     attempt: dict,
     *,
     sending_disposition: str,
+    commit_proof=None,
 ) -> None:
     """Retire an exact sending attempt after one proved-safe disposition."""
+    if sending_disposition == "confirmed_state_fallback":
+        from mrs_bot_state_generation import require_commit_proof
+        require_commit_proof(commit_proof)
+        commit_proof.require_receipt(attempt)
     return _main_post_receipt_storage.remove_main_post_attempt(
         attempt,
         sending_disposition=sending_disposition,
         AmbiguousRemotePostOutcome=AmbiguousRemotePostOutcome,
         canonical_atomic_json_bytes=canonical_atomic_json_bytes,
         current_main_post_attempt_is_semantically_valid=current_main_post_attempt_is_semantically_valid,
-        json=json,
+        load_receipt_json_no_follow=load_receipt_json_no_follow,
         log=log,
         main_post_attempt_path=main_post_attempt_path,
-        retire_current_source_receipt=retire_current_source_receipt,
+        retire_current_source_receipt=functools.partial(retire_current_source_receipt, commit_proof=commit_proof),
     )
 
 
@@ -5991,14 +6094,17 @@ def load_regular_post_receipt() -> tuple[str, dict | None]:
     )
 
 
-def remove_regular_post_receipt(receipt: dict) -> None:
+def remove_regular_post_receipt(receipt: dict, *, commit_proof=None) -> None:
     """Retire one exact reconciled regular-post receipt."""
+    from mrs_bot_state_generation import require_commit_proof
+    require_commit_proof(commit_proof)
+    commit_proof.require_receipt(receipt)
     return _main_post_receipt_storage.remove_regular_post_receipt(
         receipt,
         REGULAR_POST_RECEIPT_FILE=REGULAR_POST_RECEIPT_FILE,
         canonical_atomic_json_bytes=canonical_atomic_json_bytes,
         log=log,
-        retire_current_source_receipt=retire_current_source_receipt,
+        retire_current_source_receipt=functools.partial(retire_current_source_receipt, commit_proof=commit_proof),
     )
 
 
@@ -6055,14 +6161,17 @@ def load_meme_post_receipt() -> tuple[str, dict | None]:
     )
 
 
-def remove_meme_post_receipt(receipt: dict) -> None:
+def remove_meme_post_receipt(receipt: dict, *, commit_proof=None) -> None:
     """Retire one exact reconciled meme-post receipt."""
+    from mrs_bot_state_generation import require_commit_proof
+    require_commit_proof(commit_proof)
+    commit_proof.require_receipt(receipt)
     return _main_post_receipt_storage.remove_meme_post_receipt(
         receipt,
         MEME_POST_RECEIPT_FILE=MEME_POST_RECEIPT_FILE,
         canonical_atomic_json_bytes=canonical_atomic_json_bytes,
         log=log,
-        retire_current_source_receipt=retire_current_source_receipt,
+        retire_current_source_receipt=functools.partial(retire_current_source_receipt, commit_proof=commit_proof),
     )
 
 
@@ -6117,7 +6226,7 @@ def apply_regular_post_receipt(receipt: dict, lines_used: set, images_used: set,
     )
 
 
-def save_regular_post_protected_state(lines_used: set, images_used: set, state: dict, *, durable: bool) -> None:
+def save_regular_post_protected_state(lines_used: set, images_used: set, state: dict, *, durable: bool) -> StateCommitProof:
     """Save regular post protected state."""
     return _main_post_confirmation_persistence.save_regular_post_protected_state(
         lines_used,
@@ -6132,22 +6241,33 @@ def save_regular_post_protected_state(lines_used: set, images_used: set, state: 
     )
 
 
-def json_file_matches(path: Path, expected: object) -> bool:
-    """Return whether a JSON file contains exactly the expected value."""
+def json_file_matches(path: Path, expected: object, *, commit_proof=None) -> bool:
+    """Prove stable no-follow content and, for state, its exact sealed generation."""
+    from mrs_bot_state_generation import canonical_bytes, generation_number, strict_document
+
     try:
+        if commit_proof is not None:
+            commit_proof.require_current()
+        present, data = read_stable_owned_json_bytes_no_follow(path)
+        if not present or data is None:
+            return False
         comparison = (
             state_document_for_persistence(expected)
             if path == STATE_FILE and isinstance(expected, dict)
             else expected
         )
-        with open(path, "r", encoding="utf-8") as handle:
-            return json.load(handle) == comparison
+        document = strict_document(data)
+        if path == STATE_FILE:
+            if not generation_number(document):
+                return False
+            return data == canonical_bytes(comparison)
+        return document == comparison
     except Exception:
         return False
 
 
-def emergency_persist_confirmed_regular_post(lines_used: set, images_used: set, state: dict) -> list[str]:
-    """Return the emergency persist confirmed regular post."""
+def emergency_persist_confirmed_regular_post(lines_used: set, images_used: set, state: dict) -> RegularPostPersistenceResult:
+    """Persist emergency confirmed-post effects and return exact restart authority."""
     return _main_post_confirmation_persistence.emergency_persist_confirmed_regular_post(
         lines_used,
         images_used,
@@ -7981,6 +8101,7 @@ def evaluate_single_call_reply(
     return _reply_generation.evaluate_single_call_reply(
         context, media_context,
         state=state,
+        now_epoch=now_epoch,
         collect_reply_images=collect_reply_images,
         RemoteOperationsPaused=RemoteOperationsPaused,
         ReplyMediaUnavailable=ReplyMediaUnavailable,
@@ -8416,15 +8537,20 @@ def remove_confirmed_reply_receipt(
     receipt: dict,
     *,
     sending_disposition: str | None = None,
+    commit_proof=None,
 ) -> None:
     """Retire one exact conversational-reply source receipt."""
+    if receipt.get("lifecycle_state") != "sending" or sending_disposition == "confirmed_state_fallback":
+        from mrs_bot_state_generation import require_commit_proof
+        require_commit_proof(commit_proof)
+        commit_proof.require_receipt(receipt)
     return _reply_delivery.remove_confirmed_reply_receipt(
         receipt,
         sending_disposition=sending_disposition,
         CONFIRMED_REPLY_RECEIPT_FILE=CONFIRMED_REPLY_RECEIPT_FILE,
-        json=json,
+        load_receipt_json_no_follow=load_receipt_json_no_follow,
         InvalidConfirmedReplyReceipt=InvalidConfirmedReplyReceipt,
-        retire_current_source_receipt=retire_current_source_receipt,
+        retire_current_source_receipt=functools.partial(retire_current_source_receipt, commit_proof=commit_proof),
         canonical_atomic_json_bytes=canonical_atomic_json_bytes,
         log=log,
     )
@@ -8869,7 +8995,7 @@ def build_quote_tweet_reply_context(
         _reply_context_post=_reply_context_post,
         bound_visible_conversation=bound_visible_conversation,
         copy=copy,
-        current_datetime=current_datetime,
+        current_utc_datetime=current_utc_datetime,
         reply_media_context_for_candidate=reply_media_context_for_candidate,
         trim_context_text=trim_context_text,
         tweet_context_text=tweet_context_text,
@@ -9241,9 +9367,9 @@ def _log_startup_configuration() -> None:
 def main() -> None:
     """Recover local state and run the continuous posting and reply scheduler."""
     require_production_bootstrap()
-    report_bot_health_progress("startup")
     random.seed()
     acquire_instance_lock()
+    report_bot_health_progress("startup")
     report_bot_health_progress("recovery")
     # The durable namespace must be proved only while this process owns the
     # installation lock.  Checking it before the lock leaves a stale-success

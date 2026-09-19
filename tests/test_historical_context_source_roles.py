@@ -1343,10 +1343,10 @@ def test_grounded_result_resolves_to_direct_page_and_requires_attribution(corpus
     }
     verified, reason = verify_grounding_source(
         source, packet,
-        request=lambda *args, **kwargs: GroundedResponse(
+        request=_manual_redirect_request(GroundedResponse(
             f"<html><title>Thatcher letter report</title><body>"
             f"Lady Thatcher wrote: {quote}</body></html>"
-        ),
+        )),
     )
     assert reason is None
     assert verified is not None
@@ -1355,9 +1355,9 @@ def test_grounded_result_resolves_to_direct_page_and_requires_attribution(corpus
 
     verified, reason = verify_grounding_source(
         source, packet,
-        request=lambda *args, **kwargs: GroundedResponse(
+        request=_manual_redirect_request(GroundedResponse(
             f"<html><title>Anonymous saying</title><body>{quote}</body></html>"
-        ),
+        )),
     )
     assert verified is None
     assert reason == "attribution_not_present_near_wording"
@@ -1378,10 +1378,10 @@ def test_grounded_result_removes_tracking_parameters_before_source_identity(corp
             ),
         },
         packet,
-        request=lambda *args, **kwargs: TrackingResponse(
+        request=_manual_redirect_request(TrackingResponse(
             f"<html><title>Margaret Thatcher transcript</title><body>"
             f"Margaret Thatcher said: {packet['quote_text']}</body></html>"
-        ),
+        )),
     )
 
     assert reason is None
@@ -1409,10 +1409,10 @@ def test_later_hansard_quotation_is_secondary_not_primary(corpus):
             ),
         },
         packet,
-        request=lambda *args, **kwargs: LaterHansardResponse(
+        request=_manual_redirect_request(LaterHansardResponse(
             f"<html><title>House of Commons Hansard Debates for 15 Oct 2014</title>"
             f"<body>Margaret Thatcher wrote: {packet['quote_text']}</body></html>"
-        ),
+        )),
     )
 
     assert reason is None
@@ -1800,3 +1800,14 @@ def test_reviewed_local_book_admission_is_exactly_scoped(corpus, audit):
         "52f9b9f99f66ff3bc786183803f3a8d68277604471cd411027441989337c9351"
         not in corrections
     )
+
+
+def _manual_redirect_request(final_response):
+    """Model each redirect hop, since fetching never follows them implicitly."""
+    from types import SimpleNamespace
+    def request(url, **kwargs):
+        assert kwargs["allow_redirects"] is False
+        if "vertexaisearch.cloud.google.com" in url:
+            return SimpleNamespace(status_code=302, headers={"Location": final_response.url}, close=lambda: None)
+        return final_response
+    return request

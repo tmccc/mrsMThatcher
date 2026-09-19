@@ -5,6 +5,7 @@ from __future__ import annotations
 
 import argparse
 import ast
+import os
 import subprocess
 from dataclasses import dataclass
 from pathlib import Path
@@ -12,6 +13,11 @@ from typing import Iterable, Sequence
 
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
+ARCHIVE_EXCLUDED_DIRECTORIES = frozenset({
+    "tests", ".git", ".venv", "venv", "site-packages", "build", "dist",
+    "__pycache__", ".pytest_cache", ".mypy_cache", ".ruff_cache", ".cache",
+    ".tox", ".nox", ".hypothesis",
+})
 UNTRACKED_OPERATIONAL_SNAPSHOT_PATHS = (
     "production_deployments/**",
     "production_incident_reviews/**",
@@ -36,18 +42,23 @@ class DocumentationViolation:
 def maintained_python_files(project_root: Path = PROJECT_ROOT) -> list[Path]:
     """Return maintained Python files from a checkout or unpacked source archive.
 
-    A source archive has no tracked/untracked distinction: every shipped module
-    is checked, including any shipped operational snapshots. Git checkouts keep
+    A source archive checks shipped modules and operational snapshots, excluding
+    virtual environments, build outputs and caches. Git checkouts keep
     the existing distinction and ignore only untracked operational snapshots.
     """
     if not (project_root / ".git").exists():
-        return sorted(
-            relative
-            for path in project_root.rglob("*.py")
-            if path.is_file()
-            and not path.name.startswith("._")
-            and "tests" not in (relative := path.relative_to(project_root)).parts
-        )
+        paths = []
+        for directory, child_directories, filenames in os.walk(project_root):
+            child_directories[:] = [
+                name for name in child_directories
+                if name not in ARCHIVE_EXCLUDED_DIRECTORIES
+            ]
+            for name in filenames:
+                if name.endswith(".py") and not name.startswith("._"):
+                    path = Path(directory) / name
+                    if path.is_file():
+                        paths.append(path.relative_to(project_root))
+        return sorted(paths)
     tracked_result = subprocess.run(
         ["git", "ls-files", "--cached", "--", "*.py"],
         cwd=project_root,

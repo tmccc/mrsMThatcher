@@ -21,7 +21,6 @@ import logging
 from collections.abc import Callable
 from enum import Enum
 from pathlib import Path
-from types import ModuleType
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
@@ -416,7 +415,7 @@ def remove_confirmed_reply_receipt(
     *,
     sending_disposition: str | None = None,
     CONFIRMED_REPLY_RECEIPT_FILE: Path,
-    json: ModuleType,
+    load_receipt_json_no_follow: Callable[[Path], tuple[bool, object | None]],
     InvalidConfirmedReplyReceipt: type[Exception],
     retire_current_source_receipt: Callable,
     canonical_atomic_json_bytes: Callable,
@@ -424,8 +423,9 @@ def remove_confirmed_reply_receipt(
 ) -> None:
     """Retire one exact conversational-reply source receipt."""
 
-    with open(CONFIRMED_REPLY_RECEIPT_FILE, "r", encoding="utf-8") as handle:
-        current = json.load(handle)
+    present, current = load_receipt_json_no_follow(CONFIRMED_REPLY_RECEIPT_FILE)
+    if not present:
+        raise FileNotFoundError(CONFIRMED_REPLY_RECEIPT_FILE)
     if current != receipt:
         raise InvalidConfirmedReplyReceipt(
             "Refusing to remove a conversational-reply receipt whose "
@@ -746,9 +746,12 @@ def post_conversational_reply_with_durable_identity(
                 )
             apply_confirmed_reply_receipt(state, receipt)
             try:
-                save_state(state, durable=True)
-            except StateBackupWriteError:
-                if not json_file_matches(STATE_FILE, state):
+                from mrs_bot_state_generation import record_receipt_commit
+                record_receipt_commit(state, receipt_template)
+                commit_proof = save_state(state, durable=True)
+            except StateBackupWriteError as exc:
+                commit_proof = getattr(exc, "commit_proof", None)
+                if commit_proof is None or not json_file_matches(STATE_FILE, state, commit_proof=commit_proof):
                     raise
                 log.warning(
                     "Confirmed conversational reply canonical state was committed, "
@@ -761,7 +764,7 @@ def post_conversational_reply_with_durable_identity(
                     receipt,
                     state,
                 )
-                and json_file_matches(STATE_FILE, state)
+                and json_file_matches(STATE_FILE, state, commit_proof=commit_proof)
             )
         except BaseException as exc:
             fallback_error = exc
@@ -801,6 +804,7 @@ def post_conversational_reply_with_durable_identity(
 
         try:
             retire_lane_transport_journal_if_present(
+                commit_proof=commit_proof,
                 receipt_path=CONFIRMED_REPLY_RECEIPT_FILE,
                 receipt=receipt_template,
                 lane="conversational_reply",
@@ -809,6 +813,7 @@ def post_conversational_reply_with_durable_identity(
             remove_confirmed_reply_receipt(
                 receipt_template,
                 sending_disposition="confirmed_state_fallback",
+                commit_proof=commit_proof,
             )
         except Exception as removal_error:
             end_confirmed_post_sigint_deferral(sigint_guard)

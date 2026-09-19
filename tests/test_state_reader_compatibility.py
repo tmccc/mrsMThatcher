@@ -8,6 +8,7 @@ from pathlib import Path
 import pytest
 
 import mrsMThatcher2 as bot
+from mrs_bot_state_generation import encode_generation
 
 
 def test_new_state_fences_precompatibility_reader_without_mutation(
@@ -158,6 +159,7 @@ def test_future_state_rejects_before_compatible_backup_fallback(
 
     future = json.loads(state_file.read_bytes())
     future["minimum_reader_version"] = bot.STATE_READER_VERSION + 1
+    future, _ = encode_generation(future, future["_state_generation"]["sequence"], bot.DURABLE_RUNTIME_JSON_MAX_BYTES)
     bot.atomic_write_json(state_file, future)
 
     with pytest.raises(
@@ -186,6 +188,7 @@ def test_current_version_state_requires_exact_rollback_fence(
     }
     if pending_reply_drafts is not None:
         candidate["pending_reply_drafts"] = pending_reply_drafts
+    candidate, _ = encode_generation(candidate, 1, bot.DURABLE_RUNTIME_JSON_MAX_BYTES)
     bot.atomic_write_json(state_file, candidate)
 
     with pytest.raises(RuntimeError, match="compatibility fence"):

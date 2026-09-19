@@ -37,6 +37,7 @@ def durable_state_namespace_is_owned_single_link_file(
         stat.S_ISREG(metadata.st_mode)
         and metadata.st_nlink == 1
         and metadata.st_uid == os.geteuid()
+        and not (stat.S_IMODE(metadata.st_mode) & 0o022)
         and (
             maximum_bytes is None
             or metadata.st_size <= maximum_bytes
@@ -54,6 +55,13 @@ def read_stable_owned_json_bytes_no_follow(
     stat: ModuleType,
 ) -> tuple[bool, bytes | None]:
     """Read one bounded stable owned JSON authority without following links."""
+
+    from mrs_bot_state_generation import directory_identity
+
+    try:
+        directory = directory_identity(path.parent)
+    except (OSError, ValueError) as exc:
+        raise UnsafeDurableStateNamespace('unsafe durable JSON directory') from exc
 
     try:
         before = os.lstat(path)
@@ -87,6 +95,7 @@ def read_stable_owned_json_bytes_no_follow(
             not stat.S_ISREG(opened.st_mode)
             or opened.st_nlink != 1
             or opened.st_uid != os.geteuid()
+            or stat.S_IMODE(opened.st_mode) & 0o022
             or opened.st_dev != before.st_dev
             or opened.st_ino != before.st_ino
             or opened.st_size != before.st_size
@@ -148,7 +157,8 @@ def read_stable_owned_json_bytes_no_follow(
             f"durable JSON changed while reading: {path}"
         )
     data = b"".join(chunks)
-    if len(data) != opened.st_size or reopened_data != data:
+    if (len(data) != opened.st_size or reopened_data != data
+            or directory_identity(path.parent) != directory):
         raise UnsafeDurableStateNamespace(
             f"durable JSON changed while reading: {path}"
         )
@@ -181,6 +191,7 @@ def atomic_write_json(
     value: object,
     *,
     durable: bool = False,
+    DURABLE_RUNTIME_JSON_MAX_BYTES: int = 64 * 1024 * 1024,
     Path: type[Path],
     fsync_parent_dir: Callable[..., None],
     json: ModuleType,
@@ -188,17 +199,19 @@ def atomic_write_json(
     tempfile: ModuleType,
 ) -> None:
     """Write JSON atomically and optionally durably."""
-    path.parent.mkdir(parents=True, exist_ok=True)
+    data = json.dumps(value, indent=2, sort_keys=True, allow_nan=False).encode('utf-8') + b'\n'
+    if len(data) > DURABLE_RUNTIME_JSON_MAX_BYTES:
+        raise ValueError("durable JSON document exceeds reader byte limit")
+    path.parent.mkdir(parents=True, exist_ok=True, mode=0o700)
     descriptor, temporary_name = tempfile.mkstemp(
         prefix=f".{path.name}.",
         dir=path.parent,
     )
     temporary = Path(temporary_name)
     try:
-        with os.fdopen(descriptor, "w", encoding="utf-8") as handle:
+        with os.fdopen(descriptor, "wb") as handle:
             os.fchmod(handle.fileno(), 0o600)
-            json.dump(value, handle, indent=2, sort_keys=True)
-            handle.write("\n")
+            handle.write(data)
             if durable:
                 handle.flush()
                 os.fsync(handle.fileno())
@@ -263,6 +276,12 @@ def load_receipt_json_no_follow(
     A dangling symlink, directory, FIFO, replacement or disappearance after
     initial observation is an unsafe existing authority, never an absent file.
     """
+    from mrs_bot_state_generation import directory_identity
+
+    try:
+        directory = directory_identity(path.parent)
+    except (OSError, ValueError) as exc:
+        raise UnsafeReceiptNamespace('unsafe receipt directory') from exc
     try:
         before = os.lstat(path)
     except FileNotFoundError:
@@ -339,7 +358,7 @@ def load_receipt_json_no_follow(
     finally:
         os.close(descriptor)
     data = b"".join(chunks)
-    if len(data) != opened.st_size:
+    if len(data) != opened.st_size or directory_identity(path.parent) != directory:
         raise UnsafeReceiptNamespace("receipt read was incomplete")
     value = _strict_receipt_json_bytes(data)
     if canonical_atomic_json_bytes(value) != data:

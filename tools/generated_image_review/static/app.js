@@ -1,3 +1,5 @@
+let csrfToken = "";
+
 const state = {
   item: null,
   busy: false,
@@ -24,9 +26,10 @@ const finalExportButton = document.getElementById("finalExportButton");
 
 async function api(path, options = {}) {
   const response = await fetch(path, {
-    headers: { "Content-Type": "application/json" },
+    headers: { "Content-Type": "application/json", "X-CSRF-Token": csrfToken },
     ...options,
   });
+  csrfToken = response.headers.get("X-CSRF-Token") || csrfToken;
   const data = await response.json();
   if (!response.ok) {
     throw new Error(data.error || `HTTP ${response.status}`);
@@ -112,7 +115,7 @@ async function exportOverrides() {
   if (state.busy) return;
   setBusy(true);
   try {
-    const data = await api("/api/export");
+    const data = await api("/api/export", {method: "POST"});
     statusLine.textContent = `Exported ${data.reviewed} decisions to ${data.export_file}`;
   } catch (error) {
     statusLine.textContent = error.message;

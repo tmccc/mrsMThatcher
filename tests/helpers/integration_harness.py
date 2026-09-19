@@ -236,6 +236,28 @@ def write_private_json(path: Path, data: dict) -> None:
     path.chmod(0o600)
 
 
+def persist_test_runtime_state(base_dir: Path, changes: dict) -> None:
+    """Change isolated runtime state through its real locked generation writer."""
+    env = base_test_env()
+    env.update({"MRS_TEST_MODE": "1", "MRS_BASE_DIR": str(base_dir),
+                "MRS_LOG_FILE": str(base_dir / "fixture-update.log")})
+    script = "\n".join((
+        "import json, sys",
+        "import mrsMThatcher2 as bot",
+        "bot.apply_local_config()",
+        "bot.acquire_instance_lock()",
+        "state = bot.load_state()",
+        "state.update(json.load(sys.stdin))",
+        "bot.save_state(state, durable=True)",
+    ))
+    result = subprocess.run(
+        [sys.executable, "-c", script], cwd=ROOT, env=env,
+        input=json.dumps(changes, allow_nan=False), text=True,
+        capture_output=True, timeout=30, check=False,
+    )
+    assert result.returncode == 0, result.stderr + result.stdout
+
+
 def base_test_env() -> dict[str, str]:
     """Copy the isolated test environment with the bot timezone selected."""
     env = os.environ.copy()
@@ -285,9 +307,19 @@ def prepare_base_dir(
         config.update(local_config)
     write_json(base_dir / "mrsMThatcher.local.json", config)
 
-    write_json(base_dir / "bot_state.json", state or {})
-    write_json(base_dir / "lines_used.json", [])
-    write_json(base_dir / "images_used.json", [])
+    # Model a pre-generation installation when tests supply an unsealed runtime
+    # dictionary. Current generation documents must be produced by the writer.
+    fixture_state = dict(state or {})
+    if "_state_generation" not in fixture_state:
+        if fixture_state.get("minimum_reader_version", 5) == 5:
+            fixture_state["minimum_reader_version"] = 4
+        if fixture_state.get("pending_reply_drafts") in (None, {}, {"__mrs_state_reader_compatibility_fence__": 5}):
+            fixture_state["pending_reply_drafts"] = {
+                "__mrs_state_reader_compatibility_fence__": 4,
+            }
+    write_private_json(base_dir / "bot_state.json", fixture_state)
+    write_private_json(base_dir / "lines_used.json", [])
+    write_private_json(base_dir / "images_used.json", [])
     write_private_json(
         base_dir / "historical_context_reply_history.json",
         {"schema_version": 1, "items": {}},

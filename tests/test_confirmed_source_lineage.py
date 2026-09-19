@@ -10,6 +10,7 @@ import pytest
 import exact_receipt_retirement as exact_retirement
 import historical_context_formatter as context
 import mrsMThatcher2 as bot
+from tests.helpers.bot_fixtures import isolate_bot_runtime  # noqa: F401
 import remote_write_transport_journal as journal
 from transaction_mutation_authority import issue_transaction_mutation_authority
 
@@ -264,8 +265,13 @@ def test_main_confirmed_receipt_cannot_retire_different_source_attempt(
     )
     _write_exact(receipt_path, bot.canonical_atomic_json_bytes(confirmed))
 
+    from mrs_bot_state_generation import record_receipt_commit
+    state = bot.default_state()
+    record_receipt_commit(state, confirmed)
+    proof = bot.save_state(state, durable=True)
     with pytest.raises(journal.TransportJournalError, match="lineage"):
         bot.retire_lane_transport_journal_if_present(
+            commit_proof=proof,
             receipt_path=receipt_path,
             receipt=confirmed,
             lane=lane,
@@ -321,8 +327,13 @@ def test_conversational_confirmed_receipt_cannot_retire_different_source(
     )
     assert bot.confirmed_reply_receipt_is_semantically_valid(confirmed)
     _write_exact(path, bot.canonical_atomic_json_bytes(confirmed))
+    from mrs_bot_state_generation import record_receipt_commit
+    state = bot.default_state()
+    record_receipt_commit(state, confirmed)
+    proof = bot.save_state(state, durable=True)
     with pytest.raises(journal.TransportJournalError, match="lineage"):
         bot.retire_lane_transport_journal_if_present(
+            commit_proof=proof,
             receipt_path=path,
             receipt=confirmed,
             lane="conversational_reply",

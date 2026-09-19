@@ -122,7 +122,10 @@ def test_load_state_accepts_semantically_equal_differently_encoded_latest_pair(
     monkeypatch.setattr(bot, "STATE_BACKUP_COUNT", 1)
     state = bot.default_state()
     state["last_reply_epoch"] = 1_800_000_100
-    persisted = bot.state_document_for_persistence(state)
+    from mrs_bot_state_generation import encode_generation
+    persisted, _ = encode_generation(
+        bot.state_document_for_persistence(state), 1, bot.DURABLE_RUNTIME_JSON_MAX_BYTES,
+    )
     bot.atomic_write_json(state_file, persisted)
     reordered = dict(reversed(list(persisted.items())))
     backup_file.write_text(

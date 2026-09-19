@@ -720,7 +720,6 @@ def test_posting_duplicate_quote_marks_hash_and_blocks_identical_line_same_cycle
             kwargs, {"data": {"id": "950001"}}
         ),
     )
-    monkeypatch.setattr(bot, "save_state", lambda state, **kwargs: None)
     monkeypatch.setattr(bot, "maybe_schedule_meme_after_quote_post", lambda *args, **kwargs: None)
     monkeypatch.setattr(bot, "cache_tweet", lambda *args, **kwargs: None)
     monkeypatch.setattr(bot, "record_recent_own_post", lambda *args, **kwargs: None)

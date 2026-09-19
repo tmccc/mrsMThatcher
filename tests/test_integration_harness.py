@@ -22,6 +22,7 @@ from tests.helpers.integration_harness import (
     write_private_json,
     base_test_env,
     prepare_base_dir,
+    persist_test_runtime_state,
     run_bot_command,
     run_cycle,
 )
@@ -555,8 +556,8 @@ def test_production_tick_quote_priority_runs_quote_before_due_mentions(tmp_path:
         }
     ]
     scenario["grok_replies"] = [
-        "A point is useful only when it survives contact with reality. This one rather does.",
-        "Quite right. Good sense is unfashionable only to those profiting from nonsense.",
+        "Responsibility matters more than rhetoric.",
+        "I favour individual choice.",
     ]
     server = FakeApiServer(scenario).start()
     try:
@@ -572,6 +573,7 @@ def test_production_tick_quote_priority_runs_quote_before_due_mentions(tmp_path:
                 "ENABLE_HOT_POST_REPLY_CHECKS": False,
                 "REPLY_CHECK_EVERY_SECONDS": 1,
                 "QUOTE_CHECK_EVERY_SECONDS": 1,
+                "QUOTE_CHECK_SPACING_RETRY_SECONDS": 1,
             },
         )
         result = run_bot_command(
@@ -685,8 +687,8 @@ def test_global_900_reply_spacing_blocks_cross_lane_until_boundary(
         }
     ]
     scenario["grok_replies"] = [
-        "Quite right. Good sense is unfashionable only to those profiting from nonsense.",
-        "A point is useful only when it survives contact with reality. This one rather does.",
+        "I favour individual choice.",
+        "Responsibility matters more than rhetoric.",
     ]
     server = FakeApiServer(scenario).start()
     try:
@@ -705,6 +707,7 @@ def test_global_900_reply_spacing_blocks_cross_lane_until_boundary(
                 "MIN_SECONDS_BETWEEN_REPLIES": 900,
                 "REPLY_CHECK_EVERY_SECONDS": 1,
                 "QUOTE_CHECK_EVERY_SECONDS": 1,
+                "QUOTE_CHECK_SPACING_RETRY_SECONDS": 1,
             },
         )
 
@@ -1247,7 +1250,7 @@ def test_quote_lookup_errors_cool_down_quote_lane_only(tmp_path: Path) -> None:
                     "created_at": "2026-06-30T12:00:00Z",
                 }
             ],
-            "grok_replies": ["The point is plain enough."],
+            "grok_replies": ["Clarity matters."],
             "error_paths": {"/2/tweets/search/recent": 503},
         }
     ).start()
@@ -1265,6 +1268,7 @@ def test_quote_lookup_errors_cool_down_quote_lane_only(tmp_path: Path) -> None:
                 "ENABLE_HOT_POST_REPLY_CHECKS": False,
                 "REPLY_CHECK_EVERY_SECONDS": 1,
                 "QUOTE_CHECK_EVERY_SECONDS": 1,
+                "QUOTE_CHECK_SPACING_RETRY_SECONDS": 1,
                 "MIN_SECONDS_BETWEEN_REPLIES": 1,
             },
         )
@@ -1306,8 +1310,8 @@ def test_restart_normal_priority_posts_once_then_suppresses_duplicate_poll(tmp_p
         }
     ]
     scenario["grok_replies"] = [
-        "Quite right. Good sense is unfashionable only to those profiting from nonsense.",
-        "The list grows longer each time they need another pound.",
+        "I favour individual choice.",
+        "Responsibility matters more than rhetoric.",
     ]
     server = FakeApiServer(scenario).start()
     try:
@@ -1369,8 +1373,8 @@ def test_restart_quote_priority_posts_once_then_suppresses_duplicate_quote(tmp_p
         }
     ]
     scenario["grok_replies"] = [
-        "The list grows longer each time they need another pound.",
-        "Quite right. Good sense is unfashionable only to those profiting from nonsense.",
+        "Responsibility matters more than rhetoric.",
+        "I favour individual choice.",
     ]
     server = FakeApiServer(scenario).start()
     try:
@@ -1472,8 +1476,8 @@ def test_fake_clock_sequence_does_not_duplicate_or_overpoll(tmp_path: Path) -> N
         }
     ]
     scenario["grok_replies"] = [
-        "Quite right. Good sense is unfashionable only to those profiting from nonsense.",
-        "The list grows longer each time they need another pound.",
+        "I favour individual choice.",
+        "Responsibility matters more than rhetoric.",
         "This spare reply must never be posted.",
     ]
     server = FakeApiServer(scenario).start()
@@ -1586,11 +1590,11 @@ def test_two_day_fake_clock_soak_with_posts_pauses_cooldown_and_rollover(tmp_pat
             }
         ],
         "grok_replies": [
-            "Quite right. Good sense is unfashionable only to those profiting from nonsense.",
-            "The list grows longer each time they need another pound.",
-            "The next thing is usually dearer government and less liberty.",
-            "A second day does not improve a bad idea.",
-            "Hot air is not policy, however loudly it is reheated.",
+            "I favour individual choice.",
+            "Responsibility matters more than rhetoric.",
+            "Liberty must come first.",
+            "I value evidence.",
+            "I favour accountability.",
             "This spare reply should never be needed.",
         ],
         "next_post_id": 950000,
@@ -1669,8 +1673,8 @@ def test_two_day_fake_clock_soak_with_posts_pauses_cooldown_and_rollover(tmp_pat
                     },
                 )
             elif index == 5:
-                write_json(
-                    base_dir / "bot_state.json",
+                persist_test_runtime_state(
+                    base_dir,
                     {
                         **read_json(base_dir / "bot_state.json"),
                         "api_cooldown_until_epoch": epoch + 3600,
@@ -1682,7 +1686,7 @@ def test_two_day_fake_clock_soak_with_posts_pauses_cooldown_and_rollover(tmp_pat
                 state = read_json(base_dir / "bot_state.json")
                 state["api_cooldown_until_epoch"] = 0
                 state["api_cooldown_reason"] = ""
-                write_json(base_dir / "bot_state.json", state)
+                persist_test_runtime_state(base_dir, state)
 
             result = run_bot_command(
                 base_dir,
@@ -1753,7 +1757,7 @@ def test_two_day_fake_clock_soak_with_posts_pauses_cooldown_and_rollover(tmp_pat
         server.stop()
 
 
-def test_clock_rollback_normalizes_both_scheduler_epochs_and_polls(tmp_path: Path) -> None:
+def test_clock_rollback_repairs_quote_epoch_once_then_polls_after_interval(tmp_path: Path) -> None:
     server = FakeApiServer(
         {
             "tweets": {
@@ -1794,10 +1798,27 @@ def test_clock_rollback_normalizes_both_scheduler_epochs_and_polls(tmp_path: Pat
 
         assert result.returncode == 0, result.stderr + result.stdout
         assert server.path_counts.get("/2/users/12345/mentions") == 1
-        assert len(quote_search_requests(server)) == 1
+        assert len(quote_search_requests(server)) == 0
         state = read_json(base_dir / "bot_state.json")
         assert state["last_reply_check_epoch"] == 2_000_000_000
         assert state["last_quote_tweet_check_epoch"] == 2_000_000_000
+
+        for epoch in (2_000_000_001, 2_000_000_899):
+            result = run_bot_command(
+                base_dir, server, "--test-main-tick",
+                extra_env={"MRS_FAKE_NOW_EPOCH": str(epoch)},
+            )
+            assert result.returncode == 0, result.stderr + result.stdout
+            assert len(quote_search_requests(server)) == 0
+            assert read_json(base_dir / "bot_state.json")["last_quote_tweet_check_epoch"] == 2_000_000_000
+
+        result = run_bot_command(
+            base_dir, server, "--test-main-tick",
+            extra_env={"MRS_FAKE_NOW_EPOCH": "2000000900"},
+        )
+        assert result.returncode == 0, result.stderr + result.stdout
+        assert len(quote_search_requests(server)) == 1
+        assert read_json(base_dir / "bot_state.json")["last_quote_tweet_check_epoch"] == 2_000_000_900
     finally:
         server.stop()
 
@@ -1914,7 +1935,7 @@ def test_daily_quote_cap_survives_restarts_then_resets_after_midnight(tmp_path: 
                     ]
                 }
             },
-            "grok_replies": ["The list grows longer each time they need another pound."],
+            "grok_replies": ["Responsibility matters more than rhetoric."],
         }
     ).start()
     try:
@@ -2776,7 +2797,7 @@ def test_missing_parent_404_does_not_block_later_mentions_or_trip_breaker(tmp_pa
                 },
             ],
             "error_paths": {"/2/tweets/99": 404},
-            "grok_replies": ["Answering without the missing parent is fine."],
+            "grok_replies": ["I favour individual choice."],
         }
     ).start()
     try:
@@ -2849,7 +2870,7 @@ def test_hot_post_watermark_edges_and_full_rescan(tmp_path: Path) -> None:
                 "created_at": "2026-06-30T12:00:00Z",
             }
         ],
-        "grok_replies": ["A sensible answer to the hot post."],
+        "grok_replies": ["I favour individual choice."],
     }
     server = FakeApiServer(scenario).start()
     try:
@@ -2896,7 +2917,7 @@ def test_hot_post_watermark_edges_and_full_rescan(tmp_path: Path) -> None:
                 "created_at": "2026-06-30T12:02:00Z",
             }
         ]
-        scenario["grok_replies"] = ["Reply after watermark."]
+        scenario["grok_replies"] = ["Responsibility matters."]
         third = run_bot_command(base_dir, server, "--test-cycle", extra_env={"MRS_FAKE_NOW_EPOCH": "2000000004"})
         assert third.returncode == 0, third.stderr + third.stdout
         assert any(req["path"] == "/2/tweets/search/recent" and req["query"].get("since_id") == ["301"] for req in server.requests)
@@ -2927,7 +2948,7 @@ def test_hot_post_watermark_edges_and_full_rescan(tmp_path: Path) -> None:
 
         state["hot_post_reply_check_counts"]["700"] = 11
         state["last_reply_epoch"] = 0
-        write_json(base_dir / "bot_state.json", state)
+        persist_test_runtime_state(base_dir, state)
         scenario["search_recent"] = [
             {
                 "id": "302",
@@ -3208,9 +3229,9 @@ def test_midnight_rollover_resets_reply_counts_and_spacing_uses_epoch(tmp_path: 
         assert state["daily_reply_count"] == 0
         assert state["daily_replied_author_ids"] == []
 
-        state["last_reply_epoch"] = 0
-        write_json(base_dir / "bot_state.json", state)
-        posted = run_bot_command(base_dir, server, extra_env={"MRS_FAKE_NOW_EPOCH": str(fake_now)})
+        # Advance through the actual spacing boundary; do not rewrite a sealed
+        # generation behind the state writer between subprocess restarts.
+        posted = run_bot_command(base_dir, server, extra_env={"MRS_FAKE_NOW_EPOCH": str(fake_now + 3600)})
         assert posted.returncode == 0, posted.stderr + posted.stdout
         state = read_json(base_dir / "bot_state.json")
         assert state["daily_reply_count"] == 1
@@ -3303,7 +3324,7 @@ def test_runtime_control_individual_lanes_malformed_and_expired_pause(tmp_path: 
 
     expired_server = FakeApiServer(load_scenario(SCENARIOS / "normal_mention_reply.json")).start()
     try:
-        expired_base = prepare_base_dir(tmp_path / "expired", control={"pause_replies_until": "2000-01-01 00:00"})
+        expired_base = prepare_base_dir(tmp_path / "expired", control={"pause_replies_until": "2000-01-01T00:00:00Z"})
         result = run_cycle(expired_base, expired_server)
         assert result.returncode == 0, result.stderr + result.stdout
         assert len(expired_server.posts) == 1
@@ -3453,7 +3474,7 @@ def test_quote_tweets_process_oldest_first_stop_after_one_and_skip_seen(tmp_path
                 "includes": {"users": []},
             }
         },
-        "grok_replies": ["Reply to the oldest quote."],
+        "grok_replies": ["I favour accountability."],
     }
     server = FakeApiServer(scenario).start()
     try:
@@ -3476,7 +3497,7 @@ def test_quote_tweets_process_oldest_first_stop_after_one_and_skip_seen(tmp_path
         state["seen_quote_post_ids"] = ["911", "912"]
         state["replied_to_quote_post_ids"] = []
         state["skipped_quote_post_ids"] = []
-        write_json(base_dir / "bot_state.json", state)
+        persist_test_runtime_state(base_dir, state)
         before_openai = len(server.openai_requests)
         scenario["grok_replies"] = ["Should not be used for already seen quote."]
         seen = run_cycle(base_dir, server)
@@ -3551,7 +3572,7 @@ def test_mentions_pagination_reaches_replyable_candidate_on_second_page(tmp_path
         {
             "enable_pagination": True,
             "mentions": mentions,
-            "grok_reply": "A serious point deserves a serious answer.",
+            "grok_reply": "I value civil disagreement.",
         }
     ).start()
     try:
@@ -3597,7 +3618,7 @@ def test_quote_tweet_pagination_reaches_unseen_candidate_on_second_page(tmp_path
             "enable_pagination": True,
             "tweets": {"900": {"id": "900", "author_id": "12345", "text": "Original post"}},
             "quote_tweets": {"900": {"data": quote_tweets}},
-            "grok_reply": "The point answers itself neatly enough.",
+            "grok_reply": "I favour accountability.",
         }
     ).start()
     try:
@@ -3661,7 +3682,7 @@ def test_hot_post_pagination_reaches_candidate_on_second_page(tmp_path: Path) ->
                 }
             },
             "search_recent": replies,
-            "grok_reply": "That is exactly the weakness in the argument.",
+            "grok_reply": "I favour individual choice.",
         }
     ).start()
     try:
@@ -3722,7 +3743,7 @@ def test_mentions_truncated_pagination_resumes_on_next_check(tmp_path: Path) -> 
         {
             "enable_pagination": True,
             "mentions": mentions,
-            "grok_reply": "The fourth-page point is still worth answering.",
+            "grok_reply": "Responsibility matters.",
         }
     ).start()
     try:
@@ -3781,8 +3802,8 @@ def test_successful_truncated_mention_reply_preserves_cursor_until_tail_is_drain
             "enable_pagination": True,
             "mentions": mentions,
             "grok_replies": [
-                "The first point warrants a concise answer in its own right.",
-                "The older continuation point deserves separate consideration.",
+                "Clarity matters.",
+                "I value evidence.",
             ],
         }
     ).start()
@@ -3971,7 +3992,7 @@ def test_hot_post_truncated_pagination_resumes_on_next_check(tmp_path: Path) -> 
                 }
             },
             "search_recent": replies,
-            "grok_reply": "That watched reply deserves a short answer.",
+            "grok_reply": "I value evidence.",
         }
     ).start()
     try:
@@ -4061,7 +4082,7 @@ def test_quote_lookup_truncated_pagination_resumes_on_next_check(tmp_path: Path)
             "enable_pagination": True,
             "tweets": {"900": {"id": "900", "author_id": "12345", "text": "Original post"}},
             "quote_tweets": {"900": {"data": quote_tweets}},
-            "grok_reply": "That fourth-page point is worth answering.",
+            "grok_reply": "I favour liberty.",
         }
     ).start()
     try:
@@ -4323,7 +4344,7 @@ def test_author_cap_context_survives_restart_in_newer_target_prompt(
                     "referenced_tweets": [{"type": "replied_to", "id": "500"}],
                 }],
             ],
-            "grok_replies": ["Responsibility should be matched by sound judgement."],
+            "grok_replies": ["Responsibility matters more than rhetoric."],
         }
     ).start()
     try:
@@ -4414,7 +4435,7 @@ def test_per_author_cap_above_one_is_enforced(tmp_path: Path) -> None:
                     "created_at": "2026-06-30T12:03:00Z",
                 },
             ],
-            "grok_replies": ["First reply.", "Second reply.", "Third reply.", "Fourth reply should not be used."],
+            "grok_replies": ["I favour individual choice.", "Responsibility matters.", "I favour accountability.", "Fourth reply should not be used."],
         }
     ).start()
     try:
@@ -4761,7 +4782,7 @@ def test_made_with_ai_post_rejection_is_not_retried_without_provider_contract(
     base_dir = prepare_base_dir(tmp_path, local_config={"MARK_AI_REPLIES_AS_AI": True})
     result = run_cycle(base_dir, fake_server)
 
-    assert result.returncode == 0, result.stderr + result.stdout
+    assert result.returncode == 3, result.stderr + result.stdout
     assert fake_server.path_counts["/2/tweets"] == 1
     assert fake_server.posts == []
     state = read_json(base_dir / "bot_state.json")
@@ -4783,7 +4804,7 @@ def test_made_with_ai_network_failure_does_not_retry_ambiguous_post(tmp_path: Pa
         )
         result = run_cycle(base_dir, server)
 
-        assert result.returncode == 0, result.stderr + result.stdout
+        assert result.returncode == 3, result.stderr + result.stdout
         assert server.path_counts["/2/tweets"] == 1
         assert server.posts == []
         state = read_json(base_dir / "bot_state.json")
@@ -4978,7 +4999,7 @@ def test_native_photo_uses_one_multimodal_responses_request(
             }
         },
         "openai_reply": (
-            "A comparison is useful only when its principle is clear."
+            "Clarity matters more than rhetoric."
         ),
     }
     server = FakeApiServer(scenario).start()
@@ -5017,7 +5038,7 @@ def test_native_photo_uses_one_multimodal_responses_request(
         )
         assert request["text"]["format"]["strict"] is True
         assert hashlib.sha256(request["instructions"].encode("utf-8")).hexdigest() == (
-            "7bfa91fb2d9b1175560abb33e43f2ced6910d8e63cadd1f8f04935b6dc2f2560"
+            "21986468ecdfe0e38a5c4c15bb6b52323e38d5a6a1d7ed79befb0829a9942b19"
         )
         assert isinstance(request["input"], list)
         content = request["input"][0]["content"]
@@ -5658,14 +5679,14 @@ def test_completed_locally_invalid_response_is_retired_and_later_candidate_runs(
             "decision": "reply",
             "reply_kind": "social",
             "reply": "word " * 200,
-            "used_fact_ids": [],
+            "used_fact_ids": [], "factual_claims": [],
             "reason_code": "useful_reply",
         },
         {
             "decision": "no_reply",
             "reply_kind": "no_reply",
             "reply": "",
-            "used_fact_ids": [],
+            "used_fact_ids": [], "factual_claims": [],
             "reason_code": "completed_exchange",
         },
     ]
@@ -5726,7 +5747,7 @@ def test_quote_tweet_local_validation_failure_is_terminal_not_provider_health(
             "decision": "reply",
             "reply_kind": "social",
             "reply": "word " * 200,
-            "used_fact_ids": [],
+            "used_fact_ids": [], "factual_claims": [],
             "reason_code": "useful_reply",
         }
     ]
@@ -11359,7 +11380,7 @@ def test_full_post_text_reaches_real_reply_payload_across_discovery_lanes(tmp_pa
     }
     subject = {"id": "900", "text": "The short subject excerpt.", "author_id": "12345", "conversation_id": "900",
                "note_tweet": {"text": "The complete subject provides all the context. " * 10}}
-    scenario = {"tweets": {"900": subject}, "grok_replies": ["That is a useful distinction to examine."]}
+    scenario = {"tweets": {"900": subject}, "grok_replies": ["I appreciate the distinction."]}
     options = {}
     if lane == "mention":
         scenario["mentions"] = [target]
@@ -11404,7 +11425,7 @@ def test_full_post_text_refreshes_legacy_queue_and_parent_after_restart(tmp_path
     old_parent = {key: value for key, value in parent.items() if key != "note_tweet"}
     old_parent["cached_epoch"] = 2_000_000_000
     old_target = {key: value for key, value in target.items() if key != "note_tweet"}
-    scenario = {"tweets": {"99": parent, "100": target}, "grok_replies": ["That identifies the measure under discussion."]}
+    scenario = {"tweets": {"99": parent, "100": target}, "grok_replies": ["Thank you for the observation."]}
     server = FakeApiServer(scenario).start()
     try:
         base_dir = prepare_base_dir(tmp_path, state={

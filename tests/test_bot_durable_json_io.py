@@ -57,7 +57,7 @@ def test_adapters_forward_current_dependencies_references_and_native_errors(monk
         ("durable_state_namespace_is_owned_single_link_file", 2),
         ("read_stable_owned_json_bytes_no_follow", 5),
         ("fsync_parent_dir", 2),
-        ("atomic_write_json", 5),
+        ("atomic_write_json", 6),
         ("_strict_receipt_json_bytes", 2),
         ("load_receipt_json_no_follow", 6),
         ("durable_create_receipt_json", 6),
@@ -192,7 +192,7 @@ def test_readers_assemble_short_reads_close_before_callbacks_and_keep_native_fai
 @pytest.mark.parametrize("durable", [False, True])
 def test_atomic_json_keeps_value_encoding_flush_close_replace_and_parent_order(durable, tmp_path, monkeypatch):
     path = tmp_path / "new" / "atomic.json"
-    value = {"z": float("nan"), "a": 1}
+    value = {"z": 2.0, "a": 1}
     events = []
     streams = []
     proxy = SimpleNamespace(**vars(os))
@@ -201,7 +201,6 @@ def test_atomic_json_keeps_value_encoding_flush_close_replace_and_parent_order(d
     class Handle:
         def __init__(self, stream):
             self.stream = stream
-            self.dump_done = False
 
         def __enter__(self):
             return self
@@ -214,11 +213,10 @@ def test_atomic_json_keeps_value_encoding_flush_close_replace_and_parent_order(d
         def fileno(self):
             return self.stream.fileno()
 
-        def write(self, text):
-            if self.dump_done:
-                assert text == "\n"
-                events.append("newline")
-            return self.stream.write(text)
+        def write(self, data):
+            assert isinstance(data, bytes) and data.endswith(b"\n")
+            events.append("write")
+            return self.stream.write(data)
 
         def flush(self):
             events.append("flush")
@@ -230,13 +228,11 @@ def test_atomic_json_keeps_value_encoding_flush_close_replace_and_parent_order(d
         streams.append(stream)
         return Handle(stream)
 
-    def dump(current, handle, **kwargs):
+    def dumps(current, **kwargs):
         assert current is value
-        assert kwargs == {"indent": 2, "sort_keys": True}
-        assert stat.S_IMODE(os.fstat(handle.fileno()).st_mode) == 0o600
-        events.append("dump")
-        json.dump(current, handle, **kwargs)
-        handle.dump_done = True
+        assert kwargs == {"indent": 2, "sort_keys": True, "allow_nan": False}
+        events.append("dumps")
+        return json.dumps(current, **kwargs)
 
     def fsync(fd):
         events.append("fsync")
@@ -254,15 +250,14 @@ def test_atomic_json_keeps_value_encoding_flush_close_replace_and_parent_order(d
 
     proxy.fdopen, proxy.fsync, proxy.replace = fdopen, fsync, replace
     monkeypatch.setattr(bot, "os", proxy)
-    monkeypatch.setattr(bot, "json", SimpleNamespace(dump=dump))
+    monkeypatch.setattr(bot, "json", SimpleNamespace(dumps=dumps))
     monkeypatch.setattr(bot, "fsync_parent_dir", parent_sync)
     bot.atomic_write_json(path, value, durable=durable)
-    assert events == ["fdopen", "dump", "newline"] + (["flush", "fsync"] if durable else []) + ["close", "replace"] + (["parent", "fsync"] if durable else [])
-    assert path.read_bytes() == b'{\n  "a": 1,\n  "z": NaN\n}\n'
+    assert events == ["dumps", "fdopen", "write"] + (["flush", "fsync"] if durable else []) + ["close", "replace"] + (["parent", "fsync"] if durable else [])
+    assert path.read_bytes() == b'{\n  "a": 1,\n  "z": 2.0\n}\n'
     assert list(path.parent.iterdir()) == [path]
     monkeypatch.setattr(bot, "json", json)
-    with pytest.raises(bot.UnsafeReceiptNamespace, match="unsupported JSON constant: NaN"):
-        bot.load_receipt_json_no_follow(path)
+    assert bot.load_receipt_json_no_follow(path) == (True, value)
 
 
 def test_atomic_hard_exit_closes_temp_and_preserves_existing_target(tmp_path, monkeypatch):
@@ -280,13 +275,13 @@ def test_atomic_hard_exit_closes_temp_and_preserves_existing_target(tmp_path, mo
     proxy = SimpleNamespace(**vars(os))
     proxy.fdopen = fdopen
     monkeypatch.setattr(bot, "os", proxy)
-    monkeypatch.setattr(bot, "json", SimpleNamespace(dump=Mock(side_effect=failure)))
+    monkeypatch.setattr(bot, "json", SimpleNamespace(dumps=Mock(side_effect=failure)))
     parent = Mock()
     monkeypatch.setattr(bot, "fsync_parent_dir", parent)
     with pytest.raises(SystemExit) as caught:
         bot.atomic_write_json(path, {}, durable=True)
     assert caught.value is failure
-    assert streams[0].closed
+    assert streams == []
     assert path.read_bytes() == b"previous"
     assert list(path.parent.iterdir()) == [path]
     parent.assert_not_called()

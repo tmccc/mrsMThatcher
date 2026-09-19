@@ -15,6 +15,8 @@ no runtime I/O and retains no callbacks, configuration, clients or state.
 
 from __future__ import annotations
 
+from datetime import timezone
+
 from collections.abc import Callable
 from dataclasses import dataclass
 from logging import Logger
@@ -125,7 +127,7 @@ def build_quote_tweet_reply_context(
     _reply_context_post: Callable,
     bound_visible_conversation: Callable,
     copy: ModuleType,
-    current_datetime: Callable,
+    current_utc_datetime: Callable,
     reply_media_context_for_candidate: Callable,
     trim_context_text: Callable,
     tweet_context_text: Callable,
@@ -176,7 +178,7 @@ def build_quote_tweet_reply_context(
         "visible_conversation": visible,
         "visual_description": None,
         "clarification_request": None,
-        "current_date": current_datetime().strftime("%Y-%m-%d"),
+        "current_date": current_utc_datetime().astimezone(timezone.utc).strftime("%Y-%m-%d"),
         "target_author_id": author_id,
         "target_created_at": str(quote_tweet.get("created_at") or ""),
     }

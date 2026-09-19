@@ -184,7 +184,7 @@ def test_context_preserves_budget_roles_reference_boundaries_and_media_before_su
     media = {"photos": []}
     trace.attach_mock(Mock(return_value=media), "media")
     monkeypatch.setattr(bot, "reply_media_context_for_candidate", trace.media)
-    monkeypatch.setattr(bot, "current_datetime", lambda: datetime(2030, 2, 3))
+    monkeypatch.setattr(bot, "current_utc_datetime", lambda: datetime(2030, 2, 3))
     monkeypatch.setattr(bot, "REPLY_INCOMING_MAX_CHARS", 30)
     monkeypatch.setattr(bot, "MAX_VISIBLE_TEXT_CHARACTERS", 60)
 

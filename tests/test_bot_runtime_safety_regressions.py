@@ -840,7 +840,7 @@ def test_test_main_tick_stops_after_reply_safety_barrier(
         ),
     )
 
-    assert bot.run_test_main_tick() == 0
+    assert bot.run_test_main_tick() == 3
     assert waited == ["production_reply_tick"]
     assert bot.load_confirmed_reply_receipt() == ("sending", sending)
 
@@ -1148,7 +1148,7 @@ def test_test_cycle_reply_safety_failure_stops_later_lane(
         safety_failure if first_lane == "quote_tweet" else later_lane,
     )
 
-    assert bot.run_test_cycle() == 0
+    assert bot.run_test_cycle() == 3
     assert waited == [expected_wait_lane]
     assert bot.load_confirmed_reply_receipt() == ("sending", sending)
 

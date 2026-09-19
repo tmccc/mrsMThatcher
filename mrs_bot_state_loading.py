@@ -1,14 +1,9 @@
-"""Load durable state and select recovery candidates through current dependencies.
+"""Select provable durable state generations and migrate unambiguous legacy state.
 
-One explicit root adapter supplies current paths, backup count, reader fences,
-exception, JSON/logger and read, validation, recovery, save and summary callbacks
-on each call. The original body preserves strict candidate order, normalized
-primary/latest equality, pending-identity fallback and durable repair before
-returning the original state. Defaults/schema, I/O, normalization and post-load
-runtime initialization remain in existing locations. This owner retains no
-callbacks, configuration, paths or state and performs no import-time runtime work
-or reverse bot import.
-"""
+Sealed sequence numbers order complete replicas; conflicting identities fail
+closed. Repairs and legacy migration publish through the locked state writer.
+Reader policy and filesystem dependencies are supplied explicitly by the root;
+this module retains no runtime authority or import-time side effects."""
 
 from __future__ import annotations
 
@@ -38,6 +33,11 @@ def load_state(
     state_debug_summary: Callable[..., dict[str, object]],
 ) -> dict:
     """Load, validate, and recover runtime state from durable storage."""
+    from mrs_bot_state_generation import (
+        canonical_bytes, generation_number, require_unambiguous_legacy_documents,
+        strict_document,
+    )
+
     log.debug("Loading state from %s", STATE_FILE)
 
     candidates = [STATE_FILE]
@@ -45,6 +45,7 @@ def load_state(
 
     existing_candidates = False
     candidate_recoveries: dict[Path, list[dict[str, object]]] = {}
+    candidate_generations: dict[Path, tuple[int, bytes]] = {}
 
     def emit_candidate_recoveries(candidate: Path) -> None:
         for recovery in candidate_recoveries.get(candidate, []):
@@ -109,7 +110,7 @@ def load_state(
         existing_candidates = True
 
         try:
-            state = json.loads(data.decode("utf-8"))
+            state = strict_document(data)
         except Exception:
             log.exception("Failed loading state candidate %s", candidate)
             return None
@@ -150,6 +151,11 @@ def load_state(
                 raise RuntimeError(message)
             log.warning("%s; candidate is not needed because primary state is usable", message)
             return None
+        try:
+            sequence = generation_number(state)
+        except ValueError:
+            log.exception("Invalid sealed state generation %s", candidate)
+            return None
         state.pop("pending_reply_drafts", None)
         state["minimum_reader_version"] = max(
             minimum_reader_version,
@@ -164,48 +170,80 @@ def load_state(
         )
         if normalised is not None:
             candidate_recoveries[candidate] = recovery_events
+            candidate_generations[candidate] = (sequence, canonical_bytes(strict_document(data)))
         return normalised
 
     latest_backup_path = STATE_FILE.with_name(f"{STATE_FILE.name}.bak1")
     primary = load_candidate(STATE_FILE, reject_legacy=True)
+    # Generation-aware files carry ordering in their own atomic document. Scan
+    # all replicas and fail on sequence collisions, rather than treating a stale
+    # latest backup as a veto over a committed primary.
+    modern: dict[Path, dict] = {}
+    if primary is not None and candidate_generations[STATE_FILE][0]:
+        modern[STATE_FILE] = primary
+    inspected_backups: dict[Path, dict | None] = {}
+    for candidate in candidates[1:]:
+        recovered = load_candidate(candidate, reject_legacy=primary is None)
+        inspected_backups[candidate] = recovered
+        if recovered is not None and candidate_generations[candidate][0]:
+            modern[candidate] = recovered
+    if modern:
+        sequences: dict[int, bytes] = {}
+        for candidate in modern:
+            sequence, encoded = candidate_generations[candidate]
+            if sequence in sequences and sequences[sequence] != encoded:
+                raise RuntimeError('conflicting state generation identities; refusing to guess')
+            sequences[sequence] = encoded
+        selected = max(modern, key=lambda path: candidate_generations[path][0])
+        recovered = modern[selected]
+        sequence, encoded = candidate_generations[selected]
+        repair = selected != STATE_FILE or bool(candidate_recoveries.get(selected))
+        if STATE_BACKUP_COUNT:
+            repair = repair or candidate_generations.get(latest_backup_path) != (sequence, encoded)
+        emit_candidate_recoveries(selected)
+        if repair:
+            try:
+                save_state(recovered, durable=True)
+            except Exception as exc:
+                # The backup can remain unavailable without invalidating a
+                # newly fsynced canonical generation. No other error qualifies.
+                proof = getattr(exc, 'commit_proof', None)
+                if proof is None:
+                    raise
+                proof.require_current()
+        log_json_debug('Loaded state summary', state_debug_summary(recovered))
+        return recovered
+    legacy_candidates = {
+        candidate: recovered for candidate, recovered in inspected_backups.items()
+        if recovered is not None
+    }
     if primary is not None:
-        latest_backup = (
-            load_candidate(latest_backup_path, reject_legacy=False)
-            if STATE_BACKUP_COUNT > 0
-            else None
-        )
-        if latest_backup is not None and latest_backup != primary:
-            message = (
-                "Primary state and latest committed backup are both valid but "
-                "diverge; refusing to guess which durable generation is newer"
-            )
-            log.critical(
-                "%s primary=%s backup=%s",
-                message,
-                STATE_FILE,
-                latest_backup_path,
-            )
-            raise RuntimeError(message)
+        legacy_candidates[STATE_FILE] = primary
+    require_unambiguous_legacy_documents(legacy_candidates, STATE_FILE)
+    if primary is not None:
         emit_candidate_recoveries(STATE_FILE)
-        persist_candidate_recoveries(STATE_FILE, primary)
+        # Migration occurs only after legacy equality is established; save_state
+        # proves the instance/state lock before publishing the first generation.
+        save_state(primary, durable=True)
         log_json_debug("Loaded state summary", state_debug_summary(primary))
         return primary
 
-    # Only inspect backups until the first usable generation is found.  Older
-    # snapshots are recovery fallbacks, not vetoes over a newer usable state.
+    # All usable legacy fallbacks now agree; pathname order is no longer used
+    # to infer freshness between divergent documents.
     for candidate in candidates[1:]:
-        recovered = load_candidate(candidate, reject_legacy=True)
+        recovered = inspected_backups.get(candidate)
         if recovered is None:
             continue
         log.warning("Recovered state from backup %s", candidate)
         emit_candidate_recoveries(candidate)
-        persist_candidate_recoveries(candidate, recovered)
+        save_state(recovered, durable=True)
         log_json_debug("Loaded state summary", state_debug_summary(recovered))
         return recovered
 
     if existing_candidates:
         # Pending identity corruption is recoverable only after every strict
         # candidate has failed, so a usable backup always remains authoritative.
+        repairable_candidates = {}
         for candidate in candidates:
             recovered = load_candidate(
                 candidate,
@@ -214,6 +252,25 @@ def load_state(
             )
             if recovered is None:
                 continue
+            repairable_candidates[candidate] = recovered
+        modern_repairable = {
+            candidate: recovered for candidate, recovered in repairable_candidates.items()
+            if candidate_generations[candidate][0]
+        }
+        if modern_repairable:
+            sequences = {}
+            for candidate in modern_repairable:
+                sequence, encoded = candidate_generations[candidate]
+                if sequence in sequences and sequences[sequence] != encoded:
+                    raise RuntimeError('conflicting state generation identities; refusing to guess')
+                sequences[sequence] = encoded
+            candidate = max(modern_repairable, key=lambda path: candidate_generations[path][0])
+            recovered = modern_repairable[candidate]
+        else:
+            require_unambiguous_legacy_documents(repairable_candidates, STATE_FILE)
+            candidate = next(iter(repairable_candidates), None)
+            recovered = repairable_candidates.get(candidate)
+        if candidate is not None and recovered is not None:
             log.warning(
                 "Recovered state candidate %s by discarding corrupt pending "
                 "mention identity and requiring a head refetch",

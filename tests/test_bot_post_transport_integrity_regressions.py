@@ -1538,8 +1538,9 @@ def test_common_receipt_loader_rejects_same_inode_mutation_after_read(
     calls = {"count": 0}
 
     def mutate_before_final_path_snapshot(path: os.PathLike[str] | str):
-        calls["count"] += 1
-        if calls["count"] == 2:
+        if Path(path) == receipt:
+            calls["count"] += 1
+        if Path(path) == receipt and calls["count"] == 2:
             receipt.write_bytes(
                 bot.canonical_atomic_json_bytes({"changed": True})
             )

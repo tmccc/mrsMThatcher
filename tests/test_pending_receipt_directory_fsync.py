@@ -105,6 +105,8 @@ def isolate_transaction_files(
         tmp_path / "historical_context_reply_outbox.json",
     )
     monkeypatch.setattr(bot, "STATE_FILE", tmp_path / "bot_state.json")
+    monkeypatch.setattr(bot, "LINES_USED_FILE", tmp_path / "lines_used.json")
+    monkeypatch.setattr(bot, "IMAGES_USED_FILE", tmp_path / "images_used.json")
     monkeypatch.setattr(bot, "STATE_BACKUP_COUNT", 0)
     monkeypatch.setattr(bot, "CONTROL_FILE", tmp_path / "mrsMThatcher.control.json")
     monkeypatch.setattr(
@@ -396,8 +398,23 @@ def test_final_retirement_directory_fsync_failure_latches_current_daemon(
 ) -> None:
     """No barrier-free scheduler tick follows an unproved final unlink."""
 
+    from mrs_bot_state_generation import record_receipt_commit
+
     source = bot.REGULAR_POST_RECEIPT_FILE
-    receipt_bytes = b'{"confirmed":true}\n'
+    attempt = _new_main_attempt("quote_image")
+    bot.write_main_post_attempt(attempt)
+    attempt = bot.mark_main_post_attempt_attempting(attempt)
+    pending = bot.build_confirmed_pending_schedule_receipt(
+        attempt, post_id="950001", confirmation_epoch=CONFIRMATION_EPOCH,
+    )
+    receipt = bot.materialize_bound_regular_schedule_receipt(pending)
+    state = bot.default_state()
+    lines_used, images_used = set(), set()
+    bot.apply_regular_post_receipt(receipt, lines_used, images_used, state)
+    record_receipt_commit(state, receipt)
+    proof = bot.save_regular_post_protected_state(lines_used, images_used, state, durable=True)
+    proof.require_receipt(receipt)
+    receipt_bytes = bot.canonical_atomic_json_bytes(receipt)
     source.write_bytes(receipt_bytes)
     source.chmod(0o600)
     exact.prepare_exact_receipt_retirement(

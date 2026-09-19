@@ -11,6 +11,7 @@ from typing import Any
 from urllib.parse import parse_qs, urlparse
 
 from reply_strategy import split_reply_sentences
+from tests.helpers.single_call_fixtures import valid_png
 
 
 def load_scenario(path: str | Path) -> dict[str, Any]:
@@ -167,7 +168,7 @@ class FakeApiServer:
                     replies = self.fake.scenario.setdefault("grok_replies", [])
                     reply = replies.pop(0) if replies else self.fake.scenario.get(
                         "grok_reply",
-                        "A measured reply is usually the sharpest one.",
+                        "Clarity matters.",
                     )
                     reply = str(reply)
                     self.fake._current_ai_reply_text = reply
@@ -373,7 +374,7 @@ class FakeApiServer:
                         "openai_reply",
                         self.fake.scenario.get(
                             "grok_reply",
-                            "A measured reply is usually the sharpest one.",
+                            "Clarity matters.",
                         ),
                     )
                     if str(reply).strip().upper() == "SKIP":
@@ -381,7 +382,7 @@ class FakeApiServer:
                             "decision": "no_reply",
                             "reply_kind": "no_reply",
                             "reply": "",
-                            "used_fact_ids": [],
+                            "used_fact_ids": [], "factual_claims": [],
                             "reason_code": "no_meaningful_content",
                         }
                     else:
@@ -389,7 +390,7 @@ class FakeApiServer:
                             "decision": "reply",
                             "reply_kind": "social",
                             "reply": str(reply),
-                            "used_fact_ids": [],
+                            "used_fact_ids": [], "factual_claims": [],
                             "reason_code": "useful_reply",
                         }
                 output_text = (
@@ -631,7 +632,7 @@ class FakeApiServer:
                     if isinstance(raw, str) and raw:
                         payload = raw.encode("latin-1")
                     else:
-                        payload = b"\x89PNG\r\n\x1a\nfixture"
+                        payload = valid_png()
                     self._bytes_response(status, payload, mime_type)
                     return
 
@@ -729,7 +730,7 @@ class FakeApiServer:
                         )
                         return
                     replies = self.fake.scenario.setdefault("grok_replies", [])
-                    reply = replies.pop(0) if replies else self.fake.scenario.get("grok_reply", "A measured reply is usually the sharpest one.")
+                    reply = replies.pop(0) if replies else self.fake.scenario.get("grok_reply", "Clarity matters.")
                     self._json_response(
                         200,
                         {
@@ -762,6 +763,7 @@ class FakeApiServer:
                                     "body",
                                     {"error": "configured OpenAI failure"},
                                 ),
+                                headers=response.get("headers"),
                             )
                             return
                         self._json_response(status, response.get("body", {}))

@@ -7,6 +7,7 @@ from unittest.mock import Mock
 
 import pytest
 
+from mrs_bot_main_post_confirmation_persistence import RegularPostPersistenceResult
 from tests.helpers.bot_runtime import bot
 from tests.helpers.bot_fixtures import (
     configure_simple_meme_post,
@@ -38,7 +39,7 @@ def prepare_post(tmp_path, monkeypatch, lane):
     guard = object()
     release = Mock()
     save = Mock()
-    emergency_save = Mock(return_value=[])
+    emergency_save = Mock(return_value=RegularPostPersistenceResult((), None))
     complete = Mock(return_value=False)
     latch = Mock(return_value=True)
     monkeypatch.setattr(bot, "begin_confirmed_post_sigint_deferral", lambda: guard)

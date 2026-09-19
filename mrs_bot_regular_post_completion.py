@@ -28,7 +28,9 @@ def complete_regular_post_persistence(
     The confirmed receipt remains available through historical-context enqueueing;
     its transport journal is retired before receipt removal.
     """
-    save_regular_post_protected_state(lines_used, images_used, state, durable=True)
+    from mrs_bot_state_generation import record_receipt_commit
+    record_receipt_commit(state, receipt)
+    commit_proof = save_regular_post_protected_state(lines_used, images_used, state, durable=True)
     enqueue_historical_context_obligation(receipt)
-    retire_transport_journal()
-    remove_regular_post_receipt(receipt)
+    retire_transport_journal(commit_proof)
+    remove_regular_post_receipt(receipt, commit_proof=commit_proof)

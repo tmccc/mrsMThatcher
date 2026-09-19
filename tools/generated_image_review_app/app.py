@@ -3,11 +3,7 @@
 from __future__ import annotations
 
 import argparse
-import base64
-import hashlib
-import hmac
 import os
-import secrets
 from urllib.parse import parse_qs
 from pathlib import Path
 
@@ -18,66 +14,30 @@ from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 
 from .services import Paths, ReviewError, ReviewService
+from .security import ReviewSecurity, validate_binding
 
 HERE = Path(__file__).resolve().parent
 
 
-def is_loopback(host: str) -> bool:
-    """Return whether is loopback."""
-    return host in {"127.0.0.1", "::1", "localhost"}
-
-
-def validate_binding(host: str, username: str | None, password: str | None) -> None:
-    """Validate binding."""
-    if not is_loopback(host) and not (username and password):
-        raise ValueError("LAN binding requires MRS_REVIEW_USERNAME and MRS_REVIEW_PASSWORD")
-
-
-def create_app(service: ReviewService, *, username: str | None = None, password: str | None = None, secret_key: str | None = None) -> FastAPI:
+def create_app(service: ReviewService, *, username: str | None = None, password: str | None = None, secret_key: str | None = None, allowed_hosts=("localhost", "127.0.0.1", "::1"), trusted_proxy_origin=None) -> FastAPI:
     """Create app."""
     app = FastAPI(title="Generated image review", docs_url=None, redoc_url=None)
     app.mount("/static", StaticFiles(directory=str(HERE / "static")), name="static")
     templates = Jinja2Templates(directory=str(HERE / "templates"))
-    secret = (secret_key or secrets.token_urlsafe(32)).encode()
-
-    def signed_csrf() -> str:
-        nonce = secrets.token_urlsafe(24)
-        return nonce + "." + hmac.new(secret, nonce.encode(), hashlib.sha256).hexdigest()
-
-    def valid_csrf(token: str, cookie: str | None) -> bool:
-        if not token or not cookie or not hmac.compare_digest(token, cookie): return False
-        try: nonce, signature = token.rsplit(".", 1)
-        except ValueError: return False
-        return hmac.compare_digest(signature, hmac.new(secret, nonce.encode(), hashlib.sha256).hexdigest())
-
-    @app.middleware("http")
-    async def security(request: Request, call_next):
-        if username and password:
-            header = request.headers.get("authorization", "")
-            try:
-                scheme, encoded = header.split(" ", 1); supplied = base64.b64decode(encoded).decode().split(":", 1)
-            except Exception: supplied = [] ; scheme = ""
-            if scheme.lower() != "basic" or len(supplied) != 2 or not secrets.compare_digest(supplied[0], username) or not secrets.compare_digest(supplied[1], password):
-                return HTMLResponse("Authentication required", 401, headers={"WWW-Authenticate": 'Basic realm="MrsMThatcher image review"'})
-        response = await call_next(request)
-        response.headers["X-Frame-Options"] = "DENY"; response.headers["X-Content-Type-Options"] = "nosniff"
-        response.headers["Content-Security-Policy"] = "default-src 'self'; img-src 'self'; style-src 'self'; script-src 'self'"
-        return response
+    app.add_middleware(ReviewSecurity, username=username, password=password, secret_key=secret_key, allowed_hosts=allowed_hosts, trusted_proxy_origin=trusted_proxy_origin)
 
     def context(request: Request, **extra):
-        token = request.cookies.get("review_csrf") or signed_csrf()
+        token = request.state.review_csrf
         return {"request": request, "csrf": token, "allow_changes": service.allow_changes, **extra}
 
     def rendered(request: Request, template: str, **extra):
         data = context(request, **extra); response = templates.TemplateResponse(request, template, data)
-        if request.cookies.get("review_csrf") != data["csrf"]: response.set_cookie("review_csrf", data["csrf"], httponly=True, samesite="strict")
         return response
 
     async def form_checked(request: Request):
         body = await request.body()
         if len(body) > 1024 * 1024: raise HTTPException(413, "Form is too large")
         values = parse_qs(body.decode("utf-8"), keep_blank_values=True, max_num_fields=1000)
-        if not valid_csrf((values.get("csrf") or [""])[0], request.cookies.get("review_csrf")): raise HTTPException(403, "CSRF validation failed")
         return values
 
     @app.get("/", response_class=HTMLResponse)
@@ -141,20 +101,22 @@ def parser() -> argparse.ArgumentParser:
     value.add_argument("--allow-changes", action="store_true"); value.add_argument("--project-dir", type=Path, default=Path.cwd())
     value.add_argument("--generated-dir", type=Path); value.add_argument("--quarantine-dir", type=Path); value.add_argument("--data-dir", type=Path)
     value.add_argument("--debug", action="store_true")
+    value.add_argument("--tls-cert", type=Path); value.add_argument("--tls-key", type=Path)
+    value.add_argument("--trusted-proxy-origin"); value.add_argument("--public-host")
     return value
 
 
 def main() -> int:
     """Run the command-line entry point."""
     args = parser().parse_args(); username, password = os.getenv("MRS_REVIEW_USERNAME"), os.getenv("MRS_REVIEW_PASSWORD")
-    validate_binding(args.host, username, password)
+    validate_binding(args.host, username, password, tls=bool(args.tls_cert and args.tls_key), trusted_proxy_origin=args.trusted_proxy_origin)
     service = ReviewService(Paths.build(args.project_dir, args.generated_dir, args.quarantine_dir, args.data_dir), args.allow_changes)
     rows = service.index()
-    print(f"URL: http://{args.host}:{args.port}/")
+    print(f"URL: {args.trusted_proxy_origin or (('https' if args.tls_cert else 'http') + '://' + (args.public_host or args.host) + ':' + str(args.port))}/")
     print(f"Mode: {'CHANGE-ENABLED (quarantine only)' if args.allow_changes else 'READ-ONLY'}")
     print(f"Active images: {len(rows)}; metadata valid: {sum(row['hash_status'] == 'ok' for row in rows) == len(rows)}")
     print("A real quarantine removes active metadata atomically; the running bot sees the file removal immediately and a controlled restart is recommended after review.")
-    uvicorn.run(create_app(service, username=username, password=password, secret_key=os.getenv("MRS_REVIEW_SECRET_KEY")), host=args.host, port=args.port, reload=False, log_level="debug" if args.debug else "info")
+    uvicorn.run(create_app(service, username=username, password=password, secret_key=os.getenv("MRS_REVIEW_SECRET_KEY"), allowed_hosts=tuple(filter(None, (args.host, args.public_host, "127.0.0.1", "localhost", "::1"))), trusted_proxy_origin=args.trusted_proxy_origin), host=args.host, port=args.port, reload=False, proxy_headers=False, ssl_certfile=str(args.tls_cert) if args.tls_cert else None, ssl_keyfile=str(args.tls_key) if args.tls_key else None, log_level="debug" if args.debug else "info")
     return 0
 
 

@@ -83,7 +83,7 @@ RESTART_DRIVER = textwrap.dedent(
         return exact.prepare_exact_receipt_retirement(*args, **kwargs)
 
     def _resume_interrupted_receipt_retirement(*args, **kwargs):
-        kwargs.setdefault("mutation_authority", _mutation_authority())
+        kwargs.setdefault("mutation_authority", bot.state_commit_mutation_authority(commit_proof, "restart exact retirement"))
         return exact.resume_interrupted_receipt_retirement(*args, **kwargs)
 
     manifest = json.loads(Path(sys.argv[1]).read_text(encoding="utf-8"))
@@ -93,6 +93,31 @@ RESTART_DRIVER = textwrap.dedent(
     receipt = manifest["confirmed"]
     lane = manifest["lane"]
     post_id = manifest["post_id"]
+    bot.STATE_FILE = receipt_path.parent / "bot_state.json"
+    bot.STATE_BACKUP_COUNT = 2
+    bot.REGULAR_POST_RECEIPT_FILE = receipt_path.parent / "regular_post_receipt.json"
+    bot.MEME_POST_RECEIPT_FILE = receipt_path.parent / "meme_post_receipt.json"
+    bot.CONFIRMED_REPLY_RECEIPT_FILE = receipt_path.parent / "confirmed_reply_receipt.json"
+    bot.LINES_USED_FILE = receipt_path.parent / "lines_used.json"
+    bot.IMAGES_USED_FILE = receipt_path.parent / "images_used.json"
+    commit_proof = None
+    if lane != "historical_context_reply":
+        if action == "crash":
+            from mrs_bot_state_generation import record_receipt_commit
+            state = bot.default_state()
+            record_receipt_commit(state, receipt)
+            if lane == "quote_image":
+                lines, images = set(), set()
+                bot.apply_regular_post_receipt(receipt, lines, images, state)
+                commit_proof = bot.save_regular_post_protected_state(lines, images, state, durable=True)
+            else:
+                if lane == "daily_meme":
+                    bot.apply_meme_post_receipt(receipt, state)
+                else:
+                    bot.apply_confirmed_reply_receipt(state, receipt)
+                commit_proof = bot.save_state(state, durable=True)
+        else:
+            commit_proof = bot.recover_state_receipt_commit_proof(receipt_path)
 
     def current_bytes():
         if lane == "historical_context_reply":
@@ -106,6 +131,7 @@ RESTART_DRIVER = textwrap.dedent(
             lane=lane,
             post_id=post_id,
             current_receipt_bytes=current_bytes(),
+            commit_proof=commit_proof,
         )
 
     if action == "crash":
@@ -199,6 +225,10 @@ def configure_lane_paths(
         strict=True,
     ):
         monkeypatch.setattr(bot, name, path)
+    monkeypatch.setattr(bot, "STATE_FILE", tmp_path / "bot_state.json")
+    monkeypatch.setattr(bot, "STATE_BACKUP_COUNT", 2)
+    monkeypatch.setattr(bot, "LINES_USED_FILE", tmp_path / "lines_used.json")
+    monkeypatch.setattr(bot, "IMAGES_USED_FILE", tmp_path / "images_used.json")
     return paths
 
 
@@ -343,7 +373,21 @@ def test_pause_snapshot_preserves_then_resumes_each_lane_exactly(
             confirmed_epoch=1_800_000_010,
         )
     else:
-        data = b'{"confirmed":true,"lane":%d}\n' % lane_index
+        from mrs_bot_state_generation import record_receipt_commit
+        lane = ("quote_image", "daily_meme", "conversational_reply")[lane_index]
+        _sending, confirmed, _sending_bytes, data, _post_id = production_lane_documents(lane)
+        state = bot.default_state()
+        record_receipt_commit(state, confirmed)
+        if lane == "quote_image":
+            lines, images = set(), set()
+            bot.apply_regular_post_receipt(confirmed, lines, images, state)
+            bot.save_regular_post_protected_state(lines, images, state, durable=True)
+        else:
+            if lane == "daily_meme":
+                bot.apply_meme_post_receipt(confirmed, state)
+            else:
+                bot.apply_confirmed_reply_receipt(state, confirmed)
+            bot.save_state(state, durable=True)
     write_exact(source, data)
     _prepare_exact_receipt_retirement(source, data)
     before = namespace_snapshot(source)

@@ -197,9 +197,10 @@ def _complete_quote_post(
 ) -> None:
     """Persist confirmed state and retire recovery authority before final events."""
 
-    def retire_transport_journal() -> None:
+    def retire_transport_journal(commit_proof) -> None:
         """Retire live transport authority only after the outbox is durable."""
         retire_lane_transport_journal_if_present(
+            commit_proof=commit_proof,
             receipt_path=REGULAR_POST_RECEIPT_FILE,
             receipt=receipt,
             lane="quote_image",
@@ -609,10 +610,10 @@ def post_random_quote(
             record_recent_own_post(state, str(posted_id))
         except Exception:
             log.critical("Emergency in-memory cache/recent update failed after confirmed regular post", exc_info=True)
-        failures = [
-            *fallback_failures,
-            *emergency_persist_confirmed_regular_post(lines_used, images_used, state),
-        ]
+        from mrs_bot_state_generation import record_receipt_commit
+        record_receipt_commit(state, main_post_attempt)
+        persistence = emergency_persist_confirmed_regular_post(lines_used, images_used, state)
+        failures = [*fallback_failures, *persistence.failures]
         if not confirmed_regular_emergency_representation_is_complete(
             post_id=str(posted_id),
             post_epoch=quote_post_epoch if quote_post_epoch is not _RECOVERY_VALUE_UNAVAILABLE else None,
@@ -670,10 +671,12 @@ def post_random_quote(
                 receipt=main_post_attempt,
                 lane="quote_image",
                 post_id=str(posted_id),
+                commit_proof=persistence.commit_proof,
             )
             remove_main_post_attempt(
                 main_post_attempt,
                 sending_disposition="confirmed_state_fallback",
+                commit_proof=persistence.commit_proof,
             )
         elif status_after_fallback != "valid":
             raise UnrecoverableConfirmedPostPersistenceError(

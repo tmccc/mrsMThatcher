@@ -95,7 +95,7 @@ def test_pending_ai_reply_rejects_changed_incoming_context() -> None:
 def test_safe_pending_opinion_reply_reuses_the_persisted_context() -> None:
     state = bot.default_state()
     incoming = "Institutions endure when people defend their purpose."
-    text = "Institutions endure only when people defend their purpose."
+    text = "Responsibility matters more than rhetoric."
     context = unit_reply_context(target_id="100", contribution=incoming)
     reply = unit_approved_reply(context, text=text, mode="opinion_or_principle")
     assert bot.store_pending_ai_reply(state, "100", "mention", reply, context=context) is True
@@ -106,7 +106,7 @@ def test_safe_pending_opinion_reply_reuses_the_persisted_context() -> None:
 def test_pending_ai_reply_is_retired_if_confirmed_replies_now_duplicate_it() -> None:
     state = bot.default_state()
     incoming = "Institutions endure when people defend their purpose."
-    text = "Institutions endure only when people defend their purpose."
+    text = "Responsibility matters more than rhetoric."
     context = unit_reply_context(target_id="100", contribution=incoming)
     reply = unit_approved_reply(context, text=text, mode="opinion_or_principle")
     assert bot.store_pending_ai_reply(state, "100", "mention", reply, context=context) is True
@@ -136,7 +136,7 @@ def test_duplicate_pending_draft_is_retired_and_later_mention_proceeds(
     """Recovery performs no paid retry and cannot starve a later candidate."""
 
     current = 2_000_000_000
-    text = "Institutions endure only when people defend their purpose."
+    text = "Responsibility matters more than rhetoric."
     candidates = [
         {
             "id": target_id,
@@ -335,7 +335,7 @@ def test_pending_ai_reply_rejects_overlong_incoming_context() -> None:
         "Institutions endure when people defend their purpose. "
         + ("context " * 3000).strip()
     )
-    text = "Institutions endure only when people defend their purpose."
+    text = "Responsibility matters more than rhetoric."
     context = unit_reply_context(target_id="100", contribution=incoming)
 
     assert len(incoming) > 10_000
@@ -344,7 +344,7 @@ def test_pending_ai_reply_rejects_overlong_incoming_context() -> None:
 
 
 def test_pending_ai_reply_rejects_context_beyond_schema_limit() -> None:
-    text = "Institutions endure only when people defend their purpose."
+    text = "Responsibility matters more than rhetoric."
     context = unit_reply_context(target_id="100", contribution="x" * 20_001)
 
     with pytest.raises(RuntimeError, match="visible-context character bound"):
@@ -409,7 +409,7 @@ def test_pending_reply_is_preserved_when_evidence_repository_is_temporarily_unav
     context = unit_reply_context(target_id="100")
     reply = unit_approved_reply(
         context,
-        text="Institutions endure only when people defend their purpose.",
+        text="Responsibility matters more than rhetoric.",
         mode="opinion_or_principle",
     )
     assert bot.store_pending_ai_reply(state, "100", "mention", reply, context=context)

@@ -207,7 +207,8 @@ def test_repair_precedes_posted_lane_and_separate_canonical_saves(monkeypatch, p
         trace.normal.assert_not_called()
         assert trace.event.call_args.kwargs["status"] is posted
     assert [item for item in trace.mock_calls if not item[0].startswith("log.debug")
-            and item[0] != "log.isEnabledFor"] == expected
+            and item[0] != "log.isEnabledFor"
+            and not (item[0] == "log.info" and str(item.args[0]).startswith("State candidate"))] == expected
     assert [(s["last_reply_check_epoch"], s["last_quote_tweet_check_epoch"],
              s["next_reply_lane_priority"]) for s in snapshots] == expected_schedules
     for callback in (trace.scheduler, trace.save, trace.normal, trace.quote):

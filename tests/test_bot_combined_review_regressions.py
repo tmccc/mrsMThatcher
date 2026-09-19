@@ -31,9 +31,9 @@ def test_quote_confirmation_prevents_second_public_reply(tmp_path, monkeypatch, 
         "referenced_tweets": [{"type": "quoted", "id": "900"}],
         "entities": {"mentions": [{"id": "12345", "username": "MrsMThatcher"}]},
     }
-    quote_text = "Thank you for taking the argument seriously."
+    quote_text = "Thank you for the observation."
     pending_text = (
-        "Sound institutions depend on people accepting responsibility."
+        "Responsibility matters."
         if case != "pending_identical" else quote_text
     )
     scenario = {
@@ -57,7 +57,7 @@ def test_quote_confirmation_prevents_second_public_reply(tmp_path, monkeypatch, 
         monkeypatch.setattr(bot, "ENABLE_HOT_POST_REPLY_CHECKS", False)
         monkeypatch.setattr(bot, "EXTRA_QUOTE_WATCH_FILE", tmp_path / "extra-watch.txt")
         monkeypatch.setattr(bot, "now_epoch", lambda: clock[0])
-        monkeypatch.setattr(bot, "current_datetime", lambda: datetime.fromtimestamp(clock[0]))
+        monkeypatch.setattr(bot, "current_utc_datetime", lambda: datetime.fromtimestamp(clock[0], timezone.utc))
         assert bot.MIN_SECONDS_BETWEEN_REPLIES == 900
         assert (bot.MAX_AUTO_REPLIES_PER_DAY, bot.MAX_REPLIES_PER_AUTHOR_PER_DAY,
                 bot.MAX_QUOTE_REPLIES_PER_DAY) == (48, 6, 12)

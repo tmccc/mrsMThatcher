@@ -315,10 +315,13 @@ def _read_stable_regular(
         raise MediaUploadReceiptError(
             f"cannot inspect durable file: {path.name}"
         ) from exc
+    directory_fd = _open_directory(path.parent)
+    os.close(directory_fd)
     if (
         not stat.S_ISREG(before.st_mode)
         or before.st_nlink not in allowed_link_counts
         or before.st_uid != os.geteuid()
+        or stat.S_IMODE(before.st_mode) & 0o022
         or before.st_size <= 0
         or before.st_size > maximum
         or (
@@ -471,13 +474,19 @@ def _write_all(descriptor: int, data: bytes) -> None:
 
 
 def _open_directory(path: Path) -> int:
+    """Open an owned, non-writable-by-others directory without following links."""
+    from mrs_bot_state_generation import directory_identity
+
     try:
-        metadata = os.stat(path, follow_symlinks=False)
-    except OSError as exc:
-        raise MediaUploadReceiptError("media receipt directory is unavailable") from exc
-    if not stat.S_ISDIR(metadata.st_mode):
-        raise MediaUploadReceiptError("media receipt parent is not a directory")
-    return os.open(path, os.O_RDONLY | getattr(os, "O_DIRECTORY", 0))
+        before = directory_identity(path)
+        descriptor = os.open(path, os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW)
+        opened = os.fstat(descriptor)
+        if (opened.st_dev, opened.st_ino, opened.st_uid, opened.st_mode) != before:
+            os.close(descriptor)
+            raise ValueError("directory identity changed")
+        return descriptor
+    except (OSError, ValueError) as exc:
+        raise MediaUploadReceiptError("unsafe durable transaction directory") from exc
 
 
 def _normalised_path(path: Path) -> Path:
@@ -1576,6 +1585,11 @@ def confirm_media_upload(
     confirmed = _required_snapshot(receipt_path)
     if confirmed.data != replacement_data:
         raise MediaUploadReceiptError("confirmed media receipt changed")
+    with _authority_lock:
+        # Release only this exact consumed capability. An older operation must
+        # never remove authority issued to a replacement namespace generation.
+        if _consumed_authorities.get(key) is consumed:
+            del _consumed_authorities[key]
     return ConfirmedMediaUpload(
         transaction_id=authority.transaction_id,
         receipt_path=str(receipt_path),

@@ -53,7 +53,7 @@ assert 'single_call_reply' not in sys.modules
 def test_adapters_forward_current_dependencies_arguments_references_and_errors(monkeypatch):
     assert bot.exact_x_create_route is route_values.exact_x_create_route
     for name, count in (
-        ("normalise_base_url", 3), ("endpoint_host", 1),
+        ("normalise_base_url", 4), ("endpoint_host", 1),
         ("endpoint_is_loopback", 2), ("x_request_base_url", 2),
         ("normalised_prepared_x_request_path", 7),
         ("x_request_targets_tweet_create", 1),
@@ -74,7 +74,7 @@ def test_adapters_forward_current_dependencies_arguments_references_and_errors(m
             for options in (required, {key: object() for key, param in public.items() if param.kind == param.KEYWORD_ONLY}):
                 current = {key: object() for key in dependencies}
                 for key, value in current.items():
-                    patch.setattr(bot, key, value)
+                    patch.setattr(bot, "TEST_MODE" if key == "test_mode" else key, value)
                 assert adapter(*args, **options) is result
                 expected = {key: options.get(key, param.default) for key, param in public.items() if param.kind == param.KEYWORD_ONLY} | current
                 actual_args, actual_kwargs = owner.call_args

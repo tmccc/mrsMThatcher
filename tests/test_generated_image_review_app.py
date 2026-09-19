@@ -13,6 +13,10 @@ from tools.generated_image_review_app.app import create_app, validate_binding
 from tools.generated_image_review_app.services import Paths, ReviewError, ReviewService, sha256
 
 
+def loopback_client(app):
+    return TestClient(app, base_url="http://127.0.0.1")
+
+
 def dump(path: Path, value) -> None:
     path.parent.mkdir(parents=True, exist_ok=True); path.write_text(json.dumps(value), encoding="utf-8")
 
@@ -75,15 +79,15 @@ def test_read_only_quarantine_and_restore_refused_without_writes(tmp_path):
 
 def test_lan_requires_auth_and_auth_secrets_not_exposed(tmp_path):
     with pytest.raises(ValueError, match="requires"): validate_binding("0.0.0.0", None, None)
-    validate_binding("0.0.0.0", "owner", "secret")
-    service, _ = fixture(tmp_path); client = TestClient(create_app(service, username="owner", password="secret", secret_key="key"))
+    validate_binding("0.0.0.0", "owner", "secret", tls=True)
+    service, _ = fixture(tmp_path); client = loopback_client(create_app(service, username="owner", password="secret", secret_key="key"))
     assert client.get("/").status_code == 401
     header = {"Authorization": "Basic " + base64.b64encode(b"owner:secret").decode()}
     response = client.get("/", headers=header); assert response.status_code == 200 and "secret" not in response.text
 
 
 def test_csrf_and_readonly_endpoints(tmp_path):
-    service, names = fixture(tmp_path); client = TestClient(create_app(service, secret_key="key")); token = csrf(client)
+    service, names = fixture(tmp_path); client = loopback_client(create_app(service, secret_key="key")); token = csrf(client)
     response = client.post("/review", data={"csrf": "bad", "pool_token": service.pool_token(), "images": names[0]})
     assert response.status_code == 403
     review = client.post("/review", data={"csrf": token, "pool_token": service.pool_token(), "images": names[0]})
@@ -140,7 +144,7 @@ def test_no_network_or_simulator_dependencies(tmp_path, monkeypatch):
 
 
 def test_ui_result_and_restore_workflow(tmp_path):
-    service, names = fixture(tmp_path, allow=True); client = TestClient(create_app(service, secret_key="key")); token = csrf(client); pool = service.pool_token()
+    service, names = fixture(tmp_path, allow=True); client = loopback_client(create_app(service, secret_key="key")); token = csrf(client); pool = service.pool_token()
     review = client.post("/review", data={"csrf": token, "pool_token": pool, "images": [names[0], names[1]]})
     assert review.status_code == 200 and "Review 2 selected images" in review.text
     result = client.post("/quarantine", data={"csrf": token, "pool_token": pool, "images": [names[0], names[1]], "confirmation": "QUARANTINE 2 IMAGES", "reason": "other"})

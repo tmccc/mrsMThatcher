@@ -5,7 +5,12 @@ module performs no runtime work at import and retains no runtime authority.
 """
 from __future__ import annotations
 
-from typing import Any
+from dataclasses import dataclass
+from pathlib import Path
+from typing import Any, TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from mrs_bot_state_generation import StateCommitProof
 
 
 def atomic_json_file_exactly_matches(
@@ -16,7 +21,14 @@ def atomic_json_file_exactly_matches(
 ) -> bool:
     """Compare a receipt with its expected canonical bytes without JSON parsing."""
     try:
-        return path.read_bytes() == canonical_atomic_json_bytes(value)
+        from mrs_bot_state_generation import StateCommitProof, directory_identity, file_identity
+        import hashlib
+
+        expected = canonical_atomic_json_bytes(value)
+        proof = StateCommitProof(path, directory_identity(path.parent), file_identity(path),
+                                 hashlib.sha256(expected).hexdigest(), 0, 1024 * 1024)
+        proof.require_current()
+        return True
     except Exception:
         return False
 
@@ -187,11 +199,25 @@ def save_regular_post_protected_state(
     save_image_used_basenames: Any,
     save_quote_used_hashes: Any,
     save_state: Any,
-) -> None:
+) -> StateCommitProof:
     """Save regular post protected state."""
+    from mrs_bot_state_generation import canonical_bytes, protect_history_files
+
     save_quote_used_hashes(LINES_USED_FILE, lines_used, durable=durable)
     save_image_used_basenames(IMAGES_USED_FILE, {str(item) for item in images_used}, durable=durable)
-    save_state(state, durable=durable)
+    proof = save_state(state, durable=durable)
+    return protect_history_files(proof, (
+        (LINES_USED_FILE, canonical_bytes(sorted({str(item) for item in lines_used})) + b'\n'),
+        (IMAGES_USED_FILE, canonical_bytes(sorted({str(item) for item in images_used})) + b'\n'),
+    ))
+
+
+@dataclass(frozen=True)
+class RegularPostPersistenceResult:
+    """Emergency component failures and the exact composite restart authority."""
+
+    failures: tuple[str, ...]
+    commit_proof: StateCommitProof | None
 
 
 def emergency_persist_confirmed_regular_post(
@@ -208,22 +234,29 @@ def emergency_persist_confirmed_regular_post(
     save_image_used_basenames: Any,
     save_quote_used_hashes: Any,
     save_state: Any,
-) -> list[str]:
-    """Return the emergency persist confirmed regular post."""
+) -> RegularPostPersistenceResult:
+    """Persist emergency confirmed-post effects and return exact restart authority."""
+    from mrs_bot_state_generation import canonical_bytes, protect_history_files
+
     failures: list[str] = []
+    proof = None
     for name, func in (
         ("quote_history", lambda: save_quote_used_hashes(LINES_USED_FILE, lines_used, durable=True)),
         ("image_history", lambda: save_image_used_basenames(IMAGES_USED_FILE, {str(item) for item in images_used}, durable=True)),
         ("state", lambda: save_state(state, durable=True)),
     ):
         try:
-            func()
+            result = func()
+            if name == "state":
+                proof = result
         except Exception as exc:
             if (
                 name == "state"
                 and isinstance(exc, StateBackupWriteError)
-                and json_file_matches(STATE_FILE, state)
+                and getattr(exc, 'commit_proof', None) is not None
+                and json_file_matches(STATE_FILE, state, commit_proof=exc.commit_proof)
             ):
+                proof = exc.commit_proof
                 log.warning(
                     "Emergency canonical state was committed after confirmed regular "
                     "post, but a later backup/finalisation step failed; treating the "
@@ -233,4 +266,14 @@ def emergency_persist_confirmed_regular_post(
                 continue
             failures.append(name)
             log.critical("Emergency persistence component failed after confirmed regular post: %s", name, exc_info=True)
-    return failures
+    if not failures:
+        try:
+            proof = protect_history_files(proof, (
+                (LINES_USED_FILE, canonical_bytes(sorted({str(item) for item in lines_used})) + b'\n'),
+                (IMAGES_USED_FILE, canonical_bytes(sorted({str(item) for item in images_used})) + b'\n'),
+            ))
+        except Exception:
+            failures.append("protected_commit_proof")
+            proof = None
+            log.critical("Emergency protected state proof failed", exc_info=True)
+    return RegularPostPersistenceResult(tuple(failures), proof if not failures else None)

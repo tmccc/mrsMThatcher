@@ -130,7 +130,9 @@ def scheduler_epoch_from_state(
 
     if current is not None and value > current:
         log.warning("Ignoring future scheduler epoch %s=%r current=%s", key, raw_value, current)
-        value = 0
+        # Older spacing settings could write a future quote-check epoch. Repair
+        # once and wait a normal interval; zero would immediately poll again.
+        value = current if key == "last_quote_tweet_check_epoch" else 0
 
     if malformed or type(raw_value) is not int or raw_value != value:
         state[key] = value

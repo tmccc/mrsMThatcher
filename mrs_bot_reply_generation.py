@@ -17,6 +17,7 @@ from __future__ import annotations
 
 import logging
 import math
+import re
 from collections.abc import Callable, Mapping
 
 from single_call_reply_validation import normalise_validation_error_codes
@@ -173,7 +174,7 @@ def collect_reply_images(
                 stream=True,
                 allow_redirects=False,
                 timeout=request_timeout(),
-                headers={"Accept": "image/jpeg,image/png,image/webp,image/gif"},
+                headers={"Accept": "image/jpeg,image/png,image/webp,image/gif", "Accept-Encoding": "identity"},
             )
             if response.status_code != 200:
                 failure_type = (
@@ -185,6 +186,8 @@ def collect_reply_images(
                 raise failure_type(
                     f"candidate image returned HTTP {response.status_code}"
                 )
+            if str(response.headers.get("Content-Encoding") or "identity").lower() != "identity":
+                raise ReplyMediaUnavailable("candidate image transfer encoding is unsupported")
             if response.headers.get("Location"):
                 raise ReplyMediaUnavailable("candidate image attempted a redirect")
             mime_type = str(
@@ -193,7 +196,8 @@ def collect_reply_images(
             if mime_type not in _REPLY_IMAGE_MIME_TYPES:
                 raise ReplyMediaUnavailable("candidate image type is unsupported")
             raw_length = response.headers.get("Content-Length")
-            if raw_length:
+            content_length = None
+            if raw_length is not None:
                 try:
                     content_length = int(raw_length)
                 except ValueError as exc:
@@ -213,6 +217,9 @@ def collect_reply_images(
                 if total > SINGLE_CALL_MAX_IMAGE_BYTES:
                     raise ReplyMediaUnavailable("candidate image exceeds the safe bound")
                 chunks.append(chunk)
+            if content_length is not None and total != content_length:
+                failure_type = (ReplyMediaTransientUnavailable if total < content_length else ReplyMediaUnavailable)
+                raise failure_type("candidate image body differs from declared length")
             image_bytes = b"".join(chunks)
         except ReplyMediaUnavailable:
             raise
@@ -295,29 +302,35 @@ def _openai_retry_metadata(
     headers = getattr(response, "headers", {})
     if not isinstance(headers, Mapping):
         headers = {}
-    raw = str(headers.get("Retry-After") or "").strip()
-    if not raw:
-        return None, None
     current = now_epoch()
-    seconds: int | None = None
-    try:
-        numeric = float(raw)
-    except ValueError:
+    delays: list[int] = []
+    raw = str(headers.get("Retry-After") or "").strip()
+    if raw:
         try:
-            parsed = parsedate_to_datetime(raw)
-            if parsed.tzinfo is not None:
-                candidate_seconds = math.ceil(parsed.timestamp() - current)
-                if 0 <= candidate_seconds <= 7 * 24 * 60 * 60:
-                    seconds = candidate_seconds
-        except (TypeError, ValueError, OverflowError):
-            seconds = None
-    else:
-        if math.isfinite(numeric) and 0 <= numeric <= 7 * 24 * 60 * 60:
-            seconds = math.ceil(numeric)
-    return (
-        current + seconds if seconds is not None else None,
-        seconds,
-    )
+            numeric = float(raw)
+        except ValueError:
+            try:
+                parsed = parsedate_to_datetime(raw)
+                if parsed.tzinfo is not None:
+                    numeric = parsed.timestamp() - current
+                else:
+                    numeric = float("nan")
+            except (TypeError, ValueError, OverflowError):
+                numeric = float("nan")
+        if math.isfinite(numeric) and numeric >= 0:
+            # Bound durable cooldown metadata, never turn a long delay into an
+            # immediate retry merely because it exceeds our accepted range.
+            delays.append(min(math.ceil(numeric), 7 * 24 * 60 * 60))
+    for key in ("x-ratelimit-reset-requests", "x-ratelimit-reset-tokens"):
+        raw_reset = str(headers.get(key) or "").strip()
+        parts = re.findall(r"(\d+(?:\.\d+)?)(ms|s|m|h)", raw_reset)
+        if parts and "".join(number + unit for number, unit in parts) == raw_reset:
+            delay = sum(float(number) * {"ms": .001, "s": 1, "m": 60, "h": 3600}[unit] for number, unit in parts)
+            if math.isfinite(delay):
+                delays.append(min(math.ceil(delay), 7 * 24 * 60 * 60))
+    seconds = max(delays) if delays else None
+    return (current + seconds if seconds is not None else None, seconds)
+
 
 
 def _is_openai_provider_health_failure(
@@ -441,15 +454,25 @@ def openai_responses_reply_call(
                 first_429_retry_metadata = _openai_retry_metadata(response)
                 log.warning(
                     "OpenAI single-call reply returned pre-execution HTTP %s; "
-                    "retrying once target_id=%s",
+                    "respecting bounded retry delay target_id=%s",
                     response.status_code,
                     target_id,
                 )
                 close_response = getattr(response, "close", None)
                 if callable(close_response):
                     close_response()
-                sleep(1)
-                continue
+                # A one-second maximum keeps the bot responsive. Longer or
+                # unknown provider delays become durable cooldowns upstream.
+                delay = first_429_retry_metadata[1]
+                if delay is not None and delay <= 1:
+                    sleep(delay)
+                    continue
+                raise _openai_api_error(
+                    "OpenAI rate limit requires candidate deferral",
+                    category="provider_http_429", status_code=429,
+                    reset_epoch=first_429_retry_metadata[0],
+                    retry_after_seconds=delay, request_attempt_count=attempt,
+                )
         if not 200 <= response.status_code < 300:
             observed_status_code = response.status_code
             reset_epoch, retry_after_seconds = _openai_retry_metadata(response)
@@ -602,11 +625,15 @@ def evaluate_single_call_reply(
     record_api_error: Callable,
     _openai_api_error: Callable,
     ValidatedReply: type,
+    now_epoch: Callable,
 ) -> PipelineResult:
     """Return the authoritative decision, retaining local and provider dispositions."""
 
     lane = str(context.get("lane") or "")
     target_id = str(context.get("target_id") or "")
+    if int(state.get("openai_api_cooldown_until_epoch") or 0) > now_epoch():
+        return PipelineResult(status="operational_failure", reason="openai_cooldown",
+                              error_category="provider_cooldown", model_call_count=0)
     visible_turns = [
         turn
         for turn in (context.get("visible_conversation") or [])
@@ -681,7 +708,17 @@ def evaluate_single_call_reply(
         supplied_images=supplied_images,
         visual_description=context.get("visual_description"),
     )
-    _record_single_call_result(result, lane=lane, target_id=target_id)
+    if result.provider_status_code == 429 and result.status != "operational_failure":
+        record_api_error(
+            state,
+            _openai_api_error(
+                "single-call reply recovered after rate limit", category="provider_http_429",
+                status_code=429, reset_epoch=result.provider_reset_epoch,
+                retry_after_seconds=result.provider_retry_after_seconds,
+                request_attempt_count=result.provider_request_attempt_count,
+            ),
+            "openai",
+        )
     if result.status == "operational_failure":
         provider_health_failure = _is_openai_provider_health_failure(
             result.error_category
@@ -712,7 +749,9 @@ def evaluate_single_call_reply(
                 lane,
                 result.error_category or "uncategorised",
             )
+        _record_single_call_result(result, lane=lane, target_id=target_id)
         return result
+    _record_single_call_result(result, lane=lane, target_id=target_id)
     if result.status in {"disabled", "no_reply"}:
         return result
     if result.status != "reply" or not isinstance(result.reply, ValidatedReply):

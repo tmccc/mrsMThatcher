@@ -47,7 +47,14 @@ def test_successful_meme_post_persists_post_and_future_schedule_in_one_state_sav
         ),
     )
     monkeypatch.setattr(bot, "now_epoch", lambda: 1_800_000_000)
-    monkeypatch.setattr(bot, "save_state", lambda state, **kwargs: saved_states.append(json.loads(json.dumps(state))))
+    real_save_state = bot.save_state
+
+    def observe_save(state, **kwargs):
+        """Capture the transition while retaining actual durable commit authority."""
+        saved_states.append(json.loads(json.dumps(state)))
+        return real_save_state(state, **kwargs)
+
+    monkeypatch.setattr(bot, "save_state", observe_save)
     monkeypatch.setattr(bot, "log_event", lambda *args, **kwargs: None)
 
     state = {"next_meme_post_epoch": 1_799_999_000, "posted_meme_filenames": []}
@@ -155,7 +162,6 @@ def test_meme_post_uses_confirmed_time_across_midnight(tmp_path: Path, monkeypat
         "handoff_confirmed_media_upload_to_main_attempt",
         lambda _attempt, _authority: None,
     )
-    monkeypatch.setattr(bot, "save_state", lambda state, **kwargs: None)
     monkeypatch.setattr(bot, "log_event", lambda *args, **kwargs: None)
     pre_confirm_epoch = int(datetime(2026, 7, 6, 23, 59, 50).timestamp())
     confirmed_epoch = int(datetime(2026, 7, 7, 0, 0, 5).timestamp())
@@ -305,6 +311,7 @@ def test_confirmed_meme_state_failure_reconciles_receipt(
         ),
     )
     monkeypatch.setattr(bot, "now_epoch", lambda: 1_800_000_000)
+    real_save_state = bot.save_state
     monkeypatch.setattr(bot, "save_state", lambda state, **kwargs: (_ for _ in ()).throw(OSError("state failed")))
     monkeypatch.setattr(bot, "log_event", lambda *args, **kwargs: None)
 
@@ -321,7 +328,7 @@ def test_confirmed_meme_state_failure_reconciles_receipt(
     assert receipt["next_meme_post_epoch"] > 1_800_000_000
     assert state["next_meme_post_epoch"] > state["last_meme_post_epoch"]
 
-    monkeypatch.setattr(bot, "save_state", lambda state, **kwargs: None)
+    monkeypatch.setattr(bot, "save_state", real_save_state)
     recovered: dict = {}
     assert bot.reconcile_meme_post_receipt(recovered) is True
     assert bot.reconcile_meme_post_receipt(recovered) is False
@@ -1052,7 +1059,6 @@ def test_meme_receipt_removal_failure_keeps_future_meme_schedule(
         ),
     )
     monkeypatch.setattr(bot, "now_epoch", lambda: 1_800_000_000)
-    monkeypatch.setattr(bot, "save_state", lambda state, **kwargs: None)
     monkeypatch.setattr(
         bot,
         "remove_meme_post_receipt",

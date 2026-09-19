@@ -87,6 +87,9 @@ def initialise_isolated_test_environment() -> Path:
     return runtime_root
 
 
+# Temporary durable fixtures must be private regardless of the host user's
+# collaborative umask. Explicit permission-attack tests still chmod their files.
+_PREVIOUS_TEST_UMASK = os.umask(0o077)
 PYTEST_RUNTIME_ROOT = initialise_isolated_test_environment()
 
 
@@ -307,6 +310,7 @@ def pytest_unconfigure(config: pytest.Config) -> None:
     del config
     uninstall_network_guard()
     shutil.rmtree(PYTEST_RUNTIME_ROOT, ignore_errors=True)
+    os.umask(_PREVIOUS_TEST_UMASK)
 
 
 @pytest.fixture

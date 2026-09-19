@@ -97,18 +97,26 @@ OpenAI billing remains the source of truth.
 from __future__ import annotations
 
 import argparse
+from contextlib import contextmanager
+import fcntl
 import base64
 import html
 import json
 import os
 import re
+import secrets
+import stat
 import sys
 import time
 import unicodedata
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Any
+from typing import Any, Callable
+from decimal import Decimal
 
+from provider_endpoint_policy import validate_provider_endpoint
+
+import math
 import requests
 
 
@@ -191,7 +199,14 @@ def write_json_atomic(
         encoding="utf-8",
     )
 
+    with temporary.open("rb") as handle:
+        os.fsync(handle.fileno())
     temporary.replace(path)
+    directory_fd = os.open(path.parent, os.O_RDONLY | os.O_DIRECTORY)
+    try:
+        os.fsync(directory_fd)
+    finally:
+        os.close(directory_fd)
 
 
 def load_env_file(path: Path) -> None:
@@ -1100,6 +1115,143 @@ def retry_delay(
     )
 
 
+class AttemptBudget:
+    """Serialize durable request-cost reservations across processes and instances."""
+
+    def __init__(self, path: Path, *, per_request: float, ceiling: float):
+        """Recover private exposure under its permanent, owned singleton lock."""
+        self.path = Path(path)
+        self.lock_name = self.path.name + ".lock"
+        self.per_request = Decimal(str(per_request))
+        self.ceiling = Decimal(str(ceiling))
+        if not self.per_request.is_finite() or not self.ceiling.is_finite() or self.per_request <= 0 or self.ceiling < 0:
+            raise ValueError("attempt cost must be positive and ceiling finite/non-negative")
+        with self._locked() as (directory_fd, lock_fd, created):
+            entry, count = self._read(directory_fd)
+            if entry is None:
+                if not created:
+                    raise RuntimeError("attempt-cost ledger missing beside existing budget lock")
+                self._publish(directory_fd, lock_fd, entry, count)
+            self.attempts = count
+
+    @contextmanager
+    def _locked(self):
+        """Hold flock on one no-follow, single-link 0600 file in an owned directory."""
+        from exact_receipt_retirement import _open_directory
+
+        directory_fd = _open_directory(self.path.parent)
+        lock_fd = None
+        try:
+            flags = os.O_RDWR | os.O_NOFOLLOW | os.O_CLOEXEC | os.O_NONBLOCK
+            try:
+                lock_fd = os.open(self.lock_name, flags | os.O_CREAT | os.O_EXCL, 0o600, dir_fd=directory_fd)
+                created = True
+            except FileExistsError:
+                lock_fd = os.open(self.lock_name, flags, dir_fd=directory_fd)
+                created = False
+            self._require_lock(directory_fd, lock_fd)
+            fcntl.flock(lock_fd, fcntl.LOCK_EX)
+            self._require_lock(directory_fd, lock_fd)
+            if created:
+                os.fsync(lock_fd)
+                os.fsync(directory_fd)
+            yield directory_fd, lock_fd, created
+        finally:
+            # Closing releases flock without ever unlinking its durable namespace.
+            if lock_fd is not None:
+                os.close(lock_fd)
+            os.close(directory_fd)
+
+    def _require_lock(self, directory_fd: int, lock_fd: int) -> None:
+        """Reject replaced lock or directory identities before a reservation commits."""
+        from exact_receipt_retirement import FileIdentity, _open_directory, _read_stable_entry
+
+        current_directory = _open_directory(self.path.parent)
+        try:
+            before, current = os.fstat(directory_fd), os.fstat(current_directory)
+            if (before.st_dev, before.st_ino, before.st_uid, before.st_mode) != (
+                    current.st_dev, current.st_ino, current.st_uid, current.st_mode):
+                raise RuntimeError("attempt-budget directory identity changed")
+        finally:
+            os.close(current_directory)
+        metadata = os.fstat(lock_fd)
+        if (not stat.S_ISREG(metadata.st_mode) or metadata.st_uid != os.geteuid()
+                or stat.S_IMODE(metadata.st_mode) != 0o600 or metadata.st_nlink != 1 or metadata.st_size != 0):
+            raise RuntimeError("unsafe attempt-budget lock authority")
+        current_lock = _read_stable_entry(directory_fd, self.lock_name, maximum=0)
+        if current_lock is None or current_lock.identity != FileIdentity.from_stat(metadata):
+            raise RuntimeError("attempt-budget lock identity changed")
+
+    def _read(self, directory_fd: int):
+        """Read the actual bounded exposure; cached instance counts never authorize calls."""
+        from exact_receipt_retirement import _read_stable_entry, _strict_object
+
+        entry = _read_stable_entry(directory_fd, self.path.name, maximum=4096)
+        if entry is None:
+            return None, 0
+        if entry.identity.mode != 0o600:
+            raise RuntimeError("attempt-cost ledger must have mode 0600")
+        prior = _strict_object(entry.data, label="attempt-cost ledger")
+        if set(prior) != {"attempted_requests", "reserved_estimated_cost_usd", "max_estimated_cost_usd"}:
+            raise ValueError("invalid persisted request exposure fields")
+        count = prior["attempted_requests"]
+        if type(count) is not int or count < 0:
+            raise ValueError("invalid persisted request exposure")
+        exposure = Decimal(prior["reserved_estimated_cost_usd"])
+        prior_ceiling = Decimal(prior["max_estimated_cost_usd"])
+        if not exposure.is_finite() or exposure != self.per_request * count:
+            raise ValueError("persisted request cost estimate changed")
+        if not prior_ceiling.is_finite() or prior_ceiling < 0 or exposure > prior_ceiling:
+            raise ValueError("invalid persisted request ceiling")
+        # Another operation may tighten the shared ceiling; a stale caller cannot
+        # silently increase it again. Raising it requires explicit ledger recovery.
+        self.ceiling = min(self.ceiling, prior_ceiling)
+        return entry, count
+
+    def _publish(self, directory_fd: int, lock_fd: int, prior, count: int) -> None:
+        """Fsync a unique private staging file, replace under lock, and prove publication."""
+        from exact_receipt_retirement import _read_stable_entry, _same_object_after_rename, _stage_new, _unlink_exact_cleanup
+
+        data = (json.dumps({
+            "attempted_requests": count,
+            "reserved_estimated_cost_usd": str(self.per_request * count),
+            "max_estimated_cost_usd": str(self.ceiling),
+        }, sort_keys=True, indent=2, allow_nan=False) + "\n").encode("utf-8")
+        temporary = "." + self.path.name + "." + secrets.token_hex(16) + ".tmp"
+        self._require_lock(directory_fd, lock_fd)
+        staged = _stage_new(directory_fd, temporary, data)
+        replaced = False
+        try:
+            self._require_lock(directory_fd, lock_fd)
+            if _read_stable_entry(directory_fd, self.path.name, maximum=4096) != prior:
+                raise RuntimeError("attempt-cost ledger changed before reservation")
+            os.replace(temporary, self.path.name, src_dir_fd=directory_fd, dst_dir_fd=directory_fd)
+            replaced = True
+            os.fsync(directory_fd)
+            self._require_lock(directory_fd, lock_fd)
+            committed = _read_stable_entry(directory_fd, self.path.name, maximum=4096)
+            if (committed is None or committed.data != data or committed.identity.mode != 0o600
+                    or not _same_object_after_rename(staged.identity, committed.identity)):
+                raise RuntimeError("attempt-cost reservation changed during publication")
+        finally:
+            if not replaced:
+                _unlink_exact_cleanup(directory_fd, cleanup_name=temporary,
+                                      expected_entry=staged, maximum=4096)
+
+    def reserve(self) -> None:
+        """Reload and durably reserve before a request; every failed attempt remains counted."""
+        with self._locked() as (directory_fd, lock_fd, _created):
+            entry, count = self._read(directory_fd)
+            if entry is None:
+                raise RuntimeError("attempt-cost ledger disappeared before reservation")
+            self.attempts = count
+            next_count = count + 1
+            if self.per_request * next_count > self.ceiling:
+                raise RuntimeError("attempted-request cost ceiling reached")
+            self._publish(directory_fd, lock_fd, entry, next_count)
+            self.attempts = next_count
+
+
 def request_image(
     session: requests.Session,
     *,
@@ -1109,8 +1261,10 @@ def request_image(
     quality: str,
     size: str,
     max_retries: int,
+    reserve_attempt: Callable[[], None] | None = None,
 ) -> dict[str, Any]:
     """Return the request image."""
+    validate_provider_endpoint(OPENAI_IMAGES_URL, provider="openai", test_mode=os.getenv("MRS_TEST_MODE") == "1")
     payload = {
         "model": model,
         "prompt": prompt,
@@ -1125,6 +1279,8 @@ def request_image(
     ):
         response: requests.Response | None = None
 
+        if reserve_attempt is not None:
+            reserve_attempt()
         try:
             response = session.post(
                 OPENAI_IMAGES_URL,
@@ -1138,32 +1294,15 @@ def request_image(
                 },
                 json=payload,
                 timeout=(30, 600),
+                allow_redirects=False,
             )
 
         except requests.RequestException as exc:
-            if attempt >= max_retries:
-                raise RuntimeError(
-                    "OpenAI image request failed "
-                    f"after {attempt + 1} attempts: "
-                    f"{exc}"
-                ) from exc
+            # Even a connection reset may follow acceptance by the provider.
+            # No supported idempotency contract exists for this image endpoint.
+            raise RuntimeError("OpenAI image request outcome is ambiguous; automatic retry refused") from exc
 
-            delay = retry_delay(
-                None,
-                attempt,
-            )
-
-            log(
-                f"    network error: {exc}"
-            )
-            log(
-                f"    retrying in {delay:.1f}s"
-            )
-
-            time.sleep(delay)
-            continue
-
-        if response.status_code < 400:
+        if 200 <= response.status_code < 300:
             try:
                 data = response.json()
             except ValueError as exc:
@@ -1183,10 +1322,7 @@ def request_image(
 
             return data
 
-        retryable = (
-            response.status_code == 429
-            or response.status_code >= 500
-        )
+        retryable = response.status_code == 429
 
         if (
             retryable
@@ -1604,14 +1740,14 @@ def main() -> int:
             "--max-prompt-chars must be at least 500"
         )
 
-    if args.estimated_cost_per_image < 0:
+    if not math.isfinite(args.estimated_cost_per_image) or args.estimated_cost_per_image <= 0:
         parser.error(
-            "--estimated-cost-per-image cannot be negative"
+            "--estimated-cost-per-image must be finite and positive"
         )
 
-    if args.max_estimated_cost < 0:
+    if not math.isfinite(args.max_estimated_cost) or args.max_estimated_cost < 0:
         parser.error(
-            "--max-estimated-cost cannot be negative"
+            "--max-estimated-cost must be finite and non-negative"
         )
 
     load_env_file(
@@ -1956,7 +2092,9 @@ def main() -> int:
         run_manifest,
     )
 
+    budget = AttemptBudget(args.out / "attempt_cost_reservations.json", per_request=args.estimated_cost_per_image, ceiling=args.max_estimated_cost)
     session = requests.Session()
+    session.trust_env = False
 
     session.headers.update(
         {
@@ -2225,6 +2363,7 @@ def main() -> int:
                 quality=args.quality,
                 size=args.size,
                 max_retries=args.max_retries,
+                reserve_attempt=budget.reserve,
             )
 
             (

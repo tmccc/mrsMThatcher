@@ -290,10 +290,11 @@ def test_invalid_parser_result_fails_outside_parse_diagnostics(mode, result):
 
 
 def test_independent_import_has_no_runtime_effects_or_upward_dependencies(tmp_path):
-    # Warm the stdlib JSON package before rejecting directory scans, including
-    # importlib's scan for its decoder; all project imports remain guarded.
+    # Warm stdlib package import machinery before rejecting directory scans.
+    # Clean venvs do not preload importlib.machinery; project imports stay guarded.
     script = """
 import builtins
+import importlib.machinery
 import json
 import logging
 import os

@@ -16,7 +16,6 @@ from __future__ import annotations
 from collections.abc import Callable
 from logging import Logger
 from pathlib import Path
-from types import ModuleType
 
 
 def main_post_attempt_path(
@@ -150,7 +149,7 @@ def remove_main_post_attempt(
     AmbiguousRemotePostOutcome: type[Exception],
     canonical_atomic_json_bytes: Callable[..., bytes],
     current_main_post_attempt_is_semantically_valid: Callable[..., bool],
-    json: ModuleType,
+    load_receipt_json_no_follow: Callable[[Path], tuple[bool, object | None]],
     log: Logger,
     main_post_attempt_path: Callable[..., Path],
     retire_current_source_receipt: Callable[..., None],
@@ -168,8 +167,9 @@ def remove_main_post_attempt(
         )
     path = main_post_attempt_path(attempt)
     try:
-        with open(path, "r", encoding="utf-8") as handle:
-            current = json.load(handle)
+        present, current = load_receipt_json_no_follow(path)
+        if not present:
+            raise FileNotFoundError(path)
         if (
             current != attempt
             or not current_main_post_attempt_is_semantically_valid(current)

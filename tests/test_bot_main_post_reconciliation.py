@@ -386,6 +386,7 @@ def test_regular_pending_recovery_orders_retirement_and_auxiliary(monkeypatch, p
     events.ensure_reconciled_regular_receipt_schedule_is_future.assert_called_once_with(receipt, state, 0)
     events.save_regular_post_protected_state.assert_called_once_with(lines, images, state, durable=True)
     events.retire_lane_transport_journal_if_present.assert_called_once_with(
+        commit_proof=events.save_regular_post_protected_state.return_value,
         receipt_path=bot.REGULAR_POST_RECEIPT_FILE, receipt=receipt, lane="quote_image", post_id="950001",
     )
     for name in ("enqueue_historical_context_obligation", "remove_regular_post_receipt"):
@@ -424,6 +425,7 @@ def test_meme_pending_recovery_preserves_references_and_save_failure_boundary(mo
     assert events.apply_meme_post_receipt.call_args.args[1] is state
     events.save_state.assert_called_once_with(state, durable=True)
     events.retire_lane_transport_journal_if_present.assert_called_once_with(
+        commit_proof=events.save_state.return_value,
         receipt_path=bot.MEME_POST_RECEIPT_FILE, receipt=receipt, lane="daily_meme", post_id="970001",
     )
     assert events.remove_meme_post_receipt.call_args.args[0] is receipt
@@ -473,7 +475,7 @@ def test_bound_meme_replay_preserves_caption_in_cache_and_observation(monkeypatc
 def test_legacy_meme_text_fallback_requires_an_absent_field(monkeypatch):
     receipt = {
         "post_id": "970001", "meme_basename": "001_meme.png",
-        "meme_post_epoch": 100, "next_meme_post_epoch": 200,
+        "meme_post_epoch": 1_800_000_000, "next_meme_post_epoch": 1_800_086_400,
     }
     monkeypatch.setattr(bot, "MEME_POST_TEXT", "legacy default")
     monkeypatch.setattr(bot, "load_meme_post_receipt", Mock(return_value=("valid", receipt)))

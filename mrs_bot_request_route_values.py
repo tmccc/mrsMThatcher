@@ -16,11 +16,15 @@ from __future__ import annotations
 from collections.abc import Callable
 from types import ModuleType
 
+from provider_endpoint_policy import validate_provider_endpoint
+
 
 def normalise_base_url(
     raw: str,
     *,
     require_origin: bool = False,
+    provider: str | None = None,
+    test_mode: bool = False,
     _normalise_x_origin_before_runtime_configuration: Callable[[object], str],
     urlsplit: Callable,
     urlunsplit: Callable,
@@ -30,9 +34,10 @@ def normalise_base_url(
     Route classification is performed against paths which this module appends
     itself.  A configured path prefix, query, fragment or user-info component
     could make the literal route and the prepared on-wire route disagree, so
-    the X request and upload bases must be origins.  The OpenAI provider retains
-    its explicit ``/v1`` base because it does not participate in X route
-    classification.
+    the X request and upload bases must be origins. Versioned OpenAI and xAI
+    bases remain usable through this generic normalizer. Credential-bearing
+    configuration must pass its explicit provider to prevent cross-provider
+    credential disclosure.
     """
 
     if require_origin:
@@ -60,6 +65,8 @@ def normalise_base_url(
             "bases must be origin-only"
         )
     if not require_origin:
+        recipient = provider or ("xai" if parsed.hostname == "api.x.ai" else "openai")
+        validate_provider_endpoint(value, provider=recipient, test_mode=test_mode)
         return value.rstrip("/")
     host = parsed.hostname
     if ":" in host and not host.startswith("["):

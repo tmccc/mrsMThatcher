@@ -997,6 +997,30 @@ def test_confirm_requires_consumption_and_atomically_binds_media_id(
     assert fence_path.exists()
     assert json.loads(fence_path.read_bytes())["lifecycle_state"] == "sending"
     assert media_receipt.media_upload_receipt_is_blocking(receipt_path) is True
+    assert not any(value[1] is authority for value in media_receipt._consumed_authorities.values())
+
+def test_confirmation_cannot_remove_a_newer_consumed_authority(tmp_path, monkeypatch):
+    """An older confirmation retires only its exact consumed dictionary entry."""
+    receipt_path, image_path, metadata = _fixture(tmp_path)
+    authority = _begin(receipt_path, image_path, metadata)
+    _consume(receipt_path, image_path, metadata, authority)
+    key = next(key for key, value in media_receipt._consumed_authorities.items() if value[1] is authority)
+    original = media_receipt._replace_exact
+    newer = (os.getpid(), object())
+
+    def replace_then_advance(*args, **kwargs):
+        """Model a newer capability installed while an older operation completes."""
+        result = original(*args, **kwargs)
+        media_receipt._consumed_authorities[key] = newer
+        return result
+
+    monkeypatch.setattr(media_receipt, '_replace_exact', replace_then_advance)
+    try:
+        _confirm_media_upload(receipt_path, authority, media_id='780001')
+        assert media_receipt._consumed_authorities[key] is newer
+    finally:
+        media_receipt._consumed_authorities.pop(key, None)
+
 
 
 @pytest.mark.parametrize("target_kind", ("receipt", "fence"))

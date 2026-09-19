@@ -3,6 +3,8 @@
 from __future__ import annotations
 
 import copy
+import dataclasses
+import hashlib
 from datetime import datetime
 from unittest.mock import Mock
 
@@ -124,21 +126,39 @@ def unit_approved_reply(
 ) -> ValidatedReply:
     """Return one locally validated single-call reply and durable draft."""
 
+    from single_call_reply_grounding import is_premise_neutral, reply_sentences
+
+    factual_sentences = [part for part in reply_sentences(text) if not is_premise_neutral(part)]
+    # These fixtures intentionally ask for arbitrary test prose. Give each
+    # asserted sentence explicit synthetic evidence, just as real drafts require;
+    # do not disable the factual gate to manufacture a validated result.
+    fixture_repository = UnitReplyEvidenceRepository()
+    fixture_passages = [
+        dataclasses.replace(fixture_repository.passage,
+                            evidence_id=hashlib.sha256(sentence.encode()).hexdigest(),
+                            passage=sentence)
+        for sentence in factual_sentences
+    ]
+    if fixture_passages:
+        fixture_repository.candidate_passages = lambda *_args, **_kwargs: fixture_passages
+        for passage in fixture_passages:
+            UNIT_REPLY_REPOSITORY.passages[passage.evidence_id] = passage
     payload, fact_map = build_model_payload(
         context=context,
-        repository=UNIT_REPLY_REPOSITORY,
+        repository=fixture_repository,
     )
     reply_kind = (
         "direct_factual"
         if factual or mode == "direct_factual_answer"
         else "social" if mode == "courtesy" else "principle"
     )
-    used_fact_ids = ["F1"] if reply_kind == "direct_factual" else []
+    used_fact_ids = [f"F{index}" for index in range(1, len(factual_sentences) + 1)]
     output = {
         "decision": "reply",
         "reply_kind": reply_kind,
         "reply": text,
         "used_fact_ids": used_fact_ids,
+        "factual_claims": [{"text": sentence, "fact_ids": [fact_id]} for sentence, fact_id in zip(factual_sentences, used_fact_ids)],
         "reason_code": "useful_reply",
     }
     draft = create_durable_draft(

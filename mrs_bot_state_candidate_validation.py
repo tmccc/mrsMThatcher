@@ -176,6 +176,16 @@ def normalise_state_candidate(
 ) -> dict | None:
     """Normalise state candidate."""
     minimum_reader_version = require_compatible_state_reader(state, path=path)
+    commits = state.get('_confirmed_receipt_commits', {})
+    if (not isinstance(commits, dict)
+            or any(not isinstance(key, str) or len(key) != 64
+                   or any(character not in '0123456789abcdef' for character in key)
+                   or not isinstance(value, dict)
+                   or set(value) != {'quote_hash', 'image_basename'}
+                   or any(not isinstance(item, str) for item in value.values())
+                   for key, value in commits.items())):
+        log.error('State candidate %s has invalid confirmed receipt commit identities', path)
+        return None
     list_keys = {
         "replied_to_ids",
         "dry_run_seen_mention_ids",

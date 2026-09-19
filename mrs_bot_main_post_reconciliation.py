@@ -165,14 +165,17 @@ def reconcile_meme_post_receipt(
         receipt.get("meme_basename"),
     )
     apply_meme_post_receipt(receipt, state)
-    save_state(state, durable=True)
+    from mrs_bot_state_generation import record_receipt_commit
+    record_receipt_commit(state, receipt)
+    commit_proof = save_state(state, durable=True)
     retire_lane_transport_journal_if_present(
+        commit_proof=commit_proof,
         receipt_path=MEME_POST_RECEIPT_FILE,
         receipt=receipt,
         lane="daily_meme",
         post_id=str(receipt["post_id"]),
     )
-    remove_meme_post_receipt(receipt)
+    remove_meme_post_receipt(receipt, commit_proof=commit_proof)
     emit_account_root_posted(
         lane="daily_meme",
         post_id=receipt["post_id"],
@@ -504,9 +507,10 @@ def reconcile_regular_post_receipt(
         )
 
 
-    def retire_transport_journal() -> None:
+    def retire_transport_journal(commit_proof) -> None:
         """Read recovered transport identity after the outbox is durable."""
         retire_lane_transport_journal_if_present(
+            commit_proof=commit_proof,
             receipt_path=REGULAR_POST_RECEIPT_FILE,
             receipt=receipt,
             lane="quote_image",

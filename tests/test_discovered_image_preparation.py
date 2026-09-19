@@ -674,6 +674,7 @@ def test_status_cli_stdout_is_machine_readable_json(tmp_path):
             sys.executable, str(ROOT / "prepare_discovered_images.py"), "status",
             "--project-dir", str(project), "--research-dir", str(research), "--work-dir", str(work),
         ],
-        cwd=ROOT, check=True, capture_output=True, text=True,
+        cwd=ROOT, check=False, capture_output=True, text=True,
     )
+    assert completed.returncode == 0, completed.stderr
     assert json.loads(completed.stdout)["work_dir"] == str(work)
