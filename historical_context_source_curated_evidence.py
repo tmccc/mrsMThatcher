@@ -67,6 +67,9 @@ _ARCHIVE_PROVENANCE_FIELDS = {
 _FETCH_POLICY_VERSIONS = {
     "historical-context-restricted-fetch-v5",
     "historical-context-restricted-fetch-v6",
+    # v7 retains this publisher/capture/hash contract; its local-archive and
+    # transport diagnostics do not confer additional curated evidence authority.
+    "historical-context-restricted-fetch-v7",
 }
 _WORD_TOKEN = re.compile(r"[^\W_]+", re.UNICODE)
 
@@ -193,6 +196,11 @@ def curated_source_adjudication_id(adjudication: dict[str, Any]) -> str:
 
 def _validate_archive_provenance(source: dict[str, Any]) -> bool:
     """Validate source identity separately from its archival transport."""
+    if "fetch_policy_version" in source and (
+        not isinstance(source["fetch_policy_version"], str)
+        or source["fetch_policy_version"] not in _FETCH_POLICY_VERSIONS
+    ):
+        return False
     present = _ARCHIVE_PROVENANCE_FIELDS.intersection(source)
     retrieval_archive = source.get("retrieval_archive")
     if not present:

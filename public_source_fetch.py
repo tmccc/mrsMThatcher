@@ -7,7 +7,6 @@ from __future__ import annotations
 
 import ipaddress
 import os
-import re
 import time
 from dataclasses import dataclass
 from typing import Any, Callable
@@ -18,24 +17,11 @@ import requests
 from historical_context_search_research import (
     UnsafeURL, _address_is_public, _pinned_public_get, canonicalise_url,
 )
+from historical_context_source_resolution import is_google_grounding_url
 
 MAX_REDIRECTS = 5
 MAX_BODY_BYTES = 25 * 1024 * 1024
 MAX_SECONDS = 90.0
-
-
-def is_google_grounding_url(url: str) -> bool:
-    """Recognise only Google's HTTPS grounding redirect endpoint."""
-    try:
-        parsed = urlsplit(url)
-        return (
-            parsed.scheme == "https"
-            and parsed.netloc == "vertexaisearch.cloud.google.com"
-            and re.fullmatch(r"/grounding-api-redirect/[A-Za-z0-9_-]+", parsed.path) is not None
-            and not parsed.fragment
-        )
-    except ValueError:
-        return False
 
 
 def public_url_syntax(url: str) -> str:

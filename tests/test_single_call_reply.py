@@ -32,7 +32,7 @@ def test_frozen_prompt_and_schema_hashes() -> None:
     """Pin the exact reviewed prompt bytes and local response contract."""
 
     assert pipeline.PROMPT_SHA256 == (
-        "21986468ecdfe0e38a5c4c15bb6b52323e38d5a6a1d7ed79befb0829a9942b19"
+        "a0a124490144f2ed2bfff85362d96d5b9853204554752758d29ababbe0fbdbdd"
     )
     assert pipeline.RESPONSE_SCHEMA_SHA256 == (
         "6ddc2a1d5af7b3c66af2a3e8d9c357c7fc86198553b8be1db2f263751842cbd4"
@@ -1629,12 +1629,5 @@ def test_production_import_closure_excludes_retired_conversational_modules() -> 
 
 
 def assert_prose_has_no_mechanical_errors(reply: str, payload: dict) -> None:
-    """Keep punctuation tests independent of unsupported factual propositions.
-
-    These historical/foreign sentences test Unicode, links and sentence limits;
-    they are not approved source evidence. The factual gate may reject them.
-    """
-    try:
-        pipeline.validate_model_output(raw_decision(reply=reply), payload=payload)
-    except pipeline.ReplyValidationError as exc:
-        assert set(exc.errors) <= {"factual_claim_inventory_mismatch"}
+    """Test punctuation mechanics only, without claiming factual classification."""
+    pipeline.validate_model_output(raw_decision(reply=reply), payload=payload)

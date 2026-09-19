@@ -15,7 +15,7 @@ import hashlib
 import json
 import re
 from collections.abc import Callable
-from datetime import datetime, timedelta
+from datetime import date, datetime, timedelta, timezone
 
 
 _LEGACY_TESTED_REPLY_STRATEGY_VERSION = "tested-reply-pipeline-20260817"
@@ -26,6 +26,12 @@ _LEGACY_SINGLE_SOL_PROMPT_SHA256 = (
 )
 _LEGACY_SINGLE_SOL_RESPONSE_SCHEMA_SHA256 = (
     "3b1e23015cebe3b75eacde04ebfd4344fa25117f047cdcf83241b0ce709872ce"
+)
+_LEGACY_SINGLE_SOL_SCHEMA4_PROMPT_SHA256 = (
+    "21986468ecdfe0e38a5c4c15bb6b52323e38d5a6a1d7ed79befb0829a9942b19"
+)
+_LEGACY_SINGLE_SOL_SCHEMA4_RESPONSE_SCHEMA_SHA256 = (
+    "6ddc2a1d5af7b3c66af2a3e8d9c357c7fc86198553b8be1db2f263751842cbd4"
 )
 _LEGACY_MULTI_MODEL_REPLY_CONTEXT_FIELDS = frozenset(
     {
@@ -642,6 +648,65 @@ def _legacy_ai_first_reply_draft_is_valid(
     )
 
 
+def _legacy_single_sol_schema4_bindings_are_valid(draft: dict, context: dict) -> bool:
+    """Check frozen claim/time bindings solely for already-started recovery.
+
+    The enclosing validator checks the complete draft hash and source bindings;
+    this does not approve a new reply or reinterpret the retired editorial gate.
+    """
+    current_date = context.get("current_date")
+    if not isinstance(current_date, str) or re.fullmatch(r"\d{4}-\d{2}-\d{2}", current_date) is None:
+        return False
+    try:
+        date.fromisoformat(current_date)
+        target = context.get("target_created_at")
+        if target in (None, ""):
+            target = None
+        else:
+            if not isinstance(target, str) or re.fullmatch(
+                r"\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d{1,6})?(?:Z|\+00:00)", target
+            ) is None:
+                return False
+            target = datetime.fromisoformat(target.replace("Z", "+00:00")).astimezone(timezone.utc).isoformat().replace("+00:00", "Z")
+    except ValueError:
+        return False
+    if draft.get("time_context") != {"current_date": current_date, "target_created_at": target}:
+        return False
+    claims = draft.get("factual_claims")
+    if not isinstance(claims, list) or len(claims) > 2:
+        return False
+    reply = draft["proposed_reply"]
+    cursor = 0
+    bound_ids: set[str] = set()
+    for claim in claims:
+        if not isinstance(claim, dict) or set(claim) != {"text", "fact_ids"}:
+            return False
+        text, ids = claim.get("text"), claim.get("fact_ids")
+        if (
+            not isinstance(text, str) or not text
+            or not isinstance(ids, list) or not 1 <= len(ids) <= 32
+            or any(not isinstance(item, str) for item in ids)
+            or len(ids) != len(set(ids))
+        ):
+            return False
+        position = reply.find(text, cursor)
+        if (
+            position < 0
+            or (position and (not reply[position - 1].isspace()
+                             or not reply[:position].rstrip().endswith((".", "!", "?"))))
+            or (position + len(text) < len(reply)
+                and (not reply[position + len(text)].isspace()
+                     or not text.endswith((".", "!", "?"))))
+        ):
+            return False
+        cursor = position + len(text)
+        bound_ids.update(ids)
+    return bool(
+        bound_ids == set(draft["used_fact_ids"])
+        and (draft["reply_kind"] != "direct_factual" or bound_ids)
+    )
+
+
 def _legacy_single_sol_reply_draft_is_valid(
     data: dict,
     draft: dict,
@@ -652,6 +717,8 @@ def _legacy_single_sol_reply_draft_is_valid(
     _LEGACY_SINGLE_SOL_REPLY_STRATEGY_VERSION: str,
     _LEGACY_SINGLE_SOL_PROMPT_SHA256: str,
     _LEGACY_SINGLE_SOL_RESPONSE_SCHEMA_SHA256: str,
+    _LEGACY_SINGLE_SOL_SCHEMA4_PROMPT_SHA256: str,
+    _LEGACY_SINGLE_SOL_SCHEMA4_RESPONSE_SCHEMA_SHA256: str,
     _LEGACY_SINGLE_SOL_REPLY_KINDS: frozenset[str],
     _LEGACY_SINGLE_SOL_REASON_CODES: frozenset[str],
     _legacy_reply_utc_timestamp_is_valid: Callable,
@@ -665,13 +732,15 @@ def _legacy_single_sol_reply_draft_is_valid(
     SINGLE_CALL_MAX_IMAGE_BYTES: int,
 ) -> bool:
     schema_version = draft.get("draft_schema_version")
-    if type(schema_version) is not int or schema_version not in {1, 2, 3}:
+    if type(schema_version) is not int or schema_version not in {1, 2, 3, 4}:
         return False
     expected = set(_LEGACY_SINGLE_SOL_REPLY_DRAFT_FIELDS)
     if schema_version >= 2:
         expected.add("target_author_id")
-    if schema_version == 3:
+    if schema_version >= 3:
         expected.add("quoted_subject_sha256")
+    if schema_version == 4:
+        expected.update({"factual_claims", "time_context"})
     if set(draft) != expected:
         return False
     if (
@@ -681,9 +750,15 @@ def _legacy_single_sol_reply_draft_is_valid(
         or type(draft.get("temperature")) is not int
         or draft.get("temperature") != 1
         or draft.get("model_call_count") != 1
-        or draft.get("prompt_sha256") != _LEGACY_SINGLE_SOL_PROMPT_SHA256
+        or draft.get("prompt_sha256") != (
+            _LEGACY_SINGLE_SOL_SCHEMA4_PROMPT_SHA256
+            if schema_version == 4 else _LEGACY_SINGLE_SOL_PROMPT_SHA256
+        )
         or draft.get("response_schema_sha256")
-        != _LEGACY_SINGLE_SOL_RESPONSE_SCHEMA_SHA256
+        != (
+            _LEGACY_SINGLE_SOL_SCHEMA4_RESPONSE_SCHEMA_SHA256
+            if schema_version == 4 else _LEGACY_SINGLE_SOL_RESPONSE_SCHEMA_SHA256
+        )
         or draft.get("proposed_reply") != text
         or draft.get("reply_kind") not in _LEGACY_SINGLE_SOL_REPLY_KINDS
         or draft.get("reason_code") not in _LEGACY_SINGLE_SOL_REASON_CODES
@@ -731,7 +806,7 @@ def _legacy_single_sol_reply_draft_is_valid(
         or not _legacy_reply_sha256_is_valid(draft.get("model_payload_sha256"))
     ):
         return False
-    if schema_version == 3:
+    if schema_version >= 3:
         # This validator is exclusively for already-started lifecycle receipts;
         # it must never be used to approve a new send or recover a pending draft.
         from single_call_reply import _quoted_subject
@@ -754,6 +829,11 @@ def _legacy_single_sol_reply_draft_is_valid(
         or not set(used_ids).issubset(set(trusted_ids))
     ):
         return False
+    if schema_version == 4 and (
+        type(draft.get("model_call_count")) is not int
+        or not _legacy_single_sol_schema4_bindings_are_valid(draft, context)
+    ):
+        return False
     sources = draft.get("used_fact_sources")
     if not isinstance(sources, list) or len(sources) != len(used_ids):
         return False
@@ -774,7 +854,7 @@ def _legacy_single_sol_reply_draft_is_valid(
     saw_quoted = False
     for binding in image_bindings:
         image_fields = {"identity", "sha256", "mime_type", "byte_count"}
-        if schema_version == 3:
+        if schema_version >= 3:
             image_fields.update({"attachment_role", "source_post_id"})
         if (
             not isinstance(binding, dict)
@@ -787,7 +867,7 @@ def _legacy_single_sol_reply_draft_is_valid(
             or not 1 <= binding["byte_count"] <= SINGLE_CALL_MAX_IMAGE_BYTES
         ):
             return False
-        if schema_version == 3:
+        if schema_version >= 3:
             from single_call_reply import quoted_post_reference_id
             if binding.get("attachment_role") == "target_contribution":
                 if saw_quoted or binding.get("source_post_id") != context.get("target_id"):

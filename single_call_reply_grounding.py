@@ -1,58 +1,15 @@
-"""Conservative, local factual authority for the one-call reply contract.
+"""Deterministic checks on the one-call model's declared factual inventory.
 
-No lexical-overlap or model label is treated as entailment. Every complete
-sentence must either belong to a small premise-neutral conversational grammar
-or reproduce a complete supplied fact passage. Whole-passage matching avoids
-turning a denied, quoted or conditional fragment into an asserted fact. This
-intentionally rejects unsupported paraphrases; a second model is never called.
+The model identifies factual assertions and assesses meaning. Local checks bind
+declared spans to exact supplied passages; they neither classify the remaining
+prose nor prove inventory completeness or arbitrary semantic entailment. Natural
+non-factual conversation has no vocabulary restriction. No second model is called.
 """
 from __future__ import annotations
 
 import re
 from collections.abc import Mapping
 from datetime import date, datetime, timezone
-
-# Closed phrases: no arbitrary captured prose that can conceal an assertion.
-_SOCIAL = frozenset({
-    'thank you', 'thanks', 'thank you for your kind words', 'you are welcome',
-    "you're welcome", 'my condolences', 'i am sorry for your loss',
-    "i'm sorry for your loss", 'wishing you well', 'take care', 'well said',
-    'fair enough', 'i disagree', 'i agree', 'i see your point', 'a fair question',
-    'could you clarify your question', 'what do you mean',
-    'which principle do you have in mind', 'what would you prefer',
-    'i cannot verify that claim from the supplied evidence',
-    'i would want evidence before accepting that claim',
-    'a little less rhetoric, please', 'let us disagree civilly',
-    'let us keep the discussion civil', 'thank you for saying so',
-    'thank you for the observation', 'thank you for sharing', 'thanks for sharing',
-    'thanks for your kind words', 'my sympathies', 'i hope things get easier for you',
-    'i hope tomorrow is kinder', 'wishing you strength', 'you have my sympathy',
-    'i appreciate your point', 'i appreciate the distinction', 'i respect your view',
-    'please take care', 'that sounds difficult',
-})
-_VALUES = (
-    'responsibility|rhetoric|freedom|liberty|accountability|fairness|kindness|'
-    'honesty|evidence|civil disagreement|individual choice|personal responsibility|'
-    'sound judgement|principle|principles|respect|dignity|compassion|prudence|'
-    'conviction|debate|clarity|restraint|patience|courtesy|tolerance|judgement|judgment|appearances'
-)
-_VALUE_OPINION = re.compile(
-    rf'(?:(?:i value|i favour|i prefer|we should value|we should respect) (?:{_VALUES})'
-    rf'|(?:{_VALUES}) (?:matters|matter)(?: more than (?:{_VALUES}))?'
-    rf'|(?:{_VALUES}) (?:should|must) (?:matter|come first))', re.IGNORECASE,
-)
-
-
-def reply_sentences(text: str) -> list[str]:
-    """Partition all prose without dropping unclassified punctuation or clauses."""
-    return [part.strip() for part in re.split(r'(?<=[.!?])\s+', text) if part.strip()]
-
-
-def is_premise_neutral(sentence: str) -> bool:
-    """Accept only closed conversational phrases or abstract value judgements."""
-    prose = sentence.strip().rstrip('.!?').casefold()
-    return prose in _SOCIAL or _VALUE_OPINION.fullmatch(prose) is not None
-
 
 _CONTEXT_DEPENDENT_FACT = re.compile(
     r"\b(?:i|we|you|he|she|it|they|me|us|him|her|them|my|our|your|his|its|their|"
@@ -63,14 +20,13 @@ _CONTEXT_DEPENDENT_FACT = re.compile(
 
 
 def grounding_errors(reply: str, claims: object, used_ids: list[str], facts: object) -> list[str]:
-    """Require complete inventory and whole-passage evidence for every assertion."""
+    """Check declared spans and exact evidence, not undeclared prose or meaning."""
     if not isinstance(claims, list) or len(claims) > 2:
         return ['invalid_factual_claims']
     facts_by_id = {
         row.get('id'): row.get('passage') for row in facts
         if isinstance(row, Mapping)
     } if isinstance(facts, list) else {}
-    uncovered: list[str] = []
     cursor = 0
     bound_ids: set[str] = set()
     for claim in claims:
@@ -91,19 +47,14 @@ def grounding_errors(reply: str, claims: object, used_ids: list[str], facts: obj
                     and (not reply[position + len(text)].isspace()
                          or not text.endswith(('.', '!', '?'))))):
             return ['factual_claim_inventory_mismatch']
-        uncovered.append(reply[cursor:position])
         cursor = position + len(text)
         bound_ids.update(ids)
-        # Exact complete passage equality is deliberately stricter than substring
-        # or token overlap. It preserves polarity, attribution and qualifications.
+        # A conservative equality check, not a semantic entailment claim. The
+        # model must still assess relevance, meaning and inventory completeness.
         if (_CONTEXT_DEPENDENT_FACT.search(text)
                 or any(facts_by_id.get(fact_id) != text for fact_id in ids)):
             return ['unsupported_factual_claim']
     errors = []
-    uncovered.append(reply[cursor:])
-    if any(not is_premise_neutral(sentence)
-           for gap in uncovered for sentence in reply_sentences(gap)):
-        errors.append('factual_claim_inventory_mismatch')
     if bound_ids != set(used_ids):
         errors.append('factual_claim_fact_ids_mismatch')
     return errors

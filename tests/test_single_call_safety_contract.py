@@ -1,4 +1,4 @@
-"""Regressions for local authority after the sole model call; no network I/O."""
+"""Regressions for declared evidence, media and time after one call; no network."""
 import copy
 import io
 import json
@@ -56,13 +56,17 @@ def test_time_context_is_bound_to_payload():
     assert pipeline.value_sha256(payload) != pipeline.value_sha256(other)
 
 
-@pytest.mark.parametrize('kind', [kind for kind in pipeline.REPLY_KINDS if kind != 'no_reply'])
-def test_omitted_claim_inventory_does_not_hide_assertion(kind):
-    """Inventory completeness is determined locally independently of model label."""
+@pytest.mark.parametrize('kind', [kind for kind in pipeline.REPLY_KINDS if kind not in {'no_reply', 'direct_factual'}])
+def test_undeclared_factual_assertion_exposes_model_judgement_limit(kind):
+    """An omitted assertion violates the prompt but is not detected semantically.
+
+    This deliberately bad mocked inventory documents the limit, not an approved
+    editorial decision or evidence that a model follows the instruction. The old
+    test claimed universal local detection by rejecting all unfamiliar prose.
+    """
     raw = json.loads(raw_decision(kind=kind, reply='Britain joined the European Economic Community in 1873.'))
     raw['factual_claims'] = []
-    with pytest.raises(pipeline.ReplyValidationError):
-        pipeline.validate_model_output(json.dumps(raw), payload=payload_with_fact())
+    assert pipeline.validate_model_output(json.dumps(raw), payload=payload_with_fact())['factual_claims'] == []
 
 
 def test_supported_fact_and_hash_binding_survive_recovery():
@@ -89,15 +93,15 @@ def test_supported_fact_and_hash_binding_survive_recovery():
 
 @pytest.mark.parametrize('text', ['Thank you.', 'I am sorry for your loss.', 'Responsibility matters more than rhetoric.', 'I favour individual choice.', 'What do you mean?', 'Fair enough. Take care.'])
 def test_premise_neutral_conversation_remains_usable(text):
-    """Closed conversational and abstract-value forms need no external evidence."""
+    """Conversational replies with an empty declared inventory remain usable."""
     assert pipeline.validate_model_output(raw_decision(reply=text), payload=payload_with_fact())['reply'] == text
 
 
 @pytest.mark.parametrize('text', ['I think Britain joined the EEC in 1873.', 'Kindness matters because it prevents all crime.', 'Thank you, Thatcher invented ice cream.', 'Liberty matters; Britain joined the EEC in 1873.', 'Britain did not join the EEC in 1973.'])
-def test_opinion_prefix_or_extra_clause_does_not_authorise_a_fact(text):
-    """A social preface, negation or subjective label cannot conceal a claim."""
+def test_opinion_prefix_or_extra_clause_does_not_authorise_a_declared_fact(text):
+    """A subjective prefix cannot prove support for an inventoried claim."""
     with pytest.raises(pipeline.ReplyValidationError):
-        pipeline.validate_model_output(raw_decision(reply=text), payload=payload_with_fact())
+        pipeline.validate_model_output(raw_decision(reply=text, facts=['F1']), payload=payload_with_fact())
 
 
 @pytest.mark.parametrize('target', ['2026-09-03T10:20:30', '2026-09-03 10:20:30Z', '2026-09-03T10:20:30+01:00', '2026-02-30T00:00:00Z'])

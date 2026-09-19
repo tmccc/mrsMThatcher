@@ -5,6 +5,7 @@ from __future__ import annotations
 import copy
 import dataclasses
 import hashlib
+import re
 from datetime import datetime
 from unittest.mock import Mock
 
@@ -126,12 +127,12 @@ def unit_approved_reply(
 ) -> ValidatedReply:
     """Return one locally validated single-call reply and durable draft."""
 
-    from single_call_reply_grounding import is_premise_neutral, reply_sentences
-
-    factual_sentences = [part for part in reply_sentences(text) if not is_premise_neutral(part)]
-    # These fixtures intentionally ask for arbitrary test prose. Give each
-    # asserted sentence explicit synthetic evidence, just as real drafts require;
-    # do not disable the factual gate to manufacture a validated result.
+    # This fixture declares facts explicitly; it does not classify arbitrary
+    # prose or stand in for a model's editorial judgement.
+    factual_sentences = (
+        [part.strip() for part in re.split(r'(?<=[.!?])\s+', text) if part.strip()]
+        if factual or mode == "direct_factual_answer" else []
+    )
     fixture_repository = UnitReplyEvidenceRepository()
     fixture_passages = [
         dataclasses.replace(fixture_repository.passage,

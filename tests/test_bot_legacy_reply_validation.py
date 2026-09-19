@@ -51,7 +51,7 @@ assert 'single_call_reply' not in sys.modules
     )
     assert result.returncode == 0, result.stderr + result.stdout
     constants = {name: value for name, value in vars(legacy).items() if name.startswith("_LEGACY_")}
-    assert len(constants) == 17
+    assert len(constants) == 19
     for name, value in constants.items():
         assert type(value) in {str, frozenset}
         assert getattr(bot, name) is value

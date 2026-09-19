@@ -13,6 +13,7 @@ import pytest
 
 from tests.helpers.bot_runtime import bot
 from tests.helpers.single_call_fixtures import FakeHttpResponse, FakeRepository, context, enabled_config, raw_decision, response_envelope, valid_png
+from tests.test_single_call_conversation_contract import NATURAL_REPLIES
 
 
 def configure(monkeypatch, responses):
@@ -39,6 +40,19 @@ def configure(monkeypatch, responses):
     monkeypatch.setattr(bot.requests, 'post', post)
     monkeypatch.setattr(bot, 'save_state', lambda state, **_: saves.append(copy.deepcopy(state)))
     return calls, sleeps, saves
+
+
+@pytest.mark.parametrize('kind,text', NATURAL_REPLIES)
+def test_real_root_adapter_accepts_natural_conversation_in_one_call(monkeypatch, kind, text):
+    """A mocked editorial decision reaches a bound draft without another call."""
+    response = response_envelope(raw_decision(kind=kind, reply=text))
+    calls, sleeps, _ = configure(monkeypatch, [FakeHttpResponse(200, body=response)])
+    result = bot.evaluate_single_call_reply(context(), state=bot.default_state())
+    assert result.status == 'reply'
+    assert str(result.reply) == text
+    assert result.reply.draft_record['factual_claims'] == []
+    assert result.reply.draft_record['model_call_count'] == 1
+    assert len(calls) == 1 and sleeps == []
 
 
 @pytest.mark.parametrize('headers, delay', [({'Retry-After': '1'}, 1), ({'Retry-After': '0.2'}, 1), ({'x-ratelimit-reset-requests': '500ms'}, 1)])

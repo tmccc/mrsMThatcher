@@ -4,7 +4,9 @@ Reviewed the remediation diff against starting commit
 `47352f37faa0d8cf967c9179e9b9369ac92bc0ec`, including the source changes, security
 assertions and test-fixture migrations. This record covers the review work and
 observed focused results; repository-wide acceptance results are recorded by the
-integrating agent.
+integrating agent. The later natural-conversation follow-up removes the closed
+grammar; inventory completeness and semantic judgement are model responsibilities,
+not guarantees established by this local audit. See the current README contract.
 
 Reviewed boundaries:
 
@@ -12,7 +14,7 @@ Reviewed boundaries:
   exact receipt digests, composite state/history proofs, and authority checks at
   journal/source retirement mutations. Legacy backup numbering alone cannot
   establish freshness. Reader-version 5 fences prevent unsafe older readers.
-- Single-call factual inventory completeness, whole-passage evidence, deictic
+- Single-call declared inventory integrity, whole-passage evidence, deictic
   rejection, UTC hash binding, draft-v4 rejection of old pending work, frozen-v3
   receipt recovery, complete image decoding and recovered-429 accounting.
 - Public URL syntax, every redirect hop, mixed DNS answers, pinned connections,

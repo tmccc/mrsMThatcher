@@ -1,0 +1,170 @@
+{
+  "source_commit": "a4639e7c",
+  "cases": [
+    {
+      "case_id": "social",
+      "sending_receipt": {
+        "schema_version": 4,
+        "target_id": "100",
+        "author_id": "200",
+        "candidate_source": "mention",
+        "conversation_id": "100",
+        "reply_text": "Thank you for the observation.",
+        "reply_context": {
+          "target_id": "100",
+          "thread_id": "100",
+          "root_post_id": "100",
+          "parent_post_id": null,
+          "lane": "mention",
+          "incoming_contribution": "A contribution.",
+          "quoted_post": null,
+          "parent_thread": [],
+          "visible_conversation": [
+            {
+              "post_id": "100",
+              "author_role": "user",
+              "text": "A contribution."
+            }
+          ],
+          "visual_description": null,
+          "clarification_request": null,
+          "current_date": "2026-07-20",
+          "target_author_id": "200",
+          "target_created_at": "2026-07-20T12:00:00Z"
+        },
+        "ai_reply_draft": {
+          "draft_schema_version": 4,
+          "strategy_version": "single-sol-reply-20260904",
+          "target_id": "100",
+          "target_author_id": "200",
+          "root_post_id": "100",
+          "parent_post_id": null,
+          "candidate_source": "mention",
+          "incoming_contribution_sha256": "0e16364f73da83630f743f04aef446711097115f9f082ae0123a1a62abc92d57",
+          "canonical_visible_context_sha256": "7cb6c29ac0628fa6ec53cb82f10d9c8165e7688e28012068241b59664ddebe94",
+          "quoted_subject_sha256": null,
+          "model_payload_sha256": "61f8b870d416ec1e726414f7c68a9147142315fedafb70be5e96caffd2c22b2c",
+          "prompt_sha256": "21986468ecdfe0e38a5c4c15bb6b52323e38d5a6a1d7ed79befb0829a9942b19",
+          "response_schema_sha256": "6ddc2a1d5af7b3c66af2a3e8d9c357c7fc86198553b8be1db2f263751842cbd4",
+          "model": "gpt-5.6-sol",
+          "reasoning_effort": "high",
+          "temperature": 1,
+          "proposed_reply": "Thank you for the observation.",
+          "reply_kind": "social",
+          "reason_code": "useful_reply",
+          "trusted_fact_ids": [
+            "F1"
+          ],
+          "used_fact_ids": [],
+          "factual_claims": [],
+          "time_context": {
+            "current_date": "2026-07-20",
+            "target_created_at": "2026-07-20T12:00:00Z"
+          },
+          "used_fact_sources": [],
+          "supplied_images": [],
+          "model_call_count": 1,
+          "created_at": "2026-09-19T12:00:00Z",
+          "validated_draft_hash": "e83c6e666a8b702ecc6b5d266fdc81244a1874c764f9159c927194e908df759a"
+        },
+        "lifecycle_state": "sending",
+        "attempt_epoch": 1790000000,
+        "reply_epoch": 1790000000,
+        "daily_reply_date": "2026-09-21"
+      },
+      "source_receipt_sha256": "449d5d9d9347d2b40168074218ceeeafa9ba2cb60945e4911837e97c8f094f98",
+      "reply_post_id": "9100",
+      "confirmation_epoch": 1790000005
+    },
+    {
+      "case_id": "factual",
+      "sending_receipt": {
+        "schema_version": 4,
+        "target_id": "100",
+        "author_id": "200",
+        "candidate_source": "mention",
+        "conversation_id": "100",
+        "reply_text": "People moved from East Germany towards West Germany in November 1989.",
+        "reply_context": {
+          "target_id": "100",
+          "thread_id": "100",
+          "root_post_id": "100",
+          "parent_post_id": null,
+          "lane": "mention",
+          "incoming_contribution": "A contribution.",
+          "quoted_post": null,
+          "parent_thread": [],
+          "visible_conversation": [
+            {
+              "post_id": "100",
+              "author_role": "user",
+              "text": "A contribution."
+            }
+          ],
+          "visual_description": null,
+          "clarification_request": null,
+          "current_date": "2026-07-20",
+          "target_author_id": "200",
+          "target_created_at": "2026-07-20T12:00:00Z"
+        },
+        "ai_reply_draft": {
+          "draft_schema_version": 4,
+          "strategy_version": "single-sol-reply-20260904",
+          "target_id": "100",
+          "target_author_id": "200",
+          "root_post_id": "100",
+          "parent_post_id": null,
+          "candidate_source": "mention",
+          "incoming_contribution_sha256": "0e16364f73da83630f743f04aef446711097115f9f082ae0123a1a62abc92d57",
+          "canonical_visible_context_sha256": "7cb6c29ac0628fa6ec53cb82f10d9c8165e7688e28012068241b59664ddebe94",
+          "quoted_subject_sha256": null,
+          "model_payload_sha256": "61f8b870d416ec1e726414f7c68a9147142315fedafb70be5e96caffd2c22b2c",
+          "prompt_sha256": "21986468ecdfe0e38a5c4c15bb6b52323e38d5a6a1d7ed79befb0829a9942b19",
+          "response_schema_sha256": "6ddc2a1d5af7b3c66af2a3e8d9c357c7fc86198553b8be1db2f263751842cbd4",
+          "model": "gpt-5.6-sol",
+          "reasoning_effort": "high",
+          "temperature": 1,
+          "proposed_reply": "People moved from East Germany towards West Germany in November 1989.",
+          "reply_kind": "direct_factual",
+          "reason_code": "useful_reply",
+          "trusted_fact_ids": [
+            "F1"
+          ],
+          "used_fact_ids": [
+            "F1"
+          ],
+          "factual_claims": [
+            {
+              "fact_ids": [
+                "F1"
+              ],
+              "text": "People moved from East Germany towards West Germany in November 1989."
+            }
+          ],
+          "time_context": {
+            "current_date": "2026-07-20",
+            "target_created_at": "2026-07-20T12:00:00Z"
+          },
+          "used_fact_sources": [
+            {
+              "fact_id": "F1",
+              "source_identity": "8aeb57bbe62bfdfc0e03e1c22e91e3ee36ed67179b3981f3f259a8975a34f7f0",
+              "source_record_sha256": "b80760330bc357470dfd8d01461453ccf996df4d9c3663d53c1250c8342f1465"
+            }
+          ],
+          "supplied_images": [],
+          "model_call_count": 1,
+          "created_at": "2026-09-19T12:00:00Z",
+          "validated_draft_hash": "9dea156abc7603aed40aefd16528eae77001c6914caa92a9c5689c0fcef3f022"
+        },
+        "lifecycle_state": "sending",
+        "attempt_epoch": 1790000000,
+        "reply_epoch": 1790000000,
+        "daily_reply_date": "2026-09-21"
+      },
+      "source_receipt_sha256": "4d26048c7bb72698365f07064b3a4c45356ca30c49c72458f34845a98cf5fc6e",
+      "reply_post_id": "9101",
+      "confirmation_epoch": 1790000005
+    }
+  ]
+}

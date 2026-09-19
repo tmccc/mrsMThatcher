@@ -69,12 +69,12 @@ fallback, reviewer or secondary conversational provider path.
 - Storage: `false`
 - Output: strict `json_schema` named `single_call_reply_decision`
 - Tools: none
-- Prompt cache key: `mrsMThatcher-single-sol-7bfa91fb2d9b1175`
+- Prompt cache key: `mrsMThatcher-single-sol-a0a124490144f2ed`
 - Prompt cache: options explicitly supplied in implicit mode with a 30-minute TTL
 - Frozen prompt SHA-256:
-  `7bfa91fb2d9b1175560abb33e43f2ced6910d8e63cadd1f8f04935b6dc2f2560`
+  `a0a124490144f2ed2bfff85362d96d5b9853204554752758d29ababbe0fbdbdd`
 - Frozen local schema SHA-256:
-  `3b1e23015cebe3b75eacde04ebfd4344fa25117f047cdcf83241b0ce709872ce`
+  `6ddc2a1d5af7b3c66af2a3e8d9c357c7fc86198553b8be1db2f263751842cbd4`
 
 Only OpenAI's unsupported provider-side `uniqueItems` keyword is omitted from
 the request schema; fact-ID uniqueness remains mandatory locally. Candidate
@@ -144,10 +144,13 @@ attachment metadata that cannot be resolved to a validated image is an
 operational image-input failure rather than a silent text-only downgrade.
 
 No model reviewer or semantic claim-veto call was reintroduced. The local
-boundary proves that any cited fact ID was supplied and that a
-`direct_factual` reply cites at least one such fact; semantic entailment remains
-part of the single Sol decision under the frozen prompt, as required by the
-one-call contract. The retained claim-risk detector is telemetry only.
+boundary checks declared claim spans, supplied fact IDs, exact whole-passage
+support and durable evidence hashes. Natural non-factual prose has no closed
+vocabulary. The single Sol decision remains responsible for identifying every
+factual assertion regardless of reply kind and assessing meaning; deterministic
+checks cannot detect every omitted assertion or prove arbitrary semantic
+entailment. These checks do not guarantee hallucination-free replies. The
+retained claim-risk detector is telemetry only.
 
 The existing mention-author quarantine remains ahead of context, evidence,
 media and provider work. Only a mechanically valid editorial `no_reply` with
@@ -166,10 +169,13 @@ validated-reply clearing point and exact expiry boundary remain unchanged. Conte
 names the history metric `recent_conversational_reply_count`; it logs counts
 and hashes, never history prose, fact passages or image content.
 
-The new draft schema is version 3 and binds the target author as well as target,
+The current draft schema is version 4 and binds the target author as well as target,
 root, parent and lane; the outer receipt author must equal the context author.
 This prevents corrupt recovery from assigning confirmed prose or quota effects
-to the wrong contributor. The digest treats duplicate provider-usage events or
+to the wrong contributor. It also binds the declared factual inventory and UTC
+context. A changed prompt invalidates obsolete unsent drafts; frozen validation
+retains prior schema-4 receipts from `a4639e7` and older supported lifecycles for
+local reconciliation only, without regenerating or reposting started work. The digest treats duplicate provider-usage events or
 more than the one explicitly authorised transport retry as a one-call
 violation, without simultaneously counting that candidate as compliant. A
 physical attempt count of two is compliant only for the bounded pre-execution

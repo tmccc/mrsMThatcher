@@ -5,38 +5,43 @@ The defects were reproduced against the starting HEAD
 already fixed. All tests used generated data, local doubles, temporary state or
 the loopback fake API. No live provider request or chargeable operation was used.
 
-## 4. Local factual authority after the one model call
+## 4. Declared factual claims after the one model call
 
-The old validator checked only fact-ID membership and required a fact ID for
-`direct_factual`. Consequently, an unrelated `F1` authorised the false EEC/1873
-sentence, and non-factual labels bypassed even that requirement.
+The initial remediation at `a4639e7` attempted to determine inventory completeness
+by requiring all remaining prose to match a closed conversational grammar. That
+rejected natural courtesies, opinions and humour. The follow-up removes that
+restriction; this section describes the resulting contract.
 
-`single_call_reply_grounding.py` now independently accounts for all reply text.
-A `factual_claims` inventory explicitly binds each asserted passage to fact IDs.
-Each declared claim must equal a complete trusted passage, and every remaining
-piece of reply text must match a closed, premise-neutral conversational grammar.
-Claim spans cannot be embedded inside another clause. An omitted assertion,
-unknown paraphrase, wrong passage, extra causal clause or label change fails
-closed. Explicit pronouns and relative temporal expressions in factual passages
-are rejected because copying text cannot transfer an unproved referent or date.
+The same single model call identifies factual assertions, assesses their support
+and chooses whether to reply. The prompt requires an inventory in every reply
+kind, prohibits invented facts and unsupported premises, and prefers a useful
+non-factual response, clarification or silence when evidence is inadequate.
+Non-factual prose has no fixed vocabulary or template requirement.
 
-This is deliberately conservative: lexical similarity is not entailment, and
-unsupported paraphrases are rejected without another model call. Ordinary
-courtesies, clarification questions and abstract value judgements remain usable.
-The implementation does not load or revive the retired multi-model pipeline.
+`single_call_reply_grounding.py` checks declared claim structure, exact ordered
+spans, fact-ID correspondence and whole-passage equality. The existing conservative
+restriction on context-dependent factual passages remains. These are deterministic
+contract checks, not general semantic entailment or reliable detection of omitted
+assertions. Neither a subjective prefix nor a reply-kind label establishes support.
+A model can still omit or misinterpret a factual assertion; this does not guarantee
+hallucination-free replies. No extra model or retrieval call was introduced.
 
-`single_call_reply.py` owns the new structured response schema, validates again
-at durable-draft creation, and hashes the full factual inventory together with
-exact source-record identities/digests. Recovery rechecks source records and the
-claim-to-passage bindings. `single_call_reply_validation.py` gives the new
-failures stable diagnostic codes. Prompt/schema hashes and the prompt cache key
-changed; the configured strategy/model remain unchanged.
+Draft schema 4 still hashes the declared inventory, exact source-record bindings,
+UTC context and all reply text. The schema shape/hash is unchanged; the prompt
+hash and cache key change. Obsolete unsent drafts fail current validation and use
+the established regeneration path. Frozen schema-4 receipt validation preserves
+already-started and confirmed `a4639e7` transactions alongside older supported
+receipts, without re-evaluating past evidence availability or authorising a repost.
+Exact receipt/journal identities and state generation proofs remain mandatory.
 
-Regression coverage includes every public reply kind, missing inventories,
-unrelated existing fact IDs, correct historical facts, hidden causal assertions,
-hash tampering, evidence changes and real root-adapter calls. An independent
-review additionally found the pronoun/date-copy issue; dedicated independent
-regressions now cover it.
+The old test claiming local detection of every omitted assertion is explicitly
+replaced by a test documenting that limitation. Prefix/extra-clause tests now
+exercise declared claims. Natural conversation, mixed factual/conversational
+replies, malformed inventories, unknown IDs, span mismatches, changed evidence,
+mechanical limits, root adapters and frozen recovery receive focused coverage.
+Mocked responses test the contract, not the model's judgement; no paid evaluation
+was performed. The earlier test results below remain historical implementation
+records, not measurements of the revised model's editorial behaviour.
 
 ## 5. Trusted UTC time context
 

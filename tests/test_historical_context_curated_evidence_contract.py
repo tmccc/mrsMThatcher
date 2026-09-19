@@ -191,3 +191,62 @@ def test_source_role_audit_cannot_blindly_promote_mismatched_exact_wording():
             attribution_eligible=True,
             curated_evidence_item={"sources": [copy.deepcopy(source)]},
         )
+
+
+def _archived_source(packet: dict, policy: object) -> dict:
+    """Create otherwise valid archival evidence carrying a fetch-policy version."""
+    source = _source(packet)
+    canonical = 'https://www.margaretthatcher.org/document/103384'
+    source.update(
+        url=canonical, canonical_url=canonical,
+        source_publisher='Margaret Thatcher Foundation',
+        retrieval_archive='Internet Archive Wayback Machine',
+        transport_url='https://web.archive.org/web/20200102030405id_/' + canonical,
+        archive_capture_timestamp='20200102030405', archive_capture_digest='A' * 32,
+        fetch_policy_version=policy, page_sha256='b' * 64, page_text_sha256='c' * 64,
+        source_date_raw=packet['date'], date=packet['date'],
+    )
+    return source
+
+
+@pytest.mark.parametrize('policy', [
+    'historical-context-restricted-fetch-v5', 'historical-context-restricted-fetch-v6',
+])
+def test_public_curated_validator_retains_compatible_fetch_policy_versions(policy):
+    """Previously admitted archival retrievals remain valid without corpus rewrites."""
+    packet = _packet()
+    validate_curated_evidence(_manifest(packet, _archived_source(packet, policy)), {QUOTE_ID: packet})
+
+
+def test_public_curated_validator_accepts_current_research_fetch_policy():
+    """The producer's current explicit version is understood by its runtime consumer."""
+    from historical_context_search_research import FETCH_POLICY_VERSION
+    packet = _packet()
+    validate_curated_evidence(
+        _manifest(packet, _archived_source(packet, FETCH_POLICY_VERSION)), {QUOTE_ID: packet},
+    )
+
+
+@pytest.mark.parametrize('policy', [
+    'historical-context-restricted-fetch-v8', 'historical-context-restricted-fetch-v7-extra',
+    'historical-context-restricted-fetch-v7 ', '', None, 7, [], {},
+])
+def test_public_curated_validator_rejects_unknown_or_malformed_fetch_policy(policy):
+    """Compatibility stays an explicit allow-list with fail-closed malformed metadata."""
+    packet = _packet()
+    with pytest.raises(RuntimeError, match='curated source is invalid'):
+        validate_curated_evidence(_manifest(packet, _archived_source(packet, policy)), {QUOTE_ID: packet})
+
+
+@pytest.mark.parametrize('field,value', [
+    ('page_sha256', 'not-a-hash'), ('archive_capture_timestamp', '20200102030406'),
+    ('canonical_url', 'https://example.test/another-document'),
+])
+def test_v7_fetch_policy_does_not_relax_archival_provenance(field, value):
+    """Recognising v7 leaves document, capture and content-hash identity checks intact."""
+    from historical_context_search_research import FETCH_POLICY_VERSION
+    packet = _packet()
+    source = _archived_source(packet, FETCH_POLICY_VERSION)
+    source[field] = value
+    with pytest.raises(RuntimeError, match='curated source is invalid'):
+        validate_curated_evidence(_manifest(packet, source), {QUOTE_ID: packet})

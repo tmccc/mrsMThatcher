@@ -68,6 +68,12 @@ python3 tools/check_python_documentation.py
 MRS_TEST_MODE=1 PYTEST_DISABLE_PLUGIN_AUTOLOAD=1 python3 -m pytest -q
 ```
 
+Production corpus validation needs only `requirements.txt`. HTML/PDF extraction
+and research-provider dependencies remain behind explicit offline retrieval
+boundaries and belong in `requirements-dev.txt`. Saved curated evidence accepts
+fetch-policy versions v5, v6 and v7 under the same publisher, archive-capture and
+content-hash checks; unknown or malformed versions are rejected.
+
 On the four-core production host, the coverage-equivalent fast path uses four
 isolated pytest workers:
 
@@ -432,7 +438,7 @@ never shortened away. The reviewed corpus fits below 650 weighted characters.
 Mention, quote-tweet and hot-post replies use one production strategy. Existing
 deterministic eligibility and scheduling run first; the bot then assembles
 bounded conversation context and locally retrieved trusted facts, makes one
-OpenAI Responses API call, applies local schema, factual and mechanical validation, and passes a
+OpenAI Responses API call, checks schema, declared evidence and mechanical limits, and passes a
 valid reply to the existing durable X-write path. A valid `no_reply` is the
 editorial decision. Provider, schema and local-validation failures are
 operational failures and do not count as editorial declines.
@@ -460,18 +466,33 @@ There is no shadow, fallback, reviewer, secondary provider, claim-audit call,
 repair call or separate visual-description call. An image-bearing candidate
 supplies up to two locally validated images in the same Sol request.
 
-Every checkable assertion must appear in `factual_claims` with exact reply text
-and supporting `fact_ids`. Each claim must copy a complete trusted passage;
-unknown paraphrases, omitted claims and context-dependent pronouns or relative
-dates fail closed. Fact IDs alone and the model's `reply_kind` do not grant
-factual authority. A small closed grammar keeps ordinary courtesies, clarification
-questions and abstract value judgements available without external evidence.
-Unsupported prose is rejected locally without another model call.
+The single model call must identify every checkable assertion, assess its support
+and list it in `factual_claims` regardless of `reply_kind`. An opinion or joke can
+still contain facts. The prompt forbids invented facts and accepting unsupported
+premises. When evidence is inadequate, it favours a useful non-factual response,
+clarification or sensible silence. Natural courtesies, sympathy, opinions,
+disagreement and humour have no closed vocabulary or template requirement.
 
-Draft schema 4 binds the full claim inventory, source-record hashes and UTC
+Deterministic validation checks the structured inventory, exact ordered claim
+spans, fact-ID membership, evidence identity and durable hashes. Declared facts
+must still copy a complete trusted passage; context-dependent pronouns and
+relative dates in those passages are conservatively rejected. These checks do
+not establish arbitrary semantic entailment, classify the remaining prose or
+detect every omitted assertion. The model remains responsible for meaning and
+inventory completeness. Fact IDs, subjective prefixes and reply-kind labels
+are not evidence of support. This design does not guarantee hallucination-free
+replies. Length, sentence, duplicate, link, mention, hashtag and emoji limits
+remain mandatory for all prose.
+
+Draft schema 4 binds the declared claim inventory, source-record hashes and UTC
 `time_context` to its hash. A changed UTC date or source timestamp invalidates a
-pending draft. Old schema-3 pending drafts are discarded; frozen validation still
-permits reconciliation of already-started or confirmed schema-3 receipts.
+pending draft. The natural-conversation change updates the prompt hash/cache key
+without changing schema shape, model or reasoning settings. Obsolete unsent
+drafts are discarded through existing regeneration logic. Frozen validation
+preserves already-started and confirmed receipts, including schema-4 drafts from
+`a4639e7`; a prompt change cannot authorise regeneration or reposting of those
+transactions. Exact receipt/journal bindings and durable retirement proofs remain
+required. Older supported receipt lifecycles remain recoverable too.
 
 Image downloads require exact declared lengths and complete Pillow decoding,
 with limits of 8,192 pixels per dimension, 16 million pixels per frame, 32 frames

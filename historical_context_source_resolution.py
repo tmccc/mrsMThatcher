@@ -15,9 +15,6 @@ from pathlib import Path
 from typing import Any, Callable
 from urllib.parse import unquote_plus, urlsplit, urlunsplit
 
-from public_source_fetch import fetch_public, is_google_grounding_url
-
-
 RESOLUTION_SCHEMA_VERSION = 1
 RESOLUTION_POLICY_VERSION = (
     "saved-grounding-redirect-resolution-v2-transient-query-redaction"
@@ -37,6 +34,20 @@ _SIGNED_QUERY_KEYS = frozenset({
     "googleaccessid",
     "signature",
 })
+
+
+def is_google_grounding_url(url: str) -> bool:
+    """Recognise Google's exact HTTPS endpoint without importing retrieval tools."""
+    try:
+        parsed = urlsplit(url)
+        return (
+            parsed.scheme == "https"
+            and parsed.netloc == _REDIRECT_HOST
+            and re.fullmatch(r"/grounding-api-redirect/[A-Za-z0-9_-]+", parsed.path) is not None
+            and not parsed.fragment
+        )
+    except ValueError:
+        return False
 
 
 def _canonical_json(value: Any) -> bytes:
@@ -234,6 +245,10 @@ def _fetch_one(
         "retrieved_at": _utc_now(),
     }
     try:
+        # Runtime corpus validation uses only saved resolution data. Keep the
+        # offline research/parser stack behind the explicit retrieval boundary.
+        from public_source_fetch import fetch_public
+
         response = fetch_public(url, request=request, max_bytes=MAXIMUM_BODY_BYTES)
         content = bytearray()
         truncated = False

@@ -27,7 +27,7 @@ None of the thirteen findings had already been fixed at the starting HEAD.
 | 1 | Primary and latest backup had no generation ordering; post-confirmation cleanup could discard recovery evidence after a backup failure. | Embedded monotonic sequence and content digest, reader-v5 fence, locked migration, newest complete generation selection/repair, exact fsynced commit proofs, composite emergency state/history result. Ambiguous legacy authority fails closed. |
 | 2 | Writer accepted non-finite JSON, reader-incompatible schema and oversized output. | Canonical `allow_nan=False` UTF-8 bytes, complete reader validation and exact encoded-size checks before any durable change. Unbounded identity collections retain entries and fail before the 64 MiB ceiling; used histories have the same precommit ceiling. |
 | 3 | Content-only proof followed symlinks, some durable authorities accepted writable files, and consumed media capabilities leaked. | Existing secure no-follow primitives, owned/protected directories, stable metadata and byte proofs at retirement transitions; private receipt readers; exact consumed-entry removal that cannot delete newer authority. |
-| 4 | Model label and fact-ID membership were mistaken for evidence support. | Complete claim inventory, whole trusted-passage equality and local classification of all remaining text; closed premise-neutral conversational grammar; unsupported prose fails locally. Draft-v4 hashes bind claims and exact evidence, with frozen old-receipt recovery only. |
+| 4 | Model label and fact-ID membership were mistaken for evidence support. | Declared claim inventory, whole trusted-passage equality and draft-v4 evidence hashes. The follow-up removes the original closed grammar: natural conversation is allowed, while assertion identification and meaning remain the model’s responsibility. Frozen receipt recovery covers the prior schema-4 prompt too. |
 | 5 | Payload construction discarded trusted time metadata. | Canonical UTC date/source timestamp in payload and draft hashes, explicit malformed-time rejection and date-boundary revalidation. |
 | 6 | Ordinary barrier inspection or logging errors could exit a process with only a memory latch. | Throttled inspection retry, guarded logging, and preservation of controlled `BaseException` behaviour until durable authority is proved. |
 | 7 | Redirects were followed before validation, Google endpoint recognition was permissive, and discovery pagination was unbounded. | Exact Google endpoint syntax, no automatic redirects, every-hop public-address validation, pinned IP connections, absolute DNS/socket/body deadlines, body/hop ceilings and discovery page/item ceilings. |
@@ -47,18 +47,20 @@ None of the thirteen findings had already been fixed at the starting HEAD.
   are also refused. `_confirmed_receipt_commits` binds exact source identities to
   confirmed effects and supports safe interrupted-retirement recovery.
 - Pending reply drafts are **schema 4**. Older pending drafts are rejected;
-  frozen schema-3 validation is retained solely for already-started/confirmed
-  receipts, preserving duplicate suppression without approving new old drafts.
+  frozen validation is retained solely for already-started/confirmed receipts,
+  including schema-4 drafts made under the pre-follow-up prompt, preserving
+  duplicate suppression without approving obsolete unsent drafts.
 - Existing review decisions remain in the same SQLite database. Both entry
   points use hardened request security; non-loopback deployments need explicit
   credentials and protected transport.
 - The image-request cost reservation ledger gains a permanent private lock file.
   Existing well-formed reservation ledgers are recovered under that lock;
   malformed, missing-after-observation or substituted authority stops requests.
-- Factual validation is deliberately conservative: unsupported paraphrases and
-  conversations outside the closed neutral grammar become no-reply/rejection.
-  This is a local fail-closed contract, not a claim of general natural-language
-  entailment. No second billable model call was added.
+- Declared factual validation is conservative: unsupported factual paraphrases
+  cannot pass the retained exact-support check. Natural
+  non-factual conversation has no closed grammar after the follow-up. Local
+  validation checks declared evidence; it cannot ensure inventory completeness
+  or arbitrary semantic entailment. No second billable model call was added.
 
 Detailed owners, regressions and commands:
 
