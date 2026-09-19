@@ -234,6 +234,7 @@ deployed as a coherent set:
 - `mrs_bot_reply_drafts.py`
 - `mrs_bot_reply_history.py`
 - `mrs_bot_reply_generation.py`
+- `mrs_bot_reply_model_transport.py`
 - `mrs_bot_reply_cycle_interfaces.py`
 - `mrs_bot_reply_preparation.py`
 - `mrs_bot_reply_receipt_values.py`

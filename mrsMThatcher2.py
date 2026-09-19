@@ -249,6 +249,7 @@ import mrs_bot_reply_state as _reply_state
 import mrs_bot_reply_drafts as _reply_drafts
 import mrs_bot_reply_history as _reply_history
 import mrs_bot_reply_generation as _reply_generation
+import mrs_bot_reply_model_transport as _reply_model_transport
 import mrs_bot_reply_receipt_values as _reply_receipt_values
 import mrs_bot_reply_reconciliation as _reply_reconciliation
 import mrs_bot_reply_delivery as _reply_delivery
@@ -7855,14 +7856,29 @@ def collect_reply_images(media_context: dict | None) -> list[dict[str, object]]:
     return _reply_media_owner().collect(media_context)
 
 
+def _reply_model_transport_owner() -> _reply_model_transport.ReplyModelTransport:
+    return _reply_model_transport.ReplyModelTransport(
+        log=log,
+        model=SINGLE_CALL_MODEL,
+        reasoning_effort=SINGLE_CALL_REASONING_EFFORT,
+        monotonic=monotonic,
+        require_remote_operation_unpaused=require_remote_operation_unpaused,
+        report_bot_health_progress=report_bot_health_progress,
+        requests=requests,
+        base_url=OPENAI_BASE,
+        api_key=OPENAI_API_KEY,
+        sleep=sleep,
+        now_epoch=now_epoch,
+        parsedate_to_datetime=parsedate_to_datetime,
+        error_type=ApiError,
+    )
+
+
 def _definite_connection_failure_before_transmission(
     error: requests.RequestException,
 ) -> bool:
-    """Delegate reply generation with current root dependencies."""
-    return _reply_generation._definite_connection_failure_before_transmission(
-        error,
-        requests=requests,
-    )
+    """Use the reply model transport with current runtime dependencies."""
+    return _reply_model_transport_owner().definite_connection_failure_before_transmission(error)
 
 
 def _openai_api_error(
@@ -7874,25 +7890,20 @@ def _openai_api_error(
     retry_after_seconds: int | None = None,
     request_attempt_count: int = 1,
 ) -> ApiError:
-    """Delegate reply generation with current root dependencies."""
-    return _reply_generation._openai_api_error(
+    """Use the reply model transport with current runtime dependencies."""
+    return _reply_model_transport_owner().error(
         message,
         category=category,
         status_code=status_code,
         reset_epoch=reset_epoch,
         retry_after_seconds=retry_after_seconds,
         request_attempt_count=request_attempt_count,
-        ApiError=ApiError,
     )
 
 
 def _openai_retry_metadata(response: requests.Response) -> tuple[int | None, int | None]:
     """Return bounded Retry-After metadata for provider cooldown accounting."""
-    return _reply_generation._openai_retry_metadata(
-        response,
-        now_epoch=now_epoch,
-        parsedate_to_datetime=parsedate_to_datetime,
-    )
+    return _reply_model_transport_owner().retry_metadata(response)
 
 
 _OPENAI_PROVIDER_HEALTH_FAILURE_CATEGORIES = _reply_generation._OPENAI_PROVIDER_HEALTH_FAILURE_CATEGORIES
@@ -7923,24 +7934,11 @@ def openai_responses_reply_call(
     target_id: str,
 ) -> dict[str, object]:
     """Send one executable Responses request, retrying only proved non-execution."""
-    return _reply_generation.openai_responses_reply_call(
+    return _reply_model_transport_owner().call(
         request=request,
         timeout_seconds=timeout_seconds,
         lane=lane,
         target_id=target_id,
-        log=log,
-        SINGLE_CALL_MODEL=SINGLE_CALL_MODEL,
-        SINGLE_CALL_REASONING_EFFORT=SINGLE_CALL_REASONING_EFFORT,
-        monotonic=monotonic,
-        require_remote_operation_unpaused=require_remote_operation_unpaused,
-        report_bot_health_progress=report_bot_health_progress,
-        requests=requests,
-        OPENAI_BASE=OPENAI_BASE,
-        OPENAI_API_KEY=OPENAI_API_KEY,
-        _definite_connection_failure_before_transmission=_definite_connection_failure_before_transmission,
-        _openai_api_error=_openai_api_error,
-        _openai_retry_metadata=_openai_retry_metadata,
-        sleep=sleep,
     )
 
 

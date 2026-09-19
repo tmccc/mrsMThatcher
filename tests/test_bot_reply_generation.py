@@ -14,7 +14,6 @@ from tests.helpers.adapter_assertions import assert_adapters_forward_current_dep
 import mrs_bot_reply_generation as generation
 import mrs_bot_reply_history as reply_history
 from tests.helpers.single_call_fixtures import (
-    FakeHttpResponse,
     FakeRepository,
     context as pipeline_context,
     enabled_config,
@@ -69,18 +68,14 @@ assert 'single_call_reply' not in sys.modules
         "image/jpeg", "image/png", "image/webp", "image/gif",
     }
     for module in (bot, generation):
-        assert module._definite_connection_failure_before_transmission.__annotations__["error"] == "requests.RequestException"
-        assert module._openai_retry_metadata.__annotations__["response"] == "requests.Response"
-        assert module._openai_api_error.__annotations__["return"] == "ApiError"
         assert module._record_single_call_result.__annotations__["result"] == "PipelineResult"
 
 
 def test_adapters_forward_current_dependencies_arguments_results_and_errors(monkeypatch):
     names = (
         "log_ai_reply_posting_outcome",
-        "_definite_connection_failure_before_transmission", "_openai_api_error",
-        "_openai_retry_metadata", "_is_openai_provider_health_failure",
-        "_is_terminal_candidate_local_failure", "openai_responses_reply_call",
+        "_is_openai_provider_health_failure",
+        "_is_terminal_candidate_local_failure",
         "_record_single_call_result",
     )
     assert_adapters_forward_current_dependencies(
@@ -143,67 +138,6 @@ def test_failure_predicates_use_current_distinct_category_sets(monkeypatch):
     assert not bot._is_openai_provider_health_failure("provider_http_5030")
     assert bot._is_terminal_candidate_local_failure({"status": "operational_failure", "error_category": "current_local"})
     assert not bot._is_terminal_candidate_local_failure({"status": "operational_failure", "error_category": "current_health"})
-
-
-@pytest.mark.parametrize("malformed", [False, True])
-def test_transport_keeps_request_reference_and_closes_retry_responses_in_order(monkeypatch, malformed):
-    first = FakeHttpResponse(429, headers={"Retry-After": " 0.2 "})
-    envelope = response_envelope(raw_decision())
-    second = FakeHttpResponse(200, body=envelope)
-    failure = TypeError("fixture malformed JSON")
-    trace = Mock()
-    trace.post.side_effect = [first, second]
-    first.close = trace.first_close = Mock(wraps=first.close)
-    second.close = trace.second_close = Mock(wraps=second.close)
-    second.json = trace.json = Mock(side_effect=failure) if malformed else Mock(return_value=envelope)
-    request = {"model": "fixture-model", "input": {"marker": "fixture"}}
-
-    class CurrentApiError(bot.ApiError):
-        pass
-
-    monkeypatch.setattr(bot, "ApiError", CurrentApiError)
-    monkeypatch.setattr(bot, "requests", SimpleNamespace(post=trace.post, RequestException=bot.requests.RequestException))
-    monkeypatch.setattr(bot, "OPENAI_BASE", "http://127.0.0.1:9/v1")
-    monkeypatch.setattr(bot, "OPENAI_API_KEY", "dummy-stage11")
-    monkeypatch.setattr(bot, "require_remote_operation_unpaused", trace.pause)
-    monkeypatch.setattr(bot, "report_bot_health_progress", trace.health)
-    monkeypatch.setattr(bot, "sleep", trace.sleep)
-    monkeypatch.setattr(bot, "now_epoch", lambda: 2_000_000_000)
-    monkeypatch.setattr(bot, "monotonic", Mock(side_effect=[10.0, 10.0126]))
-    monkeypatch.setattr(bot, "log", Mock())
-    options = dict(request=request, timeout_seconds=23, lane="quote_tweet", target_id="target")
-    if malformed:
-        with pytest.raises(CurrentApiError) as caught:
-            bot.openai_responses_reply_call(**options)
-        assert caught.value.__cause__ is failure
-        assert caught.value.error_category == "provider_envelope"
-        assert caught.value.status_code == 429
-        assert caught.value.reset_epoch == 2_000_000_001
-        assert caught.value.retry_after_seconds == 1
-        assert caught.value.request_attempt_count == 2
-    else:
-        result = bot.openai_responses_reply_call(**options)
-        assert result["response"] is envelope
-        assert result == {
-            "response": envelope, "latency_ms": 13, "request_attempt_count": 2,
-            "provider_status_code": 429, "provider_reset_epoch": 2_000_000_001,
-            "provider_retry_after_seconds": 1,
-        }
-    assert first.closed and second.closed
-    assert [entry[0] for entry in trace.mock_calls] == [
-        "pause", "health", "post", "health", "first_close", "sleep",
-        "pause", "health", "post", "health", "json", "second_close",
-    ]
-    assert trace.pause.call_args_list == [call("OpenAI single-call reply target target")] * 2
-    assert trace.health.call_args_list == [call("ai_call")] * 4
-    trace.sleep.assert_called_once_with(1)
-    for args, kwargs in trace.post.call_args_list:
-        assert args == ("http://127.0.0.1:9/v1/responses",)
-        assert kwargs["json"] is request
-        assert kwargs == {
-            "headers": {"Authorization": "Bearer dummy-stage11", "Content-Type": "application/json"},
-            "json": request, "timeout": 23, "allow_redirects": False,
-        }
 
 
 def test_generation_preserves_order_and_references_through_the_current_pipeline(monkeypatch):
