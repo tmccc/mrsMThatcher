@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import copy
+import inspect
 from pathlib import Path
 import subprocess
 import sys
@@ -11,10 +12,12 @@ import pytest
 from tests.helpers.adapter_assertions import assert_adapters_forward_current_dependencies
 
 import mrs_bot_reply_reconciliation as reconciliation
+import mrs_bot_reply_history as reply_history
 from tests.helpers.mention_fixtures import mention, queue_active_mention
 from tests.helpers.bot_runtime import bot
 from tests.helpers.bot_fixtures import isolate_bot_runtime  # noqa: F401
 from tests.helpers.reply_fixtures import (
+    patch_reply_history_method,
     unit_confirmed_reply_receipt,
     unit_confirmed_v4_reply_receipt,
 )
@@ -59,13 +62,59 @@ def test_adapters_forward_current_dependencies_arguments_results_and_errors(monk
     names = (
         "_valid_iso_date",
         "_advance_reply_counters_to_confirmation_date",
-        "apply_confirmed_reply_receipt",
         "reconcile_confirmed_reply_receipt",
         "confirmed_reply_emergency_representation_is_complete",
     )
     assert_adapters_forward_current_dependencies(
         monkeypatch, bot=bot, implementation=reconciliation, names=names,
     )
+
+
+def test_application_adapter_binds_current_history_and_preserves_other_dependencies(monkeypatch):
+    adapter = bot.apply_confirmed_reply_receipt
+    public = inspect.signature(adapter).parameters
+    parameters = inspect.signature(reconciliation.apply_confirmed_reply_receipt).parameters
+    assert tuple(public) == ("state", "receipt")
+    assert all(parameter.kind is inspect.Parameter.POSITIONAL_OR_KEYWORD for parameter in public.values())
+    assert {
+        "now_epoch", "AI_REPLY_HISTORY_MAX_AGE_SECONDS", "valid_string_post_id",
+        "AI_REPLY_HISTORY_MAX_RECORDS",
+    }.isdisjoint(parameters)
+    dependencies = parameters.keys() - public.keys() - {"record_reply_history"}
+    implementation = Mock(return_value=object())
+    factory = Mock(wraps=bot._reply_history_owner)
+    monkeypatch.setattr(reconciliation, "apply_confirmed_reply_receipt", implementation)
+    monkeypatch.setattr(bot, "_reply_history_owner", factory)
+    state, receipt, histories = {}, {}, []
+    for index in range(2):
+        current = {name: object() for name in dependencies}
+        for name, value in current.items():
+            monkeypatch.setattr(bot, name, value)
+        clock = Mock()
+        monkeypatch.setattr(bot, "now_epoch", clock)
+        monkeypatch.setattr(bot, "AI_REPLY_HISTORY_MAX_AGE_SECONDS", 100 + index)
+        monkeypatch.setattr(bot, "AI_REPLY_HISTORY_MAX_RECORDS", 10 + index)
+        assert adapter(state, receipt) is implementation.return_value
+        assert factory.call_count == index + 1
+        args, supplied = implementation.call_args
+        assert len(args) == 2 and args[0] is state and args[1] is receipt
+        assert supplied.keys() == {*current, "record_reply_history"}
+        assert all(supplied[name] is value for name, value in current.items())
+        callback = supplied["record_reply_history"]
+        assert callback.__func__ is reply_history.ReplyHistory.record_confirmation
+        history = callback.__self__
+        assert history.now_epoch is clock
+        assert history.maximum_age_seconds == 100 + index
+        assert history.maximum_records == 10 + index
+        clock.assert_not_called()
+        histories.append(history)
+    assert histories[0] is not histories[1]
+    assert histories[0].now_epoch is not histories[1].now_epoch
+    failure = TypeError("current application failure")
+    implementation.side_effect = failure
+    with pytest.raises(TypeError) as caught:
+        adapter(state, receipt)
+    assert caught.value is failure
 
 
 def test_date_round_trip_uses_current_datetime_and_catches_only_value_error(monkeypatch):
@@ -192,10 +241,21 @@ def test_application_keeps_queue_draft_pagination_and_cache_reference_order(monk
 
     trace.cache = Mock(side_effect=cache)
     monkeypatch.setattr(bot, "cache_tweet", trace.cache)
+    trace.history = Mock(wraps=bot._reply_history_owner().record_confirmation)
+    patch_reply_history_method(monkeypatch, "record_confirmation", trace.history)
     bot.apply_confirmed_reply_receipt(state, receipt)
     assert [entry[0] for entry in trace.mock_calls] == [
-        "authority", "ownership", "clear", "clear", "clear", "clear", "remove", "cache", "event",
+        "authority", "ownership", "clear", "clear", "clear", "clear", "remove", "cache", "history", "event",
     ]
+    history_args, history_options = trace.history.call_args
+    assert len(history_args) == 3
+    assert history_args[0] is state and history_args[1] is receipt
+    assert history_args[2] is receipt["ai_reply_draft"]
+    assert history_options == {
+        "target_id": "105", "reply_post_id": "999", "author_id": "200",
+        "conversation_id": "105", "candidate_source": "mention",
+        "reply_epoch": receipt["confirmation_epoch"],
+    }
     assert trace.ownership.call_args.args[0] is state
     assert trace.ownership.call_args.args[1] is pagination
     assert trace.ownership.call_args.kwargs == {"target_id": "105"}
@@ -209,6 +269,44 @@ def test_application_keeps_queue_draft_pagination_and_cache_reference_order(monk
     current_datetime.fromtimestamp.assert_called_once_with(receipt["confirmation_epoch"])
     current_datetime.fromtimestamp.return_value.isoformat.assert_called_once_with()
     watermark.assert_not_called()
+
+
+@pytest.mark.parametrize("draft", [None, []])
+def test_application_skips_history_recording_for_non_mapping_drafts(monkeypatch, draft):
+    receipt = unit_confirmed_reply_receipt()
+    receipt["ai_reply_draft"] = draft
+    record = Mock(side_effect=AssertionError("non-mapping draft must not enter history"))
+    patch_reply_history_method(monkeypatch, "record_confirmation", record)
+    state = bot.default_state()
+    history = state["ai_reply_history"]
+
+    bot.apply_confirmed_reply_receipt(state, receipt)
+
+    record.assert_not_called()
+    assert state["ai_reply_history"] is history and history == []
+    assert receipt["reply_post_id"] in state["tweet_cache"]
+
+
+def test_history_recording_error_propagates_after_cache_before_telemetry(monkeypatch):
+    receipt = unit_confirmed_reply_receipt()
+    state = bot.default_state()
+    history = state["ai_reply_history"]
+    trace = Mock()
+    trace.cache = Mock(wraps=bot.cache_tweet)
+    failure = TypeError("history recording failed")
+    trace.history.side_effect = failure
+    patch_reply_history_method(monkeypatch, "record_confirmation", trace.history)
+    monkeypatch.setattr(bot, "cache_tweet", trace.cache)
+    monkeypatch.setattr(bot, "log_event", trace.event)
+
+    with pytest.raises(TypeError) as caught:
+        bot.apply_confirmed_reply_receipt(state, receipt)
+
+    assert caught.value is failure
+    assert [entry[0] for entry in trace.mock_calls] == ["cache", "history"]
+    assert receipt["reply_post_id"] in state["tweet_cache"]
+    assert state["ai_reply_history"] is history and history == []
+    trace.event.assert_not_called()
 
 
 @pytest.mark.parametrize("schema", [2, 4])

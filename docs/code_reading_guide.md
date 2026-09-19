@@ -40,7 +40,8 @@ need. A recovered draft can bypass model evaluation.
 | Verified conversation context | [mrs_bot_reply_context.py](../mrs_bot_reply_context.py) |
 | Provider integration and local decision/validation | [mrs_bot_reply_generation.py](../mrs_bot_reply_generation.py), then [single_call_reply.py](../single_call_reply.py) |
 | Pending-draft validation, storage, recovery, clearing and receipt-draft checks | `ReplyDrafts` in [mrs_bot_reply_drafts.py](../mrs_bot_reply_drafts.py) |
-| Confirmed-reply history and ineligible-target retirement | [mrs_bot_reply_state.py](../mrs_bot_reply_state.py) |
+| Confirmed-reply history recording and selection | `ReplyHistory` in [mrs_bot_reply_history.py](../mrs_bot_reply_history.py) |
+| Ineligible-target retirement | [mrs_bot_reply_state.py](../mrs_bot_reply_state.py) |
 | Save draft, prepare receipt, send and commit confirmation | [mrs_bot_reply_preparation.py](../mrs_bot_reply_preparation.py), [mrs_bot_reply_delivery.py](../mrs_bot_reply_delivery.py), [mrs_bot_reply_reconciliation.py](../mrs_bot_reply_reconciliation.py) |
 
 [mrs_bot_reply_cycle_interfaces.py](../mrs_bot_reply_cycle_interfaces.py) describes
@@ -63,6 +64,17 @@ and supplies its bound `recover`, `store` and `clear` methods alongside the
 existing durable-save callback. Root draft functions remain compatibility entry
 points. Draft behaviour tests live in `tests/test_bot_reply_drafts.py`; cycle
 tests retain budget, save-order and terminal-retirement checks.
+
+For a change to which previous replies influence a candidate, start with
+`ReplyHistory`. Its `for_evaluation` operation selects recent replies and prior
+same-author interactions using the target's timestamp; `recovery_replies` uses
+current confirmed history to revalidate a pending draft. Both share the owner's
+filtering and exclusion rules. `record_confirmation` builds a confirmed record,
+removes duplicates and applies retention limits. Reconciliation invokes it after
+caching the reply and before confirmation telemetry, and continues to control
+durable saves and receipt retirement. The root binds current clocks and limits
+through `_reply_history_owner()`; root history helpers remain compatibility
+entry points. Direct behaviour tests live in `tests/test_bot_reply_history.py`.
 
 ## Digest input, analysis and reporting
 

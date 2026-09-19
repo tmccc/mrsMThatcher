@@ -247,6 +247,7 @@ import mrs_bot_daily_meme as _daily_meme
 import mrs_bot_legacy_reply_validation as _legacy_reply_validation
 import mrs_bot_reply_state as _reply_state
 import mrs_bot_reply_drafts as _reply_drafts
+import mrs_bot_reply_history as _reply_history
 import mrs_bot_reply_generation as _reply_generation
 import mrs_bot_reply_receipt_values as _reply_receipt_values
 import mrs_bot_reply_reconciliation as _reply_reconciliation
@@ -7816,20 +7817,31 @@ def log_ai_reply_posting_outcome(
     )
 
 
-CONVERSATIONAL_REPLY_HISTORY_LANES = _reply_state.CONVERSATIONAL_REPLY_HISTORY_LANES
+CONVERSATIONAL_REPLY_HISTORY_LANES = _reply_history.CONVERSATIONAL_REPLY_HISTORY_LANES
+_DEFAULT_RECENT_ACCOUNT_REPLY_LIMIT = MAX_RECENT_ACCOUNT_REPLIES
 
 
-def _confirmed_conversational_history_rows(state: dict) -> list[dict]:
-    """Delegate reply state with current root dependencies."""
-    return _reply_state._confirmed_conversational_history_rows(
-        state,
-        CONVERSATIONAL_REPLY_HISTORY_LANES=CONVERSATIONAL_REPLY_HISTORY_LANES,
+def _reply_history_owner() -> _reply_history.ReplyHistory:
+    """Bind current history dependencies without reading state or the clock."""
+    return _reply_history.ReplyHistory(
+        now_epoch=now_epoch,
         valid_string_post_id=valid_string_post_id,
-        MAX_REASONABLE_STATE_EPOCH=MAX_REASONABLE_STATE_EPOCH,
+        quoted_post_reference_id=quoted_post_reference_id,
+        maximum_state_epoch=MAX_REASONABLE_STATE_EPOCH,
+        maximum_recent_replies=MAX_RECENT_ACCOUNT_REPLIES,
+        default_recent_reply_limit=_DEFAULT_RECENT_ACCOUNT_REPLY_LIMIT,
+        maximum_same_author_interactions=MAX_SAME_AUTHOR_INTERACTIONS,
+        maximum_age_seconds=AI_REPLY_HISTORY_MAX_AGE_SECONDS,
+        maximum_records=AI_REPLY_HISTORY_MAX_RECORDS,
     )
 
 
-_confirmed_history_sort_key = _reply_state._confirmed_history_sort_key
+def _confirmed_conversational_history_rows(state: dict) -> list[dict]:
+    """Select confirmed rows through the history owner."""
+    return _reply_history_owner().confirmed_rows(state)
+
+
+_confirmed_history_sort_key = _reply_history._confirmed_history_sort_key
 
 
 def recent_confirmed_account_replies(
@@ -7840,26 +7852,20 @@ def recent_confirmed_account_replies(
     excluded_post_ids: set[str] | None = None,
     excluded_reply_post_ids: set[str] | None = None,
 ) -> list[dict[str, str]]:
-    """Delegate reply state with current root dependencies."""
-    return _reply_state.recent_confirmed_account_replies(
+    """Select recent confirmed prose through the history owner."""
+    return _reply_history_owner().recent_replies(
         state, limit,
         before_epoch=before_epoch,
         excluded_post_ids=excluded_post_ids,
         excluded_reply_post_ids=excluded_reply_post_ids,
-        _confirmed_conversational_history_rows=_confirmed_conversational_history_rows,
-        _confirmed_history_sort_key=_confirmed_history_sort_key,
-        MAX_RECENT_ACCOUNT_REPLIES=MAX_RECENT_ACCOUNT_REPLIES,
     )
 
 
 def _reply_context_history_excluded_post_ids(
     context: dict[str, object],
 ) -> set[str]:
-    """Delegate reply state with current root dependencies."""
-    return _reply_state._reply_context_history_excluded_post_ids(
-        context,
-        quoted_post_reference_id=quoted_post_reference_id,
-    )
+    """Select current conversation identities through the history owner."""
+    return _reply_history_owner().context_excluded_post_ids(context)
 
 
 def recovery_comparison_account_replies(
@@ -7867,17 +7873,8 @@ def recovery_comparison_account_replies(
     *,
     context: dict[str, object],
 ) -> list[dict[str, str]]:
-    """Delegate reply state with current root dependencies."""
-    return _reply_state.recovery_comparison_account_replies(
-        state,
-        context=context,
-        _reply_context_history_excluded_post_ids=_reply_context_history_excluded_post_ids,
-        now_epoch=now_epoch,
-        MAX_REASONABLE_STATE_EPOCH=MAX_REASONABLE_STATE_EPOCH,
-        recent_confirmed_account_replies=recent_confirmed_account_replies,
-        _same_author_confirmed_history_rows=_same_author_confirmed_history_rows,
-        _confirmed_conversational_history_rows=_confirmed_conversational_history_rows,
-    )
+    """Select current draft comparisons through the history owner."""
+    return _reply_history_owner().recovery_replies(state, context=context)
 
 
 def _same_author_confirmed_history_rows(
@@ -7888,17 +7885,13 @@ def _same_author_confirmed_history_rows(
     target_id: object,
     before_epoch: int | None,
 ) -> list[dict]:
-    """Delegate reply state with current root dependencies."""
-    return _reply_state._same_author_confirmed_history_rows(
+    """Select prior confirmed author rows through the history owner."""
+    return _reply_history_owner().same_author_rows(
         state,
         author_id=author_id,
         current_thread_post_ids=current_thread_post_ids,
         target_id=target_id,
         before_epoch=before_epoch,
-        AI_REPLY_HISTORY_MAX_AGE_SECONDS=AI_REPLY_HISTORY_MAX_AGE_SECONDS,
-        _confirmed_conversational_history_rows=_confirmed_conversational_history_rows,
-        _confirmed_history_sort_key=_confirmed_history_sort_key,
-        MAX_SAME_AUTHOR_INTERACTIONS=MAX_SAME_AUTHOR_INTERACTIONS,
     )
 
 
@@ -7911,20 +7904,18 @@ def recent_same_author_account_interactions(
     before_epoch: int | None = None,
     visible_post_ids: set[str] | None = None,
 ) -> list[dict[str, str]]:
-    """Delegate reply state with current root dependencies."""
-    return _reply_state.recent_same_author_account_interactions(
+    """Select prior contributor/reply pairs through the history owner."""
+    return _reply_history_owner().recent_same_author_interactions(
         state,
         author_id=author_id,
         conversation_id=conversation_id,
         target_id=target_id,
         before_epoch=before_epoch,
         visible_post_ids=visible_post_ids,
-        _same_author_confirmed_history_rows=_same_author_confirmed_history_rows,
-        MAX_SAME_AUTHOR_INTERACTIONS=MAX_SAME_AUTHOR_INTERACTIONS,
     )
 
 
-_reply_target_epoch = _reply_state._reply_target_epoch
+_reply_target_epoch = _reply_history._reply_target_epoch
 
 
 _REPLY_IMAGE_MIME_TYPES = _reply_generation._REPLY_IMAGE_MIME_TYPES
@@ -8111,10 +8102,7 @@ def evaluate_single_call_reply(
         PipelineResult=PipelineResult,
         _record_single_call_result=_record_single_call_result,
         log=log,
-        _reply_target_epoch=_reply_target_epoch,
-        _reply_context_history_excluded_post_ids=_reply_context_history_excluded_post_ids,
-        _same_author_confirmed_history_rows=_same_author_confirmed_history_rows,
-        recent_confirmed_account_replies=recent_confirmed_account_replies,
+        history_for_evaluation=_reply_history_owner().for_evaluation,
         require_remote_operation_unpaused=require_remote_operation_unpaused,
         run_single_call_reply_pipeline=run_single_call_reply_pipeline,
         single_call_reply=single_call_reply,
@@ -8622,10 +8610,7 @@ def apply_confirmed_reply_receipt(state: dict, receipt: dict) -> None:
         cache_tweet=cache_tweet,
         MY_USER_ID=MY_USER_ID,
         datetime=datetime,
-        now_epoch=now_epoch,
-        AI_REPLY_HISTORY_MAX_AGE_SECONDS=AI_REPLY_HISTORY_MAX_AGE_SECONDS,
-        valid_string_post_id=valid_string_post_id,
-        AI_REPLY_HISTORY_MAX_RECORDS=AI_REPLY_HISTORY_MAX_RECORDS,
+        record_reply_history=_reply_history_owner().record_confirmation,
         log_event=log_event,
     )
 
@@ -8870,7 +8855,7 @@ def maybe_reply_to_mentions(
         record_api_error=record_api_error,
         record_qualifying_author_no_reply=record_qualifying_author_no_reply,
         record_terminal_reply_evaluation=record_terminal_reply_evaluation,
-        recovery_comparison_account_replies=recovery_comparison_account_replies,
+        recovery_comparison_account_replies=_reply_history_owner().recovery_replies,
         reply_evidence_repository=reply_evidence_repository,
         reply_target_is_directly_eligible=reply_target_is_directly_eligible,
         reset_daily_reply_count_if_needed=reset_daily_reply_count_if_needed,
@@ -9085,7 +9070,7 @@ def maybe_reply_to_quote_tweets(state: dict) -> str:
         quote_tweet_is_old_enough=quote_tweet_is_old_enough,
         record_api_error=record_api_error,
         record_terminal_reply_evaluation=record_terminal_reply_evaluation,
-        recovery_comparison_account_replies=recovery_comparison_account_replies,
+        recovery_comparison_account_replies=_reply_history_owner().recovery_replies,
         reply_evidence_repository=reply_evidence_repository,
         reset_daily_quote_reply_count_if_needed=reset_daily_quote_reply_count_if_needed,
         reset_daily_reply_count_if_needed=reset_daily_reply_count_if_needed,

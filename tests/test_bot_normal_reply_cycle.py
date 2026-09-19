@@ -25,6 +25,7 @@ from tests.helpers.bot_fixtures import isolate_bot_runtime  # noqa: F401
 from tests.helpers.reply_fixtures import (
     configure_normal_cycle as _configure_cycle,
     patch_reply_draft_method,
+    patch_reply_history_method,
     unit_approved_reply,
     unit_confirmed_v4_reply_receipt,
     unit_reply_context,
@@ -41,7 +42,7 @@ def forbidden(*args, **kwargs):
 
 original_import = builtins.__import__
 def guarded_import(name, *args, **kwargs):
-    if name in {'mrsMThatcher2', 'requests', 'openai', 'single_call_reply', 'reply_evidence'} or name.startswith('mrs_bot_') and name not in {'mrs_bot_normal_reply_cycle', 'mrs_bot_reply_cycle_interfaces', 'mrs_bot_reply_preparation', 'mrs_bot_reply_delivery', 'mrs_bot_reply_state', 'mrs_bot_reply_drafts', 'mrs_bot_reply_evaluation_state'}:
+    if name in {'mrsMThatcher2', 'requests', 'openai', 'single_call_reply', 'reply_evidence'} or name.startswith('mrs_bot_') and name not in {'mrs_bot_normal_reply_cycle', 'mrs_bot_reply_cycle_interfaces', 'mrs_bot_reply_preparation', 'mrs_bot_reply_delivery', 'mrs_bot_reply_state', 'mrs_bot_reply_drafts', 'mrs_bot_reply_history', 'mrs_bot_reply_evaluation_state'}:
         forbidden()
     return original_import(name, *args, **kwargs)
 
@@ -96,6 +97,9 @@ def test_adapter_forwards_current_dependencies_arguments_results_and_errors(monk
                 monkeypatch.setattr(bot._reply_cycle_interfaces, "NormalReplyConfig", Mock(return_value=value))
             elif key in {"persistence", "delivery"}:
                 monkeypatch.setattr(bot, f"_reply_cycle_{key}", Mock(return_value=value))
+            elif key == "recovery_comparison_account_replies":
+                history = Mock(recovery_replies=value)
+                monkeypatch.setattr(bot, "_reply_history_owner", Mock(return_value=history))
             else:
                 monkeypatch.setattr(bot, key, value)
         assert adapter(state, **options) is result
@@ -193,7 +197,7 @@ def test_draft_recovery_errors_propagate_before_generation(monkeypatch, callback
     if callback == "recover_pending_ai_reply":
         patch_reply_draft_method(monkeypatch, "recover", Mock(side_effect=failure))
     else:
-        monkeypatch.setattr(bot, callback, Mock(side_effect=failure))
+        patch_reply_history_method(monkeypatch, "recovery_replies", Mock(side_effect=failure))
     saved = Mock(wraps=bot.save_state)
     accounted = Mock(wraps=bot.record_api_error)
     monkeypatch.setattr(bot, "save_state", saved)

@@ -612,10 +612,7 @@ def evaluate_single_call_reply(
     PipelineResult: type,
     _record_single_call_result: Callable,
     log: logging.Logger,
-    _reply_target_epoch: Callable,
-    _reply_context_history_excluded_post_ids: Callable,
-    _same_author_confirmed_history_rows: Callable,
-    recent_confirmed_account_replies: Callable,
+    history_for_evaluation: Callable,
     require_remote_operation_unpaused: Callable,
     run_single_call_reply_pipeline: Callable,
     single_call_reply: dict[str, object],
@@ -671,29 +668,8 @@ def evaluate_single_call_reply(
         )
         return result
 
-    before_epoch = _reply_target_epoch(context)
-    current_thread_post_ids = _reply_context_history_excluded_post_ids(context)
-    same_author_rows = _same_author_confirmed_history_rows(
-        state,
-        author_id=context.get("target_author_id"),
-        current_thread_post_ids=current_thread_post_ids,
-        target_id=target_id,
-        before_epoch=before_epoch,
-    )
-    same_author = [
-        {
-            "contributor": str(row["incoming_contribution"]).strip(),
-            "account_reply": str(row["proposed_reply"]).strip(),
-        }
-        for row in same_author_rows
-    ]
-    recent_replies = recent_confirmed_account_replies(
-        state,
-        before_epoch=before_epoch,
-        excluded_post_ids=current_thread_post_ids,
-        excluded_reply_post_ids={
-            str(row["reply_post_id"]) for row in same_author_rows
-        },
+    same_author, recent_replies = history_for_evaluation(
+        state, context=context, target_id=target_id,
     )
     require_remote_operation_unpaused(
         f"OpenAI single-call reply preparation target {target_id}"

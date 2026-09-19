@@ -96,10 +96,7 @@ def apply_confirmed_reply_receipt(
     cache_tweet: Callable,
     MY_USER_ID: str,
     datetime: type,
-    now_epoch: Callable,
-    AI_REPLY_HISTORY_MAX_AGE_SECONDS: int,
-    valid_string_post_id: Callable,
-    AI_REPLY_HISTORY_MAX_RECORDS: int,
+    record_reply_history: Callable,
     log_event: Callable,
 ) -> None:
     """Apply confirmed reply receipt."""
@@ -293,54 +290,15 @@ def apply_confirmed_reply_receipt(
     )
     ai_reply_draft = receipt.get("ai_reply_draft")
     if isinstance(ai_reply_draft, dict):
-        reply_context = receipt.get("reply_context")
-        visible = (
-            reply_context.get("visible_conversation")
-            if isinstance(reply_context, dict)
-            else None
+        record_reply_history(
+            state, receipt, ai_reply_draft,
+            target_id=target_id,
+            reply_post_id=reply_post_id,
+            author_id=author_id,
+            conversation_id=conversation_id,
+            candidate_source=candidate_source,
+            reply_epoch=reply_epoch,
         )
-        incoming_contribution = ""
-        if isinstance(visible, list) and visible and isinstance(visible[-1], dict):
-            incoming_contribution = str(visible[-1].get("text") or "").strip()
-        if not incoming_contribution and isinstance(reply_context, dict):
-            incoming_contribution = str(
-                reply_context.get("incoming_contribution") or ""
-            ).strip()
-        record = {
-            "target_id": target_id,
-            "reply_post_id": reply_post_id,
-            "author_id": author_id,
-            "conversation_id": conversation_id,
-            "incoming_contribution": incoming_contribution,
-            "candidate_source": candidate_source,
-            "reply_epoch": reply_epoch,
-            **ai_reply_draft,
-        }
-        if receipt.get("schema_version") == 4:
-            record["attempt_epoch"] = int(receipt["attempt_epoch"])
-            record["confirmation_epoch"] = reply_epoch
-        cutoff = max(reply_epoch, now_epoch()) - AI_REPLY_HISTORY_MAX_AGE_SECONDS
-        history = [
-            item
-            for item in state.get("ai_reply_history", [])
-            if (
-                isinstance(item, dict)
-                and str(item.get("reply_post_id") or "") != reply_post_id
-                and str(item.get("target_id") or "") != target_id
-                and type(item.get("reply_epoch")) is int
-                and item["reply_epoch"] >= cutoff
-            )
-        ]
-        history.append(record)
-        history.sort(
-            key=lambda item: (
-                int(item["reply_epoch"]),
-                int(str(item.get("reply_post_id") or "0"))
-                if valid_string_post_id(item.get("reply_post_id"))
-                else 0,
-            )
-        )
-        state["ai_reply_history"] = history[-AI_REPLY_HISTORY_MAX_RECORDS:]
         log_event(
             "single_call_reply_posting_outcome",
             status="confirmed",

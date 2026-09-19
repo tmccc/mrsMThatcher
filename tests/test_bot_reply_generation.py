@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import inspect
 from pathlib import Path
 import subprocess
 import sys
@@ -11,6 +12,7 @@ import pytest
 from tests.helpers.adapter_assertions import assert_adapters_forward_current_dependencies
 
 import mrs_bot_reply_generation as generation
+import mrs_bot_reply_history as reply_history
 from tests.helpers.single_call_fixtures import (
     FakeHttpResponse,
     FakeRepository,
@@ -21,7 +23,7 @@ from tests.helpers.single_call_fixtures import (
 )
 from tests.helpers.bot_runtime import bot
 from tests.helpers.bot_fixtures import isolate_bot_runtime  # noqa: F401
-from tests.helpers.reply_fixtures import image_case  # noqa: F401
+from tests.helpers.reply_fixtures import image_case, patch_reply_history_method  # noqa: F401
 
 
 def test_import_needs_no_runtime_access_and_constants_are_shared_objects():
@@ -79,11 +81,56 @@ def test_adapters_forward_current_dependencies_arguments_results_and_errors(monk
         "_definite_connection_failure_before_transmission", "_openai_api_error",
         "_openai_retry_metadata", "_is_openai_provider_health_failure",
         "_is_terminal_candidate_local_failure", "openai_responses_reply_call",
-        "_record_single_call_result", "evaluate_single_call_reply",
+        "_record_single_call_result",
     )
     assert_adapters_forward_current_dependencies(
         monkeypatch, bot=bot, implementation=generation, names=names,
     )
+
+
+def test_evaluation_adapter_binds_current_history_and_preserves_other_dependencies(monkeypatch):
+    adapter = bot.evaluate_single_call_reply
+    public = inspect.signature(adapter).parameters
+    parameters = inspect.signature(generation.evaluate_single_call_reply).parameters
+    assert tuple(public) == ("context", "media_context", "state")
+    assert public["media_context"].default is None
+    assert public["state"].kind is inspect.Parameter.KEYWORD_ONLY
+    assert {
+        "_reply_target_epoch", "_reply_context_history_excluded_post_ids",
+        "_same_author_confirmed_history_rows", "recent_confirmed_account_replies",
+    }.isdisjoint(parameters)
+    dependencies = parameters.keys() - public.keys() - {"history_for_evaluation"}
+    implementation = Mock(return_value=object())
+    factory = Mock(wraps=bot._reply_history_owner)
+    monkeypatch.setattr(generation, "evaluate_single_call_reply", implementation)
+    monkeypatch.setattr(bot, "_reply_history_owner", factory)
+    context, media, state = {}, {}, {}
+    histories = []
+    for index in range(2):
+        current = {name: object() for name in dependencies}
+        for name, value in current.items():
+            monkeypatch.setattr(bot, name, value)
+        monkeypatch.setattr(bot, "MAX_RECENT_ACCOUNT_REPLIES", 10 + index)
+        assert adapter(context, media, state=state) is implementation.return_value
+        assert factory.call_count == index + 1
+        args, supplied = implementation.call_args
+        assert len(args) == 2 and args[0] is context and args[1] is media
+        assert supplied.keys() == {*current, "state", "history_for_evaluation"}
+        assert supplied["state"] is state
+        assert all(supplied[name] is value for name, value in current.items())
+        callback = supplied["history_for_evaluation"]
+        assert callback.__func__ is reply_history.ReplyHistory.for_evaluation
+        history = callback.__self__
+        assert history.now_epoch is current["now_epoch"]
+        assert history.maximum_recent_replies == 10 + index
+        histories.append(history)
+    assert histories[0] is not histories[1]
+    assert histories[0].now_epoch is not histories[1].now_epoch
+    failure = TypeError("current evaluation failure")
+    implementation.side_effect = failure
+    with pytest.raises(TypeError) as caught:
+        adapter(context, media, state=state)
+    assert caught.value is failure
 
 
 def test_image_collection_uses_current_requests_bounds_and_validation_reference(monkeypatch, image_case):
@@ -240,16 +287,13 @@ def test_transport_keeps_request_reference_and_closes_retry_responses_in_order(m
 def test_generation_preserves_order_and_references_through_the_current_pipeline(monkeypatch):
     context = pipeline_context(turns=1)
     state, outcome, media = {}, {"retained": "value"}, {}
-    images, excluded = [], {"target"}
-    rows = [{"incoming_contribution": " Earlier contribution. ", "proposed_reply": " Earlier response. ", "reply_post_id": "prior"}]
+    images = []
+    same_author = [{"contributor": "Earlier contribution.", "account_reply": "Earlier response."}]
     recent = [{"post_id": "other", "text": "Another earlier response."}]
     repository, config = FakeRepository(), enabled_config()
     trace = Mock()
     trace.images.return_value = images
-    trace.epoch.return_value = 2_000_000_000
-    trace.exclusions.return_value = excluded
-    trace.same_author.return_value = rows
-    trace.recent.return_value = recent
+    trace.history.return_value = (same_author, recent)
     trace.repository.return_value = repository
     trace.transport.return_value = {"response": response_envelope(raw_decision())}
     trace.pipeline = Mock(wraps=bot.run_single_call_reply_pipeline)
@@ -263,10 +307,6 @@ def test_generation_preserves_order_and_references_through_the_current_pipeline(
     trace.record.side_effect = record
     for root_name, callback in {
         "collect_reply_images": trace.images,
-        "_reply_target_epoch": trace.epoch,
-        "_reply_context_history_excluded_post_ids": trace.exclusions,
-        "_same_author_confirmed_history_rows": trace.same_author,
-        "recent_confirmed_account_replies": trace.recent,
         "require_remote_operation_unpaused": trace.pause,
         "reply_evidence_repository": trace.repository,
         "openai_responses_reply_call": trace.transport,
@@ -276,6 +316,7 @@ def test_generation_preserves_order_and_references_through_the_current_pipeline(
         "record_api_error": trace.error,
     }.items():
         monkeypatch.setattr(bot, root_name, callback)
+    patch_reply_history_method(monkeypatch, "for_evaluation", trace.history)
     monkeypatch.setattr(bot, "single_call_reply", config)
     monkeypatch.setattr(bot, "log", SimpleNamespace(info=trace.info, warning=trace.warning))
 
@@ -289,23 +330,17 @@ def test_generation_preserves_order_and_references_through_the_current_pipeline(
         "error_category": None, "model_call_count": 1,
     }
     assert [entry[0] for entry in trace.mock_calls] == [
-        "images", "epoch", "exclusions", "same_author", "recent", "pause",
+        "images", "history", "pause",
         "repository", "pipeline", "transport", "record", "event", "info", "event",
     ]
     assert trace.images.call_args.args[0] is media
-    assert trace.epoch.call_args.args[0] is context
-    assert trace.exclusions.call_args.args[0] is context
-    for history in (trace.same_author, trace.recent):
-        assert history.call_args.args[0] is state
-        assert history.call_args.kwargs["before_epoch"] == 2_000_000_000
-    assert trace.same_author.call_args.kwargs["current_thread_post_ids"] is excluded
-    assert trace.recent.call_args.kwargs["excluded_post_ids"] is excluded
-    assert trace.recent.call_args.kwargs["excluded_reply_post_ids"] == {"prior"}
+    trace.history.assert_called_once_with(state, context=context, target_id="target")
+    assert trace.history.call_args.args[0] is state
+    assert trace.history.call_args.kwargs["context"] is context
     supplied = trace.pipeline.call_args.kwargs
-    for name, value in {"context": context, "config": config, "repository": repository, "transport": trace.transport, "recent_account_replies": recent, "supplied_images": images}.items():
+    for name, value in {"context": context, "config": config, "repository": repository, "transport": trace.transport, "same_author_interactions": same_author, "recent_account_replies": recent, "supplied_images": images}.items():
         assert supplied[name] is value
     assert supplied["same_author_interactions"] == [{"contributor": "Earlier contribution.", "account_reply": "Earlier response."}]
-    assert rows[0]["incoming_contribution"] == " Earlier contribution. "
     trace.error.assert_not_called()
     assert trace.event.call_args_list == [
         call("single_call_reply_decision", lane="mention", target_id="target", **bot.single_call_decision_telemetry(result)),
@@ -314,6 +349,38 @@ def test_generation_preserves_order_and_references_through_the_current_pipeline(
              provider_response_id=result.provider_response_id, provider_latency_ms=result.provider_latency_ms,
              request_attempt_count=result.provider_request_attempt_count, **result.provider_usage),
     ]
+
+
+def test_history_failure_preserves_pre_image_target_and_propagates_before_provider_access(monkeypatch):
+    context = pipeline_context(turns=1)
+    state, media = {}, {}
+    trace = Mock()
+    failure = TypeError("history unavailable")
+
+    def collect_images(actual_media):
+        assert actual_media is media
+        context["target_id"] = "changed-during-image-collection"
+        return []
+
+    trace.images.side_effect = collect_images
+    trace.history.side_effect = failure
+    monkeypatch.setattr(bot, "collect_reply_images", trace.images)
+    patch_reply_history_method(monkeypatch, "for_evaluation", trace.history)
+    monkeypatch.setattr(bot, "reply_evidence_repository", trace.repository)
+    monkeypatch.setattr(bot, "run_single_call_reply_pipeline", trace.pipeline)
+    monkeypatch.setattr(bot, "record_api_error", trace.error)
+    monkeypatch.setattr(bot, "_record_single_call_result", trace.record)
+
+    with pytest.raises(TypeError) as caught:
+        bot.evaluate_single_call_reply(context, media, state=state)
+
+    assert caught.value is failure
+    assert [entry[0] for entry in trace.mock_calls] == ["images", "history"]
+    trace.history.assert_called_once_with(state, context=context, target_id="target")
+    assert trace.history.call_args.args[0] is state
+    assert trace.history.call_args.kwargs["context"] is context
+    assert context["target_id"] == "changed-during-image-collection"
+    assert state == {}
 
 
 def test_recorded_validation_failure_logs_reply_and_only_known_rules(monkeypatch):

@@ -94,6 +94,17 @@ def patch_reply_draft_method(monkeypatch, method: str, callback) -> None:
     monkeypatch.setattr(ReplyDrafts, method, invoke)
 
 
+def patch_reply_history_method(monkeypatch, method: str, callback) -> None:
+    """Replace a history operation without adding the owner to callback arguments."""
+
+    from mrs_bot_reply_history import ReplyHistory
+
+    def invoke(_owner, *args, **kwargs):
+        return callback(*args, **kwargs)
+
+    monkeypatch.setattr(ReplyHistory, method, invoke)
+
+
 def unit_reply_context(
     *,
     target_id: str = "100",

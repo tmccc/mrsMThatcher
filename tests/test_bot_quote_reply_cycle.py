@@ -21,6 +21,7 @@ from tests.helpers.bot_fixtures import isolate_bot_runtime  # noqa: F401
 from tests.helpers.reply_fixtures import (
     configure_quote_cycle as _configure_cycle,
     patch_reply_draft_method,
+    patch_reply_history_method,
     unit_approved_reply,
     unit_confirmed_v4_reply_receipt,
 )
@@ -104,6 +105,9 @@ def test_adapters_forward_current_dependencies_arguments_results_and_errors(monk
                         patch.setattr(bot._reply_cycle_interfaces, "QuoteReplyConfig", Mock(return_value=value))
                     elif key in {"persistence", "delivery"}:
                         patch.setattr(bot, f"_reply_cycle_{key}", Mock(return_value=value))
+                    elif key == "recovery_comparison_account_replies":
+                        history = Mock(recovery_replies=value)
+                        patch.setattr(bot, "_reply_history_owner", Mock(return_value=history))
                     else:
                         patch.setattr(bot, key, value)
                 assert adapter(*args) is result, name
@@ -379,10 +383,14 @@ def test_reused_draft_keeps_context_references_durability_and_pre_send_availabil
             getattr(bot._reply_draft_owner(), draft_methods[name])
             if name in draft_methods else getattr(bot, name)
         )
+        if name == "recovery_comparison_account_replies":
+            original = bot._reply_history_owner().recovery_replies
         callback = Mock(wraps=original)
         trace.attach_mock(callback, name)
         if name in draft_methods:
             patch_reply_draft_method(monkeypatch, draft_methods[name], callback)
+        elif name == "recovery_comparison_account_replies":
+            patch_reply_history_method(monkeypatch, "recovery_replies", callback)
         else:
             monkeypatch.setattr(bot, name, callback)
     monkeypatch.setattr(bot, "evaluate_single_call_reply", legacy_reply_evaluator(Mock(side_effect=AssertionError("draft must be reused"))))
@@ -698,6 +706,8 @@ def test_pre_generation_failures_keep_their_own_exception_boundary(monkeypatch, 
                if evidence_failure else ValueError("outside generation"))
     if boundary == "recover_pending_ai_reply":
         patch_reply_draft_method(monkeypatch, "recover", Mock(side_effect=failure))
+    elif boundary == "recovery_comparison_account_replies":
+        patch_reply_history_method(monkeypatch, "recovery_replies", Mock(side_effect=failure))
     else:
         monkeypatch.setattr(bot, boundary, Mock(side_effect=failure))
     save, health, generate = Mock(), Mock(), Mock()

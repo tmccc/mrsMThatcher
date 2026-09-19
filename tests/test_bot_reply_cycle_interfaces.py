@@ -57,16 +57,21 @@ def test_cycle_boundaries_capture_current_callbacks_and_config_between_calls(mon
         return drafts
 
     factory = Mock(side_effect=make_drafts)
+    history_factory = Mock(wraps=bot._reply_history_owner)
     monkeypatch.setattr(bot, "_reply_draft_owner", factory)
+    monkeypatch.setattr(bot, "_reply_history_owner", history_factory)
     state = {}
     snapshots = []
+    histories = []
     for index in range(2):
-        save, evidence, post = Mock(), Mock(), Mock()
+        save, evidence, post, clock = Mock(), Mock(), Mock(), Mock()
         monkeypatch.setattr(bot, "save_state", save)
         monkeypatch.setattr(bot, "reply_evidence_repository", evidence)
         monkeypatch.setattr(bot, "post_conversational_reply_with_durable_identity", post)
         monkeypatch.setattr(bot, "ENABLE_AUTO_REPLIES", bool(index))
         monkeypatch.setattr(bot, "MAX_AUTO_REPLIES_PER_DAY", 20 + index)
+        monkeypatch.setattr(bot, "now_epoch", clock)
+        monkeypatch.setattr(bot, "MAX_RECENT_ACCOUNT_REPLIES", 10 + index)
         assert adapter(state) is result
         assert owner.call_args.args[0] is state
         supplied = owner.call_args.kwargs
@@ -74,6 +79,14 @@ def test_cycle_boundaries_capture_current_callbacks_and_config_between_calls(mon
         assert config.enabled is bool(index)
         assert config.maximum_daily_replies == 20 + index
         assert factory.call_count == index + 1
+        assert history_factory.call_count == index + 1
+        history_callback = supplied["recovery_comparison_account_replies"]
+        history = history_callback.__self__
+        assert history_callback.__func__ is type(history).recovery_replies
+        assert history.now_epoch is clock
+        assert history.maximum_recent_replies == 10 + index
+        clock.assert_not_called()
+        histories.append(history)
         drafts = draft_owners[-1]
         assert persistence.save is save
         for method in ("recover", "store", "clear"):
@@ -92,6 +105,8 @@ def test_cycle_boundaries_capture_current_callbacks_and_config_between_calls(mon
     assert draft_owners[0] is not draft_owners[1]
     assert draft_owners[0].evidence_repository is snapshots[0][2]
     assert draft_owners[0].evidence_repository is not draft_owners[1].evidence_repository
+    assert histories[0] is not histories[1]
+    assert histories[0].now_epoch is not histories[1].now_epoch
     assert state == {}
 
 
@@ -149,8 +164,9 @@ def test_cycles_consume_typed_results_through_durable_outcomes(monkeypatch, lane
     patch_reply_draft_method(monkeypatch, "recover", recovery)
     for name in (
         "recover_pending_ai_reply", "store_pending_ai_reply", "validate_current_ai_reply_draft",
+        "recovery_comparison_account_replies",
     ):
-        monkeypatch.setattr(bot, name, Mock(side_effect=AssertionError("draft owner used root adapter")))
+        monkeypatch.setattr(bot, name, Mock(side_effect=AssertionError("reply owner used root adapter")))
 
     def post(**kwargs):
         assert kwargs["state"] is state
