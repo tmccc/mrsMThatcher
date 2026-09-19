@@ -13,6 +13,7 @@ from tests.helpers.adapter_assertions import assert_adapters_forward_current_dep
 
 import mrs_bot_reply_reconciliation as reconciliation
 import mrs_bot_reply_history as reply_history
+import mrs_bot_reply_clarifications as reply_clarifications
 from tests.helpers.mention_fixtures import mention, queue_active_mention
 from tests.helpers.bot_runtime import bot
 from tests.helpers.bot_fixtures import isolate_bot_runtime  # noqa: F401
@@ -70,7 +71,7 @@ def test_adapters_forward_current_dependencies_arguments_results_and_errors(monk
     )
 
 
-def test_application_adapter_binds_current_history_and_preserves_other_dependencies(monkeypatch):
+def test_application_adapter_binds_current_owners_and_preserves_other_dependencies(monkeypatch):
     adapter = bot.apply_confirmed_reply_receipt
     public = inspect.signature(adapter).parameters
     parameters = inspect.signature(reconciliation.apply_confirmed_reply_receipt).parameters
@@ -80,12 +81,15 @@ def test_application_adapter_binds_current_history_and_preserves_other_dependenc
         "now_epoch", "AI_REPLY_HISTORY_MAX_AGE_SECONDS", "valid_string_post_id",
         "AI_REPLY_HISTORY_MAX_RECORDS",
     }.isdisjoint(parameters)
-    dependencies = parameters.keys() - public.keys() - {"record_reply_history"}
+    assert "clarifications" in parameters
+    dependencies = parameters.keys() - public.keys() - {"record_reply_history", "clarifications"}
     implementation = Mock(return_value=object())
-    factory = Mock(wraps=bot._reply_history_owner)
+    history_factory = Mock(wraps=bot._reply_history_owner)
+    clarification_factory = Mock(wraps=bot._clarification_reply_owner)
     monkeypatch.setattr(reconciliation, "apply_confirmed_reply_receipt", implementation)
-    monkeypatch.setattr(bot, "_reply_history_owner", factory)
-    state, receipt, histories = {}, {}, []
+    monkeypatch.setattr(bot, "_reply_history_owner", history_factory)
+    monkeypatch.setattr(bot, "_clarification_reply_owner", clarification_factory)
+    state, receipt, histories, clarification_owners = {}, {}, [], []
     for index in range(2):
         current = {name: object() for name in dependencies}
         for name, value in current.items():
@@ -94,11 +98,13 @@ def test_application_adapter_binds_current_history_and_preserves_other_dependenc
         monkeypatch.setattr(bot, "now_epoch", clock)
         monkeypatch.setattr(bot, "AI_REPLY_HISTORY_MAX_AGE_SECONDS", 100 + index)
         monkeypatch.setattr(bot, "AI_REPLY_HISTORY_MAX_RECORDS", 10 + index)
+        monkeypatch.setattr(bot, "CLARIFICATION_REPLY_WINDOW_SECONDS", 1000 + index)
         assert adapter(state, receipt) is implementation.return_value
-        assert factory.call_count == index + 1
+        assert history_factory.call_count == index + 1
+        assert clarification_factory.call_count == index + 1
         args, supplied = implementation.call_args
         assert len(args) == 2 and args[0] is state and args[1] is receipt
-        assert supplied.keys() == {*current, "record_reply_history"}
+        assert supplied.keys() == {*current, "record_reply_history", "clarifications"}
         assert all(supplied[name] is value for name, value in current.items())
         callback = supplied["record_reply_history"]
         assert callback.__func__ is reply_history.ReplyHistory.record_confirmation
@@ -106,10 +112,19 @@ def test_application_adapter_binds_current_history_and_preserves_other_dependenc
         assert history.now_epoch is clock
         assert history.maximum_age_seconds == 100 + index
         assert history.maximum_records == 10 + index
+        clarification_owner = supplied["clarifications"]
+        assert isinstance(clarification_owner, reply_clarifications.ClarificationReplies)
+        assert clarification_owner.invalid_receipt is current["InvalidConfirmedReplyReceipt"]
+        assert clarification_owner.log_event is current["log_event"]
+        assert clarification_owner.window_seconds == 1000 + index
         clock.assert_not_called()
         histories.append(history)
+        clarification_owners.append(clarification_owner)
     assert histories[0] is not histories[1]
     assert histories[0].now_epoch is not histories[1].now_epoch
+    assert clarification_owners[0] is not clarification_owners[1]
+    assert clarification_owners[0].log_event is not clarification_owners[1].log_event
+    assert clarification_owners[0].window_seconds == 1000
     failure = TypeError("current application failure")
     implementation.side_effect = failure
     with pytest.raises(TypeError) as caught:
@@ -361,6 +376,76 @@ def test_history_keeps_expansion_order_strict_epochs_sort_cap_and_references(mon
     bot.apply_confirmed_reply_receipt(state, receipt)
     assert len(state["ai_reply_history"]) == 2
     assert state["ai_reply_history"][0] is retained
+
+
+@pytest.mark.parametrize("failure_stage", [None, "check", "record"])
+def test_clarification_application_keeps_call_order_references_and_resolved_identity(monkeypatch, failure_stage):
+    receipt = unit_confirmed_v4_reply_receipt(lane="hot_post_reply", conversation_id="700")
+    clarification = {
+        "thread_id": "700", "prior_bot_reply_id": "900",
+        "original_question_id": "100", "trigger": "explicit_correction",
+    }
+    receipt["clarification_reply"] = clarification
+    state = bot.default_state()
+    epoch = receipt["confirmation_epoch"]
+    owner = Mock(spec=reply_clarifications.ClarificationReplies)
+    factory = Mock(return_value=owner)
+    monkeypatch.setattr(bot, "_clarification_reply_owner", factory)
+    trace = Mock()
+    trace.attach_mock(owner.assert_no_conflict, "check")
+    trace.attach_mock(owner.record_completed, "record")
+    trace.advance = Mock(wraps=bot._advance_reply_counters_to_confirmation_date)
+    monkeypatch.setattr(bot, "_advance_reply_counters_to_confirmation_date", trace.advance)
+    monkeypatch.setattr(bot, "cache_tweet", trace.cache)
+    patch_reply_history_method(monkeypatch, "record_confirmation", trace.history)
+    monkeypatch.setattr(bot, "log_event", trace.event)
+
+    def cache(actual_state, **kwargs):
+        assert actual_state is state
+        assert kwargs["tweet_id"] == "999"
+        receipt.update(
+            target_id="changed-target", author_id="changed-author", reply_post_id="changed-reply",
+            reply_epoch=epoch + 100, confirmation_epoch=epoch + 100,
+            clarification_reply={"thread_id": "replacement"},
+        )
+
+    trace.cache.side_effect = cache
+    failure = TypeError("clarification owner failure")
+    if failure_stage:
+        getattr(trace, failure_stage).side_effect = failure
+        with pytest.raises(TypeError) as caught:
+            bot.apply_confirmed_reply_receipt(state, receipt)
+        assert caught.value is failure
+    else:
+        assert bot.apply_confirmed_reply_receipt(state, receipt) is None
+    factory.assert_called_once_with()
+    order = ["advance", "check", "cache", "history", "event", "record"]
+    if failure_stage:
+        order = order[:order.index(failure_stage) + 1]
+    assert [entry[0] for entry in trace.mock_calls] == order
+    check_args, check_options = owner.assert_no_conflict.call_args
+    assert len(check_args) == 2 and check_args[0] is state and check_args[1] is clarification
+    assert check_options == {"reply_post_id": "999"}
+    if failure_stage != "check":
+        record_args, record_options = owner.record_completed.call_args
+        assert len(record_args) == 2 and record_args[0] is state and record_args[1] is clarification
+        assert record_options == {
+            "author_id": "200", "target_id": "100", "reply_post_id": "999", "reply_epoch": epoch,
+        }
+        assert trace.event.call_args.args == ("single_call_reply_posting_outcome",)
+        assert trace.event.call_args.kwargs["target_id"] == "100"
+        assert trace.event.call_args.kwargs["reply_post_id"] == "999"
+
+
+@pytest.mark.parametrize("clarification", [None, []])
+def test_application_skips_clarification_operations_for_non_mapping_values(monkeypatch, clarification):
+    receipt = unit_confirmed_reply_receipt(lane="hot_post_reply")
+    receipt["clarification_reply"] = clarification
+    owner = Mock(spec=reply_clarifications.ClarificationReplies)
+    monkeypatch.setattr(bot, "_clarification_reply_owner", Mock(return_value=owner))
+    bot.apply_confirmed_reply_receipt(bot.default_state(), receipt)
+    owner.assert_no_conflict.assert_not_called()
+    owner.record_completed.assert_not_called()
 
 
 def test_clarification_ledger_copies_outer_mapping_once_and_preserves_records(monkeypatch):

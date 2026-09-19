@@ -265,6 +265,7 @@ import mrs_bot_tweet_lookup_cache as _tweet_lookup_cache
 import mrs_bot_reply_context as _reply_context
 import mrs_bot_reply_native_media as _reply_native_media
 import mrs_bot_reply_lane_policy as _reply_lane_policy
+import mrs_bot_reply_clarifications as _reply_clarifications
 import mrs_bot_runtime_control as _runtime_control
 import mrs_bot_api_cooldowns as _api_cooldowns
 import mrs_bot_x_pagination as _x_pagination
@@ -2991,67 +2992,51 @@ def mark_daily_author_replied(state: dict, author_id: str) -> None:
     )
 
 
-CLARIFICATION_CUE_RE = _reply_lane_policy.CLARIFICATION_CUE_RE
-CLARIFICATION_TOKEN_RE = _reply_lane_policy.CLARIFICATION_TOKEN_RE
-CLARIFICATION_TOKEN_STOPWORDS = _reply_lane_policy.CLARIFICATION_TOKEN_STOPWORDS
-
-
-clarification_thread_id = _reply_lane_policy.clarification_thread_id
-
-
-def clarification_thread_is_terminal(state: dict, candidate: dict) -> bool:
-    """Delegate reply-lane policy with current root dependencies."""
-    return _reply_lane_policy.clarification_thread_is_terminal(
-        state,
-        candidate,
-        clarification_thread_id=clarification_thread_id,
-    )
-
-
-def author_used_clarification_recently(state: dict, author_id: str, *, current: int) -> bool:
-    """Delegate reply-lane policy with current root dependencies."""
-    return _reply_lane_policy.author_used_clarification_recently(
-        state,
-        author_id,
-        current=current,
-        CLARIFICATION_REPLY_WINDOW_SECONDS=CLARIFICATION_REPLY_WINDOW_SECONDS,
-    )
-
-
-def _clarification_tokens(text: object) -> set[str]:
-    """Delegate reply-lane policy with current root dependencies."""
-    return _reply_lane_policy._clarification_tokens(
-        text,
-        CLARIFICATION_TOKEN_RE=CLARIFICATION_TOKEN_RE,
-        CLARIFICATION_TOKEN_STOPWORDS=CLARIFICATION_TOKEN_STOPWORDS,
-        re=re,
-    )
-
-
-def clarification_reply_context(
-    state: dict,
-    candidate: dict,
-    *,
-    current: int,
-) -> dict | None:
-    """Delegate reply-lane policy with current root dependencies."""
-    return _reply_lane_policy.clarification_reply_context(
-        state,
-        candidate,
-        current=current,
-        ApiError=ApiError,
-        CLARIFICATION_CUE_RE=CLARIFICATION_CUE_RE,
-        _clarification_tokens=_clarification_tokens,
-        author_used_clarification_recently=author_used_clarification_recently,
-        clarification_thread_id=clarification_thread_id,
-        clarification_thread_is_terminal=clarification_thread_is_terminal,
-        conversational_reply_pipeline_enabled=conversational_reply_pipeline_enabled,
-        get_immediate_parent_id=get_immediate_parent_id,
-        is_our_auto_reply=is_our_auto_reply,
+def _clarification_reply_owner() -> _reply_clarifications.ClarificationReplies:
+    """Bind current clarification capabilities and policy without reading state."""
+    return _reply_clarifications.ClarificationReplies(
+        pipeline_enabled=conversational_reply_pipeline_enabled,
+        parent_id=get_immediate_parent_id,
         get_tweet_by_id_cached=get_tweet_by_id_cached,
         tweet_text_is_complete=tweet_text_is_complete,
         api_error_is_permanent_target_failure=api_error_is_permanent_target_failure,
+        is_our_auto_reply=is_our_auto_reply,
+        api_error=ApiError,
+        invalid_receipt=InvalidConfirmedReplyReceipt,
+        window_seconds=CLARIFICATION_REPLY_WINDOW_SECONDS,
+        cue_re=CLARIFICATION_CUE_RE,
+        token_re=CLARIFICATION_TOKEN_RE,
+        token_stopwords=CLARIFICATION_TOKEN_STOPWORDS,
+        log_event=log_event,
     )
+
+
+CLARIFICATION_CUE_RE = _reply_clarifications.CLARIFICATION_CUE_RE
+CLARIFICATION_TOKEN_RE = _reply_clarifications.CLARIFICATION_TOKEN_RE
+CLARIFICATION_TOKEN_STOPWORDS = _reply_clarifications.CLARIFICATION_TOKEN_STOPWORDS
+
+
+clarification_thread_id = _reply_clarifications.clarification_thread_id
+
+
+def clarification_thread_is_terminal(state: dict, candidate: dict) -> bool:
+    """Delegate clarification behavior to its owner with current dependencies."""
+    return _clarification_reply_owner().thread_is_terminal(state, candidate)
+
+
+def author_used_clarification_recently(state: dict, author_id: str, *, current: int) -> bool:
+    """Delegate clarification behavior to its owner with current dependencies."""
+    return _clarification_reply_owner().author_used_recently(state, author_id, current=current)
+
+
+def _clarification_tokens(text: object) -> set[str]:
+    """Delegate clarification behavior to its owner with current dependencies."""
+    return _clarification_reply_owner().tokens(text)
+
+
+def clarification_reply_context(state: dict, candidate: dict, *, current: int) -> dict | None:
+    """Delegate clarification behavior to its owner with current dependencies."""
+    return _clarification_reply_owner().context(state, candidate, current=current)
 
 
 # ---------------------------------------------------------------------
@@ -8507,6 +8492,7 @@ def apply_confirmed_reply_receipt(state: dict, receipt: dict) -> None:
         MY_USER_ID=MY_USER_ID,
         datetime=datetime,
         record_reply_history=_reply_history_owner().record_confirmation,
+        clarifications=_clarification_reply_owner(),
         log_event=log_event,
     )
 

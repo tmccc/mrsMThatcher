@@ -17,6 +17,10 @@ import copy
 import logging
 from collections.abc import Callable
 from pathlib import Path
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from mrs_bot_reply_clarifications import ClarificationReplies
 
 
 def _valid_iso_date(
@@ -97,6 +101,7 @@ def apply_confirmed_reply_receipt(
     MY_USER_ID: str,
     datetime: type,
     record_reply_history: Callable,
+    clarifications: ClarificationReplies,
     log_event: Callable,
 ) -> None:
     """Apply confirmed reply receipt."""
@@ -130,12 +135,7 @@ def apply_confirmed_reply_receipt(
         )
     clarification = receipt.get("clarification_reply")
     if isinstance(clarification, dict):
-        existing_records = state.get("clarification_reply_records", {})
-        existing = existing_records.get(str(clarification["thread_id"])) if isinstance(existing_records, dict) else None
-        if isinstance(existing, dict) and str(existing.get("reply_post_id") or "") != reply_post_id:
-            raise InvalidConfirmedReplyReceipt(
-                f"clarification thread {clarification['thread_id']} already has a different completed repair"
-            )
+        clarifications.assert_no_conflict(state, clarification, reply_post_id=reply_post_id)
     mention_pagination_to_preserve: dict | None = None
     if "mention_pagination" in receipt:
         mention_pagination = receipt.get("mention_pagination")
@@ -315,42 +315,10 @@ def apply_confirmed_reply_receipt(
             failure_reason="",
         )
     if isinstance(clarification, dict):
-        thread_id = str(clarification["thread_id"])
-        records = state.get("clarification_reply_records", {})
-        if not isinstance(records, dict):
-            records = {}
-        existing = records.get(thread_id)
-        if not isinstance(existing, dict):
-            records = dict(records)
-            records[thread_id] = {
-                "thread_id": thread_id,
-                "author_id": author_id,
-                "target_id": target_id,
-                "reply_post_id": reply_post_id,
-                "prior_bot_reply_id": str(clarification["prior_bot_reply_id"]),
-                "original_question_id": str(clarification["original_question_id"]),
-                "trigger": str(clarification["trigger"]),
-                "completed_epoch": reply_epoch,
-                "status": "repair_reply_completed",
-                "clarification_reply_used": True,
-                "thread_terminal": True,
-            }
-            state["clarification_reply_records"] = records
-            log_event(
-                "clarification_reply_used",
-                thread_id=thread_id,
-                author_id=author_id,
-                target_id=target_id,
-                reply_post_id=reply_post_id,
-                trigger=clarification["trigger"],
-            )
-            log_event(
-                "repair_reply_completed",
-                thread_id=thread_id,
-                author_id=author_id,
-                target_id=target_id,
-                reply_post_id=reply_post_id,
-            )
+        clarifications.record_completed(
+            state, clarification, author_id=author_id, target_id=target_id,
+            reply_post_id=reply_post_id, reply_epoch=reply_epoch,
+        )
 
 
 def finalise_confirmed_reply(
