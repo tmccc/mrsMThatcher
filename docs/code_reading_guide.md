@@ -46,6 +46,7 @@ need. A recovered draft can bypass model evaluation.
 | Author quarantine strikes, expiry and policy migration | `AuthorQuarantines` in [mrs_bot_author_quarantines.py](../mrs_bot_author_quarantines.py) |
 | Terminal evaluation recording and replay-protection retention | `ReplyEvaluations` in [mrs_bot_reply_evaluation_state.py](../mrs_bot_reply_evaluation_state.py) |
 | Clarification eligibility and completed repair history | `ClarificationReplies` in [mrs_bot_reply_clarifications.py](../mrs_bot_reply_clarifications.py) |
+| Daily reply buckets, author counts and confirmation accounting | `DailyReplyAccounting` in [mrs_bot_daily_reply_accounting.py](../mrs_bot_daily_reply_accounting.py) |
 | Save draft, prepare receipt, send and commit confirmation | [mrs_bot_reply_preparation.py](../mrs_bot_reply_preparation.py), [mrs_bot_reply_delivery.py](../mrs_bot_reply_delivery.py), [mrs_bot_reply_reconciliation.py](../mrs_bot_reply_reconciliation.py) |
 
 [mrs_bot_reply_cycle_interfaces.py](../mrs_bot_reply_cycle_interfaces.py) describes

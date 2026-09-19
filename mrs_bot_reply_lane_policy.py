@@ -1,16 +1,17 @@
-"""Apply reply-lane counters and deterministic eligibility/spam gates.
+"""Apply deterministic reply eligibility and spam gates.
 
-Clarification policy and completed repair history belong to the clarification
-owner; fixed definitions and thread-ID lookup remain reexported for compatibility.
-Root adapters supply current remaining runtime dependencies. Imports perform no
-file, environment, clock, provider or RNG work.
+Daily accounting and clarification behavior live in their respective owners;
+legacy helper names remain re-exported here for compatibility. Root adapters
+supply current eligibility and logging dependencies. Import performs no file,
+environment, clock, provider or RNG work.
 """
 
 from __future__ import annotations
 
 import logging
-from collections.abc import Callable
 from types import ModuleType
+
+from mrs_bot_daily_reply_accounting import daily_author_reply_counts
 
 from mrs_bot_reply_clarifications import (
     CLARIFICATION_CUE_RE,
@@ -18,100 +19,6 @@ from mrs_bot_reply_clarifications import (
     CLARIFICATION_TOKEN_STOPWORDS,
     clarification_thread_id,
 )
-
-
-def reset_daily_reply_count_if_needed(
-    state: dict,
-    *,
-    log: logging.Logger,
-    reply_cap_date_str: Callable,
-) -> None:
-    """Reset daily reply count if needed."""
-    today = reply_cap_date_str()
-
-    if state.get("daily_reply_date") != today:
-        log.info(
-            "Resetting daily reply count. Previous date=%s new date=%s previous count=%s",
-            state.get("daily_reply_date"),
-            today,
-            state.get("daily_reply_count"),
-        )
-        state["daily_reply_date"] = today
-        state["daily_reply_count"] = 0
-        state["daily_replied_author_ids"] = []
-        state["daily_replied_author_counts"] = {}
-
-
-def reset_daily_quote_reply_count_if_needed(
-    state: dict,
-    *,
-    log: logging.Logger,
-    reply_cap_date_str: Callable,
-) -> None:
-    """Reset daily quote reply count if needed."""
-    today = reply_cap_date_str()
-
-    if state.get("daily_quote_reply_date") != today:
-        log.info(
-            "Resetting daily quote-reply count. Previous date=%s new date=%s previous count=%s",
-            state.get("daily_quote_reply_date"),
-            today,
-            state.get("daily_quote_reply_count"),
-        )
-        state["daily_quote_reply_date"] = today
-        state["daily_quote_reply_count"] = 0
-
-
-def daily_author_reply_counts(state: dict) -> dict[str, int]:
-    """Return the daily author reply counts."""
-    counts = state.get("daily_replied_author_counts", {})
-    if isinstance(counts, dict):
-        cleaned: dict[str, int] = {}
-        for author_id, count in counts.items():
-            try:
-                cleaned[str(author_id)] = max(0, int(count))
-            except Exception:
-                continue
-        if not cleaned:
-            legacy_authors = set(str(x) for x in state.get("daily_replied_author_ids", []))
-            cleaned = {author_id: 1 for author_id in legacy_authors}
-        state["daily_replied_author_counts"] = cleaned
-        return cleaned
-
-    legacy_authors = set(str(x) for x in state.get("daily_replied_author_ids", []))
-    cleaned = {author_id: 1 for author_id in legacy_authors}
-    state["daily_replied_author_counts"] = cleaned
-    return cleaned
-
-
-def daily_author_reply_count(
-    state: dict,
-    author_id: str,
-    *,
-    daily_author_reply_counts: Callable,
-) -> int:
-    """Return the daily author reply count."""
-    return daily_author_reply_counts(state).get(str(author_id), 0)
-
-
-def mark_daily_author_replied(
-    state: dict,
-    author_id: str,
-    *,
-    append_unique_capped: Callable,
-    daily_author_reply_counts: Callable,
-) -> None:
-    """Mark daily author replied."""
-    author_id = str(author_id)
-    counts = daily_author_reply_counts(state)
-    counts[author_id] = counts.get(author_id, 0) + 1
-    state["daily_replied_author_counts"] = counts
-
-    state["daily_replied_author_ids"] = append_unique_capped(
-        state.get("daily_replied_author_ids", []),
-        author_id,
-        1000,
-    )
 
 
 def reply_target_is_directly_eligible(

@@ -14,6 +14,7 @@ from tests.helpers.adapter_assertions import assert_adapters_forward_current_dep
 import mrs_bot_reply_reconciliation as reconciliation
 import mrs_bot_reply_history as reply_history
 import mrs_bot_reply_clarifications as reply_clarifications
+import mrs_bot_daily_reply_accounting as daily_accounting
 from tests.helpers.mention_fixtures import mention, queue_active_mention
 from tests.helpers.bot_runtime import bot
 from tests.helpers.bot_fixtures import isolate_bot_runtime  # noqa: F401
@@ -22,6 +23,14 @@ from tests.helpers.reply_fixtures import (
     unit_confirmed_reply_receipt,
     unit_confirmed_v4_reply_receipt,
 )
+
+
+def patch_accounting_method(monkeypatch, method, callback):
+    """Observe an owned accounting operation without changing callback arguments."""
+    def invoke(_owner, *args, **kwargs):
+        return callback(*args, **kwargs)
+
+    monkeypatch.setattr(daily_accounting.DailyReplyAccounting, method, invoke)
 
 
 def test_import_needs_no_runtime_access():
@@ -61,8 +70,6 @@ assert 'single_call_reply' not in sys.modules
 
 def test_adapters_forward_current_dependencies_arguments_results_and_errors(monkeypatch):
     names = (
-        "_valid_iso_date",
-        "_advance_reply_counters_to_confirmation_date",
         "reconcile_confirmed_reply_receipt",
         "confirmed_reply_emergency_representation_is_complete",
     )
@@ -79,17 +86,20 @@ def test_application_adapter_binds_current_owners_and_preserves_other_dependenci
     assert all(parameter.kind is inspect.Parameter.POSITIONAL_OR_KEYWORD for parameter in public.values())
     assert {
         "now_epoch", "AI_REPLY_HISTORY_MAX_AGE_SECONDS", "valid_string_post_id",
-        "AI_REPLY_HISTORY_MAX_RECORDS",
+        "AI_REPLY_HISTORY_MAX_RECORDS", "_advance_reply_counters_to_confirmation_date",
+        "mark_daily_author_replied",
     }.isdisjoint(parameters)
-    assert "clarifications" in parameters
-    dependencies = parameters.keys() - public.keys() - {"record_reply_history", "clarifications"}
+    assert {"clarifications", "accounting"} <= parameters.keys()
+    dependencies = parameters.keys() - public.keys() - {"record_reply_history", "clarifications", "accounting"}
     implementation = Mock(return_value=object())
     history_factory = Mock(wraps=bot._reply_history_owner)
     clarification_factory = Mock(wraps=bot._clarification_reply_owner)
+    accounting_factory = Mock(wraps=bot._daily_reply_accounting_owner)
     monkeypatch.setattr(reconciliation, "apply_confirmed_reply_receipt", implementation)
     monkeypatch.setattr(bot, "_reply_history_owner", history_factory)
     monkeypatch.setattr(bot, "_clarification_reply_owner", clarification_factory)
-    state, receipt, histories, clarification_owners = {}, {}, [], []
+    monkeypatch.setattr(bot, "_daily_reply_accounting_owner", accounting_factory)
+    state, receipt, histories, clarification_owners, accounting_owners = {}, {}, [], [], []
     for index in range(2):
         current = {name: object() for name in dependencies}
         for name, value in current.items():
@@ -102,9 +112,10 @@ def test_application_adapter_binds_current_owners_and_preserves_other_dependenci
         assert adapter(state, receipt) is implementation.return_value
         assert history_factory.call_count == index + 1
         assert clarification_factory.call_count == index + 1
+        assert accounting_factory.call_count == index + 1
         args, supplied = implementation.call_args
         assert len(args) == 2 and args[0] is state and args[1] is receipt
-        assert supplied.keys() == {*current, "record_reply_history", "clarifications"}
+        assert supplied.keys() == {*current, "record_reply_history", "clarifications", "accounting"}
         assert all(supplied[name] is value for name, value in current.items())
         callback = supplied["record_reply_history"]
         assert callback.__func__ is reply_history.ReplyHistory.record_confirmation
@@ -117,6 +128,11 @@ def test_application_adapter_binds_current_owners_and_preserves_other_dependenci
         assert clarification_owner.invalid_receipt is current["InvalidConfirmedReplyReceipt"]
         assert clarification_owner.log_event is current["log_event"]
         assert clarification_owner.window_seconds == 1000 + index
+        accounting_owner = supplied["accounting"]
+        assert isinstance(accounting_owner, daily_accounting.DailyReplyAccounting)
+        for field in ("datetime", "log", "reply_cap_date_str", "append_unique_capped"):
+            assert getattr(accounting_owner, field) is current[field]
+        accounting_owners.append(accounting_owner)
         clock.assert_not_called()
         histories.append(history)
         clarification_owners.append(clarification_owner)
@@ -125,30 +141,12 @@ def test_application_adapter_binds_current_owners_and_preserves_other_dependenci
     assert clarification_owners[0] is not clarification_owners[1]
     assert clarification_owners[0].log_event is not clarification_owners[1].log_event
     assert clarification_owners[0].window_seconds == 1000
+    assert accounting_owners[0] is not accounting_owners[1]
+    assert accounting_owners[0].reply_cap_date_str is not accounting_owners[1].reply_cap_date_str
     failure = TypeError("current application failure")
     implementation.side_effect = failure
     with pytest.raises(TypeError) as caught:
         adapter(state, receipt)
-    assert caught.value is failure
-
-
-def test_date_round_trip_uses_current_datetime_and_catches_only_value_error(monkeypatch):
-    assert bot._valid_iso_date("2024-02-29")
-    assert not bot._valid_iso_date("2024-2-29")
-    assert not bot._valid_iso_date("2023-02-29")
-    assert not bot._valid_iso_date(None)
-    current = Mock()
-    current.strptime.return_value.strftime.return_value = "current-date"
-    monkeypatch.setattr(bot, "datetime", current)
-    assert bot._valid_iso_date("current-date")
-    current.strptime.assert_called_once_with("current-date", "%Y-%m-%d")
-    current.strptime.return_value.strftime.assert_called_once_with("%Y-%m-%d")
-    current.strptime.side_effect = ValueError("invalid date")
-    assert not bot._valid_iso_date("current-date")
-    failure = TypeError("current parser failed")
-    current.strptime.side_effect = failure
-    with pytest.raises(TypeError) as caught:
-        bot._valid_iso_date("current-date")
     assert caught.value is failure
 
 
@@ -166,13 +164,14 @@ def test_confirmation_and_authority_precede_counter_reset_and_clarification_conf
     for label, name in (
         ("confirmation", "conversational_reply_confirmation_epoch"),
         ("authority", "validate_pending_mention_candidate_authority"),
-        ("advance", "_advance_reply_counters_to_confirmation_date"),
         ("clear", "clear_pending_ai_reply"),
         ("cache", "cache_tweet"),
     ):
         callback = Mock(wraps=getattr(bot, name))
         trace.attach_mock(callback, label)
         monkeypatch.setattr(bot, name, callback)
+    trace.advance = Mock(wraps=bot._daily_reply_accounting_owner().advance)
+    patch_accounting_method(monkeypatch, "advance", trace.advance)
     trace.authority.return_value = (False, False)
     with pytest.raises(bot.InvalidConfirmedReplyReceipt, match="bounded pending-candidate"):
         bot.apply_confirmed_reply_receipt(state, receipt)
@@ -197,6 +196,68 @@ def test_confirmation_and_authority_precede_counter_reset_and_clarification_conf
     assert state["daily_replied_author_counts"] == {}
     assert state["clarification_reply_records"] == before["clarification_reply_records"]
     assert state["own_auto_reply_ids"] == before["own_auto_reply_ids"]
+
+
+@pytest.mark.parametrize("lane", ["mention", "quote_tweet"])
+@pytest.mark.parametrize("version,failure_stage", [(2, None), (4, None), (4, "advance"), (4, "record")])
+def test_accounting_calls_preserve_positions_snapshots_and_native_failures(monkeypatch, lane, version, failure_stage):
+    receipt = (unit_confirmed_reply_receipt(lane=lane) if version == 2
+               else unit_confirmed_v4_reply_receipt(lane=lane))
+    target_id, reply_post_id = receipt["target_id"], receipt["reply_post_id"]
+    author_id = receipt["author_id"]
+    reply_date = receipt["daily_reply_date"]
+    quote_date = str(receipt.get("daily_quote_reply_date") or reply_date)
+    state = bot.default_state()
+    already_recorded = lane == "quote_tweet"
+    if already_recorded:
+        state["replied_to_quote_post_ids"] = [target_id]
+    owner = Mock(spec=daily_accounting.DailyReplyAccounting)
+    factory = Mock(return_value=owner)
+    monkeypatch.setattr(bot, "_daily_reply_accounting_owner", factory)
+    trace = Mock()
+    trace.attach_mock(owner.advance, "advance")
+    trace.attach_mock(owner.record_confirmed, "record")
+    original_append = bot.append_unique_capped
+
+    def append_ids(values, value, cap):
+        if value == reply_post_id:
+            trace.identities()
+            receipt.update(author_id="changed", candidate_source="hot_post_reply",
+                           daily_reply_date="changed", daily_quote_reply_date="changed")
+        return original_append(values, value, cap)
+
+    monkeypatch.setattr(bot, "append_unique_capped", append_ids)
+    trace.cache = Mock(wraps=bot.cache_tweet)
+    monkeypatch.setattr(bot, "cache_tweet", trace.cache)
+    monkeypatch.setattr(bot, "log_event", trace.event)
+    failure = TypeError("accounting operation failed")
+    if failure_stage:
+        getattr(trace, failure_stage).side_effect = failure
+        with pytest.raises(TypeError) as caught:
+            bot.apply_confirmed_reply_receipt(state, receipt)
+        assert caught.value is failure
+    else:
+        bot.apply_confirmed_reply_receipt(state, receipt)
+    factory.assert_called_once_with()
+    order = (["advance"] if version == 4 else []) + ["identities", "record", "cache", "event"]
+    if failure_stage:
+        order = order[:order.index(failure_stage) + 1]
+    assert [entry[0] for entry in trace.mock_calls] == order
+    if version == 4:
+        owner.advance.assert_called_once_with(state, reply_date, include_quote_lane=lane == "quote_tweet")
+        assert owner.advance.call_args.args[0] is state
+    else:
+        owner.advance.assert_not_called()
+    if failure_stage != "advance":
+        owner.record_confirmed.assert_called_once_with(
+            state, already_recorded=already_recorded, candidate_source=lane,
+            author_id=author_id, receipt_reply_date=reply_date,
+            receipt_quote_reply_date=quote_date,
+        )
+        assert owner.record_confirmed.call_args.args[0] is state
+        assert reply_post_id in state["own_auto_reply_ids"]
+    else:
+        owner.record_confirmed.assert_not_called()
 
 
 def test_application_keeps_queue_draft_pagination_and_cache_reference_order(monkeypatch):
@@ -394,8 +455,8 @@ def test_clarification_application_keeps_call_order_references_and_resolved_iden
     trace = Mock()
     trace.attach_mock(owner.assert_no_conflict, "check")
     trace.attach_mock(owner.record_completed, "record")
-    trace.advance = Mock(wraps=bot._advance_reply_counters_to_confirmation_date)
-    monkeypatch.setattr(bot, "_advance_reply_counters_to_confirmation_date", trace.advance)
+    trace.advance = Mock(wraps=bot._daily_reply_accounting_owner().advance)
+    patch_accounting_method(monkeypatch, "advance", trace.advance)
     monkeypatch.setattr(bot, "cache_tweet", trace.cache)
     patch_reply_history_method(monkeypatch, "record_confirmation", trace.history)
     monkeypatch.setattr(bot, "log_event", trace.event)

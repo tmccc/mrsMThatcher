@@ -251,6 +251,7 @@ deployed as a coherent set:
 - `mrs_bot_reply_context.py`
 - `mrs_bot_reply_native_media.py`
 - `mrs_bot_reply_lane_policy.py`
+- `mrs_bot_daily_reply_accounting.py`
 - `mrs_bot_reply_clarifications.py`
 - `mrs_bot_runtime_control.py`
 - `runtime_control_contract.py`

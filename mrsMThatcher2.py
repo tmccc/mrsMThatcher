@@ -265,6 +265,7 @@ import mrs_bot_tweet_lookup_cache as _tweet_lookup_cache
 import mrs_bot_reply_context as _reply_context
 import mrs_bot_reply_native_media as _reply_native_media
 import mrs_bot_reply_lane_policy as _reply_lane_policy
+import mrs_bot_daily_reply_accounting as _daily_reply_accounting
 import mrs_bot_reply_clarifications as _reply_clarifications
 import mrs_bot_runtime_control as _runtime_control
 import mrs_bot_api_cooldowns as _api_cooldowns
@@ -2952,44 +2953,37 @@ def save_state(state: dict, *, durable: bool = False) -> StateCommitProof:
     )
 
 
-def reset_daily_reply_count_if_needed(state: dict) -> None:
-    """Delegate reply-lane policy with current root dependencies."""
-    return _reply_lane_policy.reset_daily_reply_count_if_needed(
-        state,
+def _daily_reply_accounting_owner() -> _daily_reply_accounting.DailyReplyAccounting:
+    """Bind current daily accounting boundaries without reading dates or state."""
+    return _daily_reply_accounting.DailyReplyAccounting(
+        datetime=datetime,
         log=log,
         reply_cap_date_str=reply_cap_date_str,
+        append_unique_capped=append_unique_capped,
     )
+
+
+def reset_daily_reply_count_if_needed(state: dict) -> None:
+    """Reset daily reply count if needed."""
+    return _daily_reply_accounting_owner().reset(state)
 
 
 def reset_daily_quote_reply_count_if_needed(state: dict) -> None:
-    """Delegate reply-lane policy with current root dependencies."""
-    return _reply_lane_policy.reset_daily_quote_reply_count_if_needed(
-        state,
-        log=log,
-        reply_cap_date_str=reply_cap_date_str,
-    )
+    """Reset daily quote reply count if needed."""
+    return _daily_reply_accounting_owner().reset_quotes(state)
 
 
-daily_author_reply_counts = _reply_lane_policy.daily_author_reply_counts
+daily_author_reply_counts = _daily_reply_accounting.daily_author_reply_counts
 
 
 def daily_author_reply_count(state: dict, author_id: str) -> int:
-    """Delegate reply-lane policy with current root dependencies."""
-    return _reply_lane_policy.daily_author_reply_count(
-        state,
-        author_id,
-        daily_author_reply_counts=daily_author_reply_counts,
-    )
+    """Return the daily author reply count."""
+    return _daily_reply_accounting_owner().author_count(state, author_id)
 
 
 def mark_daily_author_replied(state: dict, author_id: str) -> None:
-    """Delegate reply-lane policy with current root dependencies."""
-    return _reply_lane_policy.mark_daily_author_replied(
-        state,
-        author_id,
-        append_unique_capped=append_unique_capped,
-        daily_author_reply_counts=daily_author_reply_counts,
-    )
+    """Mark daily author replied."""
+    return _daily_reply_accounting_owner().mark_author(state, author_id)
 
 
 def _clarification_reply_owner() -> _reply_clarifications.ClarificationReplies:
@@ -8444,10 +8438,7 @@ def conversational_reply_confirmation_epoch(receipt: dict) -> int:
 
 def _valid_iso_date(value: object) -> bool:
     """Return whether a value is a canonical calendar date."""
-    return _reply_reconciliation._valid_iso_date(
-        value,
-        datetime=datetime,
-    )
+    return _daily_reply_accounting_owner().valid_date(value)
 
 
 def _advance_reply_counters_to_confirmation_date(
@@ -8457,11 +8448,10 @@ def _advance_reply_counters_to_confirmation_date(
     include_quote_lane: bool,
 ) -> None:
     """Advance stale daily reply buckets without rolling newer state backward."""
-    return _reply_reconciliation._advance_reply_counters_to_confirmation_date(
-        state, confirmation_date,
+    return _daily_reply_accounting_owner().advance(
+        state,
+        confirmation_date,
         include_quote_lane=include_quote_lane,
-        _valid_iso_date=_valid_iso_date,
-        log=log,
     )
 
 
@@ -8474,7 +8464,7 @@ def apply_confirmed_reply_receipt(state: dict, receipt: dict) -> None:
         STATE_FILE=STATE_FILE,
         InvalidConfirmedReplyReceipt=InvalidConfirmedReplyReceipt,
         reply_cap_date_str=reply_cap_date_str,
-        _advance_reply_counters_to_confirmation_date=_advance_reply_counters_to_confirmation_date,
+        accounting=_daily_reply_accounting_owner(),
         mention_pagination_provenance_is_valid=mention_pagination_provenance_is_valid,
         mention_pagination_has_canonical_page_ownership=mention_pagination_has_canonical_page_ownership,
         _reset_mention_candidate_authority=_reset_mention_candidate_authority,
@@ -8484,7 +8474,6 @@ def apply_confirmed_reply_receipt(state: dict, receipt: dict) -> None:
         mark_quote_tweet_replied=mark_quote_tweet_replied,
         append_unique_durable=append_unique_durable,
         append_unique_capped=append_unique_capped,
-        mark_daily_author_replied=mark_daily_author_replied,
         remove_pending_mention_candidate=remove_pending_mention_candidate,
         active_mention_backlog_reset_guard=active_mention_backlog_reset_guard,
         update_last_seen_mention_id=update_last_seen_mention_id,

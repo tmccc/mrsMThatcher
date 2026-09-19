@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import copy
 import inspect
 from pathlib import Path
 import re
@@ -26,7 +25,7 @@ def forbidden(*args, **kwargs):
 
 original_import = builtins.__import__
 def guarded_import(name, *args, **kwargs):
-    if name in {'mrsMThatcher2', 'requests', 'openai', 'single_call_reply'} or name.startswith('mrs_bot_') and name not in {'mrs_bot_reply_lane_policy', 'mrs_bot_reply_clarifications'}:
+    if name in {'mrsMThatcher2', 'requests', 'openai', 'single_call_reply'} or name.startswith('mrs_bot_') and name not in {'mrs_bot_reply_lane_policy', 'mrs_bot_reply_clarifications', 'mrs_bot_daily_reply_accounting'}:
         forbidden()
     return original_import(name, *args, **kwargs)
 
@@ -53,9 +52,6 @@ assert 'single_call_reply' not in sys.modules
 
 def test_adapters_forward_current_dependencies_arguments_references_and_errors(monkeypatch):
     for name, count in (
-        ("reset_daily_reply_count_if_needed", 2),
-        ("reset_daily_quote_reply_count_if_needed", 2),
-        ("daily_author_reply_count", 1), ("mark_daily_author_replied", 2),
         ("reply_target_is_directly_eligible", 3),
         ("is_probably_spam_or_not_worth_replying", 3),
     ):
@@ -84,98 +80,6 @@ def test_adapters_forward_current_dependencies_arguments_references_and_errors(m
             with pytest.raises(TypeError) as caught:
                 adapter(*args, **options)
             assert caught.value is failure
-
-
-@pytest.mark.parametrize("lane", ["reply", "quote_reply"])
-def test_resets_sample_current_date_once_and_log_before_mutation(monkeypatch, lane):
-    ids, counts, ledger = ["200"], {"200": 2}, {"700": None}
-    state = {
-        "daily_reply_date": "old", "daily_reply_count": 4,
-        "daily_quote_reply_date": "old", "daily_quote_reply_count": 3,
-        "daily_replied_author_ids": ids, "daily_replied_author_counts": counts,
-        "clarification_reply_records": ledger,
-    }
-    before = copy.deepcopy(state)
-    trace = Mock()
-    trace.date.return_value = "current date"
-    monkeypatch.setattr(bot, "reply_cap_date_str", trace.date)
-    monkeypatch.setattr(bot, "log", trace.log)
-    reset = getattr(bot, f"reset_daily_{lane}_count_if_needed")
-    failure = RuntimeError("current logger failed")
-    trace.log.info.side_effect = failure
-    with pytest.raises(RuntimeError) as caught:
-        reset(state)
-    assert caught.value is failure and state == before
-    assert [entry[0] for entry in trace.mock_calls] == ["date", "log.info"]
-    assert trace.log.info.call_args.args[1:] == ("old", "current date", before[f"daily_{lane}_count"])
-    trace.reset_mock()
-
-    def before_reset(*_args):
-        assert state == before
-
-    trace.log.info.side_effect = before_reset
-    assert reset(state) is None
-    assert [entry[0] for entry in trace.mock_calls] == ["date", "log.info"]
-    assert state[f"daily_{lane}_date"] == "current date"
-    assert state[f"daily_{lane}_count"] == 0
-    assert state["clarification_reply_records"] is ledger
-    if lane == "reply":
-        assert state["daily_replied_author_ids"] == [] and state["daily_replied_author_ids"] is not ids
-        assert state["daily_replied_author_counts"] == {} and state["daily_replied_author_counts"] is not counts
-        assert state["daily_quote_reply_count"] == 3
-    else:
-        assert state["daily_replied_author_ids"] is ids and state["daily_replied_author_counts"] is counts
-        assert state["daily_reply_count"] == 4
-    retained = dict(state)
-    trace.reset_mock()
-    reset(state)
-    assert trace.mock_calls == [call.date()]
-    assert all(state[key] is value for key, value in retained.items())
-
-
-def test_legacy_counts_keep_permissive_cleaning_fallback_and_fresh_mapping():
-    assert bot.daily_author_reply_counts is policy.daily_author_reply_counts
-    class BadCount:
-        def __int__(self):
-            raise RuntimeError("legacy count cannot convert")
-
-    original = {7: "2", "negative": -3, "fraction": 2.9, "bool": True, "broken": BadCount()}
-    state = {"daily_replied_author_counts": original, "daily_replied_author_ids": ["legacy"]}
-    cleaned = bot.daily_author_reply_counts(state)
-    assert cleaned == {"7": 2, "negative": 0, "fraction": 2, "bool": 1}
-    assert cleaned is state["daily_replied_author_counts"] and cleaned is not original
-    again = bot.daily_author_reply_counts(state)
-    assert again == cleaned and again is not cleaned and again is state["daily_replied_author_counts"]
-    for legacy_counts in ({"broken": BadCount()}, None):
-        state = {"daily_replied_author_counts": legacy_counts, "daily_replied_author_ids": [7, "7", None, False]}
-        result = bot.daily_author_reply_counts(state)
-        assert result == {"7": 1, "None": 1, "False": 1}
-        assert result is state["daily_replied_author_counts"]
-
-
-def test_author_increment_precedes_current_capped_helper_failure(monkeypatch):
-    counts, ids = {"7": 2}, ["older"]
-    state = {"daily_replied_author_ids": ids}
-    cleaner = Mock(return_value=counts)
-    monkeypatch.setattr(bot, "daily_author_reply_counts", cleaner)
-    assert bot.daily_author_reply_count(state, 7) == 2
-    assert cleaner.call_args.args[0] is state
-    failure = ValueError("capped ID helper failed")
-
-    def capped(actual_ids, author_id, maximum):
-        assert actual_ids is ids and author_id == "7" and maximum == 1000
-        assert state["daily_replied_author_counts"] is counts and counts["7"] == 3
-        raise failure
-
-    monkeypatch.setattr(bot, "append_unique_capped", capped)
-    with pytest.raises(ValueError) as caught:
-        bot.mark_daily_author_replied(state, 7)
-    assert caught.value is failure
-    assert counts == {"7": 3} and state["daily_replied_author_ids"] is ids
-    replacement = ["current"]
-    monkeypatch.setattr(bot, "append_unique_capped", Mock(return_value=replacement))
-    bot.mark_daily_author_replied(state, 7)
-    assert counts == {"7": 4} and state["daily_replied_author_ids"] is replacement
 
 
 def test_target_own_author_and_structured_entities_precede_current_text_regex(monkeypatch):

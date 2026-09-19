@@ -21,57 +21,7 @@ from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
     from mrs_bot_reply_clarifications import ClarificationReplies
-
-
-def _valid_iso_date(
-    value: object,
-    *,
-    datetime: type,
-) -> bool:
-    """Return whether a value is a canonical calendar date."""
-    if not isinstance(value, str):
-        return False
-    try:
-        return datetime.strptime(value, "%Y-%m-%d").strftime("%Y-%m-%d") == value
-    except ValueError:
-        return False
-
-
-def _advance_reply_counters_to_confirmation_date(
-    state: dict,
-    confirmation_date: str,
-    *,
-    include_quote_lane: bool,
-    _valid_iso_date: Callable,
-    log: logging.Logger,
-) -> None:
-    """Advance stale daily reply buckets without rolling newer state backward."""
-    state_reply_date = state.get("daily_reply_date")
-    if not _valid_iso_date(state_reply_date) or state_reply_date < confirmation_date:
-        log.info(
-            "Advancing daily reply accounting to confirmation date. "
-            "previous_date=%s new_date=%s previous_count=%s",
-            state_reply_date,
-            confirmation_date,
-            state.get("daily_reply_count"),
-        )
-        state["daily_reply_date"] = confirmation_date
-        state["daily_reply_count"] = 0
-        state["daily_replied_author_ids"] = []
-        state["daily_replied_author_counts"] = {}
-    if not include_quote_lane:
-        return
-    state_quote_date = state.get("daily_quote_reply_date")
-    if not _valid_iso_date(state_quote_date) or state_quote_date < confirmation_date:
-        log.info(
-            "Advancing daily quote-reply accounting to confirmation date. "
-            "previous_date=%s new_date=%s previous_count=%s",
-            state_quote_date,
-            confirmation_date,
-            state.get("daily_quote_reply_count"),
-        )
-        state["daily_quote_reply_date"] = confirmation_date
-        state["daily_quote_reply_count"] = 0
+    from mrs_bot_daily_reply_accounting import DailyReplyAccounting
 
 
 def apply_confirmed_reply_receipt(
@@ -83,7 +33,7 @@ def apply_confirmed_reply_receipt(
     STATE_FILE: Path,
     InvalidConfirmedReplyReceipt: type[Exception],
     reply_cap_date_str: Callable,
-    _advance_reply_counters_to_confirmation_date: Callable,
+    accounting: DailyReplyAccounting,
     mention_pagination_provenance_is_valid: Callable,
     mention_pagination_has_canonical_page_ownership: Callable,
     _reset_mention_candidate_authority: Callable,
@@ -93,7 +43,6 @@ def apply_confirmed_reply_receipt(
     mark_quote_tweet_replied: Callable,
     append_unique_durable: Callable,
     append_unique_capped: Callable,
-    mark_daily_author_replied: Callable,
     remove_pending_mention_candidate: Callable,
     active_mention_backlog_reset_guard: Callable,
     update_last_seen_mention_id: Callable,
@@ -128,7 +77,7 @@ def apply_confirmed_reply_receipt(
     receipt_reply_date = str(receipt.get("daily_reply_date") or reply_cap_date_str(reply_epoch))
     receipt_quote_reply_date = str(receipt.get("daily_quote_reply_date") or receipt_reply_date)
     if receipt.get("schema_version") == 4:
-        _advance_reply_counters_to_confirmation_date(
+        accounting.advance(
             state,
             receipt_reply_date,
             include_quote_lane=candidate_source == "quote_tweet",
@@ -233,16 +182,14 @@ def apply_confirmed_reply_receipt(
         1000,
     )
 
-    if not already_recorded and state.get("daily_reply_date") == receipt_reply_date:
-        state["daily_reply_count"] = int(state.get("daily_reply_count", 0) or 0) + 1
-        if author_id:
-            mark_daily_author_replied(state, author_id)
-    if (
-        candidate_source == "quote_tweet"
-        and not already_recorded
-        and state.get("daily_quote_reply_date") == receipt_quote_reply_date
-    ):
-        state["daily_quote_reply_count"] = int(state.get("daily_quote_reply_count", 0) or 0) + 1
+    accounting.record_confirmed(
+        state,
+        already_recorded=already_recorded,
+        candidate_source=candidate_source,
+        author_id=author_id,
+        receipt_reply_date=receipt_reply_date,
+        receipt_quote_reply_date=receipt_quote_reply_date,
+    )
 
     try:
         state["last_reply_epoch"] = max(int(state.get("last_reply_epoch", 0) or 0), reply_epoch)
