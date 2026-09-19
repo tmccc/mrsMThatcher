@@ -14,6 +14,7 @@ from unittest.mock import Mock, call
 import pytest
 
 import mrs_bot_quote_reply_cycle as cycle
+import mrs_bot_reply_context as context_owner
 import mrs_bot_reply_cycle_interfaces as interfaces
 import mrs_bot_reply_evaluation_state as evaluation_state
 from tests.helpers.bot_runtime import SOURCE_GET_TWEET_BY_ID, bot
@@ -171,6 +172,7 @@ def test_age_uses_current_parser_clock_delay_and_native_errors(monkeypatch):
 def test_direct_quote_uses_only_structured_references_and_retweet_veto(monkeypatch):
     cleaner = Mock(wraps=bot.clean_text_for_reply_context)
     monkeypatch.setattr(bot, "clean_text_for_reply_context", cleaner)
+    monkeypatch.setattr(context_owner, "clean_text_for_reply_context", cleaner)
     quoted = {"type": "quoted", "id": 900}
     retweeted = {"type": "retweeted", "id": "800"}
     for refs in ([quoted, retweeted], [retweeted, quoted]):
@@ -220,6 +222,8 @@ def test_context_preserves_budget_roles_reference_boundaries_and_media_before_su
         callback = Mock(wraps=getattr(bot, name))
         trace.attach_mock(callback, name)
         monkeypatch.setattr(bot, name, callback)
+        if name in {"tweet_context_text", "trim_context_text"}:
+            monkeypatch.setattr(context_owner, name, callback)
     media = {"photos": []}
     trace.attach_mock(Mock(return_value=media), "media")
     monkeypatch.setattr(bot, "reply_media_context_for_candidate", trace.media)

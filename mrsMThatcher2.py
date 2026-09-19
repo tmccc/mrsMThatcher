@@ -3635,13 +3635,38 @@ def cache_tweet(
     )
 
 
-def get_immediate_parent_id(tweet: dict) -> str | None:
-    """Delegate to the context owner with current root dependencies."""
-    return _reply_context.get_immediate_parent_id(
-        tweet,
-        ApiError=ApiError,
+_DEFAULT_REPLY_CONTEXT_POST_MAXIMUM_CHARS = MAX_VISIBLE_TEXT_CHARACTERS
+
+
+def _reply_context_owner() -> _reply_context.ReplyContext:
+    """Bind current context boundaries without fetching posts or retaining state."""
+    return _reply_context.ReplyContext(
+        api_error=ApiError,
         parse_tweet_id=parse_tweet_id,
+        maximum_parent_depth=THREAD_CONTEXT_MAX_DEPTH,
+        maximum_parent_network_fetches=THREAD_CONTEXT_MAX_NETWORK_FETCHES,
+        tweet_text_is_complete=tweet_text_is_complete,
+        is_permanent_target_failure=api_error_is_permanent_target_failure,
+        get_tweet_by_id_cached=get_tweet_by_id_cached,
+        log=log,
+        log_json_debug=log_json_debug,
+        prune_tweet_cache=prune_tweet_cache,
+        user_id=MY_USER_ID,
+        parse_x_datetime_to_epoch=parse_x_datetime_to_epoch,
+        always_fetch_parent=ALWAYS_FETCH_PARENT_FOR_CONTEXT,
+        context_validation_error=ContextValidationError,
+        incoming_maximum_chars=REPLY_INCOMING_MAX_CHARS,
+        skip_own_auto_replies=SKIP_REPLIES_TO_OWN_AUTO_REPLIES,
+        bound_visible_conversation=bound_visible_conversation,
+        current_utc_datetime=current_utc_datetime,
+        reply_media_context_for_candidate=reply_media_context_for_candidate,
+        default_post_maximum_chars=_DEFAULT_REPLY_CONTEXT_POST_MAXIMUM_CHARS,
     )
+
+
+def get_immediate_parent_id(tweet: dict) -> str | None:
+    """Read a parent identity through the context owner."""
+    return _reply_context_owner().parent_id(tweet)
 
 
 def _verified_tweet_lookup_row(
@@ -3706,13 +3731,7 @@ def get_tweet_by_id_cached(
     )
 
 
-def clean_text_for_reply_context(text: str) -> str:
-    """Delegate to the context owner with current root dependencies."""
-    return _reply_context.clean_text_for_reply_context(
-        text,
-        html=html,
-        re=re,
-    )
+clean_text_for_reply_context = _reply_context.clean_text_for_reply_context
 
 
 attach_media_to_tweets = _reply_native_media.attach_media_to_tweets
@@ -3745,48 +3764,20 @@ def reply_media_context_for_candidate(
     )
 
 
-def tweet_context_text(tweet: dict) -> str:
-    """Delegate to the context owner with current root dependencies."""
-    return _reply_context.tweet_context_text(
-        tweet,
-        clean_text_for_reply_context=clean_text_for_reply_context,
-    )
+tweet_context_text = _reply_context.tweet_context_text
 
 
-def trim_context_text(text: str, max_chars: int) -> str:
-    """Delegate to the context owner with current root dependencies."""
-    return _reply_context.trim_context_text(
-        text,
-        max_chars,
-        clean_text_for_reply_context=clean_text_for_reply_context,
-    )
+trim_context_text = _reply_context.trim_context_text
 
 
 def build_parent_chain(mention: dict, state: dict) -> list[dict]:
-    """Delegate to the context owner with current root dependencies."""
-    return _reply_context.build_parent_chain(
-        mention,
-        state,
-        ApiError=ApiError,
-        THREAD_CONTEXT_MAX_DEPTH=THREAD_CONTEXT_MAX_DEPTH,
-        THREAD_CONTEXT_MAX_NETWORK_FETCHES=THREAD_CONTEXT_MAX_NETWORK_FETCHES,
-        api_error_is_permanent_target_failure=api_error_is_permanent_target_failure,
-        get_immediate_parent_id=get_immediate_parent_id,
-        get_tweet_by_id_cached=get_tweet_by_id_cached,
-        log=log,
-        log_json_debug=log_json_debug,
-        prune_tweet_cache=prune_tweet_cache,
-        tweet_text_is_complete=tweet_text_is_complete,
-    )
+    """Build a bounded parent path through the context owner."""
+    return _reply_context_owner().parent_chain(mention, state)
 
 
 def is_our_auto_reply(tweet: dict | None, state: dict) -> bool:
-    """Delegate to the context owner with current root dependencies."""
-    return _reply_context.is_our_auto_reply(
-        tweet,
-        state,
-        MY_USER_ID=MY_USER_ID,
-    )
+    """Identify this account's conversational replies through the context owner."""
+    return _reply_context_owner().is_our_auto_reply(tweet, state)
 
 
 def _reply_context_post(
@@ -3795,28 +3786,17 @@ def _reply_context_post(
     principal_author_id: str,
     maximum_chars: int = MAX_VISIBLE_TEXT_CHARACTERS,
 ) -> dict[str, str]:
-    """Delegate to the context owner with current root dependencies."""
-    return _reply_context._reply_context_post(
-        tweet,
-        principal_author_id=principal_author_id,
-        maximum_chars=maximum_chars,
-        MY_USER_ID=MY_USER_ID,
-        trim_context_text=trim_context_text,
-        tweet_context_text=tweet_context_text,
+    """Prepare one visible post through the context owner."""
+    return _reply_context_owner().post(
+        tweet, principal_author_id=principal_author_id, maximum_chars=maximum_chars,
     )
 
 
 def _log_single_call_context_summary(
     label: str, prepared: _reply_cycle_interfaces.PreparedReplyContext,
 ) -> None:
-    """Delegate to the context owner with current root dependencies."""
-    return _reply_context._log_single_call_context_summary(
-        label,
-        prepared,
-        hashlib=hashlib,
-        json=json,
-        log=log,
-    )
+    """Log bounded context structure through its owner."""
+    return _reply_context_owner().log_summary(label, prepared)
 
 
 def _log_validated_single_call_reply(
@@ -3841,14 +3821,9 @@ def _directly_quoted_tweet_for_reply_context(
     *,
     include_media: bool = True,
 ) -> dict | None:
-    """Delegate to the context owner with current root dependencies."""
-    return _reply_context._directly_quoted_tweet_for_reply_context(
-        candidate,
-        state,
-        include_media=include_media,
-        ApiError=ApiError,
-        api_error_is_permanent_target_failure=api_error_is_permanent_target_failure,
-        get_tweet_by_id_cached=get_tweet_by_id_cached,
+    """Fetch a directly quoted post through the context owner."""
+    return _reply_context_owner().directly_quoted_tweet(
+        candidate, state, include_media=include_media,
     )
 
 
@@ -3861,63 +3836,28 @@ def _quoted_post_for_reply_context(
     *,
     principal_author_id: str,
 ) -> dict[str, str] | None:
-    """Delegate to the context owner with current root dependencies."""
-    return _reply_context._quoted_post_for_reply_context(
-        candidate,
-        state,
-        principal_author_id=principal_author_id,
-        _directly_quoted_tweet_for_reply_context=_directly_quoted_tweet_for_reply_context,
-        _reply_context_post=_reply_context_post,
+    """Prepare a directly quoted post through the context owner."""
+    return _reply_context_owner().quoted_post(
+        candidate, state, principal_author_id=principal_author_id,
     )
 
 
 def _parent_path_is_contiguous(path: list[dict], target: dict) -> bool:
-    """Delegate to the context owner with current root dependencies."""
-    return _reply_context._parent_path_is_contiguous(
-        path,
-        target,
-        get_immediate_parent_id=get_immediate_parent_id,
-    )
+    """Check parent-path continuity through the context owner."""
+    return _reply_context_owner().parent_path_is_contiguous(path, target)
 
 
 def _parent_path_is_chronological(path: list[dict], target: dict) -> bool:
-    """Delegate to the context owner with current root dependencies."""
-    return _reply_context._parent_path_is_chronological(
-        path,
-        target,
-        parse_x_datetime_to_epoch=parse_x_datetime_to_epoch,
-    )
+    """Check verified parent timestamps through the context owner."""
+    return _reply_context_owner().parent_path_is_chronological(path, target)
 
 
 def build_context_for_reply_ai(
     mention: dict,
     state: dict,
 ) -> _reply_cycle_interfaces.PreparedReplyContext | None:
-    """Delegate to the context owner with current root dependencies."""
-    return _reply_context.build_context_for_reply_ai(
-        mention,
-        state,
-        ALWAYS_FETCH_PARENT_FOR_CONTEXT=ALWAYS_FETCH_PARENT_FOR_CONTEXT,
-        ContextValidationError=ContextValidationError,
-        REPLY_INCOMING_MAX_CHARS=REPLY_INCOMING_MAX_CHARS,
-        SKIP_REPLIES_TO_OWN_AUTO_REPLIES=SKIP_REPLIES_TO_OWN_AUTO_REPLIES,
-        THREAD_CONTEXT_MAX_DEPTH=THREAD_CONTEXT_MAX_DEPTH,
-        _direct_quote_id=_direct_quote_id,
-        _directly_quoted_tweet_for_reply_context=_directly_quoted_tweet_for_reply_context,
-        _log_single_call_context_summary=_log_single_call_context_summary,
-        _parent_path_is_chronological=_parent_path_is_chronological,
-        _parent_path_is_contiguous=_parent_path_is_contiguous,
-        _reply_context_post=_reply_context_post,
-        bound_visible_conversation=bound_visible_conversation,
-        build_parent_chain=build_parent_chain,
-        copy=copy,
-        current_utc_datetime=current_utc_datetime,
-        get_immediate_parent_id=get_immediate_parent_id,
-        is_our_auto_reply=is_our_auto_reply,
-        log=log,
-        reply_media_context_for_candidate=reply_media_context_for_candidate,
-        trim_context_text=trim_context_text,
-    )
+    """Build canonical context and separate native media through their owner."""
+    return _reply_context_owner().build(mention, state)
 # ---------------------------------------------------------------------
 # Mentions
 # ---------------------------------------------------------------------

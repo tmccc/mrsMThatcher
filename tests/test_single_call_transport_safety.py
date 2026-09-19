@@ -12,6 +12,7 @@ from unittest.mock import Mock
 import pytest
 
 from tests.helpers.bot_runtime import bot
+from tests.helpers.reply_fixtures import patch_reply_context_method
 from tests.helpers.single_call_fixtures import FakeHttpResponse, FakeRepository, context, enabled_config, raw_decision, response_envelope, valid_png
 from tests.test_single_call_conversation_contract import NATURAL_REPLIES
 
@@ -134,7 +135,7 @@ def test_root_context_payload_uses_utc_calendar_date(monkeypatch):
     time.tzset()
     try:
         monkeypatch.setattr(bot, 'now_epoch', lambda: 1_788_480_060)  # 2026-09-04 00:01 UTC
-        monkeypatch.setattr(bot, 'build_parent_chain', lambda *_: [])
+        patch_reply_context_method(monkeypatch, 'parent_chain', lambda *_: [])
         monkeypatch.setattr(bot, 'reply_media_context_for_candidate', lambda *_args, **_kwargs: None)
         target = {'id': '100', 'author_id': '200', 'text': 'What happened today?', 'created_at': '2026-09-03T23:59:59Z', 'referenced_tweets': []}
         prepared = bot.build_context_for_reply_ai(target, bot.default_state())

@@ -105,6 +105,17 @@ def patch_reply_history_method(monkeypatch, method: str, callback) -> None:
     monkeypatch.setattr(ReplyHistory, method, invoke)
 
 
+def patch_reply_context_method(monkeypatch, method: str, callback) -> None:
+    """Replace an owned context operation using its caller argument shape."""
+
+    from mrs_bot_reply_context import ReplyContext
+
+    def invoke(_owner, *args, **kwargs):
+        return callback(*args, **kwargs)
+
+    monkeypatch.setattr(ReplyContext, method, invoke)
+
+
 def unit_reply_context(
     *,
     target_id: str = "100",

@@ -20,6 +20,7 @@ from tests.helpers.bot_fixtures import (
 )
 from tests.helpers.reply_fixtures import (
     UNIT_REPLY_REPOSITORY,
+    patch_reply_context_method,
     unit_reply_context,
 )
 from tests.fake_api_server import FakeApiServer
@@ -668,7 +669,7 @@ def test_long_parent_context_never_truncates_away_incoming_contribution(
     ]
     monkeypatch.setattr(bot, "ALWAYS_FETCH_PARENT_FOR_CONTEXT", True)
     monkeypatch.setattr(bot, "SKIP_REPLIES_TO_OWN_AUTO_REPLIES", False)
-    monkeypatch.setattr(bot, "build_parent_chain", lambda _mention, _state: chain)
+    patch_reply_context_method(monkeypatch, "parent_chain", lambda _mention, _state: chain)
 
     prepared_context = bot.build_context_for_reply_ai(mention, bot.default_state())
     assert prepared_context is not None
@@ -802,7 +803,7 @@ def test_parent_created_after_target_is_not_admitted_to_visible_context(
         "created_at": "2026-09-04T12:01:00Z",
         "referenced_tweets": [],
     }
-    monkeypatch.setattr(bot, "build_parent_chain", lambda *_args: [parent])
+    patch_reply_context_method(monkeypatch, "parent_chain", lambda *_args: [parent])
 
     assert bot.build_context_for_reply_ai(mention, bot.default_state()) is None
 
@@ -968,7 +969,7 @@ def test_declared_ancestor_quote_fails_context_closed_when_unresolvable(
         "referenced_tweets": [{"type": "replied_to", "id": "910"}],
     }
     lookups: list[tuple[str, bool]] = []
-    monkeypatch.setattr(bot, "build_parent_chain", lambda *_args: [root])
+    patch_reply_context_method(monkeypatch, "parent_chain", lambda *_args: [root])
 
     def missing(
         tweet_id: str,
@@ -1022,7 +1023,7 @@ def test_reply_plus_quote_preserves_real_thread_and_separates_quote(
         "text": "The separately quoted subject.",
         "referenced_tweets": [],
     }
-    monkeypatch.setattr(bot, "build_parent_chain", lambda *_args: [root, parent])
+    patch_reply_context_method(monkeypatch, "parent_chain", lambda *_args: [root, parent])
     monkeypatch.setattr(
         bot,
         "get_tweet_by_id_cached",
