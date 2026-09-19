@@ -1231,6 +1231,14 @@ def test_no_reply_is_editorial_but_invalid_output_is_operational() -> None:
 @pytest.mark.parametrize(
     ("output", "category", "codes"),
     [
+        *[
+            (
+                raw_decision(decision=decision),
+                "schema_validation",
+                ("invalid_decision",),
+            )
+            for decision in ([], ["reply"], {}, {"reply": True}, None, "invalid")
+        ],
         (
             raw_decision(reply="PRIVATE candidate @name\n#topic"),
             "local_validation",

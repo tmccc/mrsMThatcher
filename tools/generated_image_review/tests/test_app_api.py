@@ -216,3 +216,32 @@ def test_reconfirm_allowed_mode_reviews_only_confirmation_allows(tmp_path: Path)
         assert export_data["items"][HASH_A]["reconfirmation_decision"] == "reject"
         assert export_data["items"][HASH_B]["decision"] == "reject"
         assert "reconfirmation_decision" not in export_data["items"][HASH_B]
+
+
+def test_confirmation_rereview_invalidates_reconfirmation_queue_and_export(tmp_path: Path) -> None:
+    for mode in ("review", "confirm-allowed", "reconfirm-allowed"):
+        with csrf_client(app_for(tmp_path, mode=mode)) as client:
+            assert client.post("/api/decision", json={"quote_hash": HASH_A, "decision": "allow"}).status_code == 200
+
+    with csrf_client(app_for(tmp_path, mode="confirm-allowed")) as client:
+        response = client.post("/api/undo", json={})
+        assert response.status_code == 200
+        assert response.json()["next"]["item"]["quote_hash"] == HASH_A
+        assert client.post("/api/decision", json={"quote_hash": HASH_A, "decision": "reject"}).status_code == 200
+        exported = json.loads((tmp_path / "overrides.json").read_text(encoding="utf-8"))["items"][HASH_A]
+        assert exported["decision"] == "reject"
+        assert "reconfirmation_decision" not in exported
+
+    with csrf_client(app_for(tmp_path, mode="reconfirm-allowed")) as client:
+        data = client.get("/api/next").json()
+        assert data["complete"] is True
+        assert data["progress"]["total"] == 0
+
+    with csrf_client(app_for(tmp_path, mode="confirm-allowed")) as client:
+        assert client.post("/api/undo", json={}).status_code == 200
+        assert client.post("/api/decision", json={"quote_hash": HASH_A, "decision": "allow"}).status_code == 200
+
+    with csrf_client(app_for(tmp_path, mode="reconfirm-allowed")) as client:
+        data = client.get("/api/next").json()
+        assert data["item"]["quote_hash"] == HASH_A
+        assert data["progress"]["remaining"] == 1

@@ -1259,6 +1259,7 @@ def _deliver_reply(
     outcome = deliver_prepared_reply(
         state, quote_id, reply_text, receipt_template,
         lane="quote_tweet", log_source="quote-tweet", mark_as_ai=config.mark_as_ai,
+        read_error_scope="quote",
         retire_terminal_target=retire_terminal_target,
         AmbiguousRemotePostOutcome=AmbiguousRemotePostOutcome,
         ApiError=ApiError,

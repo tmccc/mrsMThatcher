@@ -1167,28 +1167,33 @@ def test_pre_send_reply_target_revalidation_bypasses_cache(
     assert calls == ["123"]
 
 
-@pytest.mark.parametrize("failure_kind", ["missing_data", "target_lookup_error"])
-def test_pre_send_reply_target_revalidation_returns_false_only_for_missing_target(
+def test_pre_send_reply_target_revalidation_returns_false_for_confirmed_missing_target(
     monkeypatch: pytest.MonkeyPatch,
-    failure_kind: str,
 ) -> None:
-    if failure_kind == "missing_data":
-        monkeypatch.setattr(bot, "get_tweet_by_id", lambda _target_id: None)
-    else:
-        unavailable = bot.ApiError(
-            "X API error 404: post not found",
-            service="x",
-            status_code=404,
-            request_method="GET",
-            request_path="/2/tweets/123",
-        )
-        monkeypatch.setattr(
-            bot,
-            "get_tweet_by_id",
-            lambda _target_id: (_ for _ in ()).throw(unavailable),
-        )
+    unavailable = bot.ApiError(
+        "X API error 404: post not found",
+        service="x",
+        status_code=404,
+        request_method="GET",
+        request_path="/2/tweets/123",
+    )
+    monkeypatch.setattr(
+        bot,
+        "get_tweet_by_id",
+        lambda _target_id: (_ for _ in ()).throw(unavailable),
+    )
 
     assert bot.reply_target_is_available_immediately_before_send("123") is False
+
+
+def test_pre_send_reply_target_revalidation_retries_missing_data(monkeypatch):
+    monkeypatch.setattr(bot, "get_tweet_by_id", lambda _target_id: None)
+
+    with pytest.raises(bot.ApiError, match="missing, mismatched or malformed") as caught:
+        bot.reply_target_is_available_immediately_before_send("123")
+    assert caught.value.request_method == "GET"
+    assert caught.value.request_path == "/2/tweets/123"
+    assert not bot.api_error_is_permanent_target_failure(caught.value)
 
 
 def test_pre_send_reply_target_revalidation_propagates_global_lookup_failure(
@@ -1421,7 +1426,13 @@ def test_deleted_target_after_generation_is_retired_before_any_x_write(
             mode="opinion_or_principle",
         )),
     )
-    monkeypatch.setattr(bot, "get_tweet_by_id", lambda _target_id: None)
+    unavailable = bot.ApiError(
+        "X API error 404: post not found", service="x", status_code=404,
+        request_method="GET", request_path="/2/tweets/100",
+    )
+    monkeypatch.setattr(
+        bot, "get_tweet_by_id", lambda _target_id: (_ for _ in ()).throw(unavailable),
+    )
     monkeypatch.setattr(
         bot,
         "post_conversational_reply_with_durable_identity",

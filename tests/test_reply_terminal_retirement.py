@@ -253,7 +253,7 @@ def test_successful_delivery_passes_original_values_and_returns_the_confirmed_re
 @pytest.mark.parametrize("lane", ["mention", "hot_post", "quote_tweet"])
 @pytest.mark.parametrize("stage", ["available", "post"])
 @pytest.mark.parametrize("api_failure", [False, True])
-def test_retryable_delivery_failure_records_write_cooldown_and_keeps_the_pending_draft(
+def test_retryable_delivery_failure_records_matching_cooldown_and_keeps_the_pending_draft(
     lane, stage, api_failure,
 ):
     scenario = prepare_delivery(lane, "proved")
@@ -263,14 +263,19 @@ def test_retryable_delivery_failure_records_write_cooldown_and_keeps_the_pending
     getattr(scenario.trace, stage).side_effect = failure
 
     assert scenario.run().status == ("checked" if lane == "quote_tweet" else "api_error")
-    scenario.trace.api_error.assert_called_once_with(scenario.state, failure, "x", scope="write")
+    scope = "write" if stage == "post" else ("quote" if lane == "quote_tweet" else "api")
+    scenario.trace.api_error.assert_called_once_with(scenario.state, failure, "x", scope=scope)
     scenario.trace.save.assert_called_once_with(scenario.state)
     scenario.trace.posting_outcome.assert_called_once_with(
         reply=scenario.reply, status="posting_failed_retryable", lane=lane,
         target_id="105",
-        failure_reason="x_api_429" if api_failure else "unexpected_posting_error",
+        failure_reason=("x_api_429" if api_failure else (
+            "unexpected_posting_error" if stage == "post" else "unexpected_pre_send_lookup_error"
+        )),
     )
     assert scenario.state == before
+    if stage == "available":
+        scenario.trace.post.assert_not_called()
     assert [entry[0] for entry in scenario.trace.mock_calls] == (
         ["available"] + (["post"] if stage == "post" else [])
         + ["log.exception", "posting_outcome", "api_error", "save"]

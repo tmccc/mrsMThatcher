@@ -16,7 +16,8 @@ VALID_DECISIONS = {"allow", "reject"}
 STAGE_INITIAL = "initial"
 STAGE_CONFIRM_ALLOWED = "confirm_allowed"
 STAGE_RECONFIRM_ALLOWED = "reconfirm_allowed"
-VALID_STAGES = {STAGE_INITIAL, STAGE_CONFIRM_ALLOWED, STAGE_RECONFIRM_ALLOWED}
+REVIEW_STAGES = (STAGE_INITIAL, STAGE_CONFIRM_ALLOWED, STAGE_RECONFIRM_ALLOWED)
+VALID_STAGES = set(REVIEW_STAGES)
 
 
 class ReviewStoreError(RuntimeError):
@@ -77,7 +78,7 @@ class ReviewStore:
                 SELECT quote_hash, decision, reviewed_at, stage
                 FROM decision_history
                 {where}
-                ORDER BY quote_hash
+                ORDER BY id
                 """,
                 params,
             ).fetchall()
@@ -112,12 +113,22 @@ class ReviewStore:
         now = utc_now()
         with self._lock:
             with self.conn:
+                self.conn.execute("BEGIN IMMEDIATE")
                 existing = self.conn.execute(
                     "SELECT id FROM decision_history WHERE quote_hash = ? AND stage = ? AND undone_at IS NULL",
                     (quote_hash, stage),
                 ).fetchone()
                 if existing is not None:
                     raise DuplicateDecisionError(f"Already reviewed in stage {stage}: {quote_hash}")
+                stage_index = REVIEW_STAGES.index(stage)
+                if stage_index:
+                    previous = self.conn.execute(
+                        "SELECT decision FROM decision_history WHERE quote_hash = ? AND stage = ? AND undone_at IS NULL",
+                        (quote_hash, REVIEW_STAGES[stage_index - 1]),
+                    ).fetchone()
+                    if previous is None or previous["decision"] != "allow":
+                        raise InvalidDecisionError(f"An active prior-stage allow is required for {stage}: {quote_hash}")
+                self._invalidate_from_stage(quote_hash, stage, now)
                 self.conn.execute(
                     """
                     INSERT INTO decision_history (quote_hash, decision, reviewed_at, item_order, stage)
@@ -139,6 +150,7 @@ class ReviewStore:
             params = (stage,)
         with self._lock:
             with self.conn:
+                self.conn.execute("BEGIN IMMEDIATE")
                 row = self.conn.execute(
                     f"""
                     SELECT id, quote_hash, decision, reviewed_at, stage
@@ -151,10 +163,7 @@ class ReviewStore:
                 ).fetchone()
                 if row is None:
                     return None
-                self.conn.execute(
-                    "UPDATE decision_history SET undone_at = ? WHERE id = ?",
-                    (now, row["id"]),
-                )
+                self._invalidate_from_stage(row["quote_hash"], row["stage"], now)
         return {
             "quote_hash": row["quote_hash"],
             "decision": row["decision"],
@@ -183,9 +192,17 @@ class ReviewStore:
     def export_overrides(self, export_path: Path, eligible_hashes: Iterable[str] | None = None) -> dict:
         """Export overrides."""
         eligible = set(eligible_hashes) if eligible_hashes is not None else None
-        initial_decisions = self.active_decisions(STAGE_INITIAL)
-        confirmation_decisions = self.active_decisions(STAGE_CONFIRM_ALLOWED)
-        reconfirmation_decisions = self.active_decisions(STAGE_RECONFIRM_ALLOWED)
+        # Read every stage together so exports use one consistent review sequence.
+        with self._lock:
+            rows = self.conn.execute(
+                "SELECT quote_hash, decision, reviewed_at, stage FROM decision_history WHERE undone_at IS NULL"
+            ).fetchall()
+        by_stage = {stage: {} for stage in REVIEW_STAGES}
+        for row in rows:
+            by_stage[row["stage"]][row["quote_hash"]] = dict(row)
+        initial_decisions = by_stage[STAGE_INITIAL]
+        confirmation_decisions = by_stage[STAGE_CONFIRM_ALLOWED]
+        reconfirmation_decisions = by_stage[STAGE_RECONFIRM_ALLOWED]
         if eligible is not None:
             initial_decisions = {key: value for key, value in initial_decisions.items() if key in eligible}
             confirmation_decisions = {key: value for key, value in confirmation_decisions.items() if key in eligible}
@@ -216,6 +233,15 @@ class ReviewStore:
         }
         atomic_write_json(Path(export_path), payload)
         return payload
+
+    def _invalidate_from_stage(self, quote_hash: str, stage: str, now: str) -> None:
+        """Invalidate a decision and its dependants within the caller's transaction."""
+        stages = REVIEW_STAGES[REVIEW_STAGES.index(stage):]
+        placeholders = ", ".join("?" for _ in stages)
+        self.conn.execute(
+            f"UPDATE decision_history SET undone_at = ? WHERE quote_hash = ? AND stage IN ({placeholders}) AND undone_at IS NULL",
+            (now, quote_hash, *stages),
+        )
 
     def _create_schema(self) -> None:
         with self._lock:
@@ -249,6 +275,23 @@ class ReviewStore:
                     WHERE undone_at IS NULL
                     """
                 )
+                # Older versions left descendants active after upstream undo/re-review.
+                # Repair in stage order; history IDs distinguish reviews in one second.
+                now = utc_now()
+                for previous_stage, stage in zip(REVIEW_STAGES, REVIEW_STAGES[1:]):
+                    self.conn.execute(
+                        """
+                        UPDATE decision_history AS current SET undone_at = ?
+                        WHERE current.stage = ? AND current.undone_at IS NULL
+                        AND NOT EXISTS (
+                            SELECT 1 FROM decision_history AS previous
+                            WHERE previous.quote_hash = current.quote_hash
+                            AND previous.stage = ? AND previous.undone_at IS NULL
+                            AND previous.decision = 'allow' AND previous.id < current.id
+                        )
+                        """,
+                        (now, stage, previous_stage),
+                    )
 
 
 def utc_now() -> str:

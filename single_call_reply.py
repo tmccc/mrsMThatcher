@@ -1660,7 +1660,7 @@ def validate_model_output(
     reply = parsed.get("reply")
     used = parsed.get("used_fact_ids")
     reason_code = parsed.get("reason_code")
-    if decision not in {"reply", "no_reply"}:
+    if not isinstance(decision, str) or decision not in {"reply", "no_reply"}:
         errors.append("invalid_decision")
     if reply_kind not in REPLY_KINDS:
         errors.append("invalid_reply_kind")

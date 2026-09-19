@@ -42,6 +42,7 @@ def deliver_prepared_reply(
     *,
     lane: str,
     log_source: str,
+    read_error_scope: str,
     mark_as_ai: bool,
     retire_terminal_target: Callable[[str], None],
     AmbiguousRemotePostOutcome: type[Exception],
@@ -62,10 +63,14 @@ def deliver_prepared_reply(
     boundary. Retirement after a proved API refusal stays in its exception
     handler, so its failures propagate and cannot remove the sending journal
     before the lane has durably retired its target. Confirmed and ambiguous
-    outcomes always propagate to the existing recovery authority.
+    outcomes always propagate to the existing recovery authority. Pre-send
+    lookup failures use the caller's read cooldown without retiring the draft.
     """
+    error_scope = read_error_scope
     try:
-        if not delivery.target_available(target_id):
+        target_available = delivery.target_available(target_id)
+        error_scope = "write"
+        if not target_available:
             retire_terminal_target("target_unavailable_pre_send")
             return ReplyDeliveryStop.TERMINAL
         _, receipt = delivery.post(
@@ -107,15 +112,18 @@ def deliver_prepared_reply(
         )
         raise
     except ApiError as e:
-        if api_error_is_reply_not_allowed(e):
+        if error_scope == "write" and api_error_is_reply_not_allowed(e):
             retire_terminal_target("reply_not_permitted")
             if isinstance(e, ProvedRemotePostNonSuccess):
                 delivery.retire_rejected(receipt_template, e)
             return ReplyDeliveryStop.TERMINAL
 
         log.exception(
-            "Failed to post generated quote-tweet reply"
-            if lane == "quote_tweet" else "Failed to post generated reply"
+            "Failed to revalidate reply target before send"
+            if error_scope != "write" else (
+                "Failed to post generated quote-tweet reply"
+                if lane == "quote_tweet" else "Failed to post generated reply"
+            )
         )
         log_ai_reply_posting_outcome(
             reply=reply_text,
@@ -124,22 +132,28 @@ def deliver_prepared_reply(
             target_id=target_id,
             failure_reason=f"x_api_{getattr(e, 'status_code', 'error')}",
         )
-        record_api_error(state, e, "x", scope="write")
+        record_api_error(state, e, "x", scope=error_scope)
         persistence.save(state)
         return ReplyDeliveryStop.RETRYABLE
     except Exception as e:
         log.exception(
-            "Unexpected failure posting generated quote-tweet reply"
-            if lane == "quote_tweet" else "Unexpected failure posting generated reply"
+            "Unexpected failure revalidating reply target before send"
+            if error_scope != "write" else (
+                "Unexpected failure posting generated quote-tweet reply"
+                if lane == "quote_tweet" else "Unexpected failure posting generated reply"
+            )
         )
         log_ai_reply_posting_outcome(
             reply=reply_text,
             status="posting_failed_retryable",
             lane=lane,
             target_id=target_id,
-            failure_reason="unexpected_posting_error",
+            failure_reason=(
+                "unexpected_pre_send_lookup_error"
+                if error_scope != "write" else "unexpected_posting_error"
+            ),
         )
-        record_api_error(state, e, "x", scope="write")
+        record_api_error(state, e, "x", scope=error_scope)
         persistence.save(state)
         return ReplyDeliveryStop.RETRYABLE
     return receipt

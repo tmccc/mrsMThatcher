@@ -43,6 +43,12 @@ backend to LAN users. All requests require the configured Host; cross-origin
 requests are rejected. Both workflows share signed CSRF, bounded request bodies,
 constant-time credential verification and security headers.
 
+The quarantine launcher also accepts an optional `MRS_REVIEW_SECRET_KEY` in its
+process environment to keep CSRF signatures valid across restarts. Keep this key
+private and stable if that continuity is wanted. Without it, each restart creates
+a new signing key. After a key changes, refresh the page to receive a replacement
+cookie and form token; old or tampered POST tokens remain rejected.
+
 The legacy swipe launcher delegates to `tools.generated_image_review_app.swipe`.
 Its existing SQLite decisions, staged confirmation, undo and JSON export remain
 compatible. Export is a protected POST, and no database migration is required.

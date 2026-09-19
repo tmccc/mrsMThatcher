@@ -287,8 +287,8 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--export-only", action="store_true")
     parser.add_argument("--tls-cert", type=Path)
     parser.add_argument("--tls-key", type=Path)
-    parser.add_argument("--trusted-proxy-origin")
-    parser.add_argument("--public-host")
+    parser.add_argument("--trusted-proxy-origin", default=os.environ.get("MRS_REVIEW_TRUSTED_PROXY_ORIGIN"))
+    parser.add_argument("--public-host", default=os.environ.get("MRS_REVIEW_PUBLIC_HOST"))
     args = parser.parse_args()
     missing = [
         name
@@ -331,7 +331,8 @@ def configured_app() -> FastAPI:
     username, password = os.getenv("MRS_REVIEW_USERNAME"), os.getenv("MRS_REVIEW_PASSWORD")
     proxy = os.getenv("MRS_REVIEW_TRUSTED_PROXY_ORIGIN")
     validate_binding(host, username, password, trusted_proxy_origin=proxy)
-    return create_app(config_from_env(), username=username, password=password, allowed_hosts=(host,), trusted_proxy_origin=proxy)
+    hosts = tuple(filter(None, (os.getenv("MRS_REVIEW_PUBLIC_HOST"), host, "127.0.0.1", "localhost", "::1")))
+    return create_app(config_from_env(), username=username, password=password, allowed_hosts=hosts, trusted_proxy_origin=proxy)
 
 
 def main() -> None:

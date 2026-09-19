@@ -288,15 +288,13 @@ def _verified_tweet_lookup_row(
     *,
     requested_tweet_id: str,
     ApiError: type[Exception],
-) -> dict | None:
+) -> dict:
     """Return only a lookup row bound to the exact requested post identity."""
 
-    if tweet is None:
-        return None
     request_id = str(requested_tweet_id)
     if not isinstance(tweet, dict):
         raise ApiError(
-            "X tweet lookup returned malformed tweet data",
+            "X tweet lookup returned missing or malformed tweet data",
             service="x",
             request_method="GET",
             request_path=f"/2/tweets/{request_id}",
@@ -342,7 +340,7 @@ def get_tweet_by_id(
     )
 
     tweet = _verified_tweet_lookup_row(
-        result.get("data"),
+        result.get("data") if isinstance(result, dict) else None,
         requested_tweet_id=str(tweet_id),
     )
     if isinstance(tweet, dict):
@@ -388,15 +386,9 @@ def reply_target_is_available_immediately_before_send(
             return False
         raise
 
-    if target is None:
-        log.warning(
-            "Reply target was absent in the fresh pre-send lookup. target_id=%s",
-            target_id,
-        )
-        return False
     if not isinstance(target, dict) or str(target.get("id") or "") != target_id:
         raise ApiError(
-            "X reply-target pre-send lookup returned a mismatched or malformed post",
+            "X reply-target pre-send lookup returned a missing, mismatched or malformed post",
             service="x",
             request_method="GET",
             request_path=f"/2/tweets/{target_id}",

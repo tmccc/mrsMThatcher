@@ -85,11 +85,29 @@ export GIR_MODE=review
 
 `GIR_ASSESSMENT_FILE` is optional. Set it only when you want to review a pre-filtered assessment export rather than the generated corpus itself.
 
-Production-style Uvicorn invocation using the environment variables:
+Uvicorn factory invocation using the environment variables (local by default):
 
 ```bash
-uvicorn tools.generated_image_review.app:configured_app --factory --host 127.0.0.1 --port 8765
+uvicorn tools.generated_image_review.app:configured_app --factory --host 127.0.0.1 --port 8765 --no-proxy-headers
 ```
+
+For access through an HTTPS reverse proxy, set `MRS_REVIEW_USERNAME` and
+`MRS_REVIEW_PASSWORD` in the process environment, then configure the public
+hostname and exact browser origin:
+
+```bash
+export GIR_HOST=127.0.0.1
+export MRS_REVIEW_PUBLIC_HOST=review.example
+export MRS_REVIEW_TRUSTED_PROXY_ORIGIN=https://review.example
+uvicorn tools.generated_image_review.app:configured_app --factory --host "$GIR_HOST" --port 8765 --no-proxy-headers
+```
+
+Keep the backend reachable only by the proxy and preserve the public Host. The
+same public-host and proxy-origin variables supply defaults for the CLI's
+`--public-host` and `--trusted-proxy-origin` options. The factory requires the
+same authentication and CSRF protection as the CLI, even if Uvicorn's `--host`
+differs from `GIR_HOST`. Use the CLI's `--tls-cert` and `--tls-key` options for
+direct TLS service without a reverse proxy.
 
 ## Assessment Input
 
@@ -134,11 +152,22 @@ decision_history(
 )
 ```
 
-Only rows with `undone_at IS NULL` are effective. First-pass decisions use stage `initial`; confirmation-pass decisions use stage `confirm_allowed`. Undo marks the most recent effective decision in the current stage as undone, so refreshes and server restarts preserve the undo history.
+Only rows with `undone_at IS NULL` are effective. First-pass decisions use stage
+`initial`; later passes use `confirm_allowed` and `reconfirm_allowed`. Undo marks
+the most recent effective decision in the current stage and its dependent later
+reviews as undone, in one database transaction. Reviewing that image again
+requires fresh later approvals. Queue eligibility and exports follow this same
+sequence, ordered by history ID. Opening an existing database also invalidates
+inconsistent later reviews. All history rows are retained across refreshes and
+server restarts.
 
 ## Export
 
-The app writes the export atomically after each decision and undo, and also exposes `POST /api/export (authenticated, with a signed CSRF token)`.
+The app writes the export atomically after each decision and undo, and also
+exposes `POST /api/export` with the same authentication and signed CSRF
+requirements. `GET /api/export` never writes an export.
+After opening an older database with inconsistent review history, use **Export**
+to refresh any previously written JSON from the repaired decisions.
 
 Format:
 
@@ -166,7 +195,10 @@ SQLite remains the authoritative store.
 - `POST /api/decision`
 - `POST /api/undo`
 - `GET /api/progress`
-- `POST /api/export (authenticated, with a signed CSRF token)`
+- `POST /api/export`
 - `GET /image/{quote_hash}`
 
 The decision endpoint rejects stale decisions if the submitted quote hash is not the current first pending item.
+All POST endpoints, including undo and export, require the signed cookie and
+matching `X-CSRF-Token` header issued by a preceding GET. Cross-origin requests
+are rejected; a caller-supplied loopback Host cannot bypass network authentication.

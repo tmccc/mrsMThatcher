@@ -96,6 +96,65 @@ def test_csrf_and_readonly_endpoints(tmp_path):
     assert "read-only" in result.text and (service.paths.generated / names[0]).exists()
 
 
+def test_csrf_cookie_refresh_after_signing_key_rotation(tmp_path):
+    service, names = fixture(tmp_path, allow=True)
+    original = loopback_client(create_app(service, secret_key="old-key"))
+    old_token = csrf(original)
+    restarted = loopback_client(create_app(service, secret_key="new-key"))
+    restarted.cookies.update(original.cookies)
+    form = {"pool_token": service.pool_token(), "images": names[0]}
+
+    assert restarted.post("/review", data={**form, "csrf": old_token}).status_code == 403
+    page = restarted.get("/")
+    token = restarted.cookies["review_csrf"]
+    assert page.status_code == 200 and token != old_token
+    assert f'name="csrf" value="{token}"' in page.text
+    assert restarted.post("/review", data={**form, "csrf": old_token}).status_code == 403
+    reviewed = restarted.post("/review", data={**form, "csrf": token})
+    assert reviewed.status_code == 200 and names[0] in reviewed.text
+    assert f'name="csrf" value="{token}"' in reviewed.text
+    result = restarted.post("/quarantine", data={
+        **form, "csrf": token, "confirmation": "QUARANTINE 1 IMAGES", "reason": "other",
+    })
+    assert result.status_code == 200
+    assert not (service.paths.generated / names[0]).exists()
+    assert service.transactions()[0]["status"] == "completed"
+
+
+@pytest.mark.parametrize("invalid", ["malformed", "nonce.bad-signature", "tampered"])
+def test_invalid_csrf_cookie_is_rejected_then_replaced_on_page_render(tmp_path, invalid):
+    service, names = fixture(tmp_path)
+    client = loopback_client(create_app(service, secret_key="key"))
+    valid = csrf(client)
+    if invalid == "tampered":
+        invalid = valid[:-1] + ("0" if valid[-1] != "0" else "1")
+    client.cookies.clear()
+    client.cookies.set("review_csrf", invalid, domain="127.0.0.1", path="/")
+    form = {"pool_token": service.pool_token(), "images": names[0]}
+    assert client.post("/review", data={**form, "csrf": invalid}).status_code == 403
+    page = client.get("/")
+    replacement = client.cookies["review_csrf"]
+    assert page.status_code == 200 and replacement != invalid
+    assert f'name="csrf" value="{replacement}"' in page.text
+    assert client.post("/review", data={**form, "csrf": invalid}).status_code == 403
+    assert client.post("/review", data={**form, "csrf": replacement}).status_code == 200
+
+
+def test_csrf_cookie_survives_restart_with_stable_configured_key(tmp_path):
+    service, names = fixture(tmp_path)
+    original = loopback_client(create_app(service, secret_key="stable-key"))
+    token = csrf(original)
+    restarted = loopback_client(create_app(service, secret_key="stable-key"))
+    restarted.cookies.update(original.cookies)
+    page = restarted.get("/")
+    assert page.status_code == 200 and "set-cookie" not in page.headers
+    assert restarted.cookies["review_csrf"] == token
+    assert f'name="csrf" value="{token}"' in page.text
+    assert restarted.post("/review", data={
+        "csrf": token, "pool_token": service.pool_token(), "images": names[0],
+    }).status_code == 200
+
+
 def test_quarantine_multi_metadata_manifest_backups_and_protected_files_untouched(tmp_path):
     service, names = fixture(tmp_path, allow=True)
     protected = [service.paths.used, service.paths.project / "bot_state.json", service.paths.project / "lines_used.json", service.paths.project / "mrsMThatcher.log", service.paths.project / "mrsMThatcher.local.json", service.paths.project / "regular_post_receipt.json"]

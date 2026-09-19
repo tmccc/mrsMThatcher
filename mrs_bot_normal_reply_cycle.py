@@ -1187,6 +1187,7 @@ def _deliver_reply(
     outcome = deliver_prepared_reply(
         state, candidate.mention_id, reply_text, receipt_template,
         lane=str(candidate.source), log_source=candidate.log_source,
+        read_error_scope="api",
         mark_as_ai=config.mark_as_ai,
         retire_terminal_target=retire_terminal_target,
         AmbiguousRemotePostOutcome=AmbiguousRemotePostOutcome,
