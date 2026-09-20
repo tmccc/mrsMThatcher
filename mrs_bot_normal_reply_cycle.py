@@ -35,7 +35,7 @@ from mrs_bot_reply_cycle_interfaces import (
     NORMAL_CHECK_STATUS_SKIPPED_CAP,
     NORMAL_CHECK_STATUS_SKIPPED_COOLDOWN,
     NORMAL_CHECK_STATUS_SKIPPED_SPACING,
-    EvaluateReply, NormalReplyConfig,
+    EvaluateReply, NormalReplyConfig, PreparedReplyContext,
     ReplyCycleDelivery, ReplyCyclePersistence,
 )
 from mrs_bot_reply_delivery import ReplyDeliveryStop, deliver_prepared_reply
@@ -360,10 +360,10 @@ def maybe_reply_to_mentions(
             if context_result.status is not None:
                 return context_result.status
             continue
-        reply_context, media_context = context_result
+        reply_context = context_result.context
 
         evaluation_result = _evaluate_reply(
-            state, candidate, reply_context, media_context, progress,
+            state, candidate, reply_context, context_result.media_context, progress,
             ApiError=ApiError, config=config,
             RemoteOperationsPaused=RemoteOperationsPaused,
             evaluate_single_call_reply=evaluate_single_call_reply, log=log, log_event=log_event,
@@ -675,7 +675,7 @@ def _prepare_reply_context(
     reply_evidence_repository: Callable,
     persistence: ReplyCyclePersistence,
     trim_context_text: Callable,
-) -> tuple[dict, object] | _CandidateStop:
+) -> PreparedReplyContext | _CandidateStop:
     """Build canonical context and media, preserving the narrow context error boundary."""
     try:
         prepared = build_context_for_reply_ai(candidate.mention, state)
@@ -758,7 +758,7 @@ def _prepare_reply_context(
         )
         return _CandidateStop(NORMAL_CHECK_STATUS_CHECKED)
 
-    return reply_context, prepared.media_context
+    return prepared
 
 
 def _evaluate_reply(

@@ -489,3 +489,70 @@ def test_clarification_refresh_failure_defers_without_losing_candidate(monkeypat
     assert "105" in json.loads(bot.STATE_FILE.read_text())["mention_pending_candidates"]
     bot.evaluate_single_call_reply.assert_not_called()
     bot.create_post.assert_not_called()
+
+
+@pytest.mark.parametrize("recovered", [False, True])
+def test_prepared_context_preserves_clarification_and_media_through_recovery(monkeypatch, recovered):
+    _configure_cycle(monkeypatch)
+    state = bot.default_state()
+    candidate = mention(105, 205)
+    monkeypatch.setattr(bot, "get_mentions", Mock(return_value=[candidate]))
+    monkeypatch.setattr(bot, "REPLY_INCOMING_MAX_CHARS", 40)
+    clarification = {
+        "question_text": "The original question needs clarification before an answer.",
+        "thread_id": "105",
+        "prior_bot_reply_id": "104",
+        "original_question_id": "103",
+        "trigger": "explicit_correction",
+    }
+    patch_reply_owner_method(
+        monkeypatch, ClarificationReplies, "context", Mock(return_value=clarification),
+    )
+    context = unit_reply_context(
+        target_id="105", target_author_id="205", contribution=candidate["text"],
+    )
+    expected_clarification = {
+        "original_question": bot.trim_context_text(clarification["question_text"], 40),
+        "correction": candidate["text"],
+    }
+    draft_context = {**context, "clarification_request": expected_clarification}
+    reply = unit_approved_reply(draft_context)
+    if recovered:
+        assert bot.store_pending_ai_reply(state, "105", "mention", reply, context=draft_context)
+    media = {"native_media": []}
+    prepared = interfaces.PreparedReplyContext(context, media)
+    monkeypatch.setattr(bot, "build_context_for_reply_ai", Mock(return_value=prepared))
+    prepare_context = cycle._prepare_reply_context
+
+    def prepare(*args, **kwargs):
+        result = prepare_context(*args, **kwargs)
+        assert result is prepared
+        assert result.context is context
+        assert result.media_context is media
+        return result
+
+    preparation = Mock(side_effect=prepare)
+    monkeypatch.setattr(cycle, "_prepare_reply_context", preparation)
+    recovery = Mock(wraps=bot._reply_draft_owner().recover)
+    patch_reply_draft_method(monkeypatch, "recover", recovery)
+    evaluator = Mock(return_value=bot.PipelineResult(
+        status="reply", reason="useful_reply", reply=reply, model_call_count=1,
+    ))
+    monkeypatch.setattr(bot, "evaluate_single_call_reply", evaluator)
+    monkeypatch.setattr(bot, "reply_target_is_available_immediately_before_send", Mock(return_value=False))
+
+    assert bot.maybe_reply_to_mentions(state) == bot.NORMAL_CHECK_STATUS_CHECKED
+    preparation.assert_called_once()
+    assert context["clarification_request"] == expected_clarification
+    assert recovery.call_args.kwargs["context"] is context
+    if recovered:
+        evaluator.assert_not_called()
+    else:
+        evaluator.assert_called_once()
+        assert evaluator.call_args.args[0] is context
+        assert evaluator.call_args.args[1] is media
+    assert not state.get("pending_ai_reply_drafts")
+    assert state["reply_evaluation_records"]["105"]["reason"] == "x_target_unavailable_pre_send"
+    assert state["daily_reply_count"] == 0
+    bot.x_request.assert_not_called()
+    bot.create_post.assert_not_called()
