@@ -5149,16 +5149,25 @@ def bound_meme_schedule_state_is_valid(
     )
 
 
+def _main_post_receipt_values_owner() -> _main_post_receipts.MainPostReceiptValues:
+    """Bind one receipt operation; sibling calls resolve current policy afresh."""
+    return _main_post_receipts.MainPostReceiptValues(
+        schedule_timezone=MAIN_POST_SCHEDULE_TIMEZONE,
+        schedule_modes=MEME_SCHEDULE_MODES,
+        schedule_version=MEME_SCHEDULE_VERSION,
+        bound_meme_state_is_valid=bound_meme_schedule_state_is_valid,
+        safe_schedule_date=safe_bound_schedule_date_str,
+        valid_epoch=valid_receipt_epoch,
+        invalid_regular_receipt=InvalidRegularPostReceipt,
+        invalid_meme_receipt=InvalidMemePostReceipt,
+        bound_schedule_datetime=bound_schedule_datetime,
+        current=lambda: _main_post_receipt_values_owner(),
+    )
+
+
 def main_post_attempt_is_semantically_valid(data: object) -> bool:
     """Return whether a pre-send regular or meme attempt is self-consistent."""
-    return _main_post_receipts.main_post_attempt_is_semantically_valid(
-        data,
-        MAIN_POST_SCHEDULE_TIMEZONE=MAIN_POST_SCHEDULE_TIMEZONE,
-        MEME_SCHEDULE_VERSION=MEME_SCHEDULE_VERSION,
-        bound_meme_schedule_state_is_valid=bound_meme_schedule_state_is_valid,
-        safe_bound_schedule_date_str=safe_bound_schedule_date_str,
-        valid_receipt_epoch=valid_receipt_epoch,
-    )
+    return _main_post_receipt_values_owner().attempt_is_valid(data)
 
 
 def main_post_attempt_binds_payload(attempt: dict, payload: dict) -> bool:
@@ -5336,11 +5345,8 @@ def confirmed_pending_schedule_receipt_is_semantically_valid(
     expected_lane: str | None = None,
 ) -> bool:
     """Validate a remote-confirmed receipt awaiting local schedule materialisation."""
-    return _main_post_receipts.confirmed_pending_schedule_receipt_is_semantically_valid(
-        data,
-        expected_lane=expected_lane,
-        main_post_attempt_is_semantically_valid=main_post_attempt_is_semantically_valid,
-        valid_receipt_epoch=valid_receipt_epoch,
+    return _main_post_receipt_values_owner().pending_is_valid(
+        data, expected_lane=expected_lane,
     )
 
 
@@ -5415,14 +5421,8 @@ def materialize_bound_regular_schedule_receipt(
     _validate_result: bool = True,
 ) -> dict:
     """Build a full regular receipt solely from its durable bound plan."""
-    return _main_post_receipts.materialize_bound_regular_schedule_receipt(
-        pending,
-        _validate_result=_validate_result,
-        InvalidRegularPostReceipt=InvalidRegularPostReceipt,
-        bound_schedule_datetime=bound_schedule_datetime,
-        confirmed_pending_schedule_receipt_is_semantically_valid=confirmed_pending_schedule_receipt_is_semantically_valid,
-        regular_post_receipt_is_semantically_valid=regular_post_receipt_is_semantically_valid,
-        safe_bound_schedule_date_str=safe_bound_schedule_date_str,
+    return _main_post_receipt_values_owner().materialize_regular(
+        pending, _validate_result=_validate_result,
     )
 
 
@@ -5432,13 +5432,8 @@ def materialize_bound_meme_schedule_receipt(
     _validate_result: bool = True,
 ) -> dict:
     """Build a full meme receipt solely from its durable bound plan."""
-    return _main_post_receipts.materialize_bound_meme_schedule_receipt(
-        pending,
-        _validate_result=_validate_result,
-        InvalidMemePostReceipt=InvalidMemePostReceipt,
-        bound_schedule_datetime=bound_schedule_datetime,
-        confirmed_pending_schedule_receipt_is_semantically_valid=confirmed_pending_schedule_receipt_is_semantically_valid,
-        meme_post_receipt_is_semantically_valid=meme_post_receipt_is_semantically_valid,
+    return _main_post_receipt_values_owner().materialize_meme(
+        pending, _validate_result=_validate_result,
     )
 
 
@@ -5484,17 +5479,7 @@ def write_regular_post_receipt(receipt: dict) -> None:
 
 def regular_post_receipt_is_semantically_valid(data: dict) -> bool:
     """Return whether a regular-post receipt is internally consistent."""
-    return _main_post_receipts.regular_post_receipt_is_semantically_valid(
-        data,
-        MAIN_POST_SCHEDULE_TIMEZONE=MAIN_POST_SCHEDULE_TIMEZONE,
-        MEME_SCHEDULE_MODES=MEME_SCHEDULE_MODES,
-        MEME_SCHEDULE_VERSION=MEME_SCHEDULE_VERSION,
-        confirmed_pending_schedule_receipt_is_semantically_valid=confirmed_pending_schedule_receipt_is_semantically_valid,
-        main_post_attempt_is_semantically_valid=main_post_attempt_is_semantically_valid,
-        materialize_bound_regular_schedule_receipt=materialize_bound_regular_schedule_receipt,
-        safe_bound_schedule_date_str=safe_bound_schedule_date_str,
-        valid_receipt_epoch=valid_receipt_epoch,
-    )
+    return _main_post_receipt_values_owner().regular_is_valid(data)
 
 
 def load_regular_post_receipt() -> tuple[str, dict | None]:
@@ -5545,15 +5530,7 @@ def write_meme_post_receipt(receipt: dict) -> None:
 
 def meme_post_receipt_is_semantically_valid(data: dict) -> bool:
     """Return whether a meme-post receipt is internally consistent."""
-    return _main_post_receipts.meme_post_receipt_is_semantically_valid(
-        data,
-        MEME_SCHEDULE_MODES=MEME_SCHEDULE_MODES,
-        MEME_SCHEDULE_VERSION=MEME_SCHEDULE_VERSION,
-        confirmed_pending_schedule_receipt_is_semantically_valid=confirmed_pending_schedule_receipt_is_semantically_valid,
-        main_post_attempt_is_semantically_valid=main_post_attempt_is_semantically_valid,
-        materialize_bound_meme_schedule_receipt=materialize_bound_meme_schedule_receipt,
-        valid_receipt_epoch=valid_receipt_epoch,
-    )
+    return _main_post_receipt_values_owner().meme_is_valid(data)
 
 
 def load_meme_post_receipt() -> tuple[str, dict | None]:

@@ -54,63 +54,111 @@ assert 'single_call_reply' not in sys.modules
     assert result.returncode == 0, result.stderr + result.stdout
 
 
+OPERATIONS = {
+    "main_post_attempt_is_semantically_valid": "attempt_is_valid",
+    "regular_post_receipt_is_semantically_valid": "regular_is_valid",
+    "confirmed_pending_schedule_receipt_is_semantically_valid": "pending_is_valid",
+    "materialize_bound_regular_schedule_receipt": "materialize_regular",
+    "materialize_bound_meme_schedule_receipt": "materialize_meme",
+    "meme_post_receipt_is_semantically_valid": "meme_is_valid",
+}
+
+OWNER_FIELDS = {
+    "schedule_timezone": "MAIN_POST_SCHEDULE_TIMEZONE",
+    "schedule_modes": "MEME_SCHEDULE_MODES",
+    "schedule_version": "MEME_SCHEDULE_VERSION",
+    "bound_meme_state_is_valid": "bound_meme_schedule_state_is_valid",
+    "safe_schedule_date": "safe_bound_schedule_date_str",
+    "valid_epoch": "valid_receipt_epoch",
+    "invalid_regular_receipt": "InvalidRegularPostReceipt",
+    "invalid_meme_receipt": "InvalidMemePostReceipt",
+    "bound_schedule_datetime": "bound_schedule_datetime",
+}
+
+
+def patch_receipt_operation(monkeypatch, name, callback):
+    """Observe owned sibling operations without replacing public adapters."""
+    monkeypatch.setattr(
+        receipts.MainPostReceiptValues, OPERATIONS[name],
+        lambda self, *args, **kwargs: callback(*args, **kwargs),
+    )
+
+
 @pytest.mark.parametrize(
-    "name, signature, dependency_count",
+    "name, signature",
     [
-        ("main_post_attempt_is_semantically_valid", "(data: 'object') -> 'bool'", 5),
-        ("regular_post_receipt_is_semantically_valid", "(data: 'dict') -> 'bool'", 8),
+        ("main_post_attempt_is_semantically_valid", "(data: 'object') -> 'bool'"),
+        ("regular_post_receipt_is_semantically_valid", "(data: 'dict') -> 'bool'"),
         (
             "confirmed_pending_schedule_receipt_is_semantically_valid",
-            "(data: 'object', *, expected_lane: 'str | None' = None) -> 'bool'", 2,
+            "(data: 'object', *, expected_lane: 'str | None' = None) -> 'bool'",
         ),
         (
             "materialize_bound_regular_schedule_receipt",
-            "(pending: 'dict', *, _validate_result: 'bool' = True) -> 'dict'", 5,
+            "(pending: 'dict', *, _validate_result: 'bool' = True) -> 'dict'",
         ),
         (
             "materialize_bound_meme_schedule_receipt",
-            "(pending: 'dict', *, _validate_result: 'bool' = True) -> 'dict'", 4,
+            "(pending: 'dict', *, _validate_result: 'bool' = True) -> 'dict'",
         ),
-        ("meme_post_receipt_is_semantically_valid", "(data: 'dict') -> 'bool'", 6),
+        ("meme_post_receipt_is_semantically_valid", "(data: 'dict') -> 'bool'"),
     ],
 )
-def test_adapters_forward_current_dependencies_defaults_references_and_errors(
-    monkeypatch, name, signature, dependency_count,
+def test_adapters_resolve_current_owner_preserving_defaults_references_and_errors(
+    monkeypatch, name, signature,
 ):
     adapter = getattr(bot, name)
     original_parameters = inspect.signature(adapter).parameters
     assert str(inspect.signature(adapter)) == signature
-    dependencies = {
-        key: parameter for key, parameter in
-        inspect.signature(getattr(receipts, name)).parameters.items()
-        if key not in original_parameters
-    }
-    assert len(dependencies) == dependency_count
-    assert all(parameter.kind is inspect.Parameter.KEYWORD_ONLY
-               and parameter.default is inspect.Parameter.empty
-               for parameter in dependencies.values())
+    owned = inspect.signature(getattr(receipts.MainPostReceiptValues, OPERATIONS[name]))
+    assert set(owned.parameters) == {"self", *original_parameters}
     value = {"original": []}
     defaults = {key: parameter.default for key, parameter in original_parameters.items()
                 if parameter.kind is inspect.Parameter.KEYWORD_ONLY}
     for explicit in (False, True):
         with monkeypatch.context() as patch:
-            current = {key: object() for key in dependencies}
-            owner = Mock(return_value={"original return": []})
-            patch.setattr(bot, "_main_post_receipts", SimpleNamespace(**{name: owner}))
-            for key, dependency in current.items():
-                patch.setattr(bot, key, dependency)
+            operation = Mock(return_value={"original return": []})
+            owner = SimpleNamespace(**{OPERATIONS[name]: operation})
+            factory = Mock(return_value=owner)
+            patch.setattr(bot, "_main_post_receipt_values_owner", factory)
             options = {key: object() for key in defaults} if explicit else {}
-            assert adapter(value, **options) is owner.return_value
-            forwarded = {**(options if explicit else defaults), **current}
-            owner.assert_called_once_with(value, **forwarded)
-            assert owner.call_args.args[0] is value
-            assert all(owner.call_args.kwargs[key] is dependency
-                       for key, dependency in forwarded.items())
+            assert adapter(value, **options) is operation.return_value
+            factory.assert_called_once_with()
+            forwarded = options if explicit else defaults
+            operation.assert_called_once_with(value, **forwarded)
+            assert operation.call_args.args[0] is value
+            assert all(operation.call_args.kwargs[key] is option for key, option in forwarded.items())
             failure = TypeError("current owner failure")
-            owner.side_effect = failure
+            operation.side_effect = failure
             with pytest.raises(TypeError) as caught:
                 adapter(value, **options)
             assert caught.value is failure
+
+
+def test_receipt_owner_binds_external_references_and_refreshes_without_eager_runtime_access(monkeypatch):
+    factory = bot._main_post_receipt_values_owner
+    assert set(inspect.signature(receipts.MainPostReceiptValues).parameters) == {*OWNER_FIELDS, "current"}
+    prior = None
+    for _ in range(2):
+        current = {field: object() for field in OWNER_FIELDS}
+        for field, root_name in OWNER_FIELDS.items():
+            monkeypatch.setattr(bot, root_name, current[field])
+        owner = factory()
+        assert all(getattr(owner, field) is value for field, value in current.items())
+        if prior is not None:
+            assert owner is not prior
+            assert all(getattr(prior, field) is value for field, value in prior_values.items())
+        prior, prior_values = owner, current
+    replacement = Mock(return_value=object())
+    monkeypatch.setattr(bot, "_main_post_receipt_values_owner", replacement)
+    replacement.assert_not_called()
+    assert owner.current() is replacement.return_value
+    replacement.assert_called_once_with()
+    failure = LookupError("owner composition failed")
+    replacement.side_effect = failure
+    with pytest.raises(LookupError) as caught:
+        owner.current()
+    assert caught.value is failure
 
 
 def _pending(lane):
@@ -166,8 +214,11 @@ def test_pending_uses_owned_scalar_rules_and_current_callbacks_before_source_and
         callback = (Mock(return_value=True) if key == "main_post_attempt_is_semantically_valid"
                     else Mock(wraps=getattr(bot, key)))
         events.attach_mock(callback, key)
-        target = receipts if key in {"receipt_int", "valid_string_post_id"} else bot
-        monkeypatch.setattr(target, key, callback)
+        if key in OPERATIONS:
+            patch_receipt_operation(monkeypatch, key, callback)
+        else:
+            target = receipts if key in {"receipt_int", "valid_string_post_id"} else bot
+            monkeypatch.setattr(target, key, callback)
     validator = bot.confirmed_pending_schedule_receipt_is_semantically_valid
     assert validator(pending, expected_lane=lane)
     assert events.mock_calls == [
@@ -246,11 +297,11 @@ def test_lineage_uses_owned_hash_copy_and_current_pending_nonrecursive_materiali
     }
     for key, callback in callbacks.items():
         events.attach_mock(callback, key)
-    monkeypatch.setattr(bot, "main_post_attempt_is_semantically_valid", events.attempt)
+    patch_receipt_operation(monkeypatch, "main_post_attempt_is_semantically_valid", events.attempt)
     monkeypatch.setattr(receipts, "canonical_atomic_json_bytes", events.canonical)
     monkeypatch.setattr(receipts, "copy", SimpleNamespace(deepcopy=events.deepcopy))
-    monkeypatch.setattr(bot, "confirmed_pending_schedule_receipt_is_semantically_valid", events.pending)
-    monkeypatch.setattr(bot, f"materialize_bound_{prefix}_schedule_receipt", events.materialize)
+    patch_receipt_operation(monkeypatch, "confirmed_pending_schedule_receipt_is_semantically_valid", events.pending)
+    patch_receipt_operation(monkeypatch, f"materialize_bound_{prefix}_schedule_receipt", events.materialize)
     assert validator(receipt)
     reconstructed = events.pending.call_args.args[0]
     assert reconstructed == pending
@@ -289,8 +340,8 @@ def test_materializers_gate_before_derivation_and_use_current_final_validator_an
     gate = Mock(return_value=False)
     final = Mock(return_value=False)
     copy_spy = Mock(wraps=copy.deepcopy)
-    monkeypatch.setattr(bot, "confirmed_pending_schedule_receipt_is_semantically_valid", gate)
-    monkeypatch.setattr(bot, f"{prefix}_post_receipt_is_semantically_valid", final)
+    patch_receipt_operation(monkeypatch, "confirmed_pending_schedule_receipt_is_semantically_valid", gate)
+    patch_receipt_operation(monkeypatch, f"{prefix}_post_receipt_is_semantically_valid", final)
     monkeypatch.setattr(receipts, "copy", SimpleNamespace(deepcopy=copy_spy))
     with pytest.raises(error, match=f"^Invalid confirmed {prefix} pending-schedule receipt$"):
         materialize(pending, _validate_result=False)
@@ -329,7 +380,7 @@ def test_materialization_preserves_copy_boundaries_and_hashes_original_source_in
     events.attach_mock(Mock(return_value=True), "gate")
     events.attach_mock(Mock(wraps=copy.deepcopy), "deepcopy")
     events.attach_mock(Mock(wraps=bot.canonical_atomic_json_bytes), "canonical")
-    monkeypatch.setattr(bot, "confirmed_pending_schedule_receipt_is_semantically_valid", events.gate)
+    patch_receipt_operation(monkeypatch, "confirmed_pending_schedule_receipt_is_semantically_valid", events.gate)
     monkeypatch.setattr(receipts, "copy", SimpleNamespace(deepcopy=events.deepcopy))
     monkeypatch.setattr(receipts, "canonical_atomic_json_bytes", events.canonical)
     if lane == "quote_image":
@@ -376,3 +427,120 @@ def test_unsupported_regular_receipt_version_is_rejected():
     receipt = bot.materialize_bound_regular_schedule_receipt(_pending("quote_image"))
     receipt["schema_version"] = 4
     assert not bot.regular_post_receipt_is_semantically_valid(receipt)
+
+
+def test_active_receipt_policy_is_stable_while_next_owned_operation_binds_current_policy(monkeypatch):
+    pending = _pending("quote_image")
+    receipt = bot.materialize_bound_regular_schedule_receipt(pending)
+    # Exercise the active operation's version, mode and date checks before lineage.
+    receipt.update(
+        next_meme_post_epoch=receipt["quote_post_epoch"] + 3600,
+        next_meme_schedule_mode="fallback", next_meme_schedule_date="bound-date",
+        meme_anchor_quote_post_epoch=0, meme_schedule_changed_by_quote=False,
+        meme_schedule_version=bot.MEME_SCHEDULE_VERSION,
+    )
+    old_zone = bot.MAIN_POST_SCHEDULE_TIMEZONE
+    original_modes = {"fallback"}
+    old_date = Mock(return_value="bound-date")
+    new_regular_error = type("NewRegularError", (RuntimeError,), {})
+    new_meme_error = type("NewMemeError", (RuntimeError,), {})
+    changed = {
+        "schedule_timezone": "new-zone", "schedule_modes": set(), "schedule_version": 0,
+        "bound_meme_state_is_valid": Mock(), "safe_schedule_date": Mock(),
+        "valid_epoch": Mock(), "invalid_regular_receipt": new_regular_error,
+        "invalid_meme_receipt": new_meme_error, "bound_schedule_datetime": Mock(),
+    }
+    epochs = []
+
+    def original_epoch(value):
+        epochs.append(value)
+        for field, root_name in OWNER_FIELDS.items():
+            monkeypatch.setattr(bot, root_name, changed[field])
+        return True
+
+    observed = []
+
+    def inspect_next_operation(owner, source):
+        observed.append(source)
+        assert source is receipt["source_attempt"]
+        assert all(getattr(owner, field) is value for field, value in changed.items())
+        return False
+
+    monkeypatch.setattr(bot, "MEME_SCHEDULE_MODES", original_modes)
+    monkeypatch.setattr(bot, "valid_receipt_epoch", original_epoch)
+    monkeypatch.setattr(bot, "safe_bound_schedule_date_str", old_date)
+    monkeypatch.setattr(receipts.MainPostReceiptValues, "attempt_is_valid", inspect_next_operation)
+    assert bot.regular_post_receipt_is_semantically_valid(receipt) is False
+    assert observed == [receipt["source_attempt"]]
+    assert epochs == [receipt["quote_post_epoch"], receipt["next_quote_post_epoch"], receipt["next_meme_post_epoch"]]
+    old_date.assert_called_once_with(receipt["next_meme_post_epoch"], old_zone)
+    assert original_modes == {"fallback"}
+    changed["valid_epoch"].assert_not_called()
+    changed["safe_schedule_date"].assert_not_called()
+
+
+@pytest.mark.parametrize("lane", ["quote_image", "daily_meme"])
+def test_materializer_keeps_its_error_class_when_pending_validation_rebinds_errors(monkeypatch, lane):
+    pending = _pending(lane)
+    materialize, _ = _lane_functions(lane)
+    prefix = "regular" if lane == "quote_image" else "meme"
+    old_error = type("OldReceiptError", (RuntimeError,), {})
+    new_error = type("NewReceiptError", (RuntimeError,), {})
+    monkeypatch.setattr(bot, f"Invalid{prefix.title()}PostReceipt", old_error)
+
+    def reject(_owner, value, *, expected_lane):
+        assert value is pending and expected_lane == lane
+        monkeypatch.setattr(bot, f"Invalid{prefix.title()}PostReceipt", new_error)
+        return False
+
+    monkeypatch.setattr(receipts.MainPostReceiptValues, "pending_is_valid", reject)
+    with pytest.raises(old_error, match=f"^Invalid confirmed {prefix} pending-schedule receipt$"):
+        materialize(pending)
+    with pytest.raises(new_error, match=f"^Invalid confirmed {prefix} pending-schedule receipt$"):
+        materialize(pending)
+
+
+def test_materializer_keeps_bound_calendar_while_final_validation_refreshes(monkeypatch):
+    pending = _pending("daily_meme")
+    old_calendar = Mock(wraps=bot.bound_schedule_datetime)
+    new_calendar = Mock(side_effect=AssertionError("outer materializer rebound its calendar"))
+    final_owners = []
+
+    def admit(_owner, value, *, expected_lane):
+        assert value is pending and expected_lane == "daily_meme"
+        monkeypatch.setattr(bot, "bound_schedule_datetime", new_calendar)
+        return True
+
+    def validate(owner, result):
+        assert owner.bound_schedule_datetime is new_calendar
+        final_owners.append((owner, result))
+        return True
+
+    monkeypatch.setattr(bot, "bound_schedule_datetime", old_calendar)
+    monkeypatch.setattr(receipts.MainPostReceiptValues, "pending_is_valid", admit)
+    monkeypatch.setattr(receipts.MainPostReceiptValues, "meme_is_valid", validate)
+    result = bot.materialize_bound_meme_schedule_receipt(pending)
+    old_calendar.assert_called_once_with(
+        pending["confirmation_epoch"], pending["source_attempt"]["recovery_plan"]["schedule_timezone"],
+    )
+    new_calendar.assert_not_called()
+    assert len(final_owners) == 1 and final_owners[0][1] is result
+
+
+def test_nested_owner_composition_failure_propagates_after_original_epoch_check(monkeypatch):
+    pending = _pending("daily_meme")
+    failure = LookupError("current receipt authority unavailable")
+    next_owner = Mock(side_effect=failure)
+    epoch_calls = []
+
+    def valid_epoch(value):
+        epoch_calls.append(value)
+        monkeypatch.setattr(bot, "_main_post_receipt_values_owner", next_owner)
+        return True
+
+    monkeypatch.setattr(bot, "valid_receipt_epoch", valid_epoch)
+    with pytest.raises(LookupError) as caught:
+        bot.confirmed_pending_schedule_receipt_is_semantically_valid(pending)
+    assert caught.value is failure
+    assert epoch_calls == [pending["confirmation_epoch"]]
+    next_owner.assert_called_once_with()
