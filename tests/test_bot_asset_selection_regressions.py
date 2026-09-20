@@ -968,7 +968,7 @@ def test_global_image_failure_is_not_retried_across_quotes(
     monkeypatch.setattr(bot, "reconcile_main_post_receipts", lambda *args, **kwargs: {"regular": False, "meme": False})
     monkeypatch.setattr(bot, "quote_used_history_has_legacy_indices", lambda used: False)
     monkeypatch.setattr(bot, "choose_unused_line_candidate", fake_quote)
-    monkeypatch.setattr(bot, "choose_matched_unused_image", lambda *args, **kwargs: (_ for _ in ()).throw(bot.GlobalImageUnavailable("no corpus")))
+    monkeypatch.setattr(bot._image_selection.ImageSelection, "choose_matched", lambda *args, **kwargs: (_ for _ in ()).throw(bot.GlobalImageUnavailable("no corpus")))
 
     with pytest.raises(bot.GlobalImageUnavailable):
         bot.post_random_quote(set(), set(), {})

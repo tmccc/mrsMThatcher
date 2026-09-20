@@ -6727,19 +6727,42 @@ def choose_unused_line_candidate(
     return _quote_candidates_owner().choose(lines_used, excluded_quote_hashes=excluded_quote_hashes, allow_cycle_reset=allow_cycle_reset)
 
 
+def _image_selection_owner() -> _image_selection.ImageSelection:
+    """Bind current external boundaries without runtime work or caller state."""
+    return _image_selection.ImageSelection(
+        NoEligibleImageForQuote=NoEligibleImageForQuote,
+        log=log,
+        current_image_paths=current_image_paths,
+        load_image_analysis=load_image_analysis,
+        normalise_image_used_basenames=normalise_image_used_basenames,
+        save_image_used_basenames=save_image_used_basenames,
+        image_used_history_has_legacy_indices=image_used_history_has_legacy_indices,
+        current_datetime=current_datetime,
+        build_image_topic_idf=build_image_topic_idf,
+        image_metadata_for_basename=image_metadata_for_basename,
+        image_is_out_of_season=image_is_out_of_season,
+        score_image_for_quote=score_image_for_quote,
+        original_editorial_enabled=ENABLE_ORIGINAL_EDITORIAL_SHADOW_SCORING,
+        original_editorial_shadow_result=original_editorial_shadow_result,
+        apply_original_editorial_selection=apply_original_editorial_selection,
+        concise_components=concise_components,
+        log_original_editorial_shadow_result=log_original_editorial_shadow_result,
+        image_glob=IMAGE_GLOB,
+        images_used_file=IMAGES_USED_FILE,
+        UnsafeImageHistoryMigration=UnsafeImageHistoryMigration,
+        GlobalImageUnavailable=GlobalImageUnavailable,
+        StaleImageMetadata=StaleImageMetadata,
+        QuoteSpecificImageMismatch=QuoteSpecificImageMismatch,
+    )
+
+
 def available_currently_eligible_image_basenames(
     eligible_basenames: set[str],
     images_used: set[str],
     state: dict | None = None,
 ) -> tuple[list[str], bool]:
     """Return whether available currently eligible image basenames."""
-    return _image_selection.available_currently_eligible_image_basenames(
-        eligible_basenames,
-        images_used,
-        state,
-        NoEligibleImageForQuote=NoEligibleImageForQuote,
-        log=log,
-    )
+    return _image_selection_owner().available_basenames(eligible_basenames, images_used, state)
 
 
 def current_image_sha256(path: str) -> str:
@@ -6757,10 +6780,7 @@ generated_image_origin_quote_hash = _asset_metadata.generated_image_origin_quote
 
 def log_regular_image_selection(choice: dict) -> None:
     """Log regular image selection."""
-    return _image_selection.log_regular_image_selection(
-        choice,
-        log=log,
-    )
+    return _image_selection_owner().log_choice(choice)
 
 
 def choose_matched_unused_image(
@@ -6774,39 +6794,7 @@ def choose_matched_unused_image(
     selection_phase: str = "normal",
 ) -> dict:
     """Select the highest-scoring eligible unused image for a quotation."""
-    return _image_selection.choose_matched_unused_image(
-        images_used,
-        quote_choice,
-        state,
-        force_cycle_reset=force_cycle_reset,
-        avoid_last_image_at_cycle_boundary=avoid_last_image_at_cycle_boundary,
-        cycle_boundary_exclusions=cycle_boundary_exclusions,
-        selection_phase=selection_phase,
-        current_image_paths=current_image_paths,
-        load_image_analysis=load_image_analysis,
-        normalise_image_used_basenames=normalise_image_used_basenames,
-        save_image_used_basenames=save_image_used_basenames,
-        image_used_history_has_legacy_indices=image_used_history_has_legacy_indices,
-        current_datetime=current_datetime,
-        build_image_topic_idf=build_image_topic_idf,
-        image_metadata_for_basename=image_metadata_for_basename,
-        image_is_out_of_season=image_is_out_of_season,
-        available_currently_eligible_image_basenames=available_currently_eligible_image_basenames,
-        score_image_for_quote=score_image_for_quote,
-        original_editorial_enabled=ENABLE_ORIGINAL_EDITORIAL_SHADOW_SCORING,
-        original_editorial_shadow_result=original_editorial_shadow_result,
-        apply_original_editorial_selection=apply_original_editorial_selection,
-        concise_components=concise_components,
-        log_regular_image_selection=log_regular_image_selection,
-        log_original_editorial_shadow_result=log_original_editorial_shadow_result,
-        image_glob=IMAGE_GLOB,
-        images_used_file=IMAGES_USED_FILE,
-        UnsafeImageHistoryMigration=UnsafeImageHistoryMigration,
-        GlobalImageUnavailable=GlobalImageUnavailable,
-        StaleImageMetadata=StaleImageMetadata,
-        QuoteSpecificImageMismatch=QuoteSpecificImageMismatch,
-        log=log,
-    )
+    return _image_selection_owner().choose_matched(images_used, quote_choice, state, force_cycle_reset=force_cycle_reset, avoid_last_image_at_cycle_boundary=avoid_last_image_at_cycle_boundary, cycle_boundary_exclusions=cycle_boundary_exclusions, selection_phase=selection_phase)
 
 
 def choose_regular_quote_image_pair(

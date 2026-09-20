@@ -511,15 +511,15 @@ def test_pre_confirmation_failures_restore_histories_after_quote_cycle_reset(
     monkeypatch.setattr(bot, "choose_unused_line_candidate", reset_then_quote)
 
     if failure == "global_image":
-        monkeypatch.setattr(bot, "choose_matched_unused_image", lambda *args, **kwargs: (_ for _ in ()).throw(bot.GlobalImageUnavailable("no images")))
+        monkeypatch.setattr(bot._image_selection.ImageSelection, "choose_matched", lambda *args, **kwargs: (_ for _ in ()).throw(bot.GlobalImageUnavailable("no images")))
     elif failure == "unsafe_image_migration":
-        monkeypatch.setattr(bot, "choose_matched_unused_image", lambda *args, **kwargs: (_ for _ in ()).throw(bot.UnsafeImageHistoryMigration("unsafe")))
+        monkeypatch.setattr(bot._image_selection.ImageSelection, "choose_matched", lambda *args, **kwargs: (_ for _ in ()).throw(bot.UnsafeImageHistoryMigration("unsafe")))
     elif failure == "unexpected_image":
-        monkeypatch.setattr(bot, "choose_matched_unused_image", lambda *args, **kwargs: (_ for _ in ()).throw(ValueError("scoring failed")))
+        monkeypatch.setattr(bot._image_selection.ImageSelection, "choose_matched", lambda *args, **kwargs: (_ for _ in ()).throw(ValueError("scoring failed")))
     else:
         monkeypatch.setattr(
-            bot,
-            "choose_matched_unused_image",
+            bot._image_selection.ImageSelection,
+            "choose_matched",
             lambda *args, **kwargs: {"image_no": 0, "path": "image.jpg", "basename": "image.jpg", "score": 1.0},
         )
         if failure == "upload":

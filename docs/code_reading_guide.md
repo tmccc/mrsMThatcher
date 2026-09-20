@@ -44,6 +44,7 @@ need. A recovered draft can bypass model evaluation.
 | Verified normal context and two-turn quote context | `ReplyContext.build` and `build_quote` in [mrs_bot_reply_context.py](../mrs_bot_reply_context.py) |
 | Original-image editorial metadata, concepts and bounded score adjustments | `OriginalEditorial` in [mrs_bot_original_editorial.py](../mrs_bot_original_editorial.py) |
 | Quote/image/meme metadata, overrides and verified asset lookup | `AssetMetadata` in [mrs_bot_asset_metadata.py](../mrs_bot_asset_metadata.py) |
+| Eligible-image cycles, verified selection and choice diagnostics | `ImageSelection` in [mrs_bot_image_selection.py](../mrs_bot_image_selection.py) |
 | Native photo selection, retrieval and byte validation | `ReplyMedia` in [mrs_bot_reply_native_media.py](../mrs_bot_reply_native_media.py) |
 | Read, write, quote and provider cooldowns | `ApiCooldowns` in [mrs_bot_api_cooldowns.py](../mrs_bot_api_cooldowns.py) |
 | Bounded model requests and retry/error metadata | `ReplyModelTransport` in [mrs_bot_reply_model_transport.py](../mrs_bot_reply_model_transport.py) |
