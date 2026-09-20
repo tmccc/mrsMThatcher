@@ -2691,7 +2691,6 @@ def scheduler_epoch_from_state(state: dict, key: str, *, current: int | None = N
 def _state_backups_owner() -> _state_persistence.StateBackups:
     """Bind current backup paths and file authorities without accessing storage."""
     return _state_persistence.StateBackups(
-        path_type=Path,
         unsafe_namespace=UnsafeDurableStateNamespace,
         fsync_parent=fsync_parent_dir,
         os=os,
@@ -2741,7 +2740,6 @@ def save_state(state: dict, *, durable: bool = False) -> StateCommitProof:
     return _state_persistence.save_state(
         state,
         durable=durable,
-        Path=Path,
         STATE_FILE=STATE_FILE,
         StateBackupWriteError=StateBackupWriteError,
         fsync_parent_dir=fsync_parent_dir,
@@ -4980,7 +4978,6 @@ def atomic_write_json(path: Path, value: object, *, durable: bool = False) -> No
         path,
         value,
         durable=durable,
-        Path=Path,
         DURABLE_RUNTIME_JSON_MAX_BYTES=DURABLE_RUNTIME_JSON_MAX_BYTES,
         fsync_parent_dir=fsync_parent_dir,
         os=os,

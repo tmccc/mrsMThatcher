@@ -197,7 +197,6 @@ def atomic_write_json(
     *,
     durable: bool = False,
     DURABLE_RUNTIME_JSON_MAX_BYTES: int = 64 * 1024 * 1024,
-    Path: type[Path],
     fsync_parent_dir: Callable[..., None],
     os: ModuleType,
     tempfile: ModuleType,

@@ -62,7 +62,6 @@ def state_document_for_persistence(
 class StateBackups:
     """Own exact backup copies and rotation without publishing canonical state."""
 
-    path_type: type[Path]
     unsafe_namespace: type[Exception]
     fsync_parent: Callable[..., None]
     os: ModuleType
@@ -85,7 +84,7 @@ class StateBackups:
             prefix=f".{dst.name}.",
             dir=dst.parent,
         )
-        temporary = self.path_type(temporary_name)
+        temporary = Path(temporary_name)
         try:
             with self.os.fdopen(descriptor, "wb") as handle:
                 self.os.fchmod(handle.fileno(), 0o600)
@@ -134,7 +133,6 @@ def save_state(
     state: dict,
     *,
     durable: bool = False,
-    Path: type[Path],
     STATE_FILE: Path,
     StateBackupWriteError: type[Exception],
     fsync_parent_dir: Callable[..., None],

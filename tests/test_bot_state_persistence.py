@@ -56,7 +56,7 @@ assert 'single_call_reply' not in sys.modules
 def test_adapters_forward_current_dependencies_references_and_native_errors(monkeypatch):
     for name, count in (
         ("state_document_for_persistence", 5),
-        ("save_state", 13),
+        ("save_state", 12),
     ):
         adapter = getattr(bot, name)
         public = inspect.signature(adapter).parameters
@@ -119,7 +119,7 @@ def test_backup_adapters_preserve_public_shapes_references_and_native_errors(mon
 
 
 def test_backup_composition_uses_current_authorities_without_io(monkeypatch):
-    fields = {'Path': 'path_type', 'UnsafeDurableStateNamespace': 'unsafe_namespace', 'fsync_parent_dir': 'fsync_parent', 'os': 'os', 'read_stable_owned_json_bytes_no_follow': 'read_stable_bytes', 'tempfile': 'tempfile', 'STATE_BACKUP_COUNT': 'backup_count', 'STATE_FILE': 'state_file', 'log': 'log'}
+    fields = {'UnsafeDurableStateNamespace': 'unsafe_namespace', 'fsync_parent_dir': 'fsync_parent', 'os': 'os', 'read_stable_owned_json_bytes_no_follow': 'read_stable_bytes', 'tempfile': 'tempfile', 'STATE_BACKUP_COUNT': 'backup_count', 'STATE_FILE': 'state_file', 'log': 'log'}
     previous = None
     for _ in range(2):
         current = {name: object() for name in fields}
@@ -223,7 +223,7 @@ def observed_io(monkeypatch):
     trace.path.side_effect = Path
     trace.dump.side_effect = json.dump
     monkeypatch.setattr(bot, "os", proxy)
-    monkeypatch.setattr(bot, "Path", trace.path)
+    monkeypatch.setattr(persistence, "Path", trace.path)
     monkeypatch.setattr(bot, "tempfile", SimpleNamespace(mkstemp=trace.mkstemp))
     monkeypatch.setattr(bot, "json", SimpleNamespace(dump=trace.dump))
     monkeypatch.setattr(bot, "fsync_parent_dir", trace.parent)
