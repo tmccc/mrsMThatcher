@@ -2733,7 +2733,6 @@ def load_state() -> dict:
         STATE_READER_COMPATIBILITY_FENCE=STATE_READER_COMPATIBILITY_FENCE,
         UnsafeDurableStateNamespace=UnsafeDurableStateNamespace,
         default_state=default_state,
-        json=json,
         log=log,
         log_event=log_event,
         log_json_debug=log_json_debug,
@@ -2741,7 +2740,6 @@ def load_state() -> dict:
         read_stable_owned_json_bytes_no_follow=read_stable_owned_json_bytes_no_follow,
         require_compatible_state_reader=require_compatible_state_reader,
         save_state=save_state,
-        state_debug_summary=state_debug_summary,
     )
 
 
@@ -2813,12 +2811,10 @@ def save_state(state: dict, *, durable: bool = False) -> StateCommitProof:
         STATE_FILE=STATE_FILE,
         StateBackupWriteError=StateBackupWriteError,
         fsync_parent_dir=fsync_parent_dir,
-        json=json,
         log=log,
         log_json_debug=log_json_debug,
         os=os,
         rotate_state_backups_before_commit=rotate_state_backups_before_commit,
-        state_debug_summary=state_debug_summary,
         state_document_for_persistence=state_document_for_persistence,
         tempfile=tempfile,
         test_process_production_state_write_blocked=test_process_production_state_write_blocked,

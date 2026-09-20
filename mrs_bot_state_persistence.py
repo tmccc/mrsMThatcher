@@ -18,6 +18,8 @@ from pathlib import Path
 from types import ModuleType
 from typing import TYPE_CHECKING
 
+from mrs_bot_observability import state_debug_summary
+
 if TYPE_CHECKING:
     from mrs_bot_state_generation import StateCommitProof
 
@@ -136,12 +138,10 @@ def save_state(
     STATE_FILE: Path,
     StateBackupWriteError: type[Exception],
     fsync_parent_dir: Callable[..., None],
-    json: ModuleType,
     log: Logger,
     log_json_debug: Callable[..., None],
     os: ModuleType,
     rotate_state_backups_before_commit: Callable[..., None],
-    state_debug_summary: Callable[..., dict[str, object]],
     state_document_for_persistence: Callable[..., dict],
     tempfile: ModuleType,
     test_process_production_state_write_blocked: Callable[..., bool],

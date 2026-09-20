@@ -17,7 +17,7 @@ from tests.helpers.bot_fixtures import isolate_bot_runtime  # noqa: F401
 
 def test_import_needs_no_runtime_access():
     code = """
-import builtins, collections.abc, io, logging, os, random, socket, sys, time
+import builtins, collections.abc, hashlib, io, json, logging, os, random, re, socket, sys, time, typing
 from pathlib import Path
 
 def forbidden(*args, **kwargs):
@@ -25,7 +25,7 @@ def forbidden(*args, **kwargs):
 
 original_import = builtins.__import__
 def guarded_import(name, *args, **kwargs):
-    if name in {'mrsMThatcher2', 'requests', 'openai', 'single_call_reply'} or name.startswith('mrs_bot_') and name != 'mrs_bot_state_loading':
+    if name in {'mrsMThatcher2', 'requests', 'openai', 'single_call_reply'} or name.startswith('mrs_bot_') and name not in {'mrs_bot_state_loading', 'mrs_bot_observability'}:
         forbidden()
     return original_import(name, *args, **kwargs)
 
@@ -54,9 +54,9 @@ def test_adapter_forwards_all_current_dependencies_and_original_return(monkeypat
     dependencies = (
         "STATE_BACKUP_COUNT", "STATE_FILE", "STATE_MINIMUM_READER_VERSION",
         "STATE_PREVIOUS_READER_COMPATIBILITY_FENCES", "STATE_READER_COMPATIBILITY_FENCE",
-        "UnsafeDurableStateNamespace", "default_state", "json", "log", "log_event",
+        "UnsafeDurableStateNamespace", "default_state", "log", "log_event",
         "log_json_debug", "normalise_state_candidate", "read_stable_owned_json_bytes_no_follow",
-        "require_compatible_state_reader", "save_state", "state_debug_summary",
+        "require_compatible_state_reader", "save_state",
     )
     adapter = bot.load_state
     assert str(inspect.signature(adapter)) == "() -> 'dict'"

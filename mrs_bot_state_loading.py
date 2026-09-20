@@ -10,7 +10,8 @@ from __future__ import annotations
 from collections.abc import Callable
 from logging import Logger
 from pathlib import Path
-from types import ModuleType
+
+from mrs_bot_observability import state_debug_summary
 
 
 def _select_latest_generation(
@@ -36,7 +37,6 @@ def load_state(
     STATE_READER_COMPATIBILITY_FENCE: dict,
     UnsafeDurableStateNamespace: type[Exception],
     default_state: Callable[..., dict],
-    json: ModuleType,
     log: Logger,
     log_event: Callable[..., None],
     log_json_debug: Callable[..., None],
@@ -44,7 +44,6 @@ def load_state(
     read_stable_owned_json_bytes_no_follow: Callable[..., tuple[bool, bytes | None]],
     require_compatible_state_reader: Callable[..., int],
     save_state: Callable[..., None],
-    state_debug_summary: Callable[..., dict[str, object]],
 ) -> dict:
     """Load, validate, and recover runtime state from durable storage."""
     from mrs_bot_state_generation import (

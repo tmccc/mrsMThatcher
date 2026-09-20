@@ -20,7 +20,7 @@ from tests.helpers.bot_fixtures import isolate_bot_runtime  # noqa: F401
 
 def test_import_needs_no_runtime_access():
     code = """
-import builtins, collections.abc, dataclasses, io, logging, os, random, socket, sys, time
+import builtins, collections.abc, dataclasses, hashlib, io, json, logging, os, random, re, socket, sys, time, typing
 from pathlib import Path
 
 def forbidden(*args, **kwargs):
@@ -28,7 +28,7 @@ def forbidden(*args, **kwargs):
 
 original_import = builtins.__import__
 def guarded_import(name, *args, **kwargs):
-    if name in {'mrsMThatcher2', 'requests', 'openai', 'single_call_reply'} or name.startswith('mrs_bot_') and name != 'mrs_bot_state_persistence':
+    if name in {'mrsMThatcher2', 'requests', 'openai', 'single_call_reply'} or name.startswith('mrs_bot_') and name not in {'mrs_bot_state_persistence', 'mrs_bot_observability'}:
         forbidden()
     return original_import(name, *args, **kwargs)
 
@@ -56,7 +56,7 @@ assert 'single_call_reply' not in sys.modules
 def test_adapters_forward_current_dependencies_references_and_native_errors(monkeypatch):
     for name, count in (
         ("state_document_for_persistence", 6),
-        ("save_state", 15),
+        ("save_state", 13),
     ):
         adapter = getattr(bot, name)
         public = inspect.signature(adapter).parameters
@@ -386,7 +386,7 @@ def test_save_security_and_document_failure_precede_io(tmp_path, monkeypatch):
     monkeypatch.setattr(bot, "STATE_FILE", state_file)
     monkeypatch.setattr(bot, "test_process_production_state_write_blocked", trace.guard)
     monkeypatch.setattr(bot, "log", trace.log)
-    monkeypatch.setattr(bot, "state_debug_summary", trace.summary)
+    monkeypatch.setattr(persistence, "state_debug_summary", trace.summary)
     monkeypatch.setattr(bot, "log_json_debug", trace.summary_log)
     monkeypatch.setattr(bot, "state_document_for_persistence", trace.document)
     trace.guard.return_value = True
