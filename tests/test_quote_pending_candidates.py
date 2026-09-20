@@ -14,7 +14,12 @@ from tests.helpers.bot_fixtures import (
     install_receipt_bound_x_request_stub,
     isolate_bot_runtime,  # noqa: F401
 )
-from tests.helpers.reply_fixtures import configure_quote_cycle, unit_approved_reply
+from tests.helpers.reply_fixtures import (
+    configure_quote_cycle,
+    patch_reply_owner_method,
+    patch_tweet_lookup_method,
+    unit_approved_reply,
+)
 
 
 QUERY = "(quotes_of_tweet_id:900) -is:retweet"
@@ -24,7 +29,9 @@ def _install_quote_pages(monkeypatch, *, first_ids=("913", "912"), young_id=None
                          missing_timestamp=False):
     """Run real discovery against synthetic pages and a controllable clock."""
     discovery = bot.get_quote_tweets_for_posts
-    _original, templates = configure_quote_cycle(monkeypatch)
+    original, templates = configure_quote_cycle(monkeypatch)
+    lookup = Mock(return_value=original)
+    patch_tweet_lookup_method(monkeypatch, "get_cached", lookup)
     monkeypatch.setattr(bot, "get_quote_tweets_for_posts", discovery)
     monkeypatch.setattr(bot, "QUOTE_LOOKUP_MAX_PAGES_PER_POST", 1)
     monkeypatch.setattr(bot, "MAX_QUOTE_POSTS_PER_CHECK", 1)
@@ -68,7 +75,7 @@ def _install_quote_pages(monkeypatch, *, first_ids=("913", "912"), young_id=None
 
     search = Mock(side_effect=request)
     monkeypatch.setattr(bot, "x_quote_lookup_request", search)
-    return search, clock
+    return search, clock, lookup
 
 
 def _no_reply():
@@ -78,7 +85,7 @@ def _no_reply():
 
 
 def test_model_failure_replays_pending_quotes_before_fetching_older_page(monkeypatch):
-    search, _clock = _install_quote_pages(monkeypatch)
+    search, _clock, lookup = _install_quote_pages(monkeypatch)
     evaluated = []
 
     def evaluate(context, _media, *, state):
@@ -95,7 +102,9 @@ def test_model_failure_replays_pending_quotes_before_fetching_older_page(monkeyp
             )
         return _no_reply()
 
-    monkeypatch.setattr(bot, "evaluate_single_call_reply", evaluate)
+    patch_reply_owner_method(
+        monkeypatch, bot._reply_generation.ReplyGeneration, "evaluate", evaluate,
+    )
     state = bot.default_state()
     assert bot.maybe_reply_to_quote_tweets(state) == bot.QUOTE_CHECK_STATUS_CHECKED
     assert evaluated == ["912"] and search.call_count == 1
@@ -124,14 +133,14 @@ def test_model_failure_replays_pending_quotes_before_fetching_older_page(monkeyp
 
 @pytest.mark.parametrize("refresh", ["success", "missing", "malformed", "transient"])
 def test_missing_creation_time_gets_bounded_refresh_without_stalling_queue(monkeypatch, refresh):
-    search, _clock = _install_quote_pages(monkeypatch, missing_timestamp=True)
+    search, _clock, lookup = _install_quote_pages(monkeypatch, missing_timestamp=True)
     state = bot.default_state()
     bot.get_quote_tweets_for_posts(["900"], state)
     state = bot.load_state()
-    original = bot.get_tweet_by_id_cached.return_value
+    original = lookup.return_value
     fresh = dict(state["quote_pending_candidates"]["912"], created_at="2030-01-01T00:00:00Z")
 
-    def lookup(target, current, *, include_media=False):
+    def fetch_original_or_refresh(target, current, *, include_media=False):
         assert current is state
         if target == "900":
             return original
@@ -142,9 +151,11 @@ def test_missing_creation_time_gets_bounded_refresh_without_stalling_queue(monke
             return None
         return dict(fresh, created_at="invalid") if refresh == "malformed" else fresh
 
-    bot.get_tweet_by_id_cached.side_effect = lookup
+    lookup.side_effect = fetch_original_or_refresh
     evaluate = Mock(side_effect=lambda *_args, **_kwargs: _no_reply())
-    monkeypatch.setattr(bot, "evaluate_single_call_reply", evaluate)
+    patch_reply_owner_method(
+        monkeypatch, bot._reply_generation.ReplyGeneration, "evaluate", evaluate,
+    )
     assert bot.maybe_reply_to_quote_tweets(state) == bot.QUOTE_CHECK_STATUS_CHECKED
     saved = bot.load_state()
     if refresh == "transient":
@@ -163,12 +174,14 @@ def test_missing_creation_time_gets_bounded_refresh_without_stalling_queue(monke
 
 
 def test_unavailable_original_retires_its_queue_and_allows_later_discovery(monkeypatch):
-    search, _clock = _install_quote_pages(monkeypatch)
+    search, _clock, lookup = _install_quote_pages(monkeypatch)
     state = bot.default_state()
     bot.get_quote_tweets_for_posts(["900"], state)
-    bot.get_tweet_by_id_cached.return_value = None
+    lookup.return_value = None
     evaluate = Mock()
-    monkeypatch.setattr(bot, "evaluate_single_call_reply", evaluate)
+    patch_reply_owner_method(
+        monkeypatch, bot._reply_generation.ReplyGeneration, "evaluate", evaluate,
+    )
     assert bot.maybe_reply_to_quote_tweets(bot.load_state()) == bot.QUOTE_CHECK_STATUS_CHECKED
     saved = bot.load_state()
     assert saved["quote_pending_candidates"] == {}
@@ -179,10 +192,12 @@ def test_unavailable_original_retires_its_queue_and_allows_later_discovery(monke
 
 
 def test_candidate_limit_preserves_untouched_quotes_across_restart(monkeypatch):
-    search, _clock = _install_quote_pages(monkeypatch, first_ids=("914", "913", "912"))
+    search, _clock, lookup = _install_quote_pages(monkeypatch, first_ids=("914", "913", "912"))
     monkeypatch.setattr(bot, "MAX_QUOTE_POSTS_PER_CHECK", 2)
     evaluate = Mock(side_effect=lambda *_args, **_kwargs: _no_reply())
-    monkeypatch.setattr(bot, "evaluate_single_call_reply", evaluate)
+    patch_reply_owner_method(
+        monkeypatch, bot._reply_generation.ReplyGeneration, "evaluate", evaluate,
+    )
 
     assert bot.maybe_reply_to_quote_tweets(bot.default_state()) == bot.QUOTE_CHECK_STATUS_CHECKED
     assert [call.args[0]["target_id"] for call in evaluate.call_args_list] == ["912", "913"]
@@ -200,7 +215,7 @@ def test_candidate_limit_preserves_untouched_quotes_across_restart(monkeypatch):
 @pytest.mark.parametrize("recover_after_save_failure", [False, True], ids=["fresh", "recovered"])
 def test_confirmed_post_retires_only_its_target_and_preserves_the_rest(monkeypatch, recover_after_save_failure):
     create_post = bot.create_post
-    search, _clock = _install_quote_pages(monkeypatch)
+    search, _clock, lookup = _install_quote_pages(monkeypatch)
     monkeypatch.setattr(bot, "MAX_QUOTE_POSTS_PER_CHECK", 3)
     monkeypatch.setattr(bot, "create_post", create_post)
     remote = Mock(return_value={"data": {"id": "950001"}})
@@ -216,7 +231,9 @@ def test_confirmed_post_retires_only_its_target_and_preserves_the_rest(monkeypat
             )
         return _no_reply()
 
-    monkeypatch.setattr(bot, "evaluate_single_call_reply", evaluate)
+    patch_reply_owner_method(
+        monkeypatch, bot._reply_generation.ReplyGeneration, "evaluate", evaluate,
+    )
     if recover_after_save_failure:
         original_save = bot.save_state
         failure = OSError("confirmed quote state could not be saved")
@@ -260,10 +277,12 @@ def test_confirmed_post_retires_only_its_target_and_preserves_the_rest(monkeypat
 
 @pytest.mark.parametrize("watched_after_restart", [["901"], []], ids=["changed-watch", "empty-watch"])
 def test_young_pending_quote_survives_restart_and_watch_changes(monkeypatch, watched_after_restart):
-    search, clock = _install_quote_pages(monkeypatch, young_id="912")
+    search, clock, lookup = _install_quote_pages(monkeypatch, young_id="912")
     monkeypatch.setattr(bot, "MAX_QUOTE_POSTS_PER_CHECK", 3)
     evaluate = Mock(side_effect=lambda *_args, **_kwargs: _no_reply())
-    monkeypatch.setattr(bot, "evaluate_single_call_reply", evaluate)
+    patch_reply_owner_method(
+        monkeypatch, bot._reply_generation.ReplyGeneration, "evaluate", evaluate,
+    )
 
     assert bot.maybe_reply_to_quote_tweets(bot.default_state()) == bot.QUOTE_CHECK_STATUS_CHECKED
     assert [call.args[0]["target_id"] for call in evaluate.call_args_list] == ["913"]
@@ -273,10 +292,104 @@ def test_young_pending_quote_survives_restart_and_watch_changes(monkeypatch, wat
 
     clock[0] += 60
     bot.build_quote_lookup_post_ids.return_value = watched_after_restart
-    bot.get_tweet_by_id_cached.reset_mock()
+    lookup.reset_mock()
     assert bot.maybe_reply_to_quote_tweets(state) == bot.QUOTE_CHECK_STATUS_CHECKED
     assert [call.args[0]["target_id"] for call in evaluate.call_args_list] == ["913", "912"]
-    assert all(call.args[0] == "900" for call in bot.get_tweet_by_id_cached.call_args_list)
+    assert all(call.args[0] == "900" for call in lookup.call_args_list)
     assert bot.load_state()["quote_pending_candidates"] == {}
     assert search.call_count == 1
+    bot.create_post.assert_not_called()
+
+
+def test_quote_owner_handoffs_keep_current_recovery_and_chronological_model_history(monkeypatch):
+    """Use actual owners together without returning through their root adapters."""
+    tweets_type = bot._tweet_lookup_cache.TweetLookupCache
+    get_cached = tweets_type.get_cached
+    search, _clock, lookup = _install_quote_pages(monkeypatch, first_ids=("912",))
+    original = lookup.return_value
+    monkeypatch.setattr(tweets_type, "get_cached", get_cached)
+    fetch = Mock(return_value=original)
+    patch_tweet_lookup_method(monkeypatch, "fetch", fetch)
+
+    state = bot.default_state()
+    target_epoch = bot.parse_x_datetime_to_epoch(original["created_at"])
+    state["ai_reply_history"] = [
+        {
+            "target_id": "801", "reply_post_id": "901", "author_id": "501",
+            "candidate_source": "mention", "proposed_reply": "An earlier confirmed reply.",
+            "reply_epoch": target_epoch - 100,
+        },
+        {
+            "target_id": "802", "reply_post_id": "902", "author_id": "502",
+            "candidate_source": "mention", "proposed_reply": "A later confirmed reply.",
+            "reply_epoch": target_epoch + 100,
+        },
+    ]
+    earlier = {"post_id": "901", "text": "An earlier confirmed reply."}
+    later = {"post_id": "902", "text": "A later confirmed reply."}
+    prepared = []
+    contexts_type = bot._reply_context.ReplyContext
+    build_quote = contexts_type.build_quote
+
+    def observe_context(owner, original_tweet, quote):
+        assert original_tweet["id"] == original["id"]
+        assert original_tweet["text"] == original["text"]
+        assert quote is state["quote_pending_candidates"]["912"]
+        result = build_quote(owner, original_tweet, quote)
+        prepared.append(result)
+        return result
+
+    monkeypatch.setattr(contexts_type, "build_quote", observe_context)
+    recovered = []
+    drafts_type = bot._reply_drafts.ReplyDrafts
+    recover = drafts_type.recover
+
+    def observe_recovery(owner, current, target_id, lane, *, context, recent_replies):
+        assert current is state
+        assert context is prepared[0].context
+        assert (target_id, lane) == ("912", "quote_tweet")
+        assert recent_replies == [earlier, later]
+        result = recover(
+            owner, current, target_id, lane,
+            context=context, recent_replies=recent_replies,
+        )
+        recovered.append(result)
+        return result
+
+    monkeypatch.setattr(drafts_type, "recover", observe_recovery)
+
+    def evaluate_pipeline(**kwargs):
+        assert recovered == [None]
+        assert kwargs["context"] is prepared[0].context
+        assert kwargs["context"]["target_id"] == "912"
+        assert kwargs["context"]["quoted_post_id"] == "900"
+        assert kwargs["recent_account_replies"] == [earlier]
+        assert kwargs["same_author_interactions"] == []
+        assert kwargs["supplied_images"] == []
+        saved = json.loads(bot.STATE_FILE.read_text())
+        assert set(saved["quote_pending_candidates"]) == {"912"}
+        return _no_reply()
+
+    pipeline = Mock(side_effect=evaluate_pipeline)
+    monkeypatch.setattr(bot, "run_single_call_reply_pipeline", pipeline)
+    collect_images = Mock(return_value=[])
+    monkeypatch.setattr(bot, "collect_reply_images", collect_images)
+    relays = {}
+    for name in (
+        "build_quote_tweet_reply_context", "cache_tweet", "get_tweet_by_id_cached",
+        "evaluate_single_call_reply", "_record_single_call_result",
+        "recovery_comparison_account_replies",
+    ):
+        relays[name] = Mock(side_effect=AssertionError(f"root relay used: {name}"))
+        monkeypatch.setattr(bot, name, relays[name])
+
+    assert bot.maybe_reply_to_quote_tweets(state) == bot.QUOTE_CHECK_STATUS_CHECKED
+    assert len(prepared) == pipeline.call_count == search.call_count == 1
+    collect_images.assert_called_once_with(prepared[0].media_context)
+    assert state["tweet_cache"]["912"]["text"] == prepared[0].context["incoming_contribution"]
+    assert state["quote_pending_candidates"] == {}
+    assert "912" in state["skipped_quote_post_ids"]
+    assert bot.load_state()["quote_pending_candidates"] == {}
+    for relay in relays.values():
+        relay.assert_not_called()
     bot.create_post.assert_not_called()

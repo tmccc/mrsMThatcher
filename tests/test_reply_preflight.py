@@ -17,6 +17,7 @@ from tests.helpers.reply_fixtures import (
     restore_tweet_lookup_fetch,
     configure_normal_cycle,
     configure_quote_cycle,
+    patch_reply_owner_method,
     unit_approved_reply,
 )
 
@@ -48,7 +49,13 @@ def test_reply_preflight_and_create_keep_separate_outcomes(monkeypatch, lane, ou
     current = bot.now_epoch()
     draft_before_lookup = []
     generate = Mock(side_effect=lambda context, *_args, **_kwargs: unit_approved_reply(context))
-    monkeypatch.setattr(bot, "evaluate_single_call_reply", legacy_reply_evaluator(generate))
+    if lane == "quote_tweet":
+        patch_reply_owner_method(
+            monkeypatch, bot._reply_generation.ReplyGeneration, "evaluate",
+            legacy_reply_evaluator(generate),
+        )
+    else:
+        monkeypatch.setattr(bot, "evaluate_single_call_reply", legacy_reply_evaluator(generate))
     monkeypatch.setattr(bot, "x_request", source_request)
     monkeypatch.setattr(bot, "create_post", Mock(wraps=source_create))
     restore_tweet_lookup_fetch(monkeypatch)

@@ -1,8 +1,9 @@
 """Own the quote-tweet reply cycle, eligibility and lane markers.
 
 The cycle receives typed settings, persistence and delivery boundaries plus
-evaluation and accounting owners; helper adapters retain current policy and
-application authority. The dependency-free
+context, tweet lookup, generation, history, evaluation and accounting owners.
+The root composes these owners once per invocation; private helpers call their
+operations directly. The dependency-free
 profile formatter is a root alias. Private helpers separate lookup, eligibility,
 context, evaluation and durable delivery. The cycle alone owns the shared
 candidate budget and preserves context/media references and receipt recovery.
@@ -39,7 +40,7 @@ from mrs_bot_reply_cycle_interfaces import (
     QUOTE_CHECK_STATUS_SKIPPED_CAP,
     QUOTE_CHECK_STATUS_SKIPPED_COOLDOWN,
     QUOTE_CHECK_STATUS_SKIPPED_SPACING,
-    EvaluateReply, FinishReplyCheck, PreparedReplyContext, QuoteReplyConfig,
+    FinishReplyCheck, PreparedReplyContext, QuoteReplyConfig,
     ReplyCycleDelivery, ReplyCyclePersistence, SkipReplyCandidate,
 )
 from mrs_bot_reply_delivery import ReplyDeliveryStop
@@ -52,6 +53,10 @@ from mrs_bot_reply_preparation import (
 if TYPE_CHECKING:
     from mrs_bot_daily_reply_accounting import DailyReplyAccounting
     from mrs_bot_reply_evaluation_state import ReplyEvaluations
+    from mrs_bot_reply_context import ReplyContext
+    from mrs_bot_reply_generation import ReplyGeneration
+    from mrs_bot_reply_history import ReplyHistory
+    from mrs_bot_tweet_lookup_cache import TweetLookupCache
     from single_call_reply import PipelineResult
 
 
@@ -199,17 +204,15 @@ def maybe_reply_to_quote_tweets(
     SINGLE_CALL_STRATEGY_VERSION: str,
     ValidatedReply: type,
     _log_validated_single_call_reply: Callable,
-    _record_single_call_result: Callable,
+    generation: ReplyGeneration,
     api_error_is_permanent_target_failure: Callable,
     build_quote_lookup_post_ids: Callable,
-    build_quote_tweet_reply_context: Callable,
-    cache_tweet: Callable,
+    reply_contexts: ReplyContext,
+    tweets: TweetLookupCache,
     persistence: ReplyCyclePersistence,
     conversational_reply_pipeline_enabled: Callable,
     accounting: DailyReplyAccounting,
-    evaluate_single_call_reply: EvaluateReply,
     get_quote_tweets_for_posts: Callable,
-    get_tweet_by_id_cached: Callable,
     in_api_cooldown: Callable,
     is_probably_spam_or_not_worth_replying: Callable,
     lane_paused: Callable,
@@ -222,7 +225,7 @@ def maybe_reply_to_quote_tweets(
     quote_tweet_is_old_enough: Callable,
     record_api_error: Callable,
     reply_evaluations: ReplyEvaluations,
-    recovery_comparison_account_replies: Callable,
+    history: ReplyHistory,
     reply_evidence_repository: Callable,
     valid_tweets_sorted_by_id: Callable,
 ) -> str:
@@ -321,7 +324,7 @@ def maybe_reply_to_quote_tweets(
             quote_tweets,
             ApiError=ApiError,
             api_error_is_permanent_target_failure=api_error_is_permanent_target_failure,
-            get_tweet_by_id_cached=get_tweet_by_id_cached,
+            tweets=tweets,
             in_api_cooldown=in_api_cooldown,
             log=log,
             parse_x_datetime_to_epoch=parse_x_datetime_to_epoch,
@@ -369,7 +372,7 @@ def maybe_reply_to_quote_tweets(
                 state,
                 scan_history.spam_author_ids,
                 config=config,
-                cache_tweet=cache_tweet,
+                tweets=tweets,
                 accounting=accounting,
                 is_probably_spam_or_not_worth_replying=is_probably_spam_or_not_worth_replying,
                 log=log,
@@ -386,11 +389,10 @@ def maybe_reply_to_quote_tweets(
                 ApiError=ApiError,
                 ContextValidationError=ContextValidationError,
                 PipelineResult=PipelineResult,
-                _record_single_call_result=_record_single_call_result,
+                generation=generation,
                 api_error_is_permanent_target_failure=api_error_is_permanent_target_failure,
-                build_quote_tweet_reply_context=build_quote_tweet_reply_context,
-                cache_tweet=cache_tweet,
-                get_tweet_by_id_cached=get_tweet_by_id_cached,
+                reply_contexts=reply_contexts,
+                tweets=tweets,
                 log=log,
                 record_api_error=record_api_error,
                 reply_evaluations=reply_evaluations,
@@ -410,12 +412,12 @@ def maybe_reply_to_quote_tweets(
                 ApiError=ApiError,
                 RemoteOperationsPaused=RemoteOperationsPaused,
                 ReplyEvidenceUnavailable=ReplyEvidenceUnavailable,
-                evaluate_single_call_reply=evaluate_single_call_reply,
+                generation=generation,
                 log=log,
                 log_event=log_event,
                 persistence=persistence,
                 record_api_error=record_api_error,
-                recovery_comparison_account_replies=recovery_comparison_account_replies,
+                history=history,
                 reply_evidence_repository=reply_evidence_repository,
             )
             if isinstance(evaluation, FinishReplyCheck):
@@ -487,7 +489,7 @@ def _lookup_quote_candidates(
     *,
     ApiError: type[Exception],
     api_error_is_permanent_target_failure: Callable,
-    get_tweet_by_id_cached: Callable,
+    tweets: TweetLookupCache,
     in_api_cooldown: Callable,
     log: Logger,
     parse_x_datetime_to_epoch: Callable,
@@ -496,7 +498,7 @@ def _lookup_quote_candidates(
 ) -> tuple[dict, list] | SkipReplyCandidate | FinishReplyCheck:
     """Fetch context for an original with discovered quotes, preserving failure routing."""
     try:
-        original_tweet = get_tweet_by_id_cached(original_post_id, state)
+        original_tweet = tweets.get_cached(original_post_id, state)
     except ApiError as e:
         if api_error_is_permanent_target_failure(e):
             log.info("Original own post %s is unavailable; skipping quote lookup", original_post_id)
@@ -532,7 +534,7 @@ def _lookup_quote_candidates(
             and parse_x_datetime_to_epoch(quote.get("created_at")) is None
         ):
             try:
-                fresh = get_tweet_by_id_cached(quote_id, state, include_media=True)
+                fresh = tweets.get_cached(quote_id, state, include_media=True)
             except ApiError as exc:
                 if not api_error_is_permanent_target_failure(exc):
                     record_api_error(state, exc, "x", scope="quote")
@@ -656,7 +658,7 @@ def _author_allows_evaluation(
     quote_spam_author_ids: set[str],
     *,
     config: QuoteReplyConfig,
-    cache_tweet: Callable,
+    tweets: TweetLookupCache,
     accounting: DailyReplyAccounting,
     is_probably_spam_or_not_worth_replying: Callable,
     log: Logger,
@@ -686,7 +688,7 @@ def _author_allows_evaluation(
             author_id,
         )
         if quote_is_usable:
-            cache_tweet(
+            tweets.store(
                 state,
                 tweet_id=str(original_tweet.get("id", original_post_id)),
                 text=original_tweet.get("text", ""),
@@ -697,7 +699,7 @@ def _author_allows_evaluation(
                 image_summary=original_tweet.get("image_summary"),
                 post_type=original_tweet.get("post_type"),
             )
-            cache_tweet(
+            tweets.store(
                 state,
                 tweet_id=quote_id,
                 text=quote_text,
@@ -741,11 +743,10 @@ def _prepare_reply_context(
     ApiError: type[Exception],
     ContextValidationError: type[Exception],
     PipelineResult: type,
-    _record_single_call_result: Callable,
+    generation: ReplyGeneration,
     api_error_is_permanent_target_failure: Callable,
-    build_quote_tweet_reply_context: Callable,
-    cache_tweet: Callable,
-    get_tweet_by_id_cached: Callable,
+    reply_contexts: ReplyContext,
+    tweets: TweetLookupCache,
     log: Logger,
     record_api_error: Callable,
     reply_evaluations: ReplyEvaluations,
@@ -759,7 +760,7 @@ def _prepare_reply_context(
 
     def retire_context_failure(reason: str, validation_status: str) -> SkipReplyCandidate:
         """Record the context failure and durably retire this candidate."""
-        _record_single_call_result(
+        generation.record_result(
             PipelineResult(
                 status="operational_failure",
                 reason=reason,
@@ -781,7 +782,7 @@ def _prepare_reply_context(
         return SkipReplyCandidate()
 
     try:
-        original_context_tweet = get_tweet_by_id_cached(
+        original_context_tweet = tweets.get_cached(
             original_post_id,
             state,
             include_media=True,
@@ -814,7 +815,7 @@ def _prepare_reply_context(
             "quoted_post_context_unavailable", "not_run",
         )
 
-    cache_tweet(
+    tweets.store(
         state,
         tweet_id=quote_id,
         text=quote_text,
@@ -827,7 +828,7 @@ def _prepare_reply_context(
     persistence.save(state)
 
     try:
-        prepared = build_quote_tweet_reply_context(
+        prepared = reply_contexts.build_quote(
             original_context_tweet,
             quote_tweet,
         )
@@ -852,12 +853,12 @@ def _evaluate_reply(
     ApiError: type[Exception],
     RemoteOperationsPaused: type[Exception],
     ReplyEvidenceUnavailable: type[Exception],
-    evaluate_single_call_reply: EvaluateReply,
+    generation: ReplyGeneration,
     log: Logger,
     log_event: Callable,
     persistence: ReplyCyclePersistence,
     record_api_error: Callable,
-    recovery_comparison_account_replies: Callable,
+    history: ReplyHistory,
     reply_evidence_repository: Callable,
 ) -> PipelineResult | FinishReplyCheck:
     """Check evidence and recover or generate a draft with the original exception boundaries."""
@@ -884,14 +885,14 @@ def _evaluate_reply(
         quote_id,
         "quote_tweet",
         context=reply_context,
-        recent_replies=recovery_comparison_account_replies(
+        recent_replies=history.recovery_replies(
             state,
             context=reply_context,
         ),
     )
     try:
         if evaluation is None or evaluation.status == "draft_discarded":
-            evaluation = evaluate_single_call_reply(
+            evaluation = generation.evaluate(
                 reply_context,
                 prepared.media_context,
                 state=state,

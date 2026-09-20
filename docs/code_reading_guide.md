@@ -82,6 +82,15 @@ backlog continuation re-enters the current root callback and receives fresh
 owners. Clocks, date reads and durable saves still occur at their original
 operation boundaries.
 
+The quote cycle receives `ReplyContext`, `TweetLookupCache`, `ReplyGeneration`
+and `ReplyHistory` directly. Follow `build_quote`, `get_cached`/`store`,
+`evaluate`/`record_result` and `recovery_replies` in those owners; the cycle no
+longer calls their root compatibility relays. The hand-off test in
+`tests/test_quote_pending_candidates.py` exercises these owners together with
+the relays blocked, including current history for recovery and chronological
+history for model context. The root still composes current provider, policy and
+persistence dependencies at each invocation.
+
 Private lane steps distinguish `SkipReplyCandidate` from
 `FinishReplyCheck(status)`, and carry `PreparedReplyContext` through preparation
 without converting it to an anonymous tuple. Quote admission captures fixed

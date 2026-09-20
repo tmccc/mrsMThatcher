@@ -2352,9 +2352,8 @@ def test_confirmed_quote_tweet_reply_save_failure_replays_after_restart(
         monkeypatch.setattr(bot, "MY_USER_ID", "12345")
         monkeypatch.setattr(bot, "now_epoch", lambda: fixed_epoch)
         monkeypatch.setattr(bot, "current_datetime", lambda: datetime.fromtimestamp(fixed_epoch))
-        monkeypatch.setattr(
-            bot,
-            "evaluate_single_call_reply",
+        patch_reply_owner_method(
+            monkeypatch, bot._reply_generation.ReplyGeneration, "evaluate",
             legacy_reply_evaluator(lambda context, *_args, **_kwargs: unit_approved_reply(
                 context,
                 text="Responsibility matters.",
@@ -2453,9 +2452,8 @@ def test_quote_tweet_receipt_reconciled_by_mention_lane_counts_quote_reply(
         monkeypatch.setattr(bot, "MY_USER_ID", "12345")
         monkeypatch.setattr(bot, "now_epoch", lambda: fixed_epoch)
         monkeypatch.setattr(bot, "current_datetime", lambda: datetime.fromtimestamp(fixed_epoch))
-        monkeypatch.setattr(
-            bot,
-            "evaluate_single_call_reply",
+        patch_reply_owner_method(
+            monkeypatch, bot._reply_generation.ReplyGeneration, "evaluate",
             legacy_reply_evaluator(lambda context, *_args, **_kwargs: unit_approved_reply(
                 context,
                 text="Responsibility matters.",

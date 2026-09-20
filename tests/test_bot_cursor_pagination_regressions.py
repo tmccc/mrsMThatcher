@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from tests.helpers.reply_evaluation import legacy_reply_evaluator
+from tests.helpers.reply_fixtures import patch_reply_owner_method, patch_tweet_lookup_method
 
 import copy
 import json
@@ -1039,9 +1040,8 @@ def test_quote_search_processes_new_quote_despite_legacy_cursor_suppression(
     monkeypatch.setattr(bot, "in_api_cooldown", lambda *_args, **_kwargs: False)
     monkeypatch.setattr(bot, "reconcile_confirmed_reply_receipt", lambda _state: False)
     monkeypatch.setattr(bot, "build_quote_lookup_post_ids", lambda _state: ["900"])
-    monkeypatch.setattr(
-        bot,
-        "get_tweet_by_id_cached",
+    patch_tweet_lookup_method(
+        monkeypatch, "get_cached",
         lambda *_args, **_kwargs: dict(original),
     )
     monkeypatch.setattr(bot, "x_quote_lookup_request", request)
@@ -1056,7 +1056,10 @@ def test_quote_search_processes_new_quote_despite_legacy_cursor_suppression(
         "reply_media_context_for_candidate",
         lambda *_args, **_kwargs: {},
     )
-    monkeypatch.setattr(bot, "evaluate_single_call_reply", legacy_reply_evaluator(no_reply))
+    patch_reply_owner_method(
+        monkeypatch, bot._reply_generation.ReplyGeneration, "evaluate",
+        legacy_reply_evaluator(no_reply),
+    )
     monkeypatch.setattr(bot, "save_state", lambda *_args, **_kwargs: None)
 
     status = bot.maybe_reply_to_quote_tweets(state)

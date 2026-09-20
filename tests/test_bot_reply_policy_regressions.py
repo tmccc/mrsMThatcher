@@ -28,6 +28,7 @@ from tests.helpers.bot_fixtures import (
     install_receipt_bound_x_request_stub,
 )
 from tests.helpers.reply_fixtures import (
+    patch_reply_owner_method,
     patch_tweet_lookup_method,
     UNIT_REPLY_REPOSITORY,
     patch_reply_draft_method,
@@ -391,9 +392,8 @@ def test_strategy_persistence_failure_blocks_quote_tweet_x_write(
         patch_tweet_lookup_method(monkeypatch, "fetch", lambda tweet_id, **_kwargs: copy.deepcopy(
                 scenario["tweets"].get(str(tweet_id))
             ))
-        monkeypatch.setattr(
-            bot,
-            "evaluate_single_call_reply",
+        patch_reply_owner_method(
+            monkeypatch, bot._reply_generation.ReplyGeneration, "evaluate",
             legacy_reply_evaluator(lambda context, *_args, **_kwargs: unit_approved_reply(
                 context,
                 text="Conviction matters more than applause.",
@@ -464,12 +464,15 @@ def test_quote_tweet_model_no_reply_is_durable_beyond_bounded_scan_lists(
     monkeypatch.setattr(bot, "in_api_cooldown", lambda *_args, **_kwargs: False)
     monkeypatch.setattr(bot, "reconcile_confirmed_reply_receipt", lambda _state: False)
     monkeypatch.setattr(bot, "build_quote_lookup_post_ids", lambda _state: ["900"])
-    monkeypatch.setattr(bot, "get_tweet_by_id_cached", lambda *_args, **_kwargs: dict(own_post))
+    patch_tweet_lookup_method(monkeypatch, "get_cached", lambda *_args, **_kwargs: dict(own_post))
     monkeypatch.setattr(bot, "get_quote_tweets_for_posts", lambda *_args, **_kwargs: {"900": [dict(quote_post)]})
     monkeypatch.setattr(bot, "quote_tweet_is_old_enough", lambda _tweet: True)
     monkeypatch.setattr(bot, "is_probably_spam_or_not_worth_replying", lambda _text: False)
     monkeypatch.setattr(bot, "reply_media_context_for_candidate", lambda *_args, **_kwargs: {})
-    monkeypatch.setattr(bot, "evaluate_single_call_reply", legacy_reply_evaluator(no_reply))
+    patch_reply_owner_method(
+        monkeypatch, bot._reply_generation.ReplyGeneration, "evaluate",
+        legacy_reply_evaluator(no_reply),
+    )
     monkeypatch.setattr(bot, "save_state", lambda *_args, **_kwargs: None)
 
     assert bot.maybe_reply_to_quote_tweets(state) == bot.QUOTE_CHECK_STATUS_CHECKED
@@ -530,12 +533,15 @@ def test_quote_tweet_generic_403_remains_ambiguous_and_durable(
     monkeypatch.setattr(bot, "in_api_cooldown", lambda *_args, **_kwargs: False)
     monkeypatch.setattr(bot, "reconcile_confirmed_reply_receipt", lambda _state: False)
     monkeypatch.setattr(bot, "build_quote_lookup_post_ids", lambda _state: ["900"])
-    monkeypatch.setattr(bot, "get_tweet_by_id_cached", lambda *_args, **_kwargs: dict(own_post))
+    patch_tweet_lookup_method(monkeypatch, "get_cached", lambda *_args, **_kwargs: dict(own_post))
     monkeypatch.setattr(bot, "get_quote_tweets_for_posts", lambda *_args, **_kwargs: {"900": [dict(quote_post)]})
     monkeypatch.setattr(bot, "quote_tweet_is_old_enough", lambda _tweet: True)
     monkeypatch.setattr(bot, "is_probably_spam_or_not_worth_replying", lambda _text: False)
     monkeypatch.setattr(bot, "reply_media_context_for_candidate", lambda *_args, **_kwargs: {})
-    monkeypatch.setattr(bot, "evaluate_single_call_reply", legacy_reply_evaluator(reply))
+    patch_reply_owner_method(
+        monkeypatch, bot._reply_generation.ReplyGeneration, "evaluate",
+        legacy_reply_evaluator(reply),
+    )
     monkeypatch.setattr(bot, "create_post", forbidden_post)
     monkeypatch.setattr(bot, "save_state", lambda *_args, **_kwargs: None)
 

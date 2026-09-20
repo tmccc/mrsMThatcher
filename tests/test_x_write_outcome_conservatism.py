@@ -28,6 +28,8 @@ from historical_context_formatter import (
 )
 from tests.fake_api_server import FakeApiServer
 from tests.helpers.reply_fixtures import (
+    patch_reply_owner_method,
+    patch_tweet_lookup_method,
     UNIT_REPLY_REPOSITORY,
     unit_approved_reply,
     unit_reply_context,
@@ -2000,9 +2002,8 @@ def _configure_approved_quote_candidate(
     monkeypatch.setattr(bot, "lane_paused", lambda *_args, **_kwargs: False)
     monkeypatch.setattr(bot, "in_api_cooldown", lambda *_args, **_kwargs: False)
     monkeypatch.setattr(bot, "build_quote_lookup_post_ids", lambda _state: ["900"])
-    monkeypatch.setattr(
-        bot,
-        "get_tweet_by_id_cached",
+    patch_tweet_lookup_method(
+        monkeypatch, "get_cached",
         lambda *_args, **_kwargs: dict(own_post),
     )
     monkeypatch.setattr(
@@ -2022,7 +2023,10 @@ def _configure_approved_quote_candidate(
         lambda *_args, **_kwargs: {},
     )
     monkeypatch.setattr(bot, "reply_evidence_repository", lambda: UNIT_REPLY_REPOSITORY)
-    monkeypatch.setattr(bot, "evaluate_single_call_reply", legacy_reply_evaluator(approved))
+    patch_reply_owner_method(
+        monkeypatch, bot._reply_generation.ReplyGeneration, "evaluate",
+        legacy_reply_evaluator(approved),
+    )
     return quote_post
 
 

@@ -472,7 +472,7 @@ def configure_quote_cycle(monkeypatch):
     monkeypatch.setattr(bot, "ENABLE_QUOTE_TWEET_CHECKS", True)
     monkeypatch.setattr(bot, "MIN_SECONDS_BETWEEN_REPLIES", 0)
     monkeypatch.setattr(bot, "build_quote_lookup_post_ids", Mock(return_value=["900"]))
-    monkeypatch.setattr(bot, "get_tweet_by_id_cached", Mock(return_value=original))
+    patch_tweet_lookup_method(monkeypatch, "get_cached", Mock(return_value=original))
     monkeypatch.setattr(bot, "get_quote_tweets_for_posts", Mock(return_value={"900": quotes}))
     monkeypatch.setattr(bot, "reply_media_context_for_candidate", Mock(return_value={}))
     monkeypatch.setattr(bot, "x_request", Mock(side_effect=AssertionError("unexpected provider request")))
