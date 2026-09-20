@@ -617,16 +617,7 @@ PRODUCTION_BASE_DIR = Path("/disks/disk1/etc/mrsMThatcher")
 BASE_DIR = Path(os.getenv("MRS_BASE_DIR", str(PRODUCTION_BASE_DIR))).expanduser()
 
 
-def path_is_same_or_child(path: Path, parent: Path) -> bool:
-    """Return whether a path equals or is contained by a parent path."""
-    try:
-        path_resolved = path.resolve()
-        parent_resolved = parent.resolve()
-        return path_resolved == parent_resolved or parent_resolved in path_resolved.parents
-    except Exception:
-        path_abs = path.absolute()
-        parent_abs = parent.absolute()
-        return path_abs == parent_abs or parent_abs in path_abs.parents
+path_is_same_or_child = _runtime_configuration.path_is_same_or_child
 
 
 def test_process_production_state_write_blocked(path: Path) -> bool:

@@ -1,4 +1,4 @@
-"""Runtime configuration validation, application and credential checks.
+"""Runtime configuration paths, validation, application and credential checks.
 
 Historical-context schema checks are separate from scalar and cross-field
 validation. The root supplies current runtime dependencies on each call. This
@@ -7,7 +7,20 @@ module performs no runtime work at import and retains no runtime authority.
 from __future__ import annotations
 
 import math
+from pathlib import Path
 from typing import Any
+
+
+def path_is_same_or_child(path: Path, parent: Path) -> bool:
+    """Return whether a path equals or is contained by a parent path."""
+    try:
+        path_resolved = path.resolve()
+        parent_resolved = parent.resolve()
+        return path_resolved == parent_resolved or parent_resolved in path_resolved.parents
+    except Exception:
+        path_abs = path.absolute()
+        parent_abs = parent.absolute()
+        return path_abs == parent_abs or parent_abs in path_abs.parents
 
 
 def _historical_context_config_errors(context_config: object) -> list[str]:
