@@ -6,7 +6,7 @@ on every call. Original bodies preserve reader and schedule error order, per-cal
 key sets, shallow references, partial recovery events and pending-authority order.
 StateValues supplies scalar/collection operations through a fresh owner lookup at
 each original normalization point. MentionAuthority is also resolved afresh for
-queue normalization and recovery, including after terminal pruning. State
+queue normalization and recovery, including after terminal pruning. Retained and current reply histories share the same ordered collection rule. State
 loading, defaults/schema, persistence and higher-level recovery keep their
 existing boundaries. This owner retains no callbacks, configuration, paths or
 state and performs no import-time runtime work or reverse bot import.
@@ -319,18 +319,14 @@ def normalise_state_candidate(
         if value is None:
             return None
         normalised["tweet_cache"] = value
-    if "reply_strategy_history" in state:
-        history = state["reply_strategy_history"]
+    for key in ("reply_strategy_history", "ai_reply_history"):
+        if key not in state:
+            continue
+        history = state[key]
         if not isinstance(history, list) or any(not isinstance(item, dict) for item in history):
-            log.error("State candidate %s has invalid reply_strategy_history; ignoring", path)
+            log.error(f"State candidate %s has invalid {key}; ignoring", path)
             return None
-        normalised["reply_strategy_history"] = history[-1000:]
-    if "ai_reply_history" in state:
-        history = state["ai_reply_history"]
-        if not isinstance(history, list) or any(not isinstance(item, dict) for item in history):
-            log.error("State candidate %s has invalid ai_reply_history; ignoring", path)
-            return None
-        normalised["ai_reply_history"] = history[-1000:]
+        normalised[key] = history[-1000:]
     if "mention_pagination" in state:
         value = state["mention_pagination"]
         value = mention_authority().normalise_pagination(value, path=path)

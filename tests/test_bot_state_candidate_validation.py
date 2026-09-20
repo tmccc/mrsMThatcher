@@ -669,3 +669,40 @@ def test_mention_value_lookup_precedes_authority_binding(monkeypatch, tmp_path, 
         normalize.assert_called_once_with(pending, path=tmp_path)
         assert validate.call_args.args[0] is result
     initial.assert_not_called()
+
+
+@pytest.mark.parametrize("invalid_key", ["reply_strategy_history", "ai_reply_history"])
+@pytest.mark.parametrize("invalid_history", [{}, [object()]])
+def test_invalid_history_stops_in_legacy_then_current_order_before_mention_authority(
+    monkeypatch, tmp_path, invalid_key, invalid_history,
+):
+    """History rejection keeps earlier shallow copies and later authority untouched."""
+    history_reads = []
+
+    class Candidate(dict):
+        def __getitem__(self, key):
+            if key in {"reply_strategy_history", "ai_reply_history"}:
+                history_reads.append(key)
+            return super().__getitem__(key)
+
+    child = {"nested": []}
+    histories = {"reply_strategy_history": [child], "ai_reply_history": [child]}
+    histories[invalid_key] = invalid_history
+    candidate = Candidate(histories)
+    default, log, pruning = {}, Mock(), Mock()
+    monkeypatch.setattr(bot, "default_state", lambda: default)
+    monkeypatch.setattr(bot, "log", log)
+    monkeypatch.setattr(bot, "prune_reply_evaluation_records", pruning)
+    assert bot.normalise_state_candidate(candidate, path=tmp_path) is None
+    expected_reads = ["reply_strategy_history"]
+    if invalid_key == "ai_reply_history":
+        expected_reads.append("ai_reply_history")
+        assert default["reply_strategy_history"] is not histories["reply_strategy_history"]
+        assert default["reply_strategy_history"][0] is child
+    assert history_reads == expected_reads
+    assert default[invalid_key] is invalid_history
+    assert candidate == histories
+    log.error.assert_called_once_with(
+        f"State candidate %s has invalid {invalid_key}; ignoring", tmp_path,
+    )
+    pruning.assert_not_called()
