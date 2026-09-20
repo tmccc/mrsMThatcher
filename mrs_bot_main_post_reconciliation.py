@@ -9,7 +9,7 @@ from typing import Any
 
 from mrs_bot_regular_post_completion import complete_regular_post_persistence
 
-from mrs_bot_receipt_primitives import receipt_int
+from mrs_bot_receipt_primitives import receipt_int, valid_post_id
 
 
 def apply_meme_post_receipt(
@@ -331,7 +331,6 @@ def confirmed_regular_emergency_representation_is_complete(
     main_post_attempt: dict,
     build_confirmed_pending_schedule_receipt: Any,
     materialize_bound_regular_schedule_receipt: Any,
-    valid_post_id: Any,
     valid_receipt_epoch: Any,
 ) -> bool:
     """Return whether fallback state exactly implements the pre-send plan."""
@@ -386,7 +385,6 @@ def confirmed_meme_emergency_representation_is_complete(
     build_confirmed_pending_schedule_receipt: Any,
     materialize_bound_meme_schedule_receipt: Any,
     safe_bound_schedule_date_str: Any,
-    valid_post_id: Any,
     valid_receipt_epoch: Any,
 ) -> bool:
     """Return whether fallback state exactly implements the pre-send plan."""

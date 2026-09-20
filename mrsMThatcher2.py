@@ -5276,9 +5276,7 @@ def build_main_post_attempt(
         recovery_plan=recovery_plan,
         attempt_epoch=attempt_epoch,
         MAIN_POST_SCHEDULE_TIMEZONE=MAIN_POST_SCHEDULE_TIMEZONE,
-        copy=copy,
         current_main_post_attempt_is_semantically_valid=current_main_post_attempt_is_semantically_valid,
-        hashlib=hashlib,
         now_epoch=now_epoch,
         os=os,
     )
@@ -5441,9 +5439,7 @@ def build_confirmed_pending_schedule_receipt(
         confirmation_epoch=confirmation_epoch,
         image_summary=image_summary,
         confirmed_pending_schedule_receipt_is_semantically_valid=confirmed_pending_schedule_receipt_is_semantically_valid,
-        copy=copy,
         main_post_attempt_is_semantically_valid=main_post_attempt_is_semantically_valid,
-        valid_post_id=valid_post_id,
         valid_receipt_epoch=valid_receipt_epoch,
     )
 
@@ -5802,7 +5798,6 @@ def confirmed_regular_emergency_representation_is_complete(
         main_post_attempt=main_post_attempt,
         build_confirmed_pending_schedule_receipt=build_confirmed_pending_schedule_receipt,
         materialize_bound_regular_schedule_receipt=materialize_bound_regular_schedule_receipt,
-        valid_post_id=valid_post_id,
         valid_receipt_epoch=valid_receipt_epoch,
     )
 
@@ -5825,7 +5820,6 @@ def confirmed_meme_emergency_representation_is_complete(
         build_confirmed_pending_schedule_receipt=build_confirmed_pending_schedule_receipt,
         materialize_bound_meme_schedule_receipt=materialize_bound_meme_schedule_receipt,
         safe_bound_schedule_date_str=safe_bound_schedule_date_str,
-        valid_post_id=valid_post_id,
         valid_receipt_epoch=valid_receipt_epoch,
     )
 

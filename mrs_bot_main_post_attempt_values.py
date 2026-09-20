@@ -1,16 +1,20 @@
 """Main-post payload, bound-plan, attempt and confirmation values.
 
-Canonical payload reconstruction and hashing are fixed local operations. The
+Canonical payload reconstruction, copying, hashing and ID shape checks are
+fixed local operations. The
 root supplies current runtime dependencies explicitly on each call. This module
 performs no runtime work at import and retains no runtime authority.
 """
 from __future__ import annotations
 
+import copy
 import hashlib
 import json
 
 from collections.abc import Callable
 from typing import Any
+
+from mrs_bot_receipt_primitives import valid_post_id
 
 
 BOUND_MEME_SCHEDULE_STATE_KEYS = {
@@ -203,9 +207,7 @@ def build_main_post_attempt(
     recovery_plan: dict,
     attempt_epoch: int | None = None,
     MAIN_POST_SCHEDULE_TIMEZONE: str,
-    copy: Any,
     current_main_post_attempt_is_semantically_valid: Callable[..., bool],
-    hashlib: Any,
     now_epoch: Callable[..., int],
     os: Any,
 ) -> dict:
@@ -292,9 +294,7 @@ def build_confirmed_pending_schedule_receipt(
     confirmation_epoch: int,
     image_summary: str = '',
     confirmed_pending_schedule_receipt_is_semantically_valid: Callable[..., bool],
-    copy: Any,
     main_post_attempt_is_semantically_valid: Callable[..., bool],
-    valid_post_id: Callable[..., bool],
     valid_receipt_epoch: Callable[..., bool],
 ) -> dict:
     """Build a versioned confirmed receipt without deriving local schedules."""

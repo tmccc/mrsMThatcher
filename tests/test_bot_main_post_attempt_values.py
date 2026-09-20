@@ -21,7 +21,7 @@ from tests.helpers.bot_fixtures import (
 
 def test_import_needs_no_runtime_access():
     code = """
-import builtins, collections.abc, hashlib, io, json, logging, os, random, socket, sys, time, typing
+import builtins, collections.abc, dataclasses, hashlib, io, json, logging, os, random, socket, sys, time, typing
 from pathlib import Path
 
 def forbidden(*args, **kwargs):
@@ -29,7 +29,7 @@ def forbidden(*args, **kwargs):
 
 original_import = builtins.__import__
 def guarded_import(name, *args, **kwargs):
-    if name in {'mrsMThatcher2', 'requests', 'openai', 'single_call_reply'} or name.startswith('mrs_bot_') and name != 'mrs_bot_main_post_attempt_values':
+    if name in {'mrsMThatcher2', 'requests', 'openai', 'single_call_reply'} or name.startswith('mrs_bot_') and name not in {'mrs_bot_main_post_attempt_values', 'mrs_bot_receipt_primitives'}:
         forbidden()
     return original_import(name, *args, **kwargs)
 
@@ -62,9 +62,9 @@ assert 'single_call_reply' not in sys.modules
         ('bound_meme_schedule_state_is_valid', ('MAIN_POST_SCHEDULE_TIMEZONE', 'MEME_SCHEDULE_MODES', 'MEME_SCHEDULE_VERSION', 'safe_bound_schedule_date_str', 'valid_receipt_epoch')),
         ('main_post_attempt_binds_payload', ('current_main_post_attempt_is_semantically_valid',)),
         ('current_main_post_attempt_is_semantically_valid', ('main_post_attempt_is_semantically_valid',)),
-        ('build_main_post_attempt', ('MAIN_POST_SCHEDULE_TIMEZONE', 'copy', 'current_main_post_attempt_is_semantically_valid', 'hashlib', 'now_epoch', 'os')),
+        ('build_main_post_attempt', ('MAIN_POST_SCHEDULE_TIMEZONE', 'current_main_post_attempt_is_semantically_valid', 'now_epoch', 'os')),
         ('confirmed_receipt_matches_main_attempt', ('main_post_attempt_is_semantically_valid',)),
-        ('build_confirmed_pending_schedule_receipt', ('confirmed_pending_schedule_receipt_is_semantically_valid', 'copy', 'main_post_attempt_is_semantically_valid', 'valid_post_id', 'valid_receipt_epoch')),
+        ('build_confirmed_pending_schedule_receipt', ('confirmed_pending_schedule_receipt_is_semantically_valid', 'main_post_attempt_is_semantically_valid', 'valid_receipt_epoch')),
         ('confirmation_epoch_for_main_attempt', ('log',)),
     ],
 )
@@ -297,10 +297,10 @@ def test_attempt_construction_order_copies_truthiness_and_final_validator(monkey
         validated.append(attempt)
         return True
     monkeypatch.setattr(bot, "os", SimpleNamespace(urandom=entropy))
-    monkeypatch.setattr(bot, "hashlib", SimpleNamespace(sha256=sha256))
+    monkeypatch.setattr(values, "hashlib", SimpleNamespace(sha256=sha256))
     monkeypatch.setattr(bot, "now_epoch", lambda: (events.append(("clock",)), 88)[1])
     monkeypatch.setattr(values, "canonical_remote_post_payload_sha256", payload_hash)
-    monkeypatch.setattr(bot, "copy", SimpleNamespace(deepcopy=copied))
+    monkeypatch.setattr(values, "copy", SimpleNamespace(deepcopy=copied))
     monkeypatch.setattr(bot, "current_main_post_attempt_is_semantically_valid", validate)
     options = dict(lane="quote_image", text=_ObservedValue(events, "text", "téxt"),
                    media_ids=[_ObservedValue(events, "media", 7)],
@@ -359,9 +359,9 @@ def test_pending_construction_conversion_copy_and_original_lane_order(monkeypatc
         validated.append(pending)
         return True
     monkeypatch.setattr(bot, "main_post_attempt_is_semantically_valid", lambda value: (events.append(("attempt",)), True)[1])
-    monkeypatch.setattr(bot, "valid_post_id", lambda value: (events.append(("post gate",)), True)[1])
+    monkeypatch.setattr(values, "valid_post_id", lambda value: (events.append(("post gate",)), True)[1])
     monkeypatch.setattr(bot, "valid_receipt_epoch", lambda value: (events.append(("epoch gate", value)), True)[1])
-    monkeypatch.setattr(bot, "copy", SimpleNamespace(deepcopy=copied))
+    monkeypatch.setattr(values, "copy", SimpleNamespace(deepcopy=copied))
     monkeypatch.setattr(bot, "confirmed_pending_schedule_receipt_is_semantically_valid", validate)
     options = dict(post_id=_ObservedValue(events, "post", 99),
                    confirmation_epoch=_ObservedValue(events, "confirmed", 12),
@@ -388,9 +388,9 @@ def test_pending_rejection_short_circuits_before_copy_and_keeps_native_errors(mo
     attempt["lifecycle_state"] = "attempting"
     validator, post, epoch, copied = Mock(return_value=False), Mock(return_value=False), Mock(return_value=False), Mock()
     monkeypatch.setattr(bot, "main_post_attempt_is_semantically_valid", validator)
-    monkeypatch.setattr(bot, "valid_post_id", post)
+    monkeypatch.setattr(values, "valid_post_id", post)
     monkeypatch.setattr(bot, "valid_receipt_epoch", epoch)
-    monkeypatch.setattr(bot, "copy", SimpleNamespace(deepcopy=copied))
+    monkeypatch.setattr(values, "copy", SimpleNamespace(deepcopy=copied))
     options = dict(post_id="post", confirmation_epoch=1_800_000_010)
     with pytest.raises(RuntimeError, match="Refusing an invalid main-post attempt or confirmation"):
         bot.build_confirmed_pending_schedule_receipt(object(), **options)
