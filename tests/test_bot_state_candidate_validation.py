@@ -11,18 +11,25 @@ import pytest
 
 import mrs_bot_state_candidate_validation as validation
 import mrs_bot_state_value_normalisation as state_values
+import mrs_bot_mention_authority as authority
 from tests.helpers.bot_runtime import bot
 from tests.helpers.bot_fixtures import isolate_bot_runtime  # noqa: F401
 
 
 VALUE_METHODS = {'normalise_string_list': 'strings', 'normalise_epoch_list': 'epochs', 'normalise_string_map': 'string_map', 'normalise_int_map': 'integer_map', 'normalise_record_map': 'record_map', 'normalise_optional_scalar': 'optional_scalar', 'normalise_optional_numeric_id': 'optional_id', 'normalise_state_int': 'integer', 'normalise_state_epoch': 'epoch'}
 
+AUTHORITY_METHODS = {'canonical_mention_pending_candidates': 'canonical_candidates', 'normalise_mention_pagination': 'normalise_pagination', 'normalise_mention_backlog_reset_guard': 'normalise_reset_guard', 'normalise_mention_backlog': 'normalise_backlog', 'validate_pending_mention_candidate_authority': 'validate_pending'}
 
 def patch_normalization(monkeypatch, name, callback):
     """Observe the normalization owner while leaving runtime callbacks current."""
     if name in VALUE_METHODS:
         monkeypatch.setattr(
             state_values.StateValues, VALUE_METHODS[name],
+            lambda self, *args, **kwargs: callback(*args, **kwargs),
+        )
+    elif name in AUTHORITY_METHODS:
+        monkeypatch.setattr(
+            authority.MentionAuthority, AUTHORITY_METHODS[name],
             lambda self, *args, **kwargs: callback(*args, **kwargs),
         )
     else:
@@ -69,7 +76,7 @@ def test_adapters_forward_current_dependencies_references_and_native_errors(monk
         ("validate_meme_schedule_state", 5),
         ("validate_meme_schedule_version_for_candidate", 3),
         ("require_compatible_state_reader", 2),
-        ("normalise_state_candidate", 17),
+        ("normalise_state_candidate", 13),
     ):
         adapter = getattr(bot, name)
         public = inspect.signature(adapter).parameters
@@ -83,7 +90,10 @@ def test_adapters_forward_current_dependencies_references_and_native_errors(monk
                 owner = Mock(return_value=result)
                 patch.setattr(bot, "_state_candidate_validation", SimpleNamespace(**{name: owner}))
                 current = {key: object() for key in dependencies}
-                factories = {"state_values": "_state_values_owner"}
+                factories = {
+                    "state_values": "_state_values_owner",
+                    "mention_authority": "_mention_authority_owner",
+                }
                 for key, value in current.items():
                     if key in factories:
                         patch.setattr(bot, factories[key], Mock(return_value=value))
@@ -325,7 +335,7 @@ def test_candidate_none_keeps_earlier_recovery_event_and_stops_before_authority(
     monkeypatch.setattr(bot, "normalise_quote_repeated_cursor_suppressions", trace.cursors)
     patch_normalization(monkeypatch, "normalise_optional_scalar", trace.scalar)
     monkeypatch.setattr(bot, "prune_reply_evaluation_records", trace.prune)
-    monkeypatch.setattr(bot, "validate_pending_mention_candidate_authority", trace.authority)
+    patch_normalization(monkeypatch, "validate_pending_mention_candidate_authority", trace.authority)
     cursor, scalar, events = object(), object(), []
     state = {"quote_lookup_repeated_cursor_suppressions": cursor, "daily_reply_date": scalar}
     assert bot.normalise_state_candidate(state, path=tmp_path, recovery_events=events) is None
@@ -340,7 +350,7 @@ def test_candidate_none_keeps_earlier_recovery_event_and_stops_before_authority(
 def test_pending_identity_recovery_preserves_original_value_and_events_on_authority_failure(monkeypatch, tmp_path):
     pending, trace, events = object(), Mock(), []
     trace.canonical.return_value = None
-    monkeypatch.setattr(bot, "canonical_mention_pending_candidates", trace.canonical)
+    patch_normalization(monkeypatch, "canonical_mention_pending_candidates", trace.canonical)
     monkeypatch.setattr(bot, "prune_reply_evaluation_records", trace.prune)
     monkeypatch.setattr(bot, "normalise_author_evaluation_quarantines", trace.quarantines)
 
@@ -352,7 +362,7 @@ def test_pending_identity_recovery_preserves_original_value_and_events_on_author
         events.append({"partial": True})
         return False, True
 
-    monkeypatch.setattr(bot, "validate_pending_mention_candidate_authority", authority)
+    patch_normalization(monkeypatch, "validate_pending_mention_candidate_authority", authority)
     state = {"mention_pending_candidates": pending, "author_evaluation_quarantines": object()}
     assert bot.normalise_state_candidate(state, path=tmp_path) is None
     assert [c[0] for c in trace.mock_calls] == ["canonical"]
@@ -370,7 +380,7 @@ def test_overflow_hash_and_reset_precede_pruning_and_authority_with_partial_even
     trace.watermark.return_value = "99"
     trace.sha256.return_value.hexdigest.return_value = "0123456789abcdefextra"
     monkeypatch.setattr(bot, "MENTION_BACKLOG_CONTINUATION_TOKEN_LIMIT", 1)
-    monkeypatch.setattr(bot, "normalise_mention_backlog", trace.backlog)
+    patch_normalization(monkeypatch, "normalise_mention_backlog", trace.backlog)
     patch_normalization(monkeypatch, "normalise_optional_numeric_id", trace.watermark)
     monkeypatch.setattr(validation, "hashlib", SimpleNamespace(sha256=trace.sha256))
     monkeypatch.setattr(bot, "validate_meme_schedule_version_for_candidate", trace.schedule)
@@ -393,7 +403,7 @@ def test_overflow_hash_and_reset_precede_pruning_and_authority_with_partial_even
         return False, False
 
     monkeypatch.setattr(bot, "prune_reply_evaluation_records", prune)
-    monkeypatch.setattr(bot, "validate_pending_mention_candidate_authority", authority)
+    patch_normalization(monkeypatch, "validate_pending_mention_candidate_authority", authority)
     state = {"mention_backlog": backlog, "last_seen_mention_id": 99}
     assert bot.normalise_state_candidate(state, path=tmp_path, recovery_events=events) is None
     assert trace.mock_calls == [
@@ -525,7 +535,7 @@ def test_candidate_value_owner_failure_keeps_native_error_before_later_groups(mo
     factory = Mock(side_effect=failure)
     authority = Mock()
     monkeypatch.setattr(bot, "_state_values_owner", factory)
-    monkeypatch.setattr(bot, "validate_pending_mention_candidate_authority", authority)
+    patch_normalization(monkeypatch, "validate_pending_mention_candidate_authority", authority)
     with pytest.raises(TypeError) as caught:
         bot.normalise_state_candidate({"replied_to_ids": []}, path=tmp_path)
     assert caught.value is failure
@@ -561,4 +571,101 @@ def test_value_lookup_precedes_owner_binding_and_preserves_lookup_errors(monkeyp
         assert result["replied_to_ids"] is source
         current.assert_called_once_with()
         normalise.assert_called_once_with(source, key="replied_to_ids", path=tmp_path)
+    initial.assert_not_called()
+
+
+def test_candidate_resolves_mention_owner_between_normalization_and_recovery(monkeypatch, tmp_path):
+    events, pending, pagination, calls = [], {}, {}, []
+    original_factory = Mock(side_effect=AssertionError("authority bound before reader"))
+    monkeypatch.setattr(bot, "_mention_authority_owner", original_factory)
+    first_owner, second_owner, final_owner = SimpleNamespace(), SimpleNamespace(), SimpleNamespace()
+    first_factory = Mock(return_value=first_owner)
+    second_factory = Mock(return_value=second_owner)
+    final_factory = Mock(return_value=final_owner)
+
+    def reader(state, *, path):
+        calls.append("reader")
+        monkeypatch.setattr(bot, "_mention_authority_owner", first_factory)
+        return 1
+
+    def canonical(value, *, path):
+        calls.append("canonical")
+        assert value is pending and path == tmp_path
+        monkeypatch.setattr(bot, "_mention_authority_owner", second_factory)
+        return value
+
+    def normalise_pagination(value, *, path):
+        calls.append("pagination")
+        assert value is pagination and path == tmp_path
+        return value
+
+    def prune(state):
+        calls.append("prune")
+        monkeypatch.setattr(bot, "_mention_authority_owner", final_factory)
+
+    def validate(state, *, path, recover_pending_identity, recovery_events):
+        calls.append("validate")
+        assert state["mention_pending_candidates"] is pending
+        assert state["mention_pagination"] is pagination
+        assert recovery_events is events and recover_pending_identity is True
+        return True, False
+
+    first_owner.canonical_candidates = canonical
+    second_owner.normalise_pagination = normalise_pagination
+    final_owner.validate_pending = validate
+    monkeypatch.setattr(bot, "require_compatible_state_reader", reader)
+    monkeypatch.setattr(bot, "prune_reply_evaluation_records", prune)
+    result = bot.normalise_state_candidate(
+        {"mention_pending_candidates": pending, "mention_pagination": pagination},
+        path=tmp_path, recovery_events=events, recover_pending_identity=True,
+    )
+    assert result["mention_pending_candidates"] is pending
+    assert calls == ["reader", "canonical", "pagination", "prune", "validate"]
+    original_factory.assert_not_called()
+    for factory in (first_factory, second_factory, final_factory):
+        factory.assert_called_once_with()
+
+
+def test_candidate_mention_owner_failure_stops_before_terminal_pruning(monkeypatch, tmp_path):
+    failure = RuntimeError("current mention authority unavailable")
+    factory, prune = Mock(side_effect=failure), Mock()
+    monkeypatch.setattr(bot, "_mention_authority_owner", factory)
+    monkeypatch.setattr(bot, "prune_reply_evaluation_records", prune)
+    with pytest.raises(RuntimeError) as caught:
+        bot.normalise_state_candidate({"mention_pending_candidates": {}}, path=tmp_path)
+    assert caught.value is failure
+    factory.assert_called_once_with()
+    prune.assert_not_called()
+
+
+@pytest.mark.parametrize("lookup_fails", [False, True])
+def test_mention_value_lookup_precedes_authority_binding(monkeypatch, tmp_path, lookup_fails):
+    failure = LookupError("pending identities unavailable")
+    initial = Mock(side_effect=AssertionError("mention authority bound before argument lookup"))
+    normalize = Mock(side_effect=lambda value, **kwargs: value)
+    validate = Mock(return_value=(True, False))
+    current = Mock(return_value=SimpleNamespace(canonical_candidates=normalize, validate_pending=validate))
+    pending = {}
+
+    class State(dict):
+        def __getitem__(self, key):
+            if key == "mention_pending_candidates":
+                if lookup_fails:
+                    raise failure
+                monkeypatch.setattr(bot, "_mention_authority_owner", current)
+            return super().__getitem__(key)
+
+    monkeypatch.setattr(bot, "_mention_authority_owner", initial)
+    state = State(mention_pending_candidates=pending)
+    if lookup_fails:
+        with pytest.raises(LookupError) as caught:
+            bot.normalise_state_candidate(state, path=tmp_path)
+        assert caught.value is failure
+        current.assert_not_called()
+    else:
+        result = bot.normalise_state_candidate(state, path=tmp_path)
+        assert result["mention_pending_candidates"] is pending
+        assert current.call_count == 2
+        normalize.assert_called_once_with(pending, path=tmp_path)
+        assert validate.call_args.args[0] is result
     initial.assert_not_called()

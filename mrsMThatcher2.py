@@ -2648,21 +2648,17 @@ def normalise_state_candidate(
         recover_pending_identity=recover_pending_identity,
         MENTION_BACKLOG_CONTINUATION_TOKEN_LIMIT=MENTION_BACKLOG_CONTINUATION_TOKEN_LIMIT,
         STATE_MINIMUM_READER_VERSION=STATE_MINIMUM_READER_VERSION,
-        canonical_mention_pending_candidates=canonical_mention_pending_candidates,
         default_state=default_state,
         log=log,
         normalise_author_evaluation_quarantines=normalise_author_evaluation_quarantines,
-        normalise_mention_backlog=normalise_mention_backlog,
-        normalise_mention_backlog_reset_guard=normalise_mention_backlog_reset_guard,
-        normalise_mention_pagination=normalise_mention_pagination,
         normalise_quote_repeated_cursor_suppressions=normalise_quote_repeated_cursor_suppressions,
         normalise_tweet_cache=normalise_tweet_cache,
         state_values=lambda: _state_values_owner(),
+        mention_authority=lambda: _mention_authority_owner(),
         prune_author_evaluation_quarantines=prune_author_evaluation_quarantines,
         prune_reply_evaluation_records=prune_reply_evaluation_records,
         require_compatible_state_reader=require_compatible_state_reader,
         validate_meme_schedule_version_for_candidate=validate_meme_schedule_version_for_candidate,
-        validate_pending_mention_candidate_authority=validate_pending_mention_candidate_authority,
     )
 
 

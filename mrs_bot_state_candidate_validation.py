@@ -5,7 +5,9 @@ error class, logger and nested normalization, recovery and schedule callbacks
 on every call. Original bodies preserve reader and schedule error order, per-call
 key sets, shallow references, partial recovery events and pending-authority order.
 StateValues supplies scalar/collection operations through a fresh owner lookup at
-each original normalization point. State loading, defaults/schema, persistence
+each original normalization point. MentionAuthority is also resolved afresh for
+queue normalization and recovery, including after terminal pruning. State loading,
+defaults/schema, persistence
 and higher-level recovery remain in existing locations. This owner retains no callbacks, configuration,
 paths or state and performs no import-time runtime work or reverse bot import.
 Fixed fingerprint hashing and receipt-commit grammar belong to their local owners.
@@ -23,6 +25,7 @@ from mrs_bot_state_generation import receipt_commit_records_are_valid
 
 if TYPE_CHECKING:
     from mrs_bot_state_value_normalisation import StateValues
+    from mrs_bot_mention_authority import MentionAuthority
 
 
 def validate_meme_schedule_state(
@@ -157,21 +160,17 @@ def normalise_state_candidate(
     recover_pending_identity: bool = False,
     MENTION_BACKLOG_CONTINUATION_TOKEN_LIMIT: int,
     STATE_MINIMUM_READER_VERSION: int,
-    canonical_mention_pending_candidates: Callable[..., dict[str, dict] | None],
     default_state: Callable[..., dict],
     log: Logger,
     normalise_author_evaluation_quarantines: Callable[..., dict | None],
-    normalise_mention_backlog: Callable[..., dict | None],
-    normalise_mention_backlog_reset_guard: Callable[..., dict[str, object] | None],
-    normalise_mention_pagination: Callable[..., dict[str, str] | None],
     normalise_quote_repeated_cursor_suppressions: Callable[..., tuple[dict[str, dict[str, object]], int]],
     normalise_tweet_cache: Callable[..., dict[str, dict] | None],
     state_values: Callable[[], StateValues],
+    mention_authority: Callable[[], MentionAuthority],
     prune_author_evaluation_quarantines: Callable[..., bool],
     prune_reply_evaluation_records: Callable[..., None],
     require_compatible_state_reader: Callable[..., int],
     validate_meme_schedule_version_for_candidate: Callable[..., bool],
-    validate_pending_mention_candidate_authority: Callable[..., tuple[bool, bool]],
 ) -> dict | None:
     """Normalise state candidate."""
     minimum_reader_version = require_compatible_state_reader(state, path=path)
@@ -292,8 +291,9 @@ def normalise_state_candidate(
                 return None
             normalised[key] = value
     if "mention_pending_candidates" in state:
-        pending_value = canonical_mention_pending_candidates(
-            state["mention_pending_candidates"],
+        pending_value = state["mention_pending_candidates"]
+        pending_value = mention_authority().canonical_candidates(
+            pending_value,
             path=path,
         )
         if pending_value is None and not recover_pending_identity:
@@ -332,13 +332,15 @@ def normalise_state_candidate(
             return None
         normalised["ai_reply_history"] = history[-1000:]
     if "mention_pagination" in state:
-        value = normalise_mention_pagination(state["mention_pagination"], path=path)
+        value = state["mention_pagination"]
+        value = mention_authority().normalise_pagination(value, path=path)
         if value is None:
             return None
         normalised["mention_pagination"] = value
     if "mention_backlog_reset_guard" in state:
-        value = normalise_mention_backlog_reset_guard(
-            state["mention_backlog_reset_guard"],
+        value = state["mention_backlog_reset_guard"]
+        value = mention_authority().normalise_reset_guard(
+            value,
             path=path,
         )
         if value is None:
@@ -352,7 +354,7 @@ def normalise_state_candidate(
             and len(raw_backlog["seen_tokens"])
             > MENTION_BACKLOG_CONTINUATION_TOKEN_LIMIT
         )
-        value = normalise_mention_backlog(
+        value = mention_authority().normalise_backlog(
             raw_backlog,
             path=path,
             reset_token_overflow=token_overflow,
@@ -382,7 +384,7 @@ def normalise_state_candidate(
     # a completed-page pending candidate that the watermark will not refetch.
     prune_reply_evaluation_records(normalised)
     pending_authority_usable, _pending_authority_changed = (
-        validate_pending_mention_candidate_authority(
+        mention_authority().validate_pending(
             normalised,
             path=path,
             recover_pending_identity=recover_pending_identity,
