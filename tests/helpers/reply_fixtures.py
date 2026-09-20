@@ -92,6 +92,24 @@ def patch_reply_owner_method(monkeypatch, owner_type, method: str, callback) -> 
     monkeypatch.setattr(owner_type, method, invoke)
 
 
+def patch_reply_receipt_method(monkeypatch, bot, method: str, callback) -> None:
+    """Replace one bot's receipt operation while retaining fresh runtime bindings."""
+    owner_factory = bot._reply_receipts_owner
+
+    class FixtureReplyReceipts(type(owner_factory())):
+        pass
+
+    def invoke(_owner, *args, **kwargs):
+        return callback(*args, **kwargs)
+
+    setattr(FixtureReplyReceipts, method, invoke)
+    monkeypatch.setattr(
+        bot,
+        "_reply_receipts_owner",
+        lambda: FixtureReplyReceipts(**vars(owner_factory())),
+    )
+
+
 def patch_tweet_lookup_method(monkeypatch, method: str, callback) -> None:
     """Replace an owned lookup/cache operation while preserving observed arguments."""
     patch_reply_owner_method(monkeypatch, bot._tweet_lookup_cache.TweetLookupCache, method, callback)

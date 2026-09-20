@@ -1,7 +1,8 @@
 """Deliver conversational replies and manage their durable receipt lifecycle.
 
-Root adapters supply current helpers, paths, logger and exception authority on
-every call. Reply cycles share pre-send checks and delivery outcome handling,
+ReplyReceipts owns loading, exclusive publication and current/legacy promotion.
+Root composition supplies a fresh owner at each receipt operation boundary.
+Reply cycles share pre-send checks and delivery outcome handling,
 while retaining their own terminal bookkeeping and check statuses. Receipt
 operations retain exact source binding, error order, shallow references,
 conservative confirmation and fallback state completeness, and the existing
@@ -10,15 +11,17 @@ SIGINT deferral boundaries.
 No-follow/create/replace/retire primitives, transport journals and mutation
 authority, create_post, runtime barriers, SIGINT guard implementation, state
 persistence and reconciliation remain in their existing owners and are invoked
-through current root callbacks. Receipt operations receive the current value
-owner directly. Import uses only the standard library and performs no file,
-environment, provider or RNG work; no callbacks or configuration are retained.
+through current runtime boundaries. Proof-bound exact retirement remains a
+root callback, and ReplyCompletion owns durable commit and ordered retirement.
+Import uses inert primitives and performs no file, environment, provider or RNG
+work; runtime bindings are retained only by operation-scoped owners.
 """
 
 from __future__ import annotations
 
 import logging
 from collections.abc import Callable
+from dataclasses import dataclass
 from enum import Enum
 from pathlib import Path
 from typing import TYPE_CHECKING
@@ -163,195 +166,196 @@ def deliver_prepared_reply(
     return receipt
 
 
-def load_confirmed_reply_receipt(
-    *,
-    load_receipt_json_no_follow: Callable,
-    CONFIRMED_REPLY_RECEIPT_FILE: Path,
-    log: logging.Logger,
-    receipt_values: ReplyReceiptValues,
-) -> tuple[str, dict | None]:
-    """Load confirmed reply receipt."""
-    try:
-        present, data = load_receipt_json_no_follow(
-            CONFIRMED_REPLY_RECEIPT_FILE
-        )
-    except Exception:
-        log.exception(
-            "Malformed or unsafe confirmed-reply receipt blocks auto-reply "
-            "processing until repaired: %s",
-            CONFIRMED_REPLY_RECEIPT_FILE,
-        )
-        return "invalid", None
-    if not present:
-        return "absent", None
-    if not isinstance(data, dict):
-        log.critical(
-            "Invalid confirmed-reply receipt blocks auto-reply processing until repaired: %s",
-            CONFIRMED_REPLY_RECEIPT_FILE,
-        )
-        return "invalid", None
-    if receipt_values.sending_is_valid(data):
-        return "sending", data
-    if receipt_values.legacy_sending_is_valid(data):
-        return "legacy_sending", data
-    if not (
-        receipt_values.confirmed_is_valid(data)
-        or receipt_values.legacy_confirmed_is_valid(data)
-    ):
-        log.critical(
-            "Semantically invalid confirmed-reply receipt blocks auto-reply processing until repaired: %s",
-            CONFIRMED_REPLY_RECEIPT_FILE,
-        )
-        return "invalid", data
-    return "valid", data
+@dataclass(frozen=True)
+class ReplyReceipts:
+    """Load, publish and promote the conversational reply receipt namespace.
 
-
-def write_reply_receipt(
-    receipt: dict,
-    *,
-    confirmed: bool,
-    remote_receipt_retirement_is_blocking: Callable,
-    InvalidConfirmedReplyReceipt: type[Exception],
-    receipt_namespace_entry_exists: Callable,
-    CONFIRMED_REPLY_RECEIPT_FILE: Path,
-    receipt_values: ReplyReceiptValues,
-    durable_create_receipt_json: Callable,
-    log: logging.Logger,
-) -> None:
-    """Publish a validated sending or confirmed receipt without overwriting recovery.
-
-    Retirement and namespace checks precede value validation. Exclusive creation
-    handles a namespace race without replacing the competing receipt; each
-    lifecycle retains its existing diagnostic and confirmation log fields.
+    One operation keeps its current path, values and runtime authorities. Nested
+    loading binds a fresh owner at the existing read boundary; transport and
+    exact source retirement retain their independent authority owners.
     """
-    receipt_label = "confirmed-reply" if confirmed else "conversational-reply"
-    if remote_receipt_retirement_is_blocking():
-        raise InvalidConfirmedReplyReceipt(
-            f"Refusing {receipt_label} publication during source-receipt retirement"
-        )
-    if receipt_namespace_entry_exists(CONFIRMED_REPLY_RECEIPT_FILE):
-        raise InvalidConfirmedReplyReceipt(
-            f"Refusing to overwrite unresolved {receipt_label} receipt: {CONFIRMED_REPLY_RECEIPT_FILE}"
-        )
-    valid = (
-        receipt_values.confirmed_is_valid(receipt)
-        if confirmed else receipt_values.sending_is_valid(receipt)
-    )
-    if not valid:
-        raise RuntimeError(
-            "Internal error: generated confirmed-reply receipt failed semantic validation"
-            if confirmed else "Internal error: generated sending-reply receipt failed validation"
-        )
-    try:
-        durable_create_receipt_json(CONFIRMED_REPLY_RECEIPT_FILE, receipt)
-    except FileExistsError as exc:
-        raise InvalidConfirmedReplyReceipt(
-            f"Refusing to overwrite a {receipt_label} namespace entry which "
-            "appeared during publication"
-        ) from exc
-    if confirmed:
-        log.warning(
-            "Wrote confirmed reply receipt pending local reconciliation source=%s target_id=%s reply_post_id=%s path=%s",
-            receipt.get("candidate_source", "mention"),
-            receipt.get("target_id"),
-            receipt.get("reply_post_id"),
-            CONFIRMED_REPLY_RECEIPT_FILE,
-        )
-    else:
-        log.warning(
-            "Wrote conversational reply sending receipt source=%s target_id=%s path=%s",
-            receipt.get("candidate_source", "mention"),
-            receipt.get("target_id"),
-            CONFIRMED_REPLY_RECEIPT_FILE,
-        )
 
+    path: Path
+    read_json: Callable
+    log: logging.Logger
+    values: ReplyReceiptValues
+    retirement_is_blocking: Callable
+    invalid_receipt: type[Exception]
+    namespace_entry_exists: Callable
+    create_json: Callable
+    unresolved_sending: type[Exception]
+    bind_confirmed_source: Callable
+    journal_path: Callable
+    validator_id: str
+    transport_validator: Callable
+    legacy_transport_validator: Callable
+    transport_journal_error: type[Exception]
+    replace_bound_source: Callable
+    mutation_authority: Callable
+    current_receipts: Callable[[], ReplyReceipts]
 
-def promote_sending_reply_receipt(
-    sending_receipt: dict,
-    *,
-    reply_post_id: str,
-    confirmation_epoch: int,
-    load_confirmed_reply_receipt: Callable,
-    UnresolvedSendingReplyReceipt: type[Exception],
-    bind_confirmed_transport_source: Callable,
-    journal_path_for_receipt: Callable,
-    CONFIRMED_REPLY_RECEIPT_FILE: Path,
-    TRANSPORT_SOURCE_VALIDATOR_ID: str,
-    transport_source_semantic_validator: Callable,
-    TransportJournalError: type[Exception],
-    receipt_values: ReplyReceiptValues,
-    legacy_recovery: bool,
-    replace_bound_source_receipt: Callable,
-    transaction_mutation_authority: Callable,
-    log: logging.Logger,
-) -> dict:
-    """Promote one exact transport-bound source under its receipt family rules.
+    def load(self) -> tuple[str, dict | None]:
+        """Load confirmed reply receipt."""
+        try:
+            present, data = self.read_json(
+                self.path
+            )
+        except Exception:
+            self.log.exception(
+                "Malformed or unsafe confirmed-reply receipt blocks auto-reply "
+                "processing until repaired: %s",
+                self.path,
+            )
+            return "invalid", None
+        if not present:
+            return "absent", None
+        if not isinstance(data, dict):
+            self.log.critical(
+                "Invalid confirmed-reply receipt blocks auto-reply processing until repaired: %s",
+                self.path,
+            )
+            return "invalid", None
+        if self.values.sending_is_valid(data):
+            return "sending", data
+        if self.values.legacy_sending_is_valid(data):
+            return "legacy_sending", data
+        if not (
+            self.values.confirmed_is_valid(data)
+            or self.values.legacy_confirmed_is_valid(data)
+        ):
+            self.log.critical(
+                "Semantically invalid confirmed-reply receipt blocks auto-reply processing until repaired: %s",
+                self.path,
+            )
+            return "invalid", data
+        return "valid", data
 
-    Frozen legacy sources use the supplied recovery-only transport validator;
-    both families share source identity checks before value projection and the
-    atomic replacement without mutating the caller-owned source.
-    """
-    status, current = load_confirmed_reply_receipt()
-    expected_status = "legacy_sending" if legacy_recovery else "sending"
-    if status != expected_status or current != sending_receipt:
-        raise UnresolvedSendingReplyReceipt(
-            "Legacy conversational sending receipt changed before recovery"
-            if legacy_recovery else
-            "Conversational reply sending receipt changed before confirmation"
+    def write(self, receipt: dict, *, confirmed: bool) -> None:
+        """Publish a validated sending or confirmed receipt without overwriting recovery.
+
+        Retirement and namespace checks precede value validation. Exclusive creation
+        handles a namespace race without replacing the competing receipt; each
+        lifecycle retains its existing diagnostic and confirmation log fields.
+        """
+        receipt_label = "confirmed-reply" if confirmed else "conversational-reply"
+        if self.retirement_is_blocking():
+            raise self.invalid_receipt(
+                f"Refusing {receipt_label} publication during source-receipt retirement"
+            )
+        if self.namespace_entry_exists(self.path):
+            raise self.invalid_receipt(
+                f"Refusing to overwrite unresolved {receipt_label} receipt: {self.path}"
+            )
+        valid = (
+            self.values.confirmed_is_valid(receipt)
+            if confirmed else self.values.sending_is_valid(receipt)
         )
-    recovery = bind_confirmed_transport_source(
-        journal_path=journal_path_for_receipt(CONFIRMED_REPLY_RECEIPT_FILE),
-        receipt_path=CONFIRMED_REPLY_RECEIPT_FILE,
-        validator_id=TRANSPORT_SOURCE_VALIDATOR_ID,
-        validator=transport_source_semantic_validator,
-    )
-    if (
-        recovery.details.lane != "conversational_reply"
-        or recovery.details.post_id != str(reply_post_id)
-        or recovery.details.confirmation_epoch != int(confirmation_epoch)
-        or recovery.source_binding.receipt_document != sending_receipt
-        or recovery.source_binding.receipt_bytes
-        != canonical_atomic_json_bytes(sending_receipt)
-    ):
-        raise TransportJournalError(
-            "confirmed legacy conversational transport/source lineage changed"
-            if legacy_recovery else
-            "confirmed conversational transport/source lineage changed"
+        if not valid:
+            raise RuntimeError(
+                "Internal error: generated confirmed-reply receipt failed semantic validation"
+                if confirmed else "Internal error: generated sending-reply receipt failed validation"
+            )
+        try:
+            self.create_json(self.path, receipt)
+        except FileExistsError as exc:
+            raise self.invalid_receipt(
+                f"Refusing to overwrite a {receipt_label} namespace entry which "
+                "appeared during publication"
+            ) from exc
+        if confirmed:
+            self.log.warning(
+                "Wrote confirmed reply receipt pending local reconciliation source=%s target_id=%s reply_post_id=%s path=%s",
+                receipt.get("candidate_source", "mention"),
+                receipt.get("target_id"),
+                receipt.get("reply_post_id"),
+                self.path,
+            )
+        else:
+            self.log.warning(
+                "Wrote conversational reply sending receipt source=%s target_id=%s path=%s",
+                receipt.get("candidate_source", "mention"),
+                receipt.get("target_id"),
+                self.path,
+            )
+
+    def promote(
+        self,
+        sending_receipt: dict,
+        *,
+        reply_post_id: str,
+        confirmation_epoch: int,
+        legacy_recovery: bool = False,
+    ) -> dict:
+        """Promote one exact transport-bound source under its receipt family rules.
+
+        Frozen legacy sources use the supplied recovery-only transport validator;
+        both families share source identity checks before value projection and the
+        atomic replacement without mutating the caller-owned source.
+        """
+        status, current = self.current_receipts().load()
+        expected_status = "legacy_sending" if legacy_recovery else "sending"
+        if status != expected_status or current != sending_receipt:
+            raise self.unresolved_sending(
+                "Legacy conversational sending receipt changed before recovery"
+                if legacy_recovery else
+                "Conversational reply sending receipt changed before confirmation"
+            )
+        recovery = self.bind_confirmed_source(
+            journal_path=self.journal_path(self.path),
+            receipt_path=self.path,
+            validator_id=self.validator_id,
+            validator=(
+                self.legacy_transport_validator
+                if legacy_recovery else self.transport_validator
+            ),
         )
-    confirmed = receipt_values.confirmed_from_sending(
-        sending_receipt,
-        reply_post_id=reply_post_id,
-        confirmation_epoch=confirmation_epoch,
-    )
-    if not (
-        receipt_values.legacy_confirmed_is_valid(confirmed)
-        if legacy_recovery else receipt_values.confirmed_is_valid(confirmed)
-    ):
-        raise RuntimeError(
-            "Internal error: promoted legacy reply receipt failed recovery validation"
-            if legacy_recovery else
-            "Internal error: promoted confirmed-reply receipt failed validation"
+        if (
+            recovery.details.lane != "conversational_reply"
+            or recovery.details.post_id != str(reply_post_id)
+            or recovery.details.confirmation_epoch != int(confirmation_epoch)
+            or recovery.source_binding.receipt_document != sending_receipt
+            or recovery.source_binding.receipt_bytes
+            != canonical_atomic_json_bytes(sending_receipt)
+        ):
+            raise self.transport_journal_error(
+                "confirmed legacy conversational transport/source lineage changed"
+                if legacy_recovery else
+                "confirmed conversational transport/source lineage changed"
+            )
+        confirmed = self.values.confirmed_from_sending(
+            sending_receipt,
+            reply_post_id=reply_post_id,
+            confirmation_epoch=confirmation_epoch,
         )
-    replace_bound_source_receipt(
-        recovery.source_binding,
-        canonical_atomic_json_bytes(confirmed),
-        mutation_authority=transaction_mutation_authority(
-            "confirmed legacy conversational source receipt promotion"
-            if legacy_recovery else "confirmed conversational source receipt promotion"
-        ),
-    )
-    log.warning(
-        "Promoted legacy conversational reply receipt from exact confirmed "
-        "transport source=%s target_id=%s reply_post_id=%s path=%s"
-        if legacy_recovery else
-        "Promoted conversational reply receipt to confirmed source=%s "
-        "target_id=%s reply_post_id=%s path=%s",
-        confirmed.get("candidate_source", "mention"),
-        confirmed.get("target_id"),
-        confirmed.get("reply_post_id"),
-        CONFIRMED_REPLY_RECEIPT_FILE,
-    )
-    return confirmed
+        if not (
+            self.values.legacy_confirmed_is_valid(confirmed)
+            if legacy_recovery else self.values.confirmed_is_valid(confirmed)
+        ):
+            raise RuntimeError(
+                "Internal error: promoted legacy reply receipt failed recovery validation"
+                if legacy_recovery else
+                "Internal error: promoted confirmed-reply receipt failed validation"
+            )
+        self.replace_bound_source(
+            recovery.source_binding,
+            canonical_atomic_json_bytes(confirmed),
+            mutation_authority=self.mutation_authority(
+                "confirmed legacy conversational source receipt promotion"
+                if legacy_recovery else "confirmed conversational source receipt promotion"
+            ),
+        )
+        self.log.warning(
+            "Promoted legacy conversational reply receipt from exact confirmed "
+            "transport source=%s target_id=%s reply_post_id=%s path=%s"
+            if legacy_recovery else
+            "Promoted conversational reply receipt to confirmed source=%s "
+            "target_id=%s reply_post_id=%s path=%s",
+            confirmed.get("candidate_source", "mention"),
+            confirmed.get("target_id"),
+            confirmed.get("reply_post_id"),
+            self.path,
+        )
+        return confirmed
 
 
 def remove_confirmed_reply_receipt(
@@ -486,7 +490,7 @@ def post_conversational_reply_with_durable_identity(
     CONFIRMED_REPLY_RECEIPT_FILE: Path,
     InvalidConfirmedReplyReceipt: type[Exception],
     block_if_ambiguous_remote_post: Callable,
-    write_sending_reply_receipt: Callable,
+    receipts: Callable[[], ReplyReceipts],
     begin_confirmed_post_sigint_deferral: Callable,
     create_post: Callable,
     AmbiguousRemotePostOutcome: type[Exception],
@@ -501,14 +505,12 @@ def post_conversational_reply_with_durable_identity(
     ApiError: type[Exception],
     inspect_confirmed_transport_transaction: Callable,
     journal_path_for_receipt: Callable,
-    promote_sending_reply_receipt: Callable,
     apply_confirmed_reply_receipt: Callable,
     StateBackupWriteError: type[Exception],
     json_file_matches: Callable,
     STATE_FILE: Path,
     confirmed_reply_emergency_representation_is_complete: Callable,
     latch_confirmed_post_persistence_failure: Callable,
-    load_confirmed_reply_receipt: Callable,
     retain_sigint_deferral_without_durable_barrier: Callable,
     UnrecoverableConfirmedReplyPersistenceError: type[Exception],
     completion: ReplyCompletion,
@@ -530,7 +532,7 @@ def post_conversational_reply_with_durable_identity(
             f"{CONFIRMED_REPLY_RECEIPT_FILE}"
         )
     block_if_ambiguous_remote_post()
-    write_sending_reply_receipt(receipt_template)
+    receipts().write(receipt_template, confirmed=False)
     sigint_guard = begin_confirmed_post_sigint_deferral()
     try:
         response = create_post(
@@ -650,7 +652,7 @@ def post_conversational_reply_with_durable_identity(
             raise RuntimeError(
                 "Internal error: confirmed reply representation failed validation"
             )
-        receipt = promote_sending_reply_receipt(
+        receipt = receipts().promote(
             receipt_template,
             reply_post_id=own_reply_id,
             confirmation_epoch=confirmation_epoch,
@@ -702,7 +704,7 @@ def post_conversational_reply_with_durable_identity(
                     "reply_state",
                 ],
             )
-            status, current_receipt = load_confirmed_reply_receipt()
+            status, current_receipt = receipts().load()
             if (
                 durable_marker_written
                 or status == "invalid"

@@ -28,6 +28,7 @@ from tests.helpers.reply_fixtures import (
     patch_tweet_lookup_method,
     UNIT_REPLY_REPOSITORY,
     patch_reply_owner_method,
+    patch_reply_receipt_method,
     unit_reply_context,
     unit_approved_reply,
     unit_confirmed_reply_receipt,
@@ -630,9 +631,10 @@ def test_schema_v4_promotion_failure_fallback_uses_confirmation_time(
         return {"data": {"id": "999"}}
 
     install_receipt_bound_x_request_stub(monkeypatch, confirmed_remote)
-    monkeypatch.setattr(
+    patch_reply_receipt_method(
+        monkeypatch,
         bot,
-        "promote_sending_reply_receipt",
+        "promote",
         lambda *_args, **_kwargs: (_ for _ in ()).throw(
             OSError("promotion failed")
         ),
@@ -1638,9 +1640,10 @@ def test_reply_promotion_state_and_marker_failure_blocks_restart_duplicate(
 
     monkeypatch.setattr(bot, "atomic_write_json", selective_atomic_write)
     install_receipt_bound_x_request_stub(monkeypatch, confirmed_remote)
-    monkeypatch.setattr(
+    patch_reply_receipt_method(
+        monkeypatch,
         bot,
-        "promote_sending_reply_receipt",
+        "promote",
         lambda *_args, **_kwargs: (_ for _ in ()).throw(
             OSError("promotion failed")
         ),
@@ -1685,9 +1688,10 @@ def test_reply_promotion_failure_uses_confirmed_state_fallback(
         monkeypatch,
         lambda *_args, **_kwargs: {"data": {"id": "999"}},
     )
-    monkeypatch.setattr(
+    patch_reply_receipt_method(
+        monkeypatch,
         bot,
-        "promote_sending_reply_receipt",
+        "promote",
         lambda *_args, **_kwargs: (_ for _ in ()).throw(
             OSError("promotion failed")
         ),

@@ -7389,44 +7389,43 @@ def _legacy_sending_reply_receipt_is_semantically_valid(data: dict) -> bool:
     return _reply_receipt_values_owner().legacy_sending_is_valid(data)
 
 
+def _reply_receipts_owner() -> _reply_delivery.ReplyReceipts:
+    """Bind runtime receipt authorities for one load, publication or promotion."""
+    return _reply_delivery.ReplyReceipts(
+        path=CONFIRMED_REPLY_RECEIPT_FILE,
+        read_json=load_receipt_json_no_follow,
+        log=log,
+        values=_reply_receipt_values_owner(),
+        retirement_is_blocking=remote_receipt_retirement_is_blocking,
+        invalid_receipt=InvalidConfirmedReplyReceipt,
+        namespace_entry_exists=receipt_namespace_entry_exists,
+        create_json=durable_create_receipt_json,
+        unresolved_sending=UnresolvedSendingReplyReceipt,
+        bind_confirmed_source=bind_confirmed_transport_source,
+        journal_path=journal_path_for_receipt,
+        validator_id=TRANSPORT_SOURCE_VALIDATOR_ID,
+        transport_validator=transport_source_semantic_validator,
+        legacy_transport_validator=_legacy_conversational_transport_source_semantic_validator,
+        transport_journal_error=TransportJournalError,
+        replace_bound_source=replace_bound_source_receipt,
+        mutation_authority=transaction_mutation_authority,
+        current_receipts=lambda: _reply_receipts_owner(),
+    )
+
+
 def load_confirmed_reply_receipt() -> tuple[str, dict | None]:
     """Load confirmed reply receipt."""
-    return _reply_delivery.load_confirmed_reply_receipt(
-        load_receipt_json_no_follow=load_receipt_json_no_follow,
-        CONFIRMED_REPLY_RECEIPT_FILE=CONFIRMED_REPLY_RECEIPT_FILE,
-        log=log,
-        receipt_values=_reply_receipt_values_owner(),
-    )
+    return _reply_receipts_owner().load()
 
 
 def write_confirmed_reply_receipt(receipt: dict) -> None:
     """Write confirmed reply receipt."""
-    return _reply_delivery.write_reply_receipt(
-        receipt,
-        confirmed=True,
-        remote_receipt_retirement_is_blocking=remote_receipt_retirement_is_blocking,
-        InvalidConfirmedReplyReceipt=InvalidConfirmedReplyReceipt,
-        receipt_namespace_entry_exists=receipt_namespace_entry_exists,
-        CONFIRMED_REPLY_RECEIPT_FILE=CONFIRMED_REPLY_RECEIPT_FILE,
-        receipt_values=_reply_receipt_values_owner(),
-        durable_create_receipt_json=durable_create_receipt_json,
-        log=log,
-    )
+    return _reply_receipts_owner().write(receipt, confirmed=True)
 
 
 def write_sending_reply_receipt(receipt: dict) -> None:
     """Durably record a reply transaction before its remote create request."""
-    return _reply_delivery.write_reply_receipt(
-        receipt,
-        confirmed=False,
-        remote_receipt_retirement_is_blocking=remote_receipt_retirement_is_blocking,
-        InvalidConfirmedReplyReceipt=InvalidConfirmedReplyReceipt,
-        receipt_namespace_entry_exists=receipt_namespace_entry_exists,
-        CONFIRMED_REPLY_RECEIPT_FILE=CONFIRMED_REPLY_RECEIPT_FILE,
-        receipt_values=_reply_receipt_values_owner(),
-        durable_create_receipt_json=durable_create_receipt_json,
-        log=log,
-    )
+    return _reply_receipts_owner().write(receipt, confirmed=False)
 
 
 def bind_conversational_reply_attempt_time(receipt_template: dict) -> dict:
@@ -7466,23 +7465,10 @@ def promote_sending_reply_receipt(
     confirmation_epoch: int,
 ) -> dict:
     """Atomically promote the exact prepared transaction to confirmed."""
-    return _reply_delivery.promote_sending_reply_receipt(
+    return _reply_receipts_owner().promote(
         sending_receipt,
         reply_post_id=reply_post_id,
         confirmation_epoch=confirmation_epoch,
-        load_confirmed_reply_receipt=load_confirmed_reply_receipt,
-        UnresolvedSendingReplyReceipt=UnresolvedSendingReplyReceipt,
-        bind_confirmed_transport_source=bind_confirmed_transport_source,
-        journal_path_for_receipt=journal_path_for_receipt,
-        CONFIRMED_REPLY_RECEIPT_FILE=CONFIRMED_REPLY_RECEIPT_FILE,
-        TRANSPORT_SOURCE_VALIDATOR_ID=TRANSPORT_SOURCE_VALIDATOR_ID,
-        transport_source_semantic_validator=transport_source_semantic_validator,
-        TransportJournalError=TransportJournalError,
-        receipt_values=_reply_receipt_values_owner(),
-        legacy_recovery=False,
-        replace_bound_source_receipt=replace_bound_source_receipt,
-        transaction_mutation_authority=transaction_mutation_authority,
-        log=log,
     )
 
 
@@ -7493,23 +7479,11 @@ def _promote_legacy_sending_reply_receipt_from_confirmed_transport(
     confirmation_epoch: int,
 ) -> dict:
     """Promote a frozen source only when its exact journal proves success."""
-    return _reply_delivery.promote_sending_reply_receipt(
+    return _reply_receipts_owner().promote(
         sending_receipt,
         reply_post_id=reply_post_id,
         confirmation_epoch=confirmation_epoch,
-        load_confirmed_reply_receipt=load_confirmed_reply_receipt,
-        UnresolvedSendingReplyReceipt=UnresolvedSendingReplyReceipt,
-        bind_confirmed_transport_source=bind_confirmed_transport_source,
-        journal_path_for_receipt=journal_path_for_receipt,
-        CONFIRMED_REPLY_RECEIPT_FILE=CONFIRMED_REPLY_RECEIPT_FILE,
-        TRANSPORT_SOURCE_VALIDATOR_ID=TRANSPORT_SOURCE_VALIDATOR_ID,
-        transport_source_semantic_validator=_legacy_conversational_transport_source_semantic_validator,
-        TransportJournalError=TransportJournalError,
-        receipt_values=_reply_receipt_values_owner(),
         legacy_recovery=True,
-        replace_bound_source_receipt=replace_bound_source_receipt,
-        transaction_mutation_authority=transaction_mutation_authority,
-        log=log,
     )
 
 
@@ -7681,7 +7655,7 @@ def post_conversational_reply_with_durable_identity(
         CONFIRMED_REPLY_RECEIPT_FILE=CONFIRMED_REPLY_RECEIPT_FILE,
         InvalidConfirmedReplyReceipt=InvalidConfirmedReplyReceipt,
         block_if_ambiguous_remote_post=block_if_ambiguous_remote_post,
-        write_sending_reply_receipt=write_sending_reply_receipt,
+        receipts=lambda: _reply_receipts_owner(),
         begin_confirmed_post_sigint_deferral=begin_confirmed_post_sigint_deferral,
         create_post=create_post,
         AmbiguousRemotePostOutcome=AmbiguousRemotePostOutcome,
@@ -7696,14 +7670,12 @@ def post_conversational_reply_with_durable_identity(
         ApiError=ApiError,
         inspect_confirmed_transport_transaction=inspect_confirmed_transport_transaction,
         journal_path_for_receipt=journal_path_for_receipt,
-        promote_sending_reply_receipt=promote_sending_reply_receipt,
         apply_confirmed_reply_receipt=apply_confirmed_reply_receipt,
         StateBackupWriteError=StateBackupWriteError,
         json_file_matches=json_file_matches,
         STATE_FILE=STATE_FILE,
         confirmed_reply_emergency_representation_is_complete=confirmed_reply_emergency_representation_is_complete,
         latch_confirmed_post_persistence_failure=latch_confirmed_post_persistence_failure,
-        load_confirmed_reply_receipt=load_confirmed_reply_receipt,
         retain_sigint_deferral_without_durable_barrier=retain_sigint_deferral_without_durable_barrier,
         UnrecoverableConfirmedReplyPersistenceError=UnrecoverableConfirmedReplyPersistenceError,
         completion=_reply_completion_owner(),
