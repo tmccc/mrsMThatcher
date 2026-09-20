@@ -17,22 +17,8 @@ import pytest
 import mrsMThatcher2 as bot
 from tests.helpers.bot_fixtures import isolate_bot_runtime  # noqa: F401
 
-DEPENDENCIES = {'load_strict_runtime_json': ['Decimal', 'json', 'math'],
- '_coerce_local_config_value': [],
- '_local_config_stat_identity': [],
- '_read_stable_local_config_bytes': ['LOCAL_CONFIG_FILE',
-                                     'LOCAL_CONFIG_MAX_BYTES',
-                                     'LocalConfigError',
-                                     'os',
-                                     'stat'],
- 'load_validated_local_config_overrides': ['LOCAL_CONFIG_FILE',
-                                           'LocalConfigError',
-                                           'SOURCE_DEFAULT_CONFIG_VALUES',
-                                           '_read_stable_local_config_bytes',
-                                           'copy',
-                                           'load_strict_runtime_json',
-                                           'log',
-                                           'validate_runtime_config_values']}
+DEPENDENCIES = {'load_strict_runtime_json': []}
+
 SIGNATURES = {'load_strict_runtime_json': "(handle_or_document, *, label: 'str', "
                              "parse_floats_as_decimal: 'bool' = False) -> "
                              "'object'",
@@ -46,7 +32,7 @@ SIGNATURES = {'load_strict_runtime_json': "(handle_or_document, *, label: 'str',
 
 def test_import_needs_no_runtime_access():
     code = """
-import builtins, collections.abc, io, logging, os, random, socket, sys, time, typing
+import builtins, collections.abc, dataclasses, decimal, io, json, logging, math, os, random, socket, sys, time, typing
 from pathlib import Path
 
 def forbidden(*args, **kwargs):
@@ -79,7 +65,7 @@ assert 'single_call_reply' not in sys.modules
     assert result.returncode == 0, result.stderr + result.stdout
 
 
-@pytest.mark.parametrize("name", [name for name, dependencies in DEPENDENCIES.items() if dependencies])
+@pytest.mark.parametrize("name", DEPENDENCIES)
 def test_adapters_preserve_signatures_current_dependencies_references_and_errors(monkeypatch, name):
     adapter = getattr(bot, name)
     signature = inspect.signature(adapter)
@@ -141,15 +127,15 @@ def test_stat_identity_is_the_exact_alias_with_deferred_standard_annotations():
 
 
 @pytest.mark.parametrize("decimal_mode", [False, object()], ids=["float", "truthy-decimal"])
-def test_parser_preserves_options_callbacks_and_current_numeric_dependencies(monkeypatch, decimal_mode):
+def test_parser_preserves_options_callbacks_and_owned_numeric_operations(monkeypatch, decimal_mode):
     result = {"original": []}
     loads = Mock(return_value=result)
     finite = Mock(return_value=True)
     number = SimpleNamespace(is_finite=Mock(return_value=True))
     decimal = Mock(return_value=number)
-    monkeypatch.setattr(bot, "json", SimpleNamespace(loads=loads))
-    monkeypatch.setattr(bot, "math", SimpleNamespace(isfinite=finite))
-    monkeypatch.setattr(bot, "Decimal", decimal)
+    monkeypatch.setattr(bot._local_config, "json", SimpleNamespace(loads=loads))
+    monkeypatch.setattr(bot._local_config, "math", SimpleNamespace(isfinite=finite))
+    monkeypatch.setattr(bot._local_config, "Decimal", decimal)
     reader = SimpleNamespace(read=Mock(return_value=' {"é":1.25} '.encode()))
     assert bot.load_strict_runtime_json(reader, label=" label ", parse_floats_as_decimal=decimal_mode) is result
     reader.read.assert_called_once_with()
@@ -351,8 +337,11 @@ def overrides(monkeypatch):
         "copy": SimpleNamespace(deepcopy=trace.deepcopy),
         "log": SimpleNamespace(warning=trace.warning, error=trace.error),
     }.items():
-        target = bot._local_config if name == "_coerce_local_config_value" else bot
-        monkeypatch.setattr(target, name, value)
+        if name == "_read_stable_local_config_bytes":
+            patch_configuration_method(monkeypatch, "read_snapshot", value)
+        else:
+            target = bot._local_config if name in {"_coerce_local_config_value", "load_strict_runtime_json"} else bot
+            monkeypatch.setattr(target, name, value)
     return SimpleNamespace(trace=trace, defaults=defaults)
 
 
@@ -437,3 +426,52 @@ def test_loader_preserves_current_validator_error_order(overrides):
     with pytest.raises(bot.LocalConfigError) as caught:
         bot.load_validated_local_config_overrides()
     assert str(caught.value) == "Invalid local config synthetic.json: second schema error; first schema error"
+
+
+def patch_configuration_method(monkeypatch, method, callback):
+    monkeypatch.setattr(bot._local_config.LocalConfiguration, method, lambda _owner, *args, **kwargs: callback(*args, **kwargs))
+
+
+def test_configuration_owner_preserves_current_inputs_without_reading(monkeypatch):
+    fields = {'LOCAL_CONFIG_FILE': 'config_file', 'LOCAL_CONFIG_MAX_BYTES': 'maximum_bytes', 'LocalConfigError': 'error_type', 'os': 'os', 'stat': 'stat', 'SOURCE_DEFAULT_CONFIG_VALUES': 'source_defaults', 'copy': 'copy', 'log': 'log', 'validate_runtime_config_values': 'validate_runtime_values'}
+    previous = None
+    for _ in range(2):
+        current = {name: Mock(side_effect=AssertionError("construction performed work")) for name in fields}
+        for name, value in current.items():
+            monkeypatch.setattr(bot, name, value)
+        owner = bot._local_configuration_owner()
+        assert owner is not previous and set(vars(owner)) == set(fields.values())
+        assert all(getattr(owner, field) is current[name] for name, field in fields.items())
+        assert all(not value.called for value in current.values())
+        previous = owner
+
+
+@pytest.mark.parametrize("name, method", [('_read_stable_local_config_bytes', 'read_snapshot'), ('load_validated_local_config_overrides', 'load_overrides')])
+def test_configuration_owner_adapters_preserve_public_contract_and_error(monkeypatch, name, method):
+    adapter = getattr(bot, name)
+    assert str(inspect.signature(adapter)) == SIGNATURES[name]
+    assert list(inspect.signature(getattr(bot._local_config.LocalConfiguration, method)).parameters) == ["self"]
+    result = {"original": []}
+    operation = Mock(return_value=result)
+    factory = Mock(return_value=SimpleNamespace(**{method: operation}))
+    monkeypatch.setattr(bot, "_local_configuration_owner", factory)
+    assert adapter() is result
+    factory.assert_called_once_with()
+    operation.assert_called_once_with()
+    failure = KeyboardInterrupt("current owner failure")
+    operation.side_effect = failure
+    with pytest.raises(KeyboardInterrupt) as caught:
+        adapter()
+    assert caught.value is failure
+
+
+def test_override_loader_uses_owned_reader_and_fixed_parser(monkeypatch, tmp_path):
+    config_file = tmp_path / "local.json"
+    config_file.write_text('{"MAX_OPENAI_ERRORS_PER_WINDOW": 7}', encoding="utf-8")
+    monkeypatch.setattr(bot, "LOCAL_CONFIG_FILE", config_file)
+    for name in ("_read_stable_local_config_bytes", "load_strict_runtime_json"):
+        monkeypatch.setattr(bot, name, Mock(side_effect=AssertionError("fixed operation bounced through root")))
+    validator = Mock(return_value=[])
+    monkeypatch.setattr(bot, "validate_runtime_config_values", validator)
+    assert bot.load_validated_local_config_overrides() == {"MAX_OPENAI_ERRORS_PER_WINDOW": 7}
+    assert validator.call_args.args[0]["MAX_OPENAI_ERRORS_PER_WINDOW"] == 7

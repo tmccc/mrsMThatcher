@@ -1,14 +1,22 @@
 """Strict runtime JSON and local-configuration loading/coercion.
 
-The root supplies current runtime dependencies explicitly on each call. Stable
-identity and value coercion use their local pure implementations directly; root
-compatibility aliases remain available. This module performs no runtime work
-at import and retains no runtime authority.
+LocalConfiguration owns stable reading and the complete override-validation
+transaction, using fixed local JSON, identity and coercion helpers. Each root
+call binds current paths, limits, errors, defaults and runtime validation without
+reading a file. Applying overrides remains outside this owner. Import performs
+no runtime work and instances retain no caller documents or descriptors.
 """
 from __future__ import annotations
 
+import json
+import math
 import os
-from typing import Any
+from collections.abc import Callable
+from dataclasses import dataclass
+from decimal import Decimal
+from logging import Logger
+from pathlib import Path
+from types import ModuleType
 
 
 def load_strict_runtime_json(
@@ -16,9 +24,6 @@ def load_strict_runtime_json(
     *,
     label: str,
     parse_floats_as_decimal: bool = False,
-    Decimal: Any,
-    json: Any,
-    math: Any,
 ) -> object:
     """Load one UTF-8 control/config document without ambiguous JSON.
 
@@ -130,214 +135,210 @@ def _local_config_stat_identity(file_stat: os.stat_result) -> tuple[int, ...]:
     )
 
 
-def _read_stable_local_config_bytes(
-    *,
-    LOCAL_CONFIG_FILE: Any,
-    LOCAL_CONFIG_MAX_BYTES: Any,
-    LocalConfigError: Any,
-    os: Any,
-    stat: Any,
-) -> bytes | None:
-    """Read one optional regular local-config file without following links."""
+@dataclass(frozen=True)
+class LocalConfiguration:
+    """Own stable configuration reading and atomic override validation."""
 
-    config_path = os.path.abspath(os.fspath(LOCAL_CONFIG_FILE))
-    try:
-        before_path = os.lstat(config_path)
-    except FileNotFoundError:
-        return None
-    except OSError as exc:
-        raise LocalConfigError(
-            f"Failed to inspect local config file {LOCAL_CONFIG_FILE}: {exc}"
-        ) from exc
-    if not stat.S_ISREG(before_path.st_mode):
-        raise LocalConfigError(
-            f"Local config file {LOCAL_CONFIG_FILE} must be a regular file"
-        )
+    config_file: Path
+    maximum_bytes: int
+    error_type: type[Exception]
+    os: ModuleType
+    stat: ModuleType
+    source_defaults: dict[str, object]
+    copy: ModuleType
+    log: Logger
+    validate_runtime_values: Callable[[dict[str, object]], list[str]]
 
-    nofollow = getattr(os, "O_NOFOLLOW", 0)
-    nonblock = getattr(os, "O_NONBLOCK", 0)
-    if not nofollow or not nonblock:
-        raise LocalConfigError(
-            "Local config requires O_NOFOLLOW and O_NONBLOCK support"
-        )
-    try:
-        descriptor = os.open(
-            config_path,
-            os.O_RDONLY | getattr(os, "O_CLOEXEC", 0) | nofollow | nonblock,
-        )
-    except OSError as exc:
-        raise LocalConfigError(
-            f"Local config file {LOCAL_CONFIG_FILE} changed before it was opened: {exc}"
-        ) from exc
-    try:
+    def read_snapshot(self) -> bytes | None:
+        """Read one optional regular local-config file without following links."""
+
+        config_path = self.os.path.abspath(self.os.fspath(self.config_file))
         try:
-            before_fd = os.fstat(descriptor)
-            if (
-                not stat.S_ISREG(before_fd.st_mode)
-                or _local_config_stat_identity(before_path)
-                != _local_config_stat_identity(before_fd)
-            ):
-                raise LocalConfigError(
-                    f"Local config file {LOCAL_CONFIG_FILE} changed while it was opened"
-                )
-            if before_fd.st_size > LOCAL_CONFIG_MAX_BYTES:
-                raise LocalConfigError(
-                    f"Local config file {LOCAL_CONFIG_FILE} exceeds "
-                    f"{LOCAL_CONFIG_MAX_BYTES} bytes"
-                )
+            before_path = self.os.lstat(config_path)
+        except FileNotFoundError:
+            return None
+        except OSError as exc:
+            raise self.error_type(
+                f"Failed to inspect local config file {self.config_file}: {exc}"
+            ) from exc
+        if not self.stat.S_ISREG(before_path.st_mode):
+            raise self.error_type(
+                f"Local config file {self.config_file} must be a regular file"
+            )
 
-            chunks: list[bytes] = []
-            observed = 0
-            while observed <= LOCAL_CONFIG_MAX_BYTES:
-                chunk = os.read(
-                    descriptor,
-                    min(8192, LOCAL_CONFIG_MAX_BYTES + 1 - observed),
-                )
-                if not chunk:
-                    break
-                chunks.append(chunk)
-                observed += len(chunk)
-            document = b"".join(chunks)
-            middle_fd = os.fstat(descriptor)
-            repeated_document = os.pread(descriptor, before_fd.st_size + 1, 0)
-            after_fd = os.fstat(descriptor)
+        nofollow = getattr(self.os, "O_NOFOLLOW", 0)
+        nonblock = getattr(self.os, "O_NONBLOCK", 0)
+        if not nofollow or not nonblock:
+            raise self.error_type(
+                "Local config requires O_NOFOLLOW and O_NONBLOCK support"
+            )
+        try:
+            descriptor = self.os.open(
+                config_path,
+                self.os.O_RDONLY | getattr(self.os, "O_CLOEXEC", 0) | nofollow | nonblock,
+            )
+        except OSError as exc:
+            raise self.error_type(
+                f"Local config file {self.config_file} changed before it was opened: {exc}"
+            ) from exc
+        try:
             try:
-                after_path = os.lstat(config_path)
-            except OSError as exc:
-                raise LocalConfigError(
-                    f"Local config file {LOCAL_CONFIG_FILE} disappeared while it was read"
-                ) from exc
-        finally:
-            os.close(descriptor)
-    except LocalConfigError:
-        raise
-    except OSError as exc:
-        raise LocalConfigError(
-            f"Local config file {LOCAL_CONFIG_FILE} could not be read as a stable snapshot: {exc}"
-        ) from exc
+                before_fd = self.os.fstat(descriptor)
+                if (
+                    not self.stat.S_ISREG(before_fd.st_mode)
+                    or _local_config_stat_identity(before_path)
+                    != _local_config_stat_identity(before_fd)
+                ):
+                    raise self.error_type(
+                        f"Local config file {self.config_file} changed while it was opened"
+                    )
+                if before_fd.st_size > self.maximum_bytes:
+                    raise self.error_type(
+                        f"Local config file {self.config_file} exceeds "
+                        f"{self.maximum_bytes} bytes"
+                    )
 
-    if len(document) != before_fd.st_size or len(document) > LOCAL_CONFIG_MAX_BYTES:
-        raise LocalConfigError(
-            f"Local config file {LOCAL_CONFIG_FILE} length changed while it was read"
-        )
-    if document != repeated_document:
-        raise LocalConfigError(
-            f"Local config file {LOCAL_CONFIG_FILE} bytes changed while it was read"
-        )
-    expected_identity = _local_config_stat_identity(before_fd)
-    if any(
-        _local_config_stat_identity(observed_stat) != expected_identity
-        for observed_stat in (middle_fd, after_fd, after_path)
-    ):
-        raise LocalConfigError(
-            f"Local config file {LOCAL_CONFIG_FILE} identity changed while it was read"
-        )
-    return document
+                chunks: list[bytes] = []
+                observed = 0
+                while observed <= self.maximum_bytes:
+                    chunk = self.os.read(
+                        descriptor,
+                        min(8192, self.maximum_bytes + 1 - observed),
+                    )
+                    if not chunk:
+                        break
+                    chunks.append(chunk)
+                    observed += len(chunk)
+                document = b"".join(chunks)
+                middle_fd = self.os.fstat(descriptor)
+                repeated_document = self.os.pread(descriptor, before_fd.st_size + 1, 0)
+                after_fd = self.os.fstat(descriptor)
+                try:
+                    after_path = self.os.lstat(config_path)
+                except OSError as exc:
+                    raise self.error_type(
+                        f"Local config file {self.config_file} disappeared while it was read"
+                    ) from exc
+            finally:
+                self.os.close(descriptor)
+        except self.error_type:
+            raise
+        except OSError as exc:
+            raise self.error_type(
+                f"Local config file {self.config_file} could not be read as a stable snapshot: {exc}"
+            ) from exc
 
-
-def load_validated_local_config_overrides(
-    *,
-    LOCAL_CONFIG_FILE: Any,
-    LocalConfigError: Any,
-    SOURCE_DEFAULT_CONFIG_VALUES: Any,
-    _read_stable_local_config_bytes: Any,
-    copy: Any,
-    load_strict_runtime_json: Any,
-    log: Any,
-    validate_runtime_config_values: Any,
-) -> dict[str, object] | None:
-    """Read and validate local overrides without mutating runtime globals."""
-
-    document = _read_stable_local_config_bytes()
-    if document is None:
-        return None
-    try:
-        data = load_strict_runtime_json(document, label="local config")
-    except Exception as exc:
-        raise LocalConfigError(f"Failed to read local config file {LOCAL_CONFIG_FILE}: {exc}") from exc
-
-    if not isinstance(data, dict):
-        raise LocalConfigError(f"Local config file {LOCAL_CONFIG_FILE} must contain a JSON object")
-
-    if "reply_strategy" in data:
-        raise LocalConfigError(
-            "Local config contains retired reply_strategy V1 settings; replace them with "
-            "the single_call_reply configuration before activation"
-        )
-
-    # This was the global conversational-provider breaker setting immediately
-    # before the single-Sol cut-over. Accept it only as an unambiguous upgrade
-    # alias; runtime configuration and state use the accurately named OpenAI
-    # setting exclusively.
-    legacy_provider_limit = "MAX_XAI_ERRORS_PER_WINDOW"
-    current_provider_limit = "MAX_OPENAI_ERRORS_PER_WINDOW"
-    if legacy_provider_limit in data:
-        if current_provider_limit in data:
-            raise LocalConfigError(
-                "Local config contains both the retired xAI and current "
-                "OpenAI provider error limits"
+        if len(document) != before_fd.st_size or len(document) > self.maximum_bytes:
+            raise self.error_type(
+                f"Local config file {self.config_file} length changed while it was read"
             )
-        data = dict(data)
-        data[current_provider_limit] = data.pop(legacy_provider_limit)
-        log.warning(
-            "Migrating retired local config key %s to %s",
-            legacy_provider_limit,
-            current_provider_limit,
-        )
-
-    proposed: dict[str, object] = {}
-    coercion_errors: list[str] = []
-    # Existing installations may retain these settings after runtime retirement.
-    # Their values cannot enable the removed feature; unknown keys still fail.
-    retired_generated_keys = {
-        "ENABLE_GENERATED_IMAGE_POOL",
-        "GENERATED_IMAGE_DIR",
-        "GENERATED_IMAGE_GLOB",
-        "GENERATED_IMAGE_ANALYSIS_FILE",
-        "GENERATED_IMAGE_ORIGIN_QUOTE_BOOST",
-        "GENERATED_IMAGE_MIN_ORIGINAL_POSTS_BETWEEN",
-        "ENABLE_GENERATED_IDENTITY_POLICY_SHADOW_SCORING",
-        "ENABLE_GENERATED_IDENTITY_POLICY_SCORING",
-        "GENERATED_IDENTITY_AUDIT_FILE",
-        "GENERATED_IDENTITY_SHADOW_SMALL_PENALTY",
-        "GENERATED_IDENTITY_SHADOW_STRONG_PENALTY",
-    }
-
-    for key, value in data.items():
-        if key in retired_generated_keys:
-            log.info("Ignoring retired generated-image runtime setting %s", key)
-            continue
-        if key not in SOURCE_DEFAULT_CONFIG_VALUES:
-            raise LocalConfigError(
-                f"Unsupported local config key {key!r} in {LOCAL_CONFIG_FILE}; "
-                "refusing to ignore a possible safety-setting typo"
+        if document != repeated_document:
+            raise self.error_type(
+                f"Local config file {self.config_file} bytes changed while it was read"
             )
+        expected_identity = _local_config_stat_identity(before_fd)
+        if any(
+            _local_config_stat_identity(observed_stat) != expected_identity
+            for observed_stat in (middle_fd, after_fd, after_path)
+        ):
+            raise self.error_type(
+                f"Local config file {self.config_file} identity changed while it was read"
+            )
+        return document
 
+    def load_overrides(self) -> dict[str, object] | None:
+        """Read and validate local overrides without mutating runtime globals."""
+
+        document = self.read_snapshot()
+        if document is None:
+            return None
         try:
-            coerced = _coerce_local_config_value(
-                key,
-                value,
-                SOURCE_DEFAULT_CONFIG_VALUES[key],
-            )
+            data = load_strict_runtime_json(document, label="local config")
         except Exception as exc:
-            log.error("Rejecting local config due to invalid override %s=%r: %s", key, value, exc)
-            coercion_errors.append(f"{key}: {exc}")
-            continue
+            raise self.error_type(f"Failed to read local config file {self.config_file}: {exc}") from exc
 
-        proposed[key] = coerced
+        if not isinstance(data, dict):
+            raise self.error_type(f"Local config file {self.config_file} must contain a JSON object")
 
-    if coercion_errors:
-        raise LocalConfigError(
-            f"Invalid local config {LOCAL_CONFIG_FILE}: " + "; ".join(coercion_errors)
-        )
-
-    if proposed:
-        candidate = copy.deepcopy(SOURCE_DEFAULT_CONFIG_VALUES)
-        candidate.update(proposed)
-        validation_errors = validate_runtime_config_values(candidate)
-        if validation_errors:
-            raise LocalConfigError(
-                f"Invalid local config {LOCAL_CONFIG_FILE}: " + "; ".join(validation_errors)
+        if "reply_strategy" in data:
+            raise self.error_type(
+                "Local config contains retired reply_strategy V1 settings; replace them with "
+                "the single_call_reply configuration before activation"
             )
 
-    return proposed
+        # This was the global conversational-provider breaker setting immediately
+        # before the single-Sol cut-over. Accept it only as an unambiguous upgrade
+        # alias; runtime configuration and state use the accurately named OpenAI
+        # setting exclusively.
+        legacy_provider_limit = "MAX_XAI_ERRORS_PER_WINDOW"
+        current_provider_limit = "MAX_OPENAI_ERRORS_PER_WINDOW"
+        if legacy_provider_limit in data:
+            if current_provider_limit in data:
+                raise self.error_type(
+                    "Local config contains both the retired xAI and current "
+                    "OpenAI provider error limits"
+                )
+            data = dict(data)
+            data[current_provider_limit] = data.pop(legacy_provider_limit)
+            self.log.warning(
+                "Migrating retired local config key %s to %s",
+                legacy_provider_limit,
+                current_provider_limit,
+            )
+
+        proposed: dict[str, object] = {}
+        coercion_errors: list[str] = []
+        # Existing installations may retain these settings after runtime retirement.
+        # Their values cannot enable the removed feature; unknown keys still fail.
+        retired_generated_keys = {
+            "ENABLE_GENERATED_IMAGE_POOL",
+            "GENERATED_IMAGE_DIR",
+            "GENERATED_IMAGE_GLOB",
+            "GENERATED_IMAGE_ANALYSIS_FILE",
+            "GENERATED_IMAGE_ORIGIN_QUOTE_BOOST",
+            "GENERATED_IMAGE_MIN_ORIGINAL_POSTS_BETWEEN",
+            "ENABLE_GENERATED_IDENTITY_POLICY_SHADOW_SCORING",
+            "ENABLE_GENERATED_IDENTITY_POLICY_SCORING",
+            "GENERATED_IDENTITY_AUDIT_FILE",
+            "GENERATED_IDENTITY_SHADOW_SMALL_PENALTY",
+            "GENERATED_IDENTITY_SHADOW_STRONG_PENALTY",
+        }
+
+        for key, value in data.items():
+            if key in retired_generated_keys:
+                self.log.info("Ignoring retired generated-image runtime setting %s", key)
+                continue
+            if key not in self.source_defaults:
+                raise self.error_type(
+                    f"Unsupported local config key {key!r} in {self.config_file}; "
+                    "refusing to ignore a possible safety-setting typo"
+                )
+
+            try:
+                coerced = _coerce_local_config_value(
+                    key,
+                    value,
+                    self.source_defaults[key],
+                )
+            except Exception as exc:
+                self.log.error("Rejecting local config due to invalid override %s=%r: %s", key, value, exc)
+                coercion_errors.append(f"{key}: {exc}")
+                continue
+
+            proposed[key] = coerced
+
+        if coercion_errors:
+            raise self.error_type(
+                f"Invalid local config {self.config_file}: " + "; ".join(coercion_errors)
+            )
+
+        if proposed:
+            candidate = self.copy.deepcopy(self.source_defaults)
+            candidate.update(proposed)
+            validation_errors = self.validate_runtime_values(candidate)
+            if validation_errors:
+                raise self.error_type(
+                    f"Invalid local config {self.config_file}: " + "; ".join(validation_errors)
+                )
+
+        return proposed

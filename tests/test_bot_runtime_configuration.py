@@ -179,8 +179,8 @@ def test_runtime_and_local_config_share_numeric_bounds_without_partial_applicati
         proposed["MEME_DELAY_AFTER_MAIN_POST_MIN_SECONDS"] = invalid
         proposed["MEME_DELAY_AFTER_MAIN_POST_MAX_SECONDS"] = invalid
     monkeypatch.setattr(
-        bot, "_read_stable_local_config_bytes",
-        lambda: json.dumps(proposed).encode("utf-8"),
+        bot._local_config.LocalConfiguration, "read_snapshot",
+        lambda _owner: json.dumps(proposed).encode("utf-8"),
     )
 
     def runtime_errors():
@@ -213,8 +213,8 @@ def test_local_config_keeps_cross_field_validation_and_accepts_paired_overrides(
     maximum = "MEME_DELAY_AFTER_MAIN_POST_MAX_SECONDS"
     proposed = {minimum: 90, maximum: 60}
     monkeypatch.setattr(
-        bot, "_read_stable_local_config_bytes",
-        lambda: json.dumps(proposed).encode("utf-8"),
+        bot._local_config.LocalConfiguration, "read_snapshot",
+        lambda _owner: json.dumps(proposed).encode("utf-8"),
     )
     error = f"{minimum} must be <= {maximum}"
     assert bot.validate_runtime_config_values(bot.SOURCE_DEFAULT_CONFIG_VALUES | proposed) == [error]

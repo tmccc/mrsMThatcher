@@ -1443,9 +1443,6 @@ def load_strict_runtime_json(
         handle_or_document,
         label=label,
         parse_floats_as_decimal=parse_floats_as_decimal,
-        Decimal=Decimal,
-        json=json,
-        math=math,
     )
 
 
@@ -1495,29 +1492,29 @@ SOURCE_DEFAULT_CONFIG_VALUES = {
 _local_config_stat_identity = _local_config._local_config_stat_identity
 
 
-def _read_stable_local_config_bytes() -> bytes | None:
-    """Read one optional regular local-config file without following links."""
-    return _local_config._read_stable_local_config_bytes(
-        LOCAL_CONFIG_FILE=LOCAL_CONFIG_FILE,
-        LOCAL_CONFIG_MAX_BYTES=LOCAL_CONFIG_MAX_BYTES,
-        LocalConfigError=LocalConfigError,
+def _local_configuration_owner() -> _local_config.LocalConfiguration:
+    """Bind current config inputs without reading files or applying overrides."""
+    return _local_config.LocalConfiguration(
+        config_file=LOCAL_CONFIG_FILE,
+        maximum_bytes=LOCAL_CONFIG_MAX_BYTES,
+        error_type=LocalConfigError,
         os=os,
         stat=stat,
+        source_defaults=SOURCE_DEFAULT_CONFIG_VALUES,
+        copy=copy,
+        log=log,
+        validate_runtime_values=validate_runtime_config_values,
     )
+
+
+def _read_stable_local_config_bytes() -> bytes | None:
+    """Read one optional regular local-config file without following links."""
+    return _local_configuration_owner().read_snapshot()
 
 
 def load_validated_local_config_overrides() -> dict[str, object] | None:
     """Read and validate local overrides without mutating runtime globals."""
-    return _local_config.load_validated_local_config_overrides(
-        LOCAL_CONFIG_FILE=LOCAL_CONFIG_FILE,
-        LocalConfigError=LocalConfigError,
-        SOURCE_DEFAULT_CONFIG_VALUES=SOURCE_DEFAULT_CONFIG_VALUES,
-        _read_stable_local_config_bytes=_read_stable_local_config_bytes,
-        copy=copy,
-        load_strict_runtime_json=load_strict_runtime_json,
-        log=log,
-        validate_runtime_config_values=validate_runtime_config_values,
-    )
+    return _local_configuration_owner().load_overrides()
 
 
 def apply_local_config() -> None:
