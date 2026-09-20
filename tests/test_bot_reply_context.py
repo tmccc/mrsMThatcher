@@ -471,3 +471,33 @@ def test_unusable_rendered_target_stops_before_quote_lookup_and_media(monkeypatc
     lookup.assert_not_called()
     media.assert_not_called()
     clock.assert_not_called()
+
+
+@pytest.mark.parametrize("contiguous", [False, True])
+def test_invalid_parent_admission_stops_before_turn_projection_and_media(monkeypatch, make_owner, contiguous):
+    target = {"id": "200", "author_id": "300", "text": "Incoming", "conversation_id": "100"}
+    chain = [{"id": "100", "author_id": "300", "text": "Root"}]
+    chronology = Mock(return_value=False)
+    media, render = Mock(), Mock()
+    logger = Mock()
+    parent_path = Mock(return_value=contiguous)
+    monkeypatch.setattr(reply_context.ReplyContext, "parent_chain", Mock(return_value=chain))
+    monkeypatch.setattr(reply_context.ReplyContext, "parent_path_is_contiguous", parent_path)
+    monkeypatch.setattr(reply_context.ReplyContext, "parent_path_is_chronological", chronology)
+    monkeypatch.setattr(reply_context.ReplyContext, "post", render)
+    owner = make_owner(
+        always_fetch_parent=True, skip_own_auto_replies=False,
+        reply_media_context_for_candidate=media, log=logger,
+    )
+
+    assert owner.build(target, {}) is None
+    assert parent_path.call_args.args[0] is chain
+    assert parent_path.call_args.args[1] is target
+    assert chronology.call_count == int(contiguous)
+    render.assert_not_called()
+    media.assert_not_called()
+    logger.warning.assert_called_once_with(
+        "Verified parent path contains a post later than its child target_id=%s"
+        if contiguous else "Verified parent path is not contiguous target_id=%s",
+        "200",
+    )

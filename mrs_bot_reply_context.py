@@ -2,7 +2,7 @@
 
 ReplyContext binds current lookup, validation, media, clock and policy boundaries
 without retaining caller state. Parent traversal, quote selection, structural
-checks, usable parent-suffix projection and canonical assembly call owned methods.
+admission, usable parent-suffix projection and canonical assembly call owned methods.
 Text cleanup uses local pure helpers. Cache sharing, lookup budgets, media
 preparation order, copy boundaries and diagnostic hashes retain their existing
 semantics. Import and construction perform no file, environment, clock, provider
@@ -371,6 +371,45 @@ class ReplyContext:
         visible.append(target_turn)
         return visible
 
+    def _parent_path_is_usable(
+        self,
+        chain: list[dict],
+        mention: dict,
+        *,
+        mention_id: str,
+        root_id: str,
+    ) -> bool:
+        """Admit only contiguous chronological paths, retaining root-gap diagnostics."""
+        if root_id != mention_id:
+            if not chain or str(chain[0].get("id") or "") != root_id:
+                self.log.warning(
+                    "Verified parent path did not reach root; retaining the longest "
+                    "available contiguous suffix target_id=%s root_id=%s traversals=%s",
+                    mention_id,
+                    root_id,
+                    self.maximum_parent_depth,
+                )
+            if not self.parent_path_is_contiguous(chain, mention):
+                self.log.warning(
+                    "Verified parent path is not contiguous target_id=%s",
+                    mention_id,
+                )
+                return False
+            if not self.parent_path_is_chronological(chain, mention):
+                self.log.warning(
+                    "Verified parent path contains a post later than its child "
+                    "target_id=%s",
+                    mention_id,
+                )
+                return False
+        elif chain:
+            self.log.warning(
+                "Root target unexpectedly has a parent path target_id=%s",
+                mention_id,
+            )
+            return False
+        return True
+
     def build(self, mention: dict, state: dict) -> PreparedReplyContext | None:
         """Build the verified parent-contiguous canonical single-call context."""
 
@@ -401,33 +440,9 @@ class ReplyContext:
             )
             return None
 
-        if root_id != mention_id:
-            if not chain or str(chain[0].get("id") or "") != root_id:
-                self.log.warning(
-                    "Verified parent path did not reach root; retaining the longest "
-                    "available contiguous suffix target_id=%s root_id=%s traversals=%s",
-                    mention_id,
-                    root_id,
-                    self.maximum_parent_depth,
-                )
-            if not self.parent_path_is_contiguous(chain, mention):
-                self.log.warning(
-                    "Verified parent path is not contiguous target_id=%s",
-                    mention_id,
-                )
-                return None
-            if not self.parent_path_is_chronological(chain, mention):
-                self.log.warning(
-                    "Verified parent path contains a post later than its child "
-                    "target_id=%s",
-                    mention_id,
-                )
-                return None
-        elif chain:
-            self.log.warning(
-                "Root target unexpectedly has a parent path target_id=%s",
-                mention_id,
-            )
+        if not self._parent_path_is_usable(
+            chain, mention, mention_id=mention_id, root_id=root_id,
+        ):
             return None
 
         visible = self._visible_parent_turns(
