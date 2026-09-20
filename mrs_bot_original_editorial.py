@@ -1,6 +1,7 @@
 """Original-editorial metadata validation, scoring and winner application.
 
-The bot supplies current configuration, vocabulary, cache and sibling helpers.
+The bot supplies current configuration, vocabulary, cache and runtime helpers.
+Fixed tag/list normalization and generated-image identity come from their owners.
 Only explicit loader calls read metadata and discover/hash images; enabled
 startup/selection calls emit the existing logs through the supplied logger.
 OriginalEditorial binds these current boundaries without runtime work, then calls
@@ -17,6 +18,9 @@ import math
 from collections.abc import Callable
 from logging import Logger
 from pathlib import Path
+
+from mrs_bot_asset_metadata import generated_image_origin_quote_hash
+from mrs_bot_image_scoring import as_string_list, normalise_tag
 
 
 def original_editorial_numeric(value: object, *, key: str) -> float:
@@ -38,12 +42,9 @@ def original_editorial_numeric(value: object, *, key: str) -> float:
 class OriginalEditorial:
     """Own validated editorial metadata, concepts, scoring and selection comparisons."""
 
-    normalise_tag: Callable[[object], str]
     synonym_to_concept: dict[str, str]
     affinity_concepts: set[str]
-    as_string_list: Callable[[object], list[str]]
     dimensions: list[str]
-    generated_origin: Callable[[str], str | None]
     image_sha256: Callable[[str], str]
     analysis_file: str | Path
     analysis_cache: dict[str, dict]
@@ -60,7 +61,7 @@ class OriginalEditorial:
         value: object,
     ) -> set[str]:
         """Return the original editorial concepts."""
-        tag = self.normalise_tag(value)
+        tag = normalise_tag(value)
         if not tag:
             return set()
         if "_and_" in tag:
@@ -82,15 +83,15 @@ class OriginalEditorial:
             return set()
         concepts: set[str] = set()
         fields: list[object] = []
-        fields.extend(self.as_string_list(quote_analysis.get("primary_topics")))
-        fields.extend(self.as_string_list(quote_analysis.get("secondary_topics")))
-        fields.extend(self.as_string_list(quote_analysis.get("tone")))
+        fields.extend(as_string_list(quote_analysis.get("primary_topics")))
+        fields.extend(as_string_list(quote_analysis.get("secondary_topics")))
+        fields.extend(as_string_list(quote_analysis.get("tone")))
         prefs = quote_analysis.get("archive_image_preferences", {}) if isinstance(quote_analysis.get("archive_image_preferences"), dict) else {}
         for key in ("preferred_subject_moods", "preferred_scenes", "preferred_activities", "preferred_visible_symbols", "visual_affinities"):
-            fields.extend(self.as_string_list(prefs.get(key)))
+            fields.extend(as_string_list(prefs.get(key)))
         hist = quote_analysis.get("historical_context", {}) if isinstance(quote_analysis.get("historical_context"), dict) else {}
         for key in ("referenced_events", "referenced_people", "referenced_places", "specificity"):
-            fields.extend(self.as_string_list(hist.get(key)))
+            fields.extend(as_string_list(hist.get(key)))
         for value in fields:
             concepts.update(self.concepts(value))
         return concepts
@@ -104,7 +105,7 @@ class OriginalEditorial:
             return set()
         concepts: set[str] = set()
         for key in ("abstract_quote_affinities", "editorial_functions", "best_quote_types"):
-            for value in self.as_string_list(editorial.get(key)):
+            for value in as_string_list(editorial.get(key)):
                 concepts.update(self.concepts(value))
         return concepts
 
@@ -116,7 +117,7 @@ class OriginalEditorial:
         if not isinstance(editorial, dict):
             return set()
         concepts: set[str] = set()
-        for value in self.as_string_list(editorial.get("avoid_quote_types")):
+        for value in as_string_list(editorial.get("avoid_quote_types")):
             concepts.update(self.concepts(value))
         return concepts
 
@@ -127,9 +128,9 @@ class OriginalEditorial:
         """Return the original editorial quote dimension profile."""
         if not isinstance(quote_analysis, dict):
             return {dim: 0.0 for dim in self.dimensions}
-        concepts = {self.normalise_tag(value) for value in self.as_string_list(quote_analysis.get("primary_topics")) + self.as_string_list(quote_analysis.get("secondary_topics"))}
+        concepts = {normalise_tag(value) for value in as_string_list(quote_analysis.get("primary_topics")) + as_string_list(quote_analysis.get("secondary_topics"))}
         controlled = self.quote_concepts(quote_analysis)
-        tone = {self.normalise_tag(value) for value in self.as_string_list(quote_analysis.get("tone"))}
+        tone = {normalise_tag(value) for value in as_string_list(quote_analysis.get("tone"))}
         prefs = quote_analysis.get("archive_image_preferences", {}) if isinstance(quote_analysis.get("archive_image_preferences"), dict) else {}
         visual_energy = str(quote_analysis.get("visual_energy") or "").lower()
         hist = quote_analysis.get("historical_context", {}) if isinstance(quote_analysis.get("historical_context"), dict) else {}
@@ -165,8 +166,8 @@ class OriginalEditorial:
             add("defiance", 0.35)
         if visual_energy == "low":
             add("statesmanship", 0.25)
-        for scene in self.as_string_list(prefs.get("preferred_scenes")):
-            scene_tag = self.normalise_tag(scene)
+        for scene in as_string_list(prefs.get("preferred_scenes")):
+            scene_tag = normalise_tag(scene)
             if scene_tag in {"parliament", "office_or_working"}:
                 add("statesmanship", 0.45)
             if scene_tag == "formal_portrait":
@@ -180,7 +181,7 @@ class OriginalEditorial:
         image_by_name: dict[str, str],
     ) -> dict:
         """Validate original editorial item."""
-        if self.generated_origin(basename):
+        if generated_image_origin_quote_hash(basename):
             raise ValueError(f"generated-style basename is not allowed in original editorial analysis: {basename}")
         if basename not in image_by_name:
             raise ValueError(f"original editorial image is not present in current image corpus: {basename}")
@@ -243,7 +244,7 @@ class OriginalEditorial:
             missing_originals = sorted(
                 basename
                 for basename in image_by_name
-                if not self.generated_origin(basename) and basename not in result
+                if not generated_image_origin_quote_hash(basename) and basename not in result
             )
             if missing_originals:
                 raise ValueError(f"missing original editorial analysis for current image(s): {', '.join(missing_originals[:5])}")

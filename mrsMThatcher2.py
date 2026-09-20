@@ -6344,12 +6344,9 @@ original_editorial_numeric = _original_editorial.original_editorial_numeric
 def _original_editorial_owner() -> _original_editorial.OriginalEditorial:
     """Bind current external boundaries without runtime work or caller state."""
     return _original_editorial.OriginalEditorial(
-        normalise_tag=normalise_tag,
         synonym_to_concept=_ORIGINAL_EDITORIAL_SYNONYM_TO_CONCEPT,
         affinity_concepts=ORIGINAL_EDITORIAL_AFFINITY_CONCEPTS,
-        as_string_list=as_string_list,
         dimensions=ORIGINAL_EDITORIAL_DIMENSIONS,
-        generated_origin=generated_image_origin_quote_hash,
         image_sha256=current_image_sha256,
         analysis_file=ORIGINAL_EDITORIAL_ANALYSIS_FILE,
         analysis_cache=_ORIGINAL_EDITORIAL_ANALYSIS_CACHE,

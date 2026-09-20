@@ -29,6 +29,7 @@ import json
 import logging
 import math
 import os
+import random
 from pathlib import Path
 import socket
 import sys
@@ -48,7 +49,9 @@ os.getenv = forbidden
 os._Environ.__getitem__ = forbidden
 Path.home = forbidden
 socket.socket = socket.create_connection = socket.getaddrinfo = forbidden
+before = random.getstate()
 import mrs_bot_original_editorial as editorial
+assert random.getstate() == before
 assert 'mrsMThatcher2' not in sys.modules
 assert editorial.original_editorial_numeric('5.5', key='utility') == 5.5
 """
@@ -73,12 +76,10 @@ EDITORIAL_METHODS = {'original_editorial_concepts': 'concepts',
  'original_editorial_shadow_result': 'compare',
  'log_original_editorial_shadow_result': 'log_comparison',
  'apply_original_editorial_selection': 'apply_selection'}
-EDITORIAL_INPUTS = {'normalise_tag': 'normalise_tag',
+EDITORIAL_INPUTS = {
  'synonym_to_concept': '_ORIGINAL_EDITORIAL_SYNONYM_TO_CONCEPT',
  'affinity_concepts': 'ORIGINAL_EDITORIAL_AFFINITY_CONCEPTS',
- 'as_string_list': 'as_string_list',
  'dimensions': 'ORIGINAL_EDITORIAL_DIMENSIONS',
- 'generated_origin': 'generated_image_origin_quote_hash',
  'image_sha256': 'current_image_sha256',
  'analysis_file': 'ORIGINAL_EDITORIAL_ANALYSIS_FILE',
  'analysis_cache': '_ORIGINAL_EDITORIAL_ANALYSIS_CACHE',
@@ -163,7 +164,7 @@ def test_concepts_use_current_mutable_vocabulary_and_recursive_root_helper(monke
         return normalise(value)
 
     patch_editorial(monkeypatch, "concepts", recursive)
-    monkeypatch.setattr(bot, "normalise_tag", normalised)
+    monkeypatch.setattr(editorial, "normalise_tag", normalised)
     assert recurse("Alias AND alias") == {"economic"}
     assert calls == [
         ("normalise", "Alias AND alias"), ("recursive", "alias"),
@@ -180,7 +181,7 @@ def test_concept_collectors_use_current_list_and_concept_helpers_in_order(monkey
     quote["archive_image_preferences"] = {key: key for key in prefs}
     quote["historical_context"] = {key: key for key in history}
     calls = []
-    monkeypatch.setattr(bot, "as_string_list", lambda value: calls.append(("list", value)) or [value])
+    monkeypatch.setattr(editorial, "as_string_list", lambda value: calls.append(("list", value)) or [value])
     patch_editorial(monkeypatch, "concepts", lambda value: calls.append(("concept", value)) or {value})
     ordered = fields + prefs + history
     assert bot.original_editorial_quote_concepts(quote) == set(ordered)
@@ -205,8 +206,8 @@ def test_profile_uses_current_dimensions_and_helpers_inside_comprehensions(monke
     quote = {"primary_topics": ["topic"], "tone": ["tone"],
              "archive_image_preferences": {"preferred_scenes": ["scene"]}}
     original_list = bot.as_string_list
-    monkeypatch.setattr(bot, "as_string_list", lambda value: calls.append(("list", value)) or original_list(value))
-    monkeypatch.setattr(bot, "normalise_tag", lambda value: calls.append(("tag", value)) or {"topic": "government", "tone": "grave", "scene": "parliament"}[value])
+    monkeypatch.setattr(editorial, "as_string_list", lambda value: calls.append(("list", value)) or original_list(value))
+    monkeypatch.setattr(editorial, "normalise_tag", lambda value: calls.append(("tag", value)) or {"topic": "government", "tone": "grave", "scene": "parliament"}[value])
     patch_editorial(monkeypatch, "quote_concepts", lambda value: calls.append(("controlled", value)) or {"freedom"})
     result = bot.original_editorial_quote_dimension_profile(quote)
     assert list(result) == dimensions
@@ -290,7 +291,7 @@ def test_loader_uses_current_callbacks_dimensions_and_cache_without_failure_inse
     monkeypatch.setattr(bot, "ORIGINAL_EDITORIAL_DIMENSIONS", dimensions)
     monkeypatch.setattr(bot, "_ORIGINAL_EDITORIAL_ANALYSIS_CACHE", cache)
     monkeypatch.setattr(bot, "current_image_paths", lambda: calls.append("discover") or [image, generated])
-    monkeypatch.setattr(bot, "generated_image_origin_quote_hash", lambda name: calls.append(("origin", name)) or ("generated" if name.startswith("tg_") else None))
+    monkeypatch.setattr(editorial, "generated_image_origin_quote_hash", lambda name: calls.append(("origin", name)) or ("generated" if name.startswith("tg_") else None))
     monkeypatch.setattr(bot, "current_image_sha256", lambda value: calls.append(("sha", value)) or "fresh")
     numeric, validate = bot.original_editorial_numeric, editorial.OriginalEditorial.validate_item
 
