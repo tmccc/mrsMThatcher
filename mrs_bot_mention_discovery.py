@@ -16,18 +16,18 @@ application import.
 
 from __future__ import annotations
 
+import copy
+import hashlib
 from collections.abc import Callable
 from dataclasses import dataclass
 from logging import Logger
 from pathlib import Path
-from types import ModuleType
 
-from mrs_bot_reply_native_media import attach_media_to_tweets
-
-from mrs_bot_tweet_lookup_cache import normalise_tweet_text
-
+from mrs_bot_mention_authority import active_mention_backlog_reset_guard
 from mrs_bot_reply_evaluation_state import terminal_reply_evaluation
+from mrs_bot_reply_native_media import attach_media_to_tweets
 from mrs_bot_reply_state import handled_reply_target_ids
+from mrs_bot_tweet_lookup_cache import normalise_tweet_text
 
 
 def remove_pending_mention_candidate(state: dict, mention_id: str) -> bool:
@@ -112,13 +112,10 @@ def get_mentions(
     MENTION_BACKLOG_CONTINUATION_TOKEN_LIMIT: int,
     MY_USER_ID: str,
     _MentionBacklogContinuationLimit: type[Exception],
-    active_mention_backlog_reset_guard: Callable,
     api_error_is_invalid_pagination_cursor: Callable,
     api_error_is_permanent_target_failure: Callable,
     get_tweet_by_id: Callable,
     cache_tweet: Callable,
-    copy: ModuleType,
-    hashlib: ModuleType,
     log: Logger,
     log_event: Callable,
     log_json_debug: Callable,

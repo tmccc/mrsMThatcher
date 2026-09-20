@@ -57,9 +57,9 @@ assert 'requests' not in sys.modules
 def test_adapters_forward_current_dependencies_arguments_defaults_results_and_errors(monkeypatch):
     counts = {
         "get_hot_post_reply_candidates": 24,
-        "mark_hot_post_reply_skipped": 3,
+        "mark_hot_post_reply_skipped": 2,
         "maybe_mark_hot_post_reply_skipped": 1,
-        "dedupe_reply_candidates": 2,
+        "dedupe_reply_candidates": 1,
     }
     for name, count in counts.items():
         adapter = getattr(bot, name)
@@ -359,7 +359,7 @@ def test_merge_keeps_first_objects_annotation_precedence_and_nested_copy_boundar
     ]
     log, copier = Mock(), Mock(wraps=copy)
     monkeypatch.setattr(bot, "log", log)
-    monkeypatch.setattr(bot, "copy", copier)
+    monkeypatch.setattr(discovery, "copy", copier)
     result = bot.dedupe_reply_candidates(mentions, hot)
     assert len(result) == 3 and all(a is b for a, b in zip(result, [first, second, unique]))
     assert first["_also_hot_post_reply"] is second["_also_hot_post_reply"] is True

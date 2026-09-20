@@ -1,7 +1,8 @@
 """Own hot-post discovery, skip marking and candidate handoff.
 
-Four root adapters supply current callbacks, settings, clock, logger and module
-references per call. Original bodies retain local pruning and check counts,
+Four root adapters supply current callbacks, settings, clock and logger per
+call. Fixed copying and bounded-list transformations are local. Original bodies
+retain local pruning and check counts,
 full rescans, nested invalid-cursor cleanup, eligibility before the candidate
 cap, draft/terminal ordering, in-place annotations and conservative watermarks.
 Skip records and mention/hot-post merges retain their bounded and copy behavior.
@@ -16,16 +17,15 @@ provider, clock or RNG work.
 
 from __future__ import annotations
 
+import copy
 from collections.abc import Callable
 from logging import Logger
 from pathlib import Path
-from types import ModuleType
 
 from mrs_bot_reply_native_media import attach_media_to_tweets
-
-from mrs_bot_tweet_lookup_cache import normalise_tweet_text
-
 from mrs_bot_reply_state import handled_reply_target_ids, retire_ineligible_reply_draft
+from mrs_bot_runtime_state_helpers import append_unique_capped
+from mrs_bot_tweet_lookup_cache import normalise_tweet_text
 
 
 def get_hot_post_reply_candidates(
@@ -379,7 +379,6 @@ def mark_hot_post_reply_skipped(
     reason: str='unspecified',
     original_post_id: str | None=None,
     retryable: bool | None=None,
-    append_unique_capped: Callable,
     log_event: Callable,
     now_epoch: Callable,
 ) -> None:
@@ -459,7 +458,6 @@ def dedupe_reply_candidates(
     mentions: list[dict],
     hot_post_replies: list[dict],
     *,
-    copy: ModuleType,
     log: Logger,
 ) -> list[dict]:
     """

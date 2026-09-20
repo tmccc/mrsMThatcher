@@ -2361,7 +2361,6 @@ def quote_repeated_cursor_suppression_record(
         allow_expired=allow_expired,
         MAX_REASONABLE_STATE_EPOCH=MAX_REASONABLE_STATE_EPOCH,
         QUOTE_REPEATED_CURSOR_BACKOFF_SECONDS=QUOTE_REPEATED_CURSOR_BACKOFF_SECONDS,
-        re=re,
     )
 
 
@@ -3587,11 +3586,8 @@ def get_mentions(state: dict) -> list[dict]:
         MENTION_BACKLOG_CONTINUATION_TOKEN_LIMIT=MENTION_BACKLOG_CONTINUATION_TOKEN_LIMIT,
         MY_USER_ID=MY_USER_ID,
         _MentionBacklogContinuationLimit=_MentionBacklogContinuationLimit,
-        active_mention_backlog_reset_guard=active_mention_backlog_reset_guard,
         api_error_is_invalid_pagination_cursor=api_error_is_invalid_pagination_cursor,
         cache_tweet=cache_tweet,
-        copy=copy,
-        hashlib=hashlib,
         log=log,
         log_event=log_event,
         log_json_debug=log_json_debug,
@@ -3652,7 +3648,6 @@ def mark_hot_post_reply_skipped(
         reason=reason,
         original_post_id=original_post_id,
         retryable=retryable,
-        append_unique_capped=append_unique_capped,
         log_event=log_event,
         now_epoch=now_epoch,
     )
@@ -3673,7 +3668,6 @@ def dedupe_reply_candidates(mentions: list[dict], hot_post_replies: list[dict]) 
     return _hot_post_discovery.dedupe_reply_candidates(
         mentions,
         hot_post_replies,
-        copy=copy,
         log=log,
     )
 
@@ -8085,7 +8079,6 @@ def get_quote_tweets_for_post(post_id: str, state: dict | None = None) -> list[d
         QUOTE_LOOKUP_API_MAX_RESULTS=QUOTE_LOOKUP_API_MAX_RESULTS,
         QUOTE_LOOKUP_MAX_PAGES_PER_POST=QUOTE_LOOKUP_MAX_PAGES_PER_POST,
         QUOTE_REPEATED_CURSOR_BACKOFF_SECONDS=QUOTE_REPEATED_CURSOR_BACKOFF_SECONDS,
-        hashlib=hashlib,
         log=log,
         log_event=log_event,
         log_json_debug=log_json_debug,

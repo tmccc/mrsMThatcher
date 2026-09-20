@@ -33,7 +33,7 @@ def forbidden(*args, **kwargs):
 
 original_import = builtins.__import__
 def guarded_import(name, *args, **kwargs):
-    if name in {'mrsMThatcher2', 'requests', 'openai', 'single_call_reply', 'reply_evidence'} or name.startswith('mrs_bot_') and name not in {'mrs_bot_mention_discovery', 'mrs_bot_reply_state', 'mrs_bot_runtime_state_helpers', 'mrs_bot_reply_drafts', 'mrs_bot_reply_history', 'mrs_bot_tweet_lookup_cache', 'mrs_bot_reply_native_media', 'mrs_bot_reply_evaluation_state', 'mrs_bot_author_quarantines'}:
+    if name in {'mrsMThatcher2', 'requests', 'openai', 'single_call_reply', 'reply_evidence'} or name.startswith('mrs_bot_') and name not in {'mrs_bot_mention_discovery', 'mrs_bot_mention_authority', 'mrs_bot_state_value_normalisation', 'mrs_bot_reply_state', 'mrs_bot_runtime_state_helpers', 'mrs_bot_reply_drafts', 'mrs_bot_reply_history', 'mrs_bot_tweet_lookup_cache', 'mrs_bot_reply_native_media', 'mrs_bot_reply_evaluation_state', 'mrs_bot_author_quarantines'}:
         forbidden()
     return original_import(name, *args, **kwargs)
 
@@ -60,7 +60,7 @@ assert 'requests' not in sys.modules
 
 
 def test_adapters_forward_current_dependencies_arguments_results_and_errors(monkeypatch):
-    for name, count in (("get_mentions", 23),):
+    for name, count in (("get_mentions", 20),):
         adapter = getattr(bot, name)
         public = inspect.signature(adapter).parameters
         dependencies = inspect.signature(getattr(discovery, name)).parameters.keys() - public.keys()

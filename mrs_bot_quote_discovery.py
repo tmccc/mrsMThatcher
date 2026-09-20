@@ -14,15 +14,15 @@ no file, environment, provider, clock or RNG work or reverse application import.
 
 from __future__ import annotations
 
+import hashlib
+import re
 from collections.abc import Callable
 from dataclasses import dataclass
 from logging import Logger
 from pathlib import Path
-from types import ModuleType
 
 from mrs_bot_reply_native_media import attach_media_to_tweets
 from mrs_bot_state_value_normalisation import bounded_tweet_id_value
-
 from mrs_bot_tweet_lookup_cache import normalise_tweet_text
 
 
@@ -34,7 +34,6 @@ def quote_repeated_cursor_suppression_record(
     allow_expired: bool = False,
     MAX_REASONABLE_STATE_EPOCH: int,
     QUOTE_REPEATED_CURSOR_BACKOFF_SECONDS: int,
-    re: ModuleType,
 ) -> dict[str, object] | None:
     """Return one canonical exact-cursor suppression record when usable."""
     if (
@@ -235,7 +234,6 @@ def get_quote_tweets_for_post(
     QUOTE_LOOKUP_API_MAX_RESULTS: int,
     QUOTE_LOOKUP_MAX_PAGES_PER_POST: int,
     QUOTE_REPEATED_CURSOR_BACKOFF_SECONDS: int,
-    hashlib: ModuleType,
     log: Logger,
     log_event: Callable,
     log_json_debug: Callable,
