@@ -334,6 +334,36 @@ def _validate_prepared_receipts(
             )
 
 
+def _requested_post_payload(
+    text: object,
+    media_ids: list[str] | None,
+    reply_to_id: str | None,
+    made_with_ai: bool,
+) -> dict:
+    """Project optional public-post fields before immutable request validation."""
+    payload: dict = {}
+
+    if text:
+        payload["text"] = text
+
+    if media_ids:
+        payload["media"] = {
+            "media_ids": [str(x) for x in media_ids],
+        }
+
+    if reply_to_id:
+        payload["reply"] = {
+            "in_reply_to_tweet_id": str(reply_to_id),
+        }
+
+    if made_with_ai:
+        payload["made_with_ai"] = True
+
+    if not payload.get("text") and not payload.get("media"):
+        raise ValueError("Cannot create X post without text or media")
+    return payload
+
+
 def create_post(
     text: str,
     media_ids: list[str] | None = None,
@@ -398,26 +428,7 @@ def create_post(
         prepared_main_post_attempt=prepared_main_post_attempt,
         prepared_transport_authority=prepared_transport_authority,
     )
-    payload: dict = {}
-
-    if text:
-        payload["text"] = text
-
-    if media_ids:
-        payload["media"] = {
-            "media_ids": [str(x) for x in media_ids],
-        }
-
-    if reply_to_id:
-        payload["reply"] = {
-            "in_reply_to_tweet_id": str(reply_to_id),
-        }
-
-    if made_with_ai:
-        payload["made_with_ai"] = True
-
-    if not payload.get("text") and not payload.get("media"):
-        raise ValueError("Cannot create X post without text or media")
+    payload = _requested_post_payload(text, media_ids, reply_to_id, made_with_ai)
     try:
         payload = freeze_tweet_request(
             method="POST",
