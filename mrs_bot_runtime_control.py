@@ -16,6 +16,7 @@ from __future__ import annotations
 import hashlib
 import logging
 import os
+import stat
 from collections.abc import Callable
 from dataclasses import dataclass
 from pathlib import Path
@@ -42,7 +43,6 @@ class RuntimeControls:
     maximum_bytes: int
     absent_error: type[FileNotFoundError]
     os: ModuleType
-    stat: ModuleType
     log: logging.Logger
     log_json_debug: Callable
     validate_document: Callable[[object], dict]
@@ -71,7 +71,7 @@ class RuntimeControls:
         return (
             file_stat.st_dev,
             file_stat.st_ino,
-            self.stat.S_IFMT(file_stat.st_mode),
+            stat.S_IFMT(file_stat.st_mode),
             file_stat.st_size,
             file_stat.st_mtime_ns,
             file_stat.st_ctime_ns,
@@ -85,7 +85,7 @@ class RuntimeControls:
             before_path = self.os.lstat(control_path)
         except FileNotFoundError as exc:
             raise self.absent_error(control_path) from exc
-        if not self.stat.S_ISREG(before_path.st_mode):
+        if not stat.S_ISREG(before_path.st_mode):
             raise ValueError("runtime control must be a regular file")
 
         nonblock = getattr(self.os, "O_NONBLOCK", 0)
@@ -98,7 +98,7 @@ class RuntimeControls:
         descriptor = self.os.open(control_path, flags | nofollow)
         try:
             before_fd = self.os.fstat(descriptor)
-            if not self.stat.S_ISREG(before_fd.st_mode):
+            if not stat.S_ISREG(before_fd.st_mode):
                 raise ValueError("runtime control must be a regular file")
             if self.stat_identity(before_path) != self.stat_identity(
                 before_fd

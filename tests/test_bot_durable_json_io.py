@@ -54,13 +54,13 @@ assert 'single_call_reply' not in sys.modules
 
 def test_adapters_forward_current_dependencies_references_and_native_errors(monkeypatch):
     for name, count in (
-        ("durable_state_namespace_is_owned_single_link_file", 2),
-        ("read_stable_owned_json_bytes_no_follow", 5),
+        ("durable_state_namespace_is_owned_single_link_file", 1),
+        ("read_stable_owned_json_bytes_no_follow", 4),
         ("fsync_parent_dir", 2),
         ("atomic_write_json", 5),
         ("_strict_receipt_json_bytes", 1),
-        ("load_receipt_json_no_follow", 5),
-        ("durable_create_receipt_json", 5),
+        ("load_receipt_json_no_follow", 4),
+        ("durable_create_receipt_json", 4),
     ):
         adapter = getattr(bot, name)
         public = inspect.signature(adapter).parameters

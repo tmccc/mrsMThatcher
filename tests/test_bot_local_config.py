@@ -249,7 +249,7 @@ def snapshot_reader(monkeypatch):
                               O_RDONLY=1, O_CLOEXEC=2, O_NOFOLLOW=4, O_NONBLOCK=8)
     source = object()
     monkeypatch.setattr(bot, "os", fake_os)
-    monkeypatch.setattr(bot, "stat", SimpleNamespace(S_ISREG=trace.is_regular))
+    monkeypatch.setattr(bot._local_config, "stat", SimpleNamespace(S_ISREG=trace.is_regular))
     monkeypatch.setattr(bot, "LOCAL_CONFIG_FILE", source)
     monkeypatch.setattr(bot, "LOCAL_CONFIG_MAX_BYTES", 4)
     monkeypatch.setattr(bot._local_config, "_local_config_stat_identity", trace.identity)
@@ -433,7 +433,7 @@ def patch_configuration_method(monkeypatch, method, callback):
 
 
 def test_configuration_owner_preserves_current_inputs_without_reading(monkeypatch):
-    fields = {'LOCAL_CONFIG_FILE': 'config_file', 'LOCAL_CONFIG_MAX_BYTES': 'maximum_bytes', 'LocalConfigError': 'error_type', 'os': 'os', 'stat': 'stat', 'SOURCE_DEFAULT_CONFIG_VALUES': 'source_defaults', 'log': 'log', 'validate_runtime_config_values': 'validate_runtime_values'}
+    fields = {'LOCAL_CONFIG_FILE': 'config_file', 'LOCAL_CONFIG_MAX_BYTES': 'maximum_bytes', 'LocalConfigError': 'error_type', 'os': 'os', 'SOURCE_DEFAULT_CONFIG_VALUES': 'source_defaults', 'log': 'log', 'validate_runtime_config_values': 'validate_runtime_values'}
     previous = None
     for _ in range(2):
         current = {name: Mock(side_effect=AssertionError("construction performed work")) for name in fields}

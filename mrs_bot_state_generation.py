@@ -169,7 +169,7 @@ class StateCommitProof:
         def owned(path: Path) -> bool:
             """Apply the same size and authority policy as state loading."""
             return durable_state_namespace_is_owned_single_link_file(
-                path, maximum_bytes=self.maximum_bytes, os=os, stat=stat)
+                path, maximum_bytes=self.maximum_bytes, os=os)
 
         if directory_identity(self.path.parent) != self.directory:
             raise RuntimeError('state commit directory identity changed')
@@ -178,7 +178,7 @@ class StateCommitProof:
         present, data = read_stable_owned_json_bytes_no_follow(
             self.path, DURABLE_RUNTIME_JSON_MAX_BYTES=self.maximum_bytes,
             UnsafeDurableStateNamespace=RuntimeError,
-            durable_state_namespace_is_owned_single_link_file=owned, os=os, stat=stat)
+            durable_state_namespace_is_owned_single_link_file=owned, os=os)
         if (not present or data is None
                 or hashlib.sha256(data).hexdigest() != self.sha256
                 or file_identity(self.path) != self.identity

@@ -1475,7 +1475,6 @@ def _local_configuration_owner() -> _local_config.LocalConfiguration:
         maximum_bytes=LOCAL_CONFIG_MAX_BYTES,
         error_type=LocalConfigError,
         os=os,
-        stat=stat,
         source_defaults=SOURCE_DEFAULT_CONFIG_VALUES,
         log=log,
         validate_runtime_values=validate_runtime_config_values,
@@ -1814,7 +1813,6 @@ def _runtime_controls_owner() -> _runtime_control.RuntimeControls:
         maximum_bytes=RUNTIME_CONTROL_MAX_BYTES,
         absent_error=_RuntimeControlAbsent,
         os=os,
-        stat=stat,
         log=log,
         log_json_debug=log_json_debug,
         validate_document=validate_control_document,
@@ -2212,7 +2210,6 @@ def durable_state_namespace_is_owned_single_link_file(
         path,
         maximum_bytes=maximum_bytes,
         os=os,
-        stat=stat,
     )
 
 
@@ -2226,7 +2223,6 @@ def read_stable_owned_json_bytes_no_follow(
         UnsafeDurableStateNamespace=UnsafeDurableStateNamespace,
         durable_state_namespace_is_owned_single_link_file=durable_state_namespace_is_owned_single_link_file,
         os=os,
-        stat=stat,
     )
 
 coerce_used_set = _used_history.coerce_used_set
@@ -5032,7 +5028,6 @@ def load_receipt_json_no_follow(path: Path) -> tuple[bool, object | None]:
         UnsafeReceiptNamespace=UnsafeReceiptNamespace,
         _strict_receipt_json_bytes=_strict_receipt_json_bytes,
         os=os,
-        stat=stat,
     )
 
 
@@ -5045,7 +5040,6 @@ def durable_create_receipt_json(path: Path, value: object) -> None:
         UnsafeReceiptNamespace=UnsafeReceiptNamespace,
         fsync_parent_dir=fsync_parent_dir,
         os=os,
-        stat=stat,
     )
 
 

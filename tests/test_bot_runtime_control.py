@@ -124,7 +124,7 @@ def test_owned_adapters_preserve_public_shapes_references_and_errors(monkeypatch
 
 
 def test_composition_binds_fresh_current_control_authorities_without_access(monkeypatch):
-    fields = {'CONTROL_FILE': 'control_file', '_CONTROL_CACHE': 'cache', 'RUNTIME_CONTROL_MAX_BYTES': 'maximum_bytes', '_RuntimeControlAbsent': 'absent_error', 'os': 'os', 'stat': 'stat', 'log': 'log', 'log_json_debug': 'log_json_debug', 'validate_control_document': 'validate_document', 'now_epoch': 'now_epoch', 'parse_control_time': 'parse_time', 'datetime': 'datetime', 'log_event': 'log_event'}
+    fields = {'CONTROL_FILE': 'control_file', '_CONTROL_CACHE': 'cache', 'RUNTIME_CONTROL_MAX_BYTES': 'maximum_bytes', '_RuntimeControlAbsent': 'absent_error', 'os': 'os', 'log': 'log', 'log_json_debug': 'log_json_debug', 'validate_control_document': 'validate_document', 'now_epoch': 'now_epoch', 'parse_control_time': 'parse_time', 'datetime': 'datetime', 'log_event': 'log_event'}
     previous = None
     for _ in range(2):
         current = {name: object() for name in fields}

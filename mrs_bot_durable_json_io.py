@@ -15,7 +15,7 @@ import-time file, environment, provider or RNG work.
 from __future__ import annotations
 
 import json
-
+import stat
 from collections.abc import Callable
 from pathlib import Path
 from types import ModuleType
@@ -32,7 +32,6 @@ def durable_state_namespace_is_owned_single_link_file(
     *,
     maximum_bytes: int | None,
     os: ModuleType,
-    stat: ModuleType,
 ) -> bool:
     """Return true only for one current-owner ordinary-file namespace entry."""
 
@@ -59,7 +58,6 @@ def read_stable_owned_json_bytes_no_follow(
     UnsafeDurableStateNamespace: type[Exception],
     durable_state_namespace_is_owned_single_link_file: Callable[..., bool],
     os: ModuleType,
-    stat: ModuleType,
 ) -> tuple[bool, bytes | None]:
     """Read one bounded stable owned JSON authority without following links."""
 
@@ -273,7 +271,6 @@ def load_receipt_json_no_follow(
     UnsafeReceiptNamespace: type[Exception],
     _strict_receipt_json_bytes: Callable[[bytes], object],
     os: ModuleType,
-    stat: ModuleType,
 ) -> tuple[bool, object | None]:
     """Read one bounded stable ordinary receipt, distinguishing true absence.
 
@@ -378,7 +375,6 @@ def durable_create_receipt_json(
     UnsafeReceiptNamespace: type[Exception],
     fsync_parent_dir: Callable[..., None],
     os: ModuleType,
-    stat: ModuleType,
 ) -> None:
     """Publish a new receipt with O_EXCL and prove its exact stable bytes."""
     data = canonical_atomic_json_bytes(value)

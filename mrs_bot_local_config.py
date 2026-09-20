@@ -12,6 +12,7 @@ import copy
 import json
 import math
 import os
+import stat
 from collections.abc import Callable
 from dataclasses import dataclass
 from decimal import Decimal
@@ -144,7 +145,6 @@ class LocalConfiguration:
     maximum_bytes: int
     error_type: type[Exception]
     os: ModuleType
-    stat: ModuleType
     source_defaults: dict[str, object]
     log: Logger
     validate_runtime_values: Callable[[dict[str, object]], list[str]]
@@ -161,7 +161,7 @@ class LocalConfiguration:
             raise self.error_type(
                 f"Failed to inspect local config file {self.config_file}: {exc}"
             ) from exc
-        if not self.stat.S_ISREG(before_path.st_mode):
+        if not stat.S_ISREG(before_path.st_mode):
             raise self.error_type(
                 f"Local config file {self.config_file} must be a regular file"
             )
@@ -185,7 +185,7 @@ class LocalConfiguration:
             try:
                 before_fd = self.os.fstat(descriptor)
                 if (
-                    not self.stat.S_ISREG(before_fd.st_mode)
+                    not stat.S_ISREG(before_fd.st_mode)
                     or _local_config_stat_identity(before_path)
                     != _local_config_stat_identity(before_fd)
                 ):
