@@ -2,10 +2,11 @@
 
 ReplyContext binds current lookup, validation, media, clock and policy boundaries
 without retaining caller state. Parent traversal, quote selection, structural
-checks and canonical context assembly call owned methods directly. Text cleanup
-uses local pure helpers. Cache sharing, lookup budgets, media preparation order,
-copy boundaries and diagnostic hashes retain their existing semantics. Import
-and construction perform no file, environment, clock, provider or RNG work.
+checks, usable parent-suffix projection and canonical assembly call owned methods.
+Text cleanup uses local pure helpers. Cache sharing, lookup budgets, media
+preparation order, copy boundaries and diagnostic hashes retain their existing
+semantics. Import and construction perform no file, environment, clock, provider
+or RNG work.
 """
 
 from __future__ import annotations
@@ -21,7 +22,6 @@ from datetime import timezone
 from logging import Logger
 
 from mrs_bot_reply_cycle_interfaces import PreparedReplyContext
-
 from mrs_bot_tweet_lookup_cache import tweet_text_is_complete
 
 
@@ -336,6 +336,41 @@ class ReplyContext:
                 return False
         return True
 
+    def _visible_parent_turns(
+        self,
+        chain: list[dict],
+        mention: dict,
+        *,
+        mention_id: str,
+        author_id: str,
+    ) -> list[dict[str, str]] | None:
+        """Render the usable parent suffix and target without copying post rows."""
+        visible: list[dict[str, str]] = []
+        for tweet in chain:
+            post = self.post(
+                tweet,
+                principal_author_id=author_id,
+                maximum_chars=self.default_post_maximum_chars,
+            )
+            if not post["post_id"] or not post["text"]:
+                self.log.warning(
+                    "Discarding older context through an unusable parent turn "
+                    "target_id=%s",
+                    mention_id,
+                )
+                visible = []
+                continue
+            visible.append(post)
+        target_turn = self.post(
+            mention,
+            principal_author_id=author_id,
+            maximum_chars=self.incoming_maximum_chars,
+        )
+        if not target_turn["post_id"] or not target_turn["text"]:
+            return None
+        visible.append(target_turn)
+        return visible
+
     def build(self, mention: dict, state: dict) -> PreparedReplyContext | None:
         """Build the verified parent-contiguous canonical single-call context."""
 
@@ -395,30 +430,11 @@ class ReplyContext:
             )
             return None
 
-        visible: list[dict[str, str]] = []
-        for tweet in chain:
-            post = self.post(
-                tweet,
-                principal_author_id=author_id,
-                maximum_chars=self.default_post_maximum_chars,
-            )
-            if not post["post_id"] or not post["text"]:
-                self.log.warning(
-                    "Discarding older context through an unusable parent turn "
-                    "target_id=%s",
-                    mention_id,
-                )
-                visible = []
-                continue
-            visible.append(post)
-        target_turn = self.post(
-            mention,
-            principal_author_id=author_id,
-            maximum_chars=self.incoming_maximum_chars,
+        visible = self._visible_parent_turns(
+            chain, mention, mention_id=mention_id, author_id=author_id,
         )
-        if not target_turn["post_id"] or not target_turn["text"]:
+        if visible is None:
             return None
-        visible.append(target_turn)
 
         directly_quoted_candidate = self.directly_quoted_tweet(
             mention, state

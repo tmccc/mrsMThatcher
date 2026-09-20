@@ -449,3 +449,25 @@ def test_summary_keeps_canonical_fallback_for_original_encoding_failures(make_ow
     logger = Mock()
     make_owner(log=logger).log_summary("Context", PreparedReplyContext({"noncanonical": value}, {}))
     assert logger.debug.call_args.args[-1] == hashlib.sha256(b"non-canonical-single-call-context").hexdigest()
+
+
+def test_unusable_rendered_target_stops_before_quote_lookup_and_media(monkeypatch, make_owner):
+    target = {"id": "100", "author_id": "200", "text": "Incoming"}
+    rendered = {"post_id": "100", "author_role": "user", "text": ""}
+    render = Mock(return_value=rendered)
+    lookup, media, clock = Mock(), Mock(), Mock()
+    monkeypatch.setattr(reply_context.ReplyContext, "post", render)
+    owner = make_owner(
+        always_fetch_parent=False, skip_own_auto_replies=False,
+        get_tweet_by_id_cached=lookup, reply_media_context_for_candidate=media,
+        current_utc_datetime=clock,
+    )
+
+    assert owner.build(target, {}) is None
+    render.assert_called_once_with(
+        target, principal_author_id="200", maximum_chars=owner.incoming_maximum_chars,
+    )
+    assert render.call_args.args[0] is target
+    lookup.assert_not_called()
+    media.assert_not_called()
+    clock.assert_not_called()
