@@ -29,11 +29,11 @@ class ReplyModelTransport:
     sleep: Callable
     now_epoch: Callable
     parsedate_to_datetime: Callable
-    error_type: type
+    error_type: type[Exception]
 
     def definite_connection_failure_before_transmission(
         self,
-        error: requests.RequestException,
+        error: BaseException,
     ) -> bool:
         """Return whether the failure proves the request was never transmitted."""
         if isinstance(error, self.requests.ConnectTimeout):
@@ -61,7 +61,7 @@ class ReplyModelTransport:
         reset_epoch: int | None = None,
         retry_after_seconds: int | None = None,
         request_attempt_count: int = 1,
-    ) -> ApiError:
+    ) -> Exception:
         """Build the current API exception with provider accounting metadata."""
         error = self.error_type(
             message,
@@ -74,7 +74,7 @@ class ReplyModelTransport:
         error.request_attempt_count = request_attempt_count
         return error
 
-    def retry_metadata(self, response: requests.Response) -> tuple[int | None, int | None]:
+    def retry_metadata(self, response: object) -> tuple[int | None, int | None]:
         """Return bounded Retry-After metadata for provider cooldown accounting."""
 
         headers = getattr(response, "headers", {})

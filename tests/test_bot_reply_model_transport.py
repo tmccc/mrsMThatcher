@@ -8,6 +8,7 @@ from pathlib import Path
 import subprocess
 import sys
 from types import SimpleNamespace
+from typing import get_type_hints
 from unittest.mock import Mock, call
 
 import pytest
@@ -37,7 +38,7 @@ def make_owner():
 
 def test_import_needs_no_runtime_access():
     code = """
-import builtins, collections.abc, dataclasses, io, logging, math, os, random, re, socket, sys, time
+import builtins, collections.abc, dataclasses, io, logging, math, os, random, re, socket, sys, time, typing
 from pathlib import Path
 
 def forbidden(*args, **kwargs):
@@ -58,6 +59,10 @@ time.time = time.monotonic = forbidden
 before = random.getstate()
 random.Random = random.seed = random.random = forbidden
 import mrs_bot_reply_model_transport
+owner_type = mrs_bot_reply_model_transport.ReplyModelTransport
+typing.get_type_hints(owner_type)
+for name in ('definite_connection_failure_before_transmission', 'error', 'retry_metadata', 'call'):
+    typing.get_type_hints(getattr(owner_type, name))
 assert random.getstate() == before
 assert 'mrsMThatcher2' not in sys.modules
 assert 'requests' not in sys.modules
@@ -100,10 +105,9 @@ def test_root_adapters_preserve_signatures_defaults_references_and_errors(monkey
         adapter = getattr(bot, root_name)
         public = inspect.signature(adapter)
         owned = inspect.signature(getattr(model_transport.ReplyModelTransport, method_name))
-        assert [(p.name, p.kind, p.default, p.annotation) for p in public.parameters.values()] == [
-            (p.name, p.kind, p.default, p.annotation) for p in list(owned.parameters.values())[1:]
+        assert [(p.name, p.kind, p.default) for p in public.parameters.values()] == [
+            (p.name, p.kind, p.default) for p in list(owned.parameters.values())[1:]
         ]
-        assert public.return_annotation == owned.return_annotation
         args = tuple(object() for p in public.parameters.values() if p.kind == p.POSITIONAL_OR_KEYWORD)
         options = {key: object() for key, p in public.parameters.items() if p.kind == p.KEYWORD_ONLY}
         with monkeypatch.context() as patch:
@@ -135,6 +139,14 @@ def test_root_adapters_preserve_signatures_defaults_references_and_errors(monkey
     assert bot._definite_connection_failure_before_transmission.__annotations__["error"] == "requests.RequestException"
     assert bot._openai_retry_metadata.__annotations__["response"] == "requests.Response"
     assert bot._openai_api_error.__annotations__["return"] == "ApiError"
+
+
+def test_owner_annotations_describe_injected_transport_without_root_names():
+    owner_type = model_transport.ReplyModelTransport
+    assert get_type_hints(owner_type)["error_type"] == type[Exception]
+    assert get_type_hints(owner_type.definite_connection_failure_before_transmission)["error"] is BaseException
+    assert get_type_hints(owner_type.retry_metadata)["response"] is object
+    assert get_type_hints(owner_type.error)["return"] is Exception
 
 
 @pytest.mark.parametrize("malformed", [False, True])
