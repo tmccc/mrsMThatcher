@@ -291,7 +291,10 @@ def test_young_pending_quote_survives_restart_and_watch_changes(monkeypatch, wat
     assert "912" not in state["skipped_quote_post_ids"]
 
     clock[0] += 60
-    bot.build_quote_lookup_post_ids.return_value = watched_after_restart
+    patch_reply_owner_method(
+        monkeypatch, bot._quote_discovery.QuoteWatchPosts, "lookup",
+        Mock(return_value=watched_after_restart),
+    )
     lookup.reset_mock()
     assert bot.maybe_reply_to_quote_tweets(state) == bot.QUOTE_CHECK_STATUS_CHECKED
     assert [call.args[0]["target_id"] for call in evaluate.call_args_list] == ["913", "912"]
@@ -303,11 +306,14 @@ def test_young_pending_quote_survives_restart_and_watch_changes(monkeypatch, wat
 
 def test_quote_owner_handoffs_keep_current_recovery_and_chronological_model_history(monkeypatch):
     """Use actual owners together without returning through their root adapters."""
+    watch_type = bot._quote_discovery.QuoteWatchPosts
+    watch_lookup = watch_type.lookup
     tweets_type = bot._tweet_lookup_cache.TweetLookupCache
     get_cached = tweets_type.get_cached
     media_type = bot._reply_native_media.ReplyMedia
     prepare_media = media_type.context
     search, _clock, lookup = _install_quote_pages(monkeypatch, first_ids=("912",))
+    monkeypatch.setattr(watch_type, "lookup", watch_lookup)
     monkeypatch.setattr(media_type, "context", prepare_media)
     original = lookup.return_value
     monkeypatch.setattr(tweets_type, "get_cached", get_cached)
@@ -315,6 +321,7 @@ def test_quote_owner_handoffs_keep_current_recovery_and_chronological_model_hist
     patch_tweet_lookup_method(monkeypatch, "fetch", fetch)
 
     state = bot.default_state()
+    state["recent_own_post_ids"] = ["900"]
     target_epoch = bot.parse_x_datetime_to_epoch(original["created_at"])
     state["ai_reply_history"] = [
         {
@@ -384,7 +391,8 @@ def test_quote_owner_handoffs_keep_current_recovery_and_chronological_model_hist
     monkeypatch.setattr(bot, "run_single_call_reply_pipeline", pipeline)
     relays = {}
     for name in (
-        "build_quote_tweet_reply_context", "cache_tweet", "get_tweet_by_id_cached",
+        "build_quote_lookup_post_ids", "build_quote_tweet_reply_context",
+        "cache_tweet", "get_tweet_by_id_cached",
         "evaluate_single_call_reply", "_record_single_call_result",
         "recovery_comparison_account_replies", "collect_reply_images",
         "openai_responses_reply_call", "_openai_api_error",

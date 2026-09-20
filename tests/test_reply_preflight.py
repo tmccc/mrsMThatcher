@@ -35,7 +35,7 @@ def test_reply_preflight_and_create_keep_separate_outcomes(monkeypatch, lane, ou
         configure_normal_cycle(monkeypatch)
         candidate = mention(105, 205)
         queue_active_mention(state, candidate, base_since_id="100")
-        monkeypatch.setattr(bot, "get_mentions", Mock(return_value=[candidate]))
+        monkeypatch.setattr(bot._mention_discovery, "get_mentions", Mock(return_value=[candidate]))
         run = bot.maybe_reply_to_mentions
         read_scope, read_epochs, read_until = "api", "x_error_epochs", "api_cooldown_until_epoch"
     else:

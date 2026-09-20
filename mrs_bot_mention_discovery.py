@@ -7,10 +7,11 @@ traversal and reset callbacks. A private page operation updates explicit
 traversal progress alongside the queue, cursor and durable commit boundaries. Queue recovery
 precedes provider work and returned records preserve their references.
 
-Mention authority normalization, validation and reset primitives, the continuation
-exception, shared pagination/authentication, cache/persistence, terminal and
-quarantine evaluation and reply cycles remain in their existing locations.
-Runtime requests and saves use supplied callbacks; owners retain no caller state.
+Mention authority, tweet lookup/cache and terminal-evaluation owners are supplied
+directly and called without root compatibility relays. The continuation exception,
+shared pagination/authentication, persistence and reply cycles remain in their
+existing locations. Runtime requests and saves use supplied callbacks; owners
+retain no caller state.
 Import performs no file, environment, provider, clock or RNG work or reverse
 application import.
 """
@@ -23,12 +24,18 @@ from collections.abc import Callable
 from dataclasses import dataclass
 from logging import Logger
 from pathlib import Path
+from typing import TYPE_CHECKING
 
 from mrs_bot_mention_authority import active_mention_backlog_reset_guard
 from mrs_bot_reply_evaluation_state import terminal_reply_evaluation
 from mrs_bot_reply_native_media import attach_media_to_tweets
 from mrs_bot_reply_state import handled_reply_target_ids
 from mrs_bot_tweet_lookup_cache import normalise_tweet_text
+
+if TYPE_CHECKING:
+    from mrs_bot_mention_authority import MentionAuthority
+    from mrs_bot_reply_evaluation_state import ReplyEvaluations
+    from mrs_bot_tweet_lookup_cache import TweetLookupCache
 
 
 def remove_pending_mention_candidate(state: dict, mention_id: str) -> bool:
@@ -47,14 +54,14 @@ class MentionQueue:
     """Read and retire durable queued mentions without retaining caller state."""
 
     state_file: Path
-    validate_authority: Callable
+    authority: MentionAuthority
     save: Callable
     sort_candidates: Callable
     log: Logger
 
     def pending(self, state: dict) -> list[dict]:
         """Return the durable fetched-candidate queue, deduplicated by status ID."""
-        usable, changed = self.validate_authority(
+        usable, changed = self.authority.validate_pending(
             state,
             path=self.state_file,
             recover_pending_identity=True,
@@ -115,14 +122,13 @@ def get_mentions(
     _MentionBacklogContinuationLimit: type[Exception],
     api_error_is_invalid_pagination_cursor: Callable,
     api_error_is_permanent_target_failure: Callable,
-    get_tweet_by_id: Callable,
-    cache_tweet: Callable,
+    tweets: TweetLookupCache,
     log: Logger,
     log_event: Callable,
     log_json_debug: Callable,
     now_epoch: Callable,
     mention_queue: MentionQueue,
-    prune_completed_mention_quarantine_evaluations: Callable,
+    reply_evaluations: ReplyEvaluations,
     save_state: Callable,
     valid_tweets_sorted_by_id: Callable,
     x_paginated_get: Callable,
@@ -142,7 +148,7 @@ def get_mentions(
                 continue
             target_id = str(candidate["id"])
             try:
-                fresh = get_tweet_by_id(target_id, include_media=True)
+                fresh = tweets.fetch(target_id, include_media=True)
             except ApiError as exc:
                 if not api_error_is_permanent_target_failure(exc):
                     raise
@@ -154,7 +160,7 @@ def get_mentions(
             else:
                 normalise_tweet_text(fresh)
                 candidate.update(fresh)
-                cache_tweet(
+                tweets.store(
                     state, tweet_id=target_id, text=candidate.get("text", ""),
                     author_id=str(candidate.get("author_id", "")),
                     conversation_id=str(candidate.get("conversation_id", target_id)),
@@ -308,13 +314,11 @@ def get_mentions(
                 current=current,
                 continuation_token_limit=MENTION_BACKLOG_CONTINUATION_TOKEN_LIMIT,
                 continuation_limit_error=_MentionBacklogContinuationLimit,
-                cache_tweet=cache_tweet,
+                tweets=tweets,
                 log=log,
                 log_event=log_event,
                 mention_queue=mention_queue,
-                prune_completed_mention_quarantine_evaluations=(
-                    prune_completed_mention_quarantine_evaluations
-                ),
+                reply_evaluations=reply_evaluations,
                 reset_backlog=reset_backlog,
                 save_state=save_state,
                 valid_tweets_sorted_by_id=valid_tweets_sorted_by_id,
@@ -434,11 +438,11 @@ def _persist_mention_page(
     current: int,
     continuation_token_limit: int,
     continuation_limit_error: type[Exception],
-    cache_tweet: Callable,
+    tweets: TweetLookupCache,
     log: Logger,
     log_event: Callable,
     mention_queue: MentionQueue,
-    prune_completed_mention_quarantine_evaluations: Callable,
+    reply_evaluations: ReplyEvaluations,
     reset_backlog: Callable,
     save_state: Callable,
     valid_tweets_sorted_by_id: Callable,
@@ -473,7 +477,7 @@ def _persist_mention_page(
         progress.items_seen += 1
         if not highest or int(mention_id) > int(highest):
             highest = mention_id
-        cache_tweet(
+        tweets.store(
             state,
             tweet_id=mention_id,
             text=mention.get("text", ""),
@@ -535,7 +539,7 @@ def _persist_mention_page(
     state["mention_pagination"] = {}
     if head_traversal_completed:
         state["mention_backlog_reset_guard"] = {}
-    prune_completed_mention_quarantine_evaluations(state)
+    reply_evaluations.prune_completed_mentions(state)
     save_state(state, durable=True)
     progress.completed = True
     if active.get("announced"):

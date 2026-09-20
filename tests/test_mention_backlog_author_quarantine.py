@@ -790,7 +790,10 @@ def test_hot_post_local_validation_failure_is_terminal_and_not_provider_health(
         [],
         current_epoch=2_000_000_000,
     )
-    monkeypatch.setattr(bot, "get_hot_post_reply_candidates", lambda _state: [candidate])
+    monkeypatch.setattr(
+        bot._hot_post_discovery, "get_hot_post_reply_candidates",
+        lambda _state, **_kwargs: [candidate],
+    )
 
     def operational_failure(
         _context: dict,
@@ -2364,7 +2367,7 @@ def test_interrupted_head_guard_without_backlog_discards_pending_candidate(
 def test_full_mention_loop_resets_stale_queue_before_provider_evaluation(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    real_get_mentions = bot.get_mentions
+    real_get_mentions = bot._mention_discovery.get_mentions
     state = bot.default_state()
     state["last_seen_mention_id"] = "99"
     state["mention_backlog"] = mention_backlog(since_id="98")
@@ -2378,7 +2381,7 @@ def test_full_mention_loop_resets_stale_queue_before_provider_evaluation(
         [],
         current_epoch=2_000_000_000,
     )
-    monkeypatch.setattr(bot, "get_mentions", real_get_mentions)
+    monkeypatch.setattr(bot._mention_discovery, "get_mentions", real_get_mentions)
     monkeypatch.setattr(bot, "MY_USER_ID", "12345")
     monkeypatch.setattr(bot, "MENTIONS_MAX_PAGES_PER_CHECK", 1)
     requests: list[dict] = []

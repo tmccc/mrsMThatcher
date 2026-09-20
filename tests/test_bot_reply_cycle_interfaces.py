@@ -48,7 +48,7 @@ def prepare_cycle(monkeypatch, lane):
         return state, context, bot.maybe_reply_to_quote_tweets
     configure_normal(monkeypatch)
     candidate = mention(105, 205)
-    monkeypatch.setattr(bot, "get_mentions", Mock(return_value=[candidate]))
+    monkeypatch.setattr(bot._mention_discovery, "get_mentions", Mock(return_value=[candidate]))
     context = unit_reply_context(
         target_id=candidate["id"], contribution=candidate["text"],
         target_author_id=candidate["author_id"],
@@ -245,7 +245,10 @@ def test_cycles_consume_typed_results_through_durable_outcomes(monkeypatch, lane
 def test_zero_call_result_preserves_each_lanes_budget_rule(monkeypatch, lane):
     state, _context, run = prepare_cycle(monkeypatch, lane)
     if lane == "mention":
-        monkeypatch.setattr(bot, "get_mentions", Mock(return_value=[mention(n, n + 100) for n in (105, 106, 107)]))
+        monkeypatch.setattr(
+            bot._mention_discovery, "get_mentions",
+            Mock(return_value=[mention(n, n + 100) for n in (105, 106, 107)]),
+        )
         monkeypatch.setattr(bot, "MAX_MENTIONS_PER_CHECK", 1)
     else:
         quotes = bot.get_quote_tweets_for_posts.return_value["900"]

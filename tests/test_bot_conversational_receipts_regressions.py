@@ -161,8 +161,13 @@ def test_malformed_reply_post_id_is_not_recorded(monkeypatch: pytest.MonkeyPatch
     monkeypatch.setattr(bot, "now_epoch", lambda: 1_800_000_000)
     monkeypatch.setattr(bot, "lane_paused", lambda *args, **kwargs: False)
     monkeypatch.setattr(bot, "in_api_cooldown", lambda *args, **kwargs: False)
-    monkeypatch.setattr(bot, "get_mentions", lambda state: [mention])
-    monkeypatch.setattr(bot, "get_hot_post_reply_candidates", lambda state: [])
+    monkeypatch.setattr(
+        bot._mention_discovery, "get_mentions", lambda state, **_kwargs: [mention],
+    )
+    monkeypatch.setattr(
+        bot._hot_post_discovery, "get_hot_post_reply_candidates",
+        lambda state, **_kwargs: [],
+    )
     monkeypatch.setattr(bot, "is_probably_spam_or_not_worth_replying", lambda text: False)
     context = unit_reply_context(target_id="100", contribution="@MrsMThatcher hello")
     patch_reply_owner_method(
@@ -835,9 +840,9 @@ def test_reply_spacing_is_measured_from_schema_v4_confirmation(
         lambda: datetime.fromtimestamp(confirmation_epoch + 1799),
     )
     monkeypatch.setattr(
-        bot,
+        bot._mention_discovery,
         "get_mentions",
-        lambda _state: pytest.fail("spacing must block candidate retrieval"),
+        lambda _state, **_kwargs: pytest.fail("spacing must block candidate retrieval"),
     )
 
     assert (
@@ -1386,18 +1391,18 @@ def test_sending_reply_receipt_blocks_each_remote_lane_before_preparation(
     elif lane == "mention":
         monkeypatch.setattr(bot, "ENABLE_AUTO_REPLIES", True)
         monkeypatch.setattr(
-            bot,
+            bot._mention_discovery,
             "get_mentions",
-            lambda *_args: prepared("mention fetch"),
+            lambda *_args, **_kwargs: prepared("mention fetch"),
         )
         invoke = lambda: bot.maybe_reply_to_mentions(bot.default_state())
     elif lane == "quote_tweet":
         monkeypatch.setattr(bot, "ENABLE_AUTO_REPLIES", True)
         monkeypatch.setattr(bot, "ENABLE_QUOTE_TWEET_CHECKS", True)
         monkeypatch.setattr(
-            bot,
-            "build_quote_lookup_post_ids",
-            lambda *_args: prepared("quote lookup"),
+            bot._quote_discovery.QuoteWatchPosts,
+            "lookup",
+            lambda *_args, **_kwargs: prepared("quote lookup"),
         )
         invoke = lambda: bot.maybe_reply_to_quote_tweets(bot.default_state())
     elif lane == "historical_context":

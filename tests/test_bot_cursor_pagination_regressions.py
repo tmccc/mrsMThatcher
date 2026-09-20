@@ -1039,7 +1039,9 @@ def test_quote_search_processes_new_quote_despite_legacy_cursor_suppression(
     monkeypatch.setattr(bot, "lane_paused", lambda *_args, **_kwargs: False)
     monkeypatch.setattr(bot, "in_api_cooldown", lambda *_args, **_kwargs: False)
     monkeypatch.setattr(bot, "reconcile_confirmed_reply_receipt", lambda _state: False)
-    monkeypatch.setattr(bot, "build_quote_lookup_post_ids", lambda _state: ["900"])
+    monkeypatch.setattr(
+        bot._quote_discovery.QuoteWatchPosts, "lookup", lambda _owner, _state: ["900"],
+    )
     patch_tweet_lookup_method(
         monkeypatch, "get_cached",
         lambda *_args, **_kwargs: dict(original),
@@ -1170,7 +1172,9 @@ def test_hot_post_invalid_saved_cursor_clears_state_and_preserves_query(
     monkeypatch.setattr(bot, "HOT_POST_REPLY_FULL_RESCAN_EVERY_CHECKS", 100)
     monkeypatch.setattr(bot, "lane_paused", lambda *_args, **_kwargs: False)
     monkeypatch.setattr(bot, "in_api_cooldown", lambda *_args, **_kwargs: False)
-    monkeypatch.setattr(bot, "load_extra_quote_watch_post_ids", lambda: ["700"])
+    monkeypatch.setattr(
+        bot._quote_discovery.QuoteWatchPosts, "load_extra", lambda _owner: ["700"],
+    )
     monkeypatch.setattr(bot, "x_quote_lookup_request", request)
     monkeypatch.setattr(
         bot,

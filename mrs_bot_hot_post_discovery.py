@@ -8,12 +8,13 @@ the candidate cap, draft/terminal ordering, in-place annotations and conservativ
 watermarks.
 Skip records and mention/hot-post merges retain their bounded and copy behavior.
 
-Watched-ID reading, pagination/authentication, target eligibility, draft and
-terminal evaluation authority, cache/persistence, mention watermarks and reply
-cycles remain in their existing locations. Runtime reads and saves use supplied
-callbacks. This owner has no reverse application import, retained dependencies,
-configuration, clients or state, and performs no import-time file, environment,
-provider, clock or RNG work.
+Watched-ID selection, terminal evaluation and tweet caching use their typed owners
+directly. Pagination/authentication, target eligibility, draft authority,
+persistence, mention watermarks and reply cycles remain in their existing
+locations. Runtime reads and saves use supplied callbacks. This module has no
+reverse application import, retained dependencies, configuration, clients or
+state, and performs no import-time file, environment, provider, clock or RNG
+work.
 """
 
 from __future__ import annotations
@@ -22,11 +23,17 @@ import copy
 from collections.abc import Callable
 from logging import Logger
 from pathlib import Path
+from typing import TYPE_CHECKING
 
 from mrs_bot_reply_native_media import attach_media_to_tweets
 from mrs_bot_reply_state import handled_reply_target_ids, retire_ineligible_reply_draft
 from mrs_bot_runtime_state_helpers import append_unique_capped
 from mrs_bot_tweet_lookup_cache import normalise_tweet_text
+
+if TYPE_CHECKING:
+    from mrs_bot_quote_discovery import QuoteWatchPosts
+    from mrs_bot_reply_evaluation_state import ReplyEvaluations
+    from mrs_bot_tweet_lookup_cache import TweetLookupCache
 
 
 def _prune_unwatched_tracking(
@@ -85,16 +92,16 @@ def get_hot_post_reply_candidates(
     HOT_POST_REPLY_USE_SINCE_ID: bool,
     MAX_HOT_POST_REPLIES_PER_CHECK: int,
     MY_USER_ID: str,
-    cache_tweet: Callable,
+    tweets: TweetLookupCache,
     retire_ineligible_draft: Callable[[dict, str, str], None],
     in_api_cooldown: Callable,
     lane_paused: Callable,
-    load_extra_quote_watch_post_ids: Callable,
+    watch_posts: QuoteWatchPosts,
     log: Logger,
     log_event: Callable,
     log_json_debug: Callable,
     mark_hot_post_reply_skipped: Callable,
-    record_terminal_reply_evaluation: Callable,
+    reply_evaluations: ReplyEvaluations,
     reply_target_is_directly_eligible: Callable,
     save_state: Callable,
     valid_tweets_sorted_by_id: Callable,
@@ -128,7 +135,7 @@ def get_hot_post_reply_candidates(
         return []
 
     try:
-        watched_post_ids = load_extra_quote_watch_post_ids()
+        watched_post_ids = watch_posts.load_extra()
     except Exception as exc:
         log.warning("Could not load hot-post reply watch IDs: %s", exc)
         return []
@@ -302,7 +309,7 @@ def get_hot_post_reply_candidates(
                     "hot_post_reply",
                     reason=reason,
                     retire_draft=retire_ineligible_draft,
-                    record_terminal_reply_evaluation=record_terminal_reply_evaluation,
+                    record_terminal_reply_evaluation=reply_evaluations.record,
                 )
                 mark_hot_post_reply_skipped(
                     state,
@@ -324,7 +331,7 @@ def get_hot_post_reply_candidates(
             reply["_source"] = "hot_post_reply"
             reply["_hot_original_post_id"] = str(original_post_id)
 
-            cache_tweet(
+            tweets.store(
                 state,
                 tweet_id=reply_id,
                 text=reply.get("text", ""),

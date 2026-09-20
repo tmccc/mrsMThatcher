@@ -1921,8 +1921,8 @@ def _configure_approved_mention_candidate(
     )
     monkeypatch.setattr(bot, "lane_paused", lambda *_args, **_kwargs: False)
     monkeypatch.setattr(bot, "in_api_cooldown", lambda *_args, **_kwargs: False)
-    monkeypatch.setattr(bot, "get_mentions", lambda _state: [dict(mention)])
-    monkeypatch.setattr(bot, "get_hot_post_reply_candidates", lambda _state: [])
+    monkeypatch.setattr(bot._mention_discovery, "get_mentions", lambda _state, **_kwargs: [dict(mention)])
+    monkeypatch.setattr(bot._hot_post_discovery, "get_hot_post_reply_candidates", lambda _state, **_kwargs: [])
     monkeypatch.setattr(
         bot,
         "is_probably_spam_or_not_worth_replying",
@@ -2003,7 +2003,7 @@ def _configure_approved_quote_candidate(
     )
     monkeypatch.setattr(bot, "lane_paused", lambda *_args, **_kwargs: False)
     monkeypatch.setattr(bot, "in_api_cooldown", lambda *_args, **_kwargs: False)
-    monkeypatch.setattr(bot, "build_quote_lookup_post_ids", lambda _state: ["900"])
+    monkeypatch.setattr(bot._quote_discovery.QuoteWatchPosts, "lookup", lambda _owner, _state: ["900"])
     patch_tweet_lookup_method(
         monkeypatch, "get_cached",
         lambda *_args, **_kwargs: dict(own_post),

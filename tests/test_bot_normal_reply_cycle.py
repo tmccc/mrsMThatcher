@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from tests.helpers.reply_evaluation import legacy_reply_evaluator
 
+import copy
 import inspect
 import json
 from pathlib import Path
@@ -139,6 +140,10 @@ def test_adapter_forwards_current_dependencies_arguments_results_and_errors(monk
                 monkeypatch.setattr(bot, owner_factories[key], factories[key])
             else:
                 monkeypatch.setattr(bot, key, value)
+        draft_owner = Mock(return_value=Mock(retire_ineligible=Mock()))
+        watch_owner = Mock(return_value=object())
+        monkeypatch.setattr(bot, "_reply_draft_owner", draft_owner)
+        monkeypatch.setattr(bot, "_quote_watch_posts_owner", watch_owner)
         assert adapter(state, **options) is result
         for factory in factories.values():
             factory.assert_called_once_with()
@@ -149,7 +154,22 @@ def test_adapter_forwards_current_dependencies_arguments_results_and_errors(monk
             **options, **current,
         }
         assert kwargs.keys() == expected.keys()
-        assert all(kwargs[key] is value for key, value in expected.items())
+        discovery_callbacks = {"get_mentions", "get_hot_post_reply_candidates"}
+        assert all(
+            kwargs[key] is value
+            for key, value in expected.items()
+            if key not in discovery_callbacks
+        )
+        assert kwargs["get_mentions"].func is mention_discovery.get_mentions
+        assert kwargs["get_mentions"].keywords["tweets"] is current["tweets"]
+        assert kwargs["get_mentions"].keywords["reply_evaluations"] is current["reply_evaluations"]
+        assert kwargs["get_mentions"].keywords["mention_queue"] is current["mention_queue"]
+        assert kwargs["get_hot_post_reply_candidates"].func is bot._hot_post_discovery.get_hot_post_reply_candidates
+        assert kwargs["get_hot_post_reply_candidates"].keywords["tweets"] is current["tweets"]
+        assert kwargs["get_hot_post_reply_candidates"].keywords["reply_evaluations"] is current["reply_evaluations"]
+        assert kwargs["get_hot_post_reply_candidates"].keywords["watch_posts"] is watch_owner.return_value
+        draft_owner.assert_called_once_with()
+        watch_owner.assert_called_once_with(tweets=current["tweets"])
     failure = TypeError("current owner failure")
     owner.side_effect = failure
     with pytest.raises(TypeError) as caught:
@@ -240,7 +260,7 @@ def test_backlog_continuation_uses_current_root_state_and_budget(monkeypatch, in
             current_callback.assert_not_called()
         assert state["mention_pending_candidates"] == {}
         assert state["last_seen_mention_id"] == "99"
-    assert bot.get_hot_post_reply_candidates.call_count == 2
+    assert bot._hot_post_discovery.get_hot_post_reply_candidates.call_count == 2
     bot.x_request.assert_not_called()
     bot.create_post.assert_not_called()
 
@@ -322,7 +342,9 @@ def test_legacy_quote_only_target_is_retired_before_normal_eligibility(monkeypat
     normal_ledger = state["replied_to_ids"]
     quote_ledger = state["replied_to_quote_post_ids"] = ["105"]
     candidate = mention(105, 205)
-    monkeypatch.setattr(bot, "get_mentions", Mock(return_value=[candidate]))
+    monkeypatch.setattr(
+        mention_discovery, "get_mentions", Mock(return_value=[candidate]),
+    )
     eligible = Mock(side_effect=AssertionError("handled target reached eligibility"))
     context = Mock(side_effect=AssertionError("handled target reached context"))
     monkeypatch.setattr(bot, "reply_target_is_directly_eligible", eligible)
@@ -493,7 +515,7 @@ def test_daily_reset_and_confirmed_reconciliation_precede_barrier_when_disabled(
     monkeypatch.setattr(bot, "block_if_ambiguous_remote_post", trace.barrier)
     assert bot.maybe_reply_to_mentions(state) == bot.NORMAL_CHECK_STATUS_DISABLED
     assert trace.mock_calls == [call.reset(state), call.reconcile(state), call.barrier()]
-    bot.get_hot_post_reply_candidates.assert_not_called()
+    bot._hot_post_discovery.get_hot_post_reply_candidates.assert_not_called()
     bot.x_request.assert_not_called()
     bot.create_post.assert_not_called()
 
@@ -557,7 +579,9 @@ def test_fresh_duplicate_draft_is_rejected_before_delivery(monkeypatch):
         "reply_epoch": bot.now_epoch() - 1,
         "proposed_reply": str(reply),
     }]
-    monkeypatch.setattr(bot, "get_mentions", Mock(return_value=[candidate]))
+    monkeypatch.setattr(
+        mention_discovery, "get_mentions", Mock(return_value=[candidate]),
+    )
     evaluator = Mock(return_value=bot.PipelineResult(
         status="reply", reason="useful_reply", reply=reply, model_call_count=1,
     ))
@@ -582,7 +606,9 @@ def test_prepared_context_preserves_clarification_and_media_through_recovery(mon
     _configure_cycle(monkeypatch)
     state = bot.default_state()
     candidate = mention(105, 205)
-    monkeypatch.setattr(bot, "get_mentions", Mock(return_value=[candidate]))
+    monkeypatch.setattr(
+        mention_discovery, "get_mentions", Mock(return_value=[candidate]),
+    )
     monkeypatch.setattr(bot, "REPLY_INCOMING_MAX_CHARS", 40)
     clarification = {
         "question_text": "The original question needs clarification before an answer.",
@@ -649,11 +675,13 @@ def test_normal_owner_handoffs_keep_current_recovery_and_chronological_model_his
     build = context_owner.ReplyContext.build
     evaluate = generation_owner.ReplyGeneration.evaluate
     _configure_cycle(monkeypatch)
+    monkeypatch.setattr(bot, "MAX_MENTIONS_PER_CHECK", 1)
     monkeypatch.setattr(generation_owner.ReplyGeneration, "evaluate", evaluate)
     capped, candidate = mention(104, 204), mention(105, 205)
     candidate["created_at"] = "2033-05-18T03:30:00Z"
-    monkeypatch.setattr(bot, "get_mentions", Mock(return_value=[capped, candidate]))
     state = bot.default_state()
+    queue_active_mention(state, candidate, base_since_id="99")
+    state["mention_pending_candidates"]["104"] = copy.deepcopy(capped)
     state["daily_reply_date"] = bot.reply_cap_date_str()
     state["daily_replied_author_counts"] = {"204": bot.MAX_REPLIES_PER_AUTHOR_PER_DAY}
     target_epoch = bot.parse_x_datetime_to_epoch(candidate["created_at"])
@@ -726,6 +754,7 @@ def test_normal_owner_handoffs_keep_current_recovery_and_chronological_model_his
     relays = {}
     for name in (
         "build_context_for_reply_ai", "cache_tweet", "evaluate_single_call_reply",
+        "get_mentions", "get_hot_post_reply_candidates",
         "_record_single_call_result", "recovery_comparison_account_replies",
         "collect_reply_images", "openai_responses_reply_call", "_openai_api_error",
         "reply_media_context_for_candidate",
@@ -741,7 +770,8 @@ def test_normal_owner_handoffs_keep_current_recovery_and_chronological_model_his
         "status": "none", "photos_expected": 0, "photos": [],
     }
     assert state["reply_evaluation_records"]["105"]["outcome"] == "no_reply"
-    assert state["last_seen_mention_id"] == "105"
+    assert state["last_seen_mention_id"] == "99"
+    assert state["mention_pending_candidates"] == {}
     assert state["daily_reply_count"] == 0
     saved = json.loads(bot.STATE_FILE.read_text())
     assert saved["reply_evaluation_records"]["105"]["outcome"] == "no_reply"

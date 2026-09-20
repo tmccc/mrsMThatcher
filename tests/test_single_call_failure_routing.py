@@ -550,9 +550,9 @@ def test_new_429_cooldown_stops_later_candidate_in_same_lane_cycle(
             monkeypatch, [], current_epoch=current
         )
         monkeypatch.setattr(
-            bot,
+            bot._hot_post_discovery,
             "get_hot_post_reply_candidates",
-            lambda _state: copy.deepcopy(candidates),
+            lambda _state, **_kwargs: copy.deepcopy(candidates),
         )
     else:
         configure_provider_free_mention_check(
@@ -758,7 +758,8 @@ def test_image_transport_failure_is_retried_on_a_later_lane_cycle(
             monkeypatch, [], current_epoch=2_000_000_000
         )
         monkeypatch.setattr(
-            bot, "get_hot_post_reply_candidates", lambda _state: [candidate]
+            bot._hot_post_discovery, "get_hot_post_reply_candidates",
+            lambda _state, **_kwargs: [candidate]
         )
     else:
         configure_provider_free_mention_check(
@@ -974,9 +975,9 @@ def test_refusal_retires_candidate_and_allows_later_candidate_without_side_effec
             monkeypatch, [], current_epoch=2_000_000_000
         )
         monkeypatch.setattr(
-            bot,
+            bot._hot_post_discovery,
             "get_hot_post_reply_candidates",
-            lambda _state: copy.deepcopy(candidates),
+            lambda _state, **_kwargs: copy.deepcopy(candidates),
         )
     else:
         configure_provider_free_mention_check(

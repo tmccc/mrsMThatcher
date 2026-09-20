@@ -1103,7 +1103,15 @@ def test_startup_regular_receipt_replay_preserves_newer_production_schedule(
     monkeypatch.setattr(bot, "load_image_used_basenames", lambda paths: images_used)
     monkeypatch.setattr(bot, "current_image_paths", lambda: [])
     monkeypatch.setattr(bot, "load_runtime_state", lambda: state)
-    monkeypatch.setattr(bot, "seed_recent_own_post_ids_from_cache", lambda state: None)
+    monkeypatch.setattr(
+        bot._tweet_lookup_cache.TweetLookupCache, "seed_recent_own_posts",
+        lambda _owner, state: None,
+    )
+    monkeypatch.setattr(
+        bot,
+        "seed_recent_own_post_ids_from_cache",
+        lambda _state: pytest.fail("main used the obsolete root seed relay"),
+    )
     monkeypatch.setattr(bot, "now_epoch", lambda: first_tick_epoch)
     monkeypatch.setattr(
         bot,

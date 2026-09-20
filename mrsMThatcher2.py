@@ -3496,7 +3496,7 @@ def _mention_queue_owner() -> _mention_discovery.MentionQueue:
     """Bind current mention queue boundaries without reading state or files."""
     return _mention_discovery.MentionQueue(
         state_file=STATE_FILE,
-        validate_authority=validate_pending_mention_candidate_authority,
+        authority=_mention_authority_owner(),
         save=save_state,
         sort_candidates=valid_tweets_sorted_by_id,
         log=log,
@@ -3522,24 +3522,24 @@ def get_mentions(state: dict) -> list[dict]:
         MY_USER_ID=MY_USER_ID,
         _MentionBacklogContinuationLimit=_MentionBacklogContinuationLimit,
         api_error_is_invalid_pagination_cursor=api_error_is_invalid_pagination_cursor,
-        cache_tweet=cache_tweet,
+        tweets=_tweet_lookup_cache_owner(),
         log=log,
         log_event=log_event,
         log_json_debug=log_json_debug,
         now_epoch=now_epoch,
         mention_queue=_mention_queue_owner(),
-        prune_completed_mention_quarantine_evaluations=prune_completed_mention_quarantine_evaluations,
+        reply_evaluations=_reply_evaluation_owner(),
         save_state=save_state,
         valid_tweets_sorted_by_id=valid_tweets_sorted_by_id,
         x_paginated_get=x_paginated_get,
         x_request=x_request,
         api_error_is_permanent_target_failure=api_error_is_permanent_target_failure,
-        get_tweet_by_id=get_tweet_by_id,
     )
 
 
 def get_hot_post_reply_candidates(state: dict) -> list[dict]:
     """Delegate to the hot-post owner with current root dependencies."""
+    tweets = _tweet_lookup_cache_owner()
     return _hot_post_discovery.get_hot_post_reply_candidates(
         state,
         ApiError=ApiError,
@@ -3551,16 +3551,16 @@ def get_hot_post_reply_candidates(state: dict) -> list[dict]:
         HOT_POST_REPLY_USE_SINCE_ID=HOT_POST_REPLY_USE_SINCE_ID,
         MAX_HOT_POST_REPLIES_PER_CHECK=MAX_HOT_POST_REPLIES_PER_CHECK,
         MY_USER_ID=MY_USER_ID,
-        cache_tweet=cache_tweet,
+        tweets=tweets,
         retire_ineligible_draft=_reply_draft_owner().retire_ineligible,
         in_api_cooldown=in_api_cooldown,
         lane_paused=lane_paused,
-        load_extra_quote_watch_post_ids=load_extra_quote_watch_post_ids,
+        watch_posts=_quote_watch_posts_owner(tweets=tweets),
         log=log,
         log_event=log_event,
         log_json_debug=log_json_debug,
         mark_hot_post_reply_skipped=mark_hot_post_reply_skipped,
-        record_terminal_reply_evaluation=record_terminal_reply_evaluation,
+        reply_evaluations=_reply_evaluation_owner(),
         reply_target_is_directly_eligible=reply_target_is_directly_eligible,
         save_state=save_state,
         valid_tweets_sorted_by_id=valid_tweets_sorted_by_id,
@@ -7677,9 +7677,13 @@ def finalise_confirmed_reply(
     )
 
 
-def _reply_cycle_persistence() -> _reply_cycle_interfaces.ReplyCyclePersistence:
+def _reply_cycle_persistence(
+    *,
+    drafts: _reply_drafts.ReplyDrafts | None = None,
+) -> _reply_cycle_interfaces.ReplyCyclePersistence:
     """Bind one draft owner and the current durable save for a cycle invocation."""
-    drafts = _reply_draft_owner()
+    if drafts is None:
+        drafts = _reply_draft_owner()
     return _reply_cycle_interfaces.ReplyCyclePersistence(
         save=save_state, recover=drafts.recover,
         store=drafts.store, clear=drafts.clear,
@@ -7718,6 +7722,10 @@ def maybe_reply_to_mentions(
     _skip_hot_post_fetch: bool = False,
 ) -> str:
     """Process eligible mention and hot-post candidates under all reply limits."""
+    tweets = _tweet_lookup_cache_owner()
+    reply_evaluations = _reply_evaluation_owner()
+    mention_queue = _mention_queue_owner()
+    drafts = _reply_draft_owner()
     return _normal_reply_cycle.maybe_reply_to_mentions(
         state,
         config=_reply_cycle_interfaces.NormalReplyConfig(
@@ -7730,7 +7738,7 @@ def maybe_reply_to_mentions(
             maximum_fresh_evaluations=MAX_MENTIONS_PER_CHECK,
             incoming_max_chars=REPLY_INCOMING_MAX_CHARS,
         ),
-        persistence=_reply_cycle_persistence(),
+        persistence=_reply_cycle_persistence(drafts=drafts),
         delivery=_reply_cycle_delivery(),
         _fresh_mention_ai_evaluations=_fresh_mention_ai_evaluations,
         _skip_hot_post_fetch=_skip_hot_post_fetch,
@@ -7746,23 +7754,70 @@ def maybe_reply_to_mentions(
         conversational_reply_pipeline_enabled=conversational_reply_pipeline_enabled,
         accounting=_daily_reply_accounting_owner(),
         reply_contexts=_reply_context_owner(),
-        tweets=_tweet_lookup_cache_owner(),
+        tweets=tweets,
         generation=_reply_generation_owner(),
         history=_reply_history_owner(),
         dedupe_reply_candidates=dedupe_reply_candidates,
-        get_hot_post_reply_candidates=get_hot_post_reply_candidates,
-        get_mentions=get_mentions,
+        get_hot_post_reply_candidates=functools.partial(
+            _hot_post_discovery.get_hot_post_reply_candidates,
+            ApiError=ApiError,
+            ENABLE_HOT_POST_REPLY_CHECKS=ENABLE_HOT_POST_REPLY_CHECKS,
+            EXTRA_QUOTE_WATCH_FILE=EXTRA_QUOTE_WATCH_FILE,
+            HOT_POST_REPLY_FULL_RESCAN_EVERY_CHECKS=HOT_POST_REPLY_FULL_RESCAN_EVERY_CHECKS,
+            HOT_POST_REPLY_SEARCH_API_MAX_RESULTS=HOT_POST_REPLY_SEARCH_API_MAX_RESULTS,
+            HOT_POST_REPLY_SEARCH_MAX_PAGES_PER_CHECK=HOT_POST_REPLY_SEARCH_MAX_PAGES_PER_CHECK,
+            HOT_POST_REPLY_USE_SINCE_ID=HOT_POST_REPLY_USE_SINCE_ID,
+            MAX_HOT_POST_REPLIES_PER_CHECK=MAX_HOT_POST_REPLIES_PER_CHECK,
+            MY_USER_ID=MY_USER_ID,
+            tweets=tweets,
+            retire_ineligible_draft=drafts.retire_ineligible,
+            in_api_cooldown=in_api_cooldown,
+            lane_paused=lane_paused,
+            watch_posts=_quote_watch_posts_owner(tweets=tweets),
+            log=log,
+            log_event=log_event,
+            log_json_debug=log_json_debug,
+            mark_hot_post_reply_skipped=mark_hot_post_reply_skipped,
+            reply_evaluations=reply_evaluations,
+            reply_target_is_directly_eligible=reply_target_is_directly_eligible,
+            save_state=save_state,
+            valid_tweets_sorted_by_id=valid_tweets_sorted_by_id,
+            x_paginated_get=x_paginated_get,
+            x_quote_lookup_request=x_quote_lookup_request,
+        ),
+        get_mentions=functools.partial(
+            _mention_discovery.get_mentions,
+            ApiError=ApiError,
+            MAX_MENTIONS_PER_CHECK=MAX_MENTIONS_PER_CHECK,
+            MENTIONS_MAX_PAGES_PER_CHECK=MENTIONS_MAX_PAGES_PER_CHECK,
+            MENTION_BACKLOG_CONTINUATION_TOKEN_LIMIT=MENTION_BACKLOG_CONTINUATION_TOKEN_LIMIT,
+            MY_USER_ID=MY_USER_ID,
+            _MentionBacklogContinuationLimit=_MentionBacklogContinuationLimit,
+            api_error_is_invalid_pagination_cursor=api_error_is_invalid_pagination_cursor,
+            tweets=tweets,
+            log=log,
+            log_event=log_event,
+            log_json_debug=log_json_debug,
+            now_epoch=now_epoch,
+            mention_queue=mention_queue,
+            reply_evaluations=reply_evaluations,
+            save_state=save_state,
+            valid_tweets_sorted_by_id=valid_tweets_sorted_by_id,
+            x_paginated_get=x_paginated_get,
+            x_request=x_request,
+            api_error_is_permanent_target_failure=api_error_is_permanent_target_failure,
+        ),
         in_api_cooldown=in_api_cooldown,
         is_probably_spam_or_not_worth_replying=is_probably_spam_or_not_worth_replying,
         lane_paused=lane_paused,
         log=log,
         log_ai_reply_posting_outcome=log_ai_reply_posting_outcome,
         log_event=log_event,
-        mention_queue=_mention_queue_owner(),
+        mention_queue=mention_queue,
         maybe_mark_hot_post_reply_skipped=maybe_mark_hot_post_reply_skipped,
         maybe_reply_to_mentions=maybe_reply_to_mentions,
         now_epoch=now_epoch,
-        reply_evaluations=_reply_evaluation_owner(),
+        reply_evaluations=reply_evaluations,
         record_api_error=record_api_error,
         reply_evidence_repository=reply_evidence_repository,
         reply_target_is_directly_eligible=reply_target_is_directly_eligible,
@@ -7774,14 +7829,19 @@ def maybe_reply_to_mentions(
 # Quote-post replies
 # ---------------------------------------------------------------------
 
-def _quote_watch_posts_owner() -> _quote_discovery.QuoteWatchPosts:
+def _quote_watch_posts_owner(
+    *,
+    tweets: _tweet_lookup_cache.TweetLookupCache | None = None,
+) -> _quote_discovery.QuoteWatchPosts:
     """Bind current watch selection settings without reading the watch file."""
+    if tweets is None:
+        tweets = _tweet_lookup_cache_owner()
     return _quote_discovery.QuoteWatchPosts(
         watch_file=EXTRA_QUOTE_WATCH_FILE,
         maximum_extra_posts=MAX_EXTRA_QUOTE_WATCH_POSTS,
         maximum_posts=MAX_QUOTE_POSTS_PER_CHECK,
         lookback_posts=QUOTE_POST_LOOKBACK_MAIN_POSTS,
-        seed_recent=seed_recent_own_post_ids_from_cache,
+        tweets=tweets,
         log=log,
     )
 
@@ -7900,6 +7960,7 @@ def mark_quote_spam_author(state: dict, author_id: str) -> None:
 
 def maybe_reply_to_quote_tweets(state: dict) -> str:
     """Process eligible quote-tweet candidates under all reply limits."""
+    tweets = _tweet_lookup_cache_owner()
     return _quote_reply_cycle.maybe_reply_to_quote_tweets(
         state,
         config=_reply_cycle_interfaces.QuoteReplyConfig(
@@ -7924,11 +7985,11 @@ def maybe_reply_to_quote_tweets(state: dict) -> str:
         ValidatedReply=ValidatedReply,
         _log_validated_single_call_reply=_log_validated_single_call_reply,
         api_error_is_permanent_target_failure=api_error_is_permanent_target_failure,
-        build_quote_lookup_post_ids=build_quote_lookup_post_ids,
+        watch_posts=_quote_watch_posts_owner(tweets=tweets),
         conversational_reply_pipeline_enabled=conversational_reply_pipeline_enabled,
         accounting=_daily_reply_accounting_owner(),
         reply_contexts=_reply_context_owner(),
-        tweets=_tweet_lookup_cache_owner(),
+        tweets=tweets,
         generation=_reply_generation_owner(),
         history=_reply_history_owner(),
         get_quote_tweets_for_posts=get_quote_tweets_for_posts,
@@ -8279,7 +8340,7 @@ def main() -> None:
         )
 
 
-    seed_recent_own_post_ids_from_cache(state)
+    _tweet_lookup_cache_owner().seed_recent_own_posts(state)
     save_state(state)
 
     current = now_epoch()

@@ -82,14 +82,14 @@ def test_disabled_single_call_reply_skips_mention_lane_before_discovery(
     monkeypatch.setattr(bot, "single_call_reply", disabled)
     monkeypatch.setattr(bot, "block_if_ambiguous_remote_post", lambda: None)
     monkeypatch.setattr(
-        bot,
+        bot._mention_discovery,
         "get_mentions",
-        lambda _state: pytest.fail("disabled strategy must not discover mentions"),
+        lambda _state, **_kwargs: pytest.fail("disabled strategy must not discover mentions"),
     )
     monkeypatch.setattr(
-        bot,
+        bot._hot_post_discovery,
         "get_hot_post_reply_candidates",
-        lambda _state: pytest.fail("disabled strategy must not discover hot-post replies"),
+        lambda _state, **_kwargs: pytest.fail("disabled strategy must not discover hot-post replies"),
     )
 
     assert bot.maybe_reply_to_mentions(state) == bot.NORMAL_CHECK_STATUS_DISABLED
@@ -153,8 +153,8 @@ def test_operational_pipeline_failure_does_not_consume_mention_target(
     monkeypatch.setattr(bot, "block_if_ambiguous_remote_post", lambda: None)
     monkeypatch.setattr(bot, "lane_paused", lambda *args, **kwargs: False)
     monkeypatch.setattr(bot, "in_api_cooldown", lambda *args, **kwargs: False)
-    monkeypatch.setattr(bot, "get_mentions", lambda _state: [dict(mention)])
-    monkeypatch.setattr(bot, "get_hot_post_reply_candidates", lambda _state: [])
+    monkeypatch.setattr(bot._mention_discovery, "get_mentions", lambda _state, **_kwargs: [dict(mention)])
+    monkeypatch.setattr(bot._hot_post_discovery, "get_hot_post_reply_candidates", lambda _state, **_kwargs: [])
     monkeypatch.setattr(bot, "is_probably_spam_or_not_worth_replying", lambda _text: False)
     patch_reply_owner_method(
         monkeypatch, bot._reply_context.ReplyContext, "build",
@@ -214,11 +214,11 @@ def test_own_historical_context_reply_is_never_processed_as_incoming_reply(
     monkeypatch.setattr(bot, "now_epoch", lambda: 1_800_000_000)
     monkeypatch.setattr(bot, "lane_paused", lambda *args, **kwargs: False)
     monkeypatch.setattr(bot, "in_api_cooldown", lambda *args, **kwargs: False)
-    monkeypatch.setattr(bot, "get_mentions", lambda state: [own_context_reply] if candidate_source == "mention" else [])
+    monkeypatch.setattr(bot._mention_discovery, "get_mentions", lambda state, **_kwargs: [own_context_reply] if candidate_source == "mention" else [])
     monkeypatch.setattr(
-        bot,
+        bot._hot_post_discovery,
         "get_hot_post_reply_candidates",
-        lambda state: [own_context_reply] if candidate_source == "hot_post_reply" else [],
+        lambda state, **_kwargs: [own_context_reply] if candidate_source == "hot_post_reply" else [],
     )
     patch_reply_owner_method(
         monkeypatch, bot._reply_context.ReplyContext, "build",
@@ -268,8 +268,8 @@ def test_truncated_pagination_no_reply_is_not_evaluated_twice(
     monkeypatch.setattr(bot, "now_epoch", lambda: 1_800_000_000)
     monkeypatch.setattr(bot, "lane_paused", lambda *args, **kwargs: False)
     monkeypatch.setattr(bot, "in_api_cooldown", lambda *args, **kwargs: False)
-    monkeypatch.setattr(bot, "get_mentions", lambda _state: [dict(mention)])
-    monkeypatch.setattr(bot, "get_hot_post_reply_candidates", lambda _state: [])
+    monkeypatch.setattr(bot._mention_discovery, "get_mentions", lambda _state, **_kwargs: [dict(mention)])
+    monkeypatch.setattr(bot._hot_post_discovery, "get_hot_post_reply_candidates", lambda _state, **_kwargs: [])
     monkeypatch.setattr(bot, "is_probably_spam_or_not_worth_replying", lambda _text: False)
     context = unit_reply_context(target_id="100", contribution=mention["text"])
     patch_reply_owner_method(
@@ -337,11 +337,11 @@ def test_local_validation_failure_is_terminal_and_does_not_block_later_mention(
     monkeypatch.setattr(bot, "lane_paused", lambda *args, **kwargs: False)
     monkeypatch.setattr(bot, "in_api_cooldown", lambda *args, **kwargs: False)
     monkeypatch.setattr(
-        bot,
+        bot._mention_discovery,
         "get_mentions",
-        lambda _state: [dict(candidate) for candidate in mentions],
+        lambda _state, **_kwargs: [dict(candidate) for candidate in mentions],
     )
-    monkeypatch.setattr(bot, "get_hot_post_reply_candidates", lambda _state: [])
+    monkeypatch.setattr(bot._hot_post_discovery, "get_hot_post_reply_candidates", lambda _state, **_kwargs: [])
     monkeypatch.setattr(bot, "is_probably_spam_or_not_worth_replying", lambda _text: False)
     patch_reply_owner_method(
         monkeypatch, bot._reply_context.ReplyContext, "build",
@@ -472,7 +472,7 @@ def test_quote_tweet_model_no_reply_is_durable_beyond_bounded_scan_lists(
     monkeypatch.setattr(bot, "lane_paused", lambda *_args, **_kwargs: False)
     monkeypatch.setattr(bot, "in_api_cooldown", lambda *_args, **_kwargs: False)
     monkeypatch.setattr(bot, "reconcile_confirmed_reply_receipt", lambda _state: False)
-    monkeypatch.setattr(bot, "build_quote_lookup_post_ids", lambda _state: ["900"])
+    monkeypatch.setattr(bot._quote_discovery.QuoteWatchPosts, "lookup", lambda _owner, _state: ["900"])
     patch_tweet_lookup_method(monkeypatch, "get_cached", lambda *_args, **_kwargs: dict(own_post))
     monkeypatch.setattr(bot, "get_quote_tweets_for_posts", lambda *_args, **_kwargs: {"900": [dict(quote_post)]})
     monkeypatch.setattr(bot, "quote_tweet_is_old_enough", lambda _tweet: True)
@@ -541,7 +541,7 @@ def test_quote_tweet_generic_403_remains_ambiguous_and_durable(
     monkeypatch.setattr(bot, "lane_paused", lambda *_args, **_kwargs: False)
     monkeypatch.setattr(bot, "in_api_cooldown", lambda *_args, **_kwargs: False)
     monkeypatch.setattr(bot, "reconcile_confirmed_reply_receipt", lambda _state: False)
-    monkeypatch.setattr(bot, "build_quote_lookup_post_ids", lambda _state: ["900"])
+    monkeypatch.setattr(bot._quote_discovery.QuoteWatchPosts, "lookup", lambda _owner, _state: ["900"])
     patch_tweet_lookup_method(monkeypatch, "get_cached", lambda *_args, **_kwargs: dict(own_post))
     monkeypatch.setattr(bot, "get_quote_tweets_for_posts", lambda *_args, **_kwargs: {"900": [dict(quote_post)]})
     monkeypatch.setattr(bot, "quote_tweet_is_old_enough", lambda _tweet: True)
@@ -616,8 +616,8 @@ def test_same_thread_clarification_at_author_cap_is_skipped_before_model_or_post
     monkeypatch.setattr(bot, "current_datetime", lambda: datetime.fromtimestamp(fixed_epoch))
     monkeypatch.setattr(bot, "lane_paused", lambda *args, **kwargs: False)
     monkeypatch.setattr(bot, "in_api_cooldown", lambda *args, **kwargs: False)
-    monkeypatch.setattr(bot, "get_mentions", lambda _state: list(current_candidates))
-    monkeypatch.setattr(bot, "get_hot_post_reply_candidates", lambda _state: [])
+    monkeypatch.setattr(bot._mention_discovery, "get_mentions", lambda _state, **_kwargs: list(current_candidates))
+    monkeypatch.setattr(bot._hot_post_discovery, "get_hot_post_reply_candidates", lambda _state, **_kwargs: [])
     monkeypatch.setattr(bot, "is_probably_spam_or_not_worth_replying", lambda _text: False)
     patch_reply_owner_method(
         monkeypatch, bot._reply_context.ReplyContext, "build",
@@ -695,8 +695,8 @@ def test_author_cap_context_is_terminal_but_available_to_next_eligible_reply(
     monkeypatch.setattr(bot, "current_datetime", lambda: datetime.fromtimestamp(clock[0]))
     monkeypatch.setattr(bot, "lane_paused", lambda *args, **kwargs: False)
     monkeypatch.setattr(bot, "in_api_cooldown", lambda *args, **kwargs: False)
-    monkeypatch.setattr(bot, "get_mentions", lambda _state: list(current_candidates))
-    monkeypatch.setattr(bot, "get_hot_post_reply_candidates", lambda _state: [])
+    monkeypatch.setattr(bot._mention_discovery, "get_mentions", lambda _state, **_kwargs: list(current_candidates))
+    monkeypatch.setattr(bot._hot_post_discovery, "get_hot_post_reply_candidates", lambda _state, **_kwargs: [])
     monkeypatch.setattr(bot, "is_probably_spam_or_not_worth_replying", lambda _text: False)
     patch_tweet_lookup_method(monkeypatch, "fetch", lambda tweet_id, **_kwargs: (
             {"id": "201"}
@@ -771,8 +771,8 @@ def test_unrelated_follow_up_does_not_bypass_author_cap(
     monkeypatch.setattr(bot, "current_datetime", lambda: datetime.fromtimestamp(fixed_epoch))
     monkeypatch.setattr(bot, "lane_paused", lambda *args, **kwargs: False)
     monkeypatch.setattr(bot, "in_api_cooldown", lambda *args, **kwargs: False)
-    monkeypatch.setattr(bot, "get_mentions", lambda _state: [follow_up])
-    monkeypatch.setattr(bot, "get_hot_post_reply_candidates", lambda _state: [])
+    monkeypatch.setattr(bot._mention_discovery, "get_mentions", lambda _state, **_kwargs: [follow_up])
+    monkeypatch.setattr(bot._hot_post_discovery, "get_hot_post_reply_candidates", lambda _state, **_kwargs: [])
     patch_reply_owner_method(
         monkeypatch, bot._reply_generation.ReplyGeneration, "evaluate",
         legacy_reply_evaluator(lambda *_args, **_kwargs: pytest.fail("xAI must not be called")),
@@ -928,11 +928,11 @@ def test_completed_clarification_thread_stays_terminal_after_restart_and_cap_res
     monkeypatch.setattr(bot, "lane_paused", lambda *args, **kwargs: False)
     monkeypatch.setattr(bot, "in_api_cooldown", lambda *args, **kwargs: False)
     monkeypatch.setattr(
-        bot,
+        bot._mention_discovery,
         "get_mentions",
-        lambda _state: [terminal_thread_candidate, unrelated_thread_candidate],
+        lambda _state, **_kwargs: [terminal_thread_candidate, unrelated_thread_candidate],
     )
-    monkeypatch.setattr(bot, "get_hot_post_reply_candidates", lambda _state: [])
+    monkeypatch.setattr(bot._hot_post_discovery, "get_hot_post_reply_candidates", lambda _state, **_kwargs: [])
     monkeypatch.setattr(bot, "is_probably_spam_or_not_worth_replying", lambda _text: False)
     patch_reply_owner_method(monkeypatch, bot._reply_context.ReplyContext, "build", build_context)
     monkeypatch.setattr(bot, "reply_media_context_for_candidate", prepare_media)
@@ -1285,7 +1285,7 @@ def test_hot_post_search_skips_ineligible_targets_before_candidate_cap(
     monkeypatch.setattr(bot, "MY_USERNAME", "MrsMThatcher")
     monkeypatch.setattr(bot, "lane_paused", lambda *_args, **_kwargs: False)
     monkeypatch.setattr(bot, "in_api_cooldown", lambda *_args, **_kwargs: False)
-    monkeypatch.setattr(bot, "load_extra_quote_watch_post_ids", lambda: ["900"])
+    monkeypatch.setattr(bot._quote_discovery.QuoteWatchPosts, "load_extra", lambda _owner: ["900"])
     monkeypatch.setattr(
         bot,
         "x_paginated_get",
@@ -1329,8 +1329,8 @@ def test_deterministic_spam_skip_precedes_context_media_retrieval_and_xai(
     monkeypatch.setattr(bot, "lane_paused", lambda *args, **kwargs: False)
     monkeypatch.setattr(bot, "in_api_cooldown", lambda *args, **kwargs: False)
     monkeypatch.setattr(bot, "reconcile_confirmed_reply_receipt", lambda _state: False)
-    monkeypatch.setattr(bot, "get_mentions", lambda _state: [dict(mention)])
-    monkeypatch.setattr(bot, "get_hot_post_reply_candidates", lambda _state: [])
+    monkeypatch.setattr(bot._mention_discovery, "get_mentions", lambda _state, **_kwargs: [dict(mention)])
+    monkeypatch.setattr(bot._hot_post_discovery, "get_hot_post_reply_candidates", lambda _state, **_kwargs: [])
     patch_reply_owner_method(
         monkeypatch, bot._reply_context.ReplyContext, "build",
         lambda *_args: pytest.fail("context must not be built"),
@@ -1373,8 +1373,8 @@ def test_strategy_persistence_failure_blocks_mention_x_write(
     monkeypatch.setattr(bot, "lane_paused", lambda *args, **kwargs: False)
     monkeypatch.setattr(bot, "in_api_cooldown", lambda *args, **kwargs: False)
     monkeypatch.setattr(bot, "reconcile_confirmed_reply_receipt", lambda _state: False)
-    monkeypatch.setattr(bot, "get_mentions", lambda _state: [dict(mention)])
-    monkeypatch.setattr(bot, "get_hot_post_reply_candidates", lambda _state: [])
+    monkeypatch.setattr(bot._mention_discovery, "get_mentions", lambda _state, **_kwargs: [dict(mention)])
+    monkeypatch.setattr(bot._hot_post_discovery, "get_hot_post_reply_candidates", lambda _state, **_kwargs: [])
     monkeypatch.setattr(bot, "is_probably_spam_or_not_worth_replying", lambda _text: False)
     patch_reply_owner_method(
         monkeypatch, bot._reply_context.ReplyContext, "build",
@@ -1431,8 +1431,8 @@ def test_deleted_target_after_generation_is_retired_before_any_x_write(
     monkeypatch.setattr(bot, "now_epoch", lambda: 1_800_000_000)
     monkeypatch.setattr(bot, "lane_paused", lambda *_args, **_kwargs: False)
     monkeypatch.setattr(bot, "in_api_cooldown", lambda *_args, **_kwargs: False)
-    monkeypatch.setattr(bot, "get_mentions", lambda _state: [copy.deepcopy(mention)])
-    monkeypatch.setattr(bot, "get_hot_post_reply_candidates", lambda _state: [])
+    monkeypatch.setattr(bot._mention_discovery, "get_mentions", lambda _state, **_kwargs: [copy.deepcopy(mention)])
+    monkeypatch.setattr(bot._hot_post_discovery, "get_hot_post_reply_candidates", lambda _state, **_kwargs: [])
     monkeypatch.setattr(bot, "is_probably_spam_or_not_worth_replying", lambda _text: False)
     patch_reply_owner_method(
         monkeypatch, bot._reply_context.ReplyContext, "build",
@@ -1535,8 +1535,8 @@ def test_ineligible_truncated_mention_is_terminal_before_context_media_or_xai(
     monkeypatch.setattr(bot, "now_epoch", lambda: 1_800_000_000)
     monkeypatch.setattr(bot, "lane_paused", lambda *args, **kwargs: False)
     monkeypatch.setattr(bot, "in_api_cooldown", lambda *args, **kwargs: False)
-    monkeypatch.setattr(bot, "get_mentions", lambda _state: [dict(mention)])
-    monkeypatch.setattr(bot, "get_hot_post_reply_candidates", lambda _state: [])
+    monkeypatch.setattr(bot._mention_discovery, "get_mentions", lambda _state, **_kwargs: [dict(mention)])
+    monkeypatch.setattr(bot._hot_post_discovery, "get_hot_post_reply_candidates", lambda _state, **_kwargs: [])
     patch_reply_owner_method(
         monkeypatch, bot._reply_context.ReplyContext, "build",
         lambda *_args: pytest.fail("context must not be built"),
@@ -1598,8 +1598,8 @@ def test_posting_generic_reply_403_is_retry_blocking_not_terminal(
     monkeypatch.setattr(bot, "now_epoch", lambda: 1_800_000_000)
     monkeypatch.setattr(bot, "lane_paused", lambda *args, **kwargs: False)
     monkeypatch.setattr(bot, "in_api_cooldown", lambda *args, **kwargs: False)
-    monkeypatch.setattr(bot, "get_mentions", lambda _state: [dict(mention)])
-    monkeypatch.setattr(bot, "get_hot_post_reply_candidates", lambda _state: [])
+    monkeypatch.setattr(bot._mention_discovery, "get_mentions", lambda _state, **_kwargs: [dict(mention)])
+    monkeypatch.setattr(bot._hot_post_discovery, "get_hot_post_reply_candidates", lambda _state, **_kwargs: [])
     monkeypatch.setattr(bot, "is_probably_spam_or_not_worth_replying", lambda _text: False)
     patch_reply_owner_method(
         monkeypatch, bot._reply_context.ReplyContext, "build",

@@ -1,20 +1,22 @@
 """Own the quote-tweet reply cycle, eligibility and lane markers.
 
 The cycle receives typed settings, persistence and delivery boundaries plus
-context, tweet lookup, generation, history, evaluation and accounting owners.
+context, tweet lookup, generation, history, evaluation, accounting and
+watched-post owners.
 The root composes these owners once per invocation; private helpers call their
 operations directly. The dependency-free
 profile formatter is a root alias. Private helpers separate lookup, eligibility,
 context, evaluation and durable delivery. The cycle alone owns the shared
 candidate budget and preserves context/media references and receipt recovery.
 
-Watch-list/own-post lookup and quote discovery, shared context/media/evidence,
-counters, pipeline, persistence, reconciliation and delivery remain in their
-existing locations. Explicit calls may read providers, generate, save caller
-state and publish through supplied callbacks. Fixed check statuses and terminal
-evaluation lookup and text cleanup are imported from their inert owners;
-dependency-free quote helpers are called locally. Imports do no runtime I/O and
-retain no callbacks, configuration, clients or state.
+The watched-post owner performs watch-list/own-post lookup directly; quote
+discovery, shared context/media/evidence, counters, pipeline, persistence,
+reconciliation and delivery remain in their existing locations. Explicit calls
+may read providers, generate, save caller state and publish through supplied
+callbacks. Fixed check statuses and terminal evaluation lookup and text cleanup
+are imported from their inert owners; dependency-free quote helpers are called
+locally. Imports do no runtime I/O and retain no callbacks, configuration,
+clients or state.
 """
 
 from __future__ import annotations
@@ -56,6 +58,7 @@ if TYPE_CHECKING:
     from mrs_bot_reply_context import ReplyContext
     from mrs_bot_reply_generation import ReplyGeneration
     from mrs_bot_reply_history import ReplyHistory
+    from mrs_bot_quote_discovery import QuoteWatchPosts
     from mrs_bot_tweet_lookup_cache import TweetLookupCache
     from single_call_reply import PipelineResult
 
@@ -206,7 +209,7 @@ def maybe_reply_to_quote_tweets(
     _log_validated_single_call_reply: Callable,
     generation: ReplyGeneration,
     api_error_is_permanent_target_failure: Callable,
-    build_quote_lookup_post_ids: Callable,
+    watch_posts: QuoteWatchPosts,
     reply_contexts: ReplyContext,
     tweets: TweetLookupCache,
     persistence: ReplyCyclePersistence,
@@ -284,7 +287,7 @@ def maybe_reply_to_quote_tweets(
         )
         return QUOTE_CHECK_STATUS_SKIPPED_SPACING
 
-    own_post_ids_for_quote_lookup = build_quote_lookup_post_ids(state)
+    own_post_ids_for_quote_lookup = watch_posts.lookup(state)
 
     if not own_post_ids_for_quote_lookup and not state.get("quote_pending_candidates"):
         log.info("No own posts available for quote lookup")

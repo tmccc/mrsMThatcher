@@ -1173,12 +1173,18 @@ def test_existing_ambiguity_marker_blocks_each_lane_before_preparation(
         invoke = lambda: bot.post_next_meme(bot.default_state())
     elif lane == "mention":
         monkeypatch.setattr(bot, "ENABLE_AUTO_REPLIES", True)
-        monkeypatch.setattr(bot, "get_mentions", lambda *_args: prepared("mention fetch"))
+        monkeypatch.setattr(
+            bot._mention_discovery, "get_mentions",
+            lambda *_args, **_kwargs: prepared("mention fetch"),
+        )
         invoke = lambda: bot.maybe_reply_to_mentions(bot.default_state())
     elif lane == "quote_tweet":
         monkeypatch.setattr(bot, "ENABLE_AUTO_REPLIES", True)
         monkeypatch.setattr(bot, "ENABLE_QUOTE_TWEET_CHECKS", True)
-        monkeypatch.setattr(bot, "build_quote_lookup_post_ids", lambda *_args: prepared("quote lookup"))
+        monkeypatch.setattr(
+            bot._quote_discovery.QuoteWatchPosts, "lookup",
+            lambda *_args, **_kwargs: prepared("quote lookup"),
+        )
         invoke = lambda: bot.maybe_reply_to_quote_tweets(bot.default_state())
     elif lane == "historical_context":
         monkeypatch.setattr(bot, "historical_context_reply", {**bot.historical_context_reply, "enabled": True})

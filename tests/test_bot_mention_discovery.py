@@ -11,14 +11,21 @@ from unittest.mock import Mock, call
 import pytest
 
 import mrs_bot_mention_discovery as discovery
+import mrs_bot_mention_authority as authority_owner
+import mrs_bot_reply_evaluation_state as evaluation_state
 import mrs_bot_reply_state as reply_state
+import mrs_bot_tweet_lookup_cache as tweet_cache_owner
 from tests.helpers.mention_fixtures import (
     install_mention_pages,
     mention,
     mention_backlog,
+    queue_active_mention,
 )
 from tests.helpers.bot_runtime import bot
-from tests.helpers.reply_fixtures import patch_reply_owner_method
+from tests.helpers.reply_fixtures import (
+    patch_reply_owner_method,
+    restore_tweet_lookup_fetch,
+)
 from tests.helpers.bot_fixtures import isolate_bot_runtime  # noqa: F401
 
 
@@ -60,7 +67,7 @@ assert 'requests' not in sys.modules
 
 
 def test_adapters_forward_current_dependencies_arguments_results_and_errors(monkeypatch):
-    for name, count in (("get_mentions", 20),):
+    for name, count in (("get_mentions", 19),):
         adapter = getattr(bot, name)
         public = inspect.signature(adapter).parameters
         dependencies = inspect.signature(getattr(discovery, name)).parameters.keys() - public.keys()
@@ -72,14 +79,21 @@ def test_adapters_forward_current_dependencies_arguments_results_and_errors(monk
             patch.setattr(discovery, name, owner)
             for _ in range(2):
                 current = {key: object() for key in dependencies}
+                factories = {}
+                owner_factories = {
+                    "mention_queue": "_mention_queue_owner",
+                    "tweets": "_tweet_lookup_cache_owner",
+                    "reply_evaluations": "_reply_evaluation_owner",
+                }
                 for key, value in current.items():
-                    if key == "mention_queue":
-                        factory = Mock(return_value=value)
-                        patch.setattr(bot, "_mention_queue_owner", factory)
+                    if key in owner_factories:
+                        factories[key] = Mock(return_value=value)
+                        patch.setattr(bot, owner_factories[key], factories[key])
                     else:
                         patch.setattr(bot, key, value)
                 assert adapter(*args) is result
-                factory.assert_called_once_with()
+                for factory in factories.values():
+                    factory.assert_called_once_with()
                 actual_args, actual_kwargs = owner.call_args
                 assert len(actual_args) == len(args)
                 assert all(actual is expected for actual, expected in zip(actual_args, args))
@@ -95,7 +109,7 @@ def test_adapters_forward_current_dependencies_arguments_results_and_errors(monk
 
 def test_queue_adapters_bind_fresh_current_owners_without_runtime_access(monkeypatch):
     fields = {
-        "state_file": "STATE_FILE", "validate_authority": "validate_pending_mention_candidate_authority",
+        "state_file": "STATE_FILE", "authority": "_mention_authority_owner",
         "save": "save_state", "sort_candidates": "valid_tweets_sorted_by_id", "log": "log",
     }
     for name, method in (
@@ -120,7 +134,10 @@ def test_queue_adapters_bind_fresh_current_owners_without_runtime_access(monkeyp
             for _ in range(2):
                 current = {field: Mock() for field in fields}
                 for field, root_name in fields.items():
-                    patch.setattr(bot, root_name, current[field])
+                    patch.setattr(
+                        bot, root_name,
+                        Mock(return_value=current[field]) if field == "authority" else current[field],
+                    )
                 assert adapter(*args) is result
                 assert all(actual is expected for actual, expected in zip(callback.call_args.args, args))
                 assert all(getattr(captured[-1], field) is value for field, value in current.items())
@@ -145,8 +162,17 @@ def test_queue_recovery_saves_before_sorting_and_keeps_returned_record_reference
         ("authority", "validate_pending_mention_candidate_authority"),
         ("save", "save_state"), ("sort", "valid_tweets_sorted_by_id"),
     ):
-        trace.attach_mock(Mock(wraps=getattr(bot, name)), label)
-        monkeypatch.setattr(bot, name, getattr(trace, label))
+        original = (
+            bot._mention_authority_owner().validate_pending
+            if label == "authority" else getattr(bot, name)
+        )
+        trace.attach_mock(Mock(wraps=original), label)
+        if label == "authority":
+            patch_reply_owner_method(
+                monkeypatch, authority_owner.MentionAuthority, "validate_pending", trace.authority,
+            )
+        else:
+            monkeypatch.setattr(bot, name, getattr(trace, label))
     failure = OSError("queue recovery save failed")
     if save_fails:
         trace.save.side_effect = failure
@@ -187,6 +213,44 @@ def test_queue_authority_and_current_queue_precede_clock_settings_and_provider_w
     blocked.assert_not_called()
 
 
+def test_queued_legacy_mention_refresh_uses_real_owners_without_root_relays(monkeypatch):
+    state = bot.default_state()
+    candidate = mention(105, 205, "truncated")
+    candidate.pop("text_is_complete")
+    queue_active_mention(state, candidate, base_since_id="99")
+    fresh = mention(105, 205, "The complete contribution.")
+    fresh["created_at"] = "2026-09-20T12:00:00Z"
+    request = Mock(return_value={"data": fresh, "includes": {"media": []}})
+    restore_tweet_lookup_fetch(monkeypatch)
+    monkeypatch.setattr(bot, "x_request", request)
+    relays = {
+        name: Mock(side_effect=AssertionError(f"root relay used: {name}"))
+        for name in (
+            "validate_pending_mention_candidate_authority",
+            "get_tweet_by_id",
+            "cache_tweet",
+        )
+    }
+    for name, relay in relays.items():
+        monkeypatch.setattr(bot, name, relay)
+
+    result = bot.get_mentions(state)
+
+    assert result == [state["mention_pending_candidates"]["105"]]
+    assert result[0] is state["mention_pending_candidates"]["105"]
+    assert result[0]["text"] == "The complete contribution."
+    assert result[0]["text_is_complete"] is True
+    assert state["tweet_cache"]["105"]["text"] == "The complete contribution."
+    request.assert_called_once()
+    assert request.call_args.args == ("GET", "/2/tweets/105")
+    assert request.call_args.kwargs["params"]["expansions"] == "attachments.media_keys"
+    assert bot.load_state()["mention_pending_candidates"]["105"]["text"] == (
+        "The complete contribution."
+    )
+    for relay in relays.values():
+        relay.assert_not_called()
+
+
 @pytest.mark.parametrize("history_key", ["replied_to_ids", "replied_to_quote_post_ids"])
 def test_real_pages_keep_media_cache_queue_references_and_final_commit_order(monkeypatch, history_key):
     original_save = bot.save_state
@@ -224,7 +288,9 @@ def test_real_pages_keep_media_cache_queue_references_and_final_commit_order(mon
     ):
         original = (
             bot._mention_queue_owner().advance_watermark
-            if label == "watermark" else getattr(bot, name)
+            if label == "watermark" else bot._tweet_lookup_cache_owner().store
+            if label == "cache" else bot._reply_evaluation_owner().prune_completed_mentions
+            if label == "prune" else getattr(bot, name)
         )
 
         def observe(*args, _label=label, _callback=original, **kwargs):
@@ -243,11 +309,28 @@ def test_real_pages_keep_media_cache_queue_references_and_final_commit_order(mon
 
         if label == "watermark":
             patch_reply_owner_method(monkeypatch, discovery.MentionQueue, "advance_watermark", observe)
+        elif label == "cache":
+            patch_reply_owner_method(monkeypatch, tweet_cache_owner.TweetLookupCache, "store", observe)
+        elif label == "prune":
+            patch_reply_owner_method(
+                monkeypatch, evaluation_state.ReplyEvaluations, "prune_completed_mentions", observe,
+            )
         elif label == "media":
             monkeypatch.setattr(discovery, name, observe)
         else:
             monkeypatch.setattr(bot, name, observe)
 
+    relays = {
+        name: Mock(side_effect=AssertionError(f"root relay used: {name}"))
+        for name in (
+            "validate_pending_mention_candidate_authority",
+            "cache_tweet",
+            "get_tweet_by_id",
+            "prune_completed_mention_quarantine_evaluations",
+        )
+    }
+    for name, relay in relays.items():
+        monkeypatch.setattr(bot, name, relay)
     result = bot.get_mentions(state)
     assert trace == [
         "save", "request", "media", "cache:103", "cache:104", "cache:105", "save",
@@ -276,6 +359,8 @@ def test_real_pages_keep_media_cache_queue_references_and_final_commit_order(mon
     durable = json.loads(bot.STATE_FILE.read_text())
     assert durable["mention_pending_candidates"] == state["mention_pending_candidates"]
     assert durable["tweet_cache"]["105"]["text"] == "duplicate page"
+    for relay in relays.values():
+        relay.assert_not_called()
 
 
 def test_continuation_limit_uses_current_exception_and_saves_reset_before_event(monkeypatch):
@@ -326,7 +411,7 @@ def test_page_cache_failure_keeps_partial_cache_without_publishing_pending_candi
     save, event = Mock(), Mock()
     monkeypatch.setattr(bot, "save_state", save)
     monkeypatch.setattr(bot, "log_event", event)
-    original_cache = bot.cache_tweet
+    original_cache = bot._tweet_lookup_cache_owner().store
     cached = []
     failure = OSError("second mention could not be cached")
 
@@ -337,7 +422,7 @@ def test_page_cache_failure_keeps_partial_cache_without_publishing_pending_candi
             raise failure
         return original_cache(document, **values)
 
-    monkeypatch.setattr(bot, "cache_tweet", cache)
+    patch_reply_owner_method(monkeypatch, tweet_cache_owner.TweetLookupCache, "store", cache)
     with pytest.raises(OSError) as caught:
         bot.get_mentions(state)
 

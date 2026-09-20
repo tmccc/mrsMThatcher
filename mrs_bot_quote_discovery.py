@@ -1,11 +1,11 @@
 """Own watched own-post selection and quote discovery/pagination.
 
 QuoteWatchPosts owns fresh watch-file reads, recent-original selection and their
-priority merge. Its methods call each other directly with current root settings
-and cache seeding. Discovery adapters supply current request, state and runtime
-boundaries. Recent search durably queues direct quotes before advancing cursors
-and returns unfinished candidates before fetching more watched originals;
-the legacy per-post lookup remains a diagnostic helper.
+priority merge. Its methods call each other and the tweet-cache owner directly
+with current root settings. Discovery adapters supply current request, state and
+runtime boundaries. Recent search durably queues direct quotes before advancing
+cursors and returns unfinished candidates before fetching more watched
+originals; the legacy per-post lookup remains a diagnostic helper.
 
 Shared pagination, request/authentication, ID validation, cache seeding, media,
 durable persistence and reply cycles remain in their existing locations. This
@@ -21,10 +21,14 @@ from collections.abc import Callable
 from dataclasses import dataclass
 from logging import Logger
 from pathlib import Path
+from typing import TYPE_CHECKING
 
 from mrs_bot_reply_native_media import attach_media_to_tweets
 from mrs_bot_state_value_normalisation import bounded_tweet_id_value
 from mrs_bot_tweet_lookup_cache import normalise_tweet_text
+
+if TYPE_CHECKING:
+    from mrs_bot_tweet_lookup_cache import TweetLookupCache
 
 
 def quote_repeated_cursor_suppression_record(
@@ -117,7 +121,7 @@ class QuoteWatchPosts:
     maximum_extra_posts: int
     maximum_posts: int
     lookback_posts: int
-    seed_recent: Callable
+    tweets: TweetLookupCache
     log: Logger
 
     def load_extra(self) -> list[str]:
@@ -207,7 +211,7 @@ class QuoteWatchPosts:
 
     def recent(self, state: dict) -> list[str]:
         """Return recent own post IDs for quote lookup."""
-        self.seed_recent(state)
+        self.tweets.seed_recent_own_posts(state)
 
         ids = [str(x) for x in state.get("recent_own_post_ids", [])]
 

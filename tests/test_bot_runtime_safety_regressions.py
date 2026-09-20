@@ -124,7 +124,7 @@ def test_fresh_startup_with_uncertain_main_attempt_idles_without_remote_action(
     monkeypatch.setattr(bot, "current_image_paths", lambda: [])
     state = {"next_quote_post_epoch": 1_800_007_200}
     monkeypatch.setattr(bot, "load_runtime_state", lambda: state)
-    monkeypatch.setattr(bot, "seed_recent_own_post_ids_from_cache", lambda _state: None)
+    monkeypatch.setattr(bot._tweet_lookup_cache.TweetLookupCache, "seed_recent_own_posts", lambda _owner, _state: None)
     monkeypatch.setattr(bot, "save_state", lambda _state, **_kwargs: None)
     monkeypatch.setattr(bot, "now_epoch", lambda: 1_800_000_000)
     monkeypatch.setattr(bot, "global_remote_writes_paused", lambda: False)
@@ -247,7 +247,7 @@ def test_main_global_pause_stops_before_every_remote_lane(
     monkeypatch.setattr(bot, "current_image_paths", lambda: [])
     state = {"next_quote_post_epoch": 0}
     monkeypatch.setattr(bot, "load_runtime_state", lambda: state)
-    monkeypatch.setattr(bot, "seed_recent_own_post_ids_from_cache", lambda _state: None)
+    monkeypatch.setattr(bot._tweet_lookup_cache.TweetLookupCache, "seed_recent_own_posts", lambda _owner, _state: None)
     monkeypatch.setattr(bot, "save_state", lambda _state, **_kwargs: None)
     monkeypatch.setattr(bot, "now_epoch", lambda: 1_784_708_283)
     monkeypatch.setattr(
@@ -307,7 +307,7 @@ def test_main_total_persistence_loss_latch_stops_later_remote_lanes(
     }
     monkeypatch.setattr(bot, "load_runtime_state", lambda: state)
     monkeypatch.setattr(bot, "reconcile_startup_main_post_receipts", lambda *_args: None)
-    monkeypatch.setattr(bot, "seed_recent_own_post_ids_from_cache", lambda _state: None)
+    monkeypatch.setattr(bot._tweet_lookup_cache.TweetLookupCache, "seed_recent_own_posts", lambda _owner, _state: None)
     monkeypatch.setattr(bot, "save_state", lambda _state, **_kwargs: None)
     monkeypatch.setattr(bot, "ensure_meme_schedule_initialized", lambda _state: None)
     clock_must_not_run = False
@@ -427,7 +427,7 @@ def test_main_routes_remote_safety_failures_without_error_retry_bookkeeping(
     }
     monkeypatch.setattr(bot, "load_runtime_state", lambda: state)
     monkeypatch.setattr(bot, "reconcile_startup_main_post_receipts", lambda *_args: None)
-    monkeypatch.setattr(bot, "seed_recent_own_post_ids_from_cache", lambda _state: None)
+    monkeypatch.setattr(bot._tweet_lookup_cache.TweetLookupCache, "seed_recent_own_posts", lambda _owner, _state: None)
     monkeypatch.setattr(bot, "save_state", lambda _state, **_kwargs: None)
     monkeypatch.setattr(bot, "ensure_meme_schedule_initialized", lambda _state: None)
     monkeypatch.setattr(bot, "now_epoch", lambda: current)
@@ -987,7 +987,7 @@ def test_main_reply_safety_failure_reaches_top_of_loop_barrier(
     monkeypatch.setattr(bot, "current_image_paths", lambda: [])
     monkeypatch.setattr(bot, "load_runtime_state", lambda: state)
     monkeypatch.setattr(bot, "reconcile_startup_main_post_receipts", lambda *_args: None)
-    monkeypatch.setattr(bot, "seed_recent_own_post_ids_from_cache", lambda _state: None)
+    monkeypatch.setattr(bot._tweet_lookup_cache.TweetLookupCache, "seed_recent_own_posts", lambda _owner, _state: None)
     monkeypatch.setattr(bot, "save_state", lambda _state, **_kwargs: None)
     monkeypatch.setattr(bot, "ensure_meme_schedule_initialized", lambda _state: None)
     monkeypatch.setattr(bot, "global_remote_writes_paused", lambda: False)

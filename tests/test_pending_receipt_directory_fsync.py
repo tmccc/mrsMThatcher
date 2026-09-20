@@ -1864,7 +1864,7 @@ def test_later_valid_marker_recovery_releases_sigint_once_without_remote_actions
     state = {"next_quote_post_epoch": 1}
     monkeypatch.setattr(bot, "load_runtime_state", lambda: state)
     monkeypatch.setattr(bot, "reconcile_startup_main_post_receipts", lambda *_args: None)
-    monkeypatch.setattr(bot, "seed_recent_own_post_ids_from_cache", lambda _state: None)
+    monkeypatch.setattr(bot._tweet_lookup_cache.TweetLookupCache, "seed_recent_own_posts", lambda _owner, _state: None)
     monkeypatch.setattr(bot, "save_state", lambda _state, **_kwargs: None)
     monkeypatch.setattr(bot, "now_epoch", lambda: CONFIRMATION_EPOCH)
     monkeypatch.setattr(bot, "global_remote_writes_paused", lambda: False)
@@ -2041,7 +2041,7 @@ def test_main_rechecks_marker_durability_on_every_blocked_tick(
     state = {"next_quote_post_epoch": 1}
     monkeypatch.setattr(bot, "load_runtime_state", lambda: state)
     monkeypatch.setattr(bot, "reconcile_startup_main_post_receipts", lambda *_args: None)
-    monkeypatch.setattr(bot, "seed_recent_own_post_ids_from_cache", lambda _state: None)
+    monkeypatch.setattr(bot._tweet_lookup_cache.TweetLookupCache, "seed_recent_own_posts", lambda _owner, _state: None)
     monkeypatch.setattr(bot, "save_state", lambda _state, **_kwargs: None)
     monkeypatch.setattr(bot, "now_epoch", lambda: 1_800_000_000)
     monkeypatch.setattr(bot, "global_remote_writes_paused", lambda: False)
@@ -2165,9 +2165,9 @@ def test_fresh_process_marker_disappearance_blocks_multiple_real_daemon_ticks(
         lambda *_args: None,
     )
     monkeypatch.setattr(
-        bot,
-        "seed_recent_own_post_ids_from_cache",
-        lambda _state: None,
+        bot._tweet_lookup_cache.TweetLookupCache,
+        "seed_recent_own_posts",
+        lambda _owner, _state: None,
     )
     monkeypatch.setattr(bot, "save_state", lambda _state, **_kwargs: None)
     monkeypatch.setattr(bot, "now_epoch", lambda: CONFIRMATION_EPOCH)

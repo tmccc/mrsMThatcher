@@ -11,12 +11,20 @@ from unittest.mock import Mock, call
 import pytest
 
 import mrs_bot_hot_post_discovery as discovery
+import mrs_bot_quote_discovery as quote_discovery
+import mrs_bot_reply_evaluation_state as evaluation_state
+import mrs_bot_tweet_lookup_cache as tweet_cache_owner
 from tests.helpers.bot_runtime import bot
 from tests.helpers.bot_fixtures import (
     invalid_pagination_cursor_error,
     isolate_bot_runtime,  # noqa: F401
 )
-from tests.helpers.reply_fixtures import patch_reply_draft_method, unit_approved_reply, unit_reply_context
+from tests.helpers.reply_fixtures import (
+    patch_reply_draft_method,
+    patch_reply_owner_method,
+    unit_approved_reply,
+    unit_reply_context,
+)
 
 
 def test_import_needs_no_runtime_access():
@@ -74,16 +82,28 @@ def test_adapters_forward_current_dependencies_arguments_defaults_results_and_er
             patch.setattr(discovery, name, owner)
             for _ in range(2):
                 current = {key: object() for key in dependencies}
-                factory = None
+                factories = {}
+                owner_factories = {
+                    "retire_ineligible_draft": "_reply_draft_owner",
+                    "reply_evaluations": "_reply_evaluation_owner",
+                    "tweets": "_tweet_lookup_cache_owner",
+                    "watch_posts": "_quote_watch_posts_owner",
+                }
                 for key, value in current.items():
                     if key == "retire_ineligible_draft":
-                        factory = Mock(return_value=Mock(retire_ineligible=value))
-                        patch.setattr(bot, "_reply_draft_owner", factory)
+                        factories[key] = Mock(return_value=Mock(retire_ineligible=value))
+                        patch.setattr(bot, "_reply_draft_owner", factories[key])
+                    elif key in owner_factories:
+                        factories[key] = Mock(return_value=value)
+                        patch.setattr(bot, owner_factories[key], factories[key])
                     else:
                         patch.setattr(bot, key, value)
                 assert adapter(*args, **kwargs) is result
-                if factory is not None:
-                    factory.assert_called_once_with()
+                for key, factory in factories.items():
+                    if key == "watch_posts":
+                        factory.assert_called_once_with(tweets=current["tweets"])
+                    else:
+                        factory.assert_called_once_with()
                 actual_args, actual_kwargs = owner.call_args
                 assert len(actual_args) == len(args)
                 assert all(actual is expected for actual, expected in zip(actual_args, args))
@@ -121,7 +141,12 @@ def test_early_flags_and_watch_failures_precede_tracking_changes(monkeypatch):
     ):
         callback = Mock(return_value=result)
         trace.attach_mock(callback, label)
-        monkeypatch.setattr(bot, name, callback)
+        if label == "watch":
+            patch_reply_owner_method(
+                monkeypatch, quote_discovery.QuoteWatchPosts, "load_extra", callback,
+            )
+        else:
+            monkeypatch.setattr(bot, name, callback)
     monkeypatch.setattr(bot, "x_paginated_get", Mock(side_effect=AssertionError("must not fetch")))
     monkeypatch.setattr(bot, "save_state", Mock(side_effect=AssertionError("must not save")))
     monkeypatch.setattr(bot, "ENABLE_HOT_POST_REPLY_CHECKS", False)
@@ -183,7 +208,12 @@ def test_discovery_keeps_draft_terminal_media_cache_and_save_order_and_reference
         ("terminal", "record_terminal_reply_evaluation"), ("mark", "mark_hot_post_reply_skipped"),
         ("cache", "cache_tweet"), ("save", "save_state"),
     ):
-        original = bot._reply_draft_owner().clear if label == "clear" else getattr(bot, name)
+        original = (
+            bot._reply_draft_owner().clear if label == "clear"
+            else bot._reply_evaluation_owner().record if label == "terminal"
+            else bot._tweet_lookup_cache_owner().store if label == "cache"
+            else getattr(bot, name)
+        )
 
         def observe(*args, _label=label, _callback=original, **kwargs):
             trace.append(_label)
@@ -198,6 +228,14 @@ def test_discovery_keeps_draft_terminal_media_cache_and_save_order_and_reference
         calls[label] = callback
         if label == "clear":
             patch_reply_draft_method(monkeypatch, "clear", callback)
+        elif label == "terminal":
+            patch_reply_owner_method(
+                monkeypatch, evaluation_state.ReplyEvaluations, "record", callback,
+            )
+        elif label == "cache":
+            patch_reply_owner_method(
+                monkeypatch, tweet_cache_owner.TweetLookupCache, "store", callback,
+            )
         elif label == "media":
             monkeypatch.setattr(discovery, name, callback)
         else:
@@ -208,6 +246,16 @@ def test_discovery_keeps_draft_terminal_media_cache_and_save_order_and_reference
         events.append((name, values))
 
     monkeypatch.setattr(bot, "log_event", event)
+    relays = {
+        name: Mock(side_effect=AssertionError(f"root relay used: {name}"))
+        for name in (
+            "cache_tweet",
+            "load_extra_quote_watch_post_ids",
+            "record_terminal_reply_evaluation",
+        )
+    }
+    for name, relay in relays.items():
+        monkeypatch.setattr(bot, name, relay)
     result = bot.get_hot_post_reply_candidates(state)
     assert len(result) == 1 and result[0] is rows[0]
     assert trace == [
@@ -233,6 +281,8 @@ def test_discovery_keeps_draft_terminal_media_cache_and_save_order_and_reference
     calls["save"].assert_called_once_with(state)
     saved = json.loads(bot.STATE_FILE.read_text())
     assert saved["hot_post_reply_check_counts"] == {"700": 1}
+    for relay in relays.values():
+        relay.assert_not_called()
     assert saved["tweet_cache"]["102"]["post_type"] == "hot_post_reply"
 
 

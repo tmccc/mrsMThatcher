@@ -442,7 +442,9 @@ def configure_normal_cycle(monkeypatch):
     monkeypatch.setattr(bot, "MAX_AUTO_REPLIES_PER_DAY", 48)
     monkeypatch.setattr(bot, "MAX_REPLIES_PER_AUTHOR_PER_DAY", 6)
     monkeypatch.setattr(bot, "MAX_MENTIONS_PER_CHECK", 5)
-    monkeypatch.setattr(bot, "get_hot_post_reply_candidates", Mock(return_value=[]))
+    monkeypatch.setattr(
+        bot._hot_post_discovery, "get_hot_post_reply_candidates", Mock(return_value=[]),
+    )
     monkeypatch.setattr(bot, "x_request", Mock(side_effect=AssertionError("unexpected provider request")))
     monkeypatch.setattr(bot, "create_post", Mock(side_effect=AssertionError("unexpected remote write")))
     patch_reply_context_method(
@@ -473,7 +475,10 @@ def configure_quote_cycle(monkeypatch):
     monkeypatch.setattr(bot, "ENABLE_AUTO_REPLIES", True)
     monkeypatch.setattr(bot, "ENABLE_QUOTE_TWEET_CHECKS", True)
     monkeypatch.setattr(bot, "MIN_SECONDS_BETWEEN_REPLIES", 0)
-    monkeypatch.setattr(bot, "build_quote_lookup_post_ids", Mock(return_value=["900"]))
+    patch_reply_owner_method(
+        monkeypatch, bot._quote_discovery.QuoteWatchPosts, "lookup",
+        Mock(return_value=["900"]),
+    )
     patch_tweet_lookup_method(monkeypatch, "get_cached", Mock(return_value=original))
     monkeypatch.setattr(bot, "get_quote_tweets_for_posts", Mock(return_value={"900": quotes}))
     media_context = Mock(return_value={})

@@ -18,6 +18,7 @@ import mrs_bot_reply_context as context_owner
 import mrs_bot_reply_cycle_interfaces as interfaces
 import mrs_bot_reply_evaluation_state as evaluation_state
 import mrs_bot_reply_generation as generation_owner
+import mrs_bot_quote_discovery as quote_discovery
 from tests.helpers.bot_runtime import bot
 from tests.helpers.bot_fixtures import isolate_bot_runtime  # noqa: F401
 from tests.helpers.reply_fixtures import (
@@ -83,6 +84,7 @@ def test_adapters_forward_current_dependencies_arguments_results_and_errors(monk
         "tweets": "_tweet_lookup_cache_owner",
         "generation": "_reply_generation_owner",
         "history": "_reply_history_owner",
+        "watch_posts": "_quote_watch_posts_owner",
     }
     for name, count in names.items():
         adapter = getattr(bot, name)
@@ -108,6 +110,7 @@ def test_adapters_forward_current_dependencies_arguments_results_and_errors(monk
                 "daily_author_reply_counts", "record_terminal_reply_evaluation",
                 "reset_daily_quote_reply_count_if_needed", "reset_daily_reply_count_if_needed",
                 "build_quote_tweet_reply_context", "get_tweet_by_id_cached", "cache_tweet",
+                "build_quote_lookup_post_ids",
                 "evaluate_single_call_reply", "_record_single_call_result",
                 "recovery_comparison_account_replies",
             }
@@ -136,8 +139,11 @@ def test_adapters_forward_current_dependencies_arguments_results_and_errors(monk
                     else:
                         patch.setattr(bot, key, value)
                 assert adapter(*args) is result, name
-                for factory in factories.values():
-                    factory.assert_called_once_with()
+                for key, factory in factories.items():
+                    if key == "watch_posts" and name == "maybe_reply_to_quote_tweets":
+                        factory.assert_called_once_with(tweets=current["tweets"])
+                    else:
+                        factory.assert_called_once_with()
                 actual_args, actual_kwargs = owner.call_args
                 assert len(actual_args) == len(args)
                 assert all(actual is expected for actual, expected in zip(actual_args, args))
@@ -305,12 +311,14 @@ def test_both_daily_resets_and_confirmed_reconciliation_precede_barrier_when_dis
 
     trace.attach_mock(Mock(side_effect=barrier), "barrier")
     monkeypatch.setattr(bot, "block_if_ambiguous_remote_post", trace.barrier)
+    watch = Mock(side_effect=AssertionError("disabled cycle must not inspect watched posts"))
+    patch_reply_owner_method(monkeypatch, quote_discovery.QuoteWatchPosts, "lookup", watch)
     assert bot.maybe_reply_to_quote_tweets(state) == bot.QUOTE_CHECK_STATUS_DISABLED
     assert [c[0] for c in trace.mock_calls] == [
         "reset_daily_reply_count_if_needed", "reset_daily_quote_reply_count_if_needed",
         "reconcile_confirmed_reply_receipt", "barrier",
     ]
-    bot.build_quote_lookup_post_ids.assert_not_called()
+    watch.assert_not_called()
 
 
 def test_zero_call_failures_consume_quote_candidate_limit_in_numeric_order(monkeypatch):
@@ -319,7 +327,10 @@ def test_zero_call_failures_consume_quote_candidate_limit_in_numeric_order(monke
     patch_tweet_lookup_method(monkeypatch, "get_cached", lookup)
     quotes[:] = [dict(quotes[0], id=target, conversation_id=target) for target in ("100", "9", "20")]
     monkeypatch.setattr(bot, "MAX_QUOTE_POSTS_PER_CHECK", 2)
-    bot.build_quote_lookup_post_ids.return_value = ["900", "901"]
+    patch_reply_owner_method(
+        monkeypatch, quote_discovery.QuoteWatchPosts, "lookup",
+        Mock(return_value=["900", "901"]),
+    )
     state = bot.default_state()
     contexts, media = [], []
 
@@ -475,7 +486,10 @@ def test_lookup_failure_continues_only_when_fetching_the_original(monkeypatch, b
     state = bot.default_state()
     failure = (bot.ApiError("lookup failed", service="x", status_code=503)
                if api_failure else ValueError("lookup failed"))
-    bot.build_quote_lookup_post_ids.return_value = ["900", "901"]
+    patch_reply_owner_method(
+        monkeypatch, quote_discovery.QuoteWatchPosts, "lookup",
+        Mock(return_value=["900", "901"]),
+    )
     bot.get_quote_tweets_for_posts.return_value = {
         parent: [{"id": target, "referenced_tweets": [{"type": "quoted", "id": parent}]}]
         for parent, target in [("900", "910"), ("901", "911")]
@@ -511,7 +525,10 @@ def test_original_http_errors_skip_targets_or_stop_at_shared_cooldown(
     monkeypatch.setattr(bot, "single_call_reply", {**bot.single_call_reply, "enabled": True})
     monkeypatch.setattr(bot, "ENABLE_AUTO_REPLIES", True)
     monkeypatch.setattr(bot, "ENABLE_QUOTE_TWEET_CHECKS", True)
-    monkeypatch.setattr(bot, "build_quote_lookup_post_ids", lambda _state: ["900", "901", "902", "903"])
+    patch_reply_owner_method(
+        monkeypatch, quote_discovery.QuoteWatchPosts, "lookup",
+        lambda _state: ["900", "901", "902", "903"],
+    )
     restore_tweet_lookup_fetch(monkeypatch)
     discoveries = Mock(return_value={target: [{"id": "910"}] for target in ["900", "901", "902", "903"]})
     monkeypatch.setattr(bot, "get_quote_tweets_for_posts", discoveries)
@@ -695,7 +712,10 @@ def test_context_failures_retire_in_order_before_later_model_work(
 def test_context_rejection_is_free_but_evaluation_budget_spans_original_posts(monkeypatch):
     original, quotes = _configure_cycle(monkeypatch)
     state = bot.default_state()
-    bot.build_quote_lookup_post_ids.return_value = ["900", "901", "902"]
+    patch_reply_owner_method(
+        monkeypatch, quote_discovery.QuoteWatchPosts, "lookup",
+        Mock(return_value=["900", "901", "902"]),
+    )
     quotes_by_original = {
         source: [dict(quotes[0], id=target, conversation_id=target,
                       referenced_tweets=[{"type": "quoted", "id": source}]) for target in targets]
@@ -787,7 +807,9 @@ def test_empty_combined_search_needs_no_original_or_legacy_lookup(monkeypatch):
     patch_tweet_lookup_method(monkeypatch, "get_cached", lookup)
     state = bot.default_state()
     parents = ["900", "901", "902", "903", "904"]
-    bot.build_quote_lookup_post_ids.return_value = parents
+    patch_reply_owner_method(
+        monkeypatch, quote_discovery.QuoteWatchPosts, "lookup", Mock(return_value=parents),
+    )
     bot.get_quote_tweets_for_posts.return_value = {parent: [] for parent in parents}
     legacy = Mock(side_effect=AssertionError("legacy quote lookup must not run"))
     monkeypatch.setattr(bot, "get_quote_tweets_for_post", legacy)

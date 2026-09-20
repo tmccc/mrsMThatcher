@@ -393,7 +393,9 @@ def configure_main_probe(bot, state_directory: Path) -> tuple[list[str], Callabl
     }
     bot.load_runtime_state = lambda: state
     bot.reconcile_startup_main_post_receipts = lambda *_args: None
-    bot.seed_recent_own_post_ids_from_cache = lambda _state: None
+    bot._tweet_lookup_cache.TweetLookupCache.seed_recent_own_posts = (
+        lambda _owner, _state: None
+    )
     bot.save_state = lambda _state, **_kwargs: None
     bot.now_epoch = lambda: 1_800_000_000
     bot.global_remote_writes_paused = lambda: False

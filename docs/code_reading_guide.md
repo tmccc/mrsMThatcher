@@ -92,6 +92,22 @@ the relays blocked, including current history for recovery and chronological
 history for model context. The root still composes current provider, policy and
 persistence dependencies at each invocation.
 
+Discovery uses the same hand-off rule. `MentionQueue` receives
+`MentionAuthority`; mention discovery receives `TweetLookupCache` and
+`ReplyEvaluations`; hot-post discovery receives those two owners plus
+`QuoteWatchPosts`; and the quote cycle calls `QuoteWatchPosts.lookup` directly.
+Each composition shares its invocation's `TweetLookupCache` with nested
+watched-post selection.
+The normal-cycle root composes the two discovery operations from the real module
+functions, so public `get_mentions` and `get_hot_post_reply_candidates` adapters
+remain compatible but are outside the cycle path. X transport and pagination
+remain callbacks, and backlog continuation still re-enters the root to acquire
+fresh owners. The corresponding discovery entry points have 20 and 25 total
+parameters; mention discovery drops from 20 to 19 injected dependencies, while
+hot-post discovery keeps 24 injected dependencies but replaces three callback
+relays with typed owners. `MentionQueue` and `QuoteWatchPosts` each retain five
+and six constructor fields respectively, with one fewer callback-typed field.
+
 `ReplyGeneration` in turn receives `ReplyMedia`, `ReplyHistory` and
 `ReplyModelTransport` directly. Its evaluation path calls `collect`,
 `for_evaluation`, `call` and `error` on those owners; the public root adapters
@@ -171,6 +187,10 @@ remove handled targets through `mrs_bot_reply_state`. A queued quote with no
 usable creation time gets a bounded metadata refresh rather than waiting forever.
 The discovery-to-cycle restart, candidate-budget and posting hand-offs are tested
 in `tests/test_quote_pending_candidates.py`.
+Watched-original selection seeds the recent-own-post index through
+`TweetLookupCache` directly on every lookup. Fresh watch-file reads keep their
+original timing; the public watched-post adapters remain available for callers
+and compatibility tests but are not used by reply-cycle discovery.
 
 For a change to saved-draft behaviour, start with `ReplyDrafts`. Its `store`,
 `recover` and `receipt_draft_is_valid` methods call its own `validate` method;

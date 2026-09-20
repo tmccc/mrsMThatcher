@@ -10,6 +10,7 @@ from unittest.mock import Mock, call
 import pytest
 
 import mrs_bot_quote_discovery as discovery
+import mrs_bot_tweet_lookup_cache as tweet_cache_owner
 from tests.helpers.bot_runtime import bot
 from tests.helpers.reply_fixtures import patch_reply_owner_method
 from tests.helpers.bot_fixtures import isolate_bot_runtime  # noqa: F401
@@ -100,7 +101,7 @@ def test_watch_adapters_bind_current_owners_without_reading_files_or_seeding(mon
     fields = {
         "watch_file": "EXTRA_QUOTE_WATCH_FILE", "maximum_extra_posts": "MAX_EXTRA_QUOTE_WATCH_POSTS",
         "maximum_posts": "MAX_QUOTE_POSTS_PER_CHECK", "lookback_posts": "QUOTE_POST_LOOKBACK_MAIN_POSTS",
-        "seed_recent": "seed_recent_own_post_ids_from_cache", "log": "log",
+        "tweets": "_tweet_lookup_cache_owner", "log": "log",
     }
     for name, method in (
         ("load_extra_quote_watch_post_ids", "load_extra"),
@@ -123,7 +124,10 @@ def test_watch_adapters_bind_current_owners_without_reading_files_or_seeding(mon
             for _ in range(2):
                 current = {field: Mock() for field in fields}
                 for field, root_name in fields.items():
-                    patch.setattr(bot, root_name, current[field])
+                    patch.setattr(
+                        bot, root_name,
+                        Mock(return_value=current[field]) if field == "tweets" else current[field],
+                    )
                 assert adapter(*args) is result
                 assert len(callback.call_args.args) == len(args)
                 assert all(actual is expected for actual, expected in zip(callback.call_args.args, args))
@@ -203,7 +207,11 @@ def test_lookup_seeds_before_watch_read_and_preserves_priority_references_and_lo
         events.append("watch")
         return extras
 
-    monkeypatch.setattr(bot, "seed_recent_own_post_ids_from_cache", seed)
+    patch_reply_owner_method(
+        monkeypatch, tweet_cache_owner.TweetLookupCache, "seed_recent_own_posts", seed,
+    )
+    obsolete_seed = Mock(side_effect=AssertionError("root seed relay used"))
+    monkeypatch.setattr(bot, "seed_recent_own_post_ids_from_cache", obsolete_seed)
     patch_reply_owner_method(monkeypatch, discovery.QuoteWatchPosts, "load_extra", watch)
     monkeypatch.setattr(bot, "QUOTE_POST_LOOKBACK_MAIN_POSTS", 5)
     monkeypatch.setattr(bot, "MAX_QUOTE_POSTS_PER_CHECK", 4)
@@ -218,6 +226,7 @@ def test_lookup_seeds_before_watch_read_and_preserves_priority_references_and_lo
         call("Quote-tweet check loaded %d extra watched post(s) from %s: %s", 3, path, " 902 , 900, 902"),
         call("Own posts for quote lookup: %s", ["902", "900", "903", "901"]),
     ]
+    obsolete_seed.assert_not_called()
     monkeypatch.setattr(bot, "MAX_QUOTE_POSTS_PER_CHECK", 0)
     assert bot.build_quote_lookup_post_ids(state) == ["902"]
     assert bot.get_recent_own_post_ids_for_quote_lookup(state) == ["903", "900", " 901 ", "", "None"]

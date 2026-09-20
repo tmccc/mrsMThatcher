@@ -2,20 +2,22 @@
 
 The root supplies typed settings, persistence and delivery boundaries,
 context, lookup, generation, history, quarantine, evaluation, clarification and
-accounting owners, plus current policy callbacks, logger and application classes
-on each invocation. Private helpers call owners directly and separate candidate
-eligibility, context/model evaluation, draft/receipt preparation and delivery/recovery. The
+accounting owners, plus directly composed mention/hot-post discovery operations,
+current policy callbacks, logger and application classes on each invocation.
+Private helpers call owners directly and separate candidate eligibility,
+context/model evaluation, draft/receipt preparation and delivery/recovery. The
 cycle retains operation order, shared budget/quarantine progress, receipt
-durability and error routing. Backlog continuation calls the
-supplied current root maybe_reply_to_mentions callback with the original state.
+durability and error routing. Backlog continuation calls the supplied current
+root maybe_reply_to_mentions callback with the original state.
 
-Discovery/pagination, counters/watermarks/quarantine policy, pipeline/evidence,
-context/media, persistence, reconciliation and delivery stay in their existing
-locations. Explicit calls may read providers, generate a reply, save state and
-publish through those callbacks. Fixed check statuses, dependency-free state
-helpers and context text trimming are imported from their inert owners. Imports
-perform no file, environment, provider or RNG work and retain no callbacks or
-configuration.
+Discovery retains X transport and pagination callbacks while using mention
+authority, queue, tweet-cache, evaluation and watched-post owners directly.
+Counters/watermarks/quarantine policy, pipeline/evidence, context/media,
+persistence, reconciliation and delivery stay in their existing locations.
+Explicit calls may read providers, generate a reply, save state and publish
+through those callbacks. Fixed check statuses, dependency-free state helpers and
+context text trimming are imported from their inert owners. Imports perform no
+file, environment, provider or RNG work and retain no callbacks or configuration.
 """
 
 from __future__ import annotations
