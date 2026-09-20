@@ -3273,7 +3273,6 @@ def api_error_is_invalid_pagination_cursor(error: BaseException) -> bool:
     return _x_pagination.api_error_is_invalid_pagination_cursor(
         error,
         ApiError=ApiError,
-        json=json,
     )
 
 

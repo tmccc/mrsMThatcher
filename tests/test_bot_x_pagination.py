@@ -55,7 +55,7 @@ assert 'single_call_reply' not in sys.modules
 
 def test_adapters_forward_current_dependencies_arguments_references_and_errors(monkeypatch):
     for name, count in (
-        ("api_error_is_invalid_pagination_cursor", 2), ("x_paginated_get", 4),
+        ("api_error_is_invalid_pagination_cursor", 1), ("x_paginated_get", 4),
     ):
         adapter = getattr(bot, name)
         public = inspect.signature(adapter).parameters
@@ -86,7 +86,7 @@ def test_adapters_forward_current_dependencies_arguments_references_and_errors(m
             assert caught.value is failure
 
 
-def test_classifier_uses_current_error_and_json_with_structured_message_precedence(monkeypatch):
+def test_classifier_uses_current_error_and_owned_json_with_structured_message_precedence(monkeypatch):
     old_error = invalid_pagination_cursor_error()
 
     class CurrentError(bot.ApiError):
@@ -97,7 +97,7 @@ def test_classifier_uses_current_error_and_json_with_structured_message_preceden
 
     decoder = SimpleNamespace(loads=Mock(), JSONDecodeError=CurrentDecodeError)
     monkeypatch.setattr(bot, "ApiError", CurrentError)
-    monkeypatch.setattr(bot, "json", decoder)
+    monkeypatch.setattr(pagination, "json", decoder)
     message = "invalid pagination_token in prefix {opaque}"
     assert bot.api_error_is_invalid_pagination_cursor(old_error) is False
     assert bot.api_error_is_invalid_pagination_cursor(CurrentError(message, service="openai", status_code=400)) is False

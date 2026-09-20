@@ -1,7 +1,8 @@
 """Read bounded X pages and classify cursor rejection through current dependencies.
 
-Two explicit root adapters supply the current exception classes, JSON module,
-classifier and logger on each call. Exact original bodies retain structured
+Two root adapters supply current exception classes, classifier and logger.
+Cursor messages use local JSON decoding; a private page validator owns envelope
+checks before any cursor progress. The original operations retain structured
 message precedence, bounded head recovery, token history, strict page validation,
 record references, callback order, partial-result metadata and logging. Runtime
 requests and cursor/page effects use only the supplied callbacks; authentication,
@@ -13,16 +14,16 @@ environment, provider, clock or RNG work.
 
 from __future__ import annotations
 
+import json
+
 from collections.abc import Callable
 from logging import Logger
-from types import ModuleType
 
 
 def api_error_is_invalid_pagination_cursor(
     error: BaseException,
     *,
     ApiError: type[Exception],
-    json: ModuleType,
 ) -> bool:
     """Recognise only X 400 responses which specifically reject a cursor."""
     if not isinstance(error, ApiError):
@@ -84,6 +85,38 @@ def api_error_is_invalid_pagination_cursor(
         return names_cursor and rejects_cursor
 
     return any(explicitly_rejects_cursor(item) for item in candidate_messages)
+
+
+def _validated_page_collections(
+    result: object,
+    *,
+    label: str,
+    ApiError: type[Exception],
+) -> tuple[list[dict], dict, list[dict], list[dict], dict]:
+    """Validate one complete page before cursor progress, retaining its records."""
+    if not isinstance(result, dict):
+        raise ApiError(f"X {label} returned a malformed paginated response object", service="x")
+    page_data = result.get("data", [])
+    includes = result.get("includes", {})
+    meta = result.get("meta", {})
+    if not isinstance(page_data, list) or any(not isinstance(item, dict) for item in page_data):
+        raise ApiError(f"X {label} returned malformed paginated response data", service="x")
+    if not isinstance(includes, dict):
+        raise ApiError(f"X {label} returned malformed paginated response includes", service="x")
+    users = includes.get("users", [])
+    media_items = includes.get("media", [])
+    if not isinstance(users, list) or any(not isinstance(user, dict) for user in users):
+        raise ApiError(f"X {label} returned malformed paginated response users", service="x")
+    if not isinstance(media_items, list) or any(not isinstance(media, dict) for media in media_items):
+        raise ApiError(f"X {label} returned malformed paginated response media", service="x")
+    if not isinstance(meta, dict):
+        raise ApiError(f"X {label} returned malformed paginated response meta", service="x")
+    if (
+        "data" not in result
+        and not (type(meta.get("result_count")) is int and meta["result_count"] == 0)
+    ) or (not page_data and result.get("errors")):
+        raise ApiError(f"X {label} returned an incomplete paginated response", service="x")
+    return page_data, includes, users, media_items, meta
 
 
 def x_paginated_get(
@@ -193,28 +226,11 @@ def x_paginated_get(
                     break
                 raise
 
-            if not isinstance(result, dict):
-                raise ApiError(f"X {label} returned a malformed paginated response object", service="x")
-            page_data = result.get("data", [])
-            includes = result.get("includes", {})
-            meta = result.get("meta", {})
-            if not isinstance(page_data, list) or any(not isinstance(item, dict) for item in page_data):
-                raise ApiError(f"X {label} returned malformed paginated response data", service="x")
-            if not isinstance(includes, dict):
-                raise ApiError(f"X {label} returned malformed paginated response includes", service="x")
-            users = includes.get("users", [])
-            media_items = includes.get("media", [])
-            if not isinstance(users, list) or any(not isinstance(user, dict) for user in users):
-                raise ApiError(f"X {label} returned malformed paginated response users", service="x")
-            if not isinstance(media_items, list) or any(not isinstance(media, dict) for media in media_items):
-                raise ApiError(f"X {label} returned malformed paginated response media", service="x")
-            if not isinstance(meta, dict):
-                raise ApiError(f"X {label} returned malformed paginated response meta", service="x")
-            if (
-                "data" not in result
-                and not (type(meta.get("result_count")) is int and meta["result_count"] == 0)
-            ) or (not page_data and result.get("errors")):
-                raise ApiError(f"X {label} returned an incomplete paginated response", service="x")
+            page_data, includes, users, media_items, meta = _validated_page_collections(
+                result,
+                label=label,
+                ApiError=ApiError,
+            )
             pages_fetched = page
             combined["data"].extend(page_data)
 
