@@ -3383,7 +3383,6 @@ def _reply_media_owner() -> _reply_native_media.ReplyMedia:
         media_unavailable=ReplyMediaUnavailable,
         media_transient_unavailable=ReplyMediaTransientUnavailable,
         test_mode=TEST_MODE,
-        endpoint_is_loopback=endpoint_is_loopback,
         require_remote_operation_unpaused=require_remote_operation_unpaused,
         requests=requests,
         request_timeout=request_timeout,

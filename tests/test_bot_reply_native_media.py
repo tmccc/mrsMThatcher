@@ -26,7 +26,7 @@ OWNER_INPUTS = {
     "log": "log",
     "media_unavailable": "ReplyMediaUnavailable",
     "media_transient_unavailable": "ReplyMediaTransientUnavailable",
-    "test_mode": "TEST_MODE", "endpoint_is_loopback": "endpoint_is_loopback",
+    "test_mode": "TEST_MODE",
     "require_remote_operation_unpaused": "require_remote_operation_unpaused",
     "requests": "requests", "request_timeout": "request_timeout",
     "validate_supplied_images": "validate_supplied_images",
@@ -51,7 +51,7 @@ def forbidden(*args, **kwargs):
 
 original_import = builtins.__import__
 def guarded_import(name, *args, **kwargs):
-    if name in {'mrsMThatcher2', 'requests', 'openai', 'single_call_reply'} or name.startswith('mrs_bot_') and name != 'mrs_bot_reply_native_media':
+    if name in {'mrsMThatcher2', 'requests', 'openai', 'single_call_reply'} or name.startswith('mrs_bot_') and name not in {'mrs_bot_reply_native_media', 'mrs_bot_request_route_values'}:
         forbidden()
     return original_import(name, *args, **kwargs)
 
@@ -384,3 +384,34 @@ def test_url_validation_reads_current_policy_and_preserves_exception_cause(monke
     with pytest.raises(CurrentMediaError, match="invalid port") as caught:
         owner.safe_url("https://pbs.twimg.com:bad/media/photo.png")
     assert caught.value.__cause__ is failure
+
+
+@pytest.mark.parametrize("status, headers, expected_error, message", [
+    (503, {"Content-Encoding": "gzip"}, "ReplyMediaTransientUnavailable", "HTTP 503"),
+    (200, {"Content-Encoding": "gzip", "Location": "/other"}, "ReplyMediaUnavailable", "transfer encoding"),
+    (200, {"Location": "/other", "Content-Type": "text/html"}, "ReplyMediaUnavailable", "redirect"),
+    (200, {"Content-Type": "text/html", "Content-Length": "invalid"}, "ReplyMediaUnavailable", "type is unsupported"),
+    (200, {"Content-Length": "invalid"}, "ReplyMediaUnavailable", "length is invalid"),
+    (200, {"Content-Length": "0"}, "ReplyMediaUnavailable", "length is outside"),
+])
+def test_response_rejection_keeps_validation_order_and_closes_before_streaming(
+    make_owner, image_case, status, headers, expected_error, message,
+):
+    response, media = image_case
+    response.status_code = status
+    response.headers.update(headers)
+    response.iter_content = Mock(side_effect=AssertionError("unsafe response was streamed"))
+    response.close = Mock(wraps=response.close)
+    validation = Mock(side_effect=AssertionError("unsafe bytes reached image validation"))
+    owner = make_owner(
+        requests=SimpleNamespace(get=Mock(return_value=response), RequestException=bot.requests.RequestException),
+        require_remote_operation_unpaused=Mock(), validate_supplied_images=validation,
+    )
+
+    with pytest.raises(getattr(bot, expected_error), match=message) as caught:
+        owner.collect(media)
+    assert type(caught.value) is getattr(bot, expected_error)
+    assert response.closed
+    response.close.assert_called_once_with()
+    response.iter_content.assert_not_called()
+    validation.assert_not_called()

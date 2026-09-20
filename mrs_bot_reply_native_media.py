@@ -2,7 +2,8 @@
 
 The root creates an inert owner with current caps, image policy, transport,
 validators, exception classes and logging capabilities. Methods call their owned
-selection and URL checks directly. Attachment expansion remains a pure helper;
+selection, URL checks and ordered response validation directly. Fixed loopback
+recognition comes from the route-value owner. Attachment expansion is pure;
 state, delivery, provider generation and persistence retain their authorities.
 Import performs no file, environment, provider or RNG work.
 """
@@ -13,6 +14,8 @@ from collections.abc import Callable
 from dataclasses import dataclass
 from logging import Logger
 from urllib.parse import urlsplit
+
+from mrs_bot_request_route_values import endpoint_is_loopback
 
 
 _REPLY_IMAGE_MIME_TYPES = {
@@ -65,7 +68,6 @@ class ReplyMedia:
     media_unavailable: type
     media_transient_unavailable: type
     test_mode: bool
-    endpoint_is_loopback: Callable
     require_remote_operation_unpaused: Callable
     requests: object
     request_timeout: Callable
@@ -249,7 +251,7 @@ class ReplyMedia:
         trusted_test_origin = bool(
             self.test_mode
             and parsed.scheme == "http"
-            and self.endpoint_is_loopback(url)
+            and endpoint_is_loopback(url)
             and parsed.path.startswith("/media/")
         )
         if (
@@ -305,6 +307,42 @@ class ReplyMedia:
         except (RuntimeError, TypeError, ValueError) as exc:
             raise self.media_unavailable("candidate image bytes failed validation") from exc
 
+    def _validated_response_headers(self, response: object) -> tuple[str, int | None]:
+        """Reject unsafe response metadata before consuming image bytes."""
+        if response.status_code != 200:
+            failure_type = (
+                self.media_transient_unavailable
+                if response.status_code in {408, 425, 429}
+                or 500 <= response.status_code < 600
+                else self.media_unavailable
+            )
+            raise failure_type(
+                f"candidate image returned HTTP {response.status_code}"
+            )
+        if str(response.headers.get("Content-Encoding") or "identity").lower() != "identity":
+            raise self.media_unavailable("candidate image transfer encoding is unsupported")
+        if response.headers.get("Location"):
+            raise self.media_unavailable("candidate image attempted a redirect")
+        mime_type = str(
+            response.headers.get("Content-Type") or ""
+        ).split(";", 1)[0].strip().lower()
+        if mime_type not in self.image_mime_types:
+            raise self.media_unavailable("candidate image type is unsupported")
+        raw_length = response.headers.get("Content-Length")
+        content_length = None
+        if raw_length is not None:
+            try:
+                content_length = int(raw_length)
+            except ValueError as exc:
+                raise self.media_unavailable(
+                    "candidate image length is invalid"
+                ) from exc
+            if not 1 <= content_length <= self.maximum_image_bytes:
+                raise self.media_unavailable(
+                    "candidate image length is outside the safe bound"
+                )
+        return mime_type, content_length
+
     def _download_image(self, url: str, *, operation: str) -> tuple[str, bytes]:
         """Read one bounded image and close its response before returning bytes."""
 
@@ -318,38 +356,7 @@ class ReplyMedia:
                 timeout=self.request_timeout(),
                 headers={"Accept": "image/jpeg,image/png,image/webp,image/gif", "Accept-Encoding": "identity"},
             )
-            if response.status_code != 200:
-                failure_type = (
-                    self.media_transient_unavailable
-                    if response.status_code in {408, 425, 429}
-                    or 500 <= response.status_code < 600
-                    else self.media_unavailable
-                )
-                raise failure_type(
-                    f"candidate image returned HTTP {response.status_code}"
-                )
-            if str(response.headers.get("Content-Encoding") or "identity").lower() != "identity":
-                raise self.media_unavailable("candidate image transfer encoding is unsupported")
-            if response.headers.get("Location"):
-                raise self.media_unavailable("candidate image attempted a redirect")
-            mime_type = str(
-                response.headers.get("Content-Type") or ""
-            ).split(";", 1)[0].strip().lower()
-            if mime_type not in self.image_mime_types:
-                raise self.media_unavailable("candidate image type is unsupported")
-            raw_length = response.headers.get("Content-Length")
-            content_length = None
-            if raw_length is not None:
-                try:
-                    content_length = int(raw_length)
-                except ValueError as exc:
-                    raise self.media_unavailable(
-                        "candidate image length is invalid"
-                    ) from exc
-                if not 1 <= content_length <= self.maximum_image_bytes:
-                    raise self.media_unavailable(
-                        "candidate image length is outside the safe bound"
-                    )
+            mime_type, content_length = self._validated_response_headers(response)
             chunks: list[bytes] = []
             total = 0
             for chunk in response.iter_content(chunk_size=64 * 1024):

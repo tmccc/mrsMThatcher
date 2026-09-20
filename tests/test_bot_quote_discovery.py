@@ -25,7 +25,7 @@ def forbidden(*args, **kwargs):
 
 original_import = builtins.__import__
 def guarded_import(name, *args, **kwargs):
-    if name in {'mrsMThatcher2', 'requests', 'openai', 'single_call_reply', 'reply_evidence'} or name.startswith('mrs_bot_') and name not in {'mrs_bot_quote_discovery', 'mrs_bot_tweet_lookup_cache', 'mrs_bot_reply_native_media', 'mrs_bot_state_value_normalisation'}:
+    if name in {'mrsMThatcher2', 'requests', 'openai', 'single_call_reply', 'reply_evidence'} or name.startswith('mrs_bot_') and name not in {'mrs_bot_quote_discovery', 'mrs_bot_reply_native_media', 'mrs_bot_request_route_values', 'mrs_bot_state_value_normalisation', 'mrs_bot_tweet_lookup_cache'}:
         forbidden()
     return original_import(name, *args, **kwargs)
 
