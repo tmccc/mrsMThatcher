@@ -1,7 +1,7 @@
 """Logging and descriptive observability for already authoritative bot outcomes.
 
 Managed handler marking/removal share their fixed marker within this owner.
-Fixed diagnostic encoding and redaction use local standard-library imports.
+Fixed path construction, diagnostic encoding and redaction use local imports.
 The root supplies current runtime boundaries on each call; descriptive event
 callbacks remain late-bound. Import performs no runtime work.
 """
@@ -47,7 +47,6 @@ def setup_logging(
     PRODUCTION_BASE_DIR: Any,
     PRODUCTION_LOG_BACKUP_COUNT: Any,
     PRODUCTION_LOG_MAX_BYTES: Any,
-    Path: Any,
     RotatingFileHandler: Any,
     logging: Any,
     os: Any,

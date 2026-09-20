@@ -20,7 +20,6 @@ DEPENDENCIES = {'remove_managed_log_handlers': [],
                    'PRODUCTION_BASE_DIR',
                    'PRODUCTION_LOG_BACKUP_COUNT',
                    'PRODUCTION_LOG_MAX_BYTES',
-                   'Path',
                    'RotatingFileHandler',
                    'logging',
                    'os',
@@ -111,7 +110,7 @@ assert 'single_call_reply' not in sys.modules
     assert result.returncode == 0, result.stderr + result.stdout
 
 
-@pytest.mark.parametrize("name", [name for name, deps in DEPENDENCIES.items() if name not in {"log_event", "redact_secret", "state_debug_summary"}])
+@pytest.mark.parametrize("name", [name for name, deps in DEPENDENCIES.items() if name not in {"log_event", "redact_secret", "state_debug_summary", "remove_managed_log_handlers", "mark_managed_log_handler"}])
 def test_adapters_preserve_signatures_current_dependencies_references_and_errors(monkeypatch, name):
     adapter = getattr(bot, name)
     signature = inspect.signature(adapter)
@@ -221,6 +220,10 @@ def test_event_payload_update_serialization_fallback_and_final_log_scope(monkeyp
 @pytest.mark.parametrize("failure_at", [None, "remove", "close"])
 def test_managed_handlers_use_owned_marker_snapshot_and_detach_before_close(monkeypatch, failure_at):
     assert bot._MANAGED_LOG_HANDLER_ATTR == bot._observability._MANAGED_LOG_HANDLER_ATTR
+    assert bot.remove_managed_log_handlers is bot._observability.remove_managed_log_handlers
+    assert bot.mark_managed_log_handler is bot._observability.mark_managed_log_handler
+    for name in ("remove_managed_log_handlers", "mark_managed_log_handler"):
+        assert str(inspect.signature(getattr(bot, name))) == SIGNATURES[name]
     monkeypatch.setattr(bot._observability, "_MANAGED_LOG_HANDLER_ATTR", "stage48_owned")
     order = []
 
@@ -304,7 +307,7 @@ def test_logging_setup_preserves_target_guard_and_console_before_file_failure(mo
     logger.debug.assert_called_once_with(
         "Logging initialised. LOG_LEVEL=%s LOG_FILE=%s", "UNKNOWN-LEVEL", "<disabled>",
     )
-    monkeypatch.setattr(bot, "Path", Mock(side_effect=failure))
+    monkeypatch.setattr(bot._observability, "Path", Mock(side_effect=failure))
     with pytest.raises(OSError) as caught:
         bot.setup_logging(log_path=target, configure_file_logging=False)
     assert caught.value is failure

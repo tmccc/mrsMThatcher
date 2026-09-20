@@ -748,19 +748,10 @@ PRODUCTION_LOG_BACKUP_COUNT = 100
 _MANAGED_LOG_HANDLER_ATTR = _observability._MANAGED_LOG_HANDLER_ATTR
 
 
-def remove_managed_log_handlers(logger: logging.Logger) -> None:
-    """Detach and close handlers installed by this module."""
-    return _observability.remove_managed_log_handlers(
-        logger,
-    )
+remove_managed_log_handlers = _observability.remove_managed_log_handlers
 
 
-def mark_managed_log_handler(handler: logging.Handler, kind: str) -> logging.Handler:
-    """Mark a logging handler as owned by this module."""
-    return _observability.mark_managed_log_handler(
-        handler,
-        kind,
-    )
+mark_managed_log_handler = _observability.mark_managed_log_handler
 
 
 def setup_logging(
@@ -776,7 +767,6 @@ def setup_logging(
         PRODUCTION_BASE_DIR=PRODUCTION_BASE_DIR,
         PRODUCTION_LOG_BACKUP_COUNT=PRODUCTION_LOG_BACKUP_COUNT,
         PRODUCTION_LOG_MAX_BYTES=PRODUCTION_LOG_MAX_BYTES,
-        Path=Path,
         RotatingFileHandler=RotatingFileHandler,
         logging=logging,
         os=os,
