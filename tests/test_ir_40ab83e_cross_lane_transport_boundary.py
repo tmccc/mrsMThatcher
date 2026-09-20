@@ -565,6 +565,7 @@ def _invoke_lane(bot: Any, lane: str, state_directory: Path) -> None:
             configure_simple_meme_post,
             configure_simple_quote_post,
         )
+        from tests.helpers.quote_candidate_overrides import patch_completed_research_quotes
 
         monkeypatch = pytest.MonkeyPatch()
         actual_create_post = bot.create_post
@@ -574,11 +575,7 @@ def _invoke_lane(bot: Any, lane: str, state_directory: Path) -> None:
                 monkeypatch,
             )
             quote_hash = bot.quote_text_hash("Good quote.")
-            monkeypatch.setattr(
-                bot,
-                "completed_research_quote_hashes",
-                lambda: {quote_hash},
-            )
+            patch_completed_research_quotes(monkeypatch, bot, lambda: {quote_hash})
             monkeypatch.setattr(bot, "create_post", actual_create_post)
             bot.post_random_quote(lines_used, images_used, state)
             return

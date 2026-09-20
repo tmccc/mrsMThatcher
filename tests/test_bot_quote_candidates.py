@@ -84,7 +84,7 @@ CANDIDATE_INPUTS = {'season_date_specific_weight': 'QUOTE_SEASON_DATE_SPECIFIC_W
 
 
 def patch_candidates(monkeypatch, name, callback):
-    monkeypatch.setattr(candidates.QuoteCandidates, name, lambda _owner, *args, **kwargs: callback(*args, **kwargs))
+    monkeypatch.setattr(type(bot._quote_candidates_owner()), name, lambda _owner, *args, **kwargs: callback(*args, **kwargs))
 
 
 def test_candidate_owner_binds_current_inputs_without_reading(monkeypatch):

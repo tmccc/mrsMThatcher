@@ -16,6 +16,7 @@ from types import SimpleNamespace
 import pytest
 
 from tests.helpers.bot_runtime import bot
+from tests.helpers.quote_candidate_overrides import patch_completed_research_quotes
 from tests.helpers.protocol_activation import create_test_protocol_activation
 from tests.helpers.reply_fixtures import UNIT_REPLY_REPOSITORY, patch_tweet_lookup_method
 import remote_write_transport_journal as transport_journal_module
@@ -109,10 +110,10 @@ def isolate_bot_runtime(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None
     monkeypatch.setattr(bot, "STATE_BACKUP_COUNT", 0)
     patch_tweet_lookup_method(monkeypatch, "fetch", lambda tweet_id, **_kwargs: {"id": str(tweet_id)})
     monkeypatch.setattr(bot, "reply_evidence_repository", lambda: UNIT_REPLY_REPOSITORY)
-    monkeypatch.setattr(
-        bot._quote_candidates.QuoteCandidates,
-        "completed",
-        lambda _owner: {
+    patch_completed_research_quotes(
+        monkeypatch,
+        bot,
+        lambda: {
             bot.quote_text_hash(line)
             for line in Path(bot.LINES_FILE).read_text(encoding="utf-8").splitlines()
             if line.strip()

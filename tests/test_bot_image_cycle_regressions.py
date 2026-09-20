@@ -9,6 +9,8 @@ from pathlib import Path
 
 import pytest
 
+from tests.helpers.quote_candidate_overrides import patch_completed_research_quotes
+
 from tests.helpers.bot_runtime import bot
 from tests.helpers.bot_fixtures import (
     isolate_bot_runtime,
@@ -275,7 +277,7 @@ def test_image_pair_retry_recovers_unused_quote_without_resetting_quote_history(
     )
     used.add(used_hash)
     images_used.add("t01.jpg")
-    monkeypatch.setattr(bot._quote_candidates.QuoteCandidates, "completed", lambda _owner: set(map(bot.quote_text_hash, texts)))
+    patch_completed_research_quotes(monkeypatch, bot, lambda: set(map(bot.quote_text_hash, texts)))
     caplog.set_level(logging.INFO, logger=bot.log.name)
     calls = capture_create_post_calls(monkeypatch)
 

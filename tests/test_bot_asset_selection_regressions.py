@@ -11,6 +11,7 @@ from pathlib import Path
 import pytest
 
 from tests.helpers.bot_runtime import bot
+from tests.helpers.quote_candidate_overrides import patch_completed_research_quotes
 from tests.helpers.bot_fixtures import (
     isolate_bot_runtime,
     quote_analysis_for_lines,
@@ -680,7 +681,7 @@ def test_quote_cycle_resets_when_only_research_ineligible_source_records_remain(
     used = set(eligible_hashes)
     monkeypatch.setattr(bot, "LINES_FILE", lines_file)
     monkeypatch.setattr(bot, "load_quote_analysis", lambda: quote_analysis_for_lines(lines))
-    monkeypatch.setattr(bot._quote_candidates.QuoteCandidates, "completed", lambda _owner: eligible_hashes)
+    patch_completed_research_quotes(monkeypatch, bot, lambda: eligible_hashes)
 
     candidates = bot.quote_candidates_for_current_cycle(used)
 
@@ -987,3 +988,30 @@ def test_image_cycle_status_log_formats_without_argument_mismatch(tmp_path: Path
     bot.choose_matched_unused_image(set(), {"analysis": {"primary_topics": ["anything"]}}, {})
 
     assert "Image cycle status:" in caplog.text
+
+
+def test_runtime_fixture_research_stub_is_scoped_to_its_owner(tmp_path, monkeypatch):
+    lines_file = tmp_path / "fixture-quotes.txt"
+    lines_file.write_text("Fixture quote.\n", encoding="utf-8")
+    monkeypatch.setattr(bot, "LINES_FILE", lines_file)
+    verified_ids, calls = {"verified other owner"}, []
+
+    def validated_partition(**kwargs):
+        calls.append(kwargs)
+        return verified_ids
+
+    monkeypatch.setattr(bot._quote_candidates, "load_completed_research_quote_hashes", validated_partition)
+    fixture_owner = bot._quote_candidates_owner()
+    assert fixture_owner.completed() == {bot.quote_text_hash("Fixture quote.")}
+    assert calls == []
+
+    independent_owner = bot._quote_candidates.QuoteCandidates(**vars(fixture_owner))
+    assert independent_owner.completed() is verified_ids
+    assert len(calls) == 1 and calls[0]["lines_file"] is lines_file
+
+    next_file = tmp_path / "next-quotes.txt"
+    next_file.write_text("Next fixture quote.\n", encoding="utf-8")
+    monkeypatch.setattr(bot, "LINES_FILE", next_file)
+    next_owner = bot._quote_candidates_owner()
+    assert next_owner is not fixture_owner and next_owner.lines_file is next_file
+    assert next_owner.completed() == {bot.quote_text_hash("Next fixture quote.")}

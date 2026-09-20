@@ -623,8 +623,14 @@ def test_immutable_candidate_cache_follows_owned_calls_and_preserves_current_mis
     )
     owner_type = bot._quote_candidates.QuoteCandidates
     original_weight = owner_type.weight
+    completed_ids = {"snapshot eligibility"}
+
+    class SnapshotQuoteCandidates(owner_type):
+        def completed(self):
+            return completed_ids
+
     cache_bot._quote_candidates_owner = lambda: replace(
-        bot._quote_candidates_owner(),
+        SnapshotQuoteCandidates(**vars(bot._quote_candidates_owner())),
         lines_file=source,
         load_quote_analysis=cache_bot.load_quote_analysis,
         validate_analysis=lambda *args: None,
@@ -636,6 +642,7 @@ def test_immutable_candidate_cache_follows_owned_calls_and_preserves_current_mis
     cache_bot.load_quote_lines_and_analysis = lambda: cache_bot._quote_candidates_owner().load_source()
     cache_bot.current_quote_hashes_by_line = lambda lines: cache_bot._quote_candidates_owner().hashes_by_line(lines)
     harness.install_immutable_score_caches(cache_bot)
+    assert cache_bot._quote_candidates_owner().completed() is completed_ids
     cache_bot.multiplier = 3.0
     analysis = {"scores": dict.fromkeys(("general_post_suitability", "standalone_clarity", "visual_matchability"), 100)}
     first = cache_bot._quote_candidates_owner().weight(analysis, today_mm_dd="07-05")
@@ -684,3 +691,38 @@ def test_immutable_editorial_cache_covers_owned_comparison_and_keeps_explicit_ov
     counters = cache_bot._HARNESS_IMMUTABLE_CACHE_COUNTERS
     assert (counters["editorial_score_misses"], counters["editorial_score_hits"]) == (1, 1)
     assert owner_type.score is original_score
+
+
+def test_quote_eligibility_override_keeps_other_bot_and_current_owner_separate(monkeypatch):
+    from dataclasses import replace
+    from types import SimpleNamespace
+    from tests.helpers.bot_runtime import bot
+    from tests.helpers.quote_candidate_overrides import patch_completed_research_quotes
+
+    production_type = bot._quote_candidates.QuoteCandidates
+    original_completed = production_type.completed
+    template = bot._quote_candidates_owner()
+    other = SimpleNamespace(multiplier=1.0)
+
+    class CustomQuoteCandidates(production_type):
+        def season_status(self, analysis, *, today_mm_dd):
+            return analysis
+
+    other._quote_candidates_owner = lambda: replace(
+        CustomQuoteCandidates(**vars(template)),
+        quality_weight_max_multiplier=other.multiplier,
+    )
+    original_factory = other._quote_candidates_owner
+    eligibility = {"isolated synthetic quote"}
+    with monkeypatch.context() as patch:
+        patch_completed_research_quotes(patch, other, lambda: eligibility)
+        first = other._quote_candidates_owner()
+        assert first.completed() is eligibility
+        other.multiplier = 3.0
+        second = other._quote_candidates_owner()
+        assert second is not first and second.quality_weight_max_multiplier == 3.0
+        analysis = {"original": []}
+        assert second.season_status(analysis, today_mm_dd="07-05") is analysis
+        assert production_type.completed is original_completed
+        assert type(bot._quote_candidates_owner()) is type(template)
+    assert other._quote_candidates_owner is original_factory

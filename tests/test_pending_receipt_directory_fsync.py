@@ -21,6 +21,7 @@ import remote_write_transport_journal as journal
 from tests.helpers.protocol_activation import create_test_protocol_activation
 from tests.helpers.reply_fixtures import UNIT_REPLY_REPOSITORY, unit_sending_v4_reply_receipt
 from tests.helpers.bot_runtime import bot
+from tests.helpers.quote_candidate_overrides import patch_completed_research_quotes
 from tests.helpers.bot_fixtures import (
     configure_simple_meme_post,
     configure_simple_quote_post,
@@ -148,9 +149,9 @@ def isolate_transaction_files(
         "reply_evidence_repository",
         lambda: UNIT_REPLY_REPOSITORY,
     )
-    monkeypatch.setattr(
+    patch_completed_research_quotes(
+        monkeypatch,
         bot,
-        "completed_research_quote_hashes",
         lambda: {
             bot.quote_text_hash(line)
             for line in Path(bot.LINES_FILE)

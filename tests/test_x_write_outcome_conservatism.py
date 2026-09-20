@@ -15,6 +15,8 @@ from types import SimpleNamespace
 
 import pytest
 
+from tests.helpers.quote_candidate_overrides import patch_completed_research_quotes
+
 import historical_context_outbox as outbox_module
 import mrsMThatcher2 as bot
 import remote_media_upload_receipt as media_receipt_module
@@ -3850,7 +3852,7 @@ def test_regular_generic_4xx_retains_attempt_and_blocks_retry(
         monkeypatch,
     )
     quote_hash = bot.quote_text_hash("Good quote.")
-    monkeypatch.setattr(bot._quote_candidates.QuoteCandidates, "completed", lambda _owner: {quote_hash})
+    patch_completed_research_quotes(monkeypatch, bot, lambda: {quote_hash})
     monkeypatch.setattr(bot, "create_post", actual_create_post)
     remote_calls = 0
 
@@ -3933,7 +3935,7 @@ def test_regular_handler_retires_transaction_when_pause_follows_media_handoff(
         monkeypatch,
     )
     quote_hash = bot.quote_text_hash("Good quote.")
-    monkeypatch.setattr(bot._quote_candidates.QuoteCandidates, "completed", lambda _owner: {quote_hash})
+    patch_completed_research_quotes(monkeypatch, bot, lambda: {quote_hash})
     monkeypatch.setattr(bot, "create_post", actual_create_post)
     monkeypatch.setattr(bot, "upload_media", actual_upload_media)
     paused = False
@@ -4338,7 +4340,7 @@ def test_regular_success_retires_journal_before_lane_receipt(
         monkeypatch,
     )
     quote_hash = bot.quote_text_hash("Good quote.")
-    monkeypatch.setattr(bot._quote_candidates.QuoteCandidates, "completed", lambda _owner: {quote_hash})
+    patch_completed_research_quotes(monkeypatch, bot, lambda: {quote_hash})
     monkeypatch.setattr(bot, "create_post", actual_create_post)
     monkeypatch.setattr(
         bot.requests,

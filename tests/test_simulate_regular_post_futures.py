@@ -12,6 +12,7 @@ from pathlib import Path
 import pytest
 
 from tests.helpers.bot_runtime import bot
+from tests.helpers.quote_candidate_overrides import patch_completed_research_quotes
 from tools import simulate_regular_post_futures as sim
 
 
@@ -78,11 +79,7 @@ def configure_real_selector(
     validated_eligible_ids = frozenset(
         bot.load_completed_research_quote_hashes()
     )
-    monkeypatch.setattr(
-        bot,
-        "completed_research_quote_hashes",
-        lambda: set(validated_eligible_ids),
-    )
+    patch_completed_research_quotes(monkeypatch, bot, lambda: set(validated_eligible_ids))
     monkeypatch.setattr(bot, "IMAGE_ANALYSIS_FILE", snapshot / "image_analysis.json")
     monkeypatch.setattr(sim.historical_image_selection(bot), "GENERATED_IMAGE_ANALYSIS_FILE", str(snapshot / "generated_image_analysis.json"))
     monkeypatch.setattr(bot, "IMAGE_GLOB", str(snapshot / "images" / "t*"))

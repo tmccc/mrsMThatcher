@@ -10,6 +10,8 @@ from types import SimpleNamespace
 
 import pytest
 
+from tests.helpers.quote_candidate_overrides import patch_completed_research_quotes
+
 
 _IMPORT_TEMPORARY = tempfile.TemporaryDirectory(
     prefix="mrsMThatcher-production-consistency-import-"
@@ -341,11 +343,7 @@ def test_context_semantic_block_does_not_remove_ordinary_quote_eligibility(
     events: list[tuple[str, dict]] = []
 
     monkeypatch.setattr(bot, "load_quote_analysis", lambda: _quote_analysis(quote_text))
-    monkeypatch.setattr(
-        bot,
-        "completed_research_quote_hashes",
-        lambda: {quote_id},
-    )
+    patch_completed_research_quotes(monkeypatch, bot, lambda: {quote_id})
     monkeypatch.setattr(bot, "current_datetime", lambda: bot.datetime(2026, 7, 23))
     monkeypatch.setattr(
         bot,

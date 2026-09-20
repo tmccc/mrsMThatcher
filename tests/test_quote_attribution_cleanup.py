@@ -246,7 +246,8 @@ def test_production_history_uses_quote_hashes_not_shifted_line_indices() -> None
 
 def test_production_regular_selector_has_completed_research_gate() -> None:
     source = (cleanup.ROOT / "mrs_bot_quote_candidates.py").read_text(encoding="utf-8")
-    assert "def completed_research_quote_hashes" in source
+    assert "def completed(" in source
+    assert "completed_hashes = self.completed()" in source
     assert "research_ineligible_hashes" in source
     assert "excluded_quote_hashes = set(excluded_quote_hashes or set()).union(research_ineligible_hashes)" in source
 
