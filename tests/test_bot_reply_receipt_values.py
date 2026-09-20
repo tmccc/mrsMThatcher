@@ -447,3 +447,44 @@ def test_send_preparation_rejects_authority_mismatch_before_validation(monkeypat
     with pytest.raises(exception, match=message):
         make_owner().prepare_sending_template(template, lane="mention")
     validator.assert_not_called()
+
+
+@pytest.mark.parametrize("lifecycle,changes", [
+    ("sending", {"confirmation_epoch": 2_000_000_000}),
+    ("sending", {"reply_epoch": 2_000_000_001}),
+    ("sending", {"attempt_epoch": None}),
+    ("confirmed", {"confirmation_epoch": 1_999_999_999, "reply_epoch": 1_999_999_999}),
+    ("confirmed", {"confirmation_epoch": 2_000_000_004}),
+    ("confirmed", {"reply_epoch": None}),
+    ("confirmed", {"daily_reply_date": "wrong date"}),
+    ("confirmed", {"daily_quote_reply_date": "unexpected bucket"}),
+])
+def test_receipt_time_failure_precedes_draft_and_lineage_work(make_owner, lifecycle, changes):
+    sending = unit_sending_v4_reply_receipt()
+    owner = make_owner()
+    receipt = sending if lifecycle == "sending" else owner.confirmed_from_sending(
+        sending, reply_post_id="999", confirmation_epoch=2_000_000_005,
+    )
+    assert owner.validate(receipt, lifecycle_state=lifecycle)
+    draft = Mock(side_effect=AssertionError("invalid time reached draft validation"))
+    canonical = Mock(side_effect=AssertionError("invalid time reached source hashing"))
+    owner = replace(owner, draft_is_valid=draft, canonical_atomic_json_bytes=canonical)
+    assert not owner.validate({**receipt, **changes}, lifecycle_state=lifecycle)
+    draft.assert_not_called()
+    canonical.assert_not_called()
+
+
+def test_missing_source_hash_keeps_distinct_current_and_legacy_rules(make_owner, receipt_family):
+    _sending, confirmed, legacy = receipt_family
+    receipt = dict(confirmed)
+    receipt.pop("source_receipt_sha256", None)
+    draft = Mock(return_value=True)
+    canonical = Mock(side_effect=AssertionError("unbound receipt reached source hashing"))
+    owner = make_owner(
+        draft_is_valid=draft, legacy_draft_is_valid=draft,
+        canonical_atomic_json_bytes=canonical,
+    )
+    assert owner.validate(receipt, lifecycle_state="confirmed", legacy_recovery=legacy) is (not legacy)
+    draft.assert_called_once_with(receipt, receipt["reply_text"])
+    assert draft.call_args.args[0] is receipt
+    canonical.assert_not_called()

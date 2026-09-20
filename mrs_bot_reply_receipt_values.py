@@ -94,35 +94,10 @@ class ReplyReceiptValues:
             return False
         if source not in {"mention", "hot_post_reply", "quote_tweet"}:
             return False
-        reply_epoch = self.receipt_int(data.get("reply_epoch"))
-        if reply_epoch is None or not self.valid_receipt_epoch(reply_epoch):
+        if not self._timing_is_valid(
+            data, schema_version=schema_version, lifecycle_state=lifecycle_state, source=source,
+        ):
             return False
-        if schema_version == 4:
-            attempt_epoch = self.receipt_int(data.get("attempt_epoch"))
-            if attempt_epoch is None or not self.valid_receipt_epoch(attempt_epoch):
-                return False
-            if lifecycle_state == "sending":
-                if "confirmation_epoch" in data or reply_epoch != attempt_epoch:
-                    return False
-                effective_epoch = attempt_epoch
-            else:
-                confirmation_epoch = self.receipt_int(data.get("confirmation_epoch"))
-                if (
-                    confirmation_epoch is None
-                    or not self.valid_receipt_epoch(confirmation_epoch)
-                    or confirmation_epoch < attempt_epoch
-                    or reply_epoch != confirmation_epoch
-                ):
-                    return False
-                effective_epoch = confirmation_epoch
-            expected_date = self.safe_reply_cap_date_str(effective_epoch)
-            if expected_date is None or data.get("daily_reply_date") != expected_date:
-                return False
-            if source == "quote_tweet":
-                if data.get("daily_quote_reply_date") != expected_date:
-                    return False
-            elif "daily_quote_reply_date" in data:
-                return False
         if "mention_pagination" in data:
             mention_pagination = data.get("mention_pagination")
             if schema_version not in {3, 4} or source != "mention":
@@ -224,27 +199,67 @@ class ReplyReceiptValues:
                 ):
                     return False
         if schema_version == 4 and lifecycle_state == "confirmed":
-            if legacy_recovery and "source_receipt_sha256" not in data:
+            return self._source_lineage_is_valid(data, legacy_recovery=legacy_recovery)
+        return True
+
+    def _timing_is_valid(
+        self, data: dict, *, schema_version: int, lifecycle_state: str, source: str,
+    ) -> bool:
+        """Check receipt time and schema-v4 attempt/confirmation bucket agreement."""
+        reply_epoch = self.receipt_int(data.get("reply_epoch"))
+        if reply_epoch is None or not self.valid_receipt_epoch(reply_epoch):
+            return False
+        if schema_version == 4:
+            attempt_epoch = self.receipt_int(data.get("attempt_epoch"))
+            if attempt_epoch is None or not self.valid_receipt_epoch(attempt_epoch):
                 return False
-            if "source_receipt_sha256" not in data:
-                return True
-            try:
-                source_receipt = self.sending_from_confirmed(data)
-            except (TypeError, ValueError):
+            if lifecycle_state == "sending":
+                if "confirmation_epoch" in data or reply_epoch != attempt_epoch:
+                    return False
+                effective_epoch = attempt_epoch
+            else:
+                confirmation_epoch = self.receipt_int(data.get("confirmation_epoch"))
+                if (
+                    confirmation_epoch is None
+                    or not self.valid_receipt_epoch(confirmation_epoch)
+                    or confirmation_epoch < attempt_epoch
+                    or reply_epoch != confirmation_epoch
+                ):
+                    return False
+                effective_epoch = confirmation_epoch
+            expected_date = self.safe_reply_cap_date_str(effective_epoch)
+            if expected_date is None or data.get("daily_reply_date") != expected_date:
                 return False
-            source_is_valid = (
-                self.legacy_sending_is_valid(source_receipt)
-                if legacy_recovery
-                else self.sending_is_valid(source_receipt)
-            )
-            if (
-                not source_is_valid
-                or hashlib.sha256(
-                    self.canonical_atomic_json_bytes(source_receipt)
-                ).hexdigest()
-                != data.get("source_receipt_sha256")
-            ):
+            if source == "quote_tweet":
+                if data.get("daily_quote_reply_date") != expected_date:
+                    return False
+            elif "daily_quote_reply_date" in data:
                 return False
+        return True
+
+    def _source_lineage_is_valid(self, data: dict, *, legacy_recovery: bool) -> bool:
+        """Check the exact sending source bound to a schema-v4 confirmation."""
+        if legacy_recovery and "source_receipt_sha256" not in data:
+            return False
+        if "source_receipt_sha256" not in data:
+            return True
+        try:
+            source_receipt = self.sending_from_confirmed(data)
+        except (TypeError, ValueError):
+            return False
+        source_is_valid = (
+            self.legacy_sending_is_valid(source_receipt)
+            if legacy_recovery
+            else self.sending_is_valid(source_receipt)
+        )
+        if (
+            not source_is_valid
+            or hashlib.sha256(
+                self.canonical_atomic_json_bytes(source_receipt)
+            ).hexdigest()
+            != data.get("source_receipt_sha256")
+        ):
+            return False
         return True
 
     def sending_from_confirmed(self, confirmed_receipt: dict) -> dict:
