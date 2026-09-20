@@ -102,7 +102,7 @@ def isolated_simulator_bot(tmp_path: Path, snapshot: Path):
         "write_meme_post_receipt", "write_confirmed_reply_receipt", "remove_regular_post_receipt",
         "remove_meme_post_receipt", "remove_confirmed_reply_receipt", "atomic_write_json", "save_used_set",
         "save_quote_used_hashes", "save_image_used_basenames", "save_state",
-        "completed_research_quote_hashes",
+        "completed_research_quote_hashes", "_quote_candidates_owner",
     }
     original = {
         name: (image_policy, getattr(image_policy, name))
@@ -126,6 +126,13 @@ def isolated_simulator_bot(tmp_path: Path, snapshot: Path):
         bot.completed_research_quote_hashes = (
             lambda: set(validated_eligible_ids)
         )
+        candidate_owner_factory = bot._quote_candidates_owner
+
+        class SnapshotQuoteCandidates(type(candidate_owner_factory())):
+            def completed(self):
+                return set(validated_eligible_ids)
+
+        bot._quote_candidates_owner = lambda: SnapshotQuoteCandidates(**vars(candidate_owner_factory()))
         yield bot
     finally:
         for name, (owner, value) in original.items():

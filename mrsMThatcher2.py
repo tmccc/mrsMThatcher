@@ -5023,35 +5023,41 @@ def load_image_analysis() -> dict | None:
 mm_dd_in_window = _quote_candidates.mm_dd_in_window
 
 
-def any_window_matches_today(windows: object, today_mm_dd: str) -> bool:
-    """Return whether any window matches today."""
-    return _quote_candidates.any_window_matches_today(
-        windows,
-        today_mm_dd,
-        mm_dd_in_window=mm_dd_in_window,
-    )
-
-
-def quote_season_status(analysis: dict | None, *, today_mm_dd: str) -> dict:
-    """Return the quote season status."""
-    return _quote_candidates.quote_season_status(
-        analysis,
-        today_mm_dd=today_mm_dd,
-        any_window_matches_today=any_window_matches_today,
-    )
-
-
-def quote_candidate_weight(analysis: dict | None, *, today_mm_dd: str) -> tuple[float, dict]:
-    """Return the quote candidate weight."""
-    return _quote_candidates.quote_candidate_weight(
-        analysis,
-        today_mm_dd=today_mm_dd,
-        quote_season_status=quote_season_status,
+def _quote_candidates_owner() -> _quote_candidates.QuoteCandidates:
+    """Bind current external boundaries without runtime work or caller state."""
+    return _quote_candidates.QuoteCandidates(
         season_date_specific_weight=QUOTE_SEASON_DATE_SPECIFIC_WEIGHT,
         season_strong_weight=QUOTE_SEASON_STRONG_WEIGHT,
         season_soft_weight=QUOTE_SEASON_SOFT_WEIGHT,
         quality_weight_max_multiplier=QUOTE_QUALITY_WEIGHT_MAX_MULTIPLIER,
+        quote_text_hash=quote_text_hash,
+        metadata_for_hash=quote_metadata_for_hash,
+        log=log,
+        lines_file=LINES_FILE,
+        load_quote_analysis=load_quote_analysis,
+        validate_analysis=validate_quote_analysis_against_lines,
+        current_datetime=current_datetime,
+        research_dir=HISTORICAL_CONTEXT_RESEARCH_DIR,
+        eligible_manifest_file=RUNTIME_ELIGIBLE_QUOTE_MANIFEST_FILE,
+        research_file=COMPLETED_QUOTE_RESEARCH_FILE,
+        load_json_object=load_json_object,
+        file_sha256=file_sha256,
     )
+
+
+def any_window_matches_today(windows: object, today_mm_dd: str) -> bool:
+    """Return whether any window matches today."""
+    return _quote_candidates_owner().any_window(windows, today_mm_dd)
+
+
+def quote_season_status(analysis: dict | None, *, today_mm_dd: str) -> dict:
+    """Return the quote season status."""
+    return _quote_candidates_owner().season_status(analysis, today_mm_dd=today_mm_dd)
+
+
+def quote_candidate_weight(analysis: dict | None, *, today_mm_dd: str) -> tuple[float, dict]:
+    """Return the quote candidate weight."""
+    return _quote_candidates_owner().weight(analysis, today_mm_dd=today_mm_dd)
 
 
 weighted_random_choice = _quote_candidates.weighted_random_choice
@@ -5071,10 +5077,7 @@ def quote_metadata_for_hash(quote_analysis: dict | None, quote_hash: str, text: 
 
 def current_quote_hashes_by_line(lines: list[str]) -> dict[int, str]:
     """Return whether current quote hashes by line."""
-    return _quote_candidates.current_quote_hashes_by_line(
-        lines,
-        quote_text_hash=quote_text_hash,
-    )
+    return _quote_candidates_owner().hashes_by_line(lines)
 
 
 def quote_used_history_has_legacy_indices(value: set) -> bool:
@@ -6756,28 +6759,12 @@ def build_quote_candidates(
     excluded_quote_hashes: set[str] | None = None,
 ) -> tuple[list[dict], int, int]:
     """Build analysed, research-eligible quotation candidates for a date."""
-    return _quote_candidates.build_quote_candidates(
-        lines,
-        available_lines,
-        quote_analysis,
-        today_mm_dd,
-        excluded_quote_hashes=excluded_quote_hashes,
-        quote_text_hash=quote_text_hash,
-        quote_metadata_for_hash=quote_metadata_for_hash,
-        quote_candidate_weight=quote_candidate_weight,
-        log=log,
-    )
+    return _quote_candidates_owner().build(lines, available_lines, quote_analysis, today_mm_dd, excluded_quote_hashes=excluded_quote_hashes)
 
 
 def load_quote_lines_and_analysis() -> tuple[list[str], dict | None, str]:
     """Load the active quotation source and validated analysis metadata."""
-    return _quote_candidates.load_quote_lines_and_analysis(
-        lines_file=LINES_FILE,
-        load_quote_analysis=load_quote_analysis,
-        validate_quote_analysis_against_lines=validate_quote_analysis_against_lines,
-        current_datetime=current_datetime,
-        log=log,
-    )
+    return _quote_candidates_owner().load_source()
 
 
 def load_completed_research_quote_hashes() -> set[str]:
@@ -6795,9 +6782,7 @@ def load_completed_research_quote_hashes() -> set[str]:
 
 def completed_research_quote_hashes() -> set[str]:
     """Return current attribution-eligible completed quotation hashes."""
-    return _quote_candidates.completed_research_quote_hashes(
-        load_completed_research_quote_hashes=load_completed_research_quote_hashes,
-    )
+    return _quote_candidates_owner().completed()
 
 
 def quote_candidates_for_current_cycle(
@@ -6805,26 +6790,12 @@ def quote_candidates_for_current_cycle(
     allow_cycle_reset: bool = True,
 ) -> list[dict]:
     """Build unused candidates; disable cycle resets during image-pair retries."""
-    return _quote_candidates.quote_candidates_for_current_cycle(
-        lines_used,
-        excluded_quote_hashes=excluded_quote_hashes,
-        allow_cycle_reset=allow_cycle_reset,
-        load_quote_lines_and_analysis=load_quote_lines_and_analysis,
-        current_quote_hashes_by_line=current_quote_hashes_by_line,
-        completed_research_quote_hashes=completed_research_quote_hashes,
-        build_quote_candidates=build_quote_candidates,
-        lines_file=LINES_FILE,
-        log=log,
-    )
+    return _quote_candidates_owner().for_cycle(lines_used, excluded_quote_hashes=excluded_quote_hashes, allow_cycle_reset=allow_cycle_reset)
 
 
 def select_quote_candidate(candidates: list[dict]) -> dict:
     """Select quote candidate."""
-    return _quote_candidates.select_quote_candidate(
-        candidates,
-        weighted_random_choice=weighted_random_choice,
-        log=log,
-    )
+    return _quote_candidates_owner().select(candidates)
 
 
 def choose_unused_line_candidate(
@@ -6832,13 +6803,7 @@ def choose_unused_line_candidate(
     allow_cycle_reset: bool = True,
 ) -> dict:
     """Select an unused quotation, optionally preserving history during retries."""
-    return _quote_candidates.choose_unused_line_candidate(
-        lines_used,
-        excluded_quote_hashes=excluded_quote_hashes,
-        allow_cycle_reset=allow_cycle_reset,
-        quote_candidates_for_current_cycle=quote_candidates_for_current_cycle,
-        select_quote_candidate=select_quote_candidate,
-    )
+    return _quote_candidates_owner().choose(lines_used, excluded_quote_hashes=excluded_quote_hashes, allow_cycle_reset=allow_cycle_reset)
 
 
 def available_currently_eligible_image_basenames(

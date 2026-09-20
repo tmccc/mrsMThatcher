@@ -601,3 +601,58 @@ def test_run_directory_is_confined_to_research_tree(tmp_path: Path) -> None:
         harness.validate_run_dir(tmp_path / "outside")
     accepted = harness.validate_run_dir(ROOT / "semantic_alignment_research" / "safe-harness-test")
     assert accepted.name == "safe-harness-test"
+
+
+def test_immutable_candidate_cache_follows_owned_calls_and_preserves_current_misses(tmp_path):
+    from dataclasses import replace
+    from datetime import datetime
+    from types import SimpleNamespace
+    from tests.helpers.bot_runtime import bot
+
+    source = tmp_path / "quotes.txt"
+    source.write_text("A quotation.\n")
+    corpus = {"items": {}}
+    cache_bot = SimpleNamespace(
+        current_image_sha256=lambda path: path,
+        build_image_topic_idf=lambda analysis: {},
+        score_image_for_quote=lambda *args: (1, {}, True),
+        load_quote_analysis=lambda: corpus,
+        load_image_analysis=lambda: {},
+        current_datetime=lambda: datetime(2026, 7, 5),
+        multiplier=1.0,
+    )
+    owner_type = bot._quote_candidates.QuoteCandidates
+    original_weight = owner_type.weight
+    cache_bot._quote_candidates_owner = lambda: replace(
+        bot._quote_candidates_owner(),
+        lines_file=source,
+        load_quote_analysis=cache_bot.load_quote_analysis,
+        validate_analysis=lambda *args: None,
+        current_datetime=cache_bot.current_datetime,
+        quote_text_hash=lambda text: text.strip(),
+        quality_weight_max_multiplier=cache_bot.multiplier,
+    )
+    cache_bot.quote_candidate_weight = lambda analysis, **kwargs: cache_bot._quote_candidates_owner().weight(analysis, **kwargs)
+    cache_bot.load_quote_lines_and_analysis = lambda: cache_bot._quote_candidates_owner().load_source()
+    cache_bot.current_quote_hashes_by_line = lambda lines: cache_bot._quote_candidates_owner().hashes_by_line(lines)
+    harness.install_immutable_score_caches(cache_bot)
+    cache_bot.multiplier = 3.0
+    analysis = {"scores": dict.fromkeys(("general_post_suitability", "standalone_clarity", "visual_matchability"), 100)}
+    first = cache_bot._quote_candidates_owner().weight(analysis, today_mm_dd="07-05")
+    assert first[0] == 3.0
+    first[1]["relevance"] = "changed"
+    assert cache_bot._quote_candidates_owner().weight(analysis, today_mm_dd="07-05")[1]["relevance"] == "none"
+    lines, returned, today = cache_bot._quote_candidates_owner().load_source()
+    assert returned is corpus and today == "07-05"
+    source.unlink()
+    cache_bot.current_datetime = lambda: datetime(2026, 7, 6)
+    repeated, returned_again, today = cache_bot._quote_candidates_owner().load_source()
+    assert repeated is lines and returned_again is corpus and today == "07-06"
+    hashes = cache_bot._quote_candidates_owner().hashes_by_line(lines)
+    hashes[99] = "transient"
+    assert cache_bot._quote_candidates_owner().hashes_by_line(lines) == {0: "A quotation."}
+    counters = cache_bot._HARNESS_IMMUTABLE_CACHE_COUNTERS
+    assert (counters["quote_weight_misses"], counters["quote_weight_hits"]) == (1, 1)
+    assert (counters["quote_input_misses"], counters["quote_input_hits"]) == (1, 1)
+    assert (counters["quote_hash_misses"], counters["quote_hash_hits"]) == (1, 1)
+    assert owner_type.weight is original_weight

@@ -110,9 +110,9 @@ def isolate_bot_runtime(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None
     patch_tweet_lookup_method(monkeypatch, "fetch", lambda tweet_id, **_kwargs: {"id": str(tweet_id)})
     monkeypatch.setattr(bot, "reply_evidence_repository", lambda: UNIT_REPLY_REPOSITORY)
     monkeypatch.setattr(
-        bot,
-        "completed_research_quote_hashes",
-        lambda: {
+        bot._quote_candidates.QuoteCandidates,
+        "completed",
+        lambda _owner: {
             bot.quote_text_hash(line)
             for line in Path(bot.LINES_FILE).read_text(encoding="utf-8").splitlines()
             if line.strip()

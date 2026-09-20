@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from datetime import datetime
+import inspect
 from pathlib import Path
 import random
 import subprocess
@@ -20,7 +21,7 @@ def forbidden(*args, **kwargs):
 
 def test_import_needs_no_runtime_access_or_research_import():
     code = """
-import builtins, collections.abc, datetime, io, logging, os, random, re, socket, sys
+import builtins, collections.abc, dataclasses, datetime, io, logging, os, random, re, socket, sys
 from pathlib import Path
 
 def forbidden(*args, **kwargs):
@@ -54,19 +55,94 @@ assert candidates.mm_dd_in_window('01-01', '12-01', '02-01')
     assert candidates.random is bot.random is random
 
 
+CANDIDATE_METHODS = {'any_window_matches_today': 'any_window',
+ 'quote_season_status': 'season_status',
+ 'quote_candidate_weight': 'weight',
+ 'current_quote_hashes_by_line': 'hashes_by_line',
+ 'build_quote_candidates': 'build',
+ 'load_quote_lines_and_analysis': 'load_source',
+ 'completed_research_quote_hashes': 'completed',
+ 'quote_candidates_for_current_cycle': 'for_cycle',
+ 'select_quote_candidate': 'select',
+ 'choose_unused_line_candidate': 'choose'}
+CANDIDATE_INPUTS = {'season_date_specific_weight': 'QUOTE_SEASON_DATE_SPECIFIC_WEIGHT',
+ 'season_strong_weight': 'QUOTE_SEASON_STRONG_WEIGHT',
+ 'season_soft_weight': 'QUOTE_SEASON_SOFT_WEIGHT',
+ 'quality_weight_max_multiplier': 'QUOTE_QUALITY_WEIGHT_MAX_MULTIPLIER',
+ 'quote_text_hash': 'quote_text_hash',
+ 'metadata_for_hash': 'quote_metadata_for_hash',
+ 'log': 'log',
+ 'lines_file': 'LINES_FILE',
+ 'load_quote_analysis': 'load_quote_analysis',
+ 'validate_analysis': 'validate_quote_analysis_against_lines',
+ 'current_datetime': 'current_datetime',
+ 'research_dir': 'HISTORICAL_CONTEXT_RESEARCH_DIR',
+ 'eligible_manifest_file': 'RUNTIME_ELIGIBLE_QUOTE_MANIFEST_FILE',
+ 'research_file': 'COMPLETED_QUOTE_RESEARCH_FILE',
+ 'load_json_object': 'load_json_object',
+ 'file_sha256': 'file_sha256'}
+
+
+def patch_candidates(monkeypatch, name, callback):
+    monkeypatch.setattr(candidates.QuoteCandidates, name, lambda _owner, *args, **kwargs: callback(*args, **kwargs))
+
+
+def test_candidate_owner_binds_current_inputs_without_reading(monkeypatch):
+    from dataclasses import FrozenInstanceError
+
+    previous = None
+    for _ in range(2):
+        current = {name: Mock(side_effect=AssertionError("construction read runtime inputs")) for name in CANDIDATE_INPUTS}
+        for name, value in current.items():
+            monkeypatch.setattr(bot, CANDIDATE_INPUTS[name], value)
+        owner = bot._quote_candidates_owner()
+        assert owner is not previous and vars(owner).keys() == current.keys()
+        assert all(getattr(owner, name) is value for name, value in current.items())
+        assert all(not value.called for value in current.values())
+        with pytest.raises(FrozenInstanceError):
+            owner.lines_file = "elsewhere"
+        previous = owner
+
+
+def test_candidate_adapters_preserve_signatures_references_and_errors(monkeypatch):
+    for root_name, method in CANDIDATE_METHODS.items():
+        adapter = getattr(bot, root_name)
+        public = inspect.signature(adapter).parameters
+        owned = inspect.signature(getattr(candidates.QuoteCandidates, method)).parameters
+        assert list(public) == list(owned)[1:]
+        assert [(p.kind, p.default) for p in public.values()] == [(p.kind, p.default) for p in list(owned.values())[1:]]
+        args = tuple(object() for p in public.values() if p.kind == inspect.Parameter.POSITIONAL_OR_KEYWORD)
+        options = {key: object() for key, p in public.items() if p.kind == inspect.Parameter.KEYWORD_ONLY}
+        result = object()
+        callback = Mock(return_value=result)
+        with monkeypatch.context() as patch:
+            patch_candidates(patch, method, callback)
+            assert adapter(*args, **options) is result
+            actual_args, actual_kwargs = callback.call_args
+            assert len(actual_args) == len(args)
+            assert all(actual is expected for actual, expected in zip(actual_args, args))
+            assert actual_kwargs.keys() == options.keys()
+            assert all(actual_kwargs[key] is value for key, value in options.items())
+            failure = KeyboardInterrupt(root_name)
+            callback.side_effect = failure
+            with pytest.raises(KeyboardInterrupt) as caught:
+                adapter(*args, **options)
+            assert caught.value is failure
+
+
 def test_season_helpers_use_current_callbacks_settings_and_status_reference(monkeypatch):
     windows = [{"start_mm_dd": "12-01", "end_mm_dd": "02-01"}]
     matches = Mock(return_value=True)
-    monkeypatch.setattr(bot, "mm_dd_in_window", matches)
+    monkeypatch.setattr(candidates, "mm_dd_in_window", matches)
     assert bot.any_window_matches_today(windows, "01-01") is True
     matches.assert_called_once_with("01-01", "12-01", "02-01")
 
     any_match = Mock(return_value=True)
-    monkeypatch.setattr(bot, "any_window_matches_today", any_match)
+    patch_candidates(monkeypatch, "any_window", any_match)
     status = bot.quote_season_status({"seasonality": {"preferred_windows": windows}}, today_mm_dd="01-01")
     assert any_match.call_args.args[0] is windows
     status_callback = Mock(return_value=status)
-    monkeypatch.setattr(bot, "quote_season_status", status_callback)
+    patch_candidates(monkeypatch, "season_status", status_callback)
     monkeypatch.setattr(bot, "QUOTE_SEASON_DATE_SPECIFIC_WEIGHT", 7.0)
     monkeypatch.setattr(bot, "QUOTE_SEASON_STRONG_WEIGHT", 5.0)
     monkeypatch.setattr(bot, "QUOTE_SEASON_SOFT_WEIGHT", 3.0)
@@ -135,7 +211,7 @@ def test_source_hash_and_candidate_callbacks_preserve_order_counters_and_referen
     weight = Mock(side_effect=lambda item, **kwargs: (0 if item["name"] == "Seasonal" else 1, season_status))
     log = Mock()
     monkeypatch.setattr(bot, "quote_metadata_for_hash", metadata)
-    monkeypatch.setattr(bot, "quote_candidate_weight", weight)
+    patch_candidates(monkeypatch, "weight", weight)
     monkeypatch.setattr(bot, "log", log)
     corpus, excluded = {}, {"Excluded"}
     pool, hard_excluded, non_empty = bot.build_quote_candidates(
@@ -227,10 +303,10 @@ def test_cycle_and_selection_keep_current_callbacks_set_and_candidate_identity(m
 
     used, excluded = Used({"a"}), {"b"}
     pool = [{"line_no": 0, "quote_hash": "a", "text": "A", "weight": 1.0}]
-    monkeypatch.setattr(bot, "load_quote_lines_and_analysis", lambda: events.append("load") or (lines, analysis, "07-05"))
+    patch_candidates(monkeypatch, "load_source", lambda: events.append("load") or (lines, analysis, "07-05"))
     hashes = Mock(side_effect=lambda source: events.append("hashes") or {2: "b", 0: "a", 1: "r"})
-    monkeypatch.setattr(bot, "current_quote_hashes_by_line", hashes)
-    monkeypatch.setattr(bot, "load_completed_research_quote_hashes", lambda: events.append("research") or {"a", "b"})
+    patch_candidates(monkeypatch, "hashes_by_line", hashes)
+    patch_candidates(monkeypatch, "completed", lambda: events.append("research") or {"a", "b"})
 
     def build(source, available, metadata, today, *, excluded_quote_hashes):
         events.append("build")
@@ -239,19 +315,19 @@ def test_cycle_and_selection_keep_current_callbacks_set_and_candidate_identity(m
         assert excluded_quote_hashes == {"b", "r"} and excluded_quote_hashes is not excluded
         return pool, 0, 1
 
-    monkeypatch.setattr(bot, "build_quote_candidates", build)
+    patch_candidates(monkeypatch, "build", build)
     assert bot.quote_candidates_for_current_cycle(used, excluded_quote_hashes=excluded) is pool
     assert events == ["load", "hashes", "research", "clear", "build"]
     assert hashes.call_args.args[0] is lines and excluded == {"b"}
 
     current_pool = Mock(return_value=pool)
-    select = Mock(wraps=bot.select_quote_candidate)
-    weighted = Mock(return_value=pool[0])
     log = Mock()
-    monkeypatch.setattr(bot, "quote_candidates_for_current_cycle", current_pool)
-    monkeypatch.setattr(bot, "select_quote_candidate", select)
-    monkeypatch.setattr(bot, "weighted_random_choice", weighted)
     monkeypatch.setattr(bot, "log", log)
+    select = Mock(wraps=bot._quote_candidates_owner().select)
+    weighted = Mock(return_value=pool[0])
+    patch_candidates(monkeypatch, "for_cycle", current_pool)
+    patch_candidates(monkeypatch, "select", select)
+    monkeypatch.setattr(candidates, "weighted_random_choice", weighted)
     for exclusion in (None, set(), excluded):
         assert bot.choose_unused_line_candidate(used, excluded_quote_hashes=exclusion) is pool[0]
         assert current_pool.call_args.args[0] is used

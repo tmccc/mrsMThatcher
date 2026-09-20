@@ -756,7 +756,14 @@ def install_immutable_score_caches(bot: Any, *, image_policy: Any = None) -> Non
     bot._HARNESS_IMMUTABLE_CACHE_COUNTERS = counters
     bot._HARNESS_IMMUTABLE_SCORE_CACHE = score_cache
     if hasattr(bot, "quote_candidate_weight"):
-        original_quote_weight = bot.quote_candidate_weight
+        if hasattr(bot, "_quote_candidates_owner"):
+            quote_weight_owner_factory = bot._quote_candidates_owner
+            quote_weight_operation = type(quote_weight_owner_factory()).weight
+
+            def original_quote_weight(analysis, *, today_mm_dd):
+                return quote_weight_operation(quote_weight_owner_factory(), analysis, today_mm_dd=today_mm_dd)
+        else:
+            original_quote_weight = bot.quote_candidate_weight
         weight_cache: dict[tuple[int, str], tuple[float, dict[str, Any]]] = {}
 
         def cached_quote_weight(
@@ -776,7 +783,14 @@ def install_immutable_score_caches(bot: Any, *, image_policy: Any = None) -> Non
 
         bot.quote_candidate_weight = cached_quote_weight
     if hasattr(bot, "load_quote_lines_and_analysis"):
-        original_quote_inputs = bot.load_quote_lines_and_analysis
+        if hasattr(bot, "_quote_candidates_owner"):
+            quote_inputs_owner_factory = bot._quote_candidates_owner
+            quote_inputs_operation = type(quote_inputs_owner_factory()).load_source
+
+            def original_quote_inputs():
+                return quote_inputs_operation(quote_inputs_owner_factory())
+        else:
+            original_quote_inputs = bot.load_quote_lines_and_analysis
         quote_inputs_cache: list[tuple[list[str], dict[str, Any] | None]] = []
 
         def cached_quote_inputs() -> tuple[list[str], dict[str, Any] | None, str]:
@@ -791,7 +805,14 @@ def install_immutable_score_caches(bot: Any, *, image_policy: Any = None) -> Non
 
         bot.load_quote_lines_and_analysis = cached_quote_inputs
     if hasattr(bot, "current_quote_hashes_by_line"):
-        original_quote_hashes = bot.current_quote_hashes_by_line
+        if hasattr(bot, "_quote_candidates_owner"):
+            quote_hashes_owner_factory = bot._quote_candidates_owner
+            quote_hashes_operation = type(quote_hashes_owner_factory()).hashes_by_line
+
+            def original_quote_hashes(lines):
+                return quote_hashes_operation(quote_hashes_owner_factory(), lines)
+        else:
+            original_quote_hashes = bot.current_quote_hashes_by_line
         quote_hash_cache: dict[int, dict[int, str]] = {}
 
         def cached_quote_hashes(lines: list[str]) -> dict[int, str]:
@@ -804,6 +825,20 @@ def install_immutable_score_caches(bot: Any, *, image_policy: Any = None) -> Non
             return dict(quote_hash_cache[key])
 
         bot.current_quote_hashes_by_line = cached_quote_hashes
+    if hasattr(bot, "_quote_candidates_owner"):
+        candidate_owner_factory = bot._quote_candidates_owner
+
+        class CachedQuoteCandidates(type(candidate_owner_factory())):
+            def weight(self, analysis, *, today_mm_dd):
+                return cached_quote_weight(analysis, today_mm_dd=today_mm_dd)
+
+            def load_source(self):
+                return cached_quote_inputs()
+
+            def hashes_by_line(self, lines):
+                return cached_quote_hashes(lines)
+
+        bot._quote_candidates_owner = lambda: CachedQuoteCandidates(**vars(candidate_owner_factory()))
     if hasattr(image_owner, "current_image_paths"):
         original_image_paths = image_owner.current_image_paths
         image_paths_cache: list[list[str]] = []
@@ -882,6 +917,14 @@ def load_context(run_dir: Path) -> HarnessContext:
     production_sim.configure_snapshot_paths(bot, snapshot, private)
     completed_research_hash_cache = frozenset(bot.completed_research_quote_hashes())
     bot.completed_research_quote_hashes = lambda: set(completed_research_hash_cache)
+    if hasattr(bot, "_quote_candidates_owner"):
+        candidate_owner_factory = bot._quote_candidates_owner
+
+        class SnapshotQuoteCandidates(type(candidate_owner_factory())):
+            def completed(self):
+                return set(completed_research_hash_cache)
+
+        bot._quote_candidates_owner = lambda: SnapshotQuoteCandidates(**vars(candidate_owner_factory()))
     install_immutable_score_caches(
         bot, image_policy=production_sim.historical_image_selection(bot),
     )
