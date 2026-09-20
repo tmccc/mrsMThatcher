@@ -476,7 +476,11 @@ def configure_quote_cycle(monkeypatch):
     monkeypatch.setattr(bot, "build_quote_lookup_post_ids", Mock(return_value=["900"]))
     patch_tweet_lookup_method(monkeypatch, "get_cached", Mock(return_value=original))
     monkeypatch.setattr(bot, "get_quote_tweets_for_posts", Mock(return_value={"900": quotes}))
-    monkeypatch.setattr(bot, "reply_media_context_for_candidate", Mock(return_value={}))
+    media_context = Mock(return_value={})
+    monkeypatch.setattr(bot, "reply_media_context_for_candidate", media_context)
+    patch_reply_owner_method(
+        monkeypatch, bot._reply_native_media.ReplyMedia, "context", media_context,
+    )
     monkeypatch.setattr(bot, "x_request", Mock(side_effect=AssertionError("unexpected provider request")))
     monkeypatch.setattr(bot, "create_post", Mock(side_effect=AssertionError("unexpected remote write")))
     return original, quotes

@@ -649,9 +649,6 @@ def test_normal_owner_handoffs_keep_current_recovery_and_chronological_model_his
     build = context_owner.ReplyContext.build
     evaluate = generation_owner.ReplyGeneration.evaluate
     _configure_cycle(monkeypatch)
-    bot.reply_media_context_for_candidate.return_value = {
-        "status": "none", "photos_expected": 0, "photos": [],
-    }
     monkeypatch.setattr(generation_owner.ReplyGeneration, "evaluate", evaluate)
     capped, candidate = mention(104, 204), mention(105, 205)
     candidate["created_at"] = "2033-05-18T03:30:00Z"
@@ -731,6 +728,7 @@ def test_normal_owner_handoffs_keep_current_recovery_and_chronological_model_his
         "build_context_for_reply_ai", "cache_tweet", "evaluate_single_call_reply",
         "_record_single_call_result", "recovery_comparison_account_replies",
         "collect_reply_images", "openai_responses_reply_call", "_openai_api_error",
+        "reply_media_context_for_candidate",
     ):
         relays[name] = Mock(side_effect=AssertionError(f"root relay used: {name}"))
         monkeypatch.setattr(bot, name, relays[name])
@@ -738,7 +736,10 @@ def test_normal_owner_handoffs_keep_current_recovery_and_chronological_model_his
     assert bot.maybe_reply_to_mentions(state) == bot.NORMAL_CHECK_STATUS_CHECKED
     assert len(prepared) == pipeline.call_count == 1
     assert collected_media == [prepared[0].media_context]
-    assert prepared[0].media_context is bot.reply_media_context_for_candidate.return_value
+    assert prepared[0].media_context == {
+        "lane": "mention", "target_id": "105", "mode": "none",
+        "status": "none", "photos_expected": 0, "photos": [],
+    }
     assert state["reply_evaluation_records"]["105"]["outcome"] == "no_reply"
     assert state["last_seen_mention_id"] == "105"
     assert state["daily_reply_count"] == 0

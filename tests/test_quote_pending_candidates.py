@@ -305,10 +305,10 @@ def test_quote_owner_handoffs_keep_current_recovery_and_chronological_model_hist
     """Use actual owners together without returning through their root adapters."""
     tweets_type = bot._tweet_lookup_cache.TweetLookupCache
     get_cached = tweets_type.get_cached
+    media_type = bot._reply_native_media.ReplyMedia
+    prepare_media = media_type.context
     search, _clock, lookup = _install_quote_pages(monkeypatch, first_ids=("912",))
-    bot.reply_media_context_for_candidate.return_value = {
-        "status": "none", "photos_expected": 0, "photos": [],
-    }
+    monkeypatch.setattr(media_type, "context", prepare_media)
     original = lookup.return_value
     monkeypatch.setattr(tweets_type, "get_cached", get_cached)
     fetch = Mock(return_value=original)
@@ -332,12 +332,9 @@ def test_quote_owner_handoffs_keep_current_recovery_and_chronological_model_hist
     later = {"post_id": "902", "text": "A later confirmed reply."}
     prepared = []
     collected_media = []
-    media_type = bot._reply_native_media.ReplyMedia
-    collect = media_type.collect
-
     def observe_media(owner, media_context):
         collected_media.append(media_context)
-        return collect(owner, media_context)
+        return []
 
     monkeypatch.setattr(media_type, "collect", observe_media)
     contexts_type = bot._reply_context.ReplyContext
@@ -391,6 +388,7 @@ def test_quote_owner_handoffs_keep_current_recovery_and_chronological_model_hist
         "evaluate_single_call_reply", "_record_single_call_result",
         "recovery_comparison_account_replies", "collect_reply_images",
         "openai_responses_reply_call", "_openai_api_error",
+        "reply_media_context_for_candidate",
     ):
         relays[name] = Mock(side_effect=AssertionError(f"root relay used: {name}"))
         monkeypatch.setattr(bot, name, relays[name])

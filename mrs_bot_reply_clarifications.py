@@ -2,9 +2,10 @@
 
 Detection, author windows and terminal-thread checks share the same completion
 ledger. Confirmation conflict checks and recording remain separate operations so
-callers preserve their existing state, cache and telemetry ordering. Context and
-lookup capabilities, pipeline enablement, exception types and author windows are
-bound per invocation; persistence and remote delivery remain with their owners.
+callers preserve their existing state, cache and telemetry ordering. The current
+context owner supplies parent, own-reply and cached-lookup operations directly.
+Pipeline enablement, exception types and author windows are bound per invocation;
+persistence and remote delivery remain with their owners.
 Import constructs only fixed regexes and stopwords, without runtime access.
 """
 
@@ -13,8 +14,13 @@ from __future__ import annotations
 import re
 from collections.abc import Callable
 from dataclasses import dataclass
+from typing import TYPE_CHECKING
 
 from mrs_bot_tweet_lookup_cache import tweet_text_is_complete
+
+
+if TYPE_CHECKING:
+    from mrs_bot_reply_context import ReplyContext
 
 
 CLARIFICATION_CUE_RE = re.compile(
@@ -52,10 +58,7 @@ class ClarificationReplies:
     """Recognise eligible repair requests and own their completed-thread ledger."""
 
     pipeline_enabled: Callable
-    parent_id: Callable
-    get_tweet_by_id_cached: Callable
-    api_error_is_permanent_target_failure: Callable
-    is_our_auto_reply: Callable
+    contexts: ReplyContext
     api_error: type[Exception]
     invalid_receipt: type[Exception]
     window_seconds: int
@@ -93,7 +96,7 @@ class ClarificationReplies:
             return None
 
         try:
-            prior_bot_reply_id = self.parent_id(candidate)
+            prior_bot_reply_id = self.contexts.parent_id(candidate)
         except self.api_error:
             return None
         if not prior_bot_reply_id or prior_bot_reply_id not in {
@@ -105,10 +108,10 @@ class ClarificationReplies:
         if not isinstance(cache, dict):
             return None
         prior_bot_reply = cache.get(prior_bot_reply_id)
-        if not self.is_our_auto_reply(prior_bot_reply, state):
+        if not self.contexts.is_our_auto_reply(prior_bot_reply, state):
             return None
         try:
-            original_question_id = self.parent_id(prior_bot_reply)
+            original_question_id = self.contexts.parent_id(prior_bot_reply)
         except self.api_error:
             return None
         original_question = cache.get(str(original_question_id or ""))
@@ -122,9 +125,11 @@ class ClarificationReplies:
             return None
         if not tweet_text_is_complete(original_question):
             try:
-                original_question = self.get_tweet_by_id_cached(str(original_question_id), state)
+                original_question = self.contexts.tweets.get_cached(
+                    str(original_question_id), state,
+                )
             except self.api_error as exc:
-                if self.api_error_is_permanent_target_failure(exc):
+                if self.contexts.tweets.is_permanent_target_failure(exc):
                     return None
                 raise
             if (

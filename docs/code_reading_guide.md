@@ -149,7 +149,19 @@ real transport operation when an isolated test server supplies the response.
 `get_cached` directly for parent traversal and directly quoted posts. The
 context-to-lookup hand-off test in `tests/test_bot_reply_context.py` blocks the
 root lookup/pruning relays while exercising cache identity, bounded parent
-fetches and transient media refresh.
+fetches and transient media refresh. It also receives `ReplyMedia` directly and
+calls `context` for both normal and quote preparation; the root
+`reply_media_context_for_candidate` adapter remains public but is outside both
+production reply paths. Its constructor remains at 19 dependencies while its
+callback-typed fields fall from 7 to 6.
+
+`ClarificationReplies` receives one current `ReplyContext` and uses its parent,
+own-reply and nested tweet-cache operations directly. The root
+`get_immediate_parent_id`, `is_our_auto_reply` and `get_tweet_by_id_cached`
+adapters remain available but are outside clarification evaluation. Its
+constructor falls from 9 dependencies (6 callback-typed) to 6 (2
+callback-typed). Refresh tests block those relays while exercising the real
+context-to-cache hand-off.
 
 Quote discovery saves fetched candidates in `quote_pending_candidates` before
 advancing recent-search cursors. Pending work is returned before further search,

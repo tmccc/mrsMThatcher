@@ -2771,10 +2771,7 @@ def _clarification_reply_owner() -> _reply_clarifications.ClarificationReplies:
     """Bind current clarification capabilities and policy without reading state."""
     return _reply_clarifications.ClarificationReplies(
         pipeline_enabled=conversational_reply_pipeline_enabled,
-        parent_id=get_immediate_parent_id,
-        get_tweet_by_id_cached=get_tweet_by_id_cached,
-        api_error_is_permanent_target_failure=api_error_is_permanent_target_failure,
-        is_our_auto_reply=is_our_auto_reply,
+        contexts=_reply_context_owner(),
         api_error=ApiError,
         invalid_receipt=InvalidConfirmedReplyReceipt,
         window_seconds=CLARIFICATION_REPLY_WINDOW_SECONDS,
@@ -3301,7 +3298,7 @@ def _reply_context_owner() -> _reply_context.ReplyContext:
         skip_own_auto_replies=SKIP_REPLIES_TO_OWN_AUTO_REPLIES,
         bound_visible_conversation=bound_visible_conversation,
         current_utc_datetime=current_utc_datetime,
-        reply_media_context_for_candidate=reply_media_context_for_candidate,
+        media=_reply_media_owner(),
         default_post_maximum_chars=_DEFAULT_REPLY_CONTEXT_POST_MAXIMUM_CHARS,
     )
 

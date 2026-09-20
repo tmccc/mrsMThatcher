@@ -25,10 +25,7 @@ from tests.helpers.reply_fixtures import unit_confirmed_reply_receipt, patch_twe
 
 OWNER_INPUTS = {
     "pipeline_enabled": "conversational_reply_pipeline_enabled",
-    "parent_id": "get_immediate_parent_id",
-    "get_tweet_by_id_cached": "get_tweet_by_id_cached",
-    "api_error_is_permanent_target_failure": "api_error_is_permanent_target_failure",
-    "is_our_auto_reply": "is_our_auto_reply", "api_error": "ApiError",
+    "api_error": "ApiError",
     "invalid_receipt": "InvalidConfirmedReplyReceipt",
     "window_seconds": "CLARIFICATION_REPLY_WINDOW_SECONDS",
     "log_event": "log_event",
@@ -40,8 +37,22 @@ def make_owner():
     """Compose clarification operations with isolated runtime boundaries."""
     def build(**overrides):
         current = {field: getattr(bot, name) for field, name in OWNER_INPUTS.items()}
+        current["contexts"] = bot._reply_context_owner()
         return clarifications.ClarificationReplies(**{**current, **overrides})
     return build
+
+
+def clarification_contexts(*, parent_id=None, is_our_auto_reply=None):
+    """Return a context owner double retaining a real current lookup owner."""
+    owner = bot._reply_context_owner()
+    return SimpleNamespace(
+        parent_id=owner.parent_id if parent_id is None else parent_id,
+        is_our_auto_reply=(
+            owner.is_our_auto_reply
+            if is_our_auto_reply is None else is_our_auto_reply
+        ),
+        tweets=owner.tweets,
+    )
 
 
 def test_import_needs_no_runtime_access():
@@ -79,17 +90,29 @@ assert 'requests' not in sys.modules
 
 
 def test_owner_composition_binds_current_dependencies_without_calling_them(monkeypatch):
+    parameters = inspect.signature(clarifications.ClarificationReplies).parameters
+    assert len(parameters) == 6
+    assert parameters.keys() == OWNER_INPUTS.keys() | {"contexts"}
+    assert {
+        "parent_id", "get_tweet_by_id_cached",
+        "api_error_is_permanent_target_failure", "is_our_auto_reply",
+    }.isdisjoint(parameters)
     snapshots = []
     for _ in range(2):
         current = {field: Mock() for field in OWNER_INPUTS}
         for field, name in OWNER_INPUTS.items():
             monkeypatch.setattr(bot, name, current[field])
+        contexts = Mock(spec=bot._reply_context.ReplyContext)
+        context_factory = Mock(return_value=contexts)
+        monkeypatch.setattr(bot, "_reply_context_owner", context_factory)
         owner = bot._clarification_reply_owner()
+        context_factory.assert_called_once_with()
+        assert owner.contexts is contexts
         assert isinstance(owner, clarifications.ClarificationReplies)
         for field, value in current.items():
             assert getattr(owner, field) is value
             value.assert_not_called()
-        snapshots.append((owner, current))
+        snapshots.append((owner, {**current, "contexts": contexts}))
     first, inputs = snapshots[0]
     assert first is not snapshots[1][0]
     assert all(getattr(first, field) is value for field, value in inputs.items())
@@ -180,7 +203,9 @@ def test_cached_clarification_keeps_original_references_and_current_correction_t
     trace.own = Mock(wraps=bot.is_our_auto_reply)
     trace.cue.search = Mock(wraps=bot.CLARIFICATION_CUE_RE.search)
     monkeypatch.setattr(clarifications, "CLARIFICATION_CUE_RE", trace.cue)
-    owner = make_owner(parent_id=trace.parent, is_our_auto_reply=trace.own)
+    owner = make_owner(contexts=clarification_contexts(
+        parent_id=trace.parent, is_our_auto_reply=trace.own,
+    ))
     trace.tokens = Mock(wraps=owner.tokens)
     monkeypatch.setattr(clarifications.ClarificationReplies, "tokens", trace.tokens)
     result = owner.context(state, candidate, current=2_000_000_001)
@@ -204,7 +229,7 @@ def test_cached_clarification_keeps_original_references_and_current_correction_t
 def test_clarification_requires_ledger_and_cache_proof_and_catches_only_current_parent_error(monkeypatch, make_owner, confirmed_question):
     state, candidate = confirmed_question
     parent = Mock(wraps=bot.get_immediate_parent_id)
-    owner = make_owner(parent_id=parent)
+    owner = make_owner(contexts=clarification_contexts(parent_id=parent))
     with monkeypatch.context() as patch:
         patch.setitem(state, "own_auto_reply_ids", [])
         assert owner.context(state, candidate, current=2_000_000_001) is None
@@ -263,12 +288,22 @@ def test_clarification_refreshes_legacy_question_before_looking_for_question_mar
     fresh = {**original, "note_tweet": {"text": full}}
     fetch = Mock(return_value=fresh)
     patch_tweet_lookup_method(monkeypatch, "fetch", fetch)
+    obsolete_relays = {
+        name: Mock(side_effect=AssertionError(f"root relay used: {name}"))
+        for name in (
+            "get_immediate_parent_id", "get_tweet_by_id_cached", "is_our_auto_reply",
+        )
+    }
+    for name, relay in obsolete_relays.items():
+        monkeypatch.setattr(bot, name, relay)
     result = owner.context(state, candidate, current=2_000_000_001)
     assert result["question_text"] == full
     assert result["trigger"] == "explicit_correction"
     assert state["tweet_cache"]["100"]["text_is_complete"] is True
     assert owner.context(state, candidate, current=2_000_000_001) == result
     fetch.assert_called_once_with("100")
+    for relay in obsolete_relays.values():
+        relay.assert_not_called()
 
 
 @pytest.mark.parametrize("status", [404, 503])

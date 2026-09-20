@@ -16,6 +16,7 @@ import pytest
 
 from mrs_bot_reply_cycle_interfaces import PreparedReplyContext
 import mrs_bot_reply_context as reply_context
+from mrs_bot_reply_native_media import ReplyMedia
 from mrs_bot_tweet_lookup_cache import TweetLookupCache
 from tests.helpers.bot_runtime import SCENARIOS, bot
 from tests.helpers.bot_fixtures import isolate_bot_runtime  # noqa: F401
@@ -73,7 +74,6 @@ OWNER_INPUTS = {
     "skip_own_auto_replies": "SKIP_REPLIES_TO_OWN_AUTO_REPLIES",
     "bound_visible_conversation": "bound_visible_conversation",
     "current_utc_datetime": "current_utc_datetime",
-    "reply_media_context_for_candidate": "reply_media_context_for_candidate",
 }
 
 
@@ -84,6 +84,7 @@ def make_owner():
         current = {field: getattr(bot, name) for field, name in OWNER_INPUTS.items()}
         current["default_post_maximum_chars"] = inspect.signature(bot._reply_context_post).parameters["maximum_chars"].default
         current["tweets"] = bot._tweet_lookup_cache_owner()
+        current["media"] = bot._reply_media_owner()
         return reply_context.ReplyContext(**{**current, **overrides})
     return build
 
@@ -92,26 +93,31 @@ def test_owner_composition_binds_current_dependencies_without_calling_them(monke
     default = inspect.signature(bot._reply_context_post).parameters["maximum_chars"].default
     parameters = inspect.signature(reply_context.ReplyContext).parameters
     assert len(parameters) == 19
-    assert parameters.keys() == OWNER_INPUTS.keys() | {"default_post_maximum_chars", "tweets"}
-    assert {"get_tweet_by_id_cached", "prune_tweet_cache"}.isdisjoint(parameters)
+    assert parameters.keys() == OWNER_INPUTS.keys() | {"default_post_maximum_chars", "tweets", "media"}
+    assert {"get_tweet_by_id_cached", "prune_tweet_cache", "reply_media_context_for_candidate"}.isdisjoint(parameters)
     snapshots = []
     for _ in range(2):
         current = {field: Mock() for field in OWNER_INPUTS}
         for field, name in OWNER_INPUTS.items():
             monkeypatch.setattr(bot, name, current[field])
         tweets = Mock(spec=TweetLookupCache)
-        factory = Mock(return_value=tweets)
-        monkeypatch.setattr(bot, "_tweet_lookup_cache_owner", factory)
+        media = Mock(spec=ReplyMedia)
+        tweets_factory = Mock(return_value=tweets)
+        media_factory = Mock(return_value=media)
+        monkeypatch.setattr(bot, "_tweet_lookup_cache_owner", tweets_factory)
+        monkeypatch.setattr(bot, "_reply_media_owner", media_factory)
         owner = bot._reply_context_owner()
-        factory.assert_called_once_with()
+        tweets_factory.assert_called_once_with()
+        media_factory.assert_called_once_with()
         assert owner.tweets is tweets
+        assert owner.media is media
         assert tweets.mock_calls == []
         assert isinstance(owner, reply_context.ReplyContext)
         assert owner.default_post_maximum_chars == default
         for field, value in current.items():
             assert getattr(owner, field) is value
             value.assert_not_called()
-        snapshots.append((owner, {**current, "tweets": tweets}))
+        snapshots.append((owner, {**current, "tweets": tweets, "media": media}))
     first, values = snapshots[0]
     assert first is not snapshots[1][0]
     assert first.tweets is not snapshots[1][0].tweets
@@ -231,7 +237,7 @@ def test_quote_context_preserves_budget_roles_reference_boundaries_and_media_bef
     owner = make_owner(
         incoming_maximum_chars=30, maximum_visible_chars=60,
         bound_visible_conversation=trace.bound_visible_conversation,
-        reply_media_context_for_candidate=trace.media,
+        media=SimpleNamespace(context=trace.media),
         current_utc_datetime=lambda: datetime(2030, 2, 3, tzinfo=timezone.utc),
     )
     trace.attach_mock(Mock(wraps=owner.post), "post")
@@ -430,7 +436,7 @@ def test_context_keeps_usable_suffix_raw_ancestor_quote_and_media_copy_metadata_
         tweets=Mock(spec=TweetLookupCache, get_cached=lookup),
         always_fetch_parent=True, skip_own_auto_replies=False,
         bound_visible_conversation=trace.bound_visible_conversation,
-        reply_media_context_for_candidate=trace.media, current_utc_datetime=trace.clock,
+        media=SimpleNamespace(context=trace.media), current_utc_datetime=trace.clock,
     )
     trace.attach_mock(Mock(wraps=owner.parent_id), "get_immediate_parent_id")
     trace.attach_mock(Mock(wraps=owner.log_summary), "_log_single_call_context_summary")
@@ -477,7 +483,7 @@ def test_context_preserves_canonical_rejection_and_native_bound_media_errors(mon
     (media if boundary == "media" else bound).side_effect = failure
     monkeypatch.setattr(reply_context.ReplyContext, "parent_chain", Mock(return_value=[]))
     monkeypatch.setattr(reply_context.ReplyContext, "log_summary", summary)
-    owner = make_owner(bound_visible_conversation=bound, reply_media_context_for_candidate=media)
+    owner = make_owner(bound_visible_conversation=bound, media=SimpleNamespace(context=media))
     if boundary == "canonical":
         assert owner.build(target, bot.default_state()) is None
     else:
@@ -538,7 +544,7 @@ def test_unusable_rendered_target_stops_before_quote_lookup_and_media(monkeypatc
     monkeypatch.setattr(reply_context.ReplyContext, "post", render)
     owner = make_owner(
         always_fetch_parent=False, skip_own_auto_replies=False,
-        tweets=Mock(spec=TweetLookupCache, get_cached=lookup), reply_media_context_for_candidate=media,
+        tweets=Mock(spec=TweetLookupCache, get_cached=lookup), media=SimpleNamespace(context=media),
         current_utc_datetime=clock,
     )
 
@@ -566,7 +572,7 @@ def test_invalid_parent_admission_stops_before_turn_projection_and_media(monkeyp
     monkeypatch.setattr(reply_context.ReplyContext, "post", render)
     owner = make_owner(
         always_fetch_parent=True, skip_own_auto_replies=False,
-        reply_media_context_for_candidate=media, log=logger,
+        media=SimpleNamespace(context=media), log=logger,
     )
 
     assert owner.build(target, {}) is None

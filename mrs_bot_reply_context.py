@@ -1,8 +1,8 @@
 """Own verified parent paths and prepared normal and quote reply contexts.
 
-ReplyContext receives the lookup/cache owner and current validation, media, clock
-and policy boundaries without retaining caller state. Parent and quote lookup
-call that owner directly, including cache pruning. Parent traversal, quote selection,
+ReplyContext receives lookup/cache and media owners plus current validation, clock
+and policy boundaries without retaining caller state. Parent and quote lookup and
+prepared media call those owners directly, including cache pruning. Parent traversal, quote selection,
 structural admission, usable parent-suffix projection and canonical assembly call
 owned methods.
 Text cleanup uses local pure helpers. Cache sharing, lookup budgets, media
@@ -22,9 +22,14 @@ from collections.abc import Callable
 from dataclasses import dataclass
 from datetime import timezone
 from logging import Logger
+from typing import TYPE_CHECKING
 
 from mrs_bot_reply_cycle_interfaces import PreparedReplyContext
 from mrs_bot_tweet_lookup_cache import TweetLookupCache, tweet_text_is_complete
+
+
+if TYPE_CHECKING:
+    from mrs_bot_reply_native_media import ReplyMedia
 
 
 def clean_text_for_reply_context(text: str) -> str:
@@ -101,7 +106,7 @@ class ReplyContext:
     skip_own_auto_replies: bool
     bound_visible_conversation: Callable
     current_utc_datetime: Callable
-    reply_media_context_for_candidate: Callable
+    media: ReplyMedia
     default_post_maximum_chars: int
 
     def parent_id(self, tweet: dict) -> str | None:
@@ -517,7 +522,7 @@ class ReplyContext:
         ]
 
         parent_thread = copy.deepcopy(visible[:-1])
-        prepared_media_context = self.reply_media_context_for_candidate(
+        prepared_media_context = self.media.context(
             mention,
             lane=str(mention.get("_source") or "mention"),
             target_id=mention_id,
@@ -608,7 +613,7 @@ class ReplyContext:
             "target_author_id": author_id,
             "target_created_at": str(quote_tweet.get("created_at") or ""),
         }
-        media_context = self.reply_media_context_for_candidate(
+        media_context = self.media.context(
             quote_tweet,
             lane="quote_tweet",
             target_id=target_id,
