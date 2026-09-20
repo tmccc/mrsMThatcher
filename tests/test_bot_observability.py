@@ -14,8 +14,8 @@ import pytest
 import mrsMThatcher2 as bot
 from tests.helpers.bot_fixtures import isolate_bot_runtime  # noqa: F401
 
-DEPENDENCIES = {'remove_managed_log_handlers': ['_MANAGED_LOG_HANDLER_ATTR'],
- 'mark_managed_log_handler': ['_MANAGED_LOG_HANDLER_ATTR'],
+DEPENDENCIES = {'remove_managed_log_handlers': [],
+ 'mark_managed_log_handler': [],
  'setup_logging': ['LOG_FILE',
                    'PRODUCTION_BASE_DIR',
                    'PRODUCTION_LOG_BACKUP_COUNT',
@@ -23,10 +23,8 @@ DEPENDENCIES = {'remove_managed_log_handlers': ['_MANAGED_LOG_HANDLER_ATTR'],
                    'Path',
                    'RotatingFileHandler',
                    'logging',
-                   'mark_managed_log_handler',
                    'os',
                    'path_is_same_or_child',
-                   'remove_managed_log_handlers',
                    'sys'],
  'report_bot_health_progress': ['_BOT_HEALTH_REPORTER'],
  'redact_secret': [],
@@ -113,7 +111,7 @@ assert 'single_call_reply' not in sys.modules
     assert result.returncode == 0, result.stderr + result.stdout
 
 
-@pytest.mark.parametrize("name", [name for name, deps in DEPENDENCIES.items() if deps and name != "log_event"])
+@pytest.mark.parametrize("name", [name for name, deps in DEPENDENCIES.items() if name not in {"log_event", "redact_secret", "state_debug_summary"}])
 def test_adapters_preserve_signatures_current_dependencies_references_and_errors(monkeypatch, name):
     adapter = getattr(bot, name)
     signature = inspect.signature(adapter)
@@ -221,8 +219,9 @@ def test_event_payload_update_serialization_fallback_and_final_log_scope(monkeyp
 
 
 @pytest.mark.parametrize("failure_at", [None, "remove", "close"])
-def test_managed_handlers_use_current_marker_snapshot_and_detach_before_close(monkeypatch, failure_at):
-    monkeypatch.setattr(bot, "_MANAGED_LOG_HANDLER_ATTR", "stage48_owned")
+def test_managed_handlers_use_owned_marker_snapshot_and_detach_before_close(monkeypatch, failure_at):
+    assert bot._MANAGED_LOG_HANDLER_ATTR == bot._observability._MANAGED_LOG_HANDLER_ATTR
+    monkeypatch.setattr(bot._observability, "_MANAGED_LOG_HANDLER_ATTR", "stage48_owned")
     order = []
 
     class Handler:
@@ -271,8 +270,8 @@ def test_logging_setup_preserves_target_guard_and_console_before_file_failure(mo
     observed.guard.return_value = True
     monkeypatch.setattr(bot, "logging", logging)
     monkeypatch.setattr(bot, "path_is_same_or_child", observed.guard)
-    monkeypatch.setattr(bot, "remove_managed_log_handlers", observed.remove)
-    monkeypatch.setattr(bot, "mark_managed_log_handler", observed.mark)
+    monkeypatch.setattr(bot._observability, "remove_managed_log_handlers", observed.remove)
+    monkeypatch.setattr(bot._observability, "mark_managed_log_handler", observed.mark)
     monkeypatch.setattr(bot, "RotatingFileHandler", observed.file)
     monkeypatch.setenv("LOG_LEVEL", "unknown-level")
     with pytest.raises(RuntimeError, match="Refusing to attach pytest"):

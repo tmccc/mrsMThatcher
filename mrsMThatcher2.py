@@ -753,14 +753,13 @@ MEME_ANALYSIS_FILE = BASE_DIR / "final_posting_queue_top90_as_is" / "renamed_png
 
 PRODUCTION_LOG_MAX_BYTES = 2_000_000
 PRODUCTION_LOG_BACKUP_COUNT = 100
-_MANAGED_LOG_HANDLER_ATTR = "_mrs_mthatcher_managed_handler"
+_MANAGED_LOG_HANDLER_ATTR = _observability._MANAGED_LOG_HANDLER_ATTR
 
 
 def remove_managed_log_handlers(logger: logging.Logger) -> None:
     """Detach and close handlers installed by this module."""
     return _observability.remove_managed_log_handlers(
         logger,
-        _MANAGED_LOG_HANDLER_ATTR=_MANAGED_LOG_HANDLER_ATTR,
     )
 
 
@@ -769,7 +768,6 @@ def mark_managed_log_handler(handler: logging.Handler, kind: str) -> logging.Han
     return _observability.mark_managed_log_handler(
         handler,
         kind,
-        _MANAGED_LOG_HANDLER_ATTR=_MANAGED_LOG_HANDLER_ATTR,
     )
 
 
@@ -789,10 +787,8 @@ def setup_logging(
         Path=Path,
         RotatingFileHandler=RotatingFileHandler,
         logging=logging,
-        mark_managed_log_handler=mark_managed_log_handler,
         os=os,
         path_is_same_or_child=path_is_same_or_child,
-        remove_managed_log_handlers=remove_managed_log_handlers,
         sys=sys,
     )
 

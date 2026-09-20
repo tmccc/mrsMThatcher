@@ -1,5 +1,6 @@
 """Logging and descriptive observability for already authoritative bot outcomes.
 
+Managed handler marking/removal share their fixed marker within this owner.
 Fixed diagnostic encoding and redaction use local standard-library imports.
 The root supplies current runtime boundaries on each call; descriptive event
 callbacks remain late-bound. Import performs no runtime work.
@@ -14,10 +15,11 @@ from pathlib import Path
 from typing import Any
 
 
+_MANAGED_LOG_HANDLER_ATTR = "_mrs_mthatcher_managed_handler"
+
+
 def remove_managed_log_handlers(
     logger: logging.Logger,
-    *,
-    _MANAGED_LOG_HANDLER_ATTR: Any,
 ) -> None:
     """Detach and close handlers installed by this module."""
     for handler in list(logger.handlers):
@@ -30,8 +32,6 @@ def remove_managed_log_handlers(
 def mark_managed_log_handler(
     handler: logging.Handler,
     kind: str,
-    *,
-    _MANAGED_LOG_HANDLER_ATTR: Any,
 ) -> logging.Handler:
     """Mark a logging handler as owned by this module."""
     setattr(handler, _MANAGED_LOG_HANDLER_ATTR, True)
@@ -50,10 +50,8 @@ def setup_logging(
     Path: Any,
     RotatingFileHandler: Any,
     logging: Any,
-    mark_managed_log_handler: Any,
     os: Any,
     path_is_same_or_child: Any,
-    remove_managed_log_handlers: Any,
     sys: Any,
 ) -> logging.Logger:
     """Configure console and optional rotating-file logging."""
