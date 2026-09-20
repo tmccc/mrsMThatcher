@@ -10,6 +10,7 @@ from pathlib import Path
 
 import pytest
 
+from mrs_bot_main_post_receipt_storage import MainPostReceipts
 from tests.helpers.bot_runtime import bot
 from tests.helpers.bot_fixtures import (
     isolate_bot_runtime,
@@ -452,8 +453,8 @@ def test_confirmed_meme_receipt_write_failure_keeps_normal_schedule(
         ),
     )
     monkeypatch.setattr(bot, "now_epoch", lambda: 1_800_000_000)
-    original_write = bot.write_meme_post_receipt
-    monkeypatch.setattr(bot, "write_meme_post_receipt", lambda receipt: (_ for _ in ()).throw(OSError("receipt failed")))
+    original_write = MainPostReceipts.write_meme
+    monkeypatch.setattr(MainPostReceipts, "write_meme", lambda self, receipt: (_ for _ in ()).throw(OSError("receipt failed")))
     monkeypatch.setattr(bot, "log_event", lambda *args, **kwargs: None)
 
     state = {"next_meme_post_epoch": 1_799_999_000, "posted_meme_filenames": []}
@@ -467,8 +468,8 @@ def test_confirmed_meme_receipt_write_failure_keeps_normal_schedule(
     assert state["posted_meme_filenames"] == []
     assert "last_meme_post_epoch" not in state
     monkeypatch.setattr(
-        bot,
-        "write_meme_post_receipt",
+        MainPostReceipts,
+        "write_meme",
         original_write,
     )
     monkeypatch.setattr(
@@ -509,7 +510,7 @@ def test_confirmed_meme_sigint_is_delivered_only_after_durable_receipt(
     monkeypatch.setattr(bot, "now_epoch", lambda: 1_800_000_000)
     monkeypatch.setattr(bot, "log_event", lambda *_args, **_kwargs: None)
     stages: list[str] = []
-    original_write = bot.write_meme_post_receipt
+    original_write = MainPostReceipts.write_meme
 
     guard_token = object()
 
@@ -517,9 +518,9 @@ def test_confirmed_meme_sigint_is_delivered_only_after_durable_receipt(
         stages.append("begin")
         return guard_token
 
-    def write_receipt(receipt: dict) -> None:
+    def write_receipt(self, receipt: dict) -> None:
         stages.append("receipt")
-        original_write(receipt)
+        original_write(self, receipt)
 
     def deliver_pending_sigint(guard: object | None) -> None:
         assert guard is guard_token
@@ -528,7 +529,7 @@ def test_confirmed_meme_sigint_is_delivered_only_after_durable_receipt(
         raise KeyboardInterrupt
 
     monkeypatch.setattr(bot, "begin_confirmed_post_sigint_deferral", begin_deferral)
-    monkeypatch.setattr(bot, "write_meme_post_receipt", write_receipt)
+    monkeypatch.setattr(MainPostReceipts, "write_meme", write_receipt)
     monkeypatch.setattr(bot, "end_confirmed_post_sigint_deferral", deliver_pending_sigint)
 
     state = {"next_meme_post_epoch": 1_799_999_000, "posted_meme_filenames": []}

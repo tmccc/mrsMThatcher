@@ -15,6 +15,7 @@ from zoneinfo import ZoneInfo
 
 import pytest
 
+from mrs_bot_main_post_receipt_storage import MainPostReceipts
 from tests.helpers.bot_runtime import bot
 from tests.helpers.bot_fixtures import (
     isolate_bot_runtime,
@@ -633,20 +634,20 @@ def test_delayed_schedule_followed_by_regular_quote_produces_self_validating_rec
     lines_used, images_used, state, _lines_used_file, _images_used_file, _receipt_file, _lines_file = configure_simple_quote_post(tmp_path, monkeypatch)
     bot.set_meme_delay_schedule(state, epoch=1_800_010_000, mode="delayed_recent_quote", save=False)
     receipts: list[dict] = []
-    original_write = bot.write_regular_post_receipt
+    original_write = MainPostReceipts.write_regular
 
-    def capture_receipt(receipt: dict) -> None:
+    def capture_receipt(self, receipt: dict) -> None:
         if bot.confirmed_pending_schedule_receipt_is_semantically_valid(
             receipt,
             expected_lane="quote_image",
         ):
-            original_write(receipt)
+            original_write(self, receipt)
             return
         assert bot.regular_post_receipt_is_semantically_valid(receipt)
         receipts.append(json.loads(json.dumps(receipt)))
-        original_write(receipt)
+        original_write(self, receipt)
 
-    monkeypatch.setattr(bot, "write_regular_post_receipt", capture_receipt)
+    monkeypatch.setattr(MainPostReceipts, "write_regular", capture_receipt)
 
     bot.post_random_quote(lines_used, images_used, state)
 
@@ -668,18 +669,18 @@ def test_regular_post_commits_future_quote_schedule_and_receipt_epoch(
 ) -> None:
     lines_used, images_used, state, _lines_used_file, _images_used_file, _receipt_file, _lines_file = configure_simple_quote_post(tmp_path, monkeypatch)
     receipts: list[dict] = []
-    original_write = bot.write_regular_post_receipt
+    original_write = MainPostReceipts.write_regular
     monkeypatch.setattr(
         bot.random,
         "randint",
         lambda low, high: 7200 if low == bot.POST_SLEEP_MIN else low,
     )
-    def capture_receipt(receipt: dict) -> None:
+    def capture_receipt(self, receipt: dict) -> None:
         if bot.regular_post_receipt_is_semantically_valid(receipt):
             receipts.append(json.loads(json.dumps(receipt)))
-        original_write(receipt)
+        original_write(self, receipt)
 
-    monkeypatch.setattr(bot, "write_regular_post_receipt", capture_receipt)
+    monkeypatch.setattr(MainPostReceipts, "write_regular", capture_receipt)
 
     bot.post_random_quote(lines_used, images_used, state)
 
@@ -784,13 +785,13 @@ def test_regular_quote_schedule_failure_after_confirmation_suppresses_quote_lane
         "randint",
         lambda low, high: 7200 if low == bot.POST_SLEEP_MIN else low,
     )
-    original_write = bot.write_regular_post_receipt
-    def fail_final_schedule_receipt(receipt: dict) -> None:
+    original_write = MainPostReceipts.write_regular
+    def fail_final_schedule_receipt(self, receipt: dict) -> None:
         raise RuntimeError("quote schedule receipt failed")
 
     monkeypatch.setattr(
-        bot,
-        "write_regular_post_receipt",
+        MainPostReceipts,
+        "write_regular",
         fail_final_schedule_receipt,
     )
 
@@ -805,7 +806,7 @@ def test_regular_quote_schedule_failure_after_confirmation_suppresses_quote_lane
     assert quote_hash not in lines_used
     assert "t01.jpg" not in images_used
 
-    monkeypatch.setattr(bot, "write_regular_post_receipt", original_write)
+    monkeypatch.setattr(MainPostReceipts, "write_regular", original_write)
     monkeypatch.setattr(
         bot,
         "create_post",

@@ -5213,31 +5213,44 @@ def build_main_post_attempt(
     )
 
 
-def main_post_attempt_path(attempt: dict) -> Path:
-    """Return the receipt path which owns one main-post attempt."""
-    return _main_post_receipt_storage.main_post_attempt_path(
-        attempt,
+def _main_post_receipts_owner() -> _main_post_receipt_storage.MainPostReceipts:
+    """Bind storage operations without reading receipts or granting retirement."""
+    return _main_post_receipt_storage.MainPostReceipts(
         MEME_POST_RECEIPT_FILE=MEME_POST_RECEIPT_FILE,
         REGULAR_POST_RECEIPT_FILE=REGULAR_POST_RECEIPT_FILE,
-    )
-
-
-def write_main_post_attempt(attempt: dict) -> None:
-    """Durably record a main-post transaction before its X create request."""
-    return _main_post_receipt_storage.write_main_post_attempt(
-        attempt,
         CONFIRMED_REPLY_RECEIPT_FILE=CONFIRMED_REPLY_RECEIPT_FILE,
         InvalidConfirmedReplyReceipt=InvalidConfirmedReplyReceipt,
-        MEME_POST_RECEIPT_FILE=MEME_POST_RECEIPT_FILE,
-        REGULAR_POST_RECEIPT_FILE=REGULAR_POST_RECEIPT_FILE,
         UnresolvedRegularPostReceipt=UnresolvedRegularPostReceipt,
         current_main_post_attempt_is_semantically_valid=current_main_post_attempt_is_semantically_valid,
         durable_create_receipt_json=durable_create_receipt_json,
         log=log,
-        main_post_attempt_path=main_post_attempt_path,
         receipt_namespace_entry_exists=receipt_namespace_entry_exists,
         remote_receipt_retirement_is_blocking=remote_receipt_retirement_is_blocking,
+        AmbiguousRemotePostOutcome=AmbiguousRemotePostOutcome,
+        replace_exact_source_receipt_document=replace_exact_source_receipt_document,
+        transaction_mutation_authority=transaction_mutation_authority,
+        load_receipt_json_no_follow=load_receipt_json_no_follow,
+        confirmed_pending_schedule_receipt_is_semantically_valid=confirmed_pending_schedule_receipt_is_semantically_valid,
+        materialize_bound_meme_schedule_receipt=materialize_bound_meme_schedule_receipt,
+        materialize_bound_regular_schedule_receipt=materialize_bound_regular_schedule_receipt,
+        UnresolvedMemePostReceipt=UnresolvedMemePostReceipt,
+        atomic_write_json=atomic_write_json,
+        confirmed_receipt_matches_main_attempt=confirmed_receipt_matches_main_attempt,
+        regular_post_receipt_is_semantically_valid=regular_post_receipt_is_semantically_valid,
+        main_post_attempt_is_semantically_valid=main_post_attempt_is_semantically_valid,
+        meme_post_receipt_is_semantically_valid=meme_post_receipt_is_semantically_valid,
+        current=lambda: _main_post_receipts_owner(),
     )
+
+
+def main_post_attempt_path(attempt: dict) -> Path:
+    """Return the receipt path which owns one main-post attempt."""
+    return _main_post_receipts_owner().attempt_path(attempt)
+
+
+def write_main_post_attempt(attempt: dict) -> None:
+    """Durably record a main-post transaction before its X create request."""
+    return _main_post_receipts_owner().write_attempt(attempt)
 
 
 def prepare_main_tweet_transport(
@@ -5289,18 +5302,7 @@ def handoff_confirmed_media_upload_to_main_attempt(
 
 def mark_main_post_attempt_attempting(attempt: dict) -> dict:
     """Atomically consume one sending authorisation before remote transmission."""
-    return _main_post_receipt_storage.mark_main_post_attempt_attempting(
-        attempt,
-        AmbiguousRemotePostOutcome=AmbiguousRemotePostOutcome,
-        REGULAR_POST_RECEIPT_FILE=REGULAR_POST_RECEIPT_FILE,
-        current_main_post_attempt_is_semantically_valid=current_main_post_attempt_is_semantically_valid,
-        load_meme_post_receipt=load_meme_post_receipt,
-        load_regular_post_receipt=load_regular_post_receipt,
-        log=log,
-        main_post_attempt_path=main_post_attempt_path,
-        replace_exact_source_receipt_document=replace_exact_source_receipt_document,
-        transaction_mutation_authority=transaction_mutation_authority,
-    )
+    return _main_post_receipts_owner().mark_attempting(attempt)
 
 
 def remove_main_post_attempt(
@@ -5314,14 +5316,9 @@ def remove_main_post_attempt(
         from mrs_bot_state_generation import require_commit_proof
         require_commit_proof(commit_proof)
         commit_proof.require_receipt(attempt)
-    return _main_post_receipt_storage.remove_main_post_attempt(
+    return _main_post_receipts_owner().remove_attempt(
         attempt,
         sending_disposition=sending_disposition,
-        AmbiguousRemotePostOutcome=AmbiguousRemotePostOutcome,
-        current_main_post_attempt_is_semantically_valid=current_main_post_attempt_is_semantically_valid,
-        load_receipt_json_no_follow=load_receipt_json_no_follow,
-        log=log,
-        main_post_attempt_path=main_post_attempt_path,
         retire_current_source_receipt=functools.partial(
             retire_current_source_receipt, commit_proof=commit_proof,
             **({"disposition": "definite_non_success"}
@@ -5441,40 +5438,12 @@ def finalize_confirmed_pending_schedule_receipt(
     pending: dict,
 ) -> dict:
     """Atomically replace one pending schedule with its complete local receipt."""
-    return _main_post_receipt_storage.finalize_confirmed_pending_schedule_receipt(
-        pending,
-        REGULAR_POST_RECEIPT_FILE=REGULAR_POST_RECEIPT_FILE,
-        confirmed_pending_schedule_receipt_is_semantically_valid=confirmed_pending_schedule_receipt_is_semantically_valid,
-        load_meme_post_receipt=load_meme_post_receipt,
-        load_regular_post_receipt=load_regular_post_receipt,
-        log=log,
-        main_post_attempt_path=main_post_attempt_path,
-        materialize_bound_meme_schedule_receipt=materialize_bound_meme_schedule_receipt,
-        materialize_bound_regular_schedule_receipt=materialize_bound_regular_schedule_receipt,
-        write_meme_post_receipt=write_meme_post_receipt,
-        write_regular_post_receipt=write_regular_post_receipt,
-    )
+    return _main_post_receipts_owner().finalize_pending(pending)
 
 
 def write_regular_post_receipt(receipt: dict) -> None:
     """Write regular post receipt."""
-    return _main_post_receipt_storage.write_regular_post_receipt(
-        receipt,
-        MEME_POST_RECEIPT_FILE=MEME_POST_RECEIPT_FILE,
-        REGULAR_POST_RECEIPT_FILE=REGULAR_POST_RECEIPT_FILE,
-        UnresolvedMemePostReceipt=UnresolvedMemePostReceipt,
-        UnresolvedRegularPostReceipt=UnresolvedRegularPostReceipt,
-        atomic_write_json=atomic_write_json,
-        confirmed_pending_schedule_receipt_is_semantically_valid=confirmed_pending_schedule_receipt_is_semantically_valid,
-        confirmed_receipt_matches_main_attempt=confirmed_receipt_matches_main_attempt,
-        durable_create_receipt_json=durable_create_receipt_json,
-        load_regular_post_receipt=load_regular_post_receipt,
-        log=log,
-        materialize_bound_regular_schedule_receipt=materialize_bound_regular_schedule_receipt,
-        receipt_namespace_entry_exists=receipt_namespace_entry_exists,
-        regular_post_receipt_is_semantically_valid=regular_post_receipt_is_semantically_valid,
-        remote_receipt_retirement_is_blocking=remote_receipt_retirement_is_blocking,
-    )
+    return _main_post_receipts_owner().write_regular(receipt)
 
 
 def regular_post_receipt_is_semantically_valid(data: dict) -> bool:
@@ -5484,14 +5453,7 @@ def regular_post_receipt_is_semantically_valid(data: dict) -> bool:
 
 def load_regular_post_receipt() -> tuple[str, dict | None]:
     """Load regular post receipt."""
-    return _main_post_receipt_storage.load_regular_post_receipt(
-        REGULAR_POST_RECEIPT_FILE=REGULAR_POST_RECEIPT_FILE,
-        confirmed_pending_schedule_receipt_is_semantically_valid=confirmed_pending_schedule_receipt_is_semantically_valid,
-        load_receipt_json_no_follow=load_receipt_json_no_follow,
-        log=log,
-        main_post_attempt_is_semantically_valid=main_post_attempt_is_semantically_valid,
-        regular_post_receipt_is_semantically_valid=regular_post_receipt_is_semantically_valid,
-    )
+    return _main_post_receipts_owner().load_regular()
 
 
 def remove_regular_post_receipt(receipt: dict, *, commit_proof=None) -> None:
@@ -5499,33 +5461,15 @@ def remove_regular_post_receipt(receipt: dict, *, commit_proof=None) -> None:
     from mrs_bot_state_generation import require_commit_proof
     require_commit_proof(commit_proof)
     commit_proof.require_receipt(receipt)
-    return _main_post_receipt_storage.remove_regular_post_receipt(
+    return _main_post_receipts_owner().remove_regular(
         receipt,
-        REGULAR_POST_RECEIPT_FILE=REGULAR_POST_RECEIPT_FILE,
-        log=log,
         retire_current_source_receipt=functools.partial(retire_current_source_receipt, commit_proof=commit_proof),
     )
 
 
 def write_meme_post_receipt(receipt: dict) -> None:
     """Write meme post receipt."""
-    return _main_post_receipt_storage.write_meme_post_receipt(
-        receipt,
-        MEME_POST_RECEIPT_FILE=MEME_POST_RECEIPT_FILE,
-        REGULAR_POST_RECEIPT_FILE=REGULAR_POST_RECEIPT_FILE,
-        UnresolvedMemePostReceipt=UnresolvedMemePostReceipt,
-        UnresolvedRegularPostReceipt=UnresolvedRegularPostReceipt,
-        atomic_write_json=atomic_write_json,
-        confirmed_pending_schedule_receipt_is_semantically_valid=confirmed_pending_schedule_receipt_is_semantically_valid,
-        confirmed_receipt_matches_main_attempt=confirmed_receipt_matches_main_attempt,
-        durable_create_receipt_json=durable_create_receipt_json,
-        load_meme_post_receipt=load_meme_post_receipt,
-        log=log,
-        materialize_bound_meme_schedule_receipt=materialize_bound_meme_schedule_receipt,
-        meme_post_receipt_is_semantically_valid=meme_post_receipt_is_semantically_valid,
-        receipt_namespace_entry_exists=receipt_namespace_entry_exists,
-        remote_receipt_retirement_is_blocking=remote_receipt_retirement_is_blocking,
-    )
+    return _main_post_receipts_owner().write_meme(receipt)
 
 
 def meme_post_receipt_is_semantically_valid(data: dict) -> bool:
@@ -5535,14 +5479,7 @@ def meme_post_receipt_is_semantically_valid(data: dict) -> bool:
 
 def load_meme_post_receipt() -> tuple[str, dict | None]:
     """Load meme post receipt."""
-    return _main_post_receipt_storage.load_meme_post_receipt(
-        MEME_POST_RECEIPT_FILE=MEME_POST_RECEIPT_FILE,
-        confirmed_pending_schedule_receipt_is_semantically_valid=confirmed_pending_schedule_receipt_is_semantically_valid,
-        load_receipt_json_no_follow=load_receipt_json_no_follow,
-        log=log,
-        main_post_attempt_is_semantically_valid=main_post_attempt_is_semantically_valid,
-        meme_post_receipt_is_semantically_valid=meme_post_receipt_is_semantically_valid,
-    )
+    return _main_post_receipts_owner().load_meme()
 
 
 def remove_meme_post_receipt(receipt: dict, *, commit_proof=None) -> None:
@@ -5550,10 +5487,8 @@ def remove_meme_post_receipt(receipt: dict, *, commit_proof=None) -> None:
     from mrs_bot_state_generation import require_commit_proof
     require_commit_proof(commit_proof)
     commit_proof.require_receipt(receipt)
-    return _main_post_receipt_storage.remove_meme_post_receipt(
+    return _main_post_receipts_owner().remove_meme(
         receipt,
-        MEME_POST_RECEIPT_FILE=MEME_POST_RECEIPT_FILE,
-        log=log,
         retire_current_source_receipt=functools.partial(retire_current_source_receipt, commit_proof=commit_proof),
     )
 

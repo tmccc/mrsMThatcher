@@ -13,6 +13,7 @@ from pathlib import Path
 
 import pytest
 
+from mrs_bot_main_post_receipt_storage import MainPostReceipts
 from tests.helpers.bot_runtime import (
     IMPORT_ENV,
     bot,
@@ -81,7 +82,7 @@ def test_confirmed_regular_post_sigint_is_delivered_only_after_durable_receipt(
         _lines_file,
     ) = configure_simple_quote_post(tmp_path, monkeypatch)
     stages: list[str] = []
-    original_write = bot.write_regular_post_receipt
+    original_write = MainPostReceipts.write_regular
 
     guard_token = object()
 
@@ -89,9 +90,9 @@ def test_confirmed_regular_post_sigint_is_delivered_only_after_durable_receipt(
         stages.append("begin")
         return guard_token
 
-    def write_receipt(receipt: dict) -> None:
+    def write_receipt(self, receipt: dict) -> None:
         stages.append("receipt")
-        original_write(receipt)
+        original_write(self, receipt)
 
     def deliver_pending_sigint(guard: object | None) -> None:
         assert guard is guard_token
@@ -100,7 +101,7 @@ def test_confirmed_regular_post_sigint_is_delivered_only_after_durable_receipt(
         raise KeyboardInterrupt
 
     monkeypatch.setattr(bot, "begin_confirmed_post_sigint_deferral", begin_deferral)
-    monkeypatch.setattr(bot, "write_regular_post_receipt", write_receipt)
+    monkeypatch.setattr(MainPostReceipts, "write_regular", write_receipt)
     monkeypatch.setattr(bot, "end_confirmed_post_sigint_deferral", deliver_pending_sigint)
 
     with pytest.raises(KeyboardInterrupt):

@@ -10,6 +10,7 @@ import pytest
 
 import mrs_bot_quote_posting as posting
 
+from mrs_bot_main_post_receipt_storage import MainPostReceipts
 from tests.helpers.bot_runtime import bot
 from tests.helpers.bot_fixtures import (
     isolate_bot_runtime,
@@ -162,7 +163,7 @@ def test_receipt_write_failure_leaves_confirmed_assets_marked_in_memory(
 ) -> None:
     lines_used, images_used, state, _lines_used_file, _images_used_file, _receipt_file, _lines_file = configure_simple_quote_post(tmp_path, monkeypatch)
     quote_hash = bot.quote_text_hash("Good quote.")
-    monkeypatch.setattr(bot, "write_regular_post_receipt", lambda receipt: (_ for _ in ()).throw(OSError("receipt failed")))
+    monkeypatch.setattr(MainPostReceipts, "write_regular", lambda self, receipt: (_ for _ in ()).throw(OSError("receipt failed")))
 
     with pytest.raises(
         bot.ConfirmedPostLocalPersistenceError,
