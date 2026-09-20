@@ -59,7 +59,7 @@ assert 'single_call_reply' not in sys.modules
     [
         ('canonical_remote_post_payload_sha256', ()),
         ('bound_meme_schedule_state', ('MAIN_POST_SCHEDULE_TIMEZONE', 'MEME_SCHEDULE_VERSION', 'safe_bound_schedule_date_str')),
-        ('bound_meme_schedule_state_is_valid', ('BOUND_MEME_SCHEDULE_STATE_KEYS', 'MAIN_POST_SCHEDULE_TIMEZONE', 'MEME_SCHEDULE_MODES', 'MEME_SCHEDULE_VERSION', 'safe_bound_schedule_date_str', 'valid_receipt_epoch')),
+        ('bound_meme_schedule_state_is_valid', ('MAIN_POST_SCHEDULE_TIMEZONE', 'MEME_SCHEDULE_MODES', 'MEME_SCHEDULE_VERSION', 'safe_bound_schedule_date_str', 'valid_receipt_epoch')),
         ('main_post_attempt_binds_payload', ('current_main_post_attempt_is_semantically_valid',)),
         ('current_main_post_attempt_is_semantically_valid', ('main_post_attempt_is_semantically_valid',)),
         ('build_main_post_attempt', ('MAIN_POST_SCHEDULE_TIMEZONE', 'copy', 'current_main_post_attempt_is_semantically_valid', 'hashlib', 'now_epoch', 'os')),
@@ -446,3 +446,8 @@ def test_fixed_payload_operations_do_not_bounce_through_root(monkeypatch):
     assert rebuilt["payload_sha256"] == original_hash
     assert values.main_post_attempt_payload(rebuilt) == payload
     forbidden.assert_not_called()
+
+
+def test_fixed_bound_plan_fields_and_delay_limit_keep_compatibility_aliases():
+    assert bot.BOUND_MEME_SCHEDULE_STATE_KEYS is values.BOUND_MEME_SCHEDULE_STATE_KEYS
+    assert bot.MAIN_POST_ATTEMPT_MAX_BOUND_DELAY_SECONDS == values.MAIN_POST_ATTEMPT_MAX_BOUND_DELAY_SECONDS == 31 * 24 * 60 * 60

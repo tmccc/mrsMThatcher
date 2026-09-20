@@ -5239,19 +5239,8 @@ def canonical_remote_post_payload_sha256(payload: dict) -> str:
 main_post_attempt_payload = _main_post_attempt_values.main_post_attempt_payload
 
 
-BOUND_MEME_SCHEDULE_STATE_KEYS = {
-    "last_meme_post_epoch",
-    "next_meme_post_epoch",
-    "meme_schedule_version",
-    "next_meme_schedule_mode",
-    "next_meme_schedule_date",
-    "meme_anchor_quote_post_epoch",
-}
-
-# Schema-v4/v5 recovery delays are data, not current configuration.  These
-# immutable format bounds keep old receipts readable across configuration
-# changes while rejecting corrupt plans that could suppress a lane for years.
-MAIN_POST_ATTEMPT_MAX_BOUND_DELAY_SECONDS = 31 * 24 * 60 * 60
+BOUND_MEME_SCHEDULE_STATE_KEYS = _main_post_attempt_values.BOUND_MEME_SCHEDULE_STATE_KEYS
+MAIN_POST_ATTEMPT_MAX_BOUND_DELAY_SECONDS = _main_post_attempt_values.MAIN_POST_ATTEMPT_MAX_BOUND_DELAY_SECONDS
 
 
 def bound_meme_schedule_state(
@@ -5278,7 +5267,6 @@ def bound_meme_schedule_state_is_valid(
     return _main_post_attempt_values.bound_meme_schedule_state_is_valid(
         value,
         schedule_timezone=schedule_timezone,
-        BOUND_MEME_SCHEDULE_STATE_KEYS=BOUND_MEME_SCHEDULE_STATE_KEYS,
         MAIN_POST_SCHEDULE_TIMEZONE=MAIN_POST_SCHEDULE_TIMEZONE,
         MEME_SCHEDULE_MODES=MEME_SCHEDULE_MODES,
         MEME_SCHEDULE_VERSION=MEME_SCHEDULE_VERSION,
@@ -5291,14 +5279,11 @@ def main_post_attempt_is_semantically_valid(data: object) -> bool:
     """Return whether a pre-send regular or meme attempt is self-consistent."""
     return _main_post_receipts.main_post_attempt_is_semantically_valid(
         data,
-        MAIN_POST_ATTEMPT_MAX_BOUND_DELAY_SECONDS=MAIN_POST_ATTEMPT_MAX_BOUND_DELAY_SECONDS,
         MAIN_POST_SCHEDULE_TIMEZONE=MAIN_POST_SCHEDULE_TIMEZONE,
         MEME_SCHEDULE_VERSION=MEME_SCHEDULE_VERSION,
         bound_meme_schedule_state_is_valid=bound_meme_schedule_state_is_valid,
         hashlib=hashlib,
-        quote_text_hash=quote_text_hash,
         re=re,
-        receipt_int=receipt_int,
         safe_bound_schedule_date_str=safe_bound_schedule_date_str,
         valid_receipt_basename=valid_receipt_basename,
         valid_receipt_epoch=valid_receipt_epoch,
@@ -5488,7 +5473,6 @@ def confirmed_pending_schedule_receipt_is_semantically_valid(
         data,
         expected_lane=expected_lane,
         main_post_attempt_is_semantically_valid=main_post_attempt_is_semantically_valid,
-        receipt_int=receipt_int,
         valid_receipt_epoch=valid_receipt_epoch,
         valid_string_post_id=valid_string_post_id,
     )
@@ -5651,10 +5635,7 @@ def regular_post_receipt_is_semantically_valid(data: dict) -> bool:
         hashlib=hashlib,
         main_post_attempt_is_semantically_valid=main_post_attempt_is_semantically_valid,
         materialize_bound_regular_schedule_receipt=materialize_bound_regular_schedule_receipt,
-        quote_text_hash=quote_text_hash,
         re=re,
-        receipt_bool=receipt_bool,
-        receipt_int=receipt_int,
         safe_bound_schedule_date_str=safe_bound_schedule_date_str,
         valid_receipt_basename=valid_receipt_basename,
         valid_receipt_epoch=valid_receipt_epoch,
@@ -5720,7 +5701,6 @@ def meme_post_receipt_is_semantically_valid(data: dict) -> bool:
         main_post_attempt_is_semantically_valid=main_post_attempt_is_semantically_valid,
         materialize_bound_meme_schedule_receipt=materialize_bound_meme_schedule_receipt,
         re=re,
-        receipt_int=receipt_int,
         valid_receipt_basename=valid_receipt_basename,
         valid_receipt_epoch=valid_receipt_epoch,
         valid_string_post_id=valid_string_post_id,
@@ -5884,7 +5864,6 @@ def confirmed_regular_emergency_representation_is_complete(
         main_post_attempt=main_post_attempt,
         build_confirmed_pending_schedule_receipt=build_confirmed_pending_schedule_receipt,
         materialize_bound_regular_schedule_receipt=materialize_bound_regular_schedule_receipt,
-        receipt_int=receipt_int,
         valid_post_id=valid_post_id,
         valid_receipt_epoch=valid_receipt_epoch,
     )
@@ -5907,7 +5886,6 @@ def confirmed_meme_emergency_representation_is_complete(
         main_post_attempt=main_post_attempt,
         build_confirmed_pending_schedule_receipt=build_confirmed_pending_schedule_receipt,
         materialize_bound_meme_schedule_receipt=materialize_bound_meme_schedule_receipt,
-        receipt_int=receipt_int,
         safe_bound_schedule_date_str=safe_bound_schedule_date_str,
         valid_post_id=valid_post_id,
         valid_receipt_epoch=valid_receipt_epoch,

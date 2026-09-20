@@ -48,12 +48,10 @@ DEPENDENCIES = {'apply_meme_post_receipt': ['MEME_POST_TEXT',
                                 'record_recent_own_post'],
  'confirmed_regular_emergency_representation_is_complete': ['build_confirmed_pending_schedule_receipt',
                                                             'materialize_bound_regular_schedule_receipt',
-                                                            'receipt_int',
                                                             'valid_post_id',
                                                             'valid_receipt_epoch'],
  'confirmed_meme_emergency_representation_is_complete': ['build_confirmed_pending_schedule_receipt',
                                                          'materialize_bound_meme_schedule_receipt',
-                                                         'receipt_int',
                                                          'safe_bound_schedule_date_str',
                                                          'valid_post_id',
                                                          'valid_receipt_epoch'],
@@ -122,7 +120,7 @@ def forbidden(*args, **kwargs):
 
 original_import = builtins.__import__
 def guarded_import(name, *args, **kwargs):
-    if name in {'mrsMThatcher2', 'requests', 'openai', 'single_call_reply', 'historical_context_formatter'} or name.startswith('mrs_bot_') and name not in {'mrs_bot_main_post_reconciliation', 'mrs_bot_regular_post_completion'}:
+    if name in {'mrsMThatcher2', 'requests', 'openai', 'single_call_reply', 'historical_context_formatter'} or name.startswith('mrs_bot_') and name not in {'mrs_bot_main_post_reconciliation', 'mrs_bot_regular_post_completion', 'mrs_bot_receipt_primitives'}:
         forbidden()
     return original_import(name, *args, **kwargs)
 

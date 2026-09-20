@@ -18,24 +18,24 @@ from datetime import datetime, timedelta
 from types import ModuleType
 
 from mrs_bot_main_post_attempt_values import (
+    MAIN_POST_ATTEMPT_MAX_BOUND_DELAY_SECONDS,
     canonical_remote_post_payload_sha256,
     main_post_attempt_payload,
 )
 
 from mrs_bot_durable_json_io import canonical_atomic_json_bytes
+from mrs_bot_asset_metadata import quote_text_hash
+from mrs_bot_receipt_primitives import receipt_bool, receipt_int
 
 
 def main_post_attempt_is_semantically_valid(
     data: object,
     *,
-    MAIN_POST_ATTEMPT_MAX_BOUND_DELAY_SECONDS: int,
     MAIN_POST_SCHEDULE_TIMEZONE: str,
     MEME_SCHEDULE_VERSION: int,
     bound_meme_schedule_state_is_valid: Callable[..., bool],
     hashlib: ModuleType,
-    quote_text_hash: Callable[..., str],
     re: ModuleType,
-    receipt_int: Callable[..., int | None],
     safe_bound_schedule_date_str: Callable[..., str | None],
     valid_receipt_basename: Callable[..., bool],
     valid_receipt_epoch: Callable[..., bool],
@@ -287,10 +287,7 @@ def regular_post_receipt_is_semantically_valid(
     hashlib: ModuleType,
     main_post_attempt_is_semantically_valid: Callable[..., bool],
     materialize_bound_regular_schedule_receipt: Callable[..., dict],
-    quote_text_hash: Callable[..., str],
     re: ModuleType,
-    receipt_bool: Callable[..., bool | None],
-    receipt_int: Callable[..., int | None],
     safe_bound_schedule_date_str: Callable[..., str | None],
     valid_receipt_basename: Callable[..., bool],
     valid_receipt_epoch: Callable[..., bool],
@@ -472,7 +469,6 @@ def confirmed_pending_schedule_receipt_is_semantically_valid(
     *,
     expected_lane: str | None = None,
     main_post_attempt_is_semantically_valid: Callable[..., bool],
-    receipt_int: Callable[..., int | None],
     valid_receipt_epoch: Callable[..., bool],
     valid_string_post_id: Callable[..., bool],
 ) -> bool:
@@ -698,7 +694,6 @@ def meme_post_receipt_is_semantically_valid(
     main_post_attempt_is_semantically_valid: Callable[..., bool],
     materialize_bound_meme_schedule_receipt: Callable[..., dict],
     re: ModuleType,
-    receipt_int: Callable[..., int | None],
     valid_receipt_basename: Callable[..., bool],
     valid_receipt_epoch: Callable[..., bool],
     valid_string_post_id: Callable[..., bool],

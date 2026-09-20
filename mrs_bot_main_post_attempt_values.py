@@ -13,6 +13,20 @@ from collections.abc import Callable
 from typing import Any
 
 
+BOUND_MEME_SCHEDULE_STATE_KEYS = {
+    "last_meme_post_epoch",
+    "next_meme_post_epoch",
+    "meme_schedule_version",
+    "next_meme_schedule_mode",
+    "next_meme_schedule_date",
+    "meme_anchor_quote_post_epoch",
+}
+
+# Schema-v4/v5 recovery delays are data, not current configuration.  These
+# immutable format bounds keep old receipts readable across configuration
+# changes while rejecting corrupt plans that could suppress a lane for years.
+MAIN_POST_ATTEMPT_MAX_BOUND_DELAY_SECONDS = 31 * 24 * 60 * 60
+
 def canonical_remote_post_payload_sha256(payload: dict) -> str:
     """Return the stable identity of one exact X create payload."""
     encoded = json.dumps(
@@ -85,7 +99,6 @@ def bound_meme_schedule_state_is_valid(
     value: object,
     *,
     schedule_timezone: str | None = None,
-    BOUND_MEME_SCHEDULE_STATE_KEYS: set[str],
     MAIN_POST_SCHEDULE_TIMEZONE: str,
     MEME_SCHEDULE_MODES: set[str],
     MEME_SCHEDULE_VERSION: int,

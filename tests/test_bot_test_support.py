@@ -117,6 +117,10 @@ def test_builders_use_the_isolated_bot_and_current_monkeypatches(
     assert receipt["daily_reply_date"] == "2026-08-01"
     assert receipt["daily_quote_reply_date"] == "2026-08-01"
 
-    monkeypatch.setattr(bot, "quote_text_hash", lambda _text: "f" * 64)
+    import mrs_bot_main_post_receipts as receipts
+
+    hash_text = lambda _text: "f" * 64
+    monkeypatch.setattr(bot, "quote_text_hash", hash_text)
+    monkeypatch.setattr(receipts, "quote_text_hash", hash_text)
     attempt = bot_fixtures.schema_current_main_attempt("quote_image")
     assert attempt["selected_identity"]["quote_hash"] == "f" * 64

@@ -21,7 +21,7 @@ from tests.helpers.bot_fixtures import (
 
 def test_import_needs_no_runtime_access():
     code = """
-import builtins, collections.abc, datetime, hashlib, io, json, logging, os, random, socket, sys, time, typing
+import builtins, collections.abc, dataclasses, datetime, hashlib, io, json, logging, os, random, socket, sys, time, typing
 from pathlib import Path
 
 def forbidden(*args, **kwargs):
@@ -29,7 +29,7 @@ def forbidden(*args, **kwargs):
 
 original_import = builtins.__import__
 def guarded_import(name, *args, **kwargs):
-    if name in {'mrsMThatcher2', 'requests', 'openai', 'single_call_reply'} or name.startswith('mrs_bot_') and name not in {'mrs_bot_main_post_receipts', 'mrs_bot_main_post_attempt_values', 'mrs_bot_durable_json_io'}:
+    if name in {'mrsMThatcher2', 'requests', 'openai', 'single_call_reply'} or name.startswith('mrs_bot_') and name not in {'mrs_bot_main_post_receipts', 'mrs_bot_main_post_attempt_values', 'mrs_bot_durable_json_io', 'mrs_bot_asset_metadata', 'mrs_bot_receipt_primitives'}:
         forbidden()
     return original_import(name, *args, **kwargs)
 
@@ -57,11 +57,11 @@ assert 'single_call_reply' not in sys.modules
 @pytest.mark.parametrize(
     "name, signature, dependency_count",
     [
-        ("main_post_attempt_is_semantically_valid", "(data: 'object') -> 'bool'", 11),
-        ("regular_post_receipt_is_semantically_valid", "(data: 'dict') -> 'bool'", 16),
+        ("main_post_attempt_is_semantically_valid", "(data: 'object') -> 'bool'", 8),
+        ("regular_post_receipt_is_semantically_valid", "(data: 'dict') -> 'bool'", 13),
         (
             "confirmed_pending_schedule_receipt_is_semantically_valid",
-            "(data: 'object', *, expected_lane: 'str | None' = None) -> 'bool'", 4,
+            "(data: 'object', *, expected_lane: 'str | None' = None) -> 'bool'", 3,
         ),
         (
             "materialize_bound_regular_schedule_receipt",
@@ -71,7 +71,7 @@ assert 'single_call_reply' not in sys.modules
             "materialize_bound_meme_schedule_receipt",
             "(pending: 'dict', *, _validate_result: 'bool' = True) -> 'dict'", 7,
         ),
-        ("meme_post_receipt_is_semantically_valid", "(data: 'dict') -> 'bool'", 12),
+        ("meme_post_receipt_is_semantically_valid", "(data: 'dict') -> 'bool'", 11),
     ],
 )
 def test_adapters_forward_current_dependencies_defaults_references_and_errors(
@@ -166,7 +166,8 @@ def test_pending_uses_current_callbacks_in_order_before_source_and_lane_gates(
         callback = (Mock(return_value=True) if key == "main_post_attempt_is_semantically_valid"
                     else Mock(wraps=getattr(bot, key)))
         events.attach_mock(callback, key)
-        monkeypatch.setattr(bot, key, callback)
+        target = receipts if key == "receipt_int" else bot
+        monkeypatch.setattr(target, key, callback)
     validator = bot.confirmed_pending_schedule_receipt_is_semantically_valid
     assert validator(pending, expected_lane=lane)
     assert events.mock_calls == [
@@ -203,7 +204,7 @@ def test_regular_eager_epochs_and_date_closure_use_current_authorities(monkeypat
     events = Mock()
     events.attach_mock(Mock(wraps=bot.receipt_int), "integer")
     events.attach_mock(Mock(return_value=False), "post_id")
-    monkeypatch.setattr(bot, "receipt_int", events.integer)
+    monkeypatch.setattr(receipts, "receipt_int", events.integer)
     monkeypatch.setattr(bot, "valid_string_post_id", events.post_id)
     assert bot.regular_post_receipt_is_semantically_valid(receipt) is False
     assert events.mock_calls == [
