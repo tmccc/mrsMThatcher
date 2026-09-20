@@ -12,6 +12,7 @@ from unittest.mock import Mock, call
 import pytest
 
 import mrs_bot_quote_reply_cycle as cycle
+import mrs_bot_reply_state as reply_state
 import mrs_bot_daily_reply_accounting as accounting_owner
 import mrs_bot_reply_context as context_owner
 import mrs_bot_reply_cycle_interfaces as interfaces
@@ -39,7 +40,7 @@ def forbidden(*args, **kwargs):
 
 original_import = builtins.__import__
 def guarded_import(name, *args, **kwargs):
-    if name in {'mrsMThatcher2', 'requests', 'openai', 'single_call_reply', 'reply_evidence'} or name.startswith('mrs_bot_') and name not in {'mrs_bot_quote_reply_cycle', 'mrs_bot_runtime_state_helpers', 'mrs_bot_reply_context', 'mrs_bot_reply_cycle_interfaces', 'mrs_bot_reply_preparation', 'mrs_bot_reply_delivery', 'mrs_bot_reply_evaluation_state', 'mrs_bot_author_quarantines', 'mrs_bot_daily_reply_accounting'}:
+    if name in {'mrsMThatcher2', 'requests', 'openai', 'single_call_reply', 'reply_evidence'} or name.startswith('mrs_bot_') and name not in {'mrs_bot_quote_reply_cycle', 'mrs_bot_runtime_state_helpers', 'mrs_bot_reply_context', 'mrs_bot_reply_cycle_interfaces', 'mrs_bot_reply_preparation', 'mrs_bot_reply_delivery', 'mrs_bot_reply_evaluation_state', 'mrs_bot_author_quarantines', 'mrs_bot_daily_reply_accounting', 'mrs_bot_reply_state', 'mrs_bot_reply_drafts', 'mrs_bot_reply_history'}:
         forbidden()
     return original_import(name, *args, **kwargs)
 
@@ -233,8 +234,8 @@ def test_markers_preserve_bounded_and_durable_lists_and_mutation_before_failure(
         "quote_spam_author_ids": [str(i) for i in range(2000)],
     }
     capped, durable = Mock(wraps=bot.append_unique_capped), Mock(wraps=bot.append_unique_durable)
-    monkeypatch.setattr(cycle, "append_unique_capped", capped)
-    monkeypatch.setattr(cycle, "append_unique_durable", durable)
+    monkeypatch.setattr(reply_state, "append_unique_capped", capped)
+    monkeypatch.setattr(reply_state, "append_unique_durable", durable)
     seen = state["seen_quote_post_ids"]
     skipped = state["skipped_quote_post_ids"]
     bot.mark_quote_tweet_skipped(state, 3000)

@@ -10,7 +10,7 @@ retirement and receipt removal.
 
 Mention authority, receipt I/O, transport journals, persistence and posting
 remain in their existing owners and use current root callbacks. Receipt values
-use the supplied owner directly. Import uses the standard library and inert ID-list helpers, and
+use the supplied owner directly. Import uses the standard library and inert state owners, and
 performs no file, environment, provider or RNG work; no callbacks are retained.
 """
 
@@ -24,6 +24,11 @@ from pathlib import Path
 from typing import TYPE_CHECKING
 
 from mrs_bot_runtime_state_helpers import append_unique_capped, append_unique_durable
+from mrs_bot_reply_state import mark_quote_tweet_replied
+from mrs_bot_mention_authority import (
+    active_mention_backlog_reset_guard,
+    _reset_mention_candidate_authority,
+)
 
 if TYPE_CHECKING:
     from mrs_bot_reply_clarifications import ClarificationReplies
@@ -43,13 +48,10 @@ def apply_confirmed_reply_receipt(
     reply_cap_date_str: Callable,
     accounting: DailyReplyAccounting,
     mention_pagination_has_canonical_page_ownership: Callable,
-    _reset_mention_candidate_authority: Callable,
     _emit_mention_authority_recovery: Callable,
     log: logging.Logger,
     clear_target_drafts: Callable[[dict, str, str], None],
-    mark_quote_tweet_replied: Callable,
     remove_pending_mention_candidate: Callable,
-    active_mention_backlog_reset_guard: Callable,
     update_last_seen_mention_id: Callable,
     cache_tweet: Callable,
     MY_USER_ID: str,
@@ -96,7 +98,6 @@ def apply_confirmed_reply_receipt(
         STATE_FILE=STATE_FILE,
         receipt_values=receipt_values,
         mention_pagination_has_canonical_page_ownership=mention_pagination_has_canonical_page_ownership,
-        _reset_mention_candidate_authority=_reset_mention_candidate_authority,
         _emit_mention_authority_recovery=_emit_mention_authority_recovery,
         log=log,
     )
@@ -217,7 +218,6 @@ def _mention_pagination_to_preserve(
     STATE_FILE: Path,
     receipt_values: ReplyReceiptValues,
     mention_pagination_has_canonical_page_ownership: Callable,
-    _reset_mention_candidate_authority: Callable,
     _emit_mention_authority_recovery: Callable,
     log: logging.Logger,
 ) -> dict | None:

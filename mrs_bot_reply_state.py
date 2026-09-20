@@ -1,4 +1,4 @@
-"""Own shared admission identities, ineligible retirement and compatibility names.
+"""Own shared reply admission, quote-target markers and ineligible retirement.
 
 Reply lanes keep candidate bookkeeping and durable saves around the shared
 retirement operation. Draft lifecycle and confirmed-history behaviour live in
@@ -11,6 +11,7 @@ from __future__ import annotations
 
 from collections.abc import Callable
 
+from mrs_bot_runtime_state_helpers import append_unique_capped, append_unique_durable
 from mrs_bot_reply_drafts import pending_ai_reply_draft_key
 from mrs_bot_reply_history import (
     CONVERSATIONAL_REPLY_HISTORY_LANES,
@@ -55,4 +56,40 @@ def retire_ineligible_reply_draft(
         lane=candidate_source,
         reason=reason,
         outcome="reply_not_permitted",
+    )
+
+
+def mark_quote_tweet_skipped(
+    state: dict,
+    quote_id: str,
+) -> None:
+    """Mark quote tweet skipped."""
+    quote_id = str(quote_id)
+
+    state["seen_quote_post_ids"] = append_unique_capped(
+        state.get("seen_quote_post_ids", []),
+        quote_id,
+        2000,
+    )
+    state["skipped_quote_post_ids"] = append_unique_capped(
+        state.get("skipped_quote_post_ids", []),
+        quote_id,
+        2000,
+    )
+
+def mark_quote_tweet_replied(
+    state: dict,
+    quote_id: str,
+) -> None:
+    """Mark quote tweet replied."""
+    quote_id = str(quote_id)
+
+    state["seen_quote_post_ids"] = append_unique_capped(
+        state.get("seen_quote_post_ids", []),
+        quote_id,
+        2000,
+    )
+    state["replied_to_quote_post_ids"] = append_unique_durable(
+        state.get("replied_to_quote_post_ids", []),
+        quote_id,
     )

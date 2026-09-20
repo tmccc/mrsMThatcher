@@ -46,7 +46,7 @@ def forbidden(*args, **kwargs):
 
 original_import = builtins.__import__
 def guarded_import(name, *args, **kwargs):
-    if name in {'mrsMThatcher2', 'requests', 'openai', 'single_call_reply', 'reply_evidence'} or name.startswith('mrs_bot_') and name not in {'mrs_bot_reply_reconciliation', 'mrs_bot_runtime_state_helpers'}:
+    if name in {'mrsMThatcher2', 'requests', 'openai', 'single_call_reply', 'reply_evidence'} or name.startswith('mrs_bot_') and name not in {'mrs_bot_reply_reconciliation', 'mrs_bot_runtime_state_helpers', 'mrs_bot_reply_state', 'mrs_bot_reply_drafts', 'mrs_bot_reply_history', 'mrs_bot_mention_authority'}:
         forbidden()
     return original_import(name, *args, **kwargs)
 
@@ -823,7 +823,7 @@ def test_emergency_catches_only_current_confirmation_error_inside_its_try(monkey
 
 
 @pytest.mark.parametrize("legacy", [False, True])
-def test_pagination_preservation_resets_missing_ownership_before_copy_and_legacy_warning(legacy):
+def test_pagination_preservation_resets_missing_ownership_before_copy_and_legacy_warning(legacy, monkeypatch):
     trace = Mock()
 
     class Pagination(dict):
@@ -846,13 +846,13 @@ def test_pagination_preservation_resets_missing_ownership_before_copy_and_legacy
         state["mention_pagination"] = {}
 
     trace.reset.side_effect = reset
+    monkeypatch.setattr(reconciliation, "_reset_mention_candidate_authority", trace.reset)
     preserved = reconciliation._mention_pagination_to_preserve(
         state, receipt, target_id="105", candidate_source="mention",
         InvalidConfirmedReplyReceipt=bot.InvalidConfirmedReplyReceipt,
         STATE_FILE=bot.STATE_FILE,
         receipt_values=Mock(pagination_is_valid=trace.provenance),
         mention_pagination_has_canonical_page_ownership=trace.ownership,
-        _reset_mention_candidate_authority=trace.reset,
         _emit_mention_authority_recovery=trace.recovery,
         log=trace.log,
     )

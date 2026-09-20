@@ -23,7 +23,8 @@ from dataclasses import dataclass
 from logging import Logger
 from typing import TYPE_CHECKING
 
-from mrs_bot_runtime_state_helpers import append_unique_capped, append_unique_durable
+from mrs_bot_runtime_state_helpers import append_unique_capped
+from mrs_bot_reply_state import mark_quote_tweet_replied, mark_quote_tweet_skipped
 
 from mrs_bot_daily_reply_accounting import daily_author_reply_counts
 from mrs_bot_reply_context import clean_text_for_reply_context
@@ -128,43 +129,6 @@ def quote_author_profile_text(quote_tweet: dict) -> str:
         )
 
     return "\n".join(part for part in parts if part.strip())
-
-
-def mark_quote_tweet_skipped(
-    state: dict,
-    quote_id: str,
-) -> None:
-    """Mark quote tweet skipped."""
-    quote_id = str(quote_id)
-
-    state["seen_quote_post_ids"] = append_unique_capped(
-        state.get("seen_quote_post_ids", []),
-        quote_id,
-        2000,
-    )
-    state["skipped_quote_post_ids"] = append_unique_capped(
-        state.get("skipped_quote_post_ids", []),
-        quote_id,
-        2000,
-    )
-
-
-def mark_quote_tweet_replied(
-    state: dict,
-    quote_id: str,
-) -> None:
-    """Mark quote tweet replied."""
-    quote_id = str(quote_id)
-
-    state["seen_quote_post_ids"] = append_unique_capped(
-        state.get("seen_quote_post_ids", []),
-        quote_id,
-        2000,
-    )
-    state["replied_to_quote_post_ids"] = append_unique_durable(
-        state.get("replied_to_quote_post_ids", []),
-        quote_id,
-    )
 
 
 def mark_quote_spam_author(
