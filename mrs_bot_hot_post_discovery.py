@@ -21,7 +21,7 @@ from logging import Logger
 from pathlib import Path
 from types import ModuleType
 
-from mrs_bot_reply_state import retire_ineligible_reply_draft
+from mrs_bot_reply_state import handled_reply_target_ids, retire_ineligible_reply_draft
 
 
 def get_hot_post_reply_candidates(
@@ -90,13 +90,7 @@ def get_hot_post_reply_candidates(
         return []
 
     skipped_hot_reply_ids = set(str(x) for x in state.get("skipped_hot_reply_ids", []))
-    # Admission includes legacy quote-only targets; keep durable ledgers separate
-    # because the normal ledger also records terminal outcomes without a post.
-    replied_to_ids = {
-        str(value)
-        for key in ("replied_to_ids", "replied_to_quote_post_ids")
-        for value in state.get(key, [])
-    }
+    replied_to_ids = handled_reply_target_ids(state)
 
     since_ids = state.get("hot_post_reply_since_ids", {})
     if not isinstance(since_ids, dict):

@@ -80,3 +80,24 @@ def test_ineligible_retirement_delegates_before_terminal_record_and_preserves_er
     assert trace.mock_calls == expected
     assert trace.retire.call_args.args[0] is state
     assert state == {}
+
+
+def test_handled_target_snapshot_combines_admission_without_mutating_durable_ledgers():
+    normal = [101, "102", "101"]
+    quotes = ["102", 103]
+    state = {"replied_to_ids": normal, "replied_to_quote_post_ids": quotes}
+    first = reply_state.handled_reply_target_ids(state)
+    second = reply_state.handled_reply_target_ids(state)
+
+    assert first == second == {"101", "102", "103"}
+    first.add("104")
+    assert second == {"101", "102", "103"}
+    assert state["replied_to_ids"] is normal and normal == [101, "102", "101"]
+    assert state["replied_to_quote_post_ids"] is quotes and quotes == ["102", 103]
+    assert reply_state.handled_reply_target_ids({}) == set()
+
+
+@pytest.mark.parametrize("key", ["replied_to_ids", "replied_to_quote_post_ids"])
+def test_handled_target_snapshot_keeps_native_malformed_ledger_failure(key):
+    with pytest.raises(TypeError):
+        reply_state.handled_reply_target_ids({key: None})

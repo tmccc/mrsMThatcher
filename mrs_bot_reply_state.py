@@ -1,4 +1,4 @@
-"""Coordinate ineligible-draft retirement and retain reply-state compatibility names.
+"""Own shared admission identities, ineligible retirement and compatibility names.
 
 Reply lanes keep candidate bookkeeping and durable saves around the shared
 retirement operation. Draft lifecycle and confirmed-history behaviour live in
@@ -17,6 +17,20 @@ from mrs_bot_reply_history import (
     _confirmed_history_sort_key,
     _reply_target_epoch,
 )
+
+
+def handled_reply_target_ids(state: dict) -> set[str]:
+    """Snapshot normal and legacy quote targets already handled for admission.
+
+    The normal ledger also contains terminal outcomes without a remote post, so
+    this union is not confirmation evidence. Return a fresh mutable set for the
+    caller's scan without combining or changing either durable ledger.
+    """
+    return {
+        str(value)
+        for key in ("replied_to_ids", "replied_to_quote_post_ids")
+        for value in state.get(key, [])
+    }
 
 
 def retire_ineligible_reply_draft(

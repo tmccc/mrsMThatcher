@@ -298,6 +298,31 @@ def test_receipt_preparation_and_confirmed_state_errors_are_not_transport_errors
     bot.create_post.assert_not_called()
 
 
+def test_legacy_quote_only_target_is_retired_before_normal_eligibility(monkeypatch):
+    _configure_cycle(monkeypatch)
+    state = bot.default_state()
+    normal_ledger = state["replied_to_ids"]
+    quote_ledger = state["replied_to_quote_post_ids"] = ["105"]
+    candidate = mention(105, 205)
+    monkeypatch.setattr(bot, "get_mentions", Mock(return_value=[candidate]))
+    eligible = Mock(side_effect=AssertionError("handled target reached eligibility"))
+    context = Mock(side_effect=AssertionError("handled target reached context"))
+    monkeypatch.setattr(bot, "reply_target_is_directly_eligible", eligible)
+    monkeypatch.setattr(bot, "build_context_for_reply_ai", context)
+
+    assert bot.maybe_reply_to_mentions(state) == bot.NORMAL_CHECK_STATUS_CHECKED
+
+    eligible.assert_not_called()
+    context.assert_not_called()
+    bot.evaluate_single_call_reply.assert_not_called()
+    bot.x_request.assert_not_called()
+    bot.create_post.assert_not_called()
+    assert state["replied_to_ids"] is normal_ledger and normal_ledger == []
+    assert state["replied_to_quote_post_ids"] is quote_ledger and quote_ledger == ["105"]
+    assert state["last_seen_mention_id"] == "105"
+    assert state["daily_reply_count"] == state["daily_quote_reply_count"] == 0
+
+
 def test_ineligible_mention_draft_retirement_precedes_seen_marker_and_durable_save(monkeypatch):
     _configure_cycle(monkeypatch)
     state = bot.default_state()

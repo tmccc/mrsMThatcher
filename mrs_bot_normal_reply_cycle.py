@@ -49,7 +49,7 @@ from mrs_bot_reply_preparation import (
     build_sending_reply_receipt,
     persist_validated_reply_draft,
 )
-from mrs_bot_reply_state import retire_ineligible_reply_draft
+from mrs_bot_reply_state import handled_reply_target_ids, retire_ineligible_reply_draft
 
 if TYPE_CHECKING:
     from mrs_bot_author_quarantines import AuthorQuarantines
@@ -265,13 +265,7 @@ def maybe_reply_to_mentions(
 
     mentions = valid_tweets_sorted_by_id(mentions, context="mention/hot-post candidate")
 
-    # Admission includes legacy quote-only targets; keep durable ledgers separate
-    # because the normal ledger also records terminal outcomes without a post.
-    replied_to_ids = {
-        str(value)
-        for key in ("replied_to_ids", "replied_to_quote_post_ids")
-        for value in state.get(key, [])
-    }
+    replied_to_ids = handled_reply_target_ids(state)
     log.debug("replied_to_ids count=%d", len(replied_to_ids))
 
     progress = _ReplyCycleProgress(int(_fresh_mention_ai_evaluations))
