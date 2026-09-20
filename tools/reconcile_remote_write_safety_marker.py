@@ -53,6 +53,9 @@ from typing import Any, Callable, Mapping, Sequence
 if __package__ in {None, ""}:
     sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
+from mrs_bot_instance_lock_checks import (  # noqa: E402
+    instance_lock_abstract_socket_name_for_identity,
+)
 from remote_media_upload_receipt import (  # noqa: E402
     DOCUMENT_KIND as MEDIA_RECEIPT_DOCUMENT_KIND,
     FENCE_DOCUMENT_KIND as MEDIA_FENCE_DOCUMENT_KIND,
@@ -282,19 +285,6 @@ def instance_lock_abstract_socket_name(project_root: Path) -> bytes:
         int(identity.st_dev),
         int(identity.st_ino),
     )
-
-
-def instance_lock_abstract_socket_name_for_identity(
-    device: int,
-    inode: int,
-) -> bytes:
-    """Return the supplementary singleton name for one directory inode."""
-
-    identity_bytes = (
-        f"dev={int(device)};ino={int(inode)}"
-    ).encode("ascii")
-    digest = hashlib.sha256(identity_bytes).hexdigest()[:40].encode("ascii")
-    return b"\0mrsMThatcher-instance-" + digest
 
 
 def _ofd_lock_record(lock_type: int) -> bytes:

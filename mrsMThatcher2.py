@@ -906,7 +906,6 @@ def instance_lock_abstract_socket_name(base_dir: Path | None = None) -> bytes:
     return _instance_lock_checks.instance_lock_abstract_socket_name(
         base_dir,
         BASE_DIR=BASE_DIR,
-        instance_lock_abstract_socket_name_for_identity=instance_lock_abstract_socket_name_for_identity,
         os=os,
         stat=stat,
     )
@@ -920,7 +919,6 @@ def instance_lock_abstract_socket_name_for_identity(
     return _instance_lock_checks.instance_lock_abstract_socket_name_for_identity(
         device,
         inode,
-        hashlib=hashlib,
     )
 
 

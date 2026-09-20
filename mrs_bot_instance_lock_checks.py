@@ -1,9 +1,12 @@
 """Instance-lock checks and mutation-authority issuance.
 
-The root supplies current runtime dependencies explicitly on each call. This
-module performs no runtime work at import and retains no runtime authority.
+The root supplies current runtime dependencies explicitly on each call. The
+fixed device/inode socket-name encoding is shared with offline reconciliation.
+This module performs no runtime work at import and retains no runtime authority.
 """
 from __future__ import annotations
+
+import hashlib
 
 from typing import Any
 
@@ -12,7 +15,6 @@ def instance_lock_abstract_socket_name(
     base_dir: Path | None = None,
     *,
     BASE_DIR: Any,
-    instance_lock_abstract_socket_name_for_identity: Any,
     os: Any,
     stat: Any,
 ) -> bytes:
@@ -30,8 +32,6 @@ def instance_lock_abstract_socket_name(
 def instance_lock_abstract_socket_name_for_identity(
     device: int,
     inode: int,
-    *,
-    hashlib: Any,
 ) -> bytes:
     """Return one supplementary singleton name for a directory identity."""
 

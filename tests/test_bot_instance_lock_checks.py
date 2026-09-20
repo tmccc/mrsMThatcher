@@ -20,10 +20,9 @@ from tests.helpers.bot_fixtures import isolate_bot_runtime  # noqa: F401
 from transaction_mutation_authority import require_transaction_mutation_authority
 
 DEPENDENCIES = {'instance_lock_abstract_socket_name': ['BASE_DIR',
-                                        'instance_lock_abstract_socket_name_for_identity',
                                         'os',
                                         'stat'],
- 'instance_lock_abstract_socket_name_for_identity': ['hashlib'],
+ 'instance_lock_abstract_socket_name_for_identity': [],
  'ofd_lock_record': ['_OFD_LOCK_FORMAT', 'os', 'struct'],
  'descriptor_owns_exclusive_flock': ['Path', 'os'],
  'test_mode_excludes_live_remote_writes': ['LIVE_ENDPOINT_TEST_OVERRIDE_PHRASE',
@@ -66,7 +65,7 @@ SIGNATURES = {'instance_lock_abstract_socket_name': "(base_dir: 'Path | None' = 
 
 def test_import_needs_no_runtime_access():
     code = """
-import builtins, collections.abc, io, logging, os, random, socket, sys, time, typing
+import builtins, collections.abc, hashlib, io, logging, os, random, socket, sys, time, typing
 from pathlib import Path
 
 def forbidden(*args, **kwargs):
@@ -144,7 +143,7 @@ def test_adapters_preserve_signatures_current_dependencies_references_and_errors
 
 
 @pytest.mark.parametrize("base_dir", [None, "", object()])
-def test_directory_name_uses_current_path_identity_and_sibling(monkeypatch, base_dir):
+def test_directory_name_uses_current_path_identity_and_owned_encoder(monkeypatch, base_dir):
     trace = Mock()
     configured, path, absolute, result = object(), object(), object(), object()
     trace.fspath.return_value = path
@@ -155,7 +154,7 @@ def test_directory_name_uses_current_path_identity_and_sibling(monkeypatch, base
     monkeypatch.setattr(bot, "os", SimpleNamespace(
         fspath=trace.fspath, path=SimpleNamespace(abspath=trace.abspath), stat=trace.stat,
     ))
-    monkeypatch.setattr(bot, "instance_lock_abstract_socket_name_for_identity", trace.sibling)
+    monkeypatch.setattr(bot._instance_lock_checks, "instance_lock_abstract_socket_name_for_identity", trace.sibling)
     assert bot.instance_lock_abstract_socket_name(base_dir) is result
     assert trace.mock_calls == [
         call.fspath(base_dir or configured), call.abspath(path),
@@ -185,7 +184,7 @@ def test_identity_name_keeps_integer_order_ascii_and_exact_hash_bytes(monkeypatc
             return self.value
 
     sha256 = Mock(wraps=hashlib.sha256)
-    monkeypatch.setattr(bot, "hashlib", SimpleNamespace(sha256=sha256))
+    monkeypatch.setattr(bot._instance_lock_checks, "hashlib", SimpleNamespace(sha256=sha256))
     result = bot.instance_lock_abstract_socket_name_for_identity(Number("device", 8), Number("inode", 123))
     assert conversions == ["device", "inode"]
     sha256.assert_called_once_with(b"dev=8;ino=123")
@@ -536,3 +535,16 @@ def test_authority_preserves_current_issuer_operation_and_bound_live_verifier(mo
         require_transaction_mutation_authority(authority, operation="later mutation")
     replacement.assert_not_called()
     assert lock.trace.mock_calls[-1] == call.bypass()
+
+
+def test_daemon_and_offline_tool_share_exact_socket_identity_without_root_bounce(monkeypatch, tmp_path):
+    from tools import reconcile_remote_write_safety_marker as reconcile
+
+    owned = bot._instance_lock_checks.instance_lock_abstract_socket_name_for_identity
+    assert reconcile.instance_lock_abstract_socket_name_for_identity is owned
+    assert str(inspect.signature(owned)) == SIGNATURES["instance_lock_abstract_socket_name_for_identity"]
+    identity = tmp_path.stat()
+    expected = owned(identity.st_dev, identity.st_ino)
+    monkeypatch.setattr(bot, "instance_lock_abstract_socket_name_for_identity", Mock(side_effect=AssertionError("socket identity bounced through root")))
+    assert bot.instance_lock_abstract_socket_name(tmp_path) == expected
+    assert reconcile.instance_lock_abstract_socket_name(tmp_path) == expected
