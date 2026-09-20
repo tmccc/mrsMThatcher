@@ -1,11 +1,19 @@
 """Runtime state defaults and scheduling helpers.
 
-The root supplies current runtime dependencies explicitly on each call. This
-module performs no runtime work at import and retains no runtime authority.
+QuoteSchedule owns delay selection and schedule application with current clock,
+configuration, logger and persistence inputs. Fixed random/calendar helpers and
+state-field application stay local. Other maintenance boundaries remain supplied
+per call. Import and owner construction perform no runtime work.
 """
 from __future__ import annotations
 
+from dataclasses import dataclass
+
 import math
+import random
+from collections.abc import Callable
+from datetime import datetime
+from logging import Logger
 from typing import Any
 
 
@@ -160,48 +168,6 @@ def apply_state_fields(state: dict, fields: dict) -> None:
         state[key] = value
 
 
-def next_quote_schedule_fields(
-    from_epoch: int | None = None,
-    *,
-    delay: int | None = None,
-    POST_SLEEP_MAX: Any,
-    POST_SLEEP_MIN: Any,
-    now_epoch: Any,
-    random: Any,
-) -> tuple[dict, int]:
-    """Return the next quote schedule fields."""
-    if from_epoch is None:
-        from_epoch = now_epoch()
-
-    if delay is None:
-        delay = random.randint(POST_SLEEP_MIN, POST_SLEEP_MAX)
-    return {"next_quote_post_epoch": int(from_epoch) + delay}, delay
-
-
-def schedule_next_quote_post(
-    state: dict,
-    from_epoch: int | None = None,
-    *,
-    save: bool = True,
-    apply_state_fields: Any,
-    datetime: Any,
-    log: Any,
-    next_quote_schedule_fields: Any,
-    save_state: Any,
-) -> None:
-    """Perform the schedule next quote post operation."""
-    fields, delay = next_quote_schedule_fields(from_epoch)
-    apply_state_fields(state, fields)
-    if save:
-        save_state(state)
-
-    log.info(
-        "Next quote/image post in %d seconds at %s",
-        delay,
-        datetime.fromtimestamp(state["next_quote_post_epoch"]).strftime("%Y-%m-%d %H:%M:%S"),
-    )
-
-
 def prepare_test_main_post_state(
     state: dict,
     *,
@@ -211,3 +177,47 @@ def prepare_test_main_post_state(
     """Prepare test main post state."""
     if ENABLE_DAILY_MEME_POSTS:
         ensure_meme_schedule_initialized(state)
+
+
+@dataclass(frozen=True)
+class QuoteSchedule:
+    """Own quotation delay selection and schedule application/persistence."""
+
+    minimum_delay: int
+    maximum_delay: int
+    now_epoch: Callable[[], int]
+    save_state: Callable[..., Any]
+    log: Logger
+
+    def next_fields(
+        self,
+        from_epoch: int | None = None,
+        *,
+        delay: int | None = None,
+    ) -> tuple[dict, int]:
+        """Return the next quote schedule fields."""
+        if from_epoch is None:
+            from_epoch = self.now_epoch()
+
+        if delay is None:
+            delay = random.randint(self.minimum_delay, self.maximum_delay)
+        return {"next_quote_post_epoch": int(from_epoch) + delay}, delay
+
+    def schedule(
+        self,
+        state: dict,
+        from_epoch: int | None = None,
+        *,
+        save: bool = True,
+    ) -> None:
+        """Perform the schedule next quote post operation."""
+        fields, delay = self.next_fields(from_epoch)
+        apply_state_fields(state, fields)
+        if save:
+            self.save_state(state)
+
+        self.log.info(
+            "Next quote/image post in %d seconds at %s",
+            delay,
+            datetime.fromtimestamp(state["next_quote_post_epoch"]).strftime("%Y-%m-%d %H:%M:%S"),
+        )

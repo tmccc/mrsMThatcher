@@ -21,7 +21,7 @@ from tests.helpers.reply_fixtures import patch_reply_draft_method, unit_approved
 
 def test_import_needs_no_runtime_access():
     code = """
-import builtins, collections.abc, io, logging, os, random, socket, sys
+import builtins, collections.abc, dataclasses, io, logging, os, random, socket, sys
 from pathlib import Path
 from types import ModuleType
 

@@ -24,7 +24,7 @@ from tests.helpers.bot_fixtures import isolate_bot_runtime  # noqa: F401
 
 def test_import_needs_no_runtime_access():
     code = """
-import builtins, collections.abc, io, logging, os, random, socket, sys
+import builtins, collections.abc, dataclasses, io, logging, os, random, socket, sys
 from pathlib import Path
 from types import ModuleType
 

@@ -8291,30 +8291,25 @@ def maybe_reply_to_quote_tweets(state: dict) -> str:
 # Main loop
 # ---------------------------------------------------------------------
 
+def _quote_schedule_owner() -> _runtime_state_helpers.QuoteSchedule:
+    """Bind current external boundaries without runtime work or caller state."""
+    return _runtime_state_helpers.QuoteSchedule(
+        minimum_delay=POST_SLEEP_MIN,
+        maximum_delay=POST_SLEEP_MAX,
+        now_epoch=now_epoch,
+        save_state=save_state,
+        log=log,
+    )
+
+
 def next_quote_schedule_fields(from_epoch: int | None = None, *, delay: int | None = None) -> tuple[dict, int]:
     """Return the next quote schedule fields."""
-    return _runtime_state_helpers.next_quote_schedule_fields(
-        from_epoch,
-        delay=delay,
-        POST_SLEEP_MAX=POST_SLEEP_MAX,
-        POST_SLEEP_MIN=POST_SLEEP_MIN,
-        now_epoch=now_epoch,
-        random=random,
-    )
+    return _quote_schedule_owner().next_fields(from_epoch, delay=delay)
 
 
 def schedule_next_quote_post(state: dict, from_epoch: int | None = None, *, save: bool = True) -> None:
     """Perform the schedule next quote post operation."""
-    return _runtime_state_helpers.schedule_next_quote_post(
-        state,
-        from_epoch,
-        save=save,
-        apply_state_fields=apply_state_fields,
-        datetime=datetime,
-        log=log,
-        next_quote_schedule_fields=next_quote_schedule_fields,
-        save_state=save_state,
-    )
+    return _quote_schedule_owner().schedule(state, from_epoch, save=save)
 
 
 def run_reply_lane_checks_for_tick(

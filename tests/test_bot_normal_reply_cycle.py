@@ -40,7 +40,7 @@ from tests.helpers.reply_fixtures import (
 
 def test_import_needs_no_runtime_access():
     code = """
-import builtins, collections.abc, json, io, logging, os, random, socket, sys
+import builtins, collections.abc, dataclasses, json, io, logging, os, random, socket, sys
 from pathlib import Path
 
 def forbidden(*args, **kwargs):

@@ -21,12 +21,6 @@ DEPENDENCIES = {'default_state': ['STATE_MINIMUM_READER_VERSION'],
                         'load_state',
                         'sanitize_next_reply_lane_priority'],
  'apply_state_fields': [],
- 'next_quote_schedule_fields': ['POST_SLEEP_MAX', 'POST_SLEEP_MIN', 'now_epoch', 'random'],
- 'schedule_next_quote_post': ['apply_state_fields',
-                              'datetime',
-                              'log',
-                              'next_quote_schedule_fields',
-                              'save_state'],
  'prepare_test_main_post_state': ['ENABLE_DAILY_MEME_POSTS', 'ensure_meme_schedule_initialized']}
 
 SIGNATURES = {'default_state': "() -> 'dict'",
@@ -45,7 +39,7 @@ SIGNATURES = {'default_state': "() -> 'dict'",
 
 def test_import_needs_no_runtime_access():
     code = """
-import builtins, collections.abc, datetime, io, logging, math, os, random, socket, sys, time, typing, zoneinfo
+import builtins, collections.abc, dataclasses, datetime, io, logging, math, os, random, socket, sys, time, typing, zoneinfo
 from pathlib import Path
 
 def forbidden(*args, **kwargs):
@@ -597,7 +591,7 @@ def test_quote_fields_keep_lazy_clock_draw_int_add_order_delay_reference_and_fre
         return delay
 
     monkeypatch.setattr(bot, "now_epoch", now)
-    monkeypatch.setattr(bot, "random", SimpleNamespace(randint=draw))
+    monkeypatch.setattr(owner, "random", SimpleNamespace(randint=draw))
     monkeypatch.setattr(bot, "POST_SLEEP_MIN", low)
     monkeypatch.setattr(bot, "POST_SLEEP_MAX", high)
     first, returned = bot.next_quote_schedule_fields(None if use_clock else epoch, delay=None if use_draw else delay)
@@ -628,7 +622,7 @@ def test_quote_fields_native_failures_keep_lazy_evaluation_order(monkeypatch, fa
             return step("add", 20)
 
     monkeypatch.setattr(bot, "now_epoch", lambda: step("clock", Epoch()))
-    monkeypatch.setattr(bot, "random", SimpleNamespace(randint=lambda *_: step("draw", Delay())))
+    monkeypatch.setattr(owner, "random", SimpleNamespace(randint=lambda *_: step("draw", Delay())))
     with pytest.raises(ValueError) as caught:
         bot.next_quote_schedule_fields()
     assert caught.value is failure
@@ -668,9 +662,11 @@ def test_quote_scheduling_keeps_apply_optional_save_state_reread_and_format_log_
         step("fields", value)
         return fields, delay
 
+    apply_fields = owner.apply_state_fields
+
     def apply(current, supplied):
         assert current is state and supplied is fields
-        owner.apply_state_fields(current, supplied)
+        apply_fields(current, supplied)
         step("apply", current, supplied)
 
     def save(current):
@@ -687,10 +683,10 @@ def test_quote_scheduling_keeps_apply_optional_save_state_reread_and_format_log_
         step("format", fmt)
         return rendered
 
-    monkeypatch.setattr(bot, "next_quote_schedule_fields", next_fields)
-    monkeypatch.setattr(bot, "apply_state_fields", apply)
+    monkeypatch.setattr(owner.QuoteSchedule, "next_fields", lambda _owner, origin: next_fields(origin))
+    monkeypatch.setattr(owner, "apply_state_fields", apply)
     monkeypatch.setattr(bot, "save_state", save)
-    monkeypatch.setattr(bot, "datetime", SimpleNamespace(fromtimestamp=timestamp))
+    monkeypatch.setattr(owner, "datetime", SimpleNamespace(fromtimestamp=timestamp))
     monkeypatch.setattr(bot, "log", SimpleNamespace(info=lambda *args: step("log", *args)))
     if failure_at is None:
         assert bot.schedule_next_quote_post(state, origin, save=Save()) is None
@@ -749,3 +745,62 @@ def test_test_preparation_keeps_current_truth_callback_same_state_and_implicit_n
     assert events == ["truth"] + (["callback"] if invoked else [])
     assert state == ({"prepared": True} if invoked else {})
     save.assert_not_called()
+
+
+def test_quote_schedule_composition_is_current_and_inert(monkeypatch):
+    fields = {
+        "POST_SLEEP_MIN": "minimum_delay", "POST_SLEEP_MAX": "maximum_delay",
+        "now_epoch": "now_epoch", "save_state": "save_state", "log": "log",
+    }
+    previous = None
+    for _ in range(2):
+        current = {name: Mock(side_effect=AssertionError("construction performed work")) for name in fields}
+        for name, value in current.items():
+            monkeypatch.setattr(bot, name, value)
+        schedule = bot._quote_schedule_owner()
+        assert isinstance(schedule, owner.QuoteSchedule) and schedule is not previous
+        assert set(vars(schedule)) == set(fields.values())
+        for name, field in fields.items():
+            assert getattr(schedule, field) is current[name]
+            current[name].assert_not_called()
+        previous = schedule
+
+
+@pytest.mark.parametrize("name,method", [
+    ("next_quote_schedule_fields", "next_fields"),
+    ("schedule_next_quote_post", "schedule"),
+])
+def test_quote_schedule_adapters_keep_defaults_references_results_and_errors(monkeypatch, name, method):
+    adapter = getattr(bot, name)
+    signature = inspect.signature(adapter)
+    assert str(signature) == SIGNATURES[name]
+    args = tuple(object() for p in signature.parameters.values() if p.kind is p.POSITIONAL_OR_KEYWORD)
+    for explicit in (False, True):
+        options = {key: object() for key, p in signature.parameters.items() if p.kind is p.KEYWORD_ONLY} if explicit else {}
+        expected = {key: p.default for key, p in signature.parameters.items() if p.kind is p.KEYWORD_ONLY} | options
+        result = object()
+        operation = Mock(return_value=result)
+        factory = Mock(return_value=SimpleNamespace(**{method: operation}))
+        monkeypatch.setattr(bot, "_quote_schedule_owner", factory)
+        assert adapter(*args, **options) is result
+        factory.assert_called_once_with()
+        operation.assert_called_once_with(*args, **expected)
+        assert all(a is b for a, b in zip(operation.call_args.args, args))
+        failure = KeyboardInterrupt("schedule failure")
+        operation.side_effect = failure
+        with pytest.raises(KeyboardInterrupt) as caught:
+            adapter(*args, **options)
+        assert caught.value is failure
+
+
+def test_quote_schedule_uses_owned_fields_and_preserves_clock_then_save(monkeypatch):
+    state, events = {}, []
+    monkeypatch.setattr(bot, "POST_SLEEP_MIN", 10)
+    monkeypatch.setattr(bot, "POST_SLEEP_MAX", 10)
+    monkeypatch.setattr(bot, "now_epoch", lambda: events.append("clock") or 100)
+    monkeypatch.setattr(bot, "save_state", lambda current: events.append(("save", dict(current))))
+    monkeypatch.setattr(bot, "next_quote_schedule_fields", Mock(side_effect=AssertionError("owned fields bounced through root")))
+    monkeypatch.setattr(bot, "apply_state_fields", Mock(side_effect=AssertionError("fixed application bounced through root")))
+    bot.schedule_next_quote_post(state)
+    assert state == {"next_quote_post_epoch": 110}
+    assert events == ["clock", ("save", {"next_quote_post_epoch": 110})]

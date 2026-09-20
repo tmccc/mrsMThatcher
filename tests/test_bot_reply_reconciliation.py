@@ -38,7 +38,7 @@ def patch_accounting_method(monkeypatch, method, callback):
 
 def test_import_needs_no_runtime_access():
     code = """
-import builtins, collections.abc, copy, dataclasses, io, logging, os, random, re, socket, sys
+import builtins, collections.abc, dataclasses, copy, io, logging, os, random, re, socket, sys
 from pathlib import Path
 
 def forbidden(*args, **kwargs):
