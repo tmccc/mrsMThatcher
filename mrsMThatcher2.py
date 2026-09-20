@@ -2601,7 +2601,12 @@ def validate_pending_mention_candidate_authority(
     recovery_events: list[dict[str, object]] | None = None,
 ) -> tuple[bool, bool]:
     """Delegate to mention authority with current root dependencies."""
-    return _mention_authority_owner().validate_pending(state, path=path, recover_pending_identity=recover_pending_identity, recovery_events=recovery_events)
+    return _mention_authority_owner().validate_pending(
+        state,
+        path=path,
+        recover_pending_identity=recover_pending_identity,
+        recovery_events=recovery_events,
+    )
 
 
 def mention_pagination_has_canonical_page_ownership(
@@ -6590,7 +6595,12 @@ def original_editorial_shadow_score(
     max_abs_adjustment: float | None = None,
 ) -> tuple[float, dict]:
     """Calculate the observational editorial adjustment for one image."""
-    return _original_editorial_owner().score(quote_analysis, editorial, weight=weight, max_abs_adjustment=max_abs_adjustment)
+    return _original_editorial_owner().score(
+        quote_analysis,
+        editorial,
+        weight=weight,
+        max_abs_adjustment=max_abs_adjustment,
+    )
 
 
 def original_editorial_shadow_result(
@@ -6601,7 +6611,12 @@ def original_editorial_shadow_result(
     selection_phase: str,
 ) -> tuple[dict | None, dict | None]:
     """Return the existing editorial comparison and its preferred original."""
-    return _original_editorial_owner().compare(quote_choice, production_choice, scored_candidates, selection_phase=selection_phase)
+    return _original_editorial_owner().compare(
+        quote_choice,
+        production_choice,
+        scored_candidates,
+        selection_phase=selection_phase,
+    )
 
 
 def log_original_editorial_shadow_result(
@@ -6613,7 +6628,13 @@ def log_original_editorial_shadow_result(
     comparison: tuple[dict | None, dict | None] | None = None,
 ) -> None:
     """Log an original-editorial comparison without mutating candidates."""
-    return _original_editorial_owner().log_comparison(quote_choice, production_choice, scored_candidates, selection_phase=selection_phase, comparison=comparison)
+    return _original_editorial_owner().log_comparison(
+        quote_choice,
+        production_choice,
+        scored_candidates,
+        selection_phase=selection_phase,
+        comparison=comparison,
+    )
 
 
 def apply_original_editorial_selection(
@@ -6625,7 +6646,13 @@ def apply_original_editorial_selection(
     comparison: tuple[dict | None, dict | None] | None = None,
 ) -> dict:
     """Replace an original baseline winner with the existing editorial winner."""
-    return _original_editorial_owner().apply_selection(quote_choice, baseline_choice, scored_candidates, selection_phase=selection_phase, comparison=comparison)
+    return _original_editorial_owner().apply_selection(
+        quote_choice,
+        baseline_choice,
+        scored_candidates,
+        selection_phase=selection_phase,
+        comparison=comparison,
+    )
 
 
 def concise_components(components: dict[str, float]) -> str:
@@ -6642,7 +6669,13 @@ def build_quote_candidates(
     excluded_quote_hashes: set[str] | None = None,
 ) -> tuple[list[dict], int, int]:
     """Build analysed, research-eligible quotation candidates for a date."""
-    return _quote_candidates_owner().build(lines, available_lines, quote_analysis, today_mm_dd, excluded_quote_hashes=excluded_quote_hashes)
+    return _quote_candidates_owner().build(
+        lines,
+        available_lines,
+        quote_analysis,
+        today_mm_dd,
+        excluded_quote_hashes=excluded_quote_hashes,
+    )
 
 
 def load_quote_lines_and_analysis() -> tuple[list[str], dict | None, str]:
@@ -6673,7 +6706,11 @@ def quote_candidates_for_current_cycle(
     allow_cycle_reset: bool = True,
 ) -> list[dict]:
     """Build unused candidates; disable cycle resets during image-pair retries."""
-    return _quote_candidates_owner().for_cycle(lines_used, excluded_quote_hashes=excluded_quote_hashes, allow_cycle_reset=allow_cycle_reset)
+    return _quote_candidates_owner().for_cycle(
+        lines_used,
+        excluded_quote_hashes=excluded_quote_hashes,
+        allow_cycle_reset=allow_cycle_reset,
+    )
 
 
 def select_quote_candidate(candidates: list[dict]) -> dict:
@@ -6686,7 +6723,11 @@ def choose_unused_line_candidate(
     allow_cycle_reset: bool = True,
 ) -> dict:
     """Select an unused quotation, optionally preserving history during retries."""
-    return _quote_candidates_owner().choose(lines_used, excluded_quote_hashes=excluded_quote_hashes, allow_cycle_reset=allow_cycle_reset)
+    return _quote_candidates_owner().choose(
+        lines_used,
+        excluded_quote_hashes=excluded_quote_hashes,
+        allow_cycle_reset=allow_cycle_reset,
+    )
 
 
 def _image_selection_owner() -> _image_selection.ImageSelection:
@@ -6756,7 +6797,15 @@ def choose_matched_unused_image(
     selection_phase: str = "normal",
 ) -> dict:
     """Select the highest-scoring eligible unused image for a quotation."""
-    return _image_selection_owner().choose_matched(images_used, quote_choice, state, force_cycle_reset=force_cycle_reset, avoid_last_image_at_cycle_boundary=avoid_last_image_at_cycle_boundary, cycle_boundary_exclusions=cycle_boundary_exclusions, selection_phase=selection_phase)
+    return _image_selection_owner().choose_matched(
+        images_used,
+        quote_choice,
+        state,
+        force_cycle_reset=force_cycle_reset,
+        avoid_last_image_at_cycle_boundary=avoid_last_image_at_cycle_boundary,
+        cycle_boundary_exclusions=cycle_boundary_exclusions,
+        selection_phase=selection_phase,
+    )
 
 
 def choose_regular_quote_image_pair(

@@ -244,7 +244,13 @@ class MentionAuthority:
             canonical[map_key] = dict(candidate)
         return canonical
 
-    def emit_recovery(self, recovery: dict[str, object], *, path: Path, recovery_events: list[dict[str, object]] | None) -> None:
+    def emit_recovery(
+        self,
+        recovery: dict[str, object],
+        *,
+        path: Path,
+        recovery_events: list[dict[str, object]] | None,
+    ) -> None:
         """Collect recovery evidence or emit the existing reset diagnostics."""
         if recovery_events is not None:
             recovery_events.append(recovery)
@@ -258,7 +264,14 @@ class MentionAuthority:
         )
         self.log_event("mention_backlog_reset", **recovery)
 
-    def validate_pending(self, state: dict, *, path: Path, recover_pending_identity: bool, recovery_events: list[dict[str, object]] | None=None) -> tuple[bool, bool]:
+    def validate_pending(
+        self,
+        state: dict,
+        *,
+        path: Path,
+        recover_pending_identity: bool,
+        recovery_events: list[dict[str, object]] | None = None,
+    ) -> tuple[bool, bool]:
         """Canonicalise the queue and reject candidates without coherent provenance.
 
         The boolean pair is ``(usable, changed)``.  A strict state-loader pass uses

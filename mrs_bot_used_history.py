@@ -112,7 +112,12 @@ class UsedHistory:
         current = self.hashlib.sha256("".join(lines).encode("utf-8")).hexdigest()
         return str(expected) == current
 
-    def normalise_quote_used_hashes(self, raw_used: set, lines: list[str], quote_analysis: dict | None = None) -> tuple[set, bool]:
+    def normalise_quote_used_hashes(
+        self,
+        raw_used: set,
+        lines: list[str],
+        quote_analysis: dict | None = None,
+    ) -> tuple[set, bool]:
         """Return whether normalise quote used hashes."""
         hashes_by_line = self.quote_hashes_by_line(lines)
         normalised: set[str] = set()
