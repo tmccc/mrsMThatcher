@@ -65,7 +65,7 @@ assert 'single_call_reply' not in sys.modules
 OWNER_INPUTS = {
     "valid_receipt_epoch": "valid_receipt_epoch", "dates": "_receipt_dates_owner",
     "legacy_draft_is_valid": "_legacy_ai_reply_receipt_draft_is_valid",
-    "draft_is_valid": "ai_reply_receipt_draft_is_valid",
+    "drafts": "_reply_draft_owner",
     "now_epoch": "now_epoch",
     "log": "log", "invalid_receipt": "InvalidConfirmedReplyReceipt",
 }
@@ -84,10 +84,15 @@ def date_owner(*, reply=None, safe=None):
 def make_owner():
     """Compose receipt values with the existing isolated validation boundaries."""
     def build(**overrides):
+        draft_is_valid = overrides.pop("draft_is_valid", None)
         current = {
-            field: getattr(bot, name)() if field == "dates" else getattr(bot, name)
+            field: getattr(bot, name)() if field in {"dates", "drafts"} else getattr(bot, name)
             for field, name in OWNER_INPUTS.items()
         }
+        if draft_is_valid is not None:
+            current["drafts"] = SimpleNamespace(
+                receipt_draft_is_valid=draft_is_valid,
+            )
         return values.ReplyReceiptValues(**{**current, **overrides})
     return build
 
@@ -100,13 +105,14 @@ def test_owner_composition_binds_current_dependencies_without_calling_them(monke
             monkeypatch.setattr(
                 bot,
                 name,
-                Mock(return_value=current[field]) if field == "dates" else current[field],
+                Mock(return_value=current[field]) if field in {"dates", "drafts"} else current[field],
             )
         owner = bot._reply_receipt_values_owner()
         assert isinstance(owner, values.ReplyReceiptValues)
         for field, value in current.items():
             assert getattr(owner, field) is value
-            value.assert_not_called()
+            if field != "drafts":
+                value.assert_not_called()
         snapshots.append((owner, current))
     first, inputs = snapshots[0]
     assert first is not snapshots[1][0]
@@ -229,7 +235,9 @@ def test_source_validation_uses_current_family_callbacks_in_order(monkeypatch, m
     owner = replace(
         owner,
         legacy_draft_is_valid=trace.draft if legacy else wrong_family,
-        draft_is_valid=wrong_family if legacy else trace.draft,
+        drafts=SimpleNamespace(
+            receipt_draft_is_valid=wrong_family if legacy else trace.draft,
+        ),
     )
     sending_method = "legacy_sending_is_valid" if legacy else "sending_is_valid"
     other_method = "sending_is_valid" if legacy else "legacy_sending_is_valid"
@@ -508,7 +516,9 @@ def test_receipt_time_failure_precedes_draft_and_lineage_work(monkeypatch, make_
     draft = Mock(side_effect=AssertionError("invalid time reached draft validation"))
     canonical = Mock(side_effect=AssertionError("invalid time reached source hashing"))
     monkeypatch.setattr(values, "canonical_atomic_json_bytes", canonical)
-    owner = replace(owner, draft_is_valid=draft)
+    owner = replace(
+        owner, drafts=SimpleNamespace(receipt_draft_is_valid=draft),
+    )
     assert not owner.validate({**receipt, **changes}, lifecycle_state=lifecycle)
     draft.assert_not_called()
     canonical.assert_not_called()

@@ -10,6 +10,7 @@ import pytest
 import exact_receipt_retirement as exact_retirement
 import historical_context_formatter as context
 import mrsMThatcher2 as bot
+from mrs_bot_reply_drafts import ReplyDrafts
 from tests.helpers.bot_fixtures import isolate_bot_runtime  # noqa: F401
 import remote_write_transport_journal as journal
 from transaction_mutation_authority import issue_transaction_mutation_authority
@@ -308,7 +309,7 @@ def test_conversational_confirmed_receipt_cannot_retire_different_source(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    monkeypatch.setattr(bot, "ai_reply_receipt_draft_is_valid", lambda *_args: True)
+    monkeypatch.setattr(ReplyDrafts, "receipt_draft_is_valid", lambda *_args: True)
     path = tmp_path / "confirmed_reply_receipt.json"
     original = _conversational_sending(author_id="42")
     assert bot.sending_reply_receipt_is_semantically_valid(original)
@@ -510,7 +511,7 @@ def test_conversational_reconciliation_rejects_wrong_source_before_state_mutatio
 ) -> None:
     path = tmp_path / "confirmed_reply_receipt.json"
     monkeypatch.setattr(bot, "CONFIRMED_REPLY_RECEIPT_FILE", path)
-    monkeypatch.setattr(bot, "ai_reply_receipt_draft_is_valid", lambda *_args: True)
+    monkeypatch.setattr(ReplyDrafts, "receipt_draft_is_valid", lambda *_args: True)
     original = _conversational_sending(author_id="42")
     _confirm_source(
         path,
@@ -633,7 +634,7 @@ def test_conversational_promotion_rejects_equal_byte_replacement_inode(
 ) -> None:
     path = tmp_path / "confirmed_reply_receipt.json"
     monkeypatch.setattr(bot, "CONFIRMED_REPLY_RECEIPT_FILE", path)
-    monkeypatch.setattr(bot, "ai_reply_receipt_draft_is_valid", lambda *_args: True)
+    monkeypatch.setattr(ReplyDrafts, "receipt_draft_is_valid", lambda *_args: True)
     source = _conversational_sending(author_id="42")
     source_bytes = bot.canonical_atomic_json_bytes(source)
     payload = {
@@ -789,7 +790,7 @@ def test_conversational_promotion_rejects_peer_aba_after_source_binding(
 
     path = tmp_path / "confirmed_reply_receipt.json"
     monkeypatch.setattr(bot, "CONFIRMED_REPLY_RECEIPT_FILE", path)
-    monkeypatch.setattr(bot, "ai_reply_receipt_draft_is_valid", lambda *_args: True)
+    monkeypatch.setattr(ReplyDrafts, "receipt_draft_is_valid", lambda *_args: True)
     source = _conversational_sending(author_id="42")
     source_bytes = bot.canonical_atomic_json_bytes(source)
     payload = {

@@ -305,22 +305,29 @@ def test_young_pending_quote_survives_restart_and_watch_changes(monkeypatch, wat
 
 
 def test_quote_owner_handoffs_keep_current_recovery_and_chronological_model_history(monkeypatch):
-    """Use actual owners together without returning through their root adapters."""
+    """Use actual generation-through-completion owners without root adapters."""
     watch_type = bot._quote_discovery.QuoteWatchPosts
     watch_lookup = watch_type.lookup
     tweets_type = bot._tweet_lookup_cache.TweetLookupCache
     get_cached = tweets_type.get_cached
     media_type = bot._reply_native_media.ReplyMedia
     prepare_media = media_type.context
+    create_post = bot.create_post
     search, _clock, lookup = _install_quote_pages(monkeypatch, first_ids=("912",))
+    monkeypatch.setattr(bot, "create_post", create_post)
     monkeypatch.setattr(watch_type, "lookup", watch_lookup)
     monkeypatch.setattr(media_type, "context", prepare_media)
     original = lookup.return_value
     monkeypatch.setattr(tweets_type, "get_cached", get_cached)
-    fetch = Mock(return_value=original)
-    patch_tweet_lookup_method(monkeypatch, "fetch", fetch)
-
     state = bot.default_state()
+
+    def fetch_current(tweet_id, **_kwargs):
+        if str(tweet_id) == "900":
+            return original
+        return state["quote_pending_candidates"][str(tweet_id)]
+
+    fetch = Mock(side_effect=fetch_current)
+    patch_tweet_lookup_method(monkeypatch, "fetch", fetch)
     state["recent_own_post_ids"] = ["900"]
     target_epoch = bot.parse_x_datetime_to_epoch(original["created_at"])
     state["ai_reply_history"] = [
@@ -385,10 +392,15 @@ def test_quote_owner_handoffs_keep_current_recovery_and_chronological_model_hist
         assert isinstance(kwargs["transport"].__self__, bot._reply_model_transport.ReplyModelTransport)
         saved = json.loads(bot.STATE_FILE.read_text())
         assert set(saved["quote_pending_candidates"]) == {"912"}
-        return _no_reply()
+        return bot.PipelineResult(
+            status="reply", reason="useful_reply",
+            reply=unit_approved_reply(kwargs["context"]), model_call_count=1,
+        )
 
     pipeline = Mock(side_effect=evaluate_pipeline)
     monkeypatch.setattr(bot, "run_single_call_reply_pipeline", pipeline)
+    remote = Mock(return_value={"data": {"id": "950912"}})
+    install_receipt_bound_x_request_stub(monkeypatch, remote)
     relays = {}
     for name in (
         "build_quote_lookup_post_ids", "build_quote_tweet_reply_context",
@@ -397,17 +409,25 @@ def test_quote_owner_handoffs_keep_current_recovery_and_chronological_model_hist
         "recovery_comparison_account_replies", "collect_reply_images",
         "openai_responses_reply_call", "_openai_api_error",
         "reply_media_context_for_candidate",
+        "load_confirmed_reply_receipt", "reconcile_confirmed_reply_receipt",
+        "bind_conversational_reply_attempt_time",
+        "reply_target_is_available_immediately_before_send",
+        "post_conversational_reply_with_durable_identity",
+        "apply_confirmed_reply_receipt",
     ):
         relays[name] = Mock(side_effect=AssertionError(f"root relay used: {name}"))
         monkeypatch.setattr(bot, name, relays[name])
 
-    assert bot.maybe_reply_to_quote_tweets(state) == bot.QUOTE_CHECK_STATUS_CHECKED
+    assert bot.maybe_reply_to_quote_tweets(state) == bot.QUOTE_CHECK_STATUS_POSTED
     assert len(prepared) == pipeline.call_count == search.call_count == 1
     assert collected_media == [prepared[0].media_context]
     assert state["tweet_cache"]["912"]["text"] == prepared[0].context["incoming_contribution"]
     assert state["quote_pending_candidates"] == {}
-    assert "912" in state["skipped_quote_post_ids"]
+    assert "912" in state["replied_to_quote_post_ids"]
+    assert state["daily_reply_count"] == state["daily_quote_reply_count"] == 1
+    assert state["ai_reply_history"][-1]["reply_post_id"] == "950912"
     assert bot.load_state()["quote_pending_candidates"] == {}
+    assert not bot.CONFIRMED_REPLY_RECEIPT_FILE.exists()
     for relay in relays.values():
         relay.assert_not_called()
-    bot.create_post.assert_not_called()
+    assert remote.call_count == 1

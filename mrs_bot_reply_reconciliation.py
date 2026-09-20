@@ -1,8 +1,10 @@
 """Apply and reconcile already-confirmed conversational reply state.
 
-Root adapters supply current receipt-value, date, clarification and accounting
-owners, helpers, settings, paths, logger and application exception classes on
-every call. Receipt fallback dates call the shared ReceiptDates owner directly.
+Root adapters supply current receipt-value, draft, tweet, mention-authority,
+mention-queue, history, clarification, accounting and receipt owners with
+settings, paths, logger and application exception classes on every call.
+Confirmed application calls those owners directly; receipt fallback dates call
+the shared ReceiptDates owner directly.
 ReplyCompletion owns durable commit and ordered cleanup for fresh, restarted and
 emergency completion, preserving their distinct error boundaries. Bodies retain
 mutation, callback, reference and error order, including source
@@ -14,7 +16,7 @@ page ownership and recovery reporting retain current callbacks. Receipt I/O,
 transport journals, persistence and posting keep their existing boundaries.
 Receipt values use the supplied owner directly. Import uses the standard library
 and inert state owners, with no file, environment, provider or RNG work;
-no callbacks are retained.
+no caller state is retained.
 """
 
 from __future__ import annotations
@@ -37,9 +39,15 @@ from mrs_bot_mention_authority import (
 if TYPE_CHECKING:
     from mrs_bot_reply_clarifications import ClarificationReplies
     from mrs_bot_daily_reply_accounting import DailyReplyAccounting
+    from mrs_bot_mention_authority import MentionAuthority
+    from mrs_bot_mention_discovery import MentionQueue
     from mrs_bot_receipt_primitives import ReceiptDates
+    from mrs_bot_reply_delivery import ReplyReceipts
+    from mrs_bot_reply_drafts import ReplyDrafts
+    from mrs_bot_reply_history import ReplyHistory
     from mrs_bot_reply_receipt_values import ReplyReceiptValues
     from mrs_bot_state_generation import StateCommitProof
+    from mrs_bot_tweet_lookup_cache import TweetLookupCache
 
 
 def apply_confirmed_reply_receipt(
@@ -47,21 +55,18 @@ def apply_confirmed_reply_receipt(
     receipt: dict,
     *,
     receipt_values: ReplyReceiptValues,
-    validate_pending_mention_candidate_authority: Callable,
+    mention_authority: MentionAuthority,
+    mention_queue: MentionQueue,
     STATE_FILE: Path,
     InvalidConfirmedReplyReceipt: type[Exception],
     dates: ReceiptDates,
     accounting: DailyReplyAccounting,
-    mention_pagination_has_canonical_page_ownership: Callable,
-    _emit_mention_authority_recovery: Callable,
     log: logging.Logger,
-    clear_target_drafts: Callable[[dict, str, str], None],
-    remove_pending_mention_candidate: Callable,
-    update_last_seen_mention_id: Callable,
-    cache_tweet: Callable,
+    drafts: ReplyDrafts,
+    tweets: TweetLookupCache,
     MY_USER_ID: str,
     datetime: type,
-    record_reply_history: Callable,
+    history: ReplyHistory,
     clarifications: ClarificationReplies,
     log_event: Callable,
 ) -> None:
@@ -75,7 +80,7 @@ def apply_confirmed_reply_receipt(
     reply_text = str(receipt.get("reply_text") or "")
     if candidate_source == "mention":
         authority_usable, _authority_changed = (
-            validate_pending_mention_candidate_authority(
+            mention_authority.validate_pending(
                 state,
                 path=STATE_FILE,
                 recover_pending_identity=True,
@@ -103,12 +108,11 @@ def apply_confirmed_reply_receipt(
         state, receipt, target_id=target_id, candidate_source=candidate_source,
         InvalidConfirmedReplyReceipt=InvalidConfirmedReplyReceipt,
         STATE_FILE=STATE_FILE,
-        mention_pagination_has_canonical_page_ownership=mention_pagination_has_canonical_page_ownership,
-        _emit_mention_authority_recovery=_emit_mention_authority_recovery,
+        mention_authority=mention_authority,
         log=log,
     )
     # A confirmed public reply retires drafts for this target in every lane.
-    clear_target_drafts(state, target_id, candidate_source)
+    drafts.clear_target(state, target_id, candidate_source)
 
     if candidate_source == "quote_tweet":
         replied_to_ids = set(str(x) for x in state.get("replied_to_quote_post_ids", []))
@@ -143,7 +147,7 @@ def apply_confirmed_reply_receipt(
         state["last_reply_epoch"] = reply_epoch
 
     if candidate_source == "mention":
-        remove_pending_mention_candidate(state, target_id)
+        mention_queue.remove_pending(state, target_id)
         if mention_pagination_to_preserve is not None:
             state["mention_pagination"] = mention_pagination_to_preserve
             log.info(
@@ -160,9 +164,9 @@ def apply_confirmed_reply_receipt(
                 target_id,
             )
         else:
-            update_last_seen_mention_id(state, target_id)
+            mention_queue.advance_watermark(state, target_id)
 
-    cache_tweet(
+    tweets.store(
         state,
         tweet_id=reply_post_id,
         text=reply_text,
@@ -183,7 +187,7 @@ def apply_confirmed_reply_receipt(
     )
     ai_reply_draft = receipt.get("ai_reply_draft")
     if isinstance(ai_reply_draft, dict):
-        record_reply_history(
+        history.record_confirmation(
             state, receipt, ai_reply_draft,
             target_id=target_id,
             reply_post_id=reply_post_id,
@@ -222,8 +226,7 @@ def _mention_pagination_to_preserve(
     candidate_source: str,
     InvalidConfirmedReplyReceipt: type[Exception],
     STATE_FILE: Path,
-    mention_pagination_has_canonical_page_ownership: Callable,
-    _emit_mention_authority_recovery: Callable,
+    mention_authority: MentionAuthority,
     log: logging.Logger,
 ) -> dict | None:
     """Preserve receipt or legacy pagination after checking its canonical ownership."""
@@ -258,12 +261,12 @@ def _mention_pagination_to_preserve(
     else:
         return None
 
-    if not mention_pagination_has_canonical_page_ownership(
+    if not mention_authority.owns_page(
         state, pagination, target_id=target_id,
     ):
         discarded = len(state.get("mention_pending_candidates", {}))
         _reset_mention_candidate_authority(state, watermark=current_since_id)
-        _emit_mention_authority_recovery(
+        mention_authority.emit_recovery(
             {
                 "reason": "receipt_page_ownership_missing",
                 "since_id": current_since_id or None,
@@ -296,7 +299,7 @@ class ReplyCompletion:
     retire_journal: Callable
     remove_receipt: Callable
     log: logging.Logger
-    load_receipt: Callable
+    receipts: ReplyReceipts
     unresolved_sending_receipt: type[Exception]
     invalid_receipt: type[Exception]
     verify_lineage: Callable
@@ -362,7 +365,7 @@ class ReplyCompletion:
 
     def reconcile(self, state: dict) -> bool:
         """Reconcile a confirmed reply without duplicating the remote post."""
-        status, receipt = self.load_receipt()
+        status, receipt = self.receipts.load()
         if status == "absent":
             return False
         if status in {"sending", "legacy_sending"} and receipt is not None:

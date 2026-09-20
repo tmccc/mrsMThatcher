@@ -143,14 +143,29 @@ def test_adapters_forward_current_dependencies_arguments_results_and_errors(monk
                         patch.setattr(bot, owner_factories[key], factories[key])
                     else:
                         patch.setattr(bot, key, value)
+                draft_owner = Mock(return_value=Mock())
+                patch.setattr(bot, "_reply_draft_owner", draft_owner)
                 assert adapter(*args) is result, name
                 for key, factory in factories.items():
-                    if key in {"generation", "delivery"} and name == "maybe_reply_to_quote_tweets":
-                        factory.assert_called_once_with(cooldowns=current["cooldowns"])
+                    if key == "generation" and name == "maybe_reply_to_quote_tweets":
+                        factory.assert_called_once_with(
+                            cooldowns=current["cooldowns"], history=current["history"],
+                        )
+                    elif key == "delivery" and name == "maybe_reply_to_quote_tweets":
+                        factory.assert_called_once_with(
+                            cooldowns=current["cooldowns"], drafts=draft_owner.return_value,
+                            tweets=current["tweets"],
+                        )
                     elif key == "watch_posts" and name == "maybe_reply_to_quote_tweets":
                         factory.assert_called_once_with(tweets=current["tweets"])
+                    elif key == "persistence" and name == "maybe_reply_to_quote_tweets":
+                        factory.assert_called_once_with(drafts=draft_owner.return_value)
                     else:
                         factory.assert_called_once_with()
+                if name == "maybe_reply_to_quote_tweets":
+                    draft_owner.assert_called_once_with(
+                        history=current["history"], generation=current["generation"],
+                    )
                 actual_args, actual_kwargs = owner.call_args
                 assert len(actual_args) == len(args)
                 assert all(actual is expected for actual, expected in zip(actual_args, args))
@@ -327,13 +342,21 @@ def test_both_daily_resets_and_confirmed_reconciliation_precede_barrier_when_dis
         "reset_daily_quote_reply_count_if_needed": "reset_quotes",
     }
     for name in (*resets, "reconcile_confirmed_reply_receipt"):
-        callback = Mock(wraps=getattr(accounting, resets[name]) if name in resets else getattr(bot, name))
+        callback = Mock(wraps=(
+            getattr(accounting, resets[name])
+            if name in resets else bot._reply_completion_owner().reconcile
+        ))
         trace.attach_mock(callback, name)
         if name in resets:
             patch_reply_owner_method(monkeypatch, accounting_owner.DailyReplyAccounting, resets[name], callback)
         else:
-            monkeypatch.setattr(bot, name, callback)
-    original_barrier = bot.block_if_ambiguous_remote_post
+            patch_reply_owner_method(
+                monkeypatch, bot._reply_reconciliation.ReplyCompletion, "reconcile", callback,
+            )
+            monkeypatch.setattr(
+                bot, name, Mock(side_effect=AssertionError("obsolete reconciliation relay used")),
+            )
+    original_barrier = bot._reply_remote_write_barrier()
 
     def barrier():
         saved = json.loads(bot.STATE_FILE.read_text())
@@ -344,7 +367,11 @@ def test_both_daily_resets_and_confirmed_reconciliation_precede_barrier_when_dis
         return original_barrier()
 
     trace.attach_mock(Mock(side_effect=barrier), "barrier")
-    monkeypatch.setattr(bot, "block_if_ambiguous_remote_post", trace.barrier)
+    monkeypatch.setattr(bot, "_reply_remote_write_barrier", Mock(return_value=trace.barrier))
+    monkeypatch.setattr(
+        bot, "block_if_ambiguous_remote_post",
+        Mock(side_effect=AssertionError("obsolete reply barrier relay used")),
+    )
     watch = Mock(side_effect=AssertionError("disabled cycle must not inspect watched posts"))
     patch_reply_owner_method(monkeypatch, quote_discovery.QuoteWatchPosts, "lookup", watch)
     assert bot.maybe_reply_to_quote_tweets(state) == bot.QUOTE_CHECK_STATUS_DISABLED
@@ -452,6 +479,7 @@ def test_reused_draft_keeps_context_references_durability_and_pre_send_availabil
         "cache_tweet": bot._tweet_lookup_cache_owner().store,
         "build_quote_tweet_reply_context": bot._reply_context_owner().build_quote,
         "recovery_comparison_account_replies": bot._reply_history_owner().recovery_replies,
+        "bind_conversational_reply_attempt_time": bot._reply_receipt_values_owner().bind_attempt,
     }
     for name in ("cache_tweet", "save_state", "build_quote_tweet_reply_context",
                  "reply_evidence_repository", "recovery_comparison_account_replies",
@@ -471,6 +499,14 @@ def test_reused_draft_keeps_context_references_durability_and_pre_send_availabil
             patch_tweet_lookup_method(monkeypatch, "store", callback)
         elif name == "build_quote_tweet_reply_context":
             patch_reply_context_method(monkeypatch, "build_quote", callback)
+        elif name == "bind_conversational_reply_attempt_time":
+            patch_reply_owner_method(
+                monkeypatch, bot._reply_receipt_values.ReplyReceiptValues,
+                "bind_attempt", callback,
+            )
+            monkeypatch.setattr(
+                bot, name, Mock(side_effect=AssertionError("obsolete receipt-value relay used")),
+            )
         else:
             monkeypatch.setattr(bot, name, callback)
     generate = Mock(side_effect=AssertionError("draft must be reused"))
@@ -483,7 +519,11 @@ def test_reused_draft_keeps_context_references_durability_and_pre_send_availabil
         return False
 
     trace.attach_mock(Mock(side_effect=unavailable), "available")
-    monkeypatch.setattr(bot, "reply_target_is_available_immediately_before_send", trace.available)
+    patch_tweet_lookup_method(monkeypatch, "target_is_available", trace.available)
+    monkeypatch.setattr(
+        bot, "reply_target_is_available_immediately_before_send",
+        Mock(side_effect=AssertionError("obsolete availability relay used")),
+    )
     assert bot.maybe_reply_to_quote_tweets(state) == bot.QUOTE_CHECK_STATUS_CHECKED
     names = [c[0] for c in trace.mock_calls]
     assert names[:4] == ["cache_tweet", "save_state", "build_quote_tweet_reply_context", "reply_evidence_repository"]

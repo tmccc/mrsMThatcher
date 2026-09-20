@@ -104,8 +104,7 @@ Conversational receipt composition shares one current `ReceiptDates` across
 London daily-cap conversion therefore bypasses the public date adapters while
 ambient `epoch_date_str` and receipt-bound main-post timezone conversion remain
 separate. `DailyReplyAccounting` stays at 2 constructor dependencies but drops
-its callback-typed dependency from 1 to 0; `ReplyReceiptValues` falls from 8
-dependencies (6 callback-typed) to 7 (4). Construction remains inert: file
+its callback-typed dependency from 1 to 0. Construction remains inert: file
 catalogues, clocks, random draws and state saves begin only in invoked methods.
 Hand-off tests make obsolete relays raise while exercising real owners, DST/date
 conversion, same-day guards, retry scheduling and receipt accounting.
@@ -198,13 +197,29 @@ keeps traversal selection, page budgets and cursor recovery. Its explicit
 progress record tracks valid rows seen, highest ID, page count and completion;
 completion is set after the durable save and before the completion event.
 
-Receipt loading and delivery bind one current `ReplyReceiptValues` owner for
-validation and in-memory projections. `prepare_sending_template` checks current
-send authority before receipt I/O and preserves reviewed nested objects in a
-fresh outer mapping. Current and frozen legacy source promotions use the same
-transaction operation with their separate validators; journal binding, exact
-source bytes and replacement authority remain in delivery. Root compatibility
-entry points and receipt-removal commit-proof checks are unchanged.
+Draft, receipt, delivery and completion composition now follows typed owners all
+the way through each lane. `ReplyDrafts` calls `ReplyHistory` and
+`ReplyGeneration`; `ReplyReceiptValues` calls `ReplyDrafts`; `ReplyCycleDelivery`
+calls `ReplyReceipts`, `ReplyCompletion`, `TweetLookupCache` and receipt values;
+confirmed application calls `MentionAuthority`, `MentionQueue`, `ReplyDrafts`,
+`TweetLookupCache` and `ReplyHistory`. Receipt-aware global barriers are composed
+directly rather than loading through the public receipt adapter. Public root
+entry points retain their names and behavior.
+
+`ReplyDrafts` remains at 12 constructor dependencies while callback-typed fields
+fall from 5 to 3. `ReplyReceiptValues` remains at 7 and falls from 4 to 3;
+`ReplyReceipts` remains 18 (11 callback-typed); `ReplyCompletion` remains 11 and
+falls from 6 callbacks to 5; `ReplyCycleDelivery` falls from 18 dependencies
+(11 callback-typed) to 17 (6). Confirmed-state application falls from 20 total
+parameters to 17 by replacing eight relays with five typed owners. Construction
+remains inert, while each root invocation binds current runtime dependencies.
+
+`prepare_sending_template` checks current send authority before receipt I/O and
+preserves reviewed nested objects in a fresh outer mapping. Current and frozen
+legacy source promotions use the same transaction operation with their separate
+validators; journal binding, exact source bytes and replacement authority remain
+in delivery. Receipt removal retains its commit-proof gate, and
+`ReplyReceipts.current_receipts` still refreshes later operations.
 Sending and confirmed receipt publication also share one operation, keeping
 retirement, namespace, validation and exclusive-create checks in that order.
 `ReplyCompletion` shares receipt-commit recording and durable saving, followed by

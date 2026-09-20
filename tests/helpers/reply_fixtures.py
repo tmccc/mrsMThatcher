@@ -106,7 +106,7 @@ def patch_reply_receipt_method(monkeypatch, bot, method: str, callback) -> None:
     monkeypatch.setattr(
         bot,
         "_reply_receipts_owner",
-        lambda: FixtureReplyReceipts(**vars(owner_factory())),
+        lambda **kwargs: FixtureReplyReceipts(**vars(owner_factory(**kwargs))),
     )
 
 

@@ -59,6 +59,10 @@ class MentionQueue:
     sort_candidates: Callable
     log: Logger
 
+    def remove_pending(self, state: dict, mention_id: str) -> bool:
+        """Remove one completely handled mention from the durable queue."""
+        return remove_pending_mention_candidate(state, mention_id)
+
     def pending(self, state: dict) -> list[dict]:
         """Return the durable fetched-candidate queue, deduplicated by status ID."""
         usable, changed = self.authority.validate_pending(
@@ -96,7 +100,7 @@ class MentionQueue:
 
     def mark_seen(self, state: dict, candidate: dict) -> None:
         """Retire a durably queued mention, with legacy watermark compatibility."""
-        if candidate.get("_source", "mention") == "mention" and remove_pending_mention_candidate(
+        if candidate.get("_source", "mention") == "mention" and self.remove_pending(
             state,
             str(candidate.get("id", "")),
         ):

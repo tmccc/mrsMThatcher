@@ -18,6 +18,8 @@ import pytest
 import exact_receipt_retirement as receipt_retirement
 import remote_write_transport_journal as journal
 import remote_write_safety_protocol as safety_protocol
+from mrs_bot_mention_authority import MentionAuthority
+from mrs_bot_reply_drafts import ReplyDrafts
 from tests.helpers.protocol_activation import create_test_protocol_activation
 from tools import reconcile_remote_write_safety_marker as reconcile
 from transaction_mutation_authority import (
@@ -1591,10 +1593,10 @@ def test_offline_adoption_then_existing_startup_recovers_without_x_post(
     monkeypatch.setattr(bot, "_AMBIGUOUS_REMOTE_POST_SEEN", False)
     monkeypatch.setattr(bot, "_AMBIGUOUS_MARKER_DURABILITY_UNCERTAIN", False)
     monkeypatch.setattr(bot, "global_remote_writes_paused", lambda: False)
-    monkeypatch.setattr(bot, "ai_reply_receipt_draft_is_valid", lambda *_args: True)
+    monkeypatch.setattr(ReplyDrafts, "receipt_draft_is_valid", lambda *_args: True)
     monkeypatch.setattr(
-        bot,
-        "validate_pending_mention_candidate_authority",
+        MentionAuthority,
+        "validate_pending",
         lambda *_args, **_kwargs: (True, False),
     )
     monkeypatch.setattr(

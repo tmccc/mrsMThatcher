@@ -3525,11 +3525,15 @@ def reply_target_is_directly_eligible(tweet: dict) -> bool:
     )
 
 
-def _mention_queue_owner() -> _mention_discovery.MentionQueue:
+def _mention_queue_owner(
+    *, authority: _mention_authority.MentionAuthority | None = None,
+) -> _mention_discovery.MentionQueue:
     """Bind current mention queue boundaries without reading state or files."""
+    if authority is None:
+        authority = _mention_authority_owner()
     return _mention_discovery.MentionQueue(
         state_file=STATE_FILE,
-        authority=_mention_authority_owner(),
+        authority=authority,
         save=save_state,
         sort_candidates=valid_tweets_sorted_by_id,
         log=log,
@@ -4281,7 +4285,7 @@ def block_if_ambiguous_remote_post(
     prepared_transport_authority: TransportAuthority | None = None,
 ) -> None:
     """Refuse posting while a remote-write safety incident is unresolved."""
-    return _remote_write_barriers.block_if_ambiguous_remote_post(
+    return _reply_remote_write_barrier()(
         prepared_conversational_reply_receipt=prepared_conversational_reply_receipt,
         prepared_historical_context_reply_receipt=prepared_historical_context_reply_receipt,
         prepared_main_post_attempt=prepared_main_post_attempt,
@@ -4289,6 +4293,17 @@ def block_if_ambiguous_remote_post(
         allow_historical_context_receipt_reconciliation=allow_historical_context_receipt_reconciliation,
         allow_historical_context_outbox_reconciliation_parent_id=allow_historical_context_outbox_reconciliation_parent_id,
         prepared_transport_authority=prepared_transport_authority,
+    )
+
+
+def _reply_remote_write_barrier(
+    *, receipts: _reply_delivery.ReplyReceipts | None = None,
+) -> functools.partial:
+    """Compose the global write barrier with a direct reply-receipt owner."""
+    if receipts is None:
+        receipts = _reply_receipts_owner()
+    return functools.partial(
+        _remote_write_barriers.block_if_ambiguous_remote_post,
         AmbiguousRemotePostOutcome=AmbiguousRemotePostOutcome,
         CONFIRMED_REPLY_RECEIPT_FILE=CONFIRMED_REPLY_RECEIPT_FILE,
         HISTORICAL_CONTEXT_REPLY_RECEIPT_FILE=HISTORICAL_CONTEXT_REPLY_RECEIPT_FILE,
@@ -4307,7 +4322,7 @@ def block_if_ambiguous_remote_post(
         historical_context_receipt_parent_for_local_reconciliation=historical_context_receipt_parent_for_local_reconciliation,
         historical_context_receipt_path_present_or_unsafe=historical_context_receipt_path_present_or_unsafe,
         inspect_transport_state=inspect_transport_state,
-        load_confirmed_reply_receipt=load_confirmed_reply_receipt,
+        load_confirmed_reply_receipt=receipts.load,
         load_meme_post_receipt=load_meme_post_receipt,
         load_regular_post_receipt=load_regular_post_receipt,
         remote_write_transport_journal_paths=remote_write_transport_journal_paths,
@@ -4643,6 +4658,11 @@ def create_post(
     on_remote_transaction_started: Callable[[], None] | None = None,
 ) -> dict:
     """Create an X post with transactional ambiguity handling."""
+    remote_write_barrier = (
+        _reply_remote_write_barrier()
+        if prepared_conversational_reply_receipt is not None
+        else block_if_ambiguous_remote_post
+    )
     return _post_creation.create_post(
         text,
         media_ids,
@@ -4664,7 +4684,7 @@ def create_post(
         arm_transport_transaction=arm_transport_transaction,
         begin_transport_transaction=begin_transport_transaction,
         bind_lane_transport_source=bind_lane_transport_source,
-        block_if_ambiguous_remote_post=block_if_ambiguous_remote_post,
+        block_if_ambiguous_remote_post=remote_write_barrier,
         block_if_remote_write_safety_incident_latched=block_if_remote_write_safety_incident_latched,
         confirm_transport_transaction=confirm_transport_transaction,
         confirmation_epoch_after_remote_success=confirmation_epoch_after_remote_success,
@@ -6833,13 +6853,21 @@ def is_probably_spam_or_not_worth_replying(text: str) -> bool:
     )
 
 
-def _reply_draft_owner() -> _reply_drafts.ReplyDrafts:
-    """Bind current draft dependencies without acquiring evidence or caller state."""
+def _reply_draft_owner(
+    *,
+    history: _reply_history.ReplyHistory | None = None,
+    generation: _reply_generation.ReplyGeneration | None = None,
+) -> _reply_drafts.ReplyDrafts:
+    """Compose current draft owners without acquiring evidence or caller state."""
+    if history is None:
+        history = _reply_history_owner()
+    if generation is None:
+        generation = _reply_generation_owner(history=history)
     return _reply_drafts.ReplyDrafts(
         validate_persisted_draft=validate_single_call_persisted_draft,
         evidence_repository=reply_evidence_repository,
-        comparison_replies=_reply_history_owner().recovery_replies,
-        record_result=_record_single_call_result,
+        history=history,
+        generation=generation,
         log_event=log_event,
         log=log,
         strategy_version=SINGLE_CALL_STRATEGY_VERSION,
@@ -7121,16 +7149,19 @@ _TERMINAL_CANDIDATE_LOCAL_FAILURE_CATEGORIES = _reply_generation._TERMINAL_CANDI
 def _reply_generation_owner(
     *,
     cooldowns: _api_cooldowns.ApiCooldowns | None = None,
+    history: _reply_history.ReplyHistory | None = None,
 ) -> _reply_generation.ReplyGeneration:
     """Compose current generation owners without collecting evidence or media."""
     if cooldowns is None:
         cooldowns = _api_cooldown_owner()
+    if history is None:
+        history = _reply_history_owner()
     return _reply_generation.ReplyGeneration(
         media=_reply_media_owner(),
         remote_operations_paused=RemoteOperationsPaused,
         result_type=PipelineResult,
         log=log,
-        history=_reply_history_owner(),
+        history=history,
         require_remote_operation_unpaused=require_remote_operation_unpaused,
         run_pipeline=run_single_call_reply_pipeline,
         config=single_call_reply,
@@ -7346,16 +7377,20 @@ def _legacy_ai_reply_receipt_draft_is_valid(data: dict, text: object) -> bool:
 
 
 def _reply_receipt_values_owner(
-    *, dates: _receipt_primitives.ReceiptDates | None = None,
+    *,
+    dates: _receipt_primitives.ReceiptDates | None = None,
+    drafts: _reply_drafts.ReplyDrafts | None = None,
 ) -> _reply_receipt_values.ReplyReceiptValues:
     """Bind current receipt value boundaries without reading the clock or state."""
     if dates is None:
         dates = _receipt_dates_owner()
+    if drafts is None:
+        drafts = _reply_draft_owner()
     return _reply_receipt_values.ReplyReceiptValues(
         valid_receipt_epoch=valid_receipt_epoch,
         dates=dates,
         legacy_draft_is_valid=_legacy_ai_reply_receipt_draft_is_valid,
-        draft_is_valid=ai_reply_receipt_draft_is_valid,
+        drafts=drafts,
         now_epoch=now_epoch,
         log=log,
         invalid_receipt=InvalidConfirmedReplyReceipt,
@@ -7411,13 +7446,17 @@ def _legacy_sending_reply_receipt_is_semantically_valid(data: dict) -> bool:
     return _reply_receipt_values_owner().legacy_sending_is_valid(data)
 
 
-def _reply_receipts_owner() -> _reply_delivery.ReplyReceipts:
+def _reply_receipts_owner(
+    *, values: _reply_receipt_values.ReplyReceiptValues | None = None,
+) -> _reply_delivery.ReplyReceipts:
     """Bind runtime receipt authorities for one load, publication or promotion."""
+    if values is None:
+        values = _reply_receipt_values_owner()
     return _reply_delivery.ReplyReceipts(
         path=CONFIRMED_REPLY_RECEIPT_FILE,
         read_json=load_receipt_json_no_follow,
         log=log,
-        values=_reply_receipt_values_owner(),
+        values=values,
         retirement_is_blocking=remote_receipt_retirement_is_blocking,
         invalid_receipt=InvalidConfirmedReplyReceipt,
         namespace_entry_exists=receipt_namespace_entry_exists,
@@ -7560,30 +7599,54 @@ def _advance_reply_counters_to_confirmation_date(
     )
 
 
-def apply_confirmed_reply_receipt(state: dict, receipt: dict) -> None:
-    """Apply confirmed reply receipt."""
-    dates = _receipt_dates_owner()
-    return _reply_reconciliation.apply_confirmed_reply_receipt(
-        state, receipt,
-        receipt_values=_reply_receipt_values_owner(dates=dates),
-        validate_pending_mention_candidate_authority=validate_pending_mention_candidate_authority,
+def _confirmed_reply_state_applier(
+    *,
+    dates: _receipt_primitives.ReceiptDates | None = None,
+    drafts: _reply_drafts.ReplyDrafts | None = None,
+    receipt_values: _reply_receipt_values.ReplyReceiptValues | None = None,
+    mention_authority: _mention_authority.MentionAuthority | None = None,
+    mention_queue: _mention_discovery.MentionQueue | None = None,
+    tweets: _tweet_lookup_cache.TweetLookupCache | None = None,
+    history: _reply_history.ReplyHistory | None = None,
+) -> functools.partial:
+    """Compose current typed owners for one confirmed-state application."""
+    if dates is None:
+        dates = _receipt_dates_owner()
+    if drafts is None:
+        drafts = receipt_values.drafts if receipt_values is not None else _reply_draft_owner()
+    if receipt_values is None:
+        receipt_values = _reply_receipt_values_owner(dates=dates, drafts=drafts)
+    if mention_authority is None:
+        mention_authority = _mention_authority_owner()
+    if mention_queue is None:
+        mention_queue = _mention_queue_owner(authority=mention_authority)
+    if tweets is None:
+        tweets = _tweet_lookup_cache_owner()
+    if history is None:
+        history = _reply_history_owner()
+    return functools.partial(
+        _reply_reconciliation.apply_confirmed_reply_receipt,
+        receipt_values=receipt_values,
+        mention_authority=mention_authority,
+        mention_queue=mention_queue,
         STATE_FILE=STATE_FILE,
         InvalidConfirmedReplyReceipt=InvalidConfirmedReplyReceipt,
         dates=dates,
         accounting=_daily_reply_accounting_owner(dates=dates),
-        mention_pagination_has_canonical_page_ownership=mention_pagination_has_canonical_page_ownership,
-        _emit_mention_authority_recovery=_emit_mention_authority_recovery,
         log=log,
-        clear_target_drafts=_reply_draft_owner().clear_target,
-        remove_pending_mention_candidate=remove_pending_mention_candidate,
-        update_last_seen_mention_id=update_last_seen_mention_id,
-        cache_tweet=cache_tweet,
+        drafts=drafts,
+        tweets=tweets,
         MY_USER_ID=MY_USER_ID,
         datetime=datetime,
-        record_reply_history=_reply_history_owner().record_confirmation,
+        history=history,
         clarifications=_clarification_reply_owner(),
         log_event=log_event,
     )
+
+
+def apply_confirmed_reply_receipt(state: dict, receipt: dict) -> None:
+    """Apply a confirmed reply through freshly composed typed owners."""
+    return _confirmed_reply_state_applier()(state, receipt)
 
 
 def update_last_seen_mention_id(state: dict, mention_id: str) -> None:
@@ -7596,17 +7659,38 @@ def mark_mention_seen_if_applicable(state: dict, candidate: dict) -> None:
     return _mention_queue_owner().mark_seen(state, candidate)
 
 
-def _reply_completion_owner() -> _reply_reconciliation.ReplyCompletion:
+def _reply_completion_owner(
+    *,
+    dates: _receipt_primitives.ReceiptDates | None = None,
+    drafts: _reply_drafts.ReplyDrafts | None = None,
+    receipt_values: _reply_receipt_values.ReplyReceiptValues | None = None,
+    receipts: _reply_delivery.ReplyReceipts | None = None,
+    tweets: _tweet_lookup_cache.TweetLookupCache | None = None,
+    history: _reply_history.ReplyHistory | None = None,
+) -> _reply_reconciliation.ReplyCompletion:
     """Bind current completion authorities without reading state or receipt files."""
+    if dates is None:
+        dates = _receipt_dates_owner()
+    if drafts is None:
+        drafts = receipt_values.drafts if receipt_values is not None else _reply_draft_owner()
+    if receipt_values is None:
+        receipt_values = receipts.values if receipts is not None else _reply_receipt_values_owner(
+            dates=dates, drafts=drafts,
+        )
+    if receipts is None:
+        receipts = _reply_receipts_owner(values=receipt_values)
     return _reply_reconciliation.ReplyCompletion(
         receipt_path=CONFIRMED_REPLY_RECEIPT_FILE,
         persistence_error=ConfirmedReplyLocalPersistenceError,
-        apply_state=apply_confirmed_reply_receipt,
+        apply_state=_confirmed_reply_state_applier(
+            dates=dates, drafts=drafts, receipt_values=receipt_values,
+            tweets=tweets, history=history,
+        ),
         save_state=save_state,
         retire_journal=retire_lane_transport_journal_if_present,
         remove_receipt=remove_confirmed_reply_receipt,
         log=log,
-        load_receipt=load_confirmed_reply_receipt,
+        receipts=receipts,
         unresolved_sending_receipt=UnresolvedSendingReplyReceipt,
         invalid_receipt=InvalidConfirmedReplyReceipt,
         verify_lineage=verify_lane_transport_source_lineage_if_present,
@@ -7623,12 +7707,13 @@ def confirmed_reply_emergency_representation_is_complete(
     state: dict,
 ) -> bool:
     """Return whether state alone durably suppresses a confirmed reply replay."""
+    drafts = _reply_draft_owner()
     return _reply_reconciliation.confirmed_reply_emergency_representation_is_complete(
         receipt, state,
-        receipt_values=_reply_receipt_values_owner(),
+        receipt_values=_reply_receipt_values_owner(drafts=drafts),
         InvalidConfirmedReplyReceipt=InvalidConfirmedReplyReceipt,
         receipt_int=receipt_int,
-        has_target_draft=_reply_draft_owner().has_target,
+        has_target_draft=drafts.has_target,
     )
 
 
@@ -7666,6 +7751,32 @@ def post_conversational_reply_with_durable_identity(
     until either the confirmed-reply receipt, a complete canonical state
     fallback, or the global manual-reconciliation barrier is durable.
     """
+    return _post_conversational_reply_with_current_owners(
+        state=state,
+        receipt_template=receipt_template,
+        reply_text=reply_text,
+        reply_to_id=reply_to_id,
+        made_with_ai=made_with_ai,
+        lane=lane,
+    )
+
+
+def _post_conversational_reply_with_current_owners(
+    *,
+    state: dict,
+    receipt_template: dict,
+    reply_text: str,
+    reply_to_id: str,
+    made_with_ai: bool,
+    lane: str,
+) -> tuple[dict, dict]:
+    """Compose send-time owners and execute the durable reply publication."""
+    drafts = _reply_draft_owner()
+    receipt_values = _reply_receipt_values_owner(drafts=drafts)
+    receipts = _reply_receipts_owner(values=receipt_values)
+    completion = _reply_completion_owner(
+        drafts=drafts, receipt_values=receipt_values, receipts=receipts,
+    )
     return _reply_delivery.post_conversational_reply_with_durable_identity(
         state=state,
         receipt_template=receipt_template,
@@ -7673,11 +7784,11 @@ def post_conversational_reply_with_durable_identity(
         reply_to_id=reply_to_id,
         made_with_ai=made_with_ai,
         lane=lane,
-        receipt_values=_reply_receipt_values_owner(),
+        receipt_values=receipt_values,
         receipt_namespace_entry_exists=receipt_namespace_entry_exists,
         CONFIRMED_REPLY_RECEIPT_FILE=CONFIRMED_REPLY_RECEIPT_FILE,
         InvalidConfirmedReplyReceipt=InvalidConfirmedReplyReceipt,
-        block_if_ambiguous_remote_post=block_if_ambiguous_remote_post,
+        block_if_ambiguous_remote_post=_reply_remote_write_barrier(receipts=receipts),
         receipts=lambda: _reply_receipts_owner(),
         begin_confirmed_post_sigint_deferral=begin_confirmed_post_sigint_deferral,
         create_post=create_post,
@@ -7693,15 +7804,20 @@ def post_conversational_reply_with_durable_identity(
         ApiError=ApiError,
         inspect_confirmed_transport_transaction=inspect_confirmed_transport_transaction,
         journal_path_for_receipt=journal_path_for_receipt,
-        apply_confirmed_reply_receipt=apply_confirmed_reply_receipt,
         StateBackupWriteError=StateBackupWriteError,
         json_file_matches=json_file_matches,
         STATE_FILE=STATE_FILE,
-        confirmed_reply_emergency_representation_is_complete=confirmed_reply_emergency_representation_is_complete,
+        confirmed_reply_emergency_representation_is_complete=functools.partial(
+            _reply_reconciliation.confirmed_reply_emergency_representation_is_complete,
+            receipt_values=receipt_values,
+            InvalidConfirmedReplyReceipt=InvalidConfirmedReplyReceipt,
+            receipt_int=receipt_int,
+            has_target_draft=drafts.has_target,
+        ),
         latch_confirmed_post_persistence_failure=latch_confirmed_post_persistence_failure,
         retain_sigint_deferral_without_durable_barrier=retain_sigint_deferral_without_durable_barrier,
         UnrecoverableConfirmedReplyPersistenceError=UnrecoverableConfirmedReplyPersistenceError,
-        completion=_reply_completion_owner(),
+        completion=completion,
     )
 
 
@@ -7731,19 +7847,30 @@ def _reply_cycle_persistence(
 def _reply_cycle_delivery(
     *,
     cooldowns: _api_cooldowns.ApiCooldowns | None = None,
+    drafts: _reply_drafts.ReplyDrafts | None = None,
+    tweets: _tweet_lookup_cache.TweetLookupCache | None = None,
 ) -> _reply_cycle_interfaces.ReplyCycleDelivery:
-    """Bind current receipt and delivery callbacks without retaining caller state."""
+    """Compose current receipt and delivery owners without retaining caller state."""
     if cooldowns is None:
         cooldowns = _api_cooldown_owner()
+    if drafts is None:
+        drafts = _reply_draft_owner()
+    if tweets is None:
+        tweets = _tweet_lookup_cache_owner()
+    receipt_values = _reply_receipt_values_owner(drafts=drafts)
+    receipts = _reply_receipts_owner(values=receipt_values)
+    completion = _reply_completion_owner(
+        drafts=drafts, receipt_values=receipt_values, receipts=receipts,
+        tweets=tweets, history=drafts.history,
+    )
     return _reply_cycle_interfaces.ReplyCycleDelivery(
-        load_receipt=load_confirmed_reply_receipt,
-        reconcile_receipt=reconcile_confirmed_reply_receipt,
-        block_ambiguous=block_if_ambiguous_remote_post,
-        bind_attempt=bind_conversational_reply_attempt_time,
-        target_available=reply_target_is_available_immediately_before_send,
-        post=post_conversational_reply_with_durable_identity,
+        receipts=receipts,
+        completion=completion,
+        block_ambiguous=_reply_remote_write_barrier(receipts=receipts),
+        receipt_values=receipt_values,
+        tweets=tweets,
+        post=_post_conversational_reply_with_current_owners,
         retire_rejected=retire_proved_rejected_conversational_reply_receipt,
-        finalise=finalise_confirmed_reply,
         ambiguous_outcome=AmbiguousRemotePostOutcome,
         api_error=ApiError,
         confirmed_local_failure=ConfirmedReplyLocalPersistenceError,
@@ -7767,8 +7894,10 @@ def maybe_reply_to_mentions(
     tweets = _tweet_lookup_cache_owner()
     reply_evaluations = _reply_evaluation_owner()
     mention_queue = _mention_queue_owner()
-    drafts = _reply_draft_owner()
     cooldowns = _api_cooldown_owner()
+    history = _reply_history_owner()
+    generation = _reply_generation_owner(cooldowns=cooldowns, history=history)
+    drafts = _reply_draft_owner(history=history, generation=generation)
     controls = _runtime_controls_owner()
     return _normal_reply_cycle.maybe_reply_to_mentions(
         state,
@@ -7783,7 +7912,9 @@ def maybe_reply_to_mentions(
             incoming_max_chars=REPLY_INCOMING_MAX_CHARS,
         ),
         persistence=_reply_cycle_persistence(drafts=drafts),
-        delivery=_reply_cycle_delivery(cooldowns=cooldowns),
+        delivery=_reply_cycle_delivery(
+            cooldowns=cooldowns, drafts=drafts, tweets=tweets,
+        ),
         _fresh_mention_ai_evaluations=_fresh_mention_ai_evaluations,
         _skip_hot_post_fetch=_skip_hot_post_fetch,
         author_quarantines=_author_quarantine_owner(),
@@ -7799,8 +7930,8 @@ def maybe_reply_to_mentions(
         accounting=_daily_reply_accounting_owner(),
         reply_contexts=_reply_context_owner(),
         tweets=tweets,
-        generation=_reply_generation_owner(cooldowns=cooldowns),
-        history=_reply_history_owner(),
+        generation=generation,
+        history=history,
         dedupe_reply_candidates=dedupe_reply_candidates,
         get_hot_post_reply_candidates=functools.partial(
             _hot_post_discovery.get_hot_post_reply_candidates,
@@ -8005,6 +8136,9 @@ def maybe_reply_to_quote_tweets(state: dict) -> str:
     """Process eligible quote-tweet candidates under all reply limits."""
     tweets = _tweet_lookup_cache_owner()
     cooldowns = _api_cooldown_owner()
+    history = _reply_history_owner()
+    generation = _reply_generation_owner(cooldowns=cooldowns, history=history)
+    drafts = _reply_draft_owner(history=history, generation=generation)
     return _quote_reply_cycle.maybe_reply_to_quote_tweets(
         state,
         config=_reply_cycle_interfaces.QuoteReplyConfig(
@@ -8018,8 +8152,10 @@ def maybe_reply_to_quote_tweets(state: dict) -> str:
             maximum_candidates=MAX_QUOTE_POSTS_PER_CHECK,
             maximum_daily_quote_replies=MAX_QUOTE_REPLIES_PER_DAY,
         ),
-        persistence=_reply_cycle_persistence(),
-        delivery=_reply_cycle_delivery(cooldowns=cooldowns),
+        persistence=_reply_cycle_persistence(drafts=drafts),
+        delivery=_reply_cycle_delivery(
+            cooldowns=cooldowns, drafts=drafts, tweets=tweets,
+        ),
         ApiError=ApiError,
         ContextValidationError=ContextValidationError,
         PipelineResult=PipelineResult,
@@ -8034,8 +8170,8 @@ def maybe_reply_to_quote_tweets(state: dict) -> str:
         accounting=_daily_reply_accounting_owner(),
         reply_contexts=_reply_context_owner(),
         tweets=tweets,
-        generation=_reply_generation_owner(cooldowns=cooldowns),
-        history=_reply_history_owner(),
+        generation=generation,
+        history=history,
         get_quote_tweets_for_posts=get_quote_tweets_for_posts,
         cooldowns=cooldowns,
         is_probably_spam_or_not_worth_replying=is_probably_spam_or_not_worth_replying,

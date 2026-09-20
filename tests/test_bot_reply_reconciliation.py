@@ -14,8 +14,12 @@ import mrs_bot_reply_reconciliation as reconciliation
 import mrs_bot_reply_receipt_values as reply_receipt_values
 import mrs_bot_reply_history as reply_history
 import mrs_bot_reply_drafts as reply_drafts
+import mrs_bot_reply_delivery as reply_delivery
 import mrs_bot_reply_clarifications as reply_clarifications
 import mrs_bot_daily_reply_accounting as daily_accounting
+import mrs_bot_mention_authority as mention_authority
+import mrs_bot_mention_discovery as mention_discovery
+import mrs_bot_tweet_lookup_cache as tweet_lookup
 from tests.helpers.mention_fixtures import mention, queue_active_mention
 from tests.helpers.bot_runtime import bot
 from tests.helpers.bot_fixtures import isolate_bot_runtime  # noqa: F401
@@ -73,9 +77,9 @@ assert 'single_call_reply' not in sys.modules
 
 COMPLETION_INPUTS = {
     "receipt_path": "CONFIRMED_REPLY_RECEIPT_FILE", "persistence_error": "ConfirmedReplyLocalPersistenceError",
-    "apply_state": "apply_confirmed_reply_receipt", "save_state": "save_state",
+    "save_state": "save_state",
     "retire_journal": "retire_lane_transport_journal_if_present", "remove_receipt": "remove_confirmed_reply_receipt",
-    "log": "log", "load_receipt": "load_confirmed_reply_receipt",
+    "log": "log",
     "unresolved_sending_receipt": "UnresolvedSendingReplyReceipt", "invalid_receipt": "InvalidConfirmedReplyReceipt",
     "verify_lineage": "verify_lane_transport_source_lineage_if_present",
 }
@@ -87,14 +91,31 @@ def test_completion_owner_binds_current_authorities_without_runtime_access(monke
         current = {field: Mock() for field in COMPLETION_INPUTS}
         for field, root_name in COMPLETION_INPUTS.items():
             monkeypatch.setattr(bot, root_name, current[field])
-        owner = bot._reply_completion_owner()
+        apply_state = Mock()
+        receipts = Mock()
+        applier = Mock(return_value=apply_state)
+        monkeypatch.setattr(bot, "_confirmed_reply_state_applier", applier)
+        dates, drafts, receipt_values, tweets, history = (Mock() for _ in range(5))
+        owner = bot._reply_completion_owner(
+            dates=dates, drafts=drafts, receipt_values=receipt_values,
+            receipts=receipts, tweets=tweets, history=history,
+        )
         assert isinstance(owner, reconciliation.ReplyCompletion)
         for field, value in current.items():
             assert getattr(owner, field) is value
             value.assert_not_called()
+        assert owner.apply_state is apply_state and owner.receipts is receipts
+        applier.assert_called_once_with(
+            dates=dates, drafts=drafts, receipt_values=receipt_values,
+            tweets=tweets, history=history,
+        )
+        apply_state.assert_not_called()
+        receipts.assert_not_called()
         owners.append(owner)
     assert owners[0] is not owners[1]
     assert all(getattr(owners[0], field) is not getattr(owners[1], field) for field in COMPLETION_INPUTS)
+    assert owners[0].apply_state is not owners[1].apply_state
+    assert owners[0].receipts is not owners[1].receipts
     with pytest.raises(FrozenInstanceError):
         owners[0].log = Mock()
 
@@ -138,110 +159,66 @@ def test_application_adapter_binds_current_owners_and_preserves_other_dependenci
         "mark_daily_author_replied", "conversational_reply_confirmation_epoch",
         "mention_pagination_provenance_is_valid", "append_unique_capped", "append_unique_durable",
     }.isdisjoint(parameters)
-    assert {"clarifications", "accounting", "receipt_values", "dates"} <= parameters.keys()
+    assert {
+        "clarifications", "accounting", "receipt_values", "dates", "drafts",
+        "tweets", "mention_authority", "mention_queue", "history",
+    } <= parameters.keys()
     assert "clear_pending_ai_reply" not in parameters
-    dependencies = parameters.keys() - public.keys() - {
-        "record_reply_history", "clarifications", "accounting", "clear_target_drafts",
-        "receipt_values", "dates",
-    }
     implementation = Mock(return_value=object())
-    history_factory = Mock(wraps=bot._reply_history_owner)
-    clarification_factory = Mock(wraps=bot._clarification_reply_owner)
-    accounting_factory = Mock(wraps=bot._daily_reply_accounting_owner)
-    draft_factory = Mock(wraps=bot._reply_draft_owner)
-    values_factory = Mock(wraps=bot._reply_receipt_values_owner)
-    dates_factory = Mock(wraps=bot._receipt_dates_owner)
     monkeypatch.setattr(reconciliation, "apply_confirmed_reply_receipt", implementation)
-    monkeypatch.setattr(bot, "_reply_history_owner", history_factory)
-    monkeypatch.setattr(bot, "_clarification_reply_owner", clarification_factory)
-    monkeypatch.setattr(bot, "_daily_reply_accounting_owner", accounting_factory)
-    monkeypatch.setattr(bot, "_reply_draft_owner", draft_factory)
-    monkeypatch.setattr(bot, "_reply_receipt_values_owner", values_factory)
-    monkeypatch.setattr(bot, "_receipt_dates_owner", dates_factory)
-    state, receipt, histories, clarification_owners, accounting_owners, draft_owners = {}, {}, [], [], [], []
-    value_owners, date_owners = [], []
+    state, receipt, snapshots = {}, {}, []
     for index in range(2):
-        current = {name: object() for name in dependencies}
-        for name, value in current.items():
-            monkeypatch.setattr(bot, name, value)
-        clock = Mock()
-        monkeypatch.setattr(bot, "now_epoch", clock)
-        bounded_id, receipt_integer = Mock(), Mock()
-        monkeypatch.setattr(bot, "bounded_tweet_id_value", bounded_id)
-        monkeypatch.setattr(bot, "receipt_int", receipt_integer)
-        monkeypatch.setattr(bot, "AI_REPLY_HISTORY_MAX_AGE_SECONDS", 100 + index)
-        monkeypatch.setattr(bot, "AI_REPLY_HISTORY_MAX_RECORDS", 10 + index)
-        monkeypatch.setattr(bot, "CLARIFICATION_REPLY_WINDOW_SECONDS", 1000 + index)
+        dates, drafts, receipt_values, authority, queue, tweets = (object() for _ in range(6))
+        history, accounting, clarifications = (object() for _ in range(3))
+        factories = {
+            "_receipt_dates_owner": Mock(return_value=dates),
+            "_reply_draft_owner": Mock(return_value=drafts),
+            "_reply_receipt_values_owner": Mock(return_value=receipt_values),
+            "_mention_authority_owner": Mock(return_value=authority),
+            "_mention_queue_owner": Mock(return_value=queue),
+            "_tweet_lookup_cache_owner": Mock(return_value=tweets),
+            "_reply_history_owner": Mock(return_value=history),
+            "_daily_reply_accounting_owner": Mock(return_value=accounting),
+            "_clarification_reply_owner": Mock(return_value=clarifications),
+        }
+        for name, factory in factories.items():
+            monkeypatch.setattr(bot, name, factory)
         assert adapter(state, receipt) is implementation.return_value
-        assert history_factory.call_count == 2 * (index + 1)
-        assert clarification_factory.call_count == index + 1
-        assert accounting_factory.call_count == index + 1
-        assert draft_factory.call_count == index + 1
-        assert values_factory.call_count == index + 1
-        assert dates_factory.call_count == index + 1
+        factories["_receipt_dates_owner"].assert_called_once_with()
+        factories["_reply_draft_owner"].assert_called_once_with()
+        factories["_reply_receipt_values_owner"].assert_called_once_with(
+            dates=dates, drafts=drafts,
+        )
+        factories["_mention_authority_owner"].assert_called_once_with()
+        factories["_mention_queue_owner"].assert_called_once_with(authority=authority)
+        factories["_tweet_lookup_cache_owner"].assert_called_once_with()
+        factories["_reply_history_owner"].assert_called_once_with()
+        factories["_daily_reply_accounting_owner"].assert_called_once_with(dates=dates)
+        factories["_clarification_reply_owner"].assert_called_once_with()
         args, supplied = implementation.call_args
         assert len(args) == 2 and args[0] is state and args[1] is receipt
-        assert supplied.keys() == {
-            *current, "record_reply_history", "clarifications", "accounting",
-            "clear_target_drafts", "receipt_values", "dates",
+        assert supplied == {
+            "receipt_values": receipt_values,
+            "mention_authority": authority,
+            "mention_queue": queue,
+            "STATE_FILE": bot.STATE_FILE,
+            "InvalidConfirmedReplyReceipt": bot.InvalidConfirmedReplyReceipt,
+            "dates": dates,
+            "accounting": accounting,
+            "log": bot.log,
+            "drafts": drafts,
+            "tweets": tweets,
+            "MY_USER_ID": bot.MY_USER_ID,
+            "datetime": bot.datetime,
+            "history": history,
+            "clarifications": clarifications,
+            "log_event": bot.log_event,
         }
-        assert all(supplied[name] is value for name, value in current.items())
-        callback = supplied["record_reply_history"]
-        assert callback.__func__ is reply_history.ReplyHistory.record_confirmation
-        history = callback.__self__
-        assert history.now_epoch is clock
-        assert history.maximum_age_seconds == 100 + index
-        assert history.maximum_records == 10 + index
-        clarification_owner = supplied["clarifications"]
-        assert isinstance(clarification_owner, reply_clarifications.ClarificationReplies)
-        assert clarification_owner.invalid_receipt is current["InvalidConfirmedReplyReceipt"]
-        assert clarification_owner.log_event is current["log_event"]
-        assert clarification_owner.window_seconds == 1000 + index
-        accounting_owner = supplied["accounting"]
-        assert isinstance(accounting_owner, daily_accounting.DailyReplyAccounting)
-        assert accounting_owner.log is current["log"]
-        assert accounting_owner.dates is supplied["dates"]
-        accounting_owners.append(accounting_owner)
-        draft_callback = supplied["clear_target_drafts"]
-        assert draft_callback.__func__ is reply_drafts.ReplyDrafts.clear_target
-        assert draft_callback.__self__.log_event is current["log_event"]
-        comparison_callback = draft_callback.__self__.comparison_replies
-        assert comparison_callback.__func__ is reply_history.ReplyHistory.recovery_replies
-        draft_history = comparison_callback.__self__
-        assert draft_history.now_epoch is clock
-        assert draft_history.maximum_age_seconds == 100 + index
-        assert draft_history.maximum_records == 10 + index
-        draft_owners.append(draft_callback.__self__)
-        values = supplied["receipt_values"]
-        assert isinstance(values, reply_receipt_values.ReplyReceiptValues)
-        assert values.now_epoch is clock
-        assert not hasattr(values, "bounded_tweet_id_value")
-        assert not hasattr(values, "receipt_int")
-        assert values.invalid_receipt is current["InvalidConfirmedReplyReceipt"]
-        assert values.dates is supplied["dates"]
-        bounded_id.assert_not_called()
-        receipt_integer.assert_not_called()
-        value_owners.append(values)
-        date_owners.append(supplied["dates"])
-        clock.assert_not_called()
-        histories.append(history)
-        clarification_owners.append(clarification_owner)
-    assert histories[0] is not histories[1]
-    assert histories[0].now_epoch is not histories[1].now_epoch
-    assert clarification_owners[0] is not clarification_owners[1]
-    assert clarification_owners[0].log_event is not clarification_owners[1].log_event
-    assert clarification_owners[0].window_seconds == 1000
-    assert accounting_owners[0] is not accounting_owners[1]
-    assert accounting_owners[0].dates is not accounting_owners[1].dates
-    assert draft_owners[0] is not draft_owners[1]
-    first_draft_history = draft_owners[0].comparison_replies.__self__
-    second_draft_history = draft_owners[1].comparison_replies.__self__
-    assert first_draft_history is not second_draft_history
-    assert first_draft_history.now_epoch is not second_draft_history.now_epoch
-    assert value_owners[0] is not value_owners[1]
-    assert value_owners[0].now_epoch is not value_owners[1].now_epoch
-    assert date_owners[0] is not date_owners[1]
-    assert value_owners[0].dates is accounting_owners[0].dates is date_owners[0]
+        snapshots.append(tuple(supplied[name] for name in (
+            "dates", "drafts", "receipt_values", "mention_authority",
+            "mention_queue", "tweets", "history", "accounting", "clarifications",
+        )))
+    assert all(first is not second for first, second in zip(*snapshots))
     failure = TypeError("current application failure")
     implementation.side_effect = failure
     with pytest.raises(TypeError) as caught:
@@ -271,9 +248,8 @@ def test_emergency_adapter_binds_current_owners_and_preserves_arguments_and_erro
             monkeypatch.setattr(bot, name, value)
         evidence = Mock()
         monkeypatch.setattr(bot, "reply_evidence_repository", evidence)
-        bounded_id, validator = Mock(), Mock()
+        bounded_id = Mock()
         monkeypatch.setattr(bot, "bounded_tweet_id_value", bounded_id)
-        monkeypatch.setattr(bot, "ai_reply_receipt_draft_is_valid", validator)
         assert adapter(receipt, state) is implementation.return_value
         assert factory.call_count == index + 1
         assert values_factory.call_count == index + 1
@@ -284,6 +260,7 @@ def test_emergency_adapter_binds_current_owners_and_preserves_arguments_and_erro
         callback = supplied["has_target_draft"]
         assert callback.__func__ is reply_drafts.ReplyDrafts.has_target
         assert callback.__self__.evidence_repository is evidence
+        values_factory.assert_called_with(drafts=callback.__self__)
         evidence.assert_not_called()
         owners.append(callback.__self__)
         values = supplied["receipt_values"]
@@ -291,13 +268,12 @@ def test_emergency_adapter_binds_current_owners_and_preserves_arguments_and_erro
         assert not hasattr(values, "receipt_int")
         assert values.invalid_receipt is current["InvalidConfirmedReplyReceipt"]
         assert not hasattr(values, "bounded_tweet_id_value")
-        assert values.draft_is_valid is validator
+        assert values.drafts is callback.__self__
         bounded_id.assert_not_called()
-        validator.assert_not_called()
         value_owners.append(values)
     assert owners[0] is not owners[1]
     assert value_owners[0] is not value_owners[1]
-    assert value_owners[0].draft_is_valid is not value_owners[1].draft_is_valid
+    assert value_owners[0].drafts is not value_owners[1].drafts
     failure = TypeError("current emergency check failure")
     implementation.side_effect = failure
     with pytest.raises(TypeError) as caught:
@@ -316,24 +292,24 @@ def test_confirmation_and_authority_precede_counter_reset_and_clarification_conf
     )
     before = copy.deepcopy(state)
     trace = Mock()
-    for label, name in (
-        ("confirmation", "conversational_reply_confirmation_epoch"),
-        ("authority", "validate_pending_mention_candidate_authority"),
-        ("cache", "cache_tweet"),
+    for label, owner_type, method, original in (
+        ("confirmation", reply_receipt_values.ReplyReceiptValues, "confirmation_epoch",
+         bot._reply_receipt_values_owner().confirmation_epoch),
+        ("authority", mention_authority.MentionAuthority, "validate_pending",
+         bot._mention_authority_owner().validate_pending),
+        ("cache", tweet_lookup.TweetLookupCache, "store",
+         bot._tweet_lookup_cache_owner().store),
     ):
-        original = (
-            bot._reply_receipt_values_owner().confirmation_epoch
-            if label == "confirmation" else getattr(bot, name)
-        )
         callback = Mock(wraps=original)
         trace.attach_mock(callback, label)
-        if label == "confirmation":
-            patch_reply_owner_method(
-                monkeypatch, reply_receipt_values.ReplyReceiptValues,
-                "confirmation_epoch", callback,
-            )
-        else:
-            monkeypatch.setattr(bot, name, callback)
+        patch_reply_owner_method(monkeypatch, owner_type, method, callback)
+    for relay in (
+        "conversational_reply_confirmation_epoch",
+        "validate_pending_mention_candidate_authority", "cache_tweet",
+    ):
+        monkeypatch.setattr(
+            bot, relay, Mock(side_effect=AssertionError(f"obsolete root relay used: {relay}")),
+        )
     trace.clear = Mock(wraps=bot._reply_draft_owner().clear_target)
     patch_reply_draft_method(monkeypatch, "clear_target", trace.clear)
     trace.advance = Mock(wraps=bot._daily_reply_accounting_owner().advance)
@@ -393,8 +369,11 @@ def test_accounting_calls_preserve_positions_snapshots_and_native_failures(monke
         return original_append(values, value, cap)
 
     monkeypatch.setattr(reconciliation, "append_unique_capped", append_ids)
-    trace.cache = Mock(wraps=bot.cache_tweet)
-    monkeypatch.setattr(bot, "cache_tweet", trace.cache)
+    trace.cache = Mock(wraps=bot._tweet_lookup_cache_owner().store)
+    patch_reply_owner_method(monkeypatch, tweet_lookup.TweetLookupCache, "store", trace.cache)
+    monkeypatch.setattr(
+        bot, "cache_tweet", Mock(side_effect=AssertionError("obsolete root cache relay used")),
+    )
     monkeypatch.setattr(bot, "log_event", trace.event)
     failure = TypeError("accounting operation failed")
     if failure_stage:
@@ -447,19 +426,33 @@ def test_application_keeps_queue_draft_pagination_and_cache_reference_order(monk
     # The original broad catch still handles malformed previous local time.
     state["last_reply_epoch"] = object()
     trace = Mock()
-    for label, name in (
-        ("authority", "validate_pending_mention_candidate_authority"),
-        ("ownership", "mention_pagination_has_canonical_page_ownership"),
-        ("remove", "remove_pending_mention_candidate"),
-        ("event", "log_event"),
+    for label, owner_type, method, original in (
+        ("authority", mention_authority.MentionAuthority, "validate_pending",
+         bot._mention_authority_owner().validate_pending),
+        ("ownership", mention_authority.MentionAuthority, "owns_page",
+         bot._mention_authority_owner().owns_page),
+        ("remove", mention_discovery.MentionQueue, "remove_pending",
+         bot._mention_queue_owner().remove_pending),
     ):
-        callback = Mock(wraps=getattr(bot, name))
+        callback = Mock(wraps=original)
         trace.attach_mock(callback, label)
-        monkeypatch.setattr(bot, name, callback)
+        patch_reply_owner_method(monkeypatch, owner_type, method, callback)
+    trace.event = Mock(wraps=bot.log_event)
+    monkeypatch.setattr(bot, "log_event", trace.event)
     trace.clear = Mock(wraps=bot._reply_draft_owner().clear_target)
     patch_reply_draft_method(monkeypatch, "clear_target", trace.clear)
     watermark = Mock(side_effect=AssertionError("continuation must delay the watermark"))
-    monkeypatch.setattr(bot, "update_last_seen_mention_id", watermark)
+    patch_reply_owner_method(
+        monkeypatch, mention_discovery.MentionQueue, "advance_watermark", watermark,
+    )
+    for relay in (
+        "validate_pending_mention_candidate_authority",
+        "mention_pagination_has_canonical_page_ownership",
+        "remove_pending_mention_candidate", "update_last_seen_mention_id",
+    ):
+        monkeypatch.setattr(
+            bot, relay, Mock(side_effect=AssertionError(f"obsolete root relay used: {relay}")),
+        )
     current_datetime = Mock(wraps=bot.datetime)
     current_datetime.fromtimestamp.return_value.isoformat.return_value = "ambient-confirmed-time"
     monkeypatch.setattr(bot, "datetime", current_datetime)
@@ -484,7 +477,10 @@ def test_application_keeps_queue_draft_pagination_and_cache_reference_order(monk
         }
 
     trace.cache = Mock(side_effect=cache)
-    monkeypatch.setattr(bot, "cache_tweet", trace.cache)
+    patch_reply_owner_method(monkeypatch, tweet_lookup.TweetLookupCache, "store", trace.cache)
+    monkeypatch.setattr(
+        bot, "cache_tweet", Mock(side_effect=AssertionError("obsolete root cache relay used")),
+    )
     trace.history = Mock(wraps=bot._reply_history_owner().record_confirmation)
     patch_reply_history_method(monkeypatch, "record_confirmation", trace.history)
     bot.apply_confirmed_reply_receipt(state, receipt)
@@ -536,11 +532,14 @@ def test_history_recording_error_propagates_after_cache_before_telemetry(monkeyp
     state = bot.default_state()
     history = state["ai_reply_history"]
     trace = Mock()
-    trace.cache = Mock(wraps=bot.cache_tweet)
+    trace.cache = Mock(wraps=bot._tweet_lookup_cache_owner().store)
     failure = TypeError("history recording failed")
     trace.history.side_effect = failure
     patch_reply_history_method(monkeypatch, "record_confirmation", trace.history)
-    monkeypatch.setattr(bot, "cache_tweet", trace.cache)
+    patch_reply_owner_method(monkeypatch, tweet_lookup.TweetLookupCache, "store", trace.cache)
+    monkeypatch.setattr(
+        bot, "cache_tweet", Mock(side_effect=AssertionError("obsolete root cache relay used")),
+    )
     monkeypatch.setattr(bot, "log_event", trace.event)
 
     with pytest.raises(TypeError) as caught:
@@ -625,7 +624,10 @@ def test_clarification_application_keeps_call_order_references_and_resolved_iden
     trace.attach_mock(owner.record_completed, "record")
     trace.advance = Mock(wraps=bot._daily_reply_accounting_owner().advance)
     patch_accounting_method(monkeypatch, "advance", trace.advance)
-    monkeypatch.setattr(bot, "cache_tweet", trace.cache)
+    patch_reply_owner_method(monkeypatch, tweet_lookup.TweetLookupCache, "store", trace.cache)
+    monkeypatch.setattr(
+        bot, "cache_tweet", Mock(side_effect=AssertionError("obsolete root cache relay used")),
+    )
     patch_reply_history_method(monkeypatch, "record_confirmation", trace.history)
     monkeypatch.setattr(bot, "log_event", trace.event)
 
@@ -724,16 +726,22 @@ def test_reconciliation_preserves_commit_order_references_and_failure_causes(mon
         state["applied"] = True
 
     trace.apply.side_effect = apply
+    patch_reply_owner_method(
+        monkeypatch, reply_delivery.ReplyReceipts, "load", trace.load,
+    )
+    monkeypatch.setattr(bot, "_confirmed_reply_state_applier", Mock(return_value=trace.apply))
     for label, name in (
-        ("load", "load_confirmed_reply_receipt"),
         ("lineage", "verify_lane_transport_source_lineage_if_present"),
-        ("apply", "apply_confirmed_reply_receipt"),
         ("save", "save_state"),
         ("retire", "retire_lane_transport_journal_if_present"),
         ("remove", "remove_confirmed_reply_receipt"),
         ("log", "log"),
     ):
         monkeypatch.setattr(bot, name, getattr(trace, label))
+    for relay in ("load_confirmed_reply_receipt", "apply_confirmed_reply_receipt"):
+        monkeypatch.setattr(
+            bot, relay, Mock(side_effect=AssertionError(f"obsolete root relay used: {relay}")),
+        )
     monkeypatch.setattr(bot, "ConfirmedReplyLocalPersistenceError", CurrentPersistenceError)
     if failure_stage:
         getattr(trace, failure_stage).side_effect = failure
@@ -875,8 +883,9 @@ def test_pagination_preservation_resets_missing_ownership_before_copy_and_legacy
         state, receipt, target_id="105", candidate_source="mention",
         InvalidConfirmedReplyReceipt=bot.InvalidConfirmedReplyReceipt,
         STATE_FILE=bot.STATE_FILE,
-        mention_pagination_has_canonical_page_ownership=trace.ownership,
-        _emit_mention_authority_recovery=trace.recovery,
+        mention_authority=Mock(
+            owns_page=trace.ownership, emit_recovery=trace.recovery,
+        ),
         log=trace.log,
     )
     assert [entry[0] for entry in trace.mock_calls] == [

@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from mrs_bot_reply_cycle_interfaces import PreparedReplyContext
+from mrs_bot_reply_drafts import ReplyDrafts
 from mrs_bot_reply_receipt_values import ReplyReceiptValues
 from tests.helpers.reply_evaluation import legacy_reply_evaluator
 
@@ -94,7 +95,7 @@ def test_conversational_source_lineage_helpers_require_integer_schema(
 def test_current_conversational_receipt_requires_string_identifier_fields(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    monkeypatch.setattr(bot, "ai_reply_receipt_draft_is_valid", lambda *_: True)
+    monkeypatch.setattr(ReplyDrafts, "receipt_draft_is_valid", lambda *_: True)
     receipt = {
         "schema_version": 4,
         "lifecycle_state": "sending",

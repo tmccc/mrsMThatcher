@@ -1,12 +1,13 @@
 """Own the validation, storage, recovery and clearing of pending reply drafts.
 
-ReplyDrafts receives the current validator, history/evidence access, telemetry and result
-vocabulary when composed by the root. Its operations call each other directly,
-acquire current evidence for each validation and mutate only explicit caller
-state. Failed local recovery keeps retirement before owned zero-call result
-construction and telemetry. Durable saves, candidate retirement and receipt
-authority stay with their existing owners. Import and construction perform no
-runtime access.
+ReplyDrafts receives the current validator, history and generation owners,
+evidence access and result vocabulary when composed by the root. Storage and
+recovery call ReplyHistory directly for comparison replies; failed local
+recovery keeps retirement before ReplyGeneration records its owned zero-call
+result. Operations acquire current evidence for each validation and mutate only
+explicit caller state. Durable saves, candidate retirement and receipt authority
+stay with their existing owners. Import and construction perform no runtime
+access.
 """
 
 from __future__ import annotations
@@ -23,6 +24,8 @@ from single_call_reply_validation import (
 )
 
 if TYPE_CHECKING:
+    from mrs_bot_reply_generation import ReplyGeneration
+    from mrs_bot_reply_history import ReplyHistory
     from single_call_reply import PipelineResult
 
 
@@ -43,8 +46,8 @@ class ReplyDrafts:
 
     validate_persisted_draft: Callable
     evidence_repository: Callable
-    comparison_replies: Callable
-    record_result: Callable
+    history: ReplyHistory
+    generation: ReplyGeneration
     log_event: Callable
     log: logging.Logger
     strategy_version: str
@@ -87,7 +90,7 @@ class ReplyDrafts:
             validated = self.validate(
                 reply.draft_record,
                 context=context,
-                recent_replies=self.comparison_replies(state, context=context),
+                recent_replies=self.history.recovery_replies(state, context=context),
             )
         except (KeyError, OSError, RuntimeError, TypeError, ValueError) as exc:
             self.log.warning(
@@ -210,7 +213,9 @@ class ReplyDrafts:
                 record, context, recent_replies=recent_replies,
                 validation_codes=validation_codes, rejected_text=rejected_text,
             )
-            self.record_result(result, lane=candidate_source, target_id=target_id)
+            self.generation.record_result(
+                result, lane=candidate_source, target_id=target_id,
+            )
             return result
         except (KeyError, OSError, RuntimeError, TypeError, ValueError) as exc:
             if record is not None:

@@ -67,8 +67,8 @@ def test_cycle_boundaries_capture_current_callbacks_and_config_between_calls(mon
     draft_owner_factory = bot._reply_draft_owner
     draft_owners = []
 
-    def make_drafts():
-        drafts = draft_owner_factory()
+    def make_drafts(**kwargs):
+        drafts = draft_owner_factory(**kwargs)
         draft_owners.append(drafts)
         return drafts
 
@@ -95,7 +95,7 @@ def test_cycle_boundaries_capture_current_callbacks_and_config_between_calls(mon
         assert config.enabled is bool(index)
         assert config.maximum_daily_replies == 20 + index
         assert factory.call_count == index + 1
-        assert history_factory.call_count == 3 * (index + 1)
+        assert history_factory.call_count == index + 1
         history = supplied["history"]
         assert isinstance(history, bot._reply_history.ReplyHistory)
         generation_owner = supplied["generation"]
@@ -112,10 +112,10 @@ def test_cycle_boundaries_capture_current_callbacks_and_config_between_calls(mon
         clock.assert_not_called()
         histories.append(history)
         drafts = draft_owners[-1]
-        draft_history = drafts.comparison_replies.__self__
-        assert drafts.comparison_replies.__func__ is type(draft_history).recovery_replies
-        assert draft_history.now_epoch is clock
-        assert draft_history.maximum_recent_replies == 10 + index
+        assert drafts.history is history
+        assert drafts.generation is generation_owner
+        assert drafts.history.now_epoch is clock
+        assert drafts.history.maximum_recent_replies == 10 + index
         assert persistence.save is save
         for method in ("recover", "store", "clear", "retire_ineligible"):
             bound_method = getattr(persistence, method)
@@ -123,9 +123,12 @@ def test_cycle_boundaries_capture_current_callbacks_and_config_between_calls(mon
             assert bound_method.__func__ is getattr(type(drafts), method)
         assert drafts.evidence_repository is evidence
         evidence.assert_not_called()
-        assert delivery.post is post
+        assert delivery.post is bot._post_conversational_reply_with_current_owners
         assert delivery.cooldowns is supplied["cooldowns"]
-        assert delivery.finalise is bot.finalise_confirmed_reply
+        assert delivery.completion.apply_state.func is bot._reply_reconciliation.apply_confirmed_reply_receipt
+        assert delivery.receipt_values.drafts is drafts
+        assert delivery.tweets is supplied["tweets"]
+        post.assert_not_called()
         with pytest.raises(FrozenInstanceError):
             persistence.save = Mock()
         snapshots.append((persistence, save, evidence))
@@ -190,7 +193,14 @@ def test_cycles_consume_typed_results_through_durable_outcomes(monkeypatch, lane
     patch_reply_owner_method(monkeypatch, generation.ReplyGeneration, "evaluate", evaluator)
     monkeypatch.setattr(bot, "generate_single_call_reply", Mock(side_effect=AssertionError("legacy evaluator used")))
     monkeypatch.setattr(bot, "pending_ai_reply", Mock(side_effect=AssertionError("legacy recovery used")))
-    monkeypatch.setattr(bot, "reply_target_is_available_immediately_before_send", Mock(return_value=True))
+    patch_reply_owner_method(
+        monkeypatch, bot._tweet_lookup_cache.TweetLookupCache,
+        "target_is_available", Mock(return_value=True),
+    )
+    monkeypatch.setattr(
+        bot, "reply_target_is_available_immediately_before_send",
+        Mock(side_effect=AssertionError("obsolete availability relay used")),
+    )
     recovery = Mock(wraps=bot._reply_draft_owner().recover)
     patch_reply_draft_method(monkeypatch, "recover", recovery)
     for name in (
@@ -213,7 +223,11 @@ def test_cycles_consume_typed_results_through_durable_outcomes(monkeypatch, lane
         return {}, receipt
 
     send = Mock(side_effect=post)
-    monkeypatch.setattr(bot, "post_conversational_reply_with_durable_identity", send)
+    monkeypatch.setattr(bot, "_post_conversational_reply_with_current_owners", send)
+    monkeypatch.setattr(
+        bot, "post_conversational_reply_with_durable_identity",
+        Mock(side_effect=AssertionError("obsolete delivery relay used")),
+    )
     status = run(state)
     persisted = json.loads(bot.STATE_FILE.read_text())
     if decision in {"reply", "recovered"}:
@@ -354,8 +368,15 @@ def test_shared_finaliser_preserves_order_identity_and_exception_boundaries(monk
                 raise failure
         return invoke
 
+    monkeypatch.setattr(
+        bot, "_confirmed_reply_state_applier", Mock(return_value=callback("apply")),
+    )
+    monkeypatch.setattr(
+        bot, "apply_confirmed_reply_receipt",
+        Mock(side_effect=AssertionError("obsolete application relay used")),
+    )
     for name, step in (
-        ("apply_confirmed_reply_receipt", "apply"), ("save_state", "save"),
+        ("save_state", "save"),
         ("retire_lane_transport_journal_if_present", "retire"), ("remove_confirmed_reply_receipt", "remove"),
     ):
         monkeypatch.setattr(bot, name, callback(step))

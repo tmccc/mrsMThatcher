@@ -80,15 +80,18 @@ def prepare_delivery(lane, outcome, *, save_failure=None, retirement_failure=Non
         retire_ineligible=Mock(),
     )
     delivery = ReplyCycleDelivery(
-        load_receipt=Mock(), reconcile_receipt=Mock(), block_ambiguous=Mock(),
-        bind_attempt=Mock(), target_available=trace.available, post=trace.post,
-        retire_rejected=trace.retire, finalise=Mock(),
+        receipts=SimpleNamespace(load=Mock()),
+        completion=SimpleNamespace(reconcile=Mock(), finalise=Mock()),
+        block_ambiguous=Mock(),
+        receipt_values=SimpleNamespace(bind_attempt=Mock()),
+        tweets=SimpleNamespace(target_is_available=trace.available),
+        post=trace.post, retire_rejected=trace.retire,
         ambiguous_outcome=LookupError, api_error=ApiError,
         confirmed_local_failure=ArithmeticError, proved_non_success=ProvedRejection,
         unrecoverable_confirmed=EOFError,
         reply_not_allowed=lambda error: error is rejection,
         save_state=trace.save, log=trace.log, posting_outcome=trace.posting_outcome,
-        record_api_error=trace.api_error,
+        cooldowns=SimpleNamespace(record_error=trace.api_error),
     )
     settings = dict(
         enabled=True, mark_as_ai=True, maximum_daily_replies=10,

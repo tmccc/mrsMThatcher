@@ -156,34 +156,49 @@ def test_post_adapter_preserves_current_dependencies_and_lazy_receipt_operations
     public = inspect.signature(adapter).parameters
     dependencies = (
         inspect.signature(delivery.post_conversational_reply_with_durable_identity).parameters.keys()
-        - public.keys() - {"receipt_values", "completion", "receipts"}
+        - public.keys() - {
+            "receipt_values", "completion", "receipts",
+            "block_if_ambiguous_remote_post",
+            "confirmed_reply_emergency_representation_is_complete",
+        }
     )
     options = {key: object() for key in public}
     implementation = Mock(return_value=object())
+    draft_factory = Mock()
     value_factory = Mock()
     completion_factory = Mock()
     receipt_factory = Mock()
     cooldown_factory = Mock()
+    monkeypatch.setattr(bot, "_reply_draft_owner", draft_factory)
     monkeypatch.setattr(bot, "_reply_completion_owner", completion_factory)
     monkeypatch.setattr(bot, "_reply_receipts_owner", receipt_factory)
     monkeypatch.setattr(bot, "_reply_receipt_values_owner", value_factory)
     monkeypatch.setattr(bot, "_api_cooldown_owner", cooldown_factory)
     monkeypatch.setattr(delivery, "post_conversational_reply_with_durable_identity", implementation)
     for _ in range(2):
+        draft_factory.return_value = Mock(spec=bot._reply_drafts.ReplyDrafts)
         value_factory.return_value = Mock(spec=values.ReplyReceiptValues)
+        receipt_factory.return_value = Mock(spec=delivery.ReplyReceipts)
         completion_factory.return_value = object()
         cooldown_factory.return_value = Mock(spec=api_cooldowns.ApiCooldowns)
         current = {key: object() for key in dependencies if key != "cooldowns"}
         for key, value in current.items():
             monkeypatch.setattr(bot, key, value)
         assert adapter(**options) is implementation.return_value
-        value_factory.assert_called_once_with()
-        completion_factory.assert_called_once_with()
+        draft_factory.assert_called_once_with()
+        value_factory.assert_called_once_with(drafts=draft_factory.return_value)
+        completion_factory.assert_called_once_with(
+            drafts=draft_factory.return_value,
+            receipt_values=value_factory.return_value,
+            receipts=receipt_factory.return_value,
+        )
+        receipt_factory.assert_called_once_with(values=value_factory.return_value)
         cooldown_factory.assert_called_once_with()
+        draft_factory.reset_mock()
         value_factory.reset_mock()
         completion_factory.reset_mock()
         cooldown_factory.reset_mock()
-        receipt_factory.assert_not_called()
+        receipt_factory.reset_mock()
         actual_args, actual_kwargs = implementation.call_args
         assert not actual_args
         expected = {
@@ -191,10 +206,20 @@ def test_post_adapter_preserves_current_dependencies_and_lazy_receipt_operations
             "completion": completion_factory.return_value,
             "cooldowns": cooldown_factory.return_value,
         }
-        assert actual_kwargs.keys() == expected.keys() | {"receipts"}
+        assert actual_kwargs.keys() == expected.keys() | {
+            "receipts", "block_if_ambiguous_remote_post",
+            "confirmed_reply_emergency_representation_is_complete",
+        }
         assert all(actual_kwargs[key] is value for key, value in expected.items())
+        barrier = actual_kwargs["block_if_ambiguous_remote_post"]
+        assert barrier.func is bot._remote_write_barriers.block_if_ambiguous_remote_post
+        assert barrier.keywords["load_confirmed_reply_receipt"] == receipt_factory.return_value.load
+        emergency = actual_kwargs["confirmed_reply_emergency_representation_is_complete"]
+        assert emergency.func is bot._reply_reconciliation.confirmed_reply_emergency_representation_is_complete
+        assert emergency.keywords["receipt_values"] is value_factory.return_value
+        assert emergency.keywords["has_target_draft"] is draft_factory.return_value.has_target
         assert not value_factory.return_value.mock_calls
-    newer_factory = Mock(return_value=object())
+    newer_factory = Mock(return_value=Mock(spec=delivery.ReplyReceipts))
     monkeypatch.setattr(bot, "_reply_receipts_owner", newer_factory)
     assert actual_kwargs["receipts"]() is newer_factory.return_value
     newer_factory.assert_called_once_with()
@@ -409,7 +434,11 @@ def test_delivery_keeps_shallow_template_plain_transport_text_and_return_objects
     ):
         method = {"write": "write", "promote": "promote"}.get(label)
         original_callback = (
-            getattr(bot._reply_receipts_owner(), method) if method else getattr(bot, name)
+            getattr(bot._reply_receipts_owner(), method)
+            if method else (
+                bot._remote_write_barriers.block_if_ambiguous_remote_post
+                if label == "barrier" else getattr(bot, name)
+            )
         )
 
         def observe(*args, _label=label, _callback=original_callback, **kwargs):
@@ -422,6 +451,10 @@ def test_delivery_keeps_shallow_template_plain_transport_text_and_return_objects
 
         if method:
             patch_reply_receipt_method(monkeypatch, bot, method, observe)
+        elif label == "barrier":
+            monkeypatch.setattr(
+                bot._remote_write_barriers, "block_if_ambiguous_remote_post", observe,
+            )
         else:
             monkeypatch.setattr(bot, name, observe)
     actual_response, confirmed = _deliver(receipt)
@@ -450,7 +483,7 @@ def test_delivery_owned_template_failure_precedes_namespace_barrier_and_guard(mo
     patch_reply_owner_method(monkeypatch, values.ReplyReceiptValues, "prepare_sending_template", prepare)
     runtime = Mock(side_effect=AssertionError("runtime boundary entered for invalid template"))
     for name in ("receipt_namespace_entry_exists", "block_if_ambiguous_remote_post",
-                 "_reply_receipts_owner", "begin_confirmed_post_sigint_deferral"):
+                 "begin_confirmed_post_sigint_deferral"):
         monkeypatch.setattr(bot, name, runtime)
     with pytest.raises(ValueError) as caught:
         _deliver(receipt)
@@ -463,9 +496,9 @@ def test_delivery_owned_template_failure_precedes_namespace_barrier_and_guard(mo
 def test_delivery_namespace_and_durable_create_failure_precede_sigint_guard(monkeypatch):
     receipt = unit_sending_v4_reply_receipt()
     bot.write_sending_reply_receipt(receipt)
-    barrier = Mock(wraps=bot.block_if_ambiguous_remote_post)
+    barrier = Mock(wraps=bot._reply_remote_write_barrier())
     begin = Mock(side_effect=AssertionError("guard started before durable sending receipt"))
-    monkeypatch.setattr(bot, "block_if_ambiguous_remote_post", barrier)
+    monkeypatch.setattr(bot, "_reply_remote_write_barrier", Mock(return_value=barrier))
     monkeypatch.setattr(bot, "begin_confirmed_post_sigint_deferral", begin)
     with pytest.raises(bot.InvalidConfirmedReplyReceipt, match="unresolved"):
         _deliver(receipt)
@@ -749,12 +782,18 @@ def test_delivery_binds_publication_after_barrier_runtime_changes(monkeypatch, t
     monkeypatch.setattr(bot, "durable_create_receipt_json", old_create)
     monkeypatch.setattr(bot, "begin_confirmed_post_sigint_deferral", begin)
 
-    def refresh_runtime():
+    original_barrier = bot._remote_write_barriers.block_if_ambiguous_remote_post
+
+    def refresh_runtime(*args, **kwargs):
+        result = original_barrier(*args, **kwargs)
         monkeypatch.setattr(bot, "CONFIRMED_REPLY_RECEIPT_FILE", current_path)
         monkeypatch.setattr(bot, "durable_create_receipt_json", current_create)
         monkeypatch.setattr(bot, "_reply_receipt_values_owner", Mock(return_value=current_values))
+        return result
 
-    monkeypatch.setattr(bot, "block_if_ambiguous_remote_post", refresh_runtime)
+    monkeypatch.setattr(
+        bot._remote_write_barriers, "block_if_ambiguous_remote_post", refresh_runtime,
+    )
     with pytest.raises(OSError) as caught:
         _deliver(receipt)
     assert caught.value is failure
@@ -913,14 +952,7 @@ def test_cycle_delivery_binds_current_routing_without_running_callbacks(monkeypa
     from mrs_bot_reply_cycle_interfaces import ReplyCycleDelivery
 
     bindings = {
-        "load_receipt": "load_confirmed_reply_receipt",
-        "reconcile_receipt": "reconcile_confirmed_reply_receipt",
-        "block_ambiguous": "block_if_ambiguous_remote_post",
-        "bind_attempt": "bind_conversational_reply_attempt_time",
-        "target_available": "reply_target_is_available_immediately_before_send",
-        "post": "post_conversational_reply_with_durable_identity",
         "retire_rejected": "retire_proved_rejected_conversational_reply_receipt",
-        "finalise": "finalise_confirmed_reply",
         "ambiguous_outcome": "AmbiguousRemotePostOutcome",
         "api_error": "ApiError",
         "confirmed_local_failure": "ConfirmedReplyLocalPersistenceError",
@@ -937,15 +969,44 @@ def test_cycle_delivery_binds_current_routing_without_running_callbacks(monkeypa
         for field, root_name in bindings.items():
             monkeypatch.setattr(bot, root_name, current[field])
         cooldowns = Mock(spec=api_cooldowns.ApiCooldowns)
-        owner = bot._reply_cycle_delivery(cooldowns=cooldowns)
+        draft_history = object()
+        drafts = SimpleNamespace(history=draft_history)
+        tweets = Mock(spec=bot._tweet_lookup_cache.TweetLookupCache)
+        receipt_values = Mock(spec=values.ReplyReceiptValues)
+        receipts = Mock(spec=delivery.ReplyReceipts)
+        completion = Mock(spec=bot._reply_reconciliation.ReplyCompletion)
+        values_factory = Mock(return_value=receipt_values)
+        receipts_factory = Mock(return_value=receipts)
+        completion_factory = Mock(return_value=completion)
+        monkeypatch.setattr(bot, "_reply_receipt_values_owner", values_factory)
+        monkeypatch.setattr(bot, "_reply_receipts_owner", receipts_factory)
+        monkeypatch.setattr(bot, "_reply_completion_owner", completion_factory)
+        owner = bot._reply_cycle_delivery(
+            cooldowns=cooldowns, drafts=drafts, tweets=tweets,
+        )
         owners.append(owner)
-        assert set(vars(owner)) == set(bindings) | {"cooldowns"}
+        assert set(vars(owner)) == set(bindings) | {
+            "block_ambiguous", "cooldowns", "receipts", "completion",
+            "receipt_values", "tweets", "post",
+        }
         assert all(getattr(owner, name) is value for name, value in current.items())
+        assert owner.block_ambiguous.func is bot._remote_write_barriers.block_if_ambiguous_remote_post
+        assert owner.block_ambiguous.keywords["load_confirmed_reply_receipt"] == receipts.load
+        assert owner.receipts is receipts and owner.completion is completion
+        assert owner.receipt_values is receipt_values and owner.tweets is tweets
+        assert owner.post is bot._post_conversational_reply_with_current_owners
         assert owner.cooldowns is cooldowns
+        values_factory.assert_called_once_with(drafts=drafts)
+        receipts_factory.assert_called_once_with(values=receipt_values)
+        completion_factory.assert_called_once_with(
+            drafts=drafts, receipt_values=receipt_values, receipts=receipts,
+            tweets=tweets, history=draft_history,
+        )
         assert all(not value.mock_calls for value in current.values())
         with pytest.raises(FrozenInstanceError):
             owner.post = Mock()
     assert all(getattr(owners[0], name) is not getattr(owners[1], name) for name in bindings)
+    assert owners[0].block_ambiguous is not owners[1].block_ambiguous
 
 
 def test_cycle_delivery_keeps_bound_routing_while_post_binds_current_send_dependencies(monkeypatch):
@@ -991,7 +1052,14 @@ def test_cycle_delivery_keeps_bound_routing_while_post_binds_current_send_depend
     monkeypatch.setattr(bot, "ApiError", BoundApiError)
     for name, value in bound.items():
         monkeypatch.setattr(bot, name, value)
-    monkeypatch.setattr(bot, "reply_target_is_available_immediately_before_send", available)
+    patch_reply_owner_method(
+        monkeypatch, bot._tweet_lookup_cache.TweetLookupCache,
+        "target_is_available", available,
+    )
+    monkeypatch.setattr(
+        bot, "reply_target_is_available_immediately_before_send",
+        Mock(side_effect=AssertionError("obsolete root availability relay used")),
+    )
     monkeypatch.setattr(delivery, "post_conversational_reply_with_durable_identity", post)
     account = Mock()
     patch_reply_owner_method(
@@ -1008,8 +1076,12 @@ def test_cycle_delivery_keeps_bound_routing_while_post_binds_current_send_depend
         state, "105", reply, receipt, lane="mention", log_source="mention",
         read_error_scope="api", mark_as_ai=True, retire_terminal_target=retired,
     ) is delivery.ReplyDeliveryStop.RETRYABLE
-    value_factory.assert_called_once_with()
-    completion_factory.assert_called_once_with()
+    assert value_factory.call_count == 1
+    send_drafts = value_factory.call_args.kwargs["drafts"]
+    completion_factory.assert_called_once()
+    assert completion_factory.call_args.kwargs["drafts"] is send_drafts
+    assert completion_factory.call_args.kwargs["receipt_values"] is value_factory.return_value
+    assert completion_factory.call_args.kwargs["receipts"].values is value_factory.return_value
     bound["api_error_is_reply_not_allowed"].assert_called_once_with(failure)
     account.assert_called_once_with(state, failure, "x", scope="write")
     bound["save_state"].assert_called_once_with(state)

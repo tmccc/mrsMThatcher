@@ -1,9 +1,10 @@
 """Deliver conversational replies and manage their durable receipt lifecycle.
 
 ReplyReceipts owns loading, exclusive publication and current/legacy promotion.
-Root composition supplies a fresh owner at each receipt operation boundary.
+Root composition supplies a fresh owner at each receipt operation boundary and
+binds the global write barrier directly to the applicable receipt owner.
 ReplyCycleDelivery owns pre-send checks and delivery outcome handling and calls
-its cycle-bound cooldown owner directly. The lanes retain their own terminal
+its cycle-bound receipt, completion, tweet and cooldown owners directly. The lanes retain their own terminal
 bookkeeping and check statuses. Receipt
 operations retain exact source binding, error order, shallow references,
 conservative confirmation and fallback state completeness, and the existing
@@ -13,7 +14,8 @@ No-follow/create/replace/retire primitives, transport journals and mutation
 authority, create_post, runtime barriers, SIGINT guard implementation, state
 persistence and reconciliation remain in their existing owners and are invoked
 through current runtime boundaries. Send-time ambiguity bookkeeping receives a
-fresh cooldown owner. Proof-bound exact retirement remains a root callback, and
+fresh cooldown owner. Proof-bound exact retirement retains its existing authority
+callback, and
 ReplyCompletion owns durable commit and ordered retirement.
 Import uses inert primitives and performs no file, environment, provider or RNG
 work; runtime bindings are retained only by operation-scoped owners.
@@ -32,9 +34,10 @@ from mrs_bot_durable_json_io import canonical_atomic_json_bytes
 
 if TYPE_CHECKING:
     from mrs_bot_api_cooldowns import ApiCooldowns
-    from mrs_bot_reply_cycle_interfaces import FinaliseReply, PostReply, SaveReplyState
+    from mrs_bot_reply_cycle_interfaces import PostReply, SaveReplyState
     from mrs_bot_reply_receipt_values import ReplyReceiptValues
     from mrs_bot_reply_reconciliation import ReplyCompletion
+    from mrs_bot_tweet_lookup_cache import TweetLookupCache
 
 
 class ReplyDeliveryStop(Enum):
@@ -52,14 +55,13 @@ class ReplyCycleDelivery:
     terminal bookkeeping and check-status mapping remain with the caller.
     """
 
-    load_receipt: Callable[[], tuple[str, dict | None]]
-    reconcile_receipt: Callable[[dict], bool]
+    receipts: ReplyReceipts
+    completion: ReplyCompletion
     block_ambiguous: Callable[[], None]
-    bind_attempt: Callable[[dict], dict]
-    target_available: Callable[[str], bool]
+    receipt_values: ReplyReceiptValues
+    tweets: TweetLookupCache
     post: PostReply
     retire_rejected: Callable[[dict, Exception], None]
-    finalise: FinaliseReply
     ambiguous_outcome: type[Exception]
     api_error: type[Exception]
     confirmed_local_failure: type[Exception]
@@ -70,6 +72,30 @@ class ReplyCycleDelivery:
     log: logging.Logger
     posting_outcome: Callable
     cooldowns: ApiCooldowns
+
+    def load_receipt(self) -> tuple[str, dict | None]:
+        """Load through the cycle-bound receipt owner."""
+        return self.receipts.load()
+
+    def reconcile_receipt(self, state: dict) -> bool:
+        """Reconcile through the cycle-bound completion owner."""
+        return self.completion.reconcile(state)
+
+    def bind_attempt(self, receipt_template: dict) -> dict:
+        """Bind one receipt through the cycle-bound value owner."""
+        return self.receipt_values.bind_attempt(receipt_template)
+
+    def target_available(self, target_id: str) -> bool:
+        """Perform the fresh pre-send lookup through the cycle-bound tweet owner."""
+        return self.tweets.target_is_available(target_id)
+
+    def finalise(
+        self, state: dict, receipt: dict, *, target_id: str, quote_reply: bool,
+    ) -> str:
+        """Finalise through the cycle-bound completion owner."""
+        return self.completion.finalise(
+            state, receipt, target_id=target_id, quote_reply=quote_reply,
+        )
 
     def deliver(
         self,
@@ -525,7 +551,6 @@ def post_conversational_reply_with_durable_identity(
     ApiError: type[Exception],
     inspect_confirmed_transport_transaction: Callable,
     journal_path_for_receipt: Callable,
-    apply_confirmed_reply_receipt: Callable,
     StateBackupWriteError: type[Exception],
     json_file_matches: Callable,
     STATE_FILE: Path,
@@ -685,7 +710,7 @@ def post_conversational_reply_with_durable_identity(
                 raise InvalidConfirmedReplyReceipt(
                     "Refusing to apply an invalid confirmed reply representation"
                 )
-            apply_confirmed_reply_receipt(state, receipt)
+            completion.apply_state(state, receipt)
             try:
                 commit_proof = completion.commit(state, receipt_template)
             except StateBackupWriteError as exc:

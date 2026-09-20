@@ -32,7 +32,10 @@ from tests.helpers.mention_fixtures import (
     queue_active_mention,
 )
 from tests.helpers.bot_runtime import bot
-from tests.helpers.bot_fixtures import isolate_bot_runtime  # noqa: F401
+from tests.helpers.bot_fixtures import (
+    install_receipt_bound_x_request_stub,
+    isolate_bot_runtime,  # noqa: F401
+)
 from tests.helpers.reply_fixtures import (
     configure_normal_cycle as _configure_cycle,
     patch_reply_owner_method,
@@ -151,12 +154,22 @@ def test_adapter_forwards_current_dependencies_arguments_results_and_errors(monk
         monkeypatch.setattr(bot, "_quote_watch_posts_owner", watch_owner)
         assert adapter(state, **options) is result
         for key, factory in factories.items():
-            if key in {"generation", "delivery"}:
-                factory.assert_called_once_with(cooldowns=current["cooldowns"])
+            if key == "generation":
+                factory.assert_called_once_with(
+                    cooldowns=current["cooldowns"], history=current["history"],
+                )
+            elif key == "delivery":
+                factory.assert_called_once_with(
+                    cooldowns=current["cooldowns"], drafts=draft_owner.return_value,
+                    tweets=current["tweets"],
+                )
             elif key == "persistence":
                 factory.assert_called_once_with(drafts=draft_owner.return_value)
             else:
                 factory.assert_called_once_with()
+        draft_owner.assert_called_once_with(
+            history=current["history"], generation=current["generation"],
+        )
         args, kwargs = owner.call_args
         assert len(args) == 1 and args[0] is state
         expected = {
@@ -180,7 +193,6 @@ def test_adapter_forwards_current_dependencies_arguments_results_and_errors(monk
         assert kwargs["get_hot_post_reply_candidates"].keywords["watch_posts"] is watch_owner.return_value
         assert kwargs["get_hot_post_reply_candidates"].keywords["cooldowns"] is current["cooldowns"]
         assert kwargs["get_hot_post_reply_candidates"].keywords["controls"] is current["controls"]
-        draft_owner.assert_called_once_with()
         watch_owner.assert_called_once_with(tweets=current["tweets"])
     failure = TypeError("current owner failure")
     owner.side_effect = failure
@@ -350,13 +362,22 @@ def test_receipt_preparation_and_confirmed_state_errors_are_not_transport_errors
         legacy_reply_evaluator(lambda context, *_args, **_kwargs: unit_approved_reply(context)),
     )
     failure = RuntimeError("receipt boundary failed locally")
-    callback = (
-        "bind_conversational_reply_attempt_time"
-        if boundary == "attempt_binding" else "apply_confirmed_reply_receipt"
-    )
-    monkeypatch.setattr(bot, callback, Mock(side_effect=failure))
+    if boundary == "attempt_binding":
+        patch_reply_owner_method(
+            monkeypatch, bot._reply_receipt_values.ReplyReceiptValues,
+            "bind_attempt", Mock(side_effect=failure),
+        )
+    else:
+        monkeypatch.setattr(
+            bot, "_confirmed_reply_state_applier",
+            Mock(return_value=Mock(side_effect=failure)),
+        )
+    for relay in ("bind_conversational_reply_attempt_time", "apply_confirmed_reply_receipt"):
+        monkeypatch.setattr(
+            bot, relay, Mock(side_effect=AssertionError(f"obsolete root relay used: {relay}")),
+        )
     transport = Mock(return_value=({}, {"reply_post_id": "900"}))
-    monkeypatch.setattr(bot, "post_conversational_reply_with_durable_identity", transport)
+    monkeypatch.setattr(bot, "_post_conversational_reply_with_current_owners", transport)
     accounted = Mock()
     outcomes = Mock(wraps=bot.log_ai_reply_posting_outcome)
     cleanup = Mock(wraps=bot.remove_confirmed_reply_receipt)
@@ -540,14 +561,22 @@ def test_daily_reset_and_confirmed_reconciliation_precede_barrier_when_disabled(
         ("reset", "reset_daily_reply_count_if_needed"),
         ("reconcile", "reconcile_confirmed_reply_receipt"),
     ):
-        original = bot._daily_reply_accounting_owner().reset if label == "reset" else getattr(bot, name)
+        original = (
+            bot._daily_reply_accounting_owner().reset
+            if label == "reset" else bot._reply_completion_owner().reconcile
+        )
         callback = Mock(wraps=original)
         trace.attach_mock(callback, label)
         if label == "reset":
             patch_reply_owner_method(monkeypatch, accounting_owner.DailyReplyAccounting, "reset", callback)
         else:
-            monkeypatch.setattr(bot, name, callback)
-    original_barrier = bot.block_if_ambiguous_remote_post
+            patch_reply_owner_method(
+                monkeypatch, bot._reply_reconciliation.ReplyCompletion, "reconcile", callback,
+            )
+            monkeypatch.setattr(
+                bot, name, Mock(side_effect=AssertionError("obsolete reconciliation relay used")),
+            )
+    original_barrier = bot._reply_remote_write_barrier()
 
     def barrier():
         saved = json.loads(bot.STATE_FILE.read_text())
@@ -558,7 +587,11 @@ def test_daily_reset_and_confirmed_reconciliation_precede_barrier_when_disabled(
         return original_barrier()
 
     trace.attach_mock(Mock(side_effect=barrier), "barrier")
-    monkeypatch.setattr(bot, "block_if_ambiguous_remote_post", trace.barrier)
+    monkeypatch.setattr(bot, "_reply_remote_write_barrier", Mock(return_value=trace.barrier))
+    monkeypatch.setattr(
+        bot, "block_if_ambiguous_remote_post",
+        Mock(side_effect=AssertionError("obsolete reply barrier relay used")),
+    )
     assert bot.maybe_reply_to_mentions(state) == bot.NORMAL_CHECK_STATUS_DISABLED
     assert trace.mock_calls == [call.reset(state), call.reconcile(state), call.barrier()]
     bot._hot_post_discovery.get_hot_post_reply_candidates.assert_not_called()
@@ -635,7 +668,10 @@ def test_fresh_duplicate_draft_is_rejected_before_delivery(monkeypatch):
     ))
     patch_reply_owner_method(monkeypatch, generation_owner.ReplyGeneration, "evaluate", evaluator)
     preflight = Mock()
-    monkeypatch.setattr(bot, "reply_target_is_available_immediately_before_send", preflight)
+    patch_reply_owner_method(
+        monkeypatch, bot._tweet_lookup_cache.TweetLookupCache,
+        "target_is_available", preflight,
+    )
 
     assert bot.maybe_reply_to_mentions(state) == bot.NORMAL_CHECK_STATUS_API_ERROR
 
@@ -699,7 +735,14 @@ def test_prepared_context_preserves_clarification_and_media_through_recovery(mon
         status="reply", reason="useful_reply", reply=reply, model_call_count=1,
     ))
     patch_reply_owner_method(monkeypatch, generation_owner.ReplyGeneration, "evaluate", evaluator)
-    monkeypatch.setattr(bot, "reply_target_is_available_immediately_before_send", Mock(return_value=False))
+    patch_reply_owner_method(
+        monkeypatch, bot._tweet_lookup_cache.TweetLookupCache,
+        "target_is_available", Mock(return_value=False),
+    )
+    monkeypatch.setattr(
+        bot, "reply_target_is_available_immediately_before_send",
+        Mock(side_effect=AssertionError("obsolete availability relay used")),
+    )
 
     assert bot.maybe_reply_to_mentions(state) == bot.NORMAL_CHECK_STATUS_CHECKED
     preparation.assert_called_once()
@@ -719,10 +762,12 @@ def test_prepared_context_preserves_clarification_and_media_through_recovery(mon
 
 
 def test_normal_owner_handoffs_keep_current_recovery_and_chronological_model_history(monkeypatch):
-    """Exercise real context, cache, history and generation owners without root relays."""
+    """Exercise real generation-through-completion owners without root relays."""
     build = context_owner.ReplyContext.build
     evaluate = generation_owner.ReplyGeneration.evaluate
+    create_post = bot.create_post
     _configure_cycle(monkeypatch)
+    monkeypatch.setattr(bot, "create_post", create_post)
     monkeypatch.setattr(bot, "MAX_MENTIONS_PER_CHECK", 1)
     monkeypatch.setattr(generation_owner.ReplyGeneration, "evaluate", evaluate)
     capped, candidate = mention(104, 204), mention(105, 205)
@@ -794,11 +839,18 @@ def test_normal_owner_handoffs_keep_current_recovery_and_chronological_model_his
         saved = json.loads(bot.STATE_FILE.read_text())
         assert saved["tweet_cache"]["104"]["post_type"] == "author_cap_context"
         return bot.PipelineResult(
-            status="no_reply", reason="completed_exchange", model_call_count=1,
+            status="reply", reason="useful_reply",
+            reply=unit_approved_reply(kwargs["context"]), model_call_count=1,
         )
 
     pipeline = Mock(side_effect=evaluate_pipeline)
     monkeypatch.setattr(bot, "run_single_call_reply_pipeline", pipeline)
+    patch_reply_owner_method(
+        monkeypatch, bot._tweet_lookup_cache.TweetLookupCache, "fetch",
+        Mock(return_value=candidate),
+    )
+    remote = Mock(return_value={"data": {"id": "950105"}})
+    install_receipt_bound_x_request_stub(monkeypatch, remote)
     relays = {}
     for name in (
         "build_context_for_reply_ai", "cache_tweet", "evaluate_single_call_reply",
@@ -806,27 +858,32 @@ def test_normal_owner_handoffs_keep_current_recovery_and_chronological_model_his
         "_record_single_call_result", "recovery_comparison_account_replies",
         "collect_reply_images", "openai_responses_reply_call", "_openai_api_error",
         "reply_media_context_for_candidate",
+        "load_confirmed_reply_receipt", "reconcile_confirmed_reply_receipt",
+        "bind_conversational_reply_attempt_time",
+        "reply_target_is_available_immediately_before_send",
+        "post_conversational_reply_with_durable_identity",
+        "apply_confirmed_reply_receipt",
     ):
         relays[name] = Mock(side_effect=AssertionError(f"root relay used: {name}"))
         monkeypatch.setattr(bot, name, relays[name])
 
-    assert bot.maybe_reply_to_mentions(state) == bot.NORMAL_CHECK_STATUS_CHECKED
+    assert bot.maybe_reply_to_mentions(state) == bot.NORMAL_CHECK_STATUS_POSTED
     assert len(prepared) == pipeline.call_count == 1
     assert collected_media == [prepared[0].media_context]
     assert prepared[0].media_context == {
         "lane": "mention", "target_id": "105", "mode": "none",
         "status": "none", "photos_expected": 0, "photos": [],
     }
-    assert state["reply_evaluation_records"]["105"]["outcome"] == "no_reply"
-    assert state["last_seen_mention_id"] == "99"
+    assert "105" not in state.get("reply_evaluation_records", {})
     assert state["mention_pending_candidates"] == {}
-    assert state["daily_reply_count"] == 0
+    assert state["daily_reply_count"] == 1
+    assert state["ai_reply_history"][-1]["reply_post_id"] == "950105"
     saved = json.loads(bot.STATE_FILE.read_text())
-    assert saved["reply_evaluation_records"]["105"]["outcome"] == "no_reply"
+    assert "105" not in saved.get("reply_evaluation_records", {})
+    assert not bot.CONFIRMED_REPLY_RECEIPT_FILE.exists()
     for relay in relays.values():
         relay.assert_not_called()
-    bot.x_request.assert_not_called()
-    bot.create_post.assert_not_called()
+    assert remote.call_count == 1
 
 
 @pytest.mark.parametrize("failed_step", ["prune", "save"])

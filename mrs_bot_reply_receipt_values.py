@@ -1,7 +1,7 @@
 """Own conversational reply receipt validation and in-memory projections.
 
-ReplyReceiptValues binds current draft, time and error boundaries without
-retaining caller state and calls its ReceiptDates owner directly. Fixed identity
+ReplyReceiptValues binds the current draft owner, time and error boundaries without
+retaining caller state and calls ReplyDrafts and ReceiptDates directly. Fixed identity
 checks, continuation grammar and
 canonical receipt encoding come directly from their inert owners.
 Current and frozen recovery validation dispatch through owned methods,
@@ -30,6 +30,7 @@ from mrs_bot_legacy_reply_validation import (
 
 if TYPE_CHECKING:
     from mrs_bot_receipt_primitives import ReceiptDates
+    from mrs_bot_reply_drafts import ReplyDrafts
 
 
 @dataclass(frozen=True)
@@ -39,7 +40,7 @@ class ReplyReceiptValues:
     valid_receipt_epoch: Callable
     dates: ReceiptDates
     legacy_draft_is_valid: Callable
-    draft_is_valid: Callable
+    drafts: ReplyDrafts
     now_epoch: Callable
     log: logging.Logger
     invalid_receipt: type[Exception]
@@ -154,7 +155,7 @@ class ReplyReceiptValues:
                 return False
             if not legacy_draft_is_valid:
                 return False
-        elif not self.draft_is_valid(data, text):
+        elif not self.drafts.receipt_draft_is_valid(data, text):
             return False
         clarification = data.get("clarification_reply")
         if clarification is not None:

@@ -8,6 +8,7 @@ import inspect
 from pathlib import Path
 import subprocess
 import sys
+from types import SimpleNamespace
 from unittest.mock import Mock, call
 
 import pytest
@@ -30,11 +31,19 @@ from tests.helpers.reply_fixtures import (
 def make_owner():
     """Use local evidence and real validation unless a boundary is under test."""
     def build(**overrides):
+        comparison_replies = overrides.pop("comparison_replies", None)
+        record_result = overrides.pop("record_result", None)
+        history = bot._reply_history_owner()
+        generation = bot._reply_generation_owner(history=history)
+        if comparison_replies is not None:
+            history = SimpleNamespace(recovery_replies=comparison_replies)
+        if record_result is not None:
+            generation = SimpleNamespace(record_result=record_result)
         options = dict(
             validate_persisted_draft=bot.validate_single_call_persisted_draft,
             evidence_repository=lambda: UNIT_REPLY_REPOSITORY,
-            comparison_replies=bot._reply_history_owner().recovery_replies,
-            record_result=bot._record_single_call_result,
+            history=history,
+            generation=generation,
             log_event=bot.log_event,
             log=bot.log,
             strategy_version=bot.SINGLE_CALL_STRATEGY_VERSION,
@@ -89,7 +98,6 @@ def test_root_owner_binds_current_dependencies_without_accessing_evidence(monkey
     names = {
         "validate_persisted_draft": "validate_single_call_persisted_draft",
         "evidence_repository": "reply_evidence_repository",
-        "record_result": "_record_single_call_result",
         "log_event": "log_event", "log": "log",
         "strategy_version": "SINGLE_CALL_STRATEGY_VERSION", "model": "SINGLE_CALL_MODEL",
         "result_type": "PipelineResult", "reply_type": "ValidatedReply",
@@ -102,17 +110,22 @@ def test_root_owner_binds_current_dependencies_without_accessing_evidence(monkey
         current["evidence_repository"] = Mock()
         for field, root_name in names.items():
             monkeypatch.setattr(bot, root_name, current[field])
-        current["comparison_replies"] = Mock()
-        history = Mock(recovery_replies=current["comparison_replies"])
+        history = Mock()
+        generation = Mock()
         monkeypatch.setattr(bot, "_reply_history_owner", Mock(return_value=history))
+        generation_factory = Mock(return_value=generation)
+        monkeypatch.setattr(bot, "_reply_generation_owner", generation_factory)
         owner = bot._reply_draft_owner()
         assert isinstance(owner, reply_drafts.ReplyDrafts)
         assert all(getattr(owner, field) is value for field, value in current.items())
+        assert owner.history is history and owner.generation is generation
+        generation_factory.assert_called_once_with(history=history)
         current["evidence_repository"].assert_not_called()
-        current["comparison_replies"].assert_not_called()
-        snapshots.append((owner, current))
-    first, first_inputs = snapshots[0]
+        assert not history.mock_calls and not generation.mock_calls
+        snapshots.append((owner, current, history, generation))
+    first, first_inputs, first_history, first_generation = snapshots[0]
     assert all(getattr(first, field) is value for field, value in first_inputs.items())
+    assert first.history is first_history and first.generation is first_generation
     assert first is not snapshots[1][0]
     with pytest.raises(FrozenInstanceError):
         first.model = "changed"
