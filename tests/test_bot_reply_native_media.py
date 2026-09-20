@@ -319,6 +319,56 @@ def test_image_failure_closes_response_before_propagating_original_cause(make_ow
     assert validate.call_count == int(failure_site == "validation")
 
 
+@pytest.mark.parametrize("second_stream_fails", [False, True])
+def test_multiple_image_collection_closes_each_download_before_the_next_step(
+    make_owner, image_case, second_stream_fails,
+):
+    first, media = image_case
+    second = copy.deepcopy(first)
+    media["photos"].append({
+        **media["photos"][0], "media_key": "quoted-photo",
+        "url": "http://127.0.0.1/media/quoted.png",
+        "attachment_role": "quoted_subject", "source_post_id": "quoted",
+    })
+    media["photos_expected"] = 2
+    failure = bot.requests.Timeout("fixture second image stream failure")
+    if second_stream_fails:
+        second.iter_content = Mock(side_effect=failure)
+    trace = Mock()
+    trace.get.side_effect = [first, second]
+    first.close = trace.first_close = Mock(wraps=first.close)
+    second.close = trace.second_close = Mock(wraps=second.close)
+    trace.validate.side_effect = lambda images: images
+    owner = make_owner(
+        requests=SimpleNamespace(get=trace.get, RequestException=bot.requests.RequestException),
+        require_remote_operation_unpaused=trace.pause,
+        validate_supplied_images=trace.validate, maximum_supplied_images=2,
+        request_timeout=Mock(return_value=17),
+    )
+
+    if second_stream_fails:
+        with pytest.raises(bot.ReplyMediaTransientUnavailable) as caught:
+            owner.collect(media)
+        assert caught.value.__cause__ is failure
+        trace.validate.assert_not_called()
+    else:
+        result = owner.collect(media)
+        assert result is trace.validate.call_args.args[0]
+        assert [(image["identity"], image["attachment_role"], image["source_post_id"])
+                for image in result] == [
+            ("native-photo", "target_contribution", "target"),
+            ("quoted-photo", "quoted_subject", "quoted"),
+        ]
+    expected_order = ["pause", "get", "first_close", "pause", "get", "second_close"]
+    assert [entry[0] for entry in trace.mock_calls] == (
+        expected_order if second_stream_fails else [*expected_order, "validate"]
+    )
+    assert trace.pause.call_args_list == [
+        call("candidate image collection 1/2"), call("candidate image collection 2/2"),
+    ]
+    assert first.closed and second.closed
+
+
 def test_url_validation_reads_current_policy_and_preserves_exception_cause(make_owner):
     class CurrentMediaError(bot.ReplyMediaUnavailable):
         pass

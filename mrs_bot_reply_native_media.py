@@ -288,74 +288,9 @@ class ReplyMedia:
             if not identity:
                 raise self.media_unavailable("candidate image lacks a stable identity")
             url = self.safe_url(photo.get("url"))
-            self.require_remote_operation_unpaused(
-                f"candidate image collection {index}/{len(photos)}"
+            mime_type, image_bytes = self._download_image(
+                url, operation=f"candidate image collection {index}/{len(photos)}"
             )
-            response = None
-            try:
-                response = self.requests.get(
-                    url,
-                    stream=True,
-                    allow_redirects=False,
-                    timeout=self.request_timeout(),
-                    headers={"Accept": "image/jpeg,image/png,image/webp,image/gif", "Accept-Encoding": "identity"},
-                )
-                if response.status_code != 200:
-                    failure_type = (
-                        self.media_transient_unavailable
-                        if response.status_code in {408, 425, 429}
-                        or 500 <= response.status_code < 600
-                        else self.media_unavailable
-                    )
-                    raise failure_type(
-                        f"candidate image returned HTTP {response.status_code}"
-                    )
-                if str(response.headers.get("Content-Encoding") or "identity").lower() != "identity":
-                    raise self.media_unavailable("candidate image transfer encoding is unsupported")
-                if response.headers.get("Location"):
-                    raise self.media_unavailable("candidate image attempted a redirect")
-                mime_type = str(
-                    response.headers.get("Content-Type") or ""
-                ).split(";", 1)[0].strip().lower()
-                if mime_type not in self.image_mime_types:
-                    raise self.media_unavailable("candidate image type is unsupported")
-                raw_length = response.headers.get("Content-Length")
-                content_length = None
-                if raw_length is not None:
-                    try:
-                        content_length = int(raw_length)
-                    except ValueError as exc:
-                        raise self.media_unavailable(
-                            "candidate image length is invalid"
-                        ) from exc
-                    if not 1 <= content_length <= self.maximum_image_bytes:
-                        raise self.media_unavailable(
-                            "candidate image length is outside the safe bound"
-                        )
-                chunks: list[bytes] = []
-                total = 0
-                for chunk in response.iter_content(chunk_size=64 * 1024):
-                    if not isinstance(chunk, bytes) or not chunk:
-                        continue
-                    total += len(chunk)
-                    if total > self.maximum_image_bytes:
-                        raise self.media_unavailable("candidate image exceeds the safe bound")
-                    chunks.append(chunk)
-                if content_length is not None and total != content_length:
-                    failure_type = (self.media_transient_unavailable if total < content_length else self.media_unavailable)
-                    raise failure_type("candidate image body differs from declared length")
-                image_bytes = b"".join(chunks)
-            except self.media_unavailable:
-                raise
-            except self.requests.RequestException as exc:
-                raise self.media_transient_unavailable(
-                    "candidate image could not be obtained safely"
-                ) from exc
-            finally:
-                if response is not None:
-                    close_response = getattr(response, "close", None)
-                    if callable(close_response):
-                        close_response()
             collected.append(
                 {
                     "identity": identity,
@@ -369,3 +304,74 @@ class ReplyMedia:
             return self.validate_supplied_images(collected)
         except (RuntimeError, TypeError, ValueError) as exc:
             raise self.media_unavailable("candidate image bytes failed validation") from exc
+
+    def _download_image(self, url: str, *, operation: str) -> tuple[str, bytes]:
+        """Read one bounded image and close its response before returning bytes."""
+
+        self.require_remote_operation_unpaused(operation)
+        response = None
+        try:
+            response = self.requests.get(
+                url,
+                stream=True,
+                allow_redirects=False,
+                timeout=self.request_timeout(),
+                headers={"Accept": "image/jpeg,image/png,image/webp,image/gif", "Accept-Encoding": "identity"},
+            )
+            if response.status_code != 200:
+                failure_type = (
+                    self.media_transient_unavailable
+                    if response.status_code in {408, 425, 429}
+                    or 500 <= response.status_code < 600
+                    else self.media_unavailable
+                )
+                raise failure_type(
+                    f"candidate image returned HTTP {response.status_code}"
+                )
+            if str(response.headers.get("Content-Encoding") or "identity").lower() != "identity":
+                raise self.media_unavailable("candidate image transfer encoding is unsupported")
+            if response.headers.get("Location"):
+                raise self.media_unavailable("candidate image attempted a redirect")
+            mime_type = str(
+                response.headers.get("Content-Type") or ""
+            ).split(";", 1)[0].strip().lower()
+            if mime_type not in self.image_mime_types:
+                raise self.media_unavailable("candidate image type is unsupported")
+            raw_length = response.headers.get("Content-Length")
+            content_length = None
+            if raw_length is not None:
+                try:
+                    content_length = int(raw_length)
+                except ValueError as exc:
+                    raise self.media_unavailable(
+                        "candidate image length is invalid"
+                    ) from exc
+                if not 1 <= content_length <= self.maximum_image_bytes:
+                    raise self.media_unavailable(
+                        "candidate image length is outside the safe bound"
+                    )
+            chunks: list[bytes] = []
+            total = 0
+            for chunk in response.iter_content(chunk_size=64 * 1024):
+                if not isinstance(chunk, bytes) or not chunk:
+                    continue
+                total += len(chunk)
+                if total > self.maximum_image_bytes:
+                    raise self.media_unavailable("candidate image exceeds the safe bound")
+                chunks.append(chunk)
+            if content_length is not None and total != content_length:
+                failure_type = (self.media_transient_unavailable if total < content_length else self.media_unavailable)
+                raise failure_type("candidate image body differs from declared length")
+            image_bytes = b"".join(chunks)
+        except self.media_unavailable:
+            raise
+        except self.requests.RequestException as exc:
+            raise self.media_transient_unavailable(
+                "candidate image could not be obtained safely"
+            ) from exc
+        finally:
+            if response is not None:
+                close_response = getattr(response, "close", None)
+                if callable(close_response):
+                    close_response()
+        return mime_type, image_bytes
