@@ -1,20 +1,21 @@
 """Own watched own-post selection and quote discovery/pagination.
 
-Root adapters supply current callbacks, paths, settings, clock, logger and
-standard-library modules on each call. Recent search batches watched originals
-and groups direct quotes with media/author expansions. The legacy per-post
-lookup remains a diagnostic helper. State uses the supplied save callback.
+QuoteWatchPosts owns fresh watch-file reads, recent-original selection and their
+priority merge. Its methods call each other directly with current root settings
+and cache seeding. Discovery adapters supply current request, state and runtime
+boundaries. Recent search batches watched originals and groups direct quotes;
+the legacy per-post lookup remains a diagnostic helper.
 
 Shared pagination, request/authentication, ID validation, cache seeding, media,
 durable persistence and reply cycles remain in their existing locations. This
-owner acquires no write authority; it has no reverse application imports,
-retained callbacks, configuration, clients or state. Import performs no file,
-environment, provider, clock or RNG work.
+owner acquires no write authority and retains no caller state. Import performs
+no file, environment, provider, clock or RNG work or reverse application import.
 """
 
 from __future__ import annotations
 
 from collections.abc import Callable
+from dataclasses import dataclass
 from logging import Logger
 from pathlib import Path
 from types import ModuleType
@@ -106,132 +107,123 @@ def normalise_quote_repeated_cursor_suppressions(
     return normalised, discarded
 
 
-def load_extra_quote_watch_post_ids(
-    *,
-    EXTRA_QUOTE_WATCH_FILE: Path,
-    MAX_EXTRA_QUOTE_WATCH_POSTS: int,
-    log: Logger,
-) -> list[str]:
-    """
-    Read extra own-post IDs to include in quote-tweet checks.
+@dataclass(frozen=True)
+class QuoteWatchPosts:
+    """Select watched and recent originals with fresh file reads and caller state."""
 
-    This is deliberately read immediately before each quote-tweet check,
-    not just at startup, so the file can be edited while the bot is running.
+    watch_file: Path
+    maximum_extra_posts: int
+    maximum_posts: int
+    lookback_posts: int
+    seed_recent: Callable
+    log: Logger
 
-    File format:
-      - one post ID per line
-      - blank lines ignored
-      - lines beginning with # ignored
-      - inline comments allowed after whitespace + #
-    """
-    path = EXTRA_QUOTE_WATCH_FILE
+    def load_extra(self) -> list[str]:
+        """
+        Read extra own-post IDs to include in quote-tweet checks.
 
-    if not path.exists():
-        return []
+        This is deliberately read immediately before each quote-tweet check,
+        not just at startup, so the file can be edited while the bot is running.
 
-    post_ids: list[str] = []
+        File format:
+          - one post ID per line
+          - blank lines ignored
+          - lines beginning with # ignored
+          - inline comments allowed after whitespace + #
+        """
+        path = self.watch_file
 
-    try:
-        for raw_line in path.read_text(encoding="utf-8").splitlines():
-            line = raw_line.strip()
+        if not path.exists():
+            return []
 
-            if not line or line.startswith("#"):
+        post_ids: list[str] = []
+
+        try:
+            for raw_line in path.read_text(encoding="utf-8").splitlines():
+                line = raw_line.strip()
+
+                if not line or line.startswith("#"):
+                    continue
+
+                # Allow:
+                # 2070843320310419627  # hot meme post
+                if " #" in line:
+                    line = line.split(" #", 1)[0].strip()
+
+                if not line.isdigit():
+                    self.log.warning("Ignoring invalid extra quote-watch post ID in %s: %r", path, raw_line)
+                    continue
+
+                if line not in post_ids:
+                    post_ids.append(line)
+
+                if len(post_ids) >= self.maximum_extra_posts:
+                    break
+
+        except Exception as exc:
+            self.log.warning("Could not read extra quote-watch post IDs from %s: %s", path, exc)
+            return []
+
+        return post_ids
+
+    def lookup(self, state: dict) -> list[str]:
+        """
+        Build the list of own posts to inspect for quote-tweets.
+
+        Extra watched posts are loaded fresh for every quote-tweet check and
+        are given priority, so a hot older meme does not fall behind the last
+        five ordinary quote/image posts.
+        """
+        recent_ids = self.recent(state)
+        extra_ids = self.load_extra()
+
+        clean_ids: list[str] = []
+        seen: set[str] = set()
+
+        # Extra watched posts first: these are explicitly selected hot posts.
+        for tweet_id in extra_ids + recent_ids:
+            tweet_id = str(tweet_id).strip()
+            if not tweet_id or tweet_id in seen:
                 continue
+            seen.add(tweet_id)
+            clean_ids.append(tweet_id)
 
-            # Allow:
-            # 2070843320310419627  # hot meme post
-            if " #" in line:
-                line = line.split(" #", 1)[0].strip()
-
-            if not line.isdigit():
-                log.warning("Ignoring invalid extra quote-watch post ID in %s: %r", path, raw_line)
-                continue
-
-            if line not in post_ids:
-                post_ids.append(line)
-
-            if len(post_ids) >= MAX_EXTRA_QUOTE_WATCH_POSTS:
+            if len(clean_ids) >= self.maximum_posts:
                 break
 
-    except Exception as exc:
-        log.warning("Could not read extra quote-watch post IDs from %s: %s", path, exc)
-        return []
+        if extra_ids:
+            self.log.info(
+                "Quote-tweet check loaded %d extra watched post(s) from %s: %s",
+                len(extra_ids),
+                self.watch_file,
+                ", ".join(extra_ids),
+            )
 
-    return post_ids
+        self.log.info("Own posts for quote lookup: %s", clean_ids)
 
+        return clean_ids
 
-def build_quote_lookup_post_ids(
-    state: dict,
-    *,
-    EXTRA_QUOTE_WATCH_FILE: Path,
-    MAX_QUOTE_POSTS_PER_CHECK: int,
-    get_recent_own_post_ids_for_quote_lookup: Callable,
-    load_extra_quote_watch_post_ids: Callable,
-    log: Logger,
-) -> list[str]:
-    """
-    Build the list of own posts to inspect for quote-tweets.
+    def recent(self, state: dict) -> list[str]:
+        """Return recent own post IDs for quote lookup."""
+        self.seed_recent(state)
 
-    Extra watched posts are loaded fresh for every quote-tweet check and
-    are given priority, so a hot older meme does not fall behind the last
-    five ordinary quote/image posts.
-    """
-    recent_ids = get_recent_own_post_ids_for_quote_lookup(state)
-    extra_ids = load_extra_quote_watch_post_ids()
+        ids = [str(x) for x in state.get("recent_own_post_ids", [])]
 
-    clean_ids: list[str] = []
-    seen: set[str] = set()
+        if state.get("last_main_post_id"):
+            last_id = str(state["last_main_post_id"])
+            if last_id not in ids:
+                ids.insert(0, last_id)
 
-    # Extra watched posts first: these are explicitly selected hot posts.
-    for tweet_id in extra_ids + recent_ids:
-        tweet_id = str(tweet_id).strip()
-        if not tweet_id or tweet_id in seen:
-            continue
-        seen.add(tweet_id)
-        clean_ids.append(tweet_id)
+        clean_ids: list[str] = []
+        seen: set[str] = set()
 
-        if len(clean_ids) >= MAX_QUOTE_POSTS_PER_CHECK:
-            break
+        for tweet_id in ids:
+            if tweet_id in seen:
+                continue
+            seen.add(tweet_id)
+            clean_ids.append(tweet_id)
 
-    if extra_ids:
-        log.info(
-            "Quote-tweet check loaded %d extra watched post(s) from %s: %s",
-            len(extra_ids),
-            EXTRA_QUOTE_WATCH_FILE,
-            ", ".join(extra_ids),
-        )
-
-    log.info("Own posts for quote lookup: %s", clean_ids)
-
-    return clean_ids
-
-
-def get_recent_own_post_ids_for_quote_lookup(
-    state: dict,
-    *,
-    QUOTE_POST_LOOKBACK_MAIN_POSTS: int,
-    seed_recent_own_post_ids_from_cache: Callable,
-) -> list[str]:
-    """Return recent own post IDs for quote lookup."""
-    seed_recent_own_post_ids_from_cache(state)
-
-    ids = [str(x) for x in state.get("recent_own_post_ids", [])]
-
-    if state.get("last_main_post_id"):
-        last_id = str(state["last_main_post_id"])
-        if last_id not in ids:
-            ids.insert(0, last_id)
-
-    clean_ids: list[str] = []
-    seen: set[str] = set()
-
-    for tweet_id in ids:
-        if tweet_id in seen:
-            continue
-        seen.add(tweet_id)
-        clean_ids.append(tweet_id)
-
-    return clean_ids[:QUOTE_POST_LOOKBACK_MAIN_POSTS]
+        return clean_ids[:self.lookback_posts]
 
 
 def get_quote_tweets_for_post(

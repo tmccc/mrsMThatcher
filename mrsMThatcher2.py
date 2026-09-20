@@ -8702,34 +8702,31 @@ def maybe_reply_to_mentions(
 # Quote-post replies
 # ---------------------------------------------------------------------
 
-def load_extra_quote_watch_post_ids() -> list[str]:
-    """Delegate to quote discovery with current root dependencies."""
-    return _quote_discovery.load_extra_quote_watch_post_ids(
-        EXTRA_QUOTE_WATCH_FILE=EXTRA_QUOTE_WATCH_FILE,
-        MAX_EXTRA_QUOTE_WATCH_POSTS=MAX_EXTRA_QUOTE_WATCH_POSTS,
+def _quote_watch_posts_owner() -> _quote_discovery.QuoteWatchPosts:
+    """Bind current watch selection settings without reading the watch file."""
+    return _quote_discovery.QuoteWatchPosts(
+        watch_file=EXTRA_QUOTE_WATCH_FILE,
+        maximum_extra_posts=MAX_EXTRA_QUOTE_WATCH_POSTS,
+        maximum_posts=MAX_QUOTE_POSTS_PER_CHECK,
+        lookback_posts=QUOTE_POST_LOOKBACK_MAIN_POSTS,
+        seed_recent=seed_recent_own_post_ids_from_cache,
         log=log,
     )
+
+
+def load_extra_quote_watch_post_ids() -> list[str]:
+    """Delegate to watched-post selection with current root dependencies."""
+    return _quote_watch_posts_owner().load_extra()
 
 
 def build_quote_lookup_post_ids(state: dict) -> list[str]:
-    """Delegate to quote discovery with current root dependencies."""
-    return _quote_discovery.build_quote_lookup_post_ids(
-        state,
-        EXTRA_QUOTE_WATCH_FILE=EXTRA_QUOTE_WATCH_FILE,
-        MAX_QUOTE_POSTS_PER_CHECK=MAX_QUOTE_POSTS_PER_CHECK,
-        get_recent_own_post_ids_for_quote_lookup=get_recent_own_post_ids_for_quote_lookup,
-        load_extra_quote_watch_post_ids=load_extra_quote_watch_post_ids,
-        log=log,
-    )
+    """Delegate to watched-post selection with current root dependencies."""
+    return _quote_watch_posts_owner().lookup(state)
 
 
 def get_recent_own_post_ids_for_quote_lookup(state: dict) -> list[str]:
-    """Delegate to quote discovery with current root dependencies."""
-    return _quote_discovery.get_recent_own_post_ids_for_quote_lookup(
-        state,
-        QUOTE_POST_LOOKBACK_MAIN_POSTS=QUOTE_POST_LOOKBACK_MAIN_POSTS,
-        seed_recent_own_post_ids_from_cache=seed_recent_own_post_ids_from_cache,
-    )
+    """Delegate to watched-post selection with current root dependencies."""
+    return _quote_watch_posts_owner().recent(state)
 
 
 def get_quote_tweets_for_post(post_id: str, state: dict | None = None) -> list[dict]:

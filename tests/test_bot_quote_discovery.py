@@ -11,6 +11,7 @@ import pytest
 
 import mrs_bot_quote_discovery as discovery
 from tests.helpers.bot_runtime import bot
+from tests.helpers.reply_fixtures import patch_reply_owner_method
 from tests.helpers.bot_fixtures import isolate_bot_runtime  # noqa: F401
 
 
@@ -52,9 +53,6 @@ def test_adapters_forward_current_dependencies_arguments_results_and_errors(monk
     counts = {
         "quote_repeated_cursor_suppression_record": 4,
         "normalise_quote_repeated_cursor_suppressions": 3,
-        "load_extra_quote_watch_post_ids": 3,
-        "build_quote_lookup_post_ids": 5,
-        "get_recent_own_post_ids_for_quote_lookup": 2,
         "get_quote_tweets_for_post": 14,
         "get_quote_tweets_for_posts": 8,
     }
@@ -96,6 +94,47 @@ def test_adapters_forward_current_dependencies_arguments_results_and_errors(monk
     monkeypatch.setattr(discovery, "quote_repeated_cursor_suppression_record", owner)
     bot.quote_repeated_cursor_suppression_record("900", {}, current_epoch=100)
     assert owner.call_args.kwargs["allow_expired"] is False
+
+
+def test_watch_adapters_bind_current_owners_without_reading_files_or_seeding(monkeypatch):
+    fields = {
+        "watch_file": "EXTRA_QUOTE_WATCH_FILE", "maximum_extra_posts": "MAX_EXTRA_QUOTE_WATCH_POSTS",
+        "maximum_posts": "MAX_QUOTE_POSTS_PER_CHECK", "lookback_posts": "QUOTE_POST_LOOKBACK_MAIN_POSTS",
+        "seed_recent": "seed_recent_own_post_ids_from_cache", "log": "log",
+    }
+    for name, method in (
+        ("load_extra_quote_watch_post_ids", "load_extra"),
+        ("build_quote_lookup_post_ids", "lookup"),
+        ("get_recent_own_post_ids_for_quote_lookup", "recent"),
+    ):
+        adapter = getattr(bot, name)
+        parameters = inspect.signature(adapter).parameters
+        assert tuple(parameters) == (() if method == "load_extra" else ("state",))
+        args = tuple(object() for _ in parameters)
+        result, captured = object(), []
+        callback = Mock(return_value=result)
+
+        def observe(owner, *actual_args):
+            captured.append(owner)
+            return callback(*actual_args)
+
+        with monkeypatch.context() as patch:
+            patch.setattr(discovery.QuoteWatchPosts, method, observe)
+            for _ in range(2):
+                current = {field: Mock() for field in fields}
+                for field, root_name in fields.items():
+                    patch.setattr(bot, root_name, current[field])
+                assert adapter(*args) is result
+                assert len(callback.call_args.args) == len(args)
+                assert all(actual is expected for actual, expected in zip(callback.call_args.args, args))
+                assert all(getattr(captured[-1], field) is value for field, value in current.items())
+                assert all(not value.mock_calls for value in current.values())
+            assert captured[0] is not captured[1]
+            failure = OSError("current watch selection failed")
+            callback.side_effect = failure
+            with pytest.raises(OSError) as caught:
+                adapter(*args)
+            assert caught.value is failure
 
 
 def test_watch_file_rereads_utf8_parsing_deduplication_and_post_append_cap(tmp_path, monkeypatch):
@@ -165,7 +204,7 @@ def test_lookup_seeds_before_watch_read_and_preserves_priority_references_and_lo
         return extras
 
     monkeypatch.setattr(bot, "seed_recent_own_post_ids_from_cache", seed)
-    monkeypatch.setattr(bot, "load_extra_quote_watch_post_ids", watch)
+    patch_reply_owner_method(monkeypatch, discovery.QuoteWatchPosts, "load_extra", watch)
     monkeypatch.setattr(bot, "QUOTE_POST_LOOKBACK_MAIN_POSTS", 5)
     monkeypatch.setattr(bot, "MAX_QUOTE_POSTS_PER_CHECK", 4)
     monkeypatch.setattr(bot, "EXTRA_QUOTE_WATCH_FILE", path)
