@@ -7,6 +7,8 @@ from unittest.mock import Mock
 
 import pytest
 
+import mrs_bot_quote_posting as posting
+
 from mrs_bot_main_post_confirmation_persistence import RegularPostPersistenceResult
 from tests.helpers.bot_runtime import bot
 from tests.helpers.bot_fixtures import (
@@ -110,7 +112,7 @@ def test_quote_recovery_keeps_receipt_and_quote_schedule_when_meme_projection_fa
         Mock(side_effect=OSError("promotion failed")),
     )
     monkeypatch.setattr(bot, scenario.materialiser, Mock(return_value=fallback))
-    monkeypatch.setattr(bot, "apply_state_fields", apply_fields)
+    monkeypatch.setattr(posting, "apply_state_fields", apply_fields)
     with pytest.raises(bot.UnrecoverableConfirmedPostPersistenceError):
         scenario.run()
     assert scenario.state["next_quote_post_epoch"] == 1_800_007_200

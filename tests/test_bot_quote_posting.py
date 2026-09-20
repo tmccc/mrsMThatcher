@@ -52,8 +52,9 @@ assert 'mrsMThatcher2' not in sys.modules
 def test_adapter_passes_current_dependencies_and_references_on_every_call(monkeypatch):
     names = [name for name, parameter in inspect.signature(posting.post_random_quote).parameters.items()
              if parameter.kind == inspect.Parameter.KEYWORD_ONLY]
-    assert len(names) == 60
+    assert len(names) == 58
     assert not set(names) & {
+        "apply_state_fields", "valid_post_id",
         "main_post_attempt", "pending_schedule_receipt", "quote_post_epoch",
         "fallback_receipt", "quote_schedule_fields", "meme_schedule_fields",
     }

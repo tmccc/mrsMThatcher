@@ -8,6 +8,8 @@ from pathlib import Path
 
 import pytest
 
+import mrs_bot_quote_posting as posting
+
 from tests.helpers.bot_runtime import bot
 from tests.helpers.bot_fixtures import (
     isolate_bot_runtime,
@@ -431,7 +433,7 @@ def test_confirmed_regular_post_fallback_helper_failure_latches(
         lambda *_args, **_kwargs: (_ for _ in ()).throw(OSError("receipt failed")),
     )
     monkeypatch.setattr(
-        bot,
+        posting,
         "apply_state_fields",
         lambda *_args, **_kwargs: (_ for _ in ()).throw(RuntimeError("schedule update failed")),
     )

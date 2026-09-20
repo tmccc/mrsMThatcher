@@ -2,7 +2,8 @@
 
 The coordinator supplies current callbacks, settings, logger, exception/type
 authority on every call. This owner
-preserves the complete selection, publication and local recovery workflow;
+preserves the complete selection, publication and local recovery workflow.
+Fixed post-ID checks and state-field application use their inert owners directly;
 transactions, transport, receipts, persistence and scheduling helpers remain in
 the coordinator. Arguments and nested closure references are not copied by the
 adapter. Imports perform no runtime work or configuration access, and callbacks
@@ -17,7 +18,9 @@ from logging import Logger
 from pathlib import Path
 from typing import NamedTuple
 
+from mrs_bot_receipt_primitives import valid_post_id
 from mrs_bot_regular_post_completion import complete_regular_post_persistence
+from mrs_bot_runtime_state_helpers import apply_state_fields
 
 
 # Availability is separate from a callback's value, including an assigned None.
@@ -181,7 +184,6 @@ def _complete_quote_post(
     image_choice: dict,
     canonical_quote_text: str,
     log: Logger,
-    apply_state_fields: Callable,
     cache_tweet: Callable,
     MY_USER_ID: str,
     record_recent_own_post: Callable,
@@ -294,7 +296,6 @@ def post_random_quote(
     handoff_confirmed_media_upload_to_main_attempt: Callable,
     begin_confirmed_post_sigint_deferral: Callable,
     create_post: Callable,
-    valid_post_id: Callable,
     api_error_proves_remote_non_success: Callable,
     remove_main_post_attempt: Callable,
     end_confirmed_post_sigint_deferral: Callable,
@@ -312,7 +313,6 @@ def post_random_quote(
     ConfirmedPendingScheduleDurabilityUncertain: type[Exception],
     ConfirmedPostLocalPersistenceError: type[Exception],
     materialize_bound_regular_schedule_receipt: Callable,
-    apply_state_fields: Callable,
     cache_tweet: Callable,
     MY_USER_ID: str,
     record_recent_own_post: Callable,
@@ -709,7 +709,6 @@ def post_random_quote(
         image_choice=image_choice,
         canonical_quote_text=canonical_quote_text,
         log=log,
-        apply_state_fields=apply_state_fields,
         cache_tweet=cache_tweet,
         MY_USER_ID=MY_USER_ID,
         record_recent_own_post=record_recent_own_post,
