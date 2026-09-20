@@ -85,81 +85,16 @@ def apply_confirmed_reply_receipt(
     clarification = receipt.get("clarification_reply")
     if isinstance(clarification, dict):
         clarifications.assert_no_conflict(state, clarification, reply_post_id=reply_post_id)
-    mention_pagination_to_preserve: dict | None = None
-    if "mention_pagination" in receipt:
-        mention_pagination = receipt.get("mention_pagination")
-        if (
-            candidate_source != "mention"
-            or not mention_pagination_provenance_is_valid(mention_pagination)
-        ):
-            raise InvalidConfirmedReplyReceipt(
-                "Confirmed reply receipt has invalid mention pagination provenance"
-            )
-        base_since_id = str(mention_pagination["base_since_id"])
-        current_since_id = str(state.get("last_seen_mention_id") or "")
-        if current_since_id != base_since_id:
-            raise InvalidConfirmedReplyReceipt(
-                "Confirmed mention receipt pagination base does not match "
-                "the current mention watermark"
-            )
-        if not mention_pagination_has_canonical_page_ownership(
-            state,
-            mention_pagination,
-            target_id=target_id,
-        ):
-            discarded = len(state.get("mention_pending_candidates", {}))
-            _reset_mention_candidate_authority(
-                state,
-                watermark=current_since_id,
-            )
-            _emit_mention_authority_recovery(
-                {
-                    "reason": "receipt_page_ownership_missing",
-                    "since_id": current_since_id or None,
-                    "discarded_candidates": discarded,
-                },
-                path=STATE_FILE,
-                recovery_events=None,
-            )
-        mention_pagination_to_preserve = copy.deepcopy(mention_pagination)
-    elif candidate_source == "mention":
-        # Receipts written by pre-provenance versions can still be reconciled
-        # safely when canonical state carries an exact continuation bound to
-        # the unchanged watermark. Preserving it favours harmless deduplication
-        # over skipping the unseen tail of a truncated result set.
-        active_pagination = state.get("mention_pagination")
-        current_since_id = str(state.get("last_seen_mention_id") or "")
-        if (
-            mention_pagination_provenance_is_valid(active_pagination)
-            and str(active_pagination["base_since_id"]) == current_since_id
-        ):
-            pagination_has_page_ownership = (
-                mention_pagination_has_canonical_page_ownership(
-                    state,
-                    active_pagination,
-                    target_id=target_id,
-                )
-            )
-            if not pagination_has_page_ownership:
-                discarded = len(state.get("mention_pending_candidates", {}))
-                _reset_mention_candidate_authority(
-                    state,
-                    watermark=current_since_id,
-                )
-                _emit_mention_authority_recovery(
-                    {
-                        "reason": "receipt_page_ownership_missing",
-                        "since_id": current_since_id or None,
-                        "discarded_candidates": discarded,
-                    },
-                    path=STATE_FILE,
-                    recovery_events=None,
-                )
-            mention_pagination_to_preserve = copy.deepcopy(active_pagination)
-            log.warning(
-                "Preserving active mention pagination for a legacy confirmed "
-                "reply receipt without transaction-bound provenance"
-            )
+    mention_pagination_to_preserve = _mention_pagination_to_preserve(
+        state, receipt, target_id=target_id, candidate_source=candidate_source,
+        InvalidConfirmedReplyReceipt=InvalidConfirmedReplyReceipt,
+        STATE_FILE=STATE_FILE,
+        mention_pagination_provenance_is_valid=mention_pagination_provenance_is_valid,
+        mention_pagination_has_canonical_page_ownership=mention_pagination_has_canonical_page_ownership,
+        _reset_mention_candidate_authority=_reset_mention_candidate_authority,
+        _emit_mention_authority_recovery=_emit_mention_authority_recovery,
+        log=log,
+    )
     # A confirmed public reply retires drafts for this target in every lane.
     clear_target_drafts(state, target_id, candidate_source)
 
@@ -265,6 +200,75 @@ def apply_confirmed_reply_receipt(
             state, clarification, author_id=author_id, target_id=target_id,
             reply_post_id=reply_post_id, reply_epoch=reply_epoch,
         )
+
+
+def _mention_pagination_to_preserve(
+    state: dict,
+    receipt: dict,
+    *,
+    target_id: str,
+    candidate_source: str,
+    InvalidConfirmedReplyReceipt: type[Exception],
+    STATE_FILE: Path,
+    mention_pagination_provenance_is_valid: Callable,
+    mention_pagination_has_canonical_page_ownership: Callable,
+    _reset_mention_candidate_authority: Callable,
+    _emit_mention_authority_recovery: Callable,
+    log: logging.Logger,
+) -> dict | None:
+    """Preserve receipt or legacy pagination after checking its canonical ownership."""
+    if "mention_pagination" in receipt:
+        pagination = receipt.get("mention_pagination")
+        if (
+            candidate_source != "mention"
+            or not mention_pagination_provenance_is_valid(pagination)
+        ):
+            raise InvalidConfirmedReplyReceipt(
+                "Confirmed reply receipt has invalid mention pagination provenance"
+            )
+        base_since_id = str(pagination["base_since_id"])
+        current_since_id = str(state.get("last_seen_mention_id") or "")
+        if current_since_id != base_since_id:
+            raise InvalidConfirmedReplyReceipt(
+                "Confirmed mention receipt pagination base does not match "
+                "the current mention watermark"
+            )
+        legacy = False
+    elif candidate_source == "mention":
+        # Older receipts may preserve an active continuation only while it is
+        # bound to the unchanged watermark, avoiding the unseen truncated tail.
+        pagination = state.get("mention_pagination")
+        current_since_id = str(state.get("last_seen_mention_id") or "")
+        if not (
+            mention_pagination_provenance_is_valid(pagination)
+            and str(pagination["base_since_id"]) == current_since_id
+        ):
+            return None
+        legacy = True
+    else:
+        return None
+
+    if not mention_pagination_has_canonical_page_ownership(
+        state, pagination, target_id=target_id,
+    ):
+        discarded = len(state.get("mention_pending_candidates", {}))
+        _reset_mention_candidate_authority(state, watermark=current_since_id)
+        _emit_mention_authority_recovery(
+            {
+                "reason": "receipt_page_ownership_missing",
+                "since_id": current_since_id or None,
+                "discarded_candidates": discarded,
+            },
+            path=STATE_FILE,
+            recovery_events=None,
+        )
+    preserved = copy.deepcopy(pagination)
+    if legacy:
+        log.warning(
+            "Preserving active mention pagination for a legacy confirmed "
+            "reply receipt without transaction-bound provenance"
+        )
+    return preserved
 
 
 def finalise_confirmed_reply(

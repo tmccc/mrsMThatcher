@@ -718,3 +718,53 @@ def test_emergency_catches_only_current_confirmation_error_inside_its_try(monkey
     with pytest.raises(CurrentInvalidReceipt) as caught:
         bot.confirmed_reply_emergency_representation_is_complete(receipt, state)
     assert caught.value is invalid
+
+
+@pytest.mark.parametrize("legacy", [False, True])
+def test_pagination_preservation_resets_missing_ownership_before_copy_and_legacy_warning(legacy):
+    trace = Mock()
+
+    class Pagination(dict):
+        def __deepcopy__(self, memo):
+            trace.copy()
+            return copy.deepcopy(dict(self), memo)
+
+    pagination = Pagination(base_since_id="99", next_token="next-page")
+    state = {
+        "last_seen_mention_id": "99", "mention_pagination": pagination,
+        "mention_pending_candidates": {"104": {}, "105": {}},
+    }
+    receipt = {} if legacy else {"mention_pagination": pagination}
+    trace.provenance.return_value = True
+    trace.ownership.return_value = False
+
+    def reset(actual_state, *, watermark):
+        assert actual_state is state and watermark == "99"
+        state["mention_pending_candidates"] = {}
+        state["mention_pagination"] = {}
+
+    trace.reset.side_effect = reset
+    preserved = reconciliation._mention_pagination_to_preserve(
+        state, receipt, target_id="105", candidate_source="mention",
+        InvalidConfirmedReplyReceipt=bot.InvalidConfirmedReplyReceipt,
+        STATE_FILE=bot.STATE_FILE,
+        mention_pagination_provenance_is_valid=trace.provenance,
+        mention_pagination_has_canonical_page_ownership=trace.ownership,
+        _reset_mention_candidate_authority=trace.reset,
+        _emit_mention_authority_recovery=trace.recovery,
+        log=trace.log,
+    )
+    assert [entry[0] for entry in trace.mock_calls] == [
+        "provenance", "ownership", "reset", "recovery", "copy",
+        *(["log.warning"] if legacy else []),
+    ]
+    assert trace.provenance.call_args.args[0] is pagination
+    assert trace.ownership.call_args.args[0] is state
+    assert trace.ownership.call_args.args[1] is pagination
+    assert trace.ownership.call_args.kwargs == {"target_id": "105"}
+    trace.recovery.assert_called_once_with(
+        {"reason": "receipt_page_ownership_missing", "since_id": "99", "discarded_candidates": 2},
+        path=bot.STATE_FILE, recovery_events=None,
+    )
+    assert preserved == pagination and preserved is not pagination
+    assert state["mention_pagination"] == {}
