@@ -2353,100 +2353,59 @@ append_unique_capped = _runtime_state_helpers.append_unique_capped
 append_unique_durable = _runtime_state_helpers.append_unique_durable
 
 
+def _state_values_owner() -> _state_value_normalisation.StateValues:
+    """Bind current value-normalization policy without inspecting caller state."""
+    return _state_value_normalisation.StateValues(
+        log=log,
+        math=math,
+        re=re,
+        maximum_epoch=MAX_REASONABLE_STATE_EPOCH,
+    )
+
+
 def bounded_tweet_id_value(value: object, *, allow_empty: bool = False) -> int | None:
     """Parse one bounded string tweet ID without unbounded integer conversion."""
-    return _state_value_normalisation.bounded_tweet_id_value(
-        value,
-        allow_empty=allow_empty,
-        re=re,
-    )
+    return _state_values_owner().bounded_id(value, allow_empty=allow_empty)
 
 
 def normalise_state_int(value: object, *, key: str, path: Path) -> int | None:
     """Normalise state int."""
-    return _state_value_normalisation.normalise_state_int(
-        value,
-        key=key,
-        path=path,
-        log=log,
-        math=math,
-    )
+    return _state_values_owner().integer(value, key=key, path=path)
 
 
 def normalise_state_epoch(value: object, *, key: str, path: Path) -> int | None:
     """Normalise state epoch."""
-    return _state_value_normalisation.normalise_state_epoch(
-        value,
-        key=key,
-        path=path,
-        MAX_REASONABLE_STATE_EPOCH=MAX_REASONABLE_STATE_EPOCH,
-        log=log,
-        normalise_state_int=normalise_state_int,
-    )
+    return _state_values_owner().epoch(value, key=key, path=path)
 
 
 def normalise_string_list(value: object, *, key: str, path: Path) -> list[str] | None:
     """Normalise string list."""
-    return _state_value_normalisation.normalise_string_list(
-        value,
-        key=key,
-        path=path,
-        log=log,
-    )
+    return _state_values_owner().strings(value, key=key, path=path)
 
 
 def normalise_int_list(value: object, *, key: str, path: Path) -> list[int] | None:
     """Normalise int list."""
-    return _state_value_normalisation.normalise_int_list(
-        value,
-        key=key,
-        path=path,
-        log=log,
-        normalise_state_int=normalise_state_int,
-    )
+    return _state_values_owner().integers(value, key=key, path=path)
 
 
 def normalise_epoch_list(value: object, *, key: str, path: Path) -> list[int] | None:
     """Normalise epoch list."""
-    return _state_value_normalisation.normalise_epoch_list(
-        value,
-        key=key,
-        path=path,
-        MAX_REASONABLE_STATE_EPOCH=MAX_REASONABLE_STATE_EPOCH,
-        log=log,
-        normalise_int_list=normalise_int_list,
-    )
+    return _state_values_owner().epochs(value, key=key, path=path)
 
 
 def normalise_string_map(value: object, *, key: str, path: Path) -> dict[str, str] | None:
     """Normalise string map."""
-    return _state_value_normalisation.normalise_string_map(
-        value,
-        key=key,
-        path=path,
-        log=log,
-    )
+    return _state_values_owner().string_map(value, key=key, path=path)
 
 
 def normalise_int_map(value: object, *, key: str, path: Path) -> dict[str, int] | None:
     """Normalise int map."""
-    return _state_value_normalisation.normalise_int_map(
-        value,
-        key=key,
-        path=path,
-        log=log,
-        normalise_state_int=normalise_state_int,
-    )
+    return _state_values_owner().integer_map(value, key=key, path=path)
 
 
 def normalise_record_map(value: object, *, key: str, path: Path) -> dict[str, dict] | None:
     """Normalise record map."""
-    return _state_value_normalisation.normalise_record_map(
-        value,
-        key=key,
-        path=path,
-        log=log,
-    )
+    return _state_values_owner().record_map(value, key=key, path=path)
 
 
 def quote_repeated_cursor_suppression_record(
@@ -2735,23 +2694,12 @@ def normalise_author_evaluation_quarantines(value: object, *, path: Path) -> dic
 
 def normalise_optional_scalar(value: object, *, key: str, path: Path) -> str | None:
     """Normalise optional scalar."""
-    return _state_value_normalisation.normalise_optional_scalar(
-        value,
-        key=key,
-        path=path,
-        log=log,
-    )
+    return _state_values_owner().optional_scalar(value, key=key, path=path)
 
 
 def normalise_optional_numeric_id(value: object, *, key: str, path: Path) -> str | None:
     """Normalise optional numeric ID."""
-    return _state_value_normalisation.normalise_optional_numeric_id(
-        value,
-        key=key,
-        path=path,
-        bounded_tweet_id_value=bounded_tweet_id_value,
-        log=log,
-    )
+    return _state_values_owner().optional_id(value, key=key, path=path)
 
 
 def validate_meme_schedule_state(state: dict, *, path: Path) -> bool:
