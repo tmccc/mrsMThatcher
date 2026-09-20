@@ -11,6 +11,7 @@ import pytest
 import mrs_bot_asset_metadata as asset_metadata
 import mrs_bot_quote_posting as posting
 import mrs_bot_quote_candidates as quote_candidates
+import mrs_bot_state_persistence as state_persistence
 import mrs_bot_used_history as used_history
 
 from mrs_bot_main_post_receipt_storage import MainPostReceipts
@@ -257,9 +258,9 @@ def test_regular_emergency_canonical_state_survives_backup_failure(
         lambda *_args, **_kwargs: (_ for _ in ()).throw(OSError("receipt failed")),
     )
     monkeypatch.setattr(
-        bot,
-        "write_latest_state_backup",
-        lambda **_kwargs: (_ for _ in ()).throw(OSError("backup failed")),
+        state_persistence.StateBackups,
+        "write_latest",
+        lambda _owner, **_kwargs: (_ for _ in ()).throw(OSError("backup failed")),
     )
 
     with pytest.raises(bot.ConfirmedPostLocalPersistenceError) as caught:

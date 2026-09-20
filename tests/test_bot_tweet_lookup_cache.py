@@ -14,6 +14,7 @@ from unittest.mock import Mock, call
 import pytest
 
 import mrs_bot_tweet_lookup_cache as lookup_cache
+import mrs_bot_state_value_normalisation as state_values
 from tests.helpers.bot_runtime import bot
 from tests.helpers.reply_fixtures import patch_tweet_lookup_method, restore_tweet_lookup_fetch
 from tests.helpers.bot_fixtures import isolate_bot_runtime  # noqa: F401
@@ -54,7 +55,7 @@ assert 'requests' not in sys.modules
 
 
 OWNER_INPUTS = {
-    "normalise_state_epoch": "normalise_state_epoch",
+    "state_values": "_state_values_owner",
     "maximum_age_seconds": "TWEET_CACHE_MAX_AGE_SECONDS", "maximum_items": "TWEET_CACHE_MAX_ITEMS",
     "log": "log", "now_epoch": "now_epoch", "maximum_recent_own_posts": "RECENT_OWN_POST_IDS_MAX",
     "user_id": "MY_USER_ID", "state_file": "STATE_FILE", "current_datetime": "current_datetime",
@@ -69,12 +70,16 @@ def test_owner_binds_fresh_boundaries_without_runtime_access(monkeypatch):
     for _ in range(2):
         current = {field: Mock() for field in OWNER_INPUTS}
         for field, name in OWNER_INPUTS.items():
-            monkeypatch.setattr(bot, name, current[field])
+            if field == "state_values":
+                monkeypatch.setattr(bot, name, Mock(return_value=current[field]))
+            else:
+                monkeypatch.setattr(bot, name, current[field])
         owner = bot._tweet_lookup_cache_owner()
         assert isinstance(owner, lookup_cache.TweetLookupCache)
         for field, value in current.items():
             assert getattr(owner, field) is value
             value.assert_not_called()
+        bot._state_values_owner.assert_called_once_with()
         owners.append(owner)
     assert owners[0] is not owners[1]
     assert all(getattr(owners[0], field) is not getattr(owners[1], field) for field in OWNER_INPUTS)
@@ -139,8 +144,13 @@ def test_normalization_keeps_permissive_ids_optional_scalars_and_new_reference_c
     }
     source = {17: entry}
     before = copy.deepcopy(source)
-    epoch = Mock(wraps=bot.normalise_state_epoch)
-    monkeypatch.setattr(bot, "normalise_state_epoch", epoch)
+    epoch = Mock(wraps=bot._state_values_owner().epoch)
+    monkeypatch.setattr(
+        state_values.StateValues, "epoch",
+        lambda self, *args, **kwargs: epoch(*args, **kwargs),
+    )
+    root_epoch = Mock(side_effect=AssertionError("cache used obsolete root epoch relay"))
+    monkeypatch.setattr(bot, "normalise_state_epoch", root_epoch)
     result = bot.normalise_tweet_cache(source, path=path)
     assert result == {"17": {
         "id": "99", "author_id": "", "conversation_id": "99", "created_at": "",
@@ -151,12 +161,16 @@ def test_normalization_keeps_permissive_ids_optional_scalars_and_new_reference_c
     assert result["17"]["referenced_tweets"] is not refs
     assert result["17"]["referenced_tweets"][0] is not refs[0]
     epoch.assert_called_once_with("100", key="tweet_cache.17.cached_epoch", path=path)
+    root_epoch.assert_not_called()
     assert source == before
 
 
 def test_normalization_epoch_failure_precedes_refs_and_map_stops_at_first_rejection(monkeypatch, tmp_path):
     epoch, logger = Mock(return_value=None), Mock()
-    monkeypatch.setattr(bot, "normalise_state_epoch", epoch)
+    monkeypatch.setattr(
+        state_values.StateValues, "epoch",
+        lambda self, *args, **kwargs: epoch(*args, **kwargs),
+    )
     monkeypatch.setattr(bot, "log", logger)
     assert bot.normalise_tweet_cache_entry(1, {"referenced_tweets": "bad"}, path=tmp_path) is None
     epoch.assert_called_once_with(0, key="tweet_cache.1.cached_epoch", path=tmp_path)

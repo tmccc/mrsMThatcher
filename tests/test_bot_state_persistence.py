@@ -56,7 +56,7 @@ assert 'single_call_reply' not in sys.modules
 def test_adapters_forward_current_dependencies_references_and_native_errors(monkeypatch):
     for name, count in (
         ("state_document_for_persistence", 5),
-        ("save_state", 12),
+        ("save_state", 11),
     ):
         adapter = getattr(bot, name)
         public = inspect.signature(adapter).parameters
@@ -70,14 +70,25 @@ def test_adapters_forward_current_dependencies_references_and_native_errors(monk
                 owner = Mock(return_value=result)
                 patch.setattr(bot, "_state_persistence", SimpleNamespace(**{name: owner}))
                 current = {key: object() for key in dependencies}
+                validator = object()
                 for key, value in current.items():
-                    patch.setattr(bot, key, value)
+                    if key == "backups":
+                        patch.setattr(bot, "_state_backups_owner", Mock(return_value=value))
+                    elif key == "context":
+                        patch.setattr(bot, "_state_candidate_normalizer", Mock(return_value=validator))
+                        patch.setattr(bot, "_state_generation_context_owner", Mock(return_value=value))
+                    else:
+                        patch.setattr(bot, key, value)
                 assert adapter(*args, **options) is result
                 actual_args, actual_kwargs = owner.call_args
                 assert len(actual_args) == len(args)
                 assert all(actual is original for actual, original in zip(actual_args, args))
                 assert actual_kwargs.keys() == (options | current).keys()
                 assert all(actual_kwargs[key] is value for key, value in (options | current).items())
+                if name == "save_state":
+                    bot._state_backups_owner.assert_called_once_with()
+                    bot._state_candidate_normalizer.assert_called_once_with()
+                    bot._state_generation_context_owner.assert_called_once_with(validate=validator)
             failure = TypeError("current owner failure")
             owner.side_effect = failure
             with pytest.raises(TypeError) as caught:
@@ -129,6 +140,43 @@ def test_backup_composition_uses_current_authorities_without_io(monkeypatch):
         assert owner is not previous
         assert all(getattr(owner, field) is current[name] for name, field in fields.items())
         previous = owner
+
+
+def test_generation_context_adapter_and_composition_preserve_current_boundaries(monkeypatch):
+    import mrs_bot_state_generation as generation
+
+    adapter = bot.state_generation_context
+    real_factory = bot._state_generation_context_owner
+    assert str(inspect.signature(adapter)) == "()"
+    result = object()
+    factory = Mock(return_value=result)
+    monkeypatch.setattr(bot, "_state_generation_context_owner", factory)
+    assert adapter() is result
+    factory.assert_called_once_with()
+    failure = TypeError("current generation context failed")
+    factory.side_effect = failure
+    with pytest.raises(TypeError) as caught:
+        adapter()
+    assert caught.value is failure
+
+    with monkeypatch.context() as patch:
+        current = {
+            "DURABLE_RUNTIME_JSON_MAX_BYTES": object(),
+            "STATE_BACKUP_COUNT": object(),
+            "read_stable_owned_json_bytes_no_follow": object(),
+            "require_instance_lock_for_remote_write": object(),
+        }
+        for name, value in current.items():
+            patch.setattr(bot, name, value)
+        validate = object()
+        context = real_factory(validate=validate)
+        assert isinstance(context, generation.StateGenerationContext)
+        assert context.maximum_bytes is current["DURABLE_RUNTIME_JSON_MAX_BYTES"]
+        assert context.backup_count is current["STATE_BACKUP_COUNT"]
+        assert context.validate is validate
+        assert context.read is current["read_stable_owned_json_bytes_no_follow"]
+        assert context.require_lock is current["require_instance_lock_for_remote_write"]
+
 
 def test_document_preserves_retired_state_without_loading_trial_code(monkeypatch):
     trace = Mock()
@@ -369,6 +417,16 @@ def test_save_publishes_one_valid_fsynced_generation_and_exact_proof(durable, mo
         return real_fsync(path, strict=strict)
 
     monkeypatch.setattr(bot, "fsync_parent_dir", fsync)
+    obsolete_relays = {
+        name: Mock(side_effect=AssertionError(f"save used obsolete root relay: {name}"))
+        for name in (
+            "rotate_state_backups_before_commit",
+            "write_latest_state_backup",
+            "state_generation_context",
+        )
+    }
+    for name, relay in obsolete_relays.items():
+        monkeypatch.setattr(bot, name, relay)
     proof = bot.save_state(state, durable=durable)
     proof.require_current()
     from mrs_bot_state_generation import canonical_bytes, generation_number
@@ -378,6 +436,8 @@ def test_save_publishes_one_valid_fsynced_generation_and_exact_proof(durable, mo
     assert bot.STATE_FILE.stat().st_mode & 0o777 == 0o600
     assert (bot.STATE_FILE, True) in calls
     assert bot.load_state()["extension"] == ["é"]
+    for relay in obsolete_relays.values():
+        relay.assert_not_called()
 
 
 def test_save_security_and_document_failure_precede_io(tmp_path, monkeypatch):
@@ -412,7 +472,12 @@ def test_publication_hard_exit_closes_and_removes_temp_without_changing_target(o
     failure = KeyboardInterrupt("publication interrupted")
     trace.replace.side_effect = failure
     latest = Mock()
-    monkeypatch.setattr(bot, "write_latest_state_backup", latest)
+    monkeypatch.setattr(
+        persistence.StateBackups, "write_latest",
+        lambda self, **kwargs: latest(**kwargs),
+    )
+    obsolete = Mock(side_effect=AssertionError("publication used root latest relay"))
+    monkeypatch.setattr(bot, "write_latest_state_backup", obsolete)
     with pytest.raises(KeyboardInterrupt) as caught:
         if operation == "save":
             bot.save_state({})
@@ -424,13 +489,17 @@ def test_publication_hard_exit_closes_and_removes_temp_without_changing_target(o
     assert not list(target.parent.glob(f".{target.name}.*"))
     trace.parent.assert_not_called()
     latest.assert_not_called()
+    obsolete.assert_not_called()
 
 
 def test_native_serialization_failure_precedes_any_temporary_or_backup_io(monkeypatch):
     bot.save_state(bot.default_state())
     files = {path: path.read_bytes() for path in bot.STATE_FILE.parent.glob("bot_state.json*")}
     rotate, temporary = Mock(), Mock()
-    monkeypatch.setattr(bot, "rotate_state_backups_before_commit", rotate)
+    monkeypatch.setattr(
+        persistence.StateBackups, "rotate",
+        lambda self, **kwargs: rotate(**kwargs),
+    )
     monkeypatch.setattr(bot, "tempfile", SimpleNamespace(mkstemp=temporary))
     with pytest.raises(TypeError):
         bot.save_state({"extension": object()})
@@ -446,7 +515,13 @@ def test_latest_failure_follows_canonical_commit_and_only_ordinary_error_is_wrap
 
     failure = error_type("latest backup failed")
     monkeypatch.setattr(bot, "StateBackupWriteError", CurrentBackupError)
-    monkeypatch.setattr(bot, "write_latest_state_backup", Mock(side_effect=failure))
+    latest = Mock(side_effect=failure)
+    monkeypatch.setattr(
+        persistence.StateBackups, "write_latest",
+        lambda self, **kwargs: latest(**kwargs),
+    )
+    obsolete = Mock(side_effect=AssertionError("save used root latest-backup relay"))
+    monkeypatch.setattr(bot, "write_latest_state_backup", obsolete)
     expected = CurrentBackupError if error_type is OSError else KeyboardInterrupt
     state = {"extension": ["preserved"]}
     with pytest.raises(expected) as caught:
@@ -459,4 +534,6 @@ def test_latest_failure_follows_canonical_commit_and_only_ordinary_error_is_wrap
         assert caught.value.__cause__ is failure
     else:
         assert caught.value is failure
+    latest.assert_called_once_with(durable=True)
+    obsolete.assert_not_called()
     assert not list(bot.STATE_FILE.parent.glob(f".{bot.STATE_FILE.name}.*"))

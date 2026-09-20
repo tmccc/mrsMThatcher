@@ -1,7 +1,7 @@
 """Own tweet lookup, cache normalization/pruning and the recent own-post index.
 
-TweetLookupCache binds current normalization, request, clock, policy and persistence
-boundaries for each root invocation without accessing runtime state. Owned lookup,
+TweetLookupCache binds a StateValues owner plus current request, clock, policy
+and persistence boundaries for each root invocation without accessing runtime state. Owned lookup,
 verification, normalization, pruning and storage call each other directly while
 preserving permissive values, mutation/save order and record references.
 Full text is selected before caching. Legacy external cache entries are refreshed
@@ -21,8 +21,12 @@ from collections.abc import Callable
 from dataclasses import dataclass
 from logging import Logger
 from pathlib import Path
+from typing import TYPE_CHECKING
 
 from mrs_bot_reply_native_media import attach_media_to_tweets
+
+if TYPE_CHECKING:
+    from mrs_bot_state_value_normalisation import StateValues
 
 
 def normalise_tweet_text(tweet: dict) -> None:
@@ -55,7 +59,7 @@ def tweet_text_is_complete(tweet: dict) -> bool:
 class TweetLookupCache:
     """Own verified lookup, cached context and the recent own-post index."""
 
-    normalise_state_epoch: Callable
+    state_values: StateValues
     maximum_age_seconds: int
     maximum_items: int
     log: Logger
@@ -72,7 +76,11 @@ class TweetLookupCache:
 
     def normalise_entry(self, tweet_id: object, entry: dict, *, path: Path) -> dict[str, object] | None:
         """Normalise tweet cache entry."""
-        cached_epoch = self.normalise_state_epoch(entry.get("cached_epoch", 0), key=f"tweet_cache.{tweet_id}.cached_epoch", path=path)
+        cached_epoch = self.state_values.epoch(
+            entry.get("cached_epoch", 0),
+            key=f"tweet_cache.{tweet_id}.cached_epoch",
+            path=path,
+        )
         if cached_epoch is None:
             return None
 

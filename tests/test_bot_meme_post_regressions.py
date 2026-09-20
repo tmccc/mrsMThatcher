@@ -10,6 +10,7 @@ from pathlib import Path
 
 import pytest
 
+import mrs_bot_state_persistence as state_persistence
 from mrs_bot_main_post_receipt_storage import MainPostReceipts
 from mrs_bot_main_post_receipts import MainPostReceiptValues
 from tests.helpers.bot_runtime import bot
@@ -837,9 +838,9 @@ def test_meme_emergency_canonical_state_survives_backup_failure(
         lambda *_args, **_kwargs: (_ for _ in ()).throw(OSError("receipt failed")),
     )
     monkeypatch.setattr(
-        bot,
-        "write_latest_state_backup",
-        lambda **_kwargs: (_ for _ in ()).throw(OSError("backup failed")),
+        state_persistence.StateBackups,
+        "write_latest",
+        lambda _owner, **_kwargs: (_ for _ in ()).throw(OSError("backup failed")),
     )
     monkeypatch.setattr(bot, "log_event", lambda *_args, **_kwargs: None)
 

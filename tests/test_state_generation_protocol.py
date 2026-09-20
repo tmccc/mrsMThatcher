@@ -10,6 +10,7 @@ import sys
 
 import pytest
 
+import mrs_bot_state_persistence as state_persistence
 from tests.helpers.bot_runtime import bot
 from tests.helpers.bot_fixtures import isolate_bot_runtime  # noqa: F401
 
@@ -25,7 +26,11 @@ def test_committed_primary_survives_backup_failure(monkeypatch):
     bot.save_state(state, durable=True)
     state['replied_to_ids'] = ['123']
     with monkeypatch.context() as patch:
-        patch.setattr(bot, 'write_latest_state_backup', lambda **kw: (_ for _ in ()).throw(OSError('disk full')))
+        patch.setattr(
+            state_persistence.StateBackups,
+            'write_latest',
+            lambda _owner, **kw: (_ for _ in ()).throw(OSError('disk full')),
+        )
         with pytest.raises(bot.StateBackupWriteError):
             bot.save_state(state, durable=True)
     assert bot.load_state()['replied_to_ids'] == ['123']
@@ -97,7 +102,7 @@ def test_process_restart_at_each_commit_boundary(boundary, monkeypatch):
     state['replied_to_ids'] = ['456']
     original_replace = os.replace
     original_fsync_parent = bot.fsync_parent_dir
-    original_backup = bot.write_latest_state_backup
+    original_backup = bot._state_backups_owner().write_latest
 
     def replace(source, destination):
         """Inject termination on either side of the canonical atomic replacement."""
@@ -115,7 +120,7 @@ def test_process_restart_at_each_commit_boundary(boundary, monkeypatch):
         if path == bot.STATE_FILE and boundary == 'after_dir_fsync':
             raise KeyboardInterrupt('after fsync')
 
-    def backup(**options):
+    def backup(_owner, **options):
         """Inject failure during replica publication or after it completes."""
         if boundary == 'backup_creation':
             raise OSError('replica failed')
@@ -126,7 +131,7 @@ def test_process_restart_at_each_commit_boundary(boundary, monkeypatch):
     with monkeypatch.context() as patch:
         patch.setattr(os, 'replace', replace)
         patch.setattr(bot, 'fsync_parent_dir', fsync_parent)
-        patch.setattr(bot, 'write_latest_state_backup', backup)
+        patch.setattr(state_persistence.StateBackups, 'write_latest', backup)
         with pytest.raises((KeyboardInterrupt, bot.StateBackupWriteError)):
             bot.save_state(state, durable=True)
     expected = [] if boundary == 'before_replace' else ['456']

@@ -217,6 +217,8 @@ and the recent own-post index. Cached context preserves row identity on a hit;
 legacy text refresh saves canonical text while media-only refresh stays transient.
 Pre-send availability uses a fresh lookup. Root adapters construct current owners;
 clocks, provider requests and saves remain inside their original operations.
+Cache normalization calls the composed `StateValues` owner directly, and state
+candidate validation shares that same value owner with its `TweetLookupCache`.
 Lookup tests patch `fetch` on the owner; `restore_tweet_lookup_fetch` restores its
 real transport operation when an isolated test server supplies the response.
 `ReplyContext` receives a current `TweetLookupCache` owner and calls `prune` and
@@ -236,6 +238,28 @@ adapters remain available but are outside clarification evaluation. Its
 constructor falls from 9 dependencies (6 callback-typed) to 6 (2
 callback-typed). Refresh tests block those relays while exercising the real
 context-to-cache hand-off.
+
+State loading, public candidate normalization and state publication each compose
+current `StateValues`, `AuthorQuarantines`, `ReplyEvaluations`,
+`TweetLookupCache` and `MentionAuthority` owners at root invocation entry.
+Candidate normalization calls them directly in the existing field, recovery and
+pruning order; loading passes that composed normalizer directly rather than
+re-entering the public root adapter. `save_state` also passes a directly composed
+`StateGenerationContext` and `StateBackups` to canonical publication. Rotation
+still precedes canonical replacement, while latest-backup publication remains
+after the commit proof and retains its distinct failure handling. Public state,
+cache and backup adapters remain compatible but are outside these internal
+paths.
+
+The candidate-normalization implementation falls from 17 total parameters (13
+injected) to 16 (12), replacing six callback/factory dependencies with five
+typed owners. `TweetLookupCache`, `StateValues`, `AuthorQuarantines`,
+`ReplyEvaluations`, `MentionAuthority`, `StateBackups` and
+`StateGenerationContext` have 14, 2, 8, 6, 5, 8 and 5 constructor fields
+respectively. The persistence entry point falls from 14 total parameters (12
+injected) to 13 (11), replacing three root relays with two owners. Hand-off tests
+block the obsolete normalization, cache epoch, backup and generation-context
+relays while exercising real loading, validation and durable publication.
 
 Quote discovery saves fetched candidates in `quote_pending_candidates` before
 advancing recent-search cursors. Pending work is returned before further search,

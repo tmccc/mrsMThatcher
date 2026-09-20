@@ -2430,10 +2430,15 @@ def record_qualifying_author_no_reply(
 clear_author_evaluation_quarantine_history = _author_quarantines.clear_author_evaluation_quarantine_history
 
 
-def _tweet_lookup_cache_owner() -> _tweet_lookup_cache.TweetLookupCache:
+def _tweet_lookup_cache_owner(
+    *,
+    state_values: _state_value_normalisation.StateValues | None = None,
+) -> _tweet_lookup_cache.TweetLookupCache:
     """Bind current lookup/cache boundaries without clocks, requests or state access."""
+    if state_values is None:
+        state_values = _state_values_owner()
     return _tweet_lookup_cache.TweetLookupCache(
-        normalise_state_epoch=normalise_state_epoch,
+        state_values=state_values,
         maximum_age_seconds=TWEET_CACHE_MAX_AGE_SECONDS,
         maximum_items=TWEET_CACHE_MAX_ITEMS,
         log=log,
@@ -2625,22 +2630,29 @@ def normalise_state_candidate(
     recover_pending_identity: bool = False,
 ) -> dict | None:
     """Normalise state candidate."""
-    return _state_candidate_validation.normalise_state_candidate(
+    return _state_candidate_normalizer()(
         state,
         path=path,
         recovery_events=recovery_events,
         recover_pending_identity=recover_pending_identity,
+    )
+
+
+def _state_candidate_normalizer() -> functools.partial:
+    """Compose one inert candidate normalizer from current typed state owners."""
+    state_values = _state_values_owner()
+    return functools.partial(
+        _state_candidate_validation.normalise_state_candidate,
         MENTION_BACKLOG_CONTINUATION_TOKEN_LIMIT=MENTION_BACKLOG_CONTINUATION_TOKEN_LIMIT,
         STATE_MINIMUM_READER_VERSION=STATE_MINIMUM_READER_VERSION,
         default_state=default_state,
         log=log,
-        normalise_author_evaluation_quarantines=normalise_author_evaluation_quarantines,
+        author_quarantines=_author_quarantine_owner(),
         normalise_quote_repeated_cursor_suppressions=normalise_quote_repeated_cursor_suppressions,
-        normalise_tweet_cache=normalise_tweet_cache,
-        state_values=lambda: _state_values_owner(),
-        mention_authority=lambda: _mention_authority_owner(),
-        prune_author_evaluation_quarantines=prune_author_evaluation_quarantines,
-        prune_reply_evaluation_records=prune_reply_evaluation_records,
+        tweets=_tweet_lookup_cache_owner(state_values=state_values),
+        state_values=state_values,
+        mention_authority=_mention_authority_owner(),
+        reply_evaluations=_reply_evaluation_owner(),
         require_compatible_state_reader=require_compatible_state_reader,
         validate_meme_schedule_version_for_candidate=validate_meme_schedule_version_for_candidate,
     )
@@ -2659,7 +2671,7 @@ def load_state() -> dict:
         log=log,
         log_event=log_event,
         log_json_debug=log_json_debug,
-        normalise_state_candidate=normalise_state_candidate,
+        normalise_state_candidate=_state_candidate_normalizer(),
         read_stable_owned_json_bytes_no_follow=read_stable_owned_json_bytes_no_follow,
         require_compatible_state_reader=require_compatible_state_reader,
         save_state=save_state,
@@ -2710,21 +2722,32 @@ class StateBackupWriteError(RuntimeError):
     pass
 
 
-def state_generation_context():
-    """Bind current reader limits, validation and lock ownership to publication."""
+def _state_generation_context_owner(
+    *,
+    validate: functools.partial | None = None,
+):
+    """Compose current reader limits, validation and lock ownership inertly."""
     from mrs_bot_state_generation import StateGenerationContext
 
+    if validate is None:
+        validate = _state_candidate_normalizer()
     return StateGenerationContext(
         maximum_bytes=DURABLE_RUNTIME_JSON_MAX_BYTES,
         backup_count=STATE_BACKUP_COUNT,
-        validate=normalise_state_candidate,
+        validate=validate,
         read=read_stable_owned_json_bytes_no_follow,
         require_lock=require_instance_lock_for_remote_write,
     )
 
 
+def state_generation_context():
+    """Bind current reader limits, validation and lock ownership to publication."""
+    return _state_generation_context_owner()
+
+
 def save_state(state: dict, *, durable: bool = False) -> StateCommitProof:
     """Persist state atomically, logging only a value-free structural summary."""
+    normalise_candidate = _state_candidate_normalizer()
     return _state_persistence.save_state(
         state,
         durable=durable,
@@ -2734,12 +2757,11 @@ def save_state(state: dict, *, durable: bool = False) -> StateCommitProof:
         log=log,
         log_json_debug=log_json_debug,
         os=os,
-        rotate_state_backups_before_commit=rotate_state_backups_before_commit,
+        backups=_state_backups_owner(),
+        context=_state_generation_context_owner(validate=normalise_candidate),
         state_document_for_persistence=state_document_for_persistence,
         tempfile=tempfile,
         test_process_production_state_write_blocked=test_process_production_state_write_blocked,
-        write_latest_state_backup=write_latest_state_backup,
-        state_generation_context=state_generation_context,
     )
 
 

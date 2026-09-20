@@ -1,17 +1,15 @@
-"""Validate state candidates and compatibility through current root dependencies.
+"""Validate state candidates through typed state owners and root boundaries.
 
-Four explicit root adapters supply current settings, reader version,
-error class, logger and nested normalization, recovery and schedule callbacks
-on every call. Original bodies preserve reader and schedule error order, per-call
-key sets, shallow references, partial recovery events and pending-authority order.
-StateValues supplies scalar/collection operations through a fresh owner lookup at
-each original normalization point. MentionAuthority is also resolved afresh for
-queue normalization and recovery, including after terminal pruning. Retained
-and current reply histories share the same ordered collection rule. State
-loading, defaults/schema, persistence and higher-level recovery keep their
-existing boundaries. This owner retains no callbacks, configuration, paths or
-state and performs no import-time runtime work or reverse bot import.
-Fixed fingerprint hashing and receipt-commit grammar belong to their local owners.
+The root composes StateValues, TweetLookupCache, MentionAuthority,
+ReplyEvaluations and AuthorQuarantines once for each load, save or public
+normalization invocation. Candidate normalization calls those owners directly,
+preserving reader and schedule error order, per-call key sets, shallow
+references, partial recovery events and pending-authority order. Retained and
+current reply histories share the same ordered collection rule. State loading,
+defaults/schema, persistence and higher-level recovery keep their existing
+boundaries. This module retains no callbacks, configuration, paths or state and
+performs no import-time runtime work or reverse bot import. Fixed fingerprint
+hashing and receipt-commit grammar belong to their local owners.
 """
 
 from __future__ import annotations
@@ -25,8 +23,11 @@ from typing import TYPE_CHECKING
 from mrs_bot_state_generation import receipt_commit_records_are_valid
 
 if TYPE_CHECKING:
+    from mrs_bot_author_quarantines import AuthorQuarantines
     from mrs_bot_state_value_normalisation import StateValues
     from mrs_bot_mention_authority import MentionAuthority
+    from mrs_bot_reply_evaluation_state import ReplyEvaluations
+    from mrs_bot_tweet_lookup_cache import TweetLookupCache
 
 
 def validate_meme_schedule_state(
@@ -163,13 +164,12 @@ def normalise_state_candidate(
     STATE_MINIMUM_READER_VERSION: int,
     default_state: Callable[..., dict],
     log: Logger,
-    normalise_author_evaluation_quarantines: Callable[..., dict | None],
+    author_quarantines: AuthorQuarantines,
     normalise_quote_repeated_cursor_suppressions: Callable[..., tuple[dict[str, dict[str, object]], int]],
-    normalise_tweet_cache: Callable[..., dict[str, dict] | None],
-    state_values: Callable[[], StateValues],
-    mention_authority: Callable[[], MentionAuthority],
-    prune_author_evaluation_quarantines: Callable[..., bool],
-    prune_reply_evaluation_records: Callable[..., None],
+    tweets: TweetLookupCache,
+    state_values: StateValues,
+    mention_authority: MentionAuthority,
+    reply_evaluations: ReplyEvaluations,
     require_compatible_state_reader: Callable[..., int],
     validate_meme_schedule_version_for_candidate: Callable[..., bool],
 ) -> dict | None:
@@ -250,21 +250,21 @@ def normalise_state_candidate(
     for key in list_keys:
         if key in state:
             value = state[key]
-            value = state_values().strings(value, key=key, path=path)
+            value = state_values.strings(value, key=key, path=path)
             if value is None:
                 return None
             normalised[key] = value
     for key in epoch_list_keys:
         if key in state:
             value = state[key]
-            value = state_values().epochs(value, key=key, path=path)
+            value = state_values.epochs(value, key=key, path=path)
             if value is None:
                 return None
             normalised[key] = value
     for key in string_map_keys:
         if key in state:
             value = state[key]
-            value = state_values().string_map(value, key=key, path=path)
+            value = state_values.string_map(value, key=key, path=path)
             if value is None:
                 return None
             normalised[key] = value
@@ -281,20 +281,20 @@ def normalise_state_candidate(
     for key in int_map_keys:
         if key in state:
             value = state[key]
-            value = state_values().integer_map(value, key=key, path=path)
+            value = state_values.integer_map(value, key=key, path=path)
             if value is None:
                 return None
             normalised[key] = value
     for key in record_map_keys:
         if key in state:
             value = state[key]
-            value = state_values().record_map(value, key=key, path=path)
+            value = state_values.record_map(value, key=key, path=path)
             if value is None:
                 return None
             normalised[key] = value
     if "mention_pending_candidates" in state:
         pending_value = state["mention_pending_candidates"]
-        pending_value = mention_authority().canonical_candidates(
+        pending_value = mention_authority.canonical_candidates(
             pending_value,
             path=path,
         )
@@ -305,19 +305,19 @@ def normalise_state_candidate(
     for key in optional_scalar_keys:
         if key in state:
             value = state[key]
-            value = state_values().optional_scalar(value, key=key, path=path)
+            value = state_values.optional_scalar(value, key=key, path=path)
             if value is None:
                 return None
             normalised[key] = value or None
     for key in optional_numeric_id_keys:
         if key in state:
             value = state[key]
-            value = state_values().optional_id(value, key=key, path=path)
+            value = state_values.optional_id(value, key=key, path=path)
             if value is None:
                 return None
             normalised[key] = value or None
     if "tweet_cache" in state:
-        value = normalise_tweet_cache(state["tweet_cache"], path=path)
+        value = tweets.normalise(state["tweet_cache"], path=path)
         if value is None:
             return None
         normalised["tweet_cache"] = value
@@ -331,13 +331,13 @@ def normalise_state_candidate(
         normalised[key] = history[-1000:]
     if "mention_pagination" in state:
         value = state["mention_pagination"]
-        value = mention_authority().normalise_pagination(value, path=path)
+        value = mention_authority.normalise_pagination(value, path=path)
         if value is None:
             return None
         normalised["mention_pagination"] = value
     if "mention_backlog_reset_guard" in state:
         value = state["mention_backlog_reset_guard"]
-        value = mention_authority().normalise_reset_guard(
+        value = mention_authority.normalise_reset_guard(
             value,
             path=path,
         )
@@ -352,7 +352,7 @@ def normalise_state_candidate(
             and len(raw_backlog["seen_tokens"])
             > MENTION_BACKLOG_CONTINUATION_TOKEN_LIMIT
         )
-        value = mention_authority().normalise_backlog(
+        value = mention_authority.normalise_backlog(
             raw_backlog,
             path=path,
             reset_token_overflow=token_overflow,
@@ -380,9 +380,9 @@ def normalise_state_candidate(
                 })
     # Retire legacy quarantine-only terminal records before they can suppress
     # a completed-page pending candidate that the watermark will not refetch.
-    prune_reply_evaluation_records(normalised)
+    reply_evaluations.prune(normalised)
     pending_authority_usable, _pending_authority_changed = (
-        mention_authority().validate_pending(
+        mention_authority.validate_pending(
             normalised,
             path=path,
             recover_pending_identity=recover_pending_identity,
@@ -392,7 +392,7 @@ def normalise_state_candidate(
     if not pending_authority_usable:
         return None
     if "author_evaluation_quarantines" in state:
-        value = normalise_author_evaluation_quarantines(
+        value = author_quarantines.normalise(
             state["author_evaluation_quarantines"],
             path=path,
         )
@@ -403,7 +403,7 @@ def normalise_state_candidate(
         if key not in state:
             continue
         value = state[key]
-        value = state_values().integer(value, key=key, path=path)
+        value = state_values.integer(value, key=key, path=path)
         if value is None:
             return None
         normalised[key] = value
@@ -411,7 +411,7 @@ def normalise_state_candidate(
         if key not in state:
             continue
         value = state[key]
-        value = state_values().epoch(value, key=key, path=path)
+        value = state_values.epoch(value, key=key, path=path)
         if value is None:
             return None
         normalised[key] = value
@@ -419,6 +419,6 @@ def normalise_state_candidate(
     if not validate_meme_schedule_version_for_candidate(normalised, path=path):
         return None
 
-    prune_author_evaluation_quarantines(normalised)
+    author_quarantines.prune(normalised)
 
     return normalised

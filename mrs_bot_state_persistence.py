@@ -3,8 +3,10 @@
 Every document is encoded and reader-validated before any backup mutation.
 Canonical replacement and directory fsync establish authority independently of
 replica publication. Current paths, reader policy and lock ownership are supplied
-by the root. StateBackups owns exact copying and backup-generation rotation;
-canonical publication retains its existing runtime callbacks and commit proofs.
+by the root. StateBackups owns exact copying and backup-generation rotation and
+is called directly by canonical publication; StateGenerationContext is likewise
+composed at the root and used directly. Canonical publication retains its
+existing remaining runtime callbacks and commit proofs.
 This module performs no import-time runtime work."""
 
 from __future__ import annotations
@@ -22,7 +24,7 @@ from typing import TYPE_CHECKING
 from mrs_bot_observability import state_debug_summary
 
 if TYPE_CHECKING:
-    from mrs_bot_state_generation import StateCommitProof
+    from mrs_bot_state_generation import StateCommitProof, StateGenerationContext
 
 
 def state_document_for_persistence(
@@ -139,12 +141,11 @@ def save_state(
     log: Logger,
     log_json_debug: Callable[..., None],
     os: ModuleType,
-    rotate_state_backups_before_commit: Callable[..., None],
+    backups: StateBackups,
+    context: StateGenerationContext,
     state_document_for_persistence: Callable[..., dict],
     tempfile: ModuleType,
     test_process_production_state_write_blocked: Callable[..., bool],
-    write_latest_state_backup: Callable[..., None],
-    state_generation_context: Callable,
 ) -> StateCommitProof:
     """Persist state atomically, logging only a value-free structural summary."""
     if test_process_production_state_write_blocked(STATE_FILE):
@@ -157,7 +158,6 @@ def save_state(
     )
 
     persisted_state = state_document_for_persistence(state)
-    context = state_generation_context()
     # Serialize a detached document before touching even a backup. This also
     # rejects unsupported Python objects and nonfinite values in extension data.
     candidate = strict_document(canonical_bytes(persisted_state))
@@ -187,7 +187,7 @@ def save_state(
             os.fsync(handle.fileno())
             committed_identity = os.fstat(handle.fileno())
 
-        rotate_state_backups_before_commit(durable=durable)
+        backups.rotate(durable=durable)
         context.require_lock('state generation replacement')
         if directory_identity(STATE_FILE.parent) != directory:
             raise RuntimeError('state directory changed before replacement')
@@ -214,7 +214,7 @@ def save_state(
     proof.require_current()
     state[GENERATION_KEY] = persisted_state[GENERATION_KEY]
     try:
-        write_latest_state_backup(durable=durable)
+        backups.write_latest(durable=durable)
     except Exception as exc:
         error = StateBackupWriteError(
             f"Canonical state committed but latest backup write failed: {STATE_FILE}"

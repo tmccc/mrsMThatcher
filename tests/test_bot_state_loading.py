@@ -15,6 +15,13 @@ from tests.helpers.bot_runtime import bot
 from tests.helpers.bot_fixtures import isolate_bot_runtime  # noqa: F401
 
 
+def patch_state_candidate_normalizer(monkeypatch, callback):
+    """Supply the loader's directly composed candidate boundary."""
+    factory = Mock(return_value=callback)
+    monkeypatch.setattr(bot, "_state_candidate_normalizer", factory)
+    return factory
+
+
 def test_import_needs_no_runtime_access():
     code = """
 import builtins, collections.abc, hashlib, io, json, logging, os, random, re, socket, sys, time, typing
@@ -67,15 +74,30 @@ def test_adapter_forwards_all_current_dependencies_and_original_return(monkeypat
         owner = Mock(return_value={"original": []})
         monkeypatch.setattr(bot, "_state_loading", SimpleNamespace(load_state=owner))
         for key, value in current.items():
-            monkeypatch.setattr(bot, key, value)
+            if key == "normalise_state_candidate":
+                factory = patch_state_candidate_normalizer(monkeypatch, value)
+            else:
+                monkeypatch.setattr(bot, key, value)
         assert adapter() is owner.return_value
         owner.assert_called_once_with(**current)
         assert all(owner.call_args.kwargs[key] is value for key, value in current.items())
+        factory.assert_called_once_with()
     failure = TypeError("current owner failure")
     owner.side_effect = failure
     with pytest.raises(TypeError) as caught:
         adapter()
     assert caught.value is failure
+
+
+def test_loader_uses_composed_candidate_owners_without_root_normalization_relay(monkeypatch):
+    state = bot.default_state()
+    state["extension"] = {"preserved": []}
+    bot.save_state(state, durable=True)
+    obsolete = Mock(side_effect=AssertionError("loader used root candidate relay"))
+    monkeypatch.setattr(bot, "normalise_state_candidate", obsolete)
+    loaded = bot.load_state()
+    assert loaded["extension"] == {"preserved": []}
+    obsolete.assert_not_called()
 
 
 def _legacy(path, **overrides):
@@ -170,7 +192,10 @@ def test_native_reader_and_validator_failures_never_trigger_fallback(monkeypatch
     _legacy(bot.STATE_FILE)
     failure = error_type("native boundary failure")
     save = Mock()
-    monkeypatch.setattr(bot, boundary, Mock(side_effect=failure))
+    if boundary == "normalise_state_candidate":
+        patch_state_candidate_normalizer(monkeypatch, Mock(side_effect=failure))
+    else:
+        monkeypatch.setattr(bot, boundary, Mock(side_effect=failure))
     monkeypatch.setattr(bot, "save_state", save)
     with pytest.raises(error_type) as caught:
         bot.load_state()
@@ -206,7 +231,7 @@ def test_only_selected_candidate_recovery_events_are_published_before_migration(
     monkeypatch.setattr(bot, "STATE_BACKUP_COUNT", 1)
     _legacy(bot.STATE_FILE)
     _legacy(bot.STATE_FILE.with_name(bot.STATE_FILE.name + ".bak1"))
-    real_normalise = bot.normalise_state_candidate
+    real_normalise = bot._state_candidate_normalizer()
     real_save = bot.save_state
     seen = []
 
@@ -220,7 +245,7 @@ def test_only_selected_candidate_recovery_events_are_published_before_migration(
         seen.append("save")
         return real_save(candidate, **kwargs)
 
-    monkeypatch.setattr(bot, "normalise_state_candidate", normalise)
+    patch_state_candidate_normalizer(monkeypatch, normalise)
     monkeypatch.setattr(bot, "log_event", lambda name, **kwargs: seen.append(kwargs["reason"]))
     monkeypatch.setattr(bot, "save_state", save)
     bot.load_state()
@@ -272,7 +297,7 @@ def test_generation_selection_has_one_collision_and_tie_rule_before_repairs(
 
     save, event = Mock(), Mock()
     monkeypatch.setattr(bot, "read_stable_owned_json_bytes_no_follow", read_candidate)
-    monkeypatch.setattr(bot, "normalise_state_candidate", normalize)
+    patch_state_candidate_normalizer(monkeypatch, normalize)
     monkeypatch.setattr(bot, "save_state", save)
     monkeypatch.setattr(bot, "log_event", event)
     if conflicting:
@@ -319,7 +344,7 @@ def test_selected_recovery_reporting_preserves_order_and_failure_before_save(mon
         if failure_at == "event":
             raise failure
 
-    monkeypatch.setattr(bot, "normalise_state_candidate", normalize)
+    patch_state_candidate_normalizer(monkeypatch, normalize)
     monkeypatch.setattr(bot, "log", SimpleNamespace(debug=lambda *args: None, info=info, warning=warning))
     monkeypatch.setattr(bot, "log_event", event)
     monkeypatch.setattr(bot, "save_state", saved)
@@ -351,7 +376,7 @@ def test_rollback_fence_errors_distinguish_primary_authority_from_unused_backup(
         pending_reply_drafts={"unretired": True},
     )
     normalise, save, logger = Mock(side_effect=lambda value, **kwargs: value), Mock(), Mock()
-    monkeypatch.setattr(bot, "normalise_state_candidate", normalise)
+    patch_state_candidate_normalizer(monkeypatch, normalise)
     monkeypatch.setattr(bot, "save_state", save)
     monkeypatch.setattr(bot, "log", logger)
     expected = (
