@@ -793,6 +793,28 @@ report `available: false` and `status: "retired"`. Historical generated-image
 selection, spacing and identity-policy observations remain available; standalone
 analysis helpers can still inspect archived pools explicitly.
 
+`meme_queue_health` reports the current daily-meme inventory under the selected
+project directory: candidate images, already-posted filenames in the current
+cycle, unposted images, and whether automatic recycling permits another
+selection. `exhausted` means every candidate has been posted and recycling is
+disabled; `recycling_available` means the next selection may start another cycle.
+Missing, empty or uninspectable inputs are reported explicitly. The snapshot is
+read-only and never resets meme history. It uses current state and local
+configuration plus literal source defaults without importing the bot; the
+configuration describes files on disk, not proof that a running process has
+reloaded them. Observation times distinguish this snapshot from the selected log
+window. Historical exhaustion/no-image messages also appear in `asset_health` and
+`events`, and recycling messages appear in `events`. Zero meme publications
+alone do not establish exhaustion. JSON headlines and Markdown show the current
+availability alongside these historical observations.
+
+Enable automatic meme recycling by setting
+`"RESET_MEME_CYCLE_WHEN_ALL_POSTED": true` in the ignored
+`mrsMThatcher.local.json`, then use the normal controlled bot restart. At the
+next selection after exhaustion, the bot clears the used-filename cycle history
+and starts again at the first candidate. The digest never performs this reset;
+the tracked default remains disabled.
+
 Each digest invocation also takes a read-only, no-follow snapshot of the active
 remote-write protocol: activation pair, ambiguity markers, source-receipt
 retirement ledgers, transport journal/fence, media-upload receipt/fence,

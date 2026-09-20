@@ -793,9 +793,15 @@ def prepare_headline_and_derived(
         observations.append(
             plural_count(len(blocking_receipts), "receipt-block record") + " in window"
         )
-    if asset_health:
+    metadata_warnings = [item for item in asset_health if not item.get("kind", "").startswith("meme_")]
+    if metadata_warnings:
         observations.append(
-            plural_count(len(asset_health), "asset-metadata warning") + " in window"
+            plural_count(len(metadata_warnings), "asset-metadata warning") + " in window"
+        )
+    if stats.get("meme_unavailable"):
+        observations.append(
+            plural_count(stats["meme_unavailable"], "meme selection", "meme selections")
+            + " without an available image in window"
         )
     cooldown_until_epoch = int_or_none(latest_state_summary.get("api_cooldown_until_epoch"))
     x_write_cooldown_until_epoch = int_or_none(latest_state_summary.get("x_write_api_cooldown_until_epoch"))
@@ -963,11 +969,23 @@ def refresh_current_health_headline(
         if statuses and all(value == "cleared" for value in statuses.values()):
             claims.append("no API cooldown")
     report["current_cooldown_status"] = statuses
-    summary["headline"] = "; ".join(
-        _headline_claims(
-            components, health_claim=health_claim, cooldown_claims=claims,
-        )
+    headline = _headline_claims(
+        components, health_claim=health_claim, cooldown_claims=claims,
     )
+    meme_queue = report.get("meme_queue_health") or {}
+    meme_claim = {
+        "exhausted": "current meme queue exhausted: automatic recycling disabled",
+        "recycling_available": "current meme cycle exhausted; automatic recycling available",
+        "empty": "current meme queue empty",
+        "missing": "current meme directory missing",
+        "unknown": "current meme availability unknown",
+        "disabled": "daily meme posting disabled in current configuration",
+    }.get(meme_queue.get("status"))
+    if meme_queue.get("posting_enabled") is False:
+        meme_claim = "daily meme posting disabled in current configuration"
+    if meme_claim:
+        headline.append(meme_claim)
+    summary["headline"] = "; ".join(headline)
 
 
 def refresh_derived(

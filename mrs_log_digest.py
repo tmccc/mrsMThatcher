@@ -228,6 +228,7 @@ from mrs_log_digest_runtime import (
     _control_epoch,
     load_current_runtime_state as _load_current_runtime_state,
     load_current_runtime_config as _load_current_runtime_config,
+    meme_queue_health_snapshot,
     runtime_control_snapshot as _runtime_control_snapshot,
     shadow_lifecycle_snapshot,
 )
@@ -2317,6 +2318,17 @@ def analyse(
         if handled:
             continue
 
+        meme_availability_kind = {
+            "All meme candidates have already been posted": "meme_cycle_exhausted",
+            "No meme available to post": "meme_unavailable",
+            "RESET_MEME_CYCLE_WHEN_ALL_POSTED=True, clearing meme history": "meme_cycle_recycled",
+        }.get(msg)
+        if production_record and meme_availability_kind:
+            add_event(meme_availability_kind, r.ts, message=msg)
+            if meme_availability_kind != "meme_cycle_recycled":
+                add_asset_health(meme_availability_kind, r, severity="warning")
+            continue
+
         handled, source_context.pending_meme = handle_legacy_meme_posting(
             r, msg,
             pending_meme=source_context.pending_meme, add_event=add_event, lit=lit,
@@ -3076,6 +3088,16 @@ def run_digest(args: argparse.Namespace, *, project_dir: Path, state_file: Path)
         "time": dt_text(runtime_config_ts) if runtime_config_ts else None,
     }
     report["latest_config"] = runtime_config or {}
+    report["meme_queue_health"] = meme_queue_health_snapshot(
+        project_dir,
+        runtime_state=runtime_state,
+        runtime_state_status=runtime_state_status,
+        runtime_config=runtime_config,
+        runtime_config_status=runtime_config_status,
+        observed_at=datetime.now(),
+        state_observed_at=runtime_state_observed_at,
+        read_snapshot=read_stable_regular_snapshot,
+    )
     strike_progress = current_author_no_reply_strike_progress(
         runtime_state,
         runtime_state_status,

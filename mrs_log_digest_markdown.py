@@ -2246,6 +2246,7 @@ def _render_event_details(report: Dict[str, Any], out: List[str]) -> None:
         out.append("")
 
     section("daily_meme_posted", "Daily meme posts", ["time", "post_id", "file", "summary"])
+    section("meme_cycle_recycled", "Meme cycle recycling in the log window", ["time", "message"])
     section("quote_selected", "Regular quote selections", ["time", "line_no", "quote_hash", "weight", "seasonal_boost"])
     section("matched_image_selected", "Matched image selections", ["time", "image", "image_no", "score", "components"])
     section(
@@ -2697,9 +2698,31 @@ def _render_reply_recovery(
 
 
 def _render_asset_health(report: Dict[str, Any], out: List[str]) -> None:
+    queue = report.get("meme_queue_health") or {}
+    if queue:
+        out.append("## Current meme queue")
+        out.append(
+            f"Current filesystem/configuration snapshot at `{queue.get('observed_at')}`; "
+            "counts are independent of the selected log window. Configuration describes "
+            "the files on disk, not confirmation that a running process has reloaded them."
+        )
+        out.append(f"Status: **{queue.get('status')}**. {queue.get('reason') or ''}")
+        out.append(
+            f"Candidates: **{queue.get('candidate_count')}**; already posted in this cycle: "
+            f"**{queue.get('posted_count')}**; unposted: **{queue.get('unposted_count')}**; "
+            f"available for selection, including recycling: **{queue.get('available_to_select_count')}**."
+        )
+        out.append(
+            f"Daily posting enabled: `{queue.get('posting_enabled')}`; automatic recycling: "
+            f"`{queue.get('reset_when_all_posted')}`. Directory: `{queue.get('directory')}`."
+        )
+        out.append("")
     asset_health = report.get("asset_health") or []
     if asset_health:
-        out.append("## Asset metadata health")
+        has_meme_availability = any(item.get("kind", "").startswith("meme_") for item in asset_health)
+        out.append("## Asset availability and metadata observations" if has_meme_availability else "## Asset metadata health")
+        if has_meme_availability:
+            out.append("These are historical observations in the selected log window; see the current meme queue snapshot for availability now.")
         out.append(md_table_row(["time", "level", "kind", "message"]))
         out.append(md_table_row(["---", "---", "---", "---"]))
         for item in asset_health:
