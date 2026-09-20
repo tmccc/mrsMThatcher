@@ -366,6 +366,15 @@ def _requested_post_payload(
     return payload
 
 
+def _created_post_id(result: dict) -> str | None:
+    """Read a valid numeric response identity before durable confirmation."""
+    response_data = result.get("data") if isinstance(result, dict) else None
+    post_id = response_data.get("id") if isinstance(response_data, dict) else None
+    if not valid_post_id(post_id):
+        return None
+    return str(post_id)
+
+
 def create_post(
     text: str,
     media_ids: list[str] | None = None,
@@ -576,16 +585,6 @@ def create_post(
         text,
     )
 
-    def validate_created_post_response(result: dict) -> str:
-        response_data = result.get("data") if isinstance(result, dict) else None
-        post_id = response_data.get("id") if isinstance(response_data, dict) else None
-        if not valid_post_id(post_id):
-            raise AmbiguousRemotePostOutcome(
-                f"X may have accepted the post but its response did not include a valid numeric data.id: {result}",
-                service="x",
-            )
-        return str(post_id)
-
     try:
         if on_remote_transaction_started is not None:
             # The outbox phase is published only after the restart-persistent
@@ -600,7 +599,12 @@ def create_post(
             ambiguous_write=True,
             _remote_write_authorization=transport_authority,
         )
-        post_id = validate_created_post_response(result)
+        post_id = _created_post_id(result)
+        if post_id is None:
+            raise AmbiguousRemotePostOutcome(
+                f"X may have accepted the post but its response did not include a valid numeric data.id: {result}",
+                service="x",
+            )
         confirm_transport_transaction(
             Path(transport_authority.journal_path),
             transport_authority,
