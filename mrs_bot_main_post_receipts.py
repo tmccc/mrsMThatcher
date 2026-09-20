@@ -1,7 +1,8 @@
 """Validate main-post receipts and materialize their durable bound schedules.
 
-Six explicit root adapters supply current callbacks, settings, modules and
-exception authorities on each call. Original bodies preserve legacy and lineage
+Six explicit root adapters supply current callbacks, settings and exception
+authorities on each call. Fixed copying, hashing, regex validation and calendar
+arithmetic are local. Original bodies preserve legacy and lineage
 validation, native failures, bound calendar replay, reference/copy boundaries,
 payload identity and final validation gates. Fixed payload reconstruction and
 hashing come directly from their inert owner. Policy and validation calls use
@@ -13,9 +14,11 @@ and performs no import-time runtime work or reverse bot import.
 
 from __future__ import annotations
 
+import copy
+import hashlib
+import re
 from collections.abc import Callable
 from datetime import datetime, timedelta
-from types import ModuleType
 
 from mrs_bot_main_post_attempt_values import (
     MAIN_POST_ATTEMPT_MAX_BOUND_DELAY_SECONDS,
@@ -34,8 +37,6 @@ def main_post_attempt_is_semantically_valid(
     MAIN_POST_SCHEDULE_TIMEZONE: str,
     MEME_SCHEDULE_VERSION: int,
     bound_meme_schedule_state_is_valid: Callable[..., bool],
-    hashlib: ModuleType,
-    re: ModuleType,
     safe_bound_schedule_date_str: Callable[..., str | None],
     valid_receipt_basename: Callable[..., bool],
     valid_receipt_epoch: Callable[..., bool],
@@ -283,11 +284,8 @@ def regular_post_receipt_is_semantically_valid(
     MEME_SCHEDULE_MODES: set[str],
     MEME_SCHEDULE_VERSION: int,
     confirmed_pending_schedule_receipt_is_semantically_valid: Callable[..., bool],
-    copy: ModuleType,
-    hashlib: ModuleType,
     main_post_attempt_is_semantically_valid: Callable[..., bool],
     materialize_bound_regular_schedule_receipt: Callable[..., dict],
-    re: ModuleType,
     safe_bound_schedule_date_str: Callable[..., str | None],
     valid_receipt_basename: Callable[..., bool],
     valid_receipt_epoch: Callable[..., bool],
@@ -524,8 +522,6 @@ def materialize_bound_regular_schedule_receipt(
     InvalidRegularPostReceipt: type[Exception],
     bound_schedule_datetime: Callable[..., datetime],
     confirmed_pending_schedule_receipt_is_semantically_valid: Callable[..., bool],
-    copy: ModuleType,
-    hashlib: ModuleType,
     regular_post_receipt_is_semantically_valid: Callable[..., bool],
     safe_bound_schedule_date_str: Callable[..., str | None],
 ) -> dict:
@@ -629,10 +625,7 @@ def materialize_bound_meme_schedule_receipt(
     InvalidMemePostReceipt: type[Exception],
     bound_schedule_datetime: Callable[..., datetime],
     confirmed_pending_schedule_receipt_is_semantically_valid: Callable[..., bool],
-    copy: ModuleType,
-    hashlib: ModuleType,
     meme_post_receipt_is_semantically_valid: Callable[..., bool],
-    timedelta: type[timedelta],
 ) -> dict:
     """Build a full meme receipt solely from its durable bound plan."""
     if not confirmed_pending_schedule_receipt_is_semantically_valid(
@@ -689,11 +682,8 @@ def meme_post_receipt_is_semantically_valid(
     MEME_SCHEDULE_MODES: set[str],
     MEME_SCHEDULE_VERSION: int,
     confirmed_pending_schedule_receipt_is_semantically_valid: Callable[..., bool],
-    copy: ModuleType,
-    hashlib: ModuleType,
     main_post_attempt_is_semantically_valid: Callable[..., bool],
     materialize_bound_meme_schedule_receipt: Callable[..., dict],
-    re: ModuleType,
     valid_receipt_basename: Callable[..., bool],
     valid_receipt_epoch: Callable[..., bool],
     valid_string_post_id: Callable[..., bool],

@@ -57,21 +57,21 @@ assert 'single_call_reply' not in sys.modules
 @pytest.mark.parametrize(
     "name, signature, dependency_count",
     [
-        ("main_post_attempt_is_semantically_valid", "(data: 'object') -> 'bool'", 8),
-        ("regular_post_receipt_is_semantically_valid", "(data: 'dict') -> 'bool'", 13),
+        ("main_post_attempt_is_semantically_valid", "(data: 'object') -> 'bool'", 6),
+        ("regular_post_receipt_is_semantically_valid", "(data: 'dict') -> 'bool'", 10),
         (
             "confirmed_pending_schedule_receipt_is_semantically_valid",
             "(data: 'object', *, expected_lane: 'str | None' = None) -> 'bool'", 3,
         ),
         (
             "materialize_bound_regular_schedule_receipt",
-            "(pending: 'dict', *, _validate_result: 'bool' = True) -> 'dict'", 7,
+            "(pending: 'dict', *, _validate_result: 'bool' = True) -> 'dict'", 5,
         ),
         (
             "materialize_bound_meme_schedule_receipt",
-            "(pending: 'dict', *, _validate_result: 'bool' = True) -> 'dict'", 7,
+            "(pending: 'dict', *, _validate_result: 'bool' = True) -> 'dict'", 4,
         ),
-        ("meme_post_receipt_is_semantically_valid", "(data: 'dict') -> 'bool'", 11),
+        ("meme_post_receipt_is_semantically_valid", "(data: 'dict') -> 'bool'", 8),
     ],
 )
 def test_adapters_forward_current_dependencies_defaults_references_and_errors(
@@ -228,7 +228,7 @@ def test_regular_eager_epochs_and_date_closure_use_current_authorities(monkeypat
 
 
 @pytest.mark.parametrize("lane", ["quote_image", "daily_meme"])
-def test_lineage_uses_current_source_hash_copy_pending_and_nonrecursive_materializer(
+def test_lineage_uses_owned_hash_copy_and_current_pending_nonrecursive_materializer(
     monkeypatch, lane,
 ):
     pending = _pending(lane)
@@ -248,7 +248,7 @@ def test_lineage_uses_current_source_hash_copy_pending_and_nonrecursive_material
         events.attach_mock(callback, key)
     monkeypatch.setattr(bot, "main_post_attempt_is_semantically_valid", events.attempt)
     monkeypatch.setattr(receipts, "canonical_atomic_json_bytes", events.canonical)
-    monkeypatch.setattr(bot, "copy", SimpleNamespace(deepcopy=events.deepcopy))
+    monkeypatch.setattr(receipts, "copy", SimpleNamespace(deepcopy=events.deepcopy))
     monkeypatch.setattr(bot, "confirmed_pending_schedule_receipt_is_semantically_valid", events.pending)
     monkeypatch.setattr(bot, f"materialize_bound_{prefix}_schedule_receipt", events.materialize)
     assert validator(receipt)
@@ -291,7 +291,7 @@ def test_materializers_gate_before_derivation_and_use_current_final_validator_an
     copy_spy = Mock(wraps=copy.deepcopy)
     monkeypatch.setattr(bot, "confirmed_pending_schedule_receipt_is_semantically_valid", gate)
     monkeypatch.setattr(bot, f"{prefix}_post_receipt_is_semantically_valid", final)
-    monkeypatch.setattr(bot, "copy", SimpleNamespace(deepcopy=copy_spy))
+    monkeypatch.setattr(receipts, "copy", SimpleNamespace(deepcopy=copy_spy))
     with pytest.raises(error, match=f"^Invalid confirmed {prefix} pending-schedule receipt$"):
         materialize(pending, _validate_result=False)
     gate.assert_called_once_with(pending, expected_lane=lane)
@@ -330,7 +330,7 @@ def test_materialization_preserves_copy_boundaries_and_hashes_original_source_in
     events.attach_mock(Mock(wraps=copy.deepcopy), "deepcopy")
     events.attach_mock(Mock(wraps=bot.canonical_atomic_json_bytes), "canonical")
     monkeypatch.setattr(bot, "confirmed_pending_schedule_receipt_is_semantically_valid", events.gate)
-    monkeypatch.setattr(bot, "copy", SimpleNamespace(deepcopy=events.deepcopy))
+    monkeypatch.setattr(receipts, "copy", SimpleNamespace(deepcopy=events.deepcopy))
     monkeypatch.setattr(receipts, "canonical_atomic_json_bytes", events.canonical)
     if lane == "quote_image":
         # Mutable children expose list copying separately from deep source copying.
