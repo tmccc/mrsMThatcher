@@ -23,13 +23,11 @@ DEPENDENCIES = {'load_strict_runtime_json': ['Decimal', 'json', 'math'],
  '_read_stable_local_config_bytes': ['LOCAL_CONFIG_FILE',
                                      'LOCAL_CONFIG_MAX_BYTES',
                                      'LocalConfigError',
-                                     '_local_config_stat_identity',
                                      'os',
                                      'stat'],
  'load_validated_local_config_overrides': ['LOCAL_CONFIG_FILE',
                                            'LocalConfigError',
                                            'SOURCE_DEFAULT_CONFIG_VALUES',
-                                           '_coerce_local_config_value',
                                            '_read_stable_local_config_bytes',
                                            'copy',
                                            'load_strict_runtime_json',
@@ -81,7 +79,7 @@ assert 'single_call_reply' not in sys.modules
     assert result.returncode == 0, result.stderr + result.stdout
 
 
-@pytest.mark.parametrize("name", [name for name in DEPENDENCIES if name != "_local_config_stat_identity"])
+@pytest.mark.parametrize("name", [name for name, dependencies in DEPENDENCIES.items() if dependencies])
 def test_adapters_preserve_signatures_current_dependencies_references_and_errors(monkeypatch, name):
     adapter = getattr(bot, name)
     signature = inspect.signature(adapter)
@@ -210,6 +208,8 @@ def test_parser_keeps_exact_reader_types_utf8_and_native_errors():
 
 
 def test_coercion_keeps_exact_types_references_and_string_exemptions():
+    assert bot._coerce_local_config_value is bot._local_config._coerce_local_config_value
+    assert str(inspect.signature(bot._coerce_local_config_value)) == SIGNATURES["_coerce_local_config_value"]
     class IntegerSubclass(int):
         pass
 
@@ -266,7 +266,7 @@ def snapshot_reader(monkeypatch):
     monkeypatch.setattr(bot, "stat", SimpleNamespace(S_ISREG=trace.is_regular))
     monkeypatch.setattr(bot, "LOCAL_CONFIG_FILE", source)
     monkeypatch.setattr(bot, "LOCAL_CONFIG_MAX_BYTES", 4)
-    monkeypatch.setattr(bot, "_local_config_stat_identity", trace.identity)
+    monkeypatch.setattr(bot._local_config, "_local_config_stat_identity", trace.identity)
     return SimpleNamespace(trace=trace, snapshots=snapshots, source=source, os=fake_os)
 
 
@@ -351,7 +351,8 @@ def overrides(monkeypatch):
         "copy": SimpleNamespace(deepcopy=trace.deepcopy),
         "log": SimpleNamespace(warning=trace.warning, error=trace.error),
     }.items():
-        monkeypatch.setattr(bot, name, value)
+        target = bot._local_config if name == "_coerce_local_config_value" else bot
+        monkeypatch.setattr(target, name, value)
     return SimpleNamespace(trace=trace, defaults=defaults)
 
 

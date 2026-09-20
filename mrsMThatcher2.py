@@ -1465,13 +1465,7 @@ _REPLY_EVIDENCE_REPOSITORY: object | None = None
 _REPLY_EVIDENCE_LOAD_ERROR: str | None = None
 
 
-def _coerce_local_config_value(key: str, value: object, current_value: object) -> object:
-    """Coerce JSON types; numeric bounds are checked on the complete config."""
-    return _local_config._coerce_local_config_value(
-        key,
-        value,
-        current_value,
-    )
+_coerce_local_config_value = _local_config._coerce_local_config_value
 
 
 def _runtime_config_namespace() -> dict[str, object]:
@@ -1510,7 +1504,6 @@ def _read_stable_local_config_bytes() -> bytes | None:
         LOCAL_CONFIG_FILE=LOCAL_CONFIG_FILE,
         LOCAL_CONFIG_MAX_BYTES=LOCAL_CONFIG_MAX_BYTES,
         LocalConfigError=LocalConfigError,
-        _local_config_stat_identity=_local_config_stat_identity,
         os=os,
         stat=stat,
     )
@@ -1522,7 +1515,6 @@ def load_validated_local_config_overrides() -> dict[str, object] | None:
         LOCAL_CONFIG_FILE=LOCAL_CONFIG_FILE,
         LocalConfigError=LocalConfigError,
         SOURCE_DEFAULT_CONFIG_VALUES=SOURCE_DEFAULT_CONFIG_VALUES,
-        _coerce_local_config_value=_coerce_local_config_value,
         _read_stable_local_config_bytes=_read_stable_local_config_bytes,
         copy=copy,
         load_strict_runtime_json=load_strict_runtime_json,

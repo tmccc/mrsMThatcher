@@ -1,7 +1,9 @@
 """Strict runtime JSON and local-configuration loading/coercion.
 
-The root supplies current runtime dependencies explicitly on each call. This
-module performs no runtime work at import and retains no runtime authority.
+The root supplies current runtime dependencies explicitly on each call. Stable
+identity and value coercion use their local pure implementations directly; root
+compatibility aliases remain available. This module performs no runtime work
+at import and retains no runtime authority.
 """
 from __future__ import annotations
 
@@ -133,7 +135,6 @@ def _read_stable_local_config_bytes(
     LOCAL_CONFIG_FILE: Any,
     LOCAL_CONFIG_MAX_BYTES: Any,
     LocalConfigError: Any,
-    _local_config_stat_identity: Any,
     os: Any,
     stat: Any,
 ) -> bytes | None:
@@ -239,7 +240,6 @@ def load_validated_local_config_overrides(
     LOCAL_CONFIG_FILE: Any,
     LocalConfigError: Any,
     SOURCE_DEFAULT_CONFIG_VALUES: Any,
-    _coerce_local_config_value: Any,
     _read_stable_local_config_bytes: Any,
     copy: Any,
     load_strict_runtime_json: Any,
