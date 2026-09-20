@@ -28,7 +28,12 @@ from mrs_bot_main_post_attempt_values import (
 
 from mrs_bot_durable_json_io import canonical_atomic_json_bytes
 from mrs_bot_asset_metadata import quote_text_hash
-from mrs_bot_receipt_primitives import receipt_bool, receipt_int
+from mrs_bot_receipt_primitives import (
+    receipt_bool,
+    receipt_int,
+    valid_receipt_basename,
+    valid_string_post_id,
+)
 
 
 def main_post_attempt_is_semantically_valid(
@@ -38,7 +43,6 @@ def main_post_attempt_is_semantically_valid(
     MEME_SCHEDULE_VERSION: int,
     bound_meme_schedule_state_is_valid: Callable[..., bool],
     safe_bound_schedule_date_str: Callable[..., str | None],
-    valid_receipt_basename: Callable[..., bool],
     valid_receipt_epoch: Callable[..., bool],
 ) -> bool:
     """Return whether a pre-send regular or meme attempt is self-consistent."""
@@ -287,9 +291,7 @@ def regular_post_receipt_is_semantically_valid(
     main_post_attempt_is_semantically_valid: Callable[..., bool],
     materialize_bound_regular_schedule_receipt: Callable[..., dict],
     safe_bound_schedule_date_str: Callable[..., str | None],
-    valid_receipt_basename: Callable[..., bool],
     valid_receipt_epoch: Callable[..., bool],
-    valid_string_post_id: Callable[..., bool],
 ) -> bool:
     """Return whether a regular-post receipt is internally consistent."""
     schema_version = data.get("schema_version")
@@ -468,7 +470,6 @@ def confirmed_pending_schedule_receipt_is_semantically_valid(
     expected_lane: str | None = None,
     main_post_attempt_is_semantically_valid: Callable[..., bool],
     valid_receipt_epoch: Callable[..., bool],
-    valid_string_post_id: Callable[..., bool],
 ) -> bool:
     """Validate a remote-confirmed receipt awaiting local schedule materialisation."""
     if not isinstance(data, dict) or set(data) != {
@@ -684,9 +685,7 @@ def meme_post_receipt_is_semantically_valid(
     confirmed_pending_schedule_receipt_is_semantically_valid: Callable[..., bool],
     main_post_attempt_is_semantically_valid: Callable[..., bool],
     materialize_bound_meme_schedule_receipt: Callable[..., dict],
-    valid_receipt_basename: Callable[..., bool],
     valid_receipt_epoch: Callable[..., bool],
-    valid_string_post_id: Callable[..., bool],
 ) -> bool:
     """Return whether a meme-post receipt is internally consistent."""
     schema_version = data.get("schema_version")

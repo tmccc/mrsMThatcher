@@ -57,11 +57,11 @@ assert 'single_call_reply' not in sys.modules
 @pytest.mark.parametrize(
     "name, signature, dependency_count",
     [
-        ("main_post_attempt_is_semantically_valid", "(data: 'object') -> 'bool'", 6),
-        ("regular_post_receipt_is_semantically_valid", "(data: 'dict') -> 'bool'", 10),
+        ("main_post_attempt_is_semantically_valid", "(data: 'object') -> 'bool'", 5),
+        ("regular_post_receipt_is_semantically_valid", "(data: 'dict') -> 'bool'", 8),
         (
             "confirmed_pending_schedule_receipt_is_semantically_valid",
-            "(data: 'object', *, expected_lane: 'str | None' = None) -> 'bool'", 3,
+            "(data: 'object', *, expected_lane: 'str | None' = None) -> 'bool'", 2,
         ),
         (
             "materialize_bound_regular_schedule_receipt",
@@ -71,7 +71,7 @@ assert 'single_call_reply' not in sys.modules
             "materialize_bound_meme_schedule_receipt",
             "(pending: 'dict', *, _validate_result: 'bool' = True) -> 'dict'", 4,
         ),
-        ("meme_post_receipt_is_semantically_valid", "(data: 'dict') -> 'bool'", 8),
+        ("meme_post_receipt_is_semantically_valid", "(data: 'dict') -> 'bool'", 6),
     ],
 )
 def test_adapters_forward_current_dependencies_defaults_references_and_errors(
@@ -156,7 +156,7 @@ def test_full_receipt_native_get_errors_remain_distinct_from_attempt_and_pending
 
 
 @pytest.mark.parametrize("lane", ["quote_image", "daily_meme"])
-def test_pending_uses_current_callbacks_in_order_before_source_and_lane_gates(
+def test_pending_uses_owned_scalar_rules_and_current_callbacks_before_source_and_lane_gates(
     monkeypatch, lane,
 ):
     pending = _pending(lane)
@@ -166,7 +166,7 @@ def test_pending_uses_current_callbacks_in_order_before_source_and_lane_gates(
         callback = (Mock(return_value=True) if key == "main_post_attempt_is_semantically_valid"
                     else Mock(wraps=getattr(bot, key)))
         events.attach_mock(callback, key)
-        target = receipts if key == "receipt_int" else bot
+        target = receipts if key in {"receipt_int", "valid_string_post_id"} else bot
         monkeypatch.setattr(target, key, callback)
     validator = bot.confirmed_pending_schedule_receipt_is_semantically_valid
     assert validator(pending, expected_lane=lane)
@@ -205,7 +205,7 @@ def test_regular_eager_epochs_and_date_closure_use_current_authorities(monkeypat
     events.attach_mock(Mock(wraps=bot.receipt_int), "integer")
     events.attach_mock(Mock(return_value=False), "post_id")
     monkeypatch.setattr(receipts, "receipt_int", events.integer)
-    monkeypatch.setattr(bot, "valid_string_post_id", events.post_id)
+    monkeypatch.setattr(receipts, "valid_string_post_id", events.post_id)
     assert bot.regular_post_receipt_is_semantically_valid(receipt) is False
     assert events.mock_calls == [
         call.integer(receipt["quote_post_epoch"]),

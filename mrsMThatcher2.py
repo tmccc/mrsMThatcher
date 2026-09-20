@@ -5219,7 +5219,6 @@ def main_post_attempt_is_semantically_valid(data: object) -> bool:
         MEME_SCHEDULE_VERSION=MEME_SCHEDULE_VERSION,
         bound_meme_schedule_state_is_valid=bound_meme_schedule_state_is_valid,
         safe_bound_schedule_date_str=safe_bound_schedule_date_str,
-        valid_receipt_basename=valid_receipt_basename,
         valid_receipt_epoch=valid_receipt_epoch,
     )
 
@@ -5404,7 +5403,6 @@ def confirmed_pending_schedule_receipt_is_semantically_valid(
         expected_lane=expected_lane,
         main_post_attempt_is_semantically_valid=main_post_attempt_is_semantically_valid,
         valid_receipt_epoch=valid_receipt_epoch,
-        valid_string_post_id=valid_string_post_id,
     )
 
 
@@ -5557,9 +5555,7 @@ def regular_post_receipt_is_semantically_valid(data: dict) -> bool:
         main_post_attempt_is_semantically_valid=main_post_attempt_is_semantically_valid,
         materialize_bound_regular_schedule_receipt=materialize_bound_regular_schedule_receipt,
         safe_bound_schedule_date_str=safe_bound_schedule_date_str,
-        valid_receipt_basename=valid_receipt_basename,
         valid_receipt_epoch=valid_receipt_epoch,
-        valid_string_post_id=valid_string_post_id,
     )
 
 
@@ -5618,9 +5614,7 @@ def meme_post_receipt_is_semantically_valid(data: dict) -> bool:
         confirmed_pending_schedule_receipt_is_semantically_valid=confirmed_pending_schedule_receipt_is_semantically_valid,
         main_post_attempt_is_semantically_valid=main_post_attempt_is_semantically_valid,
         materialize_bound_meme_schedule_receipt=materialize_bound_meme_schedule_receipt,
-        valid_receipt_basename=valid_receipt_basename,
         valid_receipt_epoch=valid_receipt_epoch,
-        valid_string_post_id=valid_string_post_id,
     )
 
 
