@@ -1,12 +1,31 @@
 """Runtime configuration validation, application and credential checks.
 
-The root supplies current runtime dependencies explicitly on each call. This
+Historical-context schema checks are separate from scalar and cross-field
+validation. The root supplies current runtime dependencies on each call. This
 module performs no runtime work at import and retains no runtime authority.
 """
 from __future__ import annotations
 
 import math
 from typing import Any
+
+
+def _historical_context_config_errors(context_config: object) -> list[str]:
+    """Validate the complete historical-context shape before other config rules."""
+    errors: list[str] = []
+    context_keys = {"enabled", "maximum_length", "include_meaning", "include_source", "include_verification"}
+    if not isinstance(context_config, dict):
+        errors.append("historical_context_reply must be an object")
+    elif set(context_config) != context_keys:
+        errors.append("historical_context_reply fields mismatch")
+    else:
+        for key in ("enabled", "include_meaning", "include_source", "include_verification"):
+            if type(context_config.get(key)) is not bool:
+                errors.append(f"historical_context_reply.{key} must be boolean")
+        maximum = context_config.get("maximum_length")
+        if type(maximum) is not int or not 120 <= maximum <= 25_000:
+            errors.append("historical_context_reply.maximum_length must be an integer from 120 to 25000")
+    return errors
 
 
 def validate_runtime_config_values(
@@ -24,18 +43,7 @@ def validate_runtime_config_values(
     errors: list[str] = []
 
     context_config = values.get("historical_context_reply", _runtime_config_namespace().get("historical_context_reply"))
-    context_keys = {"enabled", "maximum_length", "include_meaning", "include_source", "include_verification"}
-    if not isinstance(context_config, dict):
-        errors.append("historical_context_reply must be an object")
-    elif set(context_config) != context_keys:
-        errors.append("historical_context_reply fields mismatch")
-    else:
-        for key in ("enabled", "include_meaning", "include_source", "include_verification"):
-            if type(context_config.get(key)) is not bool:
-                errors.append(f"historical_context_reply.{key} must be boolean")
-        maximum = context_config.get("maximum_length")
-        if type(maximum) is not int or not 120 <= maximum <= 25_000:
-            errors.append("historical_context_reply.maximum_length must be an integer from 120 to 25000")
+    errors.extend(_historical_context_config_errors(context_config))
 
     reply_config = values.get(
         "single_call_reply",
