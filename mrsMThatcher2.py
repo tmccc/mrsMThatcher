@@ -4657,7 +4657,6 @@ def record_ambiguous_remote_post(payload: dict) -> None:
         _set_ambiguous_marker_durability_uncertain=_set_ambiguous_marker_durability_uncertain,
         _set_ambiguous_remote_post_seen=_set_ambiguous_remote_post_seen,
         ensure_durable_remote_write_safety_marker=ensure_durable_remote_write_safety_marker,
-        hashlib=hashlib,
         log=log,
         now_epoch=now_epoch,
     )
@@ -4686,8 +4685,6 @@ def latch_confirmed_post_persistence_failure(
         _set_ambiguous_marker_durability_uncertain=_set_ambiguous_marker_durability_uncertain,
         _set_ambiguous_remote_post_seen=_set_ambiguous_remote_post_seen,
         ensure_durable_remote_write_safety_marker=ensure_durable_remote_write_safety_marker,
-        hashlib=hashlib,
-        json=json,
         log=log,
         now_epoch=now_epoch,
     )

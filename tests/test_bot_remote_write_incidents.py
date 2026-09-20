@@ -27,22 +27,19 @@ DEPENDENCIES = {'durable_remote_write_safety_marker_exists': ['_set_ambiguous_ma
                                   '_set_ambiguous_marker_durability_uncertain',
                                   '_set_ambiguous_remote_post_seen',
                                   'ensure_durable_remote_write_safety_marker',
-                                  'hashlib',
                                   'log',
                                   'now_epoch'],
  'latch_confirmed_post_persistence_failure': ['AMBIGUOUS_POST_OUTCOME_FILE',
                                               '_set_ambiguous_marker_durability_uncertain',
                                               '_set_ambiguous_remote_post_seen',
                                               'ensure_durable_remote_write_safety_marker',
-                                              'hashlib',
-                                              'json',
                                               'log',
                                               'now_epoch']}
 
 
 def test_import_needs_no_runtime_access():
     code = """
-import builtins, collections.abc, datetime, io, logging, os, random, socket, sys, time, typing, zoneinfo
+import builtins, collections.abc, hashlib, json, datetime, io, logging, os, random, socket, sys, time, typing, zoneinfo
 from pathlib import Path
 
 def forbidden(*args, **kwargs):
@@ -258,7 +255,7 @@ def test_incident_flags_precede_native_pretry_errors(monkeypatch, boundary):
     monkeypatch.setattr(bot, "ensure_durable_remote_write_safety_marker", ensure)
     monkeypatch.setattr(bot, "log", log)
     if boundary == "identity":
-        monkeypatch.setattr(bot, "json", SimpleNamespace(dumps=bad_identity))
+        monkeypatch.setattr(owner, "json", SimpleNamespace(dumps=bad_identity))
     with pytest.raises(ValueError) as caught:
         if boundary == "text":
             bot.record_ambiguous_remote_post({"text": BadText()})
@@ -305,7 +302,7 @@ def test_ambiguous_marker_preserves_conversion_hash_and_write_order(monkeypatch)
         return False
 
     monkeypatch.setattr(bot, "now_epoch", lambda: events.append("clock") or clock_value)
-    monkeypatch.setattr(bot, "hashlib", SimpleNamespace(sha256=hash_text))
+    monkeypatch.setattr(owner, "hashlib", SimpleNamespace(sha256=hash_text))
     monkeypatch.setattr(bot, "ensure_durable_remote_write_safety_marker", ensure)
     log = Mock()
     log.critical.side_effect = lambda *args: events.append("log")
@@ -403,8 +400,8 @@ def test_confirmed_identity_repeated_conversions_clock_and_marker_order(monkeypa
 
     log = Mock()
     log.critical.side_effect = lambda *args: events.append("log")
-    monkeypatch.setattr(bot, "json", SimpleNamespace(dumps=dumps))
-    monkeypatch.setattr(bot, "hashlib", SimpleNamespace(sha256=hash_identity))
+    monkeypatch.setattr(owner, "json", SimpleNamespace(dumps=dumps))
+    monkeypatch.setattr(owner, "hashlib", SimpleNamespace(sha256=hash_identity))
     monkeypatch.setattr(bot, "now_epoch", clock)
     monkeypatch.setattr(bot, "ensure_durable_remote_write_safety_marker", ensure)
     monkeypatch.setattr(bot, "log", log)
@@ -437,7 +434,7 @@ def test_confirmed_marker_hash_error_remains_outside_durable_write_catch(monkeyp
     failure = ValueError("identity hashing failed")
     ensure, log = Mock(), Mock()
     monkeypatch.setattr(bot, "now_epoch", lambda: 61)
-    monkeypatch.setattr(bot, "hashlib", SimpleNamespace(sha256=Mock(side_effect=failure)))
+    monkeypatch.setattr(owner, "hashlib", SimpleNamespace(sha256=Mock(side_effect=failure)))
     monkeypatch.setattr(bot, "ensure_durable_remote_write_safety_marker", ensure)
     monkeypatch.setattr(bot, "log", log)
     with pytest.raises(ValueError) as caught:

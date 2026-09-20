@@ -1,10 +1,13 @@
 """Remote-write incident latching and durable marker acknowledgement.
 
-The root supplies current runtime dependencies explicitly on each call. This
+Marker encoding and hashing use local fixed operations. The root supplies
+current clock, logging, latches and persistence boundaries on each call. This
 module performs no runtime work at import and retains no runtime authority.
 """
 from __future__ import annotations
 
+import hashlib
+import json
 from typing import Any
 
 
@@ -48,7 +51,6 @@ def record_ambiguous_remote_post(
     _set_ambiguous_marker_durability_uncertain: Any,
     _set_ambiguous_remote_post_seen: Any,
     ensure_durable_remote_write_safety_marker: Any,
-    hashlib: Any,
     log: Any,
     now_epoch: Any,
 ) -> None:
@@ -92,8 +94,6 @@ def latch_confirmed_post_persistence_failure(
     _set_ambiguous_marker_durability_uncertain: Any,
     _set_ambiguous_remote_post_seen: Any,
     ensure_durable_remote_write_safety_marker: Any,
-    hashlib: Any,
-    json: Any,
     log: Any,
     now_epoch: Any,
 ) -> bool:
