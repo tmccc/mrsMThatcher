@@ -6437,16 +6437,13 @@ def hard_mismatch_phrase_matches_text(phrase: str, text: str) -> bool:
 
 def image_text_corpus(image_analysis: dict) -> str:
     """Return the image text corpus."""
-    return _image_scoring.image_text_corpus(
-        image_analysis, as_string_list=as_string_list,
-    )
+    return _image_scoring.image_text_corpus(image_analysis)
 
 
 def build_image_topic_idf(image_analysis: dict | None) -> dict[str, float]:
     """Build image topic idf."""
     return _image_scoring.build_image_topic_idf(
         image_analysis,
-        as_string_list=as_string_list,
         normalise_tag=normalise_tag,
     )
 
@@ -6459,8 +6456,6 @@ def image_is_out_of_season(image_analysis: dict, today_mm_dd: str) -> bool:
     return _image_scoring.image_is_out_of_season(
         image_analysis, today_mm_dd,
         normalise_tag=normalise_tag,
-        as_string_list=as_string_list,
-        mm_dd_in_window=mm_dd_in_window,
     )
 
 
@@ -6469,9 +6464,6 @@ def score_image_for_quote(quote_analysis: dict | None, image_analysis: dict | No
     return _image_scoring.score_image_for_quote(
         quote_analysis, image_analysis, idf,
         normalise_tag=normalise_tag,
-        as_string_list=as_string_list,
-        visual_energy_score=visual_energy_score,
-        image_text_corpus=image_text_corpus,
         phrase_matches_text=phrase_matches_text,
         hard_mismatch_phrase_matches_text=hard_mismatch_phrase_matches_text,
         strong_mismatch_penalty=IMAGE_STRONG_MISMATCH_PENALTY,

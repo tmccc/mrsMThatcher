@@ -1,9 +1,12 @@
 from __future__ import annotations
 
+import inspect
 import subprocess
 import sys
 from pathlib import Path
 from types import SimpleNamespace
+
+import pytest
 
 import mrsMThatcher2 as bot
 import mrs_bot_image_scoring as scoring
@@ -13,6 +16,11 @@ def test_scoring_import_needs_no_bot_environment_files_or_network():
     code = """
 import builtins
 import collections.abc
+import dataclasses
+import datetime
+import logging
+import random
+import re
 import io
 import os
 from pathlib import Path
@@ -24,7 +32,9 @@ def forbidden(*args, **kwargs):
 
 original_import = builtins.__import__
 def guarded_import(name, *args, **kwargs):
-    if name in {'mrsMThatcher2', 'requests', 'openai'}:
+    if name in {'mrsMThatcher2', 'historical_context_formatter', 'requests', 'openai'} or (
+        name.startswith('mrs_bot_') and name not in {'mrs_bot_image_scoring', 'mrs_bot_quote_candidates'}
+    ):
         forbidden()
     return original_import(name, *args, **kwargs)
 
@@ -34,8 +44,11 @@ os.getenv = forbidden
 os._Environ.__getitem__ = forbidden
 Path.home = forbidden
 socket.socket = socket.create_connection = socket.getaddrinfo = forbidden
+before = random.getstate()
 import mrs_bot_image_scoring as scoring
+assert random.getstate() == before
 assert 'mrsMThatcher2' not in sys.modules
+assert 'historical_context_formatter' not in sys.modules
 assert scoring.as_string_list([None, 3]) == ['3']
 assert scoring.visual_energy_score('high', 'low') == -8.0
 """
@@ -48,6 +61,9 @@ assert scoring.visual_energy_score('high', 'low') == -8.0
         timeout=20,
     )
     assert result.returncode == 0, result.stderr + result.stdout
+    assert bot.as_string_list is scoring.as_string_list
+    assert bot.visual_energy_score is scoring.visual_energy_score
+    assert bot.mm_dd_in_window is scoring.mm_dd_in_window
 
 
 def test_tokens_use_current_stopwords_and_root_regex_operations(monkeypatch):
@@ -108,7 +124,7 @@ def test_phrase_helpers_use_current_root_callbacks_and_keep_round_vs_ceil(monkey
     assert calls == [phrase, text]
 
 
-def test_idf_and_score_comprehensions_use_root_list_and_tag_helpers(monkeypatch):
+def test_idf_and_score_use_owned_list_and_current_tag_helpers(monkeypatch):
     marker = object()
     original_list, original_tag = bot.as_string_list, bot.normalise_tag
     seen = []
@@ -125,7 +141,7 @@ def test_idf_and_score_comprehensions_use_root_list_and_tag_helpers(monkeypatch)
             return "freedom"
         return original_tag(value)
 
-    monkeypatch.setattr(bot, "as_string_list", as_list)
+    monkeypatch.setattr(scoring, "as_string_list", as_list)
     monkeypatch.setattr(bot, "normalise_tag", tag)
     image = {"themes": marker}
     assert bot.build_image_topic_idf({"items": {"one": {"analysis": image}}}) == {
@@ -134,7 +150,7 @@ def test_idf_and_score_comprehensions_use_root_list_and_tag_helpers(monkeypatch)
     assert seen == ["list", "tag"]
     seen.clear()
     # Keep this assertion about tag/list lookups separate from corpus joining.
-    monkeypatch.setattr(bot, "image_text_corpus", lambda value: "")
+    monkeypatch.setattr(scoring, "image_text_corpus", lambda value: "")
     score, components, eligible = bot.score_image_for_quote(
         {"primary_topics": ["freedom"]}, image, {"freedom": 2.0},
     )
@@ -142,7 +158,7 @@ def test_idf_and_score_comprehensions_use_root_list_and_tag_helpers(monkeypatch)
     assert seen == ["list", "tag"]
 
 
-def test_image_corpus_uses_current_root_list_helper(monkeypatch):
+def test_image_corpus_uses_owned_list_helper(monkeypatch):
     marker = object()
     calls = []
 
@@ -150,7 +166,7 @@ def test_image_corpus_uses_current_root_list_helper(monkeypatch):
         calls.append(value)
         return ["patched"] if value is marker else []
 
-    monkeypatch.setattr(bot, "as_string_list", as_list)
+    monkeypatch.setattr(scoring, "as_string_list", as_list)
     assert bot.image_text_corpus({
         "description": "description",
         "historical_context": {"visible_symbols": marker},
@@ -158,7 +174,7 @@ def test_image_corpus_uses_current_root_list_helper(monkeypatch):
     assert calls == [None, None, None, marker]
 
 
-def test_score_uses_root_callbacks_including_historical_generator_and_penalty(monkeypatch):
+def test_score_keeps_owned_values_current_matching_callbacks_and_penalty(monkeypatch):
     corpus = object()
     image = {}
     calls = []
@@ -180,8 +196,8 @@ def test_score_uses_root_callbacks_including_historical_generator_and_penalty(mo
         calls.append(phrase)
         return True
 
-    monkeypatch.setattr(bot, "image_text_corpus", image_corpus)
-    monkeypatch.setattr(bot, "visual_energy_score", lambda *args: 11.0)
+    monkeypatch.setattr(scoring, "image_text_corpus", image_corpus)
+    monkeypatch.setattr(scoring, "visual_energy_score", lambda *args: 11.0)
     monkeypatch.setattr(bot, "phrase_matches_text", matches)
     monkeypatch.setattr(bot, "hard_mismatch_phrase_matches_text", lambda *args: False)
     score, components, eligible = bot.score_image_for_quote(quote, image)
@@ -203,7 +219,7 @@ def test_score_uses_root_callbacks_including_historical_generator_and_penalty(mo
         assert calls == ["scene", "event", "strong"]
 
 
-def test_season_uses_current_root_helpers_and_christmas_precedence(monkeypatch):
+def test_season_keeps_current_tags_owned_window_and_christmas_precedence(monkeypatch):
     marker = object()
     calls = []
     image = {"seasonality": {
@@ -223,25 +239,53 @@ def test_season_uses_current_root_helpers_and_christmas_precedence(monkeypatch):
         calls.append(args)
         return True
 
-    monkeypatch.setattr(bot, "as_string_list", as_list)
+    monkeypatch.setattr(scoring, "as_string_list", as_list)
     monkeypatch.setattr(bot, "normalise_tag", tag)
-    monkeypatch.setattr(bot, "mm_dd_in_window", window)
+    monkeypatch.setattr(scoring, "mm_dd_in_window", window)
     assert bot.image_is_out_of_season(image, "12-20") is False
     assert calls == [("12-20", "12-10", "12-28")]
-    monkeypatch.setattr(bot, "mm_dd_in_window", lambda *args: False)
+    monkeypatch.setattr(scoring, "mm_dd_in_window", lambda *args: False)
     assert bot.image_is_out_of_season(image, "12-20") is True
 
 
-def test_score_wrapper_preserves_argument_and_return_references(monkeypatch):
-    quote, image, idf = {}, {}, {}
+@pytest.mark.parametrize("name, arguments, dependencies", [
+    ("image_text_corpus", ({},), {}),
+    ("build_image_topic_idf", ({},), {"normalise_tag": "normalise_tag"}),
+    ("image_is_out_of_season", ({}, "12-20"), {"normalise_tag": "normalise_tag"}),
+    ("score_image_for_quote", ({}, {}, {}), {
+        "normalise_tag": "normalise_tag",
+        "phrase_matches_text": "phrase_matches_text",
+        "hard_mismatch_phrase_matches_text": "hard_mismatch_phrase_matches_text",
+        "strong_mismatch_penalty": "IMAGE_STRONG_MISMATCH_PENALTY",
+    }),
+])
+def test_scoring_adapters_keep_reduced_contract_current_inputs_and_identity(monkeypatch, name, arguments, dependencies):
+    adapter = getattr(bot, name)
+    injected = inspect.signature(getattr(scoring, name)).parameters.keys() - inspect.signature(adapter).parameters.keys()
+    assert injected == dependencies.keys()
     result = (12.0, {"sentinel": 12.0}, True)
+    current = {}
 
-    def score(passed_quote, passed_image, passed_idf, **dependencies):
-        assert passed_quote is quote
-        assert passed_image is image
-        assert passed_idf is idf
-        assert dependencies["image_text_corpus"] is bot.image_text_corpus
+    def operation(*passed, **actual):
+        assert len(passed) == len(arguments)
+        assert all(value is original for value, original in zip(passed, arguments))
+        assert actual.keys() == current.keys()
+        assert all(actual[key] is value for key, value in current.items())
         return result
 
-    monkeypatch.setattr(scoring, "score_image_for_quote", score)
-    assert bot.score_image_for_quote(quote, image, idf) is result
+    monkeypatch.setattr(scoring, name, operation)
+    for _ in range(2):
+        current = {key: object() for key in dependencies}
+        for key, value in current.items():
+            monkeypatch.setattr(bot, dependencies[key], value)
+        assert adapter(*arguments) is result
+
+    failure = TypeError("scoring failed")
+
+    def failed(*args, **kwargs):
+        raise failure
+
+    monkeypatch.setattr(scoring, name, failed)
+    with pytest.raises(TypeError) as caught:
+        adapter(*arguments)
+    assert caught.value is failure

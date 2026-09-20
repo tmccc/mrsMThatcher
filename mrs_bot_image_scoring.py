@@ -1,12 +1,16 @@
 """Score quotation/image matches using explicit coordinator dependencies.
 
-The bot retains configuration and passes its current helpers on each call.
-This module performs no I/O and does not retain callbacks or caller data.
+Fixed list, visual-energy, text-corpus and calendar-window values use their
+inert owner implementations directly. The bot supplies current tag/phrase
+callbacks, mutable token policy and mismatch penalties at their existing call
+boundaries. This module performs no I/O and retains no callbacks or caller data.
 """
 
 from __future__ import annotations
 
 from collections.abc import Callable
+
+from mrs_bot_quote_candidates import mm_dd_in_window
 
 
 def normalise_tag(
@@ -93,11 +97,7 @@ def hard_mismatch_phrase_matches_text(
     return len(phrase_tokens & text_tokens) >= required
 
 
-def image_text_corpus(
-    image_analysis: dict,
-    *,
-    as_string_list: Callable[[object], list[str]],
-) -> str:
+def image_text_corpus(image_analysis: dict) -> str:
     """Return the image text corpus."""
     parts: list[str] = []
     for key in ("description", "scene_summary"):
@@ -116,7 +116,6 @@ def image_text_corpus(
 def build_image_topic_idf(
     image_analysis: dict | None,
     *,
-    as_string_list: Callable[[object], list[str]],
     normalise_tag: Callable[[object], str],
 ) -> dict[str, float]:
     """Build image topic idf."""
@@ -160,8 +159,6 @@ def image_is_out_of_season(
     today_mm_dd: str,
     *,
     normalise_tag: Callable[[object], str],
-    as_string_list: Callable[[object], list[str]],
-    mm_dd_in_window: Callable[[str, str, str], bool],
 ) -> bool:
     """Return whether image is out of season."""
     seasonality = image_analysis.get("seasonality", {})
@@ -188,9 +185,6 @@ def score_image_for_quote(
     idf: dict[str, float] | None = None,
     *,
     normalise_tag: Callable[[object], str],
-    as_string_list: Callable[[object], list[str]],
-    visual_energy_score: Callable[[str, str], float],
-    image_text_corpus: Callable[[dict], str],
     phrase_matches_text: Callable[[str, str], bool],
     hard_mismatch_phrase_matches_text: Callable[[str, str], bool],
     strong_mismatch_penalty: float,
