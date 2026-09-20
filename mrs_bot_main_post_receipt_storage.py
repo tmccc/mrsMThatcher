@@ -3,8 +3,10 @@
 Each operation binds current paths, I/O, validation and error authorities. Calls
 to another storage operation refresh that binding at the existing boundary;
 publication gates, exact receipt bytes and lane-specific reader contracts stay
-local to this owner. Removal receives an explicitly proof-bound retirement
-capability from the root adapter. Importing the module performs no runtime work.
+local to this owner. Receipt grammar and schedule materialization resolve the
+current values owner only when invoked, independently at each operation boundary.
+Removal receives an explicitly proof-bound retirement capability from the root
+adapter. Importing the module performs no runtime work.
 """
 
 from __future__ import annotations
@@ -13,8 +15,12 @@ from collections.abc import Callable
 from dataclasses import dataclass
 from logging import Logger
 from pathlib import Path
+from typing import TYPE_CHECKING
 
 from mrs_bot_durable_json_io import canonical_atomic_json_bytes
+
+if TYPE_CHECKING:
+    from mrs_bot_main_post_receipts import MainPostReceiptValues
 
 
 @dataclass(frozen=True)
@@ -35,15 +41,10 @@ class MainPostReceipts:
     replace_exact_source_receipt_document: Callable[..., None]
     transaction_mutation_authority: Callable[..., object]
     load_receipt_json_no_follow: Callable[[Path], tuple[bool, object | None]]
-    confirmed_pending_schedule_receipt_is_semantically_valid: Callable[..., bool]
-    materialize_bound_meme_schedule_receipt: Callable[..., dict]
-    materialize_bound_regular_schedule_receipt: Callable[..., dict]
     UnresolvedMemePostReceipt: type[Exception]
     atomic_write_json: Callable[..., None]
     confirmed_receipt_matches_main_attempt: Callable[..., bool]
-    regular_post_receipt_is_semantically_valid: Callable[..., bool]
-    main_post_attempt_is_semantically_valid: Callable[..., bool]
-    meme_post_receipt_is_semantically_valid: Callable[..., bool]
+    values: Callable[[], MainPostReceiptValues]
     current: Callable[[], MainPostReceipts]
 
     def attempt_path(
@@ -198,7 +199,7 @@ class MainPostReceipts:
         pending: dict,
     ) -> dict:
         """Atomically replace one pending schedule with its complete local receipt."""
-        if not self.confirmed_pending_schedule_receipt_is_semantically_valid(pending):
+        if not self.values().pending_is_valid(pending):
             raise RuntimeError("Refusing to finalise an invalid pending receipt")
         attempt = pending["source_attempt"]
         path = self.current().attempt_path(attempt)
@@ -212,9 +213,9 @@ class MainPostReceipts:
                 "Confirmed pending-schedule receipt changed before finalisation"
             )
         if attempt["lane"] == "quote_image":
-            receipt = self.materialize_bound_regular_schedule_receipt(pending)
+            receipt = self.values().materialize_regular(pending)
         else:
-            receipt = self.materialize_bound_meme_schedule_receipt(pending)
+            receipt = self.values().materialize_meme(pending)
         if attempt["lane"] == "quote_image":
             self.current().write_regular(receipt)
         else:
@@ -239,8 +240,6 @@ class MainPostReceipts:
         current_attempt_schema_versions: set[int],
         unresolved_receipt_error: type[Exception],
         unresolved_opposite_receipt_error: type[Exception],
-        materialize_bound_schedule_receipt: Callable[..., dict],
-        post_receipt_is_semantically_valid: Callable[..., bool],
     ) -> None:
         """Publish either lane using the current adapter's paths and authorities."""
         if self.remote_receipt_retirement_is_blocking():
@@ -252,7 +251,7 @@ class MainPostReceipts:
                 f"Refusing {lane_name} post while unresolved {opposite_lane_name}-post "
                 f"receipt exists: {opposite_receipt_path}"
             )
-        if self.confirmed_pending_schedule_receipt_is_semantically_valid(
+        if self.values().pending_is_valid(
             receipt,
             expected_lane=expected_lane,
         ):
@@ -271,7 +270,10 @@ class MainPostReceipts:
                 receipt_path,
             )
             return
-        if not post_receipt_is_semantically_valid(receipt):
+        if not (
+            self.values().regular_is_valid(receipt)
+            if expected_lane == "quote_image" else self.values().meme_is_valid(receipt)
+        ):
             raise RuntimeError(
                 f"Internal error: generated {lane_name}-post receipt failed semantic validation"
             )
@@ -281,7 +283,10 @@ class MainPostReceipts:
                 if expected_lane == "quote_image" else self.current().load_meme()
             )
             if status == "pending_schedule" and current is not None:
-                if materialize_bound_schedule_receipt(current) != receipt:
+                if (
+                    self.values().materialize_regular(current)
+                    if expected_lane == "quote_image" else self.values().materialize_meme(current)
+                ) != receipt:
                     raise unresolved_receipt_error(
                         "Refusing a schedule result which does not match the durable "
                         f"confirmed {lane_name} plan"
@@ -348,8 +353,6 @@ class MainPostReceipts:
             current_attempt_schema_versions={4, 5, 6},
             unresolved_receipt_error=self.UnresolvedRegularPostReceipt,
             unresolved_opposite_receipt_error=self.UnresolvedMemePostReceipt,
-            materialize_bound_schedule_receipt=self.materialize_bound_regular_schedule_receipt,
-            post_receipt_is_semantically_valid=self.regular_post_receipt_is_semantically_valid,
         )
 
     def load_regular(
@@ -363,7 +366,7 @@ class MainPostReceipts:
             return "invalid", None
         if not present:
             return "absent", None
-        if isinstance(data, dict) and self.main_post_attempt_is_semantically_valid(data):
+        if isinstance(data, dict) and self.values().attempt_is_valid(data):
             if data.get("lane") == "quote_image":
                 return "sending", data
             self.log.critical(
@@ -371,7 +374,7 @@ class MainPostReceipts:
                 self.REGULAR_POST_RECEIPT_FILE,
             )
             return "invalid", data
-        if self.confirmed_pending_schedule_receipt_is_semantically_valid(
+        if self.values().pending_is_valid(
             data,
             expected_lane="quote_image",
         ):
@@ -387,7 +390,7 @@ class MainPostReceipts:
         if not all(data.get(key) for key in required):
             self.log.critical("Incomplete regular-post receipt blocks main posting until repaired: %s", self.REGULAR_POST_RECEIPT_FILE)
             return "invalid", None
-        if not self.regular_post_receipt_is_semantically_valid(data):
+        if not self.values().regular_is_valid(data):
             self.log.critical(
                 "Semantically invalid or unsupported-version regular-post receipt blocks main posting until repaired; "
                 "do not continue an upgrade while a confirmed-post receipt exists: %s",
@@ -425,8 +428,6 @@ class MainPostReceipts:
             current_attempt_schema_versions={3, 4, 5},
             unresolved_receipt_error=self.UnresolvedMemePostReceipt,
             unresolved_opposite_receipt_error=self.UnresolvedRegularPostReceipt,
-            materialize_bound_schedule_receipt=self.materialize_bound_meme_schedule_receipt,
-            post_receipt_is_semantically_valid=self.meme_post_receipt_is_semantically_valid,
         )
 
     def load_meme(
@@ -440,7 +441,7 @@ class MainPostReceipts:
             return "invalid", None
         if not present:
             return "absent", None
-        if isinstance(data, dict) and self.main_post_attempt_is_semantically_valid(data):
+        if isinstance(data, dict) and self.values().attempt_is_valid(data):
             if data.get("lane") == "daily_meme":
                 return "sending", data
             self.log.critical(
@@ -448,7 +449,7 @@ class MainPostReceipts:
                 self.MEME_POST_RECEIPT_FILE,
             )
             return "invalid", data
-        if self.confirmed_pending_schedule_receipt_is_semantically_valid(
+        if self.values().pending_is_valid(
             data,
             expected_lane="daily_meme",
         ):
@@ -463,7 +464,7 @@ class MainPostReceipts:
         if not all(data.get(key) for key in required):
             self.log.critical("Incomplete meme-post receipt blocks the bot until repaired: %s", self.MEME_POST_RECEIPT_FILE)
             return "invalid", None
-        if not self.meme_post_receipt_is_semantically_valid(data):
+        if not self.values().meme_is_valid(data):
             self.log.critical(
                 "Semantically invalid or unsupported-version meme-post receipt blocks the bot until repaired; "
                 "do not continue an upgrade while a confirmed-post receipt exists: %s",

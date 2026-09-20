@@ -11,6 +11,7 @@ from pathlib import Path
 import pytest
 
 from mrs_bot_main_post_receipt_storage import MainPostReceipts
+from mrs_bot_main_post_receipts import MainPostReceiptValues
 from tests.helpers.bot_runtime import bot
 from tests.helpers.bot_fixtures import (
     isolate_bot_runtime,
@@ -245,10 +246,10 @@ def test_meme_schedule_finalisation_failure_after_confirmation_is_confirmed_loca
         ),
     )
     monkeypatch.setattr(bot, "now_epoch", lambda: 1_800_000_000)
-    original_materialize = bot.materialize_bound_meme_schedule_receipt
+    original_materialize = MainPostReceiptValues.materialize_meme
     monkeypatch.setattr(
-        bot,
-        "materialize_bound_meme_schedule_receipt",
+        MainPostReceiptValues,
+        "materialize_meme",
         lambda *args, **kwargs: (_ for _ in ()).throw(
             RuntimeError("schedule finalisation failed")
         ),
@@ -265,10 +266,12 @@ def test_meme_schedule_finalisation_failure_after_confirmation_is_confirmed_loca
     assert pending["post_id"] == "970001"
     assert state["posted_meme_filenames"] == []
 
-    expected = original_materialize(pending, _validate_result=False)
+    expected = original_materialize(
+        bot._main_post_receipt_values_owner(), pending, _validate_result=False,
+    )
     monkeypatch.setattr(
-        bot,
-        "materialize_bound_meme_schedule_receipt",
+        MainPostReceiptValues,
+        "materialize_meme",
         original_materialize,
     )
     monkeypatch.setattr(

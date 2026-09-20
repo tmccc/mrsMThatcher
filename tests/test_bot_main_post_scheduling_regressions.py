@@ -16,6 +16,7 @@ from zoneinfo import ZoneInfo
 import pytest
 
 from mrs_bot_main_post_receipt_storage import MainPostReceipts
+from mrs_bot_main_post_receipts import MainPostReceiptValues
 from tests.helpers.bot_runtime import bot
 from tests.helpers.bot_fixtures import (
     isolate_bot_runtime,
@@ -736,10 +737,10 @@ def test_regular_schedule_finalisation_failure_after_confirmation_is_confirmed_l
 ) -> None:
     lines_used, images_used, state, _lines_used_file, _images_used_file, receipt_file, _lines_file = configure_simple_quote_post(tmp_path, monkeypatch)
     quote_hash = bot.quote_text_hash("Good quote.")
-    original_materialize = bot.materialize_bound_regular_schedule_receipt
+    original_materialize = MainPostReceiptValues.materialize_regular
     monkeypatch.setattr(
-        bot,
-        "materialize_bound_regular_schedule_receipt",
+        MainPostReceiptValues,
+        "materialize_regular",
         lambda *args, **kwargs: (_ for _ in ()).throw(RuntimeError("schedule finalisation failed")),
     )
 
@@ -754,10 +755,12 @@ def test_regular_schedule_finalisation_failure_after_confirmation_is_confirmed_l
     assert "t01.jpg" not in images_used
     assert "last_main_post_id" not in state
 
-    expected = original_materialize(pending, _validate_result=False)
+    expected = original_materialize(
+        bot._main_post_receipt_values_owner(), pending, _validate_result=False,
+    )
     monkeypatch.setattr(
-        bot,
-        "materialize_bound_regular_schedule_receipt",
+        MainPostReceiptValues,
+        "materialize_regular",
         original_materialize,
     )
     monkeypatch.setattr(
@@ -846,10 +849,10 @@ def test_regular_schedule_failure_replays_exact_bound_meme_delay(
         return 3600
 
     monkeypatch.setattr(bot.random, "randint", bound_delays)
-    original_materialize = bot.materialize_bound_regular_schedule_receipt
+    original_materialize = MainPostReceiptValues.materialize_regular
     monkeypatch.setattr(
-        bot,
-        "materialize_bound_regular_schedule_receipt",
+        MainPostReceiptValues,
+        "materialize_regular",
         lambda *_args, **_kwargs: (_ for _ in ()).throw(
             RuntimeError("injected post-confirmation schedule failure")
         ),
@@ -862,12 +865,14 @@ def test_regular_schedule_failure_replays_exact_bound_meme_delay(
     assert status == "pending_schedule"
     assert pending is not None
     assert pending["source_attempt"]["recovery_plan"]["meme_delay_seconds"] == 3600
-    expected = original_materialize(pending, _validate_result=False)
+    expected = original_materialize(
+        bot._main_post_receipt_values_owner(), pending, _validate_result=False,
+    )
     assert expected["next_meme_post_epoch"] == confirmed_epoch + 3600
 
     monkeypatch.setattr(
-        bot,
-        "materialize_bound_regular_schedule_receipt",
+        MainPostReceiptValues,
+        "materialize_regular",
         original_materialize,
     )
     monkeypatch.setattr(

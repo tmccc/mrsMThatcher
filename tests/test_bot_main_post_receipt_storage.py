@@ -12,11 +12,22 @@ from unittest.mock import Mock, call
 import pytest
 
 import mrs_bot_main_post_receipt_storage as storage
+import mrs_bot_main_post_receipts as receipt_values
 from tests.helpers.bot_runtime import bot
 from tests.helpers.bot_fixtures import (
     isolate_bot_runtime,  # noqa: F401
     schema_current_main_attempt,
 )
+
+
+VALUE_OPERATIONS = {
+    "confirmed_pending_schedule_receipt_is_semantically_valid": "pending_is_valid",
+    "materialize_bound_meme_schedule_receipt": "materialize_meme",
+    "materialize_bound_regular_schedule_receipt": "materialize_regular",
+    "regular_post_receipt_is_semantically_valid": "regular_is_valid",
+    "main_post_attempt_is_semantically_valid": "attempt_is_valid",
+    "meme_post_receipt_is_semantically_valid": "meme_is_valid",
+}
 
 
 def test_import_needs_no_runtime_access():
@@ -46,6 +57,7 @@ assert random.getstate() == before
 assert 'mrsMThatcher2' not in sys.modules
 assert 'requests' not in sys.modules
 assert 'single_call_reply' not in sys.modules
+assert 'mrs_bot_main_post_receipts' not in sys.modules
 """
     result = subprocess.run(
         [sys.executable, "-c", code], cwd=Path(__file__).resolve().parents[1],
@@ -116,24 +128,38 @@ def test_adapters_keep_signatures_references_errors_and_retirement_authority(
 def test_factory_binds_current_external_dependencies_without_io(monkeypatch):
     from dataclasses import fields
 
-    dependencies = {field.name for field in fields(storage.MainPostReceipts)} - {"current"}
+    dependencies = {field.name for field in fields(storage.MainPostReceipts)} - {"current", "values"}
+    assert not dependencies.intersection(VALUE_OPERATIONS)
     assert not dependencies.intersection({
         "main_post_attempt_path", "load_regular_post_receipt", "load_meme_post_receipt",
         "write_regular_post_receipt", "write_meme_post_receipt", "retire_current_source_receipt",
     })
     owners = []
+    value_factories = []
     for _ in range(2):
         current = {name: Mock(side_effect=AssertionError("factory performed runtime work"))
                    for name in dependencies}
         for name, value in current.items():
             monkeypatch.setattr(bot, name, value)
+        value_factory = Mock(return_value=object())
+        monkeypatch.setattr(bot, "_main_post_receipt_values_owner", value_factory)
+        value_factories.append(value_factory)
         owner = bot._main_post_receipts_owner()
         assert all(getattr(owner, name) is value for name, value in current.items())
         assert all(not value.mock_calls for value in current.values())
         owners.append(owner)
+        value_factory.assert_not_called()
     refreshed = owners[0].current()
     assert refreshed is not owners[0]
     assert all(getattr(refreshed, name) is getattr(owners[1], name) for name in dependencies)
+    assert owners[0].values() is value_factories[1].return_value
+    value_factories[0].assert_not_called()
+    value_factories[1].assert_called_once_with()
+    failure = TypeError("current values composition failure")
+    monkeypatch.setattr(bot, "_main_post_receipt_values_owner", Mock(side_effect=failure))
+    with pytest.raises(TypeError) as caught:
+        owners[0].values()
+    assert caught.value is failure
 
 
 def _callbacks(monkeypatch, **returns):
@@ -146,10 +172,14 @@ def _callbacks(monkeypatch, **returns):
             "load_regular_post_receipt": "load_regular", "load_meme_post_receipt": "load_meme",
             "write_regular_post_receipt": "write_regular", "write_meme_post_receipt": "write_meme",
         }
-        target = storage.MainPostReceipts if name in owned else (
-            storage if name == "canonical_atomic_json_bytes" else bot
-        )
-        monkeypatch.setattr(target, owned.get(name, name), callback)
+        if name in VALUE_OPERATIONS:
+            target, method = receipt_values.MainPostReceiptValues, VALUE_OPERATIONS[name]
+        elif name in owned:
+            target, method = storage.MainPostReceipts, owned[name]
+        else:
+            target = storage if name == "canonical_atomic_json_bytes" else bot
+            method = name
+        monkeypatch.setattr(target, method, callback)
     logger = Mock()
     trace.attach_mock(logger, "log")
     monkeypatch.setattr(bot, "log", logger)
@@ -768,11 +798,152 @@ def test_publication_refreshes_nested_reader_without_rebinding_active_write(monk
 
     monkeypatch.setattr(bot, "remote_receipt_retirement_is_blocking", barrier)
     monkeypatch.setattr(bot, "receipt_namespace_entry_exists", lambda _: False)
-    monkeypatch.setattr(bot, "confirmed_pending_schedule_receipt_is_semantically_valid", lambda *a, **k: True)
-    monkeypatch.setattr(bot, "main_post_attempt_is_semantically_valid", lambda value: value is attempt)
+    monkeypatch.setattr(receipt_values.MainPostReceiptValues, "pending_is_valid", lambda *a, **k: True)
+    monkeypatch.setattr(receipt_values.MainPostReceiptValues, "attempt_is_valid", lambda self, value: value is attempt)
     monkeypatch.setattr(bot, "load_receipt_json_no_follow", Mock(side_effect=AssertionError("nested reader used stale I/O")))
     monkeypatch.setattr(bot, "atomic_write_json", write)
     getattr(bot, f"write_{prefix}_post_receipt")(receipt)
     reader.assert_called_once_with(new_path)
     write.assert_called_once_with(old_path, receipt, durable=True)
     next_write.assert_not_called()
+
+
+@pytest.mark.parametrize("prefix,lane", [("regular", "quote_image"), ("meme", "daily_meme")])
+def test_reader_resolves_fresh_value_policy_after_io_and_each_validation(monkeypatch, prefix, lane):
+    data = {
+        "schema_version": 1, "post_id": "confirmed", "quote_hash": "quote",
+        "image_basename": "image", "quote_post_epoch": 1, "next_quote_post_epoch": 2,
+        "meme_basename": "meme", "meme_post_epoch": 1, "next_meme_post_epoch": 2,
+    }
+    path = getattr(bot, f"{prefix.upper()}_POST_RECEIPT_FILE")
+    events = []
+    original_factory = bot._main_post_receipt_values_owner
+    policies = [
+        (f"timezone-{generation}", generation, object(), object())
+        for generation in range(1, 4)
+    ]
+
+    def bind_policy(index):
+        timezone, version, date, epoch = policies[index]
+        monkeypatch.setattr(bot, "MAIN_POST_SCHEDULE_TIMEZONE", timezone)
+        monkeypatch.setattr(bot, "MEME_SCHEDULE_VERSION", version)
+        monkeypatch.setattr(bot, "safe_bound_schedule_date_str", date)
+        monkeypatch.setattr(bot, "valid_receipt_epoch", epoch)
+
+    def current_values():
+        owner = original_factory()
+        events.append(("values", owner.schedule_version))
+        return owner
+
+    def read(actual_path):
+        assert actual_path is path
+        events.append(("read",))
+        bind_policy(0)
+        monkeypatch.setattr(bot, "_main_post_receipt_values_owner", current_values)
+        return True, data
+
+    def validate(index, label, owner, value, **kwargs):
+        assert value is data
+        assert (owner.schedule_timezone, owner.schedule_version,
+                owner.safe_schedule_date, owner.valid_epoch) == policies[index]
+        assert kwargs == ({"expected_lane": lane} if label == "pending" else {})
+        events.append((label,))
+        if index < 2:
+            bind_policy(index + 1)
+            # The operation already in progress retains its own references.
+            assert (owner.schedule_timezone, owner.schedule_version,
+                    owner.safe_schedule_date, owner.valid_epoch) == policies[index]
+        return index == 2
+
+    monkeypatch.setattr(bot, "_main_post_receipt_values_owner", Mock(
+        side_effect=AssertionError("reader resolved values before its I/O"),
+    ))
+    monkeypatch.setattr(bot, "load_receipt_json_no_follow", read)
+    monkeypatch.setattr(receipt_values.MainPostReceiptValues, "attempt_is_valid",
+                        lambda self, value: validate(0, "attempt", self, value))
+    monkeypatch.setattr(receipt_values.MainPostReceiptValues, "pending_is_valid",
+                        lambda self, value, **kwargs: validate(1, "pending", self, value, **kwargs))
+    monkeypatch.setattr(receipt_values.MainPostReceiptValues, f"{prefix}_is_valid",
+                        lambda self, value: validate(2, "completed", self, value))
+
+    status, loaded = getattr(bot, f"load_{prefix}_post_receipt")()
+    assert status == "valid" and loaded is data
+    assert events == [
+        ("read",), ("values", 1), ("attempt",), ("values", 2),
+        ("pending",), ("values", 3), ("completed",),
+    ]
+
+
+@pytest.mark.parametrize("prefix,lane", [("regular", "quote_image"), ("meme", "daily_meme")])
+def test_writer_resolves_each_value_operation_lazily_and_keeps_active_io(monkeypatch, prefix, lane):
+    receipt = {"post_id": "confirmed"}
+    pending = {"durable plan": []}
+    path = getattr(bot, f"{prefix.upper()}_POST_RECEIPT_FILE")
+    events = []
+    write = Mock()
+    unexpected_write = Mock(side_effect=AssertionError("writer rebound active I/O"))
+    original_factory = Mock(side_effect=AssertionError("writer resolved values before its gates"))
+
+    def materialize(value):
+        assert value is pending
+        events.append("materialize")
+        return receipt
+
+    materialize_owner = SimpleNamespace(**{f"materialize_{prefix}": materialize})
+    materialize_factory = Mock(return_value=materialize_owner)
+
+    def validate_completed(value):
+        assert value is receipt
+        events.append("completed")
+        monkeypatch.setattr(bot, "_main_post_receipt_values_owner", materialize_factory)
+        return True
+
+    completed_owner = SimpleNamespace(**{f"{prefix}_is_valid": validate_completed})
+    completed_factory = Mock(return_value=completed_owner)
+
+    def validate_pending(value, *, expected_lane):
+        assert value is receipt and expected_lane == lane
+        events.append("pending")
+        monkeypatch.setattr(bot, "_main_post_receipt_values_owner", completed_factory)
+        return False
+
+    pending_factory = Mock(return_value=SimpleNamespace(pending_is_valid=validate_pending))
+
+    def barrier():
+        events.append("barrier")
+        monkeypatch.setattr(bot, "_main_post_receipt_values_owner", pending_factory)
+        monkeypatch.setattr(bot, "atomic_write_json", unexpected_write)
+        return False
+
+    monkeypatch.setattr(bot, "_main_post_receipt_values_owner", original_factory)
+    monkeypatch.setattr(bot, "remote_receipt_retirement_is_blocking", barrier)
+    namespace = Mock(side_effect=[False, True])
+    monkeypatch.setattr(bot, "receipt_namespace_entry_exists", namespace)
+    monkeypatch.setattr(storage.MainPostReceipts, f"load_{prefix}",
+                        Mock(return_value=("pending_schedule", pending)))
+    monkeypatch.setattr(bot, "atomic_write_json", write)
+
+    getattr(bot, f"write_{prefix}_post_receipt")(receipt)
+    assert events == ["barrier", "pending", "completed", "materialize"]
+    original_factory.assert_not_called()
+    for factory in (pending_factory, completed_factory, materialize_factory):
+        factory.assert_called_once_with()
+    write.assert_called_once_with(path, receipt, durable=True)
+    assert write.call_args.args[1] is receipt
+    unexpected_write.assert_not_called()
+
+
+def test_values_composition_failure_stays_outside_reader_io_catch(monkeypatch):
+    failure = TypeError("current values composition failure")
+    provider = Mock(side_effect=failure)
+    read = Mock(return_value=(True, {}))
+    logger = Mock()
+    monkeypatch.setattr(bot, "_main_post_receipt_values_owner", provider)
+    monkeypatch.setattr(bot, "load_receipt_json_no_follow", read)
+    monkeypatch.setattr(bot, "log", logger)
+    with pytest.raises(TypeError) as caught:
+        bot.load_regular_post_receipt()
+    assert caught.value is failure
+    read.assert_called_once_with(bot.REGULAR_POST_RECEIPT_FILE)
+    provider.assert_called_once_with()
+    assert not logger.mock_calls

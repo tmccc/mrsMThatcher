@@ -5230,15 +5230,10 @@ def _main_post_receipts_owner() -> _main_post_receipt_storage.MainPostReceipts:
         replace_exact_source_receipt_document=replace_exact_source_receipt_document,
         transaction_mutation_authority=transaction_mutation_authority,
         load_receipt_json_no_follow=load_receipt_json_no_follow,
-        confirmed_pending_schedule_receipt_is_semantically_valid=confirmed_pending_schedule_receipt_is_semantically_valid,
-        materialize_bound_meme_schedule_receipt=materialize_bound_meme_schedule_receipt,
-        materialize_bound_regular_schedule_receipt=materialize_bound_regular_schedule_receipt,
         UnresolvedMemePostReceipt=UnresolvedMemePostReceipt,
         atomic_write_json=atomic_write_json,
         confirmed_receipt_matches_main_attempt=confirmed_receipt_matches_main_attempt,
-        regular_post_receipt_is_semantically_valid=regular_post_receipt_is_semantically_valid,
-        main_post_attempt_is_semantically_valid=main_post_attempt_is_semantically_valid,
-        meme_post_receipt_is_semantically_valid=meme_post_receipt_is_semantically_valid,
+        values=lambda: _main_post_receipt_values_owner(),
         current=lambda: _main_post_receipts_owner(),
     )
 
