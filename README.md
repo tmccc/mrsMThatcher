@@ -85,6 +85,12 @@ MRS_TEST_MODE=1 PYTEST_DISABLE_PLUGIN_AUTOLOAD=1 python3 -m pytest -q \
 
 Do not run serial and parallel suites concurrently in the same checkout.
 
+When running the broad suite through an agent, use a detached session: the suite
+can outlast the command session's time limit. Capture output in a log and save
+the final exit status, then monitor it until completion. Preserve the test
+environment above and confirm that any interrupted run has stopped before
+starting another. Progress near 100% is not a completed test result.
+
 Historical research tests use `tests/helpers/historical_corpus.py` to read their
 original corpus from a checked-in, hash-verified compressed fixture. Shallow
 clones and source archives need no Git history or downloads to run these tests.

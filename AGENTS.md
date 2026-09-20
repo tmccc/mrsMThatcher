@@ -36,5 +36,11 @@ Validation should normally consist of focused tests for the affected behaviour
 plus the nearest relevant regressions. Run broad historical suites only when a
 shared change gives a concrete reason to do so.
 
+For multi-change rounds, run focused tests per change and the broad suite once
+at the end, unless a substantial change warrants earlier broad coverage. Run
+the broad suite in a detached session so command-session time limits cannot
+interrupt it. Capture its output and final exit status, monitor completion,
+and retain the README's test isolation and single-suite-at-a-time rules.
+
 Before proposing substantial additional process, identify the specific risk
 each extra step reduces. Omit any step without a clear practical benefit.
