@@ -1471,7 +1471,6 @@ def validate_runtime_config_values(values: dict[str, object]) -> list[str]:
     return _runtime_configuration.validate_runtime_config_values(
         values,
         _runtime_config_namespace=_runtime_config_namespace,
-        math=math,
         validate_single_call_reply_config=validate_single_call_reply_config,
     )
 
@@ -2692,7 +2691,6 @@ def normalise_state_candidate(
         STATE_MINIMUM_READER_VERSION=STATE_MINIMUM_READER_VERSION,
         canonical_mention_pending_candidates=canonical_mention_pending_candidates,
         default_state=default_state,
-        hashlib=hashlib,
         log=log,
         normalise_author_evaluation_quarantines=normalise_author_evaluation_quarantines,
         normalise_epoch_list=normalise_epoch_list,
@@ -2744,7 +2742,6 @@ def scheduler_epoch_from_state(state: dict, key: str, *, current: int | None = N
         key,
         current=current,
         log=log,
-        math=math,
     )
 
 

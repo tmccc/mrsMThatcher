@@ -54,7 +54,7 @@ def test_adapters_forward_current_dependencies_references_and_native_errors(monk
         ("validate_meme_schedule_state", 5),
         ("validate_meme_schedule_version_for_candidate", 3),
         ("require_compatible_state_reader", 2),
-        ("normalise_state_candidate", 26),
+        ("normalise_state_candidate", 25),
     ):
         adapter = getattr(bot, name)
         public = inspect.signature(adapter).parameters
@@ -345,7 +345,7 @@ def test_overflow_hash_and_reset_precede_pruning_and_authority_with_partial_even
     monkeypatch.setattr(bot, "MENTION_BACKLOG_CONTINUATION_TOKEN_LIMIT", 1)
     monkeypatch.setattr(bot, "normalise_mention_backlog", trace.backlog)
     monkeypatch.setattr(bot, "normalise_optional_numeric_id", trace.watermark)
-    monkeypatch.setattr(bot, "hashlib", SimpleNamespace(sha256=trace.sha256))
+    monkeypatch.setattr(validation, "hashlib", SimpleNamespace(sha256=trace.sha256))
     monkeypatch.setattr(bot, "validate_meme_schedule_version_for_candidate", trace.schedule)
     monkeypatch.setattr(bot, "prune_author_evaluation_quarantines", trace.final)
 

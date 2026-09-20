@@ -16,7 +16,7 @@ from tests.helpers.bot_fixtures import isolate_bot_runtime  # noqa: F401
 DEPENDENCIES = {'default_state': ['STATE_MINIMUM_READER_VERSION'],
  'append_unique_capped': [],
  'append_unique_durable': [],
- 'scheduler_epoch_from_state': ['log', 'math'],
+ 'scheduler_epoch_from_state': ['log'],
  'load_runtime_state': ['clear_expired_api_cooldowns',
                         'load_state',
                         'sanitize_next_reply_lane_priority'],
@@ -45,7 +45,7 @@ SIGNATURES = {'default_state': "() -> 'dict'",
 
 def test_import_needs_no_runtime_access():
     code = """
-import builtins, collections.abc, datetime, io, logging, os, random, socket, sys, time, typing, zoneinfo
+import builtins, collections.abc, datetime, io, logging, math, os, random, socket, sys, time, typing, zoneinfo
 from pathlib import Path
 
 def forbidden(*args, **kwargs):
@@ -463,7 +463,7 @@ def test_scheduler_float_checks_stay_before_conversion_try(monkeypatch, where):
             raise failure
         return True
 
-    monkeypatch.setattr(bot, "math", SimpleNamespace(isfinite=finite))
+    monkeypatch.setattr(owner, "math", SimpleNamespace(isfinite=finite))
     monkeypatch.setattr(bot, "log", log)
     state = {"epoch": raw}
     with pytest.raises(ValueError) as caught:

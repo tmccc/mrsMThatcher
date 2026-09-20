@@ -18,7 +18,7 @@ from tests.helpers.bot_fixtures import isolate_bot_runtime  # noqa: F401
 
 DEPENDENCIES = {
     "validate_runtime_config_values": [
-        "_runtime_config_namespace", "math", "validate_single_call_reply_config",
+        "_runtime_config_namespace", "validate_single_call_reply_config",
     ],
     "apply_local_config": [
         "LOCAL_CONFIG_FILE", "_runtime_config_namespace",
@@ -56,7 +56,7 @@ SHADOW_KEYS = (
 
 def test_import_needs_no_runtime_access():
     code = """
-import builtins, collections.abc, datetime, io, logging, os, random, socket, sys, time, typing, zoneinfo
+import builtins, collections.abc, datetime, io, logging, math, os, random, socket, sys, time, typing, zoneinfo
 from pathlib import Path
 
 def forbidden(*args, **kwargs):
@@ -349,7 +349,7 @@ def test_validation_native_errors_outside_integer_catches(monkeypatch, boundary)
                 return failing()
         values[SHADOW_KEYS[0]] = Number(1)
     else:
-        monkeypatch.setattr(bot, "math", SimpleNamespace(isfinite=failing))
+        monkeypatch.setattr(owner, "math", SimpleNamespace(isfinite=failing))
     with pytest.raises(ValueError) as caught:
         bot.validate_runtime_config_values(values)
     assert caught.value is error
@@ -404,7 +404,7 @@ def test_missing_numeric_defaults_and_separate_shadow_float_observations(monkeyp
         trace.append(("finite", value))
         return True
 
-    monkeypatch.setattr(bot, "math", SimpleNamespace(isfinite=finite))
+    monkeypatch.setattr(owner, "math", SimpleNamespace(isfinite=finite))
     assert bot.validate_runtime_config_values({
         "AUTHOR_NO_REPLY_QUARANTINE_SECONDS": True,
         SHADOW_KEYS[0]: Number(1),

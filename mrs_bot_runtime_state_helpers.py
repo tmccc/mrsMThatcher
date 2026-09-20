@@ -5,6 +5,7 @@ module performs no runtime work at import and retains no runtime authority.
 """
 from __future__ import annotations
 
+import math
 from typing import Any
 
 
@@ -108,7 +109,6 @@ def scheduler_epoch_from_state(
     *,
     current: int | None = None,
     log: Any,
-    math: Any,
 ) -> tuple[int, bool]:
     """Return the scheduler epoch from state."""
     raw_value = state.get(key, 0)

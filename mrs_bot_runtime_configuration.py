@@ -5,6 +5,7 @@ module performs no runtime work at import and retains no runtime authority.
 """
 from __future__ import annotations
 
+import math
 from typing import Any
 
 
@@ -12,7 +13,6 @@ def validate_runtime_config_values(
     values: dict[str, object],
     *,
     _runtime_config_namespace: Any,
-    math: Any,
     validate_single_call_reply_config: Any,
 ) -> list[str]:
     """Return validation errors for runtime config values.

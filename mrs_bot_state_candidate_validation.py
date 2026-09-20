@@ -1,20 +1,21 @@
 """Validate state candidates and compatibility through current root dependencies.
 
-Four explicit root adapters supply current settings, reader version, modules,
-error class, hash/logger and nested normalization, recovery and schedule callbacks
+Four explicit root adapters supply current settings, reader version,
+error class, logger and nested normalization, recovery and schedule callbacks
 on every call. Original bodies preserve reader and schedule error order, per-call
 key sets, shallow references, partial recovery events and pending-authority order.
 State loading, defaults/schema, persistence and the actual normalizers/recovery
 remain in existing locations. This owner retains no callbacks, configuration,
 paths or state and performs no import-time runtime work or reverse bot import.
+Fixed fingerprint hashing and receipt-commit grammar belong to their local owners.
 """
 
 from __future__ import annotations
 
 from collections.abc import Callable
+import hashlib
 from logging import Logger
 from pathlib import Path
-from types import ModuleType
 
 from mrs_bot_state_generation import receipt_commit_records_are_valid
 
@@ -153,7 +154,6 @@ def normalise_state_candidate(
     STATE_MINIMUM_READER_VERSION: int,
     canonical_mention_pending_candidates: Callable[..., dict[str, dict] | None],
     default_state: Callable[..., dict],
-    hashlib: ModuleType,
     log: Logger,
     normalise_author_evaluation_quarantines: Callable[..., dict | None],
     normalise_epoch_list: Callable[..., list[int] | None],
