@@ -18,7 +18,7 @@ from tests.helpers.bot_fixtures import isolate_bot_runtime  # noqa: F401
 
 def test_import_needs_no_runtime_access():
     code = """
-import builtins, collections.abc, io, logging, os, random, socket, sys, time
+import builtins, collections.abc, dataclasses, io, logging, os, random, socket, sys, time
 from pathlib import Path
 
 def forbidden(*args, **kwargs):
@@ -55,10 +55,6 @@ assert 'single_call_reply' not in sys.modules
 def test_adapters_forward_current_dependencies_starred_arguments_references_and_errors(monkeypatch):
     for name, count in (
         ("parse_control_time", 4), ("validate_control_document", 5),
-        ("control_failure_result", 3), ("_runtime_control_stat_identity", 1),
-        ("_read_stable_runtime_control", 7), ("load_control", 9),
-        ("control_bool", 1), ("control_pause_active", 4),
-        ("lane_paused", 5), ("global_remote_writes_paused", 2),
     ):
         adapter = getattr(bot, name)
         public = inspect.signature(adapter).parameters
@@ -88,6 +84,65 @@ def test_adapters_forward_current_dependencies_starred_arguments_references_and_
                 adapter(*args, **options)
             assert caught.value is failure
 
+
+
+def patch_control_method(monkeypatch, method, callback):
+    monkeypatch.setattr(control.RuntimeControls, method, lambda self, *args, **kwargs: callback(*args, **kwargs))
+
+
+def test_owned_adapters_preserve_public_shapes_references_and_errors(monkeypatch):
+    methods = {'control_failure_result': 'failure_result', '_runtime_control_stat_identity': 'stat_identity', '_read_stable_runtime_control': 'read_snapshot', 'load_control': 'load', 'control_bool': 'boolean', 'control_pause_active': 'pause_active', 'lane_paused': 'lane_paused', 'global_remote_writes_paused': 'global_paused'}
+    for name, method in methods.items():
+        adapter = getattr(bot, name)
+        public = inspect.signature(adapter).parameters
+        owned = inspect.signature(getattr(control.RuntimeControls, method)).parameters
+        assert tuple(owned)[1:] == tuple(public)
+        for key, parameter in public.items():
+            assert owned[key].kind == parameter.kind
+            assert owned[key].default == parameter.default
+        positional = tuple(object() for p in public.values() if p.kind == p.POSITIONAL_OR_KEYWORD)
+        if any(p.kind == p.VAR_POSITIONAL for p in public.values()):
+            positional += (object(), object())
+        options = {key: object() for key, p in public.items() if p.kind == p.KEYWORD_ONLY}
+        result = object()
+        target = Mock(return_value=result)
+        with monkeypatch.context() as patch:
+            factory = Mock(return_value=SimpleNamespace(**{method: target}))
+            patch.setattr(bot, "_runtime_controls_owner", factory)
+            assert adapter(*positional, **options) is result
+            assert len(target.call_args.args) == len(positional)
+            assert all(a is b for a, b in zip(target.call_args.args, positional))
+            assert target.call_args.kwargs.keys() == options.keys()
+            assert all(target.call_args.kwargs[key] is value for key, value in options.items())
+            factory.assert_called_once_with()
+            failure = TypeError("current owner failure")
+            target.side_effect = failure
+            with pytest.raises(TypeError) as caught:
+                adapter(*positional, **options)
+            assert caught.value is failure
+
+
+def test_composition_binds_fresh_current_control_authorities_without_access(monkeypatch):
+    fields = {'CONTROL_FILE': 'control_file', '_CONTROL_CACHE': 'cache', 'RUNTIME_CONTROL_MAX_BYTES': 'maximum_bytes', '_RuntimeControlAbsent': 'absent_error', 'hashlib': 'hashlib', 'os': 'os', 'stat': 'stat', 'load_strict_runtime_json': 'parse_json', 'log': 'log', 'log_json_debug': 'log_json_debug', 'validate_control_document': 'validate_document', 'now_epoch': 'now_epoch', 'parse_control_time': 'parse_time', 'datetime': 'datetime', 'log_event': 'log_event'}
+    previous = None
+    for _ in range(2):
+        current = {name: object() for name in fields}
+        for name, value in current.items():
+            monkeypatch.setattr(bot, name, value)
+        owner = bot._runtime_controls_owner()
+        assert owner is not previous
+        assert all(getattr(owner, field) is current[name] for name, field in fields.items())
+        previous = owner
+
+
+def test_pause_decision_uses_owned_load_and_boolean(monkeypatch):
+    bot.CONTROL_FILE.write_text('{"disable_all":true}')
+    def forbidden(*args, **kwargs):
+        raise AssertionError("control operation bounced through root")
+    for name in ("load_control", "control_bool", "control_pause_active", "_read_stable_runtime_control", "_runtime_control_stat_identity"):
+        monkeypatch.setattr(bot, name, forbidden)
+    assert bot.lane_paused("disable_replies") is True
+    assert bot.global_remote_writes_paused() is True
 
 def test_fixed_key_objects_and_current_sets_parser_preserve_validation_references(monkeypatch):
     for name in ("CONTROL_BOOLEAN_KEYS", "CONTROL_TIME_KEYS", "CONTROL_METADATA_KEYS", "CONTROL_ALLOWED_KEYS"):
@@ -171,7 +226,7 @@ def test_pause_samples_clock_before_boolean_priority_then_ordered_times_and_nati
     trace.clock.return_value = 200
     trace.boolean.side_effect = [False, True]
     monkeypatch.setattr(bot, "now_epoch", trace.clock)
-    monkeypatch.setattr(bot, "control_bool", trace.boolean)
+    patch_control_method(monkeypatch, "boolean", trace.boolean)
     monkeypatch.setattr(bot, "parse_control_time", trace.parse)
     monkeypatch.setattr(bot, "log", trace.log)
     assert bot.control_pause_active(data, "alpha", "beta", "gamma") == (True, "beta", 0)
@@ -209,8 +264,8 @@ def test_lane_alias_order_current_data_datetime_and_warning_before_event(monkeyp
     trace.load.return_value = data
     trace.pause.return_value = (True, "pause_quote_posts_until", 201)
     trace.date.fromtimestamp.return_value.strftime.return_value = "formatted"
-    monkeypatch.setattr(bot, "load_control", trace.load)
-    monkeypatch.setattr(bot, "control_pause_active", trace.pause)
+    patch_control_method(monkeypatch, "load", trace.load)
+    patch_control_method(monkeypatch, "pause_active", trace.pause)
     monkeypatch.setattr(bot, "datetime", trace.date)
     monkeypatch.setattr(bot, "log", trace.log)
     monkeypatch.setattr(bot, "log_event", trace.event)

@@ -1849,92 +1849,65 @@ def validate_control_document(data: object) -> dict:
     )
 
 
-def control_failure_result(reason: str, *, signature: object) -> dict:
-    """Build the fail-closed result for an invalid runtime-control document."""
-    return _runtime_control.control_failure_result(
-        reason,
-        signature=signature,
-        CONTROL_FILE=CONTROL_FILE,
-        _CONTROL_CACHE=_CONTROL_CACHE,
-        log=log,
-    )
-
-
-def _runtime_control_stat_identity(file_stat: os.stat_result) -> tuple[int, ...]:
-    """Return the fields which must remain stable for one control snapshot."""
-    return _runtime_control._runtime_control_stat_identity(
-        file_stat,
-        stat=stat,
-    )
-
-
-def _read_stable_runtime_control() -> tuple[bytes, tuple[object, ...]]:
-    """Read one regular, non-symlink control file as a stable byte snapshot."""
-    return _runtime_control._read_stable_runtime_control(
-        CONTROL_FILE=CONTROL_FILE,
-        RUNTIME_CONTROL_MAX_BYTES=RUNTIME_CONTROL_MAX_BYTES,
-        _RuntimeControlAbsent=_RuntimeControlAbsent,
-        _runtime_control_stat_identity=_runtime_control_stat_identity,
+def _runtime_controls_owner() -> _runtime_control.RuntimeControls:
+    """Bind current control authorities without reading the file, cache or clock."""
+    return _runtime_control.RuntimeControls(
+        control_file=CONTROL_FILE,
+        cache=_CONTROL_CACHE,
+        maximum_bytes=RUNTIME_CONTROL_MAX_BYTES,
+        absent_error=_RuntimeControlAbsent,
         hashlib=hashlib,
         os=os,
         stat=stat,
-    )
-
-
-def load_control() -> dict:
-    """Load and validate the optional fail-safe runtime-control document."""
-    return _runtime_control.load_control(
-        CONTROL_FILE=CONTROL_FILE,
-        _CONTROL_CACHE=_CONTROL_CACHE,
-        _RuntimeControlAbsent=_RuntimeControlAbsent,
-        _read_stable_runtime_control=_read_stable_runtime_control,
-        control_failure_result=control_failure_result,
-        load_strict_runtime_json=load_strict_runtime_json,
+        parse_json=load_strict_runtime_json,
         log=log,
         log_json_debug=log_json_debug,
-        validate_control_document=validate_control_document,
-    )
-
-
-def control_bool(data: dict, key: str) -> bool:
-    """Return a validated boolean runtime-control value."""
-    return _runtime_control.control_bool(
-        data,
-        key,
-        log=log,
-    )
-
-
-def control_pause_active(data: dict, *keys: str) -> tuple[bool, str, int]:
-    """Return whether the runtime-control document currently pauses a lane."""
-    return _runtime_control.control_pause_active(
-        data,
-        *keys,
-        control_bool=control_bool,
-        log=log,
+        validate_document=validate_control_document,
         now_epoch=now_epoch,
-        parse_control_time=parse_control_time,
-    )
-
-
-def lane_paused(*lane_keys: str) -> bool:
-    """Return whether a named posting lane is paused."""
-    return _runtime_control.lane_paused(
-        *lane_keys,
-        control_pause_active=control_pause_active,
+        parse_time=parse_control_time,
         datetime=datetime,
-        load_control=load_control,
-        log=log,
         log_event=log_event,
     )
 
 
+def control_failure_result(reason: str, *, signature: object) -> dict:
+    """Build the fail-closed result for an invalid runtime-control document."""
+    return _runtime_controls_owner().failure_result(reason, signature=signature)
+
+
+def _runtime_control_stat_identity(file_stat: os.stat_result) -> tuple[int, ...]:
+    """Return the fields which must remain stable for one control snapshot."""
+    return _runtime_controls_owner().stat_identity(file_stat)
+
+
+def _read_stable_runtime_control() -> tuple[bytes, tuple[object, ...]]:
+    """Read one regular, non-symlink control file as a stable byte snapshot."""
+    return _runtime_controls_owner().read_snapshot()
+
+
+def load_control() -> dict:
+    """Load and validate the optional fail-safe runtime-control document."""
+    return _runtime_controls_owner().load()
+
+
+def control_bool(data: dict, key: str) -> bool:
+    """Return a validated boolean runtime-control value."""
+    return _runtime_controls_owner().boolean(data, key)
+
+
+def control_pause_active(data: dict, *keys: str) -> tuple[bool, str, int]:
+    """Return whether the runtime-control document currently pauses a lane."""
+    return _runtime_controls_owner().pause_active(data, *keys)
+
+
+def lane_paused(*lane_keys: str) -> bool:
+    """Return whether a named posting lane is paused."""
+    return _runtime_controls_owner().lane_paused(*lane_keys)
+
+
 def global_remote_writes_paused() -> bool:
     """Return whether the runtime control pauses every remote-write lane."""
-    return _runtime_control.global_remote_writes_paused(
-        control_pause_active=control_pause_active,
-        load_control=load_control,
-    )
+    return _runtime_controls_owner().global_paused()
 
 
 # ---------------------------------------------------------------------

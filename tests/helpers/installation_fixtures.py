@@ -127,12 +127,12 @@ def prepare_self_test_control_case(
     reset_control_cache(monkeypatch)
 
     calls: list[dict] = []
-    production_load_control = bot.load_control
+    production_load_control = bot._runtime_control.RuntimeControls.load
 
-    def tracked_load_control() -> dict:
-        loaded = production_load_control()
+    def tracked_load_control(owner) -> dict:
+        loaded = production_load_control(owner)
         calls.append(loaded)
         return loaded
 
-    monkeypatch.setattr(bot, "load_control", tracked_load_control)
+    monkeypatch.setattr(bot._runtime_control.RuntimeControls, "load", tracked_load_control)
     return calls
