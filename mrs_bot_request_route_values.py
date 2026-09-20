@@ -1,20 +1,20 @@
-"""Validate endpoint and X request-route values through current root dependencies.
+"""Own configured X route classification and endpoint value validation.
 
-Nine explicit root adapters supply current parsers, modules, callbacks, configured
-bases and exception authority on each call; the exact-route helper is a direct
-alias. Original bodies preserve origin delegation, hostname policy, literal
-upload routing, prepared-route classification and strict JSON copy boundaries.
-Request preparation never sends; authentication, timeouts, transaction transport
-and configuration remain with their existing owners. No constants or classes
-move. This standard-library-only owner retains no callbacks, configuration,
-clients or state and performs no import-time file, environment, provider or RNG
-work.
+XRequestRoutes binds current origins, request preparation and exception authority,
+then calls its base selection and classification methods directly. Endpoint
+configuration and strict JSON copying retain their explicit boundaries. Instances
+retain configured capabilities without retaining caller state. Import and
+construction perform no runtime work; explicit request preparation never sends.
 """
 
 from __future__ import annotations
 
 from collections.abc import Callable
 from types import ModuleType
+from dataclasses import dataclass
+import posixpath
+import re
+from urllib.parse import unquote, urlsplit
 
 from provider_endpoint_policy import validate_provider_endpoint
 
@@ -106,121 +106,6 @@ def endpoint_is_loopback(
         return False
 
 
-def x_request_base_url(
-    method: str,
-    path: str,
-    *,
-    X_BASE: str,
-    X_UPLOAD_BASE: str,
-) -> str:
-    """Select the configured origin for one literal X request.
-
-    Only the exact authorised v2 media-upload write uses the optional upload
-    origin.  Reads, tweet creation and every non-literal spelling stay on the
-    primary X API origin.
-    """
-
-    if str(method) == "POST" and str(path) == "/2/media/upload":
-        return X_UPLOAD_BASE
-    return X_BASE
-
-
-def normalised_prepared_x_request_path(
-    method: str,
-    path: str,
-    *,
-    AmbiguousRemotePostOutcome: type[Exception],
-    posixpath: ModuleType,
-    re: ModuleType,
-    requests: ModuleType,
-    unquote: Callable[[str], str],
-    urlsplit: Callable,
-    x_request_base_url: Callable[[str, str], str],
-) -> str:
-    """Return the conservative path which Requests will place on the wire.
-
-    ``requests`` normalises dot segments and some percent-encoded characters
-    while preparing a request.  Security decisions made against the caller's
-    unprepared string can therefore misclassify a tweet-create target.  Decode
-    repeatedly as a conservative allowance for an upstream HTTP router doing
-    another decoding pass, normalise separators/dot segments, and collapse
-    repeated slashes before comparing protected endpoints.
-    """
-
-    try:
-        prepared = requests.Request(
-            method=str(method).upper(),
-            url=f"{x_request_base_url(method, path)}{path}",
-        ).prepare()
-    except requests.RequestException as exc:
-        raise AmbiguousRemotePostOutcome(
-            "X request target could not be prepared safely",
-            service="x",
-            request_method=method,
-            request_path=path,
-        ) from exc
-    prepared_url = prepared.url
-    if not isinstance(prepared_url, str) or not prepared_url:
-        raise AmbiguousRemotePostOutcome(
-            "X request target preparation returned no usable URL",
-            service="x",
-            request_method=method,
-            request_path=path,
-        )
-    normalised = urlsplit(prepared_url).path
-    for _pass in range(4):
-        decoded = unquote(normalised)
-        if decoded == normalised:
-            break
-        normalised = decoded
-    normalised = normalised.replace("\\", "/")
-    normalised = posixpath.normpath(normalised)
-    normalised = re.sub(r"/+", "/", normalised)
-    if not normalised.startswith("/"):
-        normalised = f"/{normalised}"
-    return normalised
-
-
-def x_request_targets_tweet_create(
-    method: str,
-    path: str,
-    *,
-    prepared_x_create_route: Callable[[str, str], str | None],
-) -> bool:
-    """Return whether one prepared X request targets the tweet-create route."""
-
-    return prepared_x_create_route(method, path) == "tweet"
-
-
-def x_request_targets_media_upload(
-    method: str,
-    path: str,
-    *,
-    prepared_x_create_route: Callable[[str, str], str | None],
-) -> bool:
-    """Return whether one prepared X request targets the v2 media-create route."""
-
-    return prepared_x_create_route(method, path) == "media"
-
-
-def prepared_x_create_route(
-    method: str,
-    path: str,
-    *,
-    normalised_prepared_x_request_path: Callable[[str, str], str],
-) -> str | None:
-    """Classify the create route produced by Requests preparation."""
-
-    if str(method).upper() != "POST":
-        return None
-    prepared_path = normalised_prepared_x_request_path(method, path).rstrip("/")
-    if prepared_path == "/2/tweets":
-        return "tweet"
-    if prepared_path == "/2/media/upload":
-        return "media"
-    return None
-
-
 def exact_x_create_route(method: str, path: str) -> str | None:
     """Return the exact authorised create route, without URL normalisation.
 
@@ -273,3 +158,115 @@ def frozen_strict_json_object(
             service="x",
         )
     return decoded
+
+
+@dataclass(frozen=True)
+class XRequestRoutes:
+    """Own literal origin selection and conservative prepared create routes."""
+
+    primary_base: str
+    upload_base: str
+    requests: object
+    ambiguous_outcome: type[Exception]
+
+    def base_url(
+        self,
+        method: str,
+        path: str,
+    ) -> str:
+        """Select the configured origin for one literal X request.
+
+        Only the exact authorised v2 media-upload write uses the optional upload
+        origin.  Reads, tweet creation and every non-literal spelling stay on the
+        primary X API origin.
+        """
+
+        if str(method) == "POST" and str(path) == "/2/media/upload":
+            return self.upload_base
+        return self.primary_base
+
+
+    def normalised_path(
+        self,
+        method: str,
+        path: str,
+    ) -> str:
+        """Return the conservative path which Requests will place on the wire.
+
+        ``requests`` normalises dot segments and some percent-encoded characters
+        while preparing a request.  Security decisions made against the caller's
+        unprepared string can therefore misclassify a tweet-create target.  Decode
+        repeatedly as a conservative allowance for an upstream HTTP router doing
+        another decoding pass, normalise separators/dot segments, and collapse
+        repeated slashes before comparing protected endpoints.
+        """
+
+        try:
+            prepared = self.requests.Request(
+                method=str(method).upper(),
+                url=f"{self.base_url(method, path)}{path}",
+            ).prepare()
+        except self.requests.RequestException as exc:
+            raise self.ambiguous_outcome(
+                "X request target could not be prepared safely",
+                service="x",
+                request_method=method,
+                request_path=path,
+            ) from exc
+        prepared_url = prepared.url
+        if not isinstance(prepared_url, str) or not prepared_url:
+            raise self.ambiguous_outcome(
+                "X request target preparation returned no usable URL",
+                service="x",
+                request_method=method,
+                request_path=path,
+            )
+        normalised = urlsplit(prepared_url).path
+        for _pass in range(4):
+            decoded = unquote(normalised)
+            if decoded == normalised:
+                break
+            normalised = decoded
+        normalised = normalised.replace("\\", "/")
+        normalised = posixpath.normpath(normalised)
+        normalised = re.sub(r"/+", "/", normalised)
+        if not normalised.startswith("/"):
+            normalised = f"/{normalised}"
+        return normalised
+
+
+    def targets_tweet_create(
+        self,
+        method: str,
+        path: str,
+    ) -> bool:
+        """Return whether one prepared X request targets the tweet-create route."""
+
+        return self.prepared_route(method, path) == "tweet"
+
+
+    def targets_media_upload(
+        self,
+        method: str,
+        path: str,
+    ) -> bool:
+        """Return whether one prepared X request targets the v2 media-create route."""
+
+        return self.prepared_route(method, path) == "media"
+
+
+    def prepared_route(
+        self,
+        method: str,
+        path: str,
+    ) -> str | None:
+        """Classify the create route produced by Requests preparation."""
+
+        if str(method).upper() != "POST":
+            return None
+        prepared_path = self.normalised_path(method, path).rstrip("/")
+        if prepared_path == "/2/tweets":
+            return "tweet"
+        if prepared_path == "/2/media/upload":
+            return "media"
+        return None

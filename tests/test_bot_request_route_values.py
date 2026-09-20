@@ -12,6 +12,7 @@ import pytest
 import mrs_bot_request_route_values as route_values
 from tests.helpers.bot_runtime import bot
 from tests.helpers.bot_fixtures import isolate_bot_runtime  # noqa: F401
+from tests.helpers.reply_fixtures import patch_reply_owner_method
 
 
 def test_import_needs_no_runtime_access():
@@ -54,10 +55,7 @@ def test_adapters_forward_current_dependencies_arguments_references_and_errors(m
     assert bot.exact_x_create_route is route_values.exact_x_create_route
     for name, count in (
         ("normalise_base_url", 4), ("endpoint_host", 1),
-        ("endpoint_is_loopback", 2), ("x_request_base_url", 2),
-        ("normalised_prepared_x_request_path", 7),
-        ("x_request_targets_tweet_create", 1),
-        ("x_request_targets_media_upload", 1), ("prepared_x_create_route", 1),
+        ("endpoint_is_loopback", 2),
         ("frozen_strict_json_object", 2),
     ):
         adapter = getattr(bot, name)
@@ -86,6 +84,44 @@ def test_adapters_forward_current_dependencies_arguments_references_and_errors(m
             owner.side_effect = failure
             with pytest.raises(TypeError) as caught:
                 adapter(*args, **options)
+            assert caught.value is failure
+
+
+def test_route_owner_and_adapters_keep_current_capabilities_and_reference_contract(monkeypatch):
+    names = {"primary_base": "X_BASE", "upload_base": "X_UPLOAD_BASE",
+             "requests": "requests", "ambiguous_outcome": "AmbiguousRemotePostOutcome"}
+    snapshots = []
+    for _ in range(2):
+        current = {field: Mock() for field in names}
+        for field, name in names.items():
+            monkeypatch.setattr(bot, name, current[field])
+        owner = bot._x_request_routes_owner()
+        snapshots.append(owner)
+        for field, value in current.items():
+            assert getattr(owner, field) is value
+            value.assert_not_called()
+    assert snapshots[0] is not snapshots[1]
+    for name, method in {'x_request_base_url': 'base_url', 'normalised_prepared_x_request_path': 'normalised_path', 'x_request_targets_tweet_create': 'targets_tweet_create', 'x_request_targets_media_upload': 'targets_media_upload', 'prepared_x_create_route': 'prepared_route'}.items():
+        adapter = getattr(bot, name)
+        public = inspect.signature(adapter)
+        owned = inspect.signature(getattr(route_values.XRequestRoutes, method))
+        assert list(public.parameters.values()) == list(owned.parameters.values())[1:]
+        assert public.return_annotation == owned.return_annotation
+        owner = Mock(spec=route_values.XRequestRoutes)
+        factory = Mock(return_value=owner)
+        with monkeypatch.context() as patch:
+            patch.setattr(bot, "_x_request_routes_owner", factory)
+            implementation = getattr(owner, method)
+            result, method_value, path = object(), object(), object()
+            implementation.return_value = result
+            assert adapter(method_value, path) is result
+            factory.assert_called_once_with()
+            assert implementation.call_args.args[0] is method_value
+            assert implementation.call_args.args[1] is path
+            failure = RuntimeError("owned route failure")
+            implementation.side_effect = failure
+            with pytest.raises(RuntimeError) as caught:
+                adapter(method_value, path)
             assert caught.value is failure
 
 
@@ -178,14 +214,14 @@ def test_prepared_path_uses_current_callbacks_with_four_decodes_in_original_orde
     trace.decode.side_effect = bot.unquote
     trace.normpath.side_effect = bot.posixpath.normpath
     trace.sub.side_effect = bot.re.sub
-    monkeypatch.setattr(bot, "x_request_base_url", trace.base)
+    patch_reply_owner_method(monkeypatch, route_values.XRequestRoutes, "base_url", trace.base)
     monkeypatch.setattr(bot, "requests", SimpleNamespace(
         Request=trace.Request, RequestException=bot.requests.RequestException,
     ))
-    monkeypatch.setattr(bot, "urlsplit", trace.split)
-    monkeypatch.setattr(bot, "unquote", trace.decode)
-    monkeypatch.setattr(bot, "posixpath", SimpleNamespace(normpath=trace.normpath))
-    monkeypatch.setattr(bot, "re", SimpleNamespace(sub=trace.sub))
+    monkeypatch.setattr(route_values, "urlsplit", trace.split)
+    monkeypatch.setattr(route_values, "unquote", trace.decode)
+    monkeypatch.setattr(route_values, "posixpath", SimpleNamespace(normpath=trace.normpath))
+    monkeypatch.setattr(route_values, "re", SimpleNamespace(sub=trace.sub))
     assert bot.normalised_prepared_x_request_path("post", "/candidate") == "/%32/tweets"
     assert trace.mock_calls == [
         call.base("post", "/candidate"),
@@ -216,8 +252,8 @@ def test_preparation_uses_current_exception_and_preserves_native_failures(monkey
     factory = Mock(return_value=SimpleNamespace(prepare=prepare))
     monkeypatch.setattr(bot, "AmbiguousRemotePostOutcome", CurrentOutcome)
     monkeypatch.setattr(bot, "requests", SimpleNamespace(Request=factory, RequestException=RequestFailure))
-    monkeypatch.setattr(bot, "urlsplit", parser)
-    monkeypatch.setattr(bot, "x_request_base_url", base)
+    monkeypatch.setattr(route_values, "urlsplit", parser)
+    patch_reply_owner_method(monkeypatch, route_values.XRequestRoutes, "base_url", base)
     failure = RequestFailure("preparation failed")
     prepare.side_effect = failure
     with pytest.raises(CurrentOutcome, match="could not be prepared safely") as caught:
@@ -261,7 +297,7 @@ def test_preparation_uses_current_exception_and_preserves_native_failures(monkey
 
 def test_route_callbacks_keep_original_references_and_short_circuit_order(monkeypatch):
     normalise = Mock(return_value="/2/tweets///")
-    monkeypatch.setattr(bot, "normalised_prepared_x_request_path", normalise)
+    patch_reply_owner_method(monkeypatch, route_values.XRequestRoutes, "normalised_path", normalise)
     path = object()
     assert bot.prepared_x_create_route("GET", path) is None
     normalise.assert_not_called()
@@ -271,7 +307,7 @@ def test_route_callbacks_keep_original_references_and_short_circuit_order(monkey
     normalise.return_value = "/2/media/upload/"
     assert bot.prepared_x_create_route("POST", path) == "media"
     callback = Mock(side_effect=["tweet", "media"])
-    monkeypatch.setattr(bot, "prepared_x_create_route", callback)
+    patch_reply_owner_method(monkeypatch, route_values.XRequestRoutes, "prepared_route", callback)
     assert bot.x_request_targets_tweet_create("method", path) is True
     assert bot.x_request_targets_media_upload("method", path) is True
     assert callback.call_args_list == [call("method", path), call("method", path)]

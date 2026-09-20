@@ -3084,6 +3084,14 @@ def record_api_error(state: dict, error: Exception, service: str, *, scope: str 
 # X API helpers
 # ---------------------------------------------------------------------
 
+def _x_request_routes_owner() -> _request_route_values.XRequestRoutes:
+    """Bind configured routes without preparing or sending a request."""
+    return _request_route_values.XRequestRoutes(
+        primary_base=X_BASE, upload_base=X_UPLOAD_BASE,
+        requests=requests, ambiguous_outcome=AmbiguousRemotePostOutcome,
+    )
+
+
 def x_request_base_url(method: str, path: str) -> str:
     """Select the configured origin for one literal X request.
 
@@ -3091,12 +3099,7 @@ def x_request_base_url(method: str, path: str) -> str:
     origin.  Reads, tweet creation and every non-literal spelling stay on the
     primary X API origin.
     """
-    return _request_route_values.x_request_base_url(
-        method,
-        path,
-        X_BASE=X_BASE,
-        X_UPLOAD_BASE=X_UPLOAD_BASE,
-    )
+    return _x_request_routes_owner().base_url(method, path)
 
 
 def normalised_prepared_x_request_path(method: str, path: str) -> str:
@@ -3109,44 +3112,22 @@ def normalised_prepared_x_request_path(method: str, path: str) -> str:
     another decoding pass, normalise separators/dot segments, and collapse
     repeated slashes before comparing protected endpoints.
     """
-    return _request_route_values.normalised_prepared_x_request_path(
-        method,
-        path,
-        AmbiguousRemotePostOutcome=AmbiguousRemotePostOutcome,
-        posixpath=posixpath,
-        re=re,
-        requests=requests,
-        unquote=unquote,
-        urlsplit=urlsplit,
-        x_request_base_url=x_request_base_url,
-    )
+    return _x_request_routes_owner().normalised_path(method, path)
 
 
 def x_request_targets_tweet_create(method: str, path: str) -> bool:
     """Return whether one prepared X request targets the tweet-create route."""
-    return _request_route_values.x_request_targets_tweet_create(
-        method,
-        path,
-        prepared_x_create_route=prepared_x_create_route,
-    )
+    return _x_request_routes_owner().targets_tweet_create(method, path)
 
 
 def x_request_targets_media_upload(method: str, path: str) -> bool:
     """Return whether one prepared X request targets the v2 media-create route."""
-    return _request_route_values.x_request_targets_media_upload(
-        method,
-        path,
-        prepared_x_create_route=prepared_x_create_route,
-    )
+    return _x_request_routes_owner().targets_media_upload(method, path)
 
 
 def prepared_x_create_route(method: str, path: str) -> str | None:
     """Classify the create route produced by Requests preparation."""
-    return _request_route_values.prepared_x_create_route(
-        method,
-        path,
-        normalised_prepared_x_request_path=normalised_prepared_x_request_path,
-    )
+    return _x_request_routes_owner().prepared_route(method, path)
 
 
 exact_x_create_route = _request_route_values.exact_x_create_route
