@@ -1,10 +1,12 @@
 """Local self-test orchestration and result logging.
 
-The root supplies current runtime dependencies explicitly on each call. This
+Local JSON decoding belongs here. The root supplies current runtime
+dependencies explicitly on each call. This
 module performs no runtime work at import and retains no runtime authority.
 """
 from __future__ import annotations
 
+import json
 from typing import Any
 
 
@@ -73,7 +75,6 @@ def run_self_test(
     _self_test_ok: Any,
     _self_test_warn: Any,
     glob: Any,
-    json: Any,
     list_meme_candidates: Any,
     load_control: Any,
     load_extra_quote_watch_post_ids: Any,

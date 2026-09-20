@@ -26,7 +26,7 @@ DEPENDENCIES = {
         "MEME_ANALYSIS_FILE", "MEME_DIR", "MIN_SECONDS_BETWEEN_REPLIES", "MY_USER_ID",
         "OPENAI_API_KEY", "QUOTE_CHECK_EVERY_SECONDS", "REPLY_CHECK_EVERY_SECONDS",
         "STATE_FILE", "X_BEARER_TOKEN", "_runtime_config_namespace", "_self_test_ok",
-        "_self_test_warn", "glob", "json", "list_meme_candidates", "load_control",
+        "_self_test_warn", "glob", "list_meme_candidates", "load_control",
         "load_extra_quote_watch_post_ids", "load_validated_local_config_overrides",
         "log", "require_production_bootstrap", "single_call_reply", "validate_runtime_config_values",
     ],
@@ -371,7 +371,7 @@ def test_local_read_catches_remain_exception_only(tmp_path, monkeypatch, boundar
         trace.local.side_effect = error
     elif boundary == "state":
         bot.STATE_FILE.write_text("{}")
-        monkeypatch.setattr(bot, "json", SimpleNamespace(load=Mock(side_effect=error)))
+        monkeypatch.setattr(owner, "json", SimpleNamespace(load=Mock(side_effect=error)))
     else:
         bot.EXTRA_QUOTE_WATCH_FILE.write_text("[]")
         trace.watch.side_effect = error

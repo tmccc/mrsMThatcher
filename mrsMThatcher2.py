@@ -8640,7 +8640,6 @@ def run_self_test() -> int:
         _self_test_ok=_self_test_ok,
         _self_test_warn=_self_test_warn,
         glob=glob,
-        json=json,
         list_meme_candidates=list_meme_candidates,
         load_control=load_control,
         load_extra_quote_watch_post_ids=load_extra_quote_watch_post_ids,
