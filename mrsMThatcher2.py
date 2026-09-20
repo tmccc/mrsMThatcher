@@ -4946,13 +4946,24 @@ TOKEN_STOPWORDS = {
 }
 
 
+def _asset_metadata_owner() -> _asset_metadata.AssetMetadata:
+    """Bind current external boundaries without runtime work or caller state."""
+    return _asset_metadata.AssetMetadata(
+        log=log,
+        quote_file=QUOTE_ANALYSIS_FILE,
+        quote_overrides_file=QUOTE_ANALYSIS_OVERRIDES_FILE,
+        image_file=IMAGE_ANALYSIS_FILE,
+        image_glob=IMAGE_GLOB,
+        glob=glob,
+        image_sha256=current_image_sha256,
+        stale_image_metadata=StaleImageMetadata,
+        meme_file=MEME_ANALYSIS_FILE,
+    )
+
+
 def load_json_object(path: Path, *, label: str) -> dict | None:
     """Load JSON object."""
-    return _asset_metadata.load_json_object(
-        path,
-        label=label,
-        log=log,
-    )
+    return _asset_metadata_owner().load_json(path, label=label)
 
 
 collapse_quote_whitespace = _asset_metadata.collapse_quote_whitespace
@@ -4960,7 +4971,7 @@ collapse_quote_whitespace = _asset_metadata.collapse_quote_whitespace
 
 def quote_text_hash(text: str) -> str:
     """Return whether quote text hash."""
-    return _asset_metadata.quote_text_hash(text, collapse_quote_whitespace=collapse_quote_whitespace)
+    return _asset_metadata.quote_text_hash(text)
 
 
 def file_sha256(path: Path) -> str:
@@ -4977,47 +4988,27 @@ def deep_merge_dict(base: dict, patch: dict) -> dict:
     return _asset_metadata.deep_merge_dict(
         base,
         patch,
-        deep_merge_dict=deep_merge_dict,
     )
 
 
 def apply_quote_analysis_overrides(raw_analysis: dict, overrides: dict | None) -> dict:
     """Apply quote analysis overrides."""
-    return _asset_metadata.apply_quote_analysis_overrides(
-        raw_analysis,
-        overrides,
-        deep_merge_dict=deep_merge_dict,
-        log=log,
-    )
+    return _asset_metadata_owner().apply_quote_overrides(raw_analysis, overrides)
 
 
 def load_quote_analysis() -> dict | None:
     """Load validated quotation-analysis metadata and local overrides."""
-    return _asset_metadata.load_quote_analysis(
-        quote_analysis_file=QUOTE_ANALYSIS_FILE,
-        quote_analysis_overrides_file=QUOTE_ANALYSIS_OVERRIDES_FILE,
-        load_json_object=load_json_object,
-        apply_quote_analysis_overrides=apply_quote_analysis_overrides,
-        log=log,
-    )
+    return _asset_metadata_owner().load_quote()
 
 
 def load_image_analysis_file(path: Path, *, label: str) -> dict | None:
     """Load image analysis file."""
-    return _asset_metadata.load_image_analysis_file(
-        path,
-        label=label,
-        load_json_object=load_json_object,
-        log=log,
-    )
+    return _asset_metadata_owner().load_image_file(path, label=label)
 
 
 def load_image_analysis() -> dict | None:
     """Load metadata for the original-image corpus."""
-    return _asset_metadata.load_image_analysis(
-        image_analysis_file=IMAGE_ANALYSIS_FILE,
-        load_image_analysis_file=load_image_analysis_file,
-    )
+    return _asset_metadata_owner().load_image()
 
 
 mm_dd_in_window = _quote_candidates.mm_dd_in_window
@@ -5065,14 +5056,7 @@ weighted_random_choice = _quote_candidates.weighted_random_choice
 
 def quote_metadata_for_hash(quote_analysis: dict | None, quote_hash: str, text: str = "") -> dict | None:
     """Return whether quote metadata for hash."""
-    return _asset_metadata.quote_metadata_for_hash(
-        quote_analysis,
-        quote_hash,
-        text,
-        collapse_quote_whitespace=collapse_quote_whitespace,
-        quote_text_hash=quote_text_hash,
-        log=log,
-    )
+    return _asset_metadata_owner().quote_for_hash(quote_analysis, quote_hash, text)
 
 
 def current_quote_hashes_by_line(lines: list[str]) -> dict[int, str]:
@@ -5107,20 +5091,12 @@ def save_quote_used_hashes(path: Path, value: set[str], *, durable: bool = False
 
 def validate_quote_analysis_against_lines(quote_analysis: dict, lines: list[str]) -> None:
     """Validate quote analysis against lines."""
-    return _asset_metadata.validate_quote_analysis_against_lines(
-        quote_analysis,
-        lines,
-        log=log,
-    )
+    return _asset_metadata_owner().validate_quote_lines(quote_analysis, lines)
 
 
 def current_image_paths() -> list[str]:
     """Return the current image paths."""
-    return _asset_metadata.current_image_paths(
-        image_glob=IMAGE_GLOB,
-        glob=glob,
-        generated_image_origin_quote_hash=generated_image_origin_quote_hash,
-    )
+    return _asset_metadata_owner().image_paths()
 
 
 def save_image_used_basenames(path: Path, value: set[str], *, durable: bool = False) -> None:
@@ -6773,14 +6749,7 @@ def current_image_sha256(path: str) -> str:
 
 def image_metadata_for_basename(image_analysis: dict | None, basename: str, path: str | None = None) -> tuple[str | None, dict | None]:
     """Return the image metadata for basename."""
-    return _asset_metadata.image_metadata_for_basename(
-        image_analysis,
-        basename,
-        path,
-        current_image_sha256=current_image_sha256,
-        StaleImageMetadata=StaleImageMetadata,
-        log=log,
-    )
+    return _asset_metadata_owner().image_for_basename(image_analysis, basename, path)
 
 
 generated_image_origin_quote_hash = _asset_metadata.generated_image_origin_quote_hash
@@ -6939,7 +6908,7 @@ def post_random_quote(lines_used: set, images_used: set, state: dict) -> None:
 
 def load_meme_analysis_index() -> dict[str, dict]:
     """Load meme analysis index."""
-    return _asset_metadata.load_meme_analysis_index(meme_analysis_file=MEME_ANALYSIS_FILE, log=log)
+    return _asset_metadata_owner().load_meme_index()
 
 
 original_meme_filename = _daily_meme.original_meme_filename

@@ -3,6 +3,7 @@ from __future__ import annotations
 import hashlib
 import io
 import json
+import inspect
 import subprocess
 import sys
 from pathlib import Path
@@ -22,6 +23,7 @@ def test_metadata_import_needs_no_bot_environment_files_or_network():
     code = """
 import builtins
 import collections.abc
+import dataclasses
 import hashlib
 import io
 import json
@@ -61,9 +63,77 @@ assert metadata.generated_image_origin_quote_hash('tg_' + 'A' * 64 + '.PNG') == 
     assert bot.generated_image_origin_quote_hash is metadata.generated_image_origin_quote_hash
 
 
+METADATA_METHODS = {'load_json_object': 'load_json',
+ 'apply_quote_analysis_overrides': 'apply_quote_overrides',
+ 'load_quote_analysis': 'load_quote',
+ 'load_image_analysis_file': 'load_image_file',
+ 'load_image_analysis': 'load_image',
+ 'quote_metadata_for_hash': 'quote_for_hash',
+ 'validate_quote_analysis_against_lines': 'validate_quote_lines',
+ 'current_image_paths': 'image_paths',
+ 'image_metadata_for_basename': 'image_for_basename',
+ 'load_meme_analysis_index': 'load_meme_index'}
+METADATA_INPUTS = {'log': 'log',
+ 'quote_file': 'QUOTE_ANALYSIS_FILE',
+ 'quote_overrides_file': 'QUOTE_ANALYSIS_OVERRIDES_FILE',
+ 'image_file': 'IMAGE_ANALYSIS_FILE',
+ 'image_glob': 'IMAGE_GLOB',
+ 'glob': 'glob',
+ 'image_sha256': 'current_image_sha256',
+ 'stale_image_metadata': 'StaleImageMetadata',
+ 'meme_file': 'MEME_ANALYSIS_FILE'}
+
+
+def patch_metadata(monkeypatch, name, callback):
+    monkeypatch.setattr(metadata.AssetMetadata, name, lambda _owner, *args, **kwargs: callback(*args, **kwargs))
+
+
+def test_metadata_owner_binds_current_inputs_without_reading(monkeypatch):
+    from dataclasses import FrozenInstanceError
+
+    previous = None
+    for _ in range(2):
+        current = {name: Mock(side_effect=AssertionError("construction read runtime inputs")) for name in METADATA_INPUTS}
+        for name, value in current.items():
+            monkeypatch.setattr(bot, METADATA_INPUTS[name], value)
+        owner = bot._asset_metadata_owner()
+        assert owner is not previous and vars(owner).keys() == current.keys()
+        assert all(getattr(owner, name) is value for name, value in current.items())
+        assert all(not value.called for value in current.values())
+        with pytest.raises(FrozenInstanceError):
+            owner.quote_file = "elsewhere"
+        previous = owner
+
+
+def test_metadata_adapters_preserve_signatures_references_and_errors(monkeypatch):
+    for root_name, method in METADATA_METHODS.items():
+        adapter = getattr(bot, root_name)
+        public = inspect.signature(adapter).parameters
+        owned = inspect.signature(getattr(metadata.AssetMetadata, method)).parameters
+        assert list(public) == list(owned)[1:]
+        assert [(p.kind, p.default) for p in public.values()] == [(p.kind, p.default) for p in list(owned.values())[1:]]
+        args = tuple(object() for p in public.values() if p.kind == inspect.Parameter.POSITIONAL_OR_KEYWORD)
+        options = {key: object() for key, p in public.items() if p.kind == inspect.Parameter.KEYWORD_ONLY}
+        result = object()
+        callback = Mock(return_value=result)
+        with monkeypatch.context() as patch:
+            patch_metadata(patch, method, callback)
+            assert adapter(*args, **options) is result
+            actual_args, actual_kwargs = callback.call_args
+            assert len(actual_args) == len(args)
+            assert all(actual is expected for actual, expected in zip(actual_args, args))
+            assert actual_kwargs.keys() == options.keys()
+            assert all(actual_kwargs[key] is value for key, value in options.items())
+            failure = KeyboardInterrupt(root_name)
+            callback.side_effect = failure
+            with pytest.raises(KeyboardInterrupt) as caught:
+                adapter(*args, **options)
+            assert caught.value is failure
+
+
 def test_hash_and_quote_lookup_use_current_helpers_logger_and_analysis_reference(monkeypatch):
     normalise = Mock(return_value="é — normalised")
-    monkeypatch.setattr(bot, "collapse_quote_whitespace", normalise)
+    monkeypatch.setattr(metadata, "collapse_quote_whitespace", normalise)
     text = object()
     assert bot.quote_text_hash(text) == hashlib.sha256("é — normalised".encode("utf-8")).hexdigest()
     normalise.assert_called_once_with(text)
@@ -72,7 +142,7 @@ def test_hash_and_quote_lookup_use_current_helpers_logger_and_analysis_reference
     quote = {"items": {"current": {"text": 123, "analysis": analysis}, "missing": None}}
     hash_text = Mock(return_value="current")
     log = Mock()
-    monkeypatch.setattr(bot, "quote_text_hash", hash_text)
+    monkeypatch.setattr(metadata, "quote_text_hash", hash_text)
     monkeypatch.setattr(bot, "log", log)
     assert bot.quote_metadata_for_hash(quote, "current") is analysis
     hash_text.assert_called_once_with("123")
@@ -106,7 +176,7 @@ def test_overrides_and_recursive_json_merge_use_current_root_callback(monkeypatc
     overrides = {"quote_overrides": {"hash": {
         "expected_text": "Exact  text", "expected_line_numbers": ["1"], "analysis_patch": patch,
     }}}
-    merge = bot.deep_merge_dict
+    merge = metadata.deep_merge_dict
     calls = []
 
     def current_merge(base, change):
@@ -114,7 +184,7 @@ def test_overrides_and_recursive_json_merge_use_current_root_callback(monkeypatc
         return merge(base, change)
 
     log = Mock()
-    monkeypatch.setattr(bot, "deep_merge_dict", current_merge)
+    monkeypatch.setattr(metadata, "deep_merge_dict", current_merge)
     monkeypatch.setattr(bot, "log", log)
     assert bot.apply_quote_analysis_overrides(raw, None) is raw
     assert bot.apply_quote_analysis_overrides(raw, {}) is raw
@@ -141,8 +211,8 @@ def test_quote_loader_uses_current_paths_callbacks_and_original_validation_order
     log = Mock()
     monkeypatch.setattr(bot, "QUOTE_ANALYSIS_FILE", quote_path)
     monkeypatch.setattr(bot, "QUOTE_ANALYSIS_OVERRIDES_FILE", override_path)
-    monkeypatch.setattr(bot, "load_json_object", load)
-    monkeypatch.setattr(bot, "apply_quote_analysis_overrides", apply)
+    patch_metadata(monkeypatch, "load_json", load)
+    patch_metadata(monkeypatch, "apply_quote_overrides", apply)
     monkeypatch.setattr(bot, "log", log)
     assert bot.load_quote_analysis() is None
     assert calls == [(quote_path, "quote analysis")]
@@ -157,7 +227,7 @@ def test_quote_loader_uses_current_paths_callbacks_and_original_validation_order
 def test_image_loaders_validate_and_load_only_the_primary_analysis(tmp_path, monkeypatch):
     primary = {"analysis_kind": "images", "schema_version": 3.0, "items": {}, "path_index": {}}
     loader = Mock(return_value=primary)
-    monkeypatch.setattr(bot, "load_json_object", loader)
+    patch_metadata(monkeypatch, "load_json", loader)
     path = tmp_path / "primary.json"
     assert bot.load_image_analysis_file(path, label="test") is primary
     loader.assert_called_once_with(path, label="test")
@@ -168,7 +238,7 @@ def test_image_loaders_validate_and_load_only_the_primary_analysis(tmp_path, mon
     log.error.assert_called_once_with("%s file has unsupported schema_version=%r", "test", "3")
 
     loader = Mock(return_value=primary)
-    monkeypatch.setattr(bot, "load_image_analysis_file", loader)
+    patch_metadata(monkeypatch, "load_image_file", loader)
     monkeypatch.setattr(bot, "IMAGE_ANALYSIS_FILE", path)
     assert bot.load_image_analysis() is primary
     loader.assert_called_once_with(path, label="image analysis")
