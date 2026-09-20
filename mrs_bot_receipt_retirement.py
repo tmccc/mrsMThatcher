@@ -1,10 +1,13 @@
 """Receipt retirement and exact transport source verification.
 
 The root supplies current runtime dependencies explicitly on each call. This
-module performs no runtime work at import and retains no runtime authority.
+module owns fixed source hashing, digest grammar and path construction. It
+performs no runtime work at import and retains no runtime authority.
 """
 from __future__ import annotations
 
+import hashlib
+import re
 from pathlib import Path
 from typing import Any
 
@@ -66,7 +69,6 @@ def require_historical_context_retirement_outbox_authority(
     inspect_interrupted_receipt_retirement: Any,
     journal_path_for_receipt: Any,
     now_epoch: Any,
-    re: Any,
     retirement_auxiliary_barrier_exists: Any,
     transport_journal_is_blocking: Any,
 ) -> None:
@@ -395,7 +397,6 @@ def resume_interrupted_confirmed_media_retirement_if_present(
     MEDIA_UPLOAD_RECEIPT_FILE: Any,
     MEME_POST_RECEIPT_FILE: Any,
     MediaUploadReceiptError: Any,
-    Path: Any,
     REGULAR_POST_RECEIPT_FILE: Any,
     fence_path_for_journal: Any,
     inspect_transport_state: Any,
@@ -509,8 +510,6 @@ def expected_lane_transport_source_receipt_bytes(
     confirmed_pending_schedule_receipt_is_semantically_valid: Any,
     conversational_sending_receipt_from_confirmed: Any,
     current_main_post_attempt_is_semantically_valid: Any,
-    hashlib: Any,
-    re: Any,
     sending_reply_receipt_is_semantically_valid: Any,
 ) -> bytes:
     """Reconstruct the exact pre-transport receipt for one public lane."""

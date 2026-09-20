@@ -3968,7 +3968,6 @@ def require_historical_context_retirement_outbox_authority() -> None:
         inspect_interrupted_receipt_retirement=inspect_interrupted_receipt_retirement,
         journal_path_for_receipt=journal_path_for_receipt,
         now_epoch=now_epoch,
-        re=re,
         retirement_auxiliary_barrier_exists=retirement_auxiliary_barrier_exists,
         transport_journal_is_blocking=transport_journal_is_blocking,
     )
@@ -4164,7 +4163,6 @@ def resume_interrupted_confirmed_media_retirement_if_present() -> bool:
         MEDIA_UPLOAD_RECEIPT_FILE=MEDIA_UPLOAD_RECEIPT_FILE,
         MEME_POST_RECEIPT_FILE=MEME_POST_RECEIPT_FILE,
         MediaUploadReceiptError=MediaUploadReceiptError,
-        Path=Path,
         REGULAR_POST_RECEIPT_FILE=REGULAR_POST_RECEIPT_FILE,
         fence_path_for_journal=fence_path_for_journal,
         inspect_transport_state=inspect_transport_state,
@@ -4193,8 +4191,6 @@ def expected_lane_transport_source_receipt_bytes(
         confirmed_pending_schedule_receipt_is_semantically_valid=confirmed_pending_schedule_receipt_is_semantically_valid,
         conversational_sending_receipt_from_confirmed=conversational_sending_receipt_from_confirmed,
         current_main_post_attempt_is_semantically_valid=current_main_post_attempt_is_semantically_valid,
-        hashlib=hashlib,
-        re=re,
         sending_reply_receipt_is_semantically_valid=sending_reply_receipt_is_semantically_valid,
     )
 
