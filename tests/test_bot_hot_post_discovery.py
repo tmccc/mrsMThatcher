@@ -30,7 +30,7 @@ def forbidden(*args, **kwargs):
 
 original_import = builtins.__import__
 def guarded_import(name, *args, **kwargs):
-    if name in {'mrsMThatcher2', 'requests', 'openai', 'single_call_reply', 'reply_evidence'} or name.startswith('mrs_bot_') and name not in {'mrs_bot_hot_post_discovery', 'mrs_bot_reply_state', 'mrs_bot_reply_drafts', 'mrs_bot_reply_history'}:
+    if name in {'mrsMThatcher2', 'requests', 'openai', 'single_call_reply', 'reply_evidence'} or name.startswith('mrs_bot_') and name not in {'mrs_bot_hot_post_discovery', 'mrs_bot_reply_state', 'mrs_bot_reply_drafts', 'mrs_bot_reply_history', 'mrs_bot_tweet_lookup_cache'}:
         forbidden()
     return original_import(name, *args, **kwargs)
 
@@ -51,11 +51,12 @@ assert 'requests' not in sys.modules
         capture_output=True, text=True, timeout=20,
     )
     assert result.returncode == 0, result.stderr + result.stdout
+    assert discovery.normalise_tweet_text is bot.normalise_tweet_text
 
 
 def test_adapters_forward_current_dependencies_arguments_defaults_results_and_errors(monkeypatch):
     counts = {
-        "get_hot_post_reply_candidates": 26,
+        "get_hot_post_reply_candidates": 25,
         "mark_hot_post_reply_skipped": 3,
         "maybe_mark_hot_post_reply_skipped": 1,
         "dedupe_reply_candidates": 2,

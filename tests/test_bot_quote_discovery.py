@@ -24,7 +24,7 @@ def forbidden(*args, **kwargs):
 
 original_import = builtins.__import__
 def guarded_import(name, *args, **kwargs):
-    if name in {'mrsMThatcher2', 'requests', 'openai', 'single_call_reply', 'reply_evidence'} or name.startswith('mrs_bot_') and name != 'mrs_bot_quote_discovery':
+    if name in {'mrsMThatcher2', 'requests', 'openai', 'single_call_reply', 'reply_evidence'} or name.startswith('mrs_bot_') and name not in {'mrs_bot_quote_discovery', 'mrs_bot_tweet_lookup_cache'}:
         forbidden()
     return original_import(name, *args, **kwargs)
 
@@ -45,6 +45,7 @@ assert 'requests' not in sys.modules
         capture_output=True, text=True, timeout=20,
     )
     assert result.returncode == 0, result.stderr + result.stdout
+    assert discovery.normalise_tweet_text is bot.normalise_tweet_text
 
 
 def test_adapters_forward_current_dependencies_arguments_results_and_errors(monkeypatch):
@@ -54,8 +55,8 @@ def test_adapters_forward_current_dependencies_arguments_results_and_errors(monk
         "load_extra_quote_watch_post_ids": 3,
         "build_quote_lookup_post_ids": 5,
         "get_recent_own_post_ids_for_quote_lookup": 2,
-        "get_quote_tweets_for_post": 15,
-        "get_quote_tweets_for_posts": 9,
+        "get_quote_tweets_for_post": 14,
+        "get_quote_tweets_for_posts": 8,
     }
     for name, count in counts.items():
         adapter = getattr(bot, name)

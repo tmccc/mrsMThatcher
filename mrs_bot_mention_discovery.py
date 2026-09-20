@@ -20,6 +20,9 @@ from logging import Logger
 from pathlib import Path
 from types import ModuleType
 
+from mrs_bot_tweet_lookup_cache import normalise_tweet_text
+
+from mrs_bot_reply_evaluation_state import terminal_reply_evaluation
 from mrs_bot_reply_state import handled_reply_target_ids
 
 
@@ -78,7 +81,6 @@ def get_mentions(
     api_error_is_permanent_target_failure: Callable,
     get_tweet_by_id: Callable,
     attach_media_to_tweets: Callable,
-    normalise_tweet_text: Callable,
     cache_tweet: Callable,
     copy: ModuleType,
     hashlib: ModuleType,
@@ -89,7 +91,6 @@ def get_mentions(
     pending_mention_candidates: Callable,
     prune_completed_mention_quarantine_evaluations: Callable,
     save_state: Callable,
-    terminal_reply_evaluation: Callable,
     update_last_seen_mention_id: Callable,
     valid_tweets_sorted_by_id: Callable,
     x_paginated_get: Callable,
@@ -481,7 +482,6 @@ def mark_mention_seen_if_applicable(
     candidate: dict,
     *,
     log: Logger,
-    remove_pending_mention_candidate: Callable,
     update_last_seen_mention_id: Callable,
 ) -> None:
     """Retire a durably queued mention, with legacy watermark compatibility."""

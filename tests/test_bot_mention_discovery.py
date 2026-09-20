@@ -32,7 +32,7 @@ def forbidden(*args, **kwargs):
 
 original_import = builtins.__import__
 def guarded_import(name, *args, **kwargs):
-    if name in {'mrsMThatcher2', 'requests', 'openai', 'single_call_reply', 'reply_evidence'} or name.startswith('mrs_bot_') and name not in {'mrs_bot_mention_discovery', 'mrs_bot_reply_state', 'mrs_bot_reply_drafts', 'mrs_bot_reply_history'}:
+    if name in {'mrsMThatcher2', 'requests', 'openai', 'single_call_reply', 'reply_evidence'} or name.startswith('mrs_bot_') and name not in {'mrs_bot_mention_discovery', 'mrs_bot_reply_state', 'mrs_bot_reply_drafts', 'mrs_bot_reply_history', 'mrs_bot_tweet_lookup_cache', 'mrs_bot_reply_evaluation_state', 'mrs_bot_author_quarantines'}:
         forbidden()
     return original_import(name, *args, **kwargs)
 
@@ -53,13 +53,15 @@ assert 'requests' not in sys.modules
         capture_output=True, text=True, timeout=20,
     )
     assert result.returncode == 0, result.stderr + result.stdout
+    assert discovery.normalise_tweet_text is bot.normalise_tweet_text
     assert discovery.handled_reply_target_ids is reply_state.handled_reply_target_ids
+    assert discovery.terminal_reply_evaluation is bot.terminal_reply_evaluation
 
 
 def test_adapters_forward_current_dependencies_arguments_results_and_errors(monkeypatch):
     for name, count in (
-        ("pending_mention_candidates", 4), ("get_mentions", 27),
-        ("update_last_seen_mention_id", 1), ("mark_mention_seen_if_applicable", 3),
+        ("pending_mention_candidates", 4), ("get_mentions", 25),
+        ("update_last_seen_mention_id", 1), ("mark_mention_seen_if_applicable", 2),
     ):
         adapter = getattr(bot, name)
         public = inspect.signature(adapter).parameters
@@ -264,7 +266,7 @@ def test_retirement_keeps_queue_copy_identity_and_remove_truncation_watermark_or
     state = {"last_seen_mention_id": "99", "mention_pending_candidates": pending}
     trace = Mock()
     trace.remove.side_effect = bot.remove_pending_mention_candidate
-    monkeypatch.setattr(bot, "remove_pending_mention_candidate", trace.remove)
+    monkeypatch.setattr(discovery, "remove_pending_mention_candidate", trace.remove)
     monkeypatch.setattr(bot, "update_last_seen_mention_id", trace.update)
     monkeypatch.setattr(bot, "log", trace.log)
     bot.mark_mention_seen_if_applicable(state, {**first, "_pagination_truncated": True})

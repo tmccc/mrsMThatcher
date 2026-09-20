@@ -21,6 +21,8 @@ from logging import Logger
 from pathlib import Path
 from types import ModuleType
 
+from mrs_bot_tweet_lookup_cache import normalise_tweet_text
+
 from mrs_bot_reply_state import handled_reply_target_ids, retire_ineligible_reply_draft
 
 
@@ -37,7 +39,6 @@ def get_hot_post_reply_candidates(
     MAX_HOT_POST_REPLIES_PER_CHECK: int,
     MY_USER_ID: str,
     attach_media_to_tweets: Callable,
-    normalise_tweet_text: Callable,
     cache_tweet: Callable,
     retire_ineligible_draft: Callable[[dict, str, str], None],
     in_api_cooldown: Callable,
