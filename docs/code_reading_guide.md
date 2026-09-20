@@ -66,6 +66,20 @@ backlog continuation re-enters the current root callback and receives fresh
 owners. Clocks, date reads and durable saves still occur at their original
 operation boundaries.
 
+Private lane steps distinguish `SkipReplyCandidate` from
+`FinishReplyCheck(status)`, and carry `PreparedReplyContext` through preparation
+without converting it to an anonymous tuple. Quote admission captures fixed
+history for each scan while accumulating newly classified spam authors.
+`_ReplyCycleProgress` owns deferred quarantine pruning and flushing; flags clear
+only after their corresponding operation succeeds.
+
+Mention receipt continuation is prepared by `mention_receipt_pagination` in
+[mrs_bot_mention_authority.py](../mrs_bot_mention_authority.py). Reconciliation
+selects explicit or legacy continuation in its private pagination helper before
+clearing target drafts. Image collection delegates each bounded transfer to
+`ReplyMedia._download_image`; `ReplyModelTransport._decode_response` interprets
+provider responses and closes them on both ordinary and unexpected failures.
+
 For a change to saved-draft behaviour, start with `ReplyDrafts`. Its `store`,
 `recover` and `receipt_draft_is_valid` methods call its own `validate` method;
 internal draft operations do not return through root adapters. Each validation

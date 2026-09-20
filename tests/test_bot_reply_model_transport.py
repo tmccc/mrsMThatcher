@@ -151,7 +151,9 @@ def test_transport_keeps_request_reference_and_closes_retry_responses_in_order(m
     request = {"model": "fixture-model", "input": {"marker": "fixture"}}
 
     class CurrentApiError(bot.ApiError):
-        pass
+        def __init__(self, *args, **kwargs):
+            assert first.closed and second.closed
+            super().__init__(*args, **kwargs)
 
     owner = make_owner(
         error_type=CurrentApiError,
@@ -194,6 +196,89 @@ def test_transport_keeps_request_reference_and_closes_retry_responses_in_order(m
             "headers": {"Authorization": "Bearer dummy-stage11", "Content-Type": "application/json"},
             "json": request, "timeout": 23, "allow_redirects": False,
         }
+
+
+@pytest.mark.parametrize("failure_site", ["decoder", "metadata_429", "metadata_503"])
+def test_unexpected_response_read_failure_closes_without_mapping_or_retry(
+    make_owner, failure_site,
+):
+    failure = RuntimeError("fixture unexpected response read failure")
+    status_code = 200 if failure_site == "decoder" else int(failure_site.rsplit("_", 1)[1])
+    response = FakeHttpResponse(status_code, headers={"Retry-After": "fixture-date"})
+    response.close = Mock(wraps=response.close)
+    if failure_site == "decoder":
+        response.json = Mock(side_effect=failure)
+    post = Mock(return_value=response)
+    sleep = Mock()
+    error_type = Mock()
+    owner = make_owner(
+        requests=SimpleNamespace(post=post, RequestException=bot.requests.RequestException),
+        require_remote_operation_unpaused=Mock(), report_bot_health_progress=Mock(),
+        parsedate_to_datetime=Mock(side_effect=failure), now_epoch=lambda: 2_000_000_000,
+        sleep=sleep, error_type=error_type, log=Mock(),
+    )
+
+    with pytest.raises(RuntimeError) as caught:
+        owner.call(request={}, timeout_seconds=23, lane="mention", target_id="target")
+    assert caught.value is failure
+    assert response.closed
+    response.close.assert_called_once_with()
+    post.assert_called_once()
+    sleep.assert_not_called()
+    error_type.assert_not_called()
+
+
+@pytest.mark.parametrize("response_kind", ["first_429", "http_error", "json", "malformed_json"])
+def test_response_close_failure_propagates_without_becoming_a_provider_error(
+    make_owner, response_kind,
+):
+    status_code = {"first_429": 429, "http_error": 503}.get(response_kind, 200)
+    response = FakeHttpResponse(status_code, headers={"Retry-After": "120"})
+    json_failure = TypeError("fixture malformed JSON")
+    if response_kind == "malformed_json":
+        response.json = Mock(side_effect=json_failure)
+    failure = ValueError("fixture response close failure")
+    response.close = Mock(side_effect=failure)
+    post = Mock(return_value=response)
+    sleep = Mock()
+    error_type = Mock()
+    owner = make_owner(
+        requests=SimpleNamespace(post=post, RequestException=bot.requests.RequestException),
+        require_remote_operation_unpaused=Mock(), report_bot_health_progress=Mock(),
+        now_epoch=lambda: 2_000_000_000, sleep=sleep, error_type=error_type, log=Mock(),
+    )
+
+    with pytest.raises(ValueError) as caught:
+        owner.call(request={}, timeout_seconds=23, lane="mention", target_id="target")
+    assert caught.value is failure
+    if response_kind == "malformed_json":
+        assert caught.value.__context__ is json_failure
+    response.close.assert_called_once_with()
+    post.assert_called_once()
+    sleep.assert_not_called()
+    error_type.assert_not_called()
+
+
+def test_provider_error_factory_failure_keeps_decoder_exception_context(make_owner):
+    response = FakeHttpResponse(200)
+    json_failure = ValueError("fixture malformed JSON")
+    response.json = Mock(side_effect=json_failure)
+    response.close = Mock(wraps=response.close)
+    failure = RuntimeError("fixture provider error factory failure")
+    factory = Mock(side_effect=failure)
+    owner = make_owner(
+        requests=SimpleNamespace(post=Mock(return_value=response), RequestException=bot.requests.RequestException),
+        require_remote_operation_unpaused=Mock(), report_bot_health_progress=Mock(),
+        error_type=factory, log=Mock(),
+    )
+
+    with pytest.raises(RuntimeError) as caught:
+        owner.call(request={}, timeout_seconds=23, lane="mention", target_id="target")
+    assert caught.value is failure
+    assert caught.value.__context__ is json_failure
+    assert response.closed
+    response.close.assert_called_once_with()
+    factory.assert_called_once()
 
 
 def test_connection_failure_classification_preserves_request_type_and_cause_chain(make_owner):

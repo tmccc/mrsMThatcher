@@ -9,7 +9,8 @@ from __future__ import annotations
 import logging
 import math
 import re
-from collections.abc import Callable, Mapping
+from collections.abc import Callable, Iterator, Mapping
+from contextlib import contextmanager
 from dataclasses import dataclass, field
 
 
@@ -185,16 +186,14 @@ class ReplyModelTransport:
             if response.status_code == 429:
                 if attempt == 1:
                     first_429_seen = True
-                    first_429_retry_metadata = self.retry_metadata(response)
-                    self.log.warning(
-                        "OpenAI single-call reply returned pre-execution HTTP %s; "
-                        "respecting bounded retry delay target_id=%s",
-                        response.status_code,
-                        target_id,
-                    )
-                    close_response = getattr(response, "close", None)
-                    if callable(close_response):
-                        close_response()
+                    with self._closing_response(response):
+                        first_429_retry_metadata = self.retry_metadata(response)
+                        self.log.warning(
+                            "OpenAI single-call reply returned pre-execution HTTP %s; "
+                            "respecting bounded retry delay target_id=%s",
+                            response.status_code,
+                            target_id,
+                        )
                     # A one-second maximum keeps the bot responsive. Longer or
                     # unknown provider delays become durable cooldowns upstream.
                     delay = first_429_retry_metadata[1]
@@ -207,66 +206,12 @@ class ReplyModelTransport:
                         reset_epoch=first_429_retry_metadata[0],
                         retry_after_seconds=delay, request_attempt_count=attempt,
                     )
-            if not 200 <= response.status_code < 300:
-                observed_status_code = response.status_code
-                reset_epoch, retry_after_seconds = self.retry_metadata(response)
-                status_code = observed_status_code
-                if first_429_seen:
-                    status_code = 429
-                    if observed_status_code != 429 or reset_epoch is None:
-                        reset_epoch, retry_after_seconds = first_429_retry_metadata
-                close_response = getattr(response, "close", None)
-                if callable(close_response):
-                    close_response()
-                raise self.error(
-                    (
-                        f"OpenAI single-call reply returned HTTP {observed_status_code}"
-                        + (
-                            " after an earlier HTTP 429"
-                            if observed_status_code != status_code
-                            else ""
-                        )
-                    ),
-                    category=f"provider_http_{observed_status_code}",
-                    status_code=status_code,
-                    reset_epoch=reset_epoch,
-                    retry_after_seconds=retry_after_seconds,
-                    request_attempt_count=attempt,
-                )
-            try:
-                data = response.json()
-            except (ValueError, TypeError) as exc:
-                close_response = getattr(response, "close", None)
-                if callable(close_response):
-                    close_response()
-                raise self.error(
-                    "OpenAI single-call reply returned malformed JSON",
-                    category="provider_envelope",
-                    status_code=429 if first_429_seen else None,
-                    reset_epoch=(
-                        first_429_retry_metadata[0] if first_429_seen else None
-                    ),
-                    retry_after_seconds=(
-                        first_429_retry_metadata[1] if first_429_seen else None
-                    ),
-                    request_attempt_count=attempt,
-                ) from exc
-            close_response = getattr(response, "close", None)
-            if callable(close_response):
-                close_response()
-            if not isinstance(data, dict):
-                raise self.error(
-                    "OpenAI single-call reply response is not an object",
-                    category="provider_envelope",
-                    status_code=429 if first_429_seen else None,
-                    reset_epoch=(
-                        first_429_retry_metadata[0] if first_429_seen else None
-                    ),
-                    retry_after_seconds=(
-                        first_429_retry_metadata[1] if first_429_seen else None
-                    ),
-                    request_attempt_count=attempt,
-                )
+            data = self._decode_response(
+                response,
+                attempt=attempt,
+                first_429_seen=first_429_seen,
+                first_429_retry_metadata=first_429_retry_metadata,
+            )
             result = {
                 "response": data,
                 "latency_ms": max(0, round((self.monotonic() - started) * 1000)),
@@ -282,3 +227,91 @@ class ReplyModelTransport:
                 )
             return result
         raise AssertionError("unreachable OpenAI request retry state")
+
+    @contextmanager
+    def _closing_response(self, response: object) -> Iterator[None]:
+        """Close an acquired response after reads, including unexpected failures."""
+
+        try:
+            yield
+        finally:
+            close_response = getattr(response, "close", None)
+            if callable(close_response):
+                close_response()
+
+    def _decode_response(
+        self,
+        response: object,
+        *,
+        attempt: int,
+        first_429_seen: bool,
+        first_429_retry_metadata: tuple[int | None, int | None],
+    ) -> dict[str, object]:
+        """Decode a response and close it before constructing provider errors."""
+
+        json_error: ValueError | TypeError | None = None
+        try:
+            with self._closing_response(response):
+                http_error = not 200 <= response.status_code < 300
+                if http_error:
+                    observed_status_code = response.status_code
+                    reset_epoch, retry_after_seconds = self.retry_metadata(response)
+                    status_code = observed_status_code
+                    if first_429_seen:
+                        status_code = 429
+                        if observed_status_code != 429 or reset_epoch is None:
+                            reset_epoch, retry_after_seconds = first_429_retry_metadata
+                else:
+                    try:
+                        data = response.json()
+                    except (ValueError, TypeError) as exc:
+                        json_error = exc
+                        raise
+        except (ValueError, TypeError) as exc:
+            # Cleanup and metadata errors keep their own identity/category.
+            # Re-raising the decoder error through cleanup also retains it as
+            # context if closing or the provider error factory itself fails.
+            if exc is not json_error:
+                raise
+            raise self.error(
+                "OpenAI single-call reply returned malformed JSON",
+                category="provider_envelope",
+                status_code=429 if first_429_seen else None,
+                reset_epoch=(
+                    first_429_retry_metadata[0] if first_429_seen else None
+                ),
+                retry_after_seconds=(
+                    first_429_retry_metadata[1] if first_429_seen else None
+                ),
+                request_attempt_count=attempt,
+            ) from exc
+        if http_error:
+            raise self.error(
+                (
+                    f"OpenAI single-call reply returned HTTP {observed_status_code}"
+                    + (
+                        " after an earlier HTTP 429"
+                        if observed_status_code != status_code
+                        else ""
+                    )
+                ),
+                category=f"provider_http_{observed_status_code}",
+                status_code=status_code,
+                reset_epoch=reset_epoch,
+                retry_after_seconds=retry_after_seconds,
+                request_attempt_count=attempt,
+            )
+        if not isinstance(data, dict):
+            raise self.error(
+                "OpenAI single-call reply response is not an object",
+                category="provider_envelope",
+                status_code=429 if first_429_seen else None,
+                reset_epoch=(
+                    first_429_retry_metadata[0] if first_429_seen else None
+                ),
+                retry_after_seconds=(
+                    first_429_retry_metadata[1] if first_429_seen else None
+                ),
+                request_attempt_count=attempt,
+            )
+        return data
