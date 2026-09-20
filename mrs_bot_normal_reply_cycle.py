@@ -19,13 +19,13 @@ environment, provider or RNG work and retain no callbacks or configuration.
 
 from __future__ import annotations
 
-import copy
 from collections.abc import Callable
 from dataclasses import dataclass
 from logging import Logger
 from typing import TYPE_CHECKING
 
 from mrs_bot_author_quarantines import clear_author_evaluation_quarantine_history
+from mrs_bot_mention_authority import mention_receipt_pagination
 from mrs_bot_daily_reply_accounting import daily_author_reply_counts
 from mrs_bot_reply_cycle_interfaces import (
     NORMAL_CHECK_STATUS_API_ERROR,
@@ -1008,35 +1008,12 @@ def _prepare_reply_receipt(
         },
         reply_context,
     )
-    if candidate.source == "mention":
-        mention_pagination = (
-            candidate.mention.get("_mention_pagination")
-            if candidate.mention.get("_pagination_truncated")
-            else state.get("mention_pagination")
-        )
-    else:
-        mention_pagination = None
-    if candidate.source == "mention" and mention_pagination:
-        if not mention_pagination_provenance_is_valid(mention_pagination):
-            raise RuntimeError(
-                "Refusing to post a reply from a truncated mention batch "
-                "without valid pagination provenance"
-            )
-        base_since_id = str(mention_pagination["base_since_id"])
-        current_since_id = str(state.get("last_seen_mention_id") or "")
-        active_pagination = state.get("mention_pagination")
-        if (
-            current_since_id != base_since_id
-            or not mention_pagination_provenance_is_valid(active_pagination)
-            or active_pagination != mention_pagination
-        ):
-            raise RuntimeError(
-                "Refusing to post a reply whose mention pagination "
-                "provenance no longer matches durable state"
-            )
-        receipt_template["mention_pagination"] = copy.deepcopy(
-            mention_pagination
-        )
+    mention_pagination = mention_receipt_pagination(
+        state, candidate.mention, candidate.source,
+        mention_pagination_provenance_is_valid=mention_pagination_provenance_is_valid,
+    )
+    if mention_pagination is not None:
+        receipt_template["mention_pagination"] = mention_pagination
     if clarification is not None:
         receipt_template["clarification_reply"] = {
             key: clarification[key]

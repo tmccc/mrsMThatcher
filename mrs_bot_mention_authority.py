@@ -14,6 +14,7 @@ or RNG work or reverse application import.
 
 from __future__ import annotations
 
+import copy
 from collections.abc import Callable
 from logging import Logger
 from pathlib import Path
@@ -564,3 +565,46 @@ def mention_pagination_has_canonical_page_ownership(
         and target_value is not None
         and base_value < target_value <= highest_value
     )
+
+
+def mention_receipt_pagination(
+    state: dict,
+    candidate: dict,
+    candidate_source: str,
+    *,
+    mention_pagination_provenance_is_valid: Callable[[object], bool],
+) -> dict | None:
+    """Copy a mention receipt's continuation only while it matches durable state.
+
+    Candidate provenance takes precedence for a truncated batch. The lane calls
+    this after its draft save and context/draft snapshots; this operation adds
+    no durable writes and does not apply the stricter canonical-page check.
+    """
+    if candidate_source == "mention":
+        pagination = (
+            candidate.get("_mention_pagination")
+            if candidate.get("_pagination_truncated")
+            else state.get("mention_pagination")
+        )
+    else:
+        pagination = None
+    if candidate_source != "mention" or not pagination:
+        return None
+    if not mention_pagination_provenance_is_valid(pagination):
+        raise RuntimeError(
+            "Refusing to post a reply from a truncated mention batch "
+            "without valid pagination provenance"
+        )
+    base_since_id = str(pagination["base_since_id"])
+    current_since_id = str(state.get("last_seen_mention_id") or "")
+    active_pagination = state.get("mention_pagination")
+    if (
+        current_since_id != base_since_id
+        or not mention_pagination_provenance_is_valid(active_pagination)
+        or active_pagination != pagination
+    ):
+        raise RuntimeError(
+            "Refusing to post a reply whose mention pagination "
+            "provenance no longer matches durable state"
+        )
+    return copy.deepcopy(pagination)
