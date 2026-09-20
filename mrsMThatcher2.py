@@ -2764,41 +2764,34 @@ def scheduler_epoch_from_state(state: dict, key: str, *, current: int | None = N
     )
 
 
+def _state_backups_owner() -> _state_persistence.StateBackups:
+    """Bind current backup paths and file authorities without accessing storage."""
+    return _state_persistence.StateBackups(
+        path_type=Path,
+        unsafe_namespace=UnsafeDurableStateNamespace,
+        fsync_parent=fsync_parent_dir,
+        os=os,
+        read_stable_bytes=read_stable_owned_json_bytes_no_follow,
+        tempfile=tempfile,
+        backup_count=STATE_BACKUP_COUNT,
+        state_file=STATE_FILE,
+        log=log,
+    )
+
+
 def copy_state_backup(src: Path, dst: Path, *, durable: bool = False) -> None:
     """Copy one exact stable state generation without following links."""
-    return _state_persistence.copy_state_backup(
-        src,
-        dst,
-        durable=durable,
-        Path=Path,
-        UnsafeDurableStateNamespace=UnsafeDurableStateNamespace,
-        fsync_parent_dir=fsync_parent_dir,
-        os=os,
-        read_stable_owned_json_bytes_no_follow=read_stable_owned_json_bytes_no_follow,
-        tempfile=tempfile,
-    )
+    return _state_backups_owner().copy(src, dst, durable=durable)
 
 
 def rotate_state_backups_before_commit(*, durable: bool = False) -> None:
     """Rotate state backups before commit."""
-    return _state_persistence.rotate_state_backups_before_commit(
-        durable=durable,
-        STATE_BACKUP_COUNT=STATE_BACKUP_COUNT,
-        STATE_FILE=STATE_FILE,
-        copy_state_backup=copy_state_backup,
-        log=log,
-    )
+    return _state_backups_owner().rotate(durable=durable)
 
 
 def write_latest_state_backup(*, durable: bool = False) -> None:
     """Write latest state backup."""
-    return _state_persistence.write_latest_state_backup(
-        durable=durable,
-        STATE_BACKUP_COUNT=STATE_BACKUP_COUNT,
-        STATE_FILE=STATE_FILE,
-        copy_state_backup=copy_state_backup,
-        log=log,
-    )
+    return _state_backups_owner().write_latest(durable=durable)
 
 
 class StateBackupWriteError(RuntimeError):

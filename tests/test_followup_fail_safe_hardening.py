@@ -639,7 +639,7 @@ def test_initialisation_registers_state_before_meme_schedule_can_persist(
     def fail_latest_backup(*_args, **_kwargs):
         raise OSError("injected first state-backup failure")
 
-    monkeypatch.setattr(bot, "copy_state_backup", fail_latest_backup)
+    monkeypatch.setattr(bot._state_persistence.StateBackups, "copy", fail_latest_backup)
     with pytest.raises(bot.StateBackupWriteError, match="latest backup"):
         bot.initialise_installation()
 

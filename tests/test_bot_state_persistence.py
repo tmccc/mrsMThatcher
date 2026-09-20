@@ -20,7 +20,7 @@ from tests.helpers.bot_fixtures import isolate_bot_runtime  # noqa: F401
 
 def test_import_needs_no_runtime_access():
     code = """
-import builtins, collections.abc, io, logging, os, random, socket, sys, time
+import builtins, collections.abc, dataclasses, io, logging, os, random, socket, sys, time
 from pathlib import Path
 
 def forbidden(*args, **kwargs):
@@ -55,8 +55,7 @@ assert 'single_call_reply' not in sys.modules
 
 def test_adapters_forward_current_dependencies_references_and_native_errors(monkeypatch):
     for name, count in (
-        ("state_document_for_persistence", 6), ("copy_state_backup", 6),
-        ("rotate_state_backups_before_commit", 4), ("write_latest_state_backup", 4),
+        ("state_document_for_persistence", 6),
         ("save_state", 15),
     ):
         adapter = getattr(bot, name)
@@ -85,6 +84,51 @@ def test_adapters_forward_current_dependencies_references_and_native_errors(monk
                 adapter(*args, **options)
             assert caught.value is failure
 
+
+
+def patch_backup_copy(monkeypatch, callback):
+    monkeypatch.setattr(persistence.StateBackups, "copy", lambda self, *args, **kwargs: callback(*args, **kwargs))
+
+
+def test_backup_adapters_preserve_public_shapes_references_and_native_errors(monkeypatch):
+    methods = {'copy_state_backup': 'copy', 'rotate_state_backups_before_commit': 'rotate', 'write_latest_state_backup': 'write_latest'}
+    for name, method in methods.items():
+        adapter = getattr(bot, name)
+        public = inspect.signature(adapter).parameters
+        owned = inspect.signature(getattr(persistence.StateBackups, method)).parameters
+        assert tuple(owned)[1:] == tuple(public)
+        for key, parameter in public.items():
+            assert owned[key].kind == parameter.kind
+            assert owned[key].default == parameter.default
+        args = tuple(object() for p in public.values() if p.kind == p.POSITIONAL_OR_KEYWORD)
+        result = object()
+        target = Mock(return_value=result)
+        with monkeypatch.context() as patch:
+            patch.setattr(bot, "_state_backups_owner", Mock(return_value=SimpleNamespace(**{method: target})))
+            for options in ({}, {"durable": object()}):
+                assert adapter(*args, **options) is result
+                assert len(target.call_args.args) == len(args)
+                assert all(a is b for a, b in zip(target.call_args.args, args))
+                assert target.call_args.kwargs.keys() == {"durable"}
+                assert target.call_args.kwargs["durable"] is options.get("durable", False)
+            failure = TypeError("current backup operation failed")
+            target.side_effect = failure
+            with pytest.raises(TypeError) as caught:
+                adapter(*args)
+            assert caught.value is failure
+
+
+def test_backup_composition_uses_current_authorities_without_io(monkeypatch):
+    fields = {'Path': 'path_type', 'UnsafeDurableStateNamespace': 'unsafe_namespace', 'fsync_parent_dir': 'fsync_parent', 'os': 'os', 'read_stable_owned_json_bytes_no_follow': 'read_stable_bytes', 'tempfile': 'tempfile', 'STATE_BACKUP_COUNT': 'backup_count', 'STATE_FILE': 'state_file', 'log': 'log'}
+    previous = None
+    for _ in range(2):
+        current = {name: object() for name in fields}
+        for name, value in current.items():
+            monkeypatch.setattr(bot, name, value)
+        owner = bot._state_backups_owner()
+        assert owner is not previous
+        assert all(getattr(owner, field) is current[name] for name, field in fields.items())
+        previous = owner
 
 def test_document_preserves_retired_state_without_loading_trial_code(monkeypatch):
     trace = Mock()
@@ -246,10 +290,10 @@ def test_rotation_moves_reverse_generations_before_copy_and_latest_is_independen
         state.with_name(f"{state.name}.bak{index}").write_bytes(str(index).encode())
     trace = Mock()
     trace.move.side_effect = Path.replace
-    trace.copy.side_effect = bot.copy_state_backup
+    trace.copy.side_effect = bot._state_backups_owner().copy
     monkeypatch.setattr(Path, "replace", lambda path, target: trace.move(path, target))
     monkeypatch.setattr(bot, "STATE_BACKUP_COUNT", 4)
-    monkeypatch.setattr(bot, "copy_state_backup", trace.copy)
+    patch_backup_copy(monkeypatch, trace.copy)
     monkeypatch.setattr(bot, "log", trace.log)
     bot.rotate_state_backups_before_commit(durable=True)
     bak = lambda index: state.with_name(f"{state.name}.bak{index}")
@@ -272,7 +316,7 @@ def test_rotation_moves_reverse_generations_before_copy_and_latest_is_independen
 def test_backup_counts_skip_path_lookup_and_missing_state_skips_copy(monkeypatch):
     path, copier = Mock(), Mock()
     monkeypatch.setattr(bot, "STATE_FILE", path)
-    monkeypatch.setattr(bot, "copy_state_backup", copier)
+    patch_backup_copy(monkeypatch, copier)
     for name, threshold in (("rotate_state_backups_before_commit", 1), ("write_latest_state_backup", 0)):
         path.reset_mock()
         monkeypatch.setattr(bot, "STATE_BACKUP_COUNT", threshold)
@@ -296,7 +340,7 @@ def test_rotation_suppresses_only_ordinary_copy_errors_and_latest_propagates(err
     bot.STATE_FILE.write_bytes(b"{}")
     failure, logger = error_type("backup copy failed"), Mock()
     monkeypatch.setattr(bot, "STATE_BACKUP_COUNT", 2)
-    monkeypatch.setattr(bot, "copy_state_backup", Mock(side_effect=failure))
+    patch_backup_copy(monkeypatch, Mock(side_effect=failure))
     monkeypatch.setattr(bot, "log", logger)
     if error_type is OSError:
         assert bot.rotate_state_backups_before_commit() is None

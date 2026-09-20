@@ -3,13 +3,16 @@
 Every document is encoded and reader-validated before any backup mutation.
 Canonical replacement and directory fsync establish authority independently of
 replica publication. Current paths, reader policy and lock ownership are supplied
-by the root; this module performs no import-time runtime work."""
+by the root. StateBackups owns exact copying and backup-generation rotation;
+canonical publication retains its existing runtime callbacks and commit proofs.
+This module performs no import-time runtime work."""
 
 from __future__ import annotations
 
 import hashlib
 
 from collections.abc import Callable
+from dataclasses import dataclass
 from logging import Logger
 from pathlib import Path
 from types import ModuleType
@@ -53,89 +56,76 @@ def state_document_for_persistence(
     return document
 
 
-def copy_state_backup(
-    src: Path,
-    dst: Path,
-    *,
-    durable: bool = False,
-    Path: type[Path],
-    UnsafeDurableStateNamespace: type[Exception],
-    fsync_parent_dir: Callable[..., None],
-    os: ModuleType,
-    read_stable_owned_json_bytes_no_follow: Callable[..., tuple[bool, bytes | None]],
-    tempfile: ModuleType,
-) -> None:
-    """Copy one exact stable state generation without following links."""
+@dataclass(frozen=True)
+class StateBackups:
+    """Own exact backup copies and rotation without publishing canonical state."""
 
-    present, data = read_stable_owned_json_bytes_no_follow(src)
-    if not present or data is None:
-        raise UnsafeDurableStateNamespace(
-            f"state backup source disappeared before copying: {src}"
+    path_type: type[Path]
+    unsafe_namespace: type[Exception]
+    fsync_parent: Callable[..., None]
+    os: ModuleType
+    read_stable_bytes: Callable[..., tuple[bool, bytes | None]]
+    tempfile: ModuleType
+    backup_count: int
+    state_file: Path
+    log: Logger
+
+    def copy(self, src: Path, dst: Path, *, durable: bool=False) -> None:
+        """Copy one exact stable state generation without following links."""
+
+        present, data = self.read_stable_bytes(src)
+        if not present or data is None:
+            raise self.unsafe_namespace(
+                f"state backup source disappeared before copying: {src}"
+            )
+        dst.parent.mkdir(parents=True, exist_ok=True)
+        descriptor, temporary_name = self.tempfile.mkstemp(
+            prefix=f".{dst.name}.",
+            dir=dst.parent,
         )
-    dst.parent.mkdir(parents=True, exist_ok=True)
-    descriptor, temporary_name = tempfile.mkstemp(
-        prefix=f".{dst.name}.",
-        dir=dst.parent,
-    )
-    temporary = Path(temporary_name)
-    try:
-        with os.fdopen(descriptor, "wb") as handle:
-            os.fchmod(handle.fileno(), 0o600)
-            handle.write(data)
-            if durable:
-                handle.flush()
-                os.fsync(handle.fileno())
-        os.replace(temporary, dst)
-        if durable:
-            fsync_parent_dir(dst, strict=True)
-    except BaseException:
+        temporary = self.path_type(temporary_name)
         try:
-            temporary.unlink()
-        except FileNotFoundError:
-            pass
-        raise
+            with self.os.fdopen(descriptor, "wb") as handle:
+                self.os.fchmod(handle.fileno(), 0o600)
+                handle.write(data)
+                if durable:
+                    handle.flush()
+                    self.os.fsync(handle.fileno())
+            self.os.replace(temporary, dst)
+            if durable:
+                self.fsync_parent(dst, strict=True)
+        except BaseException:
+            try:
+                temporary.unlink()
+            except FileNotFoundError:
+                pass
+            raise
 
+    def rotate(self, *, durable: bool=False) -> None:
+        """Rotate state backups before commit."""
+        if self.backup_count <= 1 or not self.state_file.exists():
+            return
 
-def rotate_state_backups_before_commit(
-    *,
-    durable: bool = False,
-    STATE_BACKUP_COUNT: int,
-    STATE_FILE: Path,
-    copy_state_backup: Callable[..., None],
-    log: Logger,
-) -> None:
-    """Rotate state backups before commit."""
-    if STATE_BACKUP_COUNT <= 1 or not STATE_FILE.exists():
-        return
+        try:
+            for i in range(self.backup_count, 2, -1):
+                older = self.state_file.with_name(f"{self.state_file.name}.bak{i - 1}")
+                newer = self.state_file.with_name(f"{self.state_file.name}.bak{i}")
+                if older.exists():
+                    older.replace(newer)
 
-    try:
-        for i in range(STATE_BACKUP_COUNT, 2, -1):
-            older = STATE_FILE.with_name(f"{STATE_FILE.name}.bak{i - 1}")
-            newer = STATE_FILE.with_name(f"{STATE_FILE.name}.bak{i}")
-            if older.exists():
-                older.replace(newer)
+            bak2 = self.state_file.with_name(f"{self.state_file.name}.bak2")
+            self.copy(self.state_file, bak2, durable=durable)
+            self.log.debug("Previous state backup written: %s", bak2)
+        except Exception:
+            self.log.exception("Failed rotating state backups; continuing with state save")
 
-        bak2 = STATE_FILE.with_name(f"{STATE_FILE.name}.bak2")
-        copy_state_backup(STATE_FILE, bak2, durable=durable)
-        log.debug("Previous state backup written: %s", bak2)
-    except Exception:
-        log.exception("Failed rotating state backups; continuing with state save")
-
-
-def write_latest_state_backup(
-    *,
-    durable: bool = False,
-    STATE_BACKUP_COUNT: int,
-    STATE_FILE: Path,
-    copy_state_backup: Callable[..., None],
-    log: Logger,
-) -> None:
-    """Write latest state backup."""
-    if STATE_BACKUP_COUNT <= 0 or not STATE_FILE.exists():
-        return
-    bak1 = STATE_FILE.with_name(f"{STATE_FILE.name}.bak1")
-    copy_state_backup(STATE_FILE, bak1, durable=durable)
-    log.debug("Latest committed state backup written: %s", bak1)
+    def write_latest(self, *, durable: bool=False) -> None:
+        """Write latest state backup."""
+        if self.backup_count <= 0 or not self.state_file.exists():
+            return
+        bak1 = self.state_file.with_name(f"{self.state_file.name}.bak1")
+        self.copy(self.state_file, bak1, durable=durable)
+        self.log.debug("Latest committed state backup written: %s", bak1)
 
 
 def save_state(
