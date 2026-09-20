@@ -70,14 +70,15 @@ def test_adapters_forward_current_dependencies_arguments_results_and_errors(monk
         "promote_sending_reply_receipt",
         "_promote_legacy_sending_reply_receipt_from_confirmed_transport",
         "retire_proved_rejected_conversational_reply_receipt",
-        "post_conversational_reply_with_durable_identity",
     )
     assert_adapters_forward_current_dependencies(
         monkeypatch, bot=bot, implementation=delivery, names=names,
     )
 
 
-@pytest.mark.parametrize("name", ["load_confirmed_reply_receipt"])
+@pytest.mark.parametrize("name", [
+    "load_confirmed_reply_receipt", "post_conversational_reply_with_durable_identity",
+])
 def test_value_adapters_bind_current_owner_and_preserve_dependencies_and_results(monkeypatch, name):
     adapter = getattr(bot, name)
     public = inspect.signature(adapter).parameters
@@ -329,6 +330,23 @@ def test_delivery_keeps_shallow_template_plain_transport_text_and_return_objects
     assert trace[-2:] == ["promote", "end"]
     assert observed["end"][0][0] is observed["begin"][2]
     remote.assert_called_once()
+
+
+def test_delivery_owned_template_failure_precedes_namespace_barrier_and_guard(monkeypatch):
+    receipt = unit_sending_v4_reply_receipt()
+    failure = ValueError("reviewed receipt values invalid")
+    prepare = Mock(side_effect=failure)
+    patch_reply_owner_method(monkeypatch, values.ReplyReceiptValues, "prepare_sending_template", prepare)
+    runtime = Mock(side_effect=AssertionError("runtime boundary entered for invalid template"))
+    for name in ("receipt_namespace_entry_exists", "block_if_ambiguous_remote_post",
+                 "write_sending_reply_receipt", "begin_confirmed_post_sigint_deferral"):
+        monkeypatch.setattr(bot, name, runtime)
+    with pytest.raises(ValueError) as caught:
+        _deliver(receipt)
+    assert caught.value is failure
+    prepare.assert_called_once_with(receipt, lane="mention")
+    assert prepare.call_args.args[0] is receipt
+    runtime.assert_not_called()
 
 
 def test_delivery_namespace_and_durable_create_failure_precede_sigint_guard(monkeypatch):

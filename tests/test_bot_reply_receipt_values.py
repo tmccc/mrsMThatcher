@@ -405,3 +405,45 @@ def test_pagination_uses_current_id_callback_before_token_validation(make_owner)
     with pytest.raises(ValueError) as caught:
         owner.pagination_is_valid({"base_since_id": "", "next_token": None})
     assert caught.value is failure
+
+
+@pytest.mark.parametrize("lane", ["mention", "quote_tweet"])
+def test_send_preparation_preserves_reviewed_objects_and_validates_before_lane(monkeypatch, make_owner, lane):
+    template = unit_sending_v4_reply_receipt(lane=lane)
+    reply = unit_approved_reply(template["reply_context"], text=template["reply_text"])
+    template["reply_text"], template["ai_reply_draft"] = reply, reply.draft_record
+    original = dict(template)
+    owner = make_owner()
+    validator = Mock(return_value=True)
+    monkeypatch.setattr(values.ReplyReceiptValues, "sending_is_valid", validator)
+    prepared = owner.prepare_sending_template(template, lane=lane)
+    assert prepared == template and prepared is not template
+    assert all(prepared[key] is value for key, value in original.items())
+    validator.assert_called_once_with(prepared)
+    assert validator.call_args.args[0] is prepared
+    assert template == original
+
+    validator.reset_mock()
+    with pytest.raises(RuntimeError, match="invalid reply receipt template"):
+        owner.prepare_sending_template(template, lane="other")
+    validator.assert_called_once()
+    assert validator.call_args.args[0] is not template
+    validator.side_effect = TypeError("native validation failure")
+    with pytest.raises(TypeError) as caught:
+        owner.prepare_sending_template(template, lane=lane)
+    assert caught.value is validator.side_effect
+    assert template == original
+
+
+@pytest.mark.parametrize("changes,exception,message", [
+    ({"reply_post_id": "999", "schema_version": 3}, ValueError, "must not contain reply_post_id"),
+    ({"schema_version": 3}, RuntimeError, "require a current schema-v4"),
+    ({"schema_version": 4.0}, RuntimeError, "require a current schema-v4"),
+])
+def test_send_preparation_rejects_authority_mismatch_before_validation(monkeypatch, make_owner, changes, exception, message):
+    template = {**unit_sending_v4_reply_receipt(), **changes}
+    validator = Mock(side_effect=AssertionError("invalid send authority reached draft validation"))
+    monkeypatch.setattr(values.ReplyReceiptValues, "sending_is_valid", validator)
+    with pytest.raises(exception, match=message):
+        make_owner().prepare_sending_template(template, lane="mention")
+    validator.assert_not_called()

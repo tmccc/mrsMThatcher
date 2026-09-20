@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from mrs_bot_reply_cycle_interfaces import PreparedReplyContext
+from mrs_bot_reply_receipt_values import ReplyReceiptValues
 from tests.helpers.reply_evaluation import legacy_reply_evaluator
 
 import copy
@@ -25,6 +26,7 @@ from tests.helpers.bot_fixtures import (
 )
 from tests.helpers.reply_fixtures import (
     UNIT_REPLY_REPOSITORY,
+    patch_reply_owner_method,
     unit_reply_context,
     unit_approved_reply,
     unit_confirmed_reply_receipt,
@@ -572,15 +574,16 @@ def test_invalid_v4_confirmation_never_mutates_fallback_state(
     )
     state = bot.default_state()
     baseline = copy.deepcopy(state)
-    original_validator = bot.confirmed_reply_receipt_is_semantically_valid
+    original_validator = bot._reply_receipt_values_owner().confirmed_is_valid
 
     install_receipt_bound_x_request_stub(
         monkeypatch,
         lambda *_args, **_kwargs: {"data": {"id": "999"}},
     )
-    monkeypatch.setattr(
-        bot,
-        "confirmed_reply_receipt_is_semantically_valid",
+    patch_reply_owner_method(
+        monkeypatch,
+        ReplyReceiptValues,
+        "confirmed_is_valid",
         lambda receipt: (
             False
             if receipt.get("schema_version") == 4

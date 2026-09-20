@@ -323,6 +323,32 @@ class ReplyReceiptValues:
             legacy_recovery=True,
         )
 
+    def prepare_sending_template(self, receipt_template: dict, *, lane: str) -> dict:
+        """Check current send authority and shallow-copy its reviewed receipt values."""
+        if "reply_post_id" in receipt_template:
+            raise ValueError("reply receipt template must not contain reply_post_id")
+        if (
+            type(receipt_template.get("schema_version")) is not int
+            or receipt_template.get("schema_version") != 4
+        ):
+            raise RuntimeError(
+                "Conversational X writes require a current schema-v4 source receipt"
+            )
+        # The reply text may be an ``AIReply`` string subclass whose constructor
+        # requires provenance arguments, so ``deepcopy`` cannot reconstruct it.
+        # Callers have already copied every mutable nested payload placed in the
+        # template; a fresh outer mapping is sufficient and preserves the exact
+        # reviewed string object for draft validation.
+        receipt_template = dict(receipt_template)
+        if (
+            not self.sending_is_valid(receipt_template)
+            or str(receipt_template.get("candidate_source") or "") != str(lane)
+        ):
+            raise RuntimeError(
+                "Refusing conversational X write with an invalid reply receipt template"
+            )
+        return receipt_template
+
     def bind_attempt(self, receipt_template: dict) -> dict:
         """Bind a schema-v4 reply template to its immediately pre-send time."""
         if (

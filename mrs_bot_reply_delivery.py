@@ -550,7 +550,7 @@ def post_conversational_reply_with_durable_identity(
     reply_to_id: str,
     made_with_ai: bool,
     lane: str,
-    sending_reply_receipt_is_semantically_valid: Callable,
+    receipt_values: ReplyReceiptValues,
     receipt_namespace_entry_exists: Callable,
     CONFIRMED_REPLY_RECEIPT_FILE: Path,
     InvalidConfirmedReplyReceipt: type[Exception],
@@ -570,9 +570,6 @@ def post_conversational_reply_with_durable_identity(
     ApiError: type[Exception],
     inspect_confirmed_transport_transaction: Callable,
     journal_path_for_receipt: Callable,
-    _reply_confirmation_epoch_after_remote_success: Callable,
-    _confirmed_reply_receipt_from_sending: Callable,
-    confirmed_reply_receipt_is_semantically_valid: Callable,
     promote_sending_reply_receipt: Callable,
     apply_confirmed_reply_receipt: Callable,
     StateBackupWriteError: type[Exception],
@@ -591,28 +588,7 @@ def post_conversational_reply_with_durable_identity(
     until either the confirmed-reply receipt, a complete canonical state
     fallback, or the global manual-reconciliation barrier is durable.
     """
-    if "reply_post_id" in receipt_template:
-        raise ValueError("reply receipt template must not contain reply_post_id")
-    if (
-        type(receipt_template.get("schema_version")) is not int
-        or receipt_template.get("schema_version") != 4
-    ):
-        raise RuntimeError(
-            "Conversational X writes require a current schema-v4 source receipt"
-        )
-    # The reply text may be an ``AIReply`` string subclass whose constructor
-    # requires provenance arguments, so ``deepcopy`` cannot reconstruct it.
-    # Callers have already copied every mutable nested payload placed in the
-    # template; a fresh outer mapping is sufficient and preserves the exact
-    # reviewed string object for draft validation.
-    receipt_template = dict(receipt_template)
-    if (
-        not sending_reply_receipt_is_semantically_valid(receipt_template)
-        or str(receipt_template.get("candidate_source") or "") != str(lane)
-    ):
-        raise RuntimeError(
-            "Refusing conversational X write with an invalid reply receipt template"
-        )
+    receipt_template = receipt_values.prepare_sending_template(receipt_template, lane=lane)
 
     # Preserve the receipt-specific error for an already unresolved reply, but
     # do not create a new competing reply receipt while a confirmed main post
@@ -717,11 +693,11 @@ def post_conversational_reply_with_durable_identity(
                 "Confirmed conversational reply identity differs from its journal",
                 service="x",
             )
-        confirmation_epoch = _reply_confirmation_epoch_after_remote_success(
+        confirmation_epoch = receipt_values.observed_confirmation_epoch(
             receipt_template,
             transport_confirmation.confirmation_epoch,
         )
-        receipt = _confirmed_reply_receipt_from_sending(
+        receipt = receipt_values.confirmed_from_sending(
             receipt_template,
             reply_post_id=own_reply_id,
             confirmation_epoch=confirmation_epoch,
@@ -739,7 +715,7 @@ def post_conversational_reply_with_durable_identity(
             service="x",
         ) from identity_error
     try:
-        if not confirmed_reply_receipt_is_semantically_valid(receipt):
+        if not receipt_values.confirmed_is_valid(receipt):
             raise RuntimeError(
                 "Internal error: confirmed reply representation failed validation"
             )
@@ -752,7 +728,7 @@ def post_conversational_reply_with_durable_identity(
         fallback_error: BaseException | None = None
         fallback_complete = False
         try:
-            if not confirmed_reply_receipt_is_semantically_valid(receipt):
+            if not receipt_values.confirmed_is_valid(receipt):
                 raise InvalidConfirmedReplyReceipt(
                     "Refusing to apply an invalid confirmed reply representation"
                 )
