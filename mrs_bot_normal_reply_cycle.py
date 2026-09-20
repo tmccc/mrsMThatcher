@@ -1,10 +1,10 @@
 """Run the normal mention and hot-post reply cycle through current root authority.
 
 The root supplies typed settings, persistence and delivery boundaries,
-quarantine, evaluation, clarification and accounting owners, plus current policy
-callbacks, logger and application classes on each invocation. Private helpers
-separate candidate eligibility,
-context/model evaluation, draft/receipt preparation and delivery/recovery. The
+context, lookup, generation, history, quarantine, evaluation, clarification and
+accounting owners, plus current policy callbacks, logger and application classes
+on each invocation. Private helpers call owners directly and separate candidate
+eligibility, context/model evaluation, draft/receipt preparation and delivery/recovery. The
 cycle retains operation order, shared budget/quarantine progress, receipt
 durability and error routing. Backlog continuation calls the
 supplied current root maybe_reply_to_mentions callback with the original state.
@@ -40,7 +40,7 @@ from mrs_bot_reply_cycle_interfaces import (
     NORMAL_CHECK_STATUS_SKIPPED_CAP,
     NORMAL_CHECK_STATUS_SKIPPED_COOLDOWN,
     NORMAL_CHECK_STATUS_SKIPPED_SPACING,
-    EvaluateReply, FinishReplyCheck, NormalReplyConfig, PreparedReplyContext,
+    FinishReplyCheck, NormalReplyConfig, PreparedReplyContext,
     ReplyCycleDelivery, ReplyCyclePersistence, SkipReplyCandidate,
 )
 from mrs_bot_reply_delivery import ReplyDeliveryStop
@@ -60,6 +60,10 @@ if TYPE_CHECKING:
     from mrs_bot_daily_reply_accounting import DailyReplyAccounting
     from mrs_bot_reply_clarifications import ClarificationReplies
     from mrs_bot_reply_evaluation_state import ReplyEvaluations
+    from mrs_bot_reply_context import ReplyContext
+    from mrs_bot_reply_generation import ReplyGeneration
+    from mrs_bot_reply_history import ReplyHistory
+    from mrs_bot_tweet_lookup_cache import TweetLookupCache
     from single_call_reply import PipelineResult
 
 
@@ -127,15 +131,14 @@ def maybe_reply_to_mentions(
     SINGLE_CALL_STRATEGY_VERSION: str,
     ValidatedReply: type,
     _log_validated_single_call_reply: Callable,
-    _record_single_call_result: Callable,
-    build_context_for_reply_ai: Callable,
-    cache_tweet: Callable,
+    generation: ReplyGeneration,
+    reply_contexts: ReplyContext,
+    tweets: TweetLookupCache,
     clarifications: ClarificationReplies,
     persistence: ReplyCyclePersistence,
     conversational_reply_pipeline_enabled: Callable,
     accounting: DailyReplyAccounting,
     dedupe_reply_candidates: Callable,
-    evaluate_single_call_reply: EvaluateReply,
     get_hot_post_reply_candidates: Callable,
     get_mentions: Callable,
     in_api_cooldown: Callable,
@@ -150,7 +153,7 @@ def maybe_reply_to_mentions(
     now_epoch: Callable,
     reply_evaluations: ReplyEvaluations,
     record_api_error: Callable,
-    recovery_comparison_account_replies: Callable,
+    history: ReplyHistory,
     reply_evidence_repository: Callable,
     reply_target_is_directly_eligible: Callable,
     valid_tweets_sorted_by_id: Callable,
@@ -324,7 +327,7 @@ def maybe_reply_to_mentions(
             state, candidate, clarification, current, progress,
             author_quarantines=author_quarantines,
             config=config,
-            cache_tweet=cache_tweet,
+            tweets=tweets,
             accounting=accounting,
             is_probably_spam_or_not_worth_replying=is_probably_spam_or_not_worth_replying, log=log,
             log_event=log_event, mention_queue=mention_queue,
@@ -342,8 +345,8 @@ def maybe_reply_to_mentions(
             config=config,
             RemoteOperationsPaused=RemoteOperationsPaused,
             ReplyEvidenceUnavailable=ReplyEvidenceUnavailable,
-            _record_single_call_result=_record_single_call_result,
-            build_context_for_reply_ai=build_context_for_reply_ai, log=log, log_event=log_event,
+            generation=generation,
+            reply_contexts=reply_contexts, log=log, log_event=log_event,
             mention_queue=mention_queue,
             maybe_mark_hot_post_reply_skipped=maybe_mark_hot_post_reply_skipped,
             record_api_error=record_api_error,
@@ -361,9 +364,9 @@ def maybe_reply_to_mentions(
             state, candidate, reply_context, context_result.media_context, progress,
             ApiError=ApiError, config=config,
             RemoteOperationsPaused=RemoteOperationsPaused,
-            evaluate_single_call_reply=evaluate_single_call_reply, log=log, log_event=log_event,
+            generation=generation, log=log, log_event=log_event,
             persistence=persistence, record_api_error=record_api_error,
-            recovery_comparison_account_replies=recovery_comparison_account_replies,
+            history=history,
         )
         if isinstance(evaluation_result, FinishReplyCheck):
             return evaluation_result.status
@@ -550,7 +553,7 @@ def _author_allows_evaluation(
     *,
     author_quarantines: AuthorQuarantines,
     config: NormalReplyConfig,
-    cache_tweet: Callable,
+    tweets: TweetLookupCache,
     accounting: DailyReplyAccounting,
     is_probably_spam_or_not_worth_replying: Callable,
     log: Logger,
@@ -614,7 +617,7 @@ def _author_allows_evaluation(
             candidate.author_id,
         )
         if not local_spam_rejection:
-            cache_tweet(
+            tweets.store(
                 state,
                 tweet_id=candidate.mention_id,
                 text=candidate.incoming_text,
@@ -650,8 +653,8 @@ def _prepare_reply_context(
     config: NormalReplyConfig,
     RemoteOperationsPaused: type[Exception],
     ReplyEvidenceUnavailable: type[Exception],
-    _record_single_call_result: Callable,
-    build_context_for_reply_ai: Callable,
+    generation: ReplyGeneration,
+    reply_contexts: ReplyContext,
     log: Logger,
     log_event: Callable,
     mention_queue: MentionQueue,
@@ -663,7 +666,7 @@ def _prepare_reply_context(
 ) -> PreparedReplyContext | SkipReplyCandidate | FinishReplyCheck:
     """Build canonical context and media, preserving the narrow context error boundary."""
     try:
-        prepared = build_context_for_reply_ai(candidate.mention, state)
+        prepared = reply_contexts.build(candidate.mention, state)
     except RemoteOperationsPaused:
         log.info(
             "Deferring conversational reply evaluation lane=%s target_id=%s "
@@ -691,7 +694,7 @@ def _prepare_reply_context(
             candidate.source,
             candidate.mention_id,
         )
-        _record_single_call_result(
+        generation.record_result(
             PipelineResult(
                 status="operational_failure",
                 reason="canonical_context_unavailable",
@@ -756,12 +759,12 @@ def _evaluate_reply(
     ApiError: type[Exception],
     config: NormalReplyConfig,
     RemoteOperationsPaused: type[Exception],
-    evaluate_single_call_reply: EvaluateReply,
+    generation: ReplyGeneration,
     log: Logger,
     log_event: Callable,
     persistence: ReplyCyclePersistence,
     record_api_error: Callable,
-    recovery_comparison_account_replies: Callable,
+    history: ReplyHistory,
 ) -> PipelineResult | SkipReplyCandidate | FinishReplyCheck:
     """Recover or generate a draft, charging only fresh mention model evaluations."""
     evaluation = persistence.recover(
@@ -769,7 +772,7 @@ def _evaluate_reply(
         candidate.mention_id,
         str(candidate.source),
         context=reply_context,
-        recent_replies=recovery_comparison_account_replies(
+        recent_replies=history.recovery_replies(
             state,
             context=reply_context,
         ),
@@ -795,7 +798,7 @@ def _evaluate_reply(
                 return SkipReplyCandidate()
             if candidate.source == "mention":
                 progress.fresh_mention_ai_evaluations += 1
-            evaluation = evaluate_single_call_reply(
+            evaluation = generation.evaluate(
                 reply_context,
                 media_context,
                 state=state,

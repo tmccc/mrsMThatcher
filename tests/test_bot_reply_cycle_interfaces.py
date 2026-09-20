@@ -95,22 +95,17 @@ def test_cycle_boundaries_capture_current_callbacks_and_config_between_calls(mon
         assert config.enabled is bool(index)
         assert config.maximum_daily_replies == 20 + index
         assert factory.call_count == index + 1
-        assert history_factory.call_count == (3 if lane == "quote_tweet" else 2) * (index + 1)
-        if lane == "quote_tweet":
-            history = supplied["history"]
-            assert isinstance(history, bot._reply_history.ReplyHistory)
-            generation_owner = supplied["generation"]
-            assert generation_owner.now_epoch is clock
-            assert generation_owner.evidence_repository is evidence
-            generation_history = generation_owner.history_for_evaluation.__self__
-            assert generation_history.now_epoch is clock
-            assert generation_history.maximum_recent_replies == 10 + index
-            assert supplied["tweets"].now_epoch is clock
-            assert supplied["tweets"].save_state is save
-        else:
-            history_callback = supplied["recovery_comparison_account_replies"]
-            history = history_callback.__self__
-            assert history_callback.__func__ is type(history).recovery_replies
+        assert history_factory.call_count == 3 * (index + 1)
+        history = supplied["history"]
+        assert isinstance(history, bot._reply_history.ReplyHistory)
+        generation_owner = supplied["generation"]
+        assert generation_owner.now_epoch is clock
+        assert generation_owner.evidence_repository is evidence
+        generation_history = generation_owner.history_for_evaluation.__self__
+        assert generation_history.now_epoch is clock
+        assert generation_history.maximum_recent_replies == 10 + index
+        assert supplied["tweets"].now_epoch is clock
+        assert supplied["tweets"].save_state is save
         assert history.now_epoch is clock
         assert history.maximum_recent_replies == 10 + index
         clock.assert_not_called()
@@ -148,7 +143,7 @@ def test_cycles_consume_typed_results_through_durable_outcomes(monkeypatch, lane
     state, context, run = prepare_cycle(monkeypatch, lane)
     target = str(context["target_id"])
     builder = (
-        bot.build_context_for_reply_ai if lane == "mention"
+        bot._reply_context_owner().build if lane == "mention"
         else bot._reply_context_owner().build_quote
     )
     prepared_results = []
@@ -161,7 +156,7 @@ def test_cycles_consume_typed_results_through_durable_outcomes(monkeypatch, lane
     if lane == "quote_tweet":
         patch_reply_context_method(monkeypatch, "build_quote", prepare)
     else:
-        monkeypatch.setattr(bot, "build_context_for_reply_ai", prepare)
+        patch_reply_context_method(monkeypatch, "build", prepare)
     bot.reply_media_context_for_candidate.reset_mock()
     if decision == "recovered":
         reply = unit_approved_reply(context)
@@ -190,10 +185,7 @@ def test_cycles_consume_typed_results_through_durable_outcomes(monkeypatch, lane
         return result
 
     evaluator = Mock(side_effect=evaluate)
-    if lane == "quote_tweet":
-        patch_reply_owner_method(monkeypatch, generation.ReplyGeneration, "evaluate", evaluator)
-    else:
-        monkeypatch.setattr(bot, "evaluate_single_call_reply", evaluator)
+    patch_reply_owner_method(monkeypatch, generation.ReplyGeneration, "evaluate", evaluator)
     monkeypatch.setattr(bot, "generate_single_call_reply", Mock(side_effect=AssertionError("legacy evaluator used")))
     monkeypatch.setattr(bot, "pending_ai_reply", Mock(side_effect=AssertionError("legacy recovery used")))
     monkeypatch.setattr(bot, "reply_target_is_available_immediately_before_send", Mock(return_value=True))
@@ -272,10 +264,7 @@ def test_zero_call_result_preserves_each_lanes_budget_rule(monkeypatch, lane):
             status="no_reply", reason="completed_exchange", model_call_count=1,
         )
 
-    if lane == "quote_tweet":
-        patch_reply_owner_method(monkeypatch, generation.ReplyGeneration, "evaluate", evaluate)
-    else:
-        monkeypatch.setattr(bot, "evaluate_single_call_reply", evaluate)
+    patch_reply_owner_method(monkeypatch, generation.ReplyGeneration, "evaluate", evaluate)
     run(state)
     assert calls == (["105", "106"] if lane == "mention" else ["105"])
     assert state["reply_evaluation_records"]["105"]["outcome"] == "operational_failure"
@@ -285,7 +274,7 @@ def test_zero_call_result_preserves_each_lanes_budget_rule(monkeypatch, lane):
 
 @pytest.mark.parametrize("lane", ["mention", "quote_tweet"])
 def test_typed_local_failure_keeps_prior_429_cooldown_and_terminal_retirement(monkeypatch, lane):
-    evaluate = bot.evaluate_single_call_reply
+    evaluate = generation.ReplyGeneration.evaluate
     state, context, run = prepare_cycle(monkeypatch, lane)
     current = bot.now_epoch()
     result = PipelineResult(
@@ -294,7 +283,7 @@ def test_typed_local_failure_keeps_prior_429_cooldown_and_terminal_retirement(mo
         provider_status_code=429, provider_reset_epoch=current + 120,
         provider_retry_after_seconds=120, provider_request_attempt_count=2,
     )
-    monkeypatch.setattr(bot, "evaluate_single_call_reply", evaluate)
+    monkeypatch.setattr(generation.ReplyGeneration, "evaluate", evaluate)
     monkeypatch.setattr(bot, "collect_reply_images", lambda _media: [])
     monkeypatch.setattr(bot, "run_single_call_reply_pipeline", Mock(return_value=result))
     recorded = Mock(wraps=bot._reply_generation_owner().record_result)
@@ -385,17 +374,14 @@ def test_explicit_absent_media_does_not_trigger_fallback_collection(monkeypatch,
     if lane == "quote_tweet":
         patch_reply_context_method(monkeypatch, "build_quote", builder)
     else:
-        monkeypatch.setattr(bot, "build_context_for_reply_ai", builder)
+        patch_reply_context_method(monkeypatch, "build", builder)
     collect_media = Mock(side_effect=AssertionError("Prepared media must not be collected again"))
     monkeypatch.setattr(bot, "reply_media_context_for_candidate", collect_media)
     evaluator = Mock(return_value=PipelineResult(
         status="no_reply", reason="completed_exchange",
         reason_code="completed_exchange", model_call_count=1,
     ))
-    if lane == "quote_tweet":
-        patch_reply_owner_method(monkeypatch, generation.ReplyGeneration, "evaluate", evaluator)
-    else:
-        monkeypatch.setattr(bot, "evaluate_single_call_reply", evaluator)
+    patch_reply_owner_method(monkeypatch, generation.ReplyGeneration, "evaluate", evaluator)
 
     assert run(state) == (
         bot.NORMAL_CHECK_STATUS_CHECKED if lane == "mention"

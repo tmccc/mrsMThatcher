@@ -92,9 +92,9 @@ def configure_provider_free_mention_check(
         bot, "is_probably_spam_or_not_worth_replying", lambda _text: False
     )
     monkeypatch.setattr(
-        bot,
-        "build_context_for_reply_ai",
-        lambda candidate, _state: PreparedReplyContext(
+        bot._reply_context.ReplyContext,
+        "build",
+        lambda _owner, candidate, _state: PreparedReplyContext(
             {
                 "target_id": str(candidate["id"]),
                 "thread_id": str(candidate["conversation_id"]),

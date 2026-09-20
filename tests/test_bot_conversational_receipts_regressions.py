@@ -165,10 +165,12 @@ def test_malformed_reply_post_id_is_not_recorded(monkeypatch: pytest.MonkeyPatch
     monkeypatch.setattr(bot, "get_hot_post_reply_candidates", lambda state: [])
     monkeypatch.setattr(bot, "is_probably_spam_or_not_worth_replying", lambda text: False)
     context = unit_reply_context(target_id="100", contribution="@MrsMThatcher hello")
-    monkeypatch.setattr(bot, "build_context_for_reply_ai", lambda mention, state: PreparedReplyContext(context, {}))
-    monkeypatch.setattr(
-        bot,
-        "evaluate_single_call_reply",
+    patch_reply_owner_method(
+        monkeypatch, bot._reply_context.ReplyContext, "build",
+        lambda mention, state: PreparedReplyContext(context, {}),
+    )
+    patch_reply_owner_method(
+        monkeypatch, bot._reply_generation.ReplyGeneration, "evaluate",
         legacy_reply_evaluator(lambda actual_context, *_args, **_kwargs: unit_approved_reply(actual_context)),
     )
     install_receipt_bound_x_request_stub(
@@ -246,9 +248,8 @@ def test_confirmed_mention_reply_save_failure_replays_after_restart(
         monkeypatch.setattr(bot, "MY_USER_ID", "12345")
         monkeypatch.setattr(bot, "now_epoch", lambda: fixed_epoch)
         monkeypatch.setattr(bot, "current_datetime", lambda: datetime.fromtimestamp(fixed_epoch))
-        monkeypatch.setattr(
-            bot,
-            "evaluate_single_call_reply",
+        patch_reply_owner_method(
+            monkeypatch, bot._reply_generation.ReplyGeneration, "evaluate",
             legacy_reply_evaluator(lambda context, *_args, **_kwargs: unit_approved_reply(
                 context,
                 text="Quite right. Good sense still matters.",
@@ -1084,9 +1085,8 @@ def test_confirmed_receipt_reconciliation_cannot_authorise_stale_pending_state(
             "confirmed receipt reconciliation requires no X read"
         ),
     )
-    monkeypatch.setattr(
-        bot,
-        "evaluate_single_call_reply",
+    patch_reply_owner_method(
+        monkeypatch, bot._reply_generation.ReplyGeneration, "evaluate",
         legacy_reply_evaluator(lambda *_args, **_kwargs: pytest.fail(
             "stale pending state must not reach the reply provider"
         )),
@@ -1178,9 +1178,8 @@ def test_receipt_recovery_from_backup_without_page_ownership_is_guarded(
             "backup receipt recovery requires no X read"
         ),
     )
-    monkeypatch.setattr(
-        bot,
-        "evaluate_single_call_reply",
+    patch_reply_owner_method(
+        monkeypatch, bot._reply_generation.ReplyGeneration, "evaluate",
         legacy_reply_evaluator(lambda *_args, **_kwargs: pytest.fail(
             "backup receipt recovery must not call the reply provider"
         )),
@@ -2229,9 +2228,8 @@ def test_confirmed_reply_normal_success_uses_durable_state_before_receipt_remova
         monkeypatch.setattr(bot, "MY_USER_ID", "12345")
         monkeypatch.setattr(bot, "now_epoch", lambda: fixed_epoch)
         monkeypatch.setattr(bot, "current_datetime", lambda: datetime.fromtimestamp(fixed_epoch))
-        monkeypatch.setattr(
-            bot,
-            "evaluate_single_call_reply",
+        patch_reply_owner_method(
+            monkeypatch, bot._reply_generation.ReplyGeneration, "evaluate",
             legacy_reply_evaluator(lambda context, *_args, **_kwargs: unit_approved_reply(context)),
         )
 
@@ -2283,9 +2281,8 @@ def test_confirmed_reply_latest_backup_recovers_suppression_after_primary_corrup
         monkeypatch.setattr(bot, "MY_USER_ID", "12345")
         monkeypatch.setattr(bot, "now_epoch", lambda: fixed_epoch)
         monkeypatch.setattr(bot, "current_datetime", lambda: datetime.fromtimestamp(fixed_epoch))
-        monkeypatch.setattr(
-            bot,
-            "evaluate_single_call_reply",
+        patch_reply_owner_method(
+            monkeypatch, bot._reply_generation.ReplyGeneration, "evaluate",
             legacy_reply_evaluator(lambda context, *_args, **_kwargs: unit_approved_reply(context)),
         )
 

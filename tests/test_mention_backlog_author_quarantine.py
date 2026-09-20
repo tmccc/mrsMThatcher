@@ -174,7 +174,10 @@ def test_digest_author_no_reply_chronology_survives_restarts_and_skips_quarantin
         "current_datetime",
         lambda: datetime.fromtimestamp(clock["epoch"], tz=LONDON),
     )
-    patch_reply_owner_method(monkeypatch, ClarificationReplies, "context", lambda *_args, **_kwargs: None)
+    patch_reply_owner_method(
+        monkeypatch, ClarificationReplies, "context",
+        lambda *_args, **_kwargs: None,
+    )
 
     context_targets: list[str] = []
 
@@ -192,7 +195,7 @@ def test_digest_author_no_reply_chronology_survives_restarts_and_skips_quarantin
             {},
         )
 
-    monkeypatch.setattr(bot, "build_context_for_reply_ai", build_context)
+    patch_reply_owner_method(monkeypatch, bot._reply_context.ReplyContext, "build", build_context)
     pipeline_targets: list[str] = []
     trace: list[tuple[str, str]] = []
 
@@ -212,7 +215,10 @@ def test_digest_author_no_reply_chronology_survives_restarts_and_skips_quarantin
             reason_code="spam_or_abuse",
         )
 
-    monkeypatch.setattr(bot, "evaluate_single_call_reply", legacy_reply_evaluator(run_pipeline))
+    patch_reply_owner_method(
+        monkeypatch, bot._reply_generation.ReplyGeneration, "evaluate",
+        legacy_reply_evaluator(run_pipeline),
+    )
     events: list[tuple[str, dict]] = []
 
     def capture_event(name: str, **values: object) -> None:
@@ -477,7 +483,10 @@ def test_three_explicit_spam_no_replies_start_quarantine_and_skip_next(
         candidates,
         current_epoch=current,
     )
-    patch_reply_owner_method(monkeypatch, ClarificationReplies, "context", lambda *_args, **_kwargs: None)
+    patch_reply_owner_method(
+        monkeypatch, ClarificationReplies, "context",
+        lambda *_args, **_kwargs: None,
+    )
     context_targets: list[str] = []
 
     def build_context(candidate: dict, _state: dict) -> PreparedReplyContext | None:
@@ -494,7 +503,7 @@ def test_three_explicit_spam_no_replies_start_quarantine_and_skip_next(
             {},
         )
 
-    monkeypatch.setattr(bot, "build_context_for_reply_ai", build_context)
+    patch_reply_owner_method(monkeypatch, bot._reply_context.ReplyContext, "build", build_context)
     pipeline_targets: list[str] = []
     reason_codes = iter(["spam_or_abuse"] * 3)
 
@@ -511,7 +520,10 @@ def test_three_explicit_spam_no_replies_start_quarantine_and_skip_next(
             reason_code=next(reason_codes),
         )
 
-    monkeypatch.setattr(bot, "evaluate_single_call_reply", legacy_reply_evaluator(run_pipeline))
+    patch_reply_owner_method(
+        monkeypatch, bot._reply_generation.ReplyGeneration, "evaluate",
+        legacy_reply_evaluator(run_pipeline),
+    )
     events: list[tuple[str, dict]] = []
     monkeypatch.setattr(
         bot,
@@ -547,7 +559,10 @@ def test_non_spam_editorial_no_replies_do_not_create_quarantine_strikes(
         candidates,
         current_epoch=current,
     )
-    patch_reply_owner_method(monkeypatch, ClarificationReplies, "context", lambda *_args, **_kwargs: None)
+    patch_reply_owner_method(
+        monkeypatch, ClarificationReplies, "context",
+        lambda *_args, **_kwargs: None,
+    )
     reasons = iter(
         ["completed_exchange", "irrelevant", "insufficient_context", "already_answered"]
     )
@@ -564,7 +579,10 @@ def test_non_spam_editorial_no_replies_do_not_create_quarantine_strikes(
             reason_code=next(reasons),
         )
 
-    monkeypatch.setattr(bot, "evaluate_single_call_reply", legacy_reply_evaluator(run_pipeline))
+    patch_reply_owner_method(
+        monkeypatch, bot._reply_generation.ReplyGeneration, "evaluate",
+        legacy_reply_evaluator(run_pipeline),
+    )
 
     assert bot.maybe_reply_to_mentions(state) == bot.NORMAL_CHECK_STATUS_CHECKED
     assert state["author_evaluation_quarantines"] == {}
@@ -620,7 +638,10 @@ def test_approved_reply_production_branch_clears_author_strikes(
         [candidate],
         current_epoch=start + 2,
     )
-    patch_reply_owner_method(monkeypatch, ClarificationReplies, "context", lambda *_args, **_kwargs: None)
+    patch_reply_owner_method(
+        monkeypatch, ClarificationReplies, "context",
+        lambda *_args, **_kwargs: None,
+    )
     generation_targets: list[str] = []
     approved_reply = ValidatedReply(
         "Thank you for the contribution.",
@@ -636,7 +657,10 @@ def test_approved_reply_production_branch_clears_author_strikes(
         generation_targets.append(str(context["target_id"]))
         return approved_reply
 
-    monkeypatch.setattr(bot, "evaluate_single_call_reply", legacy_reply_evaluator(generate_approved))
+    patch_reply_owner_method(
+        monkeypatch, bot._reply_generation.ReplyGeneration, "evaluate",
+        legacy_reply_evaluator(generate_approved),
+    )
 
     class ApprovedBranchReached(Exception):
         pass
@@ -674,7 +698,10 @@ def test_operational_failure_does_not_add_strike(
     def fail(*_args: object, **_kwargs: object) -> None:
         raise bot.ApiError("provider unavailable", service="openai")
 
-    monkeypatch.setattr(bot, "evaluate_single_call_reply", legacy_reply_evaluator(fail))
+    patch_reply_owner_method(
+        monkeypatch, bot._reply_generation.ReplyGeneration, "evaluate",
+        legacy_reply_evaluator(fail),
+    )
 
     assert bot.maybe_reply_to_mentions(state) == bot.NORMAL_CHECK_STATUS_API_ERROR
     assert state["author_evaluation_quarantines"]["200"][
@@ -729,7 +756,10 @@ def test_candidate_local_operational_failure_retires_without_strike_or_quota(
         )
         return None
 
-    monkeypatch.setattr(bot, "evaluate_single_call_reply", legacy_reply_evaluator(operational_failure))
+    patch_reply_owner_method(
+        monkeypatch, bot._reply_generation.ReplyGeneration, "evaluate",
+        legacy_reply_evaluator(operational_failure),
+    )
 
     assert bot.maybe_reply_to_mentions(state) == bot.NORMAL_CHECK_STATUS_CHECKED
     assert state["author_evaluation_quarantines"]["200"][
@@ -779,7 +809,10 @@ def test_hot_post_local_validation_failure_is_terminal_and_not_provider_health(
         )
         return None
 
-    monkeypatch.setattr(bot, "evaluate_single_call_reply", legacy_reply_evaluator(operational_failure))
+    patch_reply_owner_method(
+        monkeypatch, bot._reply_generation.ReplyGeneration, "evaluate",
+        legacy_reply_evaluator(operational_failure),
+    )
 
     assert bot.maybe_reply_to_mentions(state) == bot.NORMAL_CHECK_STATUS_CHECKED
     assert bot.terminal_reply_evaluation(state, "100")["outcome"] == (
@@ -839,8 +872,11 @@ def test_permanent_context_failure_retires_candidate_and_reaches_next(
             evaluation_outcome=evaluation_outcome,
         )
 
-    monkeypatch.setattr(bot, "build_context_for_reply_ai", build_context)
-    monkeypatch.setattr(bot, "evaluate_single_call_reply", legacy_reply_evaluator(run_pipeline))
+    patch_reply_owner_method(monkeypatch, bot._reply_context.ReplyContext, "build", build_context)
+    patch_reply_owner_method(
+        monkeypatch, bot._reply_generation.ReplyGeneration, "evaluate",
+        legacy_reply_evaluator(run_pipeline),
+    )
 
     assert bot.maybe_reply_to_mentions(state) == bot.NORMAL_CHECK_STATUS_CHECKED
     assert context_calls == ["100", "101"]
@@ -867,16 +903,18 @@ def test_active_quarantine_reports_one_skipped_pipeline_evaluation(
     candidate = mention(100, 200)
     queue_active_mention(state, candidate, base_since_id="99")
     configure_provider_free_mention_check(monkeypatch, [candidate], current_epoch=current)
-    patch_reply_owner_method(monkeypatch, ClarificationReplies, "context", lambda *_args, **_kwargs: None)
+    patch_reply_owner_method(
+        monkeypatch, ClarificationReplies, "context",
+        lambda *_args, **_kwargs: None,
+    )
     events: list[tuple[str, dict]] = []
     monkeypatch.setattr(
         bot,
         "log_event",
         lambda name, **values: events.append((name, values)),
     )
-    monkeypatch.setattr(
-        bot,
-        "build_context_for_reply_ai",
+    patch_reply_owner_method(
+        monkeypatch, bot._reply_context.ReplyContext, "build",
         lambda *_args, **_kwargs: pytest.fail("quarantine must precede context work"),
     )
     monkeypatch.setattr(
@@ -891,9 +929,8 @@ def test_active_quarantine_reports_one_skipped_pipeline_evaluation(
             "quarantine must precede media preparation"
         ),
     )
-    monkeypatch.setattr(
-        bot,
-        "evaluate_single_call_reply",
+    patch_reply_owner_method(
+        monkeypatch, bot._reply_generation.ReplyGeneration, "evaluate",
         legacy_reply_evaluator(lambda *_args, **_kwargs: pytest.fail("quarantine must make zero provider calls")),
     )
 
@@ -951,7 +988,10 @@ def test_active_quarantine_permits_valid_clarification_candidate(
             evaluation_outcome=evaluation_outcome,
         )
 
-    monkeypatch.setattr(bot, "evaluate_single_call_reply", legacy_reply_evaluator(run_pipeline))
+    patch_reply_owner_method(
+        monkeypatch, bot._reply_generation.ReplyGeneration, "evaluate",
+        legacy_reply_evaluator(run_pipeline),
+    )
     events: list[tuple[str, dict]] = []
     monkeypatch.setattr(
         bot,
@@ -995,16 +1035,14 @@ def test_active_quarantine_clarification_still_obeys_author_cap(
             "question_text": "What policy follows from that?",
             "trigger": "explicit_correction",
         })
-    monkeypatch.setattr(
-        bot,
-        "build_context_for_reply_ai",
+    patch_reply_owner_method(
+        monkeypatch, bot._reply_context.ReplyContext, "build",
         lambda *_args, **_kwargs: pytest.fail(
             "the author cap must precede clarification context work"
         ),
     )
-    monkeypatch.setattr(
-        bot,
-        "evaluate_single_call_reply",
+    patch_reply_owner_method(
+        monkeypatch, bot._reply_generation.ReplyGeneration, "evaluate",
         legacy_reply_evaluator(lambda *_args, **_kwargs: pytest.fail(
             "the author cap must block clarification provider work"
         )),
@@ -1108,7 +1146,10 @@ def test_expired_quarantine_allows_valid_clarification_candidate(
         )
         return None
 
-    monkeypatch.setattr(bot, "evaluate_single_call_reply", legacy_reply_evaluator(no_reply))
+    patch_reply_owner_method(
+        monkeypatch, bot._reply_generation.ReplyGeneration, "evaluate",
+        legacy_reply_evaluator(no_reply),
+    )
 
     assert bot.maybe_reply_to_mentions(state) == bot.NORMAL_CHECK_STATUS_CHECKED
     assert evaluated == ["100"]
@@ -1581,7 +1622,10 @@ def test_direct_skips_do_not_consume_fresh_evaluation_slots(
         )
         return None
 
-    monkeypatch.setattr(bot, "evaluate_single_call_reply", legacy_reply_evaluator(no_reply))
+    patch_reply_owner_method(
+        monkeypatch, bot._reply_generation.ReplyGeneration, "evaluate",
+        legacy_reply_evaluator(no_reply),
+    )
 
     assert bot.maybe_reply_to_mentions(state) == bot.NORMAL_CHECK_STATUS_CHECKED
     assert calls == ["7", "8"]
@@ -1628,7 +1672,10 @@ def test_mocked_high_volume_spam_author_does_not_block_later_contributors(
         )
         return None
 
-    monkeypatch.setattr(bot, "evaluate_single_call_reply", legacy_reply_evaluator(policy_no_reply))
+    patch_reply_owner_method(
+        monkeypatch, bot._reply_generation.ReplyGeneration, "evaluate",
+        legacy_reply_evaluator(policy_no_reply),
+    )
 
     assert bot.maybe_reply_to_mentions(state) == bot.NORMAL_CHECK_STATUS_CHECKED
     assert full_pipeline_targets == ["1", "2", "3", "7", "8"]
@@ -1661,7 +1708,10 @@ def test_quarantine_skips_batch_one_durable_state_write(
         candidates,
         current_epoch=current,
     )
-    patch_reply_owner_method(monkeypatch, ClarificationReplies, "context", lambda *_args, **_kwargs: None)
+    patch_reply_owner_method(
+        monkeypatch, ClarificationReplies, "context",
+        lambda *_args, **_kwargs: None,
+    )
     events: list[tuple[str, dict]] = []
     monkeypatch.setattr(
         bot,
@@ -1717,7 +1767,10 @@ def test_quarantine_does_not_credit_deterministic_gate_overlap(
     candidate = mention(100, 200)
     queue_active_mention(state, candidate, base_since_id="99")
     configure_provider_free_mention_check(monkeypatch, [candidate], current_epoch=current)
-    patch_reply_owner_method(monkeypatch, ClarificationReplies, "context", lambda *_args, **_kwargs: None)
+    patch_reply_owner_method(
+        monkeypatch, ClarificationReplies, "context",
+        lambda *_args, **_kwargs: None,
+    )
     local_filter_calls: list[str] = []
 
     def local_filter(text: str) -> bool:
@@ -1725,16 +1778,14 @@ def test_quarantine_does_not_credit_deterministic_gate_overlap(
         return local_spam_rejection
 
     monkeypatch.setattr(bot, "is_probably_spam_or_not_worth_replying", local_filter)
-    monkeypatch.setattr(
-        bot,
-        "build_context_for_reply_ai",
+    patch_reply_owner_method(
+        monkeypatch, bot._reply_context.ReplyContext, "build",
         lambda *_args, **_kwargs: pytest.fail(
             "quarantine and deterministic gates must precede context work"
         ),
     )
-    monkeypatch.setattr(
-        bot,
-        "evaluate_single_call_reply",
+    patch_reply_owner_method(
+        monkeypatch, bot._reply_generation.ReplyGeneration, "evaluate",
         legacy_reply_evaluator(lambda *_args, **_kwargs: pytest.fail(
             "quarantine must make zero provider calls"
         )),
@@ -1867,9 +1918,8 @@ def test_stale_pending_traversal_is_reset_before_queue_or_provider_work(
             "queue authority validation must not call X"
         ),
     )
-    monkeypatch.setattr(
-        bot,
-        "evaluate_single_call_reply",
+    patch_reply_owner_method(
+        monkeypatch, bot._reply_generation.ReplyGeneration, "evaluate",
         legacy_reply_evaluator(lambda *_args, **_kwargs: pytest.fail(
             "an untrusted pending candidate must not reach the provider"
         )),
@@ -2125,9 +2175,8 @@ def test_queue_retrieval_discards_corrupt_pending_identity_without_provider_work
             {"durable": durable, "state": copy.deepcopy(current)}
         ),
     )
-    monkeypatch.setattr(
-        bot,
-        "evaluate_single_call_reply",
+    patch_reply_owner_method(
+        monkeypatch, bot._reply_generation.ReplyGeneration, "evaluate",
         legacy_reply_evaluator(lambda *_args, **_kwargs: pytest.fail(
             "corrupt queue identity must not reach provider work"
         )),
@@ -2347,9 +2396,8 @@ def test_full_mention_loop_resets_stale_queue_before_provider_evaluation(
             {"durable": durable, "state": copy.deepcopy(current)}
         ),
     )
-    monkeypatch.setattr(
-        bot,
-        "evaluate_single_call_reply",
+    patch_reply_owner_method(
+        monkeypatch, bot._reply_generation.ReplyGeneration, "evaluate",
         legacy_reply_evaluator(lambda *_args, **_kwargs: pytest.fail(
             "stale candidates must not reach the reply provider"
         )),

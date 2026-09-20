@@ -156,14 +156,16 @@ def test_operational_pipeline_failure_does_not_consume_mention_target(
     monkeypatch.setattr(bot, "get_mentions", lambda _state: [dict(mention)])
     monkeypatch.setattr(bot, "get_hot_post_reply_candidates", lambda _state: [])
     monkeypatch.setattr(bot, "is_probably_spam_or_not_worth_replying", lambda _text: False)
-    monkeypatch.setattr(
-        bot,
-        "build_context_for_reply_ai",
+    patch_reply_owner_method(
+        monkeypatch, bot._reply_context.ReplyContext, "build",
         lambda *_args: PreparedReplyContext(unit_reply_context(contribution=mention["text"]), {}),
     )
     monkeypatch.setattr(bot, "reply_evidence_repository", lambda: UNIT_REPLY_REPOSITORY)
     monkeypatch.setattr(bot, "reply_media_context_for_candidate", lambda *_args, **_kwargs: {})
-    monkeypatch.setattr(bot, "evaluate_single_call_reply", legacy_reply_evaluator(fail_operationally))
+    patch_reply_owner_method(
+        monkeypatch, bot._reply_generation.ReplyGeneration, "evaluate",
+        legacy_reply_evaluator(fail_operationally),
+    )
     monkeypatch.setattr(bot, "save_state", lambda *_args, **_kwargs: None)
 
     assert bot.maybe_reply_to_mentions(state) == bot.NORMAL_CHECK_STATUS_API_ERROR
@@ -218,9 +220,8 @@ def test_own_historical_context_reply_is_never_processed_as_incoming_reply(
         "get_hot_post_reply_candidates",
         lambda state: [own_context_reply] if candidate_source == "hot_post_reply" else [],
     )
-    monkeypatch.setattr(
-        bot,
-        "build_context_for_reply_ai",
+    patch_reply_owner_method(
+        monkeypatch, bot._reply_context.ReplyContext, "build",
         lambda *args, **kwargs: pytest.fail("own context reply must not be sent to xAI"),
     )
     monkeypatch.setattr(
@@ -271,9 +272,15 @@ def test_truncated_pagination_no_reply_is_not_evaluated_twice(
     monkeypatch.setattr(bot, "get_hot_post_reply_candidates", lambda _state: [])
     monkeypatch.setattr(bot, "is_probably_spam_or_not_worth_replying", lambda _text: False)
     context = unit_reply_context(target_id="100", contribution=mention["text"])
-    monkeypatch.setattr(bot, "build_context_for_reply_ai", lambda *_args: PreparedReplyContext(context, {}))
+    patch_reply_owner_method(
+        monkeypatch, bot._reply_context.ReplyContext, "build",
+        lambda *_args: PreparedReplyContext(context, {}),
+    )
     monkeypatch.setattr(bot, "reply_media_context_for_candidate", lambda *_args, **_kwargs: {})
-    monkeypatch.setattr(bot, "evaluate_single_call_reply", legacy_reply_evaluator(no_reply))
+    patch_reply_owner_method(
+        monkeypatch, bot._reply_generation.ReplyGeneration, "evaluate",
+        legacy_reply_evaluator(no_reply),
+    )
     monkeypatch.setattr(bot, "save_state", lambda *_args, **_kwargs: None)
 
     assert bot.maybe_reply_to_mentions(state) == bot.NORMAL_CHECK_STATUS_CHECKED
@@ -336,9 +343,8 @@ def test_local_validation_failure_is_terminal_and_does_not_block_later_mention(
     )
     monkeypatch.setattr(bot, "get_hot_post_reply_candidates", lambda _state: [])
     monkeypatch.setattr(bot, "is_probably_spam_or_not_worth_replying", lambda _text: False)
-    monkeypatch.setattr(
-        bot,
-        "build_context_for_reply_ai",
+    patch_reply_owner_method(
+        monkeypatch, bot._reply_context.ReplyContext, "build",
         lambda candidate, _state: PreparedReplyContext(
             unit_reply_context(
                 target_id=str(candidate["id"]),
@@ -349,7 +355,10 @@ def test_local_validation_failure_is_terminal_and_does_not_block_later_mention(
         ),
     )
     monkeypatch.setattr(bot, "reply_media_context_for_candidate", lambda *_args, **_kwargs: {})
-    monkeypatch.setattr(bot, "evaluate_single_call_reply", legacy_reply_evaluator(decide))
+    patch_reply_owner_method(
+        monkeypatch, bot._reply_generation.ReplyGeneration, "evaluate",
+        legacy_reply_evaluator(decide),
+    )
     monkeypatch.setattr(bot, "save_state", lambda *_args, **_kwargs: None)
     state["daily_reply_date"] = bot.reply_cap_date_str(1_800_000_000)
 
@@ -610,14 +619,12 @@ def test_same_thread_clarification_at_author_cap_is_skipped_before_model_or_post
     monkeypatch.setattr(bot, "get_mentions", lambda _state: list(current_candidates))
     monkeypatch.setattr(bot, "get_hot_post_reply_candidates", lambda _state: [])
     monkeypatch.setattr(bot, "is_probably_spam_or_not_worth_replying", lambda _text: False)
-    monkeypatch.setattr(
-        bot,
-        "build_context_for_reply_ai",
+    patch_reply_owner_method(
+        monkeypatch, bot._reply_context.ReplyContext, "build",
         lambda *_args, **_kwargs: pytest.fail("context/model work must not start"),
     )
-    monkeypatch.setattr(
-        bot,
-        "evaluate_single_call_reply",
+    patch_reply_owner_method(
+        monkeypatch, bot._reply_generation.ReplyGeneration, "evaluate",
         legacy_reply_evaluator(lambda *_args, **_kwargs: pytest.fail("model must not be called")),
     )
     install_receipt_bound_x_request_stub(
@@ -702,7 +709,10 @@ def test_author_cap_context_is_terminal_but_available_to_next_eligible_reply(
         ai_contexts.append(context)
         return unit_approved_reply(context, text="A practical policy answer.")
 
-    monkeypatch.setattr(bot, "evaluate_single_call_reply", legacy_reply_evaluator(answer))
+    patch_reply_owner_method(
+        monkeypatch, bot._reply_generation.ReplyGeneration, "evaluate",
+        legacy_reply_evaluator(answer),
+    )
     install_receipt_bound_x_request_stub(
         monkeypatch,
         lambda *_args, **_kwargs: {"data": {"id": "900001"}},
@@ -763,7 +773,10 @@ def test_unrelated_follow_up_does_not_bypass_author_cap(
     monkeypatch.setattr(bot, "in_api_cooldown", lambda *args, **kwargs: False)
     monkeypatch.setattr(bot, "get_mentions", lambda _state: [follow_up])
     monkeypatch.setattr(bot, "get_hot_post_reply_candidates", lambda _state: [])
-    monkeypatch.setattr(bot, "evaluate_single_call_reply", legacy_reply_evaluator(lambda *_args, **_kwargs: pytest.fail("xAI must not be called")))
+    patch_reply_owner_method(
+        monkeypatch, bot._reply_generation.ReplyGeneration, "evaluate",
+        legacy_reply_evaluator(lambda *_args, **_kwargs: pytest.fail("xAI must not be called")),
+    )
     monkeypatch.setattr(bot, "save_state", lambda *_args, **_kwargs: None)
 
     assert bot.maybe_reply_to_mentions(state) == bot.NORMAL_CHECK_STATUS_CHECKED
@@ -921,9 +934,12 @@ def test_completed_clarification_thread_stays_terminal_after_restart_and_cap_res
     )
     monkeypatch.setattr(bot, "get_hot_post_reply_candidates", lambda _state: [])
     monkeypatch.setattr(bot, "is_probably_spam_or_not_worth_replying", lambda _text: False)
-    monkeypatch.setattr(bot, "build_context_for_reply_ai", build_context)
+    patch_reply_owner_method(monkeypatch, bot._reply_context.ReplyContext, "build", build_context)
     monkeypatch.setattr(bot, "reply_media_context_for_candidate", prepare_media)
-    monkeypatch.setattr(bot, "evaluate_single_call_reply", legacy_reply_evaluator(answer))
+    patch_reply_owner_method(
+        monkeypatch, bot._reply_generation.ReplyGeneration, "evaluate",
+        legacy_reply_evaluator(answer),
+    )
     install_receipt_bound_x_request_stub(
         monkeypatch,
         lambda *_args, **_kwargs: {"data": {"id": "900002"}},
@@ -1315,9 +1331,15 @@ def test_deterministic_spam_skip_precedes_context_media_retrieval_and_xai(
     monkeypatch.setattr(bot, "reconcile_confirmed_reply_receipt", lambda _state: False)
     monkeypatch.setattr(bot, "get_mentions", lambda _state: [dict(mention)])
     monkeypatch.setattr(bot, "get_hot_post_reply_candidates", lambda _state: [])
-    monkeypatch.setattr(bot, "build_context_for_reply_ai", lambda *_args: pytest.fail("context must not be built"))
+    patch_reply_owner_method(
+        monkeypatch, bot._reply_context.ReplyContext, "build",
+        lambda *_args: pytest.fail("context must not be built"),
+    )
     monkeypatch.setattr(bot, "reply_media_context_for_candidate", lambda *_args, **_kwargs: pytest.fail("media must not be prepared"))
-    monkeypatch.setattr(bot, "evaluate_single_call_reply", legacy_reply_evaluator(lambda *_args, **_kwargs: pytest.fail("retrieval/xAI must not be called")))
+    patch_reply_owner_method(
+        monkeypatch, bot._reply_generation.ReplyGeneration, "evaluate",
+        legacy_reply_evaluator(lambda *_args, **_kwargs: pytest.fail("retrieval/xAI must not be called")),
+    )
     monkeypatch.setattr(bot, "create_post", lambda *_args, **_kwargs: pytest.fail("X write must not be called"))
     monkeypatch.setattr(bot, "save_state", lambda *_args, **_kwargs: None)
 
@@ -1354,11 +1376,13 @@ def test_strategy_persistence_failure_blocks_mention_x_write(
     monkeypatch.setattr(bot, "get_mentions", lambda _state: [dict(mention)])
     monkeypatch.setattr(bot, "get_hot_post_reply_candidates", lambda _state: [])
     monkeypatch.setattr(bot, "is_probably_spam_or_not_worth_replying", lambda _text: False)
-    monkeypatch.setattr(bot, "build_context_for_reply_ai", lambda *_args: PreparedReplyContext(context, {}))
+    patch_reply_owner_method(
+        monkeypatch, bot._reply_context.ReplyContext, "build",
+        lambda *_args: PreparedReplyContext(context, {}),
+    )
     monkeypatch.setattr(bot, "reply_media_context_for_candidate", lambda *_args, **_kwargs: {})
-    monkeypatch.setattr(
-        bot,
-        "evaluate_single_call_reply",
+    patch_reply_owner_method(
+        monkeypatch, bot._reply_generation.ReplyGeneration, "evaluate",
         legacy_reply_evaluator(lambda actual_context, *_args, **_kwargs: unit_approved_reply(
             actual_context,
             text=text,
@@ -1410,11 +1434,13 @@ def test_deleted_target_after_generation_is_retired_before_any_x_write(
     monkeypatch.setattr(bot, "get_mentions", lambda _state: [copy.deepcopy(mention)])
     monkeypatch.setattr(bot, "get_hot_post_reply_candidates", lambda _state: [])
     monkeypatch.setattr(bot, "is_probably_spam_or_not_worth_replying", lambda _text: False)
-    monkeypatch.setattr(bot, "build_context_for_reply_ai", lambda *_args: PreparedReplyContext(context, {}))
+    patch_reply_owner_method(
+        monkeypatch, bot._reply_context.ReplyContext, "build",
+        lambda *_args: PreparedReplyContext(context, {}),
+    )
     monkeypatch.setattr(bot, "reply_media_context_for_candidate", lambda *_args, **_kwargs: {})
-    monkeypatch.setattr(
-        bot,
-        "evaluate_single_call_reply",
+    patch_reply_owner_method(
+        monkeypatch, bot._reply_generation.ReplyGeneration, "evaluate",
         legacy_reply_evaluator(lambda actual_context, *_args, **_kwargs: unit_approved_reply(
             actual_context,
             mode="opinion_or_principle",
@@ -1511,9 +1537,15 @@ def test_ineligible_truncated_mention_is_terminal_before_context_media_or_xai(
     monkeypatch.setattr(bot, "in_api_cooldown", lambda *args, **kwargs: False)
     monkeypatch.setattr(bot, "get_mentions", lambda _state: [dict(mention)])
     monkeypatch.setattr(bot, "get_hot_post_reply_candidates", lambda _state: [])
-    monkeypatch.setattr(bot, "build_context_for_reply_ai", lambda *_args: pytest.fail("context must not be built"))
+    patch_reply_owner_method(
+        monkeypatch, bot._reply_context.ReplyContext, "build",
+        lambda *_args: pytest.fail("context must not be built"),
+    )
     monkeypatch.setattr(bot, "reply_media_context_for_candidate", lambda *_args, **_kwargs: pytest.fail("media must not be prepared"))
-    monkeypatch.setattr(bot, "evaluate_single_call_reply", legacy_reply_evaluator(lambda *_args, **_kwargs: pytest.fail("xAI must not be called")))
+    patch_reply_owner_method(
+        monkeypatch, bot._reply_generation.ReplyGeneration, "evaluate",
+        legacy_reply_evaluator(lambda *_args, **_kwargs: pytest.fail("xAI must not be called")),
+    )
     monkeypatch.setattr(bot, "create_post", lambda *_args, **_kwargs: pytest.fail("X write must not be called"))
     monkeypatch.setattr(bot, "log_event", lambda name, **values: events.append((name, values)))
     monkeypatch.setattr(bot, "save_state", lambda *_args, **_kwargs: None)
@@ -1569,11 +1601,13 @@ def test_posting_generic_reply_403_is_retry_blocking_not_terminal(
     monkeypatch.setattr(bot, "get_mentions", lambda _state: [dict(mention)])
     monkeypatch.setattr(bot, "get_hot_post_reply_candidates", lambda _state: [])
     monkeypatch.setattr(bot, "is_probably_spam_or_not_worth_replying", lambda _text: False)
-    monkeypatch.setattr(bot, "build_context_for_reply_ai", lambda *_args: PreparedReplyContext(context, {}))
+    patch_reply_owner_method(
+        monkeypatch, bot._reply_context.ReplyContext, "build",
+        lambda *_args: PreparedReplyContext(context, {}),
+    )
     monkeypatch.setattr(bot, "reply_media_context_for_candidate", lambda *_args, **_kwargs: {})
-    monkeypatch.setattr(
-        bot,
-        "evaluate_single_call_reply",
+    patch_reply_owner_method(
+        monkeypatch, bot._reply_generation.ReplyGeneration, "evaluate",
         legacy_reply_evaluator(lambda actual_context, *_args, **_kwargs: unit_approved_reply(actual_context)),
     )
     monkeypatch.setattr(bot, "create_post", lambda **_kwargs: (_ for _ in ()).throw(error))

@@ -432,7 +432,7 @@ def reply_evaluation_record(target_id: str, evaluated_epoch: int) -> dict:
 
 
 def configure_normal_cycle(monkeypatch):
-    """Configure a deterministic normal-reply cycle with no unexpected provider access."""
+    """Configure a provider-free normal cycle and return its evaluation stub."""
     epoch = 2_000_000_000
     monkeypatch.setattr(bot, "now_epoch", lambda: epoch)
     monkeypatch.setattr(bot, "current_datetime", lambda: datetime.fromtimestamp(epoch))
@@ -445,8 +445,8 @@ def configure_normal_cycle(monkeypatch):
     monkeypatch.setattr(bot, "get_hot_post_reply_candidates", Mock(return_value=[]))
     monkeypatch.setattr(bot, "x_request", Mock(side_effect=AssertionError("unexpected provider request")))
     monkeypatch.setattr(bot, "create_post", Mock(side_effect=AssertionError("unexpected remote write")))
-    monkeypatch.setattr(
-        bot, "build_context_for_reply_ai",
+    patch_reply_context_method(
+        monkeypatch, "build",
         lambda candidate, _state: PreparedReplyContext(
             unit_reply_context(
                 target_id=candidate["id"], contribution=candidate["text"],
@@ -456,7 +456,9 @@ def configure_normal_cycle(monkeypatch):
         ),
     )
     monkeypatch.setattr(bot, "reply_media_context_for_candidate", Mock(return_value={}))
-    monkeypatch.setattr(bot, "evaluate_single_call_reply", legacy_reply_evaluator(Mock(side_effect=editorial_no_reply)))
+    evaluate = legacy_reply_evaluator(Mock(side_effect=editorial_no_reply))
+    patch_reply_owner_method(monkeypatch, bot._reply_generation.ReplyGeneration, "evaluate", evaluate)
+    return evaluate
 
 
 def configure_quote_cycle(monkeypatch):

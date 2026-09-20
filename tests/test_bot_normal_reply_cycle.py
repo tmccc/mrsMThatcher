@@ -20,6 +20,7 @@ import mrs_bot_reply_cycle_interfaces as interfaces
 from mrs_bot_reply_clarifications import ClarificationReplies
 import mrs_bot_reply_evaluation_state as evaluation_state
 import mrs_bot_reply_drafts as reply_drafts
+import mrs_bot_reply_generation as generation_owner
 from tests.helpers.mention_fixtures import (
     editorial_no_reply,
     mention,
@@ -32,6 +33,7 @@ from tests.helpers.reply_fixtures import (
     patch_reply_owner_method,
     patch_reply_draft_method,
     patch_reply_history_method,
+    patch_reply_context_method,
     unit_approved_reply,
     unit_confirmed_v4_reply_receipt,
     unit_reply_context,
@@ -80,8 +82,8 @@ def test_adapter_forwards_current_dependencies_arguments_results_and_errors(monk
     assert public["state"].kind is inspect.Parameter.POSITIONAL_OR_KEYWORD
     assert public["_fresh_mention_ai_evaluations"].default == 0
     assert public["_skip_hot_post_fetch"].default is False
-    assert len(parameters) == 40
-    assert sum(param.kind is inspect.Parameter.KEYWORD_ONLY for param in parameters.values()) == 39
+    assert len(parameters) == 39
+    assert sum(param.kind is inspect.Parameter.KEYWORD_ONLY for param in parameters.values()) == 38
     removed = {
         name for name in vars(interfaces) if name.startswith("NORMAL_CHECK_STATUS_")
     } | {
@@ -100,6 +102,8 @@ def test_adapter_forwards_current_dependencies_arguments_results_and_errors(monk
         "prune_author_evaluation_quarantines", "prune_completed_mention_quarantine_evaluations",
         "prune_reply_evaluation_records", "record_qualifying_author_no_reply",
         "record_terminal_reply_evaluation", "reset_daily_reply_count_if_needed",
+        "build_context_for_reply_ai", "cache_tweet", "evaluate_single_call_reply",
+        "_record_single_call_result", "recovery_comparison_account_replies",
     }
     for name, function in inspect.getmembers(cycle, inspect.isfunction):
         if function.__module__ == cycle.__name__:
@@ -111,6 +115,10 @@ def test_adapter_forwards_current_dependencies_arguments_results_and_errors(monk
         "clarifications": "_clarification_reply_owner",
         "accounting": "_daily_reply_accounting_owner",
         "mention_queue": "_mention_queue_owner",
+        "reply_contexts": "_reply_context_owner",
+        "tweets": "_tweet_lookup_cache_owner",
+        "generation": "_reply_generation_owner",
+        "history": "_reply_history_owner",
     }
     assert {"config", "persistence", "delivery", *owner_factories} <= dependencies
     state, result = {}, object()
@@ -127,9 +135,6 @@ def test_adapter_forwards_current_dependencies_arguments_results_and_errors(monk
             elif key in owner_factories:
                 factories[key] = Mock(return_value=value)
                 monkeypatch.setattr(bot, owner_factories[key], factories[key])
-            elif key == "recovery_comparison_account_replies":
-                history = Mock(recovery_replies=value)
-                monkeypatch.setattr(bot, "_reply_history_owner", Mock(return_value=history))
             else:
                 monkeypatch.setattr(bot, key, value)
         assert adapter(state, **options) is result
@@ -187,7 +192,7 @@ def test_backlog_continuation_uses_current_root_state_and_budget(monkeypatch, in
         editorial_no_reply(context, *args, evaluation_outcome=evaluation_outcome, **kwargs)
         evaluation_outcome["model_call_count"] = model_calls
 
-    monkeypatch.setattr(bot, "evaluate_single_call_reply", legacy_reply_evaluator(generate))
+    patch_reply_owner_method(monkeypatch, generation_owner.ReplyGeneration, "evaluate", legacy_reply_evaluator(generate))
     for _ in range(2):
         state = bot.default_state()
         queue_active_mention(state, mention(105, 205), base_since_id="99")
@@ -210,10 +215,13 @@ def test_backlog_continuation_uses_current_root_state_and_budget(monkeypatch, in
                 patch.setattr(bot, "now_epoch", current_clock)
                 assert adapter(actual_state, **kwargs) == bot.NORMAL_CHECK_STATUS_DISABLED
             continued = cycle_entry.call_args.kwargs
-            for name in ("author_quarantines", "reply_evaluations", "clarifications", "accounting"):
+            for name in ("author_quarantines", "reply_evaluations", "clarifications", "accounting",
+                         "reply_contexts", "tweets", "generation", "history"):
                 assert continued[name] is not previous[name]
             assert continued["author_quarantines"].now_epoch is current_clock
             assert continued["reply_evaluations"].now_epoch is current_clock
+            for name in ("tweets", "generation", "history"):
+                assert continued[name].now_epoch is current_clock
             return result
 
         current_callback = Mock(side_effect=continue_backlog)
@@ -237,7 +245,7 @@ def test_backlog_continuation_uses_current_root_state_and_budget(monkeypatch, in
 
 @pytest.mark.parametrize("callback", ["recovery_comparison_account_replies", "recover_pending_ai_reply"])
 def test_draft_recovery_errors_propagate_before_generation(monkeypatch, callback):
-    _configure_cycle(monkeypatch)
+    evaluate = _configure_cycle(monkeypatch)
     state = bot.default_state()
     queue_active_mention(state, mention(105, 205), base_since_id="99")
     failure = RuntimeError("draft recovery failed locally")
@@ -259,7 +267,7 @@ def test_draft_recovery_errors_propagate_before_generation(monkeypatch, callback
     assert state.get("reply_evaluation_records", {}) == {}
     saved.assert_not_called()
     accounted.assert_not_called()
-    bot.evaluate_single_call_reply.assert_not_called()
+    evaluate.assert_not_called()
     bot.x_request.assert_not_called()
     bot.create_post.assert_not_called()
 
@@ -271,8 +279,8 @@ def test_receipt_preparation_and_confirmed_state_errors_are_not_transport_errors
     _configure_cycle(monkeypatch)
     state = bot.default_state()
     queue_active_mention(state, mention(105, 205), base_since_id="99")
-    monkeypatch.setattr(
-        bot, "evaluate_single_call_reply",
+    patch_reply_owner_method(
+        monkeypatch, generation_owner.ReplyGeneration, "evaluate",
         legacy_reply_evaluator(lambda context, *_args, **_kwargs: unit_approved_reply(context)),
     )
     failure = RuntimeError("receipt boundary failed locally")
@@ -307,7 +315,7 @@ def test_receipt_preparation_and_confirmed_state_errors_are_not_transport_errors
 
 
 def test_legacy_quote_only_target_is_retired_before_normal_eligibility(monkeypatch):
-    _configure_cycle(monkeypatch)
+    evaluate = _configure_cycle(monkeypatch)
     state = bot.default_state()
     normal_ledger = state["replied_to_ids"]
     quote_ledger = state["replied_to_quote_post_ids"] = ["105"]
@@ -316,13 +324,13 @@ def test_legacy_quote_only_target_is_retired_before_normal_eligibility(monkeypat
     eligible = Mock(side_effect=AssertionError("handled target reached eligibility"))
     context = Mock(side_effect=AssertionError("handled target reached context"))
     monkeypatch.setattr(bot, "reply_target_is_directly_eligible", eligible)
-    monkeypatch.setattr(bot, "build_context_for_reply_ai", context)
+    patch_reply_context_method(monkeypatch, "build", context)
 
     assert bot.maybe_reply_to_mentions(state) == bot.NORMAL_CHECK_STATUS_CHECKED
 
     eligible.assert_not_called()
     context.assert_not_called()
-    bot.evaluate_single_call_reply.assert_not_called()
+    evaluate.assert_not_called()
     bot.x_request.assert_not_called()
     bot.create_post.assert_not_called()
     assert state["replied_to_ids"] is normal_ledger and normal_ledger == []
@@ -332,7 +340,7 @@ def test_legacy_quote_only_target_is_retired_before_normal_eligibility(monkeypat
 
 
 def test_ineligible_mention_draft_retirement_precedes_seen_marker_and_durable_save(monkeypatch):
-    _configure_cycle(monkeypatch)
+    evaluate = _configure_cycle(monkeypatch)
     state = bot.default_state()
     candidate = mention(105, 205)
     candidate["entities"] = {"mentions": []}
@@ -373,7 +381,7 @@ def test_ineligible_mention_draft_retirement_precedes_seen_marker_and_durable_sa
             monkeypatch.setattr(bot, name, observe)
     monkeypatch.setattr(bot, "log_event", lambda event, **kwargs: trace.append((event, None)))
     context = Mock(side_effect=AssertionError("ineligible target must not build context"))
-    monkeypatch.setattr(bot, "build_context_for_reply_ai", context)
+    patch_reply_context_method(monkeypatch, "build", context)
 
     assert bot.maybe_reply_to_mentions(
         state, _fresh_mention_ai_evaluations=bot.MAX_MENTIONS_PER_CHECK,
@@ -391,7 +399,7 @@ def test_ineligible_mention_draft_retirement_precedes_seen_marker_and_durable_sa
     assert saved["last_seen_mention_id"] == "99"
     assert saved["reply_evaluation_records"]["105"]["outcome"] == "reply_not_permitted"
     context.assert_not_called()
-    bot.evaluate_single_call_reply.assert_not_called()
+    evaluate.assert_not_called()
     bot.reply_media_context_for_candidate.assert_not_called()
     bot.x_request.assert_not_called()
     bot.create_post.assert_not_called()
@@ -401,7 +409,7 @@ def test_ineligible_mention_draft_retirement_precedes_seen_marker_and_durable_sa
 def test_mixed_quarantine_retirements_are_durable_before_later_context(
     monkeypatch, fail_first_save,
 ):
-    _configure_cycle(monkeypatch)
+    evaluate = _configure_cycle(monkeypatch)
     state = bot.default_state()
     candidates = [mention(105, 205), mention(106, 206), mention(107, 205), mention(108, 208)]
     candidates[1]["entities"] = {"mentions": []}
@@ -424,7 +432,7 @@ def test_mixed_quarantine_retirements_are_durable_before_later_context(
     context_failure = RuntimeError("stop at later context")
     context = Mock(side_effect=context_failure)
     monkeypatch.setattr(bot, "save_state", save)
-    monkeypatch.setattr(bot, "build_context_for_reply_ai", context)
+    patch_reply_context_method(monkeypatch, "build", context)
 
     with pytest.raises((OSError, RuntimeError)) as caught:
         bot.maybe_reply_to_mentions(state)
@@ -445,7 +453,7 @@ def test_mixed_quarantine_retirements_are_durable_before_later_context(
         assert context.call_count == 1
         assert context.call_args.args[0]["id"] == "108"
     assert state["daily_reply_count"] == 0
-    bot.evaluate_single_call_reply.assert_not_called()
+    evaluate.assert_not_called()
     bot.x_request.assert_not_called()
     bot.create_post.assert_not_called()
 
@@ -494,8 +502,10 @@ def test_native_context_and_generation_errors_keep_their_distinct_boundaries(mon
     state = bot.default_state()
     queue_active_mention(state, mention(105, 205), base_since_id="99")
     failure = RuntimeError("local evaluation failure")
-    name = "build_context_for_reply_ai" if boundary == "context" else "evaluate_single_call_reply"
-    monkeypatch.setattr(bot, name, Mock(side_effect=failure))
+    if boundary == "context":
+        patch_reply_context_method(monkeypatch, "build", Mock(side_effect=failure))
+    else:
+        patch_reply_owner_method(monkeypatch, generation_owner.ReplyGeneration, "evaluate", Mock(side_effect=failure))
     saved = Mock(wraps=bot.save_state)
     accounted = Mock(wraps=bot.record_api_error)
     monkeypatch.setattr(bot, "save_state", saved)
@@ -518,7 +528,7 @@ def test_native_context_and_generation_errors_keep_their_distinct_boundaries(mon
 
 
 def test_clarification_refresh_failure_defers_without_losing_candidate(monkeypatch):
-    _configure_cycle(monkeypatch)
+    evaluate = _configure_cycle(monkeypatch)
     state = bot.default_state()
     queue_active_mention(state, mention(105, 205), base_since_id="99")
     failure = bot.ApiError("temporary question lookup failure", service="x", status_code=503, request_method="GET", request_path="/2/tweets/100")
@@ -526,7 +536,7 @@ def test_clarification_refresh_failure_defers_without_losing_candidate(monkeypat
     assert bot.maybe_reply_to_mentions(state) == bot.NORMAL_CHECK_STATUS_API_ERROR
     assert "105" in state["mention_pending_candidates"]
     assert "105" in json.loads(bot.STATE_FILE.read_text())["mention_pending_candidates"]
-    bot.evaluate_single_call_reply.assert_not_called()
+    evaluate.assert_not_called()
     bot.create_post.assert_not_called()
 
 
@@ -549,7 +559,7 @@ def test_fresh_duplicate_draft_is_rejected_before_delivery(monkeypatch):
     evaluator = Mock(return_value=bot.PipelineResult(
         status="reply", reason="useful_reply", reply=reply, model_call_count=1,
     ))
-    monkeypatch.setattr(bot, "evaluate_single_call_reply", evaluator)
+    patch_reply_owner_method(monkeypatch, generation_owner.ReplyGeneration, "evaluate", evaluator)
     preflight = Mock()
     monkeypatch.setattr(bot, "reply_target_is_available_immediately_before_send", preflight)
 
@@ -595,7 +605,7 @@ def test_prepared_context_preserves_clarification_and_media_through_recovery(mon
         assert bot.store_pending_ai_reply(state, "105", "mention", reply, context=draft_context)
     media = {"native_media": []}
     prepared = interfaces.PreparedReplyContext(context, media)
-    monkeypatch.setattr(bot, "build_context_for_reply_ai", Mock(return_value=prepared))
+    patch_reply_context_method(monkeypatch, "build", Mock(return_value=prepared))
     prepare_context = cycle._prepare_reply_context
 
     def prepare(*args, **kwargs):
@@ -612,7 +622,7 @@ def test_prepared_context_preserves_clarification_and_media_through_recovery(mon
     evaluator = Mock(return_value=bot.PipelineResult(
         status="reply", reason="useful_reply", reply=reply, model_call_count=1,
     ))
-    monkeypatch.setattr(bot, "evaluate_single_call_reply", evaluator)
+    patch_reply_owner_method(monkeypatch, generation_owner.ReplyGeneration, "evaluate", evaluator)
     monkeypatch.setattr(bot, "reply_target_is_available_immediately_before_send", Mock(return_value=False))
 
     assert bot.maybe_reply_to_mentions(state) == bot.NORMAL_CHECK_STATUS_CHECKED
@@ -628,6 +638,101 @@ def test_prepared_context_preserves_clarification_and_media_through_recovery(mon
     assert not state.get("pending_ai_reply_drafts")
     assert state["reply_evaluation_records"]["105"]["reason"] == "x_target_unavailable_pre_send"
     assert state["daily_reply_count"] == 0
+    bot.x_request.assert_not_called()
+    bot.create_post.assert_not_called()
+
+
+def test_normal_owner_handoffs_keep_current_recovery_and_chronological_model_history(monkeypatch):
+    """Exercise real context, cache, history and generation owners without root relays."""
+    build = context_owner.ReplyContext.build
+    evaluate = generation_owner.ReplyGeneration.evaluate
+    _configure_cycle(monkeypatch)
+    monkeypatch.setattr(generation_owner.ReplyGeneration, "evaluate", evaluate)
+    capped, candidate = mention(104, 204), mention(105, 205)
+    candidate["created_at"] = "2033-05-18T03:30:00Z"
+    monkeypatch.setattr(bot, "get_mentions", Mock(return_value=[capped, candidate]))
+    state = bot.default_state()
+    state["daily_reply_date"] = bot.reply_cap_date_str()
+    state["daily_replied_author_counts"] = {"204": bot.MAX_REPLIES_PER_AUTHOR_PER_DAY}
+    target_epoch = bot.parse_x_datetime_to_epoch(candidate["created_at"])
+    state["ai_reply_history"] = [
+        {
+            "target_id": "801", "reply_post_id": "901", "author_id": "501",
+            "candidate_source": "mention", "proposed_reply": "An earlier confirmed reply.",
+            "reply_epoch": target_epoch - 100,
+        },
+        {
+            "target_id": "802", "reply_post_id": "902", "author_id": "502",
+            "candidate_source": "mention", "proposed_reply": "A later confirmed reply.",
+            "reply_epoch": target_epoch + 100,
+        },
+    ]
+    earlier = {"post_id": "901", "text": "An earlier confirmed reply."}
+    later = {"post_id": "902", "text": "A later confirmed reply."}
+    prepared = []
+
+    def observe_context(owner, current_candidate, current_state):
+        assert current_state is state
+        assert current_candidate["id"] == candidate["id"]
+        result = build(owner, current_candidate, current_state)
+        assert result is not None
+        prepared.append(result)
+        return result
+
+    monkeypatch.setattr(context_owner.ReplyContext, "build", observe_context)
+    recovered = []
+    recover = reply_drafts.ReplyDrafts.recover
+
+    def observe_recovery(owner, current_state, target_id, lane, *, context, recent_replies):
+        assert current_state is state
+        assert context is prepared[0].context
+        assert (target_id, lane) == ("105", "mention")
+        assert recent_replies == [earlier, later]
+        result = recover(
+            owner, current_state, target_id, lane,
+            context=context, recent_replies=recent_replies,
+        )
+        recovered.append(result)
+        return result
+
+    monkeypatch.setattr(reply_drafts.ReplyDrafts, "recover", observe_recovery)
+
+    def evaluate_pipeline(**kwargs):
+        assert recovered == [None]
+        assert kwargs["context"] is prepared[0].context
+        assert kwargs["context"]["target_id"] == "105"
+        assert kwargs["recent_account_replies"] == [earlier]
+        assert kwargs["same_author_interactions"] == []
+        assert kwargs["supplied_images"] == []
+        saved = json.loads(bot.STATE_FILE.read_text())
+        assert saved["tweet_cache"]["104"]["post_type"] == "author_cap_context"
+        return bot.PipelineResult(
+            status="no_reply", reason="completed_exchange", model_call_count=1,
+        )
+
+    pipeline = Mock(side_effect=evaluate_pipeline)
+    monkeypatch.setattr(bot, "run_single_call_reply_pipeline", pipeline)
+    collect_images = Mock(return_value=[])
+    monkeypatch.setattr(bot, "collect_reply_images", collect_images)
+    relays = {}
+    for name in (
+        "build_context_for_reply_ai", "cache_tweet", "evaluate_single_call_reply",
+        "_record_single_call_result", "recovery_comparison_account_replies",
+    ):
+        relays[name] = Mock(side_effect=AssertionError(f"root relay used: {name}"))
+        monkeypatch.setattr(bot, name, relays[name])
+
+    assert bot.maybe_reply_to_mentions(state) == bot.NORMAL_CHECK_STATUS_CHECKED
+    assert len(prepared) == pipeline.call_count == 1
+    collect_images.assert_called_once_with(prepared[0].media_context)
+    assert prepared[0].media_context is bot.reply_media_context_for_candidate.return_value
+    assert state["reply_evaluation_records"]["105"]["outcome"] == "no_reply"
+    assert state["last_seen_mention_id"] == "105"
+    assert state["daily_reply_count"] == 0
+    saved = json.loads(bot.STATE_FILE.read_text())
+    assert saved["reply_evaluation_records"]["105"]["outcome"] == "no_reply"
+    for relay in relays.values():
+        relay.assert_not_called()
     bot.x_request.assert_not_called()
     bot.create_post.assert_not_called()
 

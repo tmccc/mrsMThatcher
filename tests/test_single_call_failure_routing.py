@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from mrs_bot_reply_cycle_interfaces import PreparedReplyContext
 from tests.helpers.reply_evaluation import legacy_reply_evaluator
-from tests.helpers.reply_fixtures import patch_reply_draft_method
+from tests.helpers.reply_fixtures import patch_reply_draft_method, patch_reply_owner_method
 
 import copy
 import io
@@ -575,9 +575,8 @@ def test_new_429_cooldown_stops_later_candidate_in_same_lane_cycle(
             and candidate_state.get("openai_api_cooldown_until_epoch", 0) > current
         ),
     )
-    monkeypatch.setattr(
-        bot,
-        "build_context_for_reply_ai",
+    patch_reply_owner_method(
+        monkeypatch, bot._reply_context.ReplyContext, "build",
         lambda candidate, _state: PreparedReplyContext(_candidate_context(candidate), {}),
     )
     monkeypatch.setattr(bot, "reply_evidence_repository", FakeRepository)
@@ -783,7 +782,10 @@ def test_image_transport_failure_is_retried_on_a_later_lane_cycle(
         )
         return None
 
-    monkeypatch.setattr(bot, "evaluate_single_call_reply", legacy_reply_evaluator(transient))
+    patch_reply_owner_method(
+        monkeypatch, bot._reply_generation.ReplyGeneration, "evaluate",
+        legacy_reply_evaluator(transient),
+    )
 
     assert bot.maybe_reply_to_mentions(state) == bot.NORMAL_CHECK_STATUS_API_ERROR
     assert bot.maybe_reply_to_mentions(state) == bot.NORMAL_CHECK_STATUS_API_ERROR
@@ -843,7 +845,10 @@ def test_zero_call_image_failures_do_not_exhaust_mention_sol_budget(
             )
         return None
 
-    monkeypatch.setattr(bot, "evaluate_single_call_reply", legacy_reply_evaluator(decide))
+    patch_reply_owner_method(
+        monkeypatch, bot._reply_generation.ReplyGeneration, "evaluate",
+        legacy_reply_evaluator(decide),
+    )
 
     assert bot.maybe_reply_to_mentions(state) == bot.NORMAL_CHECK_STATUS_CHECKED
     assert calls == [str(tweet_id) for tweet_id in range(100, 106)]
@@ -978,9 +983,8 @@ def test_refusal_retires_candidate_and_allows_later_candidate_without_side_effec
     responses = [_noncompleted_response("refused"), _no_reply_response()]
     request_targets: list[str] = []
 
-    monkeypatch.setattr(
-        bot,
-        "build_context_for_reply_ai",
+    patch_reply_owner_method(
+        monkeypatch, bot._reply_context.ReplyContext, "build",
         lambda candidate, _state: PreparedReplyContext(_candidate_context(candidate), {}),
     )
     monkeypatch.setattr(bot, "reply_evidence_repository", FakeRepository)

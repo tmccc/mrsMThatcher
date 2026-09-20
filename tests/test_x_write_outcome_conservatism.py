@@ -1928,9 +1928,8 @@ def _configure_approved_mention_candidate(
         "is_probably_spam_or_not_worth_replying",
         lambda _text: False,
     )
-    monkeypatch.setattr(
-        bot,
-        "build_context_for_reply_ai",
+    patch_reply_owner_method(
+        monkeypatch, bot._reply_context.ReplyContext, "build",
         lambda *_args: PreparedReplyContext(dict(context), {}),
     )
     monkeypatch.setattr(
@@ -1939,7 +1938,10 @@ def _configure_approved_mention_candidate(
         lambda *_args, **_kwargs: {},
     )
     monkeypatch.setattr(bot, "reply_evidence_repository", lambda: UNIT_REPLY_REPOSITORY)
-    monkeypatch.setattr(bot, "evaluate_single_call_reply", legacy_reply_evaluator(approved))
+    patch_reply_owner_method(
+        monkeypatch, bot._reply_generation.ReplyGeneration, "evaluate",
+        legacy_reply_evaluator(approved),
+    )
     state["last_reply_epoch"] = 0
     return mention
 
@@ -3387,16 +3389,14 @@ def test_deleted_mention_reply_is_terminal_without_transport_barriers_or_quota(
     assert bot.ambiguous_remote_post_is_blocking() is False
 
     restarted = bot.load_state()
-    monkeypatch.setattr(
-        bot,
-        "build_context_for_reply_ai",
+    patch_reply_owner_method(
+        monkeypatch, bot._reply_context.ReplyContext, "build",
         lambda *_args: pytest.fail(
             "terminal target must not rebuild context after restart"
         ),
     )
-    monkeypatch.setattr(
-        bot,
-        "evaluate_single_call_reply",
+    patch_reply_owner_method(
+        monkeypatch, bot._reply_generation.ReplyGeneration, "evaluate",
         legacy_reply_evaluator(lambda *_args, **_kwargs: pytest.fail(
             "terminal target must not call a provider after restart"
         )),

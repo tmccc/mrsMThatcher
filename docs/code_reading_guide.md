@@ -82,11 +82,12 @@ backlog continuation re-enters the current root callback and receives fresh
 owners. Clocks, date reads and durable saves still occur at their original
 operation boundaries.
 
-The quote cycle receives `ReplyContext`, `TweetLookupCache`, `ReplyGeneration`
-and `ReplyHistory` directly. Follow `build_quote`, `get_cached`/`store`,
-`evaluate`/`record_result` and `recovery_replies` in those owners; the cycle no
-longer calls their root compatibility relays. The hand-off test in
-`tests/test_quote_pending_candidates.py` exercises these owners together with
+Both reply cycles receive `ReplyContext`, `TweetLookupCache`, `ReplyGeneration`
+and `ReplyHistory` directly. Follow `build`/`build_quote`, `get_cached`/`store`,
+`evaluate`/`record_result` and `recovery_replies` in those owners; the cycles no
+longer call their root compatibility relays. The hand-off tests in
+`tests/test_bot_normal_reply_cycle.py` and `tests/test_quote_pending_candidates.py`
+exercise these owners together with
 the relays blocked, including current history for recovery and chronological
 history for model context. The root still composes current provider, policy and
 persistence dependencies at each invocation.

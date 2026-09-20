@@ -278,6 +278,11 @@ def test_recording_and_pruning_sample_clock_separately(make_owner):
 
 def test_quarantine_skip_batch_is_durable_across_real_state_reload(monkeypatch):
     _configure_cycle(monkeypatch)
+    evaluate = Mock(side_effect=AssertionError("quarantined mentions must not be evaluated"))
+    patch_reply_owner_method(
+        monkeypatch, bot._reply_generation.ReplyGeneration, "evaluate",
+        evaluate,
+    )
     state = bot.default_state()
     queue_active_mention(state, mention(105, 200), base_since_id="99")
     state["mention_pending_candidates"]["104"] = mention(104, 200)
@@ -311,6 +316,6 @@ def test_quarantine_skip_batch_is_durable_across_real_state_reload(monkeypatch):
                and item["evidence_policy"] == bot.AUTHOR_EVALUATION_QUARANTINE_EVIDENCE_POLICY
                for item in loaded["reply_evaluation_records"].values())
     assert loaded["daily_reply_count"] == 0
-    bot.evaluate_single_call_reply.assert_not_called()
+    evaluate.assert_not_called()
     bot.x_request.assert_not_called()
     bot.create_post.assert_not_called()

@@ -19,6 +19,7 @@ from reply_evidence import EvidenceRepository
 from tests.helpers.bot_runtime import bot
 from tests.helpers.bot_fixtures import isolate_bot_runtime
 from tests.helpers.reply_fixtures import (
+    patch_reply_owner_method,
     UNIT_REPLY_REPOSITORY,
     UnitReplyEvidenceRepository,
     unit_reply_context,
@@ -374,9 +375,8 @@ def test_duplicate_pending_draft_is_retired_and_later_mention_proceeds(
         "is_probably_spam_or_not_worth_replying",
         lambda _text: False,
     )
-    monkeypatch.setattr(
-        bot,
-        "build_context_for_reply_ai",
+    patch_reply_owner_method(
+        monkeypatch, bot._reply_context.ReplyContext, "build",
         lambda candidate, _state: PreparedReplyContext(candidate_context(candidate), {}),
     )
     monkeypatch.setattr(
@@ -389,7 +389,10 @@ def test_duplicate_pending_draft_is_retired_and_later_mention_proceeds(
         "reply_evidence_repository",
         lambda: UNIT_REPLY_REPOSITORY,
     )
-    monkeypatch.setattr(bot, "evaluate_single_call_reply", legacy_reply_evaluator(decide))
+    patch_reply_owner_method(
+        monkeypatch, bot._reply_generation.ReplyGeneration, "evaluate",
+        legacy_reply_evaluator(decide),
+    )
     monkeypatch.setattr(bot, "save_state", lambda *_args, **_kwargs: None)
     monkeypatch.setattr(
         bot,
