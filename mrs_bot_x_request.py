@@ -8,6 +8,11 @@ from __future__ import annotations
 
 from typing import Any
 
+from mrs_bot_post_creation import (
+    media_upload_payload_metadata,
+    validate_media_upload_payload_metadata,
+)
+
 from mrs_bot_x_response_diagnostics import raise_x_create_anomaly_outcome
 
 
@@ -47,7 +52,6 @@ def x_request(
     json: Any,
     log: Any,
     log_json_debug: Any,
-    media_upload_payload_metadata: Any,
     parse_validated_x_error_response: Any,
     perform_consumed_x_request: Any,
     prepared_x_create_route: Any,
@@ -57,7 +61,6 @@ def x_request(
     requests: Any,
     require_remote_operation_unpaused: Any,
     sys: Any,
-    validate_media_upload_payload_metadata: Any,
     x_create_response_anomaly_reason: Any,
     x_request_base_url: Any,
 ) -> dict:

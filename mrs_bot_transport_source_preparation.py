@@ -7,6 +7,8 @@ from __future__ import annotations
 
 from typing import Any
 
+from mrs_bot_post_creation import validate_media_upload_payload_metadata
+
 from mrs_bot_main_post_attempt_values import main_post_attempt_payload
 
 
@@ -302,7 +304,6 @@ def validate_confirmed_media_upload_metadata(
     MediaUploadReceiptError: Any,
     Path: Any,
     inspect_media_upload_receipt: Any,
-    validate_media_upload_payload_metadata: Any,
 ) -> None:
     """Validate the remote form bound to the exact confirmed media generation."""
 

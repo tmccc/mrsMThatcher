@@ -32,7 +32,7 @@ def forbidden(*args, **kwargs):
 
 original_import = builtins.__import__
 def guarded_import(name, *args, **kwargs):
-    if name in {'mrsMThatcher2', 'requests', 'openai', 'single_call_reply'} or name.startswith('mrs_bot_') and name not in {'mrs_bot_x_request', 'mrs_bot_x_response_diagnostics'}:
+    if name in {'mrsMThatcher2', 'requests', 'openai', 'single_call_reply'} or name.startswith('mrs_bot_') and name not in {'mrs_bot_x_request', 'mrs_bot_x_response_diagnostics', 'mrs_bot_post_creation'}:
         forbidden()
     return original_import(name, *args, **kwargs)
 
@@ -71,10 +71,10 @@ assert 'single_call_reply' not in sys.modules
         "canonical_transport_receipt_path_for_lane consume_media_upload_authority "
         "emit_x_create_response_anomaly exact_x_create_route frozen_strict_json_object "
         "invalidate_reply_create_rejection_proof json log log_json_debug "
-        "media_upload_payload_metadata parse_validated_x_error_response "
+        "parse_validated_x_error_response "
         "perform_consumed_x_request prepared_x_create_route print_rate_limit_headers "
         "report_bot_health_progress request_timeout requests require_remote_operation_unpaused "
-        "sys validate_media_upload_payload_metadata x_create_response_anomaly_reason "
+        "sys x_create_response_anomaly_reason "
         "x_request_base_url"
     ).split()),
     ("x_bearer_request", (
@@ -380,7 +380,8 @@ def test_media_metadata_references_and_consumption_precede_transport(monkeypatch
         "requests": SimpleNamespace(request=trace.request, RequestException=bot.requests.RequestException),
         "sys": SimpleNamespace(exc_info=trace.exc_info),
     }.items():
-        monkeypatch.setattr(bot, key, value)
+        target = owner if key in {"media_upload_payload_metadata", "validate_media_upload_payload_metadata"} else bot
+        monkeypatch.setattr(target, key, value)
 
     def pause(*args, **kwargs):
         assert set(observed[0]) == {"data", "files"}

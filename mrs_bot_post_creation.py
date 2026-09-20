@@ -1,9 +1,12 @@
 """Receipt-bound media upload and public-post creation.
 
-The root supplies current runtime dependencies explicitly on each call. This
-module performs no runtime work at import and retains no runtime authority.
+Fixed media metadata construction, validation and copying are owned here.
+The root supplies current runtime boundaries explicitly on each call. Import
+performs no runtime work and retains no runtime authority.
 """
 from __future__ import annotations
+
+import copy
 
 from collections.abc import Callable
 from typing import Any
@@ -13,7 +16,6 @@ def validate_media_upload_payload_metadata(
     value: object,
     *,
     form: dict[str, object],
-    copy: Any,
 ) -> dict[str, object]:
     """Validate local receipt metadata against one exact remote media form."""
 
@@ -33,8 +35,6 @@ def validate_media_upload_payload_metadata(
 
 def media_upload_payload_metadata(
     form: dict[str, object],
-    *,
-    validate_media_upload_payload_metadata: Any,
 ) -> dict[str, object]:
     """Bind the durable media receipt to its remote form."""
 
@@ -53,7 +53,6 @@ def upload_media_v2(
     payload_metadata: dict[str, object] | None = None,
     AmbiguousRemotePostOutcome: Any,
     log: Any,
-    validate_media_upload_payload_metadata: Any,
     x_request: Any,
 ) -> str:
     """Upload once through v2 and return its confirmed media identity."""
@@ -129,7 +128,6 @@ def upload_media(
     confirm_media_upload: Any,
     end_confirmed_post_sigint_deferral: Any,
     log: Any,
-    media_upload_payload_metadata: Any,
     mimetypes: Any,
     record_ambiguous_remote_post: Any,
     require_remote_operation_unpaused: Any,

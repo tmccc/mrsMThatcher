@@ -3240,7 +3240,6 @@ def x_request(
         json=json,
         log=log,
         log_json_debug=log_json_debug,
-        media_upload_payload_metadata=media_upload_payload_metadata,
         parse_validated_x_error_response=parse_validated_x_error_response,
         perform_consumed_x_request=perform_consumed_x_request,
         prepared_x_create_route=prepared_x_create_route,
@@ -3250,7 +3249,6 @@ def x_request(
         requests=requests,
         require_remote_operation_unpaused=require_remote_operation_unpaused,
         sys=sys,
-        validate_media_upload_payload_metadata=validate_media_upload_payload_metadata,
         x_create_response_anomaly_reason=x_create_response_anomaly_reason,
         x_request_base_url=x_request_base_url,
     )
@@ -3750,7 +3748,6 @@ def validate_media_upload_payload_metadata(
     return _post_creation.validate_media_upload_payload_metadata(
         value,
         form=form,
-        copy=copy,
     )
 
 
@@ -3760,7 +3757,6 @@ def media_upload_payload_metadata(
     """Bind the durable media receipt to its exact remote form."""
     return _post_creation.media_upload_payload_metadata(
         form,
-        validate_media_upload_payload_metadata=validate_media_upload_payload_metadata,
     )
 
 
@@ -3777,7 +3773,6 @@ def upload_media_v2(
         payload_metadata=payload_metadata,
         AmbiguousRemotePostOutcome=AmbiguousRemotePostOutcome,
         log=log,
-        validate_media_upload_payload_metadata=validate_media_upload_payload_metadata,
         x_request=x_request,
     )
 
@@ -3818,7 +3813,6 @@ def upload_media(
         confirm_media_upload=confirm_media_upload,
         end_confirmed_post_sigint_deferral=end_confirmed_post_sigint_deferral,
         log=log,
-        media_upload_payload_metadata=media_upload_payload_metadata,
         mimetypes=mimetypes,
         record_ambiguous_remote_post=record_ambiguous_remote_post,
         require_remote_operation_unpaused=require_remote_operation_unpaused,
@@ -5442,7 +5436,6 @@ def validate_confirmed_media_upload_metadata(
         MediaUploadReceiptError=MediaUploadReceiptError,
         Path=Path,
         inspect_media_upload_receipt=inspect_media_upload_receipt,
-        validate_media_upload_payload_metadata=validate_media_upload_payload_metadata,
     )
 
 

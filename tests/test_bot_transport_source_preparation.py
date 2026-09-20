@@ -60,8 +60,7 @@ DEPENDENCIES = {'remote_write_transport_journal_paths': ['CONFIRMED_REPLY_RECEIP
  'validate_confirmed_media_upload_metadata': ['ConfirmedMediaUpload',
                                                 'MediaUploadReceiptError',
                                                 'Path',
-                                                'inspect_media_upload_receipt',
-                                                'validate_media_upload_payload_metadata']}
+                                                'inspect_media_upload_receipt']}
 
 SIGNATURES = {'remote_write_transport_journal_paths': "() -> 'tuple[Path, ...]'",
  'remote_source_receipt_paths': "() -> 'tuple[Path, ...]'",
@@ -88,7 +87,7 @@ def forbidden(*args, **kwargs):
 
 original_import = builtins.__import__
 def guarded_import(name, *args, **kwargs):
-    if name in {'mrsMThatcher2', 'requests', 'openai', 'single_call_reply', 'historical_context_formatter', 'historical_context_outbox', 'transaction_mutation_authority', 'remote_write_transport_journal', 'remote_media_upload_receipt'} or name.startswith('mrs_bot_') and name not in {'mrs_bot_transport_source_preparation', 'mrs_bot_main_post_attempt_values'}:
+    if name in {'mrsMThatcher2', 'requests', 'openai', 'single_call_reply', 'historical_context_formatter', 'historical_context_outbox', 'transaction_mutation_authority', 'remote_write_transport_journal', 'remote_media_upload_receipt'} or name.startswith('mrs_bot_') and name not in {'mrs_bot_transport_source_preparation', 'mrs_bot_main_post_attempt_values', 'mrs_bot_post_creation'}:
         forbidden()
     return original_import(name, *args, **kwargs)
 
@@ -586,7 +585,8 @@ def _media_trace(monkeypatch, mismatch=None):
     for name, value in (("ConfirmedMediaUpload", Confirmation), ("Path", trace.path),
                         ("inspect_media_upload_receipt", trace.inspect),
                         ("validate_media_upload_payload_metadata", trace.validate)):
-        monkeypatch.setattr(bot, name, value)
+        target = preparation if name == "validate_media_upload_payload_metadata" else bot
+        monkeypatch.setattr(target, name, value)
     return trace, confirmation, document, metadata
 
 

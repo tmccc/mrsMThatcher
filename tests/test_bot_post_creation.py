@@ -16,11 +16,10 @@ from tests.helpers.bot_runtime import bot
 from tests.helpers.bot_fixtures import isolate_bot_runtime  # noqa: F401
 
 
-DEPENDENCIES = {'validate_media_upload_payload_metadata': ['copy'],
- 'media_upload_payload_metadata': ['validate_media_upload_payload_metadata'],
+DEPENDENCIES = {'validate_media_upload_payload_metadata': [],
+ 'media_upload_payload_metadata': [],
  'upload_media_v2': ['AmbiguousRemotePostOutcome',
                      'log',
-                     'validate_media_upload_payload_metadata',
                      'x_request'],
  'upload_media': ['AmbiguousRemotePostOutcome',
                   'MEDIA_UPLOAD_RECEIPT_FILE',
@@ -36,7 +35,6 @@ DEPENDENCIES = {'validate_media_upload_payload_metadata': ['copy'],
                   'confirm_media_upload',
                   'end_confirmed_post_sigint_deferral',
                   'log',
-                  'media_upload_payload_metadata',
                   'mimetypes',
                   'record_ambiguous_remote_post',
                   'require_remote_operation_unpaused',
@@ -185,7 +183,7 @@ def test_metadata_validation_preserves_exact_form_and_deep_copy(monkeypatch):
     form = {"media_category": "tweet_image", "media_type": "image/png"}
     value = {"request_method": "POST", "request_path": "/2/media/upload", "form": dict(form)}
     copied = Mock(wraps=copy.deepcopy)
-    monkeypatch.setattr(bot, "copy", SimpleNamespace(deepcopy=copied))
+    monkeypatch.setattr(owner, "copy", SimpleNamespace(deepcopy=copied))
     result = bot.validate_media_upload_payload_metadata(value, form=form)
     copied.assert_called_once_with(value)
     assert copied.call_args.args[0] is value
@@ -226,7 +224,7 @@ def test_metadata_builder_keeps_shallow_form_and_original_validator_reference(mo
 
     original_form = form
     callback = Mock(side_effect=validate)
-    monkeypatch.setattr(bot, "validate_media_upload_payload_metadata", callback)
+    monkeypatch.setattr(owner, "validate_media_upload_payload_metadata", callback)
     assert bot.media_upload_payload_metadata(form) is result
     callback.assert_called_once()
 
@@ -240,7 +238,7 @@ def test_v2_upload_keeps_optional_metadata_multipart_and_authority_references(mo
     events.validate.return_value = validated
     events.request.return_value = {"data": {"id": raw_id}}
     monkeypatch.setattr(bot, "log", events.log)
-    monkeypatch.setattr(bot, "validate_media_upload_payload_metadata", events.validate)
+    monkeypatch.setattr(owner, "validate_media_upload_payload_metadata", events.validate)
     monkeypatch.setattr(bot, "x_request", events.request)
     assert bot.upload_media_v2(authority=authority, payload=payload, payload_metadata=metadata) == str(raw_id).strip()
     assert [c[0] for c in events.mock_calls] == (["log.info", "validate", "request", "log.info"]
@@ -303,7 +301,8 @@ def _media_boundary(monkeypatch, tmp_path):
     for root_name, (name, value) in callbacks.items():
         callback = getattr(events, name)
         callback.return_value = value
-        monkeypatch.setattr(bot, root_name, callback)
+        target = owner if root_name == "media_upload_payload_metadata" else bot
+        monkeypatch.setattr(target, root_name, callback)
     events.mime.return_value = (None, None)
     monkeypatch.setattr(bot, "mimetypes", SimpleNamespace(guess_type=events.mime))
     monkeypatch.setattr(bot, "log", events.log)
