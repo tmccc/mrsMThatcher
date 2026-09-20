@@ -21,7 +21,7 @@ DEPENDENCIES = {
     'remote_write_safety_incident_is_latched': ['_AMBIGUOUS_MARKER_DURABILITY_UNCERTAIN', '_AMBIGUOUS_REMOTE_POST_SEEN'],
     'remote_write_safety_protocol_is_active': ['ProtocolActivationError', 'REMOTE_WRITE_SAFETY_PROTOCOL_ACTIVATION_FILE', 'inspect_protocol_activation', 'remote_receipt_retirement_is_blocking'],
     'historical_context_receipt_path_present_or_unsafe': ['HISTORICAL_CONTEXT_REPLY_RECEIPT_FILE', 'log', 'os'],
-    'historical_context_outbox_remote_attempt_is_blocking': ['HISTORICAL_CONTEXT_REPLY_RECEIPT_FILE', 'Path', 'hashlib', 'historical_context_outbox_store', 'historical_context_reply_store', 'inspect_transport_state', 'journal_path_for_receipt', 'log'],
+    'historical_context_outbox_remote_attempt_is_blocking': ['HISTORICAL_CONTEXT_REPLY_RECEIPT_FILE', 'historical_context_outbox_store', 'historical_context_reply_store', 'inspect_transport_state', 'journal_path_for_receipt', 'log'],
     'historical_context_outbox_remote_attempt_parent_for_local_reconciliation': ['historical_context_outbox_store'],
     'historical_context_receipt_parent_for_local_reconciliation': ['HISTORICAL_CONTEXT_REPLY_RECEIPT_FILE'],
     'exact_historical_context_sending_receipt_matches': ['HISTORICAL_CONTEXT_REPLY_RECEIPT_FILE', 'json', 'os', 'stat'],
@@ -33,7 +33,7 @@ DEPENDENCIES = {
     'confirmed_main_receipt_is_sole_local_recovery_barrier': ['CONFIRMED_REPLY_RECEIPT_FILE', 'HISTORICAL_CONTEXT_REPLY_RECEIPT_FILE', 'MEME_POST_RECEIPT_FILE', 'REGULAR_POST_RECEIPT_FILE', 'inspect_transport_state', 'journal_path_for_receipt', 'load_meme_post_receipt', 'load_regular_post_receipt', 'log', 'receipt_namespace_entry_exists', 'remote_write_transport_journal_paths', 'transport_journal_is_blocking', 'verify_lane_transport_source_lineage_if_present'],
     'remote_media_upload_receipt_is_blocking': ['MEDIA_UPLOAD_RECEIPT_FILE', 'media_upload_receipt_is_blocking'],
     'block_if_remote_media_upload_receipt_exists': ['AmbiguousRemotePostOutcome', 'remote_media_upload_receipt_is_blocking'],
-    'block_if_ambiguous_remote_post': ['AmbiguousRemotePostOutcome', 'CONFIRMED_REPLY_RECEIPT_FILE', 'HISTORICAL_CONTEXT_REPLY_RECEIPT_FILE', 'InvalidMemePostReceipt', 'InvalidRegularPostReceipt', 'MEME_POST_RECEIPT_FILE', 'Path', 'REGULAR_POST_RECEIPT_FILE', 'block_if_remote_media_upload_receipt_exists', 'block_if_remote_receipt_retirement_exists', 'block_if_remote_write_safety_incident_latched', 'block_if_remote_write_transport_journal_exists', 'confirmed_main_receipt_is_sole_local_recovery_barrier', 'current_main_post_attempt_is_semantically_valid', 'exact_historical_context_sending_receipt_matches', 'historical_context_outbox_remote_attempt_is_blocking', 'historical_context_receipt_parent_for_local_reconciliation', 'historical_context_receipt_path_present_or_unsafe', 'inspect_transport_state', 'load_confirmed_reply_receipt', 'load_meme_post_receipt', 'load_regular_post_receipt', 'remote_write_transport_journal_paths', 'transport_journal_is_blocking'],
+    'block_if_ambiguous_remote_post': ['AmbiguousRemotePostOutcome', 'CONFIRMED_REPLY_RECEIPT_FILE', 'HISTORICAL_CONTEXT_REPLY_RECEIPT_FILE', 'InvalidMemePostReceipt', 'InvalidRegularPostReceipt', 'MEME_POST_RECEIPT_FILE', 'REGULAR_POST_RECEIPT_FILE', 'block_if_remote_media_upload_receipt_exists', 'block_if_remote_receipt_retirement_exists', 'block_if_remote_write_safety_incident_latched', 'block_if_remote_write_transport_journal_exists', 'confirmed_main_receipt_is_sole_local_recovery_barrier', 'current_main_post_attempt_is_semantically_valid', 'exact_historical_context_sending_receipt_matches', 'historical_context_outbox_remote_attempt_is_blocking', 'historical_context_receipt_parent_for_local_reconciliation', 'historical_context_receipt_path_present_or_unsafe', 'inspect_transport_state', 'load_confirmed_reply_receipt', 'load_meme_post_receipt', 'load_regular_post_receipt', 'remote_write_transport_journal_paths', 'transport_journal_is_blocking'],
     'ambiguous_remote_post_is_blocking': ['historical_context_outbox_remote_attempt_is_blocking', 'historical_context_receipt_path_present_or_unsafe', 'log', 'remote_media_upload_receipt_is_blocking', 'remote_receipt_retirement_is_blocking', 'remote_write_safety_incident_is_latched', 'remote_write_safety_marker_path_present_or_unsafe', 'remote_write_safety_protocol_is_active', 'remote_write_transport_journal_is_blocking', 'unresolved_conversational_reply_receipt_is_blocking', 'unresolved_main_post_attempt_is_blocking'],
 }
 
@@ -351,7 +351,7 @@ def test_outbox_hash_precedes_byte_type_gate_with_original_exception_scope(monke
     data.load.return_value = (data.receipt, bad_bytes)
     hashing = Mock(side_effect=TypeError("hash before type gate"))
     logger = Mock()
-    monkeypatch.setattr(bot, "hashlib", SimpleNamespace(sha256=hashing))
+    monkeypatch.setattr(bot._remote_write_barriers, "hashlib", SimpleNamespace(sha256=hashing))
     monkeypatch.setattr(bot, "log", logger)
     assert bot.historical_context_outbox_remote_attempt_is_blocking(
         prepared_transport_authority=data.authority,

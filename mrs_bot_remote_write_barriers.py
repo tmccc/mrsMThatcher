@@ -1,10 +1,13 @@
 """Global remote-write barrier checks.
 
 The root supplies current runtime dependencies explicitly on each call. This
-module performs no runtime work at import and retains no runtime authority.
+module owns fixed path and hash operations; it performs no runtime work at
+import and retains no runtime authority.
 """
 from __future__ import annotations
 
+import hashlib
+from pathlib import Path
 from typing import Any
 
 
@@ -91,8 +94,6 @@ def historical_context_outbox_remote_attempt_is_blocking(
     prepared_transport_authority: TransportAuthority | None = None,
     allow_local_reconciliation_parent_id: str | None = None,
     HISTORICAL_CONTEXT_REPLY_RECEIPT_FILE: Any,
-    Path: Any,
-    hashlib: Any,
     historical_context_outbox_store: Any,
     historical_context_reply_store: Any,
     inspect_transport_state: Any,
@@ -561,7 +562,6 @@ def block_if_ambiguous_remote_post(
     InvalidMemePostReceipt: Any,
     InvalidRegularPostReceipt: Any,
     MEME_POST_RECEIPT_FILE: Any,
-    Path: Any,
     REGULAR_POST_RECEIPT_FILE: Any,
     block_if_remote_media_upload_receipt_exists: Any,
     block_if_remote_receipt_retirement_exists: Any,
