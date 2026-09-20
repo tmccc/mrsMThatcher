@@ -1,8 +1,8 @@
 """Own the quote-tweet reply cycle, eligibility and lane markers.
 
 The cycle receives typed settings, persistence and delivery boundaries plus
-context, tweet lookup, generation, history, evaluation, accounting and
-watched-post owners.
+context, tweet lookup, generation, history, evaluation, accounting, cooldown,
+runtime-control and watched-post owners.
 The root composes these owners once per invocation; private helpers call their
 operations directly. The dependency-free
 profile formatter is a root alias. Private helpers separate lookup, eligibility,
@@ -53,6 +53,7 @@ from mrs_bot_reply_preparation import (
 )
 
 if TYPE_CHECKING:
+    from mrs_bot_api_cooldowns import ApiCooldowns
     from mrs_bot_daily_reply_accounting import DailyReplyAccounting
     from mrs_bot_reply_evaluation_state import ReplyEvaluations
     from mrs_bot_reply_context import ReplyContext
@@ -60,6 +61,7 @@ if TYPE_CHECKING:
     from mrs_bot_reply_history import ReplyHistory
     from mrs_bot_quote_discovery import QuoteWatchPosts
     from mrs_bot_tweet_lookup_cache import TweetLookupCache
+    from mrs_bot_runtime_control import RuntimeControls
     from single_call_reply import PipelineResult
 
 
@@ -216,9 +218,9 @@ def maybe_reply_to_quote_tweets(
     conversational_reply_pipeline_enabled: Callable,
     accounting: DailyReplyAccounting,
     get_quote_tweets_for_posts: Callable,
-    in_api_cooldown: Callable,
+    cooldowns: ApiCooldowns,
     is_probably_spam_or_not_worth_replying: Callable,
-    lane_paused: Callable,
+    controls: RuntimeControls,
     log: Logger,
     log_ai_reply_posting_outcome: Callable,
     log_event: Callable,
@@ -226,7 +228,6 @@ def maybe_reply_to_quote_tweets(
     now_epoch: Callable,
     parse_x_datetime_to_epoch: Callable,
     quote_tweet_is_old_enough: Callable,
-    record_api_error: Callable,
     reply_evaluations: ReplyEvaluations,
     history: ReplyHistory,
     reply_evidence_repository: Callable,
@@ -257,14 +258,14 @@ def maybe_reply_to_quote_tweets(
         log.info("Conversational reply pipeline disabled; skipping quote-tweet checks")
         return QUOTE_CHECK_STATUS_DISABLED
 
-    if lane_paused("disable_replies", "disable_quote_replies"):
+    if controls.lane_paused("disable_replies", "disable_quote_replies"):
         log.info("Skipping quote-tweet check due to runtime control file")
         return QUOTE_CHECK_STATUS_DISABLED
 
     if (
-        in_api_cooldown(state, scope="write")
-        or in_api_cooldown(state, scope="openai")
-        or in_api_cooldown(state, scope="quote")
+        cooldowns.active(state, scope="write")
+        or cooldowns.active(state, scope="openai")
+        or cooldowns.active(state, scope="quote")
     ):
         log.info("Skipping quote-tweet check due to API cooldown")
         return QUOTE_CHECK_STATUS_SKIPPED_COOLDOWN
@@ -300,7 +301,7 @@ def maybe_reply_to_quote_tweets(
         quotes_by_post = get_quote_tweets_for_posts(own_post_ids_for_quote_lookup, state)
     except ApiError as exc:
         log.exception("Failed to search quote tweets for watched posts")
-        record_api_error(state, exc, "x", scope="quote")
+        cooldowns.record_error(state, exc, "x", scope="quote")
         persistence.save(state)
         return QUOTE_CHECK_STATUS_CHECKED
     except Exception:
@@ -328,10 +329,9 @@ def maybe_reply_to_quote_tweets(
             ApiError=ApiError,
             api_error_is_permanent_target_failure=api_error_is_permanent_target_failure,
             tweets=tweets,
-            in_api_cooldown=in_api_cooldown,
+            cooldowns=cooldowns,
             log=log,
             parse_x_datetime_to_epoch=parse_x_datetime_to_epoch,
-            record_api_error=record_api_error,
             persistence=persistence,
         )
         if isinstance(lookup, FinishReplyCheck):
@@ -343,7 +343,7 @@ def maybe_reply_to_quote_tweets(
         for quote_tweet in valid_tweets_sorted_by_id(quote_tweets, context="quote-tweet candidate"):
             if processed_candidates >= config.maximum_candidates:
                 break
-            if in_api_cooldown(state, scope="openai"):
+            if cooldowns.active(state, scope="openai"):
                 log.info(
                     "Stopping quote-tweet candidate iteration because the "
                     "OpenAI cooldown became active"
@@ -397,7 +397,7 @@ def maybe_reply_to_quote_tweets(
                 reply_contexts=reply_contexts,
                 tweets=tweets,
                 log=log,
-                record_api_error=record_api_error,
+                cooldowns=cooldowns,
                 reply_evaluations=reply_evaluations,
                 persistence=persistence,
             )
@@ -419,7 +419,7 @@ def maybe_reply_to_quote_tweets(
                 log=log,
                 log_event=log_event,
                 persistence=persistence,
-                record_api_error=record_api_error,
+                cooldowns=cooldowns,
                 history=history,
                 reply_evidence_repository=reply_evidence_repository,
             )
@@ -493,10 +493,9 @@ def _lookup_quote_candidates(
     ApiError: type[Exception],
     api_error_is_permanent_target_failure: Callable,
     tweets: TweetLookupCache,
-    in_api_cooldown: Callable,
+    cooldowns: ApiCooldowns,
     log: Logger,
     parse_x_datetime_to_epoch: Callable,
-    record_api_error: Callable,
     persistence: ReplyCyclePersistence,
 ) -> tuple[dict, list] | SkipReplyCandidate | FinishReplyCheck:
     """Fetch context for an original with discovered quotes, preserving failure routing."""
@@ -510,9 +509,9 @@ def _lookup_quote_candidates(
             persistence.save(state, durable=True)
             return SkipReplyCandidate()
         log.exception("Failed to fetch original own post %s", original_post_id)
-        record_api_error(state, e, "x", scope="quote")
+        cooldowns.record_error(state, e, "x", scope="quote")
         persistence.save(state)
-        if in_api_cooldown(state, scope="quote"):
+        if cooldowns.active(state, scope="quote"):
             return FinishReplyCheck(QUOTE_CHECK_STATUS_CHECKED)
         return SkipReplyCandidate()
     except Exception:
@@ -540,7 +539,7 @@ def _lookup_quote_candidates(
                 fresh = tweets.get_cached(quote_id, state, include_media=True)
             except ApiError as exc:
                 if not api_error_is_permanent_target_failure(exc):
-                    record_api_error(state, exc, "x", scope="quote")
+                    cooldowns.record_error(state, exc, "x", scope="quote")
                     persistence.save(state, durable=True)
                     return FinishReplyCheck(QUOTE_CHECK_STATUS_CHECKED)
                 fresh = None
@@ -751,7 +750,7 @@ def _prepare_reply_context(
     reply_contexts: ReplyContext,
     tweets: TweetLookupCache,
     log: Logger,
-    record_api_error: Callable,
+    cooldowns: ApiCooldowns,
     reply_evaluations: ReplyEvaluations,
     persistence: ReplyCyclePersistence,
 ) -> PreparedReplyContext | SkipReplyCandidate | FinishReplyCheck:
@@ -805,7 +804,7 @@ def _prepare_reply_context(
             "tweet %s",
             quote_id,
         )
-        record_api_error(state, exc, "x", scope="quote")
+        cooldowns.record_error(state, exc, "x", scope="quote")
         persistence.save(state)
         return FinishReplyCheck(QUOTE_CHECK_STATUS_CHECKED)
     if original_context_tweet is None:
@@ -860,7 +859,7 @@ def _evaluate_reply(
     log: Logger,
     log_event: Callable,
     persistence: ReplyCyclePersistence,
-    record_api_error: Callable,
+    cooldowns: ApiCooldowns,
     history: ReplyHistory,
     reply_evidence_repository: Callable,
 ) -> PipelineResult | FinishReplyCheck:
@@ -917,7 +916,7 @@ def _evaluate_reply(
     except ApiError as exc:
         log.exception("OpenAI single-call quote-tweet reply failed")
         if exc.service == "openai":
-            record_api_error(state, exc, "openai")
+            cooldowns.record_error(state, exc, "openai")
         persistence.save(state)
         return FinishReplyCheck(QUOTE_CHECK_STATUS_CHECKED)
     except Exception:

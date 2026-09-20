@@ -2,8 +2,9 @@
 
 ReplyReceipts owns loading, exclusive publication and current/legacy promotion.
 Root composition supplies a fresh owner at each receipt operation boundary.
-ReplyCycleDelivery owns pre-send checks and delivery outcome handling. The lanes
-retain their own terminal bookkeeping and check statuses. Receipt
+ReplyCycleDelivery owns pre-send checks and delivery outcome handling and calls
+its cycle-bound cooldown owner directly. The lanes retain their own terminal
+bookkeeping and check statuses. Receipt
 operations retain exact source binding, error order, shallow references,
 conservative confirmation and fallback state completeness, and the existing
 SIGINT deferral boundaries.
@@ -11,8 +12,9 @@ SIGINT deferral boundaries.
 No-follow/create/replace/retire primitives, transport journals and mutation
 authority, create_post, runtime barriers, SIGINT guard implementation, state
 persistence and reconciliation remain in their existing owners and are invoked
-through current runtime boundaries. Proof-bound exact retirement remains a
-root callback, and ReplyCompletion owns durable commit and ordered retirement.
+through current runtime boundaries. Send-time ambiguity bookkeeping receives a
+fresh cooldown owner. Proof-bound exact retirement remains a root callback, and
+ReplyCompletion owns durable commit and ordered retirement.
 Import uses inert primitives and performs no file, environment, provider or RNG
 work; runtime bindings are retained only by operation-scoped owners.
 """
@@ -29,6 +31,7 @@ from typing import TYPE_CHECKING
 from mrs_bot_durable_json_io import canonical_atomic_json_bytes
 
 if TYPE_CHECKING:
+    from mrs_bot_api_cooldowns import ApiCooldowns
     from mrs_bot_reply_cycle_interfaces import FinaliseReply, PostReply, SaveReplyState
     from mrs_bot_reply_receipt_values import ReplyReceiptValues
     from mrs_bot_reply_reconciliation import ReplyCompletion
@@ -66,7 +69,7 @@ class ReplyCycleDelivery:
     save_state: SaveReplyState
     log: logging.Logger
     posting_outcome: Callable
-    record_api_error: Callable
+    cooldowns: ApiCooldowns
 
     def deliver(
         self,
@@ -156,7 +159,7 @@ class ReplyCycleDelivery:
                 target_id=target_id,
                 failure_reason=f"x_api_{getattr(e, 'status_code', 'error')}",
             )
-            self.record_api_error(state, e, "x", scope=error_scope)
+            self.cooldowns.record_error(state, e, "x", scope=error_scope)
             self.save_state(state)
             return ReplyDeliveryStop.RETRYABLE
         except Exception as e:
@@ -177,7 +180,7 @@ class ReplyCycleDelivery:
                     if error_scope != "write" else "unexpected_posting_error"
                 ),
             )
-            self.record_api_error(state, e, "x", scope=error_scope)
+            self.cooldowns.record_error(state, e, "x", scope=error_scope)
             self.save_state(state)
             return ReplyDeliveryStop.RETRYABLE
         return receipt
@@ -512,7 +515,7 @@ def post_conversational_reply_with_durable_identity(
     create_post: Callable,
     AmbiguousRemotePostOutcome: type[Exception],
     end_confirmed_post_sigint_deferral: Callable,
-    record_api_error: Callable,
+    cooldowns: ApiCooldowns,
     save_state: Callable,
     log: logging.Logger,
     RemoteOperationsPaused: type[Exception],
@@ -567,7 +570,7 @@ def post_conversational_reply_with_durable_identity(
         # including when create_post could not write its global marker.
         end_confirmed_post_sigint_deferral(sigint_guard)
         try:
-            record_api_error(state, exc, "x", scope="write")
+            cooldowns.record_error(state, exc, "x", scope="write")
             save_state(state)
         except Exception:
             log.critical(
@@ -603,7 +606,7 @@ def post_conversational_reply_with_durable_identity(
         # require reconciliation rather than authorising another reply.
         end_confirmed_post_sigint_deferral(sigint_guard)
         try:
-            record_api_error(state, remote_error, "x", scope="write")
+            cooldowns.record_error(state, remote_error, "x", scope="write")
             save_state(state)
         except Exception:
             log.critical(

@@ -2,8 +2,9 @@
 
 The root supplies typed settings, persistence and delivery boundaries,
 context, lookup, generation, history, quarantine, evaluation, clarification and
-accounting owners, plus directly composed mention/hot-post discovery operations,
-current policy callbacks, logger and application classes on each invocation.
+accounting, cooldown and runtime-control owners, plus directly composed
+mention/hot-post discovery operations, current policy callbacks, logger and
+application classes on each invocation.
 Private helpers call owners directly and separate candidate eligibility,
 context/model evaluation, draft/receipt preparation and delivery/recovery. The
 cycle retains operation order, shared budget/quarantine progress, receipt
@@ -57,6 +58,7 @@ from mrs_bot_reply_preparation import (
 from mrs_bot_reply_state import handled_reply_target_ids, retire_ineligible_reply_draft
 
 if TYPE_CHECKING:
+    from mrs_bot_api_cooldowns import ApiCooldowns
     from mrs_bot_mention_discovery import MentionQueue
     from mrs_bot_author_quarantines import AuthorQuarantines
     from mrs_bot_daily_reply_accounting import DailyReplyAccounting
@@ -66,6 +68,7 @@ if TYPE_CHECKING:
     from mrs_bot_reply_generation import ReplyGeneration
     from mrs_bot_reply_history import ReplyHistory
     from mrs_bot_tweet_lookup_cache import TweetLookupCache
+    from mrs_bot_runtime_control import RuntimeControls
     from single_call_reply import PipelineResult
 
 
@@ -143,9 +146,9 @@ def maybe_reply_to_mentions(
     dedupe_reply_candidates: Callable,
     get_hot_post_reply_candidates: Callable,
     get_mentions: Callable,
-    in_api_cooldown: Callable,
+    cooldowns: ApiCooldowns,
     is_probably_spam_or_not_worth_replying: Callable,
-    lane_paused: Callable,
+    controls: RuntimeControls,
     log: Logger,
     log_ai_reply_posting_outcome: Callable,
     log_event: Callable,
@@ -154,7 +157,6 @@ def maybe_reply_to_mentions(
     maybe_reply_to_mentions: Callable,
     now_epoch: Callable,
     reply_evaluations: ReplyEvaluations,
-    record_api_error: Callable,
     history: ReplyHistory,
     reply_evidence_repository: Callable,
     reply_target_is_directly_eligible: Callable,
@@ -182,17 +184,17 @@ def maybe_reply_to_mentions(
         log.info("Conversational reply pipeline disabled; skipping mention/hot-post checks")
         return NORMAL_CHECK_STATUS_DISABLED
 
-    if lane_paused("disable_replies", "disable_normal_replies"):
+    if controls.lane_paused("disable_replies", "disable_normal_replies"):
         log.info("Skipping mention/hot-post reply check due to runtime control file")
         return NORMAL_CHECK_STATUS_DISABLED
 
-    if in_api_cooldown(state):
+    if cooldowns.active(state):
         log.info("Skipping mention check due to X read API cooldown")
         return NORMAL_CHECK_STATUS_SKIPPED_COOLDOWN
-    if in_api_cooldown(state, scope="write"):
+    if cooldowns.active(state, scope="write"):
         log.info("Skipping mention check due to X write API cooldown")
         return NORMAL_CHECK_STATUS_SKIPPED_COOLDOWN
-    if in_api_cooldown(state, scope="openai"):
+    if cooldowns.active(state, scope="openai"):
         log.info("Skipping mention check due to OpenAI API cooldown")
         return NORMAL_CHECK_STATUS_SKIPPED_COOLDOWN
 
@@ -234,7 +236,7 @@ def maybe_reply_to_mentions(
         mentions = get_mentions(state)
     except ApiError as e:
         log.exception("Failed to get mention reply candidates")
-        record_api_error(state, e, "x")
+        cooldowns.record_error(state, e, "x")
         persistence.save(state)
         return NORMAL_CHECK_STATUS_API_ERROR
     except Exception:
@@ -249,7 +251,7 @@ def maybe_reply_to_mentions(
             hot_post_replies = get_hot_post_reply_candidates(state)
         except ApiError as e:
             log.exception("Failed to get optional hot-post reply candidates; continuing with mentions")
-            record_api_error(state, e, "x", scope="quote")
+            cooldowns.record_error(state, e, "x", scope="quote")
             persistence.save(state)
             hot_post_replies = []
         except Exception:
@@ -271,7 +273,7 @@ def maybe_reply_to_mentions(
     progress = _ReplyCycleProgress(int(_fresh_mention_ai_evaluations))
 
     for mention in mentions:
-        if in_api_cooldown(state, scope="openai"):
+        if cooldowns.active(state, scope="openai"):
             log.info(
                 "Stopping mention/hot-post candidate iteration because the "
                 "OpenAI cooldown became active"
@@ -321,7 +323,7 @@ def maybe_reply_to_mentions(
             return NORMAL_CHECK_STATUS_CHECKED
         except ApiError as exc:
             log.exception("Could not refresh original clarification question for mention %s", mention_id)
-            record_api_error(state, exc, "x")
+            cooldowns.record_error(state, exc, "x")
             progress.flush_quarantine_retirements(state, reply_evaluations, persistence)
             persistence.save(state, durable=True)
             return NORMAL_CHECK_STATUS_API_ERROR
@@ -351,7 +353,7 @@ def maybe_reply_to_mentions(
             reply_contexts=reply_contexts, log=log, log_event=log_event,
             mention_queue=mention_queue,
             maybe_mark_hot_post_reply_skipped=maybe_mark_hot_post_reply_skipped,
-            record_api_error=record_api_error,
+            cooldowns=cooldowns,
             reply_evaluations=reply_evaluations,
             reply_evidence_repository=reply_evidence_repository,
             persistence=persistence,
@@ -367,7 +369,7 @@ def maybe_reply_to_mentions(
             ApiError=ApiError, config=config,
             RemoteOperationsPaused=RemoteOperationsPaused,
             generation=generation, log=log, log_event=log_event,
-            persistence=persistence, record_api_error=record_api_error,
+            persistence=persistence, cooldowns=cooldowns,
             history=history,
         )
         if isinstance(evaluation_result, FinishReplyCheck):
@@ -661,7 +663,7 @@ def _prepare_reply_context(
     log_event: Callable,
     mention_queue: MentionQueue,
     maybe_mark_hot_post_reply_skipped: Callable,
-    record_api_error: Callable,
+    cooldowns: ApiCooldowns,
     reply_evaluations: ReplyEvaluations,
     reply_evidence_repository: Callable,
     persistence: ReplyCyclePersistence,
@@ -686,7 +688,7 @@ def _prepare_reply_context(
         return FinishReplyCheck(NORMAL_CHECK_STATUS_CHECKED)
     except ApiError as e:
         log.exception("Could not build context for %s %s due to API error", candidate.source, candidate.mention_id)
-        record_api_error(state, e, "x")
+        cooldowns.record_error(state, e, "x")
         persistence.save(state)
         return FinishReplyCheck(NORMAL_CHECK_STATUS_API_ERROR)
 
@@ -765,7 +767,7 @@ def _evaluate_reply(
     log: Logger,
     log_event: Callable,
     persistence: ReplyCyclePersistence,
-    record_api_error: Callable,
+    cooldowns: ApiCooldowns,
     history: ReplyHistory,
 ) -> PipelineResult | SkipReplyCandidate | FinishReplyCheck:
     """Recover or generate a draft, charging only fresh mention model evaluations."""
@@ -835,7 +837,7 @@ def _evaluate_reply(
     except ApiError as exc:
         log.exception("OpenAI single-call reply failed")
         if exc.service == "openai":
-            record_api_error(state, exc, "openai")
+            cooldowns.record_error(state, exc, "openai")
         persistence.save(state)
         return FinishReplyCheck(NORMAL_CHECK_STATUS_API_ERROR)
     except Exception:

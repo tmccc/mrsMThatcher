@@ -567,9 +567,10 @@ def test_new_429_cooldown_stops_later_candidate_in_same_lane_cycle(
         FakeHttpResponse(200, body=_no_reply_response()),
     ]
 
-    monkeypatch.setattr(
-        bot,
-        "in_api_cooldown",
+    patch_reply_owner_method(
+        monkeypatch,
+        bot._api_cooldowns.ApiCooldowns,
+        "active",
         lambda candidate_state, *, scope="api": bool(
             scope == "openai"
             and candidate_state.get("openai_api_cooldown_until_epoch", 0) > current

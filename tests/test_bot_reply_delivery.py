@@ -15,6 +15,7 @@ from tests.helpers.adapter_assertions import assert_adapters_forward_current_dep
 
 import mrs_bot_reply_delivery as delivery
 import mrs_bot_reply_receipt_values as values
+import mrs_bot_api_cooldowns as api_cooldowns
 from tests.helpers.bot_runtime import bot
 from tests.helpers.bot_fixtures import (
     install_receipt_bound_x_request_stub,
@@ -162,27 +163,33 @@ def test_post_adapter_preserves_current_dependencies_and_lazy_receipt_operations
     value_factory = Mock()
     completion_factory = Mock()
     receipt_factory = Mock()
+    cooldown_factory = Mock()
     monkeypatch.setattr(bot, "_reply_completion_owner", completion_factory)
     monkeypatch.setattr(bot, "_reply_receipts_owner", receipt_factory)
     monkeypatch.setattr(bot, "_reply_receipt_values_owner", value_factory)
+    monkeypatch.setattr(bot, "_api_cooldown_owner", cooldown_factory)
     monkeypatch.setattr(delivery, "post_conversational_reply_with_durable_identity", implementation)
     for _ in range(2):
         value_factory.return_value = Mock(spec=values.ReplyReceiptValues)
         completion_factory.return_value = object()
-        current = {key: object() for key in dependencies}
+        cooldown_factory.return_value = Mock(spec=api_cooldowns.ApiCooldowns)
+        current = {key: object() for key in dependencies if key != "cooldowns"}
         for key, value in current.items():
             monkeypatch.setattr(bot, key, value)
         assert adapter(**options) is implementation.return_value
         value_factory.assert_called_once_with()
         completion_factory.assert_called_once_with()
+        cooldown_factory.assert_called_once_with()
         value_factory.reset_mock()
         completion_factory.reset_mock()
+        cooldown_factory.reset_mock()
         receipt_factory.assert_not_called()
         actual_args, actual_kwargs = implementation.call_args
         assert not actual_args
         expected = {
             **options, **current, "receipt_values": value_factory.return_value,
             "completion": completion_factory.return_value,
+            "cooldowns": cooldown_factory.return_value,
         }
         assert actual_kwargs.keys() == expected.keys() | {"receipts"}
         assert all(actual_kwargs[key] is value for key, value in expected.items())
@@ -922,7 +929,6 @@ def test_cycle_delivery_binds_current_routing_without_running_callbacks(monkeypa
         "reply_not_allowed": "api_error_is_reply_not_allowed",
         "save_state": "save_state", "log": "log",
         "posting_outcome": "log_ai_reply_posting_outcome",
-        "record_api_error": "record_api_error",
     }
     owners = []
     assert ReplyCycleDelivery is delivery.ReplyCycleDelivery
@@ -930,10 +936,12 @@ def test_cycle_delivery_binds_current_routing_without_running_callbacks(monkeypa
         current = {field: Mock() for field in bindings}
         for field, root_name in bindings.items():
             monkeypatch.setattr(bot, root_name, current[field])
-        owner = bot._reply_cycle_delivery()
+        cooldowns = Mock(spec=api_cooldowns.ApiCooldowns)
+        owner = bot._reply_cycle_delivery(cooldowns=cooldowns)
         owners.append(owner)
-        assert set(vars(owner)) == set(bindings)
+        assert set(vars(owner)) == set(bindings) | {"cooldowns"}
         assert all(getattr(owner, name) is value for name, value in current.items())
+        assert owner.cooldowns is cooldowns
         assert all(not value.mock_calls for value in current.values())
         with pytest.raises(FrozenInstanceError):
             owner.post = Mock()
@@ -950,7 +958,7 @@ def test_cycle_delivery_keeps_bound_routing_while_post_binds_current_send_depend
     state, receipt, reply = {}, {"original": []}, object()
     failure = BoundApiError("posting failed")
     bound = {
-        "save_state": Mock(), "log": Mock(), "record_api_error": Mock(),
+        "save_state": Mock(), "log": Mock(),
         "log_ai_reply_posting_outcome": Mock(),
         "api_error_is_reply_not_allowed": Mock(return_value=False),
     }
@@ -985,6 +993,14 @@ def test_cycle_delivery_keeps_bound_routing_while_post_binds_current_send_depend
         monkeypatch.setattr(bot, name, value)
     monkeypatch.setattr(bot, "reply_target_is_available_immediately_before_send", available)
     monkeypatch.setattr(delivery, "post_conversational_reply_with_durable_identity", post)
+    account = Mock()
+    patch_reply_owner_method(
+        monkeypatch, api_cooldowns.ApiCooldowns, "record_error", account,
+    )
+    monkeypatch.setattr(
+        bot, "record_api_error",
+        Mock(side_effect=AssertionError("obsolete root cooldown relay used")),
+    )
     owner = bot._reply_cycle_delivery()
     value_factory.assert_not_called()
     completion_factory.assert_not_called()
@@ -995,7 +1011,7 @@ def test_cycle_delivery_keeps_bound_routing_while_post_binds_current_send_depend
     value_factory.assert_called_once_with()
     completion_factory.assert_called_once_with()
     bound["api_error_is_reply_not_allowed"].assert_called_once_with(failure)
-    bound["record_api_error"].assert_called_once_with(state, failure, "x", scope="write")
+    account.assert_called_once_with(state, failure, "x", scope="write")
     bound["save_state"].assert_called_once_with(state)
     bound["log"].exception.assert_called_once_with("Failed to post generated reply")
     bound["log_ai_reply_posting_outcome"].assert_called_once_with(

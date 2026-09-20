@@ -12,6 +12,7 @@ from unittest.mock import Mock, call
 import pytest
 
 import mrs_bot_quote_reply_cycle as cycle
+import mrs_bot_api_cooldowns as api_cooldowns
 import mrs_bot_reply_state as reply_state
 import mrs_bot_daily_reply_accounting as accounting_owner
 import mrs_bot_reply_context as context_owner
@@ -19,6 +20,7 @@ import mrs_bot_reply_cycle_interfaces as interfaces
 import mrs_bot_reply_evaluation_state as evaluation_state
 import mrs_bot_reply_generation as generation_owner
 import mrs_bot_quote_discovery as quote_discovery
+import mrs_bot_runtime_control as runtime_control
 from tests.helpers.bot_runtime import bot
 from tests.helpers.bot_fixtures import isolate_bot_runtime  # noqa: F401
 from tests.helpers.reply_fixtures import (
@@ -85,6 +87,8 @@ def test_adapters_forward_current_dependencies_arguments_results_and_errors(monk
         "generation": "_reply_generation_owner",
         "history": "_reply_history_owner",
         "watch_posts": "_quote_watch_posts_owner",
+        "cooldowns": "_api_cooldown_owner",
+        "controls": "_runtime_controls_owner",
     }
     for name, count in names.items():
         adapter = getattr(bot, name)
@@ -94,8 +98,8 @@ def test_adapters_forward_current_dependencies_arguments_results_and_errors(monk
         if count is None:
             assert tuple(public) == ("state",)
             assert public["state"].kind is inspect.Parameter.POSITIONAL_OR_KEYWORD
-            assert len(parameters) == 35
-            assert sum(param.kind is inspect.Parameter.KEYWORD_ONLY for param in parameters.values()) == 34
+            assert len(parameters) == 34
+            assert sum(param.kind is inspect.Parameter.KEYWORD_ONLY for param in parameters.values()) == 33
             removed = {
                 key for key in vars(interfaces) if key.startswith("QUOTE_CHECK_STATUS_")
             } | {
@@ -132,7 +136,8 @@ def test_adapters_forward_current_dependencies_arguments_results_and_errors(monk
                     if key == "config":
                         patch.setattr(bot._reply_cycle_interfaces, "QuoteReplyConfig", Mock(return_value=value))
                     elif key in {"persistence", "delivery"}:
-                        patch.setattr(bot, f"_reply_cycle_{key}", Mock(return_value=value))
+                        factories[key] = Mock(return_value=value)
+                        patch.setattr(bot, f"_reply_cycle_{key}", factories[key])
                     elif key in owner_factories:
                         factories[key] = Mock(return_value=value)
                         patch.setattr(bot, owner_factories[key], factories[key])
@@ -140,7 +145,9 @@ def test_adapters_forward_current_dependencies_arguments_results_and_errors(monk
                         patch.setattr(bot, key, value)
                 assert adapter(*args) is result, name
                 for key, factory in factories.items():
-                    if key == "watch_posts" and name == "maybe_reply_to_quote_tweets":
+                    if key in {"generation", "delivery"} and name == "maybe_reply_to_quote_tweets":
+                        factory.assert_called_once_with(cooldowns=current["cooldowns"])
+                    elif key == "watch_posts" and name == "maybe_reply_to_quote_tweets":
                         factory.assert_called_once_with(tweets=current["tweets"])
                     else:
                         factory.assert_called_once_with()
@@ -154,6 +161,33 @@ def test_adapters_forward_current_dependencies_arguments_results_and_errors(monk
             with pytest.raises(TypeError) as caught:
                 adapter(*args)
             assert caught.value is failure
+
+
+def test_cycle_hands_cooldown_and_control_work_to_typed_owners(monkeypatch):
+    _configure_cycle(monkeypatch)
+    state = bot.default_state()
+    failure = bot.ApiError("quote discovery failed", service="x", status_code=503)
+    bot.get_quote_tweets_for_posts.side_effect = failure
+    active = Mock(return_value=False)
+    paused = Mock(return_value=False)
+    record = Mock()
+    patch_reply_owner_method(monkeypatch, api_cooldowns.ApiCooldowns, "active", active)
+    patch_reply_owner_method(monkeypatch, api_cooldowns.ApiCooldowns, "record_error", record)
+    patch_reply_owner_method(monkeypatch, runtime_control.RuntimeControls, "lane_paused", paused)
+    for relay in ("in_api_cooldown", "record_api_error", "lane_paused"):
+        monkeypatch.setattr(
+            bot, relay, Mock(side_effect=AssertionError(f"obsolete root relay used: {relay}")),
+        )
+
+    assert bot.maybe_reply_to_quote_tweets(state) == bot.QUOTE_CHECK_STATUS_CHECKED
+
+    paused.assert_called_once_with("disable_replies", "disable_quote_replies")
+    assert active.call_args_list == [
+        call(state, scope="write"),
+        call(state, scope="openai"),
+        call(state, scope="quote"),
+    ]
+    record.assert_called_once_with(state, failure, "x", scope="quote")
 
 
 def test_fixed_statuses_and_terminal_lookup_use_their_owners():
@@ -501,7 +535,9 @@ def test_lookup_failure_continues_only_when_fetching_the_original(monkeypatch, b
         bot.get_quote_tweets_for_posts.side_effect = failure
     save, health, generate = Mock(), Mock(), Mock()
     monkeypatch.setattr(bot, "save_state", save)
-    monkeypatch.setattr(bot, "record_api_error", health)
+    patch_reply_owner_method(
+        monkeypatch, api_cooldowns.ApiCooldowns, "record_error", health,
+    )
     patch_reply_owner_method(monkeypatch, generation_owner.ReplyGeneration, "evaluate", legacy_reply_evaluator(generate))
 
     assert bot.maybe_reply_to_quote_tweets(state) == bot.QUOTE_CHECK_STATUS_CHECKED
@@ -532,8 +568,10 @@ def test_original_http_errors_skip_targets_or_stop_at_shared_cooldown(
     restore_tweet_lookup_fetch(monkeypatch)
     discoveries = Mock(return_value={target: [{"id": "910"}] for target in ["900", "901", "902", "903"]})
     monkeypatch.setattr(bot, "get_quote_tweets_for_posts", discoveries)
-    health = Mock(wraps=bot.record_api_error)
-    monkeypatch.setattr(bot, "record_api_error", health)
+    health = Mock(wraps=bot._api_cooldown_owner().record_error)
+    patch_reply_owner_method(
+        monkeypatch, api_cooldowns.ApiCooldowns, "record_error", health,
+    )
 
     def respond(method, url, **kwargs):
         assert method == "GET"
@@ -662,7 +700,9 @@ def test_context_failures_retire_in_order_before_later_model_work(
     trace.save.side_effect = save
     monkeypatch.setattr(bot, "save_state", trace.save)
     health = Mock()
-    monkeypatch.setattr(bot, "record_api_error", health)
+    patch_reply_owner_method(
+        monkeypatch, api_cooldowns.ApiCooldowns, "record_error", health,
+    )
 
     def evaluate(context, _media, *, state):
         # The previous target must be durable before the sole model slot is used.
@@ -784,7 +824,9 @@ def test_pre_generation_failures_keep_their_own_exception_boundary(monkeypatch, 
         monkeypatch.setattr(bot, boundary, Mock(side_effect=failure))
     save, health, generate = Mock(), Mock(), Mock()
     monkeypatch.setattr(bot, "save_state", save)
-    monkeypatch.setattr(bot, "record_api_error", health)
+    patch_reply_owner_method(
+        monkeypatch, api_cooldowns.ApiCooldowns, "record_error", health,
+    )
     patch_reply_owner_method(monkeypatch, generation_owner.ReplyGeneration, "evaluate", legacy_reply_evaluator(generate))
     state = bot.default_state()
 

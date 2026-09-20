@@ -13,6 +13,7 @@ import pytest
 from tests.helpers.adapter_assertions import assert_adapters_forward_current_dependencies
 
 import mrs_bot_reply_generation as generation
+import mrs_bot_api_cooldowns as api_cooldowns
 import mrs_bot_reply_history as reply_history
 import mrs_bot_reply_model_transport as model_transport
 import mrs_bot_reply_native_media as reply_media
@@ -78,8 +79,8 @@ OWNER_INPUTS = {
     "remote_operations_paused": "RemoteOperationsPaused", "result_type": "PipelineResult", "log": "log",
     "require_remote_operation_unpaused": "require_remote_operation_unpaused",
     "run_pipeline": "run_single_call_reply_pipeline", "config": "single_call_reply",
-    "evidence_repository": "reply_evidence_repository", "record_api_error": "record_api_error",
-    "reply_type": "ValidatedReply", "now_epoch": "now_epoch",
+    "evidence_repository": "reply_evidence_repository",
+    "reply_type": "ValidatedReply",
     "decision_telemetry": "single_call_decision_telemetry", "log_event": "log_event",
     "strategy_version": "SINGLE_CALL_STRATEGY_VERSION",
 }
@@ -100,7 +101,10 @@ def test_generation_owner_binds_current_boundaries_without_runtime_access(monkey
             monkeypatch.setattr(bot, name, current[field])
         monkeypatch.setattr(bot, "MAX_RECENT_ACCOUNT_REPLIES", 10 + index)
         monkeypatch.setattr(bot, "SINGLE_CALL_MODEL", f"current-model-{index}")
-        owner = bot._reply_generation_owner()
+        current_clock = Mock()
+        cooldowns = Mock(spec=api_cooldowns.ApiCooldowns)
+        monkeypatch.setattr(bot, "now_epoch", current_clock)
+        owner = bot._reply_generation_owner(cooldowns=cooldowns)
         assert isinstance(owner, generation.ReplyGeneration)
         for field, value in current.items():
             assert getattr(owner, field) is value
@@ -109,17 +113,19 @@ def test_generation_owner_binds_current_boundaries_without_runtime_access(monkey
         assert owner.media.require_remote_operation_unpaused is current["require_remote_operation_unpaused"]
         assert isinstance(owner.history, reply_history.ReplyHistory)
         assert owner.history.maximum_recent_replies == 10 + index
-        assert owner.history.now_epoch is current["now_epoch"]
+        assert owner.history.now_epoch is current_clock
         assert isinstance(owner.model_transport, model_transport.ReplyModelTransport)
         assert owner.model_transport.model == f"current-model-{index}"
-        assert owner.model_transport.now_epoch is current["now_epoch"]
+        assert owner.model_transport.now_epoch is current_clock
         assert owner.model_transport.require_remote_operation_unpaused is current["require_remote_operation_unpaused"]
+        assert owner.cooldowns is cooldowns
+        cooldowns.assert_not_called()
         owners.append(owner)
     assert owners[0] is not owners[1]
     for field in ("media", "history", "model_transport"):
         assert getattr(owners[0], field) is not getattr(owners[1], field)
-    assert len(inspect.signature(generation.ReplyGeneration).parameters) == 16
-    assert sum("Callable" in str(field.type) for field in generation.ReplyGeneration.__dataclass_fields__.values()) == 7
+    assert len(inspect.signature(generation.ReplyGeneration).parameters) == 15
+    assert sum("Callable" in str(field.type) for field in generation.ReplyGeneration.__dataclass_fields__.values()) == 5
     with pytest.raises(FrozenInstanceError):
         owners[0].history = owners[1].history
 
@@ -200,7 +206,6 @@ def test_generation_preserves_order_and_references_through_the_current_pipeline(
         "reply_evidence_repository": trace.repository,
         "run_single_call_reply_pipeline": trace.pipeline,
         "log_event": trace.event,
-        "record_api_error": trace.error,
     }.items():
         monkeypatch.setattr(bot, root_name, callback)
     patch_reply_owner_method(monkeypatch, reply_media.ReplyMedia, "collect", trace.images)
@@ -210,7 +215,7 @@ def test_generation_preserves_order_and_references_through_the_current_pipeline(
     monkeypatch.setattr(bot, "log", SimpleNamespace(info=trace.info, warning=trace.warning))
     obsolete_relays = {
         name: Mock(side_effect=AssertionError(f"root relay used: {name}"))
-        for name in ("collect_reply_images", "openai_responses_reply_call", "_openai_api_error")
+        for name in ("collect_reply_images", "openai_responses_reply_call", "_openai_api_error", "record_api_error")
     }
     for name, relay in obsolete_relays.items():
         monkeypatch.setattr(bot, name, relay)
@@ -266,7 +271,9 @@ def test_history_failure_preserves_pre_image_target_and_propagates_before_provid
     patch_reply_history_method(monkeypatch, "for_evaluation", trace.history)
     monkeypatch.setattr(bot, "reply_evidence_repository", trace.repository)
     monkeypatch.setattr(bot, "run_single_call_reply_pipeline", trace.pipeline)
-    monkeypatch.setattr(bot, "record_api_error", trace.error)
+    patch_reply_owner_method(
+        monkeypatch, api_cooldowns.ApiCooldowns, "record_error", trace.error,
+    )
     patch_reply_owner_method(monkeypatch, generation.ReplyGeneration, "record_result", trace.record)
 
     with pytest.raises(TypeError) as caught:
@@ -347,7 +354,13 @@ def test_evaluation_owns_health_and_telemetry_and_fetches_evidence_per_call(monk
     pipeline = Mock(return_value=result)
     monkeypatch.setattr(bot, "run_single_call_reply_pipeline", pipeline)
     monkeypatch.setattr(bot, "log_event", events)
-    monkeypatch.setattr(bot, "record_api_error", errors)
+    patch_reply_owner_method(
+        monkeypatch, api_cooldowns.ApiCooldowns, "record_error", errors,
+    )
+    monkeypatch.setattr(
+        bot, "record_api_error",
+        Mock(side_effect=AssertionError("obsolete root cooldown relay used")),
+    )
     forbidden = Mock(side_effect=AssertionError("generation bounced through a root-owned helper"))
     monkeypatch.setattr(bot, "_record_single_call_result", forbidden)
     monkeypatch.setattr(bot, "_is_openai_provider_health_failure", forbidden)
@@ -400,7 +413,7 @@ def test_health_persistence_failure_keeps_identity_and_precedes_telemetry(
         model_transport=SimpleNamespace(
             call=Mock(), error=trace.error, model=bot.SINGLE_CALL_MODEL,
         ),
-        record_api_error=trace.account,
+        cooldowns=SimpleNamespace(active=Mock(return_value=False), record_error=trace.account),
         log_event=trace.telemetry,
     )
     with pytest.raises(OSError) as caught:

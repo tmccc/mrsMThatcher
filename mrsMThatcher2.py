@@ -2146,7 +2146,7 @@ def require_remote_operation_unpaused(
         # Direct transport/provider calls have no prepared-receipt authority.
         # Every unresolved transaction lane must therefore block them.
         block_if_ambiguous_remote_post()
-    if not global_remote_writes_paused():
+    if not _runtime_controls_owner().global_paused():
         return
     log.warning(
         "Global runtime control pause blocked remote operation: %s",
@@ -2901,7 +2901,7 @@ def sanitize_next_reply_lane_priority(state: dict) -> bool:
 def load_runtime_state() -> dict:
     """Load runtime state and apply daily maintenance safely."""
     return _runtime_state_helpers.load_runtime_state(
-        clear_expired_api_cooldowns=clear_expired_api_cooldowns,
+        cooldowns=_api_cooldown_owner(),
         load_state=load_state,
         sanitize_next_reply_lane_priority=sanitize_next_reply_lane_priority,
     )
@@ -3553,8 +3553,8 @@ def get_hot_post_reply_candidates(state: dict) -> list[dict]:
         MY_USER_ID=MY_USER_ID,
         tweets=tweets,
         retire_ineligible_draft=_reply_draft_owner().retire_ineligible,
-        in_api_cooldown=in_api_cooldown,
-        lane_paused=lane_paused,
+        cooldowns=_api_cooldown_owner(),
+        controls=_runtime_controls_owner(),
         watch_posts=_quote_watch_posts_owner(tweets=tweets),
         log=log,
         log_event=log_event,
@@ -7089,8 +7089,13 @@ _OPENAI_PROVIDER_HEALTH_FAILURE_CATEGORIES = _reply_generation._OPENAI_PROVIDER_
 _TERMINAL_CANDIDATE_LOCAL_FAILURE_CATEGORIES = _reply_generation._TERMINAL_CANDIDATE_LOCAL_FAILURE_CATEGORIES
 
 
-def _reply_generation_owner() -> _reply_generation.ReplyGeneration:
+def _reply_generation_owner(
+    *,
+    cooldowns: _api_cooldowns.ApiCooldowns | None = None,
+) -> _reply_generation.ReplyGeneration:
     """Compose current generation owners without collecting evidence or media."""
+    if cooldowns is None:
+        cooldowns = _api_cooldown_owner()
     return _reply_generation.ReplyGeneration(
         media=_reply_media_owner(),
         remote_operations_paused=RemoteOperationsPaused,
@@ -7102,9 +7107,8 @@ def _reply_generation_owner() -> _reply_generation.ReplyGeneration:
         config=single_call_reply,
         evidence_repository=reply_evidence_repository,
         model_transport=_reply_model_transport_owner(),
-        record_api_error=record_api_error,
+        cooldowns=cooldowns,
         reply_type=ValidatedReply,
-        now_epoch=now_epoch,
         decision_telemetry=single_call_decision_telemetry,
         log_event=log_event,
         strategy_version=SINGLE_CALL_STRATEGY_VERSION,
@@ -7646,7 +7650,7 @@ def post_conversational_reply_with_durable_identity(
         create_post=create_post,
         AmbiguousRemotePostOutcome=AmbiguousRemotePostOutcome,
         end_confirmed_post_sigint_deferral=end_confirmed_post_sigint_deferral,
-        record_api_error=record_api_error,
+        cooldowns=_api_cooldown_owner(),
         save_state=save_state,
         log=log,
         RemoteOperationsPaused=RemoteOperationsPaused,
@@ -7691,8 +7695,13 @@ def _reply_cycle_persistence(
     )
 
 
-def _reply_cycle_delivery() -> _reply_cycle_interfaces.ReplyCycleDelivery:
+def _reply_cycle_delivery(
+    *,
+    cooldowns: _api_cooldowns.ApiCooldowns | None = None,
+) -> _reply_cycle_interfaces.ReplyCycleDelivery:
     """Bind current receipt and delivery callbacks without retaining caller state."""
+    if cooldowns is None:
+        cooldowns = _api_cooldown_owner()
     return _reply_cycle_interfaces.ReplyCycleDelivery(
         load_receipt=load_confirmed_reply_receipt,
         reconcile_receipt=reconcile_confirmed_reply_receipt,
@@ -7711,7 +7720,7 @@ def _reply_cycle_delivery() -> _reply_cycle_interfaces.ReplyCycleDelivery:
         save_state=save_state,
         log=log,
         posting_outcome=log_ai_reply_posting_outcome,
-        record_api_error=record_api_error,
+        cooldowns=cooldowns,
     )
 
 
@@ -7726,6 +7735,8 @@ def maybe_reply_to_mentions(
     reply_evaluations = _reply_evaluation_owner()
     mention_queue = _mention_queue_owner()
     drafts = _reply_draft_owner()
+    cooldowns = _api_cooldown_owner()
+    controls = _runtime_controls_owner()
     return _normal_reply_cycle.maybe_reply_to_mentions(
         state,
         config=_reply_cycle_interfaces.NormalReplyConfig(
@@ -7739,7 +7750,7 @@ def maybe_reply_to_mentions(
             incoming_max_chars=REPLY_INCOMING_MAX_CHARS,
         ),
         persistence=_reply_cycle_persistence(drafts=drafts),
-        delivery=_reply_cycle_delivery(),
+        delivery=_reply_cycle_delivery(cooldowns=cooldowns),
         _fresh_mention_ai_evaluations=_fresh_mention_ai_evaluations,
         _skip_hot_post_fetch=_skip_hot_post_fetch,
         author_quarantines=_author_quarantine_owner(),
@@ -7755,7 +7766,7 @@ def maybe_reply_to_mentions(
         accounting=_daily_reply_accounting_owner(),
         reply_contexts=_reply_context_owner(),
         tweets=tweets,
-        generation=_reply_generation_owner(),
+        generation=_reply_generation_owner(cooldowns=cooldowns),
         history=_reply_history_owner(),
         dedupe_reply_candidates=dedupe_reply_candidates,
         get_hot_post_reply_candidates=functools.partial(
@@ -7771,8 +7782,8 @@ def maybe_reply_to_mentions(
             MY_USER_ID=MY_USER_ID,
             tweets=tweets,
             retire_ineligible_draft=drafts.retire_ineligible,
-            in_api_cooldown=in_api_cooldown,
-            lane_paused=lane_paused,
+            cooldowns=cooldowns,
+            controls=controls,
             watch_posts=_quote_watch_posts_owner(tweets=tweets),
             log=log,
             log_event=log_event,
@@ -7807,9 +7818,9 @@ def maybe_reply_to_mentions(
             x_request=x_request,
             api_error_is_permanent_target_failure=api_error_is_permanent_target_failure,
         ),
-        in_api_cooldown=in_api_cooldown,
+        cooldowns=cooldowns,
         is_probably_spam_or_not_worth_replying=is_probably_spam_or_not_worth_replying,
-        lane_paused=lane_paused,
+        controls=controls,
         log=log,
         log_ai_reply_posting_outcome=log_ai_reply_posting_outcome,
         log_event=log_event,
@@ -7818,7 +7829,6 @@ def maybe_reply_to_mentions(
         maybe_reply_to_mentions=maybe_reply_to_mentions,
         now_epoch=now_epoch,
         reply_evaluations=reply_evaluations,
-        record_api_error=record_api_error,
         reply_evidence_repository=reply_evidence_repository,
         reply_target_is_directly_eligible=reply_target_is_directly_eligible,
         valid_tweets_sorted_by_id=valid_tweets_sorted_by_id,
@@ -7961,6 +7971,7 @@ def mark_quote_spam_author(state: dict, author_id: str) -> None:
 def maybe_reply_to_quote_tweets(state: dict) -> str:
     """Process eligible quote-tweet candidates under all reply limits."""
     tweets = _tweet_lookup_cache_owner()
+    cooldowns = _api_cooldown_owner()
     return _quote_reply_cycle.maybe_reply_to_quote_tweets(
         state,
         config=_reply_cycle_interfaces.QuoteReplyConfig(
@@ -7975,7 +7986,7 @@ def maybe_reply_to_quote_tweets(state: dict) -> str:
             maximum_daily_quote_replies=MAX_QUOTE_REPLIES_PER_DAY,
         ),
         persistence=_reply_cycle_persistence(),
-        delivery=_reply_cycle_delivery(),
+        delivery=_reply_cycle_delivery(cooldowns=cooldowns),
         ApiError=ApiError,
         ContextValidationError=ContextValidationError,
         PipelineResult=PipelineResult,
@@ -7990,12 +8001,12 @@ def maybe_reply_to_quote_tweets(state: dict) -> str:
         accounting=_daily_reply_accounting_owner(),
         reply_contexts=_reply_context_owner(),
         tweets=tweets,
-        generation=_reply_generation_owner(),
+        generation=_reply_generation_owner(cooldowns=cooldowns),
         history=_reply_history_owner(),
         get_quote_tweets_for_posts=get_quote_tweets_for_posts,
-        in_api_cooldown=in_api_cooldown,
+        cooldowns=cooldowns,
         is_probably_spam_or_not_worth_replying=is_probably_spam_or_not_worth_replying,
-        lane_paused=lane_paused,
+        controls=_runtime_controls_owner(),
         log=log,
         log_ai_reply_posting_outcome=log_ai_reply_posting_outcome,
         log_event=log_event,
@@ -8003,7 +8014,6 @@ def maybe_reply_to_quote_tweets(state: dict) -> str:
         now_epoch=now_epoch,
         quote_tweet_is_old_enough=quote_tweet_is_old_enough,
         parse_x_datetime_to_epoch=parse_x_datetime_to_epoch,
-        record_api_error=record_api_error,
         reply_evaluations=_reply_evaluation_owner(),
         reply_evidence_repository=reply_evidence_repository,
         valid_tweets_sorted_by_id=valid_tweets_sorted_by_id,
@@ -8082,15 +8092,17 @@ def _run_due_quote_post_for_tick(
     current: int,
 ) -> None:
     """Handle quote timing and retries after the main loop's safety gates."""
+    cooldowns = _api_cooldown_owner()
+    controls = _runtime_controls_owner()
     next_quote_epoch = int(state.get("next_quote_post_epoch", 0))
     if current >= next_quote_epoch:
         log.info("Due to post quote/image")
 
-        if lane_paused("disable_quote_posts"):
+        if controls.lane_paused("disable_quote_posts"):
             log.warning("Skipping quote/image post due to runtime control file; retrying in 5 minutes")
             state["next_quote_post_epoch"] = current + 300
             save_state(state)
-        elif in_api_cooldown(state, scope="write"):
+        elif cooldowns.active(state, scope="write"):
             log.warning("Skipping quote/image post due to X write API cooldown")
             schedule_next_quote_post(state, current)
         else:
@@ -8116,7 +8128,7 @@ def _run_due_quote_post_for_tick(
                 )
             except ApiError as e:
                 log.exception("Quote/image posting failed due to API error")
-                record_api_error(state, e, "x", scope="write")
+                cooldowns.record_error(state, e, "x", scope="write")
             except Exception:
                 log.exception("Quote/image posting failed unexpectedly")
             report_bot_health_progress("main_loop")
@@ -8132,6 +8144,8 @@ def _run_due_quote_post_for_tick(
 
 def _run_due_meme_post_for_tick(state: dict, current: int) -> None:
     """Handle meme timing and retries after the main loop's safety gates."""
+    cooldowns = _api_cooldown_owner()
+    controls = _runtime_controls_owner()
     if ENABLE_DAILY_MEME_POSTS:
         next_meme_epoch = int(state.get("next_meme_post_epoch", 0) or 0)
 
@@ -8140,7 +8154,7 @@ def _run_due_meme_post_for_tick(state: dict, current: int) -> None:
 
             seconds_since_quote = current - int(state.get("last_quote_post_epoch", 0) or 0)
 
-            if lane_paused("disable_meme_posts"):
+            if controls.lane_paused("disable_meme_posts"):
                 log.warning("Skipping daily meme post due to runtime control file; retrying in 5 minutes")
                 set_meme_delay_schedule(state, epoch=current + 300, mode="delayed_runtime_control")
             elif seconds_since_quote < MEME_MIN_SECONDS_AFTER_QUOTE_POST:
@@ -8149,7 +8163,7 @@ def _run_due_meme_post_for_tick(state: dict, current: int) -> None:
                     seconds_since_quote,
                 )
                 set_meme_delay_schedule(state, epoch=current + 1800, mode="delayed_recent_quote")
-            elif in_api_cooldown(state, scope="write"):
+            elif cooldowns.active(state, scope="write"):
                 log.warning("Skipping daily meme post due to X write API cooldown")
                 set_meme_delay_schedule(state, epoch=current + 3600, mode="delayed_write_api_cooldown")
             else:
@@ -8170,7 +8184,7 @@ def _run_due_meme_post_for_tick(state: dict, current: int) -> None:
                     )
                 except ApiError as e:
                     log.exception("Daily meme posting failed due to API error")
-                    record_api_error(state, e, "x", scope="write")
+                    cooldowns.record_error(state, e, "x", scope="write")
                     set_meme_delay_schedule(state, epoch=current + 3600, mode="delayed_api_error")
                 except Exception:
                     log.exception("Daily meme posting failed unexpectedly")
@@ -8267,6 +8281,7 @@ def main() -> None:
     require_production_bootstrap()
     random.seed()
     acquire_instance_lock()
+    controls = _runtime_controls_owner()
     report_bot_health_progress("startup")
     report_bot_health_progress("recovery")
     # The durable namespace must be proved only while this process owns the
@@ -8274,7 +8289,7 @@ def main() -> None:
     # interval in which a cooperating maintenance process can change the very
     # files whose presence authorises startup.
     require_established_installation_after_ledger_recovery()
-    if not global_remote_writes_paused():
+    if not controls.global_paused():
         try:
             resume_interrupted_confirmed_media_retirement_if_present()
         except Exception:
@@ -8331,7 +8346,7 @@ def main() -> None:
         state,
         startup_current,
     )
-    if not global_remote_writes_paused():
+    if not controls.global_paused():
         reconcile_confirmed_transactions_before_global_barrier(
             lines_used,
             images_used,
@@ -8375,10 +8390,10 @@ def main() -> None:
     report_bot_health_progress("main_loop")
 
     ambiguity_pause_logged = False
-    maintenance_pause_logged = global_remote_writes_paused()
+    maintenance_pause_logged = controls.global_paused()
     while True:
         report_bot_health_progress("main_loop", loop_started=True)
-        maintenance_paused = global_remote_writes_paused()
+        maintenance_paused = controls.global_paused()
         if not maintenance_paused:
             try:
                 resume_interrupted_confirmed_media_retirement_if_present()

@@ -81,8 +81,16 @@ def configure_provider_free_mention_check(
         "current_datetime",
         lambda: datetime.fromtimestamp(current_epoch),
     )
-    monkeypatch.setattr(bot, "lane_paused", lambda *_args, **_kwargs: False)
-    monkeypatch.setattr(bot, "in_api_cooldown", lambda *_args, **_kwargs: False)
+    monkeypatch.setattr(
+        bot._runtime_control.RuntimeControls,
+        "lane_paused",
+        lambda _owner, *_args, **_kwargs: False,
+    )
+    monkeypatch.setattr(
+        bot._api_cooldowns.ApiCooldowns,
+        "active",
+        lambda _owner, *_args, **_kwargs: False,
+    )
     monkeypatch.setattr(bot, "block_if_ambiguous_remote_post", lambda: None)
     monkeypatch.setattr(
         bot._mention_discovery, "get_mentions",

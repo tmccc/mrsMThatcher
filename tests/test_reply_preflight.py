@@ -9,6 +9,8 @@ from unittest.mock import Mock
 
 import pytest
 
+import mrs_bot_api_cooldowns as api_cooldowns
+
 from tests.helpers.bot_runtime import bot
 from tests.helpers.bot_fixtures import isolate_bot_runtime  # noqa: F401
 from tests.helpers.mention_fixtures import mention, queue_active_mention
@@ -56,8 +58,14 @@ def test_reply_preflight_and_create_keep_separate_outcomes(monkeypatch, lane, ou
     monkeypatch.setattr(bot, "x_request", source_request)
     monkeypatch.setattr(bot, "create_post", Mock(wraps=source_create))
     restore_tweet_lookup_fetch(monkeypatch)
-    health = Mock(wraps=bot.record_api_error)
-    monkeypatch.setattr(bot, "record_api_error", health)
+    health = Mock(wraps=bot._api_cooldown_owner().record_error)
+    patch_reply_owner_method(
+        monkeypatch, api_cooldowns.ApiCooldowns, "record_error", health,
+    )
+    monkeypatch.setattr(
+        bot, "record_api_error",
+        Mock(side_effect=AssertionError("obsolete root cooldown relay used")),
+    )
 
     def respond(method, url, **kwargs):
         """Return controlled provider envelopes without opening a socket."""

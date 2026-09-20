@@ -10,6 +10,7 @@ from unittest.mock import Mock, call
 import pytest
 
 import mrsMThatcher2 as bot
+import mrs_bot_api_cooldowns as api_cooldowns
 import mrs_bot_runtime_state_helpers as owner
 from tests.helpers.bot_fixtures import isolate_bot_runtime  # noqa: F401
 
@@ -17,7 +18,7 @@ DEPENDENCIES = {'default_state': ['STATE_MINIMUM_READER_VERSION'],
  'append_unique_capped': [],
  'append_unique_durable': [],
  'scheduler_epoch_from_state': ['log'],
- 'load_runtime_state': ['clear_expired_api_cooldowns',
+ 'load_runtime_state': ['cooldowns',
                         'load_state',
                         'sanitize_next_reply_lane_priority'],
  'apply_state_fields': [],
@@ -95,7 +96,10 @@ def test_adapters_preserve_signatures_current_dependencies_references_and_errors
         with monkeypatch.context() as patch:
             current = {dep: object() for dep in DEPENDENCIES[name]}
             for dep, value in current.items():
-                patch.setattr(bot, dep, value)
+                if dep == "cooldowns":
+                    patch.setattr(bot, "_api_cooldown_owner", Mock(return_value=value))
+                else:
+                    patch.setattr(bot, dep, value)
             result = {"original": []}
             expected = {}
 
@@ -544,7 +548,15 @@ def test_runtime_load_keeps_current_callbacks_same_state_order_and_no_save(monke
         return object()
 
     monkeypatch.setattr(bot, "load_state", load)
-    monkeypatch.setattr(bot, "clear_expired_api_cooldowns", lambda current: maintain("cooldown", current))
+    monkeypatch.setattr(
+        api_cooldowns.ApiCooldowns,
+        "clear_expired",
+        lambda _owner, current: maintain("cooldown", current),
+    )
+    monkeypatch.setattr(
+        bot, "clear_expired_api_cooldowns",
+        Mock(side_effect=AssertionError("obsolete root cooldown relay used")),
+    )
     monkeypatch.setattr(bot, "sanitize_next_reply_lane_priority", lambda current: maintain("priority", current))
     save = Mock(side_effect=AssertionError("unexpected save"))
     monkeypatch.setattr(bot, "save_state", save)

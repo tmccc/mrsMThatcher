@@ -1,9 +1,10 @@
 """Runtime state defaults and scheduling helpers.
 
 QuoteSchedule owns delay selection and schedule application with current clock,
-configuration, logger and persistence inputs. Fixed random/calendar helpers and
-state-field application stay local. Other maintenance boundaries remain supplied
-per call. Import and owner construction perform no runtime work.
+configuration, logger and persistence inputs. Runtime loading calls the supplied
+cooldown owner directly before priority sanitisation. Fixed random/calendar
+helpers and state-field application stay local. Other maintenance boundaries
+remain supplied per call. Import and owner construction perform no runtime work.
 """
 from __future__ import annotations
 
@@ -14,7 +15,10 @@ import random
 from collections.abc import Callable
 from datetime import datetime
 from logging import Logger
-from typing import Any
+from typing import TYPE_CHECKING, Any
+
+if TYPE_CHECKING:
+    from mrs_bot_api_cooldowns import ApiCooldowns
 
 
 def default_state(
@@ -152,13 +156,13 @@ def scheduler_epoch_from_state(
 
 def load_runtime_state(
     *,
-    clear_expired_api_cooldowns: Any,
+    cooldowns: ApiCooldowns,
     load_state: Any,
     sanitize_next_reply_lane_priority: Any,
 ) -> dict:
     """Load runtime state and apply daily maintenance safely."""
     state = load_state()
-    clear_expired_api_cooldowns(state)
+    cooldowns.clear_expired(state)
     sanitize_next_reply_lane_priority(state)
     return state
 

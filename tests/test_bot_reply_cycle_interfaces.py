@@ -99,7 +99,8 @@ def test_cycle_boundaries_capture_current_callbacks_and_config_between_calls(mon
         history = supplied["history"]
         assert isinstance(history, bot._reply_history.ReplyHistory)
         generation_owner = supplied["generation"]
-        assert generation_owner.now_epoch is clock
+        assert generation_owner.cooldowns is supplied["cooldowns"]
+        assert generation_owner.cooldowns.now_epoch is clock
         assert generation_owner.evidence_repository is evidence
         generation_history = generation_owner.history
         assert generation_history.now_epoch is clock
@@ -123,6 +124,7 @@ def test_cycle_boundaries_capture_current_callbacks_and_config_between_calls(mon
         assert drafts.evidence_repository is evidence
         evidence.assert_not_called()
         assert delivery.post is post
+        assert delivery.cooldowns is supplied["cooldowns"]
         assert delivery.finalise is bot.finalise_confirmed_reply
         with pytest.raises(FrozenInstanceError):
             persistence.save = Mock()

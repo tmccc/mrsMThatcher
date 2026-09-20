@@ -13,6 +13,7 @@ from unittest.mock import Mock, call
 import pytest
 
 import mrs_bot_normal_reply_cycle as cycle
+import mrs_bot_api_cooldowns as api_cooldowns
 import mrs_bot_mention_discovery as mention_discovery
 import mrs_bot_author_quarantines as quarantine_owner
 import mrs_bot_daily_reply_accounting as accounting_owner
@@ -24,6 +25,7 @@ import mrs_bot_reply_drafts as reply_drafts
 import mrs_bot_reply_generation as generation_owner
 import mrs_bot_reply_model_transport as model_transport_owner
 import mrs_bot_reply_native_media as media_owner
+import mrs_bot_runtime_control as runtime_control
 from tests.helpers.mention_fixtures import (
     editorial_no_reply,
     mention,
@@ -85,8 +87,8 @@ def test_adapter_forwards_current_dependencies_arguments_results_and_errors(monk
     assert public["state"].kind is inspect.Parameter.POSITIONAL_OR_KEYWORD
     assert public["_fresh_mention_ai_evaluations"].default == 0
     assert public["_skip_hot_post_fetch"].default is False
-    assert len(parameters) == 39
-    assert sum(param.kind is inspect.Parameter.KEYWORD_ONLY for param in parameters.values()) == 38
+    assert len(parameters) == 38
+    assert sum(param.kind is inspect.Parameter.KEYWORD_ONLY for param in parameters.values()) == 37
     removed = {
         name for name in vars(interfaces) if name.startswith("NORMAL_CHECK_STATUS_")
     } | {
@@ -122,6 +124,8 @@ def test_adapter_forwards_current_dependencies_arguments_results_and_errors(monk
         "tweets": "_tweet_lookup_cache_owner",
         "generation": "_reply_generation_owner",
         "history": "_reply_history_owner",
+        "cooldowns": "_api_cooldown_owner",
+        "controls": "_runtime_controls_owner",
     }
     assert {"config", "persistence", "delivery", *owner_factories} <= dependencies
     state, result = {}, object()
@@ -134,7 +138,8 @@ def test_adapter_forwards_current_dependencies_arguments_results_and_errors(monk
             if key == "config":
                 monkeypatch.setattr(bot._reply_cycle_interfaces, "NormalReplyConfig", Mock(return_value=value))
             elif key in {"persistence", "delivery"}:
-                monkeypatch.setattr(bot, f"_reply_cycle_{key}", Mock(return_value=value))
+                factories[key] = Mock(return_value=value)
+                monkeypatch.setattr(bot, f"_reply_cycle_{key}", factories[key])
             elif key in owner_factories:
                 factories[key] = Mock(return_value=value)
                 monkeypatch.setattr(bot, owner_factories[key], factories[key])
@@ -145,8 +150,13 @@ def test_adapter_forwards_current_dependencies_arguments_results_and_errors(monk
         monkeypatch.setattr(bot, "_reply_draft_owner", draft_owner)
         monkeypatch.setattr(bot, "_quote_watch_posts_owner", watch_owner)
         assert adapter(state, **options) is result
-        for factory in factories.values():
-            factory.assert_called_once_with()
+        for key, factory in factories.items():
+            if key in {"generation", "delivery"}:
+                factory.assert_called_once_with(cooldowns=current["cooldowns"])
+            elif key == "persistence":
+                factory.assert_called_once_with(drafts=draft_owner.return_value)
+            else:
+                factory.assert_called_once_with()
         args, kwargs = owner.call_args
         assert len(args) == 1 and args[0] is state
         expected = {
@@ -168,6 +178,8 @@ def test_adapter_forwards_current_dependencies_arguments_results_and_errors(monk
         assert kwargs["get_hot_post_reply_candidates"].keywords["tweets"] is current["tweets"]
         assert kwargs["get_hot_post_reply_candidates"].keywords["reply_evaluations"] is current["reply_evaluations"]
         assert kwargs["get_hot_post_reply_candidates"].keywords["watch_posts"] is watch_owner.return_value
+        assert kwargs["get_hot_post_reply_candidates"].keywords["cooldowns"] is current["cooldowns"]
+        assert kwargs["get_hot_post_reply_candidates"].keywords["controls"] is current["controls"]
         draft_owner.assert_called_once_with()
         watch_owner.assert_called_once_with(tweets=current["tweets"])
     failure = TypeError("current owner failure")
@@ -201,6 +213,33 @@ def test_fixed_statuses_and_dependency_free_helpers_use_their_owners():
     ):
         assert getattr(cycle, name) is getattr(owner, name)
         assert getattr(bot, name) is getattr(owner, name)
+
+
+def test_cycle_hands_cooldown_and_control_work_to_typed_owners(monkeypatch):
+    _configure_cycle(monkeypatch)
+    state = bot.default_state()
+    failure = bot.ApiError("mention lookup failed", service="x", status_code=503)
+    monkeypatch.setattr(
+        mention_discovery, "get_mentions", Mock(side_effect=failure),
+    )
+    active = Mock(return_value=False)
+    paused = Mock(return_value=False)
+    record = Mock()
+    patch_reply_owner_method(monkeypatch, api_cooldowns.ApiCooldowns, "active", active)
+    patch_reply_owner_method(monkeypatch, api_cooldowns.ApiCooldowns, "record_error", record)
+    patch_reply_owner_method(monkeypatch, runtime_control.RuntimeControls, "lane_paused", paused)
+    for relay in ("in_api_cooldown", "record_api_error", "lane_paused"):
+        monkeypatch.setattr(
+            bot, relay, Mock(side_effect=AssertionError(f"obsolete root relay used: {relay}")),
+        )
+
+    assert bot.maybe_reply_to_mentions(state) == bot.NORMAL_CHECK_STATUS_API_ERROR
+
+    paused.assert_called_once_with("disable_replies", "disable_normal_replies")
+    assert active.call_args_list == [
+        call(state), call(state, scope="write"), call(state, scope="openai"),
+    ]
+    record.assert_called_once_with(state, failure, "x")
 
 
 @pytest.mark.parametrize("initial_count,model_calls", [(2, 1), (2, 0), (4, 1)])
@@ -238,12 +277,15 @@ def test_backlog_continuation_uses_current_root_state_and_budget(monkeypatch, in
                 assert adapter(actual_state, **kwargs) == bot.NORMAL_CHECK_STATUS_DISABLED
             continued = cycle_entry.call_args.kwargs
             for name in ("author_quarantines", "reply_evaluations", "clarifications", "accounting",
-                         "reply_contexts", "tweets", "generation", "history"):
+                         "reply_contexts", "tweets", "generation", "history", "cooldowns", "controls"):
                 assert continued[name] is not previous[name]
             assert continued["author_quarantines"].now_epoch is current_clock
             assert continued["reply_evaluations"].now_epoch is current_clock
-            for name in ("tweets", "generation", "history"):
+            for name in ("tweets", "history"):
                 assert continued[name].now_epoch is current_clock
+            assert continued["generation"].cooldowns is continued["cooldowns"]
+            assert continued["generation"].cooldowns.now_epoch is current_clock
+            assert continued["delivery"].cooldowns is continued["cooldowns"]
             return result
 
         current_callback = Mock(side_effect=continue_backlog)
@@ -276,9 +318,11 @@ def test_draft_recovery_errors_propagate_before_generation(monkeypatch, callback
     else:
         patch_reply_history_method(monkeypatch, "recovery_replies", Mock(side_effect=failure))
     saved = Mock(wraps=bot.save_state)
-    accounted = Mock(wraps=bot.record_api_error)
+    accounted = Mock()
     monkeypatch.setattr(bot, "save_state", saved)
-    monkeypatch.setattr(bot, "record_api_error", accounted)
+    patch_reply_owner_method(
+        monkeypatch, api_cooldowns.ApiCooldowns, "record_error", accounted,
+    )
 
     with pytest.raises(RuntimeError) as caught:
         bot.maybe_reply_to_mentions(state)
@@ -313,10 +357,12 @@ def test_receipt_preparation_and_confirmed_state_errors_are_not_transport_errors
     monkeypatch.setattr(bot, callback, Mock(side_effect=failure))
     transport = Mock(return_value=({}, {"reply_post_id": "900"}))
     monkeypatch.setattr(bot, "post_conversational_reply_with_durable_identity", transport)
-    accounted = Mock(wraps=bot.record_api_error)
+    accounted = Mock()
     outcomes = Mock(wraps=bot.log_ai_reply_posting_outcome)
     cleanup = Mock(wraps=bot.remove_confirmed_reply_receipt)
-    monkeypatch.setattr(bot, "record_api_error", accounted)
+    patch_reply_owner_method(
+        monkeypatch, api_cooldowns.ApiCooldowns, "record_error", accounted,
+    )
     monkeypatch.setattr(bot, "log_ai_reply_posting_outcome", outcomes)
     monkeypatch.setattr(bot, "remove_confirmed_reply_receipt", cleanup)
 
@@ -531,9 +577,11 @@ def test_native_context_and_generation_errors_keep_their_distinct_boundaries(mon
     else:
         patch_reply_owner_method(monkeypatch, generation_owner.ReplyGeneration, "evaluate", Mock(side_effect=failure))
     saved = Mock(wraps=bot.save_state)
-    accounted = Mock(wraps=bot.record_api_error)
+    accounted = Mock()
     monkeypatch.setattr(bot, "save_state", saved)
-    monkeypatch.setattr(bot, "record_api_error", accounted)
+    patch_reply_owner_method(
+        monkeypatch, api_cooldowns.ApiCooldowns, "record_error", accounted,
+    )
     if boundary == "context":
         with pytest.raises(RuntimeError) as caught:
             bot.maybe_reply_to_mentions(state)

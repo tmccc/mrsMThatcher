@@ -290,6 +290,23 @@ def test_lane_alias_order_current_data_datetime_and_warning_before_event(monkeyp
     trace.event.assert_not_called()
 
 
+def test_remote_operation_boundary_calls_control_owner_not_global_adapter(monkeypatch):
+    paused = Mock(return_value=True)
+    patch_control_method(monkeypatch, "global_paused", paused)
+    monkeypatch.setattr(bot, "require_instance_lock_for_remote_write", Mock())
+    monkeypatch.setattr(bot, "block_if_ambiguous_remote_post", Mock())
+    monkeypatch.setattr(
+        bot,
+        "global_remote_writes_paused",
+        Mock(side_effect=AssertionError("obsolete root control relay used")),
+    )
+
+    with pytest.raises(bot.RemoteOperationsPaused, match="synthetic provider call"):
+        bot.require_remote_operation_unpaused("synthetic provider call")
+
+    paused.assert_called_once_with()
+
+
 @pytest.mark.parametrize("final_path_failure", [False, True])
 def test_stable_reader_keeps_real_syscall_order_and_closes_before_hash_or_error(monkeypatch, final_path_failure):
     path = bot.CONTROL_FILE

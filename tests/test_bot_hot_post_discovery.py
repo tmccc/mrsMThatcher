@@ -11,9 +11,11 @@ from unittest.mock import Mock, call
 import pytest
 
 import mrs_bot_hot_post_discovery as discovery
+import mrs_bot_api_cooldowns as api_cooldowns
 import mrs_bot_quote_discovery as quote_discovery
 import mrs_bot_reply_evaluation_state as evaluation_state
 import mrs_bot_tweet_lookup_cache as tweet_cache_owner
+import mrs_bot_runtime_control as runtime_control
 from tests.helpers.bot_runtime import bot
 from tests.helpers.bot_fixtures import (
     invalid_pagination_cursor_error,
@@ -84,6 +86,8 @@ def test_adapters_forward_current_dependencies_arguments_defaults_results_and_er
                 current = {key: object() for key in dependencies}
                 factories = {}
                 owner_factories = {
+                    "cooldowns": "_api_cooldown_owner",
+                    "controls": "_runtime_controls_owner",
                     "retire_ineligible_draft": "_reply_draft_owner",
                     "reply_evaluations": "_reply_evaluation_owner",
                     "tweets": "_tweet_lookup_cache_owner",
@@ -134,10 +138,18 @@ def test_early_flags_and_watch_failures_precede_tracking_changes(monkeypatch):
     state = {"hot_post_reply_since_ids": {"unwatched": "99"}, "hot_post_reply_check_counts": []}
     before = copy.deepcopy(state)
     trace = Mock()
-    for label, name, result in (
-        ("pause", "lane_paused", True),
-        ("cooldown", "in_api_cooldown", True),
-        ("watch", "load_extra_quote_watch_post_ids", []),
+    monkeypatch.setattr(
+        bot, "lane_paused",
+        Mock(side_effect=AssertionError("obsolete root control relay used")),
+    )
+    monkeypatch.setattr(
+        bot, "in_api_cooldown",
+        Mock(side_effect=AssertionError("obsolete root cooldown relay used")),
+    )
+    for label, owner_type, method, result in (
+        ("pause", runtime_control.RuntimeControls, "lane_paused", True),
+        ("cooldown", api_cooldowns.ApiCooldowns, "active", True),
+        ("watch", None, None, []),
     ):
         callback = Mock(return_value=result)
         trace.attach_mock(callback, label)
@@ -146,7 +158,7 @@ def test_early_flags_and_watch_failures_precede_tracking_changes(monkeypatch):
                 monkeypatch, quote_discovery.QuoteWatchPosts, "load_extra", callback,
             )
         else:
-            monkeypatch.setattr(bot, name, callback)
+            patch_reply_owner_method(monkeypatch, owner_type, method, callback)
     monkeypatch.setattr(bot, "x_paginated_get", Mock(side_effect=AssertionError("must not fetch")))
     monkeypatch.setattr(bot, "save_state", Mock(side_effect=AssertionError("must not save")))
     monkeypatch.setattr(bot, "ENABLE_HOT_POST_REPLY_CHECKS", False)

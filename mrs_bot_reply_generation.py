@@ -1,12 +1,13 @@
 """Orchestrate the current single-call reply decision.
 
-ReplyGeneration receives current media, history and model-transport owners on each
-root invocation. Evaluation calls those owners directly, alongside fixed health
-classification and owned telemetry. It collects images, selects confirmed history,
-sends the existing Responses request, emits outcome and usage events, returns the
-typed decision result and accounts for provider failures without returning through
-root compatibility relays. Evidence lookup, draft helpers, cooldown persistence,
-terminal evaluation, posting and durable state retain their existing authority.
+ReplyGeneration receives current media, history, model-transport and cooldown
+owners on each root invocation. Evaluation calls those owners directly, alongside
+fixed health classification and owned telemetry. It collects images, selects
+confirmed history, sends the existing Responses request, emits outcome and usage
+events, returns the typed decision result and accounts for provider failures
+without returning through root compatibility relays. Evidence lookup, draft
+helpers, terminal evaluation, posting and durable state retain their existing
+authority.
 
 Import uses the standard library and inert media and validation owners. It
 performs no file, environment, provider or RNG work and retains no callbacks or
@@ -25,6 +26,7 @@ from single_call_reply_validation import normalise_validation_error_codes
 
 
 if TYPE_CHECKING:
+    from mrs_bot_api_cooldowns import ApiCooldowns
     from mrs_bot_reply_history import ReplyHistory
     from mrs_bot_reply_model_transport import ReplyModelTransport
     from mrs_bot_reply_native_media import ReplyMedia
@@ -126,9 +128,8 @@ class ReplyGeneration:
     config: dict[str, object]
     evidence_repository: Callable
     model_transport: ReplyModelTransport
-    record_api_error: Callable
+    cooldowns: ApiCooldowns
     reply_type: type
-    now_epoch: Callable
     decision_telemetry: Callable
     log_event: Callable
     strategy_version: str
@@ -186,7 +187,7 @@ class ReplyGeneration:
 
         lane = str(context.get("lane") or "")
         target_id = str(context.get("target_id") or "")
-        if int(state.get("openai_api_cooldown_until_epoch") or 0) > self.now_epoch():
+        if self.cooldowns.active(state, scope="openai"):
             return self.result_type(status="operational_failure", reason="openai_cooldown",
                                   error_category="provider_cooldown", model_call_count=0)
         visible_turns = [
@@ -292,7 +293,7 @@ class ReplyGeneration:
             status_code = result.provider_status_code
         else:
             return
-        self.record_api_error(
+        self.cooldowns.record_error(
             state,
             self.model_transport.error(
                 message,

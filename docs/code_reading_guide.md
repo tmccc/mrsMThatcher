@@ -82,10 +82,11 @@ backlog continuation re-enters the current root callback and receives fresh
 owners. Clocks, date reads and durable saves still occur at their original
 operation boundaries.
 
-Both reply cycles receive `ReplyContext`, `TweetLookupCache`, `ReplyGeneration`
-and `ReplyHistory` directly. Follow `build`/`build_quote`, `get_cached`/`store`,
-`evaluate`/`record_result` and `recovery_replies` in those owners; the cycles no
-longer call their root compatibility relays. The hand-off tests in
+Both reply cycles receive `ReplyContext`, `TweetLookupCache`, `ReplyGeneration`,
+`ReplyHistory`, `ApiCooldowns` and `RuntimeControls` directly. Follow
+`build`/`build_quote`, `get_cached`/`store`, `evaluate`/`record_result`,
+`recovery_replies`, `active`/`record_error` and `lane_paused` in those owners;
+the cycles no longer call their root compatibility relays. The hand-off tests in
 `tests/test_bot_normal_reply_cycle.py` and `tests/test_quote_pending_candidates.py`
 exercise these owners together with
 the relays blocked, including current history for recovery and chronological
@@ -95,7 +96,8 @@ persistence dependencies at each invocation.
 Discovery uses the same hand-off rule. `MentionQueue` receives
 `MentionAuthority`; mention discovery receives `TweetLookupCache` and
 `ReplyEvaluations`; hot-post discovery receives those two owners plus
-`QuoteWatchPosts`; and the quote cycle calls `QuoteWatchPosts.lookup` directly.
+`QuoteWatchPosts`, `ApiCooldowns` and `RuntimeControls`; and the quote cycle calls
+`QuoteWatchPosts.lookup` directly.
 Each composition shares its invocation's `TweetLookupCache` with nested
 watched-post selection.
 The normal-cycle root composes the two discovery operations from the real module
@@ -104,21 +106,33 @@ remain compatible but are outside the cycle path. X transport and pagination
 remain callbacks, and backlog continuation still re-enters the root to acquire
 fresh owners. The corresponding discovery entry points have 20 and 25 total
 parameters; mention discovery drops from 20 to 19 injected dependencies, while
-hot-post discovery keeps 24 injected dependencies but replaces three callback
+hot-post discovery keeps 24 injected dependencies but replaces five callback
 relays with typed owners. `MentionQueue` and `QuoteWatchPosts` each retain five
 and six constructor fields respectively, with one fewer callback-typed field.
 
-`ReplyGeneration` in turn receives `ReplyMedia`, `ReplyHistory` and
-`ReplyModelTransport` directly. Its evaluation path calls `collect`,
-`for_evaluation`, `call` and `error` on those owners; the public root adapters
+`ReplyGeneration` in turn receives `ReplyMedia`, `ReplyHistory`,
+`ReplyModelTransport` and `ApiCooldowns` directly. Its evaluation path calls
+`collect`, `for_evaluation`, `call`, `error`, `active` and `record_error` on
+those owners; the public root adapters
 `collect_reply_images`, `openai_responses_reply_call` and `_openai_api_error`
 remain available for compatibility but are not on either production reply path.
-The generation constructor has 16 dependencies (7 callback-typed), down from 20
-(11 callback-typed). The normal and quote cycle implementation entry points stay
-at 39 and 35 parameters respectively, so backlog re-entry and lane-local policy
-remain explicit rather than moving into generation. Their hand-off tests block
+The generation constructor has 15 dependencies (5 callback-typed), down from 20
+(11 callback-typed). The normal and quote cycle implementation entry points now
+have 38 and 34 total parameters respectively (37 and 33 injected dependencies),
+so backlog re-entry and lane-local policy remain explicit rather than moving
+into generation. Their hand-off tests block
 the obsolete relays while exercising actual media and history operations and the
 bound model-transport method.
+
+Each reply-cycle root shares one `ApiCooldowns` instance with generation,
+delivery and nested hot-post discovery. The normal cycle likewise shares one
+`RuntimeControls` instance with hot-post discovery; the quote cycle receives a
+fresh control owner. `ReplyCycleDelivery` calls cooldown error routing directly,
+while its posting callback still binds send-time dependencies afresh. Runtime
+state loading calls `ApiCooldowns.clear_expired` directly, and startup/main-loop
+control checks call `RuntimeControls` directly. Public cooldown/control adapters
+remain compatible. `require_remote_operation_unpaused`, instance-lock checks,
+provider transport and remote-write authorities remain operational boundaries.
 
 Private lane steps distinguish `SkipReplyCandidate` from
 `FinishReplyCheck(status)`, and carry `PreparedReplyContext` through preparation

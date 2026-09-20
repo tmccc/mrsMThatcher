@@ -1,6 +1,6 @@
 """Own hot-post discovery, skip marking and candidate handoff.
 
-Four root adapters supply current callbacks, settings, clock and logger per
+Root adapters supply current owners, callbacks, settings, clock and logger per
 call. Fixed copying and bounded-list transformations are local. Original bodies
 stage watched tracking maps in an owned operation before search and preserve
 check counts, full rescans, nested invalid-cursor cleanup, eligibility before
@@ -8,10 +8,11 @@ the candidate cap, draft/terminal ordering, in-place annotations and conservativ
 watermarks.
 Skip records and mention/hot-post merges retain their bounded and copy behavior.
 
-Watched-ID selection, terminal evaluation and tweet caching use their typed owners
-directly. Pagination/authentication, target eligibility, draft authority,
-persistence, mention watermarks and reply cycles remain in their existing
-locations. Runtime reads and saves use supplied callbacks. This module has no
+Watched-ID selection, terminal evaluation, tweet caching, cooldown checks and
+lane controls use their typed owners directly. Pagination/authentication, target
+eligibility, draft authority, persistence, mention watermarks and reply cycles
+remain in their existing locations. Runtime reads and saves use supplied
+callbacks. This module has no
 reverse application import, retained dependencies, configuration, clients or
 state, and performs no import-time file, environment, provider, clock or RNG
 work.
@@ -31,9 +32,11 @@ from mrs_bot_runtime_state_helpers import append_unique_capped
 from mrs_bot_tweet_lookup_cache import normalise_tweet_text
 
 if TYPE_CHECKING:
+    from mrs_bot_api_cooldowns import ApiCooldowns
     from mrs_bot_quote_discovery import QuoteWatchPosts
     from mrs_bot_reply_evaluation_state import ReplyEvaluations
     from mrs_bot_tweet_lookup_cache import TweetLookupCache
+    from mrs_bot_runtime_control import RuntimeControls
 
 
 def _prune_unwatched_tracking(
@@ -94,8 +97,8 @@ def get_hot_post_reply_candidates(
     MY_USER_ID: str,
     tweets: TweetLookupCache,
     retire_ineligible_draft: Callable[[dict, str, str], None],
-    in_api_cooldown: Callable,
-    lane_paused: Callable,
+    cooldowns: ApiCooldowns,
+    controls: RuntimeControls,
     watch_posts: QuoteWatchPosts,
     log: Logger,
     log_event: Callable,
@@ -126,11 +129,11 @@ def get_hot_post_reply_candidates(
     if not ENABLE_HOT_POST_REPLY_CHECKS:
         return []
 
-    if lane_paused("disable_replies", "disable_hot_post_replies"):
+    if controls.lane_paused("disable_replies", "disable_hot_post_replies"):
         log.info("Skipping hot-post reply search due to runtime control file")
         return []
 
-    if in_api_cooldown(state, scope="quote"):
+    if cooldowns.active(state, scope="quote"):
         log.info("Skipping hot-post reply search due to quote API cooldown")
         return []
 

@@ -394,7 +394,11 @@ def test_direct_media_upload_requires_explicit_ambiguous_write_handling(
 
     monkeypatch.setattr(bot.requests, "request", uploaded)
     monkeypatch.setattr(bot, "require_instance_lock_for_remote_write", lambda _op: None)
-    monkeypatch.setattr(bot, "global_remote_writes_paused", lambda: False)
+    monkeypatch.setattr(
+        bot._runtime_control.RuntimeControls,
+        "global_paused",
+        lambda _owner: False,
+    )
 
     with pytest.raises(
         bot.AmbiguousRemotePostOutcome,
@@ -567,9 +571,9 @@ def test_final_pretransport_pause_exactly_aborts_media_pair_without_marker(
         lambda _operation: None,
     )
     monkeypatch.setattr(
-        bot,
-        "global_remote_writes_paused",
-        lambda: next(pause_observations),
+        bot._runtime_control.RuntimeControls,
+        "global_paused",
+        lambda _owner: next(pause_observations),
     )
     monkeypatch.setattr(
         bot.requests,
@@ -630,7 +634,11 @@ def test_pause_after_tweet_authority_consumption_is_prospective_and_confirms_onc
         )
         return _x_response(201, {"data": {"id": "123456"}})
 
-    monkeypatch.setattr(bot, "global_remote_writes_paused", lambda: pause_active)
+    monkeypatch.setattr(
+        bot._runtime_control.RuntimeControls,
+        "global_paused",
+        lambda _owner: pause_active,
+    )
     monkeypatch.setattr(
         journal_module,
         "consume_transport_authority",
@@ -721,7 +729,11 @@ def test_pause_after_media_authority_consumption_is_prospective_and_confirms_onc
         )
         return _x_response(201, {"data": {"id": "780001"}})
 
-    monkeypatch.setattr(bot, "global_remote_writes_paused", lambda: pause_active)
+    monkeypatch.setattr(
+        bot._runtime_control.RuntimeControls,
+        "global_paused",
+        lambda _owner: pause_active,
+    )
     monkeypatch.setattr(bot, "consume_media_upload_authority", consume_then_pause)
     monkeypatch.setattr(bot.requests, "request", confirmed_once)
 
@@ -867,8 +879,12 @@ def test_interrupted_outer_health_update_cannot_leave_a_write_transaction(
 ) -> None:
     state = bot.default_state()
     state["next_quote_post_epoch"] = 0
-    monkeypatch.setattr(bot, "lane_paused", lambda _lane: False)
-    monkeypatch.setattr(bot, "in_api_cooldown", lambda _state, **_kwargs: False)
+    monkeypatch.setattr(
+        bot._runtime_control.RuntimeControls, "lane_paused", lambda _owner, _lane: False,
+    )
+    monkeypatch.setattr(
+        bot._api_cooldowns.ApiCooldowns, "active", lambda _owner, _state, **_kwargs: False,
+    )
 
     def interrupted_health_update(stage: str, **_kwargs: object) -> None:
         assert stage == "quote_post"
@@ -1364,7 +1380,7 @@ def test_blank_x_create_response_preserves_exact_evidence_and_fails_closed(
         return response
 
     observed_record_api_error_statuses: list[int | None] = []
-    real_record_api_error = bot.record_api_error
+    real_record_api_error = bot._api_cooldown_owner().record_error
 
     def capture_record_api_error(
         state: dict,
@@ -1379,7 +1395,12 @@ def test_blank_x_create_response_preserves_exact_evidence_and_fails_closed(
         real_record_api_error(state, error, service, scope=scope)
 
     monkeypatch.setattr(bot.requests, "request", anomalous_create)
-    monkeypatch.setattr(bot, "record_api_error", capture_record_api_error)
+    patch_reply_owner_method(
+        monkeypatch,
+        bot._api_cooldowns.ApiCooldowns,
+        "record_error",
+        capture_record_api_error,
+    )
     sending = unit_sending_v4_reply_receipt(
         target_id="100",
         text="Anomaly fixture reply.",
@@ -1919,8 +1940,14 @@ def _configure_approved_mention_candidate(
         "current_datetime",
         lambda: datetime.fromtimestamp(fixed_epoch),
     )
-    monkeypatch.setattr(bot, "lane_paused", lambda *_args, **_kwargs: False)
-    monkeypatch.setattr(bot, "in_api_cooldown", lambda *_args, **_kwargs: False)
+    monkeypatch.setattr(
+        bot._runtime_control.RuntimeControls,
+        "lane_paused",
+        lambda _owner, *_args, **_kwargs: False,
+    )
+    monkeypatch.setattr(
+        bot._api_cooldowns.ApiCooldowns, "active", lambda _owner, *_args, **_kwargs: False,
+    )
     monkeypatch.setattr(bot._mention_discovery, "get_mentions", lambda _state, **_kwargs: [dict(mention)])
     monkeypatch.setattr(bot._hot_post_discovery, "get_hot_post_reply_candidates", lambda _state, **_kwargs: [])
     monkeypatch.setattr(
@@ -2001,8 +2028,14 @@ def _configure_approved_quote_candidate(
         "current_datetime",
         lambda: datetime.fromtimestamp(fixed_epoch),
     )
-    monkeypatch.setattr(bot, "lane_paused", lambda *_args, **_kwargs: False)
-    monkeypatch.setattr(bot, "in_api_cooldown", lambda *_args, **_kwargs: False)
+    monkeypatch.setattr(
+        bot._runtime_control.RuntimeControls,
+        "lane_paused",
+        lambda _owner, *_args, **_kwargs: False,
+    )
+    monkeypatch.setattr(
+        bot._api_cooldowns.ApiCooldowns, "active", lambda _owner, *_args, **_kwargs: False,
+    )
     monkeypatch.setattr(bot._quote_discovery.QuoteWatchPosts, "lookup", lambda _owner, _state: ["900"])
     patch_tweet_lookup_method(
         monkeypatch, "get_cached",
@@ -3970,7 +4003,11 @@ def test_regular_handler_retires_transaction_when_pause_follows_media_handoff(
         "handoff_confirmed_media_upload_to_main_attempt",
         handoff_then_pause,
     )
-    monkeypatch.setattr(bot, "global_remote_writes_paused", lambda: paused)
+    monkeypatch.setattr(
+        bot._runtime_control.RuntimeControls,
+        "global_paused",
+        lambda _owner: paused,
+    )
     monkeypatch.setattr(bot.requests, "request", local_media_transport)
 
     with pytest.raises(bot.RemoteOperationsPaused):
@@ -4025,7 +4062,11 @@ def test_meme_handler_retires_transaction_when_pause_follows_media_handoff(
         "handoff_confirmed_media_upload_to_main_attempt",
         handoff_then_pause,
     )
-    monkeypatch.setattr(bot, "global_remote_writes_paused", lambda: paused)
+    monkeypatch.setattr(
+        bot._runtime_control.RuntimeControls,
+        "global_paused",
+        lambda _owner: paused,
+    )
     monkeypatch.setattr(bot.requests, "request", local_media_transport)
 
     with pytest.raises(bot.RemoteOperationsPaused):
