@@ -2285,32 +2285,36 @@ coerce_used_set = _used_history.coerce_used_set
 used_set_to_sorted_list = _used_history.used_set_to_sorted_list
 
 
-def load_used_set(path: Path, *, legacy_pickle_path: Path | None = None) -> set:
-    """Load a fail-closed durable used-history set."""
-    return _used_history.load_used_set(
-        path,
-        legacy_pickle_path=legacy_pickle_path,
-        CorruptUsedHistoryError=CorruptUsedHistoryError,
-        UnsafeDurableStateNamespace=UnsafeDurableStateNamespace,
-        coerce_used_set=coerce_used_set,
+def _used_history_owner() -> _used_history.UsedHistory:
+    """Bind current used-history paths and authorities without reading files."""
+    return _used_history.UsedHistory(
+        corrupt_error=CorruptUsedHistoryError,
+        unsafe_namespace=UnsafeDurableStateNamespace,
         json=json,
         log=log,
-        read_stable_owned_json_bytes_no_follow=read_stable_owned_json_bytes_no_follow,
-        save_used_set=save_used_set,
-        used_set_to_sorted_list=used_set_to_sorted_list,
+        read_stable_bytes=read_stable_owned_json_bytes_no_follow,
+        write_json=atomic_write_json,
+        re=re,
+        hashlib=hashlib,
+        quote_hashes_by_line=current_quote_hashes_by_line,
+        quote_history_file=LINES_USED_FILE,
+        legacy_quote_file=PICKLE_FILE,
+        quote_analysis=load_quote_analysis,
+        path_type=Path,
+        image_history_file=IMAGES_USED_FILE,
+        legacy_image_file=IMAGE_PICKLE_FILE,
+        image_analysis=load_image_analysis,
     )
+
+
+def load_used_set(path: Path, *, legacy_pickle_path: Path | None = None) -> set:
+    """Load a fail-closed durable used-history set."""
+    return _used_history_owner().load_used_set(path, legacy_pickle_path=legacy_pickle_path)
 
 
 def save_used_set(path: Path, value: set, *, durable: bool = False) -> None:
     """Persist a used-history set atomically."""
-    return _used_history.save_used_set(
-        path,
-        value,
-        durable=durable,
-        atomic_write_json=atomic_write_json,
-        log=log,
-        used_set_to_sorted_list=used_set_to_sorted_list,
-    )
+    return _used_history_owner().save_used_set(path, value, durable=durable)
 
 
 def default_state() -> dict:
@@ -5114,57 +5118,27 @@ def current_quote_hashes_by_line(lines: list[str]) -> dict[int, str]:
 
 def quote_used_history_has_legacy_indices(value: set) -> bool:
     """Return whether quote used history has legacy indices."""
-    return _used_history.quote_used_history_has_legacy_indices(
-        value,
-        re=re,
-    )
+    return _used_history_owner().quote_used_history_has_legacy_indices(value)
 
 
 def quote_source_matches_analysis(quote_analysis: dict | None, lines: list[str]) -> bool:
     """Return whether quote source matches analysis."""
-    return _used_history.quote_source_matches_analysis(
-        quote_analysis,
-        lines,
-        hashlib=hashlib,
-    )
+    return _used_history_owner().quote_source_matches_analysis(quote_analysis, lines)
 
 
 def normalise_quote_used_hashes(raw_used: set, lines: list[str], quote_analysis: dict | None = None) -> tuple[set, bool]:
     """Return whether normalise quote used hashes."""
-    return _used_history.normalise_quote_used_hashes(
-        raw_used,
-        lines,
-        quote_analysis,
-        current_quote_hashes_by_line=current_quote_hashes_by_line,
-        log=log,
-        quote_source_matches_analysis=quote_source_matches_analysis,
-        re=re,
-    )
+    return _used_history_owner().normalise_quote_used_hashes(raw_used, lines, quote_analysis)
 
 
 def load_quote_used_hashes(lines: list[str]) -> set[str]:
     """Return whether load quote used hashes."""
-    return _used_history.load_quote_used_hashes(
-        lines,
-        LINES_USED_FILE=LINES_USED_FILE,
-        PICKLE_FILE=PICKLE_FILE,
-        load_quote_analysis=load_quote_analysis,
-        load_used_set=load_used_set,
-        log=log,
-        normalise_quote_used_hashes=normalise_quote_used_hashes,
-        quote_used_history_has_legacy_indices=quote_used_history_has_legacy_indices,
-        save_used_set=save_used_set,
-    )
+    return _used_history_owner().load_quote_used_hashes(lines)
 
 
 def save_quote_used_hashes(path: Path, value: set[str], *, durable: bool = False) -> None:
     """Return whether save quote used hashes."""
-    return _used_history.save_quote_used_hashes(
-        path,
-        value,
-        durable=durable,
-        save_used_set=save_used_set,
-    )
+    return _used_history_owner().save_quote_used_hashes(path, value, durable=durable)
 
 
 def validate_quote_analysis_against_lines(quote_analysis: dict, lines: list[str]) -> None:
@@ -5187,12 +5161,7 @@ def current_image_paths() -> list[str]:
 
 def save_image_used_basenames(path: Path, value: set[str], *, durable: bool = False) -> None:
     """Save image used basenames."""
-    return _used_history.save_image_used_basenames(
-        path,
-        value,
-        durable=durable,
-        atomic_write_json=atomic_write_json,
-    )
+    return _used_history_owner().save_image_used_basenames(path, value, durable=durable)
 
 
 def fsync_parent_dir(path: Path, *, strict: bool = False) -> None:
@@ -6486,46 +6455,22 @@ def reconcile_confirmed_transactions_before_global_barrier(
 
 def image_used_history_has_legacy_indices(images_used: set) -> bool:
     """Return whether image used history has legacy indices."""
-    return _used_history.image_used_history_has_legacy_indices(
-        images_used,
-        re=re,
-    )
+    return _used_history_owner().image_used_history_has_legacy_indices(images_used)
 
 
 def image_corpus_verified_for_legacy_migration(images: list[str], image_analysis: dict | None) -> bool:
     """Return the image corpus verified for legacy migration."""
-    return _used_history.image_corpus_verified_for_legacy_migration(
-        images,
-        image_analysis,
-        Path=Path,
-    )
+    return _used_history_owner().image_corpus_verified_for_legacy_migration(images, image_analysis)
 
 
 def normalise_image_used_basenames(images_used: set, images: list[str], image_analysis: dict | None = None) -> tuple[set, bool]:
     """Normalise image used basenames."""
-    return _used_history.normalise_image_used_basenames(
-        images_used,
-        images,
-        image_analysis,
-        Path=Path,
-        image_corpus_verified_for_legacy_migration=image_corpus_verified_for_legacy_migration,
-        re=re,
-    )
+    return _used_history_owner().normalise_image_used_basenames(images_used, images, image_analysis)
 
 
 def load_image_used_basenames(images: list[str]) -> set:
     """Load image used basenames."""
-    return _used_history.load_image_used_basenames(
-        images,
-        IMAGES_USED_FILE=IMAGES_USED_FILE,
-        IMAGE_PICKLE_FILE=IMAGE_PICKLE_FILE,
-        image_used_history_has_legacy_indices=image_used_history_has_legacy_indices,
-        load_image_analysis=load_image_analysis,
-        load_used_set=load_used_set,
-        log=log,
-        normalise_image_used_basenames=normalise_image_used_basenames,
-        save_image_used_basenames=save_image_used_basenames,
-    )
+    return _used_history_owner().load_image_used_basenames(images)
 
 
 # Keep the public helper API here; resolve configuration and sibling helpers
