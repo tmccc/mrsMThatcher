@@ -680,7 +680,7 @@ def test_quote_cycle_resets_when_only_research_ineligible_source_records_remain(
     used = set(eligible_hashes)
     monkeypatch.setattr(bot, "LINES_FILE", lines_file)
     monkeypatch.setattr(bot, "load_quote_analysis", lambda: quote_analysis_for_lines(lines))
-    monkeypatch.setattr(bot, "completed_research_quote_hashes", lambda: eligible_hashes)
+    monkeypatch.setattr(bot._quote_candidates.QuoteCandidates, "completed", lambda _owner: eligible_hashes)
 
     candidates = bot.quote_candidates_for_current_cycle(used)
 

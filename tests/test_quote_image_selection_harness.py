@@ -656,3 +656,31 @@ def test_immutable_candidate_cache_follows_owned_calls_and_preserves_current_mis
     assert (counters["quote_input_misses"], counters["quote_input_hits"]) == (1, 1)
     assert (counters["quote_hash_misses"], counters["quote_hash_hits"]) == (1, 1)
     assert owner_type.weight is original_weight
+
+
+def test_immutable_editorial_cache_covers_owned_comparison_and_keeps_explicit_overrides():
+    from dataclasses import replace
+    from types import SimpleNamespace
+    from tests.helpers.bot_runtime import bot
+
+    owner_type = bot._original_editorial.OriginalEditorial
+    original_score = owner_type.score
+    editorial = {"dimension_scores": {}, "overall_editorial_utility": 10}
+    cache_bot = SimpleNamespace(
+        current_image_sha256=lambda path: path,
+        build_image_topic_idf=lambda analysis: {},
+        score_image_for_quote=lambda *args: (1, {}, True),
+        weight=0.5,
+    )
+    cache_bot._original_editorial_owner = lambda: replace(bot._original_editorial_owner(), default_weight=cache_bot.weight)
+    cache_bot.original_editorial_shadow_score = lambda *args: cache_bot._original_editorial_owner().score(*args)
+    harness.install_immutable_score_caches(cache_bot)
+    cache_bot.weight = 1.0
+    first = cache_bot._original_editorial_owner().score(None, editorial)
+    assert first[0] == 1.0
+    first[1]["dimension_terms"].append({"transient": True})
+    assert cache_bot._original_editorial_owner().score(None, editorial)[1]["dimension_terms"] == []
+    assert cache_bot._original_editorial_owner().score(None, editorial, weight=2)[0] == 2.0
+    counters = cache_bot._HARNESS_IMMUTABLE_CACHE_COUNTERS
+    assert (counters["editorial_score_misses"], counters["editorial_score_hits"]) == (1, 1)
+    assert owner_type.score is original_score

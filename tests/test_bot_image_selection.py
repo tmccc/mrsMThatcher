@@ -212,8 +212,8 @@ def test_selector_reuses_comparison_and_preserves_duplicate_path_numbers(monkeyp
     ))
     monkeypatch.setattr(bot, "ENABLE_ORIGINAL_EDITORIAL_SHADOW_SCORING", enabled)
     monkeypatch.setattr(bot, "original_editorial_shadow_result", comparison)
-    monkeypatch.setattr(bot, "load_original_editorial_analysis", loader)
-    monkeypatch.setattr(bot, "original_editorial_shadow_score", scorer)
+    monkeypatch.setattr(bot._original_editorial.OriginalEditorial, "load", lambda _owner: loader())
+    monkeypatch.setattr(bot._original_editorial.OriginalEditorial, "score", lambda _owner, *args, **kwargs: scorer(*args, **kwargs))
 
     chosen = bot.choose_matched_unused_image(set(), {"quote_hash": "fixture", "analysis": {}}, {})
 

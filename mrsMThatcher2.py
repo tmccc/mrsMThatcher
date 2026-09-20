@@ -6582,89 +6582,66 @@ _ORIGINAL_EDITORIAL_ANALYSIS_CACHE: dict[str, dict] = {}
 original_editorial_numeric = _original_editorial.original_editorial_numeric
 
 
-def original_editorial_concepts(value: object) -> set[str]:
-    """Return the original editorial concepts."""
-    return _original_editorial.original_editorial_concepts(
-        value,
+def _original_editorial_owner() -> _original_editorial.OriginalEditorial:
+    """Bind current external boundaries without runtime work or caller state."""
+    return _original_editorial.OriginalEditorial(
         normalise_tag=normalise_tag,
-        original_editorial_concepts=original_editorial_concepts,
         synonym_to_concept=_ORIGINAL_EDITORIAL_SYNONYM_TO_CONCEPT,
         affinity_concepts=ORIGINAL_EDITORIAL_AFFINITY_CONCEPTS,
-    )
-
-
-def original_editorial_quote_concepts(quote_analysis: dict | None) -> set[str]:
-    """Return the original editorial quote concepts."""
-    return _original_editorial.original_editorial_quote_concepts(
-        quote_analysis,
         as_string_list=as_string_list,
-        original_editorial_concepts=original_editorial_concepts,
-    )
-
-
-def original_editorial_image_concepts(editorial: dict | None) -> set[str]:
-    """Return the original editorial image concepts."""
-    return _original_editorial.original_editorial_image_concepts(
-        editorial,
-        as_string_list=as_string_list,
-        original_editorial_concepts=original_editorial_concepts,
-    )
-
-
-def original_editorial_avoid_concepts(editorial: dict | None) -> set[str]:
-    """Return the original editorial avoid concepts."""
-    return _original_editorial.original_editorial_avoid_concepts(
-        editorial,
-        as_string_list=as_string_list,
-        original_editorial_concepts=original_editorial_concepts,
-    )
-
-
-def original_editorial_quote_dimension_profile(quote_analysis: dict | None) -> dict[str, float]:
-    """Return the original editorial quote dimension profile."""
-    return _original_editorial.original_editorial_quote_dimension_profile(
-        quote_analysis,
         dimensions=ORIGINAL_EDITORIAL_DIMENSIONS,
-        normalise_tag=normalise_tag,
-        as_string_list=as_string_list,
-        original_editorial_quote_concepts=original_editorial_quote_concepts,
-    )
-
-
-def validate_original_editorial_item(basename: str, entry: dict, image_by_name: dict[str, str]) -> dict:
-    """Validate original editorial item."""
-    return _original_editorial.validate_original_editorial_item(
-        basename, entry, image_by_name,
-        dimensions=ORIGINAL_EDITORIAL_DIMENSIONS,
-        generated_image_origin_quote_hash=generated_image_origin_quote_hash,
-        current_image_sha256=current_image_sha256,
-        original_editorial_numeric=original_editorial_numeric,
-    )
-
-
-def load_original_editorial_analysis() -> dict[str, dict]:
-    """Load original editorial analysis."""
-    return _original_editorial.load_original_editorial_analysis(
+        generated_origin=generated_image_origin_quote_hash,
+        image_sha256=current_image_sha256,
         analysis_file=ORIGINAL_EDITORIAL_ANALYSIS_FILE,
         analysis_cache=_ORIGINAL_EDITORIAL_ANALYSIS_CACHE,
         analysis_kind=ORIGINAL_EDITORIAL_ANALYSIS_KIND,
         schema_version=ORIGINAL_EDITORIAL_SCHEMA_VERSION,
-        current_image_paths=current_image_paths,
-        validate_original_editorial_item=validate_original_editorial_item,
-        generated_image_origin_quote_hash=generated_image_origin_quote_hash,
-    )
-
-
-def validate_original_editorial_shadow_startup() -> None:
-    """Validate original editorial shadow startup."""
-    return _original_editorial.validate_original_editorial_shadow_startup(
+        image_paths=current_image_paths,
         enabled=ENABLE_ORIGINAL_EDITORIAL_SHADOW_SCORING,
-        load_original_editorial_analysis=load_original_editorial_analysis,
-        analysis_file=ORIGINAL_EDITORIAL_ANALYSIS_FILE,
         default_weight=ORIGINAL_EDITORIAL_SHADOW_WEIGHT,
         default_max_abs_adjustment=ORIGINAL_EDITORIAL_SHADOW_MAX_ABS_ADJUSTMENT,
         log=log,
     )
+
+
+def original_editorial_concepts(value: object) -> set[str]:
+    """Return the original editorial concepts."""
+    return _original_editorial_owner().concepts(value)
+
+
+def original_editorial_quote_concepts(quote_analysis: dict | None) -> set[str]:
+    """Return the original editorial quote concepts."""
+    return _original_editorial_owner().quote_concepts(quote_analysis)
+
+
+def original_editorial_image_concepts(editorial: dict | None) -> set[str]:
+    """Return the original editorial image concepts."""
+    return _original_editorial_owner().image_concepts(editorial)
+
+
+def original_editorial_avoid_concepts(editorial: dict | None) -> set[str]:
+    """Return the original editorial avoid concepts."""
+    return _original_editorial_owner().avoid_concepts(editorial)
+
+
+def original_editorial_quote_dimension_profile(quote_analysis: dict | None) -> dict[str, float]:
+    """Return the original editorial quote dimension profile."""
+    return _original_editorial_owner().quote_profile(quote_analysis)
+
+
+def validate_original_editorial_item(basename: str, entry: dict, image_by_name: dict[str, str]) -> dict:
+    """Validate original editorial item."""
+    return _original_editorial_owner().validate_item(basename, entry, image_by_name)
+
+
+def load_original_editorial_analysis() -> dict[str, dict]:
+    """Load original editorial analysis."""
+    return _original_editorial_owner().load()
+
+
+def validate_original_editorial_shadow_startup() -> None:
+    """Validate original editorial shadow startup."""
+    return _original_editorial_owner().validate_startup()
 
 
 def original_editorial_shadow_score(
@@ -6675,18 +6652,7 @@ def original_editorial_shadow_score(
     max_abs_adjustment: float | None = None,
 ) -> tuple[float, dict]:
     """Calculate the observational editorial adjustment for one image."""
-    return _original_editorial.original_editorial_shadow_score(
-        quote_analysis, editorial,
-        weight=weight,
-        max_abs_adjustment=max_abs_adjustment,
-        default_weight=ORIGINAL_EDITORIAL_SHADOW_WEIGHT,
-        default_max_abs_adjustment=ORIGINAL_EDITORIAL_SHADOW_MAX_ABS_ADJUSTMENT,
-        original_editorial_quote_dimension_profile=original_editorial_quote_dimension_profile,
-        original_editorial_numeric=original_editorial_numeric,
-        original_editorial_quote_concepts=original_editorial_quote_concepts,
-        original_editorial_image_concepts=original_editorial_image_concepts,
-        original_editorial_avoid_concepts=original_editorial_avoid_concepts,
-    )
+    return _original_editorial_owner().score(quote_analysis, editorial, weight=weight, max_abs_adjustment=max_abs_adjustment)
 
 
 def original_editorial_shadow_result(
@@ -6697,14 +6663,7 @@ def original_editorial_shadow_result(
     selection_phase: str,
 ) -> tuple[dict | None, dict | None]:
     """Return the existing editorial comparison and its preferred original."""
-    return _original_editorial.original_editorial_shadow_result(
-        quote_choice, production_choice, scored_candidates,
-        selection_phase=selection_phase,
-        load_original_editorial_analysis=load_original_editorial_analysis,
-        original_editorial_shadow_score=original_editorial_shadow_score,
-        default_weight=ORIGINAL_EDITORIAL_SHADOW_WEIGHT,
-        default_max_abs_adjustment=ORIGINAL_EDITORIAL_SHADOW_MAX_ABS_ADJUSTMENT,
-    )
+    return _original_editorial_owner().compare(quote_choice, production_choice, scored_candidates, selection_phase=selection_phase)
 
 
 def log_original_editorial_shadow_result(
@@ -6716,14 +6675,7 @@ def log_original_editorial_shadow_result(
     comparison: tuple[dict | None, dict | None] | None = None,
 ) -> None:
     """Log an original-editorial comparison without mutating candidates."""
-    return _original_editorial.log_original_editorial_shadow_result(
-        quote_choice, production_choice, scored_candidates,
-        selection_phase=selection_phase,
-        comparison=comparison,
-        enabled=ENABLE_ORIGINAL_EDITORIAL_SHADOW_SCORING,
-        original_editorial_shadow_result=original_editorial_shadow_result,
-        log=log,
-    )
+    return _original_editorial_owner().log_comparison(quote_choice, production_choice, scored_candidates, selection_phase=selection_phase, comparison=comparison)
 
 
 def apply_original_editorial_selection(
@@ -6735,14 +6687,7 @@ def apply_original_editorial_selection(
     comparison: tuple[dict | None, dict | None] | None = None,
 ) -> dict:
     """Replace an original baseline winner with the existing editorial winner."""
-    return _original_editorial.apply_original_editorial_selection(
-        quote_choice, baseline_choice, scored_candidates,
-        selection_phase=selection_phase,
-        comparison=comparison,
-        enabled=ENABLE_ORIGINAL_EDITORIAL_SHADOW_SCORING,
-        original_editorial_shadow_result=original_editorial_shadow_result,
-        log=log,
-    )
+    return _original_editorial_owner().apply_selection(quote_choice, baseline_choice, scored_candidates, selection_phase=selection_phase, comparison=comparison)
 
 
 def concise_components(components: dict[str, float]) -> str:

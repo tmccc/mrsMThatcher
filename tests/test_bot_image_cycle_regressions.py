@@ -275,7 +275,7 @@ def test_image_pair_retry_recovers_unused_quote_without_resetting_quote_history(
     )
     used.add(used_hash)
     images_used.add("t01.jpg")
-    monkeypatch.setattr(bot, "completed_research_quote_hashes", lambda: set(map(bot.quote_text_hash, texts)))
+    monkeypatch.setattr(bot._quote_candidates.QuoteCandidates, "completed", lambda _owner: set(map(bot.quote_text_hash, texts)))
     caplog.set_level(logging.INFO, logger=bot.log.name)
     calls = capture_create_post_calls(monkeypatch)
 

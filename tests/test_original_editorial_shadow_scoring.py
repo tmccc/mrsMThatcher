@@ -613,7 +613,7 @@ def test_shadow_logger_does_not_mutate_or_reorder_candidates(monkeypatch: pytest
     before = copy.deepcopy(candidates)
     analyses = {name: _editorial_analysis() for name in ("t01.jpg", "t02.jpg")}
     monkeypatch.setattr(bot, "ENABLE_ORIGINAL_EDITORIAL_SHADOW_SCORING", True)
-    monkeypatch.setattr(bot, "load_original_editorial_analysis", lambda: analyses)
+    monkeypatch.setattr(bot._original_editorial.OriginalEditorial, "load", lambda _owner: analyses)
 
     bot.log_original_editorial_shadow_result(_basic_quote(), candidates[1], candidates, selection_phase="normal")
 
@@ -642,8 +642,8 @@ def test_editorial_selection_keeps_adjusted_score_when_winner_is_unchanged(
     }
     monkeypatch.setattr(bot, "ENABLE_ORIGINAL_EDITORIAL_SHADOW_SCORING", True)
     monkeypatch.setattr(
-        bot,
-        "original_editorial_shadow_result",
+        bot._original_editorial.OriginalEditorial,
+        "compare",
         lambda *_args, **_kwargs: (payload, winner),
     )
 
@@ -674,7 +674,7 @@ def test_editorial_selection_uses_stable_basename_tie_break_when_enabled(
     monkeypatch.setattr(bot, "load_image_analysis", lambda: metadata)
     monkeypatch.setattr(bot, "score_image_for_quote", lambda *_args: (10.0, {"topics": 10.0}, True))
     monkeypatch.setattr(bot, "current_datetime", lambda: datetime(2026, 7, 10))
-    monkeypatch.setattr(bot, "load_original_editorial_analysis", lambda: {path.name: _editorial_analysis() for path in paths})
+    monkeypatch.setattr(bot._original_editorial.OriginalEditorial, "load", lambda _owner: {path.name: _editorial_analysis() for path in paths})
     state = {"original_regular_posts_since_generated_image": 2}
 
     random.seed(8675309)

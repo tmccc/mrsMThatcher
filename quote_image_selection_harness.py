@@ -885,7 +885,14 @@ def install_immutable_score_caches(bot: Any, *, image_policy: Any = None) -> Non
 
         bot.quote_metadata_for_hash = cached_quote_metadata
     if hasattr(bot, "original_editorial_shadow_score"):
-        original_editorial_score = bot.original_editorial_shadow_score
+        if hasattr(bot, "_original_editorial_owner"):
+            editorial_owner_factory = bot._original_editorial_owner
+            editorial_score_operation = type(editorial_owner_factory()).score
+
+            def original_editorial_score(quote_analysis, editorial):
+                return editorial_score_operation(editorial_owner_factory(), quote_analysis, editorial)
+        else:
+            original_editorial_score = bot.original_editorial_shadow_score
         editorial_score_cache: dict[tuple[int, int], tuple[float, dict[str, Any]]] = {}
 
         def cached_editorial_score(
@@ -903,6 +910,17 @@ def install_immutable_score_caches(bot: Any, *, image_policy: Any = None) -> Non
             return adjustment, copy.deepcopy(detail)
 
         bot.original_editorial_shadow_score = cached_editorial_score
+        if hasattr(bot, "_original_editorial_owner"):
+            class CachedOriginalEditorial(type(editorial_owner_factory())):
+                def score(self, quote_analysis, editorial, *, weight=None, max_abs_adjustment=None):
+                    if weight is not None or max_abs_adjustment is not None:
+                        return editorial_score_operation(
+                            self, quote_analysis, editorial,
+                            weight=weight, max_abs_adjustment=max_abs_adjustment,
+                        )
+                    return cached_editorial_score(quote_analysis, editorial)
+
+            bot._original_editorial_owner = lambda: CachedOriginalEditorial(**vars(editorial_owner_factory()))
 
 
 def load_context(run_dir: Path) -> HarnessContext:

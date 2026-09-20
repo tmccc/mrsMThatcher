@@ -42,6 +42,7 @@ need. A recovered draft can bypass model evaluation.
 | Watched and recent original selection | `QuoteWatchPosts` in [mrs_bot_quote_discovery.py](../mrs_bot_quote_discovery.py) |
 | Verified tweet lookup, cache refresh and recent own-post index | `TweetLookupCache` in [mrs_bot_tweet_lookup_cache.py](../mrs_bot_tweet_lookup_cache.py) |
 | Verified normal context and two-turn quote context | `ReplyContext.build` and `build_quote` in [mrs_bot_reply_context.py](../mrs_bot_reply_context.py) |
+| Original-image editorial metadata, concepts and bounded score adjustments | `OriginalEditorial` in [mrs_bot_original_editorial.py](../mrs_bot_original_editorial.py) |
 | Native photo selection, retrieval and byte validation | `ReplyMedia` in [mrs_bot_reply_native_media.py](../mrs_bot_reply_native_media.py) |
 | Read, write, quote and provider cooldowns | `ApiCooldowns` in [mrs_bot_api_cooldowns.py](../mrs_bot_api_cooldowns.py) |
 | Bounded model requests and retry/error metadata | `ReplyModelTransport` in [mrs_bot_reply_model_transport.py](../mrs_bot_reply_model_transport.py) |
