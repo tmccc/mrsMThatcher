@@ -7910,20 +7910,42 @@ _OPENAI_PROVIDER_HEALTH_FAILURE_CATEGORIES = _reply_generation._OPENAI_PROVIDER_
 _TERMINAL_CANDIDATE_LOCAL_FAILURE_CATEGORIES = _reply_generation._TERMINAL_CANDIDATE_LOCAL_FAILURE_CATEGORIES
 
 
+def _reply_generation_owner() -> _reply_generation.ReplyGeneration:
+    """Bind current generation boundaries without collecting evidence or media."""
+    return _reply_generation.ReplyGeneration(
+        collect_reply_images=collect_reply_images,
+        remote_operations_paused=RemoteOperationsPaused,
+        media_unavailable=ReplyMediaUnavailable,
+        media_transient_unavailable=ReplyMediaTransientUnavailable,
+        result_type=PipelineResult,
+        log=log,
+        history_for_evaluation=_reply_history_owner().for_evaluation,
+        require_remote_operation_unpaused=require_remote_operation_unpaused,
+        run_pipeline=run_single_call_reply_pipeline,
+        config=single_call_reply,
+        evidence_repository=reply_evidence_repository,
+        transport=openai_responses_reply_call,
+        record_api_error=record_api_error,
+        provider_error=_openai_api_error,
+        reply_type=ValidatedReply,
+        now_epoch=now_epoch,
+        decision_telemetry=single_call_decision_telemetry,
+        log_event=log_event,
+        model=SINGLE_CALL_MODEL,
+        strategy_version=SINGLE_CALL_STRATEGY_VERSION,
+        provider_health_categories=_OPENAI_PROVIDER_HEALTH_FAILURE_CATEGORIES,
+        terminal_candidate_categories=_TERMINAL_CANDIDATE_LOCAL_FAILURE_CATEGORIES,
+    )
+
+
 def _is_openai_provider_health_failure(category: object) -> bool:
     """Return whether a failure is evidence about OpenAI service health."""
-    return _reply_generation._is_openai_provider_health_failure(
-        category,
-        _OPENAI_PROVIDER_HEALTH_FAILURE_CATEGORIES=_OPENAI_PROVIDER_HEALTH_FAILURE_CATEGORIES,
-    )
+    return _reply_generation_owner().is_provider_health_failure(category)
 
 
 def _is_terminal_candidate_local_failure(outcome: PipelineResult | dict[str, object]) -> bool:
     """Return whether one permanent local failure should retire its candidate."""
-    return _reply_generation._is_terminal_candidate_local_failure(
-        outcome,
-        _TERMINAL_CANDIDATE_LOCAL_FAILURE_CATEGORIES=_TERMINAL_CANDIDATE_LOCAL_FAILURE_CATEGORIES,
-    )
+    return _reply_generation_owner().is_terminal_candidate_failure(outcome)
 
 
 def openai_responses_reply_call(
@@ -7949,15 +7971,8 @@ def _record_single_call_result(
     target_id: str,
 ) -> None:
     """Delegate reply generation with current root dependencies."""
-    return _reply_generation._record_single_call_result(
-        result,
-        lane=lane,
-        target_id=target_id,
-        single_call_decision_telemetry=single_call_decision_telemetry,
-        log=log,
-        log_event=log_event,
-        SINGLE_CALL_MODEL=SINGLE_CALL_MODEL,
-        SINGLE_CALL_STRATEGY_VERSION=SINGLE_CALL_STRATEGY_VERSION,
+    return _reply_generation_owner().record_result(
+        result, lane=lane, target_id=target_id,
     )
 
 
@@ -7987,28 +8002,7 @@ def evaluate_single_call_reply(
     state: dict,
 ) -> PipelineResult:
     """Return the authoritative reply decision and its accounting metadata."""
-    return _reply_generation.evaluate_single_call_reply(
-        context, media_context,
-        state=state,
-        now_epoch=now_epoch,
-        collect_reply_images=collect_reply_images,
-        RemoteOperationsPaused=RemoteOperationsPaused,
-        ReplyMediaUnavailable=ReplyMediaUnavailable,
-        ReplyMediaTransientUnavailable=ReplyMediaTransientUnavailable,
-        PipelineResult=PipelineResult,
-        _record_single_call_result=_record_single_call_result,
-        log=log,
-        history_for_evaluation=_reply_history_owner().for_evaluation,
-        require_remote_operation_unpaused=require_remote_operation_unpaused,
-        run_single_call_reply_pipeline=run_single_call_reply_pipeline,
-        single_call_reply=single_call_reply,
-        reply_evidence_repository=reply_evidence_repository,
-        openai_responses_reply_call=openai_responses_reply_call,
-        _is_openai_provider_health_failure=_is_openai_provider_health_failure,
-        record_api_error=record_api_error,
-        _openai_api_error=_openai_api_error,
-        ValidatedReply=ValidatedReply,
-    )
+    return _reply_generation_owner().evaluate(context, media_context, state=state)
 
 
 terminal_reply_evaluation = _reply_evaluation_state.terminal_reply_evaluation

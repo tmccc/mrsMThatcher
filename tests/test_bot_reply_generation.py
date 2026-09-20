@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from dataclasses import FrozenInstanceError
 import inspect
 from pathlib import Path
 import subprocess
@@ -22,7 +23,7 @@ from tests.helpers.single_call_fixtures import (
 )
 from tests.helpers.bot_runtime import bot
 from tests.helpers.bot_fixtures import isolate_bot_runtime  # noqa: F401
-from tests.helpers.reply_fixtures import patch_reply_history_method
+from tests.helpers.reply_fixtures import patch_reply_history_method, patch_reply_owner_method
 
 
 def test_import_needs_no_runtime_access_and_constants_are_shared_objects():
@@ -67,65 +68,90 @@ assert 'single_call_reply' not in sys.modules
     assert generation._REPLY_IMAGE_MIME_TYPES == {
         "image/jpeg", "image/png", "image/webp", "image/gif",
     }
-    for module in (bot, generation):
-        assert module._record_single_call_result.__annotations__["result"] == "PipelineResult"
+    assert bot._record_single_call_result.__annotations__["result"] == "PipelineResult"
+    assert generation.ReplyGeneration.record_result.__annotations__["result"] == "PipelineResult"
 
 
-def test_adapters_forward_current_dependencies_arguments_results_and_errors(monkeypatch):
-    names = (
-        "log_ai_reply_posting_outcome",
-        "_is_openai_provider_health_failure",
-        "_is_terminal_candidate_local_failure",
-        "_record_single_call_result",
-    )
+OWNER_INPUTS = {
+    "collect_reply_images": "collect_reply_images", "remote_operations_paused": "RemoteOperationsPaused",
+    "media_unavailable": "ReplyMediaUnavailable", "media_transient_unavailable": "ReplyMediaTransientUnavailable",
+    "result_type": "PipelineResult", "log": "log",
+    "require_remote_operation_unpaused": "require_remote_operation_unpaused",
+    "run_pipeline": "run_single_call_reply_pipeline", "config": "single_call_reply",
+    "evidence_repository": "reply_evidence_repository", "transport": "openai_responses_reply_call",
+    "record_api_error": "record_api_error", "provider_error": "_openai_api_error",
+    "reply_type": "ValidatedReply", "now_epoch": "now_epoch",
+    "decision_telemetry": "single_call_decision_telemetry", "log_event": "log_event",
+    "model": "SINGLE_CALL_MODEL", "strategy_version": "SINGLE_CALL_STRATEGY_VERSION",
+    "provider_health_categories": "_OPENAI_PROVIDER_HEALTH_FAILURE_CATEGORIES",
+    "terminal_candidate_categories": "_TERMINAL_CANDIDATE_LOCAL_FAILURE_CATEGORIES",
+}
+
+
+def test_posting_adapter_keeps_current_callback_contract(monkeypatch):
     assert_adapters_forward_current_dependencies(
-        monkeypatch, bot=bot, implementation=generation, names=names,
+        monkeypatch, bot=bot, implementation=generation,
+        names=("log_ai_reply_posting_outcome",),
     )
 
 
-def test_evaluation_adapter_binds_current_history_and_preserves_other_dependencies(monkeypatch):
-    adapter = bot.evaluate_single_call_reply
-    public = inspect.signature(adapter).parameters
-    parameters = inspect.signature(generation.evaluate_single_call_reply).parameters
-    assert tuple(public) == ("context", "media_context", "state")
-    assert public["media_context"].default is None
-    assert public["state"].kind is inspect.Parameter.KEYWORD_ONLY
-    assert {
-        "_reply_target_epoch", "_reply_context_history_excluded_post_ids",
-        "_same_author_confirmed_history_rows", "recent_confirmed_account_replies",
-    }.isdisjoint(parameters)
-    dependencies = parameters.keys() - public.keys() - {"history_for_evaluation"}
-    implementation = Mock(return_value=object())
-    factory = Mock(wraps=bot._reply_history_owner)
-    monkeypatch.setattr(generation, "evaluate_single_call_reply", implementation)
-    monkeypatch.setattr(bot, "_reply_history_owner", factory)
-    context, media, state = {}, {}, {}
-    histories = []
+def test_generation_owner_binds_current_boundaries_without_runtime_access(monkeypatch):
+    owners = []
     for index in range(2):
-        current = {name: object() for name in dependencies}
-        for name, value in current.items():
-            monkeypatch.setattr(bot, name, value)
+        current = {field: Mock() for field in OWNER_INPUTS}
+        for field, name in OWNER_INPUTS.items():
+            monkeypatch.setattr(bot, name, current[field])
         monkeypatch.setattr(bot, "MAX_RECENT_ACCOUNT_REPLIES", 10 + index)
-        assert adapter(context, media, state=state) is implementation.return_value
-        assert factory.call_count == index + 1
-        args, supplied = implementation.call_args
-        assert len(args) == 2 and args[0] is context and args[1] is media
-        assert supplied.keys() == {*current, "state", "history_for_evaluation"}
-        assert supplied["state"] is state
-        assert all(supplied[name] is value for name, value in current.items())
-        callback = supplied["history_for_evaluation"]
+        owner = bot._reply_generation_owner()
+        assert isinstance(owner, generation.ReplyGeneration)
+        for field, value in current.items():
+            assert getattr(owner, field) is value
+            value.assert_not_called()
+        callback = owner.history_for_evaluation
         assert callback.__func__ is reply_history.ReplyHistory.for_evaluation
-        history = callback.__self__
-        assert history.now_epoch is current["now_epoch"]
-        assert history.maximum_recent_replies == 10 + index
-        histories.append(history)
-    assert histories[0] is not histories[1]
-    assert histories[0].now_epoch is not histories[1].now_epoch
-    failure = TypeError("current evaluation failure")
-    implementation.side_effect = failure
-    with pytest.raises(TypeError) as caught:
-        adapter(context, media, state=state)
-    assert caught.value is failure
+        assert callback.__self__.maximum_recent_replies == 10 + index
+        assert callback.__self__.now_epoch is current["now_epoch"]
+        owners.append(owner)
+    assert owners[0] is not owners[1]
+    assert owners[0].history_for_evaluation.__self__ is not owners[1].history_for_evaluation.__self__
+    with pytest.raises(FrozenInstanceError):
+        owners[0].model = "changed"
+
+
+def test_generation_adapters_preserve_call_shapes_references_and_errors(monkeypatch):
+    for root_name, method in (
+        ("_is_openai_provider_health_failure", "is_provider_health_failure"),
+        ("_is_terminal_candidate_local_failure", "is_terminal_candidate_failure"),
+        ("_record_single_call_result", "record_result"),
+        ("evaluate_single_call_reply", "evaluate"),
+    ):
+        adapter = getattr(bot, root_name)
+        signature = inspect.signature(adapter)
+        owned = inspect.signature(getattr(generation.ReplyGeneration, method))
+        assert [(p.name, p.kind, p.default) for p in signature.parameters.values()] == [
+            (p.name, p.kind, p.default) for p in list(owned.parameters.values())[1:]
+        ]
+        args = tuple(object() for p in signature.parameters.values() if p.kind == p.POSITIONAL_OR_KEYWORD)
+        options = {name: object() for name, p in signature.parameters.items() if p.kind == p.KEYWORD_ONLY}
+        for supply_defaults in (False, True):
+            owner = Mock(spec=generation.ReplyGeneration)
+            factory = Mock(return_value=owner)
+            monkeypatch.setattr(bot, "_reply_generation_owner", factory)
+            callback = getattr(owner, method)
+            supplied = {name: value for name, value in options.items()
+                        if supply_defaults or signature.parameters[name].default is inspect.Parameter.empty}
+            assert adapter(*args, **supplied) is callback.return_value
+            factory.assert_called_once_with()
+            actual_args, actual_options = callback.call_args
+            assert len(actual_args) == len(args)
+            assert all(actual is value for actual, value in zip(actual_args, args))
+            assert actual_options.keys() == supplied.keys()
+            assert all(actual_options[name] is value for name, value in supplied.items())
+            failure = TypeError("generation boundary failure")
+            callback.side_effect = failure
+            with pytest.raises(TypeError) as caught:
+                adapter(*args, **supplied)
+            assert caught.value is failure
 
 
 def test_failure_predicates_use_current_distinct_category_sets(monkeypatch):
@@ -153,21 +179,21 @@ def test_generation_preserves_order_and_references_through_the_current_pipeline(
     trace.repository.return_value = repository
     trace.transport.return_value = {"response": response_envelope(raw_decision())}
     trace.pipeline = Mock(wraps=bot.run_single_call_reply_pipeline)
-    original_record = bot._record_single_call_result
+    original_record = generation.ReplyGeneration.record_result
     before_recording = []
 
-    def record(result, **kwargs):
+    def record(owner, result, **kwargs):
+        trace.record(result, **kwargs)
         before_recording.append(dict(outcome))
-        return original_record(result, **kwargs)
+        return original_record(owner, result, **kwargs)
 
-    trace.record.side_effect = record
+    monkeypatch.setattr(generation.ReplyGeneration, "record_result", record)
     for root_name, callback in {
         "collect_reply_images": trace.images,
         "require_remote_operation_unpaused": trace.pause,
         "reply_evidence_repository": trace.repository,
         "openai_responses_reply_call": trace.transport,
         "run_single_call_reply_pipeline": trace.pipeline,
-        "_record_single_call_result": trace.record,
         "log_event": trace.event,
         "record_api_error": trace.error,
     }.items():
@@ -225,7 +251,7 @@ def test_history_failure_preserves_pre_image_target_and_propagates_before_provid
     monkeypatch.setattr(bot, "reply_evidence_repository", trace.repository)
     monkeypatch.setattr(bot, "run_single_call_reply_pipeline", trace.pipeline)
     monkeypatch.setattr(bot, "record_api_error", trace.error)
-    monkeypatch.setattr(bot, "_record_single_call_result", trace.record)
+    patch_reply_owner_method(monkeypatch, generation.ReplyGeneration, "record_result", trace.record)
 
     with pytest.raises(TypeError) as caught:
         bot.evaluate_single_call_reply(context, media, state=state)
@@ -289,3 +315,32 @@ def test_posting_outcome_uses_current_logger_and_metadata_fallback(monkeypatch):
             reason_code=expected.get("reason_code"), validated_draft_hash=expected.get("validated_draft_hash"),
             failure_reason="fixture",
         )
+
+
+def test_evaluation_owns_health_and_telemetry_and_fetches_evidence_per_call(monkeypatch):
+    source = pipeline_context(turns=1)
+    state = {}
+    result = bot.PipelineResult(
+        status="operational_failure", reason="unavailable", error_category="provider_transport",
+    )
+    repository, events, errors = Mock(return_value=object()), Mock(), Mock()
+    monkeypatch.setattr(bot, "reply_evidence_repository", repository)
+    monkeypatch.setattr(bot, "collect_reply_images", Mock(return_value=[]))
+    monkeypatch.setattr(bot, "require_remote_operation_unpaused", Mock())
+    patch_reply_history_method(monkeypatch, "for_evaluation", Mock(return_value=([], [])))
+    pipeline = Mock(return_value=result)
+    monkeypatch.setattr(bot, "run_single_call_reply_pipeline", pipeline)
+    monkeypatch.setattr(bot, "log_event", events)
+    monkeypatch.setattr(bot, "record_api_error", errors)
+    forbidden = Mock(side_effect=AssertionError("generation bounced through a root-owned helper"))
+    monkeypatch.setattr(bot, "_record_single_call_result", forbidden)
+    monkeypatch.setattr(bot, "_is_openai_provider_health_failure", forbidden)
+    owner = bot._reply_generation_owner()
+    repository.assert_not_called()
+    for _ in range(2):
+        assert owner.evaluate(source, state=state) is result
+    assert repository.call_count == pipeline.call_count == errors.call_count == events.call_count == 2
+    assert all(entry.kwargs["repository"] is repository.return_value for entry in pipeline.call_args_list)
+    assert all(entry.args[0] is state for entry in errors.call_args_list)
+    assert all(entry.args == ("single_call_reply_decision",) for entry in events.call_args_list)
+    forbidden.assert_not_called()

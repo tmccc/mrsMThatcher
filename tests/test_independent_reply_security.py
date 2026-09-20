@@ -4,6 +4,7 @@ from __future__ import annotations
 import pytest
 
 import single_call_reply as pipeline
+import mrs_bot_reply_generation as generation
 from tests.helpers.single_call_fixtures import FakeRepository, FakePassage, context, raw_decision, FakeHttpResponse, response_envelope
 from tests.helpers.bot_runtime import bot
 from tests.test_single_call_transport_safety import configure
@@ -23,12 +24,10 @@ def test_copied_evidence_cannot_change_pronoun_or_time_referents(text):
 
 def test_recovered_429_is_durable_before_decision_telemetry(monkeypatch):
     calls, sleeps, saves = configure(monkeypatch, [FakeHttpResponse(429, headers={'Retry-After':'1'}), FakeHttpResponse(200, body=response_envelope(raw_decision()))])
-    monkeypatch.setattr(bot, '_record_single_call_result', lambda *_args, **_kwargs: (_ for _ in ()).throw(OSError('telemetry unavailable')))
+    monkeypatch.setattr(generation.ReplyGeneration, 'record_result', lambda *_args, **_kwargs: (_ for _ in ()).throw(OSError('telemetry unavailable')))
     state = bot.default_state()
-    try:
+    with pytest.raises(OSError, match="telemetry unavailable"):
         bot.evaluate_single_call_reply(context(), state=state)
-    except OSError:
-        pass
     assert state['openai_api_cooldown_until_epoch'] > bot.now_epoch()
     assert saves[-1]['openai_api_cooldown_until_epoch'] > bot.now_epoch()
     assert len(calls) == 2

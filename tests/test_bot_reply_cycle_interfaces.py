@@ -11,6 +11,7 @@ from mrs_bot_reply_cycle_interfaces import (
 )
 import mrs_bot_normal_reply_cycle as normal_cycle
 import mrs_bot_quote_reply_cycle as quote_cycle
+import mrs_bot_reply_generation as generation
 from single_call_reply import PipelineResult
 from tests.helpers.reply_fixtures import configure_normal_cycle as configure_normal
 from tests.helpers.reply_fixtures import configure_quote_cycle as configure_quote
@@ -19,6 +20,7 @@ from tests.helpers.bot_runtime import bot
 from tests.helpers.bot_fixtures import isolate_bot_runtime  # noqa: F401
 from tests.helpers.reply_fixtures import (
     patch_reply_draft_method,
+    patch_reply_owner_method,
     unit_approved_reply,
     unit_reply_context,
 )
@@ -270,8 +272,8 @@ def test_typed_local_failure_keeps_prior_429_cooldown_and_terminal_retirement(mo
     monkeypatch.setattr(bot, "evaluate_single_call_reply", evaluate)
     monkeypatch.setattr(bot, "collect_reply_images", lambda _media: [])
     monkeypatch.setattr(bot, "run_single_call_reply_pipeline", Mock(return_value=result))
-    recorded = Mock(wraps=bot._record_single_call_result)
-    monkeypatch.setattr(bot, "_record_single_call_result", recorded)
+    recorded = Mock(wraps=bot._reply_generation_owner().record_result)
+    patch_reply_owner_method(monkeypatch, generation.ReplyGeneration, "record_result", recorded)
     run(state)
     target = str(context["target_id"])
     assert recorded.call_args.args[0] is result
