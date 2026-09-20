@@ -390,3 +390,37 @@ def test_health_persistence_failure_keeps_identity_and_precedes_telemetry(
         "retry_after_seconds": 120, "request_attempt_count": 2,
     }
     trace.telemetry.assert_not_called()
+
+
+@pytest.mark.parametrize("transient", [False, True])
+def test_media_failure_keeps_original_identity_and_telemetry_before_warning(monkeypatch, transient):
+    context = pipeline_context(turns=1)
+    context["visible_conversation"].extend([None, {"text": "Extra"}])
+    failure_type = bot.ReplyMediaTransientUnavailable if transient else bot.ReplyMediaUnavailable
+    media_error = failure_type("material image unavailable")
+    telemetry_error = RuntimeError("decision telemetry failed")
+    logger = Mock()
+    history, pipeline = Mock(), Mock()
+    recorded = Mock(side_effect=telemetry_error)
+
+    def collect(_media):
+        context["target_id"] = "changed during collection"
+        raise media_error
+
+    monkeypatch.setattr(bot, "collect_reply_images", collect)
+    monkeypatch.setattr(bot, "log", logger)
+    monkeypatch.setattr(bot, "run_single_call_reply_pipeline", pipeline)
+    patch_reply_history_method(monkeypatch, "for_evaluation", history)
+    patch_reply_owner_method(monkeypatch, generation.ReplyGeneration, "record_result", recorded)
+    with pytest.raises(RuntimeError) as caught:
+        bot.evaluate_single_call_reply(context, {}, state={})
+    assert caught.value is telemetry_error
+    assert caught.value.__context__ is media_error
+    result = recorded.call_args.args[0]
+    assert result.error_category == ("image_transport" if transient else "image_input")
+    assert result.visible_turn_count == 2
+    assert result.model_call_count == result.supplied_image_count == 0
+    assert recorded.call_args.kwargs == {"lane": "mention", "target_id": "target"}
+    logger.warning.assert_not_called()
+    history.assert_not_called()
+    pipeline.assert_not_called()

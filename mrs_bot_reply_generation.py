@@ -111,7 +111,7 @@ def _is_terminal_candidate_local_failure(
 
 @dataclass(frozen=True)
 class ReplyGeneration:
-    """Own decisions, health classification and telemetry with current boundaries."""
+    """Own decisions, media disposition, health and telemetry with current boundaries."""
 
     collect_reply_images: Callable
     remote_operations_paused: type[Exception]
@@ -200,32 +200,9 @@ class ReplyGeneration:
         except self.remote_operations_paused:
             raise
         except self.media_unavailable as exc:
-            error_category = (
-                "image_transport"
-                if isinstance(exc, self.media_transient_unavailable)
-                else "image_input"
+            return self._media_failure_result(
+                exc, visible_turns, lane=lane, target_id=target_id,
             )
-            result = self.result_type(
-                status="operational_failure",
-                reason="material_image_unavailable",
-                error_category=error_category,
-                local_validation_status="not_run",
-                visible_turn_count=len(visible_turns),
-                visible_character_count=sum(
-                    len(str(turn.get("text") or "")) for turn in visible_turns
-                ),
-                supplied_image_count=0,
-            )
-            self.record_result(result, lane=lane, target_id=target_id)
-            self.log.warning(
-                "%s reply target_id=%s lane=%s because material image "
-                "collection failed: %s",
-                "Deferring" if error_category == "image_transport" else "Rejecting",
-                target_id,
-                lane,
-                exc,
-            )
-            return result
 
         same_author, recent_replies = self.history_for_evaluation(
             state, context=context, target_id=target_id,
@@ -254,6 +231,42 @@ class ReplyGeneration:
             raise RuntimeError("single-call reply returned an impossible result")
         return result
 
+
+    def _media_failure_result(
+        self,
+        exc: Exception,
+        visible_turns: list[dict],
+        *,
+        lane: str,
+        target_id: str,
+    ) -> PipelineResult:
+        """Classify failed material-image collection before any provider work."""
+        error_category = (
+            "image_transport"
+            if isinstance(exc, self.media_transient_unavailable)
+            else "image_input"
+        )
+        result = self.result_type(
+            status="operational_failure",
+            reason="material_image_unavailable",
+            error_category=error_category,
+            local_validation_status="not_run",
+            visible_turn_count=len(visible_turns),
+            visible_character_count=sum(
+                len(str(turn.get("text") or "")) for turn in visible_turns
+            ),
+            supplied_image_count=0,
+        )
+        self.record_result(result, lane=lane, target_id=target_id)
+        self.log.warning(
+            "%s reply target_id=%s lane=%s because material image "
+            "collection failed: %s",
+            "Deferring" if error_category == "image_transport" else "Rejecting",
+            target_id,
+            lane,
+            exc,
+        )
+        return result
 
     def _record_provider_health(
         self, state: dict, result: PipelineResult, *, lane: str, target_id: str,
