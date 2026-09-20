@@ -2,8 +2,8 @@
 
 Four root adapters supply current callbacks, settings, clock and logger per
 call. Fixed copying and bounded-list transformations are local. Original bodies
-retain local pruning and check counts,
-full rescans, nested invalid-cursor cleanup, eligibility before the candidate
+stage watched tracking maps in an owned operation before search and preserve
+check counts, full rescans, nested invalid-cursor cleanup, eligibility before the candidate
 cap, draft/terminal ordering, in-place annotations and conservative watermarks.
 Skip records and mention/hot-post merges retain their bounded and copy behavior.
 
@@ -26,6 +26,50 @@ from mrs_bot_reply_native_media import attach_media_to_tweets
 from mrs_bot_reply_state import handled_reply_target_ids, retire_ineligible_reply_draft
 from mrs_bot_runtime_state_helpers import append_unique_capped
 from mrs_bot_tweet_lookup_cache import normalise_tweet_text
+
+
+def _prune_unwatched_tracking(
+    watched_post_ids: list[str],
+    since_ids: dict,
+    check_counts: dict,
+    pagination_tokens: dict,
+    *,
+    log: Logger,
+) -> tuple[dict, dict, dict, bool]:
+    """Stage watched-post maps without publishing changes to caller state."""
+    state_changed = False
+    watched_post_id_set = {str(post_id) for post_id in watched_post_ids}
+    pruned_since_ids = {str(post_id): value for post_id, value in since_ids.items() if str(post_id) in watched_post_id_set}
+    pruned_check_counts = {
+        str(post_id): value
+        for post_id, value in check_counts.items()
+        if str(post_id) in watched_post_id_set
+    }
+    pruned_pagination_tokens = {
+        str(post_id): value
+        for post_id, value in pagination_tokens.items()
+        if str(post_id) in watched_post_id_set
+    }
+    if (
+        pruned_since_ids != since_ids
+        or pruned_check_counts != check_counts
+        or pruned_pagination_tokens != pagination_tokens
+    ):
+        log.info(
+            "Pruned hot-post reply tracking maps. since_ids=%d->%d check_counts=%d->%d pagination_tokens=%d->%d",
+            len(since_ids),
+            len(pruned_since_ids),
+            len(check_counts),
+            len(pruned_check_counts),
+            len(pagination_tokens),
+            len(pruned_pagination_tokens),
+        )
+        state_changed = True
+    since_ids = pruned_since_ids
+    check_counts = pruned_check_counts
+    pagination_tokens = pruned_pagination_tokens
+
+    return since_ids, check_counts, pagination_tokens, state_changed
 
 
 def get_hot_post_reply_candidates(
@@ -107,38 +151,10 @@ def get_hot_post_reply_candidates(
         pagination_tokens = {}
 
     candidates: list[dict] = []
-    state_changed = False
 
-    watched_post_id_set = {str(post_id) for post_id in watched_post_ids}
-    pruned_since_ids = {str(post_id): value for post_id, value in since_ids.items() if str(post_id) in watched_post_id_set}
-    pruned_check_counts = {
-        str(post_id): value
-        for post_id, value in check_counts.items()
-        if str(post_id) in watched_post_id_set
-    }
-    pruned_pagination_tokens = {
-        str(post_id): value
-        for post_id, value in pagination_tokens.items()
-        if str(post_id) in watched_post_id_set
-    }
-    if (
-        pruned_since_ids != since_ids
-        or pruned_check_counts != check_counts
-        or pruned_pagination_tokens != pagination_tokens
-    ):
-        log.info(
-            "Pruned hot-post reply tracking maps. since_ids=%d->%d check_counts=%d->%d pagination_tokens=%d->%d",
-            len(since_ids),
-            len(pruned_since_ids),
-            len(check_counts),
-            len(pruned_check_counts),
-            len(pagination_tokens),
-            len(pruned_pagination_tokens),
-        )
-        state_changed = True
-    since_ids = pruned_since_ids
-    check_counts = pruned_check_counts
-    pagination_tokens = pruned_pagination_tokens
+    since_ids, check_counts, pagination_tokens, state_changed = _prune_unwatched_tracking(
+        watched_post_ids, since_ids, check_counts, pagination_tokens, log=log,
+    )
 
     log.info(
         "Hot-post reply check loaded %d watched post(s) from %s: %s",

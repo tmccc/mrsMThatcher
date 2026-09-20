@@ -391,3 +391,28 @@ def test_discovery_skips_legacy_quote_only_target_before_eligibility(tmp_path, m
     eligible.assert_not_called()
     assert state["replied_to_ids"] == []
     assert state["daily_reply_count"] == state["daily_quote_reply_count"] == 0
+
+
+@pytest.mark.parametrize("obsolete", [False, True])
+def test_tracking_pruning_stages_new_maps_and_preserves_values_without_publication(obsolete):
+    since_value, count_value, token_value = object(), object(), object()
+    since = {"700": since_value}
+    counts = {"700": count_value}
+    tokens = {"700": token_value}
+    if obsolete:
+        for source in (since, counts, tokens):
+            source["removed"] = object()
+    before = [mapping.copy() for mapping in (since, counts, tokens)]
+    logger = Mock()
+
+    pruned_since, pruned_counts, pruned_tokens, changed = discovery._prune_unwatched_tracking(
+        ["700"], since, counts, tokens, log=logger,
+    )
+    assert changed is obsolete
+    for original, expected, staged in zip((since, counts, tokens), before, (pruned_since, pruned_counts, pruned_tokens)):
+        assert original == expected
+        assert staged is not original and set(staged) == {"700"}
+        assert staged["700"] is original["700"]
+    assert logger.info.call_count == int(obsolete)
+    if obsolete:
+        assert logger.info.call_args.args[1:] == (2, 1, 2, 1, 2, 1)
