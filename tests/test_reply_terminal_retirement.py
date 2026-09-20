@@ -105,11 +105,11 @@ def prepare_delivery(lane, outcome, *, save_failure=None, retirement_failure=Non
                 **settings, quote_checks_enabled=True,
                 maximum_candidates=3, maximum_daily_quote_replies=3,
             ),
-            mark_quote_tweet_skipped=trace.mark_skipped,
         )
 
         def run():
-            return quote_cycle._deliver_reply(target, reply, receipt, state, **dependencies)
+            with patch.object(quote_cycle, "mark_quote_tweet_skipped", trace.mark_skipped):
+                return quote_cycle._deliver_reply(target, reply, receipt, state, **dependencies)
     else:
         candidate = normal_cycle._ReplyCandidate(
             mention={"id": target, "_candidate_source": lane}, mention_id=target,

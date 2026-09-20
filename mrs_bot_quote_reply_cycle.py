@@ -255,7 +255,6 @@ def maybe_reply_to_quote_tweets(
     log_ai_reply_posting_outcome: Callable,
     log_event: Callable,
     mark_quote_spam_author: Callable,
-    mark_quote_tweet_skipped: Callable,
     now_epoch: Callable,
     quote_tweet_is_old_enough: Callable,
     record_api_error: Callable,
@@ -394,7 +393,6 @@ def maybe_reply_to_quote_tweets(
                 scan_history,
                 config=config,
                 log=log,
-                mark_quote_tweet_skipped=mark_quote_tweet_skipped,
                 quote_tweet_is_old_enough=quote_tweet_is_old_enough,
                 persistence=persistence,
             ):
@@ -412,7 +410,6 @@ def maybe_reply_to_quote_tweets(
                 log=log,
                 log_event=log_event,
                 mark_quote_spam_author=mark_quote_spam_author,
-                mark_quote_tweet_skipped=mark_quote_tweet_skipped,
                 persistence=persistence,
             ):
                 continue
@@ -430,7 +427,6 @@ def maybe_reply_to_quote_tweets(
                 cache_tweet=cache_tweet,
                 get_tweet_by_id_cached=get_tweet_by_id_cached,
                 log=log,
-                mark_quote_tweet_skipped=mark_quote_tweet_skipped,
                 record_api_error=record_api_error,
                 reply_evaluations=reply_evaluations,
                 persistence=persistence,
@@ -467,7 +463,6 @@ def maybe_reply_to_quote_tweets(
                 ValidatedReply=ValidatedReply,
                 _is_terminal_candidate_local_failure=_is_terminal_candidate_local_failure,
                 log=log,
-                mark_quote_tweet_skipped=mark_quote_tweet_skipped,
                 reply_evaluations=reply_evaluations,
                 persistence=persistence,
             )
@@ -507,7 +502,6 @@ def maybe_reply_to_quote_tweets(
                 log=log,
                 log_ai_reply_posting_outcome=log_ai_reply_posting_outcome,
                 log_event=log_event,
-                mark_quote_tweet_skipped=mark_quote_tweet_skipped,
                 delivery=delivery,
                 record_api_error=record_api_error,
                 reply_evaluations=reply_evaluations,
@@ -575,7 +569,6 @@ def _candidate_is_eligible(
     *,
     config: QuoteReplyConfig,
     log: Logger,
-    mark_quote_tweet_skipped: Callable,
     quote_tweet_is_old_enough: Callable,
     persistence: ReplyCyclePersistence,
 ) -> bool:
@@ -672,7 +665,6 @@ def _author_allows_evaluation(
     log: Logger,
     log_event: Callable,
     mark_quote_spam_author: Callable,
-    mark_quote_tweet_skipped: Callable,
     persistence: ReplyCyclePersistence,
 ) -> bool:
     """Check cleaned text and author limits, retaining cap context and newly found spam."""
@@ -758,7 +750,6 @@ def _prepare_reply_context(
     cache_tweet: Callable,
     get_tweet_by_id_cached: Callable,
     log: Logger,
-    mark_quote_tweet_skipped: Callable,
     record_api_error: Callable,
     reply_evaluations: ReplyEvaluations,
     persistence: ReplyCyclePersistence,
@@ -943,7 +934,6 @@ def _resolve_reply_evaluation(
     ValidatedReply: type,
     _is_terminal_candidate_local_failure: Callable,
     log: Logger,
-    mark_quote_tweet_skipped: Callable,
     reply_evaluations: ReplyEvaluations,
     persistence: ReplyCyclePersistence,
 ) -> SkipReplyCandidate | FinishReplyCheck | None:
@@ -1081,7 +1071,6 @@ def _retire_terminal_target(
     persistence: ReplyCyclePersistence,
     log_ai_reply_posting_outcome: Callable,
     log_event: Callable,
-    mark_quote_tweet_skipped: Callable,
     reply_evaluations: ReplyEvaluations,
 ) -> None:
     """Record a terminal quote outcome and durably skip its target and draft."""
@@ -1128,7 +1117,6 @@ def _deliver_reply(
     log: Logger,
     log_ai_reply_posting_outcome: Callable,
     log_event: Callable,
-    mark_quote_tweet_skipped: Callable,
     delivery: ReplyCycleDelivery,
     record_api_error: Callable,
     reply_evaluations: ReplyEvaluations,
@@ -1155,7 +1143,6 @@ def _deliver_reply(
             persistence=persistence,
             log_ai_reply_posting_outcome=log_ai_reply_posting_outcome,
             log_event=log_event,
-            mark_quote_tweet_skipped=mark_quote_tweet_skipped,
             reply_evaluations=reply_evaluations,
         )
 

@@ -8386,7 +8386,6 @@ def maybe_reply_to_quote_tweets(state: dict) -> str:
         log_ai_reply_posting_outcome=log_ai_reply_posting_outcome,
         log_event=log_event,
         mark_quote_spam_author=mark_quote_spam_author,
-        mark_quote_tweet_skipped=mark_quote_tweet_skipped,
         now_epoch=now_epoch,
         quote_tweet_is_old_enough=quote_tweet_is_old_enough,
         record_api_error=record_api_error,

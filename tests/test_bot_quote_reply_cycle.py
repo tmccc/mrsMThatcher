@@ -84,11 +84,12 @@ def test_adapters_forward_current_dependencies_arguments_results_and_errors(monk
         if count is None:
             assert tuple(public) == ("state",)
             assert public["state"].kind is inspect.Parameter.POSITIONAL_OR_KEYWORD
-            assert len(parameters) == 43
-            assert sum(param.kind is inspect.Parameter.KEYWORD_ONLY for param in parameters.values()) == 42
+            assert len(parameters) == 42
+            assert sum(param.kind is inspect.Parameter.KEYWORD_ONLY for param in parameters.values()) == 41
             removed = {
                 key for key in vars(interfaces) if key.startswith("QUOTE_CHECK_STATUS_")
             } | {
+                "mark_quote_tweet_skipped",
                 "terminal_reply_evaluation", "quote_author_profile_text",
                 "clean_text_for_reply_context",
                 "quote_tweet_directly_quotes_original", "daily_author_reply_count",
@@ -592,11 +593,17 @@ def test_context_failures_retire_in_order_before_later_model_work(
         ("terminal", "record_terminal_reply_evaluation"),
         ("skip", "mark_quote_tweet_skipped"),
     ):
-        original_callback = bot._reply_evaluation_owner().record if label == "terminal" else getattr(bot, name)
+        original_callback = (
+            bot._reply_evaluation_owner().record if label == "terminal"
+            else cycle.mark_quote_tweet_skipped if label == "skip"
+            else getattr(bot, name)
+        )
         callback = Mock(wraps=original_callback)
         trace.attach_mock(callback, label)
         if label == "terminal":
             patch_reply_owner_method(monkeypatch, evaluation_state.ReplyEvaluations, "record", callback)
+        elif label == "skip":
+            monkeypatch.setattr(cycle, name, callback)
         else:
             monkeypatch.setattr(bot, name, callback)
     persistence_failure = RuntimeError("durable retirement failed")

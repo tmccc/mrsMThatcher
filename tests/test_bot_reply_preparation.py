@@ -104,7 +104,7 @@ def preparation(request, monkeypatch):
                 "105", SimpleNamespace(reply=case.reply), state,
                 ValidatedReply=ApprovedReply,
                 _is_terminal_candidate_local_failure=Mock(),
-                log=common["log"], mark_quote_tweet_skipped=Mock(),
+                log=common["log"],
                 reply_evaluations=SimpleNamespace(record=Mock()), persistence=persistence,
             )
             if decision is not None:
