@@ -188,6 +188,29 @@ def mark_quote_spam_author(
 
 
 @dataclass(frozen=True)
+class _QuoteScanHistory:
+    """Keep admission ledgers fixed while accumulating spam authors for one scan."""
+
+    seen_quote_ids: frozenset[str]
+    replied_quote_ids: frozenset[str]
+    skipped_quote_ids: frozenset[str]
+    spam_author_ids: set[str]
+    replied_to_ids: frozenset[str]
+
+    @classmethod
+    def capture(cls, state: dict) -> _QuoteScanHistory:
+        """Snapshot each ledger in admission order without retaining caller state."""
+
+        return cls(
+            seen_quote_ids=frozenset(str(x) for x in state.get("seen_quote_post_ids", [])),
+            replied_quote_ids=frozenset(str(x) for x in state.get("replied_to_quote_post_ids", [])),
+            skipped_quote_ids=frozenset(str(x) for x in state.get("skipped_quote_post_ids", [])),
+            spam_author_ids=set(str(x) for x in state.get("quote_spam_author_ids", [])),
+            replied_to_ids=frozenset(str(x) for x in state.get("replied_to_ids", [])),
+        )
+
+
+@dataclass(frozen=True)
 class _QuoteCandidate:
     """Keep the candidate and its identity/text as first read during iteration."""
 
@@ -306,11 +329,7 @@ def maybe_reply_to_quote_tweets(
         log.info("No own posts available for quote lookup")
         return QUOTE_CHECK_STATUS_CHECKED
 
-    seen_quote_ids = set(str(x) for x in state.get("seen_quote_post_ids", []))
-    replied_quote_ids = set(str(x) for x in state.get("replied_to_quote_post_ids", []))
-    skipped_quote_ids = set(str(x) for x in state.get("skipped_quote_post_ids", []))
-    quote_spam_author_ids = set(str(x) for x in state.get("quote_spam_author_ids", []))
-    replied_to_ids = set(str(x) for x in state.get("replied_to_ids", []))
+    scan_history = _QuoteScanHistory.capture(state)
     daily_author_reply_counts(state)
 
     try:
@@ -326,7 +345,7 @@ def maybe_reply_to_quote_tweets(
         return QUOTE_CHECK_STATUS_CHECKED
 
     # Only this counter spans originals; charge after context/media extraction,
-    # even when evaluation makes no model call. Snapshot sets above stay fixed
+    # even when evaluation makes no model call. Admission history stays fixed
     # except for newly discovered spam authors.
     processed_candidates = 0
 
@@ -376,11 +395,7 @@ def maybe_reply_to_quote_tweets(
                 candidate,
                 original_post_id,
                 state,
-                seen_quote_ids,
-                replied_quote_ids,
-                skipped_quote_ids,
-                quote_spam_author_ids,
-                replied_to_ids,
+                scan_history,
                 config=config,
                 log=log,
                 mark_quote_tweet_skipped=mark_quote_tweet_skipped,
@@ -393,7 +408,7 @@ def maybe_reply_to_quote_tweets(
                 original_post_id,
                 original_tweet,
                 state,
-                quote_spam_author_ids,
+                scan_history.spam_author_ids,
                 config=config,
                 cache_tweet=cache_tweet,
                 clean_text_for_reply_context=clean_text_for_reply_context,
@@ -561,11 +576,7 @@ def _candidate_is_eligible(
     candidate: _QuoteCandidate,
     original_post_id: str,
     state: dict,
-    seen_quote_ids: set[str],
-    replied_quote_ids: set[str],
-    skipped_quote_ids: set[str],
-    quote_spam_author_ids: set[str],
-    replied_to_ids: set[str],
+    scan_history: _QuoteScanHistory,
     *,
     config: QuoteReplyConfig,
     log: Logger,
@@ -582,7 +593,7 @@ def _candidate_is_eligible(
     if not quote_id:
         return False
 
-    if author_id in quote_spam_author_ids:
+    if author_id in scan_history.spam_author_ids:
         log.info(
             "Skipping quote tweet %s: author_id=%s is in quote spam author list",
             quote_id,
@@ -600,7 +611,11 @@ def _candidate_is_eligible(
         quote_text,
     )
 
-    if quote_id in seen_quote_ids or quote_id in replied_quote_ids or quote_id in skipped_quote_ids:
+    if (
+        quote_id in scan_history.seen_quote_ids
+        or quote_id in scan_history.replied_quote_ids
+        or quote_id in scan_history.skipped_quote_ids
+    ):
         log.info("Skipping quote tweet %s: already seen/replied/skipped", quote_id)
         return False
 
@@ -627,7 +642,7 @@ def _candidate_is_eligible(
         persistence.save(state)
         return False
 
-    if quote_id in replied_to_ids:
+    if quote_id in scan_history.replied_to_ids:
         log.info("Skipping quote tweet %s: already handled by normal mention path", quote_id)
         mark_quote_tweet_skipped(state, quote_id)
         persistence.save(state)

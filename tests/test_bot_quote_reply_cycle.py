@@ -329,6 +329,49 @@ def test_zero_call_failures_consume_quote_candidate_limit_in_numeric_order(monke
     bot.create_post.assert_not_called()
 
 
+@pytest.mark.parametrize("first_is_spam", [False, True])
+def test_quote_scan_keeps_fixed_ledgers_but_shares_newly_classified_spam_authors(
+    monkeypatch, first_is_spam,
+):
+    _original, quotes = _configure_cycle(monkeypatch)
+    quotes[:] = [dict(quotes[0], id=target, conversation_id=target)
+                 for target in ("910", "911")]
+    state = bot.default_state()
+    author_id = str(quotes[0]["author_id"])
+    classifier_calls = []
+
+    def classify(text):
+        classifier_calls.append(text)
+        if len(classifier_calls) == 1:
+            # Mutating durable ledgers during the first candidate does not
+            # rebuild this scan's admission history for the second candidate.
+            for key in ("seen_quote_post_ids", "replied_to_quote_post_ids",
+                        "skipped_quote_post_ids", "replied_to_ids"):
+                state.setdefault(key, []).append("911")
+            state.setdefault("quote_spam_author_ids", []).append(author_id)
+        return first_is_spam
+
+    generate = Mock(return_value=bot.PipelineResult(
+        status="no_reply", reason="model_selected_no_reply", model_call_count=1,
+    ))
+    monkeypatch.setattr(bot, "is_probably_spam_or_not_worth_replying", classify)
+    monkeypatch.setattr(bot, "evaluate_single_call_reply", generate)
+    monkeypatch.setattr(bot, "MAX_QUOTE_POSTS_PER_CHECK", 2)
+
+    assert bot.maybe_reply_to_quote_tweets(state) == bot.QUOTE_CHECK_STATUS_CHECKED
+    if first_is_spam:
+        # Classification updates the scan's mutable spam set immediately, so
+        # the second quote is stopped before another classifier/model call.
+        assert len(classifier_calls) == 1
+        generate.assert_not_called()
+    else:
+        assert len(classifier_calls) == 2
+        assert [entry.args[0]["target_id"] for entry in generate.call_args_list] == ["910", "911"]
+    assert author_id in state["quote_spam_author_ids"]
+    bot.x_request.assert_not_called()
+    bot.create_post.assert_not_called()
+
+
 def test_reused_draft_keeps_context_references_durability_and_pre_send_availability(monkeypatch):
     original, quotes = _configure_cycle(monkeypatch)
     state = bot.default_state()
