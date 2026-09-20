@@ -3800,9 +3800,7 @@ def exact_historical_context_sending_receipt_matches(
     return _remote_write_barriers.exact_historical_context_sending_receipt_matches(
         receipt,
         HISTORICAL_CONTEXT_REPLY_RECEIPT_FILE=HISTORICAL_CONTEXT_REPLY_RECEIPT_FILE,
-        json=json,
         os=os,
-        stat=stat,
     )
 
 

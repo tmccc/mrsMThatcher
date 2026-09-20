@@ -1,12 +1,14 @@
 """Global remote-write barrier checks.
 
 The root supplies current runtime dependencies explicitly on each call. This
-module owns fixed path and hash operations; it performs no runtime work at
-import and retains no runtime authority.
+module owns fixed path, hash, receipt encoding and file-mode interpretation.
+It performs no runtime work at import and retains no runtime authority.
 """
 from __future__ import annotations
 
 import hashlib
+import json
+import stat
 from pathlib import Path
 from typing import Any
 
@@ -277,9 +279,7 @@ def exact_historical_context_sending_receipt_matches(
     receipt: dict | None,
     *,
     HISTORICAL_CONTEXT_REPLY_RECEIPT_FILE: Any,
-    json: Any,
     os: Any,
-    stat: Any,
 ) -> bool:
     """Match the owning sending receipt by schema, identity and exact bytes."""
 

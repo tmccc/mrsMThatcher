@@ -24,7 +24,7 @@ DEPENDENCIES = {
     'historical_context_outbox_remote_attempt_is_blocking': ['HISTORICAL_CONTEXT_REPLY_RECEIPT_FILE', 'historical_context_outbox_store', 'historical_context_reply_store', 'inspect_transport_state', 'journal_path_for_receipt', 'log'],
     'historical_context_outbox_remote_attempt_parent_for_local_reconciliation': ['historical_context_outbox_store'],
     'historical_context_receipt_parent_for_local_reconciliation': ['HISTORICAL_CONTEXT_REPLY_RECEIPT_FILE'],
-    'exact_historical_context_sending_receipt_matches': ['HISTORICAL_CONTEXT_REPLY_RECEIPT_FILE', 'json', 'os', 'stat'],
+    'exact_historical_context_sending_receipt_matches': ['HISTORICAL_CONTEXT_REPLY_RECEIPT_FILE', 'os'],
     'block_if_remote_write_safety_incident_latched': ['AMBIGUOUS_POST_OUTCOME_FILE', 'AMBIGUOUS_POST_OUTCOME_SUCCESSOR_FILE', 'AmbiguousRemotePostOutcome', 'REMOTE_WRITE_SAFETY_PROTOCOL_ACTIVATION_FILE', 'remote_write_safety_incident_is_latched', 'remote_write_safety_marker_path_present_or_unsafe', 'remote_write_safety_protocol_is_active'],
     'remote_write_transport_journal_is_blocking': ['remote_write_transport_journal_paths', 'transport_journal_is_blocking'],
     'remote_receipt_retirement_is_blocking': ['remote_source_receipt_paths', 'retirement_auxiliary_barrier_exists', 'retirement_ledger_is_blocking'],
