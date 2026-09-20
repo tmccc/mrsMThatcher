@@ -8358,8 +8358,8 @@ def promote_sending_reply_receipt(
         transport_source_semantic_validator=transport_source_semantic_validator,
         canonical_atomic_json_bytes=canonical_atomic_json_bytes,
         TransportJournalError=TransportJournalError,
-        _confirmed_reply_receipt_from_sending=_confirmed_reply_receipt_from_sending,
-        confirmed_reply_receipt_is_semantically_valid=confirmed_reply_receipt_is_semantically_valid,
+        receipt_values=_reply_receipt_values_owner(),
+        legacy_recovery=False,
         replace_bound_source_receipt=replace_bound_source_receipt,
         transaction_mutation_authority=transaction_mutation_authority,
         log=log,
@@ -8373,7 +8373,7 @@ def _promote_legacy_sending_reply_receipt_from_confirmed_transport(
     confirmation_epoch: int,
 ) -> dict:
     """Promote a frozen source only when its exact journal proves success."""
-    return _reply_delivery._promote_legacy_sending_reply_receipt_from_confirmed_transport(
+    return _reply_delivery.promote_sending_reply_receipt(
         sending_receipt,
         reply_post_id=reply_post_id,
         confirmation_epoch=confirmation_epoch,
@@ -8383,11 +8383,11 @@ def _promote_legacy_sending_reply_receipt_from_confirmed_transport(
         journal_path_for_receipt=journal_path_for_receipt,
         CONFIRMED_REPLY_RECEIPT_FILE=CONFIRMED_REPLY_RECEIPT_FILE,
         TRANSPORT_SOURCE_VALIDATOR_ID=TRANSPORT_SOURCE_VALIDATOR_ID,
-        _legacy_conversational_transport_source_semantic_validator=_legacy_conversational_transport_source_semantic_validator,
+        transport_source_semantic_validator=_legacy_conversational_transport_source_semantic_validator,
         canonical_atomic_json_bytes=canonical_atomic_json_bytes,
         TransportJournalError=TransportJournalError,
-        _confirmed_reply_receipt_from_sending=_confirmed_reply_receipt_from_sending,
-        _legacy_confirmed_reply_receipt_is_semantically_valid=_legacy_confirmed_reply_receipt_is_semantically_valid,
+        receipt_values=_reply_receipt_values_owner(),
+        legacy_recovery=True,
         replace_bound_source_receipt=replace_bound_source_receipt,
         transaction_mutation_authority=transaction_mutation_authority,
         log=log,

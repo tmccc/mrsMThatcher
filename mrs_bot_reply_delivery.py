@@ -9,10 +9,10 @@ SIGINT deferral boundaries.
 
 No-follow/create/replace/retire primitives, transport journals and mutation
 authority, create_post, runtime barriers, SIGINT guard implementation, state
-persistence, receipt values and reconciliation remain in their existing owners
-and are invoked through current root callbacks. Import uses only the standard
-library and performs no file, environment, provider or RNG work; no callbacks
-or configuration are retained.
+persistence and reconciliation remain in their existing owners and are invoked
+through current root callbacks. Receipt operations receive the current value
+owner directly. Import uses only the standard library and performs no file,
+environment, provider or RNG work; no callbacks or configuration are retained.
 """
 
 from __future__ import annotations
@@ -295,16 +295,24 @@ def promote_sending_reply_receipt(
     transport_source_semantic_validator: Callable,
     canonical_atomic_json_bytes: Callable,
     TransportJournalError: type[Exception],
-    _confirmed_reply_receipt_from_sending: Callable,
-    confirmed_reply_receipt_is_semantically_valid: Callable,
+    receipt_values: ReplyReceiptValues,
+    legacy_recovery: bool,
     replace_bound_source_receipt: Callable,
     transaction_mutation_authority: Callable,
     log: logging.Logger,
 ) -> dict:
-    """Atomically promote the exact prepared transaction to confirmed."""
+    """Promote one exact transport-bound source under its receipt family rules.
+
+    Frozen legacy sources use the supplied recovery-only transport validator;
+    both families share source identity checks before value projection and the
+    atomic replacement without mutating the caller-owned source.
+    """
     status, current = load_confirmed_reply_receipt()
-    if status != "sending" or current != sending_receipt:
+    expected_status = "legacy_sending" if legacy_recovery else "sending"
+    if status != expected_status or current != sending_receipt:
         raise UnresolvedSendingReplyReceipt(
+            "Legacy conversational sending receipt changed before recovery"
+            if legacy_recovery else
             "Conversational reply sending receipt changed before confirmation"
         )
     recovery = bind_confirmed_transport_source(
@@ -322,98 +330,38 @@ def promote_sending_reply_receipt(
         != canonical_atomic_json_bytes(sending_receipt)
     ):
         raise TransportJournalError(
+            "confirmed legacy conversational transport/source lineage changed"
+            if legacy_recovery else
             "confirmed conversational transport/source lineage changed"
         )
-    confirmed = _confirmed_reply_receipt_from_sending(
+    confirmed = receipt_values.confirmed_from_sending(
         sending_receipt,
         reply_post_id=reply_post_id,
         confirmation_epoch=confirmation_epoch,
     )
-    if not confirmed_reply_receipt_is_semantically_valid(confirmed):
+    if not (
+        receipt_values.legacy_confirmed_is_valid(confirmed)
+        if legacy_recovery else receipt_values.confirmed_is_valid(confirmed)
+    ):
         raise RuntimeError(
+            "Internal error: promoted legacy reply receipt failed recovery validation"
+            if legacy_recovery else
             "Internal error: promoted confirmed-reply receipt failed validation"
         )
     replace_bound_source_receipt(
         recovery.source_binding,
         canonical_atomic_json_bytes(confirmed),
         mutation_authority=transaction_mutation_authority(
-            "confirmed conversational source receipt promotion"
-        ),
-    )
-    log.warning(
-        "Promoted conversational reply receipt to confirmed source=%s "
-        "target_id=%s reply_post_id=%s path=%s",
-        confirmed.get("candidate_source", "mention"),
-        confirmed.get("target_id"),
-        confirmed.get("reply_post_id"),
-        CONFIRMED_REPLY_RECEIPT_FILE,
-    )
-    return confirmed
-
-
-def _promote_legacy_sending_reply_receipt_from_confirmed_transport(
-    sending_receipt: dict,
-    *,
-    reply_post_id: str,
-    confirmation_epoch: int,
-    load_confirmed_reply_receipt: Callable,
-    UnresolvedSendingReplyReceipt: type[Exception],
-    bind_confirmed_transport_source: Callable,
-    journal_path_for_receipt: Callable,
-    CONFIRMED_REPLY_RECEIPT_FILE: Path,
-    TRANSPORT_SOURCE_VALIDATOR_ID: str,
-    _legacy_conversational_transport_source_semantic_validator: Callable,
-    canonical_atomic_json_bytes: Callable,
-    TransportJournalError: type[Exception],
-    _confirmed_reply_receipt_from_sending: Callable,
-    _legacy_confirmed_reply_receipt_is_semantically_valid: Callable,
-    replace_bound_source_receipt: Callable,
-    transaction_mutation_authority: Callable,
-    log: logging.Logger,
-) -> dict:
-    """Promote a frozen source only when its exact journal proves success."""
-
-    status, current = load_confirmed_reply_receipt()
-    if status != "legacy_sending" or current != sending_receipt:
-        raise UnresolvedSendingReplyReceipt(
-            "Legacy conversational sending receipt changed before recovery"
-        )
-    recovery = bind_confirmed_transport_source(
-        journal_path=journal_path_for_receipt(CONFIRMED_REPLY_RECEIPT_FILE),
-        receipt_path=CONFIRMED_REPLY_RECEIPT_FILE,
-        validator_id=TRANSPORT_SOURCE_VALIDATOR_ID,
-        validator=_legacy_conversational_transport_source_semantic_validator,
-    )
-    if (
-        recovery.details.lane != "conversational_reply"
-        or recovery.details.post_id != str(reply_post_id)
-        or recovery.details.confirmation_epoch != int(confirmation_epoch)
-        or recovery.source_binding.receipt_document != sending_receipt
-        or recovery.source_binding.receipt_bytes
-        != canonical_atomic_json_bytes(sending_receipt)
-    ):
-        raise TransportJournalError(
-            "confirmed legacy conversational transport/source lineage changed"
-        )
-    confirmed = _confirmed_reply_receipt_from_sending(
-        sending_receipt,
-        reply_post_id=reply_post_id,
-        confirmation_epoch=confirmation_epoch,
-    )
-    if not _legacy_confirmed_reply_receipt_is_semantically_valid(confirmed):
-        raise RuntimeError(
-            "Internal error: promoted legacy reply receipt failed recovery validation"
-        )
-    replace_bound_source_receipt(
-        recovery.source_binding,
-        canonical_atomic_json_bytes(confirmed),
-        mutation_authority=transaction_mutation_authority(
             "confirmed legacy conversational source receipt promotion"
+            if legacy_recovery else "confirmed conversational source receipt promotion"
         ),
     )
     log.warning(
         "Promoted legacy conversational reply receipt from exact confirmed "
-        "transport source=%s target_id=%s reply_post_id=%s path=%s",
+        "transport source=%s target_id=%s reply_post_id=%s path=%s"
+        if legacy_recovery else
+        "Promoted conversational reply receipt to confirmed source=%s "
+        "target_id=%s reply_post_id=%s path=%s",
         confirmed.get("candidate_source", "mention"),
         confirmed.get("target_id"),
         confirmed.get("reply_post_id"),

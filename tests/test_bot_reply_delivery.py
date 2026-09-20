@@ -67,8 +67,6 @@ def test_adapters_forward_current_dependencies_arguments_results_and_errors(monk
     names = (
         "write_confirmed_reply_receipt",
         "write_sending_reply_receipt",
-        "promote_sending_reply_receipt",
-        "_promote_legacy_sending_reply_receipt_from_confirmed_transport",
         "retire_proved_rejected_conversational_reply_receipt",
     )
     assert_adapters_forward_current_dependencies(
@@ -78,13 +76,16 @@ def test_adapters_forward_current_dependencies_arguments_results_and_errors(monk
 
 @pytest.mark.parametrize("name", [
     "load_confirmed_reply_receipt", "post_conversational_reply_with_durable_identity",
+    "promote_sending_reply_receipt", "_promote_legacy_sending_reply_receipt_from_confirmed_transport",
 ])
 def test_value_adapters_bind_current_owner_and_preserve_dependencies_and_results(monkeypatch, name):
     adapter = getattr(bot, name)
+    legacy_recovery = name == "_promote_legacy_sending_reply_receipt_from_confirmed_transport"
+    implementation_name = "promote_sending_reply_receipt" if legacy_recovery else name
     public = inspect.signature(adapter).parameters
     dependencies = (
-        inspect.signature(getattr(delivery, name)).parameters.keys()
-        - public.keys() - {"receipt_values"}
+        inspect.signature(getattr(delivery, implementation_name)).parameters.keys()
+        - public.keys() - {"receipt_values", "legacy_recovery"}
     )
     args = tuple(object() for parameter in public.values()
                  if parameter.kind == inspect.Parameter.POSITIONAL_OR_KEYWORD)
@@ -92,14 +93,18 @@ def test_value_adapters_bind_current_owner_and_preserve_dependencies_and_results
                if parameter.kind == inspect.Parameter.KEYWORD_ONLY}
     implementation = Mock(return_value=object())
     factory = Mock()
-    monkeypatch.setattr(delivery, name, implementation)
+    monkeypatch.setattr(delivery, implementation_name, implementation)
     monkeypatch.setattr(bot, "_reply_receipt_values_owner", factory)
     for _ in range(2):
         owner = Mock(spec=values.ReplyReceiptValues)
         factory.return_value = owner
         current = {key: object() for key in dependencies}
         for key, value in current.items():
-            monkeypatch.setattr(bot, key, value)
+            root_name = (
+                "_legacy_conversational_transport_source_semantic_validator"
+                if legacy_recovery and key == "transport_source_semantic_validator" else key
+            )
+            monkeypatch.setattr(bot, root_name, value)
         assert adapter(*args, **options) is implementation.return_value
         factory.assert_called_once_with()
         factory.reset_mock()
@@ -107,6 +112,8 @@ def test_value_adapters_bind_current_owner_and_preserve_dependencies_and_results
         assert len(actual_args) == len(args)
         assert all(actual is expected for actual, expected in zip(actual_args, args))
         expected = {**options, **current, "receipt_values": owner}
+        if implementation_name == "promote_sending_reply_receipt":
+            expected["legacy_recovery"] = legacy_recovery
         assert actual_kwargs.keys() == expected.keys()
         assert all(actual_kwargs[key] is value for key, value in expected.items())
         assert not owner.mock_calls
@@ -541,3 +548,82 @@ def test_root_reply_retirement_rejects_unsafe_reader_authority(monkeypatch, tmp_
     finally:
         tmp_path.chmod(0o700)
     retire.assert_not_called()
+
+
+@pytest.mark.parametrize("legacy", [False, True])
+@pytest.mark.parametrize("failure_stage", [None, "source", "validation", "replace"])
+def test_promotion_families_share_source_checks_before_projection_and_replacement(monkeypatch, legacy, failure_stage):
+    sending = unit_sending_v4_reply_receipt()
+    confirmed = {**sending, "reply_post_id": "999"}
+    epoch = sending["attempt_epoch"]
+    binding = SimpleNamespace(receipt_document=sending, receipt_bytes=b"sending")
+    recovery = SimpleNamespace(
+        details=SimpleNamespace(lane="conversational_reply", post_id="999", confirmation_epoch=epoch),
+        source_binding=binding,
+    )
+    trace = Mock()
+    trace.load.return_value = ("legacy_sending" if legacy else "sending", sending)
+    trace.path.return_value = Path("unit-journal.json")
+    trace.bind.return_value = recovery
+    trace.canonical.side_effect = lambda receipt: b"sending" if receipt is sending else b"confirmed"
+    trace.project.return_value = confirmed
+    trace.validate.return_value = failure_stage != "validation"
+    trace.authority.return_value = object()
+    owner = Mock(spec=values.ReplyReceiptValues)
+    owner.confirmed_from_sending = trace.project
+    setattr(owner, "legacy_confirmed_is_valid" if legacy else "confirmed_is_valid", trace.validate)
+    monkeypatch.setattr(bot, "_reply_receipt_values_owner", Mock(return_value=owner))
+    for name, callback in (
+        ("load_confirmed_reply_receipt", trace.load),
+        ("journal_path_for_receipt", trace.path),
+        ("bind_confirmed_transport_source", trace.bind),
+        ("canonical_atomic_json_bytes", trace.canonical),
+        ("transaction_mutation_authority", trace.authority),
+        ("replace_bound_source_receipt", trace.replace),
+    ):
+        monkeypatch.setattr(bot, name, callback)
+    logger = Mock()
+    monkeypatch.setattr(bot, "log", logger)
+    transport_validator = object()
+    validator_name = ("_legacy_conversational_transport_source_semantic_validator"
+                      if legacy else "transport_source_semantic_validator")
+    monkeypatch.setattr(bot, validator_name, transport_validator)
+    promote = (bot._promote_legacy_sending_reply_receipt_from_confirmed_transport
+               if legacy else bot.promote_sending_reply_receipt)
+    if failure_stage == "source":
+        binding.receipt_bytes = b"different exact transaction"
+    replacement_error = OSError("atomic replace failed")
+    if failure_stage == "replace":
+        trace.replace.side_effect = replacement_error
+
+    if failure_stage is None:
+        assert promote(sending, reply_post_id="999", confirmation_epoch=epoch) is confirmed
+    else:
+        expected = {"source": bot.TransportJournalError, "validation": RuntimeError, "replace": OSError}[failure_stage]
+        with pytest.raises(expected) as caught:
+            promote(sending, reply_post_id="999", confirmation_epoch=epoch)
+        if failure_stage == "replace":
+            assert caught.value is replacement_error
+        logger.warning.assert_not_called()
+
+    stages = ["load", "path", "bind", "canonical"]
+    if failure_stage != "source":
+        stages += ["project", "validate"]
+    if failure_stage not in {"source", "validation"}:
+        stages += ["canonical", "authority", "replace"]
+    assert [entry[0] for entry in trace.mock_calls] == stages
+    assert trace.bind.call_args.kwargs["validator"] is transport_validator
+    assert trace.canonical.call_args_list[0].args[0] is sending
+    if failure_stage != "source":
+        assert trace.project.call_args.args[0] is sending
+        trace.project.assert_called_once_with(sending, reply_post_id="999", confirmation_epoch=epoch)
+        assert trace.validate.call_args.args[0] is confirmed
+    if failure_stage not in {"source", "validation"}:
+        assert trace.canonical.call_args_list[1].args[0] is confirmed
+        trace.authority.assert_called_once_with(
+            "confirmed legacy conversational source receipt promotion"
+            if legacy else "confirmed conversational source receipt promotion"
+        )
+        trace.replace.assert_called_once_with(binding, b"confirmed", mutation_authority=trace.authority.return_value)
+    if failure_stage is None:
+        logger.warning.assert_called_once()

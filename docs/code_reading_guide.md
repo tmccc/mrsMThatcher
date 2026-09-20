@@ -44,7 +44,7 @@ need. A recovered draft can bypass model evaluation.
 | Pending-draft validation, storage, recovery, clearing and receipt-draft checks | `ReplyDrafts` in [mrs_bot_reply_drafts.py](../mrs_bot_reply_drafts.py) |
 | Confirmed-reply history recording and selection | `ReplyHistory` in [mrs_bot_reply_history.py](../mrs_bot_reply_history.py) |
 | Ineligible-target retirement | [mrs_bot_reply_state.py](../mrs_bot_reply_state.py) |
-| Receipt validation, source reconstruction and time binding | `ReplyReceiptValues` in [mrs_bot_reply_receipt_values.py](../mrs_bot_reply_receipt_values.py) |
+| Receipt validation, send-template preparation, source reconstruction and time binding | `ReplyReceiptValues` in [mrs_bot_reply_receipt_values.py](../mrs_bot_reply_receipt_values.py) |
 | Author quarantine strikes, expiry and policy migration | `AuthorQuarantines` in [mrs_bot_author_quarantines.py](../mrs_bot_author_quarantines.py) |
 | Terminal evaluation recording and replay-protection retention | `ReplyEvaluations` in [mrs_bot_reply_evaluation_state.py](../mrs_bot_reply_evaluation_state.py) |
 | Clarification eligibility and completed repair history | `ClarificationReplies` in [mrs_bot_reply_clarifications.py](../mrs_bot_reply_clarifications.py) |
@@ -79,6 +79,14 @@ selects explicit or legacy continuation in its private pagination helper before
 clearing target drafts. Image collection delegates each bounded transfer to
 `ReplyMedia._download_image`; `ReplyModelTransport._decode_response` interprets
 provider responses and closes them on both ordinary and unexpected failures.
+
+Receipt loading and delivery bind one current `ReplyReceiptValues` owner for
+validation and in-memory projections. `prepare_sending_template` checks current
+send authority before receipt I/O and preserves reviewed nested objects in a
+fresh outer mapping. Current and frozen legacy source promotions use the same
+transaction operation with their separate validators; journal binding, exact
+source bytes and replacement authority remain in delivery. Root compatibility
+entry points and receipt-removal commit-proof checks are unchanged.
 
 For a change to saved-draft behaviour, start with `ReplyDrafts`. Its `store`,
 `recover` and `receipt_draft_is_valid` methods call its own `validate` method;
