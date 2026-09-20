@@ -35,8 +35,8 @@ from mrs_bot_reply_cycle_interfaces import (
     NORMAL_CHECK_STATUS_SKIPPED_CAP,
     NORMAL_CHECK_STATUS_SKIPPED_COOLDOWN,
     NORMAL_CHECK_STATUS_SKIPPED_SPACING,
-    EvaluateReply, NormalReplyConfig, PreparedReplyContext,
-    ReplyCycleDelivery, ReplyCyclePersistence,
+    EvaluateReply, FinishReplyCheck, NormalReplyConfig, PreparedReplyContext,
+    ReplyCycleDelivery, ReplyCyclePersistence, SkipReplyCandidate,
 )
 from mrs_bot_reply_delivery import ReplyDeliveryStop, deliver_prepared_reply
 from mrs_bot_reply_evaluation_state import (
@@ -79,12 +79,6 @@ class _ReplyCycleProgress:
     # A terminal evaluation was recorded without pruning the full record set.
     evaluation_record_pruning_pending: bool = False
 
-
-@dataclass(frozen=True)
-class _CandidateStop:
-    """Continue to the next candidate, or return a check status when supplied."""
-
-    status: str | None = None
 
 
 def maybe_reply_to_mentions(
@@ -356,9 +350,9 @@ def maybe_reply_to_mentions(
             reply_evidence_repository=reply_evidence_repository,
             persistence=persistence, trim_context_text=trim_context_text,
         )
-        if isinstance(context_result, _CandidateStop):
-            if context_result.status is not None:
-                return context_result.status
+        if isinstance(context_result, FinishReplyCheck):
+            return context_result.status
+        if isinstance(context_result, SkipReplyCandidate):
             continue
         reply_context = context_result.context
 
@@ -370,9 +364,9 @@ def maybe_reply_to_mentions(
             persistence=persistence, record_api_error=record_api_error,
             recovery_comparison_account_replies=recovery_comparison_account_replies,
         )
-        if isinstance(evaluation_result, _CandidateStop):
-            if evaluation_result.status is not None:
-                return evaluation_result.status
+        if isinstance(evaluation_result, FinishReplyCheck):
+            return evaluation_result.status
+        if isinstance(evaluation_result, SkipReplyCandidate):
             continue
         reply_text = evaluation_result.reply
 
@@ -386,7 +380,7 @@ def maybe_reply_to_mentions(
                 reply_evaluations=reply_evaluations,
                 persistence=persistence,
             )
-            if outcome.status is not None:
+            if isinstance(outcome, FinishReplyCheck):
                 return outcome.status
             continue
 
@@ -400,7 +394,7 @@ def maybe_reply_to_mentions(
             mention_pagination_provenance_is_valid=mention_pagination_provenance_is_valid,
             persistence=persistence,
         )
-        if isinstance(receipt_template, _CandidateStop):
+        if isinstance(receipt_template, FinishReplyCheck):
             return receipt_template.status
 
         receipt = _deliver_reply(
@@ -419,7 +413,7 @@ def maybe_reply_to_mentions(
             record_api_error=record_api_error,
             reply_evaluations=reply_evaluations,
         )
-        if isinstance(receipt, _CandidateStop):
+        if isinstance(receipt, FinishReplyCheck):
             return receipt.status
 
         status = _finalise_confirmed_reply(
@@ -675,7 +669,7 @@ def _prepare_reply_context(
     reply_evidence_repository: Callable,
     persistence: ReplyCyclePersistence,
     trim_context_text: Callable,
-) -> PreparedReplyContext | _CandidateStop:
+) -> PreparedReplyContext | SkipReplyCandidate | FinishReplyCheck:
     """Build canonical context and media, preserving the narrow context error boundary."""
     try:
         prepared = build_context_for_reply_ai(candidate.mention, state)
@@ -693,12 +687,12 @@ def _prepare_reply_context(
             reason="global_runtime_control_pause",
         )
         persistence.save(state, durable=True)
-        return _CandidateStop(NORMAL_CHECK_STATUS_CHECKED)
+        return FinishReplyCheck(NORMAL_CHECK_STATUS_CHECKED)
     except ApiError as e:
         log.exception("Could not build context for %s %s due to API error", candidate.source, candidate.mention_id)
         record_api_error(state, e, "x")
         persistence.save(state)
-        return _CandidateStop(NORMAL_CHECK_STATUS_API_ERROR)
+        return FinishReplyCheck(NORMAL_CHECK_STATUS_API_ERROR)
 
     if prepared is None:
         log.warning(
@@ -730,7 +724,7 @@ def _prepare_reply_context(
         )
         mark_mention_seen_if_applicable(state, candidate.mention)
         persistence.save(state, durable=True)
-        return _CandidateStop()
+        return SkipReplyCandidate()
 
     reply_context = prepared.context
 
@@ -756,7 +750,7 @@ def _prepare_reply_context(
             lane=str(candidate.source),
             target_id=candidate.mention_id,
         )
-        return _CandidateStop(NORMAL_CHECK_STATUS_CHECKED)
+        return FinishReplyCheck(NORMAL_CHECK_STATUS_CHECKED)
 
     return prepared
 
@@ -777,7 +771,7 @@ def _evaluate_reply(
     persistence: ReplyCyclePersistence,
     record_api_error: Callable,
     recovery_comparison_account_replies: Callable,
-) -> PipelineResult | _CandidateStop:
+) -> PipelineResult | SkipReplyCandidate | FinishReplyCheck:
     """Recover or generate a draft, charging only fresh mention model evaluations."""
     evaluation = persistence.recover(
         state,
@@ -807,7 +801,7 @@ def _evaluate_reply(
                     author_id=candidate.author_id,
                     reason="fresh_model_evaluation_budget_exhausted",
                 )
-                return _CandidateStop()
+                return SkipReplyCandidate()
             if candidate.source == "mention":
                 progress.fresh_mention_ai_evaluations += 1
             evaluation = evaluate_single_call_reply(
@@ -841,17 +835,17 @@ def _evaluate_reply(
             reason="global_runtime_control_pause",
         )
         persistence.save(state, durable=True)
-        return _CandidateStop(NORMAL_CHECK_STATUS_CHECKED)
+        return FinishReplyCheck(NORMAL_CHECK_STATUS_CHECKED)
     except ApiError as exc:
         log.exception("OpenAI single-call reply failed")
         if exc.service == "openai":
             record_api_error(state, exc, "openai")
         persistence.save(state)
-        return _CandidateStop(NORMAL_CHECK_STATUS_API_ERROR)
+        return FinishReplyCheck(NORMAL_CHECK_STATUS_API_ERROR)
     except Exception:
         log.exception("Unexpected single-call reply failure")
         persistence.save(state)
-        return _CandidateStop(NORMAL_CHECK_STATUS_API_ERROR)
+        return FinishReplyCheck(NORMAL_CHECK_STATUS_API_ERROR)
     return evaluation
 
 
@@ -869,7 +863,7 @@ def _retire_or_defer_no_reply(
     author_quarantines: AuthorQuarantines,
     reply_evaluations: ReplyEvaluations,
     persistence: ReplyCyclePersistence,
-) -> _CandidateStop:
+) -> SkipReplyCandidate | FinishReplyCheck:
     """Distinguish terminal local/editorial outcomes from retryable evaluation failures."""
     if _is_terminal_candidate_local_failure(evaluation):
         failure_category = str(evaluation.error_category)
@@ -906,7 +900,7 @@ def _retire_or_defer_no_reply(
         )
         mark_mention_seen_if_applicable(state, candidate.mention)
         persistence.save(state, durable=True)
-        return _CandidateStop()
+        return SkipReplyCandidate()
     if evaluation.status != "no_reply":
         log.warning(
             "Deferring %s %s after operational reply failure reason=%s",
@@ -915,7 +909,7 @@ def _retire_or_defer_no_reply(
             evaluation.reason or "unknown",
         )
         persistence.save(state, durable=True)
-        return _CandidateStop(NORMAL_CHECK_STATUS_API_ERROR)
+        return FinishReplyCheck(NORMAL_CHECK_STATUS_API_ERROR)
     reason_code = str(
         evaluation.reason_code
         or evaluation.reason
@@ -947,7 +941,7 @@ def _retire_or_defer_no_reply(
     )
     mark_mention_seen_if_applicable(state, candidate.mention)
     persistence.save(state, durable=True)
-    return _CandidateStop()
+    return SkipReplyCandidate()
 
 
 def _prepare_reply_receipt(
@@ -965,7 +959,7 @@ def _prepare_reply_receipt(
     log_event: Callable,
     mention_pagination_provenance_is_valid: Callable,
     persistence: ReplyCyclePersistence,
-) -> dict | _CandidateStop:
+) -> dict | FinishReplyCheck:
     """Persist the validated draft and bind receipt provenance before transport handling."""
     if not isinstance(reply_text, ValidatedReply):
         log.error(
@@ -975,7 +969,7 @@ def _prepare_reply_receipt(
             candidate.source,
         )
         persistence.save(state, durable=True)
-        return _CandidateStop(NORMAL_CHECK_STATUS_API_ERROR)
+        return FinishReplyCheck(NORMAL_CHECK_STATUS_API_ERROR)
     if candidate.source == "mention":
         clear_author_evaluation_quarantine_history(state, candidate.author_id)
 
@@ -1001,7 +995,7 @@ def _prepare_reply_receipt(
         log_validation_failure=log_validation_failure,
         log_event=log_event,
     ):
-        return _CandidateStop(NORMAL_CHECK_STATUS_API_ERROR)
+        return FinishReplyCheck(NORMAL_CHECK_STATUS_API_ERROR)
     receipt_template = build_sending_reply_receipt(
         {
             "target_id": candidate.mention_id,
@@ -1128,7 +1122,7 @@ def _deliver_reply(
     delivery: ReplyCycleDelivery,
     record_api_error: Callable,
     reply_evaluations: ReplyEvaluations,
-) -> dict | _CandidateStop:
+) -> dict | FinishReplyCheck:
     """Deliver through the shared boundary, retaining normal-lane retirement and statuses."""
     def retire_terminal_target(failure_reason: str) -> None:
         if failure_reason == "target_unavailable_pre_send":
@@ -1172,9 +1166,9 @@ def _deliver_reply(
         record_api_error=record_api_error,
     )
     if outcome is ReplyDeliveryStop.TERMINAL:
-        return _CandidateStop(NORMAL_CHECK_STATUS_CHECKED)
+        return FinishReplyCheck(NORMAL_CHECK_STATUS_CHECKED)
     if outcome is ReplyDeliveryStop.RETRYABLE:
-        return _CandidateStop(NORMAL_CHECK_STATUS_API_ERROR)
+        return FinishReplyCheck(NORMAL_CHECK_STATUS_API_ERROR)
     return outcome
 
 

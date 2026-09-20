@@ -6,7 +6,9 @@ from unittest.mock import Mock
 
 import pytest
 
-from mrs_bot_reply_cycle_interfaces import PreparedReplyContext
+from mrs_bot_reply_cycle_interfaces import (
+    FinishReplyCheck, PreparedReplyContext, SkipReplyCandidate,
+)
 import mrs_bot_normal_reply_cycle as normal_cycle
 import mrs_bot_quote_reply_cycle as quote_cycle
 from single_call_reply import PipelineResult
@@ -20,6 +22,17 @@ from tests.helpers.reply_fixtures import (
     unit_approved_reply,
     unit_reply_context,
 )
+
+
+def test_candidate_skip_and_finished_check_have_distinct_contracts():
+    skipped = SkipReplyCandidate()
+    finished = FinishReplyCheck("checked")
+    assert not hasattr(skipped, "status")
+    assert finished.status == "checked"
+    with pytest.raises(TypeError):
+        FinishReplyCheck()
+    with pytest.raises(FrozenInstanceError):
+        finished.status = "posted"
 
 
 def prepare_cycle(monkeypatch, lane):

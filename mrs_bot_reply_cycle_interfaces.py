@@ -1,9 +1,9 @@
 """Fixed check statuses, per-invocation settings and shared reply-cycle boundaries.
 
-These records describe configuration, draft persistence, delivery and prepared
-context/media results. The root supplies current callbacks for each check, and
-builders return transient context/media references without adding them to bot
-state. Import and construction perform no I/O. Candidate policy and discovery
+These records describe configuration, draft persistence, delivery, candidate
+control flow and prepared context/media results. The root supplies current
+callbacks for each check, and builders return transient context/media references
+without adding them to bot state. Import and construction perform no I/O. Candidate policy and discovery
 stay explicit dependencies of their respective cycle owners.
 """
 
@@ -32,6 +32,18 @@ QUOTE_CHECK_STATUS_SKIPPED_SPACING = "skipped_spacing"
 QUOTE_CHECK_STATUS_SKIPPED_CAP = "skipped_cap"
 QUOTE_CHECK_STATUS_SKIPPED_COOLDOWN = "skipped_cooldown"
 QUOTE_CHECK_STATUS_DISABLED = "disabled"
+
+
+@dataclass(frozen=True)
+class SkipReplyCandidate:
+    """Continue scanning after the current candidate or original-post batch."""
+
+
+@dataclass(frozen=True)
+class FinishReplyCheck:
+    """End the current reply check with an explicit lane status."""
+
+    status: str
 
 
 @dataclass(frozen=True)

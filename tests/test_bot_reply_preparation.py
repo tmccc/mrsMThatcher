@@ -14,6 +14,7 @@ import mrs_bot_quote_reply_cycle as quote_cycle
 from mrs_bot_reply_cycle_interfaces import (
     NORMAL_CHECK_STATUS_API_ERROR,
     QUOTE_CHECK_STATUS_CHECKED,
+    FinishReplyCheck,
     ReplyCycleDelivery,
     ReplyCyclePersistence,
 )
@@ -239,6 +240,7 @@ def test_rejected_draft_logs_exact_lane_outcome_before_durable_save(preparation,
         assert caught.value is failure
     else:
         result = case.run()
+        assert isinstance(result, FinishReplyCheck)
         assert result.status == (QUOTE_CHECK_STATUS_CHECKED if case.lane == "quote_tweet" else NORMAL_CHECK_STATUS_API_ERROR)
 
     expected = case.steps[:case.steps.index("save")] + ["error", "event", "save"]
@@ -262,6 +264,7 @@ def test_unvalidated_reply_stops_before_quarantine_or_shared_preparation(prepara
     case = preparation
     case.reply = "Not a validated reply object"
     result = case.run()
+    assert isinstance(result, FinishReplyCheck)
     assert result.status == (QUOTE_CHECK_STATUS_CHECKED if case.lane == "quote_tweet" else NORMAL_CHECK_STATUS_API_ERROR)
     assert [item[0] for item in case.trace.mock_calls] == ["error", "save"]
     if case.lane == "quote_tweet":
