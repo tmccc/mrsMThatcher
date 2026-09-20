@@ -22,6 +22,8 @@ from logging import Logger
 from pathlib import Path
 from types import ModuleType
 
+from mrs_bot_reply_native_media import attach_media_to_tweets
+
 from mrs_bot_tweet_lookup_cache import normalise_tweet_text
 
 from mrs_bot_reply_evaluation_state import terminal_reply_evaluation
@@ -114,7 +116,6 @@ def get_mentions(
     api_error_is_invalid_pagination_cursor: Callable,
     api_error_is_permanent_target_failure: Callable,
     get_tweet_by_id: Callable,
-    attach_media_to_tweets: Callable,
     cache_tweet: Callable,
     copy: ModuleType,
     hashlib: ModuleType,

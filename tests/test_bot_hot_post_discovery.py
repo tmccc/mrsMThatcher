@@ -30,7 +30,7 @@ def forbidden(*args, **kwargs):
 
 original_import = builtins.__import__
 def guarded_import(name, *args, **kwargs):
-    if name in {'mrsMThatcher2', 'requests', 'openai', 'single_call_reply', 'reply_evidence'} or name.startswith('mrs_bot_') and name not in {'mrs_bot_hot_post_discovery', 'mrs_bot_reply_state', 'mrs_bot_runtime_state_helpers', 'mrs_bot_reply_drafts', 'mrs_bot_reply_history', 'mrs_bot_tweet_lookup_cache'}:
+    if name in {'mrsMThatcher2', 'requests', 'openai', 'single_call_reply', 'reply_evidence'} or name.startswith('mrs_bot_') and name not in {'mrs_bot_hot_post_discovery', 'mrs_bot_reply_state', 'mrs_bot_runtime_state_helpers', 'mrs_bot_reply_drafts', 'mrs_bot_reply_history', 'mrs_bot_tweet_lookup_cache', 'mrs_bot_reply_native_media'}:
         forbidden()
     return original_import(name, *args, **kwargs)
 
@@ -56,7 +56,7 @@ assert 'requests' not in sys.modules
 
 def test_adapters_forward_current_dependencies_arguments_defaults_results_and_errors(monkeypatch):
     counts = {
-        "get_hot_post_reply_candidates": 25,
+        "get_hot_post_reply_candidates": 24,
         "mark_hot_post_reply_skipped": 3,
         "maybe_mark_hot_post_reply_skipped": 1,
         "dedupe_reply_candidates": 2,
@@ -198,6 +198,8 @@ def test_discovery_keeps_draft_terminal_media_cache_and_save_order_and_reference
         calls[label] = callback
         if label == "clear":
             patch_reply_draft_method(monkeypatch, "clear", callback)
+        elif label == "media":
+            monkeypatch.setattr(discovery, name, callback)
         else:
             monkeypatch.setattr(bot, name, callback)
 

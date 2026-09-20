@@ -25,7 +25,7 @@ def forbidden(*args, **kwargs):
 
 original_import = builtins.__import__
 def guarded_import(name, *args, **kwargs):
-    if name in {'mrsMThatcher2', 'requests', 'openai', 'single_call_reply', 'reply_evidence'} or name.startswith('mrs_bot_') and name not in {'mrs_bot_quote_discovery', 'mrs_bot_tweet_lookup_cache'}:
+    if name in {'mrsMThatcher2', 'requests', 'openai', 'single_call_reply', 'reply_evidence'} or name.startswith('mrs_bot_') and name not in {'mrs_bot_quote_discovery', 'mrs_bot_tweet_lookup_cache', 'mrs_bot_reply_native_media'}:
         forbidden()
     return original_import(name, *args, **kwargs)
 
@@ -53,8 +53,8 @@ def test_adapters_forward_current_dependencies_arguments_results_and_errors(monk
     counts = {
         "quote_repeated_cursor_suppression_record": 4,
         "normalise_quote_repeated_cursor_suppressions": 3,
-        "get_quote_tweets_for_post": 14,
-        "get_quote_tweets_for_posts": 8,
+        "get_quote_tweets_for_post": 13,
+        "get_quote_tweets_for_posts": 7,
     }
     for name, count in counts.items():
         adapter = getattr(bot, name)
@@ -315,7 +315,7 @@ def test_discovery_passes_paginator_contract_and_preserves_media_author_data_ide
     monkeypatch.setattr(bot, "QUOTE_LOOKUP_MAX_PAGES_PER_POST", 4)
     monkeypatch.setattr(bot, "x_quote_lookup_request", request)
     monkeypatch.setattr(bot, "x_paginated_get", paginate)
-    monkeypatch.setattr(bot, "attach_media_to_tweets", media)
+    monkeypatch.setattr(discovery, "attach_media_to_tweets", media)
     monkeypatch.setattr(bot, "log_json_debug", debug)
     monkeypatch.setattr(bot, "save_state", saves)
     monkeypatch.setattr(bot, "log", log)
@@ -334,7 +334,7 @@ def test_discovery_state_none_and_native_result_errors_keep_callback_order(monke
     saves, attach = Mock(), Mock()
     paginate = Mock(return_value={"data": [], "includes": None})
     monkeypatch.setattr(bot, "x_paginated_get", paginate)
-    monkeypatch.setattr(bot, "attach_media_to_tweets", attach)
+    monkeypatch.setattr(discovery, "attach_media_to_tweets", attach)
     monkeypatch.setattr(bot, "save_state", saves)
     with pytest.raises(AttributeError):
         bot.get_quote_tweets_for_post("900")

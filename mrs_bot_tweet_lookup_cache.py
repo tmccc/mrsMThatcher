@@ -9,8 +9,8 @@ on use; verified media-only refreshes retain their existing copy boundaries.
 
 Shared state epochs, request/authentication/error classification, media attachment,
 configuration, persistence and orchestration remain in their existing locations.
-This standard-library-only module performs no import-time file, environment,
-clock, provider or RNG work. Construction retains no caller state.
+Attachment expansion uses its inert owner directly. This module performs no
+import-time file, environment, clock, provider or RNG work. Construction retains no caller state.
 """
 
 from __future__ import annotations
@@ -19,6 +19,8 @@ from collections.abc import Callable
 from logging import Logger
 from pathlib import Path
 from dataclasses import dataclass
+
+from mrs_bot_reply_native_media import attach_media_to_tweets
 import copy
 
 
@@ -62,7 +64,6 @@ class TweetLookupCache:
     state_file: Path
     current_datetime: Callable
     api_error: type[Exception]
-    attach_media_to_tweets: Callable
     log_json_debug: Callable
     request: Callable
     is_permanent_target_failure: Callable
@@ -304,7 +305,7 @@ class TweetLookupCache:
         if isinstance(tweet, dict):
             normalise_tweet_text(tweet)
         if include_media and isinstance(tweet, dict):
-            self.attach_media_to_tweets([tweet], result.get("includes"))
+            attach_media_to_tweets([tweet], result.get("includes"))
         self.log_json_debug("Fetched tweet", tweet)
 
         return tweet

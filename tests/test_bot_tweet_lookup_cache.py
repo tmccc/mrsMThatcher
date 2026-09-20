@@ -29,7 +29,7 @@ def forbidden(*args, **kwargs):
 
 original_import = builtins.__import__
 def guarded_import(name, *args, **kwargs):
-    if name in {'mrsMThatcher2', 'requests', 'openai', 'single_call_reply', 'reply_evidence'} or name.startswith('mrs_bot_') and name != 'mrs_bot_tweet_lookup_cache':
+    if name in {'mrsMThatcher2', 'requests', 'openai', 'single_call_reply', 'reply_evidence'} or name.startswith('mrs_bot_') and name not in {'mrs_bot_tweet_lookup_cache', 'mrs_bot_reply_native_media'}:
         forbidden()
     return original_import(name, *args, **kwargs)
 
@@ -58,7 +58,7 @@ OWNER_INPUTS = {
     "maximum_age_seconds": "TWEET_CACHE_MAX_AGE_SECONDS", "maximum_items": "TWEET_CACHE_MAX_ITEMS",
     "log": "log", "now_epoch": "now_epoch", "maximum_recent_own_posts": "RECENT_OWN_POST_IDS_MAX",
     "user_id": "MY_USER_ID", "state_file": "STATE_FILE", "current_datetime": "current_datetime",
-    "api_error": "ApiError", "attach_media_to_tweets": "attach_media_to_tweets",
+    "api_error": "ApiError",
     "log_json_debug": "log_json_debug", "request": "x_request",
     "is_permanent_target_failure": "api_error_is_permanent_target_failure", "save_state": "save_state",
 }
@@ -273,6 +273,8 @@ def test_direct_lookup_keeps_provider_verify_media_debug_order_and_row_identity(
                            ("attach_media_to_tweets", trace.media), ("log_json_debug", trace.debug)):
         if name == "_verified_tweet_lookup_row":
             patch_tweet_lookup_method(monkeypatch, "verified_row", callback)
+        elif name == "attach_media_to_tweets":
+            monkeypatch.setattr(lookup_cache, name, callback)
         else:
             monkeypatch.setattr(bot, name, callback)
     assert bot.get_tweet_by_id("123", include_media=True) is row

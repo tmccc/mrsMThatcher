@@ -15,6 +15,8 @@ from zoneinfo import ZoneInfo
 
 import pytest
 
+import mrs_bot_hot_post_discovery as hot_post_discovery
+
 from tests.helpers.bot_runtime import (
     SCENARIOS,
     SOURCE_DEFAULT_SINGLE_CALL_REPLY,
@@ -1267,7 +1269,7 @@ def test_hot_post_search_skips_ineligible_targets_before_candidate_cap(
         "x_paginated_get",
         lambda *_args, **_kwargs: {"data": [dict(row) for row in replies], "_pagination": {}},
     )
-    monkeypatch.setattr(bot, "attach_media_to_tweets", lambda *_args, **_kwargs: None)
+    monkeypatch.setattr(hot_post_discovery, "attach_media_to_tweets", lambda *_args, **_kwargs: None)
     monkeypatch.setattr(bot, "now_epoch", lambda: 1_800_000_000)
     monkeypatch.setattr(bot, "save_state", lambda *_args, **_kwargs: None)
     monkeypatch.setattr(bot, "log_event", lambda *_args, **_kwargs: None)
