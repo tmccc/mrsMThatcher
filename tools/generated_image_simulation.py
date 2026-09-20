@@ -307,12 +307,10 @@ class HistoricalImageSelection:
         """Keep legacy numeric history unresolved for a mixed-image corpus."""
         return _used_history.normalise_image_used_basenames(
             images_used, images, image_analysis,
-            Path=Path,
             image_corpus_verified_for_legacy_migration=lambda paths, analysis: (
                 not self.ENABLE_GENERATED_IMAGE_POOL
                 and self.bot.image_corpus_verified_for_legacy_migration(paths, analysis)
             ),
-            re=self.bot.re,
         )
 
     def choose_matched_unused_image(

@@ -2,17 +2,20 @@
 
 Each root invocation binds current paths, file authorities and analysis loaders
 to UsedHistory. Load/save and source-verified migrations call owned operations
-directly. Pure coercion/sorting stay local; the shared image-normalization leaf
+directly. Pure coercion/sorting and fixed JSON, hashing, regex and basename transforms stay local; the shared image-normalization leaf
 also supports the historical simulator's deliberately different corpus proof.
 No caller history is retained and import performs no runtime work.
 """
 from __future__ import annotations
 
+import hashlib
+import json
+import re
+
 from collections.abc import Callable
 from dataclasses import dataclass
 from pathlib import Path
 from logging import Logger
-from types import ModuleType
 from typing import Any
 
 
@@ -43,17 +46,13 @@ class UsedHistory:
 
     corrupt_error: type[Exception]
     unsafe_namespace: type[Exception]
-    json: ModuleType
     log: Logger
     read_stable_bytes: Callable[..., tuple[bool, bytes | None]]
     write_json: Callable
-    re: ModuleType
-    hashlib: ModuleType
     quote_hashes_by_line: Callable[[list[str]], dict[int, str]]
     quote_history_file: Path
     legacy_quote_file: Path
     quote_analysis: Callable[[], dict | None]
-    path_type: type[Path]
     image_history_file: Path
     legacy_image_file: Path
     image_analysis: Callable[[], dict | None]
@@ -66,7 +65,7 @@ class UsedHistory:
             present, data = self.read_stable_bytes(path)
             if not present or data is None:
                 raise FileNotFoundError(path)
-            value = self.json.loads(data.decode("utf-8"))
+            value = json.loads(data.decode("utf-8"))
             converted = coerce_used_set(value, path=path)
             if isinstance(value, list) and value != used_set_to_sorted_list(converted):
                 self.save_used_set(path, converted)
@@ -99,7 +98,7 @@ class UsedHistory:
 
     def quote_used_history_has_legacy_indices(self, value: set) -> bool:
         """Return whether quote used history has legacy indices."""
-        return any(self.re.fullmatch(r"-?\d+", str(item)) for item in value)
+        return any(re.fullmatch(r"-?\d+", str(item)) for item in value)
 
     def quote_source_matches_analysis(self, quote_analysis: dict | None, lines: list[str]) -> bool:
         """Return whether quote source matches analysis."""
@@ -109,7 +108,7 @@ class UsedHistory:
         expected = source.get("source_sha256")
         if not expected:
             return False
-        current = self.hashlib.sha256("".join(lines).encode("utf-8")).hexdigest()
+        current = hashlib.sha256("".join(lines).encode("utf-8")).hexdigest()
         return str(expected) == current
 
     def normalise_quote_used_hashes(
@@ -126,7 +125,7 @@ class UsedHistory:
 
         for item in raw_used:
             item_text = str(item)
-            if self.re.fullmatch(r"[0-9a-fA-F]{64}", item_text):
+            if re.fullmatch(r"[0-9a-fA-F]{64}", item_text):
                 normalised.add(item_text.lower())
                 if item_text != item_text.lower():
                     changed = True
@@ -184,7 +183,7 @@ class UsedHistory:
         if not isinstance(image_analysis, dict):
             return False
         expected = set(str(name) for name in (image_analysis.get("path_index") or {}).keys())
-        visible = {self.path_type(path).name for path in images}
+        visible = {Path(path).name for path in images}
         return bool(expected) and visible == expected
 
     def load_image_used_basenames(self, images: list[str]) -> set:
@@ -210,9 +209,7 @@ class UsedHistory:
         """Normalize image history with this owner's current corpus proof."""
         return normalise_image_used_basenames(
             images_used, images, image_analysis,
-            Path=self.path_type,
             image_corpus_verified_for_legacy_migration=self.image_corpus_verified_for_legacy_migration,
-            re=self.re,
         )
 
 
@@ -221,9 +218,7 @@ def normalise_image_used_basenames(
     images: list[str],
     image_analysis: dict | None = None,
     *,
-    Path: Any,
     image_corpus_verified_for_legacy_migration: Any,
-    re: Any,
 ) -> tuple[set, bool]:
     """Normalise image used basenames."""
     basenames = [Path(path).name for path in images]

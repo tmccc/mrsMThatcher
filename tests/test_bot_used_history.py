@@ -125,14 +125,14 @@ def test_adapters_preserve_signatures_current_dependencies_references_and_errors
 def patch_history_dependency(monkeypatch, name, callback):
     if name in METHODS:
         monkeypatch.setattr(owner.UsedHistory, METHODS[name], lambda self, *args, **kwargs: callback(*args, **kwargs))
-    elif name in {"coerce_used_set", "used_set_to_sorted_list"}:
+    elif name in {"coerce_used_set", "used_set_to_sorted_list", "json", "re", "hashlib", "Path"}:
         monkeypatch.setattr(owner, name, callback)
     else:
         monkeypatch.setattr(bot, name, callback)
 
 
 def test_composition_binds_current_history_authorities_without_runtime_access(monkeypatch):
-    fields = {'CorruptUsedHistoryError': 'corrupt_error', 'UnsafeDurableStateNamespace': 'unsafe_namespace', 'json': 'json', 'log': 'log', 'read_stable_owned_json_bytes_no_follow': 'read_stable_bytes', 'atomic_write_json': 'write_json', 're': 're', 'hashlib': 'hashlib', 'current_quote_hashes_by_line': 'quote_hashes_by_line', 'LINES_USED_FILE': 'quote_history_file', 'PICKLE_FILE': 'legacy_quote_file', 'load_quote_analysis': 'quote_analysis', 'Path': 'path_type', 'IMAGES_USED_FILE': 'image_history_file', 'IMAGE_PICKLE_FILE': 'legacy_image_file', 'load_image_analysis': 'image_analysis'}
+    fields = {'CorruptUsedHistoryError': 'corrupt_error', 'UnsafeDurableStateNamespace': 'unsafe_namespace', 'log': 'log', 'read_stable_owned_json_bytes_no_follow': 'read_stable_bytes', 'atomic_write_json': 'write_json', 'current_quote_hashes_by_line': 'quote_hashes_by_line', 'LINES_USED_FILE': 'quote_history_file', 'PICKLE_FILE': 'legacy_quote_file', 'load_quote_analysis': 'quote_analysis', 'IMAGES_USED_FILE': 'image_history_file', 'IMAGE_PICKLE_FILE': 'legacy_image_file', 'load_image_analysis': 'image_analysis'}
     previous = None
     for _ in range(2):
         current = {name: object() for name in fields}
