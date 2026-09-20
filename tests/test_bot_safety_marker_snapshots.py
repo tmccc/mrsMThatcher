@@ -21,17 +21,14 @@ DEPENDENCIES = {'remote_write_safety_marker_path_present_or_unsafe': ['AMBIGUOUS
                                                        'os'],
  'require_remote_write_marker_removal_protocol': ['require_instance_lock_for_remote_write'],
  'read_remote_write_safety_marker_snapshot': ['AMBIGUOUS_POST_OUTCOME_FILE',
-                                              'Path',
                                               'REMOTE_WRITE_SAFETY_MARKER_MAX_BYTES',
                                               'latch_remote_write_safety_marker_observation',
-                                              'os',
-                                              'stat'],
+                                              'os'],
  'read_remote_write_safety_barrier_snapshot': ['AMBIGUOUS_POST_OUTCOME_FILE',
                                                'AMBIGUOUS_POST_OUTCOME_SUCCESSOR_FILE',
                                                'latch_remote_write_safety_marker_observation',
                                                'os',
-                                               'read_remote_write_safety_marker_snapshot',
-                                               'stat'],
+                                               'read_remote_write_safety_marker_snapshot'],
  'acknowledge_durable_remote_write_safety_marker': ['AMBIGUOUS_POST_OUTCOME_SUCCESSOR_FILE',
                                                     'fsync_parent_dir',
                                                     'read_remote_write_safety_barrier_snapshot',
@@ -230,7 +227,7 @@ def test_snapshot_preserves_resolution_flags_bounded_reads_sync_and_close_order(
         del filesystem.O_CLOEXEC
         supplied = object()
         events.resolve.return_value = path
-        monkeypatch.setattr(bot, "Path", events.resolve)
+        monkeypatch.setattr(bot._safety_marker_snapshots, "Path", events.resolve)
         result = bot.read_remote_write_safety_marker_snapshot(supplied)
         prefix = [call.resolve(supplied)]
     else:

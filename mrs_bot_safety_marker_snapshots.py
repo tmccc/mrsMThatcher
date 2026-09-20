@@ -1,10 +1,13 @@
 """Safety-marker snapshots and durability acknowledgement.
 
-The root supplies current runtime dependencies explicitly on each call. This
-module performs no runtime work at import and retains no runtime authority.
+Path values and file-mode interpretation are local. The root supplies current
+filesystem and acknowledgement boundaries explicitly on each call. This module
+performs no runtime work at import and retains no runtime authority.
 """
 from __future__ import annotations
 
+import stat
+from pathlib import Path
 from typing import Any
 
 from mrs_bot_durable_json_io import canonical_atomic_json_bytes
@@ -69,11 +72,9 @@ def read_remote_write_safety_marker_snapshot(
     *,
     accepted_link_counts: frozenset[int] = frozenset({1}),
     AMBIGUOUS_POST_OUTCOME_FILE: Any,
-    Path: Any,
     REMOTE_WRITE_SAFETY_MARKER_MAX_BYTES: Any,
     latch_remote_write_safety_marker_observation: Any,
     os: Any,
-    stat: Any,
 ) -> tuple[int, int, int, int, bytes]:
     """Read one bounded, no-follow marker snapshot with stable file identity."""
     path = AMBIGUOUS_POST_OUTCOME_FILE if path is None else Path(path)
@@ -171,7 +172,6 @@ def read_remote_write_safety_barrier_snapshot(
     latch_remote_write_safety_marker_observation: Any,
     os: Any,
     read_remote_write_safety_marker_snapshot: Any,
-    stat: Any,
 ) -> tuple[Path, tuple[int, int, int, int, bytes]]:
     """Return one exact supported marker/successor state.
 

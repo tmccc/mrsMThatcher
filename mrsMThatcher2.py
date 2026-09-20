@@ -4459,11 +4459,9 @@ def read_remote_write_safety_marker_snapshot(
         path,
         accepted_link_counts=accepted_link_counts,
         AMBIGUOUS_POST_OUTCOME_FILE=AMBIGUOUS_POST_OUTCOME_FILE,
-        Path=Path,
         REMOTE_WRITE_SAFETY_MARKER_MAX_BYTES=REMOTE_WRITE_SAFETY_MARKER_MAX_BYTES,
         latch_remote_write_safety_marker_observation=latch_remote_write_safety_marker_observation,
         os=os,
-        stat=stat,
     )
 
 
@@ -4483,7 +4481,6 @@ def read_remote_write_safety_barrier_snapshot(
         latch_remote_write_safety_marker_observation=latch_remote_write_safety_marker_observation,
         os=os,
         read_remote_write_safety_marker_snapshot=read_remote_write_safety_marker_snapshot,
-        stat=stat,
     )
 
 
