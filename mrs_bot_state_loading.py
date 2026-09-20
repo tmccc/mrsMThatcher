@@ -1,7 +1,8 @@
 """Select provable durable state generations and migrate unambiguous legacy state.
 
 Sealed sequence numbers order complete replicas; conflicting identities fail
-closed. Repairs and legacy migration publish through the locked state writer.
+closed. Selected-candidate recovery reporting is separate from replica selection;
+repairs and legacy migration publish through the locked state writer.
 Reader policy and filesystem dependencies are supplied explicitly by the root;
 this module retains no runtime authority or import-time side effects."""
 
@@ -26,6 +27,48 @@ def _select_latest_generation(
             raise RuntimeError('conflicting state generation identities; refusing to guess')
         identities[sequence] = encoded
     return max(candidates, key=lambda path: generations[path][0])
+
+
+def _emit_candidate_recoveries(
+    candidate: Path,
+    recoveries: list[dict[str, object]],
+    *,
+    log: Logger,
+    log_event: Callable[..., None],
+) -> None:
+    """Report only the selected candidate's repairs before its durable write."""
+    for recovery in recoveries:
+        if recovery.get("kind") == "quote_cursor_suppression_pruned":
+            log.info(
+                "Pruned %s malformed, expired, or excess quote cursor "
+                "suppression entry or entries while loading %s",
+                recovery.get("discarded_entries"),
+                candidate,
+            )
+            continue
+        reason = recovery.get("reason")
+        if reason == "orphaned_pending_candidates":
+            log.warning(
+                "Discarding %s uncovered pending mention candidate(s) "
+                "without pagination provenance while loading %s; watermark "
+                "remains unchanged and a reset guard was installed",
+                recovery.get("discarded_candidates"),
+                candidate,
+            )
+        elif reason == "continuation_token_limit":
+            log.warning(
+                "Resetting oversized mention backlog while loading %s; "
+                "watermark remains unchanged and pending candidates were discarded",
+                candidate,
+            )
+        else:
+            log.warning(
+                "Resetting unsafe mention candidate authority while loading %s "
+                "reason=%s; watermark remains unchanged",
+                candidate,
+                reason,
+            )
+        log_event("mention_backlog_reset", **recovery)
 
 
 def load_state(
@@ -59,40 +102,6 @@ def load_state(
     existing_candidates = False
     candidate_recoveries: dict[Path, list[dict[str, object]]] = {}
     candidate_generations: dict[Path, tuple[int, bytes]] = {}
-
-    def emit_candidate_recoveries(candidate: Path) -> None:
-        for recovery in candidate_recoveries.get(candidate, []):
-            if recovery.get("kind") == "quote_cursor_suppression_pruned":
-                log.info(
-                    "Pruned %s malformed, expired, or excess quote cursor "
-                    "suppression entry or entries while loading %s",
-                    recovery.get("discarded_entries"),
-                    candidate,
-                )
-                continue
-            reason = recovery.get("reason")
-            if reason == "orphaned_pending_candidates":
-                log.warning(
-                    "Discarding %s uncovered pending mention candidate(s) "
-                    "without pagination provenance while loading %s; watermark "
-                    "remains unchanged and a reset guard was installed",
-                    recovery.get("discarded_candidates"),
-                    candidate,
-                )
-            elif reason == "continuation_token_limit":
-                log.warning(
-                    "Resetting oversized mention backlog while loading %s; "
-                    "watermark remains unchanged and pending candidates were discarded",
-                    candidate,
-                )
-            else:
-                log.warning(
-                    "Resetting unsafe mention candidate authority while loading %s "
-                    "reason=%s; watermark remains unchanged",
-                    candidate,
-                    reason,
-                )
-            log_event("mention_backlog_reset", **recovery)
 
     def persist_candidate_recoveries(candidate: Path, state: dict) -> None:
         """Commit safe state repairs before any post-load provider work."""
@@ -207,7 +216,9 @@ def load_state(
         repair = selected != STATE_FILE or bool(candidate_recoveries.get(selected))
         if STATE_BACKUP_COUNT:
             repair = repair or candidate_generations.get(latest_backup_path) != (sequence, encoded)
-        emit_candidate_recoveries(selected)
+        _emit_candidate_recoveries(
+            selected, candidate_recoveries.get(selected, []), log=log, log_event=log_event,
+        )
         if repair:
             try:
                 save_state(recovered, durable=True)
@@ -228,7 +239,9 @@ def load_state(
         legacy_candidates[STATE_FILE] = primary
     require_unambiguous_legacy_documents(legacy_candidates, STATE_FILE)
     if primary is not None:
-        emit_candidate_recoveries(STATE_FILE)
+        _emit_candidate_recoveries(
+            STATE_FILE, candidate_recoveries.get(STATE_FILE, []), log=log, log_event=log_event,
+        )
         # Migration occurs only after legacy equality is established; save_state
         # proves the instance/state lock before publishing the first generation.
         save_state(primary, durable=True)
@@ -242,7 +255,9 @@ def load_state(
         if recovered is None:
             continue
         log.warning("Recovered state from backup %s", candidate)
-        emit_candidate_recoveries(candidate)
+        _emit_candidate_recoveries(
+            candidate, candidate_recoveries.get(candidate, []), log=log, log_event=log_event,
+        )
         save_state(recovered, durable=True)
         log_json_debug("Loaded state summary", state_debug_summary(recovered))
         return recovered
@@ -277,7 +292,9 @@ def load_state(
                 "mention identity and requiring a head refetch",
                 candidate,
             )
-            emit_candidate_recoveries(candidate)
+            _emit_candidate_recoveries(
+                candidate, candidate_recoveries.get(candidate, []), log=log, log_event=log_event,
+            )
             persist_candidate_recoveries(candidate, recovered)
             log_json_debug("Loaded state summary", state_debug_summary(recovered))
             return recovered

@@ -286,3 +286,50 @@ def test_generation_selection_has_one_collision_and_tie_rule_before_repairs(
         save.assert_called_once_with(result, durable=True)
         assert event.call_count == int(repair_pending_identity)
     assert reads == paths * (2 if repair_pending_identity else 1)
+
+
+@pytest.mark.parametrize("failure_at", [None, "warning", "event"])
+def test_selected_recovery_reporting_preserves_order_and_failure_before_save(monkeypatch, failure_at):
+    """A failed recovery observation never allows repaired state publication."""
+    monkeypatch.setattr(bot, "STATE_BACKUP_COUNT", 0)
+    _legacy(bot.STATE_FILE)
+    recoveries = [
+        {"kind": "quote_cursor_suppression_pruned", "discarded_entries": 2},
+        {"reason": "orphaned_pending_candidates", "discarded_candidates": 1},
+        {"reason": "continuation_token_limit", "token_fingerprint": "retained"},
+    ]
+    events, saved = [], Mock()
+    failure = RuntimeError("recovery observation failed")
+
+    def normalize(candidate, *, recovery_events, **options):
+        recovery_events.extend(recoveries)
+        return candidate
+
+    def info(*args):
+        events.append("info")
+
+    def warning(*args):
+        events.append("warning")
+        if failure_at == "warning":
+            raise failure
+
+    def event(name, **details):
+        assert name == "mention_backlog_reset"
+        events.append(details)
+        if failure_at == "event":
+            raise failure
+
+    monkeypatch.setattr(bot, "normalise_state_candidate", normalize)
+    monkeypatch.setattr(bot, "log", SimpleNamespace(debug=lambda *args: None, info=info, warning=warning))
+    monkeypatch.setattr(bot, "log_event", event)
+    monkeypatch.setattr(bot, "save_state", saved)
+    if failure_at:
+        with pytest.raises(RuntimeError) as caught:
+            bot.load_state()
+        assert caught.value is failure
+        assert events == (["info", "warning"] if failure_at == "warning" else ["info", "warning", recoveries[1]])
+        saved.assert_not_called()
+    else:
+        loaded = bot.load_state()
+        assert events == ["info", "warning", recoveries[1], "warning", recoveries[2]]
+        saved.assert_called_once_with(loaded, durable=True)
