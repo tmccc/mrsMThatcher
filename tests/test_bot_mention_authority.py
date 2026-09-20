@@ -33,7 +33,7 @@ def patch_authority_method(monkeypatch, name, callback):
 
 
 def test_composition_binds_current_authority_policy_without_runtime_access(monkeypatch):
-    fields = {'STATE_FILE': 'state_file', 'MAX_REASONABLE_STATE_EPOCH': 'maximum_epoch', 'MENTION_BACKLOG_CONTINUATION_TOKEN_LIMIT': 'token_limit', 'bounded_tweet_id_value': 'bounded_id', 'log': 'log', 'mention_pagination_provenance_is_valid': 'valid_provenance', 'log_event': 'log_event', 'terminal_reply_evaluation': 'terminal_evaluation'}
+    fields = {'STATE_FILE': 'state_file', 'MAX_REASONABLE_STATE_EPOCH': 'maximum_epoch', 'MENTION_BACKLOG_CONTINUATION_TOKEN_LIMIT': 'token_limit', 'log': 'log', 'mention_pagination_provenance_is_valid': 'valid_provenance', 'log_event': 'log_event', 'terminal_reply_evaluation': 'terminal_evaluation'}
     previous = None
     for _ in range(2):
         current = {name: object() for name in fields}
@@ -69,7 +69,7 @@ def forbidden(*args, **kwargs):
 
 original_import = builtins.__import__
 def guarded_import(name, *args, **kwargs):
-    if name in {'mrsMThatcher2', 'requests', 'openai', 'single_call_reply', 'reply_evidence'} or name.startswith('mrs_bot_') and name != 'mrs_bot_mention_authority':
+    if name in {'mrsMThatcher2', 'requests', 'openai', 'single_call_reply', 'reply_evidence'} or name.startswith('mrs_bot_') and name not in {'mrs_bot_mention_authority', 'mrs_bot_state_value_normalisation'}:
         forbidden()
     return original_import(name, *args, **kwargs)
 
@@ -318,7 +318,8 @@ def test_page_ownership_uses_current_path_and_exact_backlog_equality_before_id_c
     normalizer.reset_mock()
     normalizer.return_value = {**state["mention_backlog"], "announced": False}
     bounded = Mock(wraps=bot.bounded_tweet_id_value)
-    monkeypatch.setattr(bot, "bounded_tweet_id_value", bounded)
+    monkeypatch.setattr(authority, "bounded_tweet_id_value", bounded)
+    monkeypatch.setattr(bot._reply_receipt_values, "bounded_tweet_id_value", bounded)
     assert bot.mention_pagination_has_canonical_page_ownership(state, pagination, target_id="105") is False
     # Provenance checks the base; unequal canonical backlog stops the later range checks.
     assert bounded.mock_calls == [call("99", allow_empty=True)]

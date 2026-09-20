@@ -50,7 +50,7 @@ assert 'single_call_reply' not in sys.modules
 
 
 def test_adapters_forward_only_public_arguments_and_preserve_native_errors(monkeypatch):
-    methods = {'bounded_tweet_id_value': 'bounded_id', 'normalise_state_int': 'integer', 'normalise_state_epoch': 'epoch', 'normalise_string_list': 'strings', 'normalise_int_list': 'integers', 'normalise_epoch_list': 'epochs', 'normalise_string_map': 'string_map', 'normalise_int_map': 'integer_map', 'normalise_record_map': 'record_map', 'normalise_optional_scalar': 'optional_scalar', 'normalise_optional_numeric_id': 'optional_id'}
+    methods = {'normalise_state_int': 'integer', 'normalise_state_epoch': 'epoch', 'normalise_string_list': 'strings', 'normalise_int_list': 'integers', 'normalise_epoch_list': 'epochs', 'normalise_string_map': 'string_map', 'normalise_int_map': 'integer_map', 'normalise_record_map': 'record_map', 'normalise_optional_scalar': 'optional_scalar', 'normalise_optional_numeric_id': 'optional_id'}
     for name, method in methods.items():
         adapter = getattr(bot, name)
         public = inspect.signature(adapter).parameters
@@ -78,15 +78,16 @@ def test_adapters_forward_only_public_arguments_and_preserve_native_errors(monke
 
 
 def test_composition_binds_current_policy_without_runtime_work(monkeypatch):
+    assert bot.bounded_tweet_id_value is values.bounded_tweet_id_value
     previous = None
     for _ in range(2):
-        current = {name: object() for name in ("log", "math", "re", "MAX_REASONABLE_STATE_EPOCH")}
+        current = {name: object() for name in ("log", "MAX_REASONABLE_STATE_EPOCH")}
         for name, value in current.items():
             monkeypatch.setattr(bot, name, value)
         owner = bot._state_values_owner()
         assert owner is not previous
-        assert owner.log is current["log"] and owner.math is current["math"]
-        assert owner.re is current["re"] and owner.maximum_epoch is current["MAX_REASONABLE_STATE_EPOCH"]
+        assert owner.log is current["log"]
+        assert owner.maximum_epoch is current["MAX_REASONABLE_STATE_EPOCH"]
         previous = owner
 
 
@@ -139,7 +140,7 @@ def test_ids_and_optional_scalars_keep_distinct_types_and_equality_shortcuts(tmp
 
 def test_current_regex_and_optional_id_callback_keep_text_and_error_order(monkeypatch, tmp_path):
     regex, bounded, logger = Mock(return_value=True), Mock(return_value=0), Mock()
-    monkeypatch.setattr(bot, "re", SimpleNamespace(fullmatch=regex))
+    monkeypatch.setattr(values, "re", SimpleNamespace(fullmatch=regex))
     assert bot.bounded_tweet_id_value("007") == 7
     regex.assert_called_once_with(r"\d{1,30}", "007")
     failure = ValueError("current regex failure")
@@ -147,7 +148,7 @@ def test_current_regex_and_optional_id_callback_keep_text_and_error_order(monkey
     with pytest.raises(ValueError) as caught:
         bot.bounded_tweet_id_value("007")
     assert caught.value is failure
-    patch_value_method(monkeypatch, "bounded_id", bounded)
+    monkeypatch.setattr(values, "bounded_tweet_id_value", bounded)
     monkeypatch.setattr(bot, "log", logger)
     assert bot.normalise_optional_numeric_id("007", key="id", path=tmp_path) == "007"
     bounded.assert_called_once_with("007")
@@ -203,9 +204,9 @@ def test_state_int_truth_conversion_and_narrow_error_boundary(monkeypatch, tmp_p
     logger.error.assert_not_called()
 
 
-def test_state_int_uses_current_math_outside_the_conversion_catch(monkeypatch, tmp_path):
+def test_state_int_uses_owned_math_outside_the_conversion_catch(monkeypatch, tmp_path):
     finite, logger = Mock(return_value=False), Mock()
-    monkeypatch.setattr(bot, "math", SimpleNamespace(isfinite=finite))
+    monkeypatch.setattr(values, "math", SimpleNamespace(isfinite=finite))
     monkeypatch.setattr(bot, "log", logger)
     options = {"key": "count", "path": tmp_path}
     assert bot.normalise_state_int(True, **options) is None

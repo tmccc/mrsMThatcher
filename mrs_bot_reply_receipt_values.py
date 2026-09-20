@@ -16,6 +16,8 @@ import re
 from collections.abc import Callable
 from dataclasses import dataclass
 
+from mrs_bot_state_value_normalisation import bounded_tweet_id_value
+
 from mrs_bot_durable_json_io import canonical_atomic_json_bytes
 
 
@@ -23,7 +25,6 @@ from mrs_bot_durable_json_io import canonical_atomic_json_bytes
 class ReplyReceiptValues:
     """Validate and project receipt values using current external boundaries."""
 
-    bounded_tweet_id_value: Callable
     valid_string_post_id: Callable
     receipt_int: Callable
     valid_receipt_epoch: Callable
@@ -47,7 +48,7 @@ class ReplyReceiptValues:
         next_token = value.get("next_token")
         if (
             not isinstance(base_since_id, str)
-            or self.bounded_tweet_id_value(base_since_id, allow_empty=True) is None
+            or bounded_tweet_id_value(base_since_id, allow_empty=True) is None
         ):
             return False
         if (

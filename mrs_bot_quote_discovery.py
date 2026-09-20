@@ -21,6 +21,7 @@ from pathlib import Path
 from types import ModuleType
 
 from mrs_bot_reply_native_media import attach_media_to_tweets
+from mrs_bot_state_value_normalisation import bounded_tweet_id_value
 
 from mrs_bot_tweet_lookup_cache import normalise_tweet_text
 
@@ -33,7 +34,6 @@ def quote_repeated_cursor_suppression_record(
     allow_expired: bool = False,
     MAX_REASONABLE_STATE_EPOCH: int,
     QUOTE_REPEATED_CURSOR_BACKOFF_SECONDS: int,
-    bounded_tweet_id_value: Callable,
     re: ModuleType,
 ) -> dict[str, object] | None:
     """Return one canonical exact-cursor suppression record when usable."""
@@ -513,7 +513,6 @@ def get_quote_tweets_for_posts(
     *,
     QUOTE_LOOKUP_API_MAX_RESULTS: int,
     QUOTE_LOOKUP_MAX_PAGES_PER_POST: int,
-    bounded_tweet_id_value: Callable,
     log: Logger,
     save_state: Callable,
     x_paginated_get: Callable,

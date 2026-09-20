@@ -1,7 +1,7 @@
 """Normalise durable state scalar and collection values.
 
-A fresh StateValues owner binds current regex, math, logger and epoch cap on
-each root call; nested scalar and collection operations call their owner directly.
+A fresh StateValues owner binds the current logger and epoch cap on
+each root call; fixed numeric operations and the shared bounded ID grammar live here; nested scalar and collection operations call their owner directly.
 Distinct ID/scalar coercions, validation and logging order, shallow record copies
 and epoch-list identity stay unchanged. Full state/schema/reader validation, higher-level mention/cache/receipt
 policy and durable I/O remain in their existing locations. The owner retains
@@ -11,10 +11,20 @@ application import.
 
 from __future__ import annotations
 
+import math
+import re
 from dataclasses import dataclass
 from logging import Logger
 from pathlib import Path
-from types import ModuleType
+
+
+def bounded_tweet_id_value(value: object, *, allow_empty: bool = False) -> int | None:
+    """Parse one bounded string tweet ID without unbounded integer conversion."""
+    if allow_empty and value == "":
+        return 0
+    if type(value) is not str or not re.fullmatch(r"\d{1,30}", value):
+        return None
+    return int(value)
 
 
 @dataclass(frozen=True)
@@ -22,24 +32,15 @@ class StateValues:
     """Normalize related state values with current diagnostics and epoch bounds."""
 
     log: Logger
-    math: ModuleType
-    re: ModuleType
     maximum_epoch: int
 
-    def bounded_id(self, value: object, *, allow_empty: bool = False) -> int | None:
-        """Parse one bounded string tweet ID without unbounded integer conversion."""
-        if allow_empty and value == "":
-            return 0
-        if type(value) is not str or not self.re.fullmatch(r"\d{1,30}", value):
-            return None
-        return int(value)
 
     def integer(self, value: object, *, key: str, path: Path) -> int | None:
         """Normalise state int."""
         if isinstance(value, bool):
             self.log.error("State candidate %s has invalid %s boolean value %r; ignoring", path, key, value)
             return None
-        if isinstance(value, float) and (not self.math.isfinite(value) or not value.is_integer()):
+        if isinstance(value, float) and (not math.isfinite(value) or not value.is_integer()):
             self.log.error("State candidate %s has invalid %s numeric value %r; ignoring", path, key, value)
             return None
         try:
@@ -146,7 +147,7 @@ class StateValues:
         if value in (None, ""):
             return ""
         text = str(value)
-        if self.bounded_id(text) is not None:
+        if bounded_tweet_id_value(text) is not None:
             return text
         self.log.error("State candidate %s has invalid %s value %r; ignoring", path, key, value)
         return None

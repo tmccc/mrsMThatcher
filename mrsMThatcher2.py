@@ -2307,15 +2307,11 @@ def _state_values_owner() -> _state_value_normalisation.StateValues:
     """Bind current value-normalization policy without inspecting caller state."""
     return _state_value_normalisation.StateValues(
         log=log,
-        math=math,
-        re=re,
         maximum_epoch=MAX_REASONABLE_STATE_EPOCH,
     )
 
 
-def bounded_tweet_id_value(value: object, *, allow_empty: bool = False) -> int | None:
-    """Parse one bounded string tweet ID without unbounded integer conversion."""
-    return _state_values_owner().bounded_id(value, allow_empty=allow_empty)
+bounded_tweet_id_value = _state_value_normalisation.bounded_tweet_id_value
 
 
 def normalise_state_int(value: object, *, key: str, path: Path) -> int | None:
@@ -2373,7 +2369,6 @@ def quote_repeated_cursor_suppression_record(
         allow_expired=allow_expired,
         MAX_REASONABLE_STATE_EPOCH=MAX_REASONABLE_STATE_EPOCH,
         QUOTE_REPEATED_CURSOR_BACKOFF_SECONDS=QUOTE_REPEATED_CURSOR_BACKOFF_SECONDS,
-        bounded_tweet_id_value=bounded_tweet_id_value,
         re=re,
     )
 
@@ -2519,7 +2514,6 @@ def _mention_authority_owner() -> _mention_authority.MentionAuthority:
         state_file=STATE_FILE,
         maximum_epoch=MAX_REASONABLE_STATE_EPOCH,
         token_limit=MENTION_BACKLOG_CONTINUATION_TOKEN_LIMIT,
-        bounded_id=bounded_tweet_id_value,
         log=log,
         valid_provenance=mention_pagination_provenance_is_valid,
         log_event=log_event,
@@ -7598,7 +7592,6 @@ def _legacy_ai_reply_receipt_draft_is_valid(data: dict, text: object) -> bool:
 def _reply_receipt_values_owner() -> _reply_receipt_values.ReplyReceiptValues:
     """Bind current receipt value boundaries without reading the clock or state."""
     return _reply_receipt_values.ReplyReceiptValues(
-        bounded_tweet_id_value=bounded_tweet_id_value,
         valid_string_post_id=valid_string_post_id,
         receipt_int=receipt_int,
         valid_receipt_epoch=valid_receipt_epoch,
@@ -8145,7 +8138,6 @@ def get_quote_tweets_for_posts(post_ids: list[str], state: dict | None = None) -
         state,
         QUOTE_LOOKUP_API_MAX_RESULTS=QUOTE_LOOKUP_API_MAX_RESULTS,
         QUOTE_LOOKUP_MAX_PAGES_PER_POST=QUOTE_LOOKUP_MAX_PAGES_PER_POST,
-        bounded_tweet_id_value=bounded_tweet_id_value,
         log=log,
         save_state=save_state,
         x_paginated_get=x_paginated_get,

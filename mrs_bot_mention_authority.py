@@ -19,6 +19,8 @@ from dataclasses import dataclass
 from logging import Logger
 from pathlib import Path
 
+from mrs_bot_state_value_normalisation import bounded_tweet_id_value
+
 
 def active_mention_backlog_reset_guard(state: dict) -> dict[str, object] | None:
     """Return the reset guard only while it is bound to the current watermark."""
@@ -58,7 +60,6 @@ class MentionAuthority:
     state_file: Path
     maximum_epoch: int
     token_limit: int
-    bounded_id: Callable[..., int | None]
     log: Logger
     valid_provenance: Callable[[object], bool]
     log_event: Callable
@@ -81,7 +82,7 @@ class MentionAuthority:
         next_token = value.get("next_token")
         if (
             not isinstance(base_since_id, str)
-            or self.bounded_id(base_since_id, allow_empty=True) is None
+            or bounded_tweet_id_value(base_since_id, allow_empty=True) is None
         ):
             self.log.error(
                 "State candidate %s has invalid mention pagination base; ignoring",
@@ -121,7 +122,7 @@ class MentionAuthority:
         head_traversal_started = value.get("head_traversal_started")
         if (
             not isinstance(base_since_id, str)
-            or self.bounded_id(base_since_id, allow_empty=True) is None
+            or bounded_tweet_id_value(base_since_id, allow_empty=True) is None
             or type(head_traversal_started) is not bool
         ):
             self.log.error(
@@ -162,7 +163,7 @@ class MentionAuthority:
         announced = value.get("announced")
         if (
             not isinstance(since_id, str)
-            or self.bounded_id(since_id, allow_empty=True) is None
+            or bounded_tweet_id_value(since_id, allow_empty=True) is None
         ):
             return None
         if (
@@ -173,7 +174,7 @@ class MentionAuthority:
             return None
         if (
             not isinstance(highest_id, str)
-            or self.bounded_id(highest_id, allow_empty=True) is None
+            or bounded_tweet_id_value(highest_id, allow_empty=True) is None
         ):
             return None
         if type(pages) is not int or pages < 0:
@@ -219,8 +220,8 @@ class MentionAuthority:
         seen_ids: set[int] = set()
         for map_key, candidate in value.items():
             embedded_id = candidate.get("id") if isinstance(candidate, dict) else None
-            map_id = self.bounded_id(map_key)
-            candidate_id = self.bounded_id(embedded_id)
+            map_id = bounded_tweet_id_value(map_key)
+            candidate_id = bounded_tweet_id_value(embedded_id)
             if (
                 type(map_key) is not str
                 or not isinstance(candidate, dict)
@@ -282,14 +283,14 @@ class MentionAuthority:
         watermark = "" if raw_watermark in (None, "") else raw_watermark
         if (
             type(watermark) is not str
-            or self.bounded_id(watermark, allow_empty=True) is None
+            or bounded_tweet_id_value(watermark, allow_empty=True) is None
         ):
             self.log.error(
                 "State candidate %s has no bounded mention watermark for pending authority",
                 path,
             )
             return False, False
-        watermark_value = self.bounded_id(watermark, allow_empty=True)
+        watermark_value = bounded_tweet_id_value(watermark, allow_empty=True)
         assert watermark_value is not None
 
         raw_pending = state.get("mention_pending_candidates", {})
@@ -365,8 +366,8 @@ class MentionAuthority:
             base = backlog["since_id"]
             highest = backlog["highest_mention_id"]
             next_token = backlog["next_token"]
-            base_value = self.bounded_id(base, allow_empty=True)
-            highest_value = self.bounded_id(highest, allow_empty=True)
+            base_value = bounded_tweet_id_value(base, allow_empty=True)
+            highest_value = bounded_tweet_id_value(highest, allow_empty=True)
             if base_value is None or highest_value is None:
                 authority_failure = "unbounded_backlog_identity"
             elif base != watermark:
@@ -385,7 +386,7 @@ class MentionAuthority:
                 elif pending and not highest:
                     authority_failure = "pending_without_highest_identity"
                 elif any(
-                    (candidate_value := self.bounded_id(mention_id)) is None
+                    (candidate_value := bounded_tweet_id_value(mention_id)) is None
                     or candidate_value <= watermark_value
                     or candidate_value > highest_value
                     for mention_id in pending
@@ -402,7 +403,7 @@ class MentionAuthority:
 
         if not authority_failure and not backlog and pagination:
             pagination_base = pagination["base_since_id"]
-            if self.bounded_id(pagination_base, allow_empty=True) is None:
+            if bounded_tweet_id_value(pagination_base, allow_empty=True) is None:
                 authority_failure = "unbounded_pagination_base"
             elif pagination_base != watermark:
                 authority_failure = "pagination_base_mismatch"
@@ -475,7 +476,7 @@ class MentionAuthority:
                 mention_id: candidate
                 for mention_id, candidate in pending.items()
                 if (
-                    (candidate_value := self.bounded_id(mention_id))
+                    (candidate_value := bounded_tweet_id_value(mention_id))
                     is not None
                     and candidate_value <= watermark_value
                 )
@@ -515,9 +516,9 @@ class MentionAuthority:
         watermark = str(state.get("last_seen_mention_id") or "")
         base = str(normalised.get("since_id") or "")
         highest = str(normalised.get("highest_mention_id") or "")
-        base_value = self.bounded_id(base, allow_empty=True)
-        highest_value = self.bounded_id(highest)
-        target_value = self.bounded_id(target_id)
+        base_value = bounded_tweet_id_value(base, allow_empty=True)
+        highest_value = bounded_tweet_id_value(highest)
+        target_value = bounded_tweet_id_value(target_id)
         return bool(
             base == watermark == pagination["base_since_id"]
             and normalised.get("next_token") == pagination["next_token"]

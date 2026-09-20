@@ -35,7 +35,7 @@ def forbidden(*args, **kwargs):
 
 original_import = builtins.__import__
 def guarded_import(name, *args, **kwargs):
-    if name in {'mrsMThatcher2', 'requests', 'openai', 'single_call_reply', 'reply_evidence'} or name.startswith('mrs_bot_') and name not in {'mrs_bot_reply_receipt_values', 'mrs_bot_durable_json_io'}:
+    if name in {'mrsMThatcher2', 'requests', 'openai', 'single_call_reply', 'reply_evidence'} or name.startswith('mrs_bot_') and name not in {'mrs_bot_reply_receipt_values', 'mrs_bot_durable_json_io', 'mrs_bot_state_value_normalisation'}:
         forbidden()
     return original_import(name, *args, **kwargs)
 
@@ -61,7 +61,6 @@ assert 'single_call_reply' not in sys.modules
 
 
 OWNER_INPUTS = {
-    "bounded_tweet_id_value": "bounded_tweet_id_value",
     "valid_string_post_id": "valid_string_post_id", "receipt_int": "receipt_int",
     "valid_receipt_epoch": "valid_receipt_epoch", "safe_reply_cap_date_str": "safe_reply_cap_date_str",
     "legacy_draft_is_valid": "_legacy_ai_reply_receipt_draft_is_valid",
@@ -395,9 +394,10 @@ def test_best_confirmation_time_uses_current_converter_and_exception(make_owner,
     assert str(caught.value) == message
 
 
-def test_pagination_uses_current_id_callback_before_token_validation(make_owner):
+def test_pagination_uses_owned_id_parser_before_token_validation(make_owner, monkeypatch):
     bounded = Mock(return_value=0)
-    owner = make_owner(bounded_tweet_id_value=bounded)
+    monkeypatch.setattr(values, "bounded_tweet_id_value", bounded)
+    owner = make_owner()
     assert owner.pagination_is_valid({"base_since_id": "", "next_token": "page-2"})
     bounded.assert_called_once_with("", allow_empty=True)
     bounded.reset_mock()
