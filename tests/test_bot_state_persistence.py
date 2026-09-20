@@ -55,7 +55,7 @@ assert 'single_call_reply' not in sys.modules
 
 def test_adapters_forward_current_dependencies_references_and_native_errors(monkeypatch):
     for name, count in (
-        ("state_document_for_persistence", 6),
+        ("state_document_for_persistence", 5),
         ("save_state", 13),
     ):
         adapter = getattr(bot, name)
@@ -136,7 +136,7 @@ def test_document_preserves_retired_state_without_loading_trial_code(monkeypatch
     trace.deepcopy.side_effect = copy.deepcopy
     current, previous = {"current": {"version": [9]}}, {"previous": 8}
     monkeypatch.setattr(bot, "require_compatible_state_reader", trace.reader)
-    monkeypatch.setattr(bot, "copy", SimpleNamespace(deepcopy=trace.deepcopy))
+    monkeypatch.setattr(persistence, "copy", SimpleNamespace(deepcopy=trace.deepcopy))
     monkeypatch.setattr(bot, "STATE_MINIMUM_READER_VERSION", 9)
     monkeypatch.setattr(bot, "STATE_READER_COMPATIBILITY_FENCE", current)
     monkeypatch.setattr(bot, "STATE_PREVIOUS_READER_COMPATIBILITY_FENCES", (previous,))
@@ -168,7 +168,7 @@ def test_document_reader_then_legacy_errors_precede_copy_and_version_selection(m
     failure = ValueError("current validation failure")
     reader, copier = Mock(side_effect=failure), Mock()
     monkeypatch.setattr(bot, "require_compatible_state_reader", reader)
-    monkeypatch.setattr(bot, "copy", SimpleNamespace(deepcopy=copier))
+    monkeypatch.setattr(persistence, "copy", SimpleNamespace(deepcopy=copier))
     with pytest.raises(ValueError) as caught:
         bot.state_document_for_persistence(object())
     assert caught.value is failure

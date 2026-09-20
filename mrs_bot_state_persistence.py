@@ -9,6 +9,7 @@ This module performs no import-time runtime work."""
 
 from __future__ import annotations
 
+import copy
 import hashlib
 
 from collections.abc import Callable
@@ -31,7 +32,6 @@ def state_document_for_persistence(
     STATE_MINIMUM_READER_VERSION: int,
     STATE_PREVIOUS_READER_COMPATIBILITY_FENCES: tuple[dict, ...],
     STATE_READER_COMPATIBILITY_FENCE: dict,
-    copy: ModuleType,
     require_compatible_state_reader: Callable[..., int],
 ) -> dict:
     """Return state with the reader declaration and pre-reader rollback fence."""

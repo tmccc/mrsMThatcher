@@ -8,6 +8,7 @@ no runtime work and instances retain no caller documents or descriptors.
 """
 from __future__ import annotations
 
+import copy
 import json
 import math
 import os
@@ -145,7 +146,6 @@ class LocalConfiguration:
     os: ModuleType
     stat: ModuleType
     source_defaults: dict[str, object]
-    copy: ModuleType
     log: Logger
     validate_runtime_values: Callable[[dict[str, object]], list[str]]
 
@@ -333,7 +333,7 @@ class LocalConfiguration:
             )
 
         if proposed:
-            candidate = self.copy.deepcopy(self.source_defaults)
+            candidate = copy.deepcopy(self.source_defaults)
             candidate.update(proposed)
             validation_errors = self.validate_runtime_values(candidate)
             if validation_errors:

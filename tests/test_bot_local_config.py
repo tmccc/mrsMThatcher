@@ -340,7 +340,7 @@ def overrides(monkeypatch):
         if name == "_read_stable_local_config_bytes":
             patch_configuration_method(monkeypatch, "read_snapshot", value)
         else:
-            target = bot._local_config if name in {"_coerce_local_config_value", "load_strict_runtime_json"} else bot
+            target = bot._local_config if name in {"_coerce_local_config_value", "load_strict_runtime_json", "copy"} else bot
             monkeypatch.setattr(target, name, value)
     return SimpleNamespace(trace=trace, defaults=defaults)
 
@@ -433,7 +433,7 @@ def patch_configuration_method(monkeypatch, method, callback):
 
 
 def test_configuration_owner_preserves_current_inputs_without_reading(monkeypatch):
-    fields = {'LOCAL_CONFIG_FILE': 'config_file', 'LOCAL_CONFIG_MAX_BYTES': 'maximum_bytes', 'LocalConfigError': 'error_type', 'os': 'os', 'stat': 'stat', 'SOURCE_DEFAULT_CONFIG_VALUES': 'source_defaults', 'copy': 'copy', 'log': 'log', 'validate_runtime_config_values': 'validate_runtime_values'}
+    fields = {'LOCAL_CONFIG_FILE': 'config_file', 'LOCAL_CONFIG_MAX_BYTES': 'maximum_bytes', 'LocalConfigError': 'error_type', 'os': 'os', 'stat': 'stat', 'SOURCE_DEFAULT_CONFIG_VALUES': 'source_defaults', 'log': 'log', 'validate_runtime_config_values': 'validate_runtime_values'}
     previous = None
     for _ in range(2):
         current = {name: Mock(side_effect=AssertionError("construction performed work")) for name in fields}

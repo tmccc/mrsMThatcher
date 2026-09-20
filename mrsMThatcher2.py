@@ -1486,7 +1486,6 @@ def _local_configuration_owner() -> _local_config.LocalConfiguration:
         os=os,
         stat=stat,
         source_defaults=SOURCE_DEFAULT_CONFIG_VALUES,
-        copy=copy,
         log=log,
         validate_runtime_values=validate_runtime_config_values,
     )
@@ -1829,7 +1828,6 @@ def _runtime_controls_owner() -> _runtime_control.RuntimeControls:
         hashlib=hashlib,
         os=os,
         stat=stat,
-        parse_json=load_strict_runtime_json,
         log=log,
         log_json_debug=log_json_debug,
         validate_document=validate_control_document,
@@ -2648,7 +2646,6 @@ def state_document_for_persistence(state: dict) -> dict:
         STATE_MINIMUM_READER_VERSION=STATE_MINIMUM_READER_VERSION,
         STATE_PREVIOUS_READER_COMPATIBILITY_FENCES=STATE_PREVIOUS_READER_COMPATIBILITY_FENCES,
         STATE_READER_COMPATIBILITY_FENCE=STATE_READER_COMPATIBILITY_FENCE,
-        copy=copy,
         require_compatible_state_reader=require_compatible_state_reader,
     )
 

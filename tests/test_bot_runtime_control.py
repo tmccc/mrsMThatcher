@@ -26,7 +26,7 @@ def forbidden(*args, **kwargs):
 
 original_import = builtins.__import__
 def guarded_import(name, *args, **kwargs):
-    if name in {'mrsMThatcher2', 'requests', 'openai', 'single_call_reply'} or name.startswith('mrs_bot_') and name != 'mrs_bot_runtime_control':
+    if name in {'mrsMThatcher2', 'requests', 'openai', 'single_call_reply'} or name.startswith('mrs_bot_') and name not in {'mrs_bot_runtime_control', 'mrs_bot_local_config'}:
         forbidden()
     return original_import(name, *args, **kwargs)
 
@@ -50,6 +50,7 @@ assert 'single_call_reply' not in sys.modules
         capture_output=True, text=True, timeout=20,
     )
     assert result.returncode == 0, result.stderr + result.stdout
+    assert control.load_strict_runtime_json is bot._local_config.load_strict_runtime_json
 
 
 def test_adapters_forward_current_dependencies_starred_arguments_references_and_errors(monkeypatch):
@@ -123,7 +124,7 @@ def test_owned_adapters_preserve_public_shapes_references_and_errors(monkeypatch
 
 
 def test_composition_binds_fresh_current_control_authorities_without_access(monkeypatch):
-    fields = {'CONTROL_FILE': 'control_file', '_CONTROL_CACHE': 'cache', 'RUNTIME_CONTROL_MAX_BYTES': 'maximum_bytes', '_RuntimeControlAbsent': 'absent_error', 'hashlib': 'hashlib', 'os': 'os', 'stat': 'stat', 'load_strict_runtime_json': 'parse_json', 'log': 'log', 'log_json_debug': 'log_json_debug', 'validate_control_document': 'validate_document', 'now_epoch': 'now_epoch', 'parse_control_time': 'parse_time', 'datetime': 'datetime', 'log_event': 'log_event'}
+    fields = {'CONTROL_FILE': 'control_file', '_CONTROL_CACHE': 'cache', 'RUNTIME_CONTROL_MAX_BYTES': 'maximum_bytes', '_RuntimeControlAbsent': 'absent_error', 'hashlib': 'hashlib', 'os': 'os', 'stat': 'stat', 'log': 'log', 'log_json_debug': 'log_json_debug', 'validate_control_document': 'validate_document', 'now_epoch': 'now_epoch', 'parse_control_time': 'parse_time', 'datetime': 'datetime', 'log_event': 'log_event'}
     previous = None
     for _ in range(2):
         current = {name: object() for name in fields}

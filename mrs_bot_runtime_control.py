@@ -20,6 +20,8 @@ from dataclasses import dataclass
 from pathlib import Path
 from types import ModuleType
 
+from mrs_bot_local_config import load_strict_runtime_json
+
 from runtime_control_contract import (
     CONTROL_ALLOWED_KEYS,
     CONTROL_BOOLEAN_KEYS,
@@ -42,7 +44,6 @@ class RuntimeControls:
     hashlib: ModuleType
     os: ModuleType
     stat: ModuleType
-    parse_json: Callable[..., object]
     log: logging.Logger
     log_json_debug: Callable
     validate_document: Callable[[object], dict]
@@ -188,7 +189,7 @@ class RuntimeControls:
             )
 
         try:
-            data = self.parse_json(
+            data = load_strict_runtime_json(
                 document,
                 label="runtime control",
                 parse_floats_as_decimal=True,
