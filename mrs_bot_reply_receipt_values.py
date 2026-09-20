@@ -19,20 +19,21 @@ from dataclasses import dataclass
 from mrs_bot_mention_authority import mention_pagination_provenance_is_valid
 
 from mrs_bot_durable_json_io import canonical_atomic_json_bytes
+from mrs_bot_receipt_primitives import receipt_int, valid_string_post_id
+from mrs_bot_legacy_reply_validation import (
+    _LEGACY_TESTED_REPLY_STRATEGY_VERSION,
+    _LEGACY_AI_FIRST_REPLY_STRATEGY_VERSION,
+)
 
 
 @dataclass(frozen=True)
 class ReplyReceiptValues:
     """Validate and project receipt values using current external boundaries."""
 
-    valid_string_post_id: Callable
-    receipt_int: Callable
     valid_receipt_epoch: Callable
     safe_reply_cap_date_str: Callable
     legacy_draft_is_valid: Callable
     draft_is_valid: Callable
-    legacy_tested_strategy_version: str
-    legacy_ai_first_strategy_version: str
     now_epoch: Callable
     reply_cap_date_str: Callable
     log: logging.Logger
@@ -59,16 +60,16 @@ class ReplyReceiptValues:
                 return False
         elif data.get("lifecycle_state") != lifecycle_state:
             return False
-        if not self.valid_string_post_id(data.get("target_id")):
+        if not valid_string_post_id(data.get("target_id")):
             return False
-        if lifecycle_state == "confirmed" and not self.valid_string_post_id(
+        if lifecycle_state == "confirmed" and not valid_string_post_id(
             data.get("reply_post_id")
         ):
             return False
         if lifecycle_state == "sending" and "reply_post_id" in data:
             return False
         author_id = data.get("author_id")
-        if not self.valid_string_post_id(author_id):
+        if not valid_string_post_id(author_id):
             return False
         source = data.get("candidate_source")
         if type(source) is not str:
@@ -89,7 +90,7 @@ class ReplyReceiptValues:
         if not isinstance(text, str) or not text:
             return False
         conversation_id = data.get("conversation_id")
-        if not self.valid_string_post_id(conversation_id):
+        if not valid_string_post_id(conversation_id):
             return False
         if schema_version in {2, 3}:
             daily_reply_date = data.get("daily_reply_date")
@@ -123,7 +124,7 @@ class ReplyReceiptValues:
         if source == "quote_tweet":
             quoted_post = context.get("quoted_post")
             if (
-                not self.valid_string_post_id(original_post_id)
+                not valid_string_post_id(original_post_id)
                 or not isinstance(quoted_post, dict)
                 or type(quoted_post.get("post_id")) is not str
                 or quoted_post.get("post_id") != original_post_id
@@ -159,7 +160,7 @@ class ReplyReceiptValues:
             }:
                 return False
             if any(
-                not self.valid_string_post_id(clarification.get(field))
+                not valid_string_post_id(clarification.get(field))
                 for field in ("thread_id", "prior_bot_reply_id", "original_question_id")
             ):
                 return False
@@ -173,8 +174,8 @@ class ReplyReceiptValues:
                     isinstance(draft, dict)
                     and draft.get("strategy_version")
                     in {
-                        self.legacy_tested_strategy_version,
-                        self.legacy_ai_first_strategy_version,
+                        _LEGACY_TESTED_REPLY_STRATEGY_VERSION,
+                        _LEGACY_AI_FIRST_REPLY_STRATEGY_VERSION,
                     }
                     and draft.get("mode") != "direct_factual_answer"
                 ):
@@ -187,11 +188,11 @@ class ReplyReceiptValues:
         self, data: dict, *, schema_version: int, lifecycle_state: str, source: str,
     ) -> bool:
         """Check receipt time and schema-v4 attempt/confirmation bucket agreement."""
-        reply_epoch = self.receipt_int(data.get("reply_epoch"))
+        reply_epoch = receipt_int(data.get("reply_epoch"))
         if reply_epoch is None or not self.valid_receipt_epoch(reply_epoch):
             return False
         if schema_version == 4:
-            attempt_epoch = self.receipt_int(data.get("attempt_epoch"))
+            attempt_epoch = receipt_int(data.get("attempt_epoch"))
             if attempt_epoch is None or not self.valid_receipt_epoch(attempt_epoch):
                 return False
             if lifecycle_state == "sending":
@@ -199,7 +200,7 @@ class ReplyReceiptValues:
                     return False
                 effective_epoch = attempt_epoch
             else:
-                confirmation_epoch = self.receipt_int(data.get("confirmation_epoch"))
+                confirmation_epoch = receipt_int(data.get("confirmation_epoch"))
                 if (
                     confirmation_epoch is None
                     or not self.valid_receipt_epoch(confirmation_epoch)
@@ -264,7 +265,7 @@ class ReplyReceiptValues:
             raise ValueError(
                 "confirmed conversational receipt lacks exact source lineage"
             )
-        attempt_epoch = self.receipt_int(confirmed_receipt.get("attempt_epoch"))
+        attempt_epoch = receipt_int(confirmed_receipt.get("attempt_epoch"))
         # ``reply_text`` can be an ``AIReply`` string subclass whose constructor
         # requires provenance arguments.  No nested value is mutated here, so a
         # shallow outer copy preserves exact content without trying to reconstruct
@@ -417,7 +418,7 @@ class ReplyReceiptValues:
         observed_epoch = int(observed_epoch)
         if sending_receipt.get("schema_version") != 4:
             return observed_epoch
-        attempt_epoch = self.receipt_int(sending_receipt.get("attempt_epoch"))
+        attempt_epoch = receipt_int(sending_receipt.get("attempt_epoch"))
         if attempt_epoch is None or observed_epoch >= attempt_epoch:
             return observed_epoch
         self.log.warning(
@@ -432,13 +433,13 @@ class ReplyReceiptValues:
     def confirmation_epoch(self, receipt: dict) -> int:
         """Return the best available confirmed time for a reply receipt."""
         if receipt.get("schema_version") == 4:
-            confirmation_epoch = self.receipt_int(receipt.get("confirmation_epoch"))
+            confirmation_epoch = receipt_int(receipt.get("confirmation_epoch"))
             if confirmation_epoch is None:
                 raise self.invalid_receipt(
                     "Schema-v4 confirmed reply receipt lacks a confirmation epoch"
                 )
             return confirmation_epoch
-        reply_epoch = self.receipt_int(receipt.get("reply_epoch"))
+        reply_epoch = receipt_int(receipt.get("reply_epoch"))
         if reply_epoch is None:
             raise self.invalid_receipt(
                 "Legacy confirmed reply receipt lacks its best-known reply epoch"

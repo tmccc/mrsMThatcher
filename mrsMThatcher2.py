@@ -7579,14 +7579,10 @@ def _legacy_ai_reply_receipt_draft_is_valid(data: dict, text: object) -> bool:
 def _reply_receipt_values_owner() -> _reply_receipt_values.ReplyReceiptValues:
     """Bind current receipt value boundaries without reading the clock or state."""
     return _reply_receipt_values.ReplyReceiptValues(
-        valid_string_post_id=valid_string_post_id,
-        receipt_int=receipt_int,
         valid_receipt_epoch=valid_receipt_epoch,
         safe_reply_cap_date_str=safe_reply_cap_date_str,
         legacy_draft_is_valid=_legacy_ai_reply_receipt_draft_is_valid,
         draft_is_valid=ai_reply_receipt_draft_is_valid,
-        legacy_tested_strategy_version=_LEGACY_TESTED_REPLY_STRATEGY_VERSION,
-        legacy_ai_first_strategy_version=_LEGACY_AI_FIRST_REPLY_STRATEGY_VERSION,
         now_epoch=now_epoch,
         reply_cap_date_str=reply_cap_date_str,
         log=log,

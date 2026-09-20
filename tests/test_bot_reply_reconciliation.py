@@ -201,7 +201,7 @@ def test_application_adapter_binds_current_owners_and_preserves_other_dependenci
         assert isinstance(values, reply_receipt_values.ReplyReceiptValues)
         assert values.now_epoch is clock
         assert not hasattr(values, "bounded_tweet_id_value")
-        assert values.receipt_int is receipt_integer
+        assert not hasattr(values, "receipt_int")
         assert values.invalid_receipt is current["InvalidConfirmedReplyReceipt"]
         assert values.reply_cap_date_str is current["reply_cap_date_str"]
         bounded_id.assert_not_called()
@@ -219,7 +219,7 @@ def test_application_adapter_binds_current_owners_and_preserves_other_dependenci
     assert accounting_owners[0].reply_cap_date_str is not accounting_owners[1].reply_cap_date_str
     assert draft_owners[0] is not draft_owners[1]
     assert value_owners[0] is not value_owners[1]
-    assert value_owners[0].receipt_int is not value_owners[1].receipt_int
+    assert value_owners[0].now_epoch is not value_owners[1].now_epoch
     failure = TypeError("current application failure")
     implementation.side_effect = failure
     with pytest.raises(TypeError) as caught:
@@ -266,7 +266,7 @@ def test_emergency_adapter_binds_current_owners_and_preserves_arguments_and_erro
         owners.append(callback.__self__)
         values = supplied["receipt_values"]
         assert isinstance(values, reply_receipt_values.ReplyReceiptValues)
-        assert values.receipt_int is current["receipt_int"]
+        assert not hasattr(values, "receipt_int")
         assert values.invalid_receipt is current["InvalidConfirmedReplyReceipt"]
         assert not hasattr(values, "bounded_tweet_id_value")
         assert values.draft_is_valid is validator

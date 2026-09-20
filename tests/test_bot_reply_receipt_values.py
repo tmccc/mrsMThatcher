@@ -36,7 +36,7 @@ def forbidden(*args, **kwargs):
 
 original_import = builtins.__import__
 def guarded_import(name, *args, **kwargs):
-    if name in {'mrsMThatcher2', 'requests', 'openai', 'single_call_reply', 'reply_evidence'} or name.startswith('mrs_bot_') and name not in {'mrs_bot_reply_receipt_values', 'mrs_bot_durable_json_io', 'mrs_bot_state_value_normalisation', 'mrs_bot_mention_authority', 'mrs_bot_reply_evaluation_state', 'mrs_bot_author_quarantines'}:
+    if name in {'mrsMThatcher2', 'requests', 'openai', 'single_call_reply', 'reply_evidence'} or name.startswith('mrs_bot_') and name not in {'mrs_bot_reply_receipt_values', 'mrs_bot_durable_json_io', 'mrs_bot_receipt_primitives', 'mrs_bot_legacy_reply_validation', 'mrs_bot_state_value_normalisation', 'mrs_bot_mention_authority', 'mrs_bot_reply_evaluation_state', 'mrs_bot_author_quarantines'}:
         forbidden()
     return original_import(name, *args, **kwargs)
 
@@ -62,12 +62,9 @@ assert 'single_call_reply' not in sys.modules
 
 
 OWNER_INPUTS = {
-    "valid_string_post_id": "valid_string_post_id", "receipt_int": "receipt_int",
     "valid_receipt_epoch": "valid_receipt_epoch", "safe_reply_cap_date_str": "safe_reply_cap_date_str",
     "legacy_draft_is_valid": "_legacy_ai_reply_receipt_draft_is_valid",
     "draft_is_valid": "ai_reply_receipt_draft_is_valid",
-    "legacy_tested_strategy_version": "_LEGACY_TESTED_REPLY_STRATEGY_VERSION",
-    "legacy_ai_first_strategy_version": "_LEGACY_AI_FIRST_REPLY_STRATEGY_VERSION",
     "now_epoch": "now_epoch", "reply_cap_date_str": "reply_cap_date_str",
     "log": "log", "invalid_receipt": "InvalidConfirmedReplyReceipt",
 }
@@ -98,7 +95,7 @@ def test_owner_composition_binds_current_dependencies_without_calling_them(monke
     assert first is not snapshots[1][0]
     assert all(getattr(first, field) is value for field, value in inputs.items())
     with pytest.raises(FrozenInstanceError):
-        first.legacy_tested_strategy_version = "changed"
+        first.log = "changed"
 
 
 def test_adapters_preserve_defaults_arguments_result_identity_and_errors(monkeypatch):
@@ -312,7 +309,8 @@ def test_projection_and_reconstruction_keep_shallow_copies_and_exact_hash_input(
     confirmed_before = dict(confirmed)
     integer = Mock(wraps=bot.receipt_int)
     safe_date = Mock(return_value="attempt-date")
-    owner = replace(owner, receipt_int=integer, safe_reply_cap_date_str=safe_date)
+    monkeypatch.setattr(values, "receipt_int", integer)
+    owner = replace(owner, safe_reply_cap_date_str=safe_date)
     reconstructed = owner.sending_from_confirmed(confirmed)
     integer.assert_called_once_with(confirmed["attempt_epoch"])
     safe_date.assert_called_once_with(2_000_000_000)
@@ -349,11 +347,12 @@ def test_confirmation_projection_preserves_existing_version_equality(monkeypatch
     canonical.assert_not_called()
 
 
-def test_observed_confirmation_uses_current_clock_converter_and_exact_warning(make_owner):
+def test_observed_confirmation_uses_current_clock_owned_converter_and_exact_warning(make_owner, monkeypatch):
     trace = Mock()
     trace.clock.return_value = "19"
     trace.integer.return_value = 20
-    owner = make_owner(now_epoch=trace.clock, receipt_int=trace.integer, log=trace.log)
+    monkeypatch.setattr(values, "receipt_int", trace.integer)
+    owner = make_owner(now_epoch=trace.clock, log=trace.log)
     attempt = object()
     sending = {"schema_version": 4.0, "attempt_epoch": attempt}
     assert owner.observed_confirmation_epoch(sending) == 20
@@ -377,13 +376,14 @@ def test_observed_confirmation_uses_current_clock_converter_and_exact_warning(ma
     (4.0, "confirmation_epoch", "Schema-v4 confirmed reply receipt lacks a confirmation epoch"),
     (3, "reply_epoch", "Legacy confirmed reply receipt lacks its best-known reply epoch"),
 ])
-def test_best_confirmation_time_uses_current_converter_and_exception(make_owner, version, field, message):
+def test_best_confirmation_time_uses_owned_converter_and_current_exception(make_owner, monkeypatch, version, field, message):
     class CurrentReceiptError(Exception):
         pass
 
     raw, converted = object(), object()
     integer = Mock(return_value=converted)
-    owner = make_owner(receipt_int=integer, invalid_receipt=CurrentReceiptError)
+    monkeypatch.setattr(values, "receipt_int", integer)
+    owner = make_owner(invalid_receipt=CurrentReceiptError)
     receipt = {"schema_version": version, field: raw}
     assert owner.confirmation_epoch(receipt) is converted
     integer.assert_called_once_with(raw)
