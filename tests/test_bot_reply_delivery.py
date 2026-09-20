@@ -14,12 +14,15 @@ import pytest
 from tests.helpers.adapter_assertions import assert_adapters_forward_current_dependencies
 
 import mrs_bot_reply_delivery as delivery
+import mrs_bot_reply_receipt_values as values
 from tests.helpers.bot_runtime import bot
 from tests.helpers.bot_fixtures import (
     install_receipt_bound_x_request_stub,
     isolate_bot_runtime,  # noqa: F401
 )
-from tests.helpers.reply_fixtures import unit_approved_reply, unit_sending_v4_reply_receipt
+from tests.helpers.reply_fixtures import (
+    patch_reply_owner_method, unit_approved_reply, unit_sending_v4_reply_receipt,
+)
 from tests.helpers.x_response_fixtures import (
     _existing_reply_target_then_deleted_create,
     isolate_remote_write_state,
@@ -62,7 +65,6 @@ assert 'single_call_reply' not in sys.modules
 
 def test_adapters_forward_current_dependencies_arguments_results_and_errors(monkeypatch):
     names = (
-        "load_confirmed_reply_receipt",
         "write_confirmed_reply_receipt",
         "write_sending_reply_receipt",
         "promote_sending_reply_receipt",
@@ -75,6 +77,45 @@ def test_adapters_forward_current_dependencies_arguments_results_and_errors(monk
     )
 
 
+@pytest.mark.parametrize("name", ["load_confirmed_reply_receipt"])
+def test_value_adapters_bind_current_owner_and_preserve_dependencies_and_results(monkeypatch, name):
+    adapter = getattr(bot, name)
+    public = inspect.signature(adapter).parameters
+    dependencies = (
+        inspect.signature(getattr(delivery, name)).parameters.keys()
+        - public.keys() - {"receipt_values"}
+    )
+    args = tuple(object() for parameter in public.values()
+                 if parameter.kind == inspect.Parameter.POSITIONAL_OR_KEYWORD)
+    options = {key: object() for key, parameter in public.items()
+               if parameter.kind == inspect.Parameter.KEYWORD_ONLY}
+    implementation = Mock(return_value=object())
+    factory = Mock()
+    monkeypatch.setattr(delivery, name, implementation)
+    monkeypatch.setattr(bot, "_reply_receipt_values_owner", factory)
+    for _ in range(2):
+        owner = Mock(spec=values.ReplyReceiptValues)
+        factory.return_value = owner
+        current = {key: object() for key in dependencies}
+        for key, value in current.items():
+            monkeypatch.setattr(bot, key, value)
+        assert adapter(*args, **options) is implementation.return_value
+        factory.assert_called_once_with()
+        factory.reset_mock()
+        actual_args, actual_kwargs = implementation.call_args
+        assert len(actual_args) == len(args)
+        assert all(actual is expected for actual, expected in zip(actual_args, args))
+        expected = {**options, **current, "receipt_values": owner}
+        assert actual_kwargs.keys() == expected.keys()
+        assert all(actual_kwargs[key] is value for key, value in expected.items())
+        assert not owner.mock_calls
+    failure = TypeError("current receipt owner adapter")
+    implementation.side_effect = failure
+    with pytest.raises(TypeError) as caught:
+        adapter(*args, **options)
+    assert caught.value is failure
+
+
 @pytest.mark.parametrize("accepted,status", [(0, "sending"), (1, "legacy_sending"), (2, "valid"), (3, "valid"), (None, "invalid")])
 def test_loader_preserves_validation_order_and_original_receipt(monkeypatch, accepted, status):
     receipt = unit_sending_v4_reply_receipt()
@@ -82,15 +123,13 @@ def test_loader_preserves_validation_order_and_original_receipt(monkeypatch, acc
     monkeypatch.setattr(bot, "load_receipt_json_no_follow", reader)
     trace = Mock()
     names = (
-        "sending_reply_receipt_is_semantically_valid",
-        "_legacy_sending_reply_receipt_is_semantically_valid",
-        "confirmed_reply_receipt_is_semantically_valid",
-        "_legacy_confirmed_reply_receipt_is_semantically_valid",
+        "sending_is_valid", "legacy_sending_is_valid",
+        "confirmed_is_valid", "legacy_confirmed_is_valid",
     )
     for index, name in enumerate(names):
         validator = Mock(return_value=index == accepted)
         trace.attach_mock(validator, name)
-        monkeypatch.setattr(bot, name, validator)
+        patch_reply_owner_method(monkeypatch, values.ReplyReceiptValues, name, validator)
     actual_status, actual_receipt = bot.load_confirmed_reply_receipt()
     assert actual_status == status and actual_receipt is receipt
     reader.assert_called_once_with(bot.CONFIRMED_REPLY_RECEIPT_FILE)
@@ -105,7 +144,7 @@ def test_loader_keeps_read_errors_and_dictionary_guard_before_validation(monkeyp
     logger = Mock()
     validator = Mock(side_effect=AssertionError("non-dictionary reached validation"))
     monkeypatch.setattr(bot, "load_receipt_json_no_follow", reader)
-    monkeypatch.setattr(bot, "sending_reply_receipt_is_semantically_valid", validator)
+    patch_reply_owner_method(monkeypatch, values.ReplyReceiptValues, "sending_is_valid", validator)
     monkeypatch.setattr(bot, "log", logger)
     reader.return_value = (False, object())
     assert bot.load_confirmed_reply_receipt() == ("absent", None)

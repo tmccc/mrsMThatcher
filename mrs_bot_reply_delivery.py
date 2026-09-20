@@ -25,6 +25,7 @@ from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
     from mrs_bot_reply_cycle_interfaces import ReplyCycleDelivery, ReplyCyclePersistence
+    from mrs_bot_reply_receipt_values import ReplyReceiptValues
 
 
 class ReplyDeliveryStop(Enum):
@@ -164,10 +165,7 @@ def load_confirmed_reply_receipt(
     load_receipt_json_no_follow: Callable,
     CONFIRMED_REPLY_RECEIPT_FILE: Path,
     log: logging.Logger,
-    sending_reply_receipt_is_semantically_valid: Callable,
-    _legacy_sending_reply_receipt_is_semantically_valid: Callable,
-    confirmed_reply_receipt_is_semantically_valid: Callable,
-    _legacy_confirmed_reply_receipt_is_semantically_valid: Callable,
+    receipt_values: ReplyReceiptValues,
 ) -> tuple[str, dict | None]:
     """Load confirmed reply receipt."""
     try:
@@ -189,13 +187,13 @@ def load_confirmed_reply_receipt(
             CONFIRMED_REPLY_RECEIPT_FILE,
         )
         return "invalid", None
-    if sending_reply_receipt_is_semantically_valid(data):
+    if receipt_values.sending_is_valid(data):
         return "sending", data
-    if _legacy_sending_reply_receipt_is_semantically_valid(data):
+    if receipt_values.legacy_sending_is_valid(data):
         return "legacy_sending", data
     if not (
-        confirmed_reply_receipt_is_semantically_valid(data)
-        or _legacy_confirmed_reply_receipt_is_semantically_valid(data)
+        receipt_values.confirmed_is_valid(data)
+        or receipt_values.legacy_confirmed_is_valid(data)
     ):
         log.critical(
             "Semantically invalid confirmed-reply receipt blocks auto-reply processing until repaired: %s",

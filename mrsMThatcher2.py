@@ -8276,10 +8276,7 @@ def load_confirmed_reply_receipt() -> tuple[str, dict | None]:
         load_receipt_json_no_follow=load_receipt_json_no_follow,
         CONFIRMED_REPLY_RECEIPT_FILE=CONFIRMED_REPLY_RECEIPT_FILE,
         log=log,
-        sending_reply_receipt_is_semantically_valid=sending_reply_receipt_is_semantically_valid,
-        _legacy_sending_reply_receipt_is_semantically_valid=_legacy_sending_reply_receipt_is_semantically_valid,
-        confirmed_reply_receipt_is_semantically_valid=confirmed_reply_receipt_is_semantically_valid,
-        _legacy_confirmed_reply_receipt_is_semantically_valid=_legacy_confirmed_reply_receipt_is_semantically_valid,
+        receipt_values=_reply_receipt_values_owner(),
     )
 
 
