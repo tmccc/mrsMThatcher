@@ -311,6 +311,108 @@ def test_continuation_limit_uses_current_exception_and_saves_reset_before_event(
     })]
 
 
+def test_page_cache_failure_keeps_partial_cache_without_publishing_pending_candidates(monkeypatch):
+    requests = install_mention_pages(monkeypatch, {
+        "A": ([mention(103, 203), mention(101, 201)], None),
+    })
+    state = bot.default_state()
+    state["last_seen_mention_id"] = "99"
+    state["mention_backlog"] = mention_backlog(since_id="99")
+    state["mention_pagination"] = {"base_since_id": "99", "next_token": "A"}
+    pending = state["mention_pending_candidates"]
+    backlog = state["mention_backlog"]
+    pagination = state["mention_pagination"]
+    before_backlog = copy.deepcopy(backlog)
+    save, event = Mock(), Mock()
+    monkeypatch.setattr(bot, "save_state", save)
+    monkeypatch.setattr(bot, "log_event", event)
+    original_cache = bot.cache_tweet
+    cached = []
+    failure = OSError("second mention could not be cached")
+
+    def cache(document, **values):
+        assert document is state
+        cached.append(values["tweet_id"])
+        if values["tweet_id"] == "103":
+            raise failure
+        return original_cache(document, **values)
+
+    monkeypatch.setattr(bot, "cache_tweet", cache)
+    with pytest.raises(OSError) as caught:
+        bot.get_mentions(state)
+
+    assert caught.value is failure
+    assert cached == ["101", "103"]
+    assert "101" in state["tweet_cache"] and "103" not in state["tweet_cache"]
+    assert state["mention_pending_candidates"] is pending and pending == {}
+    assert state["mention_backlog"] is backlog and backlog == before_backlog
+    assert state["mention_pagination"] is pagination
+    assert state["last_seen_mention_id"] == "99"
+    assert [params["pagination_token"] for params in requests] == ["A"]
+    save.assert_not_called()
+    event.assert_not_called()
+
+
+@pytest.mark.parametrize("failure_boundary", ["save", "completed_event"])
+def test_pager_caught_page_failure_continues_only_after_final_save(monkeypatch, failure_boundary):
+    requests = install_mention_pages(monkeypatch, {
+        "A": ([mention(101, 201)], None),
+        None: ([mention(106, 206)], None),
+    })
+    monkeypatch.setattr(bot, "MENTIONS_MAX_PAGES_PER_CHECK", 2)
+    state = bot.default_state()
+    state["last_seen_mention_id"] = "99"
+    state["mention_backlog"] = mention_backlog(since_id="99")
+    state["mention_pagination"] = {"base_since_id": "99", "next_token": "A"}
+    failure = OSError("final mention page callback failed")
+    saved, events, caught = [], [], []
+
+    def save(document, *, durable=False):
+        assert document is state and durable is True
+        if failure_boundary == "save":
+            raise failure
+        saved.append(copy.deepcopy(document))
+
+    def event(name, **values):
+        events.append(name)
+        if name == "mention_backlog_completed":
+            assert saved[-1]["last_seen_mention_id"] == "105"
+            assert saved[-1]["mention_backlog"] == saved[-1]["mention_pagination"] == {}
+            assert set(saved[-1]["mention_pending_candidates"]) == {"101"}
+            raise failure
+
+    original_paginate = bot.x_paginated_get
+
+    def paginate(*args, **kwargs):
+        try:
+            return original_paginate(*args, **kwargs)
+        except OSError as exc:
+            assert exc is failure
+            caught.append(exc)
+            return {"data": [], "_pagination": {"pages_fetched": 1}}
+
+    monkeypatch.setattr(bot, "save_state", save)
+    monkeypatch.setattr(bot, "log_event", event)
+    monkeypatch.setattr(bot, "x_paginated_get", paginate)
+
+    result = bot.get_mentions(state)
+
+    assert caught == [failure]
+    assert all(row is state["mention_pending_candidates"][row["id"]] for row in result)
+    assert state["mention_backlog"] == state["mention_pagination"] == {}
+    if failure_boundary == "save":
+        assert saved == events == []
+        assert [row["id"] for row in result] == ["101"]
+        assert state["last_seen_mention_id"] == "105"
+        assert [params.get("pagination_token") for params in requests] == ["A"]
+    else:
+        assert events == ["mention_backlog_completed"]
+        assert [row["id"] for row in result] == ["101", "106"]
+        assert state["last_seen_mention_id"] == "106"
+        assert [params.get("pagination_token") for params in requests] == ["A", None]
+        assert [params["since_id"] for params in requests] == ["99", "105"]
+
+
 def test_retirement_keeps_queue_copy_identity_and_remove_truncation_watermark_order(monkeypatch):
     first, sibling = mention(105, 205), mention(104, 204)
     pending = {"105": first, "104": sibling}

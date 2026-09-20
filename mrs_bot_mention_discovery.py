@@ -3,7 +3,8 @@
 MentionQueue owns pending access and retirement using current authority, sorting,
 logging and save boundaries. Its root adapters bind a fresh owner for each call;
 pure removal remains a root alias. Discovery retains bounded fetched-page
-traversal, page/reset callbacks and durable commit boundaries. Queue recovery
+traversal and reset callbacks. A private page operation updates explicit
+traversal progress alongside the queue, cursor and durable commit boundaries. Queue recovery
 precedes provider work and returned records preserve their references.
 
 Mention authority normalization, validation and reset primitives, the continuation
@@ -289,10 +290,10 @@ def get_mentions(
             params["pagination_token"] = resume_token
             log.info("Resuming mention backlog from saved continuation token")
 
-        traversal_completed = False
-        traversal_added = 0
-        completion_highest = str(backlog.get("highest_mention_id", "") or "")
-        completion_pages = prior_pages_completed
+        progress = _MentionTraversalProgress(
+            highest_mention_id=str(backlog.get("highest_mention_id", "") or ""),
+            pages_completed=prior_pages_completed,
+        )
 
         def persist_page(
             page_data: list[dict],
@@ -301,104 +302,23 @@ def get_mentions(
             request_token: str,
             _pages_this_call: int,
         ) -> None:
-            nonlocal traversal_completed, traversal_added, completion_highest, completion_pages
-            for tweet in page_data:
-                normalise_tweet_text(tweet)
-            attach_media_to_tweets(page_data, includes)
-            pending = state.get("mention_pending_candidates", {})
-            if not isinstance(pending, dict):
-                pending = {}
-            pending = dict(pending)
-            valid_page = valid_tweets_sorted_by_id(page_data, context="mention page")
-            highest = str(
-                state.get("mention_backlog", {}).get("highest_mention_id", "")
-                if isinstance(state.get("mention_backlog"), dict)
-                else ""
+            _persist_mention_page(
+                state, page_data, includes, next_token, request_token,
+                progress=progress,
+                current=current,
+                continuation_token_limit=MENTION_BACKLOG_CONTINUATION_TOKEN_LIMIT,
+                continuation_limit_error=_MentionBacklogContinuationLimit,
+                cache_tweet=cache_tweet,
+                log=log,
+                log_event=log_event,
+                mention_queue=mention_queue,
+                prune_completed_mention_quarantine_evaluations=(
+                    prune_completed_mention_quarantine_evaluations
+                ),
+                reset_backlog=reset_backlog,
+                save_state=save_state,
+                valid_tweets_sorted_by_id=valid_tweets_sorted_by_id,
             )
-            replied_ids = handled_reply_target_ids(state)
-            for mention in valid_page:
-                mention_id = str(mention["id"])
-                if (
-                    mention_id not in replied_ids
-                    and terminal_reply_evaluation(state, mention_id) is None
-                ):
-                    pending.setdefault(mention_id, copy.deepcopy(mention))
-                traversal_added += 1
-                if not highest or int(mention_id) > int(highest):
-                    highest = mention_id
-                cache_tweet(
-                    state,
-                    tweet_id=mention_id,
-                    text=mention.get("text", ""),
-                    author_id=str(mention.get("author_id", "")),
-                    conversation_id=str(mention.get("conversation_id", mention_id)),
-                    referenced_tweets=mention.get("referenced_tweets", []),
-                    created_at=mention.get("created_at"),
-                )
-            state["mention_pending_candidates"] = pending
-            active = state.get("mention_backlog", {})
-            if not isinstance(active, dict) or not active:
-                raise RuntimeError("Mention backlog disappeared while persisting a fetched page")
-            active = copy.deepcopy(active)
-            seen_tokens = list(active.get("seen_tokens", []))
-            if request_token and request_token not in seen_tokens:
-                if len(seen_tokens) >= MENTION_BACKLOG_CONTINUATION_TOKEN_LIMIT:
-                    reset_backlog(
-                        "continuation_token_limit",
-                        token=request_token,
-                    )
-                    raise _MentionBacklogContinuationLimit
-                seen_tokens.append(request_token)
-            active["seen_tokens"] = seen_tokens
-            active["highest_mention_id"] = highest
-            active["pages_completed"] = int(active.get("pages_completed", 0) or 0) + 1
-            active["next_token"] = str(next_token or "")
-            completion_highest = highest
-            completion_pages = int(active["pages_completed"])
-            if next_token:
-                state["mention_backlog"] = active
-                state["mention_pagination"] = {
-                    "base_since_id": str(active["since_id"]),
-                    "next_token": str(next_token),
-                }
-                save_state(state, durable=True)
-                if active.get("announced"):
-                    log_event(
-                        "mention_backlog_progress",
-                        since_id=active["since_id"] or None,
-                        pages_completed=active["pages_completed"],
-                        highest_mention_id=highest or None,
-                        continuation_token_present=True,
-                    )
-                return
-
-            reset_guard = active_mention_backlog_reset_guard(state)
-            head_traversal_completed = bool(
-                reset_guard is not None
-                and reset_guard["head_traversal_started"]
-            )
-            if highest and (reset_guard is None or head_traversal_completed):
-                mention_queue.advance_watermark(state, highest)
-            elif highest and reset_guard is not None:
-                log.warning(
-                    "Deferring mention watermark advancement after a reset "
-                    "until a traversal from the collection head completes"
-                )
-            state["mention_backlog"] = {}
-            state["mention_pagination"] = {}
-            if head_traversal_completed:
-                state["mention_backlog_reset_guard"] = {}
-            prune_completed_mention_quarantine_evaluations(state)
-            save_state(state, durable=True)
-            traversal_completed = True
-            if active.get("announced"):
-                log_event(
-                    "mention_backlog_completed",
-                    since_id=active["since_id"] or None,
-                    pages_completed=active["pages_completed"],
-                    highest_mention_id=highest or None,
-                    backlog_age_seconds=max(0, current - int(active["started_epoch"])),
-                )
 
         def invalid_cursor() -> None:
             reset_backlog("invalid_continuation_token", token=resume_token)
@@ -469,7 +389,7 @@ def get_mentions(
                 )
             break
 
-        if not traversal_completed or pages_fetched == 0:
+        if not progress.completed or pages_fetched == 0:
             break
         # Only completion of a previously truncated traversal starts a new
         # range in the same check.  An ordinary completed traversal is already
@@ -477,9 +397,9 @@ def get_mentions(
         # leading page before its candidates have been retired.
         if (
             not resume_token
-            or traversal_added == 0
-            or not completion_highest
-            or completion_pages <= 0
+            or progress.items_seen == 0
+            or not progress.highest_mention_id
+            or progress.pages_completed <= 0
         ):
             break
 
@@ -487,3 +407,142 @@ def get_mentions(
     log.info("Fetched and durably queued %d mention candidate(s)", len(mentions))
     log_json_debug("Mentions returned", mentions)
     return mentions
+
+
+@dataclass
+class _MentionTraversalProgress:
+    """Page observations for one traversal, completed only after a durable save.
+
+    ``items_seen`` counts every valid row, including duplicates and handled targets.
+    It is independent of how many new candidates the page adds to the queue.
+    """
+
+    highest_mention_id: str
+    pages_completed: int
+    completed: bool = False
+    items_seen: int = 0
+
+
+def _persist_mention_page(
+    state: dict,
+    page_data: list[dict],
+    includes: dict,
+    next_token: str,
+    request_token: str,
+    *,
+    progress: _MentionTraversalProgress,
+    current: int,
+    continuation_token_limit: int,
+    continuation_limit_error: type[Exception],
+    cache_tweet: Callable,
+    log: Logger,
+    log_event: Callable,
+    mention_queue: MentionQueue,
+    prune_completed_mention_quarantine_evaluations: Callable,
+    reset_backlog: Callable,
+    save_state: Callable,
+    valid_tweets_sorted_by_id: Callable,
+) -> None:
+    """Queue one fetched page and durably commit its cursor or final watermark.
+
+    Progress is explicit and updated incrementally at the same boundaries as
+    state. Completion is recorded after saving, before the completion event, so
+    a diagnostic failure cannot erase an already observed durable completion.
+    """
+    for tweet in page_data:
+        normalise_tweet_text(tweet)
+    attach_media_to_tweets(page_data, includes)
+    pending = state.get("mention_pending_candidates", {})
+    if not isinstance(pending, dict):
+        pending = {}
+    pending = dict(pending)
+    valid_page = valid_tweets_sorted_by_id(page_data, context="mention page")
+    highest = str(
+        state.get("mention_backlog", {}).get("highest_mention_id", "")
+        if isinstance(state.get("mention_backlog"), dict)
+        else ""
+    )
+    replied_ids = handled_reply_target_ids(state)
+    for mention in valid_page:
+        mention_id = str(mention["id"])
+        if (
+            mention_id not in replied_ids
+            and terminal_reply_evaluation(state, mention_id) is None
+        ):
+            pending.setdefault(mention_id, copy.deepcopy(mention))
+        progress.items_seen += 1
+        if not highest or int(mention_id) > int(highest):
+            highest = mention_id
+        cache_tweet(
+            state,
+            tweet_id=mention_id,
+            text=mention.get("text", ""),
+            author_id=str(mention.get("author_id", "")),
+            conversation_id=str(mention.get("conversation_id", mention_id)),
+            referenced_tweets=mention.get("referenced_tweets", []),
+            created_at=mention.get("created_at"),
+        )
+    state["mention_pending_candidates"] = pending
+    active = state.get("mention_backlog", {})
+    if not isinstance(active, dict) or not active:
+        raise RuntimeError("Mention backlog disappeared while persisting a fetched page")
+    active = copy.deepcopy(active)
+    seen_tokens = list(active.get("seen_tokens", []))
+    if request_token and request_token not in seen_tokens:
+        if len(seen_tokens) >= continuation_token_limit:
+            reset_backlog(
+                "continuation_token_limit",
+                token=request_token,
+            )
+            raise continuation_limit_error
+        seen_tokens.append(request_token)
+    active["seen_tokens"] = seen_tokens
+    active["highest_mention_id"] = highest
+    active["pages_completed"] = int(active.get("pages_completed", 0) or 0) + 1
+    active["next_token"] = str(next_token or "")
+    progress.highest_mention_id = highest
+    progress.pages_completed = int(active["pages_completed"])
+    if next_token:
+        state["mention_backlog"] = active
+        state["mention_pagination"] = {
+            "base_since_id": str(active["since_id"]),
+            "next_token": str(next_token),
+        }
+        save_state(state, durable=True)
+        if active.get("announced"):
+            log_event(
+                "mention_backlog_progress",
+                since_id=active["since_id"] or None,
+                pages_completed=active["pages_completed"],
+                highest_mention_id=highest or None,
+                continuation_token_present=True,
+            )
+        return
+
+    reset_guard = active_mention_backlog_reset_guard(state)
+    head_traversal_completed = bool(
+        reset_guard is not None
+        and reset_guard["head_traversal_started"]
+    )
+    if highest and (reset_guard is None or head_traversal_completed):
+        mention_queue.advance_watermark(state, highest)
+    elif highest and reset_guard is not None:
+        log.warning(
+            "Deferring mention watermark advancement after a reset "
+            "until a traversal from the collection head completes"
+        )
+    state["mention_backlog"] = {}
+    state["mention_pagination"] = {}
+    if head_traversal_completed:
+        state["mention_backlog_reset_guard"] = {}
+    prune_completed_mention_quarantine_evaluations(state)
+    save_state(state, durable=True)
+    progress.completed = True
+    if active.get("announced"):
+        log_event(
+            "mention_backlog_completed",
+            since_id=active["since_id"] or None,
+            pages_completed=active["pages_completed"],
+            highest_mention_id=highest or None,
+            backlog_age_seconds=max(0, current - int(active["started_epoch"])),
+        )

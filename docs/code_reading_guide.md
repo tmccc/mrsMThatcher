@@ -96,6 +96,12 @@ clearing target drafts. Image collection delegates each bounded transfer to
 `ReplyMedia._download_image`; `ReplyModelTransport._decode_response` interprets
 provider responses and closes them on both ordinary and unexpected failures.
 
+Fetched mention pages are committed by `_persist_mention_page` in
+[mrs_bot_mention_discovery.py](../mrs_bot_mention_discovery.py). The fetch loop
+keeps traversal selection, page budgets and cursor recovery. Its explicit
+progress record tracks valid rows seen, highest ID, page count and completion;
+completion is set after the durable save and before the completion event.
+
 Receipt loading and delivery bind one current `ReplyReceiptValues` owner for
 validation and in-memory projections. `prepare_sending_template` checks current
 send authority before receipt I/O and preserves reviewed nested objects in a
