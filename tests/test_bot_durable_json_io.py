@@ -57,8 +57,8 @@ def test_adapters_forward_current_dependencies_references_and_native_errors(monk
         ("durable_state_namespace_is_owned_single_link_file", 2),
         ("read_stable_owned_json_bytes_no_follow", 5),
         ("fsync_parent_dir", 2),
-        ("atomic_write_json", 6),
-        ("_strict_receipt_json_bytes", 2),
+        ("atomic_write_json", 5),
+        ("_strict_receipt_json_bytes", 1),
         ("load_receipt_json_no_follow", 5),
         ("durable_create_receipt_json", 5),
     ):
@@ -142,7 +142,7 @@ def test_strict_receipt_json_uses_current_exception_and_exact_causes(data, messa
     else:
         assert type(caught.value.__cause__) is cause
     failure = CurrentReceiptError("parser callback failure")
-    monkeypatch.setattr(bot, "json", SimpleNamespace(loads=Mock(side_effect=failure)))
+    monkeypatch.setattr(durable_io, "json", SimpleNamespace(loads=Mock(side_effect=failure)))
     with pytest.raises(CurrentReceiptError) as caught:
         bot._strict_receipt_json_bytes(b"{}")
     assert caught.value is failure
@@ -250,13 +250,13 @@ def test_atomic_json_keeps_value_encoding_flush_close_replace_and_parent_order(d
 
     proxy.fdopen, proxy.fsync, proxy.replace = fdopen, fsync, replace
     monkeypatch.setattr(bot, "os", proxy)
-    monkeypatch.setattr(bot, "json", SimpleNamespace(dumps=dumps))
+    monkeypatch.setattr(durable_io, "json", SimpleNamespace(dumps=dumps))
     monkeypatch.setattr(bot, "fsync_parent_dir", parent_sync)
     bot.atomic_write_json(path, value, durable=durable)
     assert events == ["dumps", "fdopen", "write"] + (["flush", "fsync"] if durable else []) + ["close", "replace"] + (["parent", "fsync"] if durable else [])
     assert path.read_bytes() == b'{\n  "a": 1,\n  "z": 2.0\n}\n'
     assert list(path.parent.iterdir()) == [path]
-    monkeypatch.setattr(bot, "json", json)
+    monkeypatch.setattr(durable_io, "json", json)
     assert bot.load_receipt_json_no_follow(path) == (True, value)
 
 
@@ -275,7 +275,7 @@ def test_atomic_hard_exit_closes_temp_and_preserves_existing_target(tmp_path, mo
     proxy = SimpleNamespace(**vars(os))
     proxy.fdopen = fdopen
     monkeypatch.setattr(bot, "os", proxy)
-    monkeypatch.setattr(bot, "json", SimpleNamespace(dumps=Mock(side_effect=failure)))
+    monkeypatch.setattr(durable_io, "json", SimpleNamespace(dumps=Mock(side_effect=failure)))
     parent = Mock()
     monkeypatch.setattr(bot, "fsync_parent_dir", parent)
     with pytest.raises(SystemExit) as caught:
@@ -383,3 +383,22 @@ def test_canonical_receipt_bytes_keep_root_alias_and_wire_format():
         bot.canonical_atomic_json_bytes({"unsupported": float("nan")})
     with pytest.raises(TypeError):
         bot.canonical_atomic_json_bytes({"unsupported": object()})
+
+
+def test_atomic_write_uses_owned_wire_encoder_before_directory_creation(tmp_path, monkeypatch):
+    path = tmp_path / "missing" / "receipt.json"
+    value = {"z": False, "a": "café"}
+    expected = bot.canonical_atomic_json_bytes(value)
+    encoder = Mock(wraps=durable_io.canonical_atomic_json_bytes)
+    monkeypatch.setattr(durable_io, "canonical_atomic_json_bytes", encoder)
+    bot.atomic_write_json(path, value)
+    encoder.assert_called_once_with(value)
+    assert encoder.call_args.args[0] is value
+    assert path.read_bytes() == expected
+    failure = ValueError("encoding failed")
+    encoder.side_effect = failure
+    absent = tmp_path / "still-missing" / "receipt.json"
+    with pytest.raises(ValueError) as caught:
+        bot.atomic_write_json(absent, value)
+    assert caught.value is failure
+    assert not absent.parent.exists()

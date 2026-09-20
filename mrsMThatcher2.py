@@ -5028,7 +5028,6 @@ def atomic_write_json(path: Path, value: object, *, durable: bool = False) -> No
         Path=Path,
         DURABLE_RUNTIME_JSON_MAX_BYTES=DURABLE_RUNTIME_JSON_MAX_BYTES,
         fsync_parent_dir=fsync_parent_dir,
-        json=json,
         os=os,
         tempfile=tempfile,
     )
@@ -5058,7 +5057,6 @@ def _strict_receipt_json_bytes(data: bytes) -> object:
     return _durable_json_io._strict_receipt_json_bytes(
         data,
         UnsafeReceiptNamespace=UnsafeReceiptNamespace,
-        json=json,
     )
 
 

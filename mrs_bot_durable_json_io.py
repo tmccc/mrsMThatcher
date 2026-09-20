@@ -201,12 +201,11 @@ def atomic_write_json(
     DURABLE_RUNTIME_JSON_MAX_BYTES: int = 64 * 1024 * 1024,
     Path: type[Path],
     fsync_parent_dir: Callable[..., None],
-    json: ModuleType,
     os: ModuleType,
     tempfile: ModuleType,
 ) -> None:
     """Write JSON atomically and optionally durably."""
-    data = json.dumps(value, indent=2, sort_keys=True, allow_nan=False).encode('utf-8') + b'\n'
+    data = canonical_atomic_json_bytes(value)
     if len(data) > DURABLE_RUNTIME_JSON_MAX_BYTES:
         raise ValueError("durable JSON document exceeds reader byte limit")
     path.parent.mkdir(parents=True, exist_ok=True, mode=0o700)
@@ -237,7 +236,6 @@ def _strict_receipt_json_bytes(
     data: bytes,
     *,
     UnsafeReceiptNamespace: type[Exception],
-    json: ModuleType,
 ) -> object:
     """Parse one receipt without duplicate names or non-finite constants."""
 
